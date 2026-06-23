@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Eye, RefreshCcw, Search, ShieldAlert } from 'lucide-vue-next'
+import { Eye, RefreshCcw, Search, ShieldAlert, Users } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
 import { useToastStore } from '@/core/stores/toastStore'
 import { AuditLogsService } from '@/core/services/auditLogsService'
+import { UsersService } from '@/core/services/usersService'
 import type {
   AuditEventDto,
   AuditEventListItemDto,
   AuditEventSummaryDto,
   BrowseAuditEventsQuery,
 } from '@/core/interfaces/auditLogs'
+import type { UserDto } from '@/core/interfaces/users'
 
 const { t } = useI18n()
 const toastStore = useToastStore()
@@ -18,10 +20,14 @@ const toastStore = useToastStore()
 const loading = ref(false)
 const detailLoading = ref(false)
 const summaryLoading = ref(false)
+const usersLoading = ref(false)
 
 const items = ref<AuditEventListItemDto[]>([])
 const selected = ref<AuditEventDto | null>(null)
 const summary = ref<AuditEventSummaryDto | null>(null)
+const users = ref<UserDto[]>([])
+
+const userSearch = ref('')
 
 const filters = ref({
   sourceService: '',
@@ -46,19 +52,29 @@ const totalPages = computed(() => {
   return Math.ceil(page.value.total / page.value.pageSize)
 })
 
+function cleanText(value: string): string | null {
+  const normalized = value.trim()
+  return normalized || null
+}
+
+function cleanGuid(value: string): string | null {
+  const normalized = value.trim().replace(/^["']+|["']+$/g, '')
+  return normalized || null
+}
+
 function toQuery(): BrowseAuditEventsQuery {
   return {
     pageNumber: page.value.pageNumber,
     pageSize: page.value.pageSize,
-    sourceService: filters.value.sourceService || null,
-    entityType: filters.value.entityType || null,
-    entityId: filters.value.entityId || null,
-    userId: filters.value.userId || null,
-    correlationId: filters.value.correlationId || null,
-    action: filters.value.action || null,
-    eventType: filters.value.eventType || null,
-    fromUtc: filters.value.fromUtc || null,
-    toUtc: filters.value.toUtc || null,
+    sourceService: cleanText(filters.value.sourceService),
+    entityType: cleanText(filters.value.entityType),
+    entityId: cleanGuid(filters.value.entityId),
+    userId: cleanGuid(filters.value.userId),
+    correlationId: cleanGuid(filters.value.correlationId),
+    action: cleanText(filters.value.action),
+    eventType: cleanText(filters.value.eventType),
+    fromUtc: cleanText(filters.value.fromUtc),
+    toUtc: cleanText(filters.value.toUtc),
   }
 }
 
@@ -78,6 +94,26 @@ function prettyJson(value?: string | null): string {
     return JSON.stringify(JSON.parse(value), null, 2)
   } catch {
     return value
+  }
+}
+
+async function loadUsers() {
+  try {
+    usersLoading.value = true
+
+    const response = await UsersService.browsePaged({
+      pageNumber: 1,
+      pageSize: 50,
+      search: cleanText(userSearch.value),
+      isActive: null,
+      isLocked: null,
+    })
+
+    users.value = response.items
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron cargar los usuarios.')
+  } finally {
+    usersLoading.value = false
   }
 }
 
@@ -127,6 +163,10 @@ async function search() {
   await loadAll()
 }
 
+async function searchUsers() {
+  await loadUsers()
+}
+
 async function nextPage() {
   if (page.value.pageNumber >= totalPages.value) return
 
@@ -154,11 +194,15 @@ async function clearFilters() {
     toUtc: '',
   }
 
+  userSearch.value = ''
   page.value.pageNumber = 1
-  await loadAll()
+
+  await Promise.all([loadUsers(), loadAll()])
 }
 
-onMounted(loadAll)
+onMounted(async () => {
+  await Promise.all([loadUsers(), loadAll()])
+})
 </script>
 
 <template>
@@ -240,7 +284,7 @@ onMounted(loadAll)
     </section>
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-      <div class="mb-4 flex items-center justify-between gap-3">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-lg font-black text-[var(--dh-text)]">
             {{ t('common.filters') }}
@@ -258,10 +302,54 @@ onMounted(loadAll)
         <DhInput v-model="filters.sourceService" :label="t('audits.sourceService')" />
         <DhInput v-model="filters.entityType" :label="t('audits.entityType')" />
         <DhInput v-model="filters.entityId" :label="t('audits.entityId')" />
-        <DhInput v-model="filters.userId" :label="t('audits.user')" />
         <DhInput v-model="filters.correlationId" :label="t('audits.correlationId')" />
         <DhInput v-model="filters.action" :label="t('audits.action')" />
         <DhInput v-model="filters.eventType" :label="t('audits.eventType')" />
+
+        <div class="md:col-span-2 space-y-2">
+          <label class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">
+            {{ t('audits.user') }}
+          </label>
+
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <Users
+                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]"
+              />
+
+              <select
+                v-model="filters.userId"
+                class="h-11 w-full appearance-none rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] pl-10 pr-4 text-sm font-bold text-[var(--dh-text)] outline-none transition focus:border-[var(--dh-primary)]"
+              >
+                <option value="">
+                  {{ t('common.all') }}
+                </option>
+
+                <option v-for="user in users" :key="user.id" :value="user.id">
+                  {{ user.displayName }} — {{ user.email }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <DhInput
+              v-model="userSearch"
+              class="flex-1"
+              :label="''"
+              placeholder="Buscar usuario por nombre o correo"
+              @keyup.enter="searchUsers"
+            />
+
+            <DhButton
+              :icon="Search"
+              :label="usersLoading ? t('common.loading') : t('common.search')"
+              variant="secondary"
+              :loading="usersLoading"
+              @click="searchUsers"
+            />
+          </div>
+        </div>
       </div>
     </section>
 
@@ -371,7 +459,7 @@ onMounted(loadAll)
 
       <div class="mt-4 flex items-center justify-between gap-3">
         <DhButton
-          :label="'Anterior'"
+          :label="t('common.previous')"
           variant="secondary"
           :disabled="page.pageNumber <= 1"
           @click="previousPage"
@@ -382,7 +470,7 @@ onMounted(loadAll)
         </p>
 
         <DhButton
-          :label="'Siguiente'"
+          :label="t('common.next')"
           variant="secondary"
           :disabled="page.pageNumber >= totalPages"
           @click="nextPage"
