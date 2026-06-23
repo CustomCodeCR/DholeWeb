@@ -10,6 +10,8 @@ import {
   MonitorCog,
   ClipboardList,
   Settings,
+  BookOpen,
+  ListTree,
 } from 'lucide-vue-next'
 
 export interface SidebarItem {
@@ -72,6 +74,19 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             icon: MonitorCog,
             to: '/auth/sessions',
             name: 'sessions',
+          },
+        ],
+      },
+      {
+        labelKey: 'sidebar.config',
+        icon: BookOpen,
+        name: 'config',
+        children: [
+          {
+            labelKey: 'sidebar.catalogs',
+            icon: ListTree,
+            to: '/config/catalogs',
+            name: 'catalogs',
           },
         ],
       },

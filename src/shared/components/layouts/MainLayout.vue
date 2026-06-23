@@ -9,6 +9,8 @@ import {
   Palette,
   Keyboard,
   LockKeyhole,
+  BookOpen,
+  ListTree,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -45,26 +47,62 @@ const securityChildren = computed<SidebarItem[]>(() => {
   const children: SidebarItem[] = []
 
   if (canView(VIEW_SCOPES.users)) {
-    children.push({ label: t('sidebar.users'), path: '/auth/users', icon: Users })
+    children.push({
+      label: t('sidebar.users'),
+      path: '/auth/users',
+      icon: Users,
+    })
   }
 
   if (canView(VIEW_SCOPES.roles)) {
-    children.push({ label: t('sidebar.roles'), path: '/auth/roles', icon: Shield })
+    children.push({
+      label: t('sidebar.roles'),
+      path: '/auth/roles',
+      icon: Shield,
+    })
   }
 
   if (canView(VIEW_SCOPES.scopes)) {
-    children.push({ label: t('sidebar.scopes'), path: '/auth/scopes', icon: KeyRound })
+    children.push({
+      label: t('sidebar.scopes'),
+      path: '/auth/scopes',
+      icon: KeyRound,
+    })
   }
 
   if (canView(VIEW_SCOPES.sessions)) {
-    children.push({ label: t('sidebar.sessions'), path: '/auth/sessions', icon: MonitorCheck })
+    children.push({
+      label: t('sidebar.sessions'),
+      path: '/auth/sessions',
+      icon: MonitorCheck,
+    })
+  }
+
+  return children
+})
+
+const configChildren = computed<SidebarItem[]>(() => {
+  const children: SidebarItem[] = []
+
+  if (canView(VIEW_SCOPES.catalogs)) {
+    children.push({
+      label: t('sidebar.catalogs'),
+      path: '/config/catalogs',
+      icon: ListTree,
+    })
   }
 
   return children
 })
 
 const sidebarItems = computed<SidebarItem[]>(() => {
-  const items: SidebarItem[] = [{ label: t('sidebar.dashboard'), path: '/home', icon: Home }]
+  const items: SidebarItem[] = [
+    {
+      label: t('sidebar.dashboard'),
+      path: '/home',
+      icon: Home,
+    },
+  ]
 
   if (securityChildren.value.length > 0) {
     items.push({
@@ -74,12 +112,28 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     })
   }
 
+  if (configChildren.value.length > 0) {
+    items.push({
+      label: t('sidebar.config'),
+      icon: BookOpen,
+      children: configChildren.value,
+    })
+  }
+
   items.push({
     label: t('sidebar.settings'),
     icon: Settings,
     children: [
-      { label: t('sidebar.appearance'), path: '/settings/appearance', icon: Palette },
-      { label: t('sidebar.shortcuts'), path: '/settings/shortcuts', icon: Keyboard },
+      {
+        label: t('sidebar.appearance'),
+        path: '/settings/appearance',
+        icon: Palette,
+      },
+      {
+        label: t('sidebar.shortcuts'),
+        path: '/settings/shortcuts',
+        icon: Keyboard,
+      },
     ],
   })
 
@@ -91,12 +145,23 @@ const commands = computed<CommandItem[]>(() => {
 
   for (const item of sidebarItems.value) {
     if (item.path) {
-      result.push({ id: item.path, title: item.label, description: item.path, icon: item.icon })
+      result.push({
+        id: item.path,
+        title: item.label,
+        description: item.path,
+        icon: item.icon,
+      })
     }
 
     for (const child of item.children ?? []) {
       if (!child.path) continue
-      result.push({ id: child.path, title: child.label, description: child.path, icon: child.icon })
+
+      result.push({
+        id: child.path,
+        title: child.label,
+        description: child.path,
+        icon: child.icon,
+      })
     }
   }
 
@@ -105,6 +170,7 @@ const commands = computed<CommandItem[]>(() => {
 
 const filteredCommands = computed(() => {
   const query = commandQuery.value.trim().toLowerCase()
+
   if (!query) return commands.value
 
   return commands.value.filter((item) =>
@@ -128,12 +194,15 @@ function closeCurrentTab() {
   if (!tabsStore.activeKey) return
 
   const activeTab = tabsStore.tabs.find((tab) => tab.key === tabsStore.activeKey)
+
   if (!activeTab || activeTab.closable === false) return
 
   const key = tabsStore.activeKey
+
   tabsStore.closeTab(key)
 
   const active = tabsStore.tabs.find((x) => x.key === tabsStore.activeKey)
+
   router.push(active?.path ?? '/home')
 }
 
@@ -143,7 +212,10 @@ function dispatchShortcut(name: string) {
 
 function isShortcutRecorderTarget(event: KeyboardEvent): boolean {
   const target = event.target
-  return target instanceof Element && Boolean(target.closest('[data-dhole-shortcut-recorder="true"]'))
+
+  return (
+    target instanceof Element && Boolean(target.closest('[data-dhole-shortcut-recorder="true"]'))
+  )
 }
 
 function handleShortcut(event: KeyboardEvent) {
@@ -151,6 +223,7 @@ function handleShortcut(event: KeyboardEvent) {
 
   const keys = eventToShortcut(event)
   const shortcut = shortcutStore.byKeys(keys)
+
   if (!shortcut) return
 
   event.preventDefault()

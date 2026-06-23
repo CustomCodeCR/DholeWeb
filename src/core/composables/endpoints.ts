@@ -122,10 +122,108 @@ export const SessionEndpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+export const CatalogGroupEndpoints = {
+  createCatalogGroup: {
+    method: 'POST',
+    path: '/api/config/catalog-groups',
+    headers: jsonHeaders,
+  },
+  browseCatalogGroups: {
+    method: 'GET',
+    path: '/api/config/catalog-groups',
+    headers: acceptJson,
+  },
+  selectCatalogGroups: {
+    method: 'GET',
+    path: '/api/config/catalog-groups/select',
+    headers: acceptJson,
+  },
+  getCatalogGroupById: {
+    method: 'GET',
+    path: '/api/config/catalog-groups/{{catalogGroupId}}',
+    headers: acceptJson,
+  },
+  updateCatalogGroup: {
+    method: 'PUT',
+    path: '/api/config/catalog-groups/{{catalogGroupId}}',
+    headers: jsonHeaders,
+  },
+  deleteCatalogGroup: {
+    method: 'DELETE',
+    path: '/api/config/catalog-groups/{{catalogGroupId}}',
+    headers: acceptJson,
+  },
+  setCatalogGroupActive: {
+    method: 'PATCH',
+    path: '/api/config/catalog-groups/{{catalogGroupId}}/active',
+    headers: jsonHeaders,
+  },
+} satisfies Record<string, Endpoint>
+
+export const CatalogItemEndpoints = {
+  createCatalogItem: {
+    method: 'POST',
+    path: '/api/config/catalog-items',
+    headers: jsonHeaders,
+  },
+  createCatalogItemForGroup: {
+    method: 'POST',
+    path: '/api/config/catalog-items/catalog-groups/{{catalogGroupId}}',
+    headers: jsonHeaders,
+  },
+  browseCatalogItems: {
+    method: 'GET',
+    path: '/api/config/catalog-items',
+    headers: acceptJson,
+  },
+  selectCatalogItems: {
+    method: 'GET',
+    path: '/api/config/catalog-items/select',
+    headers: acceptJson,
+  },
+  getCatalogItemsByGroupSlug: {
+    method: 'GET',
+    path: '/api/config/catalog-items/by-group/{{catalogGroupSlug}}',
+    headers: acceptJson,
+  },
+  getCatalogItemById: {
+    method: 'GET',
+    path: '/api/config/catalog-items/{{catalogItemId}}',
+    headers: acceptJson,
+  },
+  validateCatalogItem: {
+    method: 'GET',
+    path: '/api/config/catalog-items/validate',
+    headers: acceptJson,
+  },
+  updateCatalogItem: {
+    method: 'PUT',
+    path: '/api/config/catalog-items/{{catalogItemId}}',
+    headers: jsonHeaders,
+  },
+  deleteCatalogItem: {
+    method: 'DELETE',
+    path: '/api/config/catalog-items/{{catalogItemId}}',
+    headers: acceptJson,
+  },
+  setCatalogItemActive: {
+    method: 'PATCH',
+    path: '/api/config/catalog-items/{{catalogItemId}}/active',
+    headers: jsonHeaders,
+  },
+  changeCatalogItemSortOrder: {
+    method: 'PATCH',
+    path: '/api/config/catalog-items/{{catalogItemId}}/sort-order',
+    headers: jsonHeaders,
+  },
+} satisfies Record<string, Endpoint>
+
 export const Endpoints = {
   ...AuthEndpoints,
   ...UserEndpoints,
   ...RoleEndpoints,
   ...ScopeEndpoints,
   ...SessionEndpoints,
+  ...CatalogGroupEndpoints,
+  ...CatalogItemEndpoints,
 } satisfies Record<string, Endpoint>

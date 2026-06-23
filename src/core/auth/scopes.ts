@@ -12,6 +12,7 @@ export const AUTH_SCOPES = {
     scopesAssign: 'auth.users.scopes.assign',
     scopesRevoke: 'auth.users.scopes.revoke',
   },
+
   roles: {
     create: 'auth.roles.create',
     view: 'auth.roles.view',
@@ -21,14 +22,40 @@ export const AUTH_SCOPES = {
     scopesAssign: 'auth.roles.scopes.assign',
     scopesRevoke: 'auth.roles.scopes.revoke',
   },
+
   scopes: {
     view: 'auth.scopes.view',
     setActive: 'auth.scopes.set-active',
   },
+
   sessions: {
     view: 'auth.sessions.view',
     revoke: 'auth.sessions.revoke',
     revokeAll: 'auth.sessions.revoke-all',
+  },
+} as const
+
+export const CONFIG_SCOPES = {
+  catalogGroups: {
+    create: 'config.catalog-groups.create',
+    view: 'config.catalog-groups.view',
+    update: 'config.catalog-groups.update',
+    delete: 'config.catalog-groups.delete',
+    setActive: 'config.catalog-groups.set-active',
+  },
+
+  catalogItems: {
+    create: 'config.catalog-items.create',
+    view: 'config.catalog-items.view',
+    update: 'config.catalog-items.update',
+    delete: 'config.catalog-items.delete',
+    setActive: 'config.catalog-items.set-active',
+    changeSortOrder: 'config.catalog-items.change-sort-order',
+    validate: 'config.catalog-items.validate',
+  },
+
+  catalogSelects: {
+    view: 'config.catalog-selects.view',
   },
 } as const
 
@@ -37,6 +64,6 @@ export const VIEW_SCOPES = {
   roles: AUTH_SCOPES.roles.view,
   scopes: AUTH_SCOPES.scopes.view,
   sessions: AUTH_SCOPES.sessions.view,
-} as const
 
-export type ViewScope = (typeof VIEW_SCOPES)[keyof typeof VIEW_SCOPES]
+  catalogs: CONFIG_SCOPES.catalogGroups.view,
+} as const
