@@ -11,8 +11,9 @@ import {
   LockKeyhole,
   BookOpen,
   ListTree,
+  ClipboardList,
 } from 'lucide-vue-next'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import DhSidebar, { type SidebarItem } from '@/shared/components/organisms/DhSidebar.vue'
@@ -28,6 +29,8 @@ import { useThemeStore } from '@/core/stores/themeStore'
 import { useLocale } from '@/core/stores/locale'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dhole.sidebar.collapsed'
+
 const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -38,6 +41,20 @@ const tabsStore = useWorkspaceTabsStore()
 
 const commandOpen = ref(false)
 const commandQuery = ref('')
+
+const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true')
+
+const contentClass = computed(() => {
+  return sidebarCollapsed.value ? 'pl-28' : 'pl-80'
+})
+
+watch(sidebarCollapsed, (value) => {
+  localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(value))
+})
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
 
 function canView(scope: string): boolean {
   return authStore.hasScope(scope)
@@ -117,6 +134,14 @@ const sidebarItems = computed<SidebarItem[]>(() => {
       label: t('sidebar.config'),
       icon: BookOpen,
       children: configChildren.value,
+    })
+  }
+
+  if (canView(VIEW_SCOPES.auditLogs)) {
+    items.push({
+      label: t('sidebar.audits'),
+      path: '/auditlogs/events',
+      icon: ClipboardList,
     })
   }
 
@@ -271,9 +296,13 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="min-h-screen">
-    <DhSidebar :items="sidebarItems" />
+    <DhSidebar
+      :items="sidebarItems"
+      :collapsed="sidebarCollapsed"
+      @toggle-collapse="toggleSidebar"
+    />
 
-    <div class="min-h-screen pl-80 pr-4">
+    <div class="min-h-screen pr-4 transition-[padding] duration-300" :class="contentClass">
       <DhTopbar @search="commandOpen = true" @logout="logout" />
       <DhWorkspaceTabs />
 

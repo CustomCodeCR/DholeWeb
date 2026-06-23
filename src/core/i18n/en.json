@@ -48,10 +48,12 @@
     "addField": "Add field",
     "removeField": "Remove field",
     "administrable": "Administrable",
-    "sortOrder": "Sort order"
+    "sortOrder": "Sort order",
+    "previous": "Previous",
+    "next": "Next"
   },
   "topbar": {
-    "searchPlaceholder": "Search users, roles, scopes, sessions or catalogs...",
+    "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs or audit logs...",
     "theme": "Theme",
     "language": "Language",
     "notifications": "Notifications",
@@ -66,9 +68,12 @@
     "sessions": "Sessions",
     "config": "Config",
     "catalogs": "Catalogs",
+    "audits": "Audit logs",
     "settings": "Settings",
     "appearance": "Appearance",
-    "shortcuts": "Shortcuts"
+    "shortcuts": "Shortcuts",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -88,7 +93,8 @@
     "openRoles": "Manage roles",
     "openScopes": "View scopes",
     "openSessions": "Manage sessions",
-    "openCatalogs": "Manage catalogs"
+    "openCatalogs": "Manage catalogs",
+    "openAudits": "View audit logs"
   },
   "users": {
     "title": "Users",
@@ -197,6 +203,48 @@
     "changeStatusError": "Could not change status.",
     "orderError": "Could not save order.",
     "dragToSort": "Drag to sort"
+  },
+  "audits": {
+    "title": "Audit logs",
+    "subtitle": "Review system events, changes, errors and user activity.",
+    "summary": "Summary",
+    "events": "Events",
+    "event": "Event",
+    "sourceService": "Source service",
+    "entityType": "Entity type",
+    "entityId": "Entity ID",
+    "eventId": "Event ID",
+    "correlationId": "Correlation ID",
+    "action": "Action",
+    "eventType": "Event type",
+    "user": "User",
+    "userName": "User name",
+    "ipAddress": "IP address",
+    "userAgent": "User agent",
+    "occurredAt": "Occurred at",
+    "createdAt": "Created at",
+    "from": "From",
+    "to": "To",
+    "totalEvents": "Total events",
+    "totalErrors": "Errors",
+    "totalAccessDenied": "Access denied",
+    "totalUsers": "Users",
+    "totalEntities": "Entities",
+    "payload": "Payload",
+    "before": "Before",
+    "after": "After",
+    "metadata": "Metadata",
+    "detailsJson": "Details",
+    "stackTrace": "Stack trace",
+    "errorMessage": "Error message",
+    "hasPayload": "Payload",
+    "hasError": "Error",
+    "empty": "No audit events found.",
+    "loadError": "Could not load audit events.",
+    "detailLoadError": "Could not load audit detail.",
+    "summaryLoadError": "Could not load audit summary.",
+    "viewDetail": "View detail",
+    "clearFilters": "Clear filters"
   },
   "settings": {
     "title": "Settings",

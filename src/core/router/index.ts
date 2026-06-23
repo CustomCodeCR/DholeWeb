@@ -154,6 +154,17 @@ export const router = createRouter({
         },
 
         {
+          path: 'auditlogs/events',
+          name: 'auditlogs-events',
+          component: () => import('@/modules/auditlogs/views/AuditLogsView.vue'),
+          meta: {
+            tabTitle: 'Auditoría',
+            closable: true,
+            requiredScope: VIEW_SCOPES.auditLogs,
+          },
+        },
+
+        {
           path: 'settings',
           name: 'settings',
           component: () => import('@/modules/settings/views/SettingsView.vue'),

@@ -218,6 +218,39 @@ export const CatalogItemEndpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+export const AuditLogsEndpoints = {
+  browseAuditEvents: {
+    method: 'GET',
+    path: '/api/auditlogs/events',
+    headers: acceptJson,
+  },
+  getAuditEventById: {
+    method: 'GET',
+    path: '/api/auditlogs/events/{{auditEventId}}',
+    headers: acceptJson,
+  },
+  getAuditEventSummary: {
+    method: 'GET',
+    path: '/api/auditlogs/events/summary',
+    headers: acceptJson,
+  },
+  getEntityHistory: {
+    method: 'GET',
+    path: '/api/auditlogs/events/entity-history',
+    headers: acceptJson,
+  },
+  getUserHistory: {
+    method: 'GET',
+    path: '/api/auditlogs/events/user-history/{{userId}}',
+    headers: acceptJson,
+  },
+  getCorrelationHistory: {
+    method: 'GET',
+    path: '/api/auditlogs/events/correlation-history/{{correlationId}}',
+    headers: acceptJson,
+  },
+} satisfies Record<string, Endpoint>
+
 export const Endpoints = {
   ...AuthEndpoints,
   ...UserEndpoints,
@@ -226,4 +259,5 @@ export const Endpoints = {
   ...SessionEndpoints,
   ...CatalogGroupEndpoints,
   ...CatalogItemEndpoints,
+  ...AuditLogsEndpoints,
 } satisfies Record<string, Endpoint>

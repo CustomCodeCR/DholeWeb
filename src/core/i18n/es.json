@@ -48,10 +48,12 @@
     "addField": "Agregar campo",
     "removeField": "Eliminar campo",
     "administrable": "Administrable",
-    "sortOrder": "Orden"
+    "sortOrder": "Orden",
+    "previous": "Anterior",
+    "next": "Siguiente"
   },
   "topbar": {
-    "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones o catálogos...",
+    "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos o auditoría...",
     "theme": "Tema",
     "language": "Idioma",
     "notifications": "Notificaciones",
@@ -66,9 +68,12 @@
     "sessions": "Sesiones",
     "config": "Config",
     "catalogs": "Catálogos",
+    "audits": "Auditoría",
     "settings": "Configuración",
     "appearance": "Apariencia",
-    "shortcuts": "Atajos"
+    "shortcuts": "Atajos",
+    "collapse": "Colapsar menú",
+    "expand": "Expandir menú"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -88,7 +93,8 @@
     "openRoles": "Administrar roles",
     "openScopes": "Consultar permisos",
     "openSessions": "Administrar sesiones",
-    "openCatalogs": "Administrar catálogos"
+    "openCatalogs": "Administrar catálogos",
+    "openAudits": "Ver auditoría"
   },
   "users": {
     "title": "Usuarios",
@@ -197,6 +203,48 @@
     "changeStatusError": "No se pudo cambiar el estado.",
     "orderError": "No se pudo guardar el orden.",
     "dragToSort": "Arrastrar para ordenar"
+  },
+  "audits": {
+    "title": "Auditoría",
+    "subtitle": "Revise eventos del sistema, cambios, errores y actividad de usuarios.",
+    "summary": "Resumen",
+    "events": "Eventos",
+    "event": "Evento",
+    "sourceService": "Servicio origen",
+    "entityType": "Tipo entidad",
+    "entityId": "ID entidad",
+    "eventId": "ID evento",
+    "correlationId": "ID correlación",
+    "action": "Acción",
+    "eventType": "Tipo evento",
+    "user": "Usuario",
+    "userName": "Nombre usuario",
+    "ipAddress": "Dirección IP",
+    "userAgent": "Navegador / dispositivo",
+    "occurredAt": "Ocurrió",
+    "createdAt": "Creado",
+    "from": "Desde",
+    "to": "Hasta",
+    "totalEvents": "Eventos totales",
+    "totalErrors": "Errores",
+    "totalAccessDenied": "Accesos denegados",
+    "totalUsers": "Usuarios",
+    "totalEntities": "Entidades",
+    "payload": "Payload",
+    "before": "Antes",
+    "after": "Después",
+    "metadata": "Metadata",
+    "detailsJson": "Detalles",
+    "stackTrace": "Stack trace",
+    "errorMessage": "Mensaje de error",
+    "hasPayload": "Payload",
+    "hasError": "Error",
+    "empty": "No hay eventos de auditoría.",
+    "loadError": "No se pudieron cargar los eventos de auditoría.",
+    "detailLoadError": "No se pudo cargar el detalle de auditoría.",
+    "summaryLoadError": "No se pudo cargar el resumen de auditoría.",
+    "viewDetail": "Ver detalle",
+    "clearFilters": "Limpiar filtros"
   },
   "settings": {
     "title": "Configuración",

@@ -59,6 +59,19 @@ export const CONFIG_SCOPES = {
   },
 } as const
 
+export const AUDITLOGS_SCOPES = {
+  events: {
+    view: 'auditlogs.events.view',
+    export: 'auditlogs.events.export',
+  },
+  entityHistory: {
+    view: 'auditlogs.entity-history.view',
+  },
+  userHistory: {
+    view: 'auditlogs.user-history.view',
+  },
+} as const
+
 export const VIEW_SCOPES = {
   users: AUTH_SCOPES.users.view,
   roles: AUTH_SCOPES.roles.view,
@@ -66,4 +79,6 @@ export const VIEW_SCOPES = {
   sessions: AUTH_SCOPES.sessions.view,
 
   catalogs: CONFIG_SCOPES.catalogGroups.view,
+
+  auditLogs: AUDITLOGS_SCOPES.events.view,
 } as const
