@@ -316,6 +316,35 @@ export interface CreateRateCostDetailRequest extends Record<string, unknown> {
 
 export interface UpdateRateCostDetailRequest extends CreateRateCostDetailRequest {}
 
+
+export interface CreateManualFclRateRequest extends Record<string, unknown> {
+  clientId?: string | null
+  clientNameSnapshot?: string | null
+  carrierId: string
+  carrierNameSnapshot: string
+  carrierCodeSnapshot: string
+  originPortId: string
+  originPortNameSnapshot: string
+  originPortCodeSnapshot: string
+  destinationPortId: string
+  destinationPortNameSnapshot: string
+  destinationPortCodeSnapshot: string
+  containerTypeId: string
+  containerTypeNameSnapshot: string
+  containerTypeCodeSnapshot: string
+  currencyId: string
+  currencyNameSnapshot: string
+  currencyCodeSnapshot: string
+  amount: number
+  freeDays?: number | null
+  validFrom?: string | null
+  validTo?: string | null
+  notes?: string | null
+  saleAmount?: number | null
+  marginPercentage?: number | null
+  applyAutomaticFixedCosts: boolean
+}
+
 export interface CreateRateFromImportFclRateRequest extends Record<string, unknown> {
   clientId?: string | null
   clientNameSnapshot?: string | null
@@ -363,9 +392,13 @@ export interface BrowseImportFclRatesQuery extends Record<string, unknown> {
   status?: string | null
   carrier?: string | null
   pol?: string | null
+  poe?: string | null
   pod?: string | null
   containerType?: string | null
+  agent?: string | null
   currency?: string | null
+  readyDate?: string | null
+  quoteDate?: string | null
   validFrom?: string | null
   validTo?: string | null
 }
@@ -384,6 +417,14 @@ export interface BrowseRateHeadersQuery extends Record<string, unknown> {
   originPortId?: string | null
   destinationPortId?: string | null
   containerTypeId?: string | null
+  carrier?: string | null
+  pol?: string | null
+  poe?: string | null
+  pod?: string | null
+  containerType?: string | null
+  agent?: string | null
+  readyDate?: string | null
+  quoteDate?: string | null
   validFrom?: string | null
   validTo?: string | null
 }

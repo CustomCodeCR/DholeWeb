@@ -396,7 +396,8 @@
       "newCostAndApply": "Create cost and apply",
       "duplicate": "Duplicate",
       "deleteSelected": "Delete selected",
-      "quickPrint": "Quick print"
+      "quickPrint": "Quick print",
+      "createRate": "Create rate"
     },
     "common": {
       "carrier": "Carrier",
@@ -432,7 +433,8 @@
       "manual": "Manual",
       "automatic": "Automatic",
       "notLinked": "Not linked",
-      "noClient": "No client"
+      "noClient": "No client",
+      "freeDays": "Free days"
     },
     "imports": {
       "title": "FCL imports",
@@ -480,8 +482,10 @@
       "fixedLocked": "Fixed",
       "editHeaderTitle": "Client and validity",
       "editHeaderHelp": "Update the client or validity dates. Sale value is controlled from the rate cost lines.",
-      "editCostTitle": "Edit variable cost",
-      "editCostHelp": "Only variable or manual costs can be edited. Automatic fixed costs remain locked."
+      "editCostTitle": "Edit rate cost",
+      "editCostHelp": "You can edit fixed, automatic, variable and manual costs inside the rate. The master cost is not changed.",
+      "editFreightTitle": "Edit FCL freight",
+      "editFreightHelp": "Update carrier, route, container, freight amount, free days and validity. The rate cost and sale are recalculated when saved."
     },
     "costs": {
       "title": "Costs",
@@ -585,7 +589,11 @@
       "costDeleteError": "Could not delete the cost.",
       "costDetailUpdated": "Rate cost updated successfully.",
       "costDetailUpdateError": "Could not update the rate cost.",
-      "inactiveRateCannotPrint": "Inactive rates cannot be printed."
+      "inactiveRateCannotPrint": "Inactive rates cannot be printed.",
+      "manualRateCreated": "Manual rate created.",
+      "manualRateError": "Could not create manual rate.",
+      "fclDetailUpdated": "Freight updated.",
+      "fclDetailUpdateError": "Could not update freight."
     },
     "portRoles": {
       "Any": "Any port",
@@ -629,6 +637,29 @@
       "profit": "Profit",
       "oceanFreight": "Ocean freight",
       "emptyHelp": "Change the port, filters, or search for another route."
+    },
+    "filters": {
+      "title": "Search filters",
+      "help": "Search by applicable validity, agent, POL, POE, POD, size and carrier.",
+      "readyDate": "Cargo ready date",
+      "quoteDate": "Quote date",
+      "agent": "Agent",
+      "poe": "POE",
+      "apply": "Apply filters",
+      "clear": "Clear",
+      "agentPlaceholder": "E.g. agent / forwarder",
+      "carrierPlaceholder": "E.g. Maersk, MSC, CMA",
+      "polPlaceholder": "E.g. Qingdao, Shanghai",
+      "poePlaceholder": "E.g. Balboa, Colon",
+      "podPlaceholder": "E.g. Caldera, Moin",
+      "containerPlaceholder": "E.g. 20, 40 HC"
+    },
+    "manualRate": {
+      "title": "Create manual FCL rate",
+      "description": "Create a rate without an import. Automatic costs can be applied by carrier, POL and POD.",
+      "freightAmount": "Ocean freight / cost",
+      "applyAutomaticCosts": "Apply automatic fixed costs",
+      "helper": "If you enter sale amount, it is used as the final sale total. If empty, it is calculated from desired margin and automatic cost sales are adjusted too."
     }
   }
 }

@@ -396,7 +396,8 @@
       "newCostAndApply": "Crear costo y aplicar",
       "duplicate": "Duplicar",
       "deleteSelected": "Eliminar seleccionadas",
-      "quickPrint": "Impresión rápida"
+      "quickPrint": "Impresión rápida",
+      "createRate": "Crear tarifa"
     },
     "common": {
       "carrier": "Naviera",
@@ -432,7 +433,8 @@
       "manual": "Manual",
       "automatic": "Automático",
       "notLinked": "No vinculado",
-      "noClient": "Sin cliente"
+      "noClient": "Sin cliente",
+      "freeDays": "Días libres"
     },
     "imports": {
       "title": "Importaciones FCL",
@@ -480,8 +482,10 @@
       "fixedLocked": "Fijo",
       "editHeaderTitle": "Cliente y vigencia",
       "editHeaderHelp": "Modifique el cliente o las fechas de la tarifa. La venta se controla desde los costos de la tarifa.",
-      "editCostTitle": "Editar costo variable",
-      "editCostHelp": "Solo los costos variables o manuales pueden modificarse. Los costos fijos automáticos quedan bloqueados."
+      "editCostTitle": "Editar costo de la tarifa",
+      "editCostHelp": "Puede modificar costos fijos, automáticos, variables y manuales dentro de la tarifa. El maestro de costos no se altera.",
+      "editFreightTitle": "Editar flete FCL",
+      "editFreightHelp": "Modifique naviera, ruta, contenedor, monto del flete, días libres y vigencia. Al guardar se recalcula el costo y venta de la tarifa."
     },
     "costs": {
       "title": "Costos",
@@ -585,7 +589,11 @@
       "costDeleteError": "No se pudo eliminar el costo.",
       "costDetailUpdated": "Costo de la tarifa actualizado correctamente.",
       "costDetailUpdateError": "No se pudo actualizar el costo de la tarifa.",
-      "inactiveRateCannotPrint": "No se puede imprimir una tarifa inactiva."
+      "inactiveRateCannotPrint": "No se puede imprimir una tarifa inactiva.",
+      "manualRateCreated": "Tarifa manual creada correctamente.",
+      "manualRateError": "No se pudo crear la tarifa manual.",
+      "fclDetailUpdated": "Flete actualizado correctamente.",
+      "fclDetailUpdateError": "No se pudo actualizar el flete."
     },
     "portRoles": {
       "Any": "Cualquier puerto",
@@ -629,6 +637,29 @@
       "profit": "Utilidad",
       "oceanFreight": "Flete internacional marítimo",
       "emptyHelp": "Cambie el puerto, filtros o busque otra ruta."
+    },
+    "filters": {
+      "title": "Filtros de búsqueda",
+      "help": "Busca por vigencia aplicable, agente, POL, POE, POD, tamaño y naviera.",
+      "readyDate": "Fecha de carga lista",
+      "quoteDate": "Fecha de cotización",
+      "agent": "Agente",
+      "poe": "POE",
+      "apply": "Aplicar filtros",
+      "clear": "Limpiar",
+      "agentPlaceholder": "Ej. agente / forwarder",
+      "carrierPlaceholder": "Ej. Maersk, MSC, CMA",
+      "polPlaceholder": "Ej. Qingdao, Shanghai",
+      "poePlaceholder": "Ej. Balboa, Colón",
+      "podPlaceholder": "Ej. Caldera, Moín",
+      "containerPlaceholder": "Ej. 20, 40 HC"
+    },
+    "manualRate": {
+      "title": "Crear tarifa manual FCL",
+      "description": "Cree una tarifa sin usar importación. Puede aplicar costos automáticos por naviera, POL y POD.",
+      "freightAmount": "Flete / costo marítimo",
+      "applyAutomaticCosts": "Aplicar costos fijos automáticos",
+      "helper": "Si escribe monto de venta, se usa como venta final. Si lo deja vacío, se calcula con el margen deseado y también ajusta la venta de los costos automáticos."
     }
   }
 }

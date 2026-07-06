@@ -347,6 +347,7 @@ export const PricingEndpoints = {
   getActiveFclRates: { method: 'GET', path: '/api/pricing/rates/active-fcl', headers: acceptJson },
   getRateHeaderById: { method: 'GET', path: '/api/pricing/rates/{{rateHeaderId}}', headers: acceptJson },
   createRateHeader: { method: 'POST', path: '/api/pricing/rates', headers: jsonHeaders },
+  createManualFclRate: { method: 'POST', path: '/api/pricing/rates/manual-fcl', headers: jsonHeaders },
   updateRateHeader: { method: 'PUT', path: '/api/pricing/rates/{{rateHeaderId}}', headers: jsonHeaders },
   setRateHeaderAmounts: { method: 'PATCH', path: '/api/pricing/rates/{{rateHeaderId}}/amounts', headers: jsonHeaders },
   setRateHeaderActive: { method: 'PATCH', path: '/api/pricing/rates/{{rateHeaderId}}/active', headers: jsonHeaders },

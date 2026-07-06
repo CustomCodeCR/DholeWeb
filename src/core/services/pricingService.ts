@@ -13,6 +13,7 @@ import type {
   CreateCostRequest,
   CreateFclRateDetailRequest,
   CreateImportFclRateRequest,
+  CreateManualFclRateRequest,
   CreateRateCostDetailRequest,
   CreateRateFromImportFclRateRequest,
   CreateRateHeaderRequest,
@@ -220,6 +221,15 @@ export const PricingService = {
     })
 
     return unwrapApiResponse<RateHeaderDto>(response as any)
+  },
+
+  async createManualFclRate(payload: CreateManualFclRateRequest): Promise<string> {
+    const response = await callEndpoint<unknown, CreateManualFclRateRequest>(
+      Endpoints.createManualFclRate,
+      { body: payload },
+    )
+
+    return unwrapApiResponse<string>(response as any)
   },
 
   async createRateHeader(payload: CreateRateHeaderRequest): Promise<string> {

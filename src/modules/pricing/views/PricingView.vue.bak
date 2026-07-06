@@ -136,43 +136,6 @@ const carriers = ref<CatalogItemSelectDto[]>([])
 const currencies = ref<CatalogItemSelectDto[]>([])
 const profiles = ref<CatalogItemSelectDto[]>([])
 
-const SERVER_PAGE_SIZE = 200
-const MAX_PAGED_REQUESTS = 100
-
-type PricingPagedResult<T> = {
-  items: T[]
-  totalCount?: number
-  pageNumber?: number
-  pageSize?: number
-}
-
-async function fetchAllPaged<T, TQuery extends Record<string, unknown>>(
-  loader: (query: TQuery) => Promise<PricingPagedResult<T>>,
-  query: TQuery,
-): Promise<T[]> {
-  const allItems: T[] = []
-
-  for (let pageNumber = 1; pageNumber <= MAX_PAGED_REQUESTS; pageNumber += 1) {
-    const result = await loader({
-      ...query,
-      pageNumber,
-      pageSize: SERVER_PAGE_SIZE,
-    } as TQuery)
-
-    const items = result.items ?? []
-    allItems.push(...items)
-
-    const totalCount = result.totalCount ?? allItems.length
-    const effectivePageSize = result.pageSize || SERVER_PAGE_SIZE
-
-    if (items.length === 0 || allItems.length >= totalCount || items.length < effectivePageSize) {
-      break
-    }
-  }
-
-  return allItems
-}
-
 
 const catalogSlugs = {
   ports: 'ports',
@@ -381,8 +344,6 @@ const importColumns = computed<DhTableColumn<ImportFclRateDto>[]>(() => [
   { key: 'pod', label: t('pricing.common.pod') },
   { key: 'containerType', label: t('pricing.common.container') },
   { key: 'amount', label: t('pricing.common.amount'), align: 'right' },
-  { key: 'validFrom', label: t('pricing.common.validFrom') },
-  { key: 'validTo', label: t('pricing.common.validTo') },
   { key: 'status', label: t('common.status'), align: 'center' },
   { key: '__actions', label: '', width: '88px', align: 'right' },
 ])
@@ -1077,15 +1038,14 @@ async function loadCatalogSelects() {
 }
 
 async function loadCosts() {
-  const query: BrowseCostsQuery = { search: nullableText(costSearch.value) }
-  costs.value = await fetchAllPaged<CostDto, BrowseCostsQuery>(PricingService.browseCosts, query)
+  const query: BrowseCostsQuery = { pageNumber: 1, pageSize: 50, search: nullableText(costSearch.value) }
+  const result = await PricingService.browseCosts(query)
+  costs.value = result.items
 }
 
 async function loadFilterSeeds() {
-  filterSeedImports.value = await fetchAllPaged<ImportFclRateDto, BrowseImportFclRatesQuery>(
-    PricingService.browseImportFclRates,
-    {},
-  )
+  const result = await PricingService.browseImportFclRates({ pageNumber: 1, pageSize: 1000 })
+  filterSeedImports.value = result.items
 }
 
 function clearImportFilters() {
@@ -1115,6 +1075,8 @@ function clearRateFilters() {
 
 async function loadImports() {
   const query: BrowseImportFclRatesQuery = {
+    pageNumber: 1,
+    pageSize: 50,
     search: nullableText(importSearch.value),
     status: nullableText(importStatus.value),
     readyDate: nullableDate(importReadyDate.value),
@@ -1126,15 +1088,15 @@ async function loadImports() {
     containerType: nullableText(importContainerType.value),
     carrier: nullableText(importCarrier.value),
   }
-  imports.value = await fetchAllPaged<ImportFclRateDto, BrowseImportFclRatesQuery>(
-    PricingService.browseImportFclRates,
-    query,
-  )
+  const result = await PricingService.browseImportFclRates(query)
+  imports.value = result.items
   selectedImportIds.value = selectedImportIds.value.filter((id) => imports.value.some((x) => x.id === id))
 }
 
 async function loadRates() {
   const query: BrowseRateHeadersQuery = {
+    pageNumber: 1,
+    pageSize: 50,
     search: nullableText(rateSearch.value),
     isActive: rateActive.value === '' ? null : rateActive.value === 'true',
     readyDate: nullableDate(rateReadyDate.value),
@@ -1146,10 +1108,8 @@ async function loadRates() {
     containerType: nullableText(rateContainerType.value),
     carrier: nullableText(rateCarrier.value),
   }
-  rates.value = await fetchAllPaged<RateHeaderDto, BrowseRateHeadersQuery>(
-    PricingService.browseRateHeaders,
-    query,
-  )
+  const result = await PricingService.browseRateHeaders(query)
+  rates.value = result.items
   selectedRateIds.value = selectedRateIds.value.filter((id) => rates.value.some((x) => x.id === id))
 }
 
@@ -1939,8 +1899,6 @@ onMounted(refreshAll)
             <input type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" :checked="selectedImportIds.includes(row.id)" :disabled="!canDeleteImport" @click.stop @change="toggleImportSelection(row.id, eventChecked($event))" />
           </template>
           <template #cell-amount="{ row }">{{ money(row.amount, row.currency) }}</template>
-          <template #cell-validFrom="{ value }">{{ typeof value === 'string' && value ? value.slice(0, 10) : '—' }}</template>
-          <template #cell-validTo="{ value }">{{ typeof value === 'string' && value ? value.slice(0, 10) : '—' }}</template>
           <template #cell-status="{ value }"><DhBadge :variant="statusVariant(String(value))" :label="statusLabel(String(value))" /></template>
           <template #cell-__actions="{ row }">
             <div class="flex justify-end gap-1">
@@ -2143,15 +2101,25 @@ onMounted(refreshAll)
               :key="group.key"
               class="overflow-hidden rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-surface)]"
             >
-              <header class="border-b border-[var(--dh-border)] p-4">
+              <header class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-4">
                 <div>
                   <p class="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">{{ t('pricing.common.port') }}</p>
                   <h4 class="text-lg font-black text-[var(--dh-text)]">{{ group.label }}</h4>
                 </div>
+                <div class="grid grid-cols-2 gap-2 text-right">
+                  <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.matrix.cost') }}</p>
+                    <p class="font-black text-[var(--dh-text)]">{{ money(group.totalCost, group.rows[0]?.currencyCodeSnapshot || 'USD') }}</p>
+                  </div>
+                  <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.matrix.sale') }}</p>
+                    <p class="font-black text-[var(--dh-text)]">{{ money(group.totalSale, group.rows[0]?.currencyCodeSnapshot || 'USD') }}</p>
+                  </div>
+                </div>
               </header>
 
               <div class="overflow-x-auto">
-                <table class="w-full min-w-[860px] border-collapse text-sm">
+                <table class="w-full min-w-[720px] border-collapse text-sm">
                   <thead>
                     <tr class="bg-[#111] text-left text-[11px] font-black uppercase tracking-[0.12em] text-white">
                       <th class="px-4 py-3">{{ t('pricing.matrix.item') }}</th>
@@ -2160,7 +2128,6 @@ onMounted(refreshAll)
                       <th class="px-4 py-3 text-right">{{ t('pricing.matrix.sale') }}</th>
                       <th class="px-4 py-3 text-right">{{ t('pricing.matrix.profit') }}</th>
                       <th class="px-4 py-3 text-center">{{ t('common.status') }}</th>
-                      <th class="px-4 py-3 text-right">{{ t('common.actions') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2182,12 +2149,6 @@ onMounted(refreshAll)
                         <button type="button" :disabled="!canSetCostActive" @click.stop="toggleCost(cost)">
                           <DhBadge :variant="statusVariant(cost.isActive)" :label="statusLabel(cost.isActive)" />
                         </button>
-                      </td>
-                      <td class="px-4 py-3">
-                        <div class="flex justify-end gap-2">
-                          <DhButton size="sm" variant="secondary" :icon="Pencil" :disabled="!canUpdateCost" @click.stop="openEditCostDrawer(cost)" />
-                          <DhButton size="sm" variant="danger" :icon="Trash2" :disabled="!canDeleteCost" @click.stop="confirmDeleteCost(cost)" />
-                        </div>
                       </td>
                     </tr>
                   </tbody>
