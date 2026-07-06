@@ -8,6 +8,7 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import { ScopesService } from '@/core/services/scopesService'
 import type { ScopeSelectDto } from '@/core/interfaces/scopes'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
 const toastStore = useToastStore()
@@ -38,6 +39,8 @@ async function loadScopes() {
     loading.value = false
   }
 }
+
+useViewShortcuts({ save: loadScopes, refresh: loadScopes })
 
 onMounted(loadScopes)
 </script>

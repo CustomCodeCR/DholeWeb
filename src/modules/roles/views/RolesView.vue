@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Pencil, Shield, Trash2 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -15,6 +15,7 @@ import { AUTH_SCOPES } from '@/core/auth/scopes'
 import RoleFormDrawer from '@/modules/roles/components/RoleFormDrawer.vue'
 import RoleDetailDrawer from '@/modules/roles/components/RoleDetailDrawer.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
 const drawerStore = useDrawerStore()
@@ -102,21 +103,15 @@ function confirmDelete(role: RoleDto) {
 
 watch([page, pageSize], loadRoles)
 
-const handleCreateShortcut = () => {
-  if (canCreate.value) createRole()
-}
-const handleSaveShortcut = () => loadRoles()
-
-onMounted(() => {
-  loadRoles()
-  window.addEventListener('dhole:create', handleCreateShortcut)
-  window.addEventListener('dhole:save', handleSaveShortcut)
+useViewShortcuts({
+  create: () => {
+    if (canCreate.value) createRole()
+  },
+  save: loadRoles,
+  refresh: loadRoles,
 })
 
-onBeforeUnmount(() => {
-  window.removeEventListener('dhole:create', handleCreateShortcut)
-  window.removeEventListener('dhole:save', handleSaveShortcut)
-})
+onMounted(loadRoles)
 </script>
 
 <template>

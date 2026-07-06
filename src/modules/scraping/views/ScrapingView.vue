@@ -37,6 +37,7 @@ import type {
   ScrapingRunDto,
   ScrapingSourceDto,
 } from '@/core/interfaces/scraping'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 type ScrapingModule = 'sources' | 'credentials' | 'jobs' | 'runs' | 'rules' | 'evidences' | 'candidates'
 type SelectOption = { label: string; value: string | number; disabled?: boolean }
@@ -940,9 +941,19 @@ function toggleAdvancedModules() {
   }
 }
 
-onMounted(async () => {
+async function reloadScrapingView() {
   await Promise.all([load(), loadCatalogs()])
+}
+
+useViewShortcuts({
+  create: () => {
+    selectedRecord.value = null
+  },
+  save: reloadScrapingView,
+  refresh: reloadScrapingView,
 })
+
+onMounted(reloadScrapingView)
 </script>
 
 <template>

@@ -11,6 +11,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { SessionDto } from '@/core/interfaces/sessions'
 import type { UserDto } from '@/core/interfaces/users'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 interface UserSessionMonitorRow {
   userId: string
@@ -127,6 +128,8 @@ async function loadMonitoring() {
     loading.value = false
   }
 }
+
+useViewShortcuts({ save: loadMonitoring, refresh: loadMonitoring })
 
 onMounted(loadMonitoring)
 </script>

@@ -15,6 +15,7 @@ import { UsersService } from '@/core/services/usersService'
 import type { SessionDto } from '@/core/interfaces/sessions'
 import type { UserDto } from '@/core/interfaces/users'
 import AuthReasonModal from '@/modules/auth/components/AuthReasonModal.vue'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -181,10 +182,14 @@ async function refreshToken() {
 
 watch([selectedUserId, activeOnly, page, pageSize], loadSessions)
 
-onMounted(async () => {
+async function reloadSessionsView() {
   await loadUsers()
   await loadSessions()
-})
+}
+
+useViewShortcuts({ save: reloadSessionsView, refresh: reloadSessionsView })
+
+onMounted(reloadSessionsView)
 </script>
 
 <template>

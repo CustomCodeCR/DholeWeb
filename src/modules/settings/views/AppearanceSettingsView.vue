@@ -11,6 +11,7 @@ import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { DEFAULT_CLIENT_BRANDING, type ClientBrandingSettings } from '@/core/interfaces/branding'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
@@ -90,10 +91,14 @@ async function saveBranding() {
   )
 }
 
-onMounted(async () => {
+async function refreshAppearanceSettings() {
   await brandingStore.loadCurrentClientBranding()
   syncBrandingForm()
-})
+}
+
+useViewShortcuts({ save: saveBranding, refresh: refreshAppearanceSettings, autoRefresh: false })
+
+onMounted(refreshAppearanceSettings)
 </script>
 
 <template>

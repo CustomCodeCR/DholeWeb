@@ -14,6 +14,7 @@ import type {
   ScrapingSourceDto,
   WebScrapingAuthBootstrapResponse,
 } from '@/core/interfaces/scraping'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 type SelectOption = { label: string; value: string | number }
 
@@ -264,6 +265,8 @@ async function execute() {
 function clearResult() {
   result.value = null
 }
+
+useViewShortcuts({ save: loadData, refresh: loadData })
 
 onMounted(loadData)
 </script>

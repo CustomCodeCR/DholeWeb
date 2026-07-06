@@ -7,6 +7,7 @@ import { DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { MonitoringService } from '@/core/services/monitoringService'
 import type { ServiceMonitorResult } from '@/core/interfaces/monitoring'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
 
@@ -54,6 +55,8 @@ async function load() {
     loading.value = false
   }
 }
+
+useViewShortcuts({ save: load, refresh: load })
 
 onMounted(load)
 </script>

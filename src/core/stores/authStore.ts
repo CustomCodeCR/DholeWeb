@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
   sessionUserId: 'auth.sessionUserId',
   userType: 'auth.userType',
   username: 'auth.username',
+  displayName: 'auth.displayName',
   email: 'auth.email',
   clientId: 'auth.clientId',
   clientCode: 'auth.clientCode',
@@ -134,6 +135,7 @@ export const useAuthStore = defineStore('auth', () => {
   const sessionUserId = ref<string | null>(readStringFromStorage(STORAGE_KEYS.sessionUserId))
   const userType = ref<string | null>(readStringFromStorage(STORAGE_KEYS.userType))
   const username = ref<string | null>(readStringFromStorage(STORAGE_KEYS.username))
+  const displayName = ref<string | null>(readStringFromStorage(STORAGE_KEYS.displayName))
   const email = ref<string | null>(readStringFromStorage(STORAGE_KEYS.email))
   const clientId = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientId))
   const clientCode = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientCode))
@@ -145,6 +147,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = computed(() => accessToken.value)
 
   const isAuthenticated = computed(() => hasValidSession())
+  const userDisplayName = computed(() => displayName.value || username.value || email.value)
 
   function persistString(key: string, value: string | null) {
     if (value) {
@@ -165,6 +168,7 @@ export const useAuthStore = defineStore('auth', () => {
       sessionUserId.value = null
       userType.value = null
       username.value = null
+      displayName.value = null
       email.value = null
       clientId.value = null
       clientCode.value = null
@@ -202,6 +206,14 @@ export const useAuthStore = defineStore('auth', () => {
       'userName',
       'username',
       'unique_name',
+      'preferred_username',
+    ])
+
+    displayName.value = readClaimString(payload, [
+      'displayName',
+      'display_name',
+      'fullName',
+      'full_name',
       'name',
       'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
     ])
@@ -258,6 +270,7 @@ export const useAuthStore = defineStore('auth', () => {
     persistString(STORAGE_KEYS.sessionUserId, sessionUserId.value)
     persistString(STORAGE_KEYS.userType, userType.value)
     persistString(STORAGE_KEYS.username, username.value)
+    persistString(STORAGE_KEYS.displayName, displayName.value)
     persistString(STORAGE_KEYS.email, email.value)
     persistString(STORAGE_KEYS.clientId, clientId.value)
     persistString(STORAGE_KEYS.clientCode, clientCode.value)
@@ -276,6 +289,9 @@ export const useAuthStore = defineStore('auth', () => {
 
     applyClaimsFromAccessToken(data.accessToken)
 
+    username.value = data.userName ?? username.value
+    displayName.value = data.displayName ?? displayName.value
+    email.value = data.email ?? email.value
     clientId.value = data.clientId ?? clientId.value
     clientCode.value = data.clientCode ?? clientCode.value
     clientName.value = data.clientName ?? clientName.value
@@ -294,6 +310,7 @@ export const useAuthStore = defineStore('auth', () => {
     sessionUserId.value = null
     userType.value = null
     username.value = null
+    displayName.value = null
     email.value = null
     clientId.value = null
     clientCode.value = null
@@ -427,6 +444,8 @@ export const useAuthStore = defineStore('auth', () => {
     sessionUserId,
     userType,
     username,
+    displayName,
+    userDisplayName,
     email,
     clientId,
     clientCode,

@@ -13,6 +13,7 @@ import type {
   BrowseAuditEventsQuery,
 } from '@/core/interfaces/auditLogs'
 import type { UserDto } from '@/core/interfaces/users'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
 const toastStore = useToastStore()
@@ -200,9 +201,13 @@ async function clearFilters() {
   await Promise.all([loadUsers(), loadAll()])
 }
 
-onMounted(async () => {
+async function reloadAuditLogsView() {
   await Promise.all([loadUsers(), loadAll()])
-})
+}
+
+useViewShortcuts({ save: reloadAuditLogsView, refresh: reloadAuditLogsView })
+
+onMounted(reloadAuditLogsView)
 </script>
 
 <template>

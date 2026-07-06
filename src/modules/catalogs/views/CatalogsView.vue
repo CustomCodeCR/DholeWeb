@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { BookOpen, Pencil, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import {
@@ -19,6 +19,7 @@ import type { CatalogGroupDto } from '@/core/interfaces/catalogs'
 import CatalogGroupFormDrawer from '@/modules/catalogs/components/CatalogGroupFormDrawer.vue'
 import CatalogGroupDetailDrawer from '@/modules/catalogs/components/CatalogGroupDetailDrawer.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const toastStore = useToastStore()
 const drawerStore = useDrawerStore()
@@ -137,22 +138,15 @@ function confirmDelete(group: CatalogGroupDto) {
 
 watch([page, pageSize], loadCatalogGroups)
 
-const handleCreateShortcut = () => {
-  if (canCreate.value) openCreateDrawer()
-}
-
-const handleSaveShortcut = () => loadCatalogGroups()
-
-onMounted(() => {
-  loadCatalogGroups()
-  window.addEventListener('dhole:create', handleCreateShortcut)
-  window.addEventListener('dhole:save', handleSaveShortcut)
+useViewShortcuts({
+  create: () => {
+    if (canCreate.value) openCreateDrawer()
+  },
+  save: loadCatalogGroups,
+  refresh: loadCatalogGroups,
 })
 
-onBeforeUnmount(() => {
-  window.removeEventListener('dhole:create', handleCreateShortcut)
-  window.removeEventListener('dhole:save', handleSaveShortcut)
-})
+onMounted(loadCatalogGroups)
 </script>
 
 <template>

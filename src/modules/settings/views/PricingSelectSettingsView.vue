@@ -8,6 +8,7 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 type SelectCatalogConfig = {
   slug: string
@@ -65,6 +66,8 @@ function openCatalogAdmin() {
 }
 
 watch(selectedSlug, loadItems)
+
+useViewShortcuts({ save: loadItems, refresh: loadItems })
 
 onMounted(loadItems)
 </script>

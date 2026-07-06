@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Pencil, Trash2, Users } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -16,6 +16,7 @@ import { parseDate } from '@/core/utils/date'
 import UserFormDrawer from '@/modules/users/components/UserFormDrawer.vue'
 import UserDetailDrawer from '@/modules/users/components/UserDetailDrawer.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
 const toastStore = useToastStore()
@@ -115,21 +116,15 @@ function confirmDelete(user: UserDto) {
 
 watch([page, pageSize], loadUsers)
 
-const handleCreateShortcut = () => {
-  if (canCreate.value) openCreateDrawer()
-}
-const handleSaveShortcut = () => loadUsers()
-
-onMounted(() => {
-  loadUsers()
-  window.addEventListener('dhole:create', handleCreateShortcut)
-  window.addEventListener('dhole:save', handleSaveShortcut)
+useViewShortcuts({
+  create: () => {
+    if (canCreate.value) openCreateDrawer()
+  },
+  save: loadUsers,
+  refresh: loadUsers,
 })
 
-onBeforeUnmount(() => {
-  window.removeEventListener('dhole:create', handleCreateShortcut)
-  window.removeEventListener('dhole:save', handleSaveShortcut)
-})
+onMounted(loadUsers)
 </script>
 
 <template>

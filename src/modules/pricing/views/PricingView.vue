@@ -25,6 +25,7 @@ import { PricingService } from '@/core/services/pricingService'
 import { useAuthStore } from '@/core/stores/authStore'
 import { usePricingStore } from '@/core/stores/pricingStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import type {
   BrowseCostsQuery,
@@ -1851,6 +1852,24 @@ async function submitMarginReject() {
     toastStore.backendError(error, t('pricing.messages.marginRejectError'))
   }
 }
+
+useViewShortcuts({
+  create: () => {
+    if (activeTab.value === 'imports') {
+      openUploadModal()
+      return
+    }
+
+    if (activeTab.value === 'costs') {
+      openCostDrawer(false)
+      return
+    }
+
+    openManualRateModal()
+  },
+  save: refreshAll,
+  refresh: refreshAll,
+})
 
 onMounted(refreshAll)
 </script>

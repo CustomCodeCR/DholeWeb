@@ -16,7 +16,7 @@ const authStore = useAuthStore()
 const shortcutStore = useShortcutStore()
 const emit = defineEmits<{ search: []; logout: [] }>()
 
-const displayName = computed(() => authStore.username || authStore.email || 'Usuario')
+const displayName = computed(() => authStore.userDisplayName || 'Usuario')
 const displayEmail = computed(() => authStore.email || 'Sesión activa')
 const searchShortcut = computed(() => shortcutStore.byAction('global.search')?.keys ?? 'ctrl+k')
 </script>

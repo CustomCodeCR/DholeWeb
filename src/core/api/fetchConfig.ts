@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   sessionUserId: 'auth.sessionUserId',
   userType: 'auth.userType',
   username: 'auth.username',
+  displayName: 'auth.displayName',
   email: 'auth.email',
   clientId: 'auth.clientId',
   clientCode: 'auth.clientCode',
@@ -33,6 +34,9 @@ interface StoredRefreshResponse {
   sessionId: string
   accessTokenExpiresAt: string
   refreshTokenExpiresAt: string
+  displayName?: string | null
+  userName?: string | null
+  email?: string | null
   clientId?: string | null
   clientCode?: string | null
   clientName?: string | null
@@ -85,6 +89,26 @@ function getJwtExpiration(token: string): number | null {
   return typeof exp === 'number' ? exp * 1000 : null
 }
 
+function readClaimString(payload: Record<string, unknown> | null, keys: string[]): string | null {
+  if (!payload) return null
+
+  for (const key of keys) {
+    const value = payload[key]
+
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value
+    }
+  }
+
+  return null
+}
+
+function persistString(key: string, value: string | null | undefined) {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    localStorage.setItem(key, value.trim())
+  }
+}
+
 function isTokenExpiredOrClose(token: string | null): boolean {
   if (!token) return true
 
@@ -114,6 +138,20 @@ function emitSessionExpired() {
   window.dispatchEvent(new CustomEvent('dhole:auth:expired'))
 }
 
+function isMutationMethod(method: RequestOptions['method']): boolean {
+  return method !== 'GET'
+}
+
+function emitDataChanged(endpoint: string, method: RequestOptions['method']) {
+  if (!isMutationMethod(method) || isAuthEndpoint(endpoint)) return
+
+  window.dispatchEvent(
+    new CustomEvent('dhole:data:changed', {
+      detail: { endpoint, method, occurredAt: new Date().toISOString() },
+    }),
+  )
+}
+
 
 function unwrapRefreshResponse(
   data: StoredRefreshResponse | { data?: StoredRefreshResponse },
@@ -132,9 +170,33 @@ function persistRefreshResponse(data: StoredRefreshResponse) {
   localStorage.setItem(STORAGE_KEYS.accessTokenExpiresAt, data.accessTokenExpiresAt)
   localStorage.setItem(STORAGE_KEYS.refreshTokenExpiresAt, data.refreshTokenExpiresAt)
 
-  if (data.clientId) localStorage.setItem(STORAGE_KEYS.clientId, data.clientId)
-  if (data.clientCode) localStorage.setItem(STORAGE_KEYS.clientCode, data.clientCode)
-  if (data.clientName) localStorage.setItem(STORAGE_KEYS.clientName, data.clientName)
+  const payload = parseJwtPayload(data.accessToken)
+
+  const tokenUserName = readClaimString(payload, [
+    'userName',
+    'username',
+    'unique_name',
+    'preferred_username',
+  ])
+  const tokenDisplayName = readClaimString(payload, [
+    'displayName',
+    'display_name',
+    'fullName',
+    'full_name',
+    'name',
+    'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+  ])
+  const tokenEmail = readClaimString(payload, [
+    'email',
+    'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+  ])
+
+  persistString(STORAGE_KEYS.username, data.userName ?? tokenUserName)
+  persistString(STORAGE_KEYS.displayName, data.displayName ?? tokenDisplayName)
+  persistString(STORAGE_KEYS.email, data.email ?? tokenEmail)
+  persistString(STORAGE_KEYS.clientId, data.clientId)
+  persistString(STORAGE_KEYS.clientCode, data.clientCode)
+  persistString(STORAGE_KEYS.clientName, data.clientName)
 
   window.dispatchEvent(new CustomEvent<StoredRefreshResponse>('dhole:auth:refreshed', { detail: data }))
 }
@@ -233,7 +295,10 @@ export async function fetchClient<T>(endpoint: string, options: RequestOptions):
       emitSessionExpired()
     }
 
-    if (response.status === 204) return {} as T
+    if (response.status === 204) {
+      emitDataChanged(endpoint, options.method)
+      return {} as T
+    }
 
     if (!response.ok) {
       await handleApiResponse(response, endpoint, options.method)
@@ -243,10 +308,12 @@ export async function fetchClient<T>(endpoint: string, options: RequestOptions):
 
     if (isJsonContentType(contentType)) {
       const data = await safeJsonParse(response)
+      emitDataChanged(endpoint, options.method)
       return (data ?? {}) as T
     }
 
     const text = await response.text()
+    emitDataChanged(endpoint, options.method)
     return text as T
   } catch (error) {
     if (error instanceof ApiError) throw error

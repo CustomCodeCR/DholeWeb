@@ -9,6 +9,9 @@ export interface LoginResponse {
   sessionId: string
   accessTokenExpiresAt: string
   refreshTokenExpiresAt: string
+  displayName?: string | null
+  userName?: string | null
+  email?: string | null
   clientId?: string | null
   clientCode?: string | null
   clientName?: string | null
@@ -24,6 +27,9 @@ export interface RefreshTokenResponse {
   sessionId: string
   accessTokenExpiresAt: string
   refreshTokenExpiresAt: string
+  displayName?: string | null
+  userName?: string | null
+  email?: string | null
   clientId?: string | null
   clientCode?: string | null
   clientName?: string | null

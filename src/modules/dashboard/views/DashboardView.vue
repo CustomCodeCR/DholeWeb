@@ -111,7 +111,7 @@ const cards = computed(() =>
             {{ t('dashboard.welcome') }}
           </p>
           <h2 class="mt-3 text-3xl font-black tracking-tight text-[var(--dh-text)] md:text-5xl">
-            {{ authStore.username || authStore.email || t('dashboard.operator') }}
+            {{ authStore.userDisplayName || t('dashboard.operator') }}
           </h2>
           <p class="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[var(--dh-text-muted)]">
             {{ t('dashboard.description') }}
