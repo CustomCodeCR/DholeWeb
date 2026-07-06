@@ -3,6 +3,8 @@
 :root {
   --dh-primary: #fc2800;
   --dh-primary-rgb: 252 40 0;
+  --dh-client-background-image: linear-gradient(transparent, transparent);
+  --dh-client-background-overlay-opacity: 0.5;
   --dh-black: #030202;
   --dh-white: #ffffff;
 
@@ -61,6 +63,18 @@ body {
     radial-gradient(circle at 12% 0%, rgb(var(--dh-primary-rgb) / 0.15), transparent 30rem),
     radial-gradient(circle at 90% 8%, rgb(255 255 255 / 0.8), transparent 24rem),
     linear-gradient(135deg, var(--dh-bg), var(--dh-bg-2));
+  background-attachment: fixed;
+}
+
+body.dh-has-client-background {
+  background-image:
+    radial-gradient(circle at 12% 0%, rgb(var(--dh-primary-rgb) / 0.18), transparent 30rem),
+    linear-gradient(135deg, rgb(255 255 255 / var(--dh-client-background-overlay-opacity)), rgb(255 255 255 / var(--dh-client-background-overlay-opacity))),
+    var(--dh-client-background-image),
+    linear-gradient(135deg, var(--dh-bg), var(--dh-bg-2));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: auto, auto, cover, auto;
 }
 
 .dark body {
@@ -68,6 +82,18 @@ body {
     radial-gradient(circle at 12% 0%, rgb(var(--dh-primary-rgb) / 0.22), transparent 30rem),
     radial-gradient(circle at 86% 5%, rgb(255 255 255 / 0.08), transparent 24rem),
     linear-gradient(135deg, var(--dh-bg), var(--dh-bg-2));
+  background-attachment: fixed;
+}
+
+.dark body.dh-has-client-background {
+  background-image:
+    radial-gradient(circle at 12% 0%, rgb(var(--dh-primary-rgb) / 0.24), transparent 30rem),
+    linear-gradient(135deg, rgb(0 0 0 / var(--dh-client-background-overlay-opacity)), rgb(0 0 0 / var(--dh-client-background-overlay-opacity))),
+    var(--dh-client-background-image),
+    linear-gradient(135deg, var(--dh-bg), var(--dh-bg-2));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: auto, auto, cover, auto;
 }
 
 .dh-glass {
@@ -148,3 +174,27 @@ body {
 .dh-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
 .dh-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .dh-scrollbar::-webkit-scrollbar-thumb { background: rgb(var(--dh-primary-rgb) / 0.42); border-radius: 999px; }
+
+
+.dh-bg-primary-soft {
+  background-color: rgb(var(--dh-primary-rgb) / 0.10);
+}
+
+.dh-border-primary-soft {
+  border-color: rgb(var(--dh-primary-rgb) / 0.24);
+}
+
+.dh-text-primary {
+  color: var(--dh-primary);
+}
+
+.dh-primary-selected {
+  border-color: var(--dh-primary);
+  background-color: rgb(var(--dh-primary-rgb) / 0.10);
+}
+
+.dh-focus-primary:focus,
+.dh-focus-primary:focus-within {
+  border-color: var(--dh-primary);
+  box-shadow: 0 0 0 4px rgb(var(--dh-primary-rgb) / 0.10);
+}

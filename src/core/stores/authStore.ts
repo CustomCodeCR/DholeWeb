@@ -16,6 +16,9 @@ const STORAGE_KEYS = {
   userType: 'auth.userType',
   username: 'auth.username',
   email: 'auth.email',
+  clientId: 'auth.clientId',
+  clientCode: 'auth.clientCode',
+  clientName: 'auth.clientName',
   roles: 'auth.roles',
   scopes: 'auth.scopes',
 }
@@ -132,6 +135,9 @@ export const useAuthStore = defineStore('auth', () => {
   const userType = ref<string | null>(readStringFromStorage(STORAGE_KEYS.userType))
   const username = ref<string | null>(readStringFromStorage(STORAGE_KEYS.username))
   const email = ref<string | null>(readStringFromStorage(STORAGE_KEYS.email))
+  const clientId = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientId))
+  const clientCode = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientCode))
+  const clientName = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientName))
 
   const roles = ref<string[]>(readArrayFromStorage(STORAGE_KEYS.roles))
   const scopes = ref<string[]>(readArrayFromStorage(STORAGE_KEYS.scopes))
@@ -160,6 +166,9 @@ export const useAuthStore = defineStore('auth', () => {
       userType.value = null
       username.value = null
       email.value = null
+      clientId.value = null
+      clientCode.value = null
+      clientName.value = null
       roles.value = []
       scopes.value = []
       return
@@ -202,6 +211,33 @@ export const useAuthStore = defineStore('auth', () => {
       'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
     ])
 
+    clientId.value = readClaimString(payload, [
+      'clientId',
+      'client_id',
+      'tenantId',
+      'tenant_id',
+      'customerId',
+      'customer_id',
+    ])
+
+    clientCode.value = readClaimString(payload, [
+      'clientCode',
+      'client_code',
+      'tenantCode',
+      'tenant_code',
+      'customerCode',
+      'customer_code',
+    ])
+
+    clientName.value = readClaimString(payload, [
+      'clientName',
+      'client_name',
+      'tenantName',
+      'tenant_name',
+      'customerName',
+      'customer_name',
+    ])
+
     roles.value = readClaimArray(payload, [
       'roles',
       'role',
@@ -223,6 +259,9 @@ export const useAuthStore = defineStore('auth', () => {
     persistString(STORAGE_KEYS.userType, userType.value)
     persistString(STORAGE_KEYS.username, username.value)
     persistString(STORAGE_KEYS.email, email.value)
+    persistString(STORAGE_KEYS.clientId, clientId.value)
+    persistString(STORAGE_KEYS.clientCode, clientCode.value)
+    persistString(STORAGE_KEYS.clientName, clientName.value)
 
     persistArray(STORAGE_KEYS.roles, roles.value)
     persistArray(STORAGE_KEYS.scopes, scopes.value)
@@ -236,6 +275,11 @@ export const useAuthStore = defineStore('auth', () => {
     refreshTokenExpiresAt.value = data.refreshTokenExpiresAt
 
     applyClaimsFromAccessToken(data.accessToken)
+
+    clientId.value = data.clientId ?? clientId.value
+    clientCode.value = data.clientCode ?? clientCode.value
+    clientName.value = data.clientName ?? clientName.value
+
     persistSession()
   }
 
@@ -251,6 +295,9 @@ export const useAuthStore = defineStore('auth', () => {
     userType.value = null
     username.value = null
     email.value = null
+    clientId.value = null
+    clientCode.value = null
+    clientName.value = null
     roles.value = []
     scopes.value = []
 
@@ -381,6 +428,9 @@ export const useAuthStore = defineStore('auth', () => {
     userType,
     username,
     email,
+    clientId,
+    clientCode,
+    clientName,
     roles,
     scopes,
 

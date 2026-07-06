@@ -3,22 +3,30 @@ import { useI18n } from 'vue-i18n'
 import type { Component } from 'vue'
 
 import {
-  LayoutDashboard,
-  Users,
-  Shield,
-  KeyRound,
-  MonitorCog,
-  ClipboardList,
-  Settings,
+  BadgeDollarSign,
   BookOpen,
+  ClipboardList,
+  KeyRound,
+  LayoutDashboard,
   ListTree,
+  MonitorCog,
+  Settings,
+  Shield,
+  TrendingUp,
+  Users,
+  FileText,
+  ReceiptText,
 } from 'lucide-vue-next'
+import { useAuthStore } from '@/core/stores/authStore'
+import { VIEW_SCOPES } from '@/core/auth/scopes'
 
 export interface SidebarItem {
   labelKey: string
   icon: Component
   to?: string
   name?: string
+  requiredScope?: string
+  requiredRole?: string
   children?: SidebarItem[]
 }
 
@@ -56,24 +64,28 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             icon: Users,
             to: '/auth/users',
             name: 'users',
+            requiredScope: VIEW_SCOPES.users,
           },
           {
             labelKey: 'sidebar.roles',
             icon: Shield,
             to: '/auth/roles',
             name: 'roles',
+            requiredScope: VIEW_SCOPES.roles,
           },
           {
             labelKey: 'sidebar.scopes',
             icon: KeyRound,
             to: '/auth/scopes',
             name: 'scopes',
+            requiredScope: VIEW_SCOPES.scopes,
           },
           {
             labelKey: 'sidebar.sessions',
             icon: MonitorCog,
             to: '/auth/sessions',
             name: 'sessions',
+            requiredScope: VIEW_SCOPES.sessions,
           },
         ],
       },
@@ -87,14 +99,58 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             icon: ListTree,
             to: '/config/catalogs',
             name: 'catalogs',
+            requiredScope: VIEW_SCOPES.catalogs,
+          },
+        ],
+      },
+      {
+        labelKey: 'sidebar.pricing',
+        icon: TrendingUp,
+        name: 'pricing',
+        children: [
+          {
+            labelKey: 'sidebar.pricingPanel',
+            icon: TrendingUp,
+            to: '/pricing',
+            name: 'pricing',
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+          {
+            labelKey: 'sidebar.importedRates',
+            icon: FileText,
+            to: '/pricing/imports',
+            name: 'pricing-imports',
+            requiredScope: VIEW_SCOPES.pricingImports,
+          },
+          {
+            labelKey: 'sidebar.rates',
+            icon: ReceiptText,
+            to: '/pricing/rates',
+            name: 'pricing-rates',
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+          {
+            labelKey: 'sidebar.costs',
+            icon: BadgeDollarSign,
+            to: '/pricing/costs',
+            name: 'pricing-costs',
+            requiredScope: VIEW_SCOPES.pricingCosts,
           },
         ],
       },
       {
         labelKey: 'sidebar.audits',
         icon: ClipboardList,
-        to: '/audits',
+        to: '/auditlogs/events',
         name: 'audits',
+        requiredScope: VIEW_SCOPES.auditLogs,
+      },
+      {
+        labelKey: 'sidebar.monitoring',
+        icon: MonitorCog,
+        to: '/monitoring/services',
+        name: 'monitoring-services',
+        requiredRole: 'SuperUsuario',
       },
       {
         labelKey: 'sidebar.settings',
@@ -108,12 +164,15 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
 
 export function useSidebarItems() {
   const { t } = useI18n()
+  const authStore = useAuthStore()
 
   const navigation = computed<SidebarSectionView[]>(() =>
     SIDEBAR_NAVIGATION.map((section) => ({
       section: section.sectionKey ? t(section.sectionKey) : '',
-      items: section.items.map((item) => mapItem(item, t)),
-    })),
+      items: section.items
+        .map((item) => mapItem(item, t, authStore))
+        .filter((item): item is SidebarItemView => item !== null),
+    })).filter((section) => section.items.length > 0),
   )
 
   return {
@@ -121,11 +180,31 @@ export function useSidebarItems() {
   }
 }
 
-function mapItem(item: SidebarItem, t: (key: string) => string): SidebarItemView {
+function mapItem(
+  item: SidebarItem,
+  t: (key: string) => string,
+  authStore: ReturnType<typeof useAuthStore>,
+): SidebarItemView | null {
+  if (item.requiredScope && !authStore.hasScope(item.requiredScope)) {
+    return null
+  }
+
+  if (item.requiredRole && !authStore.hasRole(item.requiredRole)) {
+    return null
+  }
+
+  const children = item.children
+    ?.map((child) => mapItem(child, t, authStore))
+    .filter((child): child is SidebarItemView => child !== null)
+
+  if (item.children && (!children || children.length === 0)) {
+    return null
+  }
+
   return {
     ...item,
     label: t(item.labelKey),
-    children: item.children?.map((child) => mapItem(child, t)),
+    children,
   }
 }
 

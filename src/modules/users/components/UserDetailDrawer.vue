@@ -56,7 +56,8 @@ const canViewSessions = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.v
 const canRevokeSessions = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.revoke))
 const canRevokeAllSessions = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.revokeAll))
 const canRefreshCurrentToken = computed(() => localUser.value.id === authStore.userId)
-const showAccountActions = computed(() => canSetActive.value || canSetLocked.value || canChangePassword.value)
+const isProtectedUser = computed(() => Boolean(localUser.value.isProtected))
+const showAccountActions = computed(() => !isProtectedUser.value && (canSetActive.value || canSetLocked.value || canChangePassword.value))
 const showRoleActions = computed(() => canAssignRoles.value || canRevokeRoles.value)
 const showScopeActions = computed(() => canAssignScopes.value || canRevokeScopes.value)
 const showSessionActions = computed(() => canRefreshCurrentToken.value || canRevokeAllSessions.value)
@@ -111,7 +112,7 @@ async function refreshParent() {
 }
 
 async function activate() {
-  if (!canSetActive.value) return
+  if (!canSetActive.value || isProtectedUser.value) return
   await UsersService.activate(localUser.value.id)
   localUser.value.isActive = true
   toastStore.success('Usuario activado')
@@ -119,7 +120,7 @@ async function activate() {
 }
 
 async function inactivate() {
-  if (!canSetActive.value) return
+  if (!canSetActive.value || isProtectedUser.value) return
   await UsersService.inactivate(localUser.value.id)
   localUser.value.isActive = false
   toastStore.success('Usuario inactivado')
@@ -127,7 +128,7 @@ async function inactivate() {
 }
 
 function openBlockModal() {
-  if (!canSetLocked.value) return
+  if (!canSetLocked.value || isProtectedUser.value) return
 
   modalStore.open({
     title: t('common.block'),
@@ -149,7 +150,7 @@ function openBlockModal() {
 }
 
 async function unblock() {
-  if (!canSetLocked.value) return
+  if (!canSetLocked.value || isProtectedUser.value) return
   await UsersService.unblock(localUser.value.id)
   localUser.value.isLocked = false
   toastStore.success('Usuario desbloqueado')
@@ -157,7 +158,7 @@ async function unblock() {
 }
 
 function openPasswordModal() {
-  if (!canChangePassword.value) return
+  if (!canChangePassword.value || isProtectedUser.value) return
 
   modalStore.open({
     title: t('users.changePassword'),
@@ -176,7 +177,7 @@ function scopeItems(items: ScopeSelectDto[]): AuthMultiSelectItem[] {
 }
 
 function openAssignRoles() {
-  if (!canAssignRoles.value) return
+  if (!canAssignRoles.value || isProtectedUser.value) return
 
   const selected = roles.value.map((role) => role.roleId)
   modalStore.open({
@@ -201,7 +202,7 @@ function openAssignRoles() {
 }
 
 function openRevokeRoles() {
-  if (!canRevokeRoles.value || roles.value.length === 0) return
+  if (!canRevokeRoles.value || isProtectedUser.value || roles.value.length === 0) return
 
   modalStore.open({
     title: t('users.revokeRoles'),
@@ -223,7 +224,7 @@ function openRevokeRoles() {
 }
 
 function openAssignScopes() {
-  if (!canAssignScopes.value) return
+  if (!canAssignScopes.value || isProtectedUser.value) return
 
   const selected = directScopes.value.map((scope) => scope.scopeId)
   modalStore.open({
@@ -248,7 +249,7 @@ function openAssignScopes() {
 }
 
 function openRevokeScopes() {
-  if (!canRevokeScopes.value || directScopes.value.length === 0) return
+  if (!canRevokeScopes.value || isProtectedUser.value || directScopes.value.length === 0) return
 
   modalStore.open({
     title: t('users.revokeScopes'),
@@ -335,7 +336,8 @@ onMounted(loadRelated)
           <h3 class="text-xl font-black text-[var(--dh-text)]">{{ localUser.displayName || localUser.userName }}</h3>
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ localUser.email }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <DhBadge :label="localUser.userType" variant="primary" />
+            <DhBadge :label="localUser.userTypeName || localUser.userType" variant="primary" />
+            <DhBadge v-if="localUser.isProtected" :label="t('users.protectedUser')" variant="warning" />
             <DhBadge :label="localUser.isActive ? t('common.active') : t('common.inactive')" :variant="localUser.isActive ? 'success' : 'neutral'" />
             <DhBadge :label="localUser.isLocked ? 'Bloqueado' : 'Desbloqueado'" :variant="localUser.isLocked ? 'danger' : 'success'" />
           </div>

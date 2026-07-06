@@ -50,10 +50,18 @@
     "administrable": "Administrable",
     "sortOrder": "Sort order",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "clear": "Clear",
+    "success": "Success",
+    "failed": "Failed",
+    "error": "Error",
+    "never": "Never",
+    "noClient": "No client",
+    "open": "Open",
+    "select": "Select"
   },
   "topbar": {
-    "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs or audit logs...",
+    "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs, pricing, monitoring or audit logs...",
     "theme": "Theme",
     "language": "Language",
     "notifications": "Notifications",
@@ -73,7 +81,13 @@
     "appearance": "Appearance",
     "shortcuts": "Shortcuts",
     "collapse": "Collapse sidebar",
-    "expand": "Expand sidebar"
+    "expand": "Expand sidebar",
+    "monitoring": "Monitoring",
+    "pricing": "Pricing",
+    "pricingPanel": "Pricing panel",
+    "costs": "Costs",
+    "importedRates": "FCL imports",
+    "rates": "Rates"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -86,7 +100,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "subtitle": "Security and access control center.",
+    "subtitle": "Operations center for modules, security, pricing and monitoring.",
     "welcome": "Welcome",
     "quickActions": "Quick actions",
     "openUsers": "Manage users",
@@ -94,7 +108,25 @@
     "openScopes": "View scopes",
     "openSessions": "Manage sessions",
     "openCatalogs": "Manage catalogs",
-    "openAudits": "View audit logs"
+    "openAudits": "View audit logs",
+    "description": "Visual summary of the modules available to your user. Open each area from the cards or use global search.",
+    "operator": "Operator",
+    "visibleModules": "Visible modules",
+    "sessionStatus": "Session status",
+    "openMonitoring": "Monitor services",
+    "noModules": "There are no visible modules for this user.",
+    "noModulesHint": "Assign view scopes to show accesses in the dashboard and sidebar.",
+    "values": {
+      "auth": "Auth",
+      "rbac": "RBAC",
+      "scopes": "Scopes",
+      "jwt": "JWT",
+      "config": "Config",
+      "audit": "Audit",
+      "monitoring": "Ops",
+      "pricing": "FCL"
+    },
+    "openPricing": "Manage pricing"
   },
   "users": {
     "title": "Users",
@@ -118,7 +150,9 @@
     "revokeRoles": "Revoke roles",
     "assignScopes": "Assign scopes",
     "revokeScopes": "Revoke scopes",
-    "changePassword": "Change password"
+    "changePassword": "Change password",
+    "lastLogin": "Last login",
+    "protectedUser": "Protected user"
   },
   "roles": {
     "title": "Roles",
@@ -149,7 +183,15 @@
     "expiresAt": "Expires",
     "revoked": "Revoked",
     "revoke": "Revoke session",
-    "activeOnly": "Active sessions"
+    "activeOnly": "Active sessions",
+    "monitoring": {
+      "active": "Active sessions",
+      "activeHint": "Non-revoked sessions for the selected user.",
+      "revoked": "Revoked sessions",
+      "revokedHint": "Sessions manually closed or blocked.",
+      "expiringSoon": "Expiring soon",
+      "expiringSoonHint": "Sessions that expire within the next hour."
+    }
   },
   "catalogs": {
     "title": "Catalogs",
@@ -275,5 +317,317 @@
     "compact": "Compact",
     "resetWorkspace": "Clear open tabs",
     "resetShortcuts": "Reset shortcuts"
+  },
+  "tabs": {
+    "openSplit": "Open in split",
+    "close": "Close tab",
+    "splitMode": "Horizontal split",
+    "closeSplit": "Close pane",
+    "moveToLeft": "Move to left pane",
+    "moveToRight": "Move to right pane"
+  },
+  "monitoring": {
+    "title": "Service monitoring",
+    "subtitle": "Technical status of the main services. Only visible to SuperUsuario.",
+    "service": "Service",
+    "latency": "Latency",
+    "statusCode": "HTTP status",
+    "checkedAt": "Checked at",
+    "online": "Online",
+    "onlineHint": "Services responding correctly.",
+    "offline": "Offline",
+    "offlineHint": "Services without response or with errors.",
+    "averageLatency": "Average latency",
+    "averageLatencyHint": "Average of current checks.",
+    "empty": "There are no services to monitor.",
+    "statuses": {
+      "online": "Online",
+      "offline": "Offline",
+      "unknown": "Unknown"
+    },
+    "services": {
+      "dataExtraction": {
+        "name": "Data Extraction",
+        "description": "Internal rate-sheet extraction."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Pricing",
+    "subtitle": "FCL imports, rates, and costs.",
+    "workspaceTitle": "Pricing workspace",
+    "workspaceDescription": "A clearer workspace to review imports, build sell rates, and manage costs outside the main pricing panel.",
+    "quickAccess": "Quick access",
+    "sectionOverview": "Overview",
+    "sectionHint": "Use this screen as the operating panel for pricing.",
+    "tabs": {
+      "imports": "Imports",
+      "rates": "Rates",
+      "costs": "Costs"
+    },
+    "kpis": {
+      "activeCosts": "Active costs",
+      "pendingImports": "Pending",
+      "activeRates": "Active rates",
+      "lowMargin": "Low margin"
+    },
+    "monitor": {
+      "dataExtraction": "Data Extraction",
+      "check": "Check",
+      "statuses": {
+        "online": "Online",
+        "offline": "Offline",
+        "unknown": "Checking"
+      }
+    },
+    "actions": {
+      "importRates": "Import",
+      "uploadAndExtract": "Upload and extract",
+      "newCost": "New cost",
+      "reviewRates": "Review rates",
+      "manualRate": "Create manual rate",
+      "extract": "Extract",
+      "approve": "Approve",
+      "reject": "Reject",
+      "createOfficialRate": "Create rate",
+      "createCost": "Create cost",
+      "createAndApply": "Create and apply",
+      "addCost": "Add cost",
+      "newCostAndApply": "Create cost and apply",
+      "duplicate": "Duplicate",
+      "deleteSelected": "Delete selected",
+      "quickPrint": "Quick print"
+    },
+    "common": {
+      "carrier": "Carrier",
+      "port": "Port",
+      "currency": "Currency",
+      "amount": "Amount",
+      "fixed": "Fixed",
+      "variable": "Variable",
+      "fixedCost": "Fixed cost",
+      "pol": "POL",
+      "pod": "POD",
+      "container": "Container",
+      "client": "Client",
+      "route": "Route",
+      "general": "General",
+      "optional": "Optional",
+      "carrierCatalog": "Carrier catalog",
+      "containerCatalog": "Container catalog",
+      "originCatalog": "Origin catalog",
+      "destinationCatalog": "Destination catalog",
+      "currencyCatalog": "Currency catalog",
+      "origin": "Origin",
+      "destination": "Destination",
+      "validFrom": "From",
+      "validTo": "To",
+      "notes": "Notes",
+      "notesEvidence": "Notes / evidence",
+      "name": "Name",
+      "costType": "Cost type",
+      "rateType": "Type",
+      "portRole": "Port role",
+      "manualAmount": "Manual amount",
+      "manual": "Manual",
+      "automatic": "Automatic",
+      "notLinked": "Not linked",
+      "noClient": "No client"
+    },
+    "imports": {
+      "title": "FCL imports",
+      "search": "Search imports",
+      "empty": "No imports.",
+      "convertTitle": "Create rate from import",
+      "extractedRate": "Extracted rate"
+    },
+    "upload": {
+      "title": "Import rate sheet",
+      "dropTitle": "Drop or select file",
+      "dropSubtitle": "PDF, Excel, CSV, email, HTML or text with ocean freight rates.",
+      "chooseFile": "Choose file",
+      "profile": "Profile",
+      "profilePlaceholder": "Select profile",
+      "result": "Result",
+      "resultSummary": "{created} created, {skipped} skipped, {total} rows."
+    },
+    "rates": {
+      "title": "Rates",
+      "search": "Search rates",
+      "empty": "No rates.",
+      "drawerTitle": "Rate",
+      "totalCost": "Cost",
+      "sale": "Sale",
+      "margin": "Margin",
+      "validity": "Validity",
+      "requiresApproval": "Requires approval",
+      "fclDetails": "FCL",
+      "costDetails": "Costs",
+      "noFclDetails": "No FCL details.",
+      "noCostDetails": "No costs.",
+      "addCostTitle": "Add cost",
+      "addCostSubtitle": "",
+      "existingCost": "Existing cost",
+      "existingCostPlaceholder": "Select cost",
+      "saleToCharge": "Sale amount to charge",
+      "desiredMargin": "Desired margin",
+      "saleHelper": "Type the final amount to charge. If empty, it is calculated with the desired margin.",
+      "editSaleTitle": "Client, validity and sale",
+      "editSaleHelp": "Edit client, dates or sale amount even if the rate is already approved.",
+      "minimumSaleHint": "Suggested minimum sale at 12%: {amount}",
+      "saleAmount": "Sale amount",
+      "costSaleHelper": "The cost amount affects total cost. The sale amount is what will be charged to the customer for this item and helps increase the margin.",
+      "fixedLocked": "Fixed",
+      "editHeaderTitle": "Client and validity",
+      "editHeaderHelp": "Update the client or validity dates. Sale value is controlled from the rate cost lines.",
+      "editCostTitle": "Edit variable cost",
+      "editCostHelp": "Only variable or manual costs can be edited. Automatic fixed costs remain locked."
+    },
+    "costs": {
+      "title": "Costs",
+      "search": "Search costs",
+      "empty": "No costs.",
+      "drawerTitle": "Create cost",
+      "drawerTitleFromRate": "Create cost and apply",
+      "namePlaceholder": "BL, THC, handling...",
+      "fixedHelp": "Applied automatically when carrier and port match the rate.",
+      "columns": {
+        "name": "Cost"
+      },
+      "fixedTitle": "Automatic fixed costs",
+      "variableTitle": "Variable / manual costs",
+      "emptyFixed": "No automatic fixed costs.",
+      "emptyVariable": "No variable costs.",
+      "variableTemplate": "Variable template",
+      "variableHelp": "Not tied to carrier or port; can be adjusted when quoting.",
+      "automaticFixedHelp": "This cost will be applied automatically by carrier and port.",
+      "variableFormHelp": "This cost is saved as a global template; carrier and port are not required.",
+      "drawerTitleEdit": "Edit cost",
+      "deleteTitle": "Delete cost",
+      "deleteMessage": "Delete cost \"{name}\"? Existing rates keep their historical values.",
+      "automaticMatrixTitle": "Automatic cost matrix",
+      "automaticMatrixHelp": "Automatic costs by port/carrier with cost, sale, and profit per item.",
+      "noAutomaticMatrix": "Create fixed costs with carrier and port so they can be applied automatically to rates."
+    },
+    "reject": {
+      "title": "Reject import",
+      "reason": "Reason",
+      "placeholder": "Reject reason",
+      "defaultReason": "Rejected from Pricing."
+    },
+    "status": {
+      "PendingReview": "Pending",
+      "Approved": "Approved",
+      "Rejected": "Rejected",
+      "ImportedOnly": "Imported only",
+      "CreatedAsRate": "Created",
+      "Draft": "Draft",
+      "Active": "Active",
+      "Inactive": "Inactive",
+      "Deleted": "Deleted",
+      "Pending": "Pending",
+      "PendingApproval": "Pending approval",
+      "ApprovalRejected": "Approval rejected"
+    },
+    "costTypes": {
+      "Freight": "Freight",
+      "OriginCharge": "Origin",
+      "DestinationCharge": "Destination",
+      "PortCharge": "Port",
+      "CustomsCharge": "Customs",
+      "InlandTransport": "Inland transport",
+      "Documentation": "Documentation",
+      "Insurance": "Insurance",
+      "Other": "Other"
+    },
+    "validation": {
+      "selectRequired": "Select {field}."
+    },
+    "messages": {
+      "catalogsLoadError": "Catalogs could not be loaded.",
+      "loadError": "Pricing could not be loaded.",
+      "extractionSuccess": "File processed.",
+      "extractionError": "Rate sheet could not be extracted.",
+      "costCreated": "Cost created.",
+      "costCreateError": "Cost could not be created.",
+      "costStatusError": "Status could not be changed.",
+      "importApproved": "Import approved.",
+      "importApproveError": "Import could not be approved.",
+      "importRejected": "Import rejected.",
+      "importRejectError": "Import could not be rejected.",
+      "rateCreated": "Rate created.",
+      "rateCreateError": "Rate could not be created.",
+      "rateFromImportCreated": "Rate created.",
+      "rateFromImportError": "Rate could not be created.",
+      "rateLoadError": "Rate could not be loaded.",
+      "rateStatusError": "Status could not be changed.",
+      "costDetailAdded": "Cost added.",
+      "costDetailError": "Cost could not be added.",
+      "marginApproved": "Margin approved successfully.",
+      "marginApproveError": "Could not approve the margin.",
+      "marginRejected": "Margin rejected successfully.",
+      "marginRejectError": "Could not reject the margin.",
+      "rateDuplicated": "Rate duplicated successfully.",
+      "rateDuplicateError": "The rate could not be duplicated.",
+      "rateUpdated": "Rate updated successfully.",
+      "rateUpdateError": "Could not update the rate.",
+      "importDeleted": "Imported rate deleted.",
+      "importsDeleted": "Imported rates deleted.",
+      "importDeleteError": "Could not delete imported rates.",
+      "rateDeleted": "Rate deleted.",
+      "ratesDeleted": "Rates deleted.",
+      "rateDeleteError": "Could not delete rates.",
+      "costDetailRemoved": "Variable item removed from the rate.",
+      "costDetailDeleteError": "The variable item could not be removed from the rate.",
+      "costUpdated": "Cost updated successfully.",
+      "costUpdateError": "Could not update the cost.",
+      "costDeleted": "Cost deleted successfully.",
+      "costDeleteError": "Could not delete the cost.",
+      "costDetailUpdated": "Rate cost updated successfully.",
+      "costDetailUpdateError": "Could not update the rate cost."
+    },
+    "portRoles": {
+      "Any": "Any port",
+      "Pol": "Origin / POL",
+      "Pod": "Destination / POD"
+    },
+    "marginApprovals": {
+      "title": "Margin approvals",
+      "approvedFromWeb": "Approved from Pricing Web.",
+      "rejectReasonPrompt": "Enter the margin rejection reason"
+    },
+    "marginReject": {
+      "title": "Reject margin approval",
+      "description": "Explain why this rate is not approved. The rate will stay rejected and inactive.",
+      "reason": "Reason",
+      "placeholder": "Example: margin is too low for this client or route."
+    },
+    "duplicateRate": {
+      "title": "Duplicate rate",
+      "description": "Create a copy of the rate to change the client, margin, or sale amount without changing the original.",
+      "clientName": "Client",
+      "marginPercentage": "Margin %",
+      "saleAmount": "Sale amount",
+      "helper": "If you enter a sale amount, the system uses it directly. If you leave it empty, the amount is calculated from the margin."
+    },
+    "print": {
+      "quote": "Quick quote",
+      "date": "Date",
+      "item": "Item",
+      "oceanFreight": "Ocean freight",
+      "total": "Total to charge",
+      "footer": "Quote subject to space, availability, and stated validity."
+    },
+    "matrix": {
+      "title": "Rate matrix",
+      "subtitle": "Rates grouped by port, with cost, sale, and profit like the operating matrix.",
+      "allPorts": "All",
+      "item": "Item",
+      "cost": "Cost",
+      "sale": "Sale",
+      "profit": "Profit",
+      "oceanFreight": "Ocean freight",
+      "emptyHelp": "Change the port, filters, or search for another route."
+    }
   }
 }

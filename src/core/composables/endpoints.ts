@@ -20,6 +20,25 @@ export const AuthEndpoints = {
   refreshToken: { method: 'POST', path: '/api/auth/refresh', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 
+
+export const ClientBrandingEndpoints = {
+  getCurrentClientBranding: {
+    method: 'GET',
+    path: '/api/config/client-branding/current',
+    headers: acceptJson,
+  },
+  getClientBranding: {
+    method: 'GET',
+    path: '/api/config/client-branding/clients/{{clientId}}',
+    headers: acceptJson,
+  },
+  updateClientBranding: {
+    method: 'PUT',
+    path: '/api/config/client-branding/clients/{{clientId}}',
+    headers: jsonHeaders,
+  },
+} satisfies Record<string, Endpoint>
+
 export const UserEndpoints = {
   createUser: { method: 'POST', path: '/api/auth/users', headers: jsonHeaders },
   browseUsers: { method: 'GET', path: '/api/auth/users', headers: acceptJson },
@@ -94,12 +113,10 @@ export const RoleEndpoints = {
 } satisfies Record<string, Endpoint>
 
 export const ScopeEndpoints = {
-  // AuthService expone esto como /api/scopes/select, no /api/auth/scopes/select.
   selectScopes: { method: 'GET', path: '/api/auth/scopes/select', headers: acceptJson },
 } satisfies Record<string, Endpoint>
 
 export const SessionEndpoints = {
-  // AuthService expone esto como /api/sessions, no /api/auth/sessions.
   getUserSessions: {
     method: 'GET',
     path: '/api/auth/sessions/users/{{userId}}',
@@ -251,8 +268,106 @@ export const AuditLogsEndpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+
+export const ScrapingEndpoints = {
+  browseScrapingSources: { method: 'GET', path: '/api/scraping/sources', headers: acceptJson },
+  selectScrapingSources: { method: 'GET', path: '/api/scraping/sources/select', headers: acceptJson },
+  createScrapingSource: { method: 'POST', path: '/api/scraping/sources', headers: jsonHeaders },
+  updateScrapingSource: { method: 'PUT', path: '/api/scraping/sources/{{sourceId}}', headers: jsonHeaders },
+  setScrapingSourceActive: { method: 'PATCH', path: '/api/scraping/sources/{{sourceId}}/active', headers: jsonHeaders },
+  deleteScrapingSource: { method: 'DELETE', path: '/api/scraping/sources/{{sourceId}}', headers: acceptJson },
+
+  browseScrapingCredentials: { method: 'GET', path: '/api/scraping/credentials', headers: acceptJson },
+  createScrapingCredential: { method: 'POST', path: '/api/scraping/credentials', headers: jsonHeaders },
+  updateScrapingCredential: { method: 'PUT', path: '/api/scraping/credentials/{{credentialId}}', headers: jsonHeaders },
+  rotateScrapingCredentialSecret: { method: 'PATCH', path: '/api/scraping/credentials/{{credentialId}}/secret', headers: jsonHeaders },
+  setScrapingCredentialActive: { method: 'PATCH', path: '/api/scraping/credentials/{{credentialId}}/active', headers: jsonHeaders },
+  deleteScrapingCredential: { method: 'DELETE', path: '/api/scraping/credentials/{{credentialId}}', headers: acceptJson },
+
+  browseScrapingJobs: { method: 'GET', path: '/api/scraping/jobs', headers: acceptJson },
+  createScrapingJob: { method: 'POST', path: '/api/scraping/jobs', headers: jsonHeaders },
+  startScrapingJob: { method: 'POST', path: '/api/scraping/jobs/{{jobId}}/start', headers: jsonHeaders },
+  completeScrapingJob: { method: 'POST', path: '/api/scraping/jobs/{{jobId}}/complete', headers: jsonHeaders },
+  failScrapingJob: { method: 'POST', path: '/api/scraping/jobs/{{jobId}}/fail', headers: jsonHeaders },
+  cancelScrapingJob: { method: 'POST', path: '/api/scraping/jobs/{{jobId}}/cancel', headers: jsonHeaders },
+
+  browseScrapingRuns: { method: 'GET', path: '/api/scraping/runs', headers: acceptJson },
+  createScrapingRun: { method: 'POST', path: '/api/scraping/runs', headers: jsonHeaders },
+  startScrapingRun: { method: 'POST', path: '/api/scraping/runs/{{runId}}/start', headers: jsonHeaders },
+  completeScrapingRun: { method: 'POST', path: '/api/scraping/runs/{{runId}}/complete', headers: jsonHeaders },
+  failScrapingRun: { method: 'POST', path: '/api/scraping/runs/{{runId}}/fail', headers: jsonHeaders },
+  retryScrapingRun: { method: 'POST', path: '/api/scraping/runs/{{runId}}/retry', headers: jsonHeaders },
+
+  browseScrapedEvidences: { method: 'GET', path: '/api/scraping/evidences', headers: acceptJson },
+  createScrapedEvidence: { method: 'POST', path: '/api/scraping/evidences', headers: jsonHeaders },
+  deleteScrapedEvidence: { method: 'DELETE', path: '/api/scraping/evidences/{{evidenceId}}', headers: acceptJson },
+
+  browseScrapedRateCandidates: { method: 'GET', path: '/api/scraping/rate-candidates', headers: acceptJson },
+  createScrapedRateCandidate: { method: 'POST', path: '/api/scraping/rate-candidates', headers: jsonHeaders },
+  normalizeScrapedRateCandidate: { method: 'POST', path: '/api/scraping/rate-candidates/{{candidateId}}/normalize', headers: jsonHeaders },
+  approveScrapedRateCandidate: { method: 'POST', path: '/api/scraping/rate-candidates/{{candidateId}}/approve', headers: jsonHeaders },
+  rejectScrapedRateCandidate: { method: 'POST', path: '/api/scraping/rate-candidates/{{candidateId}}/reject', headers: jsonHeaders },
+  sendScrapedRateCandidateToPricing: { method: 'POST', path: '/api/scraping/rate-candidates/{{candidateId}}/send-to-pricing', headers: jsonHeaders },
+
+  browseExtractionRules: { method: 'GET', path: '/api/scraping/extraction-rules', headers: acceptJson },
+  createExtractionRule: { method: 'POST', path: '/api/scraping/extraction-rules', headers: jsonHeaders },
+  updateExtractionRule: { method: 'PUT', path: '/api/scraping/extraction-rules/{{ruleId}}', headers: jsonHeaders },
+  approveExtractionRule: { method: 'POST', path: '/api/scraping/extraction-rules/{{ruleId}}/approve', headers: jsonHeaders },
+  rejectExtractionRule: { method: 'POST', path: '/api/scraping/extraction-rules/{{ruleId}}/reject', headers: jsonHeaders },
+  setExtractionRuleActive: { method: 'PATCH', path: '/api/scraping/extraction-rules/{{ruleId}}/active', headers: jsonHeaders },
+  deleteExtractionRule: { method: 'DELETE', path: '/api/scraping/extraction-rules/{{ruleId}}', headers: acceptJson },
+
+  executeManualWebScraping: { method: 'POST', path: '/api/scraping/web/manual', headers: jsonHeaders },
+  bootstrapWebScrapingAuth: { method: 'POST', path: '/api/scraping/web/auth/bootstrap', headers: jsonHeaders },
+} satisfies Record<string, Endpoint>
+
+export const PricingEndpoints = {
+  browseCosts: { method: 'GET', path: '/api/pricing/costs', headers: acceptJson },
+  selectCosts: { method: 'GET', path: '/api/pricing/costs/select', headers: acceptJson },
+  getCostById: { method: 'GET', path: '/api/pricing/costs/{{costId}}', headers: acceptJson },
+  createCost: { method: 'POST', path: '/api/pricing/costs', headers: jsonHeaders },
+  updateCost: { method: 'PUT', path: '/api/pricing/costs/{{costId}}', headers: jsonHeaders },
+  setCostActive: { method: 'PATCH', path: '/api/pricing/costs/{{costId}}/active', headers: jsonHeaders },
+  deleteCost: { method: 'DELETE', path: '/api/pricing/costs/{{costId}}', headers: acceptJson },
+
+  browseImportFclRates: { method: 'GET', path: '/api/pricing/import-fcl-rates', headers: acceptJson },
+  selectImportFclRates: { method: 'GET', path: '/api/pricing/import-fcl-rates/select', headers: acceptJson },
+  getImportFclRateById: { method: 'GET', path: '/api/pricing/import-fcl-rates/{{importFclRateId}}', headers: acceptJson },
+  createImportFclRate: { method: 'POST', path: '/api/pricing/import-fcl-rates', headers: jsonHeaders },
+  extractImportFclRates: { method: 'POST', path: '/api/pricing/import-fcl-rates/extract', headers: acceptJson },
+  approveImportFclRate: { method: 'PATCH', path: '/api/pricing/import-fcl-rates/{{importFclRateId}}/approve', headers: jsonHeaders },
+  rejectImportFclRate: { method: 'PATCH', path: '/api/pricing/import-fcl-rates/{{importFclRateId}}/reject', headers: jsonHeaders },
+  markImportFclRateAsImportedOnly: { method: 'PATCH', path: '/api/pricing/import-fcl-rates/{{importFclRateId}}/imported-only', headers: jsonHeaders },
+  createRateFromImportFclRate: { method: 'POST', path: '/api/pricing/import-fcl-rates/{{importFclRateId}}/create-as-rate', headers: jsonHeaders },
+  deleteImportFclRate: { method: 'DELETE', path: '/api/pricing/import-fcl-rates/{{importFclRateId}}', headers: acceptJson },
+  deleteImportFclRatesBatch: { method: 'POST', path: '/api/pricing/import-fcl-rates/batch-delete', headers: jsonHeaders },
+
+  browseRateHeaders: { method: 'GET', path: '/api/pricing/rates', headers: acceptJson },
+  selectRateHeaders: { method: 'GET', path: '/api/pricing/rates/select', headers: acceptJson },
+  getActiveFclRates: { method: 'GET', path: '/api/pricing/rates/active-fcl', headers: acceptJson },
+  getRateHeaderById: { method: 'GET', path: '/api/pricing/rates/{{rateHeaderId}}', headers: acceptJson },
+  createRateHeader: { method: 'POST', path: '/api/pricing/rates', headers: jsonHeaders },
+  updateRateHeader: { method: 'PUT', path: '/api/pricing/rates/{{rateHeaderId}}', headers: jsonHeaders },
+  setRateHeaderAmounts: { method: 'PATCH', path: '/api/pricing/rates/{{rateHeaderId}}/amounts', headers: jsonHeaders },
+  setRateHeaderActive: { method: 'PATCH', path: '/api/pricing/rates/{{rateHeaderId}}/active', headers: jsonHeaders },
+  duplicateRateHeader: { method: 'POST', path: '/api/pricing/rates/{{rateHeaderId}}/duplicate', headers: jsonHeaders },
+  deleteRateHeader: { method: 'DELETE', path: '/api/pricing/rates/{{rateHeaderId}}', headers: acceptJson },
+  deleteRateHeadersBatch: { method: 'POST', path: '/api/pricing/rates/batch-delete', headers: jsonHeaders },
+
+  addFclRateDetail: { method: 'POST', path: '/api/pricing/rates/{{rateHeaderId}}/fcl-details', headers: jsonHeaders },
+  updateFclRateDetail: { method: 'PUT', path: '/api/pricing/rates/{{rateHeaderId}}/fcl-details/{{fclRateDetailId}}', headers: jsonHeaders },
+  removeFclRateDetail: { method: 'DELETE', path: '/api/pricing/rates/{{rateHeaderId}}/fcl-details/{{fclRateDetailId}}', headers: acceptJson },
+
+  addRateCostDetail: { method: 'POST', path: '/api/pricing/rates/{{rateHeaderId}}/cost-details', headers: jsonHeaders },
+  updateRateCostDetail: { method: 'PUT', path: '/api/pricing/rates/{{rateHeaderId}}/cost-details/{{rateCostDetailId}}', headers: jsonHeaders },
+  removeRateCostDetail: { method: 'DELETE', path: '/api/pricing/rates/{{rateHeaderId}}/cost-details/{{rateCostDetailId}}', headers: acceptJson },
+  approveMarginApproval: { method: 'PATCH', path: '/api/pricing/rates/{{rateHeaderId}}/margin-approvals/{{marginApprovalId}}/approve', headers: jsonHeaders },
+  rejectMarginApproval: { method: 'PATCH', path: '/api/pricing/rates/{{rateHeaderId}}/margin-approvals/{{marginApprovalId}}/reject', headers: jsonHeaders },
+} satisfies Record<string, Endpoint>
+
 export const Endpoints = {
   ...AuthEndpoints,
+  ...ClientBrandingEndpoints,
   ...UserEndpoints,
   ...RoleEndpoints,
   ...ScopeEndpoints,
@@ -260,4 +375,6 @@ export const Endpoints = {
   ...CatalogGroupEndpoints,
   ...CatalogItemEndpoints,
   ...AuditLogsEndpoints,
+  ...ScrapingEndpoints,
+  ...PricingEndpoints,
 } satisfies Record<string, Endpoint>

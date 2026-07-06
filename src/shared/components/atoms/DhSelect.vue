@@ -11,11 +11,11 @@ const emit = defineEmits<{ 'update:modelValue': [value: string | number] }>()
     <select
       :value="modelValue ?? ''"
       :disabled="disabled"
-      class="h-11 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none backdrop-blur-xl transition focus:border-[var(--dh-primary)] focus:ring-4 focus:ring-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+      class="h-11 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none backdrop-blur-xl transition dh-focus-primary disabled:cursor-not-allowed disabled:opacity-50"
       :class="error && 'border-red-500'"
       @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
     >
-      <option value="" disabled>{{ placeholder ?? 'Seleccione una opción' }}</option>
+      <option v-if="placeholder !== ''" value="" disabled>{{ placeholder ?? 'Seleccione una opción' }}</option>
       <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">{{ option.label }}</option>
     </select>
     <span v-if="error" class="mt-1 block text-xs font-semibold text-red-500">{{ error }}</span>

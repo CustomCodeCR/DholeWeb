@@ -70,7 +70,7 @@ function handleEnter() {
           @click="emit('select', item)"
         >
           <div
-            class="flex h-11 w-11 items-center justify-center rounded-[18px] bg-red-500/10 text-[var(--dh-primary)]"
+            class="flex h-11 w-11 items-center justify-center rounded-[18px] dh-bg-primary-soft text-[var(--dh-primary)]"
           >
             <component :is="item.icon" v-if="item.icon" class="h-5 w-5" />
           </div>

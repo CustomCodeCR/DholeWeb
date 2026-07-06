@@ -6,9 +6,11 @@ export interface UserDto {
   email: string
   displayName: string
   userType: UserType
+  userTypeName?: string
   isActive: boolean
   isLocked: boolean
   lastLoginAt: string | null
+  isProtected?: boolean
 }
 
 export interface UserRoleDto {
@@ -36,6 +38,7 @@ export interface CreateUserRequest {
   email: string
   displayName: string
   userType: UserType
+  userTypeName?: string
   password: string
 }
 

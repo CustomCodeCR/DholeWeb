@@ -6,7 +6,7 @@ withDefaults(
     modelValue: string | number | null
     label?: string
     placeholder?: string
-    type?: 'text' | 'email' | 'password' | 'number' | 'search'
+    type?: 'text' | 'email' | 'password' | 'number' | 'search' | 'datetime-local' | 'date'
     icon?: Component
     error?: string
     disabled?: boolean
@@ -21,7 +21,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
   <label class="block">
     <span v-if="label" class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ label }}</span>
     <div
-      class="flex h-11 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl transition focus-within:border-[var(--dh-primary)] focus-within:ring-4 focus-within:ring-red-500/10"
+      class="flex h-11 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl transition dh-focus-primary"
       :class="error && 'border-red-500'"
     >
       <component :is="icon" v-if="icon" class="h-4 w-4 text-[var(--dh-text-muted)]" />

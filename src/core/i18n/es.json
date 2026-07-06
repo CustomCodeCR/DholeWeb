@@ -50,10 +50,18 @@
     "administrable": "Administrable",
     "sortOrder": "Orden",
     "previous": "Anterior",
-    "next": "Siguiente"
+    "next": "Siguiente",
+    "clear": "Limpiar",
+    "success": "Correcto",
+    "failed": "Fallido",
+    "error": "Error",
+    "never": "Nunca",
+    "noClient": "Sin cliente",
+    "open": "Abrir",
+    "select": "Seleccionar"
   },
   "topbar": {
-    "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos o auditoría...",
+    "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos, pricing, monitoreo o auditoría...",
     "theme": "Tema",
     "language": "Idioma",
     "notifications": "Notificaciones",
@@ -73,7 +81,13 @@
     "appearance": "Apariencia",
     "shortcuts": "Atajos",
     "collapse": "Colapsar menú",
-    "expand": "Expandir menú"
+    "expand": "Expandir menú",
+    "monitoring": "Monitoreo",
+    "pricing": "Pricing",
+    "pricingPanel": "Panel de pricing",
+    "costs": "Costos",
+    "importedRates": "Importaciones FCL",
+    "rates": "Tarifas"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -86,7 +100,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "subtitle": "Centro de control de seguridad y acceso.",
+    "subtitle": "Centro operativo de módulos, seguridad, pricing y monitoreo.",
     "welcome": "Bienvenido",
     "quickActions": "Accesos rápidos",
     "openUsers": "Administrar usuarios",
@@ -94,7 +108,25 @@
     "openScopes": "Consultar permisos",
     "openSessions": "Administrar sesiones",
     "openCatalogs": "Administrar catálogos",
-    "openAudits": "Ver auditoría"
+    "openAudits": "Ver auditoría",
+    "description": "Resumen visual de los módulos disponibles para su usuario. Abra cada área desde las tarjetas o use el buscador global.",
+    "operator": "Operador",
+    "visibleModules": "Módulos visibles",
+    "sessionStatus": "Estado de sesión",
+    "openMonitoring": "Monitorear servicios",
+    "noModules": "No hay módulos visibles para este usuario.",
+    "noModulesHint": "Asigne scopes de tipo view para mostrar accesos en el dashboard y en el sidebar.",
+    "values": {
+      "auth": "Auth",
+      "rbac": "RBAC",
+      "scopes": "Scopes",
+      "jwt": "JWT",
+      "config": "Config",
+      "audit": "Audit",
+      "monitoring": "Ops",
+      "pricing": "FCL"
+    },
+    "openPricing": "Gestionar pricing"
   },
   "users": {
     "title": "Usuarios",
@@ -118,7 +150,9 @@
     "revokeRoles": "Revocar roles",
     "assignScopes": "Asignar scopes",
     "revokeScopes": "Revocar scopes",
-    "changePassword": "Cambiar contraseña"
+    "changePassword": "Cambiar contraseña",
+    "lastLogin": "Último login",
+    "protectedUser": "Usuario protegido"
   },
   "roles": {
     "title": "Roles",
@@ -149,7 +183,15 @@
     "expiresAt": "Expira",
     "revoked": "Revocada",
     "revoke": "Revocar sesión",
-    "activeOnly": "Sesiones activas"
+    "activeOnly": "Sesiones activas",
+    "monitoring": {
+      "active": "Sesiones activas",
+      "activeHint": "Sesiones no revocadas del usuario seleccionado.",
+      "revoked": "Sesiones revocadas",
+      "revokedHint": "Sesiones cerradas o bloqueadas manualmente.",
+      "expiringSoon": "Próximas a expirar",
+      "expiringSoonHint": "Sesiones que vencen durante la próxima hora."
+    }
   },
   "catalogs": {
     "title": "Catálogos",
@@ -275,5 +317,317 @@
     "compact": "Compacta",
     "resetWorkspace": "Limpiar pestañas abiertas",
     "resetShortcuts": "Restaurar atajos"
+  },
+  "tabs": {
+    "openSplit": "Abrir en split",
+    "close": "Cerrar pestaña",
+    "splitMode": "Split horizontal",
+    "closeSplit": "Cerrar panel",
+    "moveToLeft": "Mover al panel izquierdo",
+    "moveToRight": "Mover al panel derecho"
+  },
+  "monitoring": {
+    "title": "Monitoreo de servicios",
+    "subtitle": "Estado técnico de los servicios principales. Solo visible para SuperUsuario.",
+    "service": "Servicio",
+    "latency": "Latencia",
+    "statusCode": "Código HTTP",
+    "checkedAt": "Revisado",
+    "online": "Online",
+    "onlineHint": "Servicios respondiendo correctamente.",
+    "offline": "Offline",
+    "offlineHint": "Servicios sin respuesta o con error.",
+    "averageLatency": "Latencia promedio",
+    "averageLatencyHint": "Promedio de las revisiones actuales.",
+    "empty": "No hay servicios para monitorear.",
+    "statuses": {
+      "online": "Online",
+      "offline": "Offline",
+      "unknown": "Desconocido"
+    },
+    "services": {
+      "dataExtraction": {
+        "name": "Data Extraction",
+        "description": "Extracción interna de tarifarios."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Pricing",
+    "subtitle": "Importaciones FCL, tarifas y costos.",
+    "workspaceTitle": "Workspace de pricing",
+    "workspaceDescription": "Un espacio más claro para revisar importaciones, construir tarifas y administrar costos separados del panel principal.",
+    "quickAccess": "Acceso rápido",
+    "sectionOverview": "Vista general",
+    "sectionHint": "Use esta vista como panel operativo para pricing.",
+    "tabs": {
+      "imports": "Importaciones",
+      "rates": "Tarifas",
+      "costs": "Costos"
+    },
+    "kpis": {
+      "activeCosts": "Costos activos",
+      "pendingImports": "Pendientes",
+      "activeRates": "Tarifas activas",
+      "lowMargin": "Margen bajo"
+    },
+    "monitor": {
+      "dataExtraction": "Data Extraction",
+      "check": "Verificar",
+      "statuses": {
+        "online": "En línea",
+        "offline": "Fuera de línea",
+        "unknown": "Verificando"
+      }
+    },
+    "actions": {
+      "importRates": "Importar",
+      "uploadAndExtract": "Subir y extraer",
+      "newCost": "Nuevo costo",
+      "reviewRates": "Revisar tarifas",
+      "manualRate": "Crear tarifa manual",
+      "extract": "Extraer",
+      "approve": "Aprobar",
+      "reject": "Rechazar",
+      "createOfficialRate": "Crear tarifa",
+      "createCost": "Crear costo",
+      "createAndApply": "Crear y aplicar",
+      "addCost": "Agregar costo",
+      "newCostAndApply": "Crear costo y aplicar",
+      "duplicate": "Duplicar",
+      "deleteSelected": "Eliminar seleccionadas",
+      "quickPrint": "Impresión rápida"
+    },
+    "common": {
+      "carrier": "Naviera",
+      "port": "Puerto",
+      "currency": "Moneda",
+      "amount": "Monto",
+      "fixed": "Fijo",
+      "variable": "Variable",
+      "fixedCost": "Costo fijo",
+      "pol": "POL",
+      "pod": "POD",
+      "container": "Contenedor",
+      "client": "Cliente",
+      "route": "Ruta",
+      "general": "General",
+      "optional": "Opcional",
+      "carrierCatalog": "Naviera catálogo",
+      "containerCatalog": "Contenedor catálogo",
+      "originCatalog": "Origen catálogo",
+      "destinationCatalog": "Destino catálogo",
+      "currencyCatalog": "Moneda catálogo",
+      "origin": "Origen",
+      "destination": "Destino",
+      "validFrom": "Desde",
+      "validTo": "Hasta",
+      "notes": "Notas",
+      "notesEvidence": "Notas / evidencia",
+      "name": "Nombre",
+      "costType": "Tipo de costo",
+      "rateType": "Tipo",
+      "portRole": "Aplica en puerto",
+      "manualAmount": "Monto manual",
+      "manual": "Manual",
+      "automatic": "Automático",
+      "notLinked": "No vinculado",
+      "noClient": "Sin cliente"
+    },
+    "imports": {
+      "title": "Importaciones FCL",
+      "search": "Buscar importaciones",
+      "empty": "No hay importaciones.",
+      "convertTitle": "Crear tarifa desde importación",
+      "extractedRate": "Tarifa extraída"
+    },
+    "upload": {
+      "title": "Importar tarifario",
+      "dropTitle": "Arrastre o seleccione archivo",
+      "dropSubtitle": "PDF, Excel, CSV, correo, HTML o texto con tarifas marítimas.",
+      "chooseFile": "Seleccionar archivo",
+      "profile": "Perfil",
+      "profilePlaceholder": "Seleccione perfil",
+      "result": "Resultado",
+      "resultSummary": "{created} creadas, {skipped} omitidas, {total} filas."
+    },
+    "rates": {
+      "title": "Tarifas",
+      "search": "Buscar tarifas",
+      "empty": "No hay tarifas.",
+      "drawerTitle": "Tarifa",
+      "totalCost": "Costo",
+      "sale": "Venta",
+      "margin": "Margen",
+      "validity": "Vigencia",
+      "requiresApproval": "Requiere aprobación",
+      "fclDetails": "FCL",
+      "costDetails": "Costos",
+      "noFclDetails": "Sin detalles FCL.",
+      "noCostDetails": "Sin costos.",
+      "addCostTitle": "Agregar costo",
+      "addCostSubtitle": "",
+      "existingCost": "Costo existente",
+      "existingCostPlaceholder": "Seleccione costo",
+      "saleToCharge": "Venta a cobrar",
+      "desiredMargin": "Margen deseado",
+      "saleHelper": "Puede escribir el monto final que va a cobrar. Si lo deja vacío, se calcula con el margen deseado.",
+      "editSaleTitle": "Cliente, vigencia y venta",
+      "editSaleHelp": "Modifique el cliente, fechas o monto de venta incluso si la tarifa ya fue aprobada.",
+      "minimumSaleHint": "Venta mínima sugerida al 12%: {amount}",
+      "saleAmount": "Venta",
+      "costSaleHelper": "El monto de costo afecta el costo total. El monto de venta es lo que se cobra al cliente por ese ítem y ayuda a subir el margen.",
+      "fixedLocked": "Fijo",
+      "editHeaderTitle": "Cliente y vigencia",
+      "editHeaderHelp": "Modifique el cliente o las fechas de la tarifa. La venta se controla desde los costos de la tarifa.",
+      "editCostTitle": "Editar costo variable",
+      "editCostHelp": "Solo los costos variables o manuales pueden modificarse. Los costos fijos automáticos quedan bloqueados."
+    },
+    "costs": {
+      "title": "Costos",
+      "search": "Buscar costos",
+      "empty": "No hay costos.",
+      "drawerTitle": "Crear costo",
+      "drawerTitleFromRate": "Crear costo y aplicar",
+      "namePlaceholder": "BL, THC, handling...",
+      "fixedHelp": "Se aplican automáticamente cuando coinciden naviera y puerto de la tarifa.",
+      "columns": {
+        "name": "Costo"
+      },
+      "fixedTitle": "Costos fijos automáticos",
+      "variableTitle": "Costos variables / manuales",
+      "emptyFixed": "No hay costos fijos automáticos.",
+      "emptyVariable": "No hay costos variables.",
+      "variableTemplate": "Plantilla variable",
+      "variableHelp": "No se amarran a naviera ni puerto; se pueden ajustar al cotizar.",
+      "automaticFixedHelp": "Este costo se aplicará automáticamente por naviera y puerto.",
+      "variableFormHelp": "Este costo queda como plantilla global; no requiere naviera ni puerto.",
+      "drawerTitleEdit": "Editar costo",
+      "deleteTitle": "Eliminar costo",
+      "deleteMessage": "¿Desea eliminar el costo \"{name}\"? Si ya fue usado en una tarifa, la tarifa conserva su histórico.",
+      "automaticMatrixTitle": "Matriz de costos automáticos",
+      "automaticMatrixHelp": "Costos automáticos por puerto/naviera con costo, venta y utilidad por ítem.",
+      "noAutomaticMatrix": "Cree costos fijos con naviera y puerto para que se apliquen automáticamente a las tarifas."
+    },
+    "reject": {
+      "title": "Rechazar importación",
+      "reason": "Motivo",
+      "placeholder": "Motivo del rechazo",
+      "defaultReason": "Rechazada desde Pricing."
+    },
+    "status": {
+      "PendingReview": "Pendiente",
+      "Approved": "Aprobada",
+      "Rejected": "Rechazada",
+      "ImportedOnly": "Solo importada",
+      "CreatedAsRate": "Creada",
+      "Draft": "Borrador",
+      "Active": "Activa",
+      "Inactive": "Inactiva",
+      "Deleted": "Eliminada",
+      "Pending": "Pendiente",
+      "PendingApproval": "Pendiente de autorización",
+      "ApprovalRejected": "Autorización rechazada"
+    },
+    "costTypes": {
+      "Freight": "Flete",
+      "OriginCharge": "Origen",
+      "DestinationCharge": "Destino",
+      "PortCharge": "Puerto",
+      "CustomsCharge": "Aduana",
+      "InlandTransport": "Transporte interno",
+      "Documentation": "Documentación",
+      "Insurance": "Seguro",
+      "Other": "Otro"
+    },
+    "validation": {
+      "selectRequired": "Debe seleccionar {field}."
+    },
+    "messages": {
+      "catalogsLoadError": "No se pudieron cargar catálogos.",
+      "loadError": "No se pudo cargar Pricing.",
+      "extractionSuccess": "Archivo procesado.",
+      "extractionError": "No se pudo extraer el tarifario.",
+      "costCreated": "Costo creado.",
+      "costCreateError": "No se pudo crear el costo.",
+      "costStatusError": "No se pudo cambiar el estado.",
+      "importApproved": "Importación aprobada.",
+      "importApproveError": "No se pudo aprobar.",
+      "importRejected": "Importación rechazada.",
+      "importRejectError": "No se pudo rechazar.",
+      "rateCreated": "Tarifa creada.",
+      "rateCreateError": "No se pudo crear la tarifa.",
+      "rateFromImportCreated": "Tarifa creada.",
+      "rateFromImportError": "No se pudo crear la tarifa.",
+      "rateLoadError": "No se pudo cargar la tarifa.",
+      "rateStatusError": "No se pudo cambiar el estado.",
+      "costDetailAdded": "Costo agregado.",
+      "costDetailError": "No se pudo agregar el costo.",
+      "marginApproved": "Margen aprobado correctamente.",
+      "marginApproveError": "No se pudo aprobar el margen.",
+      "marginRejected": "Margen rechazado correctamente.",
+      "marginRejectError": "No se pudo rechazar el margen.",
+      "rateDuplicated": "Tarifa duplicada correctamente.",
+      "rateDuplicateError": "No se pudo duplicar la tarifa.",
+      "rateUpdated": "Tarifa actualizada correctamente.",
+      "rateUpdateError": "No se pudo actualizar la tarifa.",
+      "importDeleted": "Tarifa importada eliminada.",
+      "importsDeleted": "Tarifas importadas eliminadas.",
+      "importDeleteError": "No se pudieron eliminar las tarifas importadas.",
+      "rateDeleted": "Tarifa eliminada.",
+      "ratesDeleted": "Tarifas eliminadas.",
+      "rateDeleteError": "No se pudieron eliminar las tarifas.",
+      "costDetailRemoved": "Ítem variable eliminado de la tarifa.",
+      "costDetailDeleteError": "No se pudo eliminar el ítem variable de la tarifa.",
+      "costUpdated": "Costo actualizado correctamente.",
+      "costUpdateError": "No se pudo actualizar el costo.",
+      "costDeleted": "Costo eliminado correctamente.",
+      "costDeleteError": "No se pudo eliminar el costo.",
+      "costDetailUpdated": "Costo de la tarifa actualizado correctamente.",
+      "costDetailUpdateError": "No se pudo actualizar el costo de la tarifa."
+    },
+    "portRoles": {
+      "Any": "Cualquier puerto",
+      "Pol": "Origen / POL",
+      "Pod": "Destino / POD"
+    },
+    "marginApprovals": {
+      "title": "Aprobaciones de margen",
+      "approvedFromWeb": "Aprobado desde Pricing Web.",
+      "rejectReasonPrompt": "Indique el motivo del rechazo del margen"
+    },
+    "marginReject": {
+      "title": "Rechazar autorización de margen",
+      "description": "Indique por qué no se autoriza esta tarifa. La tarifa quedará rechazada y no se activará.",
+      "reason": "Motivo",
+      "placeholder": "Ej.: margen demasiado bajo para el cliente o ruta."
+    },
+    "duplicateRate": {
+      "title": "Duplicar tarifa",
+      "description": "Cree una copia de la tarifa para cambiar el cliente, el margen o el precio de venta sin modificar la original.",
+      "clientName": "Cliente",
+      "marginPercentage": "Margen %",
+      "saleAmount": "Precio de venta",
+      "helper": "Si indica precio de venta, el sistema lo usa directamente. Si lo deja vacío, calcula el precio según el margen."
+    },
+    "print": {
+      "quote": "Cotización rápida",
+      "date": "Fecha",
+      "item": "Concepto",
+      "oceanFreight": "Flete marítimo",
+      "total": "Total a cobrar",
+      "footer": "Cotización sujeta a espacio, disponibilidad y vigencia indicada."
+    },
+    "matrix": {
+      "title": "Matriz de tarifas",
+      "subtitle": "Tarifas agrupadas por puerto, con costos, venta y utilidad como en la matriz operativa.",
+      "allPorts": "Todos",
+      "item": "Ítem",
+      "cost": "Costo",
+      "sale": "Venta",
+      "profit": "Utilidad",
+      "oceanFreight": "Flete internacional marítimo",
+      "emptyHelp": "Cambie el puerto, filtros o busque otra ruta."
+    }
   }
 }

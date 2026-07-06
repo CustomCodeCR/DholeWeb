@@ -12,7 +12,7 @@ defineProps<{
 <template>
   <section class="dh-glass dh-liquid rounded-[32px] p-6">
     <div class="flex items-center gap-4">
-      <div class="flex h-12 w-12 items-center justify-center rounded-[20px] bg-red-500/10 text-[var(--dh-primary)]">
+      <div class="flex h-12 w-12 items-center justify-center rounded-[20px] dh-bg-primary-soft text-[var(--dh-primary)]">
         <component :is="icon" class="h-6 w-6" />
       </div>
       <div>

@@ -7,8 +7,15 @@ export interface WorkspaceTab {
   closable: boolean
 }
 
+export interface WorkspaceSplitPane {
+  key: string
+  title: string
+  path: string
+}
+
 const STORAGE_KEY = 'dhole.workspace.tabs'
 const ACTIVE_KEY = 'dhole.workspace.activeTab'
+const SPLIT_KEY = 'dhole.workspace.splitPane'
 
 export const DASHBOARD_TAB: WorkspaceTab = {
   key: '/home',
@@ -59,6 +66,23 @@ function loadActiveKey(tabs: WorkspaceTab[]): string {
   return tabs.some((tab) => tab.key === stored) ? String(stored) : DASHBOARD_TAB.key
 }
 
+function loadSplitPane(): WorkspaceSplitPane | null {
+  const raw = localStorage.getItem(SPLIT_KEY)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as WorkspaceSplitPane
+
+    if (!parsed?.key || !parsed.path || !parsed.title || parsed.path === DASHBOARD_TAB.path) {
+      return null
+    }
+
+    return parsed
+  } catch {
+    return null
+  }
+}
+
 export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
   state: () => {
     const tabs = loadTabs()
@@ -66,7 +90,17 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
     return {
       tabs,
       activeKey: loadActiveKey(tabs),
+      splitPane: loadSplitPane() as WorkspaceSplitPane | null,
     }
+  },
+
+  getters: {
+    activeTab(state): WorkspaceTab | undefined {
+      return state.tabs.find((tab) => tab.key === state.activeKey)
+    },
+    isSplitActive(state): boolean {
+      return state.splitPane !== null
+    },
   },
 
   actions: {
@@ -77,8 +111,18 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
         this.activeKey = DASHBOARD_TAB.key
       }
 
+      if (this.splitPane && !this.tabs.some((tab) => tab.key === this.splitPane?.key)) {
+        this.splitPane = null
+      }
+
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.tabs))
       localStorage.setItem(ACTIVE_KEY, this.activeKey)
+
+      if (this.splitPane) {
+        localStorage.setItem(SPLIT_KEY, JSON.stringify(this.splitPane))
+      } else {
+        localStorage.removeItem(SPLIT_KEY)
+      }
     },
 
     openTab(tab: WorkspaceTab) {
@@ -113,6 +157,10 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
 
       this.tabs.splice(index, 1)
 
+      if (this.splitPane?.key === key) {
+        this.splitPane = null
+      }
+
       if (this.activeKey === key) {
         const next = this.tabs[index] ?? this.tabs[index - 1] ?? this.tabs[0]
         this.activeKey = next?.key ?? DASHBOARD_TAB.key
@@ -126,9 +174,56 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
       this.persist()
     },
 
+    openSplitPane(key: string) {
+      const tab = this.tabs.find((x) => x.key === key)
+
+      if (!tab || tab.key === DASHBOARD_TAB.key) return
+
+      this.splitPane = {
+        key: tab.key,
+        title: tab.title,
+        path: tab.path,
+      }
+
+      this.persist()
+    },
+
+    moveTabToMain(key: string) {
+      const tab = this.tabs.find((x) => x.key === key)
+      if (!tab) return null
+
+      this.activeKey = tab.key
+
+      if (this.splitPane?.key === key) {
+        this.splitPane = null
+      }
+
+      this.persist()
+      return tab
+    },
+
+    promoteSplitPaneToMain() {
+      if (!this.splitPane) return null
+
+      const split = this.splitPane
+      const tab = this.tabs.find((x) => x.key === split.key)
+
+      this.activeKey = tab?.key ?? split.key
+      this.splitPane = null
+      this.persist()
+
+      return tab ?? { ...split, closable: true }
+    },
+
+    closeSplitPane() {
+      this.splitPane = null
+      this.persist()
+    },
+
     clear() {
       this.tabs = [{ ...DASHBOARD_TAB }]
       this.activeKey = DASHBOARD_TAB.key
+      this.splitPane = null
       this.persist()
     },
   },

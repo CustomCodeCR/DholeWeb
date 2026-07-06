@@ -89,7 +89,7 @@ export const CatalogItemsService = {
       params: { catalogItemId },
     })
 
-    return unwrapApiResponse(response)
+    return unwrapApiResponse<CatalogItemDetailDto>(response as any)
   },
 
   async validate(query: ValidateCatalogItemQuery): Promise<ValidateCatalogItemResponse> {

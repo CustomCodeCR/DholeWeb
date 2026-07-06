@@ -12,6 +12,7 @@ declare module 'vue-router' {
     tabTitle?: string
     closable?: boolean
     requiredScope?: string
+    requiredRole?: string
   }
 }
 
@@ -154,6 +155,47 @@ export const router = createRouter({
         },
 
         {
+          path: 'pricing',
+          name: 'pricing',
+          component: () => import('@/modules/pricing/views/PricingView.vue'),
+          meta: {
+            tabTitle: 'Pricing panel',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+        },
+        {
+          path: 'pricing/imports',
+          name: 'pricing-imports',
+          component: () => import('@/modules/pricing/views/PricingView.vue'),
+          meta: {
+            tabTitle: 'Importaciones pricing',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingImports,
+          },
+        },
+        {
+          path: 'pricing/rates',
+          name: 'pricing-rates',
+          component: () => import('@/modules/pricing/views/PricingView.vue'),
+          meta: {
+            tabTitle: 'Tarifas pricing',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+        },
+        {
+          path: 'pricing/costs',
+          name: 'pricing-costs',
+          component: () => import('@/modules/pricing/views/PricingView.vue'),
+          meta: {
+            tabTitle: 'Costos pricing',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingCosts,
+          },
+        },
+
+        {
           path: 'auditlogs/events',
           name: 'auditlogs-events',
           component: () => import('@/modules/auditlogs/views/AuditLogsView.vue'),
@@ -161,6 +203,17 @@ export const router = createRouter({
             tabTitle: 'Auditoría',
             closable: true,
             requiredScope: VIEW_SCOPES.auditLogs,
+          },
+        },
+
+        {
+          path: 'monitoring/services',
+          name: 'monitoring-services',
+          component: () => import('@/modules/monitoring/views/ServicesMonitoringView.vue'),
+          meta: {
+            tabTitle: 'Monitoreo',
+            closable: true,
+            requiredRole: 'SuperUsuario',
           },
         },
 
@@ -193,6 +246,17 @@ export const router = createRouter({
             closable: true,
           },
         },
+
+        {
+          path: 'settings/pricing-selects',
+          name: 'settings-pricing-selects',
+          component: () => import('@/modules/settings/views/PricingSelectSettingsView.vue'),
+          meta: {
+            tabTitle: 'Selects Pricing',
+            closable: true,
+            requiredScope: VIEW_SCOPES.catalogs,
+          },
+        },
       ],
     },
 
@@ -220,8 +284,13 @@ router.beforeEach(async (to) => {
   }
 
   const requiredScope = typeof to.meta.requiredScope === 'string' ? to.meta.requiredScope : null
+  const requiredRole = typeof to.meta.requiredRole === 'string' ? to.meta.requiredRole : null
 
   if (!isPublic && requiredScope && !authStore.hasScope(requiredScope)) {
+    return '/home'
+  }
+
+  if (!isPublic && requiredRole && !authStore.hasRole(requiredRole)) {
     return '/home'
   }
 
@@ -229,7 +298,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  if (to.meta.public === true) return
+  if (to.meta.public === true || to.query.dhEmbed === '1') return
 
   const tabsStore = useWorkspaceTabsStore()
 

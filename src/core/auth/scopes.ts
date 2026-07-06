@@ -72,6 +72,81 @@ export const AUDITLOGS_SCOPES = {
   },
 } as const
 
+export const PRICING_SCOPES = {
+  costs: {
+    create: 'pricing.cost.create',
+    view: 'pricing.cost.view',
+    update: 'pricing.cost.update',
+    delete: 'pricing.cost.delete',
+    setActive: 'pricing.cost.set-active',
+    select: 'pricing.cost.select',
+  },
+
+  importFclRates: {
+    create: 'pricing.import-fcl-rate.create',
+    view: 'pricing.import-fcl-rate.view',
+    approve: 'pricing.import-fcl-rate.approve',
+    reject: 'pricing.import-fcl-rate.reject',
+    delete: 'pricing.import-fcl-rate.delete',
+    createAsRate: 'pricing.import-fcl-rate.create-as-rate',
+  },
+
+  rates: {
+    create: 'pricing.rate.create',
+    view: 'pricing.rate.view',
+    update: 'pricing.rate.update',
+    delete: 'pricing.rate.delete',
+    setActive: 'pricing.rate.set-active',
+    select: 'pricing.rate.select',
+    approveLowMargin: 'pricing.rate.approve-low-margin',
+  },
+
+  fclRateDetails: {
+    create: 'pricing.fcl-rate-detail.create',
+    update: 'pricing.fcl-rate-detail.update',
+    delete: 'pricing.fcl-rate-detail.delete',
+  },
+
+  rateCostDetails: {
+    create: 'pricing.rate-cost-detail.create',
+    update: 'pricing.rate-cost-detail.update',
+    delete: 'pricing.rate-cost-detail.delete',
+  },
+
+  fclDecisions: {
+    create: 'pricing.fcl-decisions.create',
+    view: 'pricing.fcl-decisions.view',
+    delete: 'pricing.fcl-decisions.delete',
+  },
+
+  // Backward-compatible aliases for older UI code.
+  fclRateImports: {
+    create: 'pricing.import-fcl-rate.create',
+    view: 'pricing.import-fcl-rate.view',
+    approve: 'pricing.import-fcl-rate.approve',
+    reject: 'pricing.import-fcl-rate.reject',
+    delete: 'pricing.import-fcl-rate.delete',
+  },
+
+  fclRates: {
+    create: 'pricing.rate.create',
+    view: 'pricing.rate.view',
+    update: 'pricing.rate.update',
+    delete: 'pricing.rate.delete',
+    setActive: 'pricing.rate.set-active',
+    expire: 'pricing.rate.update',
+    validate: 'pricing.rate.view',
+  },
+
+  dashboard: {
+    view: 'pricing.rate.view',
+  },
+
+  selects: {
+    view: 'pricing.rate.select',
+  },
+} as const
+
 export const VIEW_SCOPES = {
   users: AUTH_SCOPES.users.view,
   roles: AUTH_SCOPES.roles.view,
@@ -81,4 +156,11 @@ export const VIEW_SCOPES = {
   catalogs: CONFIG_SCOPES.catalogGroups.view,
 
   auditLogs: AUDITLOGS_SCOPES.events.view,
+
+  pricing: PRICING_SCOPES.rates.view,
+  pricingRates: PRICING_SCOPES.rates.view,
+  pricingImports: PRICING_SCOPES.importFclRates.view,
+  pricingDecisions: PRICING_SCOPES.fclDecisions.view,
+  pricingCompetition: PRICING_SCOPES.rates.view,
+  pricingCosts: PRICING_SCOPES.costs.view,
 } as const

@@ -11,7 +11,7 @@ function clear() {
 </script>
 
 <template>
-  <div class="flex h-11 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl transition focus-within:border-[var(--dh-primary)] focus-within:ring-4 focus-within:ring-red-500/10">
+  <div class="flex h-11 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl transition dh-focus-primary">
     <Search class="h-4 w-4 text-[var(--dh-primary)]" />
     <input
       :value="modelValue"

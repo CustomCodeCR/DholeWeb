@@ -20,6 +20,9 @@ const STORAGE_KEYS = {
   userType: 'auth.userType',
   username: 'auth.username',
   email: 'auth.email',
+  clientId: 'auth.clientId',
+  clientCode: 'auth.clientCode',
+  clientName: 'auth.clientName',
   roles: 'auth.roles',
   scopes: 'auth.scopes',
 } as const
@@ -30,6 +33,9 @@ interface StoredRefreshResponse {
   sessionId: string
   accessTokenExpiresAt: string
   refreshTokenExpiresAt: string
+  clientId?: string | null
+  clientCode?: string | null
+  clientName?: string | null
 }
 
 export function replaceEndpointParams(endpoint: string, params: Record<string, string>): string {
@@ -125,6 +131,10 @@ function persistRefreshResponse(data: StoredRefreshResponse) {
   localStorage.setItem(STORAGE_KEYS.sessionId, data.sessionId)
   localStorage.setItem(STORAGE_KEYS.accessTokenExpiresAt, data.accessTokenExpiresAt)
   localStorage.setItem(STORAGE_KEYS.refreshTokenExpiresAt, data.refreshTokenExpiresAt)
+
+  if (data.clientId) localStorage.setItem(STORAGE_KEYS.clientId, data.clientId)
+  if (data.clientCode) localStorage.setItem(STORAGE_KEYS.clientCode, data.clientCode)
+  if (data.clientName) localStorage.setItem(STORAGE_KEYS.clientName, data.clientName)
 
   window.dispatchEvent(new CustomEvent<StoredRefreshResponse>('dhole:auth:refreshed', { detail: data }))
 }

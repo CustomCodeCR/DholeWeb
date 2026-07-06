@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import {
-  Home,
-  Users,
-  Shield,
-  KeyRound,
-  MonitorCheck,
-  Settings,
-  Palette,
-  Keyboard,
-  LockKeyhole,
+  Activity,
+  BadgeDollarSign,
   BookOpen,
-  ListTree,
   ClipboardList,
+  Home,
+  KeyRound,
+  Keyboard,
+  ListTree,
+  LockKeyhole,
+  MonitorCheck,
+  Palette,
+  PanelRightClose,
+  ServerCog,
+  TrendingUp,
+  Settings,
+  Shield,
+  Users,
+  FileText,
+  ReceiptText,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -43,9 +50,15 @@ const commandOpen = ref(false)
 const commandQuery = ref('')
 
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true')
+const isEmbedded = new URLSearchParams(window.location.search).get('dhEmbed') === '1'
 
 const contentClass = computed(() => {
   return sidebarCollapsed.value ? 'pl-28' : 'pl-80'
+})
+
+const splitFrameUrl = computed(() => {
+  if (!tabsStore.splitPane) return ''
+  return `${window.location.origin}${tabsStore.splitPane.path}?dhEmbed=1`
 })
 
 watch(sidebarCollapsed, (value) => {
@@ -60,39 +73,27 @@ function canView(scope: string): boolean {
   return authStore.hasScope(scope)
 }
 
+function isSuperUser(): boolean {
+  return authStore.hasRole('SuperUsuario') || authStore.hasRole('SuperUser') || authStore.hasRole('superusuario')
+}
+
 const securityChildren = computed<SidebarItem[]>(() => {
   const children: SidebarItem[] = []
 
   if (canView(VIEW_SCOPES.users)) {
-    children.push({
-      label: t('sidebar.users'),
-      path: '/auth/users',
-      icon: Users,
-    })
+    children.push({ label: t('sidebar.users'), path: '/auth/users', icon: Users })
   }
 
   if (canView(VIEW_SCOPES.roles)) {
-    children.push({
-      label: t('sidebar.roles'),
-      path: '/auth/roles',
-      icon: Shield,
-    })
+    children.push({ label: t('sidebar.roles'), path: '/auth/roles', icon: Shield })
   }
 
   if (canView(VIEW_SCOPES.scopes)) {
-    children.push({
-      label: t('sidebar.scopes'),
-      path: '/auth/scopes',
-      icon: KeyRound,
-    })
+    children.push({ label: t('sidebar.scopes'), path: '/auth/scopes', icon: KeyRound })
   }
 
   if (canView(VIEW_SCOPES.sessions)) {
-    children.push({
-      label: t('sidebar.sessions'),
-      path: '/auth/sessions',
-      icon: MonitorCheck,
-    })
+    children.push({ label: t('sidebar.sessions'), path: '/auth/sessions', icon: MonitorCheck })
   }
 
   return children
@@ -102,11 +103,25 @@ const configChildren = computed<SidebarItem[]>(() => {
   const children: SidebarItem[] = []
 
   if (canView(VIEW_SCOPES.catalogs)) {
-    children.push({
-      label: t('sidebar.catalogs'),
-      path: '/config/catalogs',
-      icon: ListTree,
-    })
+    children.push({ label: t('sidebar.catalogs'), path: '/config/catalogs', icon: ListTree })
+  }
+
+  return children
+})
+
+const pricingChildren = computed<SidebarItem[]>(() => {
+  const children: SidebarItem[] = []
+
+  const canOpenPricing =
+    canView(VIEW_SCOPES.pricing) ||
+    canView(VIEW_SCOPES.pricingRates) ||
+    canView(VIEW_SCOPES.pricingImports) ||
+    canView(VIEW_SCOPES.pricingDecisions) ||
+    canView(VIEW_SCOPES.pricingCosts)
+
+  if (canOpenPricing) {
+    children.push({ label: t('sidebar.pricingPanel'), path: '/pricing', icon: TrendingUp })
+    children.push({ label: t('sidebar.costs'), path: '/pricing/costs', icon: BadgeDollarSign })
   }
 
   return children
@@ -122,43 +137,31 @@ const sidebarItems = computed<SidebarItem[]>(() => {
   ]
 
   if (securityChildren.value.length > 0) {
-    items.push({
-      label: t('sidebar.security'),
-      icon: LockKeyhole,
-      children: securityChildren.value,
-    })
+    items.push({ label: t('sidebar.security'), icon: LockKeyhole, children: securityChildren.value })
   }
 
   if (configChildren.value.length > 0) {
-    items.push({
-      label: t('sidebar.config'),
-      icon: BookOpen,
-      children: configChildren.value,
-    })
+    items.push({ label: t('sidebar.config'), icon: BookOpen, children: configChildren.value })
+  }
+
+  if (pricingChildren.value.length > 0) {
+    items.push({ label: t('sidebar.pricing'), icon: TrendingUp, children: pricingChildren.value })
   }
 
   if (canView(VIEW_SCOPES.auditLogs)) {
-    items.push({
-      label: t('sidebar.audits'),
-      path: '/auditlogs/events',
-      icon: ClipboardList,
-    })
+    items.push({ label: t('sidebar.audits'), path: '/auditlogs/events', icon: ClipboardList })
+  }
+
+  if (isSuperUser()) {
+    items.push({ label: t('sidebar.monitoring'), path: '/monitoring/services', icon: ServerCog })
   }
 
   items.push({
     label: t('sidebar.settings'),
     icon: Settings,
     children: [
-      {
-        label: t('sidebar.appearance'),
-        path: '/settings/appearance',
-        icon: Palette,
-      },
-      {
-        label: t('sidebar.shortcuts'),
-        path: '/settings/shortcuts',
-        icon: Keyboard,
-      },
+      { label: t('sidebar.appearance'), path: '/settings/appearance', icon: Palette },
+      { label: t('sidebar.shortcuts'), path: '/settings/shortcuts', icon: Keyboard },
     ],
   })
 
@@ -170,23 +173,12 @@ const commands = computed<CommandItem[]>(() => {
 
   for (const item of sidebarItems.value) {
     if (item.path) {
-      result.push({
-        id: item.path,
-        title: item.label,
-        description: item.path,
-        icon: item.icon,
-      })
+      result.push({ id: item.path, title: item.label, description: item.path, icon: item.icon })
     }
 
     for (const child of item.children ?? []) {
       if (!child.path) continue
-
-      result.push({
-        id: child.path,
-        title: child.label,
-        description: child.path,
-        icon: child.icon,
-      })
+      result.push({ id: child.path, title: child.label, description: child.path, icon: child.icon })
     }
   }
 
@@ -229,6 +221,56 @@ function closeCurrentTab() {
   const active = tabsStore.tabs.find((x) => x.key === tabsStore.activeKey)
 
   router.push(active?.path ?? '/home')
+}
+
+
+const activePaneTitle = computed(() => tabsStore.activeTab?.title ?? t('sidebar.dashboard'))
+
+function readDraggedTabKey(event: DragEvent): string | null {
+  return (
+    event.dataTransfer?.getData('application/dhole-tab-key') ||
+    event.dataTransfer?.getData('text/plain') ||
+    null
+  )
+}
+
+function handlePaneDragOver(event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+}
+
+function dropTabToMain(event: DragEvent) {
+  event.preventDefault()
+  const key = readDraggedTabKey(event)
+  if (!key) return
+
+  const tab = tabsStore.moveTabToMain(key)
+  if (tab) {
+    router.push(tab.path)
+  }
+}
+
+function dropTabToSplit(event: DragEvent) {
+  event.preventDefault()
+  const key = readDraggedTabKey(event)
+  if (!key) return
+
+  tabsStore.openSplitPane(key)
+}
+
+function closeMainPane() {
+  const activeTab = tabsStore.activeTab
+
+  if (activeTab?.closable) {
+    tabsStore.closeTab(activeTab.key)
+  }
+
+  const promoted = tabsStore.promoteSplitPaneToMain()
+  const next = promoted ?? tabsStore.activeTab
+
+  router.push(next?.path ?? '/home')
 }
 
 function dispatchShortcut(name: string) {
@@ -295,7 +337,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div v-if="isEmbedded" class="min-h-screen p-4">
+    <RouterView />
+  </div>
+
+  <div v-else class="min-h-screen">
     <DhSidebar
       :items="sidebarItems"
       :collapsed="sidebarCollapsed"
@@ -307,7 +353,56 @@ onBeforeUnmount(() => {
       <DhWorkspaceTabs />
 
       <main class="p-4">
-        <RouterView />
+        <div v-if="tabsStore.splitPane && !isEmbedded" class="grid gap-4 xl:grid-cols-2">
+          <section
+            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] overflow-hidden rounded-[32px]"
+            @dragover="handlePaneDragOver"
+            @drop="dropTabToMain"
+          >
+            <div class="flex items-center justify-between border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
+              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">{{ activePaneTitle }}</h2>
+
+              <button
+                class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
+                :title="t('tabs.closeSplit')"
+                @click="closeMainPane"
+              >
+                <PanelRightClose class="h-4 w-4" />
+              </button>
+            </div>
+
+            <div class="h-[calc(100vh-14rem)] overflow-y-auto p-4 dh-scrollbar">
+              <RouterView />
+            </div>
+          </section>
+
+          <section
+            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] overflow-hidden rounded-[32px]"
+            @dragover="handlePaneDragOver"
+            @drop="dropTabToSplit"
+          >
+            <div class="flex items-center justify-between border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
+              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">{{ tabsStore.splitPane.title }}</h2>
+
+              <button
+                class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
+                :title="t('tabs.closeSplit')"
+                @click="tabsStore.closeSplitPane()"
+              >
+                <PanelRightClose class="h-4 w-4" />
+              </button>
+            </div>
+
+            <iframe
+              :key="tabsStore.splitPane.path"
+              :src="splitFrameUrl"
+              class="h-[calc(100vh-14rem)] w-full border-0 bg-transparent"
+              title="Split workspace"
+            />
+          </section>
+        </div>
+
+        <RouterView v-else />
       </main>
     </div>
 

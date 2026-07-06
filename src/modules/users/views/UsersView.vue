@@ -12,6 +12,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { AUTH_SCOPES } from '@/core/auth/scopes'
 import { UsersService } from '@/core/services/usersService'
 import type { UserDto } from '@/core/interfaces/users'
+import { parseDate } from '@/core/utils/date'
 import UserFormDrawer from '@/modules/users/components/UserFormDrawer.vue'
 import UserDetailDrawer from '@/modules/users/components/UserDetailDrawer.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
@@ -39,7 +40,8 @@ const columns = computed<DhTableColumn<UserDto>[]>(() => {
     { key: 'userName', label: t('users.userName') },
     { key: 'displayName', label: t('users.displayName') },
     { key: 'email', label: t('users.email') },
-    { key: 'userType', label: t('users.type') },
+    { key: 'userTypeName', label: t('users.type') },
+    { key: 'lastLoginAt', label: t('users.lastLogin') },
     { key: 'isLocked', label: t('users.locked'), align: 'center' },
     { key: 'isActive', label: t('users.status'), align: 'center' },
   ]
@@ -74,7 +76,7 @@ function openCreateDrawer() {
 }
 
 function openEditDrawer(user: UserDto) {
-  if (!canUpdate.value) return
+  if (!canUpdate.value || user.isProtected) return
   drawerStore.open({ title: t('common.edit'), component: UserFormDrawer, size: 'lg', props: { user, onSaved: loadUsers } })
 }
 
@@ -88,7 +90,7 @@ function openDetailDrawer(user: UserDto) {
 }
 
 function confirmDelete(user: UserDto) {
-  if (!canDelete.value) return
+  if (!canDelete.value || user.isProtected) return
 
   modalStore.open({
     title: t('common.delete'),
@@ -150,12 +152,14 @@ onBeforeUnmount(() => {
 
       <div class="mt-5">
         <DhDataTable :columns="columns" :rows="users" :loading="loading" :empty-text="t('users.empty')" @row-click="openDetailDrawer">
+          <template #cell-lastLoginAt="{ value }"><span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ value ? parseDate(String(value)) : t('common.never') }}</span></template>
+          <template #cell-userTypeName="{ row, value }"><DhBadge :label="String(value ?? row.userType ?? '—')" variant="neutral" /></template>
           <template #cell-isLocked="{ value }"><div class="flex justify-center"><DhBadge :label="value ? t('common.yes') : t('common.no')" :variant="value ? 'danger' : 'neutral'" /></div></template>
           <template #cell-isActive="{ value }"><div class="flex justify-center"><DhBadge :label="value ? t('common.active') : t('common.inactive')" :variant="value ? 'success' : 'neutral'" /></div></template>
           <template v-if="showRowActions" #cell-actions="{ row }">
             <div class="flex justify-end gap-1">
-              <button v-if="canUpdate" class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10" title="Editar" @click.stop="openEditDrawer(row)"><Pencil class="h-4 w-4" /></button>
-              <button v-if="canDelete" class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10" title="Eliminar" @click.stop="confirmDelete(row)"><Trash2 class="h-4 w-4" /></button>
+              <button v-if="canUpdate" :disabled="row.isProtected" :class="row.isProtected ? 'cursor-not-allowed opacity-40' : ''" class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10" title="Editar" @click.stop="openEditDrawer(row)"><Pencil class="h-4 w-4" /></button>
+              <button v-if="canDelete" :disabled="row.isProtected" :class="row.isProtected ? 'cursor-not-allowed opacity-40' : ''" class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10" title="Eliminar" @click.stop="confirmDelete(row)"><Trash2 class="h-4 w-4" /></button>
             </div>
           </template>
         </DhDataTable>

@@ -20,7 +20,7 @@ const emit = defineEmits<{
   >
     <div
       v-if="icon"
-      class="mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-red-500/10 text-[var(--dh-primary)]"
+      class="mb-4 flex h-14 w-14 items-center justify-center rounded-3xl dh-bg-primary-soft text-[var(--dh-primary)]"
     >
       <component :is="icon" class="h-7 w-7" />
     </div>

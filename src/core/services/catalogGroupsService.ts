@@ -23,7 +23,7 @@ export const CatalogGroupsService = {
       { body: payload },
     )
 
-    return unwrapApiResponse(response)
+    return unwrapApiResponse<string>(response as any)
   },
 
   async browse(query?: BrowseCatalogGroupsQuery): Promise<CatalogGroupDto[]> {
@@ -62,7 +62,7 @@ export const CatalogGroupsService = {
       params: { catalogGroupId },
     })
 
-    return unwrapApiResponse(response)
+    return unwrapApiResponse<CatalogGroupDetailDto>(response as any)
   },
 
   update(catalogGroupId: string, payload: UpdateCatalogGroupRequest): Promise<NoContent> {

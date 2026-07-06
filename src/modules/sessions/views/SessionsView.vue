@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Ban, MonitorCheck, RefreshCcw } from 'lucide-vue-next'
+import { Ban, Clock3, MonitorCheck, RefreshCcw, ShieldAlert } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
 import { DhCrudToolbar, DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
@@ -35,6 +35,18 @@ const canBrowseUsers = computed(() => authStore.hasScope(AUTH_SCOPES.users.view)
 const canRevoke = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.revoke))
 const canRevokeAll = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.revokeAll))
 const showRowActions = computed(() => canRevoke.value)
+
+const activeSessionCount = computed(() => sessions.value.filter((session) => !session.isRevoked).length)
+const revokedSessionCount = computed(() => sessions.value.filter((session) => session.isRevoked).length)
+const expiringSoonCount = computed(() => {
+  const limit = Date.now() + 60 * 60 * 1000
+
+  return sessions.value.filter((session) => {
+    if (session.isRevoked || !session.expiresAt) return false
+    const expiresAt = new Date(session.expiresAt).getTime()
+    return !Number.isNaN(expiresAt) && expiresAt <= limit
+  }).length
+})
 
 const columns = computed<DhTableColumn<SessionDto>[]>(() => {
   const base: DhTableColumn<SessionDto>[] = [
@@ -183,6 +195,36 @@ onMounted(async () => {
         <DhButton v-if="canRevokeAll" :icon="Ban" :label="t('common.revokeAll')" variant="danger" @click="openRevokeAll" />
       </template>
     </DhPageHeader>
+
+
+    <div class="grid gap-4 md:grid-cols-3">
+      <article class="dh-glass dh-liquid rounded-[28px] p-5">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-black text-[var(--dh-text-muted)]">{{ t('sessions.monitoring.active') }}</p>
+          <MonitorCheck class="h-5 w-5 text-green-500" />
+        </div>
+        <h2 class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ activeSessionCount }}</h2>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('sessions.monitoring.activeHint') }}</p>
+      </article>
+
+      <article class="dh-glass dh-liquid rounded-[28px] p-5">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-black text-[var(--dh-text-muted)]">{{ t('sessions.monitoring.revoked') }}</p>
+          <ShieldAlert class="h-5 w-5 text-red-500" />
+        </div>
+        <h2 class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ revokedSessionCount }}</h2>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('sessions.monitoring.revokedHint') }}</p>
+      </article>
+
+      <article class="dh-glass dh-liquid rounded-[28px] p-5">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-black text-[var(--dh-text-muted)]">{{ t('sessions.monitoring.expiringSoon') }}</p>
+          <Clock3 class="h-5 w-5 text-[var(--dh-primary)]" />
+        </div>
+        <h2 class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ expiringSoonCount }}</h2>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('sessions.monitoring.expiringSoonHint') }}</p>
+      </article>
+    </div>
 
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
       <div class="mb-5 grid gap-3 lg:grid-cols-[1fr_auto]">

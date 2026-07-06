@@ -52,14 +52,14 @@ const totalPages = computed(() => {
   return Math.ceil(page.value.total / page.value.pageSize)
 })
 
-function cleanText(value: string): string | null {
+function cleanText(value: string): string | undefined {
   const normalized = value.trim()
-  return normalized || null
+  return normalized || undefined
 }
 
-function cleanGuid(value: string): string | null {
+function cleanGuid(value: string): string | undefined {
   const normalized = value.trim().replace(/^["']+|["']+$/g, '')
-  return normalized || null
+  return normalized || undefined
 }
 
 function toQuery(): BrowseAuditEventsQuery {
@@ -135,7 +135,7 @@ async function loadEvents() {
     const response = await AuditLogsService.browsePaged(toQuery())
 
     items.value = response.items
-    page.value.total = response.totalCount
+    page.value.total = response.totalCount ?? response.items.length
   } catch (error) {
     toastStore.backendError(error, t('audits.loadError'))
   } finally {

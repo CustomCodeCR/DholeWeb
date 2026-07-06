@@ -67,7 +67,7 @@ async function confirm() {
         :key="item.id"
         type="button"
         class="flex w-full items-center justify-between gap-3 rounded-[22px] border p-3 text-left transition"
-        :class="selectedIds.includes(item.id) ? 'border-[var(--dh-primary)] bg-red-500/10' : 'border-[var(--dh-border)] hover:bg-[var(--dh-card-hover)]'"
+        :class="selectedIds.includes(item.id) ? 'dh-primary-selected' : 'border-[var(--dh-border)] hover:bg-[var(--dh-card-hover)]'"
         @click="toggle(item.id)"
       >
         <span class="min-w-0">

@@ -6,14 +6,17 @@ import DhModalContainer from '@/shared/components/containers/DhModalContainer.vu
 import DhDrawerContainer from '@/shared/components/containers/DhDrawerContainer.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
+import { useBrandingStore } from '@/core/stores/brandingStore'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const tabsStore = useWorkspaceTabsStore()
+const brandingStore = useBrandingStore()
 
 function handleAuthExpired() {
   authStore.clearSession()
   tabsStore.clear()
+  void brandingStore.loadCurrentClientBranding()
 
   if (router.currentRoute.value.path !== '/login') {
     router.replace({ path: '/login', query: { expired: '1' } })
@@ -28,9 +31,13 @@ function handleAuthRefreshed(event: Event) {
   }
 
   authStore.setSession(detail)
+  void brandingStore.loadCurrentClientBranding()
 }
 
 onMounted(() => {
+  brandingStore.applyCachedOrDefault()
+  void brandingStore.loadCurrentClientBranding()
+
   window.addEventListener('dhole:auth:expired', handleAuthExpired)
   window.addEventListener('dhole:auth:refreshed', handleAuthRefreshed)
 })
