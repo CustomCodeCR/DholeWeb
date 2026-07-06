@@ -584,7 +584,8 @@
       "costDeleted": "Cost deleted successfully.",
       "costDeleteError": "Could not delete the cost.",
       "costDetailUpdated": "Rate cost updated successfully.",
-      "costDetailUpdateError": "Could not update the rate cost."
+      "costDetailUpdateError": "Could not update the rate cost.",
+      "inactiveRateCannotPrint": "Inactive rates cannot be printed."
     },
     "portRoles": {
       "Any": "Any port",

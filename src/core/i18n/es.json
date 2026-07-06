@@ -584,7 +584,8 @@
       "costDeleted": "Costo eliminado correctamente.",
       "costDeleteError": "No se pudo eliminar el costo.",
       "costDetailUpdated": "Costo de la tarifa actualizado correctamente.",
-      "costDetailUpdateError": "No se pudo actualizar el costo de la tarifa."
+      "costDetailUpdateError": "No se pudo actualizar el costo de la tarifa.",
+      "inactiveRateCannotPrint": "No se puede imprimir una tarifa inactiva."
     },
     "portRoles": {
       "Any": "Cualquier puerto",

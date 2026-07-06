@@ -403,6 +403,7 @@ const selectedRateCostSaleTotal = computed(() =>
 const selectedRateBaseSaleAmount = computed(() =>
   Math.max(0, Number(selectedRate.value?.saleAmount ?? 0) - selectedRateCostSaleTotal.value),
 )
+const canPrintSelectedRate = computed(() => Boolean(selectedRate.value?.isActive))
 const quoteDateLabel = computed(() =>
   new Intl.DateTimeFormat(locale.value === 'en' ? 'en-US' : 'es-CR').format(new Date()),
 )
@@ -1215,6 +1216,11 @@ async function saveRateCostDetailEdit() {
 
 
 function printClientQuote() {
+  if (!canPrintSelectedRate.value) {
+    toastStore.warning(t('pricing.messages.inactiveRateCannotPrint'))
+    return
+  }
+
   window.print()
 }
 
@@ -1796,7 +1802,7 @@ onMounted(refreshAll)
             </div>
 
             <div class="flex flex-wrap justify-end gap-2">
-              <DhButton variant="secondary" :icon="Printer" :label="t('pricing.actions.quickPrint')" @click="printClientQuote" />
+              <DhButton variant="secondary" :icon="Printer" :label="t('pricing.actions.quickPrint')" :disabled="!canPrintSelectedRate" @click="printClientQuote" />
               <DhButton variant="secondary" :icon="Copy" :label="t('pricing.actions.duplicate')" :disabled="!canCreateRate" @click="openDuplicateRateModal" />
               <DhButton variant="secondary" :label="selectedRate.isActive ? t('common.inactivate') : t('common.activate')" :disabled="!canSetRateActive" @click="toggleRate(selectedRate)" />
               <DhButton variant="danger" :icon="Trash2" :label="t('common.delete')" :loading="deletingRates" :disabled="!canDeleteRate" @click="deleteRate(selectedRate)" />
@@ -2018,7 +2024,7 @@ onMounted(refreshAll)
       </div>
     </DhModal>
 
-    <section v-if="selectedRate" class="pricing-print-only">
+    <section v-if="selectedRate && canPrintSelectedRate" class="pricing-print-only">
       <div class="quote-card">
         <header class="quote-header">
           <div>
