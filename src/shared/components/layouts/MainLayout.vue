@@ -121,6 +121,17 @@ const pricingChildren = computed<SidebarItem[]>(() => {
 
   if (canOpenPricing) {
     children.push({ label: t('sidebar.pricingPanel'), path: '/pricing', icon: TrendingUp })
+  }
+
+  if (canView(VIEW_SCOPES.pricingImports)) {
+    children.push({ label: t('sidebar.importedRates'), path: '/pricing/imports', icon: FileText })
+  }
+
+  if (canView(VIEW_SCOPES.pricingRates)) {
+    children.push({ label: t('sidebar.rates'), path: '/pricing/rates', icon: ReceiptText })
+  }
+
+  if (canView(VIEW_SCOPES.pricingCosts)) {
     children.push({ label: t('sidebar.costs'), path: '/pricing/costs', icon: BadgeDollarSign })
   }
 

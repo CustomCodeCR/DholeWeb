@@ -99,6 +99,7 @@ export const PRICING_SCOPES = {
     setActive: 'pricing.rate.set-active',
     select: 'pricing.rate.select',
     approveLowMargin: 'pricing.rate.approve-low-margin',
+    approveFreight: 'pricing.rate.approve-freight',
   },
 
   fclRateDetails: {

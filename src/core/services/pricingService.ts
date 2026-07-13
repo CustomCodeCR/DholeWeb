@@ -1,46 +1,57 @@
-import { Endpoints } from '@/core/composables/endpoints'
 import { callEndpoint } from '@/core/api/callEndpoint'
-import { toQueryString } from '@/core/api/queryString'
 import { unwrapApiResponse, unwrapListResponse, unwrapPagedResponse } from '@/core/api/apiResponse'
 import type { PagedResponse } from '@/core/api/apiResponse'
+import { Endpoints } from '@/core/composables/endpoints'
+import { toQueryString } from '@/core/api/queryString'
 import type {
-  ApproveMarginApprovalRequest,
   BrowseCostsQuery,
-  BrowseImportFclRatesQuery,
-  BrowseRateHeadersQuery,
+  BrowseImportRatesQuery,
+  BrowseRatesQuery,
   CostDto,
   CostSelectDto,
   CreateCostRequest,
-  CreateFclRateDetailRequest,
-  CreateImportFclRateRequest,
-  CreateManualFclRateRequest,
-  CreateRateCostDetailRequest,
-  CreateRateFromImportFclRateRequest,
-  CreateRateHeaderRequest,
-  DuplicateRateHeaderRequest,
+  CreateImportRateRequest,
+  CreateRateRequest,
   DeleteBatchRequest,
-  ExtractImportFclRatesResultDto,
-  ImportFclRateDto,
-  ImportFclRateSelectDto,
-  RateCostDetailDto,
-  RateHeaderDto,
-  RateHeaderSelectDto,
-  RejectImportFclRateRequest,
-  RejectMarginApprovalRequest,
+  DuplicateRateRequest,
+  ExtractImportRatesResultDto,
+  ImportRateDto,
+  ImportRateSelectDto,
+  ImportStatus,
+  RateDto,
+  RejectImportRateRequest,
+  RejectRateMarginRequest,
   SetCostActiveRequest,
-  SetRateHeaderActiveRequest,
-  SetRateHeaderAmountsRequest,
   UpdateCostRequest,
-  UpdateFclRateDetailRequest,
-  UpdateRateCostDetailRequest,
-  UpdateRateHeaderRequest,
+  UpdateRateRequest,
 } from '@/core/interfaces/pricing'
+
+type NoContent = Record<string, never>
 
 function withQuery(path: string, query?: Record<string, unknown>) {
   return path + (query ? toQueryString(query) : '')
 }
 
-type NoContent = Record<string, never>
+const IMPORT_STATUSES = new Set<ImportStatus>(['Pending', 'Approved', 'Rejected', 'Created'])
+
+/**
+ * The first release of the new Pricing contract inverted Status and RawDataJson
+ * while mapping the browse DTO. Keeping this small normalizer makes Web work
+ * with that release and with the corrected contract.
+ */
+function normalizeImportRate(value: ImportRateDto): ImportRateDto {
+  const status = String(value.status ?? '')
+  const rawDataJson = String(value.rawDataJson ?? '')
+
+  if (
+    !IMPORT_STATUSES.has(status as ImportStatus) &&
+    IMPORT_STATUSES.has(rawDataJson as ImportStatus)
+  ) {
+    return { ...value, status: rawDataJson as ImportStatus, rawDataJson: status }
+  }
+
+  return value
+}
 
 export const PricingService = {
   async browseCosts(query?: BrowseCostsQuery): Promise<PagedResponse<CostDto>> {
@@ -61,12 +72,17 @@ export const PricingService = {
     return unwrapListResponse<CostSelectDto>(response)
   },
 
+  async getCost(costId: string): Promise<CostDto> {
+    const response = await callEndpoint<unknown>(Endpoints.getCostById, { params: { costId } })
+    return unwrapApiResponse<CostDto>(response as never)
+  },
+
   async createCost(payload: CreateCostRequest): Promise<string> {
     const response = await callEndpoint<unknown, CreateCostRequest>(Endpoints.createCost, {
       body: payload,
     })
 
-    return unwrapApiResponse<string>(response as any)
+    return unwrapApiResponse<string>(response as never)
   },
 
   updateCost(costId: string, payload: UpdateCostRequest): Promise<NoContent> {
@@ -87,271 +103,129 @@ export const PricingService = {
     return callEndpoint<NoContent>(Endpoints.deleteCost, { params: { costId } })
   },
 
-  async browseImportFclRates(
-    query?: BrowseImportFclRatesQuery,
-  ): Promise<PagedResponse<ImportFclRateDto>> {
+  async browseImportRates(query?: BrowseImportRatesQuery): Promise<PagedResponse<ImportRateDto>> {
     const response = await callEndpoint<unknown>({
-      ...Endpoints.browseImportFclRates,
-      path: withQuery(Endpoints.browseImportFclRates.path, query),
+      ...Endpoints.browseImportRates,
+      path: withQuery(Endpoints.browseImportRates.path, query),
     })
+    const result = unwrapPagedResponse<ImportRateDto>(response)
 
-    return unwrapPagedResponse<ImportFclRateDto>(response)
+    return { ...result, items: result.items.map(normalizeImportRate) }
   },
 
-  async selectImportFclRates(
-    query?: BrowseImportFclRatesQuery,
-  ): Promise<ImportFclRateSelectDto[]> {
+  async selectImportRates(query?: BrowseImportRatesQuery): Promise<ImportRateSelectDto[]> {
     const response = await callEndpoint<unknown>({
-      ...Endpoints.selectImportFclRates,
-      path: withQuery(Endpoints.selectImportFclRates.path, query),
+      ...Endpoints.selectImportRates,
+      path: withQuery(Endpoints.selectImportRates.path, query),
     })
 
-    return unwrapListResponse<ImportFclRateSelectDto>(response)
+    return unwrapListResponse<ImportRateSelectDto>(response).map(normalizeImportRate)
   },
 
-  async getImportFclRate(importFclRateId: string): Promise<ImportFclRateDto> {
-    const response = await callEndpoint<unknown>(Endpoints.getImportFclRateById, {
-      params: { importFclRateId },
+  async getImportRate(importRateId: string): Promise<ImportRateDto> {
+    const response = await callEndpoint<unknown>(Endpoints.getImportRateById, {
+      params: { importRateId },
     })
 
-    return unwrapApiResponse<ImportFclRateDto>(response as any)
+    return normalizeImportRate(unwrapApiResponse<ImportRateDto>(response as never))
   },
 
-  async createImportFclRate(payload: CreateImportFclRateRequest): Promise<string> {
-    const response = await callEndpoint<unknown, CreateImportFclRateRequest>(
-      Endpoints.createImportFclRate,
-      { body: payload },
+  async createImportRate(payload: CreateImportRateRequest): Promise<string> {
+    const response = await callEndpoint<unknown, CreateImportRateRequest>(
+      Endpoints.createImportRate,
+      {
+        body: payload,
+      },
     )
 
-    return unwrapApiResponse<string>(response as any)
+    return unwrapApiResponse<string>(response as never)
   },
 
-  async extractImportFclRates(
+  async extractImportRates(
     file: File,
-    profileCode?: string | null,
-  ): Promise<ExtractImportFclRatesResultDto> {
+    profileSlug: string,
+    correlationId?: string,
+  ): Promise<ExtractImportRatesResultDto> {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('profileSlug', profileSlug)
+    if (correlationId) formData.append('correlationId', correlationId)
 
-    if (profileCode?.trim()) {
-      formData.append('profileCode', profileCode.trim())
-    }
-
-    const response = await callEndpoint<unknown, FormData>(Endpoints.extractImportFclRates, {
+    const response = await callEndpoint<unknown, FormData>(Endpoints.extractImportRates, {
       body: formData,
       isFormData: true,
     })
 
-    return unwrapApiResponse<ExtractImportFclRatesResultDto>(response as any)
+    return unwrapApiResponse<ExtractImportRatesResultDto>(response as never)
   },
 
-  approveImportFclRate(importFclRateId: string): Promise<NoContent> {
-    return callEndpoint<NoContent>(Endpoints.approveImportFclRate, {
-      params: { importFclRateId },
-    })
+  approveImportRate(importRateId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>(Endpoints.approveImportRate, { params: { importRateId } })
   },
 
-  rejectImportFclRate(importFclRateId: string, payload: RejectImportFclRateRequest): Promise<NoContent> {
-    return callEndpoint<NoContent, RejectImportFclRateRequest>(Endpoints.rejectImportFclRate, {
-      params: { importFclRateId },
+  rejectImportRate(importRateId: string, payload: RejectImportRateRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, RejectImportRateRequest>(Endpoints.rejectImportRate, {
+      params: { importRateId },
       body: payload,
     })
   },
 
-  markImportFclRateAsImportedOnly(importFclRateId: string): Promise<NoContent> {
-    return callEndpoint<NoContent>(Endpoints.markImportFclRateAsImportedOnly, {
-      params: { importFclRateId },
-    })
-  },
-
-  async createRateFromImportFclRate(
-    importFclRateId: string,
-    payload: CreateRateFromImportFclRateRequest,
-  ): Promise<string> {
-    const response = await callEndpoint<unknown, CreateRateFromImportFclRateRequest>(
-      Endpoints.createRateFromImportFclRate,
-      { params: { importFclRateId }, body: payload },
-    )
-
-    return unwrapApiResponse<string>(response as any)
-  },
-
-  deleteImportFclRate(importFclRateId: string): Promise<NoContent> {
-    return callEndpoint<NoContent>(Endpoints.deleteImportFclRate, {
-      params: { importFclRateId },
-    })
-  },
-
-  deleteImportFclRatesBatch(ids: string[]): Promise<NoContent> {
-    return callEndpoint<NoContent, DeleteBatchRequest>(Endpoints.deleteImportFclRatesBatch, {
+  deleteImportRates(ids: string[]): Promise<NoContent> {
+    return callEndpoint<NoContent, DeleteBatchRequest>(Endpoints.deleteImportRates, {
       body: { ids },
     })
   },
 
-  async browseRateHeaders(query?: BrowseRateHeadersQuery): Promise<PagedResponse<RateHeaderDto>> {
+  async browseRates(query?: BrowseRatesQuery): Promise<PagedResponse<RateDto>> {
     const response = await callEndpoint<unknown>({
-      ...Endpoints.browseRateHeaders,
-      path: withQuery(Endpoints.browseRateHeaders.path, query),
+      ...Endpoints.browseRates,
+      path: withQuery(Endpoints.browseRates.path, query),
     })
 
-    return unwrapPagedResponse<RateHeaderDto>(response)
+    return unwrapPagedResponse<RateDto>(response)
   },
 
-  async selectRateHeaders(query?: BrowseRateHeadersQuery): Promise<RateHeaderSelectDto[]> {
-    const response = await callEndpoint<unknown>({
-      ...Endpoints.selectRateHeaders,
-      path: withQuery(Endpoints.selectRateHeaders.path, query),
+  async getRate(rateId: string): Promise<RateDto> {
+    const response = await callEndpoint<unknown>(Endpoints.getRateById, { params: { rateId } })
+    return unwrapApiResponse<RateDto>(response as never)
+  },
+
+  async createRate(payload: CreateRateRequest): Promise<string> {
+    const response = await callEndpoint<unknown, CreateRateRequest>(Endpoints.createRate, {
+      body: payload,
     })
 
-    return unwrapListResponse<RateHeaderSelectDto>(response)
+    return unwrapApiResponse<string>(response as never)
   },
 
-  async getActiveFclRates(query?: BrowseRateHeadersQuery): Promise<RateHeaderDto[]> {
-    const response = await callEndpoint<unknown>({
-      ...Endpoints.getActiveFclRates,
-      path: withQuery(Endpoints.getActiveFclRates.path, query),
-    })
-
-    return unwrapListResponse<RateHeaderDto>(response)
-  },
-
-  async getRateHeader(rateHeaderId: string): Promise<RateHeaderDto> {
-    const response = await callEndpoint<unknown>(Endpoints.getRateHeaderById, {
-      params: { rateHeaderId },
-    })
-
-    return unwrapApiResponse<RateHeaderDto>(response as any)
-  },
-
-  async createManualFclRate(payload: CreateManualFclRateRequest): Promise<string> {
-    const response = await callEndpoint<unknown, CreateManualFclRateRequest>(
-      Endpoints.createManualFclRate,
-      { body: payload },
-    )
-
-    return unwrapApiResponse<string>(response as any)
-  },
-
-  async createRateHeader(payload: CreateRateHeaderRequest): Promise<string> {
-    const response = await callEndpoint<unknown, CreateRateHeaderRequest>(
-      Endpoints.createRateHeader,
-      { body: payload },
-    )
-
-    return unwrapApiResponse<string>(response as any)
-  },
-
-  updateRateHeader(rateHeaderId: string, payload: UpdateRateHeaderRequest): Promise<NoContent> {
-    return callEndpoint<NoContent, UpdateRateHeaderRequest>(Endpoints.updateRateHeader, {
-      params: { rateHeaderId },
+  updateRate(rateId: string, payload: UpdateRateRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, UpdateRateRequest>(Endpoints.updateRate, {
+      params: { rateId },
       body: payload,
     })
   },
 
-  setRateHeaderAmounts(rateHeaderId: string, payload: SetRateHeaderAmountsRequest): Promise<NoContent> {
-    return callEndpoint<NoContent, SetRateHeaderAmountsRequest>(Endpoints.setRateHeaderAmounts, {
-      params: { rateHeaderId },
+  async duplicateRate(rateId: string, payload: DuplicateRateRequest): Promise<string> {
+    const response = await callEndpoint<unknown, DuplicateRateRequest>(Endpoints.duplicateRate, {
+      params: { rateId },
+      body: payload,
+    })
+
+    return unwrapApiResponse<string>(response as never)
+  },
+
+  approveRateMargin(rateId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>(Endpoints.approveRateMargin, { params: { rateId } })
+  },
+
+  rejectRateMargin(rateId: string, payload: RejectRateMarginRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, RejectRateMarginRequest>(Endpoints.rejectRateMargin, {
+      params: { rateId },
       body: payload,
     })
   },
 
-  setRateHeaderActive(rateHeaderId: string, payload: SetRateHeaderActiveRequest): Promise<NoContent> {
-    return callEndpoint<NoContent, SetRateHeaderActiveRequest>(Endpoints.setRateHeaderActive, {
-      params: { rateHeaderId },
-      body: payload,
-    })
-  },
-
-  async duplicateRateHeader(rateHeaderId: string, payload: DuplicateRateHeaderRequest): Promise<string> {
-    const response = await callEndpoint<unknown, DuplicateRateHeaderRequest>(Endpoints.duplicateRateHeader, {
-      params: { rateHeaderId },
-      body: payload,
-    })
-
-    return unwrapApiResponse<string>(response as any)
-  },
-
-  deleteRateHeader(rateHeaderId: string): Promise<NoContent> {
-    return callEndpoint<NoContent>(Endpoints.deleteRateHeader, { params: { rateHeaderId } })
-  },
-
-  deleteRateHeadersBatch(ids: string[]): Promise<NoContent> {
-    return callEndpoint<NoContent, DeleteBatchRequest>(Endpoints.deleteRateHeadersBatch, {
-      body: { ids },
-    })
-  },
-
-  async addFclRateDetail(rateHeaderId: string, payload: CreateFclRateDetailRequest): Promise<string> {
-    const response = await callEndpoint<unknown, CreateFclRateDetailRequest>(
-      Endpoints.addFclRateDetail,
-      { params: { rateHeaderId }, body: payload },
-    )
-
-    return unwrapApiResponse<string>(response as any)
-  },
-
-  updateFclRateDetail(
-    rateHeaderId: string,
-    fclRateDetailId: string,
-    payload: UpdateFclRateDetailRequest,
-  ): Promise<NoContent> {
-    return callEndpoint<NoContent, UpdateFclRateDetailRequest>(Endpoints.updateFclRateDetail, {
-      params: { rateHeaderId, fclRateDetailId },
-      body: payload,
-    })
-  },
-
-  removeFclRateDetail(rateHeaderId: string, fclRateDetailId: string): Promise<NoContent> {
-    return callEndpoint<NoContent>(Endpoints.removeFclRateDetail, {
-      params: { rateHeaderId, fclRateDetailId },
-    })
-  },
-
-  async addRateCostDetail(rateHeaderId: string, payload: CreateRateCostDetailRequest): Promise<string> {
-    const response = await callEndpoint<unknown, CreateRateCostDetailRequest>(
-      Endpoints.addRateCostDetail,
-      { params: { rateHeaderId }, body: payload },
-    )
-
-    return unwrapApiResponse<string>(response as any)
-  },
-
-  updateRateCostDetail(
-    rateHeaderId: string,
-    rateCostDetailId: string,
-    payload: UpdateRateCostDetailRequest,
-  ): Promise<NoContent> {
-    return callEndpoint<NoContent, UpdateRateCostDetailRequest>(Endpoints.updateRateCostDetail, {
-      params: { rateHeaderId, rateCostDetailId },
-      body: payload,
-    })
-  },
-
-  removeRateCostDetail(rateHeaderId: string, rateCostDetailId: string): Promise<NoContent> {
-    return callEndpoint<NoContent>(Endpoints.removeRateCostDetail, {
-      params: { rateHeaderId, rateCostDetailId },
-    })
-  },
-
-  approveMarginApproval(
-    rateHeaderId: string,
-    marginApprovalId: string,
-    payload: ApproveMarginApprovalRequest = {},
-  ): Promise<NoContent> {
-    return callEndpoint<NoContent, ApproveMarginApprovalRequest>(Endpoints.approveMarginApproval, {
-      params: { rateHeaderId, marginApprovalId },
-      body: payload,
-    })
-  },
-
-  rejectMarginApproval(
-    rateHeaderId: string,
-    marginApprovalId: string,
-    payload: RejectMarginApprovalRequest,
-  ): Promise<NoContent> {
-    return callEndpoint<NoContent, RejectMarginApprovalRequest>(Endpoints.rejectMarginApproval, {
-      params: { rateHeaderId, marginApprovalId },
-      body: payload,
-    })
+  deleteRates(ids: string[]): Promise<NoContent> {
+    return callEndpoint<NoContent, DeleteBatchRequest>(Endpoints.deleteRates, { body: { ids } })
   },
 }

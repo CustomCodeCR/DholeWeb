@@ -37,12 +37,14 @@ import type {
   CreateRateCostDetailRequest,
   CreateRateFromImportFclRateRequest,
   ExtractImportFclRatesResultDto,
+  FclRateDetailDto,
   ImportFclRateDto,
+  RateCostDetailDto,
   RateHeaderDto,
 } from '@/core/interfaces/pricing'
 
 type SelectOption = { label: string; value: string | number; disabled?: boolean }
-type CatalogBucket = 'ports' | 'containerTypes' | 'carriers' | 'currencies' | 'profiles'
+type CatalogBucket = 'ports' | 'pol' | 'poe' | 'pod' | 'containerTypes' | 'carriers' | 'currencies' | 'profiles' | 'agents' | 'incoterms'
 type PricingTab = 'imports' | 'rates' | 'costs'
 
 const { t, locale } = useI18n()
@@ -132,10 +134,15 @@ const imports = ref<ImportFclRateDto[]>([])
 const rates = ref<RateHeaderDto[]>([])
 const filterSeedImports = ref<ImportFclRateDto[]>([])
 const ports = ref<CatalogItemSelectDto[]>([])
+const polPorts = ref<CatalogItemSelectDto[]>([])
+const poePorts = ref<CatalogItemSelectDto[]>([])
+const podPorts = ref<CatalogItemSelectDto[]>([])
 const containerTypes = ref<CatalogItemSelectDto[]>([])
 const carriers = ref<CatalogItemSelectDto[]>([])
 const currencies = ref<CatalogItemSelectDto[]>([])
 const profiles = ref<CatalogItemSelectDto[]>([])
+const agents = ref<CatalogItemSelectDto[]>([])
+const incoterms = ref<CatalogItemSelectDto[]>([])
 
 const SERVER_PAGE_SIZE = 200
 const MAX_PAGED_REQUESTS = 100
@@ -177,10 +184,15 @@ async function fetchAllPaged<T, TQuery extends Record<string, unknown>>(
 
 const catalogSlugs = {
   ports: 'ports',
-  containerTypes: 'container-types',
+  pol: 'pol',
+  poe: 'poe',
+  pod: 'pod',
+  containerTypes: 'containers-types',
   carriers: 'carriers',
   currencies: 'currencies',
-  profiles: 'pricing-import-profiles',
+  profiles: 'pricing-imports-profiles',
+  agents: 'agents',
+  incoterms: 'incoterms',
 } as const
 
 const costForm = reactive({
@@ -194,37 +206,43 @@ const costForm = reactive({
   saleAmount: '',
   isFixed: true,
   requiresManualAmount: false,
+  isOptional: false,
   costType: 'Other',
   notes: '',
 })
 
 const importRateForm = reactive({
-  clientName: '',
+  agentName: '',
   carrier: '',
   originPort: '',
+  poePort: '',
   destinationPort: '',
+  finalDestinationPort: '',
   containerType: '',
   currency: '',
+  freeDays: '',
   validFrom: '',
   validTo: '',
   saleAmount: '',
-  marginPercentage: '', 
+  marginPercentage: '',
   notes: '',
 })
 
 
 const manualRateForm = reactive({
-  clientName: '',
+  agentName: '',
   carrier: '',
   originPort: '',
+  poePort: '',
   destinationPort: '',
+  finalDestinationPort: '',
   containerType: '',
   currency: '',
   amount: '',
+  saleAmount: '',
   freeDays: '',
   validFrom: '',
   validTo: '',
-  saleAmount: '',
   marginPercentage: '12',
   applyAutomaticFixedCosts: true,
   notes: '',
@@ -233,10 +251,12 @@ const manualRateForm = reactive({
 const fclRateEditForm = reactive({
   carrier: '',
   originPort: '',
+  poePort: '',
   destinationPort: '',
   containerType: '',
   currency: '',
   amount: '',
+  saleAmount: '',
   freeDays: '',
   validFrom: '',
   validTo: '',
@@ -245,6 +265,7 @@ const fclRateEditForm = reactive({
 
 const rateCostForm = reactive({
   costId: '',
+  optionalCostIds: [] as string[],
   name: '',
   costType: 'Other',
   currency: '',
@@ -297,6 +318,8 @@ const canUpdateFclDetail = computed(() => authStore.hasScope(PRICING_SCOPES.fclR
 const canUpdateCostDetail = computed(() => authStore.hasScope(PRICING_SCOPES.rateCostDetails.update))
 const canDeleteCostDetail = computed(() => authStore.hasScope(PRICING_SCOPES.rateCostDetails.delete))
 const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canApproveFreight = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveFreight))
+const canCreateDirectManualRate = computed(() => canCreateRate.value && (authStore.hasRole('Administrador') || authStore.hasRole('Administrator') || authStore.hasRole('Admin') || authStore.hasRole('SuperUsuario') || authStore.hasRole('SuperUser') || authStore.hasRole('SuperAdmin') || authStore.hasRole('superadmin')))
 const showCostRowActions = computed(() => canUpdateCost.value || canSetCostActive.value || canDeleteCost.value)
 
 
@@ -363,8 +386,8 @@ const costColumns = computed<DhTableColumn<CostDto>[]>(() => {
     { key: 'portNameSnapshot', label: t('pricing.common.port') },
     { key: 'portRole', label: t('pricing.common.portRole') },
     { key: 'requiresManualAmount', label: t('pricing.common.manualAmount'), align: 'center' },
-    { key: 'amount', label: t('pricing.common.amount'), align: 'right' },
-    { key: 'saleAmount', label: t('pricing.rates.saleAmount'), align: 'right' },
+    { key: 'amount', label: 'Costo', align: 'right' },
+    { key: 'saleAmount', label: 'Venta', align: 'right' },
     { key: 'isActive', label: t('common.status'), align: 'center' },
   ]
 
@@ -379,9 +402,12 @@ const importColumns = computed<DhTableColumn<ImportFclRateDto>[]>(() => [
   { key: '__select', label: '', width: '48px', align: 'center' },
   { key: 'carrier', label: t('pricing.common.carrier') },
   { key: 'pol', label: t('pricing.common.pol') },
+  { key: 'poe', label: 'POE' },
   { key: 'pod', label: t('pricing.common.pod') },
   { key: 'containerType', label: t('pricing.common.container') },
-  { key: 'amount', label: t('pricing.common.amount'), align: 'right' },
+  { key: 'amount', label: 'Costo', align: 'right' },
+  { key: 'freeDays', label: 'Días libres', align: 'center' },
+  { key: 'usedAsRateCount', label: 'Usos', align: 'center' },
   { key: 'validFrom', label: t('pricing.common.validFrom') },
   { key: 'validTo', label: t('pricing.common.validTo') },
   { key: 'status', label: t('common.status'), align: 'center' },
@@ -390,12 +416,12 @@ const importColumns = computed<DhTableColumn<ImportFclRateDto>[]>(() => [
 
 const rateColumns = computed<DhTableColumn<RateHeaderDto>[]>(() => [
   { key: '__select', label: '', width: '48px', align: 'center' },
-  { key: 'clientNameSnapshot', label: t('pricing.common.client') },
+  { key: 'clientNameSnapshot', label: 'Agente' },
   { key: 'mainRoute', label: t('pricing.common.route') },
   { key: 'carrier', label: t('pricing.common.carrier') },
   { key: 'totalCostAmount', label: t('pricing.rates.totalCost'), align: 'right' },
   { key: 'saleAmount', label: t('pricing.rates.sale'), align: 'right' },
-  { key: 'marginPercentage', label: t('pricing.rates.margin'), align: 'right' },
+  { key: 'marginPercentage', label: 'Margen actual', align: 'right' },
   { key: 'status', label: t('common.status'), align: 'center' },
   { key: '__actions', label: '', width: '88px', align: 'right' },
 ])
@@ -404,7 +430,7 @@ const fclDetailColumns = computed<DhTableColumn<Record<string, unknown>>[]>(() =
   { key: 'carrierNameSnapshot', label: t('pricing.common.carrier') },
   { key: 'route', label: t('pricing.common.route') },
   { key: 'containerTypeNameSnapshot', label: t('pricing.common.container') },
-  { key: 'amount', label: t('pricing.common.amount'), align: 'right' },
+  { key: 'amount', label: 'Costo', align: 'right' },
   { key: '__actions', label: '', width: '80px', align: 'right' },
 ])
 
@@ -413,26 +439,37 @@ const costDetailColumns = computed<DhTableColumn<Record<string, unknown>>[]>(() 
   { key: 'costType', label: t('pricing.common.costType') },
   { key: 'isFixed', label: t('pricing.common.fixed'), align: 'center' },
   { key: 'isManual', label: t('pricing.common.manual'), align: 'center' },
-  { key: 'amount', label: t('pricing.common.amount'), align: 'right' },
-  { key: 'saleAmount', label: t('pricing.rates.saleAmount'), align: 'right' },
+  { key: 'amount', label: 'Costo', align: 'right' },
+  { key: 'saleAmount', label: 'Venta', align: 'right' },
+  { key: 'profit', label: 'Utilidad', align: 'right' },
   { key: '__actions', label: '', width: '80px', align: 'right' },
 ])
 
 const catalogOptions = computed<Record<CatalogBucket, SelectOption[]>>(() => ({
   ports: toOptions(ports.value),
+  pol: toOptions(polPorts.value),
+  poe: toOptions(poePorts.value),
+  pod: toOptions(podPorts.value),
   containerTypes: toOptions(containerTypes.value),
   carriers: toOptions(carriers.value),
   currencies: toOptions(currencies.value),
   profiles: toOptions(profiles.value),
+  agents: agentOptions.value,
+  incoterms: toOptions(incoterms.value),
 }))
 
-const portFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(toCatalogFilterOptions(ports.value)))
+const portFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(toCatalogFilterOptions([...polPorts.value, ...poePorts.value, ...podPorts.value, ...ports.value])))
 const carrierFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(toCatalogFilterOptions(carriers.value)))
 const containerTypeFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(toCatalogFilterOptions(containerTypes.value)))
-const agentFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(toRawFilterOptions('agent')))
+const agentOptions = computed<SelectOption[]>(() => uniqueFilterOptions([
+  ...agents.value.map((item) => ({ label: item.label, value: item.label })),
+  { label: 'WWL', value: 'WWL' },
+  { label: 'RS', value: 'RS' },
+]))
+const agentFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(uniqueFilterOptions([...agentOptions.value, ...toRawFilterOptions('agent')])))
 const poeFilterOptions = computed<SelectOption[]>(() =>
   withAllFilterOption(uniqueFilterOptions([
-    ...toCatalogFilterOptions(ports.value),
+    ...toCatalogFilterOptions(poePorts.value.length ? poePorts.value : ports.value),
     ...toRawFilterOptions('poe'),
   ])),
 )
@@ -443,7 +480,6 @@ const statusOptions = computed<SelectOption[]>(() => [
   { label: t('pricing.status.Approved'), value: 'Approved' },
   { label: t('pricing.status.Rejected'), value: 'Rejected' },
   { label: t('pricing.status.ImportedOnly'), value: 'ImportedOnly' },
-  { label: t('pricing.status.CreatedAsRate'), value: 'CreatedAsRate' },
 ])
 
 const activeOptions = computed<SelectOption[]>(() => [
@@ -472,6 +508,7 @@ const costTypeOptions = computed<SelectOption[]>(() => [
   { label: t('pricing.costTypes.PortCharge'), value: 'PortCharge' },
   { label: t('pricing.costTypes.CustomsCharge'), value: 'CustomsCharge' },
   { label: t('pricing.costTypes.InlandTransport'), value: 'InlandTransport' },
+  { label: 'Costo agente', value: 'AgentCharge' },
   { label: t('pricing.costTypes.Documentation'), value: 'Documentation' },
   { label: t('pricing.costTypes.Insurance'), value: 'Insurance' },
   { label: t('pricing.costTypes.Other'), value: 'Other' },
@@ -482,7 +519,7 @@ const costTemplateOptions = computed<SelectOption[]>(() =>
     label: [
       x.name,
       String(x.rateType).toUpperCase(),
-      x.isFixed && !x.requiresManualAmount
+      x.isOptional ? 'Opcional' : x.isFixed && !x.requiresManualAmount
         ? `${x.carrierNameSnapshot || t('pricing.common.notLinked')} · ${x.portNameSnapshot || t('pricing.portRoles.Any')}`
         : t('pricing.costs.variableTemplate'),
       money(x.amount, x.currencyCodeSnapshot),
@@ -492,9 +529,44 @@ const costTemplateOptions = computed<SelectOption[]>(() =>
   })),
 )
 
-const automaticFixedCosts = computed(() => costs.value.filter((x) => x.isFixed && !x.requiresManualAmount))
-const variableCostTemplates = computed(() => costs.value.filter((x) => !x.isFixed || x.requiresManualAmount))
-const isAutomaticFixedCost = computed(() => costForm.isFixed && !costForm.requiresManualAmount)
+function toCostTemplateOptions(rows: CostDto[]): SelectOption[] {
+  return rows.map((x) => ({
+    label: [
+      x.name,
+      String(x.rateType).toUpperCase(),
+      x.isOptional ? 'Opcional' : (x.carrierNameSnapshot || t('pricing.common.notLinked')),
+      money(x.amount, x.currencyCodeSnapshot),
+      `Venta: ${money(x.saleAmount ?? 0, x.currencyCodeSnapshot)}`,
+    ].join(' · '),
+    value: x.id,
+  }))
+}
+
+const automaticFixedCosts = computed(() => costs.value.filter((x) => x.isFixed && !x.requiresManualAmount && !x.isOptional))
+const optionalCostTemplates = computed(() => costs.value.filter((x) => x.isOptional))
+const variableCostTemplates = computed(() => costs.value.filter((x) => x.isOptional || !x.isFixed || x.requiresManualAmount))
+const isAutomaticFixedCost = computed(() => costForm.isFixed && !costForm.requiresManualAmount && !costForm.isOptional)
+const fixedCostTemplateOptions = computed<SelectOption[]>(() => toCostTemplateOptions(automaticFixedCosts.value))
+const costPortOptions = computed<SelectOption[]>(() => {
+  if (costForm.portRole === 'Pol') return catalogOptions.value.pol
+  if (costForm.portRole === 'Pod') return catalogOptions.value.pod
+
+  return catalogOptions.value.ports
+})
+const optionalCostTemplateOptions = computed<SelectOption[]>(() => {
+  const detail = selectedRateMainDetail.value
+  const selectedCarrierId = detail?.carrierId
+  const destinationIds = new Set<string>([
+    String(detail?.destinationPortId ?? ''),
+    ...selectedRateCostRows.value.map((row) => String(row.portId ?? '')).filter(Boolean),
+  ].filter(Boolean))
+
+  return toCostTemplateOptions(optionalCostTemplates.value.filter((cost) => {
+    const matchesCarrier = !cost.carrierId || !selectedCarrierId || cost.carrierId === selectedCarrierId
+    const matchesPort = !cost.portId || destinationIds.size === 0 || destinationIds.has(cost.portId)
+    return matchesCarrier && matchesPort
+  }))
+})
 
 function paginateRows<T>(rows: T[], page: number, pageSize: number): T[] {
   const start = Math.max(0, (page - 1) * pageSize)
@@ -512,12 +584,20 @@ const pagedVariableCostTemplates = computed(() => paginateRows(variableCostTempl
 const selectedRateMainDetail = computed(() => selectedRate.value?.fclRateDetails?.[0] ?? null)
 const selectedRateFclRows = computed<Record<string, unknown>[]>(() => (selectedRate.value?.fclRateDetails ?? []) as unknown as Record<string, unknown>[])
 const selectedRateCostRows = computed<Record<string, unknown>[]>(() => (selectedRate.value?.costDetails ?? []) as unknown as Record<string, unknown>[])
-const selectedRateCostSaleTotal = computed(() =>
-  selectedRateCostRows.value.reduce((total, row) => total + costSaleAmount(row), 0),
+const selectedRateAgentCostRows = computed<Record<string, unknown>[]>(() =>
+  selectedRateCostRows.value.filter((row) => String(row.costType) === 'AgentCharge' || normalizeLookup(String(row.name ?? '')).includes('agente') || normalizeLookup(String(row.name ?? '')).includes('agent')),
 )
-const selectedRateBaseSaleAmount = computed(() =>
-  Math.max(0, Number(selectedRate.value?.saleAmount ?? 0) - selectedRateCostSaleTotal.value),
+const selectedRateDestinationCostRows = computed<Record<string, unknown>[]>(() =>
+  selectedRateCostRows.value.filter((row) => String(row.costType) === 'DestinationCharge' || String(row.costType) === 'InlandTransport'),
 )
+const selectedRateOtherCostRows = computed<Record<string, unknown>[]>(() =>
+  selectedRateCostRows.value.filter((row) => !selectedRateAgentCostRows.value.includes(row) && !selectedRateDestinationCostRows.value.includes(row)),
+)
+const selectedRateBaseSaleAmount = computed(() => (selectedRate.value ? rateFreightSaleTotal(selectedRate.value) : 0))
+const clientVisibleCostRows = computed<Record<string, unknown>[]>(() =>
+  selectedRateCostRows.value.filter((row) => costSaleAmount(row) > 0),
+)
+const selectedRateProfit = computed(() => (selectedRate.value ? rateProfit(selectedRate.value) : 0))
 const canPrintSelectedRate = computed(() => Boolean(selectedRate.value?.isActive))
 const quoteDateLabel = computed(() =>
   new Intl.DateTimeFormat(locale.value === 'en' ? 'en-US' : 'es-CR').format(new Date()),
@@ -645,24 +725,21 @@ watch([
   }
 })
 
-watch(isAutomaticFixedCost, (automatic) => {
-  if (!automatic) {
-    costForm.portRole = 'Any'
-    return
-  }
-
-  if (costForm.portRole === 'Any') {
+watch(isAutomaticFixedCost, () => {
+  if (!costForm.portRole || costForm.portRole === 'Any') {
     costForm.portRole = 'Pod'
   }
 })
-watch(() => costForm.isFixed, (fixed) => {
-  costForm.requiresManualAmount = !fixed
-})
-
-
 
 function toOptions(items: CatalogItemSelectDto[]): SelectOption[] {
   return items.map((x) => ({ label: x.label, value: x.value }))
+}
+
+function defaultAgentName(): string {
+  const wwl = agentOptions.value.find((option) => normalizeLookup(String(option.value)) === 'wwl')?.value
+  const rs = agentOptions.value.find((option) => normalizeLookup(String(option.value)) === 'rs')?.value
+
+  return String(wwl || rs || 'WWL')
 }
 
 function catalogSearchValue(item: CatalogItemSelectDto): string {
@@ -727,6 +804,10 @@ function readRawFilterValue(rawDataJson: string | null | undefined, field: RawFi
   }
 }
 
+function importPoeLabel(row: ImportFclRateDto): string {
+  return readRawFilterValue(row.rawDataJson, 'poe') || '—'
+}
+
 function findValueByAliases(value: unknown, aliases: string[]): string | null {
   const normalizedAliases = aliases.map(normalizeLookup)
 
@@ -756,6 +837,18 @@ function findValueByAliases(value: unknown, aliases: string[]): string | null {
   return null
 }
 
+function readPoeFromNotes(notes: string | null | undefined): string | null {
+  if (!notes) return null
+  const match = notes.match(/POE\s*:\s*([^\n]+)/i)
+  return match?.[1]?.trim() || null
+}
+
+function mergePoeIntoNotes(notes: string | null, poeLabel: string | null): string | null {
+  const base = (notes ?? '').replace(/^POE\s*:\s*.*$/gim, '').trim()
+  const poe = poeLabel?.trim()
+  return [base, poe ? `POE: ${poe}` : null].filter(Boolean).join('\n') || null
+}
+
 function findRawTextValue(raw: string, aliases: string[]): string | null {
   for (const alias of aliases) {
     const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -769,7 +862,7 @@ function findRawTextValue(raw: string, aliases: string[]): string | null {
 }
 
 function selectedItem(bucket: CatalogBucket, value: string): CatalogItemSelectDto | null {
-  const map = { ports, containerTypes, carriers, currencies, profiles }
+  const map = { ports, pol: polPorts, poe: poePorts, pod: podPorts, containerTypes, carriers, currencies, profiles, agents, incoterms }
   return map[bucket].value.find((x) => x.value === value || x.slug === value || x.id === value || x.code === value) ?? null
 }
 
@@ -809,6 +902,11 @@ function lookupAliases(bucket: CatalogBucket, value: string | null | undefined):
       crc: ['colon', 'colones'],
     },
     profiles: {},
+    pol: {},
+    poe: {},
+    pod: {},
+    agents: {},
+    incoterms: {},
   }
 
   return [normalized, ...(aliases[bucket][normalized] ?? [])].filter(Boolean)
@@ -821,7 +919,7 @@ function candidateValues(item: CatalogItemSelectDto): string[] {
 }
 
 function findItemByText(bucket: CatalogBucket, value: string | null | undefined): CatalogItemSelectDto | null {
-  const map = { ports, containerTypes, carriers, currencies, profiles }
+  const map = { ports, pol: polPorts, poe: poePorts, pod: podPorts, containerTypes, carriers, currencies, profiles, agents, incoterms }
   const items = map[bucket].value
   const needles = lookupAliases(bucket, value)
 
@@ -908,7 +1006,11 @@ function costTypeLabel(type: string | undefined) {
 function routeLabel(rate: RateHeaderDto): string {
   const detail = rate.fclRateDetails?.[0]
   if (!detail) return '—'
-  return `${detail.originPortNameSnapshot || detail.originPortCodeSnapshot} → ${detail.destinationPortNameSnapshot || detail.destinationPortCodeSnapshot}`
+  return [
+    detail.originPortNameSnapshot || detail.originPortCodeSnapshot,
+    readPoeFromNotes(String(detail.notes ?? '')),
+    detail.destinationPortNameSnapshot || detail.destinationPortCodeSnapshot,
+  ].filter(Boolean).join(' → ')
 }
 
 function carrierLabel(rate: RateHeaderDto): string {
@@ -943,21 +1045,60 @@ function rateProfit(rate: RateHeaderDto): number {
   return rowAmount(rate.saleAmount) - rowAmount(rate.totalCostAmount)
 }
 
+function rateFreightCostTotal(rate: RateHeaderDto): number {
+  return (rate.fclRateDetails ?? []).reduce((total, detail) => total + rowAmount(detail.amount), 0)
+}
+
+function rateCostSaleTotal(rate: RateHeaderDto): number {
+  return (rate.costDetails ?? []).reduce((total, detail) => total + rateCostDetailSaleAmount(detail), 0)
+}
+
+function rateFreightSaleTotal(rate: RateHeaderDto): number {
+  return Math.max(0, rowAmount(rate.saleAmount) - rateCostSaleTotal(rate))
+}
+
+
+function fclDetailSaleAmount(rate: RateHeaderDto, detail: FclRateDetailDto): number {
+  const explicitSale = rowAmount(detail.saleAmount)
+  if (detail.saleAmount !== null && detail.saleAmount !== undefined && explicitSale > 0) return explicitSale
+
+  const freightSale = rateFreightSaleTotal(rate)
+  const freightCost = rateFreightCostTotal(rate)
+  const fclCount = Math.max(1, rate.fclRateDetails?.length ?? 1)
+
+  if (freightCost <= 0) return Number((freightSale / fclCount).toFixed(2))
+
+  return Number(((freightSale * rowAmount(detail.amount)) / freightCost).toFixed(2))
+}
+
+function rateCostDetailSaleAmount(detail: RateCostDetailDto | Record<string, unknown>): number {
+  return rowAmount(detail.saleAmount)
+}
+
 function costProfit(cost: CostDto): number {
   return rowAmount(cost.saleAmount ?? minimumSaleAmount(rowAmount(cost.amount))) - rowAmount(cost.amount)
 }
 
 function rateMatrixRows(rate: RateHeaderDto) {
-  const fclRows = (rate.fclRateDetails ?? []).map((detail, index) => ({
-    key: `fcl-${detail.id || index}`,
-    name: t('pricing.matrix.oceanFreight'),
-    meta: `${detail.originPortNameSnapshot || detail.originPortCodeSnapshot} → ${detail.destinationPortNameSnapshot || detail.destinationPortCodeSnapshot}`,
-    type: detail.containerTypeNameSnapshot || detail.containerTypeCodeSnapshot || String(rate.rateType).toUpperCase(),
-    cost: rowAmount(detail.amount),
-    sale: rowAmount(detail.saleAmount ?? detail.amount),
-    currency: detail.currencyCodeSnapshot || rate.currencyCodeSnapshot || 'USD',
-    editable: true,
-  }))
+  const fclRows = (rate.fclRateDetails ?? []).map((detail, index) => {
+    const cost = rowAmount(detail.amount)
+    const sale = fclDetailSaleAmount(rate, detail)
+
+    return {
+      key: `fcl-${detail.id || index}`,
+      name: t('pricing.matrix.oceanFreight'),
+      meta: [
+        detail.originPortNameSnapshot || detail.originPortCodeSnapshot,
+        readPoeFromNotes(String(detail.notes ?? '')),
+        detail.destinationPortNameSnapshot || detail.destinationPortCodeSnapshot,
+      ].filter(Boolean).join(' → '),
+      type: detail.containerTypeNameSnapshot || detail.containerTypeCodeSnapshot || String(rate.rateType).toUpperCase(),
+      cost,
+      sale,
+      currency: detail.currencyCodeSnapshot || rate.currencyCodeSnapshot || 'USD',
+      editable: true,
+    }
+  })
 
   const costRows = (rate.costDetails ?? []).map((detail, index) => ({
     key: `cost-${detail.id || index}`,
@@ -965,7 +1106,7 @@ function rateMatrixRows(rate: RateHeaderDto) {
     meta: costTypeLabel(detail.costType),
     type: detail.isManual ? t('pricing.common.manual') : t('pricing.common.automatic'),
     cost: rowAmount(detail.amount),
-    sale: rowAmount(detail.saleAmount ?? detail.amount),
+    sale: rateCostDetailSaleAmount(detail),
     currency: detail.currencyCodeSnapshot || rate.currencyCodeSnapshot || 'USD',
     editable: true,
   }))
@@ -991,12 +1132,14 @@ function resetCostForm(cost?: CostDto) {
   costForm.saleAmount = cost ? String(cost.saleAmount ?? minimumSaleAmount(Number(cost.amount ?? 0))) : ''
   costForm.isFixed = cost?.isFixed ?? true
   costForm.requiresManualAmount = cost?.requiresManualAmount ?? false
+  costForm.isOptional = cost?.isOptional ?? false
   costForm.costType = 'Other'
-  costForm.notes = ''
+  costForm.notes = cost?.notes ?? ''
 }
 
 function resetRateCostForm() {
   rateCostForm.costId = ''
+  rateCostForm.optionalCostIds = []
   rateCostForm.name = ''
   rateCostForm.costType = 'Other'
   rateCostForm.currency = findItemByText('currencies', selectedRate.value?.currencyCodeSnapshot)?.value ?? ''
@@ -1015,10 +1158,12 @@ function resetDuplicateRateForm() {
 
 
 function resetManualRateForm() {
-  manualRateForm.clientName = ''
+  manualRateForm.agentName = defaultAgentName()
   manualRateForm.carrier = ''
   manualRateForm.originPort = ''
+  manualRateForm.poePort = ''
   manualRateForm.destinationPort = ''
+  manualRateForm.finalDestinationPort = ''
   manualRateForm.containerType = ''
   manualRateForm.currency = findItemByText('currencies', 'USD')?.value ?? ''
   manualRateForm.amount = ''
@@ -1036,11 +1181,13 @@ function resetFclRateEditForm(row?: Record<string, unknown> | null) {
   const validTo = row?.validTo
 
   fclRateEditForm.carrier = catalogFormValue('carriers', String(row?.carrierId ?? ''), String(row?.carrierCodeSnapshot ?? ''), String(row?.carrierNameSnapshot ?? ''))
-  fclRateEditForm.originPort = catalogFormValue('ports', String(row?.originPortId ?? ''), String(row?.originPortCodeSnapshot ?? ''), String(row?.originPortNameSnapshot ?? ''))
-  fclRateEditForm.destinationPort = catalogFormValue('ports', String(row?.destinationPortId ?? ''), String(row?.destinationPortCodeSnapshot ?? ''), String(row?.destinationPortNameSnapshot ?? ''))
+  fclRateEditForm.originPort = catalogFormValue('pol', String(row?.originPortId ?? ''), String(row?.originPortCodeSnapshot ?? ''), String(row?.originPortNameSnapshot ?? ''))
+  fclRateEditForm.poePort = catalogFormValue('poe', readPoeFromNotes(String(row?.notes ?? '')))
+  fclRateEditForm.destinationPort = catalogFormValue('pod', String(row?.destinationPortId ?? ''), String(row?.destinationPortCodeSnapshot ?? ''), String(row?.destinationPortNameSnapshot ?? ''))
   fclRateEditForm.containerType = catalogFormValue('containerTypes', String(row?.containerTypeId ?? ''), String(row?.containerTypeCodeSnapshot ?? ''), String(row?.containerTypeNameSnapshot ?? ''))
   fclRateEditForm.currency = catalogFormValue('currencies', String(row?.currencyId ?? ''), String(row?.currencyCodeSnapshot ?? selectedRate.value?.currencyCodeSnapshot ?? 'USD'), String(row?.currencyNameSnapshot ?? ''))
   fclRateEditForm.amount = String(row?.amount ?? '')
+  fclRateEditForm.saleAmount = selectedRate.value ? String(rateFreightSaleTotal(selectedRate.value)) : ''
   fclRateEditForm.freeDays = row?.freeDays == null ? '' : String(row.freeDays)
   fclRateEditForm.validFrom = typeof validFrom === 'string' ? validFrom.slice(0, 10) : ''
   fclRateEditForm.validTo = typeof validTo === 'string' ? validTo.slice(0, 10) : ''
@@ -1057,19 +1204,29 @@ function resetRateHeaderEditForm() {
 async function loadCatalogSelects() {
   loadingCatalogs.value = true
   try {
-    const [portItems, containerItems, carrierItems, currencyItems, profileItems] = await Promise.all([
+    const [portItems, polItems, poeItems, podItems, containerItems, carrierItems, currencyItems, profileItems, agentItems, incotermItems] = await Promise.all([
       CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.ports }),
+      CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.pol }),
+      CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.poe }),
+      CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.pod }),
       CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.containerTypes }),
       CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.carriers }),
       CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.currencies }),
       CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.profiles }),
+      CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.agents }),
+      CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.incoterms }),
     ])
 
     ports.value = portItems
+    polPorts.value = polItems.length ? polItems : portItems
+    poePorts.value = poeItems.length ? poeItems : portItems
+    podPorts.value = podItems.length ? podItems : portItems
     containerTypes.value = containerItems
     carriers.value = carrierItems
     currencies.value = currencyItems
     profiles.value = profileItems
+    agents.value = agentItems
+    incoterms.value = incotermItems
   } catch (error) {
     toastStore.backendError(error, t('pricing.messages.catalogsLoadError'))
   } finally {
@@ -1210,7 +1367,7 @@ function openCostDrawer(fromRate = false) {
   const detail = selectedRateMainDetail.value
   if (fromRate && selectedRate.value && detail) {
     costForm.carrier = findItemByText('carriers', detail.carrierCodeSnapshot)?.value ?? ''
-    costForm.port = findItemByText('ports', detail.destinationPortCodeSnapshot)?.value ?? ''
+    costForm.port = findItemByText('pod', detail.destinationPortCodeSnapshot)?.value ?? ''
     costForm.portRole = 'Pod'
     costForm.currency = findItemByText('currencies', selectedRate.value.currencyCodeSnapshot)?.value ?? ''
   }
@@ -1228,9 +1385,9 @@ function openEditCostDrawer(cost: CostDto) {
 async function saveCost() {
   savingCost.value = true
   try {
-    const automaticFixedCost = isAutomaticFixedCost.value
-    const carrier = automaticFixedCost ? snapshot('carriers', costForm.carrier, t('pricing.common.carrier')) : null
-    const port = automaticFixedCost ? snapshot('ports', costForm.port, t('pricing.common.port')) : null
+    const portBucket: CatalogBucket = costForm.portRole === 'Pol' ? 'pol' : costForm.portRole === 'Pod' ? 'pod' : 'ports'
+    const carrier = snapshot('carriers', costForm.carrier, t('pricing.common.carrier'))
+    const port = snapshot(portBucket, costForm.port, t('pricing.common.port'))
     const currency = snapshot('currencies', costForm.currency, t('pricing.common.currency'))
     const amount = toNumber(costForm.amount)
     const saleAmount = costForm.saleAmount.trim() ? toNumber(costForm.saleAmount) : minimumSaleAmount(amount)
@@ -1244,7 +1401,7 @@ async function saveCost() {
       portId: port?.id ?? null,
       portNameSnapshot: port?.label ?? null,
       portCodeSnapshot: port?.code ?? null,
-      portRole: automaticFixedCost ? costForm.portRole : 'Any',
+      portRole: costForm.portRole,
       currencyId: currency.id,
       currencyNameSnapshot: currency.label,
       currencyCodeSnapshot: currency.code,
@@ -1252,6 +1409,8 @@ async function saveCost() {
       saleAmount,
       isFixed: costForm.isFixed,
       requiresManualAmount: costForm.requiresManualAmount,
+      isOptional: costForm.isOptional,
+      notes: nullableText(costForm.notes),
     }
 
     if (editingCost.value) {
@@ -1328,11 +1487,15 @@ async function deleteCost() {
 
 function prepareImportRate(row: ImportFclRateDto) {
   selectedImport.value = row
+  importRateForm.agentName = readRawFilterValue(row.rawDataJson, 'agent') || defaultAgentName()
   importRateForm.carrier = findItemByText('carriers', row.carrier)?.value ?? ''
-  importRateForm.originPort = findItemByText('ports', row.pol)?.value ?? ''
-  importRateForm.destinationPort = findItemByText('ports', row.pod)?.value ?? ''
+  importRateForm.originPort = findItemByText('pol', row.pol)?.value ?? findItemByText('ports', row.pol)?.value ?? ''
+  importRateForm.poePort = findItemByText('poe', readRawFilterValue(row.rawDataJson, 'poe'))?.value ?? ''
+  importRateForm.destinationPort = findItemByText('pod', row.pod)?.value ?? findItemByText('ports', row.pod)?.value ?? ''
+  importRateForm.finalDestinationPort = importRateForm.destinationPort
   importRateForm.containerType = findItemByText('containerTypes', row.containerType)?.value ?? ''
   importRateForm.currency = findItemByText('currencies', row.currency)?.value ?? ''
+  importRateForm.freeDays = row.freeDays == null ? '' : String(row.freeDays)
   importRateForm.validFrom = row.validFrom?.slice(0, 10) ?? ''
   importRateForm.validTo = row.validTo?.slice(0, 10) ?? ''
   importRateForm.saleAmount = ''
@@ -1374,29 +1537,29 @@ async function rejectImport() {
 
 
 function openManualRateModal() {
-  if (!canCreateRate.value) return
+  if (!canCreateDirectManualRate.value) return
   resetManualRateForm()
   manualRateModalOpen.value = true
 }
 
 async function createManualRate() {
-  if (!canCreateRate.value) return
+  if (!canCreateDirectManualRate.value) return
 
   savingManualRate.value = true
   try {
     const carrier = snapshot('carriers', manualRateForm.carrier, t('pricing.common.carrier'))
-    const origin = snapshot('ports', manualRateForm.originPort, t('pricing.common.origin'))
-    const destination = snapshot('ports', manualRateForm.destinationPort, t('pricing.common.destination'))
+    const origin = snapshot('pol', manualRateForm.originPort, t('pricing.common.origin'))
+    const destination = snapshot('pod', manualRateForm.destinationPort, t('pricing.common.destination'))
+    const poe = manualRateForm.poePort ? snapshot('poe', manualRateForm.poePort, 'POE') : null
+    const finalDestination = manualRateForm.finalDestinationPort ? snapshot('pod', manualRateForm.finalDestinationPort, 'Destino final') : null
     const container = snapshot('containerTypes', manualRateForm.containerType, t('pricing.common.container'))
     const currency = snapshot('currencies', manualRateForm.currency, t('pricing.common.currency'))
     const saleAmount = manualRateForm.saleAmount.trim() ? toNumber(manualRateForm.saleAmount) : null
-    const marginPercentage = saleAmount === null && manualRateForm.marginPercentage.trim()
-      ? toNumber(manualRateForm.marginPercentage)
-      : null
+    const marginPercentage = null
 
     const payload: CreateManualFclRateRequest = {
       clientId: null,
-      clientNameSnapshot: nullableText(manualRateForm.clientName),
+      clientNameSnapshot: nullableText(manualRateForm.agentName),
       carrierId: carrier.id,
       carrierNameSnapshot: carrier.label,
       carrierCodeSnapshot: carrier.code,
@@ -1406,6 +1569,9 @@ async function createManualRate() {
       destinationPortId: destination.id,
       destinationPortNameSnapshot: destination.label,
       destinationPortCodeSnapshot: destination.code,
+      finalDestinationPortId: finalDestination?.id ?? null,
+      finalDestinationPortNameSnapshot: finalDestination?.label ?? null,
+      finalDestinationPortCodeSnapshot: finalDestination?.code ?? null,
       containerTypeId: container.id,
       containerTypeNameSnapshot: container.label,
       containerTypeCodeSnapshot: container.code,
@@ -1416,7 +1582,7 @@ async function createManualRate() {
       freeDays: manualRateForm.freeDays.trim() ? Number.parseInt(manualRateForm.freeDays, 10) : null,
       validFrom: nullableDate(manualRateForm.validFrom),
       validTo: nullableDate(manualRateForm.validTo),
-      notes: nullableText(manualRateForm.notes),
+      notes: mergePoeIntoNotes(nullableText(manualRateForm.notes), poe?.label ?? null),
       saleAmount,
       marginPercentage,
       applyAutomaticFixedCosts: manualRateForm.applyAutomaticFixedCosts,
@@ -1447,8 +1613,9 @@ async function saveFclRateDetailEdit() {
   savingFclRateEdit.value = true
   try {
     const carrier = snapshot('carriers', fclRateEditForm.carrier, t('pricing.common.carrier'))
-    const origin = snapshot('ports', fclRateEditForm.originPort, t('pricing.common.origin'))
-    const destination = snapshot('ports', fclRateEditForm.destinationPort, t('pricing.common.destination'))
+    const origin = snapshot('pol', fclRateEditForm.originPort, 'POL')
+    const poe = fclRateEditForm.poePort ? snapshot('poe', fclRateEditForm.poePort, 'POE') : null
+    const destination = snapshot('pod', fclRateEditForm.destinationPort, 'POD')
     const container = snapshot('containerTypes', fclRateEditForm.containerType, t('pricing.common.container'))
     const currency = snapshot('currencies', fclRateEditForm.currency, t('pricing.common.currency'))
 
@@ -1473,8 +1640,17 @@ async function saveFclRateDetailEdit() {
       freeDays: fclRateEditForm.freeDays.trim() ? Number.parseInt(fclRateEditForm.freeDays, 10) : null,
       validFrom: nullableDate(fclRateEditForm.validFrom),
       validTo: nullableDate(fclRateEditForm.validTo),
-      notes: nullableText(fclRateEditForm.notes),
+      notes: mergePoeIntoNotes(nullableText(fclRateEditForm.notes), poe?.label ?? null),
     })
+
+    if (fclRateEditForm.saleAmount.trim() && canApproveFreight.value) {
+      const nextFreightCost = toNumber(fclRateEditForm.amount)
+      const previousFreightCost = selectedRate.value.fclRateDetails.reduce((total, detail) => total + rowAmount(detail.amount), 0)
+      const currentCostTotal = rowAmount(selectedRate.value.totalCostAmount)
+      const nextTotalCost = Math.max(0, currentCostTotal - previousFreightCost + nextFreightCost)
+      const nextSaleAmount = toNumber(fclRateEditForm.saleAmount) + rateCostSaleTotal(selectedRate.value)
+      await PricingService.setRateHeaderAmounts(selectedRate.value.id, { totalCostAmount: nextTotalCost, saleAmount: nextSaleAmount })
+    }
 
     toastStore.success(t('pricing.messages.fclDetailUpdated'))
     fclRateEditModalOpen.value = false
@@ -1493,18 +1669,19 @@ async function createRateFromImport() {
   savingRate.value = true
   try {
     const carrier = snapshot('carriers', importRateForm.carrier, t('pricing.common.carrier'))
-    const origin = snapshot('ports', importRateForm.originPort, t('pricing.common.origin'))
-    const destination = snapshot('ports', importRateForm.destinationPort, t('pricing.common.destination'))
+    const origin = snapshot('pol', importRateForm.originPort, t('pricing.common.origin'))
+    const destination = snapshot('pod', importRateForm.destinationPort, t('pricing.common.destination'))
+    const finalDestination = importRateForm.finalDestinationPort ? snapshot('pod', importRateForm.finalDestinationPort, 'Destino final') : null
+    const poe = importRateForm.poePort ? snapshot('poe', importRateForm.poePort, 'POE') : null
     const container = snapshot('containerTypes', importRateForm.containerType, t('pricing.common.container'))
     const currency = snapshot('currencies', importRateForm.currency, t('pricing.common.currency'))
     const saleAmount = importRateForm.saleAmount.trim() ? toNumber(importRateForm.saleAmount) : null
-    const marginPercentage = saleAmount === null && importRateForm.marginPercentage.trim()
-      ? toNumber(importRateForm.marginPercentage)
-      : null
+    const notes = [nullableText(importRateForm.notes), poe ? `POE: ${poe.label}` : null].filter(Boolean).join('\n') || null
+    const marginPercentage = null
 
     const payload: CreateRateFromImportFclRateRequest = {
       clientId: null,
-      clientNameSnapshot: nullableText(importRateForm.clientName),
+      clientNameSnapshot: nullableText(importRateForm.agentName),
       carrierId: carrier.id,
       carrierNameSnapshot: carrier.label,
       carrierCodeSnapshot: carrier.code,
@@ -1514,6 +1691,9 @@ async function createRateFromImport() {
       destinationPortId: destination.id,
       destinationPortNameSnapshot: destination.label,
       destinationPortCodeSnapshot: destination.code,
+      finalDestinationPortId: finalDestination?.id ?? null,
+      finalDestinationPortNameSnapshot: finalDestination?.label ?? null,
+      finalDestinationPortCodeSnapshot: finalDestination?.code ?? null,
       containerTypeId: container.id,
       containerTypeNameSnapshot: container.label,
       containerTypeCodeSnapshot: container.code,
@@ -1522,7 +1702,8 @@ async function createRateFromImport() {
       currencyCodeSnapshot: currency.code,
       validFrom: nullableDate(importRateForm.validFrom),
       validTo: nullableDate(importRateForm.validTo),
-      notes: nullableText(importRateForm.notes),
+      freeDays: importRateForm.freeDays.trim() ? Number.parseInt(importRateForm.freeDays, 10) : null,
+      notes,
       saleAmount,
       marginPercentage,
     }
@@ -1562,20 +1743,18 @@ async function toggleRate(row: RateHeaderDto) {
 }
 
 function openDuplicateRateModal() {
-  if (!selectedRate.value || !canCreateRate.value) return
+  if (!selectedRate.value || !canCreateDirectManualRate.value) return
   resetDuplicateRateForm()
   duplicateRateModalOpen.value = true
 }
 
 async function duplicateRate() {
-  if (!selectedRate.value || !canCreateRate.value) return
+  if (!selectedRate.value || !canCreateDirectManualRate.value) return
 
   duplicatingRate.value = true
   try {
     const saleAmount = duplicateRateForm.saleAmount.trim() ? toNumber(duplicateRateForm.saleAmount) : null
-    const marginPercentage = saleAmount === null && duplicateRateForm.marginPercentage.trim()
-      ? toNumber(duplicateRateForm.marginPercentage)
-      : null
+    const marginPercentage = null
 
     const duplicatedRateId = await PricingService.duplicateRateHeader(selectedRate.value.id, {
       clientId: null,
@@ -1599,35 +1778,73 @@ function applyCostTemplate(value: string | number) {
   const cost = costs.value.find((x) => x.id === String(value))
   if (!cost) return
 
+  rateCostForm.costId = cost.id
   rateCostForm.name = cost.name
   rateCostForm.currency = catalogFormValue('currencies', cost.currencyId, cost.currencyCodeSnapshot, cost.currencyNameSnapshot)
   rateCostForm.amount = String(cost.amount)
-  rateCostForm.saleAmount = String(cost.saleAmount ?? minimumSaleAmount(Number(cost.amount ?? 0)))
+  rateCostForm.saleAmount = String(cost.saleAmount ?? 0)
   rateCostForm.isFixed = cost.isFixed
-  rateCostForm.isManual = cost.requiresManualAmount
+  rateCostForm.isManual = cost.requiresManualAmount || cost.isOptional
+  rateCostForm.notes = cost.notes ?? ''
+}
+
+async function addCostTemplateToRate(cost: CostDto) {
+  if (!selectedRate.value) return
+  const currencyValue = catalogFormValue('currencies', cost.currencyId, cost.currencyCodeSnapshot, cost.currencyNameSnapshot)
+  const currency = snapshot('currencies', currencyValue, t('pricing.common.currency'))
+  const payload: CreateRateCostDetailRequest = {
+    costId: cost.id,
+    name: cost.name,
+    costType: resolveRateCostTypeFromTemplate(cost),
+    currencyId: currency.id,
+    currencyNameSnapshot: currency.label,
+    currencyCodeSnapshot: currency.code,
+    amount: rowAmount(cost.amount),
+    saleAmount: rowAmount(cost.saleAmount),
+    isFixed: cost.isFixed,
+    isManual: cost.requiresManualAmount || cost.isOptional,
+    notes: cost.notes ?? null,
+  }
+
+  await PricingService.addRateCostDetail(selectedRate.value.id, payload)
+}
+
+function resolveRateCostTypeFromTemplate(cost: CostDto): string {
+  if (cost.portRole === 'Pol') return 'OriginCharge'
+  if (cost.portRole === 'Pod') return 'DestinationCharge'
+  return cost.isOptional ? 'Other' : rateCostForm.costType
 }
 
 async function saveRateCostDetail() {
   if (!selectedRate.value) return
   savingCostDetail.value = true
   try {
-    const currency = snapshot('currencies', rateCostForm.currency, t('pricing.common.currency'))
-    const payload: CreateRateCostDetailRequest = {
-      costId: nullableText(rateCostForm.costId),
-      name: rateCostForm.name,
-      costType: rateCostForm.costType,
-      currencyId: currency.id,
-      currencyNameSnapshot: currency.label,
-      currencyCodeSnapshot: currency.code,
-      amount: toNumber(rateCostForm.amount),
-      saleAmount: rateCostForm.saleAmount.trim() ? toNumber(rateCostForm.saleAmount) : toNumber(rateCostForm.amount),
-      isFixed: rateCostForm.isFixed,
-      isManual: rateCostForm.isManual,
-      notes: nullableText(rateCostForm.notes),
+    for (const id of rateCostForm.optionalCostIds) {
+      const template = costs.value.find((x) => x.id === id)
+      if (template) await addCostTemplateToRate(template)
     }
 
-    await PricingService.addRateCostDetail(selectedRate.value.id, payload)
+    if (rateCostForm.name.trim()) {
+      const currency = snapshot('currencies', rateCostForm.currency, t('pricing.common.currency'))
+      const payload: CreateRateCostDetailRequest = {
+        costId: nullableText(rateCostForm.costId),
+        name: rateCostForm.name,
+        costType: rateCostForm.costType,
+        currencyId: currency.id,
+        currencyNameSnapshot: currency.label,
+        currencyCodeSnapshot: currency.code,
+        amount: toNumber(rateCostForm.amount),
+        saleAmount: rateCostForm.saleAmount.trim() ? toNumber(rateCostForm.saleAmount) : toNumber(rateCostForm.amount),
+        isFixed: false,
+        isManual: true,
+        notes: nullableText(rateCostForm.notes),
+      }
+
+      await PricingService.addRateCostDetail(selectedRate.value.id, payload)
+    }
+
     toastStore.success(t('pricing.messages.costDetailAdded'))
+    resetRateCostForm()
     await openRateDrawer(selectedRate.value)
     await loadRates()
   } catch (error) {
@@ -1643,9 +1860,7 @@ function canChangeRateCostDetail(_row: Record<string, unknown>): boolean {
 }
 
 function costSaleAmount(row: Record<string, unknown>): number {
-  const value = row.saleAmount ?? row.amount ?? 0
-  const parsed = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
+  return rateCostDetailSaleAmount(row)
 }
 function openEditRateCostDetail(row: Record<string, unknown>) {
   if (!canUpdateCostDetail.value || !canChangeRateCostDetail(row)) return
@@ -1878,7 +2093,7 @@ onMounted(refreshAll)
   <section class="space-y-6">
     <DhPageHeader :title="t('pricing.title')" :subtitle="t('pricing.subtitle')" :icon="BadgeDollarSign">
       <template #actions>
-        <DhButton :icon="Plus" :label="t('pricing.actions.manualRate')" :disabled="!canCreateRate" @click="openManualRateModal" />
+        <DhButton :icon="Plus" :label="t('pricing.actions.manualRate')" :disabled="!canCreateDirectManualRate" @click="openManualRateModal" />
         <DhButton :icon="UploadCloud" :label="t('pricing.actions.importRates')" :disabled="!canCreateImport" @click="openUploadModal" />
         <DhButton :icon="RefreshCcw" variant="secondary" :label="t('common.refresh')" :loading="loading" @click="refreshAll" />
       </template>
@@ -1957,6 +2172,7 @@ onMounted(refreshAll)
           <template #cell-__select="{ row }">
             <input type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" :checked="selectedImportIds.includes(row.id)" :disabled="!canDeleteImport" @click.stop @change="toggleImportSelection(row.id, eventChecked($event))" />
           </template>
+          <template #cell-poe="{ row }">{{ importPoeLabel(row) }}</template>
           <template #cell-amount="{ row }">{{ money(row.amount, row.currency) }}</template>
           <template #cell-validFrom="{ value }">{{ typeof value === 'string' && value ? value.slice(0, 10) : '—' }}</template>
           <template #cell-validTo="{ value }">{{ typeof value === 'string' && value ? value.slice(0, 10) : '—' }}</template>
@@ -1985,7 +2201,7 @@ onMounted(refreshAll)
         <div class="flex flex-wrap items-center gap-2">
           <DhSearchInput v-model="rateSearch" class="w-full md:w-80" :placeholder="t('pricing.rates.search')" @search="loadRates" @clear="loadRates" />
           <DhSelect v-model="rateActive" class="w-44" :options="activeOptions" placeholder="" @update:model-value="loadRates" />
-          <DhButton :icon="Plus" :label="t('pricing.actions.manualRate')" :disabled="!canCreateRate" @click="openManualRateModal" />
+          <DhButton :icon="Plus" :label="t('pricing.actions.manualRate')" :disabled="!canCreateDirectManualRate" @click="openManualRateModal" />
           <DhButton v-if="selectedRateIds.length" variant="danger" :icon="Trash2" :label="t('pricing.actions.deleteSelected')" :loading="deletingRates" :disabled="!canDeleteRate" @click="deleteSelectedRates" />
         </div>
       </div>
@@ -2052,7 +2268,7 @@ onMounted(refreshAll)
                   </div>
                   <h3 class="mt-2 text-lg font-black text-[var(--dh-text)]">{{ originLabel(rate) }} → {{ ratePortLabel(rate) }}</h3>
                   <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-                    {{ carrierLabel(rate) }} · {{ containerLabel(rate) }} · {{ rate.clientNameSnapshot || t('pricing.common.noClient') }}
+                    {{ carrierLabel(rate) }} · {{ containerLabel(rate) }} · {{ rate.clientNameSnapshot || 'Sin agente' }}
                   </p>
                 </div>
                 <div class="text-right">
@@ -2062,7 +2278,7 @@ onMounted(refreshAll)
               </div>
             </header>
 
-            <div class="grid gap-3 p-4 md:grid-cols-4">
+            <div class="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
               <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
                 <p class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
                 <p class="mt-1 font-black text-[var(--dh-text)]">{{ money(rate.totalCostAmount, rate.currencyCodeSnapshot) }}</p>
@@ -2072,7 +2288,7 @@ onMounted(refreshAll)
                 <p class="mt-1 font-black" :class="rateProfit(rate) < 0 ? 'text-red-500' : 'text-emerald-500'">{{ money(rateProfit(rate), rate.currencyCodeSnapshot) }}</p>
               </div>
               <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-                <p class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.margin') }}</p>
+                <p class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Margen actual</p>
                 <p class="mt-1 font-black" :class="rate.requiresApproval ? 'text-red-500' : 'text-[var(--dh-text)]'">{{ percent(rate.marginPercentage) }}</p>
               </div>
               <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
@@ -2225,8 +2441,8 @@ onMounted(refreshAll)
           <h3 class="mb-4 text-base font-black text-[var(--dh-text)]">{{ t('pricing.costs.variableTitle') }}</h3>
           <DhDataTable :columns="costColumns" :rows="pagedVariableCostTemplates" :loading="loading" :empty-text="t('pricing.costs.emptyVariable')" @row-click="openEditCostDrawer">
             <template #cell-rateType="{ value }">{{ String(value).toUpperCase() }}</template>
-            <template #cell-carrierNameSnapshot>{{ t('pricing.common.notLinked') }}</template>
-            <template #cell-portNameSnapshot>{{ t('pricing.common.notLinked') }}</template>
+            <template #cell-carrierNameSnapshot="{ value }">{{ value || t('pricing.common.notLinked') }}</template>
+            <template #cell-portNameSnapshot="{ value }">{{ value || t('pricing.common.notLinked') }}</template>
             <template #cell-portRole="{ value }">{{ t(`pricing.portRoles.${String(value)}`) }}</template>
             <template #cell-requiresManualAmount="{ value }"><DhBadge :variant="value ? 'warning' : 'success'" :label="value ? t('common.yes') : t('common.no')" /></template>
             <template #cell-amount="{ row }">{{ money(row.amount, row.currencyCodeSnapshot) }}</template>
@@ -2295,7 +2511,7 @@ onMounted(refreshAll)
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p class="font-black text-[var(--dh-text)]">{{ selectedImport.carrier }} · {{ selectedImport.containerType }}</p>
-              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ selectedImport.pol }} → {{ selectedImport.pod }}</p>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ selectedImport.pol }} → {{ importPoeLabel(selectedImport) }} → {{ selectedImport.pod }} · Días libres: {{ selectedImport.freeDays ?? '—' }} · Usos: {{ selectedImport.usedAsRateCount ?? 0 }}</p>
             </div>
             <div class="flex items-center gap-2">
               <DhBadge :variant="statusVariant(selectedImport.status)" :label="statusLabel(selectedImport.status)" />
@@ -2305,23 +2521,26 @@ onMounted(refreshAll)
         </section>
 
         <section class="grid gap-4 md:grid-cols-2">
-          <DhInput v-model="importRateForm.clientName" :label="t('pricing.common.client')" />
+          <DhSelect v-model="importRateForm.agentName" label="Agente" :options="agentOptions" />
           <DhSelect v-model="importRateForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs" />
           <DhSelect v-model="importRateForm.containerType" :label="t('pricing.common.container')" :options="catalogOptions.containerTypes" :disabled="loadingCatalogs" />
-          <DhSelect v-model="importRateForm.originPort" :label="t('pricing.common.origin')" :options="catalogOptions.ports" :disabled="loadingCatalogs" />
-          <DhSelect v-model="importRateForm.destinationPort" :label="t('pricing.common.destination')" :options="catalogOptions.ports" :disabled="loadingCatalogs" />
+          <DhSelect v-model="importRateForm.originPort" label="POL" :options="catalogOptions.pol" :disabled="loadingCatalogs" />
+          <DhSelect v-model="importRateForm.poePort" label="POE" :options="catalogOptions.poe" :disabled="loadingCatalogs" />
+          <DhSelect v-model="importRateForm.destinationPort" label="POD" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
+          <DhSelect v-model="importRateForm.finalDestinationPort" label="Destino final" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
           <DhSelect v-model="importRateForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
+          <DhInput v-model="importRateForm.freeDays" label="Días libres" type="number" step="1" />
           <DhInput v-model="importRateForm.validFrom" :label="t('pricing.common.validFrom')" type="date" />
           <DhInput v-model="importRateForm.validTo" :label="t('pricing.common.validTo')" type="date" />
-          <DhInput v-model="importRateForm.saleAmount" :label="t('pricing.rates.saleToCharge')" type="number" step="0.01" />
-          <DhInput v-model="importRateForm.marginPercentage" :label="t('pricing.rates.desiredMargin')" type="number" step="0.01" placeholder="12" />
+          <DhInput v-model="importRateForm.saleAmount" label="Venta manual del flete" type="number" step="0.01" :disabled="!canApproveFreight" />
+          <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">Margen esperado: <strong>12%</strong>. El margen actual se calcula con agente, flete y destino.</div>
         </section>
 
         <div class="flex flex-wrap justify-end gap-2">
           <DhButton variant="secondary" :label="t('pricing.actions.approve')" :disabled="!canApproveImport" @click="approveImport(selectedImport)" />
           <DhButton variant="danger" :label="t('pricing.actions.reject')" :disabled="!canRejectImport" @click="openRejectModal(selectedImport)" />
           <DhButton variant="danger" :icon="Trash2" :label="t('common.delete')" :loading="deletingImports" :disabled="!canDeleteImport" @click="deleteImport(selectedImport)" />
-          <DhButton :icon="CheckCircle2" :label="t('pricing.actions.createOfficialRate')" :loading="savingRate" :disabled="!canCreateRateFromImport" @click="createRateFromImport" />
+          <DhButton :icon="CheckCircle2" :label="t('pricing.actions.createOfficialRate')" :loading="savingRate" :disabled="!canCreateRateFromImport || selectedImport.status !== 'Approved'" @click="createRateFromImport" />
         </div>
       </div>
     </DhDrawer>
@@ -2338,19 +2557,19 @@ onMounted(refreshAll)
               </div>
               <h2 class="mt-3 text-2xl font-black text-[var(--dh-text)]">{{ routeLabel(selectedRate) }}</h2>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-                {{ selectedRate.clientNameSnapshot || t('pricing.common.noClient') }} · {{ carrierLabel(selectedRate) }} · {{ selectedRate.currencyCodeSnapshot }}
+                {{ selectedRate.clientNameSnapshot || 'Sin agente' }} · {{ carrierLabel(selectedRate) }} · {{ selectedRate.currencyCodeSnapshot }}
               </p>
             </div>
 
             <div class="flex flex-wrap justify-end gap-2">
               <DhButton variant="secondary" :icon="Printer" :label="t('pricing.actions.quickPrint')" :disabled="!canPrintSelectedRate" @click="printClientQuote" />
-              <DhButton variant="secondary" :icon="Copy" :label="t('pricing.actions.duplicate')" :disabled="!canCreateRate" @click="openDuplicateRateModal" />
+              <DhButton variant="secondary" :icon="Copy" :label="t('pricing.actions.duplicate')" :disabled="!canCreateDirectManualRate" @click="openDuplicateRateModal" />
               <DhButton variant="secondary" :label="selectedRate.isActive ? t('common.inactivate') : t('common.activate')" :disabled="!canSetRateActive" @click="toggleRate(selectedRate)" />
               <DhButton variant="danger" :icon="Trash2" :label="t('common.delete')" :loading="deletingRates" :disabled="!canDeleteRate" @click="deleteRate(selectedRate)" />
             </div>
           </div>
 
-          <div class="mt-4 grid gap-3 md:grid-cols-4">
+          <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
               <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
               <p class="mt-1 font-black text-[var(--dh-text)]">{{ money(selectedRate.totalCostAmount, selectedRate.currencyCodeSnapshot) }}</p>
@@ -2360,7 +2579,15 @@ onMounted(refreshAll)
               <p class="mt-1 font-black text-[var(--dh-text)]">{{ money(selectedRate.saleAmount, selectedRate.currencyCodeSnapshot) }}</p>
             </div>
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.margin') }}</p>
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.matrix.profit') }}</p>
+              <p class="mt-1 font-black" :class="selectedRateProfit < 0 ? 'text-red-500' : 'text-emerald-500'">{{ money(selectedRateProfit, selectedRate.currencyCodeSnapshot) }}</p>
+            </div>
+            <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Margen esperado</p>
+              <p class="mt-1 font-black text-[var(--dh-text)]">12.00%</p>
+            </div>
+            <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Margen actual</p>
               <p class="mt-1 font-black" :class="selectedRate.requiresApproval ? 'text-red-500' : 'text-[var(--dh-text)]'">{{ percent(selectedRate.marginPercentage) }}</p>
             </div>
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
@@ -2379,17 +2606,62 @@ onMounted(refreshAll)
             <DhButton :label="t('common.save')" :loading="savingRateHeaderEdit" :disabled="!canUpdateRate" @click="saveRateHeaderEdit" />
           </div>
           <div class="grid gap-4 md:grid-cols-3">
-            <DhInput v-model="rateHeaderEditForm.clientName" :label="t('pricing.common.client')" />
+            <DhInput v-model="rateHeaderEditForm.clientName" label="Agente" />
             <DhInput v-model="rateHeaderEditForm.validFrom" :label="t('pricing.common.validFrom')" type="date" />
             <DhInput v-model="rateHeaderEditForm.validTo" :label="t('pricing.common.validTo')" type="date" />
           </div>
+        </section>
+
+        <section class="grid gap-4 xl:grid-cols-3">
+          <article class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Costos de Agente</p>
+            <div v-if="selectedRateAgentCostRows.length" class="mt-3 space-y-2">
+              <div v-for="row in selectedRateAgentCostRows" :key="String(row.id)" class="flex justify-between gap-3 text-sm font-semibold">
+                <span class="text-[var(--dh-text)]">{{ row.name }}</span>
+                <span class="font-black text-[var(--dh-text)]">{{ money(row.amount, String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD')) }}</span>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">Sin costos de agente.</p>
+            <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">La venta de estos costos queda en 0 y no se muestra al cliente.</p>
+          </article>
+
+          <article class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Flete internacional / marítimo</p>
+            <div class="mt-3 grid grid-cols-3 gap-2 text-sm">
+              <div>
+                <p class="text-[11px] font-black uppercase text-[var(--dh-text-muted)]">Costo</p>
+                <p class="font-black text-[var(--dh-text)]">{{ money(rateFreightCostTotal(selectedRate), selectedRate.currencyCodeSnapshot) }}</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-black uppercase text-[var(--dh-text-muted)]">Venta</p>
+                <p class="font-black text-[var(--dh-text)]">{{ money(rateFreightSaleTotal(selectedRate), selectedRate.currencyCodeSnapshot) }}</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-black uppercase text-[var(--dh-text-muted)]">Utilidad</p>
+                <p class="font-black" :class="rateFreightSaleTotal(selectedRate) - rateFreightCostTotal(selectedRate) < 0 ? 'text-red-500' : 'text-emerald-500'">{{ money(rateFreightSaleTotal(selectedRate) - rateFreightCostTotal(selectedRate), selectedRate.currencyCodeSnapshot) }}</p>
+              </div>
+            </div>
+            <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">La venta se modifica desde el lápiz del flete.</p>
+          </article>
+
+          <article class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Costos de destino</p>
+            <div v-if="selectedRateDestinationCostRows.length" class="mt-3 space-y-2">
+              <div v-for="row in selectedRateDestinationCostRows" :key="String(row.id)" class="grid grid-cols-[1fr_auto_auto] gap-2 text-sm font-semibold">
+                <span class="truncate text-[var(--dh-text)]">{{ row.name }}</span>
+                <span>{{ money(row.amount, String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD')) }}</span>
+                <span>{{ money(costSaleAmount(row), String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD')) }}</span>
+              </div>
+            </div>
+            <p v-else class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">Sin costos de destino.</p>
+          </article>
         </section>
 
         <section class="grid gap-5 xl:grid-cols-2">
           <article class="space-y-3">
             <h3 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.rates.fclDetails') }}</h3>
             <DhDataTable :columns="fclDetailColumns" :rows="selectedRateFclRows" :empty-text="t('pricing.rates.noFclDetails')">
-              <template #cell-route="{ row }">{{ row.originPortNameSnapshot || row.originPortCodeSnapshot }} → {{ row.destinationPortNameSnapshot || row.destinationPortCodeSnapshot }}</template>
+              <template #cell-route="{ row }">{{ row.originPortNameSnapshot || row.originPortCodeSnapshot }} → {{ readPoeFromNotes(String(row.notes ?? '')) || '—' }} → {{ row.destinationPortNameSnapshot || row.destinationPortCodeSnapshot }}</template>
               <template #cell-amount="{ row }">{{ money(row.amount, String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD')) }}</template>
               <template #cell-__actions="{ row }">
                 <div class="flex justify-end gap-2">
@@ -2407,6 +2679,7 @@ onMounted(refreshAll)
               <template #cell-isManual="{ value }"><DhBadge :variant="value ? 'warning' : 'success'" :label="value ? t('pricing.common.manual') : t('pricing.common.automatic')" /></template>
               <template #cell-amount="{ row }">{{ money(row.amount, String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD')) }}</template>
               <template #cell-saleAmount="{ row }">{{ money(costSaleAmount(row), String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD')) }}</template>
+              <template #cell-profit="{ row }">{{ money(costSaleAmount(row) - rowAmount(row.amount), String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD')) }}</template>
               <template #cell-__actions="{ row }">
                 <div class="flex justify-end gap-2">
                   <DhButton
@@ -2457,14 +2730,18 @@ onMounted(refreshAll)
           </div>
 
           <div class="grid gap-4 md:grid-cols-3">
-            <DhSelect v-model="rateCostForm.costId" :label="t('pricing.rates.existingCost')" :options="costTemplateOptions" :placeholder="t('pricing.rates.existingCostPlaceholder')" @update:model-value="applyCostTemplate" />
-            <DhInput v-model="rateCostForm.name" :label="t('pricing.common.name')" />
+            <label class="md:col-span-3 block">
+              <span class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Costos opcionales</span>
+              <select v-model="rateCostForm.optionalCostIds" multiple class="min-h-28 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none backdrop-blur-xl transition dh-focus-primary">
+                <option v-for="option in optionalCostTemplateOptions" :key="option.value" :value="String(option.value)">{{ option.label }}</option>
+              </select>
+              <span class="mt-1 block text-xs font-semibold text-[var(--dh-text-muted)]">Puede seleccionar varios opcionales asociados a la naviera y al POD/destino.</span>
+            </label>
+            <DhInput v-model="rateCostForm.name" label="Costo manual" />
             <DhSelect v-model="rateCostForm.costType" :label="t('pricing.common.costType')" :options="costTypeOptions" />
             <DhSelect v-model="rateCostForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
-            <DhInput v-model="rateCostForm.amount" :label="t('pricing.common.amount')" type="number" step="0.01" />
-            <DhInput v-model="rateCostForm.saleAmount" :label="t('pricing.rates.saleAmount')" type="number" step="0.01" :placeholder="rateCostForm.amount" />
-            <DhCheckbox v-model="rateCostForm.isFixed" :label="t('pricing.common.fixedCost')" />
-            <DhCheckbox v-model="rateCostForm.isManual" :label="t('pricing.common.manualAmount')" />
+            <DhInput v-model="rateCostForm.amount" label="Costo" type="number" step="0.01" />
+            <DhInput v-model="rateCostForm.saleAmount" label="Venta" type="number" step="0.01" :placeholder="rateCostForm.amount" />
             <DhTextarea v-model="rateCostForm.notes" class="md:col-span-3" :label="t('pricing.common.notes')" :rows="2" />
             <p class="md:col-span-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">
               {{ t('pricing.rates.costSaleHelper') }}
@@ -2484,14 +2761,15 @@ onMounted(refreshAll)
           <DhInput v-model="costForm.name" :label="t('pricing.common.name')" :placeholder="t('pricing.costs.namePlaceholder')" />
           <DhSelect v-model="costForm.rateType" :label="t('pricing.common.rateType')" :options="rateTypeOptions" />
           <DhSelect v-model="costForm.costType" :label="t('pricing.common.costType')" :options="costTypeOptions" />
-          <DhSelect v-model="costForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs || !isAutomaticFixedCost" />
-          <DhSelect v-model="costForm.port" :label="t('pricing.common.port')" :options="catalogOptions.ports" :disabled="loadingCatalogs || !isAutomaticFixedCost" />
-          <DhSelect v-model="costForm.portRole" :label="t('pricing.common.portRole')" :options="portRoleOptions" :disabled="!isAutomaticFixedCost" />
+          <DhSelect v-model="costForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs" />
+          <DhSelect v-model="costForm.port" :label="t('pricing.common.port')" :options="costPortOptions" :disabled="loadingCatalogs" />
+          <DhSelect v-model="costForm.portRole" :label="t('pricing.common.portRole')" :options="portRoleOptions" :disabled="false" />
           <DhSelect v-model="costForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
-          <DhInput v-model="costForm.amount" :label="t('pricing.common.amount')" type="number" step="0.01" />
-          <DhInput v-model="costForm.saleAmount" :label="t('pricing.rates.saleAmount')" type="number" step="0.01" :placeholder="costForm.amount ? String(minimumSaleAmount(toNumber(costForm.amount))) : ''" />
+          <DhInput v-model="costForm.amount" label="Costo" type="number" step="0.01" />
+          <DhInput v-model="costForm.saleAmount" label="Venta" type="number" step="0.01" :placeholder="costForm.amount ? String(minimumSaleAmount(toNumber(costForm.amount))) : ''" />
           <DhCheckbox v-model="costForm.isFixed" :label="t('pricing.common.fixedCost')" />
           <DhCheckbox v-model="costForm.requiresManualAmount" :label="t('pricing.common.manualAmount')" />
+          <DhCheckbox v-model="costForm.isOptional" label="Costo opcional" />
           <p class="md:col-span-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">
             {{ isAutomaticFixedCost ? t('pricing.costs.automaticFixedHelp') : t('pricing.costs.variableFormHelp') }}
           </p>
@@ -2519,18 +2797,20 @@ onMounted(refreshAll)
       <div class="space-y-4">
         <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.manualRate.description') }}</p>
         <div class="grid gap-4 md:grid-cols-2">
-          <DhInput v-model="manualRateForm.clientName" :label="t('pricing.common.client')" />
+          <DhSelect v-model="manualRateForm.agentName" label="Agente" :options="agentOptions" />
           <DhSelect v-model="manualRateForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs" />
-          <DhSelect v-model="manualRateForm.originPort" :label="t('pricing.common.origin')" :options="catalogOptions.ports" :disabled="loadingCatalogs" />
-          <DhSelect v-model="manualRateForm.destinationPort" :label="t('pricing.common.destination')" :options="catalogOptions.ports" :disabled="loadingCatalogs" />
+          <DhSelect v-model="manualRateForm.originPort" label="POL" :options="catalogOptions.pol" :disabled="loadingCatalogs" />
+          <DhSelect v-model="manualRateForm.poePort" label="POE" :options="catalogOptions.poe" :disabled="loadingCatalogs" />
+          <DhSelect v-model="manualRateForm.destinationPort" label="POD" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
+          <DhSelect v-model="manualRateForm.finalDestinationPort" label="Destino final" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
           <DhSelect v-model="manualRateForm.containerType" :label="t('pricing.common.container')" :options="catalogOptions.containerTypes" :disabled="loadingCatalogs" />
           <DhSelect v-model="manualRateForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
-          <DhInput v-model="manualRateForm.amount" :label="t('pricing.manualRate.freightAmount')" type="number" step="0.01" />
+          <DhInput v-model="manualRateForm.amount" label="Costo del flete" type="number" step="0.01" />
           <DhInput v-model="manualRateForm.freeDays" :label="t('pricing.common.freeDays')" type="number" step="1" />
           <DhInput v-model="manualRateForm.validFrom" :label="t('pricing.common.validFrom')" type="date" />
           <DhInput v-model="manualRateForm.validTo" :label="t('pricing.common.validTo')" type="date" />
-          <DhInput v-model="manualRateForm.marginPercentage" :label="t('pricing.duplicateRate.marginPercentage')" type="number" step="0.01" />
-          <DhInput v-model="manualRateForm.saleAmount" :label="t('pricing.duplicateRate.saleAmount')" type="number" step="0.01" />
+          <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">Margen esperado: <strong>12%</strong>. Solo Administrador/SuperUsuario puede crear tarifa directa.</div>
+          <DhInput v-model="manualRateForm.saleAmount" label="Venta manual del flete" type="number" step="0.01" :disabled="!canApproveFreight" />
           <DhCheckbox v-model="manualRateForm.applyAutomaticFixedCosts" class="md:col-span-2" :label="t('pricing.manualRate.applyAutomaticCosts')" />
           <p class="md:col-span-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">
             {{ t('pricing.manualRate.helper') }}
@@ -2539,7 +2819,7 @@ onMounted(refreshAll)
         </div>
         <div class="flex justify-end gap-2">
           <DhButton variant="secondary" :label="t('common.cancel')" @click="manualRateModalOpen = false" />
-          <DhButton :icon="Plus" :label="t('pricing.actions.createRate')" :loading="savingManualRate" :disabled="!canCreateRate" @click="createManualRate" />
+          <DhButton :icon="Plus" :label="t('pricing.actions.createRate')" :loading="savingManualRate" :disabled="!canCreateDirectManualRate" @click="createManualRate" />
         </div>
       </div>
     </DhModal>
@@ -2550,10 +2830,12 @@ onMounted(refreshAll)
         <div class="grid gap-4 md:grid-cols-2">
           <DhSelect v-model="fclRateEditForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs" />
           <DhSelect v-model="fclRateEditForm.containerType" :label="t('pricing.common.container')" :options="catalogOptions.containerTypes" :disabled="loadingCatalogs" />
-          <DhSelect v-model="fclRateEditForm.originPort" :label="t('pricing.common.origin')" :options="catalogOptions.ports" :disabled="loadingCatalogs" />
-          <DhSelect v-model="fclRateEditForm.destinationPort" :label="t('pricing.common.destination')" :options="catalogOptions.ports" :disabled="loadingCatalogs" />
+          <DhSelect v-model="fclRateEditForm.originPort" label="POL" :options="catalogOptions.pol" :disabled="loadingCatalogs" />
+          <DhSelect v-model="fclRateEditForm.poePort" label="POE" :options="catalogOptions.poe" :disabled="loadingCatalogs" />
+          <DhSelect v-model="fclRateEditForm.destinationPort" label="POD" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
           <DhSelect v-model="fclRateEditForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
-          <DhInput v-model="fclRateEditForm.amount" :label="t('pricing.manualRate.freightAmount')" type="number" step="0.01" />
+          <DhInput v-model="fclRateEditForm.amount" label="Costo del flete" type="number" step="0.01" />
+          <DhInput v-model="fclRateEditForm.saleAmount" label="Venta del flete" type="number" step="0.01" :disabled="!canApproveFreight" />
           <DhInput v-model="fclRateEditForm.freeDays" :label="t('pricing.common.freeDays')" type="number" step="1" />
           <div class="grid gap-3 md:grid-cols-2">
             <DhInput v-model="fclRateEditForm.validFrom" :label="t('pricing.common.validFrom')" type="date" />
@@ -2575,8 +2857,8 @@ onMounted(refreshAll)
           <DhInput v-model="rateCostEditForm.name" :label="t('pricing.common.name')" />
           <DhSelect v-model="rateCostEditForm.costType" :label="t('pricing.common.costType')" :options="costTypeOptions" />
           <DhSelect v-model="rateCostEditForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
-          <DhInput v-model="rateCostEditForm.amount" :label="t('pricing.common.amount')" type="number" step="0.01" />
-          <DhInput v-model="rateCostEditForm.saleAmount" :label="t('pricing.rates.saleAmount')" type="number" step="0.01" class="md:col-span-2" />
+          <DhInput v-model="rateCostEditForm.amount" label="Costo" type="number" step="0.01" />
+          <DhInput v-model="rateCostEditForm.saleAmount" label="Venta" type="number" step="0.01" class="md:col-span-2" />
           <DhTextarea v-model="rateCostEditForm.notes" class="md:col-span-2" :label="t('pricing.common.notes')" :rows="3" />
         </div>
         <div class="flex justify-end gap-2">
@@ -2599,10 +2881,10 @@ onMounted(refreshAll)
     <DhModal :open="duplicateRateModalOpen" :title="t('pricing.duplicateRate.title')" size="md" @close="duplicateRateModalOpen = false">
       <div class="space-y-4">
         <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.duplicateRate.description') }}</p>
-        <DhInput v-model="duplicateRateForm.clientName" :label="t('pricing.duplicateRate.clientName')" />
+        <DhInput v-model="duplicateRateForm.clientName" label="Agente" />
         <div class="grid gap-3 md:grid-cols-2">
-          <DhInput v-model="duplicateRateForm.marginPercentage" type="number" step="0.01" :label="t('pricing.duplicateRate.marginPercentage')" />
-          <DhInput v-model="duplicateRateForm.saleAmount" type="number" step="0.01" :label="t('pricing.duplicateRate.saleAmount')" />
+          <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">Margen esperado: <strong>12%</strong></div>
+          <DhInput v-model="duplicateRateForm.saleAmount" type="number" step="0.01" :label="t('pricing.duplicateRate.saleAmount')" :disabled="!canApproveFreight" />
         </div>
         <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.duplicateRate.helper') }}</p>
         <div class="flex justify-end gap-2">
@@ -2625,48 +2907,83 @@ onMounted(refreshAll)
 
     <section v-if="selectedRate && canPrintSelectedRate" class="pricing-print-only">
       <div class="quote-card">
+        <div class="quote-topbar"></div>
+
         <header class="quote-header">
-          <div>
+          <div class="quote-title">
             <p class="quote-eyebrow">{{ t('pricing.print.quote') }}</p>
-            <h1>{{ selectedRate.clientNameSnapshot || t('pricing.common.noClient') }}</h1>
-            <p>{{ routeLabel(selectedRate) }} · {{ carrierLabel(selectedRate) }}</p>
+            <h1>{{ selectedRate.clientNameSnapshot || 'Sin agente' }}</h1>
+            <p>{{ t('pricing.print.preparedFor') }}</p>
           </div>
-          <div class="quote-meta">
-            <p>{{ t('pricing.print.date') }}: {{ quoteDateLabel }}</p>
-            <p>{{ t('pricing.rates.validity') }}: {{ selectedRate.validFrom?.slice(0, 10) || '—' }} / {{ selectedRate.validTo?.slice(0, 10) || '—' }}</p>
+          <div class="quote-meta-card">
+            <p class="quote-meta-label">{{ t('pricing.print.date') }}</p>
+            <p class="quote-meta-value">{{ quoteDateLabel }}</p>
+            <p class="quote-meta-label quote-meta-spaced">{{ t('pricing.rates.validity') }}</p>
+            <p class="quote-meta-value">{{ selectedRate.validFrom?.slice(0, 10) || '—' }} / {{ selectedRate.validTo?.slice(0, 10) || '—' }}</p>
           </div>
         </header>
+
+        <section class="quote-summary">
+          <article>
+            <p>{{ t('pricing.print.route') }}</p>
+            <strong>{{ routeLabel(selectedRate) }}</strong>
+          </article>
+          <article>
+            <p>{{ t('pricing.common.carrier') }}</p>
+            <strong>{{ carrierLabel(selectedRate) }}</strong>
+          </article>
+          <article>
+            <p>{{ t('pricing.common.container') }}</p>
+            <strong>{{ selectedRateMainDetail?.containerTypeNameSnapshot || selectedRateMainDetail?.containerTypeCodeSnapshot || 'FCL' }}</strong>
+          </article>
+          <article class="quote-summary-total">
+            <p>{{ t('pricing.print.total') }}</p>
+            <strong>{{ money(selectedRate.saleAmount, selectedRate.currencyCodeSnapshot) }}</strong>
+          </article>
+        </section>
 
         <table class="quote-table">
           <thead>
             <tr>
               <th>{{ t('pricing.print.item') }}</th>
-              <th>{{ t('pricing.common.container') }}</th>
+              <th>{{ t('pricing.print.detail') }}</th>
               <th class="text-right">{{ t('pricing.rates.saleAmount') }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>{{ t('pricing.print.oceanFreight') }}</td>
-              <td>{{ selectedRateMainDetail?.containerTypeNameSnapshot || 'FCL' }}</td>
+            <tr v-if="selectedRateBaseSaleAmount > 0">
+              <td>
+                <strong>{{ t('pricing.print.oceanFreight') }}</strong>
+                <span>{{ routeLabel(selectedRate) }}</span>
+              </td>
+              <td>{{ selectedRateMainDetail?.containerTypeNameSnapshot || selectedRateMainDetail?.containerTypeCodeSnapshot || 'FCL' }}</td>
               <td class="text-right">{{ money(selectedRateBaseSaleAmount, selectedRate.currencyCodeSnapshot) }}</td>
             </tr>
-            <tr v-for="row in selectedRateCostRows" :key="String(row.id)">
-              <td>{{ row.name }}</td>
-              <td>{{ costTypeLabel(String(row.costType)) }}</td>
+            <tr v-for="row in clientVisibleCostRows" :key="String(row.id)">
+              <td>
+                <strong>{{ row.name }}</strong>
+                <span>{{ costTypeLabel(String(row.costType)) }}</span>
+              </td>
+              <td>{{ row.isManual ? t('pricing.common.manual') : t('pricing.common.automatic') }}</td>
               <td class="text-right">{{ money(costSaleAmount(row), String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD')) }}</td>
             </tr>
           </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="2">{{ t('pricing.print.total') }}</td>
-              <td class="text-right">{{ money(selectedRate.saleAmount, selectedRate.currencyCodeSnapshot) }}</td>
-            </tr>
-          </tfoot>
         </table>
 
+        <section class="quote-total-box">
+          <div>
+            <p>{{ t('pricing.print.currency') }}</p>
+            <strong>{{ selectedRate.currencyCodeSnapshot }}</strong>
+          </div>
+          <div>
+            <p>{{ t('pricing.print.total') }}</p>
+            <strong>{{ money(selectedRate.saleAmount, selectedRate.currencyCodeSnapshot) }}</strong>
+          </div>
+        </section>
+
         <footer class="quote-footer">
-          {{ t('pricing.print.footer') }}
+          <p>{{ t('pricing.print.footer') }}</p>
+          <p>{{ t('pricing.print.footerNote') }}</p>
         </footer>
       </div>
     </section>
@@ -2681,6 +2998,11 @@ onMounted(refreshAll)
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
   :global(body *) {
     visibility: hidden !important;
   }
@@ -2695,75 +3017,210 @@ onMounted(refreshAll)
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: white;
-    color: #111827;
-    padding: 32px;
+    background: #f8fafc;
+    color: #0f172a;
+    padding: 0;
     font-family: Inter, Arial, sans-serif;
   }
 
   .quote-card {
-    border: 1px solid #d1d5db;
-    border-radius: 18px;
-    padding: 28px;
+    min-height: 100vh;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 24px;
+    box-shadow: 0 18px 55px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+  }
+
+  .quote-topbar {
+    height: 10px;
+    background: linear-gradient(90deg, #fc2800 0%, #111827 52%, #fc2800 100%);
   }
 
   .quote-header {
-    display: flex;
-    justify-content: space-between;
-    gap: 24px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 28px;
+    padding: 28px 30px 20px;
     border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 18px;
-    margin-bottom: 24px;
+  }
+
+  .quote-title h1 {
+    margin: 6px 0 8px;
+    color: #0f172a;
+    font-size: 30px;
+    font-weight: 950;
+    line-height: 1.05;
+  }
+
+  .quote-title > p:not(.quote-eyebrow) {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 750;
   }
 
   .quote-eyebrow {
+    margin: 0;
+    color: #fc2800;
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 950;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .quote-meta-card {
+    align-self: start;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #f8fafc;
+    padding: 14px 16px;
+    text-align: right;
+  }
+
+  .quote-meta-label {
+    margin: 0;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 950;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #6b7280;
   }
 
-  .quote-header h1 {
-    font-size: 26px;
-    font-weight: 900;
-    margin: 4px 0;
+  .quote-meta-spaced {
+    margin-top: 12px;
   }
 
-  .quote-meta {
-    text-align: right;
+  .quote-meta-value {
+    margin: 3px 0 0;
+    color: #0f172a;
     font-size: 12px;
-    font-weight: 700;
-    color: #374151;
+    font-weight: 900;
+  }
+
+  .quote-summary {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr 1.2fr;
+    gap: 12px;
+    padding: 22px 30px;
+  }
+
+  .quote-summary article {
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #f8fafc;
+    padding: 14px 16px;
+  }
+
+  .quote-summary p,
+  .quote-total-box p {
+    margin: 0;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .quote-summary strong {
+    display: block;
+    margin-top: 5px;
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 950;
+  }
+
+  .quote-summary-total {
+    background: #111827 !important;
+    border-color: #111827 !important;
+  }
+
+  .quote-summary-total p,
+  .quote-summary-total strong {
+    color: #ffffff !important;
   }
 
   .quote-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
+    width: calc(100% - 60px);
+    margin: 0 30px;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    font-size: 12px;
   }
 
   .quote-table th {
-    background: #f3f4f6;
-    border-bottom: 1px solid #d1d5db;
-    padding: 10px;
+    background: #111827;
+    color: #ffffff;
+    padding: 12px 14px;
     text-align: left;
-    font-size: 11px;
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
   }
 
   .quote-table td {
-    border-bottom: 1px solid #e5e7eb;
-    padding: 11px 10px;
-    font-weight: 650;
+    border-top: 1px solid #e5e7eb;
+    padding: 13px 14px;
+    color: #0f172a;
+    font-weight: 750;
+    vertical-align: top;
   }
 
-  .quote-table tfoot td {
-    border-top: 2px solid #111827;
-    border-bottom: 0;
-    font-size: 16px;
-    font-weight: 900;
+  .quote-table tbody tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+
+  .quote-table td strong {
+    display: block;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 950;
+  }
+
+  .quote-table td span {
+    display: block;
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .quote-total-box {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 14px;
+    width: 360px;
+    margin: 22px 30px 0 auto;
+  }
+
+  .quote-total-box div {
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 14px 16px;
+    background: #f8fafc;
+    text-align: right;
+  }
+
+  .quote-total-box div:last-child {
+    background: #fc2800;
+    border-color: #fc2800;
+  }
+
+  .quote-total-box div:last-child p,
+  .quote-total-box div:last-child strong {
+    color: #ffffff;
+  }
+
+  .quote-total-box strong {
+    display: block;
+    margin-top: 5px;
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 950;
   }
 
   .text-right {
@@ -2771,10 +3228,17 @@ onMounted(refreshAll)
   }
 
   .quote-footer {
-    margin-top: 28px;
-    color: #6b7280;
-    font-size: 12px;
-    font-weight: 700;
+    margin: 28px 30px 0;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 16px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1.5;
+  }
+
+  .quote-footer p {
+    margin: 0 0 4px;
   }
 }
 </style>

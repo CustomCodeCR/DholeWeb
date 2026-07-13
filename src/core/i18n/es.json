@@ -56,7 +56,7 @@
     "failed": "Fallido",
     "error": "Error",
     "never": "Nunca",
-    "noClient": "Sin cliente",
+    "noClient": "Sin agente",
     "open": "Abrir",
     "select": "Seleccionar"
   },
@@ -86,8 +86,8 @@
     "pricing": "Pricing",
     "pricingPanel": "Panel de pricing",
     "costs": "Costos",
-    "importedRates": "Importaciones FCL",
-    "rates": "Tarifas"
+    "importedRates": "Tarifas importadas",
+    "rates": "Tarifas oficiales"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -403,14 +403,14 @@
       "carrier": "Naviera",
       "port": "Puerto",
       "currency": "Moneda",
-      "amount": "Monto",
+      "amount": "Costo",
       "fixed": "Fijo",
       "variable": "Variable",
       "fixedCost": "Costo fijo",
       "pol": "POL",
       "pod": "POD",
       "container": "Contenedor",
-      "client": "Cliente",
+      "client": "Agente",
       "route": "Ruta",
       "general": "General",
       "optional": "Opcional",
@@ -429,11 +429,11 @@
       "costType": "Tipo de costo",
       "rateType": "Tipo",
       "portRole": "Aplica en puerto",
-      "manualAmount": "Monto manual",
+      "manualAmount": "Costo manual",
       "manual": "Manual",
       "automatic": "Automático",
       "notLinked": "No vinculado",
-      "noClient": "Sin cliente",
+      "noClient": "Sin agente",
       "freeDays": "Días libres"
     },
     "imports": {
@@ -473,19 +473,19 @@
       "existingCostPlaceholder": "Seleccione costo",
       "saleToCharge": "Venta a cobrar",
       "desiredMargin": "Margen deseado",
-      "saleHelper": "Puede escribir el monto final que va a cobrar. Si lo deja vacío, se calcula con el margen deseado.",
-      "editSaleTitle": "Cliente, vigencia y venta",
-      "editSaleHelp": "Modifique el cliente, fechas o monto de venta incluso si la tarifa ya fue aprobada.",
+      "saleHelper": "Puede escribir la venta final que va a cobrar. Si lo deja vacío, se calcula con el margen deseado.",
+      "editSaleTitle": "Agente, vigencia y venta",
+      "editSaleHelp": "Modifique el agente, fechas o venta incluso si la tarifa ya fue aprobada.",
       "minimumSaleHint": "Venta mínima sugerida al 12%: {amount}",
       "saleAmount": "Venta",
-      "costSaleHelper": "El monto de costo afecta el costo total. El monto de venta es lo que se cobra al cliente por ese ítem y ayuda a subir el margen.",
+      "costSaleHelper": "El costo afecta el costo total. La venta es lo que se cobra al cliente por ese ítem y ayuda a subir el margen.",
       "fixedLocked": "Fijo",
-      "editHeaderTitle": "Cliente y vigencia",
-      "editHeaderHelp": "Modifique el cliente o las fechas de la tarifa. La venta se controla desde los costos de la tarifa.",
+      "editHeaderTitle": "Agente y vigencia",
+      "editHeaderHelp": "Modifique el agente o las fechas de la tarifa. La venta se controla desde los costos de la tarifa.",
       "editCostTitle": "Editar costo de la tarifa",
       "editCostHelp": "Puede modificar costos fijos, automáticos, variables y manuales dentro de la tarifa. El maestro de costos no se altera.",
       "editFreightTitle": "Editar flete FCL",
-      "editFreightHelp": "Modifique naviera, ruta, contenedor, monto del flete, días libres y vigencia. Al guardar se recalcula el costo y venta de la tarifa."
+      "editFreightHelp": "Modifique naviera, ruta, contenedor, costo del flete, días libres y vigencia. Al guardar se recalcula el costo y venta de la tarifa."
     },
     "costs": {
       "title": "Costos",
@@ -609,12 +609,12 @@
       "title": "Rechazar autorización de margen",
       "description": "Indique por qué no se autoriza esta tarifa. La tarifa quedará rechazada y no se activará.",
       "reason": "Motivo",
-      "placeholder": "Ej.: margen demasiado bajo para el cliente o ruta."
+      "placeholder": "Ej.: margen demasiado bajo para el agente o ruta."
     },
     "duplicateRate": {
       "title": "Duplicar tarifa",
-      "description": "Cree una copia de la tarifa para cambiar el cliente, el margen o el precio de venta sin modificar la original.",
-      "clientName": "Cliente",
+      "description": "Cree una copia de la tarifa para cambiar el agente, el margen o el precio de venta sin modificar la original.",
+      "clientName": "Agente",
       "marginPercentage": "Margen %",
       "saleAmount": "Precio de venta",
       "helper": "Si indica precio de venta, el sistema lo usa directamente. Si lo deja vacío, calcula el precio según el margen."
@@ -625,7 +625,12 @@
       "item": "Concepto",
       "oceanFreight": "Flete marítimo",
       "total": "Total a cobrar",
-      "footer": "Cotización sujeta a espacio, disponibilidad y vigencia indicada."
+      "footer": "Cotización sujeta a espacio, disponibilidad y vigencia indicada.",
+      "preparedFor": "Documento preparado para presentar la tarifa al cliente",
+      "route": "Ruta",
+      "detail": "Detalle",
+      "currency": "Moneda",
+      "footerNote": "Los costos adicionales no incluidos en esta cotización pueden variar según origen, destino, naviera y condiciones operativas."
     },
     "matrix": {
       "title": "Matriz de tarifas",
@@ -659,7 +664,7 @@
       "description": "Cree una tarifa sin usar importación. Puede aplicar costos automáticos por naviera, POL y POD.",
       "freightAmount": "Flete / costo marítimo",
       "applyAutomaticCosts": "Aplicar costos fijos automáticos",
-      "helper": "Si escribe monto de venta, se usa como venta final. Si lo deja vacío, se calcula con el margen deseado y también ajusta la venta de los costos automáticos."
+      "helper": "Si escribe una venta, se usa como venta final. Si lo deja vacío, se calcula con el margen deseado y también ajusta la venta de los costos automáticos."
     }
   }
 }

@@ -157,7 +157,7 @@ export const router = createRouter({
         {
           path: 'pricing',
           name: 'pricing',
-          component: () => import('@/modules/pricing/views/PricingView.vue'),
+          component: () => import('@/modules/pricing/views/PricingOverviewView.vue'),
           meta: {
             tabTitle: 'Pricing panel',
             closable: true,
@@ -167,7 +167,7 @@ export const router = createRouter({
         {
           path: 'pricing/imports',
           name: 'pricing-imports',
-          component: () => import('@/modules/pricing/views/PricingView.vue'),
+          component: () => import('@/modules/pricing/views/PricingImportsView.vue'),
           meta: {
             tabTitle: 'Importaciones pricing',
             closable: true,
@@ -177,7 +177,7 @@ export const router = createRouter({
         {
           path: 'pricing/rates',
           name: 'pricing-rates',
-          component: () => import('@/modules/pricing/views/PricingView.vue'),
+          component: () => import('@/modules/pricing/views/PricingRatesView.vue'),
           meta: {
             tabTitle: 'Tarifas pricing',
             closable: true,
@@ -187,7 +187,7 @@ export const router = createRouter({
         {
           path: 'pricing/costs',
           name: 'pricing-costs',
-          component: () => import('@/modules/pricing/views/PricingView.vue'),
+          component: () => import('@/modules/pricing/views/PricingCostsView.vue'),
           meta: {
             tabTitle: 'Costos pricing',
             closable: true,

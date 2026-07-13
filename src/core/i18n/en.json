@@ -56,7 +56,7 @@
     "failed": "Failed",
     "error": "Error",
     "never": "Never",
-    "noClient": "No client",
+    "noClient": "No agent",
     "open": "Open",
     "select": "Select"
   },
@@ -86,8 +86,8 @@
     "pricing": "Pricing",
     "pricingPanel": "Pricing panel",
     "costs": "Costs",
-    "importedRates": "FCL imports",
-    "rates": "Rates"
+    "importedRates": "Imported rates",
+    "rates": "Official rates"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -403,14 +403,14 @@
       "carrier": "Carrier",
       "port": "Port",
       "currency": "Currency",
-      "amount": "Amount",
+      "amount": "Cost",
       "fixed": "Fixed",
       "variable": "Variable",
       "fixedCost": "Fixed cost",
       "pol": "POL",
       "pod": "POD",
       "container": "Container",
-      "client": "Client",
+      "client": "Agent",
       "route": "Route",
       "general": "General",
       "optional": "Optional",
@@ -429,11 +429,11 @@
       "costType": "Cost type",
       "rateType": "Type",
       "portRole": "Port role",
-      "manualAmount": "Manual amount",
+      "manualAmount": "Manual cost",
       "manual": "Manual",
       "automatic": "Automatic",
       "notLinked": "Not linked",
-      "noClient": "No client",
+      "noClient": "No agent",
       "freeDays": "Free days"
     },
     "imports": {
@@ -473,19 +473,19 @@
       "existingCostPlaceholder": "Select cost",
       "saleToCharge": "Sale amount to charge",
       "desiredMargin": "Desired margin",
-      "saleHelper": "Type the final amount to charge. If empty, it is calculated with the desired margin.",
-      "editSaleTitle": "Client, validity and sale",
-      "editSaleHelp": "Edit client, dates or sale amount even if the rate is already approved.",
+      "saleHelper": "Type the final sale to charge. If empty, it is calculated with the desired margin.",
+      "editSaleTitle": "Agent, validity and sale",
+      "editSaleHelp": "Edit agent, dates or sale even if the rate is already approved.",
       "minimumSaleHint": "Suggested minimum sale at 12%: {amount}",
       "saleAmount": "Sale amount",
-      "costSaleHelper": "The cost amount affects total cost. The sale amount is what will be charged to the customer for this item and helps increase the margin.",
+      "costSaleHelper": "The cost affects total cost. The sale is what will be charged to the customer for this item and helps increase the margin.",
       "fixedLocked": "Fixed",
-      "editHeaderTitle": "Client and validity",
-      "editHeaderHelp": "Update the client or validity dates. Sale value is controlled from the rate cost lines.",
+      "editHeaderTitle": "Agent and validity",
+      "editHeaderHelp": "Update the agent or validity dates. Sale value is controlled from the rate cost lines.",
       "editCostTitle": "Edit rate cost",
       "editCostHelp": "You can edit fixed, automatic, variable and manual costs inside the rate. The master cost is not changed.",
       "editFreightTitle": "Edit FCL freight",
-      "editFreightHelp": "Update carrier, route, container, freight amount, free days and validity. The rate cost and sale are recalculated when saved."
+      "editFreightHelp": "Update carrier, route, container, freight cost, free days and validity. The rate cost and sale are recalculated when saved."
     },
     "costs": {
       "title": "Costs",
@@ -609,12 +609,12 @@
       "title": "Reject margin approval",
       "description": "Explain why this rate is not approved. The rate will stay rejected and inactive.",
       "reason": "Reason",
-      "placeholder": "Example: margin is too low for this client or route."
+      "placeholder": "Example: margin is too low for this agent or route."
     },
     "duplicateRate": {
       "title": "Duplicate rate",
-      "description": "Create a copy of the rate to change the client, margin, or sale amount without changing the original.",
-      "clientName": "Client",
+      "description": "Create a copy of the rate to change the agent, margin, or sale amount without changing the original.",
+      "clientName": "Agent",
       "marginPercentage": "Margin %",
       "saleAmount": "Sale amount",
       "helper": "If you enter a sale amount, the system uses it directly. If you leave it empty, the amount is calculated from the margin."
@@ -625,7 +625,12 @@
       "item": "Item",
       "oceanFreight": "Ocean freight",
       "total": "Total to charge",
-      "footer": "Quote subject to space, availability, and stated validity."
+      "footer": "Quote subject to space, availability, and stated validity.",
+      "preparedFor": "Document prepared to present the rate to the customer",
+      "route": "Route",
+      "detail": "Detail",
+      "currency": "Currency",
+      "footerNote": "Additional costs not included in this quote may vary by origin, destination, carrier, and operating conditions."
     },
     "matrix": {
       "title": "Rate matrix",

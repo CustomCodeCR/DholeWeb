@@ -1,0 +1,953 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { AlertTriangle, Info, LockKeyhole, Plus, Save, Ship, Trash2 } from 'lucide-vue-next'
+import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { useDrawerStore } from '@/core/stores/drawerStore'
+import { useToastStore } from '@/core/stores/toastStore'
+import { useAuthStore } from '@/core/stores/authStore'
+import { PRICING_SCOPES } from '@/core/auth/scopes'
+import { PricingService } from '@/core/services/pricingService'
+import type {
+  CostDetailType,
+  CostSelectDto,
+  CostType,
+  CreateRateDetailRequest,
+  CreateRateRequest,
+  ImportRateDto,
+  RateDetailDto,
+  RateDto,
+  UpdateRateRequest,
+} from '@/core/interfaces/pricing'
+import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
+import PricingMultiSelect, { type PricingMultiSelectOption } from './PricingMultiSelect.vue'
+import {
+  calculateMargin,
+  formatMoney,
+  minimumSale,
+  toDateInput,
+} from '@/modules/pricing/utils/pricingFormat'
+
+interface EditableDetail {
+  key: string
+  id?: string | null
+  costId?: string | null
+  name: string
+  costDetailType: CostDetailType
+  costType: CostType
+  currencyId: string
+  currencyName: string
+  currencyCode: string
+  costAmount: string
+  saleAmount: string
+  notes: string
+  locked: boolean
+  importedFreight?: boolean
+}
+
+const props = defineProps<{
+  rate?: RateDto
+  sourceImport?: ImportRateDto
+  onSaved?: (rateId?: string) => void | Promise<void>
+}>()
+
+const drawerStore = useDrawerStore()
+const toastStore = useToastStore()
+const authStore = useAuthStore()
+const catalogs = usePricingCatalogs()
+const availableCosts = ref<CostSelectDto[]>([])
+const details = ref<EditableDetail[]>([])
+const optionalCostIds = ref<string[]>([])
+const removedDetailIds = ref<string[]>([])
+const initialized = ref(false)
+
+const today = new Date()
+const nextMonth = new Date(today)
+nextMonth.setDate(nextMonth.getDate() + 30)
+const dateValue = (date: Date) => date.toISOString().slice(0, 10)
+
+const form = reactive({
+  agentId: props.rate?.agentId ?? '',
+  carrierId: props.rate?.carrierId ?? '',
+  polId: props.rate?.polId ?? '',
+  poeId: props.rate?.poeId ?? '',
+  podId: props.rate?.podId ?? '',
+  containerTypeId: props.rate?.containerTypeId ?? '',
+  currencyId: props.rate?.currencyId ?? '',
+  freeDays: String(props.rate?.freeDays ?? props.sourceImport?.freeDays ?? 0),
+  validFrom:
+    toDateInput(props.rate?.validFrom ?? props.sourceImport?.validFrom) || dateValue(today),
+  validTo: toDateInput(props.rate?.validTo ?? props.sourceImport?.validTo) || dateValue(nextMonth),
+  submitted: false,
+  saving: false,
+})
+
+const isEditing = computed(() => Boolean(props.rate))
+const isFromImport = computed(() => Boolean(props.sourceImport))
+const canAutoApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const selectedCurrency = computed(() =>
+  catalogs.findById(catalogs.currencies.value, form.currencyId),
+)
+const currencyName = computed(
+  () =>
+    selectedCurrency.value?.name ||
+    props.rate?.currencyName ||
+    props.sourceImport?.currency ||
+    'USD',
+)
+
+const detailTypeOptions: Array<{ label: string; value: CostDetailType }> = [
+  { label: 'Flete internacional', value: 'Freight' },
+  { label: 'Costo de agente', value: 'AgentCharge' },
+  { label: 'Cargo en origen', value: 'OriginCharge' },
+  { label: 'Cargo en destino', value: 'DestinationCharge' },
+  { label: 'Cargo portuario', value: 'PortCharge' },
+  { label: 'Aduana', value: 'CustomsCharge' },
+  { label: 'Transporte interno', value: 'InlandTransport' },
+  { label: 'Documentación', value: 'Documentation' },
+  { label: 'Seguro', value: 'Insurance' },
+  { label: 'Otro', value: 'Other' },
+]
+
+const editableTypeOptions = [
+  { label: 'Variable', value: 'Variable' },
+  { label: 'Opcional', value: 'Optional' },
+]
+
+function normalize(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function readRawValue(raw: string, keys: string[]): string | undefined {
+  if (!raw.trim().startsWith('{') && !raw.trim().startsWith('[')) return undefined
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    const targetKeys = keys.map(normalize)
+    const visit = (value: unknown): string | undefined => {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const result = visit(item)
+          if (result) return result
+        }
+      } else if (value && typeof value === 'object') {
+        for (const [key, item] of Object.entries(value)) {
+          if (targetKeys.includes(normalize(key)) && ['string', 'number'].includes(typeof item))
+            return String(item)
+          const result = visit(item)
+          if (result) return result
+        }
+      }
+      return undefined
+    }
+    return visit(parsed)
+  } catch {
+    return undefined
+  }
+}
+
+function fromRateDetail(detail: RateDetailDto): EditableDetail {
+  return {
+    key: detail.id,
+    id: detail.id,
+    costId: detail.costId,
+    name: detail.name,
+    costDetailType: detail.costDetailType,
+    costType: detail.costType,
+    currencyId: detail.currencyId,
+    currencyName: detail.currencyName,
+    currencyCode: detail.currencyCode,
+    costAmount: String(detail.costAmount),
+    saleAmount: String(detail.saleAmount),
+    notes: detail.notes ?? '',
+    locked: detail.costType === 'Fixed' && Boolean(detail.costId),
+  }
+}
+
+function fromCost(cost: CostSelectDto): EditableDetail {
+  return {
+    key: `cost-${cost.id}`,
+    costId: cost.id,
+    name: cost.name,
+    costDetailType: cost.costDetailType,
+    costType: cost.costType,
+    currencyId: cost.currencyId,
+    currencyName: cost.currencyName,
+    currencyCode: cost.currencyCode,
+    costAmount: String(cost.costAmount),
+    saleAmount: String(cost.agentId ? 0 : cost.saleAmount),
+    notes: cost.notes ?? '',
+    locked: false,
+  }
+}
+
+function addManualDetail(type: CostDetailType = 'Other') {
+  details.value.push({
+    key: crypto.randomUUID(),
+    name: type === 'Freight' ? 'Flete internacional' : '',
+    costDetailType: type,
+    costType: 'Variable',
+    currencyId: form.currencyId,
+    currencyName: selectedCurrency.value?.name ?? '',
+    currencyCode: selectedCurrency.value?.code ?? '',
+    costAmount: '',
+    saleAmount: '',
+    notes: '',
+    locked: false,
+  })
+}
+
+function removeDetail(detail: EditableDetail) {
+  if (detail.locked) return
+  if (detail.id) removedDetailIds.value.push(detail.id)
+  if (detail.costId)
+    optionalCostIds.value = optionalCostIds.value.filter((id) => id !== detail.costId)
+  details.value = details.value.filter((item) => item.key !== detail.key)
+}
+
+const optionalCosts = computed(() => {
+  const routePortIds = new Set([form.polId, form.poeId, form.podId].filter(Boolean))
+  return availableCosts.value.filter((cost) => {
+    if (cost.costType !== 'Optional') return false
+    if (form.currencyId && cost.currencyId !== form.currencyId) return false
+    if (cost.carrierId && cost.carrierId !== form.carrierId) return false
+    if (cost.agentId && cost.agentId !== form.agentId) return false
+    if (cost.portId && routePortIds.size && !routePortIds.has(cost.portId)) return false
+    return true
+  })
+})
+
+const optionalOptions = computed<PricingMultiSelectOption[]>(() =>
+  optionalCosts.value.map((cost) => ({
+    value: cost.id,
+    label: cost.name,
+    description: `${cost.costDetailType} · ${formatMoney(cost.costAmount, cost.currencyName)}`,
+  })),
+)
+
+const automaticFixedCosts = computed(() => {
+  const routePorts = new Map([
+    [form.polId, 'Pol'],
+    [form.poeId, 'Poe'],
+    [form.podId, 'Pod'],
+  ])
+
+  return availableCosts.value.filter((cost) => {
+    if (cost.costType !== 'Fixed') return false
+    if (routePorts.get(cost.portId) !== cost.portRole) return false
+    if (cost.agentId) return cost.agentId === form.agentId
+    if (cost.carrierId) return cost.carrierId === form.carrierId
+    return false
+  })
+})
+
+const selectorsChanged = computed(() =>
+  Boolean(
+    props.rate &&
+    (props.rate.agentId !== form.agentId ||
+      props.rate.carrierId !== form.carrierId ||
+      props.rate.poeId !== form.poeId ||
+      props.rate.podId !== form.podId),
+  ),
+)
+
+const visibleDetails = computed(() => {
+  const currentRows = selectorsChanged.value
+    ? details.value.filter((detail) => !detail.locked)
+    : details.value
+  const currentFixedIds = new Set(
+    currentRows.filter((detail) => detail.locked).map((detail) => detail.costId),
+  )
+  const estimated = automaticFixedCosts.value
+    .filter((cost) => !currentFixedIds.has(cost.id))
+    .map((cost) => ({ ...fromCost(cost), key: `estimated-${cost.id}`, locked: true }))
+  return [...currentRows, ...estimated]
+})
+
+const totalCost = computed(() =>
+  visibleDetails.value.reduce((sum, detail) => sum + Number(detail.costAmount || 0), 0),
+)
+const totalSale = computed(() =>
+  visibleDetails.value.reduce((sum, detail) => sum + Number(detail.saleAmount || 0), 0),
+)
+const totalUtility = computed(() => totalSale.value - totalCost.value)
+const margin = computed(() => calculateMargin(totalCost.value, totalSale.value))
+
+const groups = computed(() => [
+  {
+    key: 'agent',
+    title: 'Costos de agente',
+    hint: 'No generan venta.',
+    rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'AgentCharge'),
+  },
+  {
+    key: 'freight',
+    title: 'Flete internacional',
+    hint: 'Costo y venta marítima.',
+    rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'Freight'),
+  },
+  {
+    key: 'destination',
+    title: 'Costos de destino',
+    hint: 'POE, POD y transporte interno.',
+    rows: visibleDetails.value.filter((detail) =>
+      ['DestinationCharge', 'InlandTransport'].includes(detail.costDetailType),
+    ),
+  },
+  {
+    key: 'other',
+    title: 'Otros rubros',
+    hint: 'Origen, documentación, seguro y adicionales.',
+    rows: visibleDetails.value.filter(
+      (detail) =>
+        !['AgentCharge', 'Freight', 'DestinationCharge', 'InlandTransport'].includes(
+          detail.costDetailType,
+        ),
+    ),
+  },
+])
+
+watch(
+  optionalCostIds,
+  (ids) => {
+    if (!initialized.value) return
+    const selected = new Set(ids)
+
+    for (const costId of ids) {
+      if (!details.value.some((detail) => detail.costId === costId)) {
+        const cost = availableCosts.value.find((item) => item.id === costId)
+        if (cost) details.value.push(fromCost(cost))
+      }
+    }
+
+    const removed = details.value.filter(
+      (detail) => detail.costType === 'Optional' && detail.costId && !selected.has(detail.costId),
+    )
+    for (const detail of removed) if (detail.id) removedDetailIds.value.push(detail.id)
+    details.value = details.value.filter(
+      (detail) => detail.costType !== 'Optional' || !detail.costId || selected.has(detail.costId),
+    )
+  },
+  { deep: true },
+)
+
+watch(
+  () => form.currencyId,
+  () => {
+    const currency = selectedCurrency.value
+    if (!currency) return
+    for (const detail of details.value) {
+      if (!detail.costId && !detail.locked) {
+        detail.currencyId = currency.id
+        detail.currencyName = currency.name
+        detail.currencyCode = currency.code
+      }
+    }
+  },
+)
+
+function fieldError(value: string, label: string) {
+  return form.submitted && !value ? `Seleccione ${label}.` : undefined
+}
+
+function detailError(detail: EditableDetail) {
+  if (!form.submitted) return ''
+  if (!detail.name.trim()) return 'Indique el nombre del rubro.'
+  if (!detail.currencyId) return 'Seleccione una moneda.'
+  if (Number(detail.costAmount) < 0 || Number(detail.saleAmount) < 0)
+    return 'Los montos no pueden ser negativos.'
+  return ''
+}
+
+function mapDetail(detail: EditableDetail): CreateRateDetailRequest {
+  const agentCost = detail.costDetailType === 'AgentCharge'
+  return {
+    costId: detail.costId ?? null,
+    name: detail.name.trim(),
+    costDetailType: detail.costDetailType,
+    costType: detail.costType === 'Fixed' ? 'Variable' : detail.costType,
+    currencyId: detail.currencyId,
+    currencyName: detail.currencyName,
+    currencyCode: detail.currencyCode,
+    costAmount: Number(detail.costAmount || 0),
+    saleAmount: agentCost ? 0 : Number(detail.saleAmount || 0),
+    notes: detail.notes.trim() || null,
+  }
+}
+
+function buildHeader() {
+  const agent = catalogs.findById(catalogs.agents.value, form.agentId)
+  const carrier = catalogs.findById(catalogs.carriers.value, form.carrierId)
+  const pol = catalogs.findById(catalogs.polPorts.value, form.polId)
+  const poe = catalogs.findById(catalogs.poePorts.value, form.poeId)
+  const pod = catalogs.findById(catalogs.podPorts.value, form.podId)
+  const container = catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)
+  const currency = catalogs.findById(catalogs.currencies.value, form.currencyId)
+
+  if (!agent || !carrier || !pol || !poe || !pod || !container || !currency) return null
+
+  return {
+    agentId: agent.id,
+    agentName: agent.name,
+    agentCode: agent.code,
+    carrierId: carrier.id,
+    carrierName: carrier.name,
+    carrierCode: carrier.code,
+    polId: pol.id,
+    polName: pol.name,
+    polCode: pol.code,
+    poeId: poe.id,
+    poeName: poe.name,
+    poeCode: poe.code,
+    podId: pod.id,
+    podName: pod.name,
+    podCode: pod.code,
+    containerTypeId: container.id,
+    containerTypeName: container.name,
+    containerTypeCode: container.code,
+    currencyId: currency.id,
+    currencyName: currency.name,
+    currencyCode: currency.code,
+    freeDays: Number(form.freeDays || 0),
+    validFrom: form.validFrom,
+    validTo: form.validTo,
+  }
+}
+
+function validate() {
+  form.submitted = true
+  if (!buildHeader()) return false
+  if (
+    Number(form.freeDays) < 0 ||
+    !form.validFrom ||
+    !form.validTo ||
+    form.validTo < form.validFrom
+  )
+    return false
+  const editable = details.value.filter((detail) => !detail.locked)
+  if (!editable.some((detail) => detail.costDetailType === 'Freight')) return false
+  return editable.every((detail) => !detailError(detail))
+}
+
+function updatePayloadFromRate(
+  rate: RateDto,
+  freightSale?: number,
+  headerOverride?: NonNullable<ReturnType<typeof buildHeader>>,
+): UpdateRateRequest {
+  const extraDetails = rate.rateDetails
+    .filter((detail) => !(detail.costType === 'Fixed' && detail.costId))
+    .map((detail) => ({
+      id: detail.id,
+      costId: detail.costId,
+      name: detail.name,
+      costDetailType: detail.costDetailType,
+      costType: detail.costType,
+      currencyId: detail.currencyId,
+      currencyName: detail.currencyName,
+      currencyCode: detail.currencyCode,
+      costAmount: detail.costAmount,
+      saleAmount:
+        detail.costDetailType === 'Freight' && freightSale !== undefined
+          ? freightSale
+          : detail.saleAmount,
+      notes: detail.notes,
+    }))
+
+  const header = headerOverride ?? {
+    agentId: rate.agentId!,
+    agentName: rate.agentName!,
+    agentCode: rate.agentCode!,
+    carrierId: rate.carrierId!,
+    carrierName: rate.carrierName!,
+    carrierCode: rate.carrierCode!,
+    polId: rate.polId,
+    polName: rate.polName,
+    polCode: rate.polCode,
+    poeId: rate.poeId,
+    poeName: rate.poeName,
+    poeCode: rate.poeCode,
+    podId: rate.podId,
+    podName: rate.podName,
+    podCode: rate.podCode,
+    containerTypeId: rate.containerTypeId,
+    containerTypeName: rate.containerTypeName,
+    containerTypeCode: rate.containerTypeCode,
+    currencyId: rate.currencyId,
+    currencyName: rate.currencyName,
+    currencyCode: rate.currencyCode,
+    freeDays: rate.freeDays,
+    validFrom: rate.validFrom,
+    validTo: rate.validTo,
+  }
+
+  return {
+    ...header,
+    extraDetails,
+    removedExtraDetailIds: [],
+  }
+}
+
+async function approveIfAllowed(rateId: string) {
+  const result = await PricingService.getRate(rateId)
+  if (result.status === 'PendingApproval' && canAutoApprove.value) {
+    await PricingService.approveRateMargin(rateId)
+    toastStore.success(
+      'Tarifa guardada y aprobada',
+      'Su permiso permitió aprobar automáticamente el margen inferior al 12%.',
+    )
+  } else if (result.status === 'PendingApproval') {
+    toastStore.warning(
+      'Tarifa pendiente de aprobación',
+      'El margen actual es inferior al 12% y debe revisarlo una persona autorizada.',
+    )
+  } else {
+    toastStore.success(
+      isEditing.value ? 'Tarifa actualizada' : 'Tarifa creada',
+      'Los totales y el margen se recalcularon correctamente.',
+    )
+  }
+}
+
+async function submit() {
+  if (!validate()) return
+  const header = buildHeader()!
+
+  try {
+    form.saving = true
+    let rateId = props.rate?.id
+
+    if (props.rate) {
+      const payload: UpdateRateRequest = {
+        ...header,
+        extraDetails: details.value
+          .filter((detail) => !detail.locked && !detail.importedFreight)
+          .map((detail) => ({ ...mapDetail(detail), id: detail.id ?? null })),
+        removedExtraDetailIds: [...new Set(removedDetailIds.value)],
+      }
+      await PricingService.updateRate(props.rate.id, payload)
+    } else {
+      const payload: CreateRateRequest = {
+        sourceImportFclRateId: props.sourceImport?.id ?? null,
+        ...header,
+        details: details.value
+          .filter((detail) => !detail.locked && !detail.importedFreight)
+          .map(mapDetail),
+      }
+      rateId = await PricingService.createRate(payload)
+
+      // Imported freight is created by Pricing from the source row. Apply the
+      // sale entered by the user immediately through the supported update flow.
+      const importedFreight = details.value.find((detail) => detail.importedFreight)
+      if (importedFreight) {
+        const created = await PricingService.getRate(rateId)
+        await PricingService.updateRate(
+          rateId,
+          updatePayloadFromRate(created, Number(importedFreight.saleAmount || 0), header),
+        )
+      }
+    }
+
+    if (rateId) await approveIfAllowed(rateId)
+    drawerStore.close()
+    await props.onSaved?.(rateId)
+  } catch (error) {
+    toastStore.backendError(
+      error,
+      isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.',
+    )
+  } finally {
+    form.saving = false
+  }
+}
+
+async function initialize() {
+  await catalogs.loadAll()
+  try {
+    availableCosts.value = await PricingService.selectCosts({ isActive: true })
+  } catch {
+    availableCosts.value = []
+  }
+
+  if (props.rate) {
+    details.value = props.rate.rateDetails.map(fromRateDetail)
+    optionalCostIds.value = props.rate.rateDetails
+      .filter((detail) => detail.costType === 'Optional' && detail.costId)
+      .map((detail) => detail.costId!)
+  } else if (props.sourceImport) {
+    const raw = props.sourceImport.rawDataJson ?? ''
+    form.agentId =
+      catalogs.findByCode(catalogs.agents.value, readRawValue(raw, ['agent', 'agente']))?.id ??
+      catalogs.findByCode(catalogs.agents.value, 'WWL')?.id ??
+      catalogs.findByCode(catalogs.agents.value, 'RS')?.id ??
+      ''
+    form.carrierId =
+      catalogs.findByCode(catalogs.carriers.value, props.sourceImport.carrier)?.id ?? ''
+    form.polId = catalogs.findByCode(catalogs.polPorts.value, props.sourceImport.pol)?.id ?? ''
+    form.poeId =
+      catalogs.findByCode(
+        catalogs.poePorts.value,
+        readRawValue(raw, ['poe', 'portOfEntry', 'puertoEntrada']),
+      )?.id ?? ''
+    form.podId = catalogs.findByCode(catalogs.podPorts.value, props.sourceImport.pod)?.id ?? ''
+    form.containerTypeId =
+      catalogs.findByCode(catalogs.containerTypes.value, props.sourceImport.containerType)?.id ?? ''
+    form.currencyId =
+      catalogs.findByCode(catalogs.currencies.value, props.sourceImport.currency)?.id ?? ''
+    details.value = [
+      {
+        key: `import-freight-${props.sourceImport.id}`,
+        name: 'Flete internacional',
+        costDetailType: 'Freight',
+        costType: 'Variable',
+        currencyId: form.currencyId,
+        currencyName: selectedCurrency.value?.name ?? props.sourceImport.currency,
+        currencyCode: selectedCurrency.value?.code ?? props.sourceImport.currency,
+        costAmount: String(props.sourceImport.freight),
+        saleAmount: String(props.sourceImport.freight),
+        notes: '',
+        locked: false,
+        importedFreight: true,
+      },
+    ]
+  } else {
+    form.agentId =
+      catalogs.findByCode(catalogs.agents.value, 'WWL')?.id ??
+      catalogs.findByCode(catalogs.agents.value, 'RS')?.id ??
+      ''
+    addManualDetail('Freight')
+  }
+
+  initialized.value = true
+}
+
+onMounted(initialize)
+</script>
+
+<template>
+  <form class="space-y-6" @submit.prevent="submit">
+    <section
+      v-if="sourceImport"
+      class="flex items-start gap-3 rounded-[24px] border border-blue-500/20 bg-blue-500/10 p-4 text-blue-800 dark:text-blue-200"
+    >
+      <Info class="mt-0.5 h-5 w-5 shrink-0" />
+      <div>
+        <p class="font-black">Creando desde tarifa importada</p>
+        <p class="mt-1 text-sm font-semibold opacity-80">
+          {{ sourceImport.carrier }} · {{ sourceImport.pol }} → {{ sourceImport.pod }} ·
+          {{ sourceImport.containerType }}. Puede definir la venta del flete antes de guardar.
+        </p>
+      </div>
+    </section>
+
+    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <div class="mb-5 flex items-center gap-3">
+        <span
+          class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
+          >1</span
+        >
+        <div>
+          <h3 class="font-black text-[var(--dh-text)]">Ruta y responsables</h3>
+          <p class="text-sm font-medium text-[var(--dh-text-muted)]">
+            Todos los valores provienen de catálogos para evitar datos inconsistentes.
+          </p>
+        </div>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <DhSelect
+          v-model="form.agentId"
+          label="Agente"
+          placeholder="Seleccione agente"
+          :options="catalogs.agentOptions.value"
+          :error="fieldError(form.agentId, 'el agente')"
+        />
+        <DhSelect
+          v-model="form.carrierId"
+          label="Naviera"
+          placeholder="Seleccione naviera"
+          :options="catalogs.carrierOptions.value"
+          :error="fieldError(form.carrierId, 'la naviera')"
+        />
+        <DhSelect
+          v-model="form.containerTypeId"
+          label="Contenedor"
+          placeholder="Seleccione contenedor"
+          :options="catalogs.containerOptions.value"
+          :error="fieldError(form.containerTypeId, 'el contenedor')"
+        />
+        <DhSelect
+          v-model="form.polId"
+          label="POL · Origen"
+          placeholder="Seleccione POL"
+          :options="catalogs.polOptions.value"
+          :error="fieldError(form.polId, 'el POL')"
+        />
+        <DhSelect
+          v-model="form.poeId"
+          label="POE · Entrada"
+          placeholder="Seleccione POE"
+          :options="catalogs.poeOptions.value"
+          :error="fieldError(form.poeId, 'el POE')"
+        />
+        <DhSelect
+          v-model="form.podId"
+          label="POD · Destino final"
+          placeholder="Seleccione POD"
+          :options="catalogs.podOptions.value"
+          :error="fieldError(form.podId, 'el POD')"
+        />
+      </div>
+    </section>
+
+    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <div class="mb-5 flex items-center gap-3">
+        <span
+          class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
+          >2</span
+        >
+        <div>
+          <h3 class="font-black text-[var(--dh-text)]">Vigencia y moneda</h3>
+          <p class="text-sm font-medium text-[var(--dh-text-muted)]">
+            La vigencia se valida antes de enviar la tarifa.
+          </p>
+        </div>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <DhSelect
+          v-model="form.currencyId"
+          label="Moneda"
+          placeholder="Seleccione moneda"
+          :options="catalogs.currencyOptions.value"
+          :error="fieldError(form.currencyId, 'la moneda')"
+        />
+        <DhInput
+          v-model="form.freeDays"
+          type="number"
+          label="Días libres"
+          :error="
+            form.submitted && Number(form.freeDays) < 0 ? 'No puede ser negativo.' : undefined
+          "
+        />
+        <DhInput
+          v-model="form.validFrom"
+          type="date"
+          label="Válida desde"
+          :error="form.submitted && !form.validFrom ? 'Indique la fecha.' : undefined"
+        />
+        <DhInput
+          v-model="form.validTo"
+          type="date"
+          label="Válida hasta"
+          :error="
+            form.submitted && (!form.validTo || form.validTo < form.validFrom)
+              ? 'Revise el rango.'
+              : undefined
+          "
+        />
+      </div>
+    </section>
+
+    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <div class="mb-5 flex items-center gap-3">
+        <span
+          class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
+          >3</span
+        >
+        <div class="flex-1">
+          <h3 class="font-black text-[var(--dh-text)]">Construcción de la tarifa</h3>
+          <p class="text-sm font-medium text-[var(--dh-text-muted)]">
+            Costo, venta y utilidad visibles por rubro.
+          </p>
+        </div>
+        <DhButton
+          label="Rubro manual"
+          :icon="Plus"
+          variant="secondary"
+          size="sm"
+          @click="addManualDetail()"
+        />
+      </div>
+
+      <PricingMultiSelect
+        v-model="optionalCostIds"
+        :options="optionalOptions"
+        label="Costos opcionales"
+        placeholder="Seleccione costos opcionales"
+      />
+
+      <div class="mt-5 space-y-4">
+        <section
+          v-for="group in groups"
+          :key="group.key"
+          class="overflow-hidden rounded-[24px] border border-[var(--dh-border)]"
+        >
+          <header
+            class="flex items-center justify-between bg-black/[0.035] px-4 py-3 dark:bg-white/[0.05]"
+          >
+            <div>
+              <h4 class="text-sm font-black text-[var(--dh-text)]">{{ group.title }}</h4>
+              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ group.hint }}</p>
+            </div>
+            <DhBadge :label="String(group.rows.length)" variant="neutral" />
+          </header>
+          <div v-if="group.rows.length" class="divide-y divide-[var(--dh-border)]">
+            <article v-for="detail in group.rows" :key="detail.key" class="p-4">
+              <div class="grid gap-3 xl:grid-cols-[1.4fr_1fr_1fr_1fr_auto] xl:items-start">
+                <div>
+                  <DhInput
+                    v-model="detail.name"
+                    label="Concepto"
+                    placeholder="Nombre del rubro"
+                    :disabled="detail.locked || Boolean(detail.costId)"
+                  />
+                  <div class="mt-2 flex flex-wrap gap-1.5">
+                    <DhBadge
+                      :label="detail.costType"
+                      :variant="
+                        detail.locked
+                          ? 'neutral'
+                          : detail.costType === 'Optional'
+                            ? 'primary'
+                            : 'warning'
+                      "
+                    />
+                    <DhBadge v-if="detail.locked" label="Automático" variant="neutral"
+                      ><LockKeyhole class="mr-1 h-3 w-3" /> Automático</DhBadge
+                    >
+                  </div>
+                </div>
+                <DhSelect
+                  v-model="detail.costDetailType"
+                  label="Rubro"
+                  :options="detailTypeOptions"
+                  :disabled="detail.locked || Boolean(detail.costId)"
+                />
+                <DhInput
+                  v-model="detail.costAmount"
+                  type="number"
+                  label="Costo"
+                  placeholder="0.00"
+                  :disabled="detail.locked || detail.importedFreight"
+                />
+                <DhInput
+                  v-model="detail.saleAmount"
+                  type="number"
+                  label="Venta"
+                  placeholder="0.00"
+                  :disabled="detail.locked || detail.costDetailType === 'AgentCharge'"
+                />
+                <button
+                  v-if="!detail.locked && !detail.importedFreight"
+                  type="button"
+                  class="mt-6 rounded-2xl p-2.5 text-red-500 transition hover:bg-red-500/10"
+                  title="Quitar rubro"
+                  @click="removeDetail(detail)"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </button>
+              </div>
+              <div
+                v-if="!detail.costId && !detail.locked"
+                class="mt-3 grid gap-3 md:grid-cols-[180px_1fr]"
+              >
+                <DhSelect
+                  v-model="detail.costType"
+                  label="Aplicación"
+                  :options="editableTypeOptions"
+                />
+                <DhTextarea v-model="detail.notes" label="Notas" :rows="2" />
+              </div>
+              <p v-if="detailError(detail)" class="mt-2 text-xs font-semibold text-red-500">
+                {{ detailError(detail) }}
+              </p>
+            </article>
+          </div>
+          <p v-else class="px-4 py-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
+            Sin rubros en esta sección.
+          </p>
+        </section>
+      </div>
+    </section>
+
+    <section
+      class="sticky bottom-0 z-20 rounded-[28px] border border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)] p-4 shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl"
+    >
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+            Costo total
+          </p>
+          <p class="mt-1 text-lg font-black text-[var(--dh-text)]">
+            {{ formatMoney(totalCost, currencyName) }}
+          </p>
+        </div>
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+            Venta total
+          </p>
+          <p class="mt-1 text-lg font-black text-[var(--dh-text)]">
+            {{ formatMoney(totalSale, currencyName) }}
+          </p>
+        </div>
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+            Utilidad general
+          </p>
+          <p
+            class="mt-1 text-lg font-black"
+            :class="totalUtility >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'"
+          >
+            {{ formatMoney(totalUtility, currencyName) }}
+          </p>
+        </div>
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+            Margen actual / esperado
+          </p>
+          <p
+            class="mt-1 text-lg font-black"
+            :class="
+              margin >= 12
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-amber-600 dark:text-amber-400'
+            "
+          >
+            {{ margin.toFixed(2) }}% / 12%
+          </p>
+        </div>
+      </div>
+
+      <div
+        v-if="margin < 12 && totalSale > 0"
+        class="mt-3 flex items-start gap-2 rounded-2xl bg-amber-500/10 p-3 text-sm font-semibold text-amber-800 dark:text-amber-200"
+      >
+        <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
+        <span
+          >La venta mínima sugerida para alcanzar 12% es
+          {{ formatMoney(minimumSale(totalCost), currencyName) }}.
+          {{
+            canAutoApprove
+              ? 'Su permiso aprobará automáticamente si decide guardar así.'
+              : 'La tarifa quedará pendiente de aprobación.'
+          }}</span
+        >
+      </div>
+
+      <div class="mt-4 flex flex-wrap justify-end gap-2">
+        <DhButton
+          label="Cancelar"
+          variant="secondary"
+          :disabled="form.saving"
+          @click="drawerStore.close()"
+        />
+        <DhButton
+          :label="isEditing ? 'Guardar cambios' : 'Crear tarifa'"
+          :icon="isEditing ? Save : Ship"
+          type="submit"
+          :loading="form.saving"
+        />
+      </div>
+    </section>
+  </form>
+</template>
