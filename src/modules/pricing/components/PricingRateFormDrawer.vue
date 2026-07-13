@@ -42,6 +42,7 @@ interface EditableDetail {
   notes: string
   locked: boolean
   importedFreight?: boolean
+  estimated?: boolean
 }
 
 const props = defineProps<{
@@ -113,38 +114,44 @@ const editableTypeOptions = [
   { label: 'Opcional', value: 'Optional' },
 ]
 
-function normalize(value: string) {
+function normalizeKey(value: string) {
   return value
     .trim()
     .toLocaleLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
 }
 
-function readRawValue(raw: string, keys: string[]): string | undefined {
-  if (!raw.trim().startsWith('{') && !raw.trim().startsWith('[')) return undefined
+function readRawValues(raw: string, keys: string[]) {
+  if (!raw.trim().startsWith('{') && !raw.trim().startsWith('[')) return []
+
   try {
-    const parsed = JSON.parse(raw) as unknown
-    const targetKeys = keys.map(normalize)
-    const visit = (value: unknown): string | undefined => {
+    const results: string[] = []
+    const targetKeys = new Set(keys.map(normalizeKey))
+    const visit = (value: unknown) => {
       if (Array.isArray(value)) {
-        for (const item of value) {
-          const result = visit(item)
-          if (result) return result
-        }
-      } else if (value && typeof value === 'object') {
-        for (const [key, item] of Object.entries(value)) {
-          if (targetKeys.includes(normalize(key)) && ['string', 'number'].includes(typeof item))
-            return String(item)
-          const result = visit(item)
-          if (result) return result
-        }
+        value.forEach(visit)
+        return
       }
-      return undefined
+
+      if (!value || typeof value !== 'object') return
+
+      for (const [key, item] of Object.entries(value)) {
+        if (
+          targetKeys.has(normalizeKey(key)) &&
+          (typeof item === 'string' || typeof item === 'number')
+        ) {
+          results.push(String(item))
+        }
+        visit(item)
+      }
     }
-    return visit(parsed)
+
+    visit(JSON.parse(raw) as unknown)
+    return [...new Set(results)]
   } catch {
-    return undefined
+    return []
   }
 }
 
@@ -248,6 +255,7 @@ const selectorsChanged = computed(() =>
     props.rate &&
     (props.rate.agentId !== form.agentId ||
       props.rate.carrierId !== form.carrierId ||
+      props.rate.polId !== form.polId ||
       props.rate.poeId !== form.poeId ||
       props.rate.podId !== form.podId),
   ),
@@ -262,7 +270,12 @@ const visibleDetails = computed(() => {
   )
   const estimated = automaticFixedCosts.value
     .filter((cost) => !currentFixedIds.has(cost.id))
-    .map((cost) => ({ ...fromCost(cost), key: `estimated-${cost.id}`, locked: true }))
+    .map((cost) => ({
+      ...fromCost(cost),
+      key: `estimated-${cost.id}`,
+      locked: true,
+      estimated: true,
+    }))
   return [...currentRows, ...estimated]
 })
 
@@ -367,7 +380,7 @@ function mapDetail(detail: EditableDetail): CreateRateDetailRequest {
     costId: detail.costId ?? null,
     name: detail.name.trim(),
     costDetailType: detail.costDetailType,
-    costType: detail.costType === 'Fixed' ? 'Variable' : detail.costType,
+    costType: detail.costType,
     currencyId: detail.currencyId,
     currencyName: detail.currencyName,
     currencyCode: detail.currencyCode,
@@ -426,9 +439,9 @@ function validate() {
     form.validTo < form.validFrom
   )
     return false
-  const editable = details.value.filter((detail) => !detail.locked)
-  if (!editable.some((detail) => detail.costDetailType === 'Freight')) return false
-  return editable.every((detail) => !detailError(detail))
+  const applicable = details.value.filter((detail) => !selectorsChanged.value || !detail.locked)
+  if (!applicable.some((detail) => detail.costDetailType === 'Freight')) return false
+  return applicable.every((detail) => !detailError(detail))
 }
 
 function updatePayloadFromRate(
@@ -436,24 +449,22 @@ function updatePayloadFromRate(
   freightSale?: number,
   headerOverride?: NonNullable<ReturnType<typeof buildHeader>>,
 ): UpdateRateRequest {
-  const extraDetails = rate.rateDetails
-    .filter((detail) => !(detail.costType === 'Fixed' && detail.costId))
-    .map((detail) => ({
-      id: detail.id,
-      costId: detail.costId,
-      name: detail.name,
-      costDetailType: detail.costDetailType,
-      costType: detail.costType,
-      currencyId: detail.currencyId,
-      currencyName: detail.currencyName,
-      currencyCode: detail.currencyCode,
-      costAmount: detail.costAmount,
-      saleAmount:
-        detail.costDetailType === 'Freight' && freightSale !== undefined
-          ? freightSale
-          : detail.saleAmount,
-      notes: detail.notes,
-    }))
+  const extraDetails = rate.rateDetails.map((detail) => ({
+    id: detail.id,
+    costId: detail.costId,
+    name: detail.name,
+    costDetailType: detail.costDetailType,
+    costType: detail.costType,
+    currencyId: detail.currencyId,
+    currencyName: detail.currencyName,
+    currencyCode: detail.currencyCode,
+    costAmount: detail.costAmount,
+    saleAmount:
+      detail.costDetailType === 'Freight' && freightSale !== undefined
+        ? freightSale
+        : detail.saleAmount,
+    notes: detail.notes,
+  }))
 
   const header = headerOverride ?? {
     agentId: rate.agentId!,
@@ -522,7 +533,9 @@ async function submit() {
       const payload: UpdateRateRequest = {
         ...header,
         extraDetails: details.value
-          .filter((detail) => !detail.locked && !detail.importedFreight)
+          .filter(
+            (detail) => !detail.importedFreight && (!selectorsChanged.value || !detail.locked),
+          )
           .map((detail) => ({ ...mapDetail(detail), id: detail.id ?? null })),
         removedExtraDetailIds: [...new Set(removedDetailIds.value)],
       }
@@ -576,25 +589,91 @@ async function initialize() {
       .filter((detail) => detail.costType === 'Optional' && detail.costId)
       .map((detail) => detail.costId!)
   } else if (props.sourceImport) {
-    const raw = props.sourceImport.rawDataJson ?? ''
+    const source = props.sourceImport
+    const raw = source.rawDataJson ?? ''
+    const agent = catalogs.findBestMatch(
+      catalogs.agents.value,
+      source.agentId,
+      source.agent,
+      source.agentCode,
+      source.agentSlug,
+      ...readRawValues(raw, ['agent', 'agente', 'client', 'cliente', 'customer']),
+    )
+    const carrier = catalogs.findBestMatch(
+      catalogs.carriers.value,
+      source.carrierId,
+      source.carrier,
+      source.carrierCode,
+      source.carrierSlug,
+      ...readRawValues(raw, ['carrier', 'carrierName', 'naviera', 'shippingLine']),
+    )
+    const pol = catalogs.findBestMatch(
+      catalogs.polPorts.value,
+      source.polId,
+      source.pol,
+      source.polCode,
+      source.polSlug,
+      ...readRawValues(raw, ['pol', 'origin', 'originPort', 'portOfLoading', 'puertoOrigen']),
+    )
+    const pod = catalogs.findBestMatch(
+      catalogs.podPorts.value,
+      source.podId,
+      source.pod,
+      source.podCode,
+      source.podSlug,
+      ...readRawValues(raw, [
+        'pod',
+        'destination',
+        'destinationPort',
+        'portOfDischarge',
+        'puertoDestino',
+      ]),
+    )
+    const poe = catalogs.findBestMatch(
+      catalogs.poePorts.value,
+      source.poeId,
+      source.poe,
+      source.poeCode,
+      source.poeSlug,
+      ...readRawValues(raw, [
+        'poe',
+        'entryPort',
+        'portOfEntry',
+        'puertoEntrada',
+        'transshipmentPort',
+      ]),
+      source.pod,
+      source.podCode,
+    )
+    const container = catalogs.findBestMatch(
+      catalogs.containerTypes.value,
+      source.containerTypeId,
+      source.containerType,
+      source.containerTypeCode,
+      source.containerTypeSlug,
+      ...readRawValues(raw, ['container', 'containerType', 'equipment', 'equipmentType', 'tamano']),
+    )
+    const currency = catalogs.findBestMatch(
+      catalogs.currencies.value,
+      source.currencyId,
+      source.currency,
+      source.currencyCode,
+      source.currencySlug,
+      ...readRawValues(raw, ['currency', 'currencyCode', 'moneda']),
+    )
+
     form.agentId =
-      catalogs.findByCode(catalogs.agents.value, readRawValue(raw, ['agent', 'agente']))?.id ??
+      agent?.id ??
       catalogs.findByCode(catalogs.agents.value, 'WWL')?.id ??
       catalogs.findByCode(catalogs.agents.value, 'RS')?.id ??
       ''
-    form.carrierId =
-      catalogs.findByCode(catalogs.carriers.value, props.sourceImport.carrier)?.id ?? ''
-    form.polId = catalogs.findByCode(catalogs.polPorts.value, props.sourceImport.pol)?.id ?? ''
-    form.poeId =
-      catalogs.findByCode(
-        catalogs.poePorts.value,
-        readRawValue(raw, ['poe', 'portOfEntry', 'puertoEntrada']),
-      )?.id ?? ''
-    form.podId = catalogs.findByCode(catalogs.podPorts.value, props.sourceImport.pod)?.id ?? ''
-    form.containerTypeId =
-      catalogs.findByCode(catalogs.containerTypes.value, props.sourceImport.containerType)?.id ?? ''
+    form.carrierId = carrier?.id ?? ''
+    form.polId = pol?.id ?? ''
+    form.poeId = poe?.id ?? ''
+    form.podId = pod?.id ?? ''
+    form.containerTypeId = container?.id ?? ''
     form.currencyId =
-      catalogs.findByCode(catalogs.currencies.value, props.sourceImport.currency)?.id ?? ''
+      currency?.id ?? catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ?? ''
     details.value = [
       {
         key: `import-freight-${props.sourceImport.id}`,
@@ -828,14 +907,14 @@ onMounted(initialize)
                   type="number"
                   label="Costo"
                   placeholder="0.00"
-                  :disabled="detail.locked || detail.importedFreight"
+                  :disabled="detail.importedFreight || detail.estimated"
                 />
                 <DhInput
                   v-model="detail.saleAmount"
                   type="number"
                   label="Venta"
                   placeholder="0.00"
-                  :disabled="detail.locked || detail.costDetailType === 'AgentCharge'"
+                  :disabled="detail.costDetailType === 'AgentCharge' || detail.estimated"
                 />
                 <button
                   v-if="!detail.locked && !detail.importedFreight"

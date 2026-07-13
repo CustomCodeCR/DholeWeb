@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Users,
   FileText,
+  Mail,
   ReceiptText,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -120,6 +121,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             icon: FileText,
             to: '/pricing/imports',
             name: 'pricing-imports',
+            requiredScope: VIEW_SCOPES.pricingImports,
+          },
+          {
+            labelKey: 'sidebar.emailImports',
+            icon: Mail,
+            to: '/pricing/email-imports',
+            name: 'pricing-email-imports',
             requiredScope: VIEW_SCOPES.pricingImports,
           },
           {

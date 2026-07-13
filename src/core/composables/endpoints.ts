@@ -519,6 +519,34 @@ export const PricingEndpoints = {
   deleteRates: { method: 'DELETE', path: '/api/pricing/rates', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 
+export const DataExtractionEmailEndpoints = {
+  browseEmailAccounts: {
+    method: 'GET',
+    path: '/api/data-extraction/email/accounts',
+    headers: acceptJson,
+  },
+  browseEmailMessages: {
+    method: 'GET',
+    path: '/api/data-extraction/email/messages',
+    headers: acceptJson,
+  },
+  getEmailMessage: {
+    method: 'GET',
+    path: '/api/data-extraction/email/messages/{{messageId}}',
+    headers: acceptJson,
+  },
+  reprocessEmailMessage: {
+    method: 'POST',
+    path: '/api/data-extraction/email/messages/{{messageId}}/reprocess',
+    headers: acceptJson,
+  },
+  browseEmailExtractionJobs: {
+    method: 'GET',
+    path: '/api/data-extraction/email/extraction-jobs',
+    headers: acceptJson,
+  },
+} satisfies Record<string, Endpoint>
+
 export const Endpoints = {
   ...AuthEndpoints,
   ...ClientBrandingEndpoints,
@@ -531,4 +559,5 @@ export const Endpoints = {
   ...AuditLogsEndpoints,
   ...ScrapingEndpoints,
   ...PricingEndpoints,
+  ...DataExtractionEmailEndpoints,
 } satisfies Record<string, Endpoint>

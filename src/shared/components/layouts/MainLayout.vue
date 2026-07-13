@@ -18,6 +18,7 @@ import {
   Shield,
   Users,
   FileText,
+  Mail,
   ReceiptText,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -125,6 +126,11 @@ const pricingChildren = computed<SidebarItem[]>(() => {
 
   if (canView(VIEW_SCOPES.pricingImports)) {
     children.push({ label: t('sidebar.importedRates'), path: '/pricing/imports', icon: FileText })
+    children.push({
+      label: t('sidebar.emailImports'),
+      path: '/pricing/email-imports',
+      icon: Mail,
+    })
   }
 
   if (canView(VIEW_SCOPES.pricingRates)) {

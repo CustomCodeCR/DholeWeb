@@ -175,6 +175,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/email-imports',
+          name: 'pricing-email-imports',
+          component: () => import('@/modules/pricing/views/PricingEmailImportsView.vue'),
+          meta: {
+            tabTitle: 'Correos de tarifas',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingImports,
+          },
+        },
+        {
           path: 'pricing/rates',
           name: 'pricing-rates',
           component: () => import('@/modules/pricing/views/PricingRatesView.vue'),

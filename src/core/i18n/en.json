@@ -87,6 +87,7 @@
     "pricingPanel": "Pricing panel",
     "costs": "Costs",
     "importedRates": "Imported rates",
+    "emailImports": "Rate emails",
     "rates": "Official rates"
   },
   "auth": {

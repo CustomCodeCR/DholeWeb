@@ -38,11 +38,12 @@ function normalize(value: string) {
 
 function mapItem(item: CatalogItemDto): PricingCatalogItem {
   const displayValue = String(item.value || item.name).trim()
+  const catalogCode = String(item.code || displayValue).trim()
 
   return {
     id: item.id,
     name: displayValue,
-    code: displayValue || item.code,
+    code: catalogCode,
     slug: item.slug || normalize(displayValue).replace(/\s+/g, '-'),
     value: String(item.value || ''),
   }
@@ -142,14 +143,64 @@ function findByCode(items: PricingCatalogItem[], value?: string | null) {
   if (!target) return undefined
 
   return items.find((item) =>
-    [item.code, item.name, item.slug].some((candidate) => normalize(candidate) === target),
+    [item.code, item.name, item.slug, item.value].some(
+      (candidate) => normalize(candidate) === target,
+    ),
   )
+}
+
+function compact(value: string) {
+  return normalize(value).replace(/[^a-z0-9]/g, '')
+}
+
+function findBestMatch(
+  items: PricingCatalogItem[],
+  id: string | null | undefined,
+  ...values: Array<string | number | null | undefined>
+) {
+  const exactId = findById(items, id)
+  if (exactId) return exactId
+
+  const candidates = [...new Set(values.map((value) => String(value ?? '').trim()).filter(Boolean))]
+  let best: { item: PricingCatalogItem; score: number } | undefined
+
+  for (const item of items) {
+    const itemValues = [item.code, item.name, item.slug, item.value]
+      .map((value) => normalize(value))
+      .filter(Boolean)
+    const compactItemValues = itemValues.map(compact)
+
+    for (const candidate of candidates) {
+      const normalizedCandidate = normalize(candidate)
+      const compactCandidate = compact(candidate)
+      if (!normalizedCandidate) continue
+
+      let score = 0
+      if (itemValues.includes(normalizedCandidate)) score = 1000
+      else if (compactCandidate && compactItemValues.includes(compactCandidate)) score = 950
+      else if (
+        normalizedCandidate.length >= 3 &&
+        itemValues.some(
+          (value) => value.includes(normalizedCandidate) || normalizedCandidate.includes(value),
+        )
+      ) {
+        score = 700 + Math.min(normalizedCandidate.length, 100)
+      }
+
+      if (!best || score > best.score) best = score > 0 ? { item, score } : best
+    }
+  }
+
+  return best?.item
 }
 
 export function usePricingCatalogs() {
   function resolveRateLabels(rate: RateDto): RateDto {
-    const label = (items: PricingCatalogItem[], id: string | null | undefined, fallback?: string | null) =>
-      items.find((item) => item.id === id)?.name || fallback || '—'
+    const label = (
+      items: PricingCatalogItem[],
+      id: string | null | undefined,
+      fallback?: string | null,
+    ) => items.find((item) => item.id === id)?.name || fallback || '—'
 
     return {
       ...rate,
@@ -160,24 +211,27 @@ export function usePricingCatalogs() {
       podName: label(podPorts.value, rate.podId, rate.podName),
       containerTypeName: label(containerTypes.value, rate.containerTypeId, rate.containerTypeName),
       currencyName: label(currencies.value, rate.currencyId, rate.currencyName),
-      currencyCode: currencies.value.find((item) => item.id === rate.currencyId)?.code || rate.currencyCode,
+      currencyCode:
+        currencies.value.find((item) => item.id === rate.currencyId)?.code || rate.currencyCode,
     }
   }
 
   function resolveCostLabels(cost: CostDto): CostDto {
-    const portCatalog = cost.portRole === 'Pol'
-      ? polPorts.value
-      : cost.portRole === 'Poe'
-        ? poePorts.value
-        : cost.portRole === 'Pod'
-          ? podPorts.value
-          : [...polPorts.value, ...poePorts.value, ...podPorts.value]
+    const portCatalog =
+      cost.portRole === 'Pol'
+        ? polPorts.value
+        : cost.portRole === 'Poe'
+          ? poePorts.value
+          : cost.portRole === 'Pod'
+            ? podPorts.value
+            : [...polPorts.value, ...poePorts.value, ...podPorts.value]
     const currency = currencies.value.find((item) => item.id === cost.currencyId)
 
     return {
       ...cost,
       agentName: agents.value.find((item) => item.id === cost.agentId)?.name || cost.agentName,
-      carrierName: carriers.value.find((item) => item.id === cost.carrierId)?.name || cost.carrierName,
+      carrierName:
+        carriers.value.find((item) => item.id === cost.carrierId)?.name || cost.carrierName,
       portName: portCatalog.find((item) => item.id === cost.portId)?.name || cost.portName,
       currencyName: currency?.name || cost.currencyName,
       currencyCode: currency?.code || cost.currencyCode,
@@ -206,6 +260,7 @@ export function usePricingCatalogs() {
     loadAll,
     findById,
     findByCode,
+    findBestMatch,
     resolveRateLabels,
     resolveCostLabels,
   }

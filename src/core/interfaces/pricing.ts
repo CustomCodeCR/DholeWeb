@@ -77,19 +77,58 @@ export interface SetCostActiveRequest extends Record<string, unknown> {
 export interface ImportRateDto extends Record<string, unknown> {
   id: string
   importBatchId: string
+  extractionRecordId: string
   sourceType: ImportSourceType
+  importProfileId: string
+  importProfileName: string
+  importProfileCode: string
+  importProfileSlug: string
+  polId: string
   pol: string
+  polCode: string
+  polSlug: string
+  poeId: string
+  poe: string
+  poeCode: string
+  poeSlug: string
+  podId: string
   pod: string
+  podCode: string
+  podSlug: string
+  carrierId: string
   carrier: string
+  carrierCode: string
+  carrierSlug: string
+  agentId: string
+  agent: string
+  agentCode: string
+  agentSlug: string
+  containerTypeId: string
   containerType: string
+  containerTypeCode: string
+  containerTypeSlug: string
+  currencyId: string
   currency: string
+  currencyCode: string
+  currencySlug: string
+  commodity?: string | null
   freight: number
+  oceanFreight?: number | null
+  originCharges?: number | null
+  destinationCharges?: number | null
+  surcharges?: number | null
+  totalCost?: number | null
+  totalSale?: number | null
+  profit?: number | null
+  margin?: number | null
   freeDays: number
+  transitDays?: number | null
   validFrom: string
   validTo: string
   rawDataJson: string
   status: ImportStatus
   usedAsRateCount: number
+  createdAsRateHeaderId?: string | null
 }
 
 export type ImportRateSelectDto = ImportRateDto
@@ -312,9 +351,11 @@ export interface BrowseImportRatesQuery extends Record<string, unknown> {
   importBatchId?: string | null
   sourceType?: ImportSourceType | null
   status?: ImportStatus | null
-  pol?: string | null
-  pod?: string | null
+  agent?: string | null
   carrier?: string | null
+  pol?: string | null
+  poe?: string | null
+  pod?: string | null
   containerType?: string | null
   currency?: string | null
   quoteDate?: string | null

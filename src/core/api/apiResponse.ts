@@ -78,7 +78,12 @@ export function unwrapPagedResponse<T>(response: unknown): PagedResponse<T> {
 
     return {
       items,
-      totalCount: typeof unwrapped.totalCount === 'number' ? unwrapped.totalCount : items.length,
+      totalCount:
+        typeof unwrapped.totalCount === 'number'
+          ? unwrapped.totalCount
+          : typeof unwrapped.total === 'number'
+            ? unwrapped.total
+            : items.length,
       pageNumber: typeof unwrapped.pageNumber === 'number' ? unwrapped.pageNumber : undefined,
       pageSize: typeof unwrapped.pageSize === 'number' ? unwrapped.pageSize : undefined,
       totalPages: typeof unwrapped.totalPages === 'number' ? unwrapped.totalPages : undefined,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { Check, FileSpreadsheet, Import, Ship, Trash2, X } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Eye, FileSpreadsheet, Import, Mail, Ship, Trash2, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import {
   DhCrudToolbar,
@@ -19,12 +20,15 @@ import { PricingService } from '@/core/services/pricingService'
 import type { ImportRateDto, ImportSourceType, ImportStatus } from '@/core/interfaces/pricing'
 import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawer.vue'
 import PricingRateFormDrawer from '@/modules/pricing/components/PricingRateFormDrawer.vue'
+import PricingImportPreviewDrawer from '@/modules/pricing/components/PricingImportPreviewDrawer.vue'
 import PricingReasonModal from '@/modules/pricing/components/PricingReasonModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney, statusTone } from '@/modules/pricing/utils/pricingFormat'
 
 const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
@@ -37,15 +41,22 @@ const filtersOpen = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const batchFilter = ref(
+  typeof route.query.importBatchId === 'string' ? route.query.importBatchId : '',
+)
+const refreshing = ref(false)
+let refreshTimer: number | undefined
 const filters = reactive({
   search: '',
   status: '' as ImportStatus | '',
   sourceType: '' as ImportSourceType | '',
-  pol: '',
-  pod: '',
-  carrier: '',
-  containerType: '',
-  currency: '',
+  agentId: '',
+  carrierId: '',
+  polId: '',
+  poeId: '',
+  podId: '',
+  containerTypeId: '',
+  currencyId: '',
   quoteDate: '',
   validFrom: '',
   validTo: '',
@@ -67,6 +78,7 @@ const allSelected = computed(
 const columns: DhTableColumn<ImportRateDto>[] = [
   { key: 'selected', label: '', width: '48px', align: 'center' },
   { key: 'carrier', label: 'Naviera' },
+  { key: 'agent', label: 'Agente' },
   { key: 'route', label: 'Ruta' },
   { key: 'containerType', label: 'Contenedor' },
   { key: 'freight', label: 'Flete', align: 'right' },
@@ -106,20 +118,89 @@ function statusLabel(status: string) {
   )
 }
 
-async function load() {
+function sourceLabel(sourceType: string) {
+  return (
+    (
+      {
+        Email: 'Correo',
+        Pdf: 'PDF',
+        Excel: 'Excel',
+        Csv: 'CSV',
+        Image: 'Imagen',
+      } as Record<string, string>
+    )[sourceType] ?? sourceType
+  )
+}
+
+function catalogLabel(
+  items: typeof catalogs.carriers.value,
+  id?: string | null,
+  value?: string | null,
+  fallback = '—',
+) {
+  return catalogs.findBestMatch(items, id, value)?.name || value || fallback
+}
+
+function carrierLabel(row: ImportRateDto) {
+  return catalogLabel(catalogs.carriers.value, row.carrierId, row.carrier)
+}
+
+function agentLabel(row: ImportRateDto) {
+  return catalogLabel(catalogs.agents.value, row.agentId, row.agent, 'Por asignar')
+}
+
+function polLabel(row: ImportRateDto) {
+  return catalogLabel(catalogs.polPorts.value, row.polId, row.pol)
+}
+
+function poeLabel(row: ImportRateDto) {
+  return catalogLabel(catalogs.poePorts.value, row.poeId, row.poe, '')
+}
+
+function podLabel(row: ImportRateDto) {
+  return catalogLabel(catalogs.podPorts.value, row.podId, row.pod)
+}
+
+function routeLabel(row: ImportRateDto) {
+  return [polLabel(row), poeLabel(row), podLabel(row)].filter(Boolean).join(' → ')
+}
+
+function containerLabel(row: ImportRateDto) {
+  return catalogLabel(catalogs.containerTypes.value, row.containerTypeId, row.containerType)
+}
+
+function currencyName(row: ImportRateDto) {
+  return catalogLabel(catalogs.currencies.value, row.currencyId, row.currency, 'USD')
+}
+
+function filterValue(items: typeof catalogs.carriers.value, id: string) {
+  const item = catalogs.findById(items, id)
+  if (!item) return undefined
+
+  const values = [...new Set([item.code, item.name].map((value) => value.trim()).filter(Boolean))]
+  return values.join('|') || undefined
+}
+
+async function load(silent = false) {
+  if (loading.value || refreshing.value) return
+
   try {
-    loading.value = true
+    if (silent) refreshing.value = true
+    else loading.value = true
     const result = await PricingService.browseImportRates({
       pageNumber: page.value,
       pageSize: pageSize.value,
+      importBatchId: batchFilter.value || undefined,
       search: filters.search || undefined,
       status: filters.status || undefined,
       sourceType: filters.sourceType || undefined,
-      pol: filters.pol || undefined,
-      pod: filters.pod || undefined,
-      carrier: filters.carrier || undefined,
-      containerType: filters.containerType || undefined,
-      currency: filters.currency || undefined,
+      agent: filterValue(catalogs.agents.value, filters.agentId),
+      carrier: filterValue(catalogs.carriers.value, filters.carrierId),
+      pol: filterValue(catalogs.polPorts.value, filters.polId),
+      poe: filterValue(catalogs.poePorts.value, filters.poeId),
+      pod: filterValue(catalogs.podPorts.value, filters.podId),
+      containerType: filterValue(catalogs.containerTypes.value, filters.containerTypeId),
+      currency: filterValue(catalogs.currencies.value, filters.currencyId),
       quoteDate: filters.quoteDate || undefined,
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
@@ -128,9 +209,10 @@ async function load() {
     total.value = result.totalCount ?? result.items.length
     selectedIds.value = selectedIds.value.filter((id) => result.items.some((row) => row.id === id))
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron cargar las tarifas importadas.')
+    if (!silent) toastStore.backendError(error, 'No se pudieron cargar las tarifas importadas.')
   } finally {
     loading.value = false
+    refreshing.value = false
   }
 }
 
@@ -143,16 +225,33 @@ function clearFilters() {
     search: '',
     status: '',
     sourceType: '',
-    pol: '',
-    pod: '',
-    carrier: '',
-    containerType: '',
-    currency: '',
+    agentId: '',
+    carrierId: '',
+    polId: '',
+    poeId: '',
+    podId: '',
+    containerTypeId: '',
+    currencyId: '',
     quoteDate: '',
     validFrom: '',
     validTo: '',
   })
+  batchFilter.value = ''
+  if (route.query.importBatchId) {
+    const query = { ...route.query }
+    delete query.importBatchId
+    router.replace({ query })
+  }
   applyFilters()
+}
+
+function clearBatchFilter() {
+  batchFilter.value = ''
+  const query = { ...route.query }
+  delete query.importBatchId
+  router.replace({ query })
+  page.value = 1
+  load()
 }
 
 function toggleSelection(id: string) {
@@ -175,8 +274,8 @@ function openUpload() {
 }
 
 function openConvert(row: ImportRateDto) {
-  if (!canCreateRate.value || row.usedAsRateCount > 0 || row.status === 'Rejected') return
-  if (row.status === 'Pending' && !canApprove.value) {
+  if (!canCreateRate.value || row.status === 'Rejected') return
+  if (row.status !== 'Approved') {
     toastStore.warning(
       'Aprobación requerida',
       'Apruebe la importación antes de convertirla en tarifa.',
@@ -191,14 +290,28 @@ function openConvert(row: ImportRateDto) {
   })
 }
 
-async function approve(row: ImportRateDto) {
-  try {
-    await PricingService.approveImportRate(row.id)
-    toastStore.success('Importación aprobada')
-    await load()
-  } catch (error) {
-    toastStore.backendError(error, 'No se pudo aprobar la importación.')
-  }
+function openEmailInbox() {
+  router.push('/pricing/email-imports')
+}
+
+function openPreview(row: ImportRateDto) {
+  drawerStore.open({
+    title: 'Detalle de tarifa importada',
+    component: PricingImportPreviewDrawer,
+    size: 'xl',
+    props: {
+      importRate: row,
+      canApprove: canApprove.value,
+      canReject: canReject.value,
+      canCreateRate: canCreateRate.value,
+      onApproved: load,
+      onReject: (current: ImportRateDto) => {
+        drawerStore.close()
+        reject(current)
+      },
+      onCreateRate: openConvert,
+    },
+  })
 }
 
 function reject(row: ImportRateDto) {
@@ -232,7 +345,17 @@ function confirmDelete() {
   })
 }
 
-watch([page, pageSize], load)
+watch([page, pageSize], () => load())
+watch(
+  () => route.query.importBatchId,
+  (value) => {
+    const next = typeof value === 'string' ? value : ''
+    if (next === batchFilter.value) return
+    batchFilter.value = next
+    page.value = 1
+    load()
+  },
+)
 useViewShortcuts({
   create: () => {
     if (canUpload.value) openUpload()
@@ -243,6 +366,13 @@ useViewShortcuts({
 onMounted(async () => {
   await catalogs.loadAll()
   await load()
+  refreshTimer = window.setInterval(() => {
+    if (!document.hidden) load(true)
+  }, 30_000)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer)
 })
 </script>
 
@@ -253,12 +383,38 @@ onMounted(async () => {
       subtitle="Revise, apruebe y convierta los tarifarios extraídos en tarifas oficiales."
       :icon="Import"
     >
-      <template v-if="canUpload" #actions
-        ><DhButton label="Importar tarifario" :icon="FileSpreadsheet" @click="openUpload"
-      /></template>
+      <template #actions>
+        <DhButton
+          label="Correos de tarifas"
+          :icon="Mail"
+          variant="secondary"
+          @click="openEmailInbox"
+        />
+        <DhButton
+          v-if="canUpload"
+          label="Importar tarifario"
+          :icon="FileSpreadsheet"
+          @click="openUpload"
+        />
+      </template>
     </DhPageHeader>
 
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
+      <div
+        v-if="batchFilter"
+        class="mb-5 flex flex-col gap-3 rounded-[24px] border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div>
+          <p class="font-black text-emerald-700 dark:text-emerald-300">
+            Lote recibido desde correo
+          </p>
+          <p class="mt-1 break-all text-xs font-semibold text-[var(--dh-text-muted)]">
+            {{ batchFilter }}
+          </p>
+        </div>
+        <DhButton label="Ver todas" variant="secondary" size="sm" @click="clearBatchFilter" />
+      </div>
+
       <DhCrudToolbar
         v-model:search="filters.search"
         title="Bandeja de revisión"
@@ -294,51 +450,45 @@ onMounted(async () => {
             placeholder=""
           />
           <DhSelect
-            v-model="filters.carrier"
+            v-model="filters.agentId"
+            label="Agente"
+            :options="[{ label: 'Todos', value: '' }, ...catalogs.agentOptions.value]"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="filters.carrierId"
             label="Naviera"
-            :options="[
-              { label: 'Todas', value: '' },
-              ...catalogs.carriers.value.map((item) => ({ label: item.name, value: item.code })),
-            ]"
+            :options="[{ label: 'Todas', value: '' }, ...catalogs.carrierOptions.value]"
             placeholder=""
           />
           <DhSelect
-            v-model="filters.containerType"
+            v-model="filters.containerTypeId"
             label="Contenedor"
-            :options="[
-              { label: 'Todos', value: '' },
-              ...catalogs.containerTypes.value.map((item) => ({
-                label: item.name,
-                value: item.code,
-              })),
-            ]"
+            :options="[{ label: 'Todos', value: '' }, ...catalogs.containerOptions.value]"
             placeholder=""
           />
           <DhSelect
-            v-model="filters.pol"
+            v-model="filters.polId"
             label="POL"
-            :options="[
-              { label: 'Todos', value: '' },
-              ...catalogs.polPorts.value.map((item) => ({ label: item.name, value: item.code })),
-            ]"
+            :options="[{ label: 'Todos', value: '' }, ...catalogs.polOptions.value]"
             placeholder=""
           />
           <DhSelect
-            v-model="filters.pod"
+            v-model="filters.poeId"
+            label="POE"
+            :options="[{ label: 'Todos', value: '' }, ...catalogs.poeOptions.value]"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="filters.podId"
             label="POD"
-            :options="[
-              { label: 'Todos', value: '' },
-              ...catalogs.podPorts.value.map((item) => ({ label: item.name, value: item.code })),
-            ]"
+            :options="[{ label: 'Todos', value: '' }, ...catalogs.podOptions.value]"
             placeholder=""
           />
           <DhSelect
-            v-model="filters.currency"
+            v-model="filters.currencyId"
             label="Moneda"
-            :options="[
-              { label: 'Todas', value: '' },
-              ...catalogs.currencies.value.map((item) => ({ label: item.name, value: item.code })),
-            ]"
+            :options="[{ label: 'Todas', value: '' }, ...catalogs.currencyOptions.value]"
             placeholder=""
           />
           <DhInput v-model="filters.quoteDate" type="date" label="Fecha de cotización" />
@@ -377,7 +527,7 @@ onMounted(async () => {
           :rows="rows"
           :loading="loading"
           empty-text="No hay tarifas importadas que coincidan con los filtros."
-          @row-click="openConvert"
+          @row-click="openPreview"
         >
           <template #cell-selected="{ row }"
             ><div class="flex justify-center" @click.stop>
@@ -388,18 +538,30 @@ onMounted(async () => {
           ></template>
           <template #cell-carrier="{ row }"
             ><div>
-              <p class="font-black text-[var(--dh-text)]">{{ row.carrier }}</p>
-              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ row.sourceType }}</p>
+              <p class="font-black text-[var(--dh-text)]">{{ carrierLabel(row) }}</p>
+              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ sourceLabel(row.sourceType) }}
+              </p>
             </div></template
           >
+          <template #cell-agent="{ row }">
+            <span
+              class="font-bold"
+              :class="agentLabel(row) === 'Por asignar' ? 'text-amber-600 dark:text-amber-400' : ''"
+            >
+              {{ agentLabel(row) }}
+            </span>
+          </template>
           <template #cell-route="{ row }"
-            ><p class="font-black">{{ row.pol }} → {{ row.pod }}</p></template
+            ><p class="whitespace-nowrap font-black">{{ routeLabel(row) }}</p></template
           >
           <template #cell-containerType="{ row }"
-            ><DhBadge :label="row.containerType" variant="neutral"
+            ><DhBadge :label="containerLabel(row)" variant="neutral"
           /></template>
           <template #cell-freight="{ row }"
-            ><span class="font-black">{{ formatMoney(row.freight, row.currency) }}</span></template
+            ><span class="font-black">{{
+              formatMoney(row.freight, currencyName(row))
+            }}</span></template
           >
           <template #cell-freeDays="{ row }"
             ><span class="font-black">{{ row.freeDays }}</span></template
@@ -415,8 +577,10 @@ onMounted(async () => {
           /></template>
           <template #cell-usedAsRateCount="{ row }"
             ><DhBadge
-              :label="row.usedAsRateCount ? `Convertida · ${row.usedAsRateCount}` : 'Disponible'"
-              :variant="row.usedAsRateCount ? 'neutral' : 'success'"
+              :label="
+                row.usedAsRateCount ? `Disponible · ${row.usedAsRateCount} usos` : 'Disponible'
+              "
+              variant="success"
           /></template>
           <template #cell-actions="{ row }"
             ><div class="flex justify-end gap-1">
@@ -424,10 +588,10 @@ onMounted(async () => {
                 v-if="canApprove && row.status === 'Pending'"
                 type="button"
                 class="rounded-2xl p-2 text-emerald-600 hover:bg-emerald-500/10"
-                title="Aprobar"
-                @click.stop="approve(row)"
+                title="Revisar antes de aprobar"
+                @click.stop="openPreview(row)"
               >
-                <Check class="h-4 w-4" /></button
+                <Eye class="h-4 w-4" /></button
               ><button
                 v-if="canReject && row.status === 'Pending'"
                 type="button"
@@ -437,7 +601,7 @@ onMounted(async () => {
               >
                 <X class="h-4 w-4" /></button
               ><button
-                v-if="canCreateRate && row.status !== 'Rejected' && row.usedAsRateCount === 0"
+                v-if="canCreateRate && row.status === 'Approved'"
                 type="button"
                 class="rounded-2xl p-2 text-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.1)]"
                 title="Crear tarifa"
