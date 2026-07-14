@@ -485,10 +485,20 @@ export const PricingEndpoints = {
     path: '/api/pricing/import-rates/extract',
     headers: acceptJson,
   },
+  approveImportRates: {
+    method: 'POST',
+    path: '/api/pricing/import-rates/approve',
+    headers: jsonHeaders,
+  },
   approveImportRate: {
     method: 'POST',
     path: '/api/pricing/import-rates/{{importRateId}}/approve',
     headers: acceptJson,
+  },
+  rejectImportRates: {
+    method: 'POST',
+    path: '/api/pricing/import-rates/reject',
+    headers: jsonHeaders,
   },
   rejectImportRate: {
     method: 'POST',

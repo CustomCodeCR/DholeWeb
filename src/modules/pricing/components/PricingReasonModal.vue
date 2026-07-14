@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import { AlertTriangle } from 'lucide-vue-next'
 import { DhButton, DhTextarea } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
@@ -8,13 +8,16 @@ import { useToastStore } from '@/core/stores/toastStore'
 
 const props = defineProps<{
   target: 'import' | 'margin'
-  id: string
+  id?: string
+  ids?: string[]
   onSaved?: () => void | Promise<void>
 }>()
 
 const modalStore = useModalStore()
 const toastStore = useToastStore()
 const form = reactive({ reason: '', submitted: false, saving: false })
+const importIds = computed(() => [...new Set((props.ids ?? []).filter(Boolean))])
+const isBatchImport = computed(() => props.target === 'import' && importIds.value.length > 0)
 
 async function submit() {
   form.submitted = true
@@ -22,10 +25,28 @@ async function submit() {
 
   try {
     form.saving = true
-    if (props.target === 'import')
-      await PricingService.rejectImportRate(props.id, { reason: form.reason.trim() })
-    else await PricingService.rejectRateMargin(props.id, { reason: form.reason.trim() })
-    toastStore.success(props.target === 'import' ? 'Importación rechazada' : 'Margen rechazado')
+
+    if (props.target === 'import') {
+      if (isBatchImport.value) {
+        await PricingService.rejectImportRates(importIds.value, { reason: form.reason.trim() })
+      } else if (props.id) {
+        await PricingService.rejectImportRate(props.id, { reason: form.reason.trim() })
+      } else {
+        throw new Error('No se indicó ninguna tarifa importada para rechazar.')
+      }
+    } else if (props.id) {
+      await PricingService.rejectRateMargin(props.id, { reason: form.reason.trim() })
+    } else {
+      throw new Error('No se indicó la aprobación de margen que se desea rechazar.')
+    }
+
+    toastStore.success(
+      props.target === 'import'
+        ? isBatchImport.value
+          ? `${importIds.value.length} importaciones rechazadas`
+          : 'Importación rechazada'
+        : 'Margen rechazado',
+    )
     modalStore.close()
     await props.onSaved?.()
   } catch (error) {
@@ -42,10 +63,15 @@ async function submit() {
       class="flex items-start gap-3 rounded-[22px] bg-amber-500/10 p-4 text-amber-800 dark:text-amber-200"
     >
       <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0" />
-      <p class="text-sm font-semibold">
-        Indique un motivo claro. Esta información queda disponible para auditoría y seguimiento
-        operativo.
-      </p>
+      <div>
+        <p class="text-sm font-semibold">
+          Indique un motivo claro. Esta información queda disponible para auditoría y seguimiento
+          operativo.
+        </p>
+        <p v-if="isBatchImport" class="mt-2 text-xs font-black">
+          Se rechazarán {{ importIds.length }} tarifas importadas en una sola operación.
+        </p>
+      </div>
     </div>
     <DhTextarea
       v-model="form.reason"

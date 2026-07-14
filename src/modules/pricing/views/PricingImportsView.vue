@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Eye, FileSpreadsheet, Import, Mail, Ship, Trash2, X } from 'lucide-vue-next'
+import { Check, Eye, FileSpreadsheet, Import, Mail, Ship, Trash2, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import {
   DhCrudToolbar,
@@ -45,6 +45,8 @@ const batchFilter = ref(
   typeof route.query.importBatchId === 'string' ? route.query.importBatchId : '',
 )
 const refreshing = ref(false)
+const bulkApproving = ref(false)
+const processingId = ref<string | null>(null)
 let refreshTimer: number | undefined
 const filters = reactive({
   search: '',
@@ -74,6 +76,10 @@ const canCreateRate = computed(
 const allSelected = computed(
   () => rows.value.length > 0 && rows.value.every((row) => selectedIds.value.includes(row.id)),
 )
+const selectedRows = computed(() => rows.value.filter((row) => selectedIds.value.includes(row.id)))
+const selectedPendingIds = computed(() =>
+  selectedRows.value.filter((row) => row.status === 'Pending').map((row) => row.id),
+)
 
 const columns: DhTableColumn<ImportRateDto>[] = [
   { key: 'selected', label: '', width: '48px', align: 'center' },
@@ -86,7 +92,7 @@ const columns: DhTableColumn<ImportRateDto>[] = [
   { key: 'validity', label: 'Vigencia' },
   { key: 'status', label: 'Estado', align: 'center' },
   { key: 'usedAsRateCount', label: 'Uso', align: 'center' },
-  { key: 'actions', label: '', align: 'right', width: '150px' },
+  { key: 'actions', label: '', align: 'right', width: '190px' },
 ]
 
 const statusOptions = [
@@ -264,6 +270,62 @@ function toggleAll() {
   selectedIds.value = allSelected.value ? [] : rows.value.map((row) => row.id)
 }
 
+function clearSelection() {
+  selectedIds.value = []
+}
+
+async function approveOne(row: ImportRateDto) {
+  if (!canApprove.value || row.status !== 'Pending' || processingId.value) return
+
+  try {
+    processingId.value = row.id
+    await PricingService.approveImportRate(row.id)
+    toastStore.success('Importación aprobada')
+    await load()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo aprobar la importación.')
+  } finally {
+    processingId.value = null
+  }
+}
+
+async function approveSelected() {
+  const ids = [...selectedPendingIds.value]
+  if (!canApprove.value || !ids.length || bulkApproving.value) return
+
+  try {
+    bulkApproving.value = true
+    await PricingService.approveImportRates(ids)
+    toastStore.success(
+      `${ids.length} importación${ids.length === 1 ? '' : 'es'} aprobada${ids.length === 1 ? '' : 's'}`,
+    )
+    clearSelection()
+    await load()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron aprobar las importaciones seleccionadas.')
+  } finally {
+    bulkApproving.value = false
+  }
+}
+
+function rejectSelected() {
+  const ids = [...selectedPendingIds.value]
+  if (!canReject.value || !ids.length) return
+
+  modalStore.open({
+    title: 'Rechazar importaciones',
+    component: PricingReasonModal,
+    props: {
+      target: 'import',
+      ids,
+      onSaved: async () => {
+        clearSelection()
+        await load()
+      },
+    },
+  })
+}
+
 function openUpload() {
   drawerStore.open({
     title: 'Importar tarifario',
@@ -315,6 +377,8 @@ function openPreview(row: ImportRateDto) {
 }
 
 function reject(row: ImportRateDto) {
+  if (!canReject.value || row.status !== 'Pending') return
+
   modalStore.open({
     title: 'Rechazar importación',
     component: PricingReasonModal,
@@ -505,20 +569,66 @@ onBeforeUnmount(() => {
       </div>
 
       <div
-        v-if="selectedIds.length"
-        class="mt-5 flex items-center justify-between rounded-[22px] dh-bg-primary-soft px-4 py-3"
+        v-if="rows.length"
+        class="mt-5 flex flex-col gap-3 rounded-[22px] border border-[var(--dh-border)] bg-black/[0.02] px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:bg-white/[0.03]"
       >
-        <p class="text-sm font-black text-[var(--dh-primary)]">
-          {{ selectedIds.length }} seleccionada{{ selectedIds.length === 1 ? '' : 's' }}
-        </p>
-        <DhButton
-          v-if="canDelete"
-          label="Eliminar seleccionadas"
-          :icon="Trash2"
-          variant="danger"
-          size="sm"
-          @click="confirmDelete"
+        <DhCheckbox
+          :model-value="allSelected"
+          label="Seleccionar todo"
+          description="Selecciona todos los registros visibles en esta página."
+          @update:model-value="toggleAll"
         />
+        <DhButton
+          v-if="selectedIds.length"
+          label="Limpiar selección"
+          variant="ghost"
+          size="sm"
+          @click="clearSelection"
+        />
+      </div>
+
+      <div
+        v-if="selectedIds.length"
+        class="mt-3 flex flex-col gap-3 rounded-[22px] dh-bg-primary-soft px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <div>
+          <p class="text-sm font-black text-[var(--dh-primary)]">
+            {{ selectedIds.length }} seleccionada{{ selectedIds.length === 1 ? '' : 's' }}
+          </p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            {{ selectedPendingIds.length }} pendiente{{
+              selectedPendingIds.length === 1 ? '' : 's'
+            }}
+            disponible{{ selectedPendingIds.length === 1 ? '' : 's' }} para aprobar o rechazar en
+            batch.
+          </p>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2">
+          <DhButton
+            v-if="canApprove && selectedPendingIds.length"
+            :label="`Aprobar (${selectedPendingIds.length})`"
+            :icon="Check"
+            size="sm"
+            :loading="bulkApproving"
+            @click="approveSelected"
+          />
+          <DhButton
+            v-if="canReject && selectedPendingIds.length"
+            :label="`Rechazar (${selectedPendingIds.length})`"
+            :icon="X"
+            variant="danger"
+            size="sm"
+            @click="rejectSelected"
+          />
+          <DhButton
+            v-if="canDelete"
+            label="Eliminar seleccionadas"
+            :icon="Trash2"
+            variant="danger"
+            size="sm"
+            @click="confirmDelete"
+          />
+        </div>
       </div>
 
       <div class="mt-5">
@@ -585,18 +695,27 @@ onBeforeUnmount(() => {
           <template #cell-actions="{ row }"
             ><div class="flex justify-end gap-1">
               <button
-                v-if="canApprove && row.status === 'Pending'"
                 type="button"
-                class="rounded-2xl p-2 text-emerald-600 hover:bg-emerald-500/10"
-                title="Revisar antes de aprobar"
+                class="rounded-2xl p-2 text-[var(--dh-text-soft)] hover:bg-black/5 dark:hover:bg-white/10"
+                title="Ver detalle"
                 @click.stop="openPreview(row)"
               >
                 <Eye class="h-4 w-4" /></button
               ><button
+                v-if="canApprove && row.status === 'Pending'"
+                type="button"
+                :disabled="processingId === row.id"
+                class="rounded-2xl p-2 text-emerald-600 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Aprobar directamente"
+                @click.stop="approveOne(row)"
+              >
+                <Check class="h-4 w-4" /></button
+              ><button
                 v-if="canReject && row.status === 'Pending'"
                 type="button"
-                class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10"
-                title="Rechazar"
+                :disabled="processingId === row.id"
+                class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Rechazar directamente"
                 @click.stop="reject(row)"
               >
                 <X class="h-4 w-4" /></button

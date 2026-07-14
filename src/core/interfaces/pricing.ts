@@ -168,8 +168,16 @@ export interface CreateImportRateRequest extends Record<string, unknown> {
   rawDataJson?: string | null
 }
 
+export interface ImportRateBatchRequest extends Record<string, unknown> {
+  ids: string[]
+}
+
 export interface RejectImportRateRequest extends Record<string, unknown> {
   reason: string
+}
+
+export interface RejectImportRateBatchRequest extends RejectImportRateRequest {
+  ids: string[]
 }
 
 export interface ExtractImportRatesIssueDto extends Record<string, unknown> {

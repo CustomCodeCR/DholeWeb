@@ -15,10 +15,12 @@ import type {
   DeleteBatchRequest,
   DuplicateRateRequest,
   ExtractImportRatesResultDto,
+  ImportRateBatchRequest,
   ImportRateDto,
   ImportRateSelectDto,
   ImportStatus,
   RateDto,
+  RejectImportRateBatchRequest,
   RejectImportRateRequest,
   RejectRateMarginRequest,
   SetCostActiveRequest,
@@ -159,8 +161,20 @@ export const PricingService = {
     return unwrapApiResponse<ExtractImportRatesResultDto>(response as never)
   },
 
+  approveImportRates(ids: string[]): Promise<NoContent> {
+    return callEndpoint<NoContent, ImportRateBatchRequest>(Endpoints.approveImportRates, {
+      body: { ids },
+    })
+  },
+
   approveImportRate(importRateId: string): Promise<NoContent> {
     return callEndpoint<NoContent>(Endpoints.approveImportRate, { params: { importRateId } })
+  },
+
+  rejectImportRates(ids: string[], payload: RejectImportRateRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, RejectImportRateBatchRequest>(Endpoints.rejectImportRates, {
+      body: { ids, reason: payload.reason },
+    })
   },
 
   rejectImportRate(importRateId: string, payload: RejectImportRateRequest): Promise<NoContent> {
