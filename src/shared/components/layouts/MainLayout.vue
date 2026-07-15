@@ -144,6 +144,28 @@ const pricingChildren = computed<SidebarItem[]>(() => {
   return children
 })
 
+const monitoringChildren = computed<SidebarItem[]>(() => {
+  const children: SidebarItem[] = []
+
+  if (canView(VIEW_SCOPES.auditLogs)) {
+    children.push({
+      label: t('sidebar.audits'),
+      path: '/auditlogs/events',
+      icon: ClipboardList,
+    })
+  }
+
+  if (isSuperUser()) {
+    children.push({
+      label: t('sidebar.serviceMonitoring'),
+      path: '/monitoring/services',
+      icon: ServerCog,
+    })
+  }
+
+  return children
+})
+
 const sidebarItems = computed<SidebarItem[]>(() => {
   const items: SidebarItem[] = [
     {
@@ -165,12 +187,12 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     items.push({ label: t('sidebar.pricing'), icon: TrendingUp, children: pricingChildren.value })
   }
 
-  if (canView(VIEW_SCOPES.auditLogs)) {
-    items.push({ label: t('sidebar.audits'), path: '/auditlogs/events', icon: ClipboardList })
-  }
-
-  if (isSuperUser()) {
-    items.push({ label: t('sidebar.monitoring'), path: '/monitoring/services', icon: ServerCog })
+  if (monitoringChildren.value.length > 0) {
+    items.push({
+      label: t('sidebar.monitoring'),
+      icon: ServerCog,
+      children: monitoringChildren.value,
+    })
   }
 
   items.push({

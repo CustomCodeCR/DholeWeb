@@ -147,18 +147,25 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         ],
       },
       {
-        labelKey: 'sidebar.audits',
-        icon: ClipboardList,
-        to: '/auditlogs/events',
-        name: 'audits',
-        requiredScope: VIEW_SCOPES.auditLogs,
-      },
-      {
         labelKey: 'sidebar.monitoring',
         icon: MonitorCog,
-        to: '/monitoring/services',
-        name: 'monitoring-services',
-        requiredRole: 'SuperUsuario',
+        name: 'monitoring',
+        children: [
+          {
+            labelKey: 'sidebar.audits',
+            icon: ClipboardList,
+            to: '/auditlogs/events',
+            name: 'audits',
+            requiredScope: VIEW_SCOPES.auditLogs,
+          },
+          {
+            labelKey: 'sidebar.serviceMonitoring',
+            icon: MonitorCog,
+            to: '/monitoring/services',
+            name: 'monitoring-services',
+            requiredRole: 'SuperUsuario',
+          },
+        ],
       },
       {
         labelKey: 'sidebar.settings',

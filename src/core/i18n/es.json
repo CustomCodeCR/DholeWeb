@@ -88,7 +88,8 @@
     "costs": "Costos",
     "importedRates": "Tarifas importadas",
     "emailImports": "Correos de tarifas",
-    "rates": "Tarifas oficiales"
+    "rates": "Tarifas oficiales",
+    "serviceMonitoring": "Estado de servicios"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",

@@ -37,7 +37,7 @@ const { t } = useI18n()
           <div
             class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-[var(--dh-primary)] text-lg font-black text-white shadow-[var(--dh-glow)]"
           >
-            D
+            GCF
           </div>
 
           <div v-if="!collapsed" class="min-w-0">
@@ -60,7 +60,9 @@ const { t } = useI18n()
         </button>
       </div>
 
-      <nav class="dh-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pr-2">
+      <nav
+        class="dh-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pr-2"
+      >
         <template v-for="item in items" :key="item.label">
           <div v-if="item.children" class="space-y-1.5">
             <div
