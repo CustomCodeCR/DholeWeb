@@ -19,6 +19,8 @@ import type {
   ImportRateDto,
   ImportRateSelectDto,
   ImportStatus,
+  PricingDecisionDashboardDto,
+  PricingDecisionDashboardQuery,
   RateDto,
   RejectImportRateBatchRequest,
   RejectImportRateRequest,
@@ -103,6 +105,17 @@ export const PricingService = {
 
   deleteCost(costId: string): Promise<NoContent> {
     return callEndpoint<NoContent>(Endpoints.deleteCost, { params: { costId } })
+  },
+
+  async getDecisionDashboard(
+    query?: PricingDecisionDashboardQuery,
+  ): Promise<PricingDecisionDashboardDto> {
+    const response = await callEndpoint<unknown>({
+      ...Endpoints.getPricingDecisionDashboard,
+      path: withQuery(Endpoints.getPricingDecisionDashboard.path, query),
+    })
+
+    return unwrapApiResponse<PricingDecisionDashboardDto>(response as never)
   },
 
   async browseImportRates(query?: BrowseImportRatesQuery): Promise<PagedResponse<ImportRateDto>> {

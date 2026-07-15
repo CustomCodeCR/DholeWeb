@@ -133,6 +133,41 @@ export interface ImportRateDto extends Record<string, unknown> {
 
 export type ImportRateSelectDto = ImportRateDto
 
+export interface PricingDecisionRateDto extends Record<string, unknown> {
+  importRateId: string
+  importBatchId: string
+  carrier: string
+  internationalOceanFreight: number
+  internationalLandFreight?: number | null
+  currency: string
+  containerType: string
+  pol: string
+  poe: string
+  validFrom: string
+  validTo: string
+}
+
+export interface PricingDecisionLaneDto extends Record<string, unknown> {
+  key: 'limon-moin' | 'puerto-caldera' | 'multimodal'
+  name: string
+  description: string
+  totalOptions: number
+  rates: PricingDecisionRateDto[]
+}
+
+export interface PricingDecisionDashboardDto extends Record<string, unknown> {
+  dateFrom?: string | null
+  dateTo?: string | null
+  multimodalInternationalLandFreight: number
+  totalOptions: number
+  lanes: PricingDecisionLaneDto[]
+}
+
+export interface PricingDecisionDashboardQuery extends Record<string, unknown> {
+  dateFrom?: string | null
+  dateTo?: string | null
+}
+
 export interface CatalogSnapshotRequest extends Record<string, unknown> {
   id: string
   name: string

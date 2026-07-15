@@ -43,11 +43,13 @@ interface EditableDetail {
   locked: boolean
   importedFreight?: boolean
   estimated?: boolean
+  fixedDecisionCost?: boolean
 }
 
 const props = defineProps<{
   rate?: RateDto
   sourceImport?: ImportRateDto
+  decisionInternationalLandFreight?: number | null
   onSaved?: (rateId?: string) => void | Promise<void>
 }>()
 
@@ -207,7 +209,7 @@ function addManualDetail(type: CostDetailType = 'Other') {
 }
 
 function removeDetail(detail: EditableDetail) {
-  if (detail.locked) return
+  if (detail.locked || detail.fixedDecisionCost) return
   if (detail.id) removedDetailIds.value.push(detail.id)
   if (detail.costId)
     optionalCostIds.value = optionalCostIds.value.filter((id) => id !== detail.costId)
@@ -352,7 +354,7 @@ watch(
     const currency = selectedCurrency.value
     if (!currency) return
     for (const detail of details.value) {
-      if (!detail.costId && !detail.locked) {
+      if (!detail.costId && !detail.locked && !detail.fixedDecisionCost) {
         detail.currencyId = currency.id
         detail.currencyName = currency.name
         detail.currencyCode = currency.code
@@ -674,7 +676,7 @@ async function initialize() {
     form.containerTypeId = container?.id ?? ''
     form.currencyId =
       currency?.id ?? catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ?? ''
-    details.value = [
+    const importedDetails: EditableDetail[] = [
       {
         key: `import-freight-${props.sourceImport.id}`,
         name: 'Flete internacional',
@@ -690,6 +692,27 @@ async function initialize() {
         importedFreight: true,
       },
     ]
+
+    if ((props.decisionInternationalLandFreight ?? 0) > 0) {
+      const usdCurrency =
+        catalogs.findByCode(catalogs.currencies.value, 'USD') ?? selectedCurrency.value
+      importedDetails.push({
+        key: `decision-land-freight-${props.sourceImport.id}`,
+        name: 'Flete terrestre internacional',
+        costDetailType: 'InlandTransport',
+        costType: 'Variable',
+        currencyId: usdCurrency?.id ?? form.currencyId,
+        currencyName: usdCurrency?.name ?? 'USD',
+        currencyCode: usdCurrency?.code ?? 'USD',
+        costAmount: String(props.decisionInternationalLandFreight),
+        saleAmount: String(props.decisionInternationalLandFreight),
+        notes: 'Valor fijo aplicado por selección de vía multimodal desde el dashboard.',
+        locked: false,
+        fixedDecisionCost: true,
+      })
+    }
+
+    details.value = importedDetails
   } else {
     form.agentId =
       catalogs.findByCode(catalogs.agents.value, 'WWL')?.id ??
@@ -716,6 +739,10 @@ onMounted(initialize)
         <p class="mt-1 text-sm font-semibold opacity-80">
           {{ sourceImport.carrier }} · {{ sourceImport.pol }} → {{ sourceImport.pod }} ·
           {{ sourceImport.containerType }}. Puede definir la venta del flete antes de guardar.
+          <span v-if="decisionInternationalLandFreight">
+            La vía multimodal ya incluye el costo terrestre fijo de
+            {{ formatMoney(decisionInternationalLandFreight, 'USD') }}.
+          </span>
         </p>
       </div>
     </section>
@@ -878,7 +905,7 @@ onMounted(initialize)
                     v-model="detail.name"
                     label="Concepto"
                     placeholder="Nombre del rubro"
-                    :disabled="detail.locked || Boolean(detail.costId)"
+                    :disabled="detail.locked || Boolean(detail.costId) || detail.fixedDecisionCost"
                   />
                   <div class="mt-2 flex flex-wrap gap-1.5">
                     <DhBadge
@@ -894,20 +921,25 @@ onMounted(initialize)
                     <DhBadge v-if="detail.locked" label="Automático" variant="neutral"
                       ><LockKeyhole class="mr-1 h-3 w-3" /> Automático</DhBadge
                     >
+                    <DhBadge
+                      v-if="detail.fixedDecisionCost"
+                      label="Valor fijo del dashboard"
+                      variant="primary"
+                    />
                   </div>
                 </div>
                 <DhSelect
                   v-model="detail.costDetailType"
                   label="Rubro"
                   :options="detailTypeOptions"
-                  :disabled="detail.locked || Boolean(detail.costId)"
+                  :disabled="detail.locked || Boolean(detail.costId) || detail.fixedDecisionCost"
                 />
                 <DhInput
                   v-model="detail.costAmount"
                   type="number"
                   label="Costo"
                   placeholder="0.00"
-                  :disabled="detail.importedFreight || detail.estimated"
+                  :disabled="detail.importedFreight || detail.estimated || detail.fixedDecisionCost"
                 />
                 <DhInput
                   v-model="detail.saleAmount"
@@ -917,7 +949,7 @@ onMounted(initialize)
                   :disabled="detail.costDetailType === 'AgentCharge' || detail.estimated"
                 />
                 <button
-                  v-if="!detail.locked && !detail.importedFreight"
+                  v-if="!detail.locked && !detail.importedFreight && !detail.fixedDecisionCost"
                   type="button"
                   class="mt-6 rounded-2xl p-2.5 text-red-500 transition hover:bg-red-500/10"
                   title="Quitar rubro"
@@ -927,7 +959,7 @@ onMounted(initialize)
                 </button>
               </div>
               <div
-                v-if="!detail.costId && !detail.locked"
+                v-if="!detail.costId && !detail.locked && !detail.fixedDecisionCost"
                 class="mt-3 grid gap-3 md:grid-cols-[180px_1fr]"
               >
                 <DhSelect

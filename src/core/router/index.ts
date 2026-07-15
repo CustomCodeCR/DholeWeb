@@ -161,7 +161,7 @@ export const router = createRouter({
           meta: {
             tabTitle: 'Pricing panel',
             closable: true,
-            requiredScope: VIEW_SCOPES.pricingRates,
+            requiredScope: VIEW_SCOPES.pricingDecisions,
           },
         },
         {

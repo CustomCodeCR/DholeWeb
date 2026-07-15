@@ -469,6 +469,11 @@ export const PricingEndpoints = {
   deleteCost: { method: 'DELETE', path: '/api/pricing/costs/{{costId}}', headers: acceptJson },
 
   browseImportRates: { method: 'GET', path: '/api/pricing/import-rates', headers: acceptJson },
+  getPricingDecisionDashboard: {
+    method: 'GET',
+    path: '/api/pricing/import-rates/decision-dashboard',
+    headers: acceptJson,
+  },
   selectImportRates: {
     method: 'GET',
     path: '/api/pricing/import-rates/select',
