@@ -264,6 +264,7 @@ export interface RateDetailDto extends Record<string, unknown> {
   costAmount: number
   saleAmount: number
   utilityAmount: number
+  quantity: number
   notes?: string | null
 }
 

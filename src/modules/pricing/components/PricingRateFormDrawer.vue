@@ -40,6 +40,7 @@ interface EditableDetail {
   costAmount: string
   saleAmount: string
   notes: string
+  isAccountant: boolean
   locked: boolean
   importedFreight?: boolean
   estimated?: boolean
@@ -62,6 +63,8 @@ const details = ref<EditableDetail[]>([])
 const optionalCostIds = ref<string[]>([])
 const removedDetailIds = ref<string[]>([])
 const initialized = ref(false)
+const canEditImportedAgent = ref(false)
+const canEditImportedPod = ref(false)
 
 const today = new Date()
 const nextMonth = new Date(today)
@@ -93,8 +96,12 @@ const form = reactive({
 })
 
 const isEditing = computed(() => Boolean(props.rate))
-const isFromImport = computed(() => Boolean(props.sourceImport || props.rate?.sourceImportFclRateId))
-const isHeaderLocked = isFromImport
+const isCreatingFromImport = computed(() => Boolean(props.sourceImport && !props.rate))
+const isHeaderLocked = computed(() => isCreatingFromImport.value)
+const isAgentLocked = computed(
+  () => isCreatingFromImport.value && !canEditImportedAgent.value,
+)
+const isPodLocked = computed(() => isCreatingFromImport.value && !canEditImportedPod.value)
 const canAutoApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
 const selectedCurrency = computed(() =>
   catalogs.findById(catalogs.currencies.value, form.currencyId),
@@ -106,6 +113,27 @@ const currencyName = computed(
     props.sourceImport?.currency ||
     'USD',
 )
+
+const missingSelectableImportedFields = computed(() => {
+  if (!isCreatingFromImport.value) return []
+
+  return [
+    canEditImportedAgent.value && !form.agentId ? 'Agente' : '',
+    canEditImportedPod.value && !form.podId ? 'POD' : '',
+  ].filter(Boolean)
+})
+
+const unresolvedLockedImportedFields = computed(() => {
+  if (!isCreatingFromImport.value) return []
+
+  return [
+    !form.carrierId ? 'Naviera' : '',
+    !form.polId ? 'POL' : '',
+    !form.poeId ? 'POE' : '',
+    !form.containerTypeId ? 'Contenedor' : '',
+    !form.currencyId ? 'Moneda' : '',
+  ].filter(Boolean)
+})
 
 const detailTypeOptions: Array<{ label: string; value: CostDetailType }> = [
   { label: 'Flete internacional', value: 'Freight' },
@@ -124,6 +152,14 @@ const editableTypeOptions = [
   { label: 'Variable', value: 'Variable' },
   { label: 'Opcional', value: 'Optional' },
 ]
+
+function isFreightPerContainer(costDetailType: CostDetailType) {
+  return costDetailType === 'Freight' || costDetailType === 'InlandTransport'
+}
+
+function isDetailPerContainer(detail: EditableDetail) {
+  return detail.isAccountant || isFreightPerContainer(detail.costDetailType)
+}
 
 function normalizeKey(value: string) {
   return value
@@ -166,6 +202,47 @@ function readRawValues(raw: string, keys: string[]) {
   }
 }
 
+function cleanFreightNotes(value?: string | null) {
+  const notes = value?.trim() ?? ''
+  if (!notes) return ''
+
+  if (notes.startsWith('{') || notes.startsWith('[')) {
+    try {
+      JSON.parse(notes)
+      return ''
+    } catch {
+      // It is ordinary text that happens to start with a bracket.
+    }
+  }
+
+  return notes
+}
+
+function isPendingImportedValue(value?: string | number | null) {
+  const normalized = normalizeKey(String(value ?? ''))
+  return !normalized || ['pending', 'porasignar', 'sinasignar', 'nodefinido'].includes(normalized)
+}
+
+function resolveImportedCatalogItem(
+  items: typeof catalogs.carriers.value,
+  id: string | null | undefined,
+  primaryValues: Array<string | number | null | undefined>,
+  rawValues: Array<string | number | null | undefined> = [],
+) {
+  const byId = catalogs.findById(items, id)
+  if (byId) return byId
+
+  // Los valores normalizados de la importación tienen prioridad sobre RawDataJson.
+  // Así, por ejemplo, "China Base Ports" no termina reemplazado por "Ningbo"
+  // solo porque el JSON original contiene ambos textos.
+  const primary = primaryValues.filter((value) => !isPendingImportedValue(value))
+  const primaryMatch = catalogs.findBestMatch(items, null, ...primary)
+  if (primaryMatch) return primaryMatch
+
+  const raw = rawValues.filter((value) => !isPendingImportedValue(value))
+  return catalogs.findBestMatch(items, null, ...raw)
+}
+
 function fromRateDetail(detail: RateDetailDto): EditableDetail {
   const masterCost = detail.costId
     ? availableCosts.value.find((cost) => cost.id === detail.costId)
@@ -183,7 +260,13 @@ function fromRateDetail(detail: RateDetailDto): EditableDetail {
     currencyCode: detail.currencyCode,
     costAmount: String(detail.costAmount),
     saleAmount: String(detail.saleAmount),
-    notes: detail.notes?.trim() || masterCost?.notes?.trim() || '',
+    notes:
+      detail.costDetailType === 'Freight'
+        ? cleanFreightNotes(detail.notes)
+        : detail.notes?.trim() || masterCost?.notes?.trim() || '',
+    isAccountant:
+      isFreightPerContainer(detail.costDetailType) ||
+      (masterCost?.isAccountant ?? detail.quantity > 1),
     locked: detail.costType === 'Fixed' && Boolean(detail.costId),
   }
 }
@@ -201,6 +284,7 @@ function fromCost(cost: CostSelectDto): EditableDetail {
     costAmount: String(cost.costAmount),
     saleAmount: String(cost.agentId ? 0 : cost.saleAmount),
     notes: cost.notes ?? '',
+    isAccountant: cost.isAccountant || isFreightPerContainer(cost.costDetailType),
     locked: false,
   }
 }
@@ -217,6 +301,7 @@ function addManualDetail(type: CostDetailType = 'Other') {
     costAmount: '',
     saleAmount: '',
     notes: '',
+    isAccountant: isFreightPerContainer(type),
     locked: false,
   })
 }
@@ -245,7 +330,7 @@ const optionalOptions = computed<PricingMultiSelectOption[]>(() =>
   optionalCosts.value.map((cost) => ({
     value: cost.id,
     label: cost.name,
-    description: `${cost.costDetailType} · ${formatMoney(cost.costAmount, cost.currencyName)}`,
+    description: `${cost.costDetailType} · ${formatMoney(cost.costAmount, cost.currencyName)}${cost.isAccountant || isFreightPerContainer(cost.costDetailType) ? ' · Por contenedor' : ''}`,
     notes: cost.notes?.trim() || undefined,
   })),
 )
@@ -287,7 +372,10 @@ const selectorsChanged = computed(() =>
       props.rate.carrierId !== form.carrierId ||
       props.rate.polId !== form.polId ||
       props.rate.poeId !== form.poeId ||
-      props.rate.podId !== form.podId),
+      props.rate.podId !== form.podId ||
+      props.rate.containerTypeId !== form.containerTypeId ||
+      props.rate.currencyId !== form.currencyId ||
+      props.rate.containerQuantity !== Number(form.containerQuantity || 1)),
   ),
 )
 
@@ -309,11 +397,21 @@ const visibleDetails = computed(() => {
   return [...currentRows, ...estimated]
 })
 
+function detailQuantity(detail: EditableDetail) {
+  return isDetailPerContainer(detail) ? Math.max(1, Number(form.containerQuantity || 1)) : 1
+}
+
 const totalCost = computed(() =>
-  visibleDetails.value.reduce((sum, detail) => sum + Number(detail.costAmount || 0), 0),
+  visibleDetails.value.reduce(
+    (sum, detail) => sum + Number(detail.costAmount || 0) * detailQuantity(detail),
+    0,
+  ),
 )
 const totalSale = computed(() =>
-  visibleDetails.value.reduce((sum, detail) => sum + Number(detail.saleAmount || 0), 0),
+  visibleDetails.value.reduce(
+    (sum, detail) => sum + Number(detail.saleAmount || 0) * detailQuantity(detail),
+    0,
+  ),
 )
 const totalUtility = computed(() => totalSale.value - totalCost.value)
 const margin = computed(() => calculateMargin(totalCost.value, totalSale.value))
@@ -406,6 +504,11 @@ function detailError(detail: EditableDetail) {
 
 function mapDetail(detail: EditableDetail): CreateRateDetailRequest {
   const agentCost = detail.costDetailType === 'AgentCharge'
+  const notes =
+    detail.costDetailType === 'Freight'
+      ? cleanFreightNotes(detail.notes)
+      : detail.notes.trim()
+
   return {
     costId: detail.costId ?? null,
     name: detail.name.trim(),
@@ -416,7 +519,7 @@ function mapDetail(detail: EditableDetail): CreateRateDetailRequest {
     currencyCode: detail.currencyCode,
     costAmount: Number(detail.costAmount || 0),
     saleAmount: agentCost ? 0 : Number(detail.saleAmount || 0),
-    notes: detail.notes.trim() || null,
+    notes: notes || null,
   }
 }
 
@@ -484,70 +587,6 @@ function validate() {
   return applicable.every((detail) => !detailError(detail))
 }
 
-function updatePayloadFromRate(
-  rate: RateDto,
-  freightSale?: number,
-  headerOverride?: NonNullable<ReturnType<typeof buildHeader>>,
-): UpdateRateRequest {
-  const extraDetails = rate.rateDetails.map((detail) => ({
-    id: detail.id,
-    costId: detail.costId,
-    name: detail.name,
-    costDetailType: detail.costDetailType,
-    costType: detail.costType,
-    currencyId: detail.currencyId,
-    currencyName: detail.currencyName,
-    currencyCode: detail.currencyCode,
-    costAmount: detail.costAmount,
-    saleAmount:
-      detail.costDetailType === 'Freight' && freightSale !== undefined
-        ? freightSale
-        : detail.saleAmount,
-    notes: detail.notes,
-  }))
-
-  const header = headerOverride ?? {
-    agentId: rate.agentId!,
-    agentName: rate.agentName!,
-    agentCode: rate.agentCode!,
-    carrierId: rate.carrierId!,
-    carrierName: rate.carrierName!,
-    carrierCode: rate.carrierCode!,
-    polId: rate.polId,
-    polName: rate.polName,
-    polCode: rate.polCode,
-    poeId: rate.poeId,
-    poeName: rate.poeName,
-    poeCode: rate.poeCode,
-    podId: rate.podId,
-    podName: rate.podName,
-    podCode: rate.podCode,
-    containerTypeId: rate.containerTypeId,
-    containerTypeName: rate.containerTypeName,
-    containerTypeCode: rate.containerTypeCode,
-    currencyId: rate.currencyId,
-    currencyName: rate.currencyName,
-    currencyCode: rate.currencyCode,
-    freeDays: rate.freeDays,
-    validFrom: rate.validFrom,
-    validTo: rate.validTo,
-    containerQuantity: rate.containerQuantity,
-    clientName: rate.clientName ?? null,
-    idtraNumber: rate.idtraNumber ?? null,
-    quoNumber: rate.quoNumber ?? null,
-    includes: rate.includes ?? null,
-    subjectTo: rate.subjectTo ?? null,
-    excludes: rate.excludes ?? null,
-    transitDays: rate.transitDays ?? null,
-  }
-
-  return {
-    ...header,
-    extraDetails,
-    removedExtraDetailIds: [],
-  }
-}
-
 async function approveIfAllowed(rateId: string) {
   const result = await PricingService.getRate(rateId)
   if (result.status === 'PendingApproval' && canAutoApprove.value) {
@@ -592,22 +631,19 @@ async function submit() {
       const payload: CreateRateRequest = {
         sourceImportFclRateId: props.sourceImport?.id ?? null,
         ...header,
-        details: details.value
-          .filter((detail) => !detail.locked && !detail.importedFreight)
-          .map(mapDetail),
+        details: isCreatingFromImport.value
+          ? details.value
+              .filter(
+                (detail) =>
+                  !detail.importedFreight &&
+                  (detail.fixedDecisionCost || detail.costType === 'Optional'),
+              )
+              .map(mapDetail)
+          : details.value
+              .filter((detail) => !detail.locked && !detail.importedFreight)
+              .map(mapDetail),
       }
       rateId = await PricingService.createRate(payload)
-
-      // Imported freight is created by Pricing from the source row. Apply the
-      // sale entered by the user immediately through the supported update flow.
-      const importedFreight = details.value.find((detail) => detail.importedFreight)
-      if (importedFreight) {
-        const created = await PricingService.getRate(rateId)
-        await PricingService.updateRate(
-          rateId,
-          updatePayloadFromRate(created, Number(importedFreight.saleAmount || 0), header),
-        )
-      }
     }
 
     if (rateId) await approveIfAllowed(rateId)
@@ -638,97 +674,162 @@ async function initialize() {
     )
   }
 
-  if (props.rate) {
-    details.value = props.rate.rateDetails.map(fromRateDetail)
-    optionalCostIds.value = props.rate.rateDetails
-      .filter((detail) => detail.costType === 'Optional' && detail.costId)
-      .map((detail) => detail.costId!)
-  } else if (props.sourceImport) {
-    const source = props.sourceImport
-    const raw = source.rawDataJson ?? ''
-    const agent = catalogs.findBestMatch(
+  let importForEdit = props.sourceImport
+  if (!importForEdit && props.rate?.sourceImportFclRateId) {
+    try {
+      importForEdit = await PricingService.getImportRate(props.rate.sourceImportFclRateId)
+    } catch {
+      importForEdit = undefined
+    }
+  }
+
+  let importedAgentMatch: ReturnType<typeof catalogs.findBestMatch>
+  let importedCarrierMatch: ReturnType<typeof catalogs.findBestMatch>
+  let importedPolMatch: ReturnType<typeof catalogs.findBestMatch>
+  let importedPoeMatch: ReturnType<typeof catalogs.findBestMatch>
+  let importedPodMatch: ReturnType<typeof catalogs.findBestMatch>
+  let importedContainerMatch: ReturnType<typeof catalogs.findBestMatch>
+  let importedCurrencyMatch: ReturnType<typeof catalogs.findBestMatch>
+
+  if (importForEdit) {
+    const raw = importForEdit.rawDataJson ?? ''
+    importedAgentMatch = resolveImportedCatalogItem(
       catalogs.agents.value,
-      source.agentId,
-      source.agent,
-      source.agentCode,
-      source.agentSlug,
-      ...readRawValues(raw, ['agent', 'agente', 'client', 'cliente', 'customer']),
+      importForEdit.agentId,
+      [importForEdit.agent, importForEdit.agentCode, importForEdit.agentSlug],
+      readRawValues(raw, [
+        'agent',
+        'agentName',
+        'agente',
+        'shippingAgent',
+        'freightAgent',
+        'forwarder',
+        'agency',
+      ]),
     )
-    const carrier = catalogs.findBestMatch(
+    importedCarrierMatch = resolveImportedCatalogItem(
       catalogs.carriers.value,
-      source.carrierId,
-      source.carrier,
-      source.carrierCode,
-      source.carrierSlug,
-      ...readRawValues(raw, ['carrier', 'carrierName', 'naviera', 'shippingLine']),
+      importForEdit.carrierId,
+      [importForEdit.carrier, importForEdit.carrierCode, importForEdit.carrierSlug],
+      readRawValues(raw, ['carrier', 'carrierName', 'naviera', 'shippingLine']),
     )
-    const pol = catalogs.findBestMatch(
+    importedPolMatch = resolveImportedCatalogItem(
       catalogs.polPorts.value,
-      source.polId,
-      source.pol,
-      source.polCode,
-      source.polSlug,
-      ...readRawValues(raw, ['pol', 'origin', 'originPort', 'portOfLoading', 'puertoOrigen']),
+      importForEdit.polId,
+      [importForEdit.pol, importForEdit.polCode, importForEdit.polSlug],
+      readRawValues(raw, ['pol', 'origin', 'originPort', 'portOfLoading', 'puertoOrigen']),
     )
-    const pod = catalogs.findBestMatch(
+
+    const poeHasImportedValue = ![
+      importForEdit.poe,
+      importForEdit.poeCode,
+      importForEdit.poeSlug,
+    ].every(isPendingImportedValue)
+    const poeRawValues = readRawValues(raw, [
+      'poe',
+      'entryPort',
+      'portOfEntry',
+      'puertoEntrada',
+      'transshipmentPort',
+    ])
+    importedPoeMatch = resolveImportedCatalogItem(
+      catalogs.poePorts.value,
+      importForEdit.poeId,
+      [importForEdit.poe, importForEdit.poeCode, importForEdit.poeSlug],
+      poeHasImportedValue
+        ? poeRawValues
+        : [...poeRawValues, importForEdit.pod, importForEdit.podCode, importForEdit.podSlug],
+    )
+    importedPodMatch = resolveImportedCatalogItem(
       catalogs.podPorts.value,
-      source.podId,
-      source.pod,
-      source.podCode,
-      source.podSlug,
-      ...readRawValues(raw, [
+      importForEdit.podId,
+      [importForEdit.pod, importForEdit.podCode, importForEdit.podSlug],
+      readRawValues(raw, [
         'pod',
         'destination',
         'destinationPort',
         'portOfDischarge',
         'puertoDestino',
+        'finalDestination',
       ]),
     )
-    const poe = catalogs.findBestMatch(
-      catalogs.poePorts.value,
-      source.poeId,
-      source.poe,
-      source.poeCode,
-      source.poeSlug,
-      ...readRawValues(raw, [
-        'poe',
-        'entryPort',
-        'portOfEntry',
-        'puertoEntrada',
-        'transshipmentPort',
-      ]),
-      source.pod,
-      source.podCode,
-    )
-    const container = catalogs.findBestMatch(
+    importedContainerMatch = resolveImportedCatalogItem(
       catalogs.containerTypes.value,
-      source.containerTypeId,
-      source.containerType,
-      source.containerTypeCode,
-      source.containerTypeSlug,
-      ...readRawValues(raw, ['container', 'containerType', 'equipment', 'equipmentType', 'tamano']),
+      importForEdit.containerTypeId,
+      [
+        importForEdit.containerType,
+        importForEdit.containerTypeCode,
+        importForEdit.containerTypeSlug,
+      ],
+      readRawValues(raw, [
+        'container',
+        'containerType',
+        'equipment',
+        'equipmentType',
+        'tamano',
+      ]),
     )
-    const currency = catalogs.findBestMatch(
+    importedCurrencyMatch = resolveImportedCatalogItem(
       catalogs.currencies.value,
-      source.currencyId,
-      source.currency,
-      source.currencyCode,
-      source.currencySlug,
-      ...readRawValues(raw, ['currency', 'currencyCode', 'moneda']),
+      importForEdit.currencyId,
+      [importForEdit.currency, importForEdit.currencyCode, importForEdit.currencySlug],
+      readRawValues(raw, ['currency', 'currencyCode', 'moneda']),
     )
 
-    form.agentId =
-      agent?.id ??
-      catalogs.findByCode(catalogs.agents.value, 'WWL')?.id ??
-      catalogs.findByCode(catalogs.agents.value, 'RS')?.id ??
-      ''
-    form.carrierId = carrier?.id ?? ''
-    form.polId = pol?.id ?? ''
-    form.poeId = poe?.id ?? ''
-    form.podId = pod?.id ?? ''
-    form.containerTypeId = container?.id ?? ''
+    if (isCreatingFromImport.value) {
+      canEditImportedAgent.value = !importedAgentMatch
+      canEditImportedPod.value = !importedPodMatch
+    }
+  }
+
+  if (props.rate) {
+    if (importForEdit && !catalogs.findById(catalogs.agents.value, form.agentId)) {
+      form.agentId = importedAgentMatch?.id ?? ''
+    }
+
+    if (importForEdit && !catalogs.findById(catalogs.carriers.value, form.carrierId)) {
+      form.carrierId = importedCarrierMatch?.id ?? ''
+    }
+
+    if (importForEdit && !catalogs.findById(catalogs.polPorts.value, form.polId)) {
+      form.polId = importedPolMatch?.id ?? ''
+    }
+
+    if (importForEdit && !catalogs.findById(catalogs.poePorts.value, form.poeId)) {
+      form.poeId = importedPoeMatch?.id ?? ''
+    }
+
+    if (importForEdit && !catalogs.findById(catalogs.podPorts.value, form.podId)) {
+      form.podId = importedPodMatch?.id ?? ''
+    }
+
+    if (
+      importForEdit &&
+      !catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)
+    ) {
+      form.containerTypeId = importedContainerMatch?.id ?? ''
+    }
+
+    if (importForEdit && !catalogs.findById(catalogs.currencies.value, form.currencyId)) {
+      form.currencyId =
+        importedCurrencyMatch?.id ??
+        catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ??
+        ''
+    }
+
+    details.value = props.rate.rateDetails.map(fromRateDetail)
+    optionalCostIds.value = props.rate.rateDetails
+      .filter((detail) => detail.costType === 'Optional' && detail.costId)
+      .map((detail) => detail.costId!)
+  } else if (props.sourceImport) {
+    form.agentId = importedAgentMatch?.id ?? ''
+    form.carrierId = importedCarrierMatch?.id ?? ''
+    form.polId = importedPolMatch?.id ?? ''
+    form.poeId = importedPoeMatch?.id ?? ''
+    form.podId = importedPodMatch?.id ?? ''
+    form.containerTypeId = importedContainerMatch?.id ?? ''
     form.currencyId =
-      currency?.id ?? catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ?? ''
+      importedCurrencyMatch?.id ?? catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ?? ''
     const importedDetails: EditableDetail[] = [
       {
         key: `import-freight-${props.sourceImport.id}`,
@@ -737,11 +838,16 @@ async function initialize() {
         costType: 'Variable',
         currencyId: form.currencyId,
         currencyName: selectedCurrency.value?.name ?? props.sourceImport.currency,
-        currencyCode: selectedCurrency.value?.code ?? props.sourceImport.currency,
-        costAmount: String(props.sourceImport.freight),
-        saleAmount: String(props.sourceImport.freight),
+        currencyCode: selectedCurrency.value?.code ?? props.sourceImport.currencyCode,
+        costAmount: String(props.sourceImport.oceanFreight ?? props.sourceImport.freight),
+        saleAmount: String(
+          props.sourceImport.totalSale ??
+            props.sourceImport.oceanFreight ??
+            props.sourceImport.freight,
+        ),
         notes: '',
-        locked: false,
+        isAccountant: true,
+        locked: true,
         importedFreight: true,
       },
     ]
@@ -760,7 +866,8 @@ async function initialize() {
         costAmount: String(props.decisionInternationalLandFreight),
         saleAmount: String(props.decisionInternationalLandFreight),
         notes: 'Valor fijo aplicado por selección de vía multimodal desde el dashboard.',
-        locked: false,
+        isAccountant: true,
+        locked: true,
         fixedDecisionCost: true,
       })
     }
@@ -802,12 +909,45 @@ onMounted(initialize)
       <div>
         <p class="font-black">Creando desde tarifa importada</p>
         <p class="mt-1 text-sm font-semibold opacity-80">
-          {{ sourceImport.carrier }} · {{ sourceImport.pol }} → {{ sourceImport.pod }} ·
-          {{ sourceImport.containerType }}. El encabezado operativo proviene de la importación y no puede modificarse; los costos y ventas sí permanecen editables.
+          {{ catalogs.findById(catalogs.carriers.value, form.carrierId)?.name || 'Naviera sin coincidencia' }} ·
+          {{ catalogs.findById(catalogs.polPorts.value, form.polId)?.name || 'POL sin coincidencia' }} →
+          {{ catalogs.findById(catalogs.poePorts.value, form.poeId)?.name || 'POE sin coincidencia' }} →
+          {{ catalogs.findById(catalogs.podPorts.value, form.podId)?.name || 'POD sin coincidencia' }} ·
+          {{ catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)?.name || 'Contenedor sin coincidencia' }}.
+          Los datos importados están bloqueados y se copiarán desde los valores reales del catálogo.
           <span v-if="decisionInternationalLandFreight">
             La vía multimodal ya incluye el costo terrestre fijo de
             {{ formatMoney(decisionInternationalLandFreight, 'USD') }}.
           </span>
+        </p>
+      </div>
+    </section>
+
+    <section
+      v-if="missingSelectableImportedFields.length"
+      class="flex items-start gap-3 rounded-[24px] border border-amber-500/30 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-200"
+    >
+      <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0" />
+      <div>
+        <p class="font-black">Complete los datos ausentes de la importación</p>
+        <p class="mt-1 text-sm font-semibold opacity-80">
+          La tarifa importada no definió {{ missingSelectableImportedFields.join(' ni ') }}.
+          Únicamente esos campos quedan habilitados para seleccionarlos antes de guardar.
+        </p>
+      </div>
+    </section>
+
+    <section
+      v-if="unresolvedLockedImportedFields.length"
+      class="flex items-start gap-3 rounded-[24px] border border-red-500/30 bg-red-500/10 p-4 text-red-800 dark:text-red-200"
+    >
+      <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0" />
+      <div>
+        <p class="font-black">La importación no coincide completamente con Config</p>
+        <p class="mt-1 text-sm font-semibold opacity-80">
+          No se encontró una opción real para:
+          {{ unresolvedLockedImportedFields.join(', ') }}. No se usarán valores inventados ni
+          opciones temporales.
         </p>
       </div>
     </section>
@@ -828,7 +968,7 @@ onMounted(initialize)
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <DhSelect
           v-model="form.agentId"
-          :disabled="isHeaderLocked"
+          :disabled="isAgentLocked"
           label="Agente"
           placeholder="Seleccione agente"
           :options="catalogs.agentOptions.value"
@@ -868,7 +1008,7 @@ onMounted(initialize)
         />
         <DhSelect
           v-model="form.podId"
-          :disabled="isHeaderLocked"
+          :disabled="isPodLocked"
           label="POD · Destino final"
           placeholder="Seleccione POD"
           :options="catalogs.podOptions.value"
@@ -951,12 +1091,10 @@ onMounted(initialize)
           type="number"
           min="1"
           label="Cantidad de contenedores"
-          :disabled="isHeaderLocked"
           :error="form.submitted && Number(form.containerQuantity) <= 0 ? 'Debe ser mayor a cero.' : undefined"
         />
         <DhInput
           v-model="form.transitDays"
-          :disabled="isHeaderLocked"
           type="number"
           min="0"
           label="Tiempo de tránsito (días)"
@@ -979,10 +1117,11 @@ onMounted(initialize)
         <div class="flex-1">
           <h3 class="font-black text-[var(--dh-text)]">Construcción de la tarifa</h3>
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">
-            Costo, venta y utilidad visibles por rubro.
+            Costo, venta y utilidad visibles por rubro. El flete marítimo y terrestre se calcula por contenedor.
           </p>
         </div>
         <DhButton
+          v-if="!isCreatingFromImport"
           label="Rubro manual"
           :icon="Plus"
           variant="secondary"
@@ -1014,7 +1153,12 @@ onMounted(initialize)
                     v-model="detail.name"
                     label="Concepto"
                     placeholder="Nombre del rubro"
-                    :disabled="detail.locked || Boolean(detail.costId) || detail.fixedDecisionCost"
+                    :disabled="
+                      isCreatingFromImport ||
+                      detail.locked ||
+                      Boolean(detail.costId) ||
+                      detail.fixedDecisionCost
+                    "
                   />
                   <div class="mt-2 flex flex-wrap gap-1.5">
                     <DhBadge
@@ -1035,6 +1179,11 @@ onMounted(initialize)
                       label="Valor fijo del dashboard"
                       variant="primary"
                     />
+                    <DhBadge
+                      v-if="isDetailPerContainer(detail)"
+                      :label="`Por contenedor × ${detailQuantity(detail)}`"
+                      variant="primary"
+                    />
                   </div>
                   <p
                     v-if="detail.notes.trim()"
@@ -1048,24 +1197,38 @@ onMounted(initialize)
                   v-model="detail.costDetailType"
                   label="Rubro"
                   :options="detailTypeOptions"
-                  :disabled="detail.locked || Boolean(detail.costId) || detail.fixedDecisionCost"
+                  :disabled="
+                    isCreatingFromImport ||
+                    detail.locked ||
+                    Boolean(detail.costId) ||
+                    detail.fixedDecisionCost
+                  "
                 />
                 <DhInput
                   v-model="detail.costAmount"
                   type="number"
                   label="Costo"
                   placeholder="0.00"
-                  :disabled="detail.importedFreight || detail.estimated || detail.fixedDecisionCost"
+                  :disabled="isCreatingFromImport || detail.estimated || detail.fixedDecisionCost"
                 />
                 <DhInput
                   v-model="detail.saleAmount"
                   type="number"
                   label="Venta"
                   placeholder="0.00"
-                  :disabled="detail.costDetailType === 'AgentCharge' || detail.estimated"
+                  :disabled="
+                    isCreatingFromImport ||
+                    detail.costDetailType === 'AgentCharge' ||
+                    detail.estimated
+                  "
                 />
                 <button
-                  v-if="!detail.locked && !detail.importedFreight && !detail.fixedDecisionCost"
+                  v-if="
+                    !isCreatingFromImport &&
+                    !detail.locked &&
+                    !detail.importedFreight &&
+                    !detail.fixedDecisionCost
+                  "
                   type="button"
                   class="mt-6 rounded-2xl p-2.5 text-red-500 transition hover:bg-red-500/10"
                   title="Quitar rubro"
@@ -1075,7 +1238,12 @@ onMounted(initialize)
                 </button>
               </div>
               <div
-                v-if="!detail.costId && !detail.locked && !detail.fixedDecisionCost"
+                v-if="
+                  !isCreatingFromImport &&
+                  !detail.costId &&
+                  !detail.locked &&
+                  !detail.fixedDecisionCost
+                "
                 class="mt-3 grid gap-3 md:grid-cols-[180px_1fr]"
               >
                 <DhSelect

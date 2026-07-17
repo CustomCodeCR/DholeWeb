@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, watch } from 'vue'
 import { BadgeDollarSign, Info, Save } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { PricingService } from '@/core/services/pricingService'
@@ -37,6 +37,11 @@ const form = reactive({
   currencyId: props.cost?.currencyId ?? '',
   costAmount: String(props.cost?.costAmount ?? ''),
   saleAmount: String(props.cost?.saleAmount ?? ''),
+  isAccountant:
+    props.cost?.isAccountant ||
+    props.cost?.costDetailType === 'Freight' ||
+    props.cost?.costDetailType === 'InlandTransport' ||
+    false,
   notes: props.cost?.notes ?? '',
   saving: false,
   submitted: false,
@@ -44,6 +49,9 @@ const form = reactive({
 
 const isAgentCost = computed(() => form.associationType === 'Agent')
 const isCarrierCost = computed(() => form.associationType === 'Carrier')
+const isFreightPerContainer = computed(() =>
+  ['Freight', 'InlandTransport'].includes(form.costDetailType),
+)
 const utility = computed(() => Number(form.saleAmount || 0) - Number(form.costAmount || 0))
 const portOptions = computed(() => {
   if (form.portRole === 'Pol') return catalogs.polOptions.value
@@ -115,6 +123,14 @@ watch(
 )
 
 watch(
+  () => form.costDetailType,
+  () => {
+    if (isFreightPerContainer.value) form.isAccountant = true
+  },
+  { immediate: true },
+)
+
+watch(
   () => form.portRole,
   () => {
     if (!portOptions.value.some((option) => option.value === form.portId)) form.portId = ''
@@ -161,6 +177,7 @@ async function submit() {
     costAmount: Number(form.costAmount),
     saleAmount: isAgentCost.value ? 0 : Number(form.saleAmount),
     notes: form.notes.trim() || null,
+    isAccountant: isFreightPerContainer.value || form.isAccountant,
   }
 
   try {
@@ -322,6 +339,23 @@ onMounted(catalogs.loadAll)
             )
           }}</span
         >
+      </div>
+      <div class="mt-4 rounded-2xl border border-[var(--dh-border)] p-4">
+        <DhCheckbox
+          v-model="form.isAccountant"
+          label="Costo contable por contenedor"
+          :disabled="isFreightPerContainer"
+        />
+        <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+          <template v-if="isFreightPerContainer">
+            El flete marítimo y terrestre siempre multiplica costo y venta por la cantidad de
+            contenedores.
+          </template>
+          <template v-else>
+            Al activarlo, el costo y la venta de este rubro se multiplican por la cantidad de
+            contenedores indicada al crear o editar la tarifa.
+          </template>
+        </p>
       </div>
       <p v-if="isAgentCost" class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
         Los costos asociados a un agente no generan venta; el sistema fija la venta en cero.

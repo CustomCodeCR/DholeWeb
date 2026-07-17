@@ -60,6 +60,7 @@ const columns: DhTableColumn<CostDto>[] = [
   { key: 'costAmount', label: 'Costo', align: 'right' },
   { key: 'saleAmount', label: 'Venta', align: 'right' },
   { key: 'utilityAmount', label: 'Utilidad', align: 'right' },
+  { key: 'isAccountant', label: 'Contable', align: 'center' },
   { key: 'isActive', label: 'Estado', align: 'center' },
   { key: 'actions', label: '', align: 'right', width: '120px' },
 ]
@@ -360,6 +361,19 @@ onMounted(async () => {
               >{{ formatMoney(row.utilityAmount, displayCost(row).currencyName) }}</span
             ></template
           >
+          <template #cell-isAccountant="{ value, row }"
+            ><DhBadge
+              :label="
+                value || ['Freight', 'InlandTransport'].includes(row.costDetailType)
+                  ? 'Por contenedor'
+                  : 'Único'
+              "
+              :variant="
+                value || ['Freight', 'InlandTransport'].includes(row.costDetailType)
+                  ? 'primary'
+                  : 'neutral'
+              "
+          /></template>
           <template #cell-isActive="{ value }"
             ><DhBadge
               :label="value ? 'Activo' : 'Inactivo'"

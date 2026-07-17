@@ -207,8 +207,9 @@ function printRate() {
       <tr>
         <td><strong>${escapeHtml(detail.name)}</strong></td>
         <td>${escapeHtml(detail.costDetailType)}</td>
-        <td class="number">${escapeHtml(formatMoney(detail.costAmount, detail.currencyName))}</td>
-        <td class="number">${escapeHtml(formatMoney(detail.saleAmount, detail.currencyName))}</td>
+        <td class="number">${escapeHtml(Math.max(1, detail.quantity || 1))}</td>
+        <td class="number">${escapeHtml(formatMoney(detail.costAmount * Math.max(1, detail.quantity || 1), detail.currencyName))}</td>
+        <td class="number">${escapeHtml(formatMoney(detail.saleAmount * Math.max(1, detail.quantity || 1), detail.currencyName))}</td>
       </tr>`,
     )
     .join('')
@@ -230,7 +231,7 @@ function printRate() {
     <div class="header"><div><div class="brand">Dhole <span>Pricing</span></div><div class="rate-name">${escapeHtml(rate.rateName || rate.rateCode)}</div><div class="muted">Resumen de tarifa FCL · ${escapeHtml(rate.rateCode)}</div></div><div class="muted">Emitida: ${escapeHtml(new Date().toLocaleDateString('es-CR'))}<br>IDTRA: ${escapeHtml(rate.idtraNumber || '—')}<br>QUO: ${escapeHtml(rate.quoNumber || '—')}</div></div>
     <section class="route"><h1>${escapeHtml(routeLabel(rate))}</h1><div>${escapeHtml(rate.carrierName)} · ${escapeHtml(rate.containerTypeName)} · Agente: ${escapeHtml(rate.agentName)}</div></section>
     <div class="grid"><div class="card"><small>Vigencia</small><strong>${escapeHtml(formatDate(rate.validFrom))} – ${escapeHtml(formatDate(rate.validTo))}</strong></div><div class="card"><small>Días libres</small><strong>${escapeHtml(rate.freeDays)}</strong></div><div class="card"><small>Tránsito</small><strong>${escapeHtml(rate.transitDays ?? '—')} días</strong></div><div class="card"><small>Estado</small><strong>${escapeHtml(statusLabel(rate.status))}</strong></div></div>
-    <table><thead><tr><th>Concepto</th><th>Rubro</th><th class="number">Costo</th><th class="number">Venta</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>Concepto</th><th>Rubro</th><th class="number">Cantidad</th><th class="number">Costo</th><th class="number">Venta</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="totals"><div class="total-row"><span>Costo total</span><span>${escapeHtml(formatMoney(rate.totalCostAmount, rate.currencyName))}</span></div><div class="total-row primary"><span>Venta total</span><span>${escapeHtml(formatMoney(rate.totalSaleAmount, rate.currencyName))}</span></div><div class="total-row"><span>Utilidad general</span><span>${escapeHtml(formatMoney(rate.totalUtilityAmount, rate.currencyName))}</span></div></div>
     <section class="route"><strong>Tarifa incluye</strong><p>${escapeHtml(rate.includes || '—')}</p><strong>Sujeto a</strong><p>${escapeHtml(rate.subjectTo || '—')}</p><strong>No incluye</strong><p>${escapeHtml(rate.excludes || '—')}</p></section>
     <div class="footer">Tarifa sujeta a vigencia, espacio, disponibilidad y condiciones operativas de origen y destino.</div>
@@ -486,6 +487,7 @@ onMounted(async () => {
             <tr class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
               <th class="px-5 py-3 text-left">Concepto</th>
               <th class="px-5 py-3 text-left">Aplicación</th>
+              <th class="px-5 py-3 text-right">Cantidad</th>
               <th class="px-5 py-3 text-right">Costo</th>
               <th class="px-5 py-3 text-right">Venta</th>
               <th class="px-5 py-3 text-right">Utilidad</th>
@@ -520,10 +522,13 @@ onMounted(async () => {
                 />
               </td>
               <td class="px-5 py-4 text-right font-bold">
-                {{ formatMoney(detail.costAmount, detail.currencyName) }}
+                {{ Math.max(1, detail.quantity || 1) }}
               </td>
               <td class="px-5 py-4 text-right font-bold">
-                {{ formatMoney(detail.saleAmount, detail.currencyName) }}
+                {{ formatMoney(detail.costAmount * Math.max(1, detail.quantity || 1), detail.currencyName) }}
+              </td>
+              <td class="px-5 py-4 text-right font-bold">
+                {{ formatMoney(detail.saleAmount * Math.max(1, detail.quantity || 1), detail.currencyName) }}
               </td>
               <td
                 class="px-5 py-4 text-right font-black"

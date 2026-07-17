@@ -37,14 +37,14 @@ function normalize(value: string) {
 }
 
 function mapItem(item: CatalogItemDto): PricingCatalogItem {
-  const displayValue = String(item.value || item.name).trim()
-  const catalogCode = String(item.code || displayValue).trim()
+  const displayName = String(item.name || item.value || item.code).trim()
+  const catalogCode = String(item.code || item.value || displayName).trim()
 
   return {
     id: item.id,
-    name: displayValue,
+    name: displayName,
     code: catalogCode,
-    slug: item.slug || normalize(displayValue).replace(/\s+/g, '-'),
+    slug: item.slug || normalize(displayName).replace(/\s+/g, '-'),
     value: String(item.value || ''),
   }
 }
@@ -96,10 +96,10 @@ async function loadAll(force = false) {
       loadFirstAvailable(['agents']),
       loadFirstAvailable(['carriers']),
       loadFirstAvailable(['currencies']),
-      loadFirstAvailable(['pol']),
-      loadFirstAvailable(['poe']),
-      loadFirstAvailable(['pod']),
-      loadFirstAvailable(['container-types']),
+      loadFirstAvailable(['pol', 'ports']),
+      loadFirstAvailable(['poe', 'ports']),
+      loadFirstAvailable(['pod', 'ports']),
+      loadFirstAvailable(['container-types', 'containers-types']),
       loadFirstAvailable(['pricing-imports-profiles']),
     ])
 
