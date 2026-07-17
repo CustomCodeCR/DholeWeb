@@ -7,6 +7,7 @@ import {
   Printer,
   RefreshCw,
   Route,
+  Send as SendIcon,
   ShieldCheck,
   XCircle,
 } from 'lucide-vue-next'
@@ -17,7 +18,7 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
-import type { RateDetailDto, RateDto } from '@/core/interfaces/pricing'
+import type { RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'
 import PricingRateFormDrawer from './PricingRateFormDrawer.vue'
 import PricingReasonModal from './PricingReasonModal.vue'
 import PricingDuplicateRateModal from './PricingDuplicateRateModal.vue'
@@ -40,6 +41,7 @@ const catalogs = usePricingCatalogs()
 const current = ref<RateDto>(props.rate)
 const displayCurrent = computed(() => catalogs.resolveRateLabels(current.value))
 const loading = ref(false)
+const costNotesById = ref<Record<string, string>>({})
 
 const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDuplicate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
@@ -72,9 +74,11 @@ function statusLabel(status: string) {
       {
         Approved: 'Aprobada',
         PendingApproval: 'Pendiente de autorización',
-        Rejected: 'Rechazada',
+        Rejected: 'Rechazada internamente',
         Draft: 'Borrador',
-        Send: 'Enviada',
+        Sent: 'Enviada',
+        AcceptedByClient: 'Aceptada por el cliente',
+        RejectedByClient: 'Rechazada por el cliente',
       } as Record<string, string>
     )[status] ?? status
   )
@@ -84,10 +88,45 @@ async function reload() {
   try {
     loading.value = true
     current.value = await PricingService.getRate(current.value.id)
+    await loadMissingCostNotes(current.value.rateDetails)
   } catch (error) {
     toastStore.backendError(error, 'No se pudo actualizar el detalle de la tarifa.')
   } finally {
     loading.value = false
+  }
+}
+
+function resolvedDetailNotes(detail: RateDetailDto) {
+  return detail.notes?.trim() || (detail.costId ? costNotesById.value[detail.costId] : '') || ''
+}
+
+async function loadMissingCostNotes(details: RateDetailDto[]) {
+  const missingCostIds = new Set(
+    details
+      .filter(
+        (detail) =>
+          detail.costId &&
+          !detail.notes?.trim() &&
+          !costNotesById.value[detail.costId],
+      )
+      .map((detail) => detail.costId!),
+  )
+
+  if (!missingCostIds.size) return
+
+  try {
+    const costs = await PricingService.selectCosts({ isActive: true })
+    const next = { ...costNotesById.value }
+
+    for (const cost of costs) {
+      if (!missingCostIds.has(cost.id)) continue
+      const notes = cost.notes?.trim()
+      if (notes) next[cost.id] = notes
+    }
+
+    costNotesById.value = next
+  } catch {
+    // La tarifa se mantiene visible aunque no se puedan recuperar notas maestras.
   }
 }
 
@@ -139,6 +178,17 @@ async function approve() {
   }
 }
 
+async function setCommercialStatus(status: SetRateStatusRequest['status']) {
+  try {
+    await PricingService.setRateStatus(current.value.id, { status })
+    toastStore.success('Estado actualizado', `La tarifa quedó ${statusLabel(status).toLowerCase()}.`)
+    await reload()
+    await props.onSaved?.()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo actualizar el estado comercial de la tarifa.')
+  }
+}
+
 function escapeHtml(value: unknown) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -155,7 +205,7 @@ function printRate() {
     .map(
       (detail) => `
       <tr>
-        <td>${escapeHtml(detail.name)}</td>
+        <td><strong>${escapeHtml(detail.name)}</strong></td>
         <td>${escapeHtml(detail.costDetailType)}</td>
         <td class="number">${escapeHtml(formatMoney(detail.costAmount, detail.currencyName))}</td>
         <td class="number">${escapeHtml(formatMoney(detail.saleAmount, detail.currencyName))}</td>
@@ -174,14 +224,15 @@ function printRate() {
   win.opener = null
 
   win.document
-    .write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Tarifa ${escapeHtml(rate.id.slice(0, 8))}</title><style>
-    *{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#171717;margin:0;padding:38px;background:#fff}.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #fc2800;padding-bottom:22px}.brand{font-size:28px;font-weight:900}.brand span{color:#fc2800}.muted{color:#737373;font-size:12px}.route{margin:26px 0;padding:22px;border-radius:18px;background:#f5f5f5}.route h1{margin:0 0 8px;font-size:24px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.card{border:1px solid #e5e5e5;border-radius:14px;padding:14px}.card small{display:block;color:#737373;text-transform:uppercase;font-weight:800;letter-spacing:.08em}.card strong{display:block;margin-top:6px;font-size:17px}table{width:100%;border-collapse:collapse;margin-top:22px}th{background:#171717;color:white;text-align:left;padding:12px;font-size:11px;text-transform:uppercase;letter-spacing:.08em}td{padding:12px;border-bottom:1px solid #e5e5e5;font-size:13px}.number{text-align:right}.totals{margin:24px 0 0 auto;width:380px;border-top:3px solid #171717}.total-row{display:flex;justify-content:space-between;padding:9px 0;font-weight:700}.total-row.primary{font-size:18px;color:#fc2800}.footer{margin-top:34px;padding-top:18px;border-top:1px solid #e5e5e5;color:#737373;font-size:11px}@media print{body{padding:20px}.no-print{display:none}}
+    .write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapeHtml(rate.rateName || rate.rateCode)}</title><style>
+    *{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#171717;margin:0;padding:38px;background:#fff}.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #fc2800;padding-bottom:22px}.brand{font-size:28px;font-weight:900}.brand span{color:#fc2800}.muted{color:#737373;font-size:12px}.route{margin:26px 0;padding:22px;border-radius:18px;background:#f5f5f5}.route h1{margin:0 0 8px;font-size:24px}.rate-name{font-size:18px;font-weight:900;margin-top:8px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.card{border:1px solid #e5e5e5;border-radius:14px;padding:14px}.card small{display:block;color:#737373;text-transform:uppercase;font-weight:800;letter-spacing:.08em}.card strong{display:block;margin-top:6px;font-size:17px}table{width:100%;border-collapse:collapse;margin-top:22px}th{background:#171717;color:white;text-align:left;padding:12px;font-size:11px;text-transform:uppercase;letter-spacing:.08em}td{padding:12px;border-bottom:1px solid #e5e5e5;font-size:13px;vertical-align:top}.number{text-align:right}.totals{margin:24px 0 0 auto;width:380px;border-top:3px solid #171717}.total-row{display:flex;justify-content:space-between;padding:9px 0;font-weight:700}.total-row.primary{font-size:18px;color:#fc2800}.footer{margin-top:34px;padding-top:18px;border-top:1px solid #e5e5e5;color:#737373;font-size:11px}@media print{body{padding:20px}.no-print{display:none}}
   </style></head><body>
-    <div class="header"><div><div class="brand">Dhole <span>Pricing</span></div><div class="muted">Resumen de tarifa FCL</div></div><div class="muted">Emitida: ${escapeHtml(new Date().toLocaleDateString('es-CR'))}<br>ID: ${escapeHtml(rate.id)}</div></div>
+    <div class="header"><div><div class="brand">Dhole <span>Pricing</span></div><div class="rate-name">${escapeHtml(rate.rateName || rate.rateCode)}</div><div class="muted">Resumen de tarifa FCL · ${escapeHtml(rate.rateCode)}</div></div><div class="muted">Emitida: ${escapeHtml(new Date().toLocaleDateString('es-CR'))}<br>IDTRA: ${escapeHtml(rate.idtraNumber || '—')}<br>QUO: ${escapeHtml(rate.quoNumber || '—')}</div></div>
     <section class="route"><h1>${escapeHtml(routeLabel(rate))}</h1><div>${escapeHtml(rate.carrierName)} · ${escapeHtml(rate.containerTypeName)} · Agente: ${escapeHtml(rate.agentName)}</div></section>
-    <div class="grid"><div class="card"><small>Vigencia</small><strong>${escapeHtml(formatDate(rate.validFrom))} – ${escapeHtml(formatDate(rate.validTo))}</strong></div><div class="card"><small>Días libres</small><strong>${escapeHtml(rate.freeDays)}</strong></div><div class="card"><small>Margen actual</small><strong>${escapeHtml(rate.marginPercentage.toFixed(2))}%</strong></div><div class="card"><small>Estado</small><strong>${escapeHtml(statusLabel(rate.status))}</strong></div></div>
+    <div class="grid"><div class="card"><small>Vigencia</small><strong>${escapeHtml(formatDate(rate.validFrom))} – ${escapeHtml(formatDate(rate.validTo))}</strong></div><div class="card"><small>Días libres</small><strong>${escapeHtml(rate.freeDays)}</strong></div><div class="card"><small>Tránsito</small><strong>${escapeHtml(rate.transitDays ?? '—')} días</strong></div><div class="card"><small>Estado</small><strong>${escapeHtml(statusLabel(rate.status))}</strong></div></div>
     <table><thead><tr><th>Concepto</th><th>Rubro</th><th class="number">Costo</th><th class="number">Venta</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="totals"><div class="total-row"><span>Costo total</span><span>${escapeHtml(formatMoney(rate.totalCostAmount, rate.currencyName))}</span></div><div class="total-row primary"><span>Venta total</span><span>${escapeHtml(formatMoney(rate.totalSaleAmount, rate.currencyName))}</span></div><div class="total-row"><span>Utilidad general</span><span>${escapeHtml(formatMoney(rate.totalUtilityAmount, rate.currencyName))}</span></div></div>
+    <section class="route"><strong>Tarifa incluye</strong><p>${escapeHtml(rate.includes || '—')}</p><strong>Sujeto a</strong><p>${escapeHtml(rate.subjectTo || '—')}</p><strong>No incluye</strong><p>${escapeHtml(rate.excludes || '—')}</p></section>
     <div class="footer">Tarifa sujeta a vigencia, espacio, disponibilidad y condiciones operativas de origen y destino.</div>
     <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
   </body></html>`)
@@ -217,11 +268,19 @@ onMounted(async () => {
             </div>
             <div>
               <h2 class="text-2xl font-black tracking-tight text-[var(--dh-text)]">
-                {{ routeLabel(displayCurrent) }}
+                {{ current.rateName || current.rateCode }}
               </h2>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+                {{ routeLabel(displayCurrent) }}
+              </p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
                 {{ displayCurrent.carrierName }} · {{ displayCurrent.containerTypeName }} ·
                 {{ displayCurrent.agentName }}
+              </p>
+              <p class="mt-1 text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-primary)]">
+                {{ current.rateCode }}
+                <span v-if="current.idtraNumber"> · IDTRA {{ current.idtraNumber }}</span>
+                <span v-if="current.quoNumber"> · QUO {{ current.quoNumber }}</span>
               </p>
             </div>
           </div>
@@ -243,6 +302,29 @@ onMounted(async () => {
             @click="duplicate"
           />
           <DhButton v-if="canUpdate" label="Editar" :icon="Edit3" size="sm" @click="edit" />
+          <DhButton
+            v-if="canUpdate && current.status === 'Approved'"
+            label="Marcar enviada"
+            :icon="SendIcon"
+            variant="secondary"
+            size="sm"
+            @click="setCommercialStatus('Sent')"
+          />
+          <DhButton
+            v-if="canUpdate && current.status === 'Sent'"
+            label="Aceptada por cliente"
+            :icon="CheckCircle2"
+            size="sm"
+            @click="setCommercialStatus('AcceptedByClient')"
+          />
+          <DhButton
+            v-if="canUpdate && current.status === 'Sent'"
+            label="Rechazada por cliente"
+            :icon="XCircle"
+            variant="danger"
+            size="sm"
+            @click="setCommercialStatus('RejectedByClient')"
+          />
           <button
             type="button"
             class="rounded-2xl p-2.5 text-[var(--dh-text-muted)] hover:bg-[var(--dh-card-hover)]"
@@ -349,6 +431,41 @@ onMounted(async () => {
       </div>
     </section>
 
+    <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Cliente</p>
+          <p class="mt-1 font-black">{{ current.clientName || '—' }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Contenedores</p>
+          <p class="mt-1 font-black">{{ current.containerQuantity }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Tiempo de tránsito</p>
+          <p class="mt-1 font-black">{{ current.transitDays != null ? `${current.transitDays} días` : '—' }}</p>
+        </div>
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Estado comercial</p>
+          <p class="mt-1 font-black">{{ statusLabel(current.status) }}</p>
+        </div>
+      </div>
+      <div class="mt-5 grid gap-4 lg:grid-cols-3">
+        <div class="rounded-[20px] bg-black/[0.035] p-4 dark:bg-white/[0.05]">
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Tarifa incluye</p>
+          <p class="mt-2 whitespace-pre-line text-sm font-semibold">{{ current.includes || '—' }}</p>
+        </div>
+        <div class="rounded-[20px] bg-black/[0.035] p-4 dark:bg-white/[0.05]">
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Sujeto a</p>
+          <p class="mt-2 whitespace-pre-line text-sm font-semibold">{{ current.subjectTo || '—' }}</p>
+        </div>
+        <div class="rounded-[20px] bg-black/[0.035] p-4 dark:bg-white/[0.05]">
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">No incluye</p>
+          <p class="mt-2 whitespace-pre-line text-sm font-semibold">{{ current.excludes || '—' }}</p>
+        </div>
+      </div>
+    </section>
+
     <section
       v-for="group in groups"
       :key="group.key"
@@ -383,10 +500,11 @@ onMounted(async () => {
               <td class="px-5 py-4">
                 <p class="font-black text-[var(--dh-text)]">{{ detail.name }}</p>
                 <p
-                  v-if="detail.notes"
-                  class="mt-0.5 max-w-sm truncate text-xs font-medium text-[var(--dh-text-muted)]"
+                  v-if="resolvedDetailNotes(detail)"
+                  class="mt-1 max-w-xl whitespace-pre-line text-xs font-medium text-[var(--dh-text-muted)]"
                 >
-                  {{ detail.notes }}
+                  <span class="font-black text-[var(--dh-text-soft)]">Nota operativa:</span>
+                  {{ resolvedDetailNotes(detail) }}
                 </p>
               </td>
               <td class="px-5 py-4">

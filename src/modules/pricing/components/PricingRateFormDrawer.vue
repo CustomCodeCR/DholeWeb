@@ -76,16 +76,25 @@ const form = reactive({
   podId: props.rate?.podId ?? '',
   containerTypeId: props.rate?.containerTypeId ?? '',
   currencyId: props.rate?.currencyId ?? '',
+  containerQuantity: String(props.rate?.containerQuantity ?? 1),
   freeDays: String(props.rate?.freeDays ?? props.sourceImport?.freeDays ?? 0),
   validFrom:
     toDateInput(props.rate?.validFrom ?? props.sourceImport?.validFrom) || dateValue(today),
   validTo: toDateInput(props.rate?.validTo ?? props.sourceImport?.validTo) || dateValue(nextMonth),
+  clientName: props.rate?.clientName ?? '',
+  idtraNumber: props.rate?.idtraNumber ?? '',
+  quoNumber: props.rate?.quoNumber ?? '',
+  includes: props.rate?.includes ?? '',
+  subjectTo: props.rate?.subjectTo ?? '',
+  excludes: props.rate?.excludes ?? '',
+  transitDays: String(props.rate?.transitDays ?? props.sourceImport?.transitDays ?? ''),
   submitted: false,
   saving: false,
 })
 
 const isEditing = computed(() => Boolean(props.rate))
-const isFromImport = computed(() => Boolean(props.sourceImport))
+const isFromImport = computed(() => Boolean(props.sourceImport || props.rate?.sourceImportFclRateId))
+const isHeaderLocked = isFromImport
 const canAutoApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
 const selectedCurrency = computed(() =>
   catalogs.findById(catalogs.currencies.value, form.currencyId),
@@ -158,6 +167,10 @@ function readRawValues(raw: string, keys: string[]) {
 }
 
 function fromRateDetail(detail: RateDetailDto): EditableDetail {
+  const masterCost = detail.costId
+    ? availableCosts.value.find((cost) => cost.id === detail.costId)
+    : undefined
+
   return {
     key: detail.id,
     id: detail.id,
@@ -170,7 +183,7 @@ function fromRateDetail(detail: RateDetailDto): EditableDetail {
     currencyCode: detail.currencyCode,
     costAmount: String(detail.costAmount),
     saleAmount: String(detail.saleAmount),
-    notes: detail.notes ?? '',
+    notes: detail.notes?.trim() || masterCost?.notes?.trim() || '',
     locked: detail.costType === 'Fixed' && Boolean(detail.costId),
   }
 }
@@ -233,24 +246,39 @@ const optionalOptions = computed<PricingMultiSelectOption[]>(() =>
     value: cost.id,
     label: cost.name,
     description: `${cost.costDetailType} · ${formatMoney(cost.costAmount, cost.currencyName)}`,
+    notes: cost.notes?.trim() || undefined,
   })),
 )
 
-const automaticFixedCosts = computed(() => {
-  const routePorts = new Map([
+function matchesCostScope(cost: CostSelectDto) {
+  if (form.currencyId && cost.currencyId !== form.currencyId) return false
+  if (cost.agentId && cost.agentId !== form.agentId) return false
+  if (cost.carrierId && cost.carrierId !== form.carrierId) return false
+  if (!cost.portId) return true
+
+  const roleByPort = new Map<string, CostSelectDto['portRole']>([
     [form.polId, 'Pol'],
     [form.poeId, 'Poe'],
     [form.podId, 'Pod'],
   ])
+  const matchedRole = roleByPort.get(cost.portId)
+  if (!matchedRole) return false
+  return !cost.portRole || cost.portRole === 'Any' || cost.portRole === matchedRole
+}
 
-  return availableCosts.value.filter((cost) => {
-    if (cost.costType !== 'Fixed') return false
-    if (routePorts.get(cost.portId) !== cost.portRole) return false
-    if (cost.agentId) return cost.agentId === form.agentId
-    if (cost.carrierId) return cost.carrierId === form.carrierId
-    return false
-  })
-})
+const automaticFixedCosts = computed(() =>
+  availableCosts.value.filter((cost) => cost.costType === 'Fixed' && matchesCostScope(cost)),
+)
+
+
+async function loadOperationalCosts(): Promise<CostSelectDto[]> {
+  const costs = await PricingService.selectCosts({ isActive: true })
+
+  return costs.map((cost) => ({
+    ...cost,
+    notes: typeof cost.notes === 'string' ? cost.notes.trim() || null : null,
+  }))
+}
 
 const selectorsChanged = computed(() =>
   Boolean(
@@ -428,6 +456,14 @@ function buildHeader() {
     freeDays: Number(form.freeDays || 0),
     validFrom: form.validFrom,
     validTo: form.validTo,
+    containerQuantity: Number(form.containerQuantity || 1),
+    clientName: form.clientName.trim() || null,
+    idtraNumber: form.idtraNumber.trim() || null,
+    quoNumber: form.quoNumber.trim() || null,
+    includes: form.includes.trim() || null,
+    subjectTo: form.subjectTo.trim() || null,
+    excludes: form.excludes.trim() || null,
+    transitDays: form.transitDays.trim() ? Number(form.transitDays) : null,
   }
 }
 
@@ -436,6 +472,8 @@ function validate() {
   if (!buildHeader()) return false
   if (
     Number(form.freeDays) < 0 ||
+    Number(form.containerQuantity) <= 0 ||
+    (form.transitDays.trim() && Number(form.transitDays) < 0) ||
     !form.validFrom ||
     !form.validTo ||
     form.validTo < form.validFrom
@@ -493,6 +531,14 @@ function updatePayloadFromRate(
     freeDays: rate.freeDays,
     validFrom: rate.validFrom,
     validTo: rate.validTo,
+    containerQuantity: rate.containerQuantity,
+    clientName: rate.clientName ?? null,
+    idtraNumber: rate.idtraNumber ?? null,
+    quoNumber: rate.quoNumber ?? null,
+    includes: rate.includes ?? null,
+    subjectTo: rate.subjectTo ?? null,
+    excludes: rate.excludes ?? null,
+    transitDays: rate.transitDays ?? null,
   }
 
   return {
@@ -579,10 +625,17 @@ async function submit() {
 
 async function initialize() {
   await catalogs.loadAll()
+
   try {
-    availableCosts.value = await PricingService.selectCosts({ isActive: true })
-  } catch {
+    // Este endpoint usa pricing.cost.select, el mismo permiso necesario para
+    // construir tarifas, y devuelve las notas operativas de costos fijos y opcionales.
+    availableCosts.value = await loadOperationalCosts()
+  } catch (error) {
     availableCosts.value = []
+    toastStore.backendError(
+      error,
+      'No se pudieron cargar los costos ni sus notas operativas.',
+    )
   }
 
   if (props.rate) {
@@ -730,6 +783,18 @@ onMounted(initialize)
 <template>
   <form class="space-y-6" @submit.prevent="submit">
     <section
+      v-if="rate"
+      class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
+    >
+      <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+        Nombre de la tarifa
+      </p>
+      <p class="mt-1 text-lg font-black text-[var(--dh-text)]">
+        {{ rate.rateName || rate.rateCode }}
+      </p>
+    </section>
+
+    <section
       v-if="sourceImport"
       class="flex items-start gap-3 rounded-[24px] border border-blue-500/20 bg-blue-500/10 p-4 text-blue-800 dark:text-blue-200"
     >
@@ -738,7 +803,7 @@ onMounted(initialize)
         <p class="font-black">Creando desde tarifa importada</p>
         <p class="mt-1 text-sm font-semibold opacity-80">
           {{ sourceImport.carrier }} · {{ sourceImport.pol }} → {{ sourceImport.pod }} ·
-          {{ sourceImport.containerType }}. Puede definir la venta del flete antes de guardar.
+          {{ sourceImport.containerType }}. El encabezado operativo proviene de la importación y no puede modificarse; los costos y ventas sí permanecen editables.
           <span v-if="decisionInternationalLandFreight">
             La vía multimodal ya incluye el costo terrestre fijo de
             {{ formatMoney(decisionInternationalLandFreight, 'USD') }}.
@@ -763,6 +828,7 @@ onMounted(initialize)
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <DhSelect
           v-model="form.agentId"
+          :disabled="isHeaderLocked"
           label="Agente"
           placeholder="Seleccione agente"
           :options="catalogs.agentOptions.value"
@@ -770,6 +836,7 @@ onMounted(initialize)
         />
         <DhSelect
           v-model="form.carrierId"
+          :disabled="isHeaderLocked"
           label="Naviera"
           placeholder="Seleccione naviera"
           :options="catalogs.carrierOptions.value"
@@ -777,6 +844,7 @@ onMounted(initialize)
         />
         <DhSelect
           v-model="form.containerTypeId"
+          :disabled="isHeaderLocked"
           label="Contenedor"
           placeholder="Seleccione contenedor"
           :options="catalogs.containerOptions.value"
@@ -784,6 +852,7 @@ onMounted(initialize)
         />
         <DhSelect
           v-model="form.polId"
+          :disabled="isHeaderLocked"
           label="POL · Origen"
           placeholder="Seleccione POL"
           :options="catalogs.polOptions.value"
@@ -791,6 +860,7 @@ onMounted(initialize)
         />
         <DhSelect
           v-model="form.poeId"
+          :disabled="isHeaderLocked"
           label="POE · Entrada"
           placeholder="Seleccione POE"
           :options="catalogs.poeOptions.value"
@@ -798,6 +868,7 @@ onMounted(initialize)
         />
         <DhSelect
           v-model="form.podId"
+          :disabled="isHeaderLocked"
           label="POD · Destino final"
           placeholder="Seleccione POD"
           :options="catalogs.podOptions.value"
@@ -822,6 +893,7 @@ onMounted(initialize)
       <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <DhSelect
           v-model="form.currencyId"
+          :disabled="isHeaderLocked"
           label="Moneda"
           placeholder="Seleccione moneda"
           :options="catalogs.currencyOptions.value"
@@ -829,6 +901,7 @@ onMounted(initialize)
         />
         <DhInput
           v-model="form.freeDays"
+          :disabled="isHeaderLocked"
           type="number"
           label="Días libres"
           :error="
@@ -837,12 +910,14 @@ onMounted(initialize)
         />
         <DhInput
           v-model="form.validFrom"
+          :disabled="isHeaderLocked"
           type="date"
           label="Válida desde"
           :error="form.submitted && !form.validFrom ? 'Indique la fecha.' : undefined"
         />
         <DhInput
           v-model="form.validTo"
+          :disabled="isHeaderLocked"
           type="date"
           label="Válida hasta"
           :error="
@@ -860,6 +935,47 @@ onMounted(initialize)
           class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
           >3</span
         >
+        <div>
+          <h3 class="font-black text-[var(--dh-text)]">Datos y condiciones comerciales</h3>
+          <p class="text-sm font-medium text-[var(--dh-text-muted)]">
+            Identificadores del cliente y condiciones que se mostrarán en la cotización.
+          </p>
+        </div>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <DhInput v-model="form.clientName" label="Cliente" placeholder="Nombre del cliente" />
+        <DhInput v-model="form.idtraNumber" label="Número IDTRA" placeholder="IDTRA-..." />
+        <DhInput v-model="form.quoNumber" label="Número QUO" placeholder="QUO-..." />
+        <DhInput
+          v-model="form.containerQuantity"
+          type="number"
+          min="1"
+          label="Cantidad de contenedores"
+          :disabled="isHeaderLocked"
+          :error="form.submitted && Number(form.containerQuantity) <= 0 ? 'Debe ser mayor a cero.' : undefined"
+        />
+        <DhInput
+          v-model="form.transitDays"
+          :disabled="isHeaderLocked"
+          type="number"
+          min="0"
+          label="Tiempo de tránsito (días)"
+          :error="form.submitted && form.transitDays && Number(form.transitDays) < 0 ? 'No puede ser negativo.' : undefined"
+        />
+      </div>
+      <div class="mt-4 grid gap-4 lg:grid-cols-3">
+        <DhTextarea v-model="form.includes" label="Tarifa incluye" :rows="4" />
+        <DhTextarea v-model="form.subjectTo" label="Sujeto a" :rows="4" />
+        <DhTextarea v-model="form.excludes" label="No incluye" :rows="4" />
+      </div>
+    </section>
+
+    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <div class="mb-5 flex items-center gap-3">
+        <span
+          class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
+          >4</span
+        >
         <div class="flex-1">
           <h3 class="font-black text-[var(--dh-text)]">Construcción de la tarifa</h3>
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">
@@ -874,13 +990,6 @@ onMounted(initialize)
           @click="addManualDetail()"
         />
       </div>
-
-      <PricingMultiSelect
-        v-model="optionalCostIds"
-        :options="optionalOptions"
-        label="Costos opcionales"
-        placeholder="Seleccione costos opcionales"
-      />
 
       <div class="mt-5 space-y-4">
         <section
@@ -927,6 +1036,13 @@ onMounted(initialize)
                       variant="primary"
                     />
                   </div>
+                  <p
+                    v-if="detail.notes.trim()"
+                    class="mt-2 rounded-xl bg-black/[0.035] px-3 py-2 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.05]"
+                  >
+                    <span class="font-black text-[var(--dh-text-soft)]">Nota operativa:</span>
+                    <span class="whitespace-pre-line">{{ detail.notes }}</span>
+                  </p>
                 </div>
                 <DhSelect
                   v-model="detail.costDetailType"
@@ -978,6 +1094,15 @@ onMounted(initialize)
             Sin rubros en esta sección.
           </p>
         </section>
+      </div>
+
+      <div class="mt-6 border-t border-[var(--dh-border)] pt-5">
+        <PricingMultiSelect
+          v-model="optionalCostIds"
+          :options="optionalOptions"
+          label="Costos opcionales"
+          placeholder="Seleccione costos opcionales"
+        />
       </div>
     </section>
 

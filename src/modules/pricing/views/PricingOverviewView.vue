@@ -179,6 +179,7 @@ function statusLabel(status: ImportStatus | null) {
       Approved: 'Lista para crear',
       Rejected: 'Rechazada',
       Created: 'Utilizada anteriormente',
+      Expired: 'Vencida',
     } as Record<ImportStatus, string>
   )[status]
 }
@@ -188,7 +189,7 @@ function statusVariant(
 ): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
   if (status === 'Approved' || status === 'Created') return 'success'
   if (status === 'Pending') return 'warning'
-  if (status === 'Rejected') return 'danger'
+  if (status === 'Rejected' || status === 'Expired') return 'danger'
   return 'neutral'
 }
 

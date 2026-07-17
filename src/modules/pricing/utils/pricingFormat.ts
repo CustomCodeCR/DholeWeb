@@ -45,10 +45,11 @@ export function marginTone(margin: number) {
 }
 
 export function statusTone(status: RateStatus | string) {
-  if (status === 'Approved' || status === 'Send' || status === 'Created') return 'success' as const
+  if (status === 'Approved' || status === 'AcceptedByClient' || status === 'Created') return 'success' as const
+  if (status === 'Sent') return 'primary' as const
   if (status === 'Pending' || status === 'PendingApproval' || status === 'Draft')
     return 'warning' as const
-  if (status === 'Rejected') return 'danger' as const
+  if (status === 'Rejected' || status === 'RejectedByClient' || status === 'Expired') return 'danger' as const
   return 'neutral' as const
 }
 

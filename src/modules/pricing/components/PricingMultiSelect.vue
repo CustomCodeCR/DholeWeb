@@ -6,6 +6,7 @@ export interface PricingMultiSelectOption {
   value: string
   label: string
   description?: string
+  notes?: string
 }
 
 const props = withDefaults(
@@ -29,7 +30,9 @@ const filtered = computed(() => {
   const query = search.value.trim().toLocaleLowerCase()
   if (!query) return props.options
   return props.options.filter((option) =>
-    `${option.label} ${option.description ?? ''}`.toLocaleLowerCase().includes(query),
+    `${option.label} ${option.description ?? ''} ${option.notes ?? ''}`
+      .toLocaleLowerCase()
+      .includes(query),
   )
 })
 
@@ -98,13 +101,20 @@ function toggle(value: string) {
             >
               <Check v-if="modelValue.includes(option.value)" class="h-3.5 w-3.5" />
             </span>
-            <span>
+            <span class="min-w-0 flex-1">
               <span class="block text-sm font-bold text-[var(--dh-text)]">{{ option.label }}</span>
               <span
                 v-if="option.description"
                 class="mt-0.5 block text-xs font-medium text-[var(--dh-text-muted)]"
                 >{{ option.description }}</span
               >
+              <span
+                v-if="option.notes?.trim()"
+                class="mt-2 block whitespace-pre-line rounded-xl border border-amber-500/20 bg-amber-500/10 px-2.5 py-2 text-xs font-semibold leading-relaxed text-amber-900 dark:text-amber-100"
+              >
+                <span class="font-black">Nota operativa:</span>
+                {{ option.notes }}
+              </span>
             </span>
           </button>
           <p

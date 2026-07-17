@@ -335,9 +335,9 @@ onMounted(async () => {
           >
           <template #cell-portName="{ row }"
             ><div>
-              <p class="font-bold">{{ displayCost(row).portName }}</p>
+              <p class="font-bold">{{ displayCost(row).portName || 'Sin puerto específico' }}</p>
               <p class="text-xs text-[var(--dh-text-muted)]">
-                {{ row.portRole }}
+                {{ row.portRole || 'Cualquier punto' }}
               </p>
             </div></template
           >

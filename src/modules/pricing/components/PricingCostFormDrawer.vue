@@ -26,11 +26,14 @@ const form = reactive({
   name: props.cost?.name ?? '',
   costType: (props.cost?.costType ?? 'Fixed') as CostType,
   costDetailType: (props.cost?.costDetailType ?? 'DestinationCharge') as CostDetailType,
-  associationType: (props.cost?.agentId ? 'Agent' : 'Carrier') as 'Agent' | 'Carrier',
+  associationType: (props.cost?.agentId ? 'Agent' : props.cost?.carrierId ? 'Carrier' : 'None') as
+    | 'None'
+    | 'Agent'
+    | 'Carrier',
   carrierId: props.cost?.carrierId ?? '',
   agentId: props.cost?.agentId ?? '',
   portId: props.cost?.portId ?? '',
-  portRole: (props.cost?.portRole ?? 'Pod') as CostPortRole,
+  portRole: (props.cost?.portRole ?? '') as CostPortRole | '',
   currencyId: props.cost?.currencyId ?? '',
   costAmount: String(props.cost?.costAmount ?? ''),
   saleAmount: String(props.cost?.saleAmount ?? ''),
@@ -40,6 +43,7 @@ const form = reactive({
 })
 
 const isAgentCost = computed(() => form.associationType === 'Agent')
+const isCarrierCost = computed(() => form.associationType === 'Carrier')
 const utility = computed(() => Number(form.saleAmount || 0) - Number(form.costAmount || 0))
 const portOptions = computed(() => {
   if (form.portRole === 'Pol') return catalogs.polOptions.value
@@ -81,6 +85,7 @@ const portRoleOptions = [
 ]
 
 const associationTypeOptions = [
+  { label: 'Sin asociación', value: 'None' },
   { label: 'Naviera', value: 'Carrier' },
   { label: 'Agente', value: 'Agent' },
 ]
@@ -93,16 +98,21 @@ function selected<T extends { id: string }>(items: T[], id: string) {
   return items.find((item) => item.id === id)
 }
 
-watch(isAgentCost, (agentCost) => {
-  if (agentCost) {
-    form.carrierId = ''
-    form.costDetailType = 'AgentCharge'
-    form.saleAmount = '0'
-  } else {
+watch(
+  () => form.associationType,
+  (associationType) => {
+    if (associationType === 'Agent') {
+      form.carrierId = ''
+      form.costDetailType = 'AgentCharge'
+      form.saleAmount = '0'
+      return
+    }
+
     form.agentId = ''
+    if (associationType === 'None') form.carrierId = ''
     if (form.costDetailType === 'AgentCharge') form.costDetailType = 'DestinationCharge'
-  }
-})
+  },
+)
 
 watch(
   () => form.portRole,
@@ -123,9 +133,9 @@ async function submit() {
 
   if (
     !form.name.trim() ||
-    !port ||
     !currency ||
-    (isAgentCost.value ? !agent : !carrier) ||
+    (isAgentCost.value && !agent) ||
+    (isCarrierCost.value && !carrier) ||
     Number(form.costAmount) < 0 ||
     Number(form.saleAmount) < 0
   )
@@ -141,10 +151,10 @@ async function submit() {
     agentId: agent?.id ?? null,
     agentName: agent?.name ?? null,
     agentCode: agent?.code ?? null,
-    portId: port.id,
-    portName: port.name,
-    portCode: port.code,
-    portRole: form.portRole,
+    portId: port?.id ?? null,
+    portName: port?.name ?? null,
+    portCode: port?.code ?? null,
+    portRole: port ? form.portRole || null : null,
     currencyId: currency.id,
     currencyName: currency.name,
     currencyCode: currency.code,
@@ -202,7 +212,12 @@ onMounted(catalogs.loadAll)
         />
         <DhSelect v-model="form.costType" label="Aplicación" :options="costTypeOptions" />
         <DhSelect v-model="form.costDetailType" label="Rubro" :options="detailTypeOptions" />
-        <DhSelect v-model="form.portRole" label="Punto de aplicación" :options="portRoleOptions" />
+        <DhSelect
+          v-model="form.portRole"
+          label="Punto de aplicación"
+          placeholder="Sin puerto específico"
+          :options="[{ label: 'Sin puerto específico', value: '' }, ...portRoleOptions]"
+        />
       </div>
     </section>
 
@@ -227,7 +242,7 @@ onMounted(catalogs.loadAll)
           :error="fieldError(form.agentId, 'Seleccione el agente.')"
         />
         <DhSelect
-          v-else
+          v-else-if="isCarrierCost"
           v-model="form.carrierId"
           label="Naviera"
           placeholder="Seleccione naviera"
@@ -238,8 +253,7 @@ onMounted(catalogs.loadAll)
           v-model="form.portId"
           label="Puerto"
           placeholder="Seleccione puerto"
-          :options="portOptions"
-          :error="fieldError(form.portId, 'Seleccione el puerto.')"
+          :options="[{ label: 'Sin puerto específico', value: '' }, ...portOptions]"
         />
         <DhSelect
           v-model="form.currencyId"
@@ -255,8 +269,8 @@ onMounted(catalogs.loadAll)
       >
         <Info class="mt-0.5 h-4 w-4 shrink-0" />
         <p v-if="form.costType === 'Fixed'">
-          El costo se agregará automáticamente cuando coincidan la
-          {{ isAgentCost ? 'agencia' : 'naviera' }} y el punto seleccionado.
+          El costo se agregará automáticamente cuando coincidan las relaciones configuradas.
+          Puede ser global, solo por puerto, solo por naviera/agente o combinar ambas condiciones.
         </p>
         <p v-else-if="form.costType === 'Optional'">
           Este rubro aparecerá en el selector múltiple al construir o editar una tarifa.

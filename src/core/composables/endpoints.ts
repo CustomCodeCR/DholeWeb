@@ -531,6 +531,11 @@ export const PricingEndpoints = {
     path: '/api/pricing/rates/{{rateId}}/margin/reject',
     headers: jsonHeaders,
   },
+  setRateStatus: {
+    method: 'PATCH',
+    path: '/api/pricing/rates/{{rateId}}/status',
+    headers: jsonHeaders,
+  },
   deleteRates: { method: 'DELETE', path: '/api/pricing/rates', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 

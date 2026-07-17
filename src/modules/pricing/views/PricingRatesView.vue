@@ -55,6 +55,8 @@ const filters = reactive({
   podId: '',
   containerTypeId: '',
   currencyId: '',
+  idtraNumber: '',
+  quoNumber: '',
   quoteDate: '',
   validFrom: '',
   validTo: '',
@@ -66,7 +68,7 @@ const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete)
 
 const columns: DhTableColumn<RateDto>[] = [
   { key: 'selected', label: '', width: '48px', align: 'center' },
-  { key: 'route', label: 'Ruta' },
+  { key: 'route', label: 'Tarifa / ruta' },
   { key: 'agentName', label: 'Agente' },
   { key: 'carrierName', label: 'Naviera / contenedor' },
   { key: 'totalCostAmount', label: 'Costo', align: 'right' },
@@ -82,8 +84,10 @@ const statusOptions = [
   { label: 'Aprobadas', value: 'Approved' },
   { label: 'Pendientes de autorización', value: 'PendingApproval' },
   { label: 'Borradores', value: 'Draft' },
-  { label: 'Rechazadas', value: 'Rejected' },
-  { label: 'Enviadas', value: 'Send' },
+  { label: 'Rechazadas internamente', value: 'Rejected' },
+  { label: 'Enviadas', value: 'Sent' },
+  { label: 'Aceptadas por el cliente', value: 'AcceptedByClient' },
+  { label: 'Rechazadas por el cliente', value: 'RejectedByClient' },
 ]
 const approvalOptions = [
   { label: 'Todas', value: '' },
@@ -98,8 +102,10 @@ function statusLabel(status: string) {
         Approved: 'Aprobada',
         PendingApproval: 'Pendiente',
         Draft: 'Borrador',
-        Rejected: 'Rechazada',
-        Send: 'Enviada',
+        Rejected: 'Rechazada internamente',
+        Sent: 'Enviada',
+        AcceptedByClient: 'Aceptada por el cliente',
+        RejectedByClient: 'Rechazada por el cliente',
       } as Record<string, string>
     )[status] ?? status
   )
@@ -121,6 +127,8 @@ async function load() {
       podId: filters.podId || undefined,
       containerTypeId: filters.containerTypeId || undefined,
       currencyId: filters.currencyId || undefined,
+      idtraNumber: filters.idtraNumber || undefined,
+      quoNumber: filters.quoNumber || undefined,
       quoteDate: filters.quoteDate || undefined,
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
@@ -151,6 +159,8 @@ function clearFilters() {
     podId: '',
     containerTypeId: '',
     currencyId: '',
+    idtraNumber: '',
+    quoNumber: '',
     quoteDate: '',
     validFrom: '',
     validTo: '',
@@ -175,7 +185,7 @@ function openCreate() {
 
 function openDetail(rate: RateDto) {
   drawerStore.open({
-    title: `Tarifa · ${routeLabel(displayRate(rate))}`,
+    title: rate.rateName || `Tarifa · ${routeLabel(displayRate(rate))}`,
     component: PricingRateDetailDrawer,
     size: 'xl',
     props: { rate, onSaved: load },
@@ -184,7 +194,7 @@ function openDetail(rate: RateDto) {
 
 function openEdit(rate: RateDto) {
   drawerStore.open({
-    title: 'Editar tarifa',
+    title: `Editar · ${rate.rateName || rate.rateCode}`,
     component: PricingRateFormDrawer,
     size: 'full',
     props: { rate, onSaved: load },
@@ -325,6 +335,8 @@ onMounted(async () => {
             :options="[{ label: 'Todas', value: '' }, ...catalogs.currencyOptions.value]"
             placeholder=""
           />
+          <DhInput v-model="filters.idtraNumber" label="Número IDTRA" placeholder="Buscar IDTRA" />
+          <DhInput v-model="filters.quoNumber" label="Número QUO" placeholder="Buscar QUO" />
           <DhInput v-model="filters.quoteDate" type="date" label="Fecha de cotización" />
           <DhInput v-model="filters.validFrom" type="date" label="Vigente desde" />
           <DhInput v-model="filters.validTo" type="date" label="Vigente hasta" />
@@ -372,7 +384,17 @@ onMounted(async () => {
           ></template>
           <template #cell-route="{ row }"
             ><div>
-              <p class="font-black text-[var(--dh-text)]">{{ routeLabel(displayRate(row)) }}</p>
+              <p class="font-black text-[var(--dh-text)]">
+                {{ row.rateName || row.rateCode }}
+              </p>
+              <p class="mt-0.5 text-sm font-bold text-[var(--dh-text-soft)]">
+                {{ routeLabel(displayRate(row)) }}
+              </p>
+              <p class="mt-0.5 text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ row.rateCode }}
+                <span v-if="row.idtraNumber"> · IDTRA {{ row.idtraNumber }}</span>
+                <span v-if="row.quoNumber"> · QUO {{ row.quoNumber }}</span>
+              </p>
               <p class="mt-0.5 text-xs font-semibold text-[var(--dh-text-muted)]">
                 {{ formatDate(row.validFrom) }} – {{ formatDate(row.validTo) }} ·
                 {{ row.freeDays }} días libres

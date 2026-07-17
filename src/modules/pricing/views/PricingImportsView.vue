@@ -119,6 +119,7 @@ function statusLabel(status: string) {
         Approved: 'Aprobada',
         Rejected: 'Rechazada',
         Created: 'Creada',
+        Expired: 'Vencida',
       } as Record<string, string>
     )[status] ?? status
   )

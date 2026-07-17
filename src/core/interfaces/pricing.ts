@@ -14,8 +14,15 @@ export type CostDetailType =
   | 'Other'
 export type CostPortRole = 'Any' | 'Pol' | 'Poe' | 'Pod'
 export type ImportSourceType = 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
-export type ImportStatus = 'Pending' | 'Approved' | 'Rejected' | 'Created'
-export type RateStatus = 'PendingApproval' | 'Approved' | 'Rejected' | 'Draft' | 'Send'
+export type ImportStatus = 'Pending' | 'Approved' | 'Rejected' | 'Created' | 'Expired'
+export type RateStatus =
+  | 'PendingApproval'
+  | 'Approved'
+  | 'Rejected'
+  | 'Draft'
+  | 'Sent'
+  | 'AcceptedByClient'
+  | 'RejectedByClient'
 
 export interface CostDto extends Record<string, unknown> {
   id: string
@@ -28,10 +35,10 @@ export interface CostDto extends Record<string, unknown> {
   agentId?: string | null
   agentName?: string | null
   agentCode?: string | null
-  portId: string
-  portName: string
-  portCode: string
-  portRole: CostPortRole
+  portId?: string | null
+  portName?: string | null
+  portCode?: string | null
+  portRole?: CostPortRole | null
   currencyId: string
   currencyName: string
   currencyCode: string
@@ -39,6 +46,7 @@ export interface CostDto extends Record<string, unknown> {
   saleAmount: number
   utilityAmount: number
   notes?: string | null
+  isAccountant: boolean
   isActive: boolean
 }
 
@@ -57,16 +65,17 @@ export interface CreateCostRequest extends Record<string, unknown> {
   agentId?: string | null
   agentName?: string | null
   agentCode?: string | null
-  portId: string
-  portName: string
-  portCode: string
-  portRole: CostPortRole
+  portId?: string | null
+  portName?: string | null
+  portCode?: string | null
+  portRole?: CostPortRole | null
   currencyId: string
   currencyName: string
   currencyCode: string
   costAmount: number
   saleAmount: number
   notes?: string | null
+  isAccountant?: boolean
 }
 
 export type UpdateCostRequest = CreateCostRequest
@@ -260,6 +269,8 @@ export interface RateDetailDto extends Record<string, unknown> {
 
 export interface RateDto extends Record<string, unknown> {
   id: string
+  rateCode: string
+  rateName: string
   sourceImportFclRateId?: string | null
   agentId?: string | null
   agentName?: string | null
@@ -279,12 +290,20 @@ export interface RateDto extends Record<string, unknown> {
   containerTypeId: string
   containerTypeName: string
   containerTypeCode: string
+  containerQuantity: number
   currencyId: string
   currencyName: string
   currencyCode: string
   freeDays: number
   validFrom: string
   validTo: string
+  clientName?: string | null
+  idtraNumber?: string | null
+  quoNumber?: string | null
+  includes?: string | null
+  subjectTo?: string | null
+  excludes?: string | null
+  transitDays?: number | null
   totalCostAmount: number
   totalSaleAmount: number
   totalUtilityAmount: number
@@ -340,6 +359,14 @@ export interface CreateRateRequest extends Record<string, unknown> {
   freeDays: number
   validFrom: string
   validTo: string
+  containerQuantity: number
+  clientName?: string | null
+  idtraNumber?: string | null
+  quoNumber?: string | null
+  includes?: string | null
+  subjectTo?: string | null
+  excludes?: string | null
+  transitDays?: number | null
   details: CreateRateDetailRequest[]
 }
 
@@ -369,6 +396,11 @@ export interface DuplicateRateRequest extends Record<string, unknown> {
 export interface RejectRateMarginRequest extends Record<string, unknown> {
   reason: string
 }
+
+export interface SetRateStatusRequest extends Record<string, unknown> {
+  status: Extract<RateStatus, 'Sent' | 'AcceptedByClient' | 'RejectedByClient'>
+}
+
 export interface DeleteBatchRequest extends Record<string, unknown> {
   ids: string[]
 }
@@ -410,6 +442,8 @@ export interface BrowseRatesQuery extends Record<string, unknown> {
   pageNumber?: number
   pageSize?: number
   search?: string | null
+  idtraNumber?: string | null
+  quoNumber?: string | null
   sourceImportFclRateId?: string | null
   agentId?: string | null
   carrierId?: string | null
