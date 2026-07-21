@@ -12,6 +12,7 @@ declare module 'vue-router' {
     tabTitle?: string
     closable?: boolean
     requiredScope?: string
+    requiredAnyScopes?: string[]
     requiredRole?: string
   }
 }
@@ -228,6 +229,24 @@ export const router = createRouter({
         },
 
         {
+          path: 'ai',
+          name: 'ai-console',
+          component: () => import('@/modules/ai/views/AiConsoleView.vue'),
+          meta: {
+            tabTitle: 'Centro de IA',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.aiConnections,
+              VIEW_SCOPES.aiModels,
+              VIEW_SCOPES.aiProfiles,
+              VIEW_SCOPES.aiPromptTemplates,
+              VIEW_SCOPES.aiExecutions,
+              VIEW_SCOPES.aiAssistant,
+            ],
+          },
+        },
+
+        {
           path: 'settings',
           name: 'settings',
           component: () => import('@/modules/settings/views/SettingsView.vue'),
@@ -294,9 +313,20 @@ router.beforeEach(async (to) => {
   }
 
   const requiredScope = typeof to.meta.requiredScope === 'string' ? to.meta.requiredScope : null
+  const requiredAnyScopes = Array.isArray(to.meta.requiredAnyScopes)
+    ? to.meta.requiredAnyScopes.filter((scope): scope is string => typeof scope === 'string')
+    : []
   const requiredRole = typeof to.meta.requiredRole === 'string' ? to.meta.requiredRole : null
 
   if (!isPublic && requiredScope && !authStore.hasScope(requiredScope)) {
+    return '/home'
+  }
+
+  if (
+    !isPublic &&
+    requiredAnyScopes.length > 0 &&
+    !requiredAnyScopes.some((scope) => authStore.hasScope(scope))
+  ) {
     return '/home'
   }
 

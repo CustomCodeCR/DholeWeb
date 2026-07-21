@@ -175,7 +175,9 @@ export interface PricingDecisionDashboardDto extends Record<string, unknown> {
 export interface PricingDecisionDashboardQuery extends Record<string, unknown> {
   dateFrom?: string | null
   dateTo?: string | null
+  containerType?: string | null
 }
+
 
 export interface CatalogSnapshotRequest extends Record<string, unknown> {
   id: string

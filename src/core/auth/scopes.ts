@@ -148,6 +148,46 @@ export const PRICING_SCOPES = {
   },
 } as const
 
+
+export const AI_SCOPES = {
+  connections: {
+    create: 'ai.connection.create',
+    view: 'ai.connection.view',
+    update: 'ai.connection.update',
+    delete: 'ai.connection.delete',
+    setActive: 'ai.connection.set-active',
+    test: 'ai.connection.test',
+    discoverModels: 'ai.connection.discover-models',
+  },
+  models: {
+    create: 'ai.model.create',
+    view: 'ai.model.view',
+    update: 'ai.model.update',
+    delete: 'ai.model.delete',
+    setActive: 'ai.model.set-active',
+  },
+  profiles: {
+    create: 'ai.profile.create',
+    view: 'ai.profile.view',
+    update: 'ai.profile.update',
+    delete: 'ai.profile.delete',
+    setActive: 'ai.profile.set-active',
+    configureModels: 'ai.profile.configure-models',
+  },
+  promptTemplates: {
+    create: 'ai.prompt-template.create',
+    view: 'ai.prompt-template.view',
+    update: 'ai.prompt-template.update',
+    delete: 'ai.prompt-template.delete',
+    setActive: 'ai.prompt-template.set-active',
+  },
+  executions: {
+    view: 'ai.execution.view',
+    execute: 'ai.execution.execute',
+    cancel: 'ai.execution.cancel',
+  },
+} as const
+
 export const VIEW_SCOPES = {
   users: AUTH_SCOPES.users.view,
   roles: AUTH_SCOPES.roles.view,
@@ -164,4 +204,11 @@ export const VIEW_SCOPES = {
   pricingDecisions: PRICING_SCOPES.fclDecisions.view,
   pricingCompetition: PRICING_SCOPES.rates.view,
   pricingCosts: PRICING_SCOPES.costs.view,
+
+  aiConnections: AI_SCOPES.connections.view,
+  aiModels: AI_SCOPES.models.view,
+  aiProfiles: AI_SCOPES.profiles.view,
+  aiPromptTemplates: AI_SCOPES.promptTemplates.view,
+  aiExecutions: AI_SCOPES.executions.view,
+  aiAssistant: AI_SCOPES.executions.execute,
 } as const

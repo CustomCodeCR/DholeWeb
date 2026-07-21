@@ -4,6 +4,7 @@ export interface Endpoint {
   method: HttpMethod
   path: string
   headers?: Record<string, string>
+  baseUrl?: string
 }
 
 const jsonHeaders = {
@@ -14,6 +15,7 @@ const jsonHeaders = {
 const acceptJson = {
   Accept: 'application/json',
 }
+
 
 export const AuthEndpoints = {
   login: { method: 'POST', path: '/api/auth/login', headers: jsonHeaders },
@@ -567,6 +569,47 @@ export const DataExtractionEmailEndpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+
+export const AiEndpoints = {
+  browseConnections: { method: 'GET', path: '/api/ai/connections', headers: acceptJson },
+  getConnection: { method: 'GET', path: '/api/ai/connections/{{connectionId}}', headers: acceptJson },
+  createConnection: { method: 'POST', path: '/api/ai/connections', headers: jsonHeaders },
+  updateConnection: { method: 'PUT', path: '/api/ai/connections/{{connectionId}}', headers: jsonHeaders },
+  setConnectionActive: { method: 'PATCH', path: '/api/ai/connections/{{connectionId}}/active', headers: jsonHeaders },
+  testConnection: { method: 'POST', path: '/api/ai/connections/{{connectionId}}/test', headers: acceptJson },
+  discoverModels: { method: 'POST', path: '/api/ai/connections/{{connectionId}}/discover-models', headers: acceptJson },
+  deleteConnection: { method: 'DELETE', path: '/api/ai/connections/{{connectionId}}', headers: acceptJson },
+
+  browseModels: { method: 'GET', path: '/api/ai/models', headers: acceptJson },
+  getModel: { method: 'GET', path: '/api/ai/models/{{modelId}}', headers: acceptJson },
+  createModel: { method: 'POST', path: '/api/ai/models', headers: jsonHeaders },
+  updateModel: { method: 'PUT', path: '/api/ai/models/{{modelId}}', headers: jsonHeaders },
+  setModelActive: { method: 'PATCH', path: '/api/ai/models/{{modelId}}/active', headers: jsonHeaders },
+  deleteModel: { method: 'DELETE', path: '/api/ai/models/{{modelId}}', headers: acceptJson },
+
+  browseProfiles: { method: 'GET', path: '/api/ai/profiles', headers: acceptJson },
+  getProfile: { method: 'GET', path: '/api/ai/profiles/{{profileId}}', headers: acceptJson },
+  createProfile: { method: 'POST', path: '/api/ai/profiles', headers: jsonHeaders },
+  updateProfile: { method: 'PUT', path: '/api/ai/profiles/{{profileId}}', headers: jsonHeaders },
+  configureProfileModels: { method: 'PUT', path: '/api/ai/profiles/{{profileId}}/models', headers: jsonHeaders },
+  setProfileActive: { method: 'PATCH', path: '/api/ai/profiles/{{profileId}}/active', headers: jsonHeaders },
+  deleteProfile: { method: 'DELETE', path: '/api/ai/profiles/{{profileId}}', headers: acceptJson },
+
+  browsePromptTemplates: { method: 'GET', path: '/api/ai/prompt-templates', headers: acceptJson },
+  getPromptTemplate: { method: 'GET', path: '/api/ai/prompt-templates/{{promptTemplateId}}', headers: acceptJson },
+  createPromptTemplate: { method: 'POST', path: '/api/ai/prompt-templates', headers: jsonHeaders },
+  updatePromptTemplate: { method: 'PUT', path: '/api/ai/prompt-templates/{{promptTemplateId}}', headers: jsonHeaders },
+  setPromptTemplateActive: { method: 'PATCH', path: '/api/ai/prompt-templates/{{promptTemplateId}}/active', headers: jsonHeaders },
+  deletePromptTemplate: { method: 'DELETE', path: '/api/ai/prompt-templates/{{promptTemplateId}}', headers: acceptJson },
+
+  browseExecutions: { method: 'GET', path: '/api/ai/executions', headers: acceptJson },
+  getExecution: { method: 'GET', path: '/api/ai/executions/{{executionId}}', headers: acceptJson },
+  executeChat: { method: 'POST', path: '/api/ai/executions/chat', headers: jsonHeaders },
+  executeStructured: { method: 'POST', path: '/api/ai/executions/structured', headers: jsonHeaders },
+  executeEmbeddings: { method: 'POST', path: '/api/ai/executions/embeddings', headers: jsonHeaders },
+  cancelExecution: { method: 'POST', path: '/api/ai/executions/{{executionId}}/cancel', headers: jsonHeaders },
+} satisfies Record<string, Endpoint>
+
 export const Endpoints = {
   ...AuthEndpoints,
   ...ClientBrandingEndpoints,
@@ -580,4 +623,5 @@ export const Endpoints = {
   ...ScrapingEndpoints,
   ...PricingEndpoints,
   ...DataExtractionEmailEndpoints,
+  ...AiEndpoints,
 } satisfies Record<string, Endpoint>

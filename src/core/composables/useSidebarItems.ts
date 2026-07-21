@@ -17,6 +17,7 @@ import {
   FileText,
   Mail,
   ReceiptText,
+  BrainCircuit,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { VIEW_SCOPES } from '@/core/auth/scopes'
@@ -27,6 +28,7 @@ export interface SidebarItem {
   to?: string
   name?: string
   requiredScope?: string
+  requiredAnyScopes?: string[]
   requiredRole?: string
   children?: SidebarItem[]
 }
@@ -147,6 +149,21 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         ],
       },
       {
+        labelKey: 'sidebar.aiCenter',
+        icon: BrainCircuit,
+        to: '/ai',
+        name: 'ai-console',
+        requiredAnyScopes: [
+          VIEW_SCOPES.aiConnections,
+          VIEW_SCOPES.aiModels,
+          VIEW_SCOPES.aiProfiles,
+          VIEW_SCOPES.aiPromptTemplates,
+          VIEW_SCOPES.aiExecutions,
+          VIEW_SCOPES.aiAssistant,
+        ],
+      },
+
+      {
         labelKey: 'sidebar.monitoring',
         icon: MonitorCog,
         name: 'monitoring',
@@ -201,6 +218,10 @@ function mapItem(
   authStore: ReturnType<typeof useAuthStore>,
 ): SidebarItemView | null {
   if (item.requiredScope && !authStore.hasScope(item.requiredScope)) {
+    return null
+  }
+
+  if (item.requiredAnyScopes?.length && !item.requiredAnyScopes.some((scope) => authStore.hasScope(scope))) {
     return null
   }
 

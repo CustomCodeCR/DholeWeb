@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   Activity,
+  BrainCircuit,
   ClipboardList,
   TrendingUp,
   KeyRound,
@@ -87,6 +88,14 @@ const cards = computed(() =>
       path: '/auditlogs/events',
       description: t('dashboard.openAudits'),
       visible: authStore.hasScope(VIEW_SCOPES.auditLogs),
+    },
+    {
+      title: t('sidebar.aiAssistant'),
+      value: t('dashboard.values.ai'),
+      icon: BrainCircuit,
+      path: '/ai/assistant',
+      description: t('dashboard.openAi'),
+      visible: authStore.hasScope(VIEW_SCOPES.aiAssistant),
     },
     {
       title: t('sidebar.monitoring'),

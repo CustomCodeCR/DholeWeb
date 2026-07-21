@@ -3,6 +3,7 @@ import {
   Activity,
   BadgeDollarSign,
   BookOpen,
+  BrainCircuit,
   ClipboardList,
   Home,
   KeyRound,
@@ -185,6 +186,29 @@ const sidebarItems = computed<SidebarItem[]>(() => {
 
   if (pricingChildren.value.length > 0) {
     items.push({ label: t('sidebar.pricing'), icon: TrendingUp, children: pricingChildren.value })
+  }
+
+
+  const canManageAi =
+    canView(VIEW_SCOPES.aiConnections) ||
+    canView(VIEW_SCOPES.aiModels) ||
+    canView(VIEW_SCOPES.aiProfiles) ||
+    canView(VIEW_SCOPES.aiPromptTemplates) ||
+    canView(VIEW_SCOPES.aiExecutions) ||
+    canView(VIEW_SCOPES.aiAssistant)
+
+  if (canManageAi) {
+    items.push({
+      label: t('sidebar.ai'),
+      icon: BrainCircuit,
+      children: [
+        {
+          label: t('sidebar.aiCenter'),
+          path: '/ai',
+          icon: BrainCircuit,
+        },
+      ],
+    })
   }
 
   if (monitoringChildren.value.length > 0) {

@@ -429,7 +429,18 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function hasScope(scope: string): boolean {
-    return scopes.value.some((x) => x.toLowerCase() === scope.toLowerCase())
+    if (hasRole('SuperUsuario') || hasRole('SuperUser')) return true
+
+    const normalizedScope = scope.trim().toLowerCase()
+
+    return scopes.value.some((value) => {
+      const normalizedValue = value.trim().toLowerCase()
+
+      if (normalizedValue === '*' || normalizedValue === normalizedScope) return true
+      if (!normalizedValue.endsWith('.*')) return false
+
+      return normalizedScope.startsWith(normalizedValue.slice(0, -1))
+    })
   }
 
   return {

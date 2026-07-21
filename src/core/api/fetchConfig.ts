@@ -273,12 +273,16 @@ function buildRequestConfig(options: RequestOptions, token: string | null): Requ
   }
 }
 
-export async function fetchClient<T>(endpoint: string, options: RequestOptions): Promise<T> {
+export async function fetchClient<T>(
+  endpoint: string,
+  options: RequestOptions,
+  baseUrl: string = BASE_URL,
+): Promise<T> {
   let token = await getUsableAccessToken(endpoint)
   let config = buildRequestConfig(options, token)
 
   try {
-    let response = await fetch(`${BASE_URL}${endpoint}`, config)
+    let response = await fetch(`${baseUrl}${endpoint}`, config)
 
     if (response.status === 401 && !isAuthEndpoint(endpoint)) {
       const refreshed = await refreshStoredSession()
@@ -286,7 +290,7 @@ export async function fetchClient<T>(endpoint: string, options: RequestOptions):
       if (refreshed) {
         token = getAccessToken()
         config = buildRequestConfig(options, token)
-        response = await fetch(`${BASE_URL}${endpoint}`, config)
+        response = await fetch(`${baseUrl}${endpoint}`, config)
       }
     }
 

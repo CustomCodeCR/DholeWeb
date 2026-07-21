@@ -37,3 +37,7 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+# Generated JavaScript emitted accidentally beside TypeScript/Vue sources
+/src/**/*.js
+/src/**/*.js.map
+

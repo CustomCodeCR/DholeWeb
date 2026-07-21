@@ -89,7 +89,10 @@
     "importedRates": "Imported rates",
     "emailImports": "Rate emails",
     "rates": "Official rates",
-    "serviceMonitoring": "Services status"
+    "serviceMonitoring": "Services status",
+    "aiAssistant": "AI Assistant",
+    "ai": "Artificial intelligence",
+    "aiCenter": "AI Center"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -126,9 +129,11 @@
       "config": "Config",
       "audit": "Audit",
       "monitoring": "Ops",
-      "pricing": "FCL"
+      "pricing": "FCL",
+      "ai": "AI"
     },
-    "openPricing": "Manage pricing"
+    "openPricing": "Manage pricing",
+    "openAi": "Open conversational assistant"
   },
   "users": {
     "title": "Users",

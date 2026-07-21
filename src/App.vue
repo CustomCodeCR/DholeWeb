@@ -4,6 +4,7 @@ import { RouterView, useRouter } from 'vue-router'
 import DhToastContainer from '@/shared/components/containers/DhToastContainer.vue'
 import DhModalContainer from '@/shared/components/containers/DhModalContainer.vue'
 import DhDrawerContainer from '@/shared/components/containers/DhDrawerContainer.vue'
+import AiAssistantFloatingButton from '@/modules/ai/components/AiAssistantFloatingButton.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
@@ -54,4 +55,5 @@ onBeforeUnmount(() => {
   <DhDrawerContainer />
 
   <RouterView />
+  <AiAssistantFloatingButton />
 </template>

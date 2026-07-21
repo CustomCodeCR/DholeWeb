@@ -25,5 +25,5 @@ export async function callEndpoint<TResponse, TBody = unknown>(
     ...(args?.isFormData ? { isFormData: true } : {}),
   }
 
-  return fetchClient<TResponse>(finalPath, options)
+  return fetchClient<TResponse>(finalPath, options, endpoint.baseUrl)
 }

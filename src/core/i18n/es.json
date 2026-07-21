@@ -89,7 +89,10 @@
     "importedRates": "Tarifas importadas",
     "emailImports": "Correos de tarifas",
     "rates": "Tarifas oficiales",
-    "serviceMonitoring": "Estado de servicios"
+    "serviceMonitoring": "Estado de servicios",
+    "aiAssistant": "Asistente IA",
+    "ai": "Inteligencia artificial",
+    "aiCenter": "Centro de IA"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -126,9 +129,11 @@
       "config": "Config",
       "audit": "Audit",
       "monitoring": "Ops",
-      "pricing": "FCL"
+      "pricing": "FCL",
+      "ai": "IA"
     },
-    "openPricing": "Gestionar pricing"
+    "openPricing": "Gestionar pricing",
+    "openAi": "Abrir asistente conversacional"
   },
   "users": {
     "title": "Usuarios",
