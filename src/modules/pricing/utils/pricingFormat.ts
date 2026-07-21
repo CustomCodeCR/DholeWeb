@@ -1,3 +1,4 @@
+import { createUuid } from '@/core/utils/id'
 import type { CostDetailType, RateDto, RateStatus } from '@/core/interfaces/pricing'
 
 export function formatMoney(value: number | null | undefined, currency = 'USD', locale = 'es-CR') {
@@ -45,11 +46,13 @@ export function marginTone(margin: number) {
 }
 
 export function statusTone(status: RateStatus | string) {
-  if (status === 'Approved' || status === 'AcceptedByClient' || status === 'Created') return 'success' as const
+  if (status === 'Approved' || status === 'AcceptedByClient' || status === 'Created')
+    return 'success' as const
   if (status === 'Sent') return 'primary' as const
   if (status === 'Pending' || status === 'PendingApproval' || status === 'Draft')
     return 'warning' as const
-  if (status === 'Rejected' || status === 'RejectedByClient' || status === 'Expired') return 'danger' as const
+  if (status === 'Rejected' || status === 'RejectedByClient' || status === 'Expired')
+    return 'danger' as const
   return 'neutral' as const
 }
 
@@ -65,5 +68,5 @@ export function routeLabel(rate: Pick<RateDto, 'polName' | 'poeName' | 'podName'
 }
 
 export function createCorrelationId() {
-  return `pricing-web-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
+  return `pricing-web-${Date.now()}-${createUuid().slice(0, 8)}`
 }

@@ -6,6 +6,7 @@ import { AiService } from '@/core/services/aiService'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { AiMessageRequest } from '@/core/interfaces/ai'
+import { createUuid } from '@/core/utils/id'
 
 interface AssistantMessage extends AiMessageRequest {
   id: string
@@ -69,7 +70,7 @@ async function sendMessage(): Promise<void> {
   if (!content || !canSend.value) return
 
   messages.value.push({
-    id: crypto.randomUUID(),
+    id: createUuid(),
     role: 'user',
     content,
   })
@@ -88,7 +89,7 @@ async function sendMessage(): Promise<void> {
     const result = await AiService.executeChat({
       profileKey: PROFILE_KEY,
       messages: history,
-      correlationId: crypto.randomUUID(),
+      correlationId: createUuid(),
     })
 
     messages.value.push({
@@ -153,9 +154,13 @@ onBeforeUnmount(() => {
         class="fixed bottom-24 right-4 z-[100] flex h-[min(680px,calc(100vh-8rem))] w-[calc(100vw-2rem)] max-w-[430px] flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[0_28px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:bottom-28 sm:right-7"
         aria-label="Asistente IA"
       >
-        <header class="flex items-center justify-between border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
+        <header
+          class="flex items-center justify-between border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3"
+        >
           <div class="flex min-w-0 items-center gap-3">
-            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-white shadow-lg">
+            <span
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-white shadow-lg"
+            >
               <Bot class="h-5 w-5" />
             </span>
 
@@ -164,7 +169,9 @@ onBeforeUnmount(() => {
                 <h2 class="truncate text-sm font-black text-[var(--dh-text)]">Asistente IA</h2>
                 <Sparkles class="h-3.5 w-3.5 text-[var(--dh-primary)]" />
               </div>
-              <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">Perfil: assistant</p>
+              <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">
+                Perfil: assistant
+              </p>
             </div>
           </div>
 
@@ -195,12 +202,15 @@ onBeforeUnmount(() => {
             v-if="messages.length === 0"
             class="flex h-full min-h-64 flex-col items-center justify-center px-6 text-center"
           >
-            <span class="mb-4 flex h-16 w-16 items-center justify-center rounded-[22px] bg-[color-mix(in_srgb,var(--dh-primary)_12%,transparent)] text-[var(--dh-primary)]">
+            <span
+              class="mb-4 flex h-16 w-16 items-center justify-center rounded-[22px] bg-[color-mix(in_srgb,var(--dh-primary)_12%,transparent)] text-[var(--dh-primary)]"
+            >
               <Sparkles class="h-7 w-7" />
             </span>
             <h3 class="text-base font-black text-[var(--dh-text)]">¿En qué puedo ayudarte?</h3>
             <p class="mt-2 max-w-xs text-sm leading-6 text-[var(--dh-text-muted)]">
-              Pregunta sobre el sistema, procesos o información operativa sin abandonar la pantalla actual.
+              Pregunta sobre el sistema, procesos o información operativa sin abandonar la pantalla
+              actual.
             </p>
           </div>
 
@@ -230,7 +240,9 @@ onBeforeUnmount(() => {
                 v-if="message.role === 'assistant' && (message.modelName || message.tokenCount)"
                 class="mt-2 text-[10px] font-bold uppercase tracking-wide text-[var(--dh-text-muted)]"
               >
-                {{ message.modelName }}<span v-if="message.modelName && message.tokenCount"> · </span>{{ message.tokenCount ? `${message.tokenCount} tokens` : '' }}
+                {{ message.modelName
+                }}<span v-if="message.modelName && message.tokenCount"> · </span
+                >{{ message.tokenCount ? `${message.tokenCount} tokens` : '' }}
               </p>
             </div>
 
@@ -243,19 +255,29 @@ onBeforeUnmount(() => {
           </article>
 
           <div v-if="sending" class="flex items-center gap-3">
-            <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-white">
+            <span
+              class="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-white"
+            >
               <Bot class="h-4 w-4" />
             </span>
-            <div class="flex items-center gap-1 rounded-2xl rounded-bl-md border border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
-              <span class="h-2 w-2 animate-bounce rounded-full bg-[var(--dh-primary)] [animation-delay:-0.3s]" />
-              <span class="h-2 w-2 animate-bounce rounded-full bg-[var(--dh-primary)] [animation-delay:-0.15s]" />
+            <div
+              class="flex items-center gap-1 rounded-2xl rounded-bl-md border border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3"
+            >
+              <span
+                class="h-2 w-2 animate-bounce rounded-full bg-[var(--dh-primary)] [animation-delay:-0.3s]"
+              />
+              <span
+                class="h-2 w-2 animate-bounce rounded-full bg-[var(--dh-primary)] [animation-delay:-0.15s]"
+              />
               <span class="h-2 w-2 animate-bounce rounded-full bg-[var(--dh-primary)]" />
             </div>
           </div>
         </div>
 
         <footer class="border-t border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-          <div class="flex items-end gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 focus-within:border-[var(--dh-primary)]">
+          <div
+            class="flex items-end gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 focus-within:border-[var(--dh-primary)]"
+          >
             <textarea
               v-model="prompt"
               rows="1"

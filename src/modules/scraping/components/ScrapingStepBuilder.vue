@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { GripVertical, Plus, Trash2 } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
+import { createUuid } from '@/core/utils/id'
 
 type SelectOption = { label: string; value: string | number; disabled?: boolean }
 
@@ -64,7 +65,7 @@ const valueSourceOptions = computed<SelectOption[]>(() => [
 
 function newStep(): ScrapingStepDraft {
   return {
-    id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+    id: createUuid(),
     action: 'waitForSelector',
     selector: '',
     valueSource: '',
@@ -77,7 +78,9 @@ function newStep(): ScrapingStepDraft {
 }
 
 function updateStep(index: number, patch: Partial<ScrapingStepDraft>) {
-  const next = props.modelValue.map((step, currentIndex) => currentIndex === index ? { ...step, ...patch } : step)
+  const next = props.modelValue.map((step, currentIndex) =>
+    currentIndex === index ? { ...step, ...patch } : step,
+  )
   emit('update:modelValue', next)
 }
 
@@ -86,7 +89,10 @@ function addStep() {
 }
 
 function removeStep(index: number) {
-  emit('update:modelValue', props.modelValue.filter((_, currentIndex) => currentIndex !== index))
+  emit(
+    'update:modelValue',
+    props.modelValue.filter((_, currentIndex) => currentIndex !== index),
+  )
 }
 
 function moveStep(index: number, direction: -1 | 1) {
@@ -107,10 +113,19 @@ function moveStep(index: number, direction: -1 | 1) {
         <h3 class="text-sm font-black text-[var(--dh-text)]">{{ title }}</h3>
         <p v-if="hint" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ hint }}</p>
       </div>
-      <DhButton :icon="Plus" :label="t('scraping.addStep')" size="sm" variant="secondary" @click="addStep" />
+      <DhButton
+        :icon="Plus"
+        :label="t('scraping.addStep')"
+        size="sm"
+        variant="secondary"
+        @click="addStep"
+      />
     </div>
 
-    <div v-if="!modelValue.length" class="rounded-[22px] border border-dashed border-[var(--dh-border)] p-4 text-sm font-semibold text-[var(--dh-text-muted)]">
+    <div
+      v-if="!modelValue.length"
+      class="rounded-[22px] border border-dashed border-[var(--dh-border)] p-4 text-sm font-semibold text-[var(--dh-text-muted)]"
+    >
       {{ t('scraping.noSteps') }}
     </div>
 
@@ -121,13 +136,27 @@ function moveStep(index: number, direction: -1 | 1) {
         class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.02] p-4 dark:bg-white/[0.03]"
       >
         <div class="mb-3 flex items-center justify-between gap-3">
-          <div class="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">
+          <div
+            class="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]"
+          >
             <GripVertical class="h-4 w-4" />
             {{ t('scraping.step') }} {{ index + 1 }}
           </div>
           <div class="flex gap-1">
-            <DhButton label="↑" size="sm" variant="ghost" :disabled="index === 0" @click="moveStep(index, -1)" />
-            <DhButton label="↓" size="sm" variant="ghost" :disabled="index === modelValue.length - 1" @click="moveStep(index, 1)" />
+            <DhButton
+              label="↑"
+              size="sm"
+              variant="ghost"
+              :disabled="index === 0"
+              @click="moveStep(index, -1)"
+            />
+            <DhButton
+              label="↓"
+              size="sm"
+              variant="ghost"
+              :disabled="index === modelValue.length - 1"
+              @click="moveStep(index, 1)"
+            />
             <DhButton :icon="Trash2" size="sm" variant="danger" @click="removeStep(index)" />
           </div>
         </div>
@@ -167,7 +196,11 @@ function moveStep(index: number, direction: -1 | 1) {
           />
           <DhInput
             :model-value="step.value"
-            :label="step.valueSource === 'input.custom' ? t('scraping.inputName') : t('scraping.stepValue')"
+            :label="
+              step.valueSource === 'input.custom'
+                ? t('scraping.inputName')
+                : t('scraping.stepValue')
+            "
             placeholder="literal value / custom input name"
             @update:model-value="updateStep(index, { value: String($event ?? '') })"
           />

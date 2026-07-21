@@ -20,6 +20,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import PricingMultiSelect, { type PricingMultiSelectOption } from './PricingMultiSelect.vue'
+import { createUuid } from '@/core/utils/id'
 import {
   calculateMargin,
   formatMoney,
@@ -98,9 +99,7 @@ const form = reactive({
 const isEditing = computed(() => Boolean(props.rate))
 const isCreatingFromImport = computed(() => Boolean(props.sourceImport && !props.rate))
 const isHeaderLocked = computed(() => isCreatingFromImport.value)
-const isAgentLocked = computed(
-  () => isCreatingFromImport.value && !canEditImportedAgent.value,
-)
+const isAgentLocked = computed(() => isCreatingFromImport.value && !canEditImportedAgent.value)
 const isPodLocked = computed(() => isCreatingFromImport.value && !canEditImportedPod.value)
 const canAutoApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
 const selectedCurrency = computed(() =>
@@ -291,7 +290,7 @@ function fromCost(cost: CostSelectDto): EditableDetail {
 
 function addManualDetail(type: CostDetailType = 'Other') {
   details.value.push({
-    key: crypto.randomUUID(),
+    key: createUuid(),
     name: type === 'Freight' ? 'Flete internacional' : '',
     costDetailType: type,
     costType: 'Variable',
@@ -354,7 +353,6 @@ function matchesCostScope(cost: CostSelectDto) {
 const automaticFixedCosts = computed(() =>
   availableCosts.value.filter((cost) => cost.costType === 'Fixed' && matchesCostScope(cost)),
 )
-
 
 async function loadOperationalCosts(): Promise<CostSelectDto[]> {
   const costs = await PricingService.selectCosts({ isActive: true })
@@ -505,9 +503,7 @@ function detailError(detail: EditableDetail) {
 function mapDetail(detail: EditableDetail): CreateRateDetailRequest {
   const agentCost = detail.costDetailType === 'AgentCharge'
   const notes =
-    detail.costDetailType === 'Freight'
-      ? cleanFreightNotes(detail.notes)
-      : detail.notes.trim()
+    detail.costDetailType === 'Freight' ? cleanFreightNotes(detail.notes) : detail.notes.trim()
 
   return {
     costId: detail.costId ?? null,
@@ -668,10 +664,7 @@ async function initialize() {
     availableCosts.value = await loadOperationalCosts()
   } catch (error) {
     availableCosts.value = []
-    toastStore.backendError(
-      error,
-      'No se pudieron cargar los costos ni sus notas operativas.',
-    )
+    toastStore.backendError(error, 'No se pudieron cargar los costos ni sus notas operativas.')
   }
 
   let importForEdit = props.sourceImport
@@ -761,13 +754,7 @@ async function initialize() {
         importForEdit.containerTypeCode,
         importForEdit.containerTypeSlug,
       ],
-      readRawValues(raw, [
-        'container',
-        'containerType',
-        'equipment',
-        'equipmentType',
-        'tamano',
-      ]),
+      readRawValues(raw, ['container', 'containerType', 'equipment', 'equipmentType', 'tamano']),
     )
     importedCurrencyMatch = resolveImportedCatalogItem(
       catalogs.currencies.value,
@@ -803,18 +790,13 @@ async function initialize() {
       form.podId = importedPodMatch?.id ?? ''
     }
 
-    if (
-      importForEdit &&
-      !catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)
-    ) {
+    if (importForEdit && !catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)) {
       form.containerTypeId = importedContainerMatch?.id ?? ''
     }
 
     if (importForEdit && !catalogs.findById(catalogs.currencies.value, form.currencyId)) {
       form.currencyId =
-        importedCurrencyMatch?.id ??
-        catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ??
-        ''
+        importedCurrencyMatch?.id ?? catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ?? ''
     }
 
     details.value = props.rate.rateDetails.map(fromRateDetail)
@@ -909,12 +891,28 @@ onMounted(initialize)
       <div>
         <p class="font-black">Creando desde tarifa importada</p>
         <p class="mt-1 text-sm font-semibold opacity-80">
-          {{ catalogs.findById(catalogs.carriers.value, form.carrierId)?.name || 'Naviera sin coincidencia' }} ·
-          {{ catalogs.findById(catalogs.polPorts.value, form.polId)?.name || 'POL sin coincidencia' }} →
-          {{ catalogs.findById(catalogs.poePorts.value, form.poeId)?.name || 'POE sin coincidencia' }} →
-          {{ catalogs.findById(catalogs.podPorts.value, form.podId)?.name || 'POD sin coincidencia' }} ·
-          {{ catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)?.name || 'Contenedor sin coincidencia' }}.
-          Los datos importados están bloqueados y se copiarán desde los valores reales del catálogo.
+          {{
+            catalogs.findById(catalogs.carriers.value, form.carrierId)?.name ||
+            'Naviera sin coincidencia'
+          }}
+          ·
+          {{
+            catalogs.findById(catalogs.polPorts.value, form.polId)?.name || 'POL sin coincidencia'
+          }}
+          →
+          {{
+            catalogs.findById(catalogs.poePorts.value, form.poeId)?.name || 'POE sin coincidencia'
+          }}
+          →
+          {{
+            catalogs.findById(catalogs.podPorts.value, form.podId)?.name || 'POD sin coincidencia'
+          }}
+          ·
+          {{
+            catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)?.name ||
+            'Contenedor sin coincidencia'
+          }}. Los datos importados están bloqueados y se copiarán desde los valores reales del
+          catálogo.
           <span v-if="decisionInternationalLandFreight">
             La vía multimodal ya incluye el costo terrestre fijo de
             {{ formatMoney(decisionInternationalLandFreight, 'USD') }}.
@@ -1091,14 +1089,22 @@ onMounted(initialize)
           type="number"
           min="1"
           label="Cantidad de contenedores"
-          :error="form.submitted && Number(form.containerQuantity) <= 0 ? 'Debe ser mayor a cero.' : undefined"
+          :error="
+            form.submitted && Number(form.containerQuantity) <= 0
+              ? 'Debe ser mayor a cero.'
+              : undefined
+          "
         />
         <DhInput
           v-model="form.transitDays"
           type="number"
           min="0"
           label="Tiempo de tránsito (días)"
-          :error="form.submitted && form.transitDays && Number(form.transitDays) < 0 ? 'No puede ser negativo.' : undefined"
+          :error="
+            form.submitted && form.transitDays && Number(form.transitDays) < 0
+              ? 'No puede ser negativo.'
+              : undefined
+          "
         />
       </div>
       <div class="mt-4 grid gap-4 lg:grid-cols-3">
@@ -1117,7 +1123,8 @@ onMounted(initialize)
         <div class="flex-1">
           <h3 class="font-black text-[var(--dh-text)]">Construcción de la tarifa</h3>
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">
-            Costo, venta y utilidad visibles por rubro. El flete marítimo y terrestre se calcula por contenedor.
+            Costo, venta y utilidad visibles por rubro. El flete marítimo y terrestre se calcula por
+            contenedor.
           </p>
         </div>
         <DhButton

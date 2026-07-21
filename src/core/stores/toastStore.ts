@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { getApiErrorMessage } from '@/core/api/apiErrorHandler'
+import { createUuid } from '@/core/utils/id'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
@@ -18,7 +19,7 @@ export const useToastStore = defineStore('toast', {
 
   actions: {
     show(input: Omit<ToastItem, 'id' | 'duration'> & { duration?: number }) {
-      const id = crypto.randomUUID()
+      const id = createUuid()
 
       this.items.push({
         id,
@@ -41,7 +42,11 @@ export const useToastStore = defineStore('toast', {
       this.show({ title, message, type: 'error' })
     },
 
-    backendError(error: unknown, fallbackMessage = 'No se pudo completar la acción.', title = 'Error') {
+    backendError(
+      error: unknown,
+      fallbackMessage = 'No se pudo completar la acción.',
+      title = 'Error',
+    ) {
       this.error(title, getApiErrorMessage(error, fallbackMessage))
     },
 
@@ -49,7 +54,11 @@ export const useToastStore = defineStore('toast', {
       this.show({ title, message, type: 'warning' })
     },
 
-    backendWarning(error: unknown, fallbackMessage = 'Revise los datos e intente de nuevo.', title = 'Advertencia') {
+    backendWarning(
+      error: unknown,
+      fallbackMessage = 'Revise los datos e intente de nuevo.',
+      title = 'Advertencia',
+    ) {
       this.warning(title, getApiErrorMessage(error, fallbackMessage))
     },
 

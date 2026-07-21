@@ -2,6 +2,7 @@
 import { Plus, Trash2 } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { DhButton, DhInput } from '@/shared/components/atoms'
+import { createUuid } from '@/core/utils/id'
 
 const props = defineProps<{
   modelValue?: string | null
@@ -26,7 +27,7 @@ const internalUpdate = ref(false)
 const hasRows = computed(() => rows.value.length > 0)
 
 function createId() {
-  return crypto.randomUUID()
+  return createUuid()
 }
 
 function detectType(value: unknown): MetadataType {

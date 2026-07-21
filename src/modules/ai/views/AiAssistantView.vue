@@ -6,6 +6,7 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import { AiService } from '@/core/services/aiService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { AiMessageRequest } from '@/core/interfaces/ai'
+import { createUuid } from '@/core/utils/id'
 
 interface ChatMessage extends AiMessageRequest {
   id: string
@@ -46,7 +47,7 @@ async function sendMessage() {
   if (!canSend.value || !content) return
 
   messages.value.push({
-    id: crypto.randomUUID(),
+    id: createUuid(),
     role: 'user',
     content,
   })
@@ -64,7 +65,7 @@ async function sendMessage() {
     const result = await AiService.executeChat({
       profileKey: PROFILE_KEY,
       messages: history,
-      correlationId: crypto.randomUUID(),
+      correlationId: createUuid(),
     })
 
     messages.value.push({
@@ -109,13 +110,20 @@ onMounted(async () => {
       :icon="Bot"
     >
       <template #actions>
-        <DhButton label="Limpiar conversación" :icon="Eraser" variant="secondary" @click="clearConversation" />
+        <DhButton
+          label="Limpiar conversación"
+          :icon="Eraser"
+          variant="secondary"
+          @click="clearConversation"
+        />
       </template>
     </DhPageHeader>
 
     <section class="dh-glass dh-liquid flex min-h-0 flex-1 flex-col overflow-hidden rounded-[32px]">
       <header class="flex items-center gap-3 border-b border-[var(--dh-border)] p-4">
-        <div class="flex h-10 w-10 items-center justify-center rounded-2xl dh-bg-primary-soft text-[var(--dh-primary)]">
+        <div
+          class="flex h-10 w-10 items-center justify-center rounded-2xl dh-bg-primary-soft text-[var(--dh-primary)]"
+        >
           <Sparkles class="h-4 w-4" />
         </div>
         <div>
@@ -146,14 +154,25 @@ onMounted(async () => {
           </div>
           <div
             class="max-w-[86%] rounded-[24px] px-4 py-3 md:max-w-[74%]"
-            :class="message.role === 'user'
-              ? 'bg-[var(--dh-primary)] text-white'
-              : 'border border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)]'"
+            :class="
+              message.role === 'user'
+                ? 'bg-[var(--dh-primary)] text-white'
+                : 'border border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)]'
+            "
           >
-            <p class="whitespace-pre-wrap break-words text-sm font-semibold leading-6">{{ message.content }}</p>
-            <div v-if="message.role === 'assistant' && message.modelName" class="mt-3 flex flex-wrap gap-2">
+            <p class="whitespace-pre-wrap break-words text-sm font-semibold leading-6">
+              {{ message.content }}
+            </p>
+            <div
+              v-if="message.role === 'assistant' && message.modelName"
+              class="mt-3 flex flex-wrap gap-2"
+            >
               <DhBadge :label="message.modelName" variant="neutral" />
-              <DhBadge v-if="message.tokenCount != null" :label="`${message.tokenCount} tokens`" variant="neutral" />
+              <DhBadge
+                v-if="message.tokenCount != null"
+                :label="`${message.tokenCount} tokens`"
+                variant="neutral"
+              />
             </div>
           </div>
           <div
@@ -164,8 +183,13 @@ onMounted(async () => {
           </div>
         </article>
 
-        <div v-if="sending" class="flex items-center gap-3 text-sm font-bold text-[var(--dh-text-muted)]">
-          <div class="flex h-9 w-9 items-center justify-center rounded-2xl dh-bg-primary-soft text-[var(--dh-primary)]">
+        <div
+          v-if="sending"
+          class="flex items-center gap-3 text-sm font-bold text-[var(--dh-text-muted)]"
+        >
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-2xl dh-bg-primary-soft text-[var(--dh-primary)]"
+          >
             <Bot class="h-4 w-4" />
           </div>
           Analizando la consulta...
@@ -173,7 +197,9 @@ onMounted(async () => {
       </div>
 
       <footer class="border-t border-[var(--dh-border)] p-4">
-        <div class="flex items-end gap-3 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 focus-within:border-[var(--dh-primary)]">
+        <div
+          class="flex items-end gap-3 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 focus-within:border-[var(--dh-primary)]"
+        >
           <textarea
             v-model="prompt"
             rows="2"
@@ -182,7 +208,13 @@ onMounted(async () => {
             :disabled="sending"
             @keydown="handleKeydown"
           />
-          <DhButton label="Enviar" :icon="Send" :disabled="!canSend" :loading="sending" @click="sendMessage" />
+          <DhButton
+            label="Enviar"
+            :icon="Send"
+            :disabled="!canSend"
+            :loading="sending"
+            @click="sendMessage"
+          />
         </div>
       </footer>
     </section>
