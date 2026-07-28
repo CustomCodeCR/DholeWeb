@@ -11,10 +11,7 @@ import type {
   AiRoutingMode,
   AiPromptTemplateSummaryDto,
 } from '@/core/interfaces/ai'
-import {
-  responseFormatOptions,
-  routingModeOptions,
-} from '@/modules/ai/aiOptions'
+import { responseFormatOptions, routingModeOptions } from '@/modules/ai/aiOptions'
 
 interface ModelSelection {
   selected: boolean
@@ -42,7 +39,7 @@ const form = ref({
   responseFormat: (props.profile?.responseFormat ?? 'Text') as AiResponseFormat,
   temperature: String(props.profile?.temperature ?? 0.2),
   maximumOutputTokens: String(props.profile?.maximumOutputTokens ?? 2048),
-  timeoutSeconds: String(props.profile?.timeoutSeconds ?? 120),
+  timeoutSeconds: String(props.profile?.timeoutSeconds ?? 300),
   jsonSchema: props.profile?.jsonSchema ?? '',
 })
 
@@ -64,8 +61,8 @@ const modelSelections = ref<Record<string, ModelSelection>>(
 
 const isEdit = computed(() => Boolean(props.profile))
 const activeModels = computed(() => props.models.filter((model) => model.isActive))
-const selectedModelCount = computed(() =>
-  Object.values(modelSelections.value).filter((selection) => selection.selected).length,
+const selectedModelCount = computed(
+  () => Object.values(modelSelections.value).filter((selection) => selection.selected).length,
 )
 const templateOptions = computed(() => [
   { label: 'Sin plantilla', value: '' },
@@ -77,7 +74,11 @@ const templateOptions = computed(() => [
 function setModelSelected(modelId: string, selected: boolean) {
   const current = modelSelections.value[modelId]
   if (!current) return
-  modelSelections.value[modelId] = { ...current, selected, isFallback: selected ? current.isFallback : false }
+  modelSelections.value[modelId] = {
+    ...current,
+    selected,
+    isFallback: selected ? current.isFallback : false,
+  }
 }
 
 function setPriority(modelId: string, priority: string) {
@@ -89,13 +90,19 @@ function setPriority(modelId: string, priority: string) {
 function setFallback(modelId: string, value: boolean) {
   const current = modelSelections.value[modelId]
   if (!current) return
-  modelSelections.value[modelId] = { ...current, isFallback: value, selected: value || current.selected }
+  modelSelections.value[modelId] = {
+    ...current,
+    isFallback: value,
+    selected: value || current.selected,
+  }
 }
 
 function selectedModels() {
   return props.models
     .map((model) => ({ model, selection: modelSelections.value[model.id] }))
-    .filter((item): item is { model: AiModelSummaryDto; selection: ModelSelection } => Boolean(item.selection?.selected))
+    .filter((item): item is { model: AiModelSummaryDto; selection: ModelSelection } =>
+      Boolean(item.selection?.selected),
+    )
     .map(({ model, selection }) => ({
       modelId: model.id,
       priority: Math.max(1, Number(selection.priority) || 1),
@@ -130,6 +137,11 @@ async function save() {
     return
   }
 
+  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600) {
+    toastStore.warning('Timeout inválido', 'Debe estar entre 1 y 3600 segundos.')
+    return
+  }
+
   try {
     loading.value = true
     const common = {
@@ -152,7 +164,10 @@ async function save() {
       await AiService.createProfile({ ...common, models })
     }
 
-    toastStore.success('Perfil guardado', 'El enrutamiento ya puede utilizarse desde el Playground y las integraciones.')
+    toastStore.success(
+      'Perfil guardado',
+      'El enrutamiento ya puede utilizarse desde el Playground y las integraciones.',
+    )
     await props.onSaved?.()
     drawerStore.close()
   } catch (error) {
@@ -168,13 +183,37 @@ async function save() {
     <section class="grid gap-4 md:grid-cols-2">
       <DhInput v-model="form.key" label="Key de integración" placeholder="pricing.rate-assistant" />
       <DhInput v-model="form.name" label="Nombre" placeholder="Asistente de Pricing" />
-      <DhInput v-model="form.description" label="Descripción" placeholder="Uso del perfil" class="md:col-span-2" />
-      <DhSelect v-model="form.promptTemplateId" label="Plantilla" :options="templateOptions" placeholder="" />
+      <DhInput
+        v-model="form.description"
+        label="Descripción"
+        placeholder="Uso del perfil"
+        class="md:col-span-2"
+      />
+      <DhSelect
+        v-model="form.promptTemplateId"
+        label="Plantilla"
+        :options="templateOptions"
+        placeholder=""
+      />
       <DhSelect v-model="form.routingMode" label="Enrutamiento" :options="routingModeOptions" />
-      <DhSelect v-model="form.responseFormat" label="Formato de respuesta" :options="responseFormatOptions" />
+      <DhSelect
+        v-model="form.responseFormat"
+        label="Formato de respuesta"
+        :options="responseFormatOptions"
+      />
       <DhInput v-model="form.temperature" type="number" label="Temperatura" placeholder="0.2" />
-      <DhInput v-model="form.maximumOutputTokens" type="number" label="Máximo de tokens" placeholder="2048" />
-      <DhInput v-model="form.timeoutSeconds" type="number" label="Timeout (segundos)" placeholder="120" />
+      <DhInput
+        v-model="form.maximumOutputTokens"
+        type="number"
+        label="Máximo de tokens"
+        placeholder="2048"
+      />
+      <DhInput
+        v-model="form.timeoutSeconds"
+        type="number"
+        label="Timeout (segundos)"
+        placeholder="300"
+      />
     </section>
 
     <DhTextarea
@@ -193,7 +232,9 @@ async function save() {
             Ordene por prioridad y marque cuáles pueden utilizarse como fallback.
           </p>
         </div>
-        <span class="rounded-full bg-[var(--dh-primary-soft)] px-3 py-1 text-xs font-black text-[var(--dh-primary)]">
+        <span
+          class="rounded-full bg-[var(--dh-primary-soft)] px-3 py-1 text-xs font-black text-[var(--dh-primary)]"
+        >
           {{ selectedModelCount }} seleccionados
         </span>
       </div>
@@ -225,7 +266,10 @@ async function save() {
           />
         </article>
 
-        <p v-if="!activeModels.length" class="py-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
+        <p
+          v-if="!activeModels.length"
+          class="py-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+        >
           No hay modelos activos. Registre o active uno antes de crear el perfil.
         </p>
       </div>
@@ -233,7 +277,11 @@ async function save() {
 
     <div class="flex justify-end gap-2">
       <DhButton label="Cancelar" variant="secondary" @click="drawerStore.close()" />
-      <DhButton type="submit" :label="isEdit ? 'Guardar cambios' : 'Crear perfil'" :loading="loading" />
+      <DhButton
+        type="submit"
+        :label="isEdit ? 'Guardar cambios' : 'Crear perfil'"
+        :loading="loading"
+      />
     </div>
   </form>
 </template>

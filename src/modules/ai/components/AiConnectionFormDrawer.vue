@@ -21,7 +21,7 @@ const form = ref({
   providerType: (props.connection?.providerType ?? 'Ollama') as AiProviderType,
   baseUrl: props.connection?.baseUrl ?? 'http://localhost:11434',
   secretReference: props.connection?.secretReference ?? '',
-  timeoutSeconds: String(props.connection?.timeoutSeconds ?? 120),
+  timeoutSeconds: String(props.connection?.timeoutSeconds ?? 300),
 })
 
 const isEdit = computed(() => Boolean(props.connection))
@@ -37,8 +37,8 @@ async function save() {
   }
 
   const timeoutSeconds = Number(form.value.timeoutSeconds)
-  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 600) {
-    toastStore.warning('Timeout inválido', 'Debe estar entre 1 y 600 segundos.')
+  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600) {
+    toastStore.warning('Timeout inválido', 'Debe estar entre 1 y 3600 segundos.')
     return
   }
 
@@ -74,26 +74,41 @@ async function save() {
     <div class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <p class="text-sm font-black text-[var(--dh-text)]">Configuración del proveedor</p>
       <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-        La referencia secreta debe apuntar a la clave configurada en el entorno del servicio. No escriba la API key directamente.
+        La referencia secreta debe apuntar a la clave configurada en el entorno del servicio. No
+        escriba la API key directamente.
       </p>
     </div>
 
     <div class="grid gap-4 md:grid-cols-2">
       <DhInput v-model="form.name" label="Nombre" placeholder="Ollama desarrollo" />
       <DhSelect v-model="form.providerType" label="Proveedor" :options="providerOptions" />
-      <DhInput v-model="form.baseUrl" label="URL base" placeholder="http://localhost:11434" class="md:col-span-2" />
+      <DhInput
+        v-model="form.baseUrl"
+        label="URL base"
+        placeholder="http://localhost:11434"
+        class="md:col-span-2"
+      />
       <DhInput
         v-model="form.secretReference"
         label="Referencia del secreto"
         placeholder="AI__Connections__OpenAI__ApiKey"
         class="md:col-span-2"
       />
-      <DhInput v-model="form.timeoutSeconds" type="number" label="Timeout (segundos)" />
+      <DhInput
+        v-model="form.timeoutSeconds"
+        type="number"
+        label="Timeout (segundos)"
+        placeholder="300"
+      />
     </div>
 
     <div class="flex justify-end gap-2">
       <DhButton label="Cancelar" variant="secondary" @click="drawerStore.close()" />
-      <DhButton type="submit" :label="isEdit ? 'Guardar cambios' : 'Crear conexión'" :loading="loading" />
+      <DhButton
+        type="submit"
+        :label="isEdit ? 'Guardar cambios' : 'Crear conexión'"
+        :loading="loading"
+      />
     </div>
   </form>
 </template>
