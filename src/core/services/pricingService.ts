@@ -28,7 +28,6 @@ import type {
   SetCostActiveRequest,
   SetRateStatusRequest,
   UpdateCostRequest,
-  UpdateImportRateCatalogsRequest,
   UpdateRateRequest,
 } from '@/core/interfaces/pricing'
 
@@ -38,13 +37,7 @@ function withQuery(path: string, query?: Record<string, unknown>) {
   return path + (query ? toQueryString(query) : '')
 }
 
-const IMPORT_STATUSES = new Set<ImportStatus>([
-  'Pending',
-  'Approved',
-  'Rejected',
-  'Created',
-  'Expired',
-])
+const IMPORT_STATUSES = new Set<ImportStatus>(['Pending', 'Approved', 'Rejected', 'Created', 'Expired'])
 
 /**
  * The first release of the new Pricing contract inverted Status and RawDataJson
@@ -180,19 +173,6 @@ export const PricingService = {
     })
 
     return unwrapApiResponse<ExtractImportRatesResultDto>(response as never)
-  },
-
-  updateImportRateCatalogs(
-    importRateId: string,
-    payload: UpdateImportRateCatalogsRequest,
-  ): Promise<NoContent> {
-    return callEndpoint<NoContent, UpdateImportRateCatalogsRequest>(
-      Endpoints.updateImportRateCatalogs,
-      {
-        params: { importRateId },
-        body: payload,
-      },
-    )
   },
 
   approveImportRates(ids: string[]): Promise<NoContent> {

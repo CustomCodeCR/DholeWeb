@@ -138,8 +138,6 @@ export interface ImportRateDto extends Record<string, unknown> {
   status: ImportStatus
   usedAsRateCount: number
   createdAsRateHeaderId?: string | null
-  hasConfigConcordance: boolean
-  unresolvedCatalogs: string[]
 }
 
 export type ImportRateSelectDto = ImportRateDto
@@ -180,6 +178,7 @@ export interface PricingDecisionDashboardQuery extends Record<string, unknown> {
   containerType?: string | null
 }
 
+
 export interface CatalogSnapshotRequest extends Record<string, unknown> {
   id: string
   name: string
@@ -217,17 +216,6 @@ export interface CreateImportRateRequest extends Record<string, unknown> {
 
 export interface ImportRateBatchRequest extends Record<string, unknown> {
   ids: string[]
-}
-
-export interface UpdateImportRateCatalogsRequest extends Record<string, unknown> {
-  importProfileId: string
-  polId: string
-  poeId: string
-  podId: string
-  carrierId: string
-  agentId: string
-  containerTypeId: string
-  currencyId: string
 }
 
 export interface RejectImportRateRequest extends Record<string, unknown> {

@@ -78,9 +78,7 @@ const allSelected = computed(
 )
 const selectedRows = computed(() => rows.value.filter((row) => selectedIds.value.includes(row.id)))
 const selectedPendingIds = computed(() =>
-  selectedRows.value
-    .filter((row) => row.status === 'Pending' && row.hasConfigConcordance)
-    .map((row) => row.id),
+  selectedRows.value.filter((row) => row.status === 'Pending').map((row) => row.id),
 )
 
 const columns: DhTableColumn<ImportRateDto>[] = [
@@ -147,7 +145,7 @@ function catalogLabel(
   value?: string | null,
   fallback = '—',
 ) {
-  return catalogs.findById(items, id)?.name || value || fallback
+  return catalogs.findBestMatch(items, id, value)?.name || value || fallback
 }
 
 function carrierLabel(row: ImportRateDto) {
@@ -155,7 +153,7 @@ function carrierLabel(row: ImportRateDto) {
 }
 
 function agentLabel(row: ImportRateDto) {
-  return catalogs.findById(catalogs.agents.value, row.agentId)?.name || row.agent || 'Por asignar'
+  return catalogLabel(catalogs.agents.value, row.agentId, row.agent, 'Por asignar')
 }
 
 function polLabel(row: ImportRateDto) {
@@ -190,19 +188,6 @@ function filterValue(items: typeof catalogs.carriers.value, id: string) {
   return values.join('|') || undefined
 }
 
-function hasLoadedCatalogConcordance(row: ImportRateDto) {
-  return Boolean(
-    catalogs.findById(catalogs.importProfiles.value, row.importProfileId) &&
-    catalogs.findById(catalogs.polPorts.value, row.polId) &&
-    catalogs.findById(catalogs.poePorts.value, row.poeId) &&
-    catalogs.findById(catalogs.podPorts.value, row.podId) &&
-    catalogs.findById(catalogs.carriers.value, row.carrierId) &&
-    catalogs.findById(catalogs.agents.value, row.agentId) &&
-    catalogs.findById(catalogs.containerTypes.value, row.containerTypeId) &&
-    catalogs.findById(catalogs.currencies.value, row.currencyId),
-  )
-}
-
 async function load(silent = false) {
   if (loading.value || refreshing.value) return
 
@@ -227,10 +212,7 @@ async function load(silent = false) {
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
     })
-    rows.value = result.items.map((row) => ({
-      ...row,
-      hasConfigConcordance: hasLoadedCatalogConcordance(row),
-    }))
+    rows.value = result.items
     total.value = result.totalCount ?? result.items.length
     selectedIds.value = selectedIds.value.filter((id) => result.items.some((row) => row.id === id))
   } catch (error) {
@@ -383,11 +365,9 @@ function openPreview(row: ImportRateDto) {
     props: {
       importRate: row,
       canApprove: canApprove.value,
-      canEdit: canApprove.value,
       canReject: canReject.value,
       canCreateRate: canCreateRate.value,
       onApproved: load,
-      onUpdated: load,
       onReject: (current: ImportRateDto) => {
         drawerStore.close()
         reject(current)
@@ -672,9 +652,6 @@ onBeforeUnmount(() => {
               <p class="font-black text-[var(--dh-text)]">{{ carrierLabel(row) }}</p>
               <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
                 {{ sourceLabel(row.sourceType) }}
-                <span v-if="!row.hasConfigConcordance" class="text-amber-600 dark:text-amber-400">
-                  · requiere corrección
-                </span>
               </p>
             </div></template
           >
@@ -726,7 +703,7 @@ onBeforeUnmount(() => {
               >
                 <Eye class="h-4 w-4" /></button
               ><button
-                v-if="canApprove && row.status === 'Pending' && row.hasConfigConcordance"
+                v-if="canApprove && row.status === 'Pending'"
                 type="button"
                 :disabled="processingId === row.id"
                 class="rounded-2xl p-2 text-emerald-600 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"

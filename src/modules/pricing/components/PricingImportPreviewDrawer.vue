@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AlertCircle, Check, FileSearch, Save, Ship, X } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
+import { AlertCircle, Check, FileSearch, Ship, X } from 'lucide-vue-next'
+import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { ImportRateDto } from '@/core/interfaces/pricing'
@@ -14,9 +14,7 @@ const props = withDefaults(
     canApprove?: boolean
     canReject?: boolean
     canCreateRate?: boolean
-    canEdit?: boolean
     onApproved?: () => void | Promise<void>
-    onUpdated?: () => void | Promise<void>
     onReject?: (rate: ImportRateDto) => void | Promise<void>
     onCreateRate?: (rate: ImportRateDto) => void | Promise<void>
   }>(),
@@ -24,7 +22,6 @@ const props = withDefaults(
     canApprove: false,
     canReject: false,
     canCreateRate: false,
-    canEdit: false,
   },
 )
 
@@ -33,17 +30,6 @@ const catalogs = usePricingCatalogs()
 const current = ref<ImportRateDto>(props.importRate)
 const loading = ref(false)
 const approving = ref(false)
-const saving = ref(false)
-const selected = ref({
-  importProfileId: '',
-  polId: '',
-  poeId: '',
-  podId: '',
-  carrierId: '',
-  agentId: '',
-  containerTypeId: '',
-  currencyId: '',
-})
 
 function displayName(
   items: typeof catalogs.carriers.value,
@@ -51,7 +37,7 @@ function displayName(
   fallback = '—',
   ...values: Array<string | null | undefined>
 ) {
-  return catalogs.findById(items, id)?.name || values.find(Boolean) || fallback
+  return catalogs.findBestMatch(items, id, ...values)?.name || values.find(Boolean) || fallback
 }
 
 const carrier = computed(() =>
@@ -64,11 +50,15 @@ const carrier = computed(() =>
     current.value.carrierSlug,
   ),
 )
-const agent = computed(
-  () =>
-    catalogs.findById(catalogs.agents.value, current.value.agentId)?.name ||
-    current.value.agent ||
+const agent = computed(() =>
+  displayName(
+    catalogs.agents.value,
+    current.value.agentId,
     'Por asignar',
+    current.value.agent,
+    current.value.agentCode,
+    current.value.agentSlug,
+  ),
 )
 const pol = computed(() =>
   displayName(
@@ -114,7 +104,7 @@ const currency = computed(() =>
   displayName(
     catalogs.currencies.value,
     current.value.currencyId,
-    'Por asignar',
+    'USD',
     current.value.currency,
     current.value.currencyCode,
     current.value.currencySlug,
@@ -153,34 +143,10 @@ const margin = computed(() => {
   return Math.abs(value) <= 1 ? value * 100 : value
 })
 const canApproveCurrent = computed(
-  () =>
-    props.canApprove &&
-    current.value.status === 'Pending' &&
-    current.value.hasConfigConcordance &&
-    !approving.value,
+  () => props.canApprove && current.value.status === 'Pending' && !approving.value,
 )
 const canRejectCurrent = computed(() => props.canReject && current.value.status === 'Pending')
 const canCreateCurrent = computed(() => props.canCreateRate && current.value.status === 'Approved')
-const canEditCurrent = computed(
-  () => props.canEdit && current.value.status === 'Pending' && !saving.value,
-)
-const canSaveCatalogs = computed(
-  () => canEditCurrent.value && Object.values(selected.value).every((value) => Boolean(value)),
-)
-
-const unresolvedLabels = computed(() => {
-  const labels: Record<string, string> = {
-    'pricing-imports-profiles': 'Perfil de importación',
-    pol: 'POL',
-    poe: 'POE',
-    pod: 'POD oficial',
-    carriers: 'Naviera',
-    agents: 'Agente',
-    'container-types': 'Contenedor',
-    currencies: 'Moneda',
-  }
-  return (current.value.unresolvedCatalogs ?? []).map((slug) => labels[slug] ?? slug)
-})
 
 const commercialRows = computed(() => [
   { label: 'Flete internacional', value: oceanFreight.value },
@@ -223,52 +189,11 @@ async function load() {
       catalogs.loadAll(),
       PricingService.getImportRate(props.importRate.id),
     ])
-    const resolvedSelection = {
-      importProfileId:
-        catalogs.findById(catalogs.importProfiles.value, detail.importProfileId)?.id ?? '',
-      polId: catalogs.findById(catalogs.polPorts.value, detail.polId)?.id ?? '',
-      poeId: catalogs.findById(catalogs.poePorts.value, detail.poeId)?.id ?? '',
-      podId: catalogs.findById(catalogs.podPorts.value, detail.podId)?.id ?? '',
-      carrierId: catalogs.findById(catalogs.carriers.value, detail.carrierId)?.id ?? '',
-      agentId: catalogs.findById(catalogs.agents.value, detail.agentId)?.id ?? '',
-      containerTypeId:
-        catalogs.findById(catalogs.containerTypes.value, detail.containerTypeId)?.id ?? '',
-      currencyId: catalogs.findById(catalogs.currencies.value, detail.currencyId)?.id ?? '',
-    }
-    selected.value = resolvedSelection
-    current.value = {
-      ...detail,
-      hasConfigConcordance: Object.values(resolvedSelection).every(Boolean),
-    }
+    current.value = detail
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar el detalle de la tarifa importada.')
   } finally {
     loading.value = false
-  }
-}
-
-async function saveCatalogs() {
-  if (!canSaveCatalogs.value) {
-    toastStore.warning(
-      'Catálogos incompletos',
-      'Seleccione perfil, POL, POE, POD, naviera, agente, contenedor y moneda.',
-    )
-    return
-  }
-
-  try {
-    saving.value = true
-    await PricingService.updateImportRateCatalogs(current.value.id, selected.value)
-    await load()
-    toastStore.success(
-      'Catálogos validados',
-      'Pricing volvió a comprobar cada selección directamente contra Config.',
-    )
-    await props.onUpdated?.()
-  } catch (error) {
-    toastStore.backendError(error, 'No se pudieron validar las correcciones contra Config.')
-  } finally {
-    saving.value = false
   }
 }
 
@@ -378,94 +303,6 @@ onMounted(load)
         </div>
       </section>
 
-      <section
-        v-if="current.status === 'Pending' && props.canEdit"
-        class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5"
-      >
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 class="font-black text-[var(--dh-text)]">Corregir con datos de Config</h3>
-            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-              El POD oficial se selecciona aquí manualmente. Ningún valor detectado crea un catálogo
-              nuevo.
-            </p>
-          </div>
-          <DhButton
-            label="Guardar y validar"
-            :icon="Save"
-            size="sm"
-            :loading="saving"
-            :disabled="!canSaveCatalogs"
-            @click="saveCatalogs"
-          />
-        </div>
-
-        <div
-          v-if="unresolvedLabels.length"
-          class="mt-4 rounded-[20px] border border-amber-500/20 bg-amber-500/10 px-4 py-3"
-        >
-          <p
-            class="text-xs font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300"
-          >
-            Pendientes de concordancia
-          </p>
-          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-soft)]">
-            {{ unresolvedLabels.join(', ') }}
-          </p>
-        </div>
-
-        <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <DhSelect
-            v-model="selected.importProfileId"
-            label="Perfil de importación"
-            :options="catalogs.profileOptions.value"
-            placeholder="Seleccione"
-          />
-          <DhSelect
-            v-model="selected.polId"
-            label="POL"
-            :options="catalogs.polOptions.value"
-            placeholder="Seleccione"
-          />
-          <DhSelect
-            v-model="selected.poeId"
-            label="POE importado"
-            :options="catalogs.poeOptions.value"
-            placeholder="Seleccione"
-          />
-          <DhSelect
-            v-model="selected.podId"
-            label="POD oficial (manual)"
-            :options="catalogs.podOptions.value"
-            placeholder="Seleccione"
-          />
-          <DhSelect
-            v-model="selected.carrierId"
-            label="Naviera"
-            :options="catalogs.carrierOptions.value"
-            placeholder="Seleccione"
-          />
-          <DhSelect
-            v-model="selected.agentId"
-            label="Agente"
-            :options="catalogs.agentOptions.value"
-            placeholder="Seleccione"
-          />
-          <DhSelect
-            v-model="selected.containerTypeId"
-            label="Contenedor"
-            :options="catalogs.containerOptions.value"
-            placeholder="Seleccione"
-          />
-          <DhSelect
-            v-model="selected.currencyId"
-            label="Moneda"
-            :options="catalogs.currencyOptions.value"
-            placeholder="Seleccione"
-          />
-        </div>
-      </section>
-
       <section>
         <h3 class="mb-3 font-black text-[var(--dh-text)]">Valores importados</h3>
         <div
@@ -558,11 +395,8 @@ onMounted(load)
         <div>
           <h3 class="font-black text-[var(--dh-text)]">Revise antes de aprobar</h3>
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-soft)]">
-            {{
-              current.hasConfigConcordance
-                ? 'Todos los catálogos tienen concordancia con Config. Confirme montos y vigencia antes de aprobar.'
-                : 'La aprobación está bloqueada hasta corregir todos los catálogos pendientes.'
-            }}
+            Confirme naviera, agente, ruta, contenedor, moneda, montos y vigencia. La aprobación
+            solo se ejecuta desde esta vista previa.
           </p>
         </div>
       </section>

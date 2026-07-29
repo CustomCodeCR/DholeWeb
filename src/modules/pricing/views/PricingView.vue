@@ -2471,7 +2471,7 @@ onMounted(refreshAll)
 
     <DhModal :open="uploadModalOpen" :title="t('pricing.upload.title')" size="lg" @close="uploadModalOpen = false">
       <div class="space-y-4">
-        <input ref="fileInput" class="hidden" type="file" accept=".pdf,.xlsx,.xlsm,.xls,.csv,.eml,.msg,.html,.htm,.mht,.mhtml,.txt" @change="handleFileChange" />
+        <input ref="fileInput" class="hidden" type="file" accept=".pdf,.xlsx,.xlsm,.xls,.csv,.eml,.msg,.html,.htm,.mht,.mhtml,.txt,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,image/*" @change="handleFileChange" />
 
         <button
           type="button"

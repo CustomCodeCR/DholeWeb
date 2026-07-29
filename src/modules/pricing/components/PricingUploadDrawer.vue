@@ -86,7 +86,7 @@ onMounted(catalogs.loadAll)
           ref="fileInput"
           class="hidden"
           type="file"
-          accept=".pdf,.xlsx,.xls,.csv,image/*"
+          accept=".pdf,.xlsx,.xlsm,.xls,.csv,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,image/*"
           @change="chooseFile(($event.target as HTMLInputElement).files)"
         />
         <div
