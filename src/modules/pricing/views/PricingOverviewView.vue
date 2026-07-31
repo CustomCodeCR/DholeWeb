@@ -39,6 +39,7 @@ import type {
 import PricingRateDetailDrawer from '@/modules/pricing/components/PricingRateDetailDrawer.vue'
 import PricingRateFormDrawer from '@/modules/pricing/components/PricingRateFormDrawer.vue'
 import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawer.vue'
+import PricingWorkflowGuide from '@/modules/pricing/components/PricingWorkflowGuide.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
@@ -358,6 +359,8 @@ onMounted(() => {
         </div>
       </template>
     </DhPageHeader>
+
+    <PricingWorkflowGuide current="decision" compact />
 
     <section
       class="dh-liquid overflow-hidden rounded-[32px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]"

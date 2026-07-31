@@ -5,6 +5,7 @@ import { Endpoints } from '@/core/composables/endpoints'
 import { toQueryString } from '@/core/api/queryString'
 import type {
   BrowseCostsQuery,
+  AssignImportRatePoeRequest,
   BrowseImportRatesQuery,
   BrowseRatesQuery,
   CostDto,
@@ -24,6 +25,7 @@ import type {
   RateDto,
   RejectImportRateBatchRequest,
   RejectImportRateRequest,
+  ReviewImportRateRequest,
   RejectRateMarginRequest,
   SetCostActiveRequest,
   SetRateStatusRequest,
@@ -37,7 +39,13 @@ function withQuery(path: string, query?: Record<string, unknown>) {
   return path + (query ? toQueryString(query) : '')
 }
 
-const IMPORT_STATUSES = new Set<ImportStatus>(['Pending', 'Approved', 'Rejected', 'Created', 'Expired'])
+const IMPORT_STATUSES = new Set<ImportStatus>([
+  'Pending',
+  'Approved',
+  'Rejected',
+  'Created',
+  'Expired',
+])
 
 /**
  * The first release of the new Pricing contract inverted Status and RawDataJson
@@ -183,6 +191,26 @@ export const PricingService = {
 
   approveImportRate(importRateId: string): Promise<NoContent> {
     return callEndpoint<NoContent>(Endpoints.approveImportRate, { params: { importRateId } })
+  },
+
+  assignImportRatePoe(
+    importRateId: string,
+    payload: AssignImportRatePoeRequest,
+  ): Promise<NoContent> {
+    return callEndpoint<NoContent, AssignImportRatePoeRequest>(Endpoints.assignImportRatePoe, {
+      params: { importRateId },
+      body: payload,
+    })
+  },
+
+  reviewImportRate(
+    importRateId: string,
+    payload: ReviewImportRateRequest,
+  ): Promise<NoContent> {
+    return callEndpoint<NoContent, ReviewImportRateRequest>(Endpoints.reviewImportRate, {
+      params: { importRateId },
+      body: payload,
+    })
   },
 
   rejectImportRates(ids: string[], payload: RejectImportRateRequest): Promise<NoContent> {

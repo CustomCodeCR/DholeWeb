@@ -1,19 +1,14 @@
 import type { ServiceMonitorDefinition, ServiceMonitorResult } from '@/core/interfaces/monitoring'
 
-const gatewayUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
-const authUrl = (import.meta.env.VITE_AUTH_URL as string | undefined) ?? gatewayUrl
-const configUrl = (import.meta.env.VITE_CONFIG_URL as string | undefined) ?? gatewayUrl
-const auditLogsUrl = (import.meta.env.VITE_AUDITLOGS_URL as string | undefined) ?? gatewayUrl
-const pricingUrl = (import.meta.env.VITE_PRICING_URL as string | undefined) ?? gatewayUrl
-const dataExtractionUrl = (import.meta.env.VITE_DATA_EXTRACTION_URL as string | undefined) ?? 'http://localhost:5205'
+const gatewayUrl = normalizeBaseUrl((import.meta.env.VITE_API_URL as string | undefined) ?? '')
 
 function normalizeBaseUrl(value: string) {
   return value.endsWith('/') ? value.slice(0, -1) : value
 }
 
-function buildHealthUrl(baseUrl: string) {
-  const normalized = normalizeBaseUrl(baseUrl)
-  return normalized ? `${normalized}/health` : '/health'
+function buildGatewayHealthUrl(service: string) {
+  const path = `/api/health/${encodeURIComponent(service)}`
+  return gatewayUrl ? `${gatewayUrl}${path}` : path
 }
 
 export const serviceMonitors: ServiceMonitorDefinition[] = [
@@ -21,35 +16,35 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     key: 'gateway',
     name: 'API Gateway',
     description: 'Entrada principal para el frontend y los servicios.',
-    url: buildHealthUrl(gatewayUrl),
+    url: buildGatewayHealthUrl('gateway'),
     critical: true,
   },
   {
     key: 'auth',
     name: 'Auth Service',
     description: 'Usuarios, roles, permisos y sesiones.',
-    url: buildHealthUrl(authUrl),
+    url: buildGatewayHealthUrl('auth'),
     critical: true,
   },
   {
     key: 'config',
     name: 'Config Service',
     description: 'Catálogos y configuración operacional.',
-    url: buildHealthUrl(configUrl),
+    url: buildGatewayHealthUrl('config'),
     critical: true,
   },
   {
     key: 'auditlogs',
     name: 'Audit Logs Service',
     description: 'Auditoría y trazabilidad del ecosistema.',
-    url: buildHealthUrl(auditLogsUrl),
+    url: buildGatewayHealthUrl('auditlogs'),
     critical: true,
   },
   {
     key: 'pricing',
     name: 'Pricing Service',
     description: 'Tarifas FCL, importaciones y decisiones tarifarias.',
-    url: buildHealthUrl(pricingUrl),
+    url: buildGatewayHealthUrl('pricing'),
     critical: true,
   },
   {
@@ -58,7 +53,25 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     nameKey: 'monitoring.services.dataExtraction.name',
     description: 'Extracción interna de tarifarios.',
     descriptionKey: 'monitoring.services.dataExtraction.description',
-    url: buildHealthUrl(dataExtractionUrl),
+    url: buildGatewayHealthUrl('data-extraction'),
+    critical: true,
+  },
+  {
+    key: 'ai',
+    name: 'AI Service',
+    nameKey: 'monitoring.services.ai.name',
+    description: 'Modelos, perfiles, conexiones y ejecuciones de inteligencia artificial.',
+    descriptionKey: 'monitoring.services.ai.description',
+    url: buildGatewayHealthUrl('ai'),
+    critical: true,
+  },
+  {
+    key: 'storage',
+    name: 'Storage Service',
+    nameKey: 'monitoring.services.storage.name',
+    description: 'Archivos importados, correos, adjuntos y versiones.',
+    descriptionKey: 'monitoring.services.storage.description',
+    url: buildGatewayHealthUrl('storage'),
     critical: true,
   },
 ]

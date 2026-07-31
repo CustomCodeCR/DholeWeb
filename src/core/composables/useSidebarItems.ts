@@ -18,6 +18,7 @@ import {
   Mail,
   ReceiptText,
   BrainCircuit,
+  HardDrive,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { VIEW_SCOPES } from '@/core/auth/scopes'
@@ -180,7 +181,14 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             icon: MonitorCog,
             to: '/monitoring/services',
             name: 'monitoring-services',
-            requiredRole: 'SuperUsuario',
+            requiredScope: VIEW_SCOPES.monitoring,
+          },
+          {
+            labelKey: 'sidebar.storage',
+            icon: HardDrive,
+            to: '/storage',
+            name: 'storage',
+            requiredScope: VIEW_SCOPES.storage,
           },
         ],
       },

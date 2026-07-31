@@ -2,14 +2,22 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   AlertTriangle,
+  Download,
+  Eye,
   ExternalLink,
   FileText,
   Mail,
   Paperclip,
   RefreshCw,
+  Send,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useModalStore } from '@/core/stores/modalStore'
+import { useAuthStore } from '@/core/stores/authStore'
+import { STORAGE_SCOPES } from '@/core/auth/scopes'
+import { parseStorageReference, StorageService, storagePreviewKind } from '@/core/services/storageService'
+import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import type {
   EmailExtractionJobStatus,
@@ -25,13 +33,32 @@ const props = defineProps<{
 }>()
 
 const toastStore = useToastStore()
+const modalStore = useModalStore()
+const authStore = useAuthStore()
 const current = ref<EmailMessageDetailDto | null>(null)
 const loading = ref(false)
 const reprocessing = ref(false)
+const sendingToPricing = ref(false)
 
 const canReprocess = computed(
   () => current.value?.status === 'NeedsReview' || current.value?.status === 'Failed',
 )
+
+const reviewJob = computed(() =>
+  current.value?.jobs.find(
+    (job) => job.status === 'NeedsReview' && Boolean(job.extractionExecutionId),
+  ),
+)
+
+const awaitingPricingJob = computed(() =>
+  current.value?.jobs.find((job) => job.status === 'AwaitingPricing'),
+)
+
+const pricingBatchJob = computed(() =>
+  current.value?.jobs.find((job) => Boolean(job.pricingImportBatchId)),
+)
+
+const canSendToPricing = computed(() => Boolean(reviewJob.value))
 
 const bodyPreview = computed(() => {
   if (!current.value) return ''
@@ -61,6 +88,11 @@ function jobStatusLabel(status: EmailExtractionJobStatus | string) {
     {
       Pending: 'Pendiente',
       Processing: 'Procesando',
+      Extracting: 'Extrayendo',
+      AwaitingAi: 'Esperando AI',
+      AiProcessing: 'Procesando con AI',
+      ValidatingAiResult: 'Validando resultado AI',
+      AwaitingPricing: 'Creando revisión en Pricing',
       SentToPricing: 'Enviado a Pricing',
       NeedsReview: 'Necesita revisión',
       Failed: 'Fallido',
@@ -73,7 +105,7 @@ function statusVariant(status: string) {
   if (status === 'Extracted' || status === 'SentToPricing') return 'success' as const
   if (status === 'Failed') return 'danger' as const
   if (status === 'NeedsReview' || status === 'Queued' || status === 'Pending') return 'warning' as const
-  if (status === 'Processing') return 'primary' as const
+  if (status === 'Processing' || status === 'AwaitingPricing') return 'primary' as const
   return 'neutral' as const
 }
 
@@ -102,6 +134,123 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function openAttachment(attachment: EmailMessageDetailDto['attachments'][number]) {
+  if (!authStore.hasScope(STORAGE_SCOPES.files.download)) {
+    toastStore.warning('Permiso requerido', 'Necesita storage.files.download para abrir adjuntos.')
+    return
+  }
+
+  const fileId = parseStorageReference(attachment.storagePath)
+  if (!fileId) {
+    toastStore.warning(
+      'Archivo anterior a Storage',
+      'Este adjunto todavía usa una ruta local antigua y no tiene referencia storage://.',
+    )
+    return
+  }
+
+  const descriptor = {
+    id: fileId,
+    fileName: attachment.fileName,
+    contentType: attachment.contentType,
+    extension: attachment.fileExtension,
+    sizeInBytes: attachment.sizeBytes,
+  }
+
+  if (storagePreviewKind(descriptor) === 'download') {
+    try {
+      await StorageService.downloadFile(descriptor)
+    } catch (error) {
+      toastStore.backendError(error, 'No se pudo descargar el adjunto.')
+    }
+    return
+  }
+
+  modalStore.open({
+    title: attachment.fileName,
+    component: StorageFileViewer,
+    props: descriptor,
+    size: 'xl',
+  })
+}
+
+function attachmentActionLabel(attachment: EmailMessageDetailDto['attachments'][number]) {
+  return storagePreviewKind({
+    id: attachment.id,
+    fileName: attachment.fileName,
+    contentType: attachment.contentType,
+    extension: attachment.fileExtension,
+  }) === 'download'
+    ? 'Descargar'
+    : 'Ver'
+}
+
+function attachmentActionIcon(attachment: EmailMessageDetailDto['attachments'][number]) {
+  return attachmentActionLabel(attachment) === 'Descargar' ? Download : Eye
+}
+
+function sleep(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+}
+
+async function waitForPricingBatch(jobId: string) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await sleep(1000)
+    await load()
+    const job = current.value?.jobs.find((item) => item.id === jobId)
+    if (job?.pricingImportBatchId) return job.pricingImportBatchId
+    if (job?.status === 'Failed' || job?.status === 'NeedsReview') return null
+  }
+
+  return null
+}
+
+async function sendToPricingForReview() {
+  const job = reviewJob.value
+  if (!job || sendingToPricing.value) return
+
+  try {
+    sendingToPricing.value = true
+    const result = await EmailExtractionService.sendExtractionToPricing(job.id)
+
+    if (result.pricingImportBatchId) {
+      await props.onOpenPricing?.(result.pricingImportBatchId)
+      return
+    }
+
+    toastStore.info(
+      'Creando revisión en Pricing',
+      'La extracción se enviará como importación pendiente. No se volverá a extraer el correo.',
+    )
+
+    const batchId = await waitForPricingBatch(job.id)
+    await props.onReprocessed?.()
+
+    if (batchId) {
+      toastStore.success(
+        'Revisión creada',
+        'Los registros ya están disponibles para corregir y aprobar en Pricing.',
+      )
+      await props.onOpenPricing?.(batchId)
+      return
+    }
+
+    toastStore.info(
+      'Revisión en proceso',
+      'El lote continúa creándose. Cuando termine aparecerá el botón “Ver en Pricing”.',
+    )
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo crear la revisión en Pricing.')
+  } finally {
+    sendingToPricing.value = false
+  }
+}
+
+async function openPricingReview() {
+  const batchId = pricingBatchJob.value?.pricingImportBatchId
+  if (batchId) await props.onOpenPricing?.(batchId)
 }
 
 async function reprocess() {
@@ -159,15 +308,33 @@ onMounted(load)
             </p>
           </div>
         </div>
-        <DhButton
-          v-if="canReprocess"
-          label="Reprocesar"
-          :icon="RefreshCw"
-          variant="secondary"
-          size="sm"
-          :loading="reprocessing"
-          @click="reprocess"
-        />
+        <div class="flex shrink-0 flex-wrap justify-end gap-2">
+          <DhButton
+            v-if="pricingBatchJob?.pricingImportBatchId"
+            label="Ver revisión"
+            :icon="ExternalLink"
+            size="sm"
+            @click="openPricingReview"
+          />
+          <DhButton
+            v-else-if="canSendToPricing || awaitingPricingJob"
+            :label="awaitingPricingJob ? 'Creando revisión...' : 'Revisar en Pricing'"
+            :icon="Send"
+            size="sm"
+            :loading="sendingToPricing || Boolean(awaitingPricingJob)"
+            :disabled="Boolean(awaitingPricingJob)"
+            @click="sendToPricingForReview"
+          />
+          <DhButton
+            v-if="canReprocess"
+            label="Volver a extraer"
+            :icon="RefreshCw"
+            variant="secondary"
+            size="sm"
+            :loading="reprocessing"
+            @click="reprocess"
+          />
+        </div>
       </div>
     </section>
 
@@ -237,7 +404,17 @@ onMounted(load)
                 </p>
               </div>
             </div>
-            <DhBadge :label="attachment.status" :variant="statusVariant(attachment.status)" />
+            <div class="flex shrink-0 items-center gap-2">
+              <DhBadge :label="attachment.status" :variant="statusVariant(attachment.status)" />
+              <DhButton
+                v-if="authStore.hasScope(STORAGE_SCOPES.files.download)"
+                :label="attachmentActionLabel(attachment)"
+                :icon="attachmentActionIcon(attachment)"
+                size="sm"
+                variant="secondary"
+                @click="openAttachment(attachment)"
+              />
+            </div>
           </div>
         </div>
         <p v-else class="rounded-[22px] bg-black/[0.025] p-4 text-sm font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.04]">
@@ -274,13 +451,23 @@ onMounted(load)
                   Lote Pricing: {{ job.pricingImportBatchId }}
                 </p>
               </div>
-              <DhButton
-                v-if="job.pricingImportBatchId"
-                label="Ver en Pricing"
-                :icon="ExternalLink"
-                size="sm"
-                @click="onOpenPricing?.(job.pricingImportBatchId)"
-              />
+              <div class="flex shrink-0 flex-wrap gap-2">
+                <DhButton
+                  v-if="job.pricingImportBatchId"
+                  label="Ver en Pricing"
+                  :icon="ExternalLink"
+                  size="sm"
+                  @click="onOpenPricing?.(job.pricingImportBatchId)"
+                />
+                <DhButton
+                  v-else-if="job.id === reviewJob?.id"
+                  label="Enviar a revisión"
+                  :icon="Send"
+                  size="sm"
+                  :loading="sendingToPricing"
+                  @click="sendToPricingForReview"
+                />
+              </div>
             </div>
           </article>
         </div>

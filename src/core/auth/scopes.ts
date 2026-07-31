@@ -188,6 +188,29 @@ export const AI_SCOPES = {
   },
 } as const
 
+
+export const STORAGE_SCOPES = {
+  files: {
+    create: 'storage.files.create',
+    view: 'storage.files.view',
+    download: 'storage.files.download',
+    delete: 'storage.files.delete',
+    version: 'storage.files.version',
+  },
+  providers: {
+    view: 'storage.providers.view',
+    create: 'storage.providers.create',
+    update: 'storage.providers.update',
+    setActive: 'storage.providers.set-active',
+  },
+} as const
+
+export const MONITORING_SCOPES = {
+  services: {
+    view: 'monitoring.services.view',
+  },
+} as const
+
 export const VIEW_SCOPES = {
   users: AUTH_SCOPES.users.view,
   roles: AUTH_SCOPES.roles.view,
@@ -211,4 +234,7 @@ export const VIEW_SCOPES = {
   aiPromptTemplates: AI_SCOPES.promptTemplates.view,
   aiExecutions: AI_SCOPES.executions.view,
   aiAssistant: AI_SCOPES.executions.execute,
+
+  storage: STORAGE_SCOPES.files.view,
+  monitoring: MONITORING_SCOPES.services.view,
 } as const

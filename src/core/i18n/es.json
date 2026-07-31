@@ -74,7 +74,7 @@
     "roles": "Roles",
     "scopes": "Permisos",
     "sessions": "Sesiones",
-    "config": "Config",
+    "config": "Datos maestros",
     "catalogs": "Catálogos",
     "audits": "Auditoría",
     "settings": "Configuración",
@@ -82,17 +82,18 @@
     "shortcuts": "Atajos",
     "collapse": "Colapsar menú",
     "expand": "Expandir menú",
-    "monitoring": "Monitoreo",
-    "pricing": "Pricing",
-    "pricingPanel": "Panel de pricing",
-    "costs": "Costos",
-    "importedRates": "Tarifas importadas",
-    "emailImports": "Correos de tarifas",
-    "rates": "Tarifas oficiales",
+    "monitoring": "Plataforma",
+    "pricing": "Operación de Pricing",
+    "pricingPanel": "3. Seleccionar alternativa",
+    "costs": "Costos y recargos",
+    "importedRates": "2. Revisar importaciones",
+    "emailImports": "1. Bandeja de correos",
+    "rates": "4. Tarifas oficiales",
     "serviceMonitoring": "Estado de servicios",
     "aiAssistant": "Asistente IA",
     "ai": "Inteligencia artificial",
-    "aiCenter": "Centro de IA"
+    "aiCenter": "Centro de IA",
+    "storage": "Storage"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -130,10 +131,12 @@
       "audit": "Audit",
       "monitoring": "Ops",
       "pricing": "FCL",
-      "ai": "IA"
+      "ai": "IA",
+      "storage": "Archivos"
     },
     "openPricing": "Gestionar pricing",
-    "openAi": "Abrir asistente conversacional"
+    "openAi": "Abrir asistente conversacional",
+    "openStorage": "Consultar archivos, correos y adjuntos"
   },
   "users": {
     "title": "Usuarios",
@@ -356,6 +359,14 @@
       "dataExtraction": {
         "name": "Data Extraction",
         "description": "Extracción interna de tarifarios."
+      },
+      "ai": {
+        "name": "AI Service",
+        "description": "Modelos, perfiles, conexiones y ejecuciones de inteligencia artificial."
+      },
+      "storage": {
+        "name": "Storage Service",
+        "description": "Archivos importados, correos, adjuntos y versiones."
       }
     }
   },

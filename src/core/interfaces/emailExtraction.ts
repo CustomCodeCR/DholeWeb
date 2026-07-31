@@ -10,7 +10,12 @@ export type EmailMessageStatus =
 
 export type EmailExtractionJobStatus =
   | 'Pending'
+  | 'Extracting'
   | 'Processing'
+  | 'AwaitingAi'
+  | 'AiProcessing'
+  | 'ValidatingAiResult'
+  | 'AwaitingPricing'
   | 'SentToPricing'
   | 'NeedsReview'
   | 'Failed'
@@ -97,6 +102,7 @@ export interface EmailExtractionJobDto extends Record<string, unknown> {
   provisionalPricingImportId: string
   extractionExecutionId?: string | null
   pricingImportBatchId?: string | null
+  pricingRequestId?: string | null
   status: EmailExtractionJobStatus
   confidenceScore?: number | null
   errorMessage?: string | null
@@ -115,4 +121,13 @@ export interface EmailMessageDetailDto extends EmailMessageDto {
   rawEmailStoragePath?: string | null
   attachments: EmailAttachmentDto[]
   jobs: EmailExtractionJobDto[]
+}
+
+export interface SendEmailExtractionToPricingResponse extends Record<string, unknown> {
+  id?: string
+  jobId?: string
+  messageId?: string
+  pricingRequestId?: string | null
+  pricingImportBatchId?: string | null
+  status: string
 }

@@ -21,6 +21,7 @@ import type { ImportRateDto, ImportSourceType, ImportStatus } from '@/core/inter
 import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawer.vue'
 import PricingRateFormDrawer from '@/modules/pricing/components/PricingRateFormDrawer.vue'
 import PricingImportPreviewDrawer from '@/modules/pricing/components/PricingImportPreviewDrawer.vue'
+import PricingWorkflowGuide from '@/modules/pricing/components/PricingWorkflowGuide.vue'
 import PricingReasonModal from '@/modules/pricing/components/PricingReasonModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -50,7 +51,7 @@ const processingId = ref<string | null>(null)
 let refreshTimer: number | undefined
 const filters = reactive({
   search: '',
-  status: '' as ImportStatus | '',
+  status: (typeof route.query.status === 'string' ? route.query.status : '') as ImportStatus | '',
   sourceType: '' as ImportSourceType | '',
   agentId: '',
   carrierId: '',
@@ -77,9 +78,20 @@ const allSelected = computed(
   () => rows.value.length > 0 && rows.value.every((row) => selectedIds.value.includes(row.id)),
 )
 const selectedRows = computed(() => rows.value.filter((row) => selectedIds.value.includes(row.id)))
-const selectedPendingIds = computed(() =>
-  selectedRows.value.filter((row) => row.status === 'Pending').map((row) => row.id),
+const selectedPendingRows = computed(() =>
+  selectedRows.value.filter((row) => row.status === 'Pending'),
 )
+const selectedPendingIds = computed(() => selectedPendingRows.value.map((row) => row.id))
+const selectedApprovableIds = computed(() =>
+  selectedPendingRows.value.filter(isPoeAssigned).map((row) => row.id),
+)
+const selectedUnassignedPoeCount = computed(
+  () => selectedPendingRows.value.filter((row) => !isPoeAssigned(row)).length,
+)
+const pagePendingCount = computed(() => rows.value.filter((row) => row.status === 'Pending').length)
+const pageApprovedCount = computed(() => rows.value.filter((row) => row.status === 'Approved').length)
+const pageMissingPoeCount = computed(() => rows.value.filter((row) => row.status === 'Pending' && !isPoeAssigned(row)).length)
+const pageReadyCount = computed(() => rows.value.filter((row) => row.status === 'Pending' && isPoeAssigned(row)).length)
 
 const columns: DhTableColumn<ImportRateDto>[] = [
   { key: 'selected', label: '', width: '48px', align: 'center' },
@@ -92,7 +104,7 @@ const columns: DhTableColumn<ImportRateDto>[] = [
   { key: 'validity', label: 'Vigencia' },
   { key: 'status', label: 'Estado', align: 'center' },
   { key: 'usedAsRateCount', label: 'Uso', align: 'center' },
-  { key: 'actions', label: '', align: 'right', width: '190px' },
+  { key: 'actions', label: 'Acción', align: 'right', width: '300px' },
 ]
 
 const statusOptions = [
@@ -160,8 +172,12 @@ function polLabel(row: ImportRateDto) {
   return catalogLabel(catalogs.polPorts.value, row.polId, row.pol)
 }
 
+function isPoeAssigned(row: ImportRateDto) {
+  return Boolean(catalogs.findById(catalogs.poePorts.value, row.poeId))
+}
+
 function poeLabel(row: ImportRateDto) {
-  return catalogLabel(catalogs.poePorts.value, row.poeId, row.poe, '')
+  return catalogs.findById(catalogs.poePorts.value, row.poeId)?.name || 'No asignado'
 }
 
 function podLabel(row: ImportRateDto) {
@@ -227,6 +243,16 @@ function applyFilters() {
   page.value = 1
   load()
 }
+
+function setStatus(status: ImportStatus | '') {
+  filters.status = status
+  page.value = 1
+  const query = { ...route.query }
+  if (status) query.status = status
+  else delete query.status
+  router.replace({ query })
+  load()
+}
 function clearFilters() {
   Object.assign(filters, {
     search: '',
@@ -250,6 +276,11 @@ function clearFilters() {
     router.replace({ query })
   }
   applyFilters()
+}
+
+function openBatchReview() {
+  if (!batchFilter.value) return
+  router.push(`/pricing/imports/review/${batchFilter.value}`)
 }
 
 function clearBatchFilter() {
@@ -278,6 +309,15 @@ function clearSelection() {
 async function approveOne(row: ImportRateDto) {
   if (!canApprove.value || row.status !== 'Pending' || processingId.value) return
 
+  if (!isPoeAssigned(row)) {
+    toastStore.warning(
+      'POE no asignado',
+      'Seleccione manualmente un POE válido antes de aprobar la importación.',
+    )
+    openPreview(row)
+    return
+  }
+
   try {
     processingId.value = row.id
     await PricingService.approveImportRate(row.id)
@@ -291,7 +331,7 @@ async function approveOne(row: ImportRateDto) {
 }
 
 async function approveSelected() {
-  const ids = [...selectedPendingIds.value]
+  const ids = [...selectedApprovableIds.value]
   if (!canApprove.value || !ids.length || bulkApproving.value) return
 
   try {
@@ -367,7 +407,9 @@ function openPreview(row: ImportRateDto) {
       canApprove: canApprove.value,
       canReject: canReject.value,
       canCreateRate: canCreateRate.value,
+      canAssignPoe: canApprove.value,
       onApproved: load,
+      onPoeAssigned: load,
       onReject: (current: ImportRateDto) => {
         drawerStore.close()
         reject(current)
@@ -444,8 +486,8 @@ onBeforeUnmount(() => {
 <template>
   <section class="space-y-6">
     <DhPageHeader
-      title="Tarifas importadas"
-      subtitle="Revise, apruebe y convierta los tarifarios extraídos en tarifas oficiales."
+      title="Revisar importaciones"
+      subtitle="Complete los datos pendientes, apruebe el lote y continúe hacia la decisión comercial."
       :icon="Import"
     >
       <template #actions>
@@ -464,6 +506,49 @@ onBeforeUnmount(() => {
       </template>
     </DhPageHeader>
 
+    <PricingWorkflowGuide current="review" />
+
+    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <button
+        type="button"
+        class="rounded-[24px] border p-4 text-left transition"
+        :class="filters.status === 'Pending' ? 'border-amber-500/40 bg-amber-500/12' : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-amber-500/30'"
+        @click="setStatus('Pending')"
+      >
+        <p class="text-xs font-black uppercase tracking-[0.12em] text-amber-700 dark:text-amber-300">Pendientes</p>
+        <p class="mt-2 text-2xl font-black text-[var(--dh-text)]">{{ pagePendingCount }}</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Requieren revisión o aprobación</p>
+      </button>
+      <button
+        type="button"
+        class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-left transition hover:border-red-500/30"
+        @click="setStatus('Pending')"
+      >
+        <p class="text-xs font-black uppercase tracking-[0.12em] text-red-600">Datos faltantes</p>
+        <p class="mt-2 text-2xl font-black text-[var(--dh-text)]">{{ pageMissingPoeCount }}</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Sin POE válido en la página</p>
+      </button>
+      <button
+        type="button"
+        class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-left transition hover:border-emerald-500/30"
+        @click="setStatus('Pending')"
+      >
+        <p class="text-xs font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-300">Listas para aprobar</p>
+        <p class="mt-2 text-2xl font-black text-[var(--dh-text)]">{{ pageReadyCount }}</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Completas en la página actual</p>
+      </button>
+      <button
+        type="button"
+        class="rounded-[24px] border p-4 text-left transition"
+        :class="filters.status === 'Approved' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)]' : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[rgb(var(--dh-primary-rgb)/0.35)]'"
+        @click="setStatus('Approved')"
+      >
+        <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Aprobadas</p>
+        <p class="mt-2 text-2xl font-black text-[var(--dh-text)]">{{ pageApprovedCount }}</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Disponibles para crear tarifa</p>
+      </button>
+    </section>
+
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
       <div
         v-if="batchFilter"
@@ -471,18 +556,21 @@ onBeforeUnmount(() => {
       >
         <div>
           <p class="font-black text-emerald-700 dark:text-emerald-300">
-            Lote recibido desde correo
+            Revisión lista para continuar
           </p>
           <p class="mt-1 break-all text-xs font-semibold text-[var(--dh-text-muted)]">
             {{ batchFilter }}
           </p>
         </div>
-        <DhButton label="Ver todas" variant="secondary" size="sm" @click="clearBatchFilter" />
+        <div class="flex flex-wrap gap-2">
+          <DhButton label="Abrir pantalla de revisión" size="sm" @click="openBatchReview" />
+          <DhButton label="Ver todas" variant="secondary" size="sm" @click="clearBatchFilter" />
+        </div>
       </div>
 
       <DhCrudToolbar
         v-model:search="filters.search"
-        title="Bandeja de revisión"
+        title="Importaciones detectadas"
         create-label="Importar tarifario"
         :show-create="canUpload"
         @create="openUpload"
@@ -492,7 +580,7 @@ onBeforeUnmount(() => {
       >
         <template #description
           ><p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-            {{ total }} registros · Los pendientes requieren revisión antes de convertirse.
+            {{ total }} registros · Abra una fila para corregirla o use la pantalla del lote para revisar en secuencia.
           </p></template
         >
       </DhCrudToolbar>
@@ -599,15 +687,19 @@ onBeforeUnmount(() => {
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
             {{ selectedPendingIds.length }} pendiente{{
               selectedPendingIds.length === 1 ? '' : 's'
+            }}. {{ selectedApprovableIds.length }} con POE asignado{{
+              selectedApprovableIds.length === 1 ? '' : 's'
             }}
-            disponible{{ selectedPendingIds.length === 1 ? '' : 's' }} para aprobar o rechazar en
-            batch.
+            para aprobar.
+            <span v-if="selectedUnassignedPoeCount" class="text-amber-700 dark:text-amber-300">
+              {{ selectedUnassignedPoeCount }} con POE no asignado.
+            </span>
           </p>
         </div>
         <div class="flex flex-wrap justify-end gap-2">
           <DhButton
-            v-if="canApprove && selectedPendingIds.length"
-            :label="`Aprobar (${selectedPendingIds.length})`"
+            v-if="canApprove && selectedApprovableIds.length"
+            :label="`Aprobar (${selectedApprovableIds.length})`"
             :icon="Check"
             size="sm"
             :loading="bulkApproving"
@@ -664,7 +756,12 @@ onBeforeUnmount(() => {
             </span>
           </template>
           <template #cell-route="{ row }"
-            ><p class="whitespace-nowrap font-black">{{ routeLabel(row) }}</p></template
+            ><p
+              class="whitespace-nowrap font-black"
+              :class="!isPoeAssigned(row) ? 'text-amber-600 dark:text-amber-400' : ''"
+            >
+              {{ routeLabel(row) }}
+            </p></template
           >
           <template #cell-containerType="{ row }"
             ><DhBadge :label="containerLabel(row)" variant="neutral"
@@ -693,43 +790,50 @@ onBeforeUnmount(() => {
               "
               variant="success"
           /></template>
-          <template #cell-actions="{ row }"
-            ><div class="flex justify-end gap-1">
-              <button
-                type="button"
-                class="rounded-2xl p-2 text-[var(--dh-text-soft)] hover:bg-black/5 dark:hover:bg-white/10"
-                title="Ver detalle"
-                @click.stop="openPreview(row)"
-              >
-                <Eye class="h-4 w-4" /></button
-              ><button
-                v-if="canApprove && row.status === 'Pending'"
-                type="button"
-                :disabled="processingId === row.id"
-                class="rounded-2xl p-2 text-emerald-600 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-                title="Aprobar directamente"
-                @click.stop="approveOne(row)"
-              >
-                <Check class="h-4 w-4" /></button
-              ><button
-                v-if="canReject && row.status === 'Pending'"
-                type="button"
-                :disabled="processingId === row.id"
-                class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-                title="Rechazar directamente"
-                @click.stop="reject(row)"
-              >
-                <X class="h-4 w-4" /></button
-              ><button
+          <template #cell-actions="{ row }">
+            <div class="flex flex-wrap justify-end gap-2" @click.stop>
+              <DhButton
+                v-if="row.status === 'Pending'"
+                :label="isPoeAssigned(row) ? 'Revisar / aprobar' : 'Completar datos'"
+                :icon="Eye"
+                size="sm"
+                variant="secondary"
+                @click="openPreview(row)"
+              />
+              <DhButton
+                v-else
+                label="Ver detalle"
+                :icon="Eye"
+                size="sm"
+                variant="ghost"
+                @click="openPreview(row)"
+              />
+              <DhButton
+                v-if="canApprove && row.status === 'Pending' && isPoeAssigned(row)"
+                label="Aprobar"
+                :icon="Check"
+                size="sm"
+                :loading="processingId === row.id"
+                @click="approveOne(row)"
+              />
+              <DhButton
                 v-if="canCreateRate && row.status === 'Approved'"
-                type="button"
-                class="rounded-2xl p-2 text-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.1)]"
-                title="Crear tarifa"
-                @click.stop="openConvert(row)"
-              >
-                <Ship class="h-4 w-4" />
-              </button></div
-          ></template>
+                label="Crear tarifa"
+                :icon="Ship"
+                size="sm"
+                @click="openConvert(row)"
+              />
+              <DhButton
+                v-if="canReject && row.status === 'Pending'"
+                label="Rechazar"
+                :icon="X"
+                size="sm"
+                variant="ghost"
+                :disabled="processingId === row.id"
+                @click="reject(row)"
+              />
+            </div>
+          </template>
         </DhDataTable>
       </div>
       <div class="mt-5">

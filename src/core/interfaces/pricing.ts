@@ -178,7 +178,6 @@ export interface PricingDecisionDashboardQuery extends Record<string, unknown> {
   containerType?: string | null
 }
 
-
 export interface CatalogSnapshotRequest extends Record<string, unknown> {
   id: string
   name: string
@@ -216,6 +215,32 @@ export interface CreateImportRateRequest extends Record<string, unknown> {
 
 export interface ImportRateBatchRequest extends Record<string, unknown> {
   ids: string[]
+}
+
+export interface AssignImportRatePoeRequest extends Record<string, unknown> {
+  poeId: string
+}
+
+export interface ReviewImportRateRequest extends Record<string, unknown> {
+  importProfileId: string
+  polId: string
+  poeId: string
+  podId: string
+  carrierId: string
+  agentId: string
+  containerTypeId: string
+  currencyId: string
+  commodity?: string | null
+  oceanFreight: number
+  originCharges: number
+  destinationCharges: number
+  surcharges: number
+  totalSale?: number | null
+  freeDays: number
+  transitDays?: number | null
+  validFrom: string
+  validTo: string
+  reviewNotes?: string | null
 }
 
 export interface RejectImportRateRequest extends Record<string, unknown> {

@@ -74,7 +74,7 @@
     "roles": "Roles",
     "scopes": "Scopes",
     "sessions": "Sessions",
-    "config": "Config",
+    "config": "Master data",
     "catalogs": "Catalogs",
     "audits": "Audit logs",
     "settings": "Settings",
@@ -82,17 +82,18 @@
     "shortcuts": "Shortcuts",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
-    "monitoring": "Monitoring",
-    "pricing": "Pricing",
-    "pricingPanel": "Pricing panel",
-    "costs": "Costs",
-    "importedRates": "Imported rates",
-    "emailImports": "Rate emails",
-    "rates": "Official rates",
+    "monitoring": "Platform",
+    "pricing": "Pricing operations",
+    "pricingPanel": "3. Select option",
+    "costs": "Costs and surcharges",
+    "importedRates": "2. Review imports",
+    "emailImports": "1. Email inbox",
+    "rates": "4. Official rates",
     "serviceMonitoring": "Services status",
     "aiAssistant": "AI Assistant",
     "ai": "Artificial intelligence",
-    "aiCenter": "AI Center"
+    "aiCenter": "AI Center",
+    "storage": "Storage"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -130,10 +131,12 @@
       "audit": "Audit",
       "monitoring": "Ops",
       "pricing": "FCL",
-      "ai": "AI"
+      "ai": "AI",
+      "storage": "Files"
     },
     "openPricing": "Manage pricing",
-    "openAi": "Open conversational assistant"
+    "openAi": "Open conversational assistant",
+    "openStorage": "Browse files, emails and attachments"
   },
   "users": {
     "title": "Users",
@@ -356,6 +359,14 @@
       "dataExtraction": {
         "name": "Data Extraction",
         "description": "Internal rate-sheet extraction."
+      },
+      "ai": {
+        "name": "AI Service",
+        "description": "Artificial intelligence models, profiles, connections, and executions."
+      },
+      "storage": {
+        "name": "Storage Service",
+        "description": "Imported files, emails, attachments, and versions."
       }
     }
   },

@@ -6,6 +6,7 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import { AiService } from '@/core/services/aiService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { AiMessageRequest } from '@/core/interfaces/ai'
+import { buildAiChatHistory } from '@/core/utils/aiChatHistory'
 import { createUuid } from '@/core/utils/id'
 
 interface ChatMessage extends AiMessageRequest {
@@ -57,10 +58,7 @@ async function sendMessage() {
 
   try {
     sending.value = true
-    const history: AiMessageRequest[] = messages.value
-      .filter((message) => message.role === 'user' || message.role === 'assistant')
-      .slice(-30)
-      .map(({ role, content: messageContent }) => ({ role, content: messageContent }))
+    const history = buildAiChatHistory(messages.value)
 
     const result = await AiService.executeChat({
       profileKey: PROFILE_KEY,

@@ -65,6 +65,7 @@ const optionalCostIds = ref<string[]>([])
 const removedDetailIds = ref<string[]>([])
 const initialized = ref(false)
 const canEditImportedAgent = ref(false)
+const canEditImportedPoe = ref(false)
 const canEditImportedPod = ref(false)
 
 const today = new Date()
@@ -100,6 +101,7 @@ const isEditing = computed(() => Boolean(props.rate))
 const isCreatingFromImport = computed(() => Boolean(props.sourceImport && !props.rate))
 const isHeaderLocked = computed(() => isCreatingFromImport.value)
 const isAgentLocked = computed(() => isCreatingFromImport.value && !canEditImportedAgent.value)
+const isPoeLocked = computed(() => isCreatingFromImport.value && !canEditImportedPoe.value)
 const isPodLocked = computed(() => isCreatingFromImport.value && !canEditImportedPod.value)
 const canAutoApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
 const selectedCurrency = computed(() =>
@@ -118,6 +120,7 @@ const missingSelectableImportedFields = computed(() => {
 
   return [
     canEditImportedAgent.value && !form.agentId ? 'Agente' : '',
+    canEditImportedPoe.value && !form.poeId ? 'POE' : '',
     canEditImportedPod.value && !form.podId ? 'POD' : '',
   ].filter(Boolean)
 })
@@ -128,7 +131,7 @@ const unresolvedLockedImportedFields = computed(() => {
   return [
     !form.carrierId ? 'Naviera' : '',
     !form.polId ? 'POL' : '',
-    !form.poeId ? 'POE' : '',
+    !canEditImportedPoe.value && !form.poeId ? 'POE' : '',
     !form.containerTypeId ? 'Contenedor' : '',
     !form.currencyId ? 'Moneda' : '',
   ].filter(Boolean)
@@ -765,6 +768,7 @@ async function initialize() {
 
     if (isCreatingFromImport.value) {
       canEditImportedAgent.value = !importedAgentMatch
+      canEditImportedPoe.value = !importedPoeMatch
       canEditImportedPod.value = !importedPodMatch
     }
   }
@@ -998,7 +1002,7 @@ onMounted(initialize)
         />
         <DhSelect
           v-model="form.poeId"
-          :disabled="isHeaderLocked"
+          :disabled="isPoeLocked"
           label="POE · Entrada"
           placeholder="Seleccione POE"
           :options="catalogs.poeOptions.value"

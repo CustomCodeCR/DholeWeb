@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { AlertCircle, Check, FileSearch, Ship, X } from 'lucide-vue-next'
-import { DhBadge, DhButton } from '@/shared/components/atoms'
+import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { ImportRateDto } from '@/core/interfaces/pricing'
@@ -14,7 +14,9 @@ const props = withDefaults(
     canApprove?: boolean
     canReject?: boolean
     canCreateRate?: boolean
+    canAssignPoe?: boolean
     onApproved?: () => void | Promise<void>
+    onPoeAssigned?: () => void | Promise<void>
     onReject?: (rate: ImportRateDto) => void | Promise<void>
     onCreateRate?: (rate: ImportRateDto) => void | Promise<void>
   }>(),
@@ -22,6 +24,7 @@ const props = withDefaults(
     canApprove: false,
     canReject: false,
     canCreateRate: false,
+    canAssignPoe: false,
   },
 )
 
@@ -30,6 +33,8 @@ const catalogs = usePricingCatalogs()
 const current = ref<ImportRateDto>(props.importRate)
 const loading = ref(false)
 const approving = ref(false)
+const assigningPoe = ref(false)
+const selectedPoeId = ref('')
 
 function displayName(
   items: typeof catalogs.carriers.value,
@@ -70,16 +75,16 @@ const pol = computed(() =>
     current.value.polSlug,
   ),
 )
-const poe = computed(() =>
-  displayName(
-    catalogs.poePorts.value,
-    current.value.poeId,
-    '—',
-    current.value.poe,
-    current.value.poeCode,
-    current.value.poeSlug,
-  ),
+const assignedPoe = computed(() => catalogs.findById(catalogs.poePorts.value, current.value.poeId))
+const isPoeAssigned = computed(() => Boolean(assignedPoe.value))
+const detectedPoe = computed(() =>
+  [current.value.poe, current.value.poeCode, current.value.poeSlug]
+    .map((value) => String(value ?? '').trim())
+    .find(
+      (value) => value && !['pending', 'por asignar', 'sin asignar'].includes(value.toLowerCase()),
+    ),
 )
+const poe = computed(() => assignedPoe.value?.name || 'No asignado')
 const pod = computed(() =>
   displayName(
     catalogs.podPorts.value,
@@ -142,8 +147,12 @@ const margin = computed(() => {
   if (value == null) return null
   return Math.abs(value) <= 1 ? value * 100 : value
 })
+const showApproveCurrent = computed(() => props.canApprove && current.value.status === 'Pending')
 const canApproveCurrent = computed(
-  () => props.canApprove && current.value.status === 'Pending' && !approving.value,
+  () => showApproveCurrent.value && isPoeAssigned.value && !approving.value,
+)
+const canAssignPoeCurrent = computed(
+  () => props.canAssignPoe && current.value.status === 'Pending' && !isPoeAssigned.value,
 )
 const canRejectCurrent = computed(() => props.canReject && current.value.status === 'Pending')
 const canCreateCurrent = computed(() => props.canCreateRate && current.value.status === 'Approved')
@@ -190,10 +199,38 @@ async function load() {
       PricingService.getImportRate(props.importRate.id),
     ])
     current.value = detail
+    const exactPoe = catalogs.findById(catalogs.poePorts.value, detail.poeId)
+    const suggestedPoe = catalogs.findBestMatch(
+      catalogs.poePorts.value,
+      null,
+      detail.poe,
+      detail.poeCode,
+      detail.poeSlug,
+    )
+    selectedPoeId.value = exactPoe?.id ?? suggestedPoe?.id ?? ''
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar el detalle de la tarifa importada.')
   } finally {
     loading.value = false
+  }
+}
+
+async function assignPoe() {
+  if (!canAssignPoeCurrent.value || !selectedPoeId.value || assigningPoe.value) return
+
+  try {
+    assigningPoe.value = true
+    await PricingService.assignImportRatePoe(current.value.id, { poeId: selectedPoeId.value })
+    await load()
+    toastStore.success(
+      'POE asignado',
+      'El POE quedó validado contra Config y la importación ya puede aprobarse.',
+    )
+    await props.onPoeAssigned?.()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo asignar el POE.')
+  } finally {
+    assigningPoe.value = false
   }
 }
 
@@ -254,11 +291,12 @@ onMounted(load)
             @click="props.onReject?.(current)"
           />
           <DhButton
-            v-if="canApproveCurrent"
+            v-if="showApproveCurrent"
             label="Aprobar tarifa"
             :icon="Check"
             size="sm"
             :loading="approving"
+            :disabled="!canApproveCurrent"
             @click="approve"
           />
           <DhButton
@@ -280,6 +318,45 @@ onMounted(load)
     </div>
 
     <template v-else>
+      <section
+        v-if="!isPoeAssigned"
+        class="rounded-[26px] border border-red-500/30 bg-red-500/10 p-5"
+      >
+        <div class="flex items-start gap-3">
+          <AlertCircle class="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+          <div class="min-w-0 flex-1">
+            <h3 class="font-black text-[var(--dh-text)]">POE no asignado</h3>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-soft)]">
+              El POE detectado no existe como referencia válida en Config. La importación no puede
+              aprobarse hasta asignar manualmente un POE real.
+            </p>
+            <p v-if="detectedPoe" class="mt-2 text-sm font-bold text-red-700 dark:text-red-300">
+              Valor detectado: {{ detectedPoe }}
+            </p>
+            <div
+              v-if="canAssignPoeCurrent"
+              class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
+            >
+              <div class="min-w-0 flex-1">
+                <DhSelect
+                  v-model="selectedPoeId"
+                  label="Asignar POE manualmente"
+                  placeholder="Seleccione un POE de Config"
+                  :options="catalogs.poeOptions.value"
+                />
+              </div>
+              <DhButton
+                label="Asignar POE"
+                :icon="Check"
+                :loading="assigningPoe"
+                :disabled="!selectedPoeId"
+                @click="assignPoe"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section>
         <h3 class="mb-3 font-black text-[var(--dh-text)]">Ruta y responsables</h3>
         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -395,8 +472,14 @@ onMounted(load)
         <div>
           <h3 class="font-black text-[var(--dh-text)]">Revise antes de aprobar</h3>
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-soft)]">
-            Confirme naviera, agente, ruta, contenedor, moneda, montos y vigencia. La aprobación
-            solo se ejecuta desde esta vista previa.
+            <template v-if="!isPoeAssigned">
+              El POE aparece como <strong>No asignado</strong>. Seleccione uno manualmente antes de
+              aprobar.
+            </template>
+            <template v-else>
+              Confirme naviera, agente, ruta, contenedor, moneda, montos y vigencia. La aprobación
+              solo se ejecuta desde esta vista previa.
+            </template>
           </p>
         </div>
       </section>

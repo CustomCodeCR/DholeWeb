@@ -11,6 +11,7 @@ import type {
   EmailExtractionJobDto,
   EmailMessageDetailDto,
   EmailMessageDto,
+  SendEmailExtractionToPricingResponse,
 } from '@/core/interfaces/emailExtraction'
 
 type AcceptedResponse = { id?: string; messageId?: string }
@@ -56,6 +57,16 @@ export const EmailExtractionService = {
     })
 
     return unwrapApiResponse<AcceptedResponse>(response as never)
+  },
+
+  async sendExtractionToPricing(
+    jobId: string,
+  ): Promise<SendEmailExtractionToPricingResponse> {
+    const response = await callEndpoint<unknown>(Endpoints.sendEmailExtractionToPricing, {
+      params: { jobId },
+    })
+
+    return unwrapApiResponse<SendEmailExtractionToPricingResponse>(response as never)
   },
 
   async browseExtractionJobs(

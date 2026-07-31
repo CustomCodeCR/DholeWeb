@@ -19,6 +19,7 @@ import {
   Shield,
   Users,
   FileText,
+  HardDrive,
   Mail,
   ReceiptText,
 } from 'lucide-vue-next'
@@ -121,17 +122,17 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     canView(VIEW_SCOPES.pricingDecisions) ||
     canView(VIEW_SCOPES.pricingCosts)
 
-  if (canOpenPricing) {
-    children.push({ label: t('sidebar.pricingPanel'), path: '/pricing', icon: TrendingUp })
-  }
-
   if (canView(VIEW_SCOPES.pricingImports)) {
-    children.push({ label: t('sidebar.importedRates'), path: '/pricing/imports', icon: FileText })
     children.push({
       label: t('sidebar.emailImports'),
       path: '/pricing/email-imports',
       icon: Mail,
     })
+    children.push({ label: t('sidebar.importedRates'), path: '/pricing/imports', icon: FileText })
+  }
+
+  if (canOpenPricing) {
+    children.push({ label: t('sidebar.pricingPanel'), path: '/pricing', icon: TrendingUp })
   }
 
   if (canView(VIEW_SCOPES.pricingRates)) {
@@ -156,11 +157,19 @@ const monitoringChildren = computed<SidebarItem[]>(() => {
     })
   }
 
-  if (isSuperUser()) {
+  if (canView(VIEW_SCOPES.monitoring) || isSuperUser()) {
     children.push({
       label: t('sidebar.serviceMonitoring'),
       path: '/monitoring/services',
       icon: ServerCog,
+    })
+  }
+
+  if (canView(VIEW_SCOPES.storage) || isSuperUser()) {
+    children.push({
+      label: t('sidebar.storage'),
+      path: '/storage',
+      icon: HardDrive,
     })
   }
 
@@ -176,16 +185,16 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     },
   ]
 
-  if (securityChildren.value.length > 0) {
-    items.push({ label: t('sidebar.security'), icon: LockKeyhole, children: securityChildren.value })
+  if (pricingChildren.value.length > 0) {
+    items.push({ label: t('sidebar.pricing'), icon: TrendingUp, children: pricingChildren.value })
   }
 
   if (configChildren.value.length > 0) {
     items.push({ label: t('sidebar.config'), icon: BookOpen, children: configChildren.value })
   }
 
-  if (pricingChildren.value.length > 0) {
-    items.push({ label: t('sidebar.pricing'), icon: TrendingUp, children: pricingChildren.value })
+  if (securityChildren.value.length > 0) {
+    items.push({ label: t('sidebar.security'), icon: LockKeyhole, children: securityChildren.value })
   }
 
 

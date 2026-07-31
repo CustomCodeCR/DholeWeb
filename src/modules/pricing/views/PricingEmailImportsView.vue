@@ -5,11 +5,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
+  ArrowRight,
   ExternalLink,
   Inbox,
   Mail,
   Paperclip,
   RefreshCw,
+  Send,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
@@ -26,6 +28,7 @@ import type {
   EmailMessageStatus,
 } from '@/core/interfaces/emailExtraction'
 import PricingEmailMessageDrawer from '@/modules/pricing/components/PricingEmailMessageDrawer.vue'
+import PricingWorkflowGuide from '@/modules/pricing/components/PricingWorkflowGuide.vue'
 
 const AUTO_REFRESH_MS = 30_000
 
@@ -56,7 +59,7 @@ const columns: DhTableColumn<EmailMessageDto>[] = [
   { key: 'confidence', label: 'Confianza', align: 'center' },
   { key: 'status', label: 'Extracción', align: 'center' },
   { key: 'pricing', label: 'Pricing', align: 'center' },
-  { key: 'actions', label: '', align: 'right', width: '96px' },
+  { key: 'actions', label: 'Siguiente acción', align: 'right', width: '250px' },
 ]
 
 const statusOptions = [
@@ -102,6 +105,37 @@ const summary = computed(() => {
 
 const accountWithError = computed(() => accounts.value.find((account) => account.lastSyncError))
 
+const nextAction = computed(() => {
+  if (summary.value.review > 0) {
+    return {
+      title: `${summary.value.review} correo${summary.value.review === 1 ? '' : 's'} requiere${summary.value.review === 1 ? '' : 'n'} revisión`,
+      description: 'Abra el correo y envíe la extracción utilizable a la pantalla de revisión de Pricing.',
+      action: 'Mostrar pendientes',
+      status: 'NeedsReview' as EmailMessageStatus,
+    }
+  }
+  if (summary.value.failed > 0) {
+    return {
+      title: `${summary.value.failed} correo${summary.value.failed === 1 ? '' : 's'} falló${summary.value.failed === 1 ? '' : 'n'}`,
+      description: 'Revise el detalle del error antes de volver a ejecutar la extracción.',
+      action: 'Mostrar fallidos',
+      status: 'Failed' as EmailMessageStatus,
+    }
+  }
+  return {
+    title: 'La bandeja no tiene acciones pendientes',
+    description: 'Los nuevos correos aparecerán aquí y avanzarán automáticamente cuando la extracción sea completa.',
+    action: 'Ver todos',
+    status: '' as EmailMessageStatus | '',
+  }
+})
+
+function focusStatus(status: EmailMessageStatus | '') {
+  filters.status = status
+  page.value = 1
+  load()
+}
+
 function accountName(id: string) {
   return accounts.value.find((account) => account.id === id)?.name ?? 'Cuenta de correo'
 }
@@ -126,8 +160,13 @@ function jobStatusLabel(status: EmailExtractionJobStatus | string) {
     {
       Pending: 'Pendiente',
       Processing: 'Procesando',
+      Extracting: 'Extrayendo',
+      AwaitingAi: 'Esperando AI',
+      AiProcessing: 'Procesando con AI',
+      ValidatingAiResult: 'Validando AI',
+      AwaitingPricing: 'Creando revisión',
       SentToPricing: 'Enviado',
-      NeedsReview: 'No enviado',
+      NeedsReview: 'Por revisar',
       Failed: 'Falló',
       Ignored: 'Ignorado',
     } as Record<string, string>
@@ -138,7 +177,7 @@ function statusVariant(status: string) {
   if (status === 'Extracted' || status === 'SentToPricing') return 'success' as const
   if (status === 'Failed') return 'danger' as const
   if (status === 'NeedsReview' || status === 'Queued' || status === 'Pending') return 'warning' as const
-  if (status === 'Processing' || status === 'Received') return 'primary' as const
+  if (status === 'Processing' || status === 'Received' || status === 'AwaitingPricing') return 'primary' as const
   return 'neutral' as const
 }
 
@@ -218,6 +257,46 @@ function openDetail(message: EmailMessageDto) {
   })
 }
 
+async function sendToPricingReview(message: EmailMessageDto) {
+  const job = latestJob(message.id)
+  if (job?.status !== 'NeedsReview' || !job.extractionExecutionId) {
+    openDetail(message)
+    return
+  }
+
+  try {
+    const result = await EmailExtractionService.sendExtractionToPricing(job.id)
+    if (result.pricingImportBatchId) {
+      openPricingBatch(result.pricingImportBatchId)
+      return
+    }
+
+    toastStore.info(
+      'Creando revisión en Pricing',
+      'La extracción utilizable se enviará como importación pendiente sin volver a procesar el correo.',
+    )
+
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1000))
+      const detail = await EmailExtractionService.getMessage(message.id)
+      const completed = detail.jobs.find(
+        (item) => item.id === job.id && Boolean(item.pricingImportBatchId),
+      )
+      if (completed?.pricingImportBatchId) {
+        await load(true)
+        openPricingBatch(completed.pricingImportBatchId)
+        return
+      }
+      if (completed?.status === 'Failed' || completed?.status === 'NeedsReview') break
+    }
+
+    await load(true)
+    openDetail(message)
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo crear la revisión en Pricing.')
+  }
+}
+
 async function reprocess(message: EmailMessageDto) {
   if (message.status !== 'NeedsReview' && message.status !== 'Failed') return
 
@@ -235,7 +314,7 @@ async function reprocess(message: EmailMessageDto) {
 
 function openPricingBatch(batchId: string) {
   drawerStore.close()
-  router.push({ path: '/pricing/imports', query: { importBatchId: batchId } })
+  router.push(`/pricing/imports/review/${batchId}`)
 }
 
 function scheduleRefresh() {
@@ -274,6 +353,26 @@ onBeforeUnmount(() => {
         />
       </template>
     </DhPageHeader>
+
+    <PricingWorkflowGuide current="inbox" />
+
+    <section
+      class="rounded-[28px] border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.07)] p-5"
+    >
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex gap-3">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-[var(--dh-primary)] text-white">
+            <ArrowRight class="h-5 w-5" />
+          </div>
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.13em] text-[var(--dh-primary)]">Qué hacer ahora</p>
+            <h2 class="mt-1 font-black text-[var(--dh-text)]">{{ nextAction.title }}</h2>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ nextAction.description }}</p>
+          </div>
+        </div>
+        <DhButton :label="nextAction.action" variant="secondary" @click="focusStatus(nextAction.status)" />
+      </div>
+    </section>
 
     <section
       v-if="accountWithError"
@@ -427,25 +526,36 @@ onBeforeUnmount(() => {
             <span v-else class="text-xs font-semibold text-[var(--dh-text-muted)]">—</span>
           </template>
           <template #cell-actions="{ row }">
-            <div class="flex justify-end gap-1" @click.stop>
-              <button
+            <div class="flex flex-wrap justify-end gap-2" @click.stop>
+              <DhButton
                 v-if="latestJob(row.id)?.pricingImportBatchId"
-                type="button"
-                class="rounded-2xl p-2 text-emerald-600 hover:bg-emerald-500/10"
-                title="Ver lote en Pricing"
+                label="Abrir revisión"
+                :icon="ExternalLink"
+                size="sm"
                 @click="openPricingBatch(latestJob(row.id)!.pricingImportBatchId!)"
-              >
-                <ExternalLink class="h-4 w-4" />
-              </button>
-              <button
+              />
+              <DhButton
+                v-else-if="latestJob(row.id)?.status === 'NeedsReview' && latestJob(row.id)?.extractionExecutionId"
+                label="Crear revisión"
+                :icon="Send"
+                size="sm"
+                @click="sendToPricingReview(row)"
+              />
+              <DhButton
                 v-if="row.status === 'NeedsReview' || row.status === 'Failed'"
-                type="button"
-                class="rounded-2xl p-2 text-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.1)]"
-                title="Reprocesar correo"
+                label="Reprocesar"
+                :icon="RefreshCw"
+                size="sm"
+                variant="ghost"
                 @click="reprocess(row)"
-              >
-                <RefreshCw class="h-4 w-4" />
-              </button>
+              />
+              <DhButton
+                v-if="!latestJob(row.id)?.pricingImportBatchId && latestJob(row.id)?.status !== 'NeedsReview' && row.status !== 'Failed'"
+                label="Ver detalle"
+                size="sm"
+                variant="ghost"
+                @click="openDetail(row)"
+              />
             </div>
           </template>
         </DhDataTable>

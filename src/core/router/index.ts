@@ -160,7 +160,7 @@ export const router = createRouter({
           name: 'pricing',
           component: () => import('@/modules/pricing/views/PricingOverviewView.vue'),
           meta: {
-            tabTitle: 'Pricing panel',
+            tabTitle: 'Seleccionar alternativa',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingDecisions,
           },
@@ -170,7 +170,17 @@ export const router = createRouter({
           name: 'pricing-imports',
           component: () => import('@/modules/pricing/views/PricingImportsView.vue'),
           meta: {
-            tabTitle: 'Importaciones pricing',
+            tabTitle: 'Revisar importaciones',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingImports,
+          },
+        },
+        {
+          path: 'pricing/imports/review/:batchId',
+          name: 'pricing-import-review',
+          component: () => import('@/modules/pricing/views/PricingImportReviewView.vue'),
+          meta: {
+            tabTitle: 'Revisión de tarifas',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingImports,
           },
@@ -180,7 +190,7 @@ export const router = createRouter({
           name: 'pricing-email-imports',
           component: () => import('@/modules/pricing/views/PricingEmailImportsView.vue'),
           meta: {
-            tabTitle: 'Correos de tarifas',
+            tabTitle: 'Bandeja de correos',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingImports,
           },
@@ -190,7 +200,7 @@ export const router = createRouter({
           name: 'pricing-rates',
           component: () => import('@/modules/pricing/views/PricingRatesView.vue'),
           meta: {
-            tabTitle: 'Tarifas pricing',
+            tabTitle: 'Tarifas oficiales',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRates,
           },
@@ -224,7 +234,18 @@ export const router = createRouter({
           meta: {
             tabTitle: 'Monitoreo',
             closable: true,
-            requiredRole: 'SuperUsuario',
+            requiredScope: VIEW_SCOPES.monitoring,
+          },
+        },
+
+        {
+          path: 'storage',
+          name: 'storage',
+          component: () => import('@/modules/storage/views/StorageView.vue'),
+          meta: {
+            tabTitle: 'Storage',
+            closable: true,
+            requiredScope: VIEW_SCOPES.storage,
           },
         },
 
