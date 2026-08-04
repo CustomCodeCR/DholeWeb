@@ -39,13 +39,13 @@ function onDragStart(event: DragEvent, key: string) {
 <template>
   <div
     v-if="tabsStore.tabs.length"
-    class="mx-4 mt-4 flex gap-2 overflow-x-auto rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-shell)] p-2 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl dh-scrollbar"
+    class="mx-2 mt-2 flex gap-2 overflow-x-auto rounded-[22px] border sm:mx-4 sm:mt-4 sm:rounded-[26px] border-[var(--dh-border)] bg-[var(--dh-shell)] p-2 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl dh-scrollbar"
   >
     <button
       v-for="tab in tabsStore.tabs"
       :key="tab.key"
       draggable="true"
-      class="group flex shrink-0 items-center gap-2 rounded-[18px] px-3 py-2 text-sm font-black transition"
+      class="group flex shrink-0 items-center gap-2 rounded-[18px] px-3 py-2 text-xs sm:text-sm font-black transition"
       :class="
         tabsStore.activeKey === tab.key
           ? 'bg-[var(--dh-primary)] text-white shadow-[var(--dh-glow)]'

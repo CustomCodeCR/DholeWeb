@@ -70,7 +70,7 @@ function toggle(value: string) {
       </summary>
 
       <div
-        class="absolute z-40 mt-2 w-full min-w-[320px] rounded-[22px] border border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)] p-3 shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl"
+        class="absolute z-40 mt-2 w-full min-w-0 sm:min-w-[320px] rounded-[22px] border border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)] p-3 shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl"
       >
         <div
           class="mb-2 flex h-10 items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3"

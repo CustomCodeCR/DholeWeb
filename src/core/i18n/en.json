@@ -58,10 +58,11 @@
     "never": "Never",
     "noClient": "No agent",
     "open": "Open",
-    "select": "Select"
+    "select": "Select",
+    "back": "Back"
   },
   "topbar": {
-    "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs, pricing, monitoring or audit logs...",
+    "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs, pricing, reports, monitoring or audit logs...",
     "theme": "Theme",
     "language": "Language",
     "notifications": "Notifications",
@@ -93,7 +94,9 @@
     "aiAssistant": "AI Assistant",
     "ai": "Artificial intelligence",
     "aiCenter": "AI Center",
-    "storage": "Storage"
+    "storage": "Storage",
+    "reports": "Reports",
+    "reportTemplates": "Report templates"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -334,7 +337,8 @@
     "splitMode": "Horizontal split",
     "closeSplit": "Close pane",
     "moveToLeft": "Move to left pane",
-    "moveToRight": "Move to right pane"
+    "moveToRight": "Move to right pane",
+    "splitWorkspace": "Split workspace"
   },
   "monitoring": {
     "title": "Service monitoring",
@@ -367,6 +371,10 @@
       "storage": {
         "name": "Storage Service",
         "description": "Imported files, emails, attachments, and versions."
+      },
+      "reports": {
+        "name": "Reports Service",
+        "description": "Templates and PDF, XLSX, and CSV report generation."
       }
     }
   },
@@ -543,13 +551,20 @@
       "Rejected": "Rejected",
       "ImportedOnly": "Imported only",
       "CreatedAsRate": "Created",
-      "Draft": "Draft",
       "Active": "Active",
       "Inactive": "Inactive",
       "Deleted": "Deleted",
       "Pending": "Pending",
       "PendingApproval": "Pending approval",
-      "ApprovalRejected": "Approval rejected"
+      "ApprovalRejected": "Approval rejected",
+      "Open": "Open",
+      "ApprovedByManagement": "Approved by management",
+      "RejectedByManagement": "Rejected by management",
+      "Sent": "Sent",
+      "AcceptedByClient": "Accepted by client",
+      "RejectedByClient": "Rejected by client",
+      "RequestedByClient": "Requested by client",
+      "Closed": "Closed"
     },
     "costTypes": {
       "Freight": "Freight",
@@ -683,6 +698,163 @@
       "freightAmount": "Ocean freight / cost",
       "applyAutomaticCosts": "Apply automatic fixed costs",
       "helper": "If you enter sale amount, it is used as the final sale total. If empty, it is calculated from desired margin and automatic cost sales are adjusted too."
+    }
+  },
+  "reports": {
+    "serviceName": "Reports Service",
+    "templatesTitle": "Report templates",
+    "templatesSubtitle": "Design HTML templates and generate PDF, XLSX or CSV documents from JSON data.",
+    "newTemplate": "New template",
+    "searchPlaceholder": "Search by name or description",
+    "loadingTemplates": "Loading templates…",
+    "emptyTitle": "No templates found",
+    "emptyDescription": "Create the first template with the drag-and-drop designer.",
+    "noDescription": "No description",
+    "previewUpdated": "PDF updated: {date}",
+    "landscape": "Landscape",
+    "portrait": "Portrait",
+    "previewPdf": "PDF preview",
+    "generate": "Generate",
+    "viewDesign": "View design",
+    "pageOf": "Page {page} of {total}",
+    "generateTitle": "Generate {name}",
+    "generateSubtitle": "JSON data supplies the template variables and tables.",
+    "format": "Format",
+    "pdfFromHtml": "PDF from HTML",
+    "excelXlsx": "Excel XLSX",
+    "csv": "CSV",
+    "fileName": "File name",
+    "sheetName": "Sheet name",
+    "jsonData": "JSON data",
+    "generationHelp": "PDF uses variables such as {variable} and loops such as {each}. XLSX and CSV use the first array found in rows, items, data or results.",
+    "generateDownload": "Generate and download",
+    "generating": "Generating…",
+    "deleteConfirm": "Delete the “{name}” template?",
+    "toasts": {
+      "loadError": "Report templates could not be loaded.",
+      "previewError": "The PDF preview could not be opened.",
+      "deletedTitle": "Template deleted",
+      "deleteError": "The template could not be deleted.",
+      "invalidJsonTitle": "Invalid JSON",
+      "invalidJsonMessage": "Fix the data before generating the report.",
+      "generatedTitle": "Report generated",
+      "generatedMessage": "The {format} file was downloaded.",
+      "generateError": "The report could not be generated."
+    },
+    "designer": {
+      "newTemplateName": "New template",
+      "namePlaceholder": "Template name",
+      "descriptionPlaceholder": "Optional description",
+      "letter": "Letter",
+      "legal": "Legal",
+      "save": "Save",
+      "saving": "Saving…",
+      "loading": "Loading designer…",
+      "components": "Components",
+      "dragHint": "Drag a block to the page or tap it to add it.",
+      "variablesHint": "Variables: {variable}. Tables: select a collection such as items.",
+      "designerTab": "Designer",
+      "previewTab": "Preview",
+      "htmlTab": "HTML",
+      "blockCount": "{count} blocks",
+      "readOnly": "Read only",
+      "emptyCanvas": "Drag components here to begin",
+      "spacer": "spacer",
+      "collection": "Collection: {name}",
+      "properties": "Properties",
+      "content": "Content",
+      "variablePath": "Variable path",
+      "jsonCollection": "JSON collection",
+      "columns": "Columns",
+      "fieldLabel": "field:label",
+      "urlVariable": "URL or variable",
+      "alignment": "Alignment",
+      "size": "Size",
+      "weight": "Weight",
+      "normal": "Normal",
+      "bold": "Bold",
+      "color": "Color",
+      "padding": "Padding",
+      "height": "Height",
+      "emptyProperties": "Select or add a block to edit its properties.",
+      "palette": {
+        "heading": {
+          "label": "Heading",
+          "description": "Large heading"
+        },
+        "text": {
+          "label": "Text",
+          "description": "Editable paragraph"
+        },
+        "variable": {
+          "label": "Variable",
+          "description": "Dynamic field"
+        },
+        "table": {
+          "label": "Table",
+          "description": "JSON array"
+        },
+        "image": {
+          "label": "Image",
+          "description": "Logo or image"
+        },
+        "divider": {
+          "label": "Divider",
+          "description": "Horizontal line"
+        },
+        "spacer": {
+          "label": "Spacer",
+          "description": "Vertical spacing"
+        }
+      },
+      "blockTypes": {
+        "heading": "heading",
+        "text": "text",
+        "variable": "variable",
+        "table": "table",
+        "image": "image",
+        "divider": "divider",
+        "spacer": "spacer"
+      },
+      "defaults": {
+        "reportTitle": "Report title",
+        "text": "Write the report content here.",
+        "field": "Field",
+        "description": "Description",
+        "quantity": "Quantity",
+        "amount": "Amount",
+        "companyDate": "Company: {company} · Date: {date}",
+        "footer": "Document generated by Dhole Reports"
+      },
+      "toasts": {
+        "permissionTitle": "Permission required",
+        "createPermission": "You need reports.templates.create to create templates.",
+        "savePermission": "You need the {scope} permission.",
+        "loadError": "The template could not be loaded.",
+        "invalidDesignerJson": "The template visual definition does not contain valid JSON.",
+        "nameRequiredTitle": "Name required",
+        "nameRequiredMessage": "Enter a name for the template.",
+        "emptyTitle": "Empty template",
+        "emptyMessage": "Add at least one block to the document.",
+        "createdTitle": "Template created",
+        "createdMessage": "The PDF preview was also stored.",
+        "updatedTitle": "Template updated",
+        "updatedMessage": "The template PDF was regenerated.",
+        "saveError": "The template could not be saved.",
+        "previewError": "The PDF preview could not be opened."
+      }
+    },
+    "paginationSummary": "Page {page} of {totalPages} · {total} templates",
+    "jsonEditorHint": "JSON used to populate variables, tables, and exports.",
+    "health": {
+      "healthy": "Service available",
+      "unhealthy": "Service unavailable",
+      "checking": "Checking service",
+      "database": "Database",
+      "unknown": "Unknown",
+      "checkedAt": "Checked: {date}",
+      "connected": "Connected",
+      "unavailable": "Unavailable"
     }
   }
 }

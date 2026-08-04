@@ -18,6 +18,12 @@ export async function fetchBlobClient(
   const config: RequestInit = {
     method: options.method,
     headers: defaultHeaders,
+    body:
+      options.body === undefined
+        ? undefined
+        : options.isFormData
+          ? (options.body as BodyInit)
+          : JSON.stringify(options.body),
   }
 
   try {

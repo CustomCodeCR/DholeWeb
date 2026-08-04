@@ -27,7 +27,6 @@ interface PricingUiState {
   rateContainerType: string
   rateCarrier: string
   costSearch: string
-  uploadProfileCode: string
 }
 
 const DEFAULT_STATE: PricingUiState = {
@@ -53,7 +52,6 @@ const DEFAULT_STATE: PricingUiState = {
   rateContainerType: '',
   rateCarrier: '',
   costSearch: '',
-  uploadProfileCode: '',
 }
 
 function normalizeState(state: PricingUiState): PricingUiState {
@@ -105,7 +103,6 @@ export const usePricingStore = defineStore('pricingUi', {
           rateContainerType: this.rateContainerType,
           rateCarrier: this.rateCarrier,
           costSearch: this.costSearch,
-          uploadProfileCode: this.uploadProfileCode,
         }),
       )
     },

@@ -167,12 +167,10 @@ export const PricingService = {
 
   async extractImportRates(
     file: File,
-    profileSlug: string,
     correlationId?: string,
   ): Promise<ExtractImportRatesResultDto> {
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('profileSlug', profileSlug)
     if (correlationId) formData.append('correlationId', correlationId)
 
     const response = await callEndpoint<unknown, FormData>(Endpoints.extractImportRates, {

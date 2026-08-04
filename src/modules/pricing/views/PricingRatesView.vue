@@ -82,13 +82,15 @@ const columns: DhTableColumn<RateDto>[] = [
 
 const statusOptions = [
   { label: 'Todos', value: '' },
-  { label: 'Aprobadas', value: 'Approved' },
+  { label: 'Abiertas', value: 'Open' },
   { label: 'Pendientes de autorización', value: 'PendingApproval' },
-  { label: 'Borradores', value: 'Draft' },
-  { label: 'Rechazadas internamente', value: 'Rejected' },
+  { label: 'Aprobadas por gerencia', value: 'ApprovedByManagement' },
+  { label: 'Rechazadas por gerencia', value: 'RejectedByManagement' },
   { label: 'Enviadas', value: 'Sent' },
+  { label: 'Solicitadas por el cliente', value: 'RequestedByClient' },
   { label: 'Aceptadas por el cliente', value: 'AcceptedByClient' },
   { label: 'Rechazadas por el cliente', value: 'RejectedByClient' },
+  { label: 'Cerradas', value: 'Closed' },
 ]
 const approvalOptions = [
   { label: 'Todas', value: '' },
@@ -100,13 +102,15 @@ function statusLabel(status: string) {
   return (
     (
       {
-        Approved: 'Aprobada',
+        Open: 'Abierta',
         PendingApproval: 'Pendiente',
-        Draft: 'Borrador',
-        Rejected: 'Rechazada internamente',
+        ApprovedByManagement: 'Aprobada por gerencia',
+        RejectedByManagement: 'Rechazada por gerencia',
         Sent: 'Enviada',
+        RequestedByClient: 'Solicitada por el cliente',
         AcceptedByClient: 'Aceptada por el cliente',
         RejectedByClient: 'Rechazada por el cliente',
+        Closed: 'Cerrada',
       } as Record<string, string>
     )[status] ?? status
   )
@@ -410,7 +414,9 @@ onMounted(async () => {
           <template #cell-carrierName="{ row }"
             ><div>
               <p class="font-bold">{{ displayRate(row).carrierName }}</p>
-              <p class="text-xs text-[var(--dh-text-muted)]">{{ displayRate(row).containerTypeName }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">
+                {{ displayRate(row).containerTypeName }}
+              </p>
             </div></template
           >
           <template #cell-totalCostAmount="{ row }"

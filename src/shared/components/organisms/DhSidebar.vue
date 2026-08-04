@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
+import { computed, type Component } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, X } from 'lucide-vue-next'
 
 export interface SidebarItem {
   label: string
@@ -11,28 +11,44 @@ export interface SidebarItem {
   children?: SidebarItem[]
 }
 
-defineProps<{
+const props = defineProps<{
   items: SidebarItem[]
   collapsed?: boolean
+  mobileOpen?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   'toggle-collapse': []
+  close: []
 }>()
 
 const { t } = useI18n()
+const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
 </script>
 
 <template>
+  <Transition name="sidebar-overlay">
+    <button
+      v-if="mobileOpen"
+      type="button"
+      class="fixed inset-0 z-[39] bg-black/45 backdrop-blur-sm lg:hidden"
+      :aria-label="t('common.close')"
+      @click="emit('close')"
+    />
+  </Transition>
+
   <aside
-    class="fixed bottom-4 left-4 top-4 z-40 flex overflow-hidden rounded-[34px] border border-[var(--dh-border)] bg-[var(--dh-shell)] shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl transition-[width] duration-300"
-    :class="collapsed ? 'w-20' : 'w-72'"
+    class="fixed bottom-2 left-2 top-2 z-40 flex w-[min(18rem,calc(100vw-1rem))] overflow-hidden rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-shell)] shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl transition-[width,transform] duration-300 sm:bottom-4 sm:left-4 sm:top-4 lg:translate-x-0"
+    :class="[
+      collapsed ? 'lg:w-20' : 'lg:w-72',
+      mobileOpen ? 'translate-x-0' : '-translate-x-[120%] lg:translate-x-0',
+    ]"
   >
     <div class="flex min-h-0 w-full flex-col">
       <div class="shrink-0 border-b border-[var(--dh-border)] p-3">
         <div
-          class="dh-liquid flex items-center rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-sm)]"
-          :class="collapsed ? 'justify-center' : 'gap-3'"
+          class="dh-liquid flex items-center rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-sm)]"
+          :class="compact ? 'justify-center' : 'gap-3'"
         >
           <div
             class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-[var(--dh-primary)] text-lg font-black text-white shadow-[var(--dh-glow)]"
@@ -40,7 +56,7 @@ const { t } = useI18n()
             GCF
           </div>
 
-          <div v-if="!collapsed" class="min-w-0">
+          <div v-if="!compact" class="min-w-0 flex-1">
             <p class="truncate text-sm font-black tracking-tight text-[var(--dh-text)]">
               {{ t('app.name') }}
             </p>
@@ -48,35 +64,39 @@ const { t } = useI18n()
               {{ t('app.subtitle') }}
             </p>
           </div>
+
+          <button
+            v-if="mobileOpen"
+            type="button"
+            class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:hidden"
+            :aria-label="t('common.close')"
+            @click="emit('close')"
+          >
+            <X class="h-5 w-5" />
+          </button>
         </div>
 
         <button
-          class="mt-3 flex w-full items-center justify-center rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
+          class="mt-3 hidden w-full items-center justify-center rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:flex"
           :title="collapsed ? t('sidebar.expand') : t('sidebar.collapse')"
-          @click="$emit('toggle-collapse')"
+          @click="emit('toggle-collapse')"
         >
           <PanelLeftOpen v-if="collapsed" class="h-4 w-4" />
           <PanelLeftClose v-else class="h-4 w-4" />
         </button>
       </div>
 
-      <nav
-        class="dh-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pr-2"
-      >
+      <nav class="dh-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pr-2">
         <template v-for="item in items" :key="item.label">
           <div v-if="item.children" class="space-y-1.5">
             <div
               class="flex items-center rounded-[20px] px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[var(--dh-text-muted)]"
-              :class="collapsed ? 'justify-center' : 'gap-3'"
-              :title="collapsed ? item.label : undefined"
+              :class="compact ? 'justify-center' : 'gap-3'"
+              :title="compact ? item.label : undefined"
             >
               <component :is="item.icon" class="h-4 w-4 shrink-0" />
-
-              <span v-if="!collapsed" class="truncate">
-                {{ item.label }}
-              </span>
-
-              <ChevronDown v-if="!collapsed" class="ml-auto h-4 w-4 shrink-0" />
+              <span v-if="!compact" class="truncate">{{ item.label }}</span>
+              <ChevronDown v-if="!compact" class="ml-auto h-4 w-4 shrink-0" />
             </div>
 
             <RouterLink
@@ -84,15 +104,13 @@ const { t } = useI18n()
               :key="child.path"
               :to="child.path ?? '/'"
               class="flex items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
-              :class="collapsed ? 'justify-center' : 'gap-3'"
-              :title="collapsed ? child.label : undefined"
+              :class="compact ? 'justify-center' : 'gap-3'"
+              :title="compact ? child.label : undefined"
               active-class="!bg-[var(--dh-primary)] !text-white shadow-[var(--dh-glow)]"
+              @click="emit('close')"
             >
               <component :is="child.icon" class="h-4 w-4 shrink-0" />
-
-              <span v-if="!collapsed" class="truncate">
-                {{ child.label }}
-              </span>
+              <span v-if="!compact" class="truncate">{{ child.label }}</span>
             </RouterLink>
           </div>
 
@@ -100,18 +118,28 @@ const { t } = useI18n()
             v-else
             :to="item.path ?? '/'"
             class="flex items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
-            :class="collapsed ? 'justify-center' : 'gap-3'"
-            :title="collapsed ? item.label : undefined"
+            :class="compact ? 'justify-center' : 'gap-3'"
+            :title="compact ? item.label : undefined"
             active-class="!bg-[var(--dh-primary)] !text-white shadow-[var(--dh-glow)]"
+            @click="emit('close')"
           >
             <component :is="item.icon" class="h-4 w-4 shrink-0" />
-
-            <span v-if="!collapsed" class="truncate">
-              {{ item.label }}
-            </span>
+            <span v-if="!compact" class="truncate">{{ item.label }}</span>
           </RouterLink>
         </template>
       </nav>
     </div>
   </aside>
 </template>
+
+<style scoped>
+.sidebar-overlay-enter-active,
+.sidebar-overlay-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.sidebar-overlay-enter-from,
+.sidebar-overlay-leave-to {
+  opacity: 0;
+}
+</style>

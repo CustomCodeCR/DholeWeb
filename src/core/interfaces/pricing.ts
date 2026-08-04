@@ -17,12 +17,14 @@ export type ImportSourceType = 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
 export type ImportStatus = 'Pending' | 'Approved' | 'Rejected' | 'Created' | 'Expired'
 export type RateStatus =
   | 'PendingApproval'
-  | 'Approved'
-  | 'Rejected'
-  | 'Draft'
+  | 'ApprovedByManagement'
+  | 'RejectedByManagement'
+  | 'Open'
   | 'Sent'
   | 'AcceptedByClient'
   | 'RejectedByClient'
+  | 'RequestedByClient'
+  | 'Closed'
 
 export interface CostDto extends Record<string, unknown> {
   id: string
@@ -338,6 +340,12 @@ export interface RateDto extends Record<string, unknown> {
   marginPercentage: number
   requiredApproval: boolean
   status: RateStatus
+  closedReason?: string | null
+  closedAtUtc?: string | null
+  closedBy?: string | null
+  closedByUserId?: string | null
+  closedByUserName?: string | null
+  closedByDisplayName?: string | null
   rateDetails: RateDetailDto[]
 }
 
@@ -426,7 +434,11 @@ export interface RejectRateMarginRequest extends Record<string, unknown> {
 }
 
 export interface SetRateStatusRequest extends Record<string, unknown> {
-  status: Extract<RateStatus, 'Sent' | 'AcceptedByClient' | 'RejectedByClient'>
+  status: Extract<
+    RateStatus,
+    'Open' | 'Sent' | 'RequestedByClient' | 'AcceptedByClient' | 'RejectedByClient' | 'Closed'
+  >
+  reason?: string | null
 }
 
 export interface DeleteBatchRequest extends Record<string, unknown> {

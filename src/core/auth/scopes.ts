@@ -205,6 +205,19 @@ export const STORAGE_SCOPES = {
   },
 } as const
 
+
+export const REPORTS_SCOPES = {
+  templates: {
+    create: 'reports.templates.create',
+    view: 'reports.templates.view',
+    update: 'reports.templates.update',
+    delete: 'reports.templates.delete',
+  },
+  reports: {
+    generate: 'reports.reports.generate',
+  },
+} as const
+
 export const MONITORING_SCOPES = {
   services: {
     view: 'monitoring.services.view',
@@ -237,4 +250,5 @@ export const VIEW_SCOPES = {
 
   storage: STORAGE_SCOPES.files.view,
   monitoring: MONITORING_SCOPES.services.view,
+  reportsTemplates: REPORTS_SCOPES.templates.view,
 } as const

@@ -216,6 +216,38 @@ export const router = createRouter({
           },
         },
 
+
+        {
+          path: 'reports/templates',
+          name: 'reports-templates',
+          component: () => import('@/modules/reports/views/ReportTemplatesView.vue'),
+          meta: {
+            tabTitle: 'Plantillas de reportes',
+            closable: true,
+            requiredScope: VIEW_SCOPES.reportsTemplates,
+          },
+        },
+        {
+          path: 'reports/templates/new',
+          name: 'reports-template-create',
+          component: () => import('@/modules/reports/views/ReportTemplateDesignerView.vue'),
+          meta: {
+            tabTitle: 'Nueva plantilla',
+            closable: true,
+            requiredScope: 'reports.templates.create',
+          },
+        },
+        {
+          path: 'reports/templates/:id',
+          name: 'reports-template-designer',
+          component: () => import('@/modules/reports/views/ReportTemplateDesignerView.vue'),
+          meta: {
+            tabTitle: 'Diseñador de reportes',
+            closable: true,
+            requiredScope: VIEW_SCOPES.reportsTemplates,
+          },
+        },
+
         {
           path: 'auditlogs/events',
           name: 'auditlogs-events',

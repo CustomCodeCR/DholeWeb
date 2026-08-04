@@ -687,6 +687,24 @@ export const AiEndpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+export const ReportsEndpoints = {
+  browseTemplates: { method: 'GET', path: '/api/reports/templates', headers: acceptJson },
+  getTemplate: { method: 'GET', path: '/api/reports/templates/{{templateId}}', headers: acceptJson },
+  createTemplate: { method: 'POST', path: '/api/reports/templates', headers: jsonHeaders },
+  updateTemplate: { method: 'PUT', path: '/api/reports/templates/{{templateId}}', headers: jsonHeaders },
+  deleteTemplate: { method: 'DELETE', path: '/api/reports/templates/{{templateId}}', headers: acceptJson },
+  previewTemplate: {
+    method: 'GET',
+    path: '/api/reports/templates/{{templateId}}/preview.pdf',
+    headers: { Accept: 'application/pdf' },
+  },
+  generateReport: {
+    method: 'POST',
+    path: '/api/reports/templates/{{templateId}}/generate',
+    headers: jsonHeaders,
+  },
+} satisfies Record<string, Endpoint>
+
 export const Endpoints = {
   ...AuthEndpoints,
   ...ClientBrandingEndpoints,
@@ -701,4 +719,6 @@ export const Endpoints = {
   ...PricingEndpoints,
   ...DataExtractionEmailEndpoints,
   ...AiEndpoints,
+  ...ReportsEndpoints,
 } satisfies Record<string, Endpoint>
+

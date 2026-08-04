@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
+  Archive,
   CheckCircle2,
+  Clock,
   Copy,
   Edit3,
+  FolderOpen,
   Printer,
   RefreshCw,
   Route,
@@ -18,10 +21,12 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
+import { UsersService } from '@/core/services/usersService'
 import type { RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'
 import PricingRateFormDrawer from './PricingRateFormDrawer.vue'
 import PricingReasonModal from './PricingReasonModal.vue'
 import PricingDuplicateRateModal from './PricingDuplicateRateModal.vue'
+import PricingCloseRateModal from './PricingCloseRateModal.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import {
   detailGroup,
@@ -42,10 +47,23 @@ const current = ref<RateDto>(props.rate)
 const displayCurrent = computed(() => catalogs.resolveRateLabels(current.value))
 const loading = ref(false)
 const costNotesById = ref<Record<string, string>>({})
+const closedByDisplay = ref<string | null>(null)
 
 const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDuplicate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
 const canApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canCloseCurrent = computed(
+  () =>
+    canUpdate.value &&
+    [
+      'PendingApproval',
+      'ApprovedByManagement',
+      'RejectedByManagement',
+      'Open',
+      'Sent',
+      'RequestedByClient',
+    ].includes(current.value.status),
+)
 
 const groups = computed(() => {
   const byGroup = (key: ReturnType<typeof detailGroup>) =>
@@ -68,17 +86,81 @@ const groups = computed(() => {
   ]
 })
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+function firstText(...values: Array<string | null | undefined>) {
+  return values.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() ?? null
+}
+
+async function resolveClosedByUser() {
+  const closedByValue = firstText(current.value.closedBy)
+  const explicitName = firstText(
+    current.value.closedByDisplayName,
+    current.value.closedByUserName,
+    closedByValue && !isUuid(closedByValue) ? closedByValue : null,
+  )
+  if (explicitName) {
+    closedByDisplay.value = explicitName
+    return
+  }
+
+  const rawUser = firstText(
+    current.value.closedByUserId,
+    closedByValue && isUuid(closedByValue) ? closedByValue : null,
+  )
+  if (!rawUser) {
+    closedByDisplay.value = null
+    return
+  }
+
+  if (!isUuid(rawUser)) {
+    closedByDisplay.value = rawUser
+    return
+  }
+
+  const currentUserIds = [authStore.userId, authStore.sessionUserId]
+    .map((value) => value?.toLowerCase())
+    .filter(Boolean)
+
+  if (currentUserIds.includes(rawUser.toLowerCase())) {
+    closedByDisplay.value = authStore.userDisplayName || authStore.username || authStore.email || 'Usuario actual'
+    return
+  }
+
+  try {
+    let result = await UsersService.browsePaged({
+      pageNumber: 1,
+      pageSize: 25,
+      search: rawUser,
+    })
+    let user = result.items.find((item) => item.id.toLowerCase() === rawUser.toLowerCase())
+
+    if (!user) {
+      result = await UsersService.browsePaged({ pageNumber: 1, pageSize: 500 })
+      user = result.items.find((item) => item.id.toLowerCase() === rawUser.toLowerCase())
+    }
+
+    closedByDisplay.value = user ? user.displayName || user.userName : 'Usuario no disponible'
+  } catch {
+    closedByDisplay.value = 'Usuario no disponible'
+  }
+}
+
 function statusLabel(status: string) {
   return (
     (
       {
-        Approved: 'Aprobada',
         PendingApproval: 'Pendiente de autorización',
-        Rejected: 'Rechazada internamente',
-        Draft: 'Borrador',
+        ApprovedByManagement: 'Aprobada por gerencia',
+        RejectedByManagement: 'Rechazada por gerencia',
+        Open: 'Abierta',
         Sent: 'Enviada',
+        RequestedByClient: 'Solicitada por el cliente',
         AcceptedByClient: 'Aceptada por el cliente',
         RejectedByClient: 'Rechazada por el cliente',
+        Closed: 'Cerrada',
       } as Record<string, string>
     )[status] ?? status
   )
@@ -89,6 +171,7 @@ async function reload() {
     loading.value = true
     current.value = await PricingService.getRate(current.value.id)
     await loadMissingCostNotes(current.value.rateDetails)
+    await resolveClosedByUser()
   } catch (error) {
     toastStore.backendError(error, 'No se pudo actualizar el detalle de la tarifa.')
   } finally {
@@ -104,10 +187,7 @@ async function loadMissingCostNotes(details: RateDetailDto[]) {
   const missingCostIds = new Set(
     details
       .filter(
-        (detail) =>
-          detail.costId &&
-          !detail.notes?.trim() &&
-          !costNotesById.value[detail.costId],
+        (detail) => detail.costId && !detail.notes?.trim() && !costNotesById.value[detail.costId],
       )
       .map((detail) => detail.costId!),
   )
@@ -167,10 +247,27 @@ function reject() {
   })
 }
 
+function closeRate() {
+  modalStore.open({
+    title: 'Cerrar tarifa',
+    component: PricingCloseRateModal,
+    props: {
+      rateId: current.value.id,
+      onSaved: async () => {
+        await reload()
+        await props.onSaved?.()
+      },
+    },
+  })
+}
+
 async function approve() {
   try {
     await PricingService.approveRateMargin(current.value.id)
-    toastStore.success('Margen aprobado', 'La tarifa quedó aprobada y lista para uso operativo.')
+    toastStore.success(
+      'Margen aprobado',
+      'La tarifa quedó aprobada por gerencia. Ahora debe ponerse en abierta.',
+    )
     await reload()
     await props.onSaved?.()
   } catch (error) {
@@ -181,7 +278,10 @@ async function approve() {
 async function setCommercialStatus(status: SetRateStatusRequest['status']) {
   try {
     await PricingService.setRateStatus(current.value.id, { status })
-    toastStore.success('Estado actualizado', `La tarifa quedó ${statusLabel(status).toLowerCase()}.`)
+    toastStore.success(
+      'Estado actualizado',
+      `La tarifa quedó ${statusLabel(status).toLowerCase()}.`,
+    )
     await reload()
     await props.onSaved?.()
   } catch (error) {
@@ -278,7 +378,9 @@ onMounted(async () => {
                 {{ displayCurrent.carrierName }} · {{ displayCurrent.containerTypeName }} ·
                 {{ displayCurrent.agentName }}
               </p>
-              <p class="mt-1 text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-primary)]">
+              <p
+                class="mt-1 text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-primary)]"
+              >
                 {{ current.rateCode }}
                 <span v-if="current.idtraNumber"> · IDTRA {{ current.idtraNumber }}</span>
                 <span v-if="current.quoNumber"> · QUO {{ current.quoNumber }}</span>
@@ -302,9 +404,22 @@ onMounted(async () => {
             size="sm"
             @click="duplicate"
           />
-          <DhButton v-if="canUpdate" label="Editar" :icon="Edit3" size="sm" @click="edit" />
           <DhButton
-            v-if="canUpdate && current.status === 'Approved'"
+            v-if="canUpdate && current.status !== 'Closed'"
+            label="Editar"
+            :icon="Edit3"
+            size="sm"
+            @click="edit"
+          />
+          <DhButton
+            v-if="canUpdate && current.status === 'ApprovedByManagement'"
+            label="Poner en abierta"
+            :icon="FolderOpen"
+            size="sm"
+            @click="setCommercialStatus('Open')"
+          />
+          <DhButton
+            v-if="canUpdate && current.status === 'Open'"
             label="Marcar enviada"
             :icon="SendIcon"
             variant="secondary"
@@ -313,18 +428,34 @@ onMounted(async () => {
           />
           <DhButton
             v-if="canUpdate && current.status === 'Sent'"
+            label="Solicitada por cliente"
+            :icon="Clock"
+            variant="secondary"
+            size="sm"
+            @click="setCommercialStatus('RequestedByClient')"
+          />
+          <DhButton
+            v-if="canUpdate && ['Sent', 'RequestedByClient'].includes(current.status)"
             label="Aceptada por cliente"
             :icon="CheckCircle2"
             size="sm"
             @click="setCommercialStatus('AcceptedByClient')"
           />
           <DhButton
-            v-if="canUpdate && current.status === 'Sent'"
+            v-if="canUpdate && ['Sent', 'RequestedByClient'].includes(current.status)"
             label="Rechazada por cliente"
             :icon="XCircle"
             variant="danger"
             size="sm"
             @click="setCommercialStatus('RejectedByClient')"
+          />
+          <DhButton
+            v-if="canCloseCurrent"
+            label="Cerrar tarifa"
+            :icon="Archive"
+            variant="danger"
+            size="sm"
+            @click="closeRate"
           />
           <button
             type="button"
@@ -334,6 +465,41 @@ onMounted(async () => {
           >
             <RefreshCw class="h-4 w-4" :class="loading && 'animate-spin'" />
           </button>
+        </div>
+      </div>
+    </section>
+
+    <section
+      v-if="current.status === 'RequestedByClient'"
+      class="rounded-[26px] border border-sky-500/20 bg-sky-500/10 p-5"
+    >
+      <div class="flex items-start gap-3 text-sky-900 dark:text-sky-100">
+        <Clock class="mt-0.5 h-5 w-5 shrink-0" />
+        <div>
+          <h3 class="font-black">Solicitada por el cliente</h3>
+          <p class="mt-1 text-sm font-semibold opacity-80">
+            El cliente solicitó la tarifa para analizarla, pero todavía no la aceptó ni la rechazó.
+            Este estado no se contabiliza como una decisión del cliente.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section
+      v-if="current.status === 'Closed'"
+      class="rounded-[26px] border border-slate-500/20 bg-slate-500/10 p-5"
+    >
+      <div class="flex items-start gap-3 text-slate-900 dark:text-slate-100">
+        <Archive class="mt-0.5 h-5 w-5 shrink-0" />
+        <div>
+          <h3 class="font-black">Tarifa cerrada</h3>
+          <p class="mt-1 text-sm font-semibold opacity-80">
+            {{ current.closedReason || 'No se registró un motivo de cierre.' }}
+          </p>
+          <p v-if="current.closedAtUtc" class="mt-2 text-xs font-bold opacity-65">
+            Cerrada el {{ formatDate(current.closedAtUtc) }}
+            <span v-if="closedByDisplay"> · Cerrada por: {{ closedByDisplay }}</span>
+          </p>
         </div>
       </div>
     </section>
@@ -435,34 +601,56 @@ onMounted(async () => {
     <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div>
-          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Cliente</p>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+            Cliente
+          </p>
           <p class="mt-1 font-black">{{ current.clientName || '—' }}</p>
         </div>
         <div>
-          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Contenedores</p>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+            Contenedores
+          </p>
           <p class="mt-1 font-black">{{ current.containerQuantity }}</p>
         </div>
         <div>
-          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Tiempo de tránsito</p>
-          <p class="mt-1 font-black">{{ current.transitDays != null ? `${current.transitDays} días` : '—' }}</p>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+            Tiempo de tránsito
+          </p>
+          <p class="mt-1 font-black">
+            {{ current.transitDays != null ? `${current.transitDays} días` : '—' }}
+          </p>
         </div>
         <div>
-          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Estado comercial</p>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+            Estado comercial
+          </p>
           <p class="mt-1 font-black">{{ statusLabel(current.status) }}</p>
         </div>
       </div>
       <div class="mt-5 grid gap-4 lg:grid-cols-3">
         <div class="rounded-[20px] bg-black/[0.035] p-4 dark:bg-white/[0.05]">
-          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Tarifa incluye</p>
-          <p class="mt-2 whitespace-pre-line text-sm font-semibold">{{ current.includes || '—' }}</p>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+            Tarifa incluye
+          </p>
+          <p class="mt-2 whitespace-pre-line text-sm font-semibold">
+            {{ current.includes || '—' }}
+          </p>
         </div>
         <div class="rounded-[20px] bg-black/[0.035] p-4 dark:bg-white/[0.05]">
-          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Sujeto a</p>
-          <p class="mt-2 whitespace-pre-line text-sm font-semibold">{{ current.subjectTo || '—' }}</p>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+            Sujeto a
+          </p>
+          <p class="mt-2 whitespace-pre-line text-sm font-semibold">
+            {{ current.subjectTo || '—' }}
+          </p>
         </div>
         <div class="rounded-[20px] bg-black/[0.035] p-4 dark:bg-white/[0.05]">
-          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">No incluye</p>
-          <p class="mt-2 whitespace-pre-line text-sm font-semibold">{{ current.excludes || '—' }}</p>
+          <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+            No incluye
+          </p>
+          <p class="mt-2 whitespace-pre-line text-sm font-semibold">
+            {{ current.excludes || '—' }}
+          </p>
         </div>
       </div>
     </section>
@@ -525,10 +713,20 @@ onMounted(async () => {
                 {{ Math.max(1, detail.quantity || 1) }}
               </td>
               <td class="px-5 py-4 text-right font-bold">
-                {{ formatMoney(detail.costAmount * Math.max(1, detail.quantity || 1), detail.currencyName) }}
+                {{
+                  formatMoney(
+                    detail.costAmount * Math.max(1, detail.quantity || 1),
+                    detail.currencyName,
+                  )
+                }}
               </td>
               <td class="px-5 py-4 text-right font-bold">
-                {{ formatMoney(detail.saleAmount * Math.max(1, detail.quantity || 1), detail.currencyName) }}
+                {{
+                  formatMoney(
+                    detail.saleAmount * Math.max(1, detail.quantity || 1),
+                    detail.currencyName,
+                  )
+                }}
               </td>
               <td
                 class="px-5 py-4 text-right font-black"

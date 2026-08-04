@@ -27,13 +27,13 @@ function valueOf(row: T, key: keyof T | string): unknown {
   <div
     class="dh-scrollbar overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl"
   >
-    <table class="w-full min-w-[760px] border-collapse text-left text-sm">
+    <table class="w-full min-w-[680px] border-collapse text-left text-xs sm:min-w-[760px] sm:text-sm">
       <thead class="bg-black/[0.035] text-xs text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
         <tr>
           <th
             v-for="column in columns"
             :key="String(column.key)"
-            class="px-5 py-4 font-black uppercase tracking-[0.12em]"
+            class="px-3 py-3 font-black uppercase tracking-[0.1em] sm:px-5 sm:py-4 sm:tracking-[0.12em]"
             :style="{ width: column.width }"
             :class="[
               column.align === 'center' && 'text-center',
@@ -65,7 +65,7 @@ function valueOf(row: T, key: keyof T | string): unknown {
           <td
             v-for="column in columns"
             :key="String(column.key)"
-            class="px-5 py-4 text-[var(--dh-text-soft)]"
+            class="px-3 py-3 text-[var(--dh-text-soft)] sm:px-5 sm:py-4"
             :class="[
               column.align === 'center' && 'text-center',
               column.align === 'right' && 'text-right',

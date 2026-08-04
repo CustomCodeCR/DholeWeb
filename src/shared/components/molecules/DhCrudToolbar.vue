@@ -25,8 +25,8 @@ const { t } = useI18n()
       <h2 v-if="title" class="text-xl font-black tracking-tight text-[var(--dh-text)]">{{ title }}</h2>
       <slot name="description" />
     </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <DhSearchInput class="w-full md:w-80" :model-value="search" @update:model-value="emit('update:search', $event)" @search="emit('search')" />
+    <div class="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:justify-end">
+      <DhSearchInput class="w-full sm:min-w-64 sm:flex-1 md:w-80 md:flex-none" :model-value="search" @update:model-value="emit('update:search', $event)" @search="emit('search')" />
       <DhIconButton :icon="Filter" :label="t('common.filters')" variant="secondary" @click="emit('filter')" />
       <DhIconButton :icon="RefreshCcw" :label="t('common.refresh')" variant="secondary" @click="emit('refresh')" />
       <DhButton v-if="showCreate" :icon="Plus" :label="createLabel ?? t('common.create')" @click="emit('create')" />

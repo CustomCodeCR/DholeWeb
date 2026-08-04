@@ -14,7 +14,7 @@ function iconByType(type: ToastType) {
 
 <template>
   <Teleport to="body">
-    <div class="fixed right-5 top-5 z-[100] flex w-[360px] flex-col gap-3">
+    <div class="fixed left-2 right-2 top-2 z-[100] flex flex-col gap-3 sm:left-auto sm:right-5 sm:top-5 sm:w-[360px]">
       <TransitionGroup name="toast">
         <article
           v-for="toast in toastStore.items"

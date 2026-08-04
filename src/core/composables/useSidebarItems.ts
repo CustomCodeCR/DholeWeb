@@ -149,6 +149,21 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
           },
         ],
       },
+
+      {
+        labelKey: 'sidebar.reports',
+        icon: FileText,
+        name: 'reports',
+        children: [
+          {
+            labelKey: 'sidebar.reportTemplates',
+            icon: FileText,
+            to: '/reports/templates',
+            name: 'reports-templates',
+            requiredScope: VIEW_SCOPES.reportsTemplates,
+          },
+        ],
+      },
       {
         labelKey: 'sidebar.aiCenter',
         icon: BrainCircuit,

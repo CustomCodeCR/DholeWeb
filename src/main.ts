@@ -1,6 +1,6 @@
 import './assets/main.css'
 
-import { createApp, watch } from 'vue'
+import { createApp, nextTick, watch } from 'vue'
 import { createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 
@@ -11,6 +11,7 @@ import router from './core/router'
 import { useLocale } from '@/core/stores/locale'
 import { useThemeStore } from '@/core/stores/themeStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
+import { createUiTextBridge } from '@/core/i18n/uiTextBridge'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -24,7 +25,16 @@ themeStore.applyTheme()
 brandingStore.applyCachedOrDefault()
 
 const i18n = createI18n({ legacy: false, locale: localeStore.getLocale(), fallbackLocale: 'en', messages: { en, es } })
-watch(() => localeStore.getLocale(), (newLocale) => { i18n.global.locale.value = newLocale })
+const uiTextBridge = createUiTextBridge(() => localeStore.getLocale())
+
+watch(() => localeStore.getLocale(), async (newLocale) => {
+  i18n.global.locale.value = newLocale
+  document.documentElement.lang = newLocale
+  await nextTick()
+  uiTextBridge.refresh()
+})
 
 app.use(i18n)
+document.documentElement.lang = localeStore.getLocale()
 app.mount('#app')
+uiTextBridge.start()

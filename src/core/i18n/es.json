@@ -58,10 +58,11 @@
     "never": "Nunca",
     "noClient": "Sin agente",
     "open": "Abrir",
-    "select": "Seleccionar"
+    "select": "Seleccionar",
+    "back": "Volver"
   },
   "topbar": {
-    "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos, pricing, monitoreo o auditoría...",
+    "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos, pricing, reportes, monitoreo o auditoría...",
     "theme": "Tema",
     "language": "Idioma",
     "notifications": "Notificaciones",
@@ -93,7 +94,9 @@
     "aiAssistant": "Asistente IA",
     "ai": "Inteligencia artificial",
     "aiCenter": "Centro de IA",
-    "storage": "Storage"
+    "storage": "Storage",
+    "reports": "Reportes",
+    "reportTemplates": "Plantillas de reportes"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -334,7 +337,8 @@
     "splitMode": "Split horizontal",
     "closeSplit": "Cerrar panel",
     "moveToLeft": "Mover al panel izquierdo",
-    "moveToRight": "Mover al panel derecho"
+    "moveToRight": "Mover al panel derecho",
+    "splitWorkspace": "Espacio de trabajo dividido"
   },
   "monitoring": {
     "title": "Monitoreo de servicios",
@@ -367,6 +371,10 @@
       "storage": {
         "name": "Storage Service",
         "description": "Archivos importados, correos, adjuntos y versiones."
+      },
+      "reports": {
+        "name": "Reports Service",
+        "description": "Plantillas y generación de reportes PDF, XLSX y CSV."
       }
     }
   },
@@ -543,13 +551,20 @@
       "Rejected": "Rechazada",
       "ImportedOnly": "Solo importada",
       "CreatedAsRate": "Creada",
-      "Draft": "Borrador",
       "Active": "Activa",
       "Inactive": "Inactiva",
       "Deleted": "Eliminada",
       "Pending": "Pendiente",
       "PendingApproval": "Pendiente de autorización",
-      "ApprovalRejected": "Autorización rechazada"
+      "ApprovalRejected": "Autorización rechazada",
+      "Open": "Abierta",
+      "ApprovedByManagement": "Aprobada por gerencia",
+      "RejectedByManagement": "Rechazada por gerencia",
+      "Sent": "Enviada",
+      "AcceptedByClient": "Aceptada por el cliente",
+      "RejectedByClient": "Rechazada por el cliente",
+      "RequestedByClient": "Solicitada por el cliente",
+      "Closed": "Cerrada"
     },
     "costTypes": {
       "Freight": "Flete",
@@ -683,6 +698,163 @@
       "freightAmount": "Flete / costo marítimo",
       "applyAutomaticCosts": "Aplicar costos fijos automáticos",
       "helper": "Si escribe una venta, se usa como venta final. Si lo deja vacío, se calcula con el margen deseado y también ajusta la venta de los costos automáticos."
+    }
+  },
+  "reports": {
+    "serviceName": "Servicio de reportes",
+    "templatesTitle": "Plantillas de reportes",
+    "templatesSubtitle": "Diseñe plantillas HTML y genere documentos PDF, XLSX o CSV con datos JSON.",
+    "newTemplate": "Nueva plantilla",
+    "searchPlaceholder": "Buscar por nombre o descripción",
+    "loadingTemplates": "Cargando plantillas…",
+    "emptyTitle": "No hay plantillas",
+    "emptyDescription": "Cree la primera plantilla desde el diseñador drag and drop.",
+    "noDescription": "Sin descripción",
+    "previewUpdated": "PDF actualizado: {date}",
+    "landscape": "Horizontal",
+    "portrait": "Vertical",
+    "previewPdf": "Vista previa PDF",
+    "generate": "Generar",
+    "viewDesign": "Ver diseño",
+    "pageOf": "Página {page} de {total}",
+    "generateTitle": "Generar {name}",
+    "generateSubtitle": "Los datos JSON alimentan variables y tablas.",
+    "format": "Formato",
+    "pdfFromHtml": "PDF desde HTML",
+    "excelXlsx": "Excel XLSX",
+    "csv": "CSV",
+    "fileName": "Nombre del archivo",
+    "sheetName": "Nombre de la hoja",
+    "jsonData": "Datos JSON",
+    "generationHelp": "PDF usa variables como {variable} y ciclos {each}. XLSX y CSV toman el primer arreglo encontrado en rows, items, data o results.",
+    "generateDownload": "Generar y descargar",
+    "generating": "Generando…",
+    "deleteConfirm": "¿Eliminar la plantilla “{name}”?",
+    "toasts": {
+      "loadError": "No se pudieron cargar las plantillas de reportes.",
+      "previewError": "No se pudo abrir la vista previa PDF.",
+      "deletedTitle": "Plantilla eliminada",
+      "deleteError": "No se pudo eliminar la plantilla.",
+      "invalidJsonTitle": "JSON inválido",
+      "invalidJsonMessage": "Corrija los datos antes de generar el reporte.",
+      "generatedTitle": "Reporte generado",
+      "generatedMessage": "Se descargó el archivo {format}.",
+      "generateError": "No se pudo generar el reporte."
+    },
+    "designer": {
+      "newTemplateName": "Nueva plantilla",
+      "namePlaceholder": "Nombre de la plantilla",
+      "descriptionPlaceholder": "Descripción opcional",
+      "letter": "Carta",
+      "legal": "Legal",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "loading": "Cargando diseñador…",
+      "components": "Componentes",
+      "dragHint": "Arrastre un bloque hacia la hoja o tóquelo para agregarlo.",
+      "variablesHint": "Variables: {variable}. Tablas: seleccione una colección como items.",
+      "designerTab": "Diseñador",
+      "previewTab": "Vista previa",
+      "htmlTab": "HTML",
+      "blockCount": "{count} bloques",
+      "readOnly": "Solo lectura",
+      "emptyCanvas": "Arrastre componentes aquí para comenzar",
+      "spacer": "espacio",
+      "collection": "Colección: {name}",
+      "properties": "Propiedades",
+      "content": "Contenido",
+      "variablePath": "Ruta de la variable",
+      "jsonCollection": "Colección JSON",
+      "columns": "Columnas",
+      "fieldLabel": "campo:etiqueta",
+      "urlVariable": "URL o variable",
+      "alignment": "Alineación",
+      "size": "Tamaño",
+      "weight": "Peso",
+      "normal": "Normal",
+      "bold": "Negrita",
+      "color": "Color",
+      "padding": "Relleno interno",
+      "height": "Altura",
+      "emptyProperties": "Seleccione o agregue un bloque para editar sus propiedades.",
+      "palette": {
+        "heading": {
+          "label": "Título",
+          "description": "Encabezado grande"
+        },
+        "text": {
+          "label": "Texto",
+          "description": "Párrafo editable"
+        },
+        "variable": {
+          "label": "Variable",
+          "description": "Campo dinámico"
+        },
+        "table": {
+          "label": "Tabla",
+          "description": "Arreglo JSON"
+        },
+        "image": {
+          "label": "Imagen",
+          "description": "Logo o imagen"
+        },
+        "divider": {
+          "label": "Separador",
+          "description": "Línea horizontal"
+        },
+        "spacer": {
+          "label": "Espacio",
+          "description": "Separación vertical"
+        }
+      },
+      "blockTypes": {
+        "heading": "título",
+        "text": "texto",
+        "variable": "variable",
+        "table": "tabla",
+        "image": "imagen",
+        "divider": "separador",
+        "spacer": "espacio"
+      },
+      "defaults": {
+        "reportTitle": "Título del reporte",
+        "text": "Escriba aquí el contenido del reporte.",
+        "field": "Campo",
+        "description": "Descripción",
+        "quantity": "Cantidad",
+        "amount": "Monto",
+        "companyDate": "Empresa: {company} · Fecha: {date}",
+        "footer": "Documento generado por Dhole Reports"
+      },
+      "toasts": {
+        "permissionTitle": "Permiso requerido",
+        "createPermission": "Necesita reports.templates.create para crear plantillas.",
+        "savePermission": "Necesita el permiso {scope}.",
+        "loadError": "No se pudo cargar la plantilla.",
+        "invalidDesignerJson": "La definición visual de la plantilla no contiene JSON válido.",
+        "nameRequiredTitle": "Nombre requerido",
+        "nameRequiredMessage": "Escriba un nombre para la plantilla.",
+        "emptyTitle": "Plantilla vacía",
+        "emptyMessage": "Agregue al menos un bloque al documento.",
+        "createdTitle": "Plantilla creada",
+        "createdMessage": "La vista previa PDF también fue almacenada.",
+        "updatedTitle": "Plantilla actualizada",
+        "updatedMessage": "El PDF de la plantilla fue regenerado.",
+        "saveError": "No se pudo guardar la plantilla.",
+        "previewError": "No se pudo abrir la vista previa PDF."
+      }
+    },
+    "paginationSummary": "Página {page} de {totalPages} · {total} plantillas",
+    "jsonEditorHint": "JSON utilizado para completar variables, tablas y exportaciones.",
+    "health": {
+      "healthy": "Servicio disponible",
+      "unhealthy": "Servicio no disponible",
+      "checking": "Comprobando servicio",
+      "database": "Base de datos",
+      "unknown": "Desconocido",
+      "checkedAt": "Revisado: {date}",
+      "connected": "Conectada",
+      "unavailable": "No disponible"
     }
   }
 }

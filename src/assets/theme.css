@@ -198,3 +198,57 @@ body.dh-has-client-background {
   border-color: var(--dh-primary);
   box-shadow: 0 0 0 4px rgb(var(--dh-primary-rgb) / 0.10);
 }
+
+/* Responsive baseline shared by every module. */
+html,
+body,
+#app {
+  min-width: 0;
+  width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 767px) {
+  body,
+  body.dh-has-client-background,
+  .dark body,
+  .dark body.dh-has-client-background {
+    background-attachment: scroll;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .dh-scrollbar {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dh-card-hover:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

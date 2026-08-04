@@ -25,10 +25,6 @@ interface CostFormState {
   isFixed: boolean
 }
 
-interface UploadFormState {
-  profileCode: string
-}
-
 interface RateFormState {
   clientName: string
   carrier: string
@@ -85,7 +81,6 @@ interface PricingWorkspaceState {
   importFilters: ImportFiltersState
   rateFilters: RateFiltersState
   costForm: CostFormState
-  uploadForm: UploadFormState
   rateForm: RateFormState
   importRateForm: ImportRateFormState
   rateCostForm: RateCostFormState
@@ -109,7 +104,6 @@ const defaultState = (): PricingWorkspaceState => ({
     amount: '',
     isFixed: true,
   },
-  uploadForm: { profileCode: '' },
   rateForm: {
     clientName: '',
     carrier: '',
@@ -170,7 +164,6 @@ function mergeState(value: Partial<PricingWorkspaceState> | null): PricingWorksp
     importFilters: { ...fallback.importFilters, ...(value.importFilters ?? {}) },
     rateFilters: { ...fallback.rateFilters, ...(value.rateFilters ?? {}) },
     costForm: { ...fallback.costForm, ...(value.costForm ?? {}) },
-    uploadForm: { ...fallback.uploadForm, ...(value.uploadForm ?? {}) },
     rateForm: { ...fallback.rateForm, ...(value.rateForm ?? {}) },
     importRateForm: { ...fallback.importRateForm, ...(value.importRateForm ?? {}) },
     rateCostForm: { ...fallback.rateCostForm, ...(value.rateCostForm ?? {}) },
@@ -212,11 +205,6 @@ export const usePricingWorkspaceStore = defineStore('pricingWorkspace', {
 
     selectRate(id: string | null) {
       this.selectedRateId = id
-      this.persist()
-    },
-
-    resetUpload() {
-      this.uploadForm.profileCode = ''
       this.persist()
     },
 

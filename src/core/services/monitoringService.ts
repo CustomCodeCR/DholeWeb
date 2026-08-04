@@ -66,6 +66,15 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     critical: true,
   },
   {
+    key: 'reports',
+    name: 'Reports Service',
+    nameKey: 'monitoring.services.reports.name',
+    description: 'Plantillas y generación de reportes PDF, XLSX y CSV.',
+    descriptionKey: 'monitoring.services.reports.description',
+    url: buildGatewayHealthUrl('reports'),
+    critical: true,
+  },
+  {
     key: 'storage',
     name: 'Storage Service',
     nameKey: 'monitoring.services.storage.name',

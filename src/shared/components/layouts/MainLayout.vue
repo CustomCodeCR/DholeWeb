@@ -51,12 +51,13 @@ const tabsStore = useWorkspaceTabsStore()
 
 const commandOpen = ref(false)
 const commandQuery = ref('')
+const mobileSidebarOpen = ref(false)
 
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true')
 const isEmbedded = new URLSearchParams(window.location.search).get('dhEmbed') === '1'
 
 const contentClass = computed(() => {
-  return sidebarCollapsed.value ? 'pl-28' : 'pl-80'
+  return sidebarCollapsed.value ? 'pl-0 lg:pl-28' : 'pl-0 lg:pl-80'
 })
 
 const splitFrameUrl = computed(() => {
@@ -68,8 +69,19 @@ watch(sidebarCollapsed, (value) => {
   localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(value))
 })
 
+watch(
+  () => router.currentRoute.value.fullPath,
+  () => {
+    mobileSidebarOpen.value = false
+  },
+)
+
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+function toggleMobileSidebar() {
+  mobileSidebarOpen.value = !mobileSidebarOpen.value
 }
 
 function canView(scope: string): boolean {
@@ -146,6 +158,20 @@ const pricingChildren = computed<SidebarItem[]>(() => {
   return children
 })
 
+const reportsChildren = computed<SidebarItem[]>(() => {
+  const children: SidebarItem[] = []
+
+  if (canView(VIEW_SCOPES.reportsTemplates)) {
+    children.push({
+      label: t('sidebar.reportTemplates'),
+      path: '/reports/templates',
+      icon: FileText,
+    })
+  }
+
+  return children
+})
+
 const monitoringChildren = computed<SidebarItem[]>(() => {
   const children: SidebarItem[] = []
 
@@ -191,6 +217,10 @@ const sidebarItems = computed<SidebarItem[]>(() => {
 
   if (configChildren.value.length > 0) {
     items.push({ label: t('sidebar.config'), icon: BookOpen, children: configChildren.value })
+  }
+
+  if (reportsChildren.value.length > 0) {
+    items.push({ label: t('sidebar.reports'), icon: FileText, children: reportsChildren.value })
   }
 
   if (securityChildren.value.length > 0) {
@@ -409,7 +439,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="isEmbedded" class="min-h-screen p-4">
+  <div v-if="isEmbedded" class="min-h-screen p-2 sm:p-4">
     <RouterView />
   </div>
 
@@ -417,17 +447,19 @@ onBeforeUnmount(() => {
     <DhSidebar
       :items="sidebarItems"
       :collapsed="sidebarCollapsed"
+      :mobile-open="mobileSidebarOpen"
       @toggle-collapse="toggleSidebar"
+      @close="mobileSidebarOpen = false"
     />
 
-    <div class="min-h-screen pr-4 transition-[padding] duration-300" :class="contentClass">
-      <DhTopbar @search="commandOpen = true" @logout="logout" />
+    <div class="min-h-screen min-w-0 pr-0 transition-[padding] duration-300 sm:pr-2 lg:pr-4" :class="contentClass">
+      <DhTopbar @navigation="toggleMobileSidebar" @search="commandOpen = true" @logout="logout" />
       <DhWorkspaceTabs />
 
-      <main class="p-4">
+      <main class="min-w-0 overflow-x-hidden p-2 sm:p-4">
         <div v-if="tabsStore.splitPane && !isEmbedded" class="grid gap-4 xl:grid-cols-2">
           <section
-            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] overflow-hidden rounded-[32px]"
+            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] min-w-0 overflow-hidden rounded-[24px] sm:rounded-[32px]"
             @dragover="handlePaneDragOver"
             @drop="dropTabToMain"
           >
@@ -443,13 +475,13 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <div class="h-[calc(100vh-14rem)] overflow-y-auto p-4 dh-scrollbar">
+            <div class="h-[calc(100vh-14rem)] overflow-y-auto p-2 sm:p-4 dh-scrollbar">
               <RouterView />
             </div>
           </section>
 
           <section
-            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] overflow-hidden rounded-[32px]"
+            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] min-w-0 overflow-hidden rounded-[24px] sm:rounded-[32px]"
             @dragover="handlePaneDragOver"
             @drop="dropTabToSplit"
           >
@@ -469,7 +501,7 @@ onBeforeUnmount(() => {
               :key="tabsStore.splitPane.path"
               :src="splitFrameUrl"
               class="h-[calc(100vh-14rem)] w-full border-0 bg-transparent"
-              title="Split workspace"
+              :title="t('tabs.splitWorkspace')"
             />
           </section>
         </div>

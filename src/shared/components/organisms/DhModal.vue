@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { X } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
 withDefaults(
   defineProps<{
@@ -15,6 +16,8 @@ withDefaults(
 const emit = defineEmits<{
   close: []
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -22,11 +25,11 @@ const emit = defineEmits<{
     <Transition name="modal-backdrop">
       <div
         v-if="open"
-        class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-[90] flex items-end justify-center bg-black/40 p-2 backdrop-blur-sm sm:items-center sm:p-4"
         @click.self="emit('close')"
       >
         <section
-          class="dh-glass-strong dh-liquid max-h-[90vh] overflow-hidden rounded-[var(--dh-radius-xl)]"
+          class="dh-glass-strong dh-liquid max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[26px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
           :class="[
             size === 'sm' && 'w-full max-w-sm',
             size === 'md' && 'w-full max-w-lg',
@@ -35,7 +38,7 @@ const emit = defineEmits<{
           ]"
         >
           <header
-            class="flex items-center justify-between border-b border-[var(--dh-border)] px-5 py-4"
+            class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-3 sm:px-5 sm:py-4"
           >
             <h2 class="text-base font-bold text-[var(--dh-text)]">
               {{ title }}
@@ -43,13 +46,15 @@ const emit = defineEmits<{
 
             <button
               class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
+              :aria-label="t('common.close')"
+              :title="t('common.close')"
               @click="emit('close')"
             >
               <X class="h-4 w-4" />
             </button>
           </header>
 
-          <main class="max-h-[calc(90vh-65px)] overflow-y-auto p-5 dh-scrollbar">
+          <main class="max-h-[calc(100dvh-62px)] overflow-y-auto p-3 sm:max-h-[calc(90vh-65px)] sm:p-5 dh-scrollbar">
             <slot />
           </main>
         </section>

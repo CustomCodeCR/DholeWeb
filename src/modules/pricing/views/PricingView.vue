@@ -16,8 +16,20 @@ import {
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
-import { DhDataTable, DhPagination, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
+import {
+  DhBadge,
+  DhButton,
+  DhCheckbox,
+  DhInput,
+  DhSelect,
+  DhTextarea,
+} from '@/shared/components/atoms'
+import {
+  DhDataTable,
+  DhPagination,
+  DhSearchInput,
+  type DhTableColumn,
+} from '@/shared/components/molecules'
 import { DhDrawer, DhModal, DhPageHeader } from '@/shared/components/organisms'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -44,7 +56,17 @@ import type {
 } from '@/core/interfaces/pricing'
 
 type SelectOption = { label: string; value: string | number; disabled?: boolean }
-type CatalogBucket = 'ports' | 'pol' | 'poe' | 'pod' | 'containerTypes' | 'carriers' | 'currencies' | 'profiles' | 'agents' | 'incoterms'
+type CatalogBucket =
+  | 'ports'
+  | 'pol'
+  | 'poe'
+  | 'pod'
+  | 'containerTypes'
+  | 'carriers'
+  | 'currencies'
+  | 'profiles'
+  | 'agents'
+  | 'incoterms'
 type PricingTab = 'imports' | 'rates' | 'costs'
 
 const { t, locale } = useI18n()
@@ -76,7 +98,6 @@ const {
   rateContainerType,
   rateCarrier,
   costSearch,
-  uploadProfileCode,
 } = storeToRefs(pricingStore)
 
 const loading = ref(false)
@@ -114,7 +135,6 @@ const ratePageSize = ref(10)
 const selectedRatePort = ref('')
 const variableCostPage = ref(1)
 const variableCostPageSize = ref(10)
-
 
 const selectedFile = ref<File | null>(null)
 const extractionResult = ref<ExtractImportFclRatesResultDto | null>(null)
@@ -181,7 +201,6 @@ async function fetchAllPaged<T, TQuery extends Record<string, unknown>>(
   return allItems
 }
 
-
 const catalogSlugs = {
   ports: 'ports',
   pol: 'pol',
@@ -227,7 +246,6 @@ const importRateForm = reactive({
   marginPercentage: '',
   notes: '',
 })
-
 
 const manualRateForm = reactive({
   agentName: '',
@@ -307,21 +325,42 @@ const canDeleteCost = computed(() => authStore.hasScope(PRICING_SCOPES.costs.del
 const canCreateImport = computed(() => authStore.hasScope(PRICING_SCOPES.importFclRates.create))
 const canApproveImport = computed(() => authStore.hasScope(PRICING_SCOPES.importFclRates.approve))
 const canRejectImport = computed(() => authStore.hasScope(PRICING_SCOPES.importFclRates.reject))
-const canCreateRateFromImport = computed(() => authStore.hasScope(PRICING_SCOPES.importFclRates.createAsRate))
+const canCreateRateFromImport = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.importFclRates.createAsRate),
+)
 const canDeleteImport = computed(() => authStore.hasScope(PRICING_SCOPES.importFclRates.delete))
 const canSetRateActive = computed(() => authStore.hasScope(PRICING_SCOPES.rates.setActive))
 const canUpdateRate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDeleteRate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))
 const canCreateRate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
-const canCreateCostDetail = computed(() => authStore.hasScope(PRICING_SCOPES.rateCostDetails.create))
+const canCreateCostDetail = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.rateCostDetails.create),
+)
 const canUpdateFclDetail = computed(() => authStore.hasScope(PRICING_SCOPES.fclRateDetails.update))
-const canUpdateCostDetail = computed(() => authStore.hasScope(PRICING_SCOPES.rateCostDetails.update))
-const canDeleteCostDetail = computed(() => authStore.hasScope(PRICING_SCOPES.rateCostDetails.delete))
-const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canUpdateCostDetail = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.rateCostDetails.update),
+)
+const canDeleteCostDetail = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.rateCostDetails.delete),
+)
+const canApproveLowMargin = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin),
+)
 const canApproveFreight = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveFreight))
-const canCreateDirectManualRate = computed(() => canCreateRate.value && (authStore.hasRole('Administrador') || authStore.hasRole('Administrator') || authStore.hasRole('Admin') || authStore.hasRole('SuperUsuario') || authStore.hasRole('SuperUser') || authStore.hasRole('SuperAdmin') || authStore.hasRole('superadmin')))
-const showCostRowActions = computed(() => canUpdateCost.value || canSetCostActive.value || canDeleteCost.value)
-
+const canCreateDirectManualRate = computed(
+  () =>
+    canCreateRate.value &&
+    (authStore.hasRole('Administrador') ||
+      authStore.hasRole('Administrator') ||
+      authStore.hasRole('Admin') ||
+      authStore.hasRole('SuperUsuario') ||
+      authStore.hasRole('SuperUser') ||
+      authStore.hasRole('SuperAdmin') ||
+      authStore.hasRole('superadmin')),
+)
+const showCostRowActions = computed(
+  () => canUpdateCost.value || canSetCostActive.value || canDeleteCost.value,
+)
 
 const routeTabMap: Record<string, PricingTab> = {
   '/pricing': 'rates',
@@ -367,16 +406,45 @@ const pricingSectionMeta = computed(() => {
 })
 
 const stats = computed(() => [
-  { key: 'pending', label: t('pricing.kpis.pendingImports'), value: imports.value.filter((x) => x.status === 'PendingReview').length },
-  { key: 'rates', label: t('pricing.kpis.activeRates'), value: rates.value.filter((x) => x.isActive).length },
-  { key: 'costs', label: t('pricing.kpis.activeCosts'), value: costs.value.filter((x) => x.isActive).length },
+  {
+    key: 'pending',
+    label: t('pricing.kpis.pendingImports'),
+    value: imports.value.filter((x) => x.status === 'PendingReview').length,
+  },
+  {
+    key: 'rates',
+    label: t('pricing.kpis.activeRates'),
+    value: rates.value.filter((x) => x.isActive).length,
+  },
+  {
+    key: 'costs',
+    label: t('pricing.kpis.activeCosts'),
+    value: costs.value.filter((x) => x.isActive).length,
+  },
 ])
 
-const pricingTabs = computed(() => [
-  { value: 'rates' as PricingTab, label: t('pricing.tabs.rates'), count: rates.value.length, visible: authStore.hasScope(PRICING_SCOPES.rates.view) },
-  { value: 'imports' as PricingTab, label: t('pricing.tabs.imports'), count: imports.value.length, visible: authStore.hasScope(PRICING_SCOPES.importFclRates.view) },
-  { value: 'costs' as PricingTab, label: t('pricing.tabs.costs'), count: costs.value.length, visible: authStore.hasScope(PRICING_SCOPES.costs.view) },
-].filter((tab) => tab.visible))
+const pricingTabs = computed(() =>
+  [
+    {
+      value: 'rates' as PricingTab,
+      label: t('pricing.tabs.rates'),
+      count: rates.value.length,
+      visible: authStore.hasScope(PRICING_SCOPES.rates.view),
+    },
+    {
+      value: 'imports' as PricingTab,
+      label: t('pricing.tabs.imports'),
+      count: imports.value.length,
+      visible: authStore.hasScope(PRICING_SCOPES.importFclRates.view),
+    },
+    {
+      value: 'costs' as PricingTab,
+      label: t('pricing.tabs.costs'),
+      count: costs.value.length,
+      visible: authStore.hasScope(PRICING_SCOPES.costs.view),
+    },
+  ].filter((tab) => tab.visible),
+)
 
 const costColumns = computed<DhTableColumn<CostDto>[]>(() => {
   const columns: DhTableColumn<CostDto>[] = [
@@ -458,20 +526,39 @@ const catalogOptions = computed<Record<CatalogBucket, SelectOption[]>>(() => ({
   incoterms: toOptions(incoterms.value),
 }))
 
-const portFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(toCatalogFilterOptions([...polPorts.value, ...poePorts.value, ...podPorts.value, ...ports.value])))
-const carrierFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(toCatalogFilterOptions(carriers.value)))
-const containerTypeFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(toCatalogFilterOptions(containerTypes.value)))
-const agentOptions = computed<SelectOption[]>(() => uniqueFilterOptions([
-  ...agents.value.map((item) => ({ label: item.label, value: item.label })),
-  { label: 'WWL', value: 'WWL' },
-  { label: 'RS', value: 'RS' },
-]))
-const agentFilterOptions = computed<SelectOption[]>(() => withAllFilterOption(uniqueFilterOptions([...agentOptions.value, ...toRawFilterOptions('agent')])))
+const portFilterOptions = computed<SelectOption[]>(() =>
+  withAllFilterOption(
+    toCatalogFilterOptions([
+      ...polPorts.value,
+      ...poePorts.value,
+      ...podPorts.value,
+      ...ports.value,
+    ]),
+  ),
+)
+const carrierFilterOptions = computed<SelectOption[]>(() =>
+  withAllFilterOption(toCatalogFilterOptions(carriers.value)),
+)
+const containerTypeFilterOptions = computed<SelectOption[]>(() =>
+  withAllFilterOption(toCatalogFilterOptions(containerTypes.value)),
+)
+const agentOptions = computed<SelectOption[]>(() =>
+  uniqueFilterOptions([
+    ...agents.value.map((item) => ({ label: item.label, value: item.label })),
+    { label: 'WWL', value: 'WWL' },
+    { label: 'RS', value: 'RS' },
+  ]),
+)
+const agentFilterOptions = computed<SelectOption[]>(() =>
+  withAllFilterOption(uniqueFilterOptions([...agentOptions.value, ...toRawFilterOptions('agent')])),
+)
 const poeFilterOptions = computed<SelectOption[]>(() =>
-  withAllFilterOption(uniqueFilterOptions([
-    ...toCatalogFilterOptions(poePorts.value.length ? poePorts.value : ports.value),
-    ...toRawFilterOptions('poe'),
-  ])),
+  withAllFilterOption(
+    uniqueFilterOptions([
+      ...toCatalogFilterOptions(poePorts.value.length ? poePorts.value : ports.value),
+      ...toRawFilterOptions('poe'),
+    ]),
+  ),
 )
 
 const statusOptions = computed<SelectOption[]>(() => [
@@ -519,9 +606,11 @@ const costTemplateOptions = computed<SelectOption[]>(() =>
     label: [
       x.name,
       String(x.rateType).toUpperCase(),
-      x.isOptional ? 'Opcional' : x.isFixed && !x.requiresManualAmount
-        ? `${x.carrierNameSnapshot || t('pricing.common.notLinked')} · ${x.portNameSnapshot || t('pricing.portRoles.Any')}`
-        : t('pricing.costs.variableTemplate'),
+      x.isOptional
+        ? 'Opcional'
+        : x.isFixed && !x.requiresManualAmount
+          ? `${x.carrierNameSnapshot || t('pricing.common.notLinked')} · ${x.portNameSnapshot || t('pricing.portRoles.Any')}`
+          : t('pricing.costs.variableTemplate'),
       money(x.amount, x.currencyCodeSnapshot),
       `${t('pricing.rates.saleAmount')}: ${money(x.saleAmount ?? minimumSaleAmount(Number(x.amount ?? 0)), x.currencyCodeSnapshot)}`,
     ].join(' · '),
@@ -534,7 +623,7 @@ function toCostTemplateOptions(rows: CostDto[]): SelectOption[] {
     label: [
       x.name,
       String(x.rateType).toUpperCase(),
-      x.isOptional ? 'Opcional' : (x.carrierNameSnapshot || t('pricing.common.notLinked')),
+      x.isOptional ? 'Opcional' : x.carrierNameSnapshot || t('pricing.common.notLinked'),
       money(x.amount, x.currencyCodeSnapshot),
       `Venta: ${money(x.saleAmount ?? 0, x.currencyCodeSnapshot)}`,
     ].join(' · '),
@@ -542,11 +631,19 @@ function toCostTemplateOptions(rows: CostDto[]): SelectOption[] {
   }))
 }
 
-const automaticFixedCosts = computed(() => costs.value.filter((x) => x.isFixed && !x.requiresManualAmount && !x.isOptional))
+const automaticFixedCosts = computed(() =>
+  costs.value.filter((x) => x.isFixed && !x.requiresManualAmount && !x.isOptional),
+)
 const optionalCostTemplates = computed(() => costs.value.filter((x) => x.isOptional))
-const variableCostTemplates = computed(() => costs.value.filter((x) => x.isOptional || !x.isFixed || x.requiresManualAmount))
-const isAutomaticFixedCost = computed(() => costForm.isFixed && !costForm.requiresManualAmount && !costForm.isOptional)
-const fixedCostTemplateOptions = computed<SelectOption[]>(() => toCostTemplateOptions(automaticFixedCosts.value))
+const variableCostTemplates = computed(() =>
+  costs.value.filter((x) => x.isOptional || !x.isFixed || x.requiresManualAmount),
+)
+const isAutomaticFixedCost = computed(
+  () => costForm.isFixed && !costForm.requiresManualAmount && !costForm.isOptional,
+)
+const fixedCostTemplateOptions = computed<SelectOption[]>(() =>
+  toCostTemplateOptions(automaticFixedCosts.value),
+)
 const costPortOptions = computed<SelectOption[]>(() => {
   if (costForm.portRole === 'Pol') return catalogOptions.value.pol
   if (costForm.portRole === 'Pod') return catalogOptions.value.pod
@@ -556,16 +653,22 @@ const costPortOptions = computed<SelectOption[]>(() => {
 const optionalCostTemplateOptions = computed<SelectOption[]>(() => {
   const detail = selectedRateMainDetail.value
   const selectedCarrierId = detail?.carrierId
-  const destinationIds = new Set<string>([
-    String(detail?.destinationPortId ?? ''),
-    ...selectedRateCostRows.value.map((row) => String(row.portId ?? '')).filter(Boolean),
-  ].filter(Boolean))
+  const destinationIds = new Set<string>(
+    [
+      String(detail?.destinationPortId ?? ''),
+      ...selectedRateCostRows.value.map((row) => String(row.portId ?? '')).filter(Boolean),
+    ].filter(Boolean),
+  )
 
-  return toCostTemplateOptions(optionalCostTemplates.value.filter((cost) => {
-    const matchesCarrier = !cost.carrierId || !selectedCarrierId || cost.carrierId === selectedCarrierId
-    const matchesPort = !cost.portId || destinationIds.size === 0 || destinationIds.has(cost.portId)
-    return matchesCarrier && matchesPort
-  }))
+  return toCostTemplateOptions(
+    optionalCostTemplates.value.filter((cost) => {
+      const matchesCarrier =
+        !cost.carrierId || !selectedCarrierId || cost.carrierId === selectedCarrierId
+      const matchesPort =
+        !cost.portId || destinationIds.size === 0 || destinationIds.has(cost.portId)
+      return matchesCarrier && matchesPort
+    }),
+  )
 })
 
 function paginateRows<T>(rows: T[], page: number, pageSize: number): T[] {
@@ -573,27 +676,51 @@ function paginateRows<T>(rows: T[], page: number, pageSize: number): T[] {
   return rows.slice(start, start + pageSize)
 }
 
-const pagedImports = computed(() => paginateRows(imports.value, importPage.value, importPageSize.value))
+const pagedImports = computed(() =>
+  paginateRows(imports.value, importPage.value, importPageSize.value),
+)
 const filteredMatrixRates = computed(() => {
   if (!selectedRatePort.value) return rates.value
   return rates.value.filter((rate) => ratePortKey(rate) === selectedRatePort.value)
 })
-const pagedRates = computed(() => paginateRows(filteredMatrixRates.value, ratePage.value, ratePageSize.value))
-const pagedVariableCostTemplates = computed(() => paginateRows(variableCostTemplates.value, variableCostPage.value, variableCostPageSize.value))
+const pagedRates = computed(() =>
+  paginateRows(filteredMatrixRates.value, ratePage.value, ratePageSize.value),
+)
+const pagedVariableCostTemplates = computed(() =>
+  paginateRows(variableCostTemplates.value, variableCostPage.value, variableCostPageSize.value),
+)
 
 const selectedRateMainDetail = computed(() => selectedRate.value?.fclRateDetails?.[0] ?? null)
-const selectedRateFclRows = computed<Record<string, unknown>[]>(() => (selectedRate.value?.fclRateDetails ?? []) as unknown as Record<string, unknown>[])
-const selectedRateCostRows = computed<Record<string, unknown>[]>(() => (selectedRate.value?.costDetails ?? []) as unknown as Record<string, unknown>[])
+const selectedRateFclRows = computed<Record<string, unknown>[]>(
+  () => (selectedRate.value?.fclRateDetails ?? []) as unknown as Record<string, unknown>[],
+)
+const selectedRateCostRows = computed<Record<string, unknown>[]>(
+  () => (selectedRate.value?.costDetails ?? []) as unknown as Record<string, unknown>[],
+)
 const selectedRateAgentCostRows = computed<Record<string, unknown>[]>(() =>
-  selectedRateCostRows.value.filter((row) => String(row.costType) === 'AgentCharge' || normalizeLookup(String(row.name ?? '')).includes('agente') || normalizeLookup(String(row.name ?? '')).includes('agent')),
+  selectedRateCostRows.value.filter(
+    (row) =>
+      String(row.costType) === 'AgentCharge' ||
+      normalizeLookup(String(row.name ?? '')).includes('agente') ||
+      normalizeLookup(String(row.name ?? '')).includes('agent'),
+  ),
 )
 const selectedRateDestinationCostRows = computed<Record<string, unknown>[]>(() =>
-  selectedRateCostRows.value.filter((row) => String(row.costType) === 'DestinationCharge' || String(row.costType) === 'InlandTransport'),
+  selectedRateCostRows.value.filter(
+    (row) =>
+      String(row.costType) === 'DestinationCharge' || String(row.costType) === 'InlandTransport',
+  ),
 )
 const selectedRateOtherCostRows = computed<Record<string, unknown>[]>(() =>
-  selectedRateCostRows.value.filter((row) => !selectedRateAgentCostRows.value.includes(row) && !selectedRateDestinationCostRows.value.includes(row)),
+  selectedRateCostRows.value.filter(
+    (row) =>
+      !selectedRateAgentCostRows.value.includes(row) &&
+      !selectedRateDestinationCostRows.value.includes(row),
+  ),
 )
-const selectedRateBaseSaleAmount = computed(() => (selectedRate.value ? rateFreightSaleTotal(selectedRate.value) : 0))
+const selectedRateBaseSaleAmount = computed(() =>
+  selectedRate.value ? rateFreightSaleTotal(selectedRate.value) : 0,
+)
 const clientVisibleCostRows = computed<Record<string, unknown>[]>(() =>
   selectedRateCostRows.value.filter((row) => costSaleAmount(row) > 0),
 )
@@ -622,7 +749,10 @@ const matrixPortOptions = computed(() => {
 })
 
 const automaticCostPortGroups = computed(() => {
-  const groups = new Map<string, { key: string; label: string; rows: CostDto[]; totalCost: number; totalSale: number }>()
+  const groups = new Map<
+    string,
+    { key: string; label: string; rows: CostDto[]; totalCost: number; totalSale: number }
+  >()
 
   for (const cost of automaticFixedCosts.value) {
     const label = cost.portNameSnapshot || cost.portCodeSnapshot || t('pricing.common.notLinked')
@@ -640,44 +770,57 @@ const automaticCostPortGroups = computed(() => {
   return Array.from(groups.values())
     .map((group) => ({
       ...group,
-      rows: group.rows.sort((a, b) => `${a.carrierNameSnapshot || ''}${a.name}`.localeCompare(`${b.carrierNameSnapshot || ''}${b.name}`)),
+      rows: group.rows.sort((a, b) =>
+        `${a.carrierNameSnapshot || ''}${a.name}`.localeCompare(
+          `${b.carrierNameSnapshot || ''}${b.name}`,
+        ),
+      ),
     }))
     .sort((a, b) => a.label.localeCompare(b.label))
 })
 
-watch([
-  importSearch,
-  importStatus,
-  importReadyDate,
-  importQuoteDate,
-  importAgent,
-  importPol,
-  importPoe,
-  importPod,
-  importContainerType,
-  importCarrier,
-], () => {
-  importPage.value = 1
-})
+watch(
+  [
+    importSearch,
+    importStatus,
+    importReadyDate,
+    importQuoteDate,
+    importAgent,
+    importPol,
+    importPoe,
+    importPod,
+    importContainerType,
+    importCarrier,
+  ],
+  () => {
+    importPage.value = 1
+  },
+)
 
-watch([
-  rateSearch,
-  rateActive,
-  rateReadyDate,
-  rateQuoteDate,
-  rateAgent,
-  ratePol,
-  ratePoe,
-  ratePod,
-  rateContainerType,
-  rateCarrier,
-  selectedRatePort,
-], () => {
-  ratePage.value = 1
-})
+watch(
+  [
+    rateSearch,
+    rateActive,
+    rateReadyDate,
+    rateQuoteDate,
+    rateAgent,
+    ratePol,
+    ratePoe,
+    ratePod,
+    rateContainerType,
+    rateCarrier,
+    selectedRatePort,
+  ],
+  () => {
+    ratePage.value = 1
+  },
+)
 
 watch(matrixPortOptions, (options) => {
-  if (selectedRatePort.value && !options.some((option) => option.value === selectedRatePort.value)) {
+  if (
+    selectedRatePort.value &&
+    !options.some((option) => option.value === selectedRatePort.value)
+  ) {
     selectedRatePort.value = ''
   }
 })
@@ -686,44 +829,50 @@ watch(costSearch, () => {
   variableCostPage.value = 1
 })
 
-watch(() => route.path, (path) => {
-  const nextTab = resolveTabFromRoute(path)
-  if (activeTab.value !== nextTab) {
-    activeTab.value = nextTab
-  }
-}, { immediate: true })
+watch(
+  () => route.path,
+  (path) => {
+    const nextTab = resolveTabFromRoute(path)
+    if (activeTab.value !== nextTab) {
+      activeTab.value = nextTab
+    }
+  },
+  { immediate: true },
+)
 
-watch([
-  activeTab,
-  importSearch,
-  importStatus,
-  importReadyDate,
-  importQuoteDate,
-  importAgent,
-  importPol,
-  importPoe,
-  importPod,
-  importContainerType,
-  importCarrier,
-  rateSearch,
-  rateActive,
-  rateReadyDate,
-  rateQuoteDate,
-  rateAgent,
-  ratePol,
-  ratePoe,
-  ratePod,
-  rateContainerType,
-  rateCarrier,
-  costSearch,
-  uploadProfileCode,
-], () => {
-  pricingStore.persist()
-  const target = routeForTab((activeTab.value as PricingTab) || 'rates')
-  if (route.path !== target) {
-    router.replace(target)
-  }
-})
+watch(
+  [
+    activeTab,
+    importSearch,
+    importStatus,
+    importReadyDate,
+    importQuoteDate,
+    importAgent,
+    importPol,
+    importPoe,
+    importPod,
+    importContainerType,
+    importCarrier,
+    rateSearch,
+    rateActive,
+    rateReadyDate,
+    rateQuoteDate,
+    rateAgent,
+    ratePol,
+    ratePoe,
+    ratePod,
+    rateContainerType,
+    rateCarrier,
+    costSearch,
+  ],
+  () => {
+    pricingStore.persist()
+    const target = routeForTab((activeTab.value as PricingTab) || 'rates')
+    if (route.path !== target) {
+      router.replace(target)
+    }
+  },
+)
 
 watch(isAutomaticFixedCost, () => {
   if (!costForm.portRole || costForm.portRole === 'Any') {
@@ -736,8 +885,12 @@ function toOptions(items: CatalogItemSelectDto[]): SelectOption[] {
 }
 
 function defaultAgentName(): string {
-  const wwl = agentOptions.value.find((option) => normalizeLookup(String(option.value)) === 'wwl')?.value
-  const rs = agentOptions.value.find((option) => normalizeLookup(String(option.value)) === 'rs')?.value
+  const wwl = agentOptions.value.find(
+    (option) => normalizeLookup(String(option.value)) === 'wwl',
+  )?.value
+  const rs = agentOptions.value.find(
+    (option) => normalizeLookup(String(option.value)) === 'rs',
+  )?.value
 
   return String(wwl || rs || 'WWL')
 }
@@ -790,12 +943,16 @@ function toRawFilterOptions(field: RawFilterField): SelectOption[] {
   return Array.from(values.values()).map((value) => ({ label: value, value }))
 }
 
-function readRawFilterValue(rawDataJson: string | null | undefined, field: RawFilterField): string | null {
+function readRawFilterValue(
+  rawDataJson: string | null | undefined,
+  field: RawFilterField,
+): string | null {
   if (!rawDataJson?.trim()) return null
 
-  const aliases = field === 'agent'
-    ? ['agent', 'agente', 'forwarder', 'agentName', 'salesAgent', 'customerAgent']
-    : ['poe', 'portOfExit', 'port of exit', 'puertoSalida', 'puerto de salida', 'portExit']
+  const aliases =
+    field === 'agent'
+      ? ['agent', 'agente', 'forwarder', 'agentName', 'salesAgent', 'customerAgent']
+      : ['poe', 'portOfExit', 'port of exit', 'puertoSalida', 'puerto de salida', 'portExit']
 
   try {
     return findValueByAliases(JSON.parse(rawDataJson), aliases)
@@ -823,7 +980,11 @@ function findValueByAliases(value: unknown, aliases: string[]): string | null {
   if (!value || typeof value !== 'object') return null
 
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (normalizedAliases.includes(normalizeLookup(key)) && raw != null && typeof raw !== 'object') {
+    if (
+      normalizedAliases.includes(normalizeLookup(key)) &&
+      raw != null &&
+      typeof raw !== 'object'
+    ) {
       const text = String(raw).trim()
       if (text) return text
     }
@@ -862,8 +1023,23 @@ function findRawTextValue(raw: string, aliases: string[]): string | null {
 }
 
 function selectedItem(bucket: CatalogBucket, value: string): CatalogItemSelectDto | null {
-  const map = { ports, pol: polPorts, poe: poePorts, pod: podPorts, containerTypes, carriers, currencies, profiles, agents, incoterms }
-  return map[bucket].value.find((x) => x.value === value || x.slug === value || x.id === value || x.code === value) ?? null
+  const map = {
+    ports,
+    pol: polPorts,
+    poe: poePorts,
+    pod: podPorts,
+    containerTypes,
+    carriers,
+    currencies,
+    profiles,
+    agents,
+    incoterms,
+  }
+  return (
+    map[bucket].value.find(
+      (x) => x.value === value || x.slug === value || x.id === value || x.code === value,
+    ) ?? null
+  )
 }
 
 function normalizeLookup(value: string | null | undefined): string {
@@ -918,22 +1094,47 @@ function candidateValues(item: CatalogItemSelectDto): string[] {
     .filter(Boolean)
 }
 
-function findItemByText(bucket: CatalogBucket, value: string | null | undefined): CatalogItemSelectDto | null {
-  const map = { ports, pol: polPorts, poe: poePorts, pod: podPorts, containerTypes, carriers, currencies, profiles, agents, incoterms }
+function findItemByText(
+  bucket: CatalogBucket,
+  value: string | null | undefined,
+): CatalogItemSelectDto | null {
+  const map = {
+    ports,
+    pol: polPorts,
+    poe: poePorts,
+    pod: podPorts,
+    containerTypes,
+    carriers,
+    currencies,
+    profiles,
+    agents,
+    incoterms,
+  }
   const items = map[bucket].value
   const needles = lookupAliases(bucket, value)
 
   if (needles.length === 0) return null
 
   return (
-    items.find((item) => candidateValues(item).some((candidate) => needles.includes(candidate)))
-    ?? items.find((item) => candidateValues(item).some((candidate) => needles.some((needle) => candidate.startsWith(needle) || needle.startsWith(candidate))))
-    ?? items.find((item) => candidateValues(item).some((candidate) => needles.some((needle) => candidate.includes(needle) || needle.includes(candidate))))
-    ?? null
+    items.find((item) => candidateValues(item).some((candidate) => needles.includes(candidate))) ??
+    items.find((item) =>
+      candidateValues(item).some((candidate) =>
+        needles.some((needle) => candidate.startsWith(needle) || needle.startsWith(candidate)),
+      ),
+    ) ??
+    items.find((item) =>
+      candidateValues(item).some((candidate) =>
+        needles.some((needle) => candidate.includes(needle) || needle.includes(candidate)),
+      ),
+    ) ??
+    null
   )
 }
 
-function catalogFormValue(bucket: CatalogBucket, ...values: Array<string | null | undefined>): string {
+function catalogFormValue(
+  bucket: CatalogBucket,
+  ...values: Array<string | null | undefined>
+): string {
   for (const value of values) {
     if (!value) continue
 
@@ -949,7 +1150,10 @@ function catalogFormValue(bucket: CatalogBucket, ...values: Array<string | null 
 
 function money(value: unknown, currency = 'USD') {
   const amount = typeof value === 'number' ? value : Number(value ?? 0)
-  return new Intl.NumberFormat(locale.value === 'en' ? 'en-US' : 'es-CR', { style: 'currency', currency }).format(amount)
+  return new Intl.NumberFormat(locale.value === 'en' ? 'en-US' : 'es-CR', {
+    style: 'currency',
+    currency,
+  }).format(amount)
 }
 
 function percent(value: unknown) {
@@ -980,10 +1184,42 @@ function minimumSaleAmount(totalCost: number, margin = 12): number {
   return Number((totalCost / (1 - margin / 100)).toFixed(2))
 }
 
-function statusVariant(status: string | boolean | undefined): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
-  if (status === true || status === 'Active' || status === 'Approved' || status === 'CreatedAsRate' || status === 'online') return 'success'
-  if (status === 'PendingReview' || status === 'Pending' || status === 'Draft' || status === 'ImportedOnly' || status === 'PendingApproval' || status === 'unknown') return 'warning'
-  if (status === false || status === 'Inactive' || status === 'Rejected' || status === 'ApprovalRejected' || status === 'Deleted' || status === 'offline') return 'danger'
+function statusVariant(
+  status: string | boolean | undefined,
+): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
+  if (
+    status === true ||
+    status === 'Active' ||
+    status === 'Approved' ||
+    status === 'Open' ||
+    status === 'ApprovedByManagement' ||
+    status === 'AcceptedByClient' ||
+    status === 'CreatedAsRate' ||
+    status === 'online'
+  )
+    return 'success'
+  if (status === 'Sent') return 'primary'
+  if (status === 'RequestedByClient') return 'warning'
+  if (status === 'Closed') return 'neutral'
+  if (
+    status === 'PendingReview' ||
+    status === 'Pending' ||
+    status === 'ImportedOnly' ||
+    status === 'PendingApproval' ||
+    status === 'unknown'
+  )
+    return 'warning'
+  if (
+    status === false ||
+    status === 'Inactive' ||
+    status === 'Rejected' ||
+    status === 'RejectedByManagement' ||
+    status === 'RejectedByClient' ||
+    status === 'ApprovalRejected' ||
+    status === 'Deleted' ||
+    status === 'offline'
+  )
+    return 'danger'
   return 'neutral'
 }
 
@@ -1010,7 +1246,9 @@ function routeLabel(rate: RateHeaderDto): string {
     detail.originPortNameSnapshot || detail.originPortCodeSnapshot,
     readPoeFromNotes(String(detail.notes ?? '')),
     detail.destinationPortNameSnapshot || detail.destinationPortCodeSnapshot,
-  ].filter(Boolean).join(' → ')
+  ]
+    .filter(Boolean)
+    .join(' → ')
 }
 
 function carrierLabel(rate: RateHeaderDto): string {
@@ -1019,7 +1257,11 @@ function carrierLabel(rate: RateHeaderDto): string {
 
 function ratePortLabel(rate: RateHeaderDto): string {
   const detail = rate.fclRateDetails?.[0]
-  return detail?.destinationPortNameSnapshot || detail?.destinationPortCodeSnapshot || t('pricing.common.destination')
+  return (
+    detail?.destinationPortNameSnapshot ||
+    detail?.destinationPortCodeSnapshot ||
+    t('pricing.common.destination')
+  )
 }
 
 function ratePortKey(rate: RateHeaderDto): string {
@@ -1033,7 +1275,11 @@ function originLabel(rate: RateHeaderDto): string {
 
 function containerLabel(rate: RateHeaderDto): string {
   const detail = rate.fclRateDetails?.[0]
-  return detail?.containerTypeNameSnapshot || detail?.containerTypeCodeSnapshot || String(rate.rateType || 'FCL').toUpperCase()
+  return (
+    detail?.containerTypeNameSnapshot ||
+    detail?.containerTypeCodeSnapshot ||
+    String(rate.rateType || 'FCL').toUpperCase()
+  )
 }
 
 function rowAmount(value: unknown): number {
@@ -1050,17 +1296,20 @@ function rateFreightCostTotal(rate: RateHeaderDto): number {
 }
 
 function rateCostSaleTotal(rate: RateHeaderDto): number {
-  return (rate.costDetails ?? []).reduce((total, detail) => total + rateCostDetailSaleAmount(detail), 0)
+  return (rate.costDetails ?? []).reduce(
+    (total, detail) => total + rateCostDetailSaleAmount(detail),
+    0,
+  )
 }
 
 function rateFreightSaleTotal(rate: RateHeaderDto): number {
   return Math.max(0, rowAmount(rate.saleAmount) - rateCostSaleTotal(rate))
 }
 
-
 function fclDetailSaleAmount(rate: RateHeaderDto, detail: FclRateDetailDto): number {
   const explicitSale = rowAmount(detail.saleAmount)
-  if (detail.saleAmount !== null && detail.saleAmount !== undefined && explicitSale > 0) return explicitSale
+  if (detail.saleAmount !== null && detail.saleAmount !== undefined && explicitSale > 0)
+    return explicitSale
 
   const freightSale = rateFreightSaleTotal(rate)
   const freightCost = rateFreightCostTotal(rate)
@@ -1076,7 +1325,9 @@ function rateCostDetailSaleAmount(detail: RateCostDetailDto | Record<string, unk
 }
 
 function costProfit(cost: CostDto): number {
-  return rowAmount(cost.saleAmount ?? minimumSaleAmount(rowAmount(cost.amount))) - rowAmount(cost.amount)
+  return (
+    rowAmount(cost.saleAmount ?? minimumSaleAmount(rowAmount(cost.amount))) - rowAmount(cost.amount)
+  )
 }
 
 function rateMatrixRows(rate: RateHeaderDto) {
@@ -1091,8 +1342,13 @@ function rateMatrixRows(rate: RateHeaderDto) {
         detail.originPortNameSnapshot || detail.originPortCodeSnapshot,
         readPoeFromNotes(String(detail.notes ?? '')),
         detail.destinationPortNameSnapshot || detail.destinationPortCodeSnapshot,
-      ].filter(Boolean).join(' → '),
-      type: detail.containerTypeNameSnapshot || detail.containerTypeCodeSnapshot || String(rate.rateType).toUpperCase(),
+      ]
+        .filter(Boolean)
+        .join(' → '),
+      type:
+        detail.containerTypeNameSnapshot ||
+        detail.containerTypeCodeSnapshot ||
+        String(rate.rateType).toUpperCase(),
       cost,
       sale,
       currency: detail.currencyCodeSnapshot || rate.currencyCodeSnapshot || 'USD',
@@ -1124,12 +1380,29 @@ function resetCostForm(cost?: CostDto) {
   editingCost.value = cost ?? null
   costForm.name = cost?.name ?? ''
   costForm.rateType = cost?.rateType ?? 'Fcl'
-  costForm.carrier = catalogFormValue('carriers', cost?.carrierId, cost?.carrierCodeSnapshot, cost?.carrierNameSnapshot)
-  costForm.port = catalogFormValue('ports', cost?.portId, cost?.portCodeSnapshot, cost?.portNameSnapshot)
+  costForm.carrier = catalogFormValue(
+    'carriers',
+    cost?.carrierId,
+    cost?.carrierCodeSnapshot,
+    cost?.carrierNameSnapshot,
+  )
+  costForm.port = catalogFormValue(
+    'ports',
+    cost?.portId,
+    cost?.portCodeSnapshot,
+    cost?.portNameSnapshot,
+  )
   costForm.portRole = cost?.portRole ?? 'Pod'
-  costForm.currency = catalogFormValue('currencies', cost?.currencyId, cost?.currencyCodeSnapshot, cost?.currencyNameSnapshot)
+  costForm.currency = catalogFormValue(
+    'currencies',
+    cost?.currencyId,
+    cost?.currencyCodeSnapshot,
+    cost?.currencyNameSnapshot,
+  )
   costForm.amount = cost ? String(cost.amount) : ''
-  costForm.saleAmount = cost ? String(cost.saleAmount ?? minimumSaleAmount(Number(cost.amount ?? 0))) : ''
+  costForm.saleAmount = cost
+    ? String(cost.saleAmount ?? minimumSaleAmount(Number(cost.amount ?? 0)))
+    : ''
   costForm.isFixed = cost?.isFixed ?? true
   costForm.requiresManualAmount = cost?.requiresManualAmount ?? false
   costForm.isOptional = cost?.isOptional ?? false
@@ -1142,7 +1415,8 @@ function resetRateCostForm() {
   rateCostForm.optionalCostIds = []
   rateCostForm.name = ''
   rateCostForm.costType = 'Other'
-  rateCostForm.currency = findItemByText('currencies', selectedRate.value?.currencyCodeSnapshot)?.value ?? ''
+  rateCostForm.currency =
+    findItemByText('currencies', selectedRate.value?.currencyCodeSnapshot)?.value ?? ''
   rateCostForm.amount = ''
   rateCostForm.saleAmount = ''
   rateCostForm.isFixed = true
@@ -1152,10 +1426,11 @@ function resetRateCostForm() {
 
 function resetDuplicateRateForm() {
   duplicateRateForm.clientName = selectedRate.value?.clientNameSnapshot ?? ''
-  duplicateRateForm.marginPercentage = selectedRate.value?.marginPercentage ? String(selectedRate.value.marginPercentage) : '12'
+  duplicateRateForm.marginPercentage = selectedRate.value?.marginPercentage
+    ? String(selectedRate.value.marginPercentage)
+    : '12'
   duplicateRateForm.saleAmount = ''
 }
-
 
 function resetManualRateForm() {
   manualRateForm.agentName = defaultAgentName()
@@ -1180,14 +1455,41 @@ function resetFclRateEditForm(row?: Record<string, unknown> | null) {
   const validFrom = row?.validFrom
   const validTo = row?.validTo
 
-  fclRateEditForm.carrier = catalogFormValue('carriers', String(row?.carrierId ?? ''), String(row?.carrierCodeSnapshot ?? ''), String(row?.carrierNameSnapshot ?? ''))
-  fclRateEditForm.originPort = catalogFormValue('pol', String(row?.originPortId ?? ''), String(row?.originPortCodeSnapshot ?? ''), String(row?.originPortNameSnapshot ?? ''))
+  fclRateEditForm.carrier = catalogFormValue(
+    'carriers',
+    String(row?.carrierId ?? ''),
+    String(row?.carrierCodeSnapshot ?? ''),
+    String(row?.carrierNameSnapshot ?? ''),
+  )
+  fclRateEditForm.originPort = catalogFormValue(
+    'pol',
+    String(row?.originPortId ?? ''),
+    String(row?.originPortCodeSnapshot ?? ''),
+    String(row?.originPortNameSnapshot ?? ''),
+  )
   fclRateEditForm.poePort = catalogFormValue('poe', readPoeFromNotes(String(row?.notes ?? '')))
-  fclRateEditForm.destinationPort = catalogFormValue('pod', String(row?.destinationPortId ?? ''), String(row?.destinationPortCodeSnapshot ?? ''), String(row?.destinationPortNameSnapshot ?? ''))
-  fclRateEditForm.containerType = catalogFormValue('containerTypes', String(row?.containerTypeId ?? ''), String(row?.containerTypeCodeSnapshot ?? ''), String(row?.containerTypeNameSnapshot ?? ''))
-  fclRateEditForm.currency = catalogFormValue('currencies', String(row?.currencyId ?? ''), String(row?.currencyCodeSnapshot ?? selectedRate.value?.currencyCodeSnapshot ?? 'USD'), String(row?.currencyNameSnapshot ?? ''))
+  fclRateEditForm.destinationPort = catalogFormValue(
+    'pod',
+    String(row?.destinationPortId ?? ''),
+    String(row?.destinationPortCodeSnapshot ?? ''),
+    String(row?.destinationPortNameSnapshot ?? ''),
+  )
+  fclRateEditForm.containerType = catalogFormValue(
+    'containerTypes',
+    String(row?.containerTypeId ?? ''),
+    String(row?.containerTypeCodeSnapshot ?? ''),
+    String(row?.containerTypeNameSnapshot ?? ''),
+  )
+  fclRateEditForm.currency = catalogFormValue(
+    'currencies',
+    String(row?.currencyId ?? ''),
+    String(row?.currencyCodeSnapshot ?? selectedRate.value?.currencyCodeSnapshot ?? 'USD'),
+    String(row?.currencyNameSnapshot ?? ''),
+  )
   fclRateEditForm.amount = String(row?.amount ?? '')
-  fclRateEditForm.saleAmount = selectedRate.value ? String(rateFreightSaleTotal(selectedRate.value)) : ''
+  fclRateEditForm.saleAmount = selectedRate.value
+    ? String(rateFreightSaleTotal(selectedRate.value))
+    : ''
   fclRateEditForm.freeDays = row?.freeDays == null ? '' : String(row.freeDays)
   fclRateEditForm.validFrom = typeof validFrom === 'string' ? validFrom.slice(0, 10) : ''
   fclRateEditForm.validTo = typeof validTo === 'string' ? validTo.slice(0, 10) : ''
@@ -1200,11 +1502,21 @@ function resetRateHeaderEditForm() {
   rateHeaderEditForm.validTo = selectedRate.value?.validTo?.slice(0, 10) ?? ''
 }
 
-
 async function loadCatalogSelects() {
   loadingCatalogs.value = true
   try {
-    const [portItems, polItems, poeItems, podItems, containerItems, carrierItems, currencyItems, profileItems, agentItems, incotermItems] = await Promise.all([
+    const [
+      portItems,
+      polItems,
+      poeItems,
+      podItems,
+      containerItems,
+      carrierItems,
+      currencyItems,
+      profileItems,
+      agentItems,
+      incotermItems,
+    ] = await Promise.all([
       CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.ports }),
       CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.pol }),
       CatalogItemsService.select({ catalogGroupSlug: catalogSlugs.poe }),
@@ -1288,7 +1600,9 @@ async function loadImports() {
     PricingService.browseImportFclRates,
     query,
   )
-  selectedImportIds.value = selectedImportIds.value.filter((id) => imports.value.some((x) => x.id === id))
+  selectedImportIds.value = selectedImportIds.value.filter((id) =>
+    imports.value.some((x) => x.id === id),
+  )
 }
 
 async function loadRates() {
@@ -1314,7 +1628,13 @@ async function loadRates() {
 async function refreshAll() {
   loading.value = true
   try {
-    await Promise.all([loadCatalogSelects(), loadFilterSeeds(), loadCosts(), loadImports(), loadRates()])
+    await Promise.all([
+      loadCatalogSelects(),
+      loadFilterSeeds(),
+      loadCosts(),
+      loadImports(),
+      loadRates(),
+    ])
   } catch (error) {
     toastStore.backendError(error, t('pricing.messages.loadError'))
   } finally {
@@ -1349,7 +1669,7 @@ async function extractFile() {
   if (!selectedFile.value) return
   uploading.value = true
   try {
-    extractionResult.value = await PricingService.extractImportFclRates(selectedFile.value, uploadProfileCode.value)
+    extractionResult.value = await PricingService.extractImportRates(selectedFile.value)
     toastStore.success(t('pricing.messages.extractionSuccess'))
     await loadImports()
   } catch (error) {
@@ -1369,7 +1689,8 @@ function openCostDrawer(fromRate = false) {
     costForm.carrier = findItemByText('carriers', detail.carrierCodeSnapshot)?.value ?? ''
     costForm.port = findItemByText('pod', detail.destinationPortCodeSnapshot)?.value ?? ''
     costForm.portRole = 'Pod'
-    costForm.currency = findItemByText('currencies', selectedRate.value.currencyCodeSnapshot)?.value ?? ''
+    costForm.currency =
+      findItemByText('currencies', selectedRate.value.currencyCodeSnapshot)?.value ?? ''
   }
 
   costDrawerOpen.value = true
@@ -1385,12 +1706,15 @@ function openEditCostDrawer(cost: CostDto) {
 async function saveCost() {
   savingCost.value = true
   try {
-    const portBucket: CatalogBucket = costForm.portRole === 'Pol' ? 'pol' : costForm.portRole === 'Pod' ? 'pod' : 'ports'
+    const portBucket: CatalogBucket =
+      costForm.portRole === 'Pol' ? 'pol' : costForm.portRole === 'Pod' ? 'pod' : 'ports'
     const carrier = snapshot('carriers', costForm.carrier, t('pricing.common.carrier'))
     const port = snapshot(portBucket, costForm.port, t('pricing.common.port'))
     const currency = snapshot('currencies', costForm.currency, t('pricing.common.currency'))
     const amount = toNumber(costForm.amount)
-    const saleAmount = costForm.saleAmount.trim() ? toNumber(costForm.saleAmount) : minimumSaleAmount(amount)
+    const saleAmount = costForm.saleAmount.trim()
+      ? toNumber(costForm.saleAmount)
+      : minimumSaleAmount(amount)
 
     const payload: CreateCostRequest = {
       name: costForm.name,
@@ -1443,7 +1767,12 @@ async function saveCost() {
     editingCost.value = null
     await Promise.all([loadCosts(), loadRates()])
   } catch (error) {
-    toastStore.backendError(error, editingCost.value ? t('pricing.messages.costUpdateError') : t('pricing.messages.costCreateError'))
+    toastStore.backendError(
+      error,
+      editingCost.value
+        ? t('pricing.messages.costUpdateError')
+        : t('pricing.messages.costCreateError'),
+    )
   } finally {
     savingCost.value = false
   }
@@ -1489,9 +1818,12 @@ function prepareImportRate(row: ImportFclRateDto) {
   selectedImport.value = row
   importRateForm.agentName = readRawFilterValue(row.rawDataJson, 'agent') || defaultAgentName()
   importRateForm.carrier = findItemByText('carriers', row.carrier)?.value ?? ''
-  importRateForm.originPort = findItemByText('pol', row.pol)?.value ?? findItemByText('ports', row.pol)?.value ?? ''
-  importRateForm.poePort = findItemByText('poe', readRawFilterValue(row.rawDataJson, 'poe'))?.value ?? ''
-  importRateForm.destinationPort = findItemByText('pod', row.pod)?.value ?? findItemByText('ports', row.pod)?.value ?? ''
+  importRateForm.originPort =
+    findItemByText('pol', row.pol)?.value ?? findItemByText('ports', row.pol)?.value ?? ''
+  importRateForm.poePort =
+    findItemByText('poe', readRawFilterValue(row.rawDataJson, 'poe'))?.value ?? ''
+  importRateForm.destinationPort =
+    findItemByText('pod', row.pod)?.value ?? findItemByText('ports', row.pod)?.value ?? ''
   importRateForm.finalDestinationPort = importRateForm.destinationPort
   importRateForm.containerType = findItemByText('containerTypes', row.containerType)?.value ?? ''
   importRateForm.currency = findItemByText('currencies', row.currency)?.value ?? ''
@@ -1525,7 +1857,9 @@ async function rejectImport() {
   const row = importToReject.value
   if (!row) return
   try {
-    await PricingService.rejectImportFclRate(row.id, { errorMessage: nullableText(rejectForm.reason) ?? t('pricing.reject.defaultReason') })
+    await PricingService.rejectImportFclRate(row.id, {
+      errorMessage: nullableText(rejectForm.reason) ?? t('pricing.reject.defaultReason'),
+    })
     toastStore.success(t('pricing.messages.importRejected'))
     rejectModalOpen.value = false
     if (selectedImport.value?.id === row.id) importDrawerOpen.value = false
@@ -1534,7 +1868,6 @@ async function rejectImport() {
     toastStore.backendError(error, t('pricing.messages.importRejectError'))
   }
 }
-
 
 function openManualRateModal() {
   if (!canCreateDirectManualRate.value) return
@@ -1549,10 +1882,20 @@ async function createManualRate() {
   try {
     const carrier = snapshot('carriers', manualRateForm.carrier, t('pricing.common.carrier'))
     const origin = snapshot('pol', manualRateForm.originPort, t('pricing.common.origin'))
-    const destination = snapshot('pod', manualRateForm.destinationPort, t('pricing.common.destination'))
+    const destination = snapshot(
+      'pod',
+      manualRateForm.destinationPort,
+      t('pricing.common.destination'),
+    )
     const poe = manualRateForm.poePort ? snapshot('poe', manualRateForm.poePort, 'POE') : null
-    const finalDestination = manualRateForm.finalDestinationPort ? snapshot('pod', manualRateForm.finalDestinationPort, 'Destino final') : null
-    const container = snapshot('containerTypes', manualRateForm.containerType, t('pricing.common.container'))
+    const finalDestination = manualRateForm.finalDestinationPort
+      ? snapshot('pod', manualRateForm.finalDestinationPort, 'Destino final')
+      : null
+    const container = snapshot(
+      'containerTypes',
+      manualRateForm.containerType,
+      t('pricing.common.container'),
+    )
     const currency = snapshot('currencies', manualRateForm.currency, t('pricing.common.currency'))
     const saleAmount = manualRateForm.saleAmount.trim() ? toNumber(manualRateForm.saleAmount) : null
     const marginPercentage = null
@@ -1579,7 +1922,9 @@ async function createManualRate() {
       currencyNameSnapshot: currency.label,
       currencyCodeSnapshot: currency.code,
       amount: toNumber(manualRateForm.amount),
-      freeDays: manualRateForm.freeDays.trim() ? Number.parseInt(manualRateForm.freeDays, 10) : null,
+      freeDays: manualRateForm.freeDays.trim()
+        ? Number.parseInt(manualRateForm.freeDays, 10)
+        : null,
       validFrom: nullableDate(manualRateForm.validFrom),
       validTo: nullableDate(manualRateForm.validTo),
       notes: mergePoeIntoNotes(nullableText(manualRateForm.notes), poe?.label ?? null),
@@ -1616,40 +1961,58 @@ async function saveFclRateDetailEdit() {
     const origin = snapshot('pol', fclRateEditForm.originPort, 'POL')
     const poe = fclRateEditForm.poePort ? snapshot('poe', fclRateEditForm.poePort, 'POE') : null
     const destination = snapshot('pod', fclRateEditForm.destinationPort, 'POD')
-    const container = snapshot('containerTypes', fclRateEditForm.containerType, t('pricing.common.container'))
+    const container = snapshot(
+      'containerTypes',
+      fclRateEditForm.containerType,
+      t('pricing.common.container'),
+    )
     const currency = snapshot('currencies', fclRateEditForm.currency, t('pricing.common.currency'))
 
-    await PricingService.updateFclRateDetail(selectedRate.value.id, String(fclRateDetailToEdit.value.id), {
-      sourceImportFclRateId: String(fclRateDetailToEdit.value.sourceImportFclRateId ?? '') || null,
-      carrierId: carrier.id,
-      carrierNameSnapshot: carrier.label,
-      carrierCodeSnapshot: carrier.code,
-      originPortId: origin.id,
-      originPortNameSnapshot: origin.label,
-      originPortCodeSnapshot: origin.code,
-      destinationPortId: destination.id,
-      destinationPortNameSnapshot: destination.label,
-      destinationPortCodeSnapshot: destination.code,
-      containerTypeId: container.id,
-      containerTypeNameSnapshot: container.label,
-      containerTypeCodeSnapshot: container.code,
-      currencyId: currency.id,
-      currencyNameSnapshot: currency.label,
-      currencyCodeSnapshot: currency.code,
-      amount: toNumber(fclRateEditForm.amount),
-      freeDays: fclRateEditForm.freeDays.trim() ? Number.parseInt(fclRateEditForm.freeDays, 10) : null,
-      validFrom: nullableDate(fclRateEditForm.validFrom),
-      validTo: nullableDate(fclRateEditForm.validTo),
-      notes: mergePoeIntoNotes(nullableText(fclRateEditForm.notes), poe?.label ?? null),
-    })
+    await PricingService.updateFclRateDetail(
+      selectedRate.value.id,
+      String(fclRateDetailToEdit.value.id),
+      {
+        sourceImportFclRateId:
+          String(fclRateDetailToEdit.value.sourceImportFclRateId ?? '') || null,
+        carrierId: carrier.id,
+        carrierNameSnapshot: carrier.label,
+        carrierCodeSnapshot: carrier.code,
+        originPortId: origin.id,
+        originPortNameSnapshot: origin.label,
+        originPortCodeSnapshot: origin.code,
+        destinationPortId: destination.id,
+        destinationPortNameSnapshot: destination.label,
+        destinationPortCodeSnapshot: destination.code,
+        containerTypeId: container.id,
+        containerTypeNameSnapshot: container.label,
+        containerTypeCodeSnapshot: container.code,
+        currencyId: currency.id,
+        currencyNameSnapshot: currency.label,
+        currencyCodeSnapshot: currency.code,
+        amount: toNumber(fclRateEditForm.amount),
+        freeDays: fclRateEditForm.freeDays.trim()
+          ? Number.parseInt(fclRateEditForm.freeDays, 10)
+          : null,
+        validFrom: nullableDate(fclRateEditForm.validFrom),
+        validTo: nullableDate(fclRateEditForm.validTo),
+        notes: mergePoeIntoNotes(nullableText(fclRateEditForm.notes), poe?.label ?? null),
+      },
+    )
 
     if (fclRateEditForm.saleAmount.trim() && canApproveFreight.value) {
       const nextFreightCost = toNumber(fclRateEditForm.amount)
-      const previousFreightCost = selectedRate.value.fclRateDetails.reduce((total, detail) => total + rowAmount(detail.amount), 0)
+      const previousFreightCost = selectedRate.value.fclRateDetails.reduce(
+        (total, detail) => total + rowAmount(detail.amount),
+        0,
+      )
       const currentCostTotal = rowAmount(selectedRate.value.totalCostAmount)
       const nextTotalCost = Math.max(0, currentCostTotal - previousFreightCost + nextFreightCost)
-      const nextSaleAmount = toNumber(fclRateEditForm.saleAmount) + rateCostSaleTotal(selectedRate.value)
-      await PricingService.setRateHeaderAmounts(selectedRate.value.id, { totalCostAmount: nextTotalCost, saleAmount: nextSaleAmount })
+      const nextSaleAmount =
+        toNumber(fclRateEditForm.saleAmount) + rateCostSaleTotal(selectedRate.value)
+      await PricingService.setRateHeaderAmounts(selectedRate.value.id, {
+        totalCostAmount: nextTotalCost,
+        saleAmount: nextSaleAmount,
+      })
     }
 
     toastStore.success(t('pricing.messages.fclDetailUpdated'))
@@ -1670,13 +2033,26 @@ async function createRateFromImport() {
   try {
     const carrier = snapshot('carriers', importRateForm.carrier, t('pricing.common.carrier'))
     const origin = snapshot('pol', importRateForm.originPort, t('pricing.common.origin'))
-    const destination = snapshot('pod', importRateForm.destinationPort, t('pricing.common.destination'))
-    const finalDestination = importRateForm.finalDestinationPort ? snapshot('pod', importRateForm.finalDestinationPort, 'Destino final') : null
+    const destination = snapshot(
+      'pod',
+      importRateForm.destinationPort,
+      t('pricing.common.destination'),
+    )
+    const finalDestination = importRateForm.finalDestinationPort
+      ? snapshot('pod', importRateForm.finalDestinationPort, 'Destino final')
+      : null
     const poe = importRateForm.poePort ? snapshot('poe', importRateForm.poePort, 'POE') : null
-    const container = snapshot('containerTypes', importRateForm.containerType, t('pricing.common.container'))
+    const container = snapshot(
+      'containerTypes',
+      importRateForm.containerType,
+      t('pricing.common.container'),
+    )
     const currency = snapshot('currencies', importRateForm.currency, t('pricing.common.currency'))
     const saleAmount = importRateForm.saleAmount.trim() ? toNumber(importRateForm.saleAmount) : null
-    const notes = [nullableText(importRateForm.notes), poe ? `POE: ${poe.label}` : null].filter(Boolean).join('\n') || null
+    const notes =
+      [nullableText(importRateForm.notes), poe ? `POE: ${poe.label}` : null]
+        .filter(Boolean)
+        .join('\n') || null
     const marginPercentage = null
 
     const payload: CreateRateFromImportFclRateRequest = {
@@ -1702,7 +2078,9 @@ async function createRateFromImport() {
       currencyCodeSnapshot: currency.code,
       validFrom: nullableDate(importRateForm.validFrom),
       validTo: nullableDate(importRateForm.validTo),
-      freeDays: importRateForm.freeDays.trim() ? Number.parseInt(importRateForm.freeDays, 10) : null,
+      freeDays: importRateForm.freeDays.trim()
+        ? Number.parseInt(importRateForm.freeDays, 10)
+        : null,
       notes,
       saleAmount,
       marginPercentage,
@@ -1753,7 +2131,9 @@ async function duplicateRate() {
 
   duplicatingRate.value = true
   try {
-    const saleAmount = duplicateRateForm.saleAmount.trim() ? toNumber(duplicateRateForm.saleAmount) : null
+    const saleAmount = duplicateRateForm.saleAmount.trim()
+      ? toNumber(duplicateRateForm.saleAmount)
+      : null
     const marginPercentage = null
 
     const duplicatedRateId = await PricingService.duplicateRateHeader(selectedRate.value.id, {
@@ -1780,7 +2160,12 @@ function applyCostTemplate(value: string | number) {
 
   rateCostForm.costId = cost.id
   rateCostForm.name = cost.name
-  rateCostForm.currency = catalogFormValue('currencies', cost.currencyId, cost.currencyCodeSnapshot, cost.currencyNameSnapshot)
+  rateCostForm.currency = catalogFormValue(
+    'currencies',
+    cost.currencyId,
+    cost.currencyCodeSnapshot,
+    cost.currencyNameSnapshot,
+  )
   rateCostForm.amount = String(cost.amount)
   rateCostForm.saleAmount = String(cost.saleAmount ?? 0)
   rateCostForm.isFixed = cost.isFixed
@@ -1790,7 +2175,12 @@ function applyCostTemplate(value: string | number) {
 
 async function addCostTemplateToRate(cost: CostDto) {
   if (!selectedRate.value) return
-  const currencyValue = catalogFormValue('currencies', cost.currencyId, cost.currencyCodeSnapshot, cost.currencyNameSnapshot)
+  const currencyValue = catalogFormValue(
+    'currencies',
+    cost.currencyId,
+    cost.currencyCodeSnapshot,
+    cost.currencyNameSnapshot,
+  )
   const currency = snapshot('currencies', currencyValue, t('pricing.common.currency'))
   const payload: CreateRateCostDetailRequest = {
     costId: cost.id,
@@ -1834,7 +2224,9 @@ async function saveRateCostDetail() {
         currencyNameSnapshot: currency.label,
         currencyCodeSnapshot: currency.code,
         amount: toNumber(rateCostForm.amount),
-        saleAmount: rateCostForm.saleAmount.trim() ? toNumber(rateCostForm.saleAmount) : toNumber(rateCostForm.amount),
+        saleAmount: rateCostForm.saleAmount.trim()
+          ? toNumber(rateCostForm.saleAmount)
+          : toNumber(rateCostForm.amount),
         isFixed: false,
         isManual: true,
         notes: nullableText(rateCostForm.notes),
@@ -1854,7 +2246,6 @@ async function saveRateCostDetail() {
   }
 }
 
-
 function canChangeRateCostDetail(_row: Record<string, unknown>): boolean {
   return true
 }
@@ -1868,7 +2259,12 @@ function openEditRateCostDetail(row: Record<string, unknown>) {
   rateCostEditForm.costId = String(row.costId ?? '')
   rateCostEditForm.name = String(row.name ?? '')
   rateCostEditForm.costType = String(row.costType ?? 'Other')
-  rateCostEditForm.currency = catalogFormValue('currencies', String(row.currencyId ?? ''), String(row.currencyCodeSnapshot ?? selectedRate.value?.currencyCodeSnapshot ?? ''), String(row.currencyNameSnapshot ?? ''))
+  rateCostEditForm.currency = catalogFormValue(
+    'currencies',
+    String(row.currencyId ?? ''),
+    String(row.currencyCodeSnapshot ?? selectedRate.value?.currencyCodeSnapshot ?? ''),
+    String(row.currencyNameSnapshot ?? ''),
+  )
   rateCostEditForm.amount = String(row.amount ?? '')
   rateCostEditForm.saleAmount = String(row.saleAmount ?? row.amount ?? '')
   rateCostEditForm.notes = String(row.notes ?? '')
@@ -1880,19 +2276,25 @@ async function saveRateCostDetailEdit() {
   savingRateCostEdit.value = true
   try {
     const currency = snapshot('currencies', rateCostEditForm.currency, t('pricing.common.currency'))
-    await PricingService.updateRateCostDetail(selectedRate.value.id, String(rateCostDetailToEdit.value.id), {
-      costId: nullableText(rateCostEditForm.costId),
-      name: rateCostEditForm.name,
-      costType: rateCostEditForm.costType,
-      currencyId: currency.id,
-      currencyNameSnapshot: currency.label,
-      currencyCodeSnapshot: currency.code,
-      amount: toNumber(rateCostEditForm.amount),
-      saleAmount: rateCostEditForm.saleAmount.trim() ? toNumber(rateCostEditForm.saleAmount) : toNumber(rateCostEditForm.amount),
-      isFixed: Boolean(rateCostDetailToEdit.value.isFixed),
-      isManual: Boolean(rateCostDetailToEdit.value.isManual),
-      notes: nullableText(rateCostEditForm.notes),
-    })
+    await PricingService.updateRateCostDetail(
+      selectedRate.value.id,
+      String(rateCostDetailToEdit.value.id),
+      {
+        costId: nullableText(rateCostEditForm.costId),
+        name: rateCostEditForm.name,
+        costType: rateCostEditForm.costType,
+        currencyId: currency.id,
+        currencyNameSnapshot: currency.label,
+        currencyCodeSnapshot: currency.code,
+        amount: toNumber(rateCostEditForm.amount),
+        saleAmount: rateCostEditForm.saleAmount.trim()
+          ? toNumber(rateCostEditForm.saleAmount)
+          : toNumber(rateCostEditForm.amount),
+        isFixed: Boolean(rateCostDetailToEdit.value.isFixed),
+        isManual: Boolean(rateCostDetailToEdit.value.isManual),
+        notes: nullableText(rateCostEditForm.notes),
+      },
+    )
     toastStore.success(t('pricing.messages.costDetailUpdated'))
     rateCostEditModalOpen.value = false
     rateCostDetailToEdit.value = null
@@ -1904,7 +2306,6 @@ async function saveRateCostDetailEdit() {
     savingRateCostEdit.value = false
   }
 }
-
 
 function printClientQuote() {
   if (!canPrintSelectedRate.value) {
@@ -2007,8 +2408,13 @@ async function saveRateHeaderEdit() {
   if (!selectedRate.value || !canUpdateRate.value) return
   savingRateHeaderEdit.value = true
   try {
-    const currency = selectedItem('currencies', selectedRate.value.currencyId) ?? findItemByText('currencies', selectedRate.value.currencyCodeSnapshot)
-    if (!currency) throw new Error(t('pricing.validation.selectRequired', { field: t('pricing.common.currency') }))
+    const currency =
+      selectedItem('currencies', selectedRate.value.currencyId) ??
+      findItemByText('currencies', selectedRate.value.currencyCodeSnapshot)
+    if (!currency)
+      throw new Error(
+        t('pricing.validation.selectRequired', { field: t('pricing.common.currency') }),
+      )
 
     await PricingService.updateRateHeader(selectedRate.value.id, {
       clientId: selectedRate.value.clientId ?? null,
@@ -2057,7 +2463,9 @@ async function submitMarginReject() {
   if (!reason) return
 
   try {
-    await PricingService.rejectMarginApproval(selectedRate.value.id, marginApprovalToReject.value, { reason })
+    await PricingService.rejectMarginApproval(selectedRate.value.id, marginApprovalToReject.value, {
+      reason,
+    })
     toastStore.success(t('pricing.messages.marginRejected'))
     marginRejectModalOpen.value = false
     marginApprovalToReject.value = null
@@ -2091,25 +2499,59 @@ onMounted(refreshAll)
 
 <template>
   <section class="space-y-6">
-    <DhPageHeader :title="t('pricing.title')" :subtitle="t('pricing.subtitle')" :icon="BadgeDollarSign">
+    <DhPageHeader
+      :title="t('pricing.title')"
+      :subtitle="t('pricing.subtitle')"
+      :icon="BadgeDollarSign"
+    >
       <template #actions>
-        <DhButton :icon="Plus" :label="t('pricing.actions.manualRate')" :disabled="!canCreateDirectManualRate" @click="openManualRateModal" />
-        <DhButton :icon="UploadCloud" :label="t('pricing.actions.importRates')" :disabled="!canCreateImport" @click="openUploadModal" />
-        <DhButton :icon="RefreshCcw" variant="secondary" :label="t('common.refresh')" :loading="loading" @click="refreshAll" />
+        <DhButton
+          :icon="Plus"
+          :label="t('pricing.actions.manualRate')"
+          :disabled="!canCreateDirectManualRate"
+          @click="openManualRateModal"
+        />
+        <DhButton
+          :icon="UploadCloud"
+          :label="t('pricing.actions.importRates')"
+          :disabled="!canCreateImport"
+          @click="openUploadModal"
+        />
+        <DhButton
+          :icon="RefreshCcw"
+          variant="secondary"
+          :label="t('common.refresh')"
+          :loading="loading"
+          @click="refreshAll"
+        />
       </template>
     </DhPageHeader>
 
     <section>
-      <article class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-[var(--dh-shadow-sm)]">
+      <article
+        class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-[var(--dh-shadow-sm)]"
+      >
         <div class="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div class="min-w-0 flex-1">
-            <p class="text-xs font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">{{ pricingSectionMeta.accent }}</p>
-            <h2 class="mt-2 text-2xl font-black tracking-tight text-[var(--dh-text)] md:text-3xl">{{ pricingSectionMeta.title }}</h2>
+            <p class="text-xs font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">
+              {{ pricingSectionMeta.accent }}
+            </p>
+            <h2 class="mt-2 text-2xl font-black tracking-tight text-[var(--dh-text)] md:text-3xl">
+              {{ pricingSectionMeta.title }}
+            </h2>
           </div>
 
           <div class="grid w-full gap-3 sm:grid-cols-3 xl:w-[420px] xl:grid-cols-3">
-            <article v-for="item in stats" :key="item.key" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
-              <p class="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">{{ item.label }}</p>
+            <article
+              v-for="item in stats"
+              :key="item.key"
+              class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4"
+            >
+              <p
+                class="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]"
+              >
+                {{ item.label }}
+              </p>
               <p class="mt-2 text-2xl font-black text-[var(--dh-text)]">{{ item.value }}</p>
             </article>
           </div>
@@ -2117,14 +2559,20 @@ onMounted(refreshAll)
       </article>
     </section>
 
-    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-sm)]">
+    <section
+      class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-sm)]"
+    >
       <div class="flex flex-wrap gap-2">
         <button
           v-for="tab in pricingTabs"
           :key="tab.value"
           type="button"
           class="flex items-center gap-3 rounded-[20px] border px-4 py-3 text-sm font-black transition"
-          :class="activeTab === tab.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white shadow-[0_18px_38px_rgba(252,40,0,0.20)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
+          :class="
+            activeTab === tab.value
+              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white shadow-[0_18px_38px_rgba(252,40,0,0.20)]'
+              : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'
+          "
           @click="setPricingTab(tab.value)"
         >
           <span>{{ tab.label }}</span>
@@ -2137,10 +2585,35 @@ onMounted(refreshAll)
       <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <h2 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.imports.title') }}</h2>
         <div class="flex flex-wrap items-center gap-2">
-          <DhSearchInput v-model="importSearch" class="w-full md:w-80" :placeholder="t('pricing.imports.search')" @search="loadImports" @clear="loadImports" />
-          <DhSelect v-model="importStatus" class="w-48" :options="statusOptions" placeholder="" @update:model-value="loadImports" />
-          <DhButton v-if="selectedImportIds.length" variant="danger" :icon="Trash2" :label="t('pricing.actions.deleteSelected')" :loading="deletingImports" :disabled="!canDeleteImport" @click="deleteSelectedImports" />
-          <DhButton :icon="UploadCloud" :label="t('pricing.actions.importRates')" :disabled="!canCreateImport" @click="openUploadModal" />
+          <DhSearchInput
+            v-model="importSearch"
+            class="w-full md:w-80"
+            :placeholder="t('pricing.imports.search')"
+            @search="loadImports"
+            @clear="loadImports"
+          />
+          <DhSelect
+            v-model="importStatus"
+            class="w-48"
+            :options="statusOptions"
+            placeholder=""
+            @update:model-value="loadImports"
+          />
+          <DhButton
+            v-if="selectedImportIds.length"
+            variant="danger"
+            :icon="Trash2"
+            :label="t('pricing.actions.deleteSelected')"
+            :loading="deletingImports"
+            :disabled="!canDeleteImport"
+            @click="deleteSelectedImports"
+          />
+          <DhButton
+            :icon="UploadCloud"
+            :label="t('pricing.actions.importRates')"
+            :disabled="!canCreateImport"
+            @click="openUploadModal"
+          />
         </div>
       </div>
 
@@ -2148,38 +2621,106 @@ onMounted(refreshAll)
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <p class="text-sm font-black text-[var(--dh-text)]">{{ t('pricing.filters.title') }}</p>
-            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.filters.help') }}</p>
+            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ t('pricing.filters.help') }}
+            </p>
           </div>
           <div class="flex gap-2">
-            <DhButton size="sm" variant="secondary" :label="t('pricing.filters.clear')" @click="clearImportFilters" />
-            <DhButton size="sm" :icon="RefreshCcw" :label="t('pricing.filters.apply')" @click="loadImports" />
+            <DhButton
+              size="sm"
+              variant="secondary"
+              :label="t('pricing.filters.clear')"
+              @click="clearImportFilters"
+            />
+            <DhButton
+              size="sm"
+              :icon="RefreshCcw"
+              :label="t('pricing.filters.apply')"
+              @click="loadImports"
+            />
           </div>
         </div>
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <DhInput v-model="importReadyDate" type="date" :label="t('pricing.filters.readyDate')" />
           <DhInput v-model="importQuoteDate" type="date" :label="t('pricing.filters.quoteDate')" />
-          <DhSelect v-model="importAgent" :label="t('pricing.filters.agent')" :options="agentFilterOptions" placeholder="" />
-          <DhSelect v-model="importCarrier" :label="t('pricing.common.carrier')" :options="carrierFilterOptions" placeholder="" />
-          <DhSelect v-model="importPol" :label="t('pricing.common.pol')" :options="portFilterOptions" placeholder="" />
-          <DhSelect v-model="importPoe" :label="t('pricing.filters.poe')" :options="poeFilterOptions" placeholder="" />
-          <DhSelect v-model="importPod" :label="t('pricing.common.pod')" :options="portFilterOptions" placeholder="" />
-          <DhSelect v-model="importContainerType" :label="t('pricing.common.container')" :options="containerTypeFilterOptions" placeholder="" />
+          <DhSelect
+            v-model="importAgent"
+            :label="t('pricing.filters.agent')"
+            :options="agentFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="importCarrier"
+            :label="t('pricing.common.carrier')"
+            :options="carrierFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="importPol"
+            :label="t('pricing.common.pol')"
+            :options="portFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="importPoe"
+            :label="t('pricing.filters.poe')"
+            :options="poeFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="importPod"
+            :label="t('pricing.common.pod')"
+            :options="portFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="importContainerType"
+            :label="t('pricing.common.container')"
+            :options="containerTypeFilterOptions"
+            placeholder=""
+          />
         </div>
       </div>
 
       <div class="mt-5">
-        <DhDataTable :columns="importColumns" :rows="pagedImports" :loading="loading" :empty-text="t('pricing.imports.empty')" @row-click="prepareImportRate">
+        <DhDataTable
+          :columns="importColumns"
+          :rows="pagedImports"
+          :loading="loading"
+          :empty-text="t('pricing.imports.empty')"
+          @row-click="prepareImportRate"
+        >
           <template #cell-__select="{ row }">
-            <input type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" :checked="selectedImportIds.includes(row.id)" :disabled="!canDeleteImport" @click.stop @change="toggleImportSelection(row.id, eventChecked($event))" />
+            <input
+              type="checkbox"
+              class="h-4 w-4 accent-[var(--dh-primary)]"
+              :checked="selectedImportIds.includes(row.id)"
+              :disabled="!canDeleteImport"
+              @click.stop
+              @change="toggleImportSelection(row.id, eventChecked($event))"
+            />
           </template>
           <template #cell-poe="{ row }">{{ importPoeLabel(row) }}</template>
           <template #cell-amount="{ row }">{{ money(row.amount, row.currency) }}</template>
-          <template #cell-validFrom="{ value }">{{ typeof value === 'string' && value ? value.slice(0, 10) : '—' }}</template>
-          <template #cell-validTo="{ value }">{{ typeof value === 'string' && value ? value.slice(0, 10) : '—' }}</template>
-          <template #cell-status="{ value }"><DhBadge :variant="statusVariant(String(value))" :label="statusLabel(String(value))" /></template>
+          <template #cell-validFrom="{ value }">{{
+            typeof value === 'string' && value ? value.slice(0, 10) : '—'
+          }}</template>
+          <template #cell-validTo="{ value }">{{
+            typeof value === 'string' && value ? value.slice(0, 10) : '—'
+          }}</template>
+          <template #cell-status="{ value }"
+            ><DhBadge :variant="statusVariant(String(value))" :label="statusLabel(String(value))"
+          /></template>
           <template #cell-__actions="{ row }">
             <div class="flex justify-end gap-1">
-              <button class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40" type="button" :disabled="!canDeleteImport || deletingImports" @click.stop="deleteImport(row)"><Trash2 class="h-4 w-4" /></button>
+              <button
+                class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                type="button"
+                :disabled="!canDeleteImport || deletingImports"
+                @click.stop="deleteImport(row)"
+              >
+                <Trash2 class="h-4 w-4" />
+              </button>
             </div>
           </template>
         </DhDataTable>
@@ -2196,13 +2737,40 @@ onMounted(refreshAll)
       <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h2 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.matrix.title') }}</h2>
-          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.matrix.subtitle') }}</p>
+          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+            {{ t('pricing.matrix.subtitle') }}
+          </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <DhSearchInput v-model="rateSearch" class="w-full md:w-80" :placeholder="t('pricing.rates.search')" @search="loadRates" @clear="loadRates" />
-          <DhSelect v-model="rateActive" class="w-44" :options="activeOptions" placeholder="" @update:model-value="loadRates" />
-          <DhButton :icon="Plus" :label="t('pricing.actions.manualRate')" :disabled="!canCreateDirectManualRate" @click="openManualRateModal" />
-          <DhButton v-if="selectedRateIds.length" variant="danger" :icon="Trash2" :label="t('pricing.actions.deleteSelected')" :loading="deletingRates" :disabled="!canDeleteRate" @click="deleteSelectedRates" />
+          <DhSearchInput
+            v-model="rateSearch"
+            class="w-full md:w-80"
+            :placeholder="t('pricing.rates.search')"
+            @search="loadRates"
+            @clear="loadRates"
+          />
+          <DhSelect
+            v-model="rateActive"
+            class="w-44"
+            :options="activeOptions"
+            placeholder=""
+            @update:model-value="loadRates"
+          />
+          <DhButton
+            :icon="Plus"
+            :label="t('pricing.actions.manualRate')"
+            :disabled="!canCreateDirectManualRate"
+            @click="openManualRateModal"
+          />
+          <DhButton
+            v-if="selectedRateIds.length"
+            variant="danger"
+            :icon="Trash2"
+            :label="t('pricing.actions.deleteSelected')"
+            :loading="deletingRates"
+            :disabled="!canDeleteRate"
+            @click="deleteSelectedRates"
+          />
         </div>
       </div>
 
@@ -2210,22 +2778,64 @@ onMounted(refreshAll)
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <p class="text-sm font-black text-[var(--dh-text)]">{{ t('pricing.filters.title') }}</p>
-            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.filters.help') }}</p>
+            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ t('pricing.filters.help') }}
+            </p>
           </div>
           <div class="flex gap-2">
-            <DhButton size="sm" variant="secondary" :label="t('pricing.filters.clear')" @click="clearRateFilters" />
-            <DhButton size="sm" :icon="RefreshCcw" :label="t('pricing.filters.apply')" @click="loadRates" />
+            <DhButton
+              size="sm"
+              variant="secondary"
+              :label="t('pricing.filters.clear')"
+              @click="clearRateFilters"
+            />
+            <DhButton
+              size="sm"
+              :icon="RefreshCcw"
+              :label="t('pricing.filters.apply')"
+              @click="loadRates"
+            />
           </div>
         </div>
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <DhInput v-model="rateReadyDate" type="date" :label="t('pricing.filters.readyDate')" />
           <DhInput v-model="rateQuoteDate" type="date" :label="t('pricing.filters.quoteDate')" />
-          <DhSelect v-model="rateAgent" :label="t('pricing.filters.agent')" :options="agentFilterOptions" placeholder="" />
-          <DhSelect v-model="rateCarrier" :label="t('pricing.common.carrier')" :options="carrierFilterOptions" placeholder="" />
-          <DhSelect v-model="ratePol" :label="t('pricing.common.pol')" :options="portFilterOptions" placeholder="" />
-          <DhSelect v-model="ratePoe" :label="t('pricing.filters.poe')" :options="poeFilterOptions" placeholder="" />
-          <DhSelect v-model="ratePod" :label="t('pricing.common.pod')" :options="portFilterOptions" placeholder="" />
-          <DhSelect v-model="rateContainerType" :label="t('pricing.common.container')" :options="containerTypeFilterOptions" placeholder="" />
+          <DhSelect
+            v-model="rateAgent"
+            :label="t('pricing.filters.agent')"
+            :options="agentFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="rateCarrier"
+            :label="t('pricing.common.carrier')"
+            :options="carrierFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="ratePol"
+            :label="t('pricing.common.pol')"
+            :options="portFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="ratePoe"
+            :label="t('pricing.filters.poe')"
+            :options="poeFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="ratePod"
+            :label="t('pricing.common.pod')"
+            :options="portFilterOptions"
+            placeholder=""
+          />
+          <DhSelect
+            v-model="rateContainerType"
+            :label="t('pricing.common.container')"
+            :options="containerTypeFilterOptions"
+            placeholder=""
+          />
         </div>
       </div>
 
@@ -2233,7 +2843,11 @@ onMounted(refreshAll)
         <button
           type="button"
           class="rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] transition"
-          :class="selectedRatePort === '' ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white' : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
+          :class="
+            selectedRatePort === ''
+              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+              : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'
+          "
           @click="selectedRatePort = ''"
         >
           {{ t('pricing.matrix.allPorts') }}
@@ -2244,7 +2858,11 @@ onMounted(refreshAll)
           :key="port.value"
           type="button"
           class="rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] transition"
-          :class="selectedRatePort === port.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white' : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
+          :class="
+            selectedRatePort === port.value
+              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+              : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'
+          "
           @click="selectedRatePort = port.value"
         >
           {{ port.label }}
@@ -2263,43 +2881,91 @@ onMounted(refreshAll)
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
-                    <DhBadge :variant="statusVariant(rate.status)" :label="statusLabel(rate.status)" />
-                    <DhBadge :variant="rate.isActive ? 'success' : 'neutral'" :label="statusLabel(rate.isActive)" />
+                    <DhBadge
+                      :variant="statusVariant(rate.status)"
+                      :label="statusLabel(rate.status)"
+                    />
+                    <DhBadge
+                      :variant="rate.isActive ? 'success' : 'neutral'"
+                      :label="statusLabel(rate.isActive)"
+                    />
                   </div>
-                  <h3 class="mt-2 text-lg font-black text-[var(--dh-text)]">{{ originLabel(rate) }} → {{ ratePortLabel(rate) }}</h3>
+                  <h3 class="mt-2 text-lg font-black text-[var(--dh-text)]">
+                    {{ originLabel(rate) }} → {{ ratePortLabel(rate) }}
+                  </h3>
                   <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-                    {{ carrierLabel(rate) }} · {{ containerLabel(rate) }} · {{ rate.clientNameSnapshot || 'Sin agente' }}
+                    {{ carrierLabel(rate) }} · {{ containerLabel(rate) }} ·
+                    {{ rate.clientNameSnapshot || 'Sin agente' }}
                   </p>
                 </div>
                 <div class="text-right">
-                  <p class="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.sale') }}</p>
-                  <p class="text-2xl font-black text-[var(--dh-text)]">{{ money(rate.saleAmount, rate.currencyCodeSnapshot) }}</p>
+                  <p
+                    class="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]"
+                  >
+                    {{ t('pricing.rates.sale') }}
+                  </p>
+                  <p class="text-2xl font-black text-[var(--dh-text)]">
+                    {{ money(rate.saleAmount, rate.currencyCodeSnapshot) }}
+                  </p>
                 </div>
               </div>
             </header>
 
             <div class="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
               <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-                <p class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
-                <p class="mt-1 font-black text-[var(--dh-text)]">{{ money(rate.totalCostAmount, rate.currencyCodeSnapshot) }}</p>
+                <p
+                  class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
+                >
+                  {{ t('pricing.rates.totalCost') }}
+                </p>
+                <p class="mt-1 font-black text-[var(--dh-text)]">
+                  {{ money(rate.totalCostAmount, rate.currencyCodeSnapshot) }}
+                </p>
               </div>
               <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-                <p class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.matrix.profit') }}</p>
-                <p class="mt-1 font-black" :class="rateProfit(rate) < 0 ? 'text-red-500' : 'text-emerald-500'">{{ money(rateProfit(rate), rate.currencyCodeSnapshot) }}</p>
+                <p
+                  class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
+                >
+                  {{ t('pricing.matrix.profit') }}
+                </p>
+                <p
+                  class="mt-1 font-black"
+                  :class="rateProfit(rate) < 0 ? 'text-red-500' : 'text-emerald-500'"
+                >
+                  {{ money(rateProfit(rate), rate.currencyCodeSnapshot) }}
+                </p>
               </div>
               <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-                <p class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Margen actual</p>
-                <p class="mt-1 font-black" :class="rate.requiresApproval ? 'text-red-500' : 'text-[var(--dh-text)]'">{{ percent(rate.marginPercentage) }}</p>
+                <p
+                  class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
+                >
+                  Margen actual
+                </p>
+                <p
+                  class="mt-1 font-black"
+                  :class="rate.requiresApproval ? 'text-red-500' : 'text-[var(--dh-text)]'"
+                >
+                  {{ percent(rate.marginPercentage) }}
+                </p>
               </div>
               <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-                <p class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.validity') }}</p>
-                <p class="mt-1 font-black text-[var(--dh-text)]">{{ rate.validFrom?.slice(0, 10) || '—' }} / {{ rate.validTo?.slice(0, 10) || '—' }}</p>
+                <p
+                  class="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
+                >
+                  {{ t('pricing.rates.validity') }}
+                </p>
+                <p class="mt-1 font-black text-[var(--dh-text)]">
+                  {{ rate.validFrom?.slice(0, 10) || '—' }} /
+                  {{ rate.validTo?.slice(0, 10) || '—' }}
+                </p>
               </div>
             </div>
 
             <div class="px-4 pb-4">
               <div class="overflow-hidden rounded-[20px] border border-[var(--dh-border)]">
-                <div class="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] bg-[#111] px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-white">
+                <div
+                  class="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] bg-[#111] px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-white"
+                >
                   <span>{{ t('pricing.matrix.item') }}</span>
                   <span class="text-right">{{ t('pricing.matrix.cost') }}</span>
                   <span class="text-right">{{ t('pricing.matrix.sale') }}</span>
@@ -2312,32 +2978,70 @@ onMounted(refreshAll)
                 >
                   <div class="min-w-0">
                     <p class="truncate font-black text-[var(--dh-text)]">{{ item.name }}</p>
-                    <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">{{ item.meta }} · {{ item.type }}</p>
+                    <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">
+                      {{ item.meta }} · {{ item.type }}
+                    </p>
                   </div>
-                  <p class="text-right font-bold text-[var(--dh-text)]">{{ money(item.cost, item.currency) }}</p>
-                  <p class="text-right font-bold text-[var(--dh-text)]">{{ money(item.sale, item.currency) }}</p>
-                  <p class="text-right font-black" :class="item.sale - item.cost < 0 ? 'text-red-500' : 'text-emerald-500'">{{ money(item.sale - item.cost, item.currency) }}</p>
+                  <p class="text-right font-bold text-[var(--dh-text)]">
+                    {{ money(item.cost, item.currency) }}
+                  </p>
+                  <p class="text-right font-bold text-[var(--dh-text)]">
+                    {{ money(item.sale, item.currency) }}
+                  </p>
+                  <p
+                    class="text-right font-black"
+                    :class="item.sale - item.cost < 0 ? 'text-red-500' : 'text-emerald-500'"
+                  >
+                    {{ money(item.sale - item.cost, item.currency) }}
+                  </p>
                 </div>
               </div>
             </div>
           </button>
 
-          <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
-            <label class="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-              <input type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" :checked="selectedRateIds.includes(rate.id)" :disabled="!canDeleteRate" @click.stop @change="toggleRateSelection(rate.id, eventChecked($event))" />
+          <footer
+            class="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-surface)] p-4"
+          >
+            <label
+              class="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
+            >
+              <input
+                type="checkbox"
+                class="h-4 w-4 accent-[var(--dh-primary)]"
+                :checked="selectedRateIds.includes(rate.id)"
+                :disabled="!canDeleteRate"
+                @click.stop
+                @change="toggleRateSelection(rate.id, eventChecked($event))"
+              />
               {{ t('common.select') }}
             </label>
             <div class="flex gap-2">
-              <DhButton size="sm" variant="secondary" :label="t('common.open')" @click.stop="openRateDrawer(rate)" />
-              <DhButton size="sm" variant="danger" :icon="Trash2" :disabled="!canDeleteRate || deletingRates" @click.stop="deleteRate(rate)" />
+              <DhButton
+                size="sm"
+                variant="secondary"
+                :label="t('common.open')"
+                @click.stop="openRateDrawer(rate)"
+              />
+              <DhButton
+                size="sm"
+                variant="danger"
+                :icon="Trash2"
+                :disabled="!canDeleteRate || deletingRates"
+                @click.stop="deleteRate(rate)"
+              />
             </div>
           </footer>
         </article>
       </div>
 
-      <div v-else class="mt-5 rounded-[24px] border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] p-8 text-center">
+      <div
+        v-else
+        class="mt-5 rounded-[24px] border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] p-8 text-center"
+      >
         <p class="font-black text-[var(--dh-text)]">{{ t('pricing.rates.empty') }}</p>
-        <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.matrix.emptyHelp') }}</p>
+        <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ t('pricing.matrix.emptyHelp') }}
+        </p>
       </div>
 
       <DhPagination
@@ -2353,11 +3057,24 @@ onMounted(refreshAll)
         <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <h2 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.costs.title') }}</h2>
-            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.costs.automaticMatrixHelp') }}</p>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+              {{ t('pricing.costs.automaticMatrixHelp') }}
+            </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <DhSearchInput v-model="costSearch" class="w-full md:w-80" :placeholder="t('pricing.costs.search')" @search="loadCosts" @clear="loadCosts" />
-            <DhButton :icon="Plus" :label="t('pricing.actions.newCost')" :disabled="!canCreateCost" @click="openCostDrawer(false)" />
+            <DhSearchInput
+              v-model="costSearch"
+              class="w-full md:w-80"
+              :placeholder="t('pricing.costs.search')"
+              @search="loadCosts"
+              @clear="loadCosts"
+            />
+            <DhButton
+              :icon="Plus"
+              :label="t('pricing.actions.newCost')"
+              :disabled="!canCreateCost"
+              @click="openCostDrawer(false)"
+            />
           </div>
         </div>
       </div>
@@ -2366,8 +3083,12 @@ onMounted(refreshAll)
         <article class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 class="text-base font-black text-[var(--dh-text)]">{{ t('pricing.costs.automaticMatrixTitle') }}</h3>
-              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.costs.fixedHelp') }}</p>
+              <h3 class="text-base font-black text-[var(--dh-text)]">
+                {{ t('pricing.costs.automaticMatrixTitle') }}
+              </h3>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+                {{ t('pricing.costs.fixedHelp') }}
+              </p>
             </div>
             <DhBadge variant="primary" :label="String(automaticFixedCosts.length)" />
           </div>
@@ -2380,7 +3101,11 @@ onMounted(refreshAll)
             >
               <header class="border-b border-[var(--dh-border)] p-4">
                 <div>
-                  <p class="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">{{ t('pricing.common.port') }}</p>
+                  <p
+                    class="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]"
+                  >
+                    {{ t('pricing.common.port') }}
+                  </p>
                   <h4 class="text-lg font-black text-[var(--dh-text)]">{{ group.label }}</h4>
                 </div>
               </header>
@@ -2388,7 +3113,9 @@ onMounted(refreshAll)
               <div class="overflow-x-auto">
                 <table class="w-full min-w-[860px] border-collapse text-sm">
                   <thead>
-                    <tr class="bg-[#111] text-left text-[11px] font-black uppercase tracking-[0.12em] text-white">
+                    <tr
+                      class="bg-[#111] text-left text-[11px] font-black uppercase tracking-[0.12em] text-white"
+                    >
                       <th class="px-4 py-3">{{ t('pricing.matrix.item') }}</th>
                       <th class="px-4 py-3">{{ t('pricing.common.carrier') }}</th>
                       <th class="px-4 py-3 text-right">{{ t('pricing.matrix.cost') }}</th>
@@ -2407,21 +3134,59 @@ onMounted(refreshAll)
                     >
                       <td class="px-4 py-3">
                         <p class="font-black text-[var(--dh-text)]">{{ cost.name }}</p>
-                        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ String(cost.rateType).toUpperCase() }} · {{ t(`pricing.portRoles.${String(cost.portRole)}`) }}</p>
+                        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                          {{ String(cost.rateType).toUpperCase() }} ·
+                          {{ t(`pricing.portRoles.${String(cost.portRole)}`) }}
+                        </p>
                       </td>
-                      <td class="px-4 py-3 font-semibold text-[var(--dh-text)]">{{ cost.carrierNameSnapshot || t('pricing.common.notLinked') }}</td>
-                      <td class="px-4 py-3 text-right font-bold text-[var(--dh-text)]">{{ money(cost.amount, cost.currencyCodeSnapshot) }}</td>
-                      <td class="px-4 py-3 text-right font-bold text-[var(--dh-text)]">{{ money(cost.saleAmount ?? minimumSaleAmount(Number(cost.amount ?? 0)), cost.currencyCodeSnapshot) }}</td>
-                      <td class="px-4 py-3 text-right font-black" :class="costProfit(cost) < 0 ? 'text-red-500' : 'text-emerald-500'">{{ money(costProfit(cost), cost.currencyCodeSnapshot) }}</td>
+                      <td class="px-4 py-3 font-semibold text-[var(--dh-text)]">
+                        {{ cost.carrierNameSnapshot || t('pricing.common.notLinked') }}
+                      </td>
+                      <td class="px-4 py-3 text-right font-bold text-[var(--dh-text)]">
+                        {{ money(cost.amount, cost.currencyCodeSnapshot) }}
+                      </td>
+                      <td class="px-4 py-3 text-right font-bold text-[var(--dh-text)]">
+                        {{
+                          money(
+                            cost.saleAmount ?? minimumSaleAmount(Number(cost.amount ?? 0)),
+                            cost.currencyCodeSnapshot,
+                          )
+                        }}
+                      </td>
+                      <td
+                        class="px-4 py-3 text-right font-black"
+                        :class="costProfit(cost) < 0 ? 'text-red-500' : 'text-emerald-500'"
+                      >
+                        {{ money(costProfit(cost), cost.currencyCodeSnapshot) }}
+                      </td>
                       <td class="px-4 py-3 text-center">
-                        <button type="button" :disabled="!canSetCostActive" @click.stop="toggleCost(cost)">
-                          <DhBadge :variant="statusVariant(cost.isActive)" :label="statusLabel(cost.isActive)" />
+                        <button
+                          type="button"
+                          :disabled="!canSetCostActive"
+                          @click.stop="toggleCost(cost)"
+                        >
+                          <DhBadge
+                            :variant="statusVariant(cost.isActive)"
+                            :label="statusLabel(cost.isActive)"
+                          />
                         </button>
                       </td>
                       <td class="px-4 py-3">
                         <div class="flex justify-end gap-2">
-                          <DhButton size="sm" variant="secondary" :icon="Pencil" :disabled="!canUpdateCost" @click.stop="openEditCostDrawer(cost)" />
-                          <DhButton size="sm" variant="danger" :icon="Trash2" :disabled="!canDeleteCost" @click.stop="confirmDeleteCost(cost)" />
+                          <DhButton
+                            size="sm"
+                            variant="secondary"
+                            :icon="Pencil"
+                            :disabled="!canUpdateCost"
+                            @click.stop="openEditCostDrawer(cost)"
+                          />
+                          <DhButton
+                            size="sm"
+                            variant="danger"
+                            :icon="Trash2"
+                            :disabled="!canDeleteCost"
+                            @click.stop="confirmDeleteCost(cost)"
+                          />
                         </div>
                       </td>
                     </tr>
@@ -2431,31 +3196,76 @@ onMounted(refreshAll)
             </section>
           </div>
 
-          <div v-else class="rounded-[20px] border border-dashed border-[var(--dh-border)] bg-[var(--dh-input)] p-6 text-center">
+          <div
+            v-else
+            class="rounded-[20px] border border-dashed border-[var(--dh-border)] bg-[var(--dh-input)] p-6 text-center"
+          >
             <p class="font-black text-[var(--dh-text)]">{{ t('pricing.costs.emptyFixed') }}</p>
-            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.costs.noAutomaticMatrix') }}</p>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+              {{ t('pricing.costs.noAutomaticMatrix') }}
+            </p>
           </div>
         </article>
 
         <article class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <h3 class="mb-4 text-base font-black text-[var(--dh-text)]">{{ t('pricing.costs.variableTitle') }}</h3>
-          <DhDataTable :columns="costColumns" :rows="pagedVariableCostTemplates" :loading="loading" :empty-text="t('pricing.costs.emptyVariable')" @row-click="openEditCostDrawer">
+          <h3 class="mb-4 text-base font-black text-[var(--dh-text)]">
+            {{ t('pricing.costs.variableTitle') }}
+          </h3>
+          <DhDataTable
+            :columns="costColumns"
+            :rows="pagedVariableCostTemplates"
+            :loading="loading"
+            :empty-text="t('pricing.costs.emptyVariable')"
+            @row-click="openEditCostDrawer"
+          >
             <template #cell-rateType="{ value }">{{ String(value).toUpperCase() }}</template>
-            <template #cell-carrierNameSnapshot="{ value }">{{ value || t('pricing.common.notLinked') }}</template>
-            <template #cell-portNameSnapshot="{ value }">{{ value || t('pricing.common.notLinked') }}</template>
-            <template #cell-portRole="{ value }">{{ t(`pricing.portRoles.${String(value)}`) }}</template>
-            <template #cell-requiresManualAmount="{ value }"><DhBadge :variant="value ? 'warning' : 'success'" :label="value ? t('common.yes') : t('common.no')" /></template>
-            <template #cell-amount="{ row }">{{ money(row.amount, row.currencyCodeSnapshot) }}</template>
-            <template #cell-saleAmount="{ row }">{{ money(row.saleAmount ?? minimumSaleAmount(Number(row.amount ?? 0)), row.currencyCodeSnapshot) }}</template>
+            <template #cell-carrierNameSnapshot="{ value }">{{
+              value || t('pricing.common.notLinked')
+            }}</template>
+            <template #cell-portNameSnapshot="{ value }">{{
+              value || t('pricing.common.notLinked')
+            }}</template>
+            <template #cell-portRole="{ value }">{{
+              t(`pricing.portRoles.${String(value)}`)
+            }}</template>
+            <template #cell-requiresManualAmount="{ value }"
+              ><DhBadge
+                :variant="value ? 'warning' : 'success'"
+                :label="value ? t('common.yes') : t('common.no')"
+            /></template>
+            <template #cell-amount="{ row }">{{
+              money(row.amount, row.currencyCodeSnapshot)
+            }}</template>
+            <template #cell-saleAmount="{ row }">{{
+              money(
+                row.saleAmount ?? minimumSaleAmount(Number(row.amount ?? 0)),
+                row.currencyCodeSnapshot,
+              )
+            }}</template>
             <template #cell-isActive="{ row }">
               <button type="button" :disabled="!canSetCostActive" @click.stop="toggleCost(row)">
-                <DhBadge :variant="statusVariant(row.isActive)" :label="statusLabel(row.isActive)" />
+                <DhBadge
+                  :variant="statusVariant(row.isActive)"
+                  :label="statusLabel(row.isActive)"
+                />
               </button>
             </template>
             <template #cell-__actions="{ row }">
               <div class="flex justify-end gap-2">
-                <DhButton size="sm" variant="secondary" :icon="Pencil" :disabled="!canUpdateCost" @click.stop="openEditCostDrawer(row)" />
-                <DhButton size="sm" variant="danger" :icon="Trash2" :disabled="!canDeleteCost" @click.stop="confirmDeleteCost(row)" />
+                <DhButton
+                  size="sm"
+                  variant="secondary"
+                  :icon="Pencil"
+                  :disabled="!canUpdateCost"
+                  @click.stop="openEditCostDrawer(row)"
+                />
+                <DhButton
+                  size="sm"
+                  variant="danger"
+                  :icon="Trash2"
+                  :disabled="!canDeleteCost"
+                  @click.stop="confirmDeleteCost(row)"
+                />
               </div>
             </template>
           </DhDataTable>
@@ -2469,14 +3279,29 @@ onMounted(refreshAll)
       </div>
     </section>
 
-    <DhModal :open="uploadModalOpen" :title="t('pricing.upload.title')" size="lg" @close="uploadModalOpen = false">
+    <DhModal
+      :open="uploadModalOpen"
+      :title="t('pricing.upload.title')"
+      size="lg"
+      @close="uploadModalOpen = false"
+    >
       <div class="space-y-4">
-        <input ref="fileInput" class="hidden" type="file" accept=".pdf,.xlsx,.xlsm,.xls,.csv,.eml,.msg,.html,.htm,.mht,.mhtml,.txt,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,image/*" @change="handleFileChange" />
+        <input
+          ref="fileInput"
+          class="hidden"
+          type="file"
+          accept=".pdf,.xlsx,.xlsm,.xls,.csv,.eml,.msg,.html,.htm,.mht,.mhtml,.txt,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,image/*"
+          @change="handleFileChange"
+        />
 
         <button
           type="button"
           class="flex min-h-52 w-full flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed p-6 text-center transition"
-          :class="dragActive ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+          :class="
+            dragActive
+              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10'
+              : 'border-[var(--dh-border)] bg-[var(--dh-input)]'
+          "
           @click="openFilePicker"
           @dragover.prevent="dragActive = true"
           @dragleave.prevent="dragActive = false"
@@ -2484,115 +3309,300 @@ onMounted(refreshAll)
         >
           <FileUp class="h-10 w-10 text-[var(--dh-primary)]" />
           <div>
-            <p class="font-black text-[var(--dh-text)]">{{ selectedFile?.name || t('pricing.upload.dropTitle') }}</p>
-            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.upload.dropSubtitle') }}</p>
+            <p class="font-black text-[var(--dh-text)]">
+              {{ selectedFile?.name || t('pricing.upload.dropTitle') }}
+            </p>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+              {{ t('pricing.upload.dropSubtitle') }}
+            </p>
           </div>
         </button>
 
-        <DhSelect v-model="uploadProfileCode" :label="t('pricing.upload.profile')" :placeholder="t('pricing.upload.profilePlaceholder')" :options="catalogOptions.profiles" :disabled="loadingCatalogs" />
-
-        <div v-if="extractionResult" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+        <div
+          v-if="extractionResult"
+          class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
+        >
           <p class="font-black text-[var(--dh-text)]">{{ t('pricing.upload.result') }}</p>
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-            {{ t('pricing.upload.resultSummary', { created: extractionResult.createdRows, skipped: extractionResult.skippedRows, total: extractionResult.totalRows }) }}
+            {{
+              t('pricing.upload.resultSummary', {
+                created: extractionResult.createdRows,
+                skipped: extractionResult.skippedRows,
+                total: extractionResult.totalRows,
+              })
+            }}
           </p>
         </div>
 
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="uploadModalOpen = false" />
-          <DhButton :icon="UploadCloud" :label="t('pricing.actions.extract')" :loading="uploading" :disabled="!selectedFile" @click="extractFile" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="uploadModalOpen = false"
+          />
+          <DhButton
+            :icon="UploadCloud"
+            :label="t('pricing.actions.extract')"
+            :loading="uploading"
+            :disabled="!selectedFile"
+            @click="extractFile"
+          />
         </div>
       </div>
     </DhModal>
 
-    <DhDrawer :open="importDrawerOpen" :title="t('pricing.imports.convertTitle')" size="xl" @close="importDrawerOpen = false">
+    <DhDrawer
+      :open="importDrawerOpen"
+      :title="t('pricing.imports.convertTitle')"
+      size="xl"
+      @close="importDrawerOpen = false"
+    >
       <div v-if="selectedImport" class="space-y-5">
         <section class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p class="font-black text-[var(--dh-text)]">{{ selectedImport.carrier }} · {{ selectedImport.containerType }}</p>
-              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ selectedImport.pol }} → {{ importPoeLabel(selectedImport) }} → {{ selectedImport.pod }} · Días libres: {{ selectedImport.freeDays ?? '—' }} · Usos: {{ selectedImport.usedAsRateCount ?? 0 }}</p>
+              <p class="font-black text-[var(--dh-text)]">
+                {{ selectedImport.carrier }} · {{ selectedImport.containerType }}
+              </p>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+                {{ selectedImport.pol }} → {{ importPoeLabel(selectedImport) }} →
+                {{ selectedImport.pod }} · Días libres: {{ selectedImport.freeDays ?? '—' }} · Usos:
+                {{ selectedImport.usedAsRateCount ?? 0 }}
+              </p>
             </div>
             <div class="flex items-center gap-2">
-              <DhBadge :variant="statusVariant(selectedImport.status)" :label="statusLabel(selectedImport.status)" />
-              <p class="text-xl font-black text-[var(--dh-text)]">{{ money(selectedImport.amount, selectedImport.currency) }}</p>
+              <DhBadge
+                :variant="statusVariant(selectedImport.status)"
+                :label="statusLabel(selectedImport.status)"
+              />
+              <p class="text-xl font-black text-[var(--dh-text)]">
+                {{ money(selectedImport.amount, selectedImport.currency) }}
+              </p>
             </div>
           </div>
         </section>
 
         <section class="grid gap-4 md:grid-cols-2">
           <DhSelect v-model="importRateForm.agentName" label="Agente" :options="agentOptions" />
-          <DhSelect v-model="importRateForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs" />
-          <DhSelect v-model="importRateForm.containerType" :label="t('pricing.common.container')" :options="catalogOptions.containerTypes" :disabled="loadingCatalogs" />
-          <DhSelect v-model="importRateForm.originPort" label="POL" :options="catalogOptions.pol" :disabled="loadingCatalogs" />
-          <DhSelect v-model="importRateForm.poePort" label="POE" :options="catalogOptions.poe" :disabled="loadingCatalogs" />
-          <DhSelect v-model="importRateForm.destinationPort" label="POD" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
-          <DhSelect v-model="importRateForm.finalDestinationPort" label="Destino final" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
-          <DhSelect v-model="importRateForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
+          <DhSelect
+            v-model="importRateForm.carrier"
+            :label="t('pricing.common.carrier')"
+            :options="catalogOptions.carriers"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="importRateForm.containerType"
+            :label="t('pricing.common.container')"
+            :options="catalogOptions.containerTypes"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="importRateForm.originPort"
+            label="POL"
+            :options="catalogOptions.pol"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="importRateForm.poePort"
+            label="POE"
+            :options="catalogOptions.poe"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="importRateForm.destinationPort"
+            label="POD"
+            :options="catalogOptions.pod"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="importRateForm.finalDestinationPort"
+            label="Destino final"
+            :options="catalogOptions.pod"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="importRateForm.currency"
+            :label="t('pricing.common.currency')"
+            :options="catalogOptions.currencies"
+            :disabled="loadingCatalogs"
+          />
           <DhInput v-model="importRateForm.freeDays" label="Días libres" type="number" step="1" />
-          <DhInput v-model="importRateForm.validFrom" :label="t('pricing.common.validFrom')" type="date" />
-          <DhInput v-model="importRateForm.validTo" :label="t('pricing.common.validTo')" type="date" />
-          <DhInput v-model="importRateForm.saleAmount" label="Venta manual del flete" type="number" step="0.01" :disabled="!canApproveFreight" />
-          <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">Margen esperado: <strong>12%</strong>. El margen actual se calcula con agente, flete y destino.</div>
+          <DhInput
+            v-model="importRateForm.validFrom"
+            :label="t('pricing.common.validFrom')"
+            type="date"
+          />
+          <DhInput
+            v-model="importRateForm.validTo"
+            :label="t('pricing.common.validTo')"
+            type="date"
+          />
+          <DhInput
+            v-model="importRateForm.saleAmount"
+            label="Venta manual del flete"
+            type="number"
+            step="0.01"
+            :disabled="!canApproveFreight"
+          />
+          <div
+            class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]"
+          >
+            Margen esperado: <strong>12%</strong>. El margen actual se calcula con agente, flete y
+            destino.
+          </div>
         </section>
 
         <div class="flex flex-wrap justify-end gap-2">
-          <DhButton variant="secondary" :label="t('pricing.actions.approve')" :disabled="!canApproveImport" @click="approveImport(selectedImport)" />
-          <DhButton variant="danger" :label="t('pricing.actions.reject')" :disabled="!canRejectImport" @click="openRejectModal(selectedImport)" />
-          <DhButton variant="danger" :icon="Trash2" :label="t('common.delete')" :loading="deletingImports" :disabled="!canDeleteImport" @click="deleteImport(selectedImport)" />
-          <DhButton :icon="CheckCircle2" :label="t('pricing.actions.createOfficialRate')" :loading="savingRate" :disabled="!canCreateRateFromImport || selectedImport.status !== 'Approved'" @click="createRateFromImport" />
+          <DhButton
+            variant="secondary"
+            :label="t('pricing.actions.approve')"
+            :disabled="!canApproveImport"
+            @click="approveImport(selectedImport)"
+          />
+          <DhButton
+            variant="danger"
+            :label="t('pricing.actions.reject')"
+            :disabled="!canRejectImport"
+            @click="openRejectModal(selectedImport)"
+          />
+          <DhButton
+            variant="danger"
+            :icon="Trash2"
+            :label="t('common.delete')"
+            :loading="deletingImports"
+            :disabled="!canDeleteImport"
+            @click="deleteImport(selectedImport)"
+          />
+          <DhButton
+            :icon="CheckCircle2"
+            :label="t('pricing.actions.createOfficialRate')"
+            :loading="savingRate"
+            :disabled="!canCreateRateFromImport || selectedImport.status !== 'Approved'"
+            @click="createRateFromImport"
+          />
         </div>
       </div>
     </DhDrawer>
 
-    <DhDrawer :open="rateDrawerOpen" :title="t('pricing.rates.drawerTitle')" size="full" @close="rateDrawerOpen = false">
+    <DhDrawer
+      :open="rateDrawerOpen"
+      :title="t('pricing.rates.drawerTitle')"
+      size="full"
+      @close="rateDrawerOpen = false"
+    >
       <div v-if="selectedRate" class="space-y-5">
         <section class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
           <div class="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-center">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <DhBadge :variant="statusVariant(selectedRate.status)" :label="statusLabel(selectedRate.status)" />
-                <DhBadge :variant="selectedRate.isActive ? 'success' : 'neutral'" :label="selectedRate.isActive ? t('common.active') : t('common.inactive')" />
-                <DhBadge v-if="selectedRate.requiresApproval" variant="danger" :label="t('pricing.rates.requiresApproval')" />
+                <DhBadge
+                  :variant="statusVariant(selectedRate.status)"
+                  :label="statusLabel(selectedRate.status)"
+                />
+                <DhBadge
+                  :variant="selectedRate.isActive ? 'success' : 'neutral'"
+                  :label="selectedRate.isActive ? t('common.active') : t('common.inactive')"
+                />
+                <DhBadge
+                  v-if="selectedRate.requiresApproval"
+                  variant="danger"
+                  :label="t('pricing.rates.requiresApproval')"
+                />
               </div>
-              <h2 class="mt-3 text-2xl font-black text-[var(--dh-text)]">{{ routeLabel(selectedRate) }}</h2>
+              <h2 class="mt-3 text-2xl font-black text-[var(--dh-text)]">
+                {{ routeLabel(selectedRate) }}
+              </h2>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-                {{ selectedRate.clientNameSnapshot || 'Sin agente' }} · {{ carrierLabel(selectedRate) }} · {{ selectedRate.currencyCodeSnapshot }}
+                {{ selectedRate.clientNameSnapshot || 'Sin agente' }} ·
+                {{ carrierLabel(selectedRate) }} · {{ selectedRate.currencyCodeSnapshot }}
               </p>
             </div>
 
             <div class="flex flex-wrap justify-end gap-2">
-              <DhButton variant="secondary" :icon="Printer" :label="t('pricing.actions.quickPrint')" :disabled="!canPrintSelectedRate" @click="printClientQuote" />
-              <DhButton variant="secondary" :icon="Copy" :label="t('pricing.actions.duplicate')" :disabled="!canCreateDirectManualRate" @click="openDuplicateRateModal" />
-              <DhButton variant="secondary" :label="selectedRate.isActive ? t('common.inactivate') : t('common.activate')" :disabled="!canSetRateActive" @click="toggleRate(selectedRate)" />
-              <DhButton variant="danger" :icon="Trash2" :label="t('common.delete')" :loading="deletingRates" :disabled="!canDeleteRate" @click="deleteRate(selectedRate)" />
+              <DhButton
+                variant="secondary"
+                :icon="Printer"
+                :label="t('pricing.actions.quickPrint')"
+                :disabled="!canPrintSelectedRate"
+                @click="printClientQuote"
+              />
+              <DhButton
+                variant="secondary"
+                :icon="Copy"
+                :label="t('pricing.actions.duplicate')"
+                :disabled="!canCreateDirectManualRate"
+                @click="openDuplicateRateModal"
+              />
+              <DhButton
+                variant="secondary"
+                :label="selectedRate.isActive ? t('common.inactivate') : t('common.activate')"
+                :disabled="!canSetRateActive"
+                @click="toggleRate(selectedRate)"
+              />
+              <DhButton
+                variant="danger"
+                :icon="Trash2"
+                :label="t('common.delete')"
+                :loading="deletingRates"
+                :disabled="!canDeleteRate"
+                @click="deleteRate(selectedRate)"
+              />
             </div>
           </div>
 
           <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
-              <p class="mt-1 font-black text-[var(--dh-text)]">{{ money(selectedRate.totalCostAmount, selectedRate.currencyCodeSnapshot) }}</p>
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                {{ t('pricing.rates.totalCost') }}
+              </p>
+              <p class="mt-1 font-black text-[var(--dh-text)]">
+                {{ money(selectedRate.totalCostAmount, selectedRate.currencyCodeSnapshot) }}
+              </p>
             </div>
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.sale') }}</p>
-              <p class="mt-1 font-black text-[var(--dh-text)]">{{ money(selectedRate.saleAmount, selectedRate.currencyCodeSnapshot) }}</p>
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                {{ t('pricing.rates.sale') }}
+              </p>
+              <p class="mt-1 font-black text-[var(--dh-text)]">
+                {{ money(selectedRate.saleAmount, selectedRate.currencyCodeSnapshot) }}
+              </p>
             </div>
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.matrix.profit') }}</p>
-              <p class="mt-1 font-black" :class="selectedRateProfit < 0 ? 'text-red-500' : 'text-emerald-500'">{{ money(selectedRateProfit, selectedRate.currencyCodeSnapshot) }}</p>
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                {{ t('pricing.matrix.profit') }}
+              </p>
+              <p
+                class="mt-1 font-black"
+                :class="selectedRateProfit < 0 ? 'text-red-500' : 'text-emerald-500'"
+              >
+                {{ money(selectedRateProfit, selectedRate.currencyCodeSnapshot) }}
+              </p>
             </div>
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Margen esperado</p>
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                Margen esperado
+              </p>
               <p class="mt-1 font-black text-[var(--dh-text)]">12.00%</p>
             </div>
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Margen actual</p>
-              <p class="mt-1 font-black" :class="selectedRate.requiresApproval ? 'text-red-500' : 'text-[var(--dh-text)]'">{{ percent(selectedRate.marginPercentage) }}</p>
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                Margen actual
+              </p>
+              <p
+                class="mt-1 font-black"
+                :class="selectedRate.requiresApproval ? 'text-red-500' : 'text-[var(--dh-text)]'"
+              >
+                {{ percent(selectedRate.marginPercentage) }}
+              </p>
             </div>
             <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.validity') }}</p>
-              <p class="mt-1 font-black text-[var(--dh-text)]">{{ selectedRate.validFrom?.slice(0, 10) || '—' }} / {{ selectedRate.validTo?.slice(0, 10) || '—' }}</p>
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                {{ t('pricing.rates.validity') }}
+              </p>
+              <p class="mt-1 font-black text-[var(--dh-text)]">
+                {{ selectedRate.validFrom?.slice(0, 10) || '—' }} /
+                {{ selectedRate.validTo?.slice(0, 10) || '—' }}
+              </p>
             </div>
           </div>
         </section>
@@ -2600,86 +3610,208 @@ onMounted(refreshAll)
         <section class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
           <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.rates.editHeaderTitle') }}</h3>
-              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.editHeaderHelp') }}</p>
+              <h3 class="text-lg font-black text-[var(--dh-text)]">
+                {{ t('pricing.rates.editHeaderTitle') }}
+              </h3>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+                {{ t('pricing.rates.editHeaderHelp') }}
+              </p>
             </div>
-            <DhButton :label="t('common.save')" :loading="savingRateHeaderEdit" :disabled="!canUpdateRate" @click="saveRateHeaderEdit" />
+            <DhButton
+              :label="t('common.save')"
+              :loading="savingRateHeaderEdit"
+              :disabled="!canUpdateRate"
+              @click="saveRateHeaderEdit"
+            />
           </div>
           <div class="grid gap-4 md:grid-cols-3">
             <DhInput v-model="rateHeaderEditForm.clientName" label="Agente" />
-            <DhInput v-model="rateHeaderEditForm.validFrom" :label="t('pricing.common.validFrom')" type="date" />
-            <DhInput v-model="rateHeaderEditForm.validTo" :label="t('pricing.common.validTo')" type="date" />
+            <DhInput
+              v-model="rateHeaderEditForm.validFrom"
+              :label="t('pricing.common.validFrom')"
+              type="date"
+            />
+            <DhInput
+              v-model="rateHeaderEditForm.validTo"
+              :label="t('pricing.common.validTo')"
+              type="date"
+            />
           </div>
         </section>
 
         <section class="grid gap-4 xl:grid-cols-3">
           <article class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Costos de Agente</p>
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+              Costos de Agente
+            </p>
             <div v-if="selectedRateAgentCostRows.length" class="mt-3 space-y-2">
-              <div v-for="row in selectedRateAgentCostRows" :key="String(row.id)" class="flex justify-between gap-3 text-sm font-semibold">
+              <div
+                v-for="row in selectedRateAgentCostRows"
+                :key="String(row.id)"
+                class="flex justify-between gap-3 text-sm font-semibold"
+              >
                 <span class="text-[var(--dh-text)]">{{ row.name }}</span>
-                <span class="font-black text-[var(--dh-text)]">{{ money(row.amount, String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD')) }}</span>
+                <span class="font-black text-[var(--dh-text)]">{{
+                  money(
+                    row.amount,
+                    String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD'),
+                  )
+                }}</span>
               </div>
             </div>
-            <p v-else class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">Sin costos de agente.</p>
-            <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">La venta de estos costos queda en 0 y no se muestra al cliente.</p>
+            <p v-else class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+              Sin costos de agente.
+            </p>
+            <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              La venta de estos costos queda en 0 y no se muestra al cliente.
+            </p>
           </article>
 
           <article class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Flete internacional / marítimo</p>
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+              Flete internacional / marítimo
+            </p>
             <div class="mt-3 grid grid-cols-3 gap-2 text-sm">
               <div>
                 <p class="text-[11px] font-black uppercase text-[var(--dh-text-muted)]">Costo</p>
-                <p class="font-black text-[var(--dh-text)]">{{ money(rateFreightCostTotal(selectedRate), selectedRate.currencyCodeSnapshot) }}</p>
+                <p class="font-black text-[var(--dh-text)]">
+                  {{ money(rateFreightCostTotal(selectedRate), selectedRate.currencyCodeSnapshot) }}
+                </p>
               </div>
               <div>
                 <p class="text-[11px] font-black uppercase text-[var(--dh-text-muted)]">Venta</p>
-                <p class="font-black text-[var(--dh-text)]">{{ money(rateFreightSaleTotal(selectedRate), selectedRate.currencyCodeSnapshot) }}</p>
+                <p class="font-black text-[var(--dh-text)]">
+                  {{ money(rateFreightSaleTotal(selectedRate), selectedRate.currencyCodeSnapshot) }}
+                </p>
               </div>
               <div>
                 <p class="text-[11px] font-black uppercase text-[var(--dh-text-muted)]">Utilidad</p>
-                <p class="font-black" :class="rateFreightSaleTotal(selectedRate) - rateFreightCostTotal(selectedRate) < 0 ? 'text-red-500' : 'text-emerald-500'">{{ money(rateFreightSaleTotal(selectedRate) - rateFreightCostTotal(selectedRate), selectedRate.currencyCodeSnapshot) }}</p>
+                <p
+                  class="font-black"
+                  :class="
+                    rateFreightSaleTotal(selectedRate) - rateFreightCostTotal(selectedRate) < 0
+                      ? 'text-red-500'
+                      : 'text-emerald-500'
+                  "
+                >
+                  {{
+                    money(
+                      rateFreightSaleTotal(selectedRate) - rateFreightCostTotal(selectedRate),
+                      selectedRate.currencyCodeSnapshot,
+                    )
+                  }}
+                </p>
               </div>
             </div>
-            <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">La venta se modifica desde el lápiz del flete.</p>
+            <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              La venta se modifica desde el lápiz del flete.
+            </p>
           </article>
 
           <article class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Costos de destino</p>
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+              Costos de destino
+            </p>
             <div v-if="selectedRateDestinationCostRows.length" class="mt-3 space-y-2">
-              <div v-for="row in selectedRateDestinationCostRows" :key="String(row.id)" class="grid grid-cols-[1fr_auto_auto] gap-2 text-sm font-semibold">
+              <div
+                v-for="row in selectedRateDestinationCostRows"
+                :key="String(row.id)"
+                class="grid grid-cols-[1fr_auto_auto] gap-2 text-sm font-semibold"
+              >
                 <span class="truncate text-[var(--dh-text)]">{{ row.name }}</span>
-                <span>{{ money(row.amount, String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD')) }}</span>
-                <span>{{ money(costSaleAmount(row), String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD')) }}</span>
+                <span>{{
+                  money(
+                    row.amount,
+                    String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD'),
+                  )
+                }}</span>
+                <span>{{
+                  money(
+                    costSaleAmount(row),
+                    String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD'),
+                  )
+                }}</span>
               </div>
             </div>
-            <p v-else class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">Sin costos de destino.</p>
+            <p v-else class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+              Sin costos de destino.
+            </p>
           </article>
         </section>
 
         <section class="grid gap-5 xl:grid-cols-2">
           <article class="space-y-3">
-            <h3 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.rates.fclDetails') }}</h3>
-            <DhDataTable :columns="fclDetailColumns" :rows="selectedRateFclRows" :empty-text="t('pricing.rates.noFclDetails')">
-              <template #cell-route="{ row }">{{ row.originPortNameSnapshot || row.originPortCodeSnapshot }} → {{ readPoeFromNotes(String(row.notes ?? '')) || '—' }} → {{ row.destinationPortNameSnapshot || row.destinationPortCodeSnapshot }}</template>
-              <template #cell-amount="{ row }">{{ money(row.amount, String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD')) }}</template>
+            <h3 class="text-lg font-black text-[var(--dh-text)]">
+              {{ t('pricing.rates.fclDetails') }}
+            </h3>
+            <DhDataTable
+              :columns="fclDetailColumns"
+              :rows="selectedRateFclRows"
+              :empty-text="t('pricing.rates.noFclDetails')"
+            >
+              <template #cell-route="{ row }"
+                >{{ row.originPortNameSnapshot || row.originPortCodeSnapshot }} →
+                {{ readPoeFromNotes(String(row.notes ?? '')) || '—' }} →
+                {{ row.destinationPortNameSnapshot || row.destinationPortCodeSnapshot }}</template
+              >
+              <template #cell-amount="{ row }">{{
+                money(
+                  row.amount,
+                  String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD'),
+                )
+              }}</template>
               <template #cell-__actions="{ row }">
                 <div class="flex justify-end gap-2">
-                  <DhButton size="sm" variant="secondary" :icon="Pencil" :disabled="!canUpdateFclDetail" @click.stop="openEditFclRateDetail(row)" />
+                  <DhButton
+                    size="sm"
+                    variant="secondary"
+                    :icon="Pencil"
+                    :disabled="!canUpdateFclDetail"
+                    @click.stop="openEditFclRateDetail(row)"
+                  />
                 </div>
               </template>
             </DhDataTable>
           </article>
 
           <article class="space-y-3">
-            <h3 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.rates.costDetails') }}</h3>
-            <DhDataTable :columns="costDetailColumns" :rows="selectedRateCostRows" :empty-text="t('pricing.rates.noCostDetails')">
+            <h3 class="text-lg font-black text-[var(--dh-text)]">
+              {{ t('pricing.rates.costDetails') }}
+            </h3>
+            <DhDataTable
+              :columns="costDetailColumns"
+              :rows="selectedRateCostRows"
+              :empty-text="t('pricing.rates.noCostDetails')"
+            >
               <template #cell-costType="{ value }">{{ costTypeLabel(String(value)) }}</template>
-              <template #cell-isFixed="{ value }"><DhBadge :variant="value ? 'success' : 'neutral'" :label="value ? t('pricing.common.fixed') : t('pricing.common.variable')" /></template>
-              <template #cell-isManual="{ value }"><DhBadge :variant="value ? 'warning' : 'success'" :label="value ? t('pricing.common.manual') : t('pricing.common.automatic')" /></template>
-              <template #cell-amount="{ row }">{{ money(row.amount, String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD')) }}</template>
-              <template #cell-saleAmount="{ row }">{{ money(costSaleAmount(row), String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD')) }}</template>
-              <template #cell-profit="{ row }">{{ money(costSaleAmount(row) - rowAmount(row.amount), String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD')) }}</template>
+              <template #cell-isFixed="{ value }"
+                ><DhBadge
+                  :variant="value ? 'success' : 'neutral'"
+                  :label="value ? t('pricing.common.fixed') : t('pricing.common.variable')"
+              /></template>
+              <template #cell-isManual="{ value }"
+                ><DhBadge
+                  :variant="value ? 'warning' : 'success'"
+                  :label="value ? t('pricing.common.manual') : t('pricing.common.automatic')"
+              /></template>
+              <template #cell-amount="{ row }">{{
+                money(
+                  row.amount,
+                  String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD'),
+                )
+              }}</template>
+              <template #cell-saleAmount="{ row }">{{
+                money(
+                  costSaleAmount(row),
+                  String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD'),
+                )
+              }}</template>
+              <template #cell-profit="{ row }">{{
+                money(
+                  costSaleAmount(row) - rowAmount(row.amount),
+                  String(row.currencyCodeSnapshot || selectedRate?.currencyCodeSnapshot || 'USD'),
+                )
+              }}</template>
               <template #cell-__actions="{ row }">
                 <div class="flex justify-end gap-2">
                   <DhButton
@@ -2704,20 +3836,49 @@ onMounted(refreshAll)
           </article>
         </section>
 
-        <section v-if="selectedRate.marginApprovals?.length" class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <h3 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.marginApprovals.title') }}</h3>
+        <section
+          v-if="selectedRate.marginApprovals?.length"
+          class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
+        >
+          <h3 class="text-lg font-black text-[var(--dh-text)]">
+            {{ t('pricing.marginApprovals.title') }}
+          </h3>
           <div class="mt-3 space-y-3">
-            <article v-for="approval in selectedRate.marginApprovals" :key="approval.id" class="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+            <article
+              v-for="approval in selectedRate.marginApprovals"
+              :key="approval.id"
+              class="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"
+            >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
-                  <DhBadge :variant="statusVariant(approval.status)" :label="statusLabel(approval.status)" />
-                  <span class="text-sm font-black text-[var(--dh-text)]">{{ percent(approval.requestedMargin) }} / {{ percent(approval.minimumMargin) }}</span>
+                  <DhBadge
+                    :variant="statusVariant(approval.status)"
+                    :label="statusLabel(approval.status)"
+                  />
+                  <span class="text-sm font-black text-[var(--dh-text)]"
+                    >{{ percent(approval.requestedMargin) }} /
+                    {{ percent(approval.minimumMargin) }}</span
+                  >
                 </div>
-                <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ approval.reason || '—' }}</p>
+                <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+                  {{ approval.reason || '—' }}
+                </p>
               </div>
               <div v-if="approval.status === 'Pending'" class="flex gap-2">
-                <DhButton size="sm" variant="secondary" :label="t('pricing.actions.approve')" :disabled="!canApproveLowMargin" @click="approveMargin(approval.id)" />
-                <DhButton size="sm" variant="danger" :label="t('pricing.actions.reject')" :disabled="!canApproveLowMargin" @click="rejectMargin(approval.id)" />
+                <DhButton
+                  size="sm"
+                  variant="secondary"
+                  :label="t('pricing.actions.approve')"
+                  :disabled="!canApproveLowMargin"
+                  @click="approveMargin(approval.id)"
+                />
+                <DhButton
+                  size="sm"
+                  variant="danger"
+                  :label="t('pricing.actions.reject')"
+                  :disabled="!canApproveLowMargin"
+                  @click="rejectMargin(approval.id)"
+                />
               </div>
             </article>
           </div>
@@ -2725,182 +3886,604 @@ onMounted(refreshAll)
 
         <section class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h3 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricing.rates.addCostTitle') }}</h3>
-            <DhButton variant="secondary" :icon="Plus" :label="t('pricing.actions.newCostAndApply')" :disabled="!canCreateCost" @click="openCostDrawer(true)" />
+            <h3 class="text-lg font-black text-[var(--dh-text)]">
+              {{ t('pricing.rates.addCostTitle') }}
+            </h3>
+            <DhButton
+              variant="secondary"
+              :icon="Plus"
+              :label="t('pricing.actions.newCostAndApply')"
+              :disabled="!canCreateCost"
+              @click="openCostDrawer(true)"
+            />
           </div>
 
           <div class="grid gap-4 md:grid-cols-3">
             <label class="md:col-span-3 block">
-              <span class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Costos opcionales</span>
-              <select v-model="rateCostForm.optionalCostIds" multiple class="min-h-28 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none backdrop-blur-xl transition dh-focus-primary">
-                <option v-for="option in optionalCostTemplateOptions" :key="option.value" :value="String(option.value)">{{ option.label }}</option>
+              <span
+                class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
+                >Costos opcionales</span
+              >
+              <select
+                v-model="rateCostForm.optionalCostIds"
+                multiple
+                class="min-h-28 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none backdrop-blur-xl transition dh-focus-primary"
+              >
+                <option
+                  v-for="option in optionalCostTemplateOptions"
+                  :key="option.value"
+                  :value="String(option.value)"
+                >
+                  {{ option.label }}
+                </option>
               </select>
-              <span class="mt-1 block text-xs font-semibold text-[var(--dh-text-muted)]">Puede seleccionar varios opcionales asociados a la naviera y al POD/destino.</span>
+              <span class="mt-1 block text-xs font-semibold text-[var(--dh-text-muted)]"
+                >Puede seleccionar varios opcionales asociados a la naviera y al POD/destino.</span
+              >
             </label>
             <DhInput v-model="rateCostForm.name" label="Costo manual" />
-            <DhSelect v-model="rateCostForm.costType" :label="t('pricing.common.costType')" :options="costTypeOptions" />
-            <DhSelect v-model="rateCostForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
+            <DhSelect
+              v-model="rateCostForm.costType"
+              :label="t('pricing.common.costType')"
+              :options="costTypeOptions"
+            />
+            <DhSelect
+              v-model="rateCostForm.currency"
+              :label="t('pricing.common.currency')"
+              :options="catalogOptions.currencies"
+              :disabled="loadingCatalogs"
+            />
             <DhInput v-model="rateCostForm.amount" label="Costo" type="number" step="0.01" />
-            <DhInput v-model="rateCostForm.saleAmount" label="Venta" type="number" step="0.01" :placeholder="rateCostForm.amount" />
-            <DhTextarea v-model="rateCostForm.notes" class="md:col-span-3" :label="t('pricing.common.notes')" :rows="2" />
-            <p class="md:col-span-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+            <DhInput
+              v-model="rateCostForm.saleAmount"
+              label="Venta"
+              type="number"
+              step="0.01"
+              :placeholder="rateCostForm.amount"
+            />
+            <DhTextarea
+              v-model="rateCostForm.notes"
+              class="md:col-span-3"
+              :label="t('pricing.common.notes')"
+              :rows="2"
+            />
+            <p
+              class="md:col-span-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]"
+            >
               {{ t('pricing.rates.costSaleHelper') }}
             </p>
           </div>
 
           <div class="mt-4 flex justify-end">
-            <DhButton :icon="Plus" :label="t('pricing.actions.addCost')" :loading="savingCostDetail" :disabled="!canCreateCostDetail" @click="saveRateCostDetail" />
+            <DhButton
+              :icon="Plus"
+              :label="t('pricing.actions.addCost')"
+              :loading="savingCostDetail"
+              :disabled="!canCreateCostDetail"
+              @click="saveRateCostDetail"
+            />
           </div>
         </section>
       </div>
     </DhDrawer>
 
-    <DhDrawer :open="costDrawerOpen" :title="editingCost ? t('pricing.costs.drawerTitleEdit') : creatingCostFromRate ? t('pricing.costs.drawerTitleFromRate') : t('pricing.costs.drawerTitle')" size="lg" @close="costDrawerOpen = false">
+    <DhDrawer
+      :open="costDrawerOpen"
+      :title="
+        editingCost
+          ? t('pricing.costs.drawerTitleEdit')
+          : creatingCostFromRate
+            ? t('pricing.costs.drawerTitleFromRate')
+            : t('pricing.costs.drawerTitle')
+      "
+      size="lg"
+      @close="costDrawerOpen = false"
+    >
       <div class="space-y-4">
         <div class="grid gap-4 md:grid-cols-2">
-          <DhInput v-model="costForm.name" :label="t('pricing.common.name')" :placeholder="t('pricing.costs.namePlaceholder')" />
-          <DhSelect v-model="costForm.rateType" :label="t('pricing.common.rateType')" :options="rateTypeOptions" />
-          <DhSelect v-model="costForm.costType" :label="t('pricing.common.costType')" :options="costTypeOptions" />
-          <DhSelect v-model="costForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs" />
-          <DhSelect v-model="costForm.port" :label="t('pricing.common.port')" :options="costPortOptions" :disabled="loadingCatalogs" />
-          <DhSelect v-model="costForm.portRole" :label="t('pricing.common.portRole')" :options="portRoleOptions" :disabled="false" />
-          <DhSelect v-model="costForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
+          <DhInput
+            v-model="costForm.name"
+            :label="t('pricing.common.name')"
+            :placeholder="t('pricing.costs.namePlaceholder')"
+          />
+          <DhSelect
+            v-model="costForm.rateType"
+            :label="t('pricing.common.rateType')"
+            :options="rateTypeOptions"
+          />
+          <DhSelect
+            v-model="costForm.costType"
+            :label="t('pricing.common.costType')"
+            :options="costTypeOptions"
+          />
+          <DhSelect
+            v-model="costForm.carrier"
+            :label="t('pricing.common.carrier')"
+            :options="catalogOptions.carriers"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="costForm.port"
+            :label="t('pricing.common.port')"
+            :options="costPortOptions"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="costForm.portRole"
+            :label="t('pricing.common.portRole')"
+            :options="portRoleOptions"
+            :disabled="false"
+          />
+          <DhSelect
+            v-model="costForm.currency"
+            :label="t('pricing.common.currency')"
+            :options="catalogOptions.currencies"
+            :disabled="loadingCatalogs"
+          />
           <DhInput v-model="costForm.amount" label="Costo" type="number" step="0.01" />
-          <DhInput v-model="costForm.saleAmount" label="Venta" type="number" step="0.01" :placeholder="costForm.amount ? String(minimumSaleAmount(toNumber(costForm.amount))) : ''" />
+          <DhInput
+            v-model="costForm.saleAmount"
+            label="Venta"
+            type="number"
+            step="0.01"
+            :placeholder="
+              costForm.amount ? String(minimumSaleAmount(toNumber(costForm.amount))) : ''
+            "
+          />
           <DhCheckbox v-model="costForm.isFixed" :label="t('pricing.common.fixedCost')" />
-          <DhCheckbox v-model="costForm.requiresManualAmount" :label="t('pricing.common.manualAmount')" />
+          <DhCheckbox
+            v-model="costForm.requiresManualAmount"
+            :label="t('pricing.common.manualAmount')"
+          />
           <DhCheckbox v-model="costForm.isOptional" label="Costo opcional" />
-          <p class="md:col-span-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">
-            {{ isAutomaticFixedCost ? t('pricing.costs.automaticFixedHelp') : t('pricing.costs.variableFormHelp') }}
+          <p
+            class="md:col-span-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]"
+          >
+            {{
+              isAutomaticFixedCost
+                ? t('pricing.costs.automaticFixedHelp')
+                : t('pricing.costs.variableFormHelp')
+            }}
           </p>
-          <DhTextarea v-model="costForm.notes" class="md:col-span-2" :label="t('pricing.common.notes')" :rows="3" />
+          <DhTextarea
+            v-model="costForm.notes"
+            class="md:col-span-2"
+            :label="t('pricing.common.notes')"
+            :rows="3"
+          />
         </div>
 
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="costDrawerOpen = false" />
-          <DhButton :icon="editingCost ? Pencil : Plus" :label="editingCost ? t('common.save') : creatingCostFromRate ? t('pricing.actions.createAndApply') : t('pricing.actions.createCost')" :loading="savingCost" @click="saveCost" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="costDrawerOpen = false"
+          />
+          <DhButton
+            :icon="editingCost ? Pencil : Plus"
+            :label="
+              editingCost
+                ? t('common.save')
+                : creatingCostFromRate
+                  ? t('pricing.actions.createAndApply')
+                  : t('pricing.actions.createCost')
+            "
+            :loading="savingCost"
+            @click="saveCost"
+          />
         </div>
       </div>
     </DhDrawer>
 
-    <DhModal :open="deleteCostModalOpen" :title="t('pricing.costs.deleteTitle')" size="md" @close="deleteCostModalOpen = false">
+    <DhModal
+      :open="deleteCostModalOpen"
+      :title="t('pricing.costs.deleteTitle')"
+      size="md"
+      @close="deleteCostModalOpen = false"
+    >
       <div class="space-y-4">
-        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.costs.deleteMessage', { name: costToDelete?.name || '' }) }}</p>
+        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ t('pricing.costs.deleteMessage', { name: costToDelete?.name || '' }) }}
+        </p>
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="deleteCostModalOpen = false" />
-          <DhButton variant="danger" :icon="Trash2" :label="t('common.delete')" :loading="deletingCost" @click="deleteCost" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="deleteCostModalOpen = false"
+          />
+          <DhButton
+            variant="danger"
+            :icon="Trash2"
+            :label="t('common.delete')"
+            :loading="deletingCost"
+            @click="deleteCost"
+          />
         </div>
       </div>
     </DhModal>
 
-    <DhModal :open="manualRateModalOpen" :title="t('pricing.manualRate.title')" size="xl" @close="manualRateModalOpen = false">
+    <DhModal
+      :open="manualRateModalOpen"
+      :title="t('pricing.manualRate.title')"
+      size="xl"
+      @close="manualRateModalOpen = false"
+    >
       <div class="space-y-4">
-        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.manualRate.description') }}</p>
+        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ t('pricing.manualRate.description') }}
+        </p>
         <div class="grid gap-4 md:grid-cols-2">
           <DhSelect v-model="manualRateForm.agentName" label="Agente" :options="agentOptions" />
-          <DhSelect v-model="manualRateForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs" />
-          <DhSelect v-model="manualRateForm.originPort" label="POL" :options="catalogOptions.pol" :disabled="loadingCatalogs" />
-          <DhSelect v-model="manualRateForm.poePort" label="POE" :options="catalogOptions.poe" :disabled="loadingCatalogs" />
-          <DhSelect v-model="manualRateForm.destinationPort" label="POD" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
-          <DhSelect v-model="manualRateForm.finalDestinationPort" label="Destino final" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
-          <DhSelect v-model="manualRateForm.containerType" :label="t('pricing.common.container')" :options="catalogOptions.containerTypes" :disabled="loadingCatalogs" />
-          <DhSelect v-model="manualRateForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
-          <DhInput v-model="manualRateForm.amount" label="Costo del flete" type="number" step="0.01" />
-          <DhInput v-model="manualRateForm.freeDays" :label="t('pricing.common.freeDays')" type="number" step="1" />
-          <DhInput v-model="manualRateForm.validFrom" :label="t('pricing.common.validFrom')" type="date" />
-          <DhInput v-model="manualRateForm.validTo" :label="t('pricing.common.validTo')" type="date" />
-          <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">Margen esperado: <strong>12%</strong>. Solo Administrador/SuperUsuario puede crear tarifa directa.</div>
-          <DhInput v-model="manualRateForm.saleAmount" label="Venta manual del flete" type="number" step="0.01" :disabled="!canApproveFreight" />
-          <DhCheckbox v-model="manualRateForm.applyAutomaticFixedCosts" class="md:col-span-2" :label="t('pricing.manualRate.applyAutomaticCosts')" />
-          <p class="md:col-span-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+          <DhSelect
+            v-model="manualRateForm.carrier"
+            :label="t('pricing.common.carrier')"
+            :options="catalogOptions.carriers"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="manualRateForm.originPort"
+            label="POL"
+            :options="catalogOptions.pol"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="manualRateForm.poePort"
+            label="POE"
+            :options="catalogOptions.poe"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="manualRateForm.destinationPort"
+            label="POD"
+            :options="catalogOptions.pod"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="manualRateForm.finalDestinationPort"
+            label="Destino final"
+            :options="catalogOptions.pod"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="manualRateForm.containerType"
+            :label="t('pricing.common.container')"
+            :options="catalogOptions.containerTypes"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="manualRateForm.currency"
+            :label="t('pricing.common.currency')"
+            :options="catalogOptions.currencies"
+            :disabled="loadingCatalogs"
+          />
+          <DhInput
+            v-model="manualRateForm.amount"
+            label="Costo del flete"
+            type="number"
+            step="0.01"
+          />
+          <DhInput
+            v-model="manualRateForm.freeDays"
+            :label="t('pricing.common.freeDays')"
+            type="number"
+            step="1"
+          />
+          <DhInput
+            v-model="manualRateForm.validFrom"
+            :label="t('pricing.common.validFrom')"
+            type="date"
+          />
+          <DhInput
+            v-model="manualRateForm.validTo"
+            :label="t('pricing.common.validTo')"
+            type="date"
+          />
+          <div
+            class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]"
+          >
+            Margen esperado: <strong>12%</strong>. Solo Administrador/SuperUsuario puede crear
+            tarifa directa.
+          </div>
+          <DhInput
+            v-model="manualRateForm.saleAmount"
+            label="Venta manual del flete"
+            type="number"
+            step="0.01"
+            :disabled="!canApproveFreight"
+          />
+          <DhCheckbox
+            v-model="manualRateForm.applyAutomaticFixedCosts"
+            class="md:col-span-2"
+            :label="t('pricing.manualRate.applyAutomaticCosts')"
+          />
+          <p
+            class="md:col-span-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]"
+          >
             {{ t('pricing.manualRate.helper') }}
           </p>
-          <DhTextarea v-model="manualRateForm.notes" class="md:col-span-2" :label="t('pricing.common.notes')" :rows="3" />
+          <DhTextarea
+            v-model="manualRateForm.notes"
+            class="md:col-span-2"
+            :label="t('pricing.common.notes')"
+            :rows="3"
+          />
         </div>
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="manualRateModalOpen = false" />
-          <DhButton :icon="Plus" :label="t('pricing.actions.createRate')" :loading="savingManualRate" :disabled="!canCreateDirectManualRate" @click="createManualRate" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="manualRateModalOpen = false"
+          />
+          <DhButton
+            :icon="Plus"
+            :label="t('pricing.actions.createRate')"
+            :loading="savingManualRate"
+            :disabled="!canCreateDirectManualRate"
+            @click="createManualRate"
+          />
         </div>
       </div>
     </DhModal>
 
-    <DhModal :open="fclRateEditModalOpen" :title="t('pricing.rates.editFreightTitle')" size="lg" @close="fclRateEditModalOpen = false">
+    <DhModal
+      :open="fclRateEditModalOpen"
+      :title="t('pricing.rates.editFreightTitle')"
+      size="lg"
+      @close="fclRateEditModalOpen = false"
+    >
       <div class="space-y-4">
-        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.editFreightHelp') }}</p>
+        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ t('pricing.rates.editFreightHelp') }}
+        </p>
         <div class="grid gap-4 md:grid-cols-2">
-          <DhSelect v-model="fclRateEditForm.carrier" :label="t('pricing.common.carrier')" :options="catalogOptions.carriers" :disabled="loadingCatalogs" />
-          <DhSelect v-model="fclRateEditForm.containerType" :label="t('pricing.common.container')" :options="catalogOptions.containerTypes" :disabled="loadingCatalogs" />
-          <DhSelect v-model="fclRateEditForm.originPort" label="POL" :options="catalogOptions.pol" :disabled="loadingCatalogs" />
-          <DhSelect v-model="fclRateEditForm.poePort" label="POE" :options="catalogOptions.poe" :disabled="loadingCatalogs" />
-          <DhSelect v-model="fclRateEditForm.destinationPort" label="POD" :options="catalogOptions.pod" :disabled="loadingCatalogs" />
-          <DhSelect v-model="fclRateEditForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
-          <DhInput v-model="fclRateEditForm.amount" label="Costo del flete" type="number" step="0.01" />
-          <DhInput v-model="fclRateEditForm.saleAmount" label="Venta del flete" type="number" step="0.01" :disabled="!canApproveFreight" />
-          <DhInput v-model="fclRateEditForm.freeDays" :label="t('pricing.common.freeDays')" type="number" step="1" />
+          <DhSelect
+            v-model="fclRateEditForm.carrier"
+            :label="t('pricing.common.carrier')"
+            :options="catalogOptions.carriers"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="fclRateEditForm.containerType"
+            :label="t('pricing.common.container')"
+            :options="catalogOptions.containerTypes"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="fclRateEditForm.originPort"
+            label="POL"
+            :options="catalogOptions.pol"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="fclRateEditForm.poePort"
+            label="POE"
+            :options="catalogOptions.poe"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="fclRateEditForm.destinationPort"
+            label="POD"
+            :options="catalogOptions.pod"
+            :disabled="loadingCatalogs"
+          />
+          <DhSelect
+            v-model="fclRateEditForm.currency"
+            :label="t('pricing.common.currency')"
+            :options="catalogOptions.currencies"
+            :disabled="loadingCatalogs"
+          />
+          <DhInput
+            v-model="fclRateEditForm.amount"
+            label="Costo del flete"
+            type="number"
+            step="0.01"
+          />
+          <DhInput
+            v-model="fclRateEditForm.saleAmount"
+            label="Venta del flete"
+            type="number"
+            step="0.01"
+            :disabled="!canApproveFreight"
+          />
+          <DhInput
+            v-model="fclRateEditForm.freeDays"
+            :label="t('pricing.common.freeDays')"
+            type="number"
+            step="1"
+          />
           <div class="grid gap-3 md:grid-cols-2">
-            <DhInput v-model="fclRateEditForm.validFrom" :label="t('pricing.common.validFrom')" type="date" />
-            <DhInput v-model="fclRateEditForm.validTo" :label="t('pricing.common.validTo')" type="date" />
+            <DhInput
+              v-model="fclRateEditForm.validFrom"
+              :label="t('pricing.common.validFrom')"
+              type="date"
+            />
+            <DhInput
+              v-model="fclRateEditForm.validTo"
+              :label="t('pricing.common.validTo')"
+              type="date"
+            />
           </div>
-          <DhTextarea v-model="fclRateEditForm.notes" class="md:col-span-2" :label="t('pricing.common.notes')" :rows="3" />
+          <DhTextarea
+            v-model="fclRateEditForm.notes"
+            class="md:col-span-2"
+            :label="t('pricing.common.notes')"
+            :rows="3"
+          />
         </div>
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="fclRateEditModalOpen = false" />
-          <DhButton :icon="Pencil" :label="t('common.save')" :loading="savingFclRateEdit" :disabled="!canUpdateFclDetail" @click="saveFclRateDetailEdit" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="fclRateEditModalOpen = false"
+          />
+          <DhButton
+            :icon="Pencil"
+            :label="t('common.save')"
+            :loading="savingFclRateEdit"
+            :disabled="!canUpdateFclDetail"
+            @click="saveFclRateDetailEdit"
+          />
         </div>
       </div>
     </DhModal>
 
-    <DhModal :open="rateCostEditModalOpen" :title="t('pricing.rates.editCostTitle')" size="lg" @close="rateCostEditModalOpen = false">
+    <DhModal
+      :open="rateCostEditModalOpen"
+      :title="t('pricing.rates.editCostTitle')"
+      size="lg"
+      @close="rateCostEditModalOpen = false"
+    >
       <div class="space-y-4">
-        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.editCostHelp') }}</p>
+        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ t('pricing.rates.editCostHelp') }}
+        </p>
         <div class="grid gap-4 md:grid-cols-2">
           <DhInput v-model="rateCostEditForm.name" :label="t('pricing.common.name')" />
-          <DhSelect v-model="rateCostEditForm.costType" :label="t('pricing.common.costType')" :options="costTypeOptions" />
-          <DhSelect v-model="rateCostEditForm.currency" :label="t('pricing.common.currency')" :options="catalogOptions.currencies" :disabled="loadingCatalogs" />
+          <DhSelect
+            v-model="rateCostEditForm.costType"
+            :label="t('pricing.common.costType')"
+            :options="costTypeOptions"
+          />
+          <DhSelect
+            v-model="rateCostEditForm.currency"
+            :label="t('pricing.common.currency')"
+            :options="catalogOptions.currencies"
+            :disabled="loadingCatalogs"
+          />
           <DhInput v-model="rateCostEditForm.amount" label="Costo" type="number" step="0.01" />
-          <DhInput v-model="rateCostEditForm.saleAmount" label="Venta" type="number" step="0.01" class="md:col-span-2" />
-          <DhTextarea v-model="rateCostEditForm.notes" class="md:col-span-2" :label="t('pricing.common.notes')" :rows="3" />
+          <DhInput
+            v-model="rateCostEditForm.saleAmount"
+            label="Venta"
+            type="number"
+            step="0.01"
+            class="md:col-span-2"
+          />
+          <DhTextarea
+            v-model="rateCostEditForm.notes"
+            class="md:col-span-2"
+            :label="t('pricing.common.notes')"
+            :rows="3"
+          />
         </div>
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="rateCostEditModalOpen = false" />
-          <DhButton :icon="Pencil" :label="t('common.save')" :loading="savingRateCostEdit" :disabled="!canUpdateCostDetail" @click="saveRateCostDetailEdit" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="rateCostEditModalOpen = false"
+          />
+          <DhButton
+            :icon="Pencil"
+            :label="t('common.save')"
+            :loading="savingRateCostEdit"
+            :disabled="!canUpdateCostDetail"
+            @click="saveRateCostDetailEdit"
+          />
         </div>
       </div>
     </DhModal>
 
-    <DhModal :open="rejectModalOpen" :title="t('pricing.reject.title')" size="md" @close="rejectModalOpen = false">
+    <DhModal
+      :open="rejectModalOpen"
+      :title="t('pricing.reject.title')"
+      size="md"
+      @close="rejectModalOpen = false"
+    >
       <div class="space-y-4">
-        <DhTextarea v-model="rejectForm.reason" :label="t('pricing.reject.reason')" :placeholder="t('pricing.reject.placeholder')" :rows="4" />
+        <DhTextarea
+          v-model="rejectForm.reason"
+          :label="t('pricing.reject.reason')"
+          :placeholder="t('pricing.reject.placeholder')"
+          :rows="4"
+        />
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="rejectModalOpen = false" />
-          <DhButton variant="danger" :icon="X" :label="t('pricing.actions.reject')" @click="rejectImport" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="rejectModalOpen = false"
+          />
+          <DhButton
+            variant="danger"
+            :icon="X"
+            :label="t('pricing.actions.reject')"
+            @click="rejectImport"
+          />
         </div>
       </div>
     </DhModal>
 
-    <DhModal :open="duplicateRateModalOpen" :title="t('pricing.duplicateRate.title')" size="md" @close="duplicateRateModalOpen = false">
+    <DhModal
+      :open="duplicateRateModalOpen"
+      :title="t('pricing.duplicateRate.title')"
+      size="md"
+      @close="duplicateRateModalOpen = false"
+    >
       <div class="space-y-4">
-        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.duplicateRate.description') }}</p>
+        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ t('pricing.duplicateRate.description') }}
+        </p>
         <DhInput v-model="duplicateRateForm.clientName" label="Agente" />
         <div class="grid gap-3 md:grid-cols-2">
-          <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">Margen esperado: <strong>12%</strong></div>
-          <DhInput v-model="duplicateRateForm.saleAmount" type="number" step="0.01" :label="t('pricing.duplicateRate.saleAmount')" :disabled="!canApproveFreight" />
+          <div
+            class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]"
+          >
+            Margen esperado: <strong>12%</strong>
+          </div>
+          <DhInput
+            v-model="duplicateRateForm.saleAmount"
+            type="number"
+            step="0.01"
+            :label="t('pricing.duplicateRate.saleAmount')"
+            :disabled="!canApproveFreight"
+          />
         </div>
-        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.duplicateRate.helper') }}</p>
+        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+          {{ t('pricing.duplicateRate.helper') }}
+        </p>
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="duplicateRateModalOpen = false" />
-          <DhButton variant="primary" :icon="Copy" :loading="duplicatingRate" :label="t('pricing.actions.duplicate')" @click="duplicateRate" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="duplicateRateModalOpen = false"
+          />
+          <DhButton
+            variant="primary"
+            :icon="Copy"
+            :loading="duplicatingRate"
+            :label="t('pricing.actions.duplicate')"
+            @click="duplicateRate"
+          />
         </div>
       </div>
     </DhModal>
 
-    <DhModal :open="marginRejectModalOpen" :title="t('pricing.marginReject.title')" size="md" @close="marginRejectModalOpen = false">
+    <DhModal
+      :open="marginRejectModalOpen"
+      :title="t('pricing.marginReject.title')"
+      size="md"
+      @close="marginRejectModalOpen = false"
+    >
       <div class="space-y-4">
-        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.marginReject.description') }}</p>
-        <DhTextarea v-model="marginRejectForm.reason" :label="t('pricing.marginReject.reason')" :placeholder="t('pricing.marginReject.placeholder')" :rows="4" />
+        <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ t('pricing.marginReject.description') }}
+        </p>
+        <DhTextarea
+          v-model="marginRejectForm.reason"
+          :label="t('pricing.marginReject.reason')"
+          :placeholder="t('pricing.marginReject.placeholder')"
+          :rows="4"
+        />
         <div class="flex justify-end gap-2">
-          <DhButton variant="secondary" :label="t('common.cancel')" @click="marginRejectModalOpen = false" />
-          <DhButton variant="danger" :icon="X" :label="t('pricing.actions.reject')" @click="submitMarginReject" />
+          <DhButton
+            variant="secondary"
+            :label="t('common.cancel')"
+            @click="marginRejectModalOpen = false"
+          />
+          <DhButton
+            variant="danger"
+            :icon="X"
+            :label="t('pricing.actions.reject')"
+            @click="submitMarginReject"
+          />
         </div>
       </div>
     </DhModal>
@@ -2919,7 +4502,10 @@ onMounted(refreshAll)
             <p class="quote-meta-label">{{ t('pricing.print.date') }}</p>
             <p class="quote-meta-value">{{ quoteDateLabel }}</p>
             <p class="quote-meta-label quote-meta-spaced">{{ t('pricing.rates.validity') }}</p>
-            <p class="quote-meta-value">{{ selectedRate.validFrom?.slice(0, 10) || '—' }} / {{ selectedRate.validTo?.slice(0, 10) || '—' }}</p>
+            <p class="quote-meta-value">
+              {{ selectedRate.validFrom?.slice(0, 10) || '—' }} /
+              {{ selectedRate.validTo?.slice(0, 10) || '—' }}
+            </p>
           </div>
         </header>
 
@@ -2934,7 +4520,11 @@ onMounted(refreshAll)
           </article>
           <article>
             <p>{{ t('pricing.common.container') }}</p>
-            <strong>{{ selectedRateMainDetail?.containerTypeNameSnapshot || selectedRateMainDetail?.containerTypeCodeSnapshot || 'FCL' }}</strong>
+            <strong>{{
+              selectedRateMainDetail?.containerTypeNameSnapshot ||
+              selectedRateMainDetail?.containerTypeCodeSnapshot ||
+              'FCL'
+            }}</strong>
           </article>
           <article class="quote-summary-total">
             <p>{{ t('pricing.print.total') }}</p>
@@ -2956,16 +4546,33 @@ onMounted(refreshAll)
                 <strong>{{ t('pricing.print.oceanFreight') }}</strong>
                 <span>{{ routeLabel(selectedRate) }}</span>
               </td>
-              <td>{{ selectedRateMainDetail?.containerTypeNameSnapshot || selectedRateMainDetail?.containerTypeCodeSnapshot || 'FCL' }}</td>
-              <td class="text-right">{{ money(selectedRateBaseSaleAmount, selectedRate.currencyCodeSnapshot) }}</td>
+              <td>
+                {{
+                  selectedRateMainDetail?.containerTypeNameSnapshot ||
+                  selectedRateMainDetail?.containerTypeCodeSnapshot ||
+                  'FCL'
+                }}
+              </td>
+              <td class="text-right">
+                {{ money(selectedRateBaseSaleAmount, selectedRate.currencyCodeSnapshot) }}
+              </td>
             </tr>
             <tr v-for="row in clientVisibleCostRows" :key="String(row.id)">
               <td>
                 <strong>{{ row.name }}</strong>
                 <span>{{ costTypeLabel(String(row.costType)) }}</span>
               </td>
-              <td>{{ row.isManual ? t('pricing.common.manual') : t('pricing.common.automatic') }}</td>
-              <td class="text-right">{{ money(costSaleAmount(row), String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD')) }}</td>
+              <td>
+                {{ row.isManual ? t('pricing.common.manual') : t('pricing.common.automatic') }}
+              </td>
+              <td class="text-right">
+                {{
+                  money(
+                    costSaleAmount(row),
+                    String(row.currencyCodeSnapshot || selectedRate.currencyCodeSnapshot || 'USD'),
+                  )
+                }}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -2987,10 +4594,8 @@ onMounted(refreshAll)
         </footer>
       </div>
     </section>
-
   </section>
 </template>
-
 
 <style scoped>
 .pricing-print-only {

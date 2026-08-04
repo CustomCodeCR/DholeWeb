@@ -1,26 +1,20 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, UploadCloud } from 'lucide-vue-next'
-import { DhButton, DhSelect } from '@/shared/components/atoms'
+import { DhButton } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
-import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { createCorrelationId } from '@/modules/pricing/utils/pricingFormat'
 import type { ExtractImportRatesResultDto } from '@/core/interfaces/pricing'
 
 const props = defineProps<{ onSaved?: () => void | Promise<void> }>()
 const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
-const catalogs = usePricingCatalogs()
 const fileInput = ref<HTMLInputElement | null>(null)
 const file = ref<File | null>(null)
 const result = ref<ExtractImportRatesResultDto | null>(null)
-const form = reactive({ profileId: '', submitted: false, saving: false, dragging: false })
-
-const selectedProfile = computed(() =>
-  catalogs.findById(catalogs.importProfiles.value, form.profileId),
-)
+const form = reactive({ submitted: false, saving: false, dragging: false })
 
 function chooseFile(files: FileList | null) {
   file.value = files?.[0] ?? null
@@ -34,13 +28,12 @@ function drop(event: DragEvent) {
 
 async function submit() {
   form.submitted = true
-  if (!file.value || !selectedProfile.value) return
+  if (!file.value) return
 
   try {
     form.saving = true
     result.value = await PricingService.extractImportRates(
       file.value,
-      selectedProfile.value.slug,
       createCorrelationId(),
     )
     toastStore.success(
@@ -55,20 +48,11 @@ async function submit() {
   }
 }
 
-onMounted(catalogs.loadAll)
 </script>
 
 <template>
   <div class="space-y-6">
     <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-      <DhSelect
-        v-model="form.profileId"
-        label="Perfil de importación"
-        placeholder="Seleccione el formato del proveedor"
-        :options="catalogs.profileOptions.value"
-        :error="form.submitted && !form.profileId ? 'Seleccione un perfil.' : undefined"
-      />
-
       <button
         type="button"
         class="mt-5 flex min-h-64 w-full flex-col items-center justify-center rounded-[28px] border-2 border-dashed p-8 text-center transition"

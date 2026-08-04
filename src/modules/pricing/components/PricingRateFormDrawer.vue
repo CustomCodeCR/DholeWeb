@@ -599,10 +599,17 @@ async function approveIfAllowed(rateId: string) {
       'Tarifa pendiente de aprobación',
       'El margen actual es inferior al 12% y debe revisarlo una persona autorizada.',
     )
+  } else if (result.status === 'AcceptedByClient') {
+    toastStore.success(
+      'Tarifa aceptada automáticamente',
+      'Al tener IDTRA y QUO asignados, la tarifa pasó a aceptada por el cliente.',
+    )
   } else {
     toastStore.success(
       isEditing.value ? 'Tarifa actualizada' : 'Tarifa creada',
-      'Los totales y el margen se recalcularon correctamente.',
+      result.status === 'Open'
+        ? 'El margen es igual o superior al 12% y la tarifa quedó abierta.'
+        : 'Los totales y el margen se recalcularon correctamente.',
     )
   }
 }
