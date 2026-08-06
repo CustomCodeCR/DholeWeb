@@ -290,7 +290,10 @@ export const PricingService = {
   ): Promise<void> {
     const format = payload.format || 'pdf'
     const blob = await this.generateRateDocument(rateId, { ...payload, format })
-    const normalizedName = fileName.trim() || 'cotizacion'
+    const normalizedName = (fileName.trim() || 'cotizacion')
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .replace(/[. ]+$/g, '')
     const extension = `.${format}`
     downloadBlob(
       blob,

@@ -296,7 +296,11 @@ async function printRate() {
 
   try {
     printing.value = true
-    const fileName = current.value.quoNumber || current.value.rateCode || 'cotizacion'
+    const fileName =
+      current.value.rateName ||
+      current.value.quoNumber ||
+      current.value.rateCode ||
+      'cotizacion'
 
     await PricingService.downloadRateDocument(current.value.id, fileName, {
       templateCode: 'pricing-fcl-client-quote',
