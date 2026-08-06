@@ -524,7 +524,18 @@ export const PricingEndpoints = {
   deleteImportRates: { method: 'DELETE', path: '/api/pricing/import-rates', headers: jsonHeaders },
 
   browseRates: { method: 'GET', path: '/api/pricing/rates', headers: acceptJson },
+  getRateDashboard: { method: 'GET', path: '/api/pricing/rates/dashboard', headers: acceptJson },
   getRateById: { method: 'GET', path: '/api/pricing/rates/{{rateId}}', headers: acceptJson },
+  getRateReportTemplateDefinition: {
+    method: 'GET',
+    path: '/api/pricing/rates/report-template-definition',
+    headers: acceptJson,
+  },
+  generateRateDocument: {
+    method: 'POST',
+    path: '/api/pricing/rates/{{rateId}}/documents',
+    headers: jsonHeaders,
+  },
   createRate: { method: 'POST', path: '/api/pricing/rates', headers: jsonHeaders },
   updateRate: { method: 'PUT', path: '/api/pricing/rates/{{rateId}}', headers: jsonHeaders },
   duplicateRate: {
@@ -670,6 +681,7 @@ export const AiEndpoints = {
   browseExecutions: { method: 'GET', path: '/api/ai/executions', headers: acceptJson },
   getExecution: { method: 'GET', path: '/api/ai/executions/{{executionId}}', headers: acceptJson },
   executeChat: { method: 'POST', path: '/api/ai/executions/chat', headers: jsonHeaders },
+  executeFileChat: { method: 'POST', path: '/api/ai/executions/chat-file', headers: acceptJson },
   executeStructured: {
     method: 'POST',
     path: '/api/ai/executions/structured',

@@ -5,6 +5,7 @@ import { toQueryString } from '@/core/api/queryString'
 import { AiEndpoints } from '@/core/composables/endpoints'
 import type {
   AiChatResultDto,
+  AiFileChatResultDto,
   AiConnectionDto,
   AiConnectionSummaryDto,
   AiConnectionTestResultDto,
@@ -29,6 +30,7 @@ import type {
   CreateAiPromptTemplateRequest,
   DiscoveredAiModelDto,
   ExecuteAiChatRequest,
+  ExecuteAiFileChatRequest,
   ExecuteAiEmbeddingsRequest,
   ExecuteAiStructuredRequest,
   UpdateAiConnectionRequest,
@@ -154,6 +156,21 @@ export const AiService = {
   async executeChat(payload: ExecuteAiChatRequest): Promise<AiChatResultDto> {
     const response = await callEndpoint<unknown, ExecuteAiChatRequest>(AiEndpoints.executeChat, { body: payload })
     return unwrapApiResponse<AiChatResultDto>(response as never)
+  },
+  async executeFileChat(payload: ExecuteAiFileChatRequest): Promise<AiFileChatResultDto> {
+    const formData = new FormData()
+    formData.append('profileKey', payload.profileKey)
+    formData.append('prompt', payload.prompt)
+    formData.append('file', payload.file, payload.file.name)
+    if (payload.messages?.length) formData.append('messagesJson', JSON.stringify(payload.messages))
+    if (payload.correlationId) formData.append('correlationId', payload.correlationId)
+    if (payload.requestHash) formData.append('requestHash', payload.requestHash)
+
+    const response = await callEndpoint<unknown, FormData>(AiEndpoints.executeFileChat, {
+      body: formData,
+      isFormData: true,
+    })
+    return unwrapApiResponse<AiFileChatResultDto>(response as never)
   },
   async executeStructured(payload: ExecuteAiStructuredRequest): Promise<AiStructuredResultDto> {
     const response = await callEndpoint<unknown, ExecuteAiStructuredRequest>(AiEndpoints.executeStructured, { body: payload })

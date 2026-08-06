@@ -1,28 +1,44 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Bot, Eraser, Send, Sparkles, UserRound, X } from 'lucide-vue-next'
+import {
+  Bot,
+  Download,
+  Eraser,
+  FileSpreadsheet,
+  Paperclip,
+  Send,
+  Sparkles,
+  UserRound,
+  X,
+} from 'lucide-vue-next'
 import { AI_SCOPES } from '@/core/auth/scopes'
 import { AiService } from '@/core/services/aiService'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
-import type { AiMessageRequest } from '@/core/interfaces/ai'
+import type { AiGeneratedFileDto, AiMessageRequest } from '@/core/interfaces/ai'
 import { buildAiChatHistory } from '@/core/utils/aiChatHistory'
+import { downloadAiGeneratedFile, formatAiFileSize } from '@/core/utils/aiGeneratedFile'
 import { createUuid } from '@/core/utils/id'
 
 interface AssistantMessage extends AiMessageRequest {
   id: string
   modelName?: string
   tokenCount?: number
+  attachmentName?: string
+  generatedFile?: AiGeneratedFileDto
 }
 
 const STORAGE_KEY = 'dhole.ai.floating-assistant.messages'
 const PROFILE_KEY = 'assistant'
+const MAXIMUM_FILE_BYTES = 25 * 1024 * 1024
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 const panelOpen = ref(false)
 const prompt = ref('')
 const sending = ref(false)
+const selectedFile = ref<File | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
 const messages = ref<AssistantMessage[]>([])
 const conversation = ref<HTMLElement | null>(null)
 
@@ -32,7 +48,15 @@ const isVisible = computed(
 const canSend = computed(() => Boolean(prompt.value.trim()) && !sending.value)
 
 function persistMessages(): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.value.slice(-60)))
+  const persisted = messages.value.slice(-60).map((message) => ({
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    modelName: message.modelName,
+    tokenCount: message.tokenCount,
+    attachmentName: message.attachmentName,
+  }))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted))
 }
 
 function restoreMessages(): void {
@@ -61,45 +85,107 @@ function closePanel(): void {
   panelOpen.value = false
 }
 
+function clearSelectedFile(): void {
+  selectedFile.value = null
+  if (fileInput.value) fileInput.value.value = ''
+}
+
 function clearConversation(): void {
   messages.value = []
+  clearSelectedFile()
   localStorage.removeItem(STORAGE_KEY)
+}
+
+function openFilePicker(): void {
+  if (!sending.value) fileInput.value?.click()
+}
+
+function selectFile(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  if (!extension || !['csv', 'xlsx'].includes(extension)) {
+    toastStore.warning('Archivo no compatible', 'Solo puede adjuntar archivos CSV o XLSX.')
+    clearSelectedFile()
+    return
+  }
+
+  if (file.size > MAXIMUM_FILE_BYTES) {
+    toastStore.warning('Archivo demasiado grande', 'El tamaño máximo permitido es de 25 MB.')
+    clearSelectedFile()
+    return
+  }
+
+  selectedFile.value = file
 }
 
 async function sendMessage(): Promise<void> {
   const content = prompt.value.trim()
   if (!content || !canSend.value) return
 
+  const file = selectedFile.value
+  const previousHistory = buildAiChatHistory(messages.value)
+
   messages.value.push({
     id: createUuid(),
     role: 'user',
     content,
+    attachmentName: file?.name,
   })
   prompt.value = ''
+  clearSelectedFile()
   persistMessages()
   await scrollToBottom()
 
   try {
     sending.value = true
 
-    const history = buildAiChatHistory(messages.value)
+    if (file) {
+      const result = await AiService.executeFileChat({
+        profileKey: PROFILE_KEY,
+        prompt: content,
+        file,
+        messages: previousHistory,
+        correlationId: createUuid(),
+      })
 
-    const result = await AiService.executeChat({
-      profileKey: PROFILE_KEY,
-      messages: history,
-      correlationId: createUuid(),
-    })
+      messages.value.push({
+        id: result.chat.executionId,
+        role: 'assistant',
+        content: result.chat.content,
+        modelName: result.chat.modelName,
+        tokenCount: result.chat.tokenUsage.totalTokens,
+        generatedFile: result.generatedFile ?? undefined,
+      })
 
-    messages.value.push({
-      id: result.executionId,
-      role: 'assistant',
-      content: result.content,
-      modelName: result.modelName,
-      tokenCount: result.tokenUsage.totalTokens,
-    })
+      if (result.sourceWasTruncated) {
+        toastStore.warning(
+          'Archivo parcialmente analizado',
+          'Se procesó una muestra porque el archivo superó el límite de filas.',
+        )
+      }
+    } else {
+      const history = buildAiChatHistory(messages.value)
+      const result = await AiService.executeChat({
+        profileKey: PROFILE_KEY,
+        messages: history,
+        correlationId: createUuid(),
+      })
+
+      messages.value.push({
+        id: result.executionId,
+        role: 'assistant',
+        content: result.content,
+        modelName: result.modelName,
+        tokenCount: result.tokenUsage.totalTokens,
+      })
+    }
+
     persistMessages()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo obtener una respuesta del asistente.')
+    toastStore.backendError(error, 'No se pudo procesar la consulta o el archivo.')
   } finally {
     sending.value = false
     await scrollToBottom()
@@ -168,7 +254,7 @@ onBeforeUnmount(() => {
                 <Sparkles class="h-3.5 w-3.5 text-[var(--dh-primary)]" />
               </div>
               <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">
-                Perfil: assistant
+                Chat y análisis de CSV/XLSX
               </p>
             </div>
           </div>
@@ -207,8 +293,7 @@ onBeforeUnmount(() => {
             </span>
             <h3 class="text-base font-black text-[var(--dh-text)]">¿En qué puedo ayudarte?</h3>
             <p class="mt-2 max-w-xs text-sm leading-6 text-[var(--dh-text-muted)]">
-              Pregunta sobre el sistema, procesos o información operativa sin abandonar la pantalla
-              actual.
+              Pregunta sobre el sistema o adjunta una hoja de cálculo para analizarla y generar otro archivo.
             </p>
           </div>
 
@@ -233,7 +318,34 @@ onBeforeUnmount(() => {
                   : 'rounded-bl-md border border-[var(--dh-border)] bg-[var(--dh-shell)] text-[var(--dh-text)]'
               "
             >
+              <div
+                v-if="message.attachmentName"
+                class="mb-2 flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-2 py-1.5 text-xs font-bold"
+              >
+                <FileSpreadsheet class="h-3.5 w-3.5 shrink-0" />
+                <span class="truncate">{{ message.attachmentName }}</span>
+              </div>
+
               <p class="whitespace-pre-wrap break-words">{{ message.content }}</p>
+
+              <button
+                v-if="message.generatedFile"
+                type="button"
+                class="mt-3 flex w-full items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-left hover:bg-[var(--dh-card-hover)]"
+                @click="downloadAiGeneratedFile(message.generatedFile)"
+              >
+                <span class="flex min-w-0 items-center gap-2">
+                  <FileSpreadsheet class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+                  <span class="min-w-0">
+                    <span class="block truncate text-xs font-black">{{ message.generatedFile.fileName }}</span>
+                    <span class="block text-[10px] text-[var(--dh-text-muted)]">
+                      {{ formatAiFileSize(message.generatedFile.sizeBytes) }}
+                    </span>
+                  </span>
+                </span>
+                <Download class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+              </button>
+
               <p
                 v-if="message.role === 'assistant' && (message.modelName || message.tokenCount)"
                 class="mt-2 text-[10px] font-bold uppercase tracking-wide text-[var(--dh-text-muted)]"
@@ -273,14 +385,50 @@ onBeforeUnmount(() => {
         </div>
 
         <footer class="border-t border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            class="hidden"
+            @change="selectFile"
+          />
+
+          <div
+            v-if="selectedFile"
+            class="mb-2 flex items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2"
+          >
+            <span class="flex min-w-0 items-center gap-2 text-xs font-bold text-[var(--dh-text)]">
+              <FileSpreadsheet class="h-3.5 w-3.5 shrink-0 text-[var(--dh-primary)]" />
+              <span class="truncate">{{ selectedFile.name }}</span>
+            </span>
+            <button
+              type="button"
+              class="rounded-lg p-1 text-[var(--dh-text-muted)] hover:bg-[var(--dh-card-hover)]"
+              title="Quitar archivo"
+              @click="clearSelectedFile"
+            >
+              <X class="h-3.5 w-3.5" />
+            </button>
+          </div>
+
           <div
             class="flex items-end gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 focus-within:border-[var(--dh-primary)]"
           >
+            <button
+              type="button"
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--dh-border)] text-[var(--dh-text-muted)] transition hover:text-[var(--dh-primary)] disabled:opacity-40"
+              title="Adjuntar CSV o XLSX"
+              :disabled="sending"
+              @click="openFilePicker"
+            >
+              <Paperclip class="h-4 w-4" />
+            </button>
+
             <textarea
               v-model="prompt"
               rows="1"
               class="dh-scrollbar max-h-32 min-h-11 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm text-[var(--dh-text)] outline-none placeholder:text-[var(--dh-text-muted)]"
-              placeholder="Escribe tu mensaje..."
+              placeholder="Escribe qué deseas analizar..."
               :disabled="sending"
               @keydown="handleComposerKeydown"
             />
@@ -296,7 +444,7 @@ onBeforeUnmount(() => {
             </button>
           </div>
           <p class="mt-2 text-center text-[10px] font-semibold text-[var(--dh-text-muted)]">
-            Enter para enviar · Shift + Enter para nueva línea
+            Adjunta CSV/XLSX · Enter para enviar
           </p>
         </footer>
       </section>

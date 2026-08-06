@@ -25,6 +25,7 @@ export type RateStatus =
   | 'RejectedByClient'
   | 'RequestedByClient'
   | 'Closed'
+  | 'Expired'
 
 export interface CostDto extends Record<string, unknown> {
   id: string
@@ -178,6 +179,70 @@ export interface PricingDecisionDashboardQuery extends Record<string, unknown> {
   dateFrom?: string | null
   dateTo?: string | null
   containerType?: string | null
+}
+
+export interface PricingRateDashboardQuery extends Record<string, unknown> {
+  createdFrom?: string | null
+  createdTo?: string | null
+  modifiedFrom?: string | null
+  modifiedTo?: string | null
+  validityFrom?: string | null
+  validityTo?: string | null
+}
+
+export interface PricingRateStatusSummaryDto extends Record<string, unknown> {
+  status: RateStatus
+  count: number
+  percentage: number
+}
+
+export interface PricingRateCurrencySummaryDto extends Record<string, unknown> {
+  currencyId: string
+  currencyName: string
+  currencyCode: string
+  rateCount: number
+  totalCostAmount: number
+  totalSaleAmount: number
+  totalUtilityAmount: number
+  averageMarginPercentage: number
+}
+
+export interface PricingRateDashboardItemDto extends Record<string, unknown> {
+  id: string
+  rateCode: string
+  rateName: string
+  status: RateStatus
+  clientName?: string | null
+  carrierName?: string | null
+  polName: string
+  poeName: string
+  podName: string
+  containerTypeName: string
+  currencyCode: string
+  totalUtilityAmount: number
+  marginPercentage: number
+  createdAtUtc: string
+  updatedAtUtc?: string | null
+  validFrom: string
+  validTo: string
+}
+
+export interface PricingRateDashboardDto extends Record<string, unknown> {
+  totalRates: number
+  pendingApprovalCount: number
+  approvedCount: number
+  rejectedCount: number
+  openCount: number
+  sentCount: number
+  requestedByClientCount: number
+  acceptedByClientCount: number
+  closedCount: number
+  expiredCount: number
+  lastCreatedAtUtc?: string | null
+  lastModifiedAtUtc?: string | null
+  statuses: PricingRateStatusSummaryDto[]
+  financials: PricingRateCurrencySummaryDto[]
+  recentRates: PricingRateDashboardItemDto[]
 }
 
 export interface CatalogSnapshotRequest extends Record<string, unknown> {
@@ -431,6 +496,11 @@ export interface DuplicateRateRequest extends Record<string, unknown> {
 
 export interface RejectRateMarginRequest extends Record<string, unknown> {
   reason: string
+}
+
+export interface GenerateRateDocumentRequest extends Record<string, unknown> {
+  templateCode?: string | null
+  format?: 'pdf' | 'xlsx' | 'csv'
 }
 
 export interface SetRateStatusRequest extends Record<string, unknown> {

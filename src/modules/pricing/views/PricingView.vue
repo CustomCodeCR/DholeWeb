@@ -1201,6 +1201,7 @@ function statusVariant(
   if (status === 'Sent') return 'primary'
   if (status === 'RequestedByClient') return 'warning'
   if (status === 'Closed') return 'neutral'
+  if (status === 'Expired') return 'danger'
   if (
     status === 'PendingReview' ||
     status === 'Pending' ||

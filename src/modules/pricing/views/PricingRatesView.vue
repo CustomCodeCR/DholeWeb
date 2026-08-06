@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Copy, Edit3, Eye, Plus, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import {
@@ -31,6 +32,7 @@ import {
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
@@ -47,7 +49,7 @@ const pageSize = ref(10)
 const total = ref(0)
 const filters = reactive({
   search: '',
-  status: '' as RateStatus | '',
+  status: (typeof route.query.status === 'string' ? route.query.status : '') as RateStatus | '',
   approval: '',
   agentId: '',
   carrierId: '',
@@ -91,6 +93,7 @@ const statusOptions = [
   { label: 'Aceptadas por el cliente', value: 'AcceptedByClient' },
   { label: 'Rechazadas por el cliente', value: 'RejectedByClient' },
   { label: 'Cerradas', value: 'Closed' },
+  { label: 'Vencidas', value: 'Expired' },
 ]
 const approvalOptions = [
   { label: 'Todas', value: '' },
@@ -111,6 +114,7 @@ function statusLabel(status: string) {
         AcceptedByClient: 'Aceptada por el cliente',
         RejectedByClient: 'Rechazada por el cliente',
         Closed: 'Cerrada',
+        Expired: 'Vencida',
       } as Record<string, string>
     )[status] ?? status
   )

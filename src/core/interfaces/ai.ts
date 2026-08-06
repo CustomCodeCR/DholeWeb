@@ -256,6 +256,30 @@ export interface AiChatResultDto extends AiExecutionResultBase {
   finishReason: string
 }
 
+export interface AiGeneratedFileDto {
+  fileName: string
+  contentType: string
+  base64Data: string
+  sizeBytes: number
+}
+
+export interface AiFileChatResultDto {
+  chat: AiChatResultDto
+  sourceFileName: string
+  sourceRowCount: number
+  sourceWasTruncated: boolean
+  generatedFile: AiGeneratedFileDto | null
+}
+
+export interface ExecuteAiFileChatRequest {
+  profileKey: string
+  prompt: string
+  file: File
+  messages?: AiMessageRequest[]
+  correlationId?: string | null
+  requestHash?: string | null
+}
+
 export interface AiStructuredResultDto extends AiExecutionResultBase {
   jsonContent: string
   tokenUsage: AiTokenUsageDto

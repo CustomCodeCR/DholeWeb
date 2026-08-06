@@ -46,6 +46,7 @@ const catalogs = usePricingCatalogs()
 const current = ref<RateDto>(props.rate)
 const displayCurrent = computed(() => catalogs.resolveRateLabels(current.value))
 const loading = ref(false)
+const printing = ref(false)
 const costNotesById = ref<Record<string, string>>({})
 const closedByDisplay = ref<string | null>(null)
 
@@ -161,6 +162,7 @@ function statusLabel(status: string) {
         AcceptedByClient: 'Aceptada por el cliente',
         RejectedByClient: 'Rechazada por el cliente',
         Closed: 'Cerrada',
+        Expired: 'Vencida',
       } as Record<string, string>
     )[status] ?? status
   )
@@ -289,55 +291,30 @@ async function setCommercialStatus(status: SetRateStatusRequest['status']) {
   }
 }
 
-function escapeHtml(value: unknown) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
-}
+async function printRate() {
+  if (printing.value) return
 
-function printRate() {
-  const rate = displayCurrent.value
-  const rows = rate.rateDetails
-    .filter((detail) => detail.saleAmount > 0 || detail.costDetailType === 'AgentCharge')
-    .map(
-      (detail) => `
-      <tr>
-        <td><strong>${escapeHtml(detail.name)}</strong></td>
-        <td>${escapeHtml(detail.costDetailType)}</td>
-        <td class="number">${escapeHtml(Math.max(1, detail.quantity || 1))}</td>
-        <td class="number">${escapeHtml(formatMoney(detail.costAmount * Math.max(1, detail.quantity || 1), detail.currencyName))}</td>
-        <td class="number">${escapeHtml(formatMoney(detail.saleAmount * Math.max(1, detail.quantity || 1), detail.currencyName))}</td>
-      </tr>`,
-    )
-    .join('')
+  try {
+    printing.value = true
+    const fileName = current.value.quoNumber || current.value.rateCode || 'cotizacion'
 
-  const win = window.open('', '_blank', 'width=1000,height=760')
-  if (!win) {
-    toastStore.warning(
-      'Impresión bloqueada',
-      'Permita ventanas emergentes para generar la cotización rápida.',
+    await PricingService.downloadRateDocument(current.value.id, fileName, {
+      templateCode: 'pricing-fcl-client-quote',
+      format: 'pdf',
+    })
+
+    toastStore.success(
+      'Cotización generada',
+      'La tarifa se descargó usando la plantilla configurada en Reports.',
     )
-    return
+  } catch (error) {
+    toastStore.backendError(
+      error,
+      'No se pudo generar la cotización. Verifique que la plantilla pricing-fcl-client-quote esté activa.',
+    )
+  } finally {
+    printing.value = false
   }
-  win.opener = null
-
-  win.document
-    .write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapeHtml(rate.rateName || rate.rateCode)}</title><style>
-    *{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;color:#171717;margin:0;padding:38px;background:#fff}.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #fc2800;padding-bottom:22px}.brand{font-size:28px;font-weight:900}.brand span{color:#fc2800}.muted{color:#737373;font-size:12px}.route{margin:26px 0;padding:22px;border-radius:18px;background:#f5f5f5}.route h1{margin:0 0 8px;font-size:24px}.rate-name{font-size:18px;font-weight:900;margin-top:8px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.card{border:1px solid #e5e5e5;border-radius:14px;padding:14px}.card small{display:block;color:#737373;text-transform:uppercase;font-weight:800;letter-spacing:.08em}.card strong{display:block;margin-top:6px;font-size:17px}table{width:100%;border-collapse:collapse;margin-top:22px}th{background:#171717;color:white;text-align:left;padding:12px;font-size:11px;text-transform:uppercase;letter-spacing:.08em}td{padding:12px;border-bottom:1px solid #e5e5e5;font-size:13px;vertical-align:top}.number{text-align:right}.totals{margin:24px 0 0 auto;width:380px;border-top:3px solid #171717}.total-row{display:flex;justify-content:space-between;padding:9px 0;font-weight:700}.total-row.primary{font-size:18px;color:#fc2800}.footer{margin-top:34px;padding-top:18px;border-top:1px solid #e5e5e5;color:#737373;font-size:11px}@media print{body{padding:20px}.no-print{display:none}}
-  </style></head><body>
-    <div class="header"><div><div class="brand">Dhole <span>Pricing</span></div><div class="rate-name">${escapeHtml(rate.rateName || rate.rateCode)}</div><div class="muted">Resumen de tarifa FCL · ${escapeHtml(rate.rateCode)}</div></div><div class="muted">Emitida: ${escapeHtml(new Date().toLocaleDateString('es-CR'))}<br>IDTRA: ${escapeHtml(rate.idtraNumber || '—')}<br>QUO: ${escapeHtml(rate.quoNumber || '—')}</div></div>
-    <section class="route"><h1>${escapeHtml(routeLabel(rate))}</h1><div>${escapeHtml(rate.carrierName)} · ${escapeHtml(rate.containerTypeName)} · Agente: ${escapeHtml(rate.agentName)}</div></section>
-    <div class="grid"><div class="card"><small>Vigencia</small><strong>${escapeHtml(formatDate(rate.validFrom))} – ${escapeHtml(formatDate(rate.validTo))}</strong></div><div class="card"><small>Días libres</small><strong>${escapeHtml(rate.freeDays)}</strong></div><div class="card"><small>Tránsito</small><strong>${escapeHtml(rate.transitDays ?? '—')} días</strong></div><div class="card"><small>Estado</small><strong>${escapeHtml(statusLabel(rate.status))}</strong></div></div>
-    <table><thead><tr><th>Concepto</th><th>Rubro</th><th class="number">Cantidad</th><th class="number">Costo</th><th class="number">Venta</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="totals"><div class="total-row"><span>Costo total</span><span>${escapeHtml(formatMoney(rate.totalCostAmount, rate.currencyName))}</span></div><div class="total-row primary"><span>Venta total</span><span>${escapeHtml(formatMoney(rate.totalSaleAmount, rate.currencyName))}</span></div><div class="total-row"><span>Utilidad general</span><span>${escapeHtml(formatMoney(rate.totalUtilityAmount, rate.currencyName))}</span></div></div>
-    <section class="route"><strong>Tarifa incluye</strong><p>${escapeHtml(rate.includes || '—')}</p><strong>Sujeto a</strong><p>${escapeHtml(rate.subjectTo || '—')}</p><strong>No incluye</strong><p>${escapeHtml(rate.excludes || '—')}</p></section>
-    <div class="footer">Tarifa sujeta a vigencia, espacio, disponibilidad y condiciones operativas de origen y destino.</div>
-    <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close()}<\/script>
-  </body></html>`)
-  win.document.close()
 }
 
 onMounted(async () => {
@@ -394,6 +371,8 @@ onMounted(async () => {
             :icon="Printer"
             variant="secondary"
             size="sm"
+            :loading="printing"
+            :disabled="printing"
             @click="printRate"
           />
           <DhButton
@@ -405,7 +384,7 @@ onMounted(async () => {
             @click="duplicate"
           />
           <DhButton
-            v-if="canUpdate && current.status !== 'Closed'"
+            v-if="canUpdate && !['Closed', 'Expired'].includes(current.status)"
             label="Editar"
             :icon="Edit3"
             size="sm"

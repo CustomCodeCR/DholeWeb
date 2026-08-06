@@ -564,7 +564,8 @@
       "AcceptedByClient": "Aceptada por el cliente",
       "RejectedByClient": "Rechazada por el cliente",
       "RequestedByClient": "Solicitada por el cliente",
-      "Closed": "Cerrada"
+      "Closed": "Cerrada",
+      "Expired": "Vencida"
     },
     "costTypes": {
       "Freight": "Flete",
@@ -841,8 +842,15 @@
         "updatedTitle": "Plantilla actualizada",
         "updatedMessage": "El PDF de la plantilla fue regenerado.",
         "saveError": "No se pudo guardar la plantilla.",
-        "previewError": "No se pudo abrir la vista previa PDF."
-      }
+        "previewError": "No se pudo abrir la vista previa PDF.",
+        "emptyHtmlTitle": "HTML vacío",
+        "emptyHtmlMessage": "Pegue o escriba el contenido HTML de la plantilla."
+      },
+      "confirmDiscardHtml": "El HTML contiene cambios que no pueden convertirse nuevamente a bloques. ¿Desea descartarlos y volver al diseñador visual?",
+      "htmlEditorHint": "Edite el documento HTML completo. Puede utilizar variables del reporte y bloques de colección; se procesarán al generar el documento.",
+      "htmlPlaceholder": "Pegue aquí el HTML completo de la plantilla…",
+      "htmlLineCount": "{count} líneas de HTML",
+      "confirmReplaceHtmlWithVisual": "Esta plantilla fue creada únicamente con HTML y no puede convertirse automáticamente en bloques. ¿Desea reemplazarla por un diseño visual nuevo?"
     },
     "paginationSummary": "Página {page} de {totalPages} · {total} plantillas",
     "jsonEditorHint": "JSON utilizado para completar variables, tablas y exportaciones.",

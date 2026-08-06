@@ -1,4 +1,5 @@
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { fetchBlobClient } from '@/core/api/fetchBlobClient'
 import { unwrapApiResponse, unwrapListResponse, unwrapPagedResponse } from '@/core/api/apiResponse'
 import type { PagedResponse } from '@/core/api/apiResponse'
 import { Endpoints } from '@/core/composables/endpoints'
@@ -16,12 +17,15 @@ import type {
   DeleteBatchRequest,
   DuplicateRateRequest,
   ExtractImportRatesResultDto,
+  GenerateRateDocumentRequest,
   ImportRateBatchRequest,
   ImportRateDto,
   ImportRateSelectDto,
   ImportStatus,
   PricingDecisionDashboardDto,
   PricingDecisionDashboardQuery,
+  PricingRateDashboardDto,
+  PricingRateDashboardQuery,
   RateDto,
   RejectImportRateBatchRequest,
   RejectImportRateRequest,
@@ -34,6 +38,17 @@ import type {
 } from '@/core/interfaces/pricing'
 
 type NoContent = Record<string, never>
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 
 function withQuery(path: string, query?: Record<string, unknown>) {
   return path + (query ? toQueryString(query) : '')
@@ -125,6 +140,15 @@ export const PricingService = {
     })
 
     return unwrapApiResponse<PricingDecisionDashboardDto>(response as never)
+  },
+
+  async getRateDashboard(query?: PricingRateDashboardQuery): Promise<PricingRateDashboardDto> {
+    const response = await callEndpoint<unknown>({
+      ...Endpoints.getRateDashboard,
+      path: withQuery(Endpoints.getRateDashboard.path, query),
+    })
+
+    return unwrapApiResponse<PricingRateDashboardDto>(response as never)
   },
 
   async browseImportRates(query?: BrowseImportRatesQuery): Promise<PagedResponse<ImportRateDto>> {
@@ -242,6 +266,38 @@ export const PricingService = {
   async getRate(rateId: string): Promise<RateDto> {
     const response = await callEndpoint<unknown>(Endpoints.getRateById, { params: { rateId } })
     return unwrapApiResponse<RateDto>(response as never)
+  },
+
+  async generateRateDocument(
+    rateId: string,
+    payload: GenerateRateDocumentRequest = {},
+  ): Promise<Blob> {
+    const path = Endpoints.generateRateDocument.path.replace('{{rateId}}', rateId)
+    return fetchBlobClient(path, {
+      method: 'POST',
+      headers: { Accept: '*/*', 'Content-Type': 'application/json' },
+      body: {
+        templateCode: payload.templateCode?.trim() || 'pricing-fcl-client-quote',
+        format: payload.format || 'pdf',
+      },
+    })
+  },
+
+  async downloadRateDocument(
+    rateId: string,
+    fileName: string,
+    payload: GenerateRateDocumentRequest = {},
+  ): Promise<void> {
+    const format = payload.format || 'pdf'
+    const blob = await this.generateRateDocument(rateId, { ...payload, format })
+    const normalizedName = fileName.trim() || 'cotizacion'
+    const extension = `.${format}`
+    downloadBlob(
+      blob,
+      normalizedName.toLowerCase().endsWith(extension)
+        ? normalizedName
+        : normalizedName + extension,
+    )
   },
 
   async createRate(payload: CreateRateRequest): Promise<string> {

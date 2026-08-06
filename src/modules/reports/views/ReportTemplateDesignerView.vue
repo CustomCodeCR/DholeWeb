@@ -32,6 +32,7 @@ import type {
   ReportBlockType,
   ReportDesignerBlock,
   ReportDesignerDocument,
+  ReportDesignerMode,
   ReportOrientation,
   ReportPageSize,
   ReportTableColumn,
@@ -60,15 +61,22 @@ const pageSize = ref<ReportPageSize>('A4')
 const orientation = ref<ReportOrientation>('Portrait')
 const blocks = ref<ReportDesignerBlock[]>([])
 const selectedId = ref('')
+const editorMode = ref<ReportDesignerMode>('visual')
 const previewMode = ref<'canvas' | 'html' | 'preview'>('canvas')
+const rawHtml = ref('')
+const htmlDirty = ref(false)
 const draggedExistingIndex = ref<number | null>(null)
 const customerVariableExample = '{{customer.name}}'
+const rateVariableExample = '{{rate.clientName}}'
+const eachBlockExample = '{{#each items}} ... {{/each}}'
 
-const previewTabs = computed<Array<{
-  key: 'canvas' | 'preview' | 'html'
-  label: string
-  icon: Component
-}>>(() => [
+const previewTabs = computed<
+  Array<{
+    key: 'canvas' | 'preview' | 'html'
+    label: string
+    icon: Component
+  }>
+>(() => [
   { key: 'canvas', label: t('reports.designer.designerTab'), icon: GripVertical },
   { key: 'preview', label: t('reports.designer.previewTab'), icon: Eye },
   { key: 'html', label: t('reports.designer.htmlTab'), icon: Code2 },
@@ -83,12 +91,14 @@ const alignmentOptions: Array<{
   { value: 'right', icon: AlignRight },
 ]
 
-const palette = computed<Array<{
-  type: ReportBlockType
-  label: string
-  icon: Component
-  description: string
-}>>(() => [
+const palette = computed<
+  Array<{
+    type: ReportBlockType
+    label: string
+    icon: Component
+    description: string
+  }>
+>(() => [
   {
     type: 'heading',
     label: t('reports.designer.palette.heading.label'),
@@ -137,13 +147,19 @@ const selectedBlock = computed(
   () => blocks.value.find((block) => block.id === selectedId.value) ?? null,
 )
 const pageClass = computed(() =>
-  orientation.value === 'Landscape'
-    ? 'w-[1120px] min-h-[760px]'
-    : 'w-[794px] min-h-[1123px]',
+  orientation.value === 'Landscape' ? 'w-[1120px] min-h-[760px]' : 'w-[794px] min-h-[1123px]',
 )
-const htmlContent = computed(() => buildHtml())
+const htmlContent = computed(() => (editorMode.value === 'html' ? rawHtml.value : buildHtml()))
 const designerJson = computed(() =>
-  JSON.stringify({ version: 1, blocks: blocks.value } satisfies ReportDesignerDocument),
+  JSON.stringify({
+    version: 2,
+    mode: editorMode.value,
+    blocks: blocks.value,
+  } satisfies ReportDesignerDocument),
+)
+const htmlLineCount = computed(() => Math.max(1, rawHtml.value.split('\n').length))
+const showVisualTools = computed(
+  () => canEdit.value && editorMode.value === 'visual' && previewMode.value === 'canvas',
 )
 
 function defaultBlock(type: ReportBlockType): ReportDesignerBlock {
@@ -193,7 +209,74 @@ function defaultBlock(type: ReportBlockType): ReportDesignerBlock {
   return base
 }
 
+function switchEditorMode(nextMode: ReportDesignerMode) {
+  if (nextMode === editorMode.value) {
+    previewMode.value = nextMode === 'html' ? 'html' : 'canvas'
+    return
+  }
+
+  if (nextMode === 'html') {
+    rawHtml.value = buildHtml()
+    htmlDirty.value = false
+    editorMode.value = 'html'
+    previewMode.value = 'html'
+    return
+  }
+
+  if (blocks.value.length === 0 && rawHtml.value.trim()) {
+    const shouldReplace = window.confirm(t('reports.designer.confirmReplaceHtmlWithVisual'))
+    if (!shouldReplace) return
+
+    seedTemplate()
+    return
+  }
+
+  if (htmlDirty.value) {
+    const shouldDiscard = window.confirm(t('reports.designer.confirmDiscardHtml'))
+    if (!shouldDiscard) return
+  }
+
+  rawHtml.value = ''
+  htmlDirty.value = false
+  editorMode.value = 'visual'
+  previewMode.value = 'canvas'
+}
+
+function selectWorkspaceTab(mode: 'canvas' | 'html' | 'preview') {
+  if (mode === 'preview') {
+    previewMode.value = 'preview'
+    return
+  }
+
+  if (!canEdit.value) {
+    if (editorMode.value === 'visual' && mode === 'html') {
+      rawHtml.value = buildHtml()
+      previewMode.value = 'html'
+      return
+    }
+
+    if (editorMode.value === 'visual' && mode === 'canvas') {
+      previewMode.value = 'canvas'
+    }
+
+    if (editorMode.value === 'html' && mode === 'html') {
+      previewMode.value = 'html'
+    }
+    return
+  }
+
+  switchEditorMode(mode === 'html' ? 'html' : 'visual')
+}
+
+function markHtmlDirty() {
+  htmlDirty.value = true
+}
+
 function seedTemplate() {
+  editorMode.value = 'visual'
+  rawHtml.value = ''
+  htmlDirty.value = false
+  previewMode.value = 'canvas'
   blocks.value = [
     { ...defaultBlock('heading'), content: '{{title}}', align: 'center' },
     {
@@ -406,20 +489,38 @@ async function load() {
     orientation.value = template.orientation === 'Landscape' ? 'Landscape' : 'Portrait'
 
     const rawDesignerJson = template.designerJson?.replace(/^\uFEFF/, '').trim()
-    if (!rawDesignerJson) {
-      throw new Error(t('reports.designer.toasts.invalidDesignerJson'))
+    let document: ReportDesignerDocument | null = null
+
+    if (rawDesignerJson) {
+      try {
+        const parsedDesigner = JSON.parse(rawDesignerJson) as unknown
+        document =
+          typeof parsedDesigner === 'string'
+            ? (JSON.parse(parsedDesigner) as ReportDesignerDocument)
+            : (parsedDesigner as ReportDesignerDocument)
+      } catch {
+        document = null
+      }
     }
 
-    const parsedDesigner = JSON.parse(rawDesignerJson) as unknown
-    const document =
-      typeof parsedDesigner === 'string'
-        ? (JSON.parse(parsedDesigner) as ReportDesignerDocument)
-        : (parsedDesigner as ReportDesignerDocument)
+    if (document?.mode === 'html' || (!document && template.htmlContent?.trim())) {
+      editorMode.value = 'html'
+      previewMode.value = 'html'
+      rawHtml.value = template.htmlContent ?? ''
+      htmlDirty.value = false
+      blocks.value = Array.isArray(document?.blocks) ? document.blocks : []
+      selectedId.value = blocks.value[0]?.id ?? ''
+      return
+    }
 
     if (!document || !Array.isArray(document.blocks)) {
       throw new Error(t('reports.designer.toasts.invalidDesignerJson'))
     }
 
+    editorMode.value = 'visual'
+    previewMode.value = 'canvas'
+    rawHtml.value = ''
+    htmlDirty.value = false
     blocks.value = document.blocks
     if (blocks.value.length === 0) seedTemplate()
     selectedId.value = blocks.value[0]?.id ?? ''
@@ -450,10 +551,18 @@ async function save() {
     return
   }
 
-  if (blocks.value.length === 0) {
+  if (editorMode.value === 'visual' && blocks.value.length === 0) {
     toastStore.warning(
       t('reports.designer.toasts.emptyTitle'),
       t('reports.designer.toasts.emptyMessage'),
+    )
+    return
+  }
+
+  if (editorMode.value === 'html' && !rawHtml.value.trim()) {
+    toastStore.warning(
+      t('reports.designer.toasts.emptyHtmlTitle'),
+      t('reports.designer.toasts.emptyHtmlMessage'),
     )
     return
   }
@@ -483,6 +592,7 @@ async function save() {
         t('reports.designer.toasts.updatedMessage'),
       )
     }
+    htmlDirty.value = false
   } catch (error) {
     toastStore.backendError(error, t('reports.designer.toasts.saveError'))
   } finally {
@@ -514,9 +624,7 @@ watch(
 
 <template>
   <section class="space-y-3 sm:space-y-4">
-    <header
-      class="dh-glass dh-liquid rounded-[32px] p-3 sm:p-5"
-    >
+    <header class="dh-glass dh-liquid rounded-[32px] p-3 sm:p-5">
       <div class="flex flex-col gap-4 xl:flex-row xl:items-center">
         <div class="flex min-w-0 flex-1 items-start gap-3">
           <button
@@ -591,19 +699,21 @@ watch(
       v-else
       class="grid min-h-[calc(100vh-220px)] gap-3 sm:gap-4"
       :class="
-        canEdit
+        showVisualTools
           ? 'xl:grid-cols-[220px_minmax(0,1fr)] 2xl:grid-cols-[230px_minmax(0,1fr)_300px]'
           : 'grid-cols-1'
       "
     >
       <aside
-        v-if="canEdit"
+        v-if="showVisualTools"
         class="dh-glass dh-liquid rounded-[32px] p-3 sm:p-4 xl:sticky xl:top-4 xl:self-start"
       >
         <h2 class="text-xs font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">
           {{ t('reports.designer.components') }}
         </h2>
-        <p class="mt-1 text-xs leading-5 text-[var(--dh-text-muted)]">{{ t('reports.designer.dragHint') }}</p>
+        <p class="mt-1 text-xs leading-5 text-[var(--dh-text-muted)]">
+          {{ t('reports.designer.dragHint') }}
+        </p>
 
         <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-1">
           <button
@@ -621,7 +731,9 @@ watch(
             </span>
             <span class="min-w-0">
               <strong class="block truncate text-sm">{{ item.label }}</strong>
-              <small class="hidden text-xs text-[var(--dh-text-muted)] sm:block">{{ item.description }}</small>
+              <small class="hidden text-xs text-[var(--dh-text-muted)] sm:block">{{
+                item.description
+              }}</small>
             </span>
           </button>
         </div>
@@ -639,7 +751,7 @@ watch(
 
       <main
         class="dh-glass dh-liquid min-w-0 overflow-hidden rounded-[32px] p-2 sm:p-3"
-        :class="{ 'xl:col-span-2 2xl:col-span-3': !canEdit }"
+        :class="{ 'xl:col-span-2 2xl:col-span-3': !showVisualTools }"
       >
         <div
           class="mb-3 flex min-w-0 flex-col gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-2 shadow-[var(--dh-shadow-sm)] sm:flex-row sm:items-center sm:justify-between"
@@ -654,13 +766,18 @@ watch(
                   ? 'bg-[var(--dh-primary)] text-white shadow-[var(--dh-glow)]'
                   : 'text-[var(--dh-text-muted)] hover:bg-[var(--dh-card-hover)]'
               "
-              @click="previewMode = mode.key"
+              @click="selectWorkspaceTab(mode.key)"
             >
               <component :is="mode.icon" class="h-3.5 w-3.5" />{{ mode.label }}
             </button>
           </div>
           <span class="shrink-0 text-xs text-[var(--dh-text-muted)]">
-            {{ t('reports.designer.blockCount', { count: blocks.length }) }}
+            <template v-if="editorMode === 'visual'">
+              {{ t('reports.designer.blockCount', { count: blocks.length }) }}
+            </template>
+            <template v-else>
+              {{ t('reports.designer.htmlLineCount', { count: htmlLineCount }) }}
+            </template>
             <span v-if="!canEdit"> · {{ t('reports.designer.readOnly') }}</span>
           </span>
         </div>
@@ -841,17 +958,36 @@ watch(
           />
         </div>
 
-        <textarea
-          v-else
-          :value="htmlContent"
-          readonly
-          spellcheck="false"
-          class="h-[calc(100vh-280px)] min-h-[480px] w-full rounded-xl border border-slate-700 bg-slate-950 p-3 font-mono text-xs leading-5 text-emerald-300 sm:min-h-[640px] sm:p-5"
-        />
+        <div v-else class="space-y-3">
+          <div
+            class="flex flex-col gap-2 rounded-[18px] border border-amber-300/40 bg-amber-50/80 px-4 py-3 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div class="min-w-0">
+              <span>{{ t('reports.designer.htmlEditorHint') }}</span>
+              <div class="mt-2 flex flex-wrap gap-2 font-mono text-[11px] font-bold">
+                <code class="rounded-md bg-amber-100 px-2 py-1 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{{ rateVariableExample }}</code>
+                <code class="rounded-md bg-amber-100 px-2 py-1 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{{ eachBlockExample }}</code>
+              </div>
+            </div>
+            <span class="shrink-0 font-mono">
+              {{ t('reports.designer.htmlLineCount', { count: htmlLineCount }) }}
+            </span>
+          </div>
+          <textarea
+            v-model="rawHtml"
+            :readonly="!canEdit"
+            spellcheck="false"
+            autocomplete="off"
+            autocapitalize="off"
+            class="h-[calc(100vh-340px)] min-h-[480px] w-full resize-y rounded-xl border border-slate-700 bg-slate-950 p-3 font-mono text-xs leading-5 text-emerald-300 outline-none ring-offset-2 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 sm:min-h-[640px] sm:p-5"
+            :placeholder="t('reports.designer.htmlPlaceholder')"
+            @input="markHtmlDirty"
+          />
+        </div>
       </main>
 
       <aside
-        v-if="canEdit"
+        v-if="showVisualTools"
         class="dh-glass dh-liquid rounded-[32px] p-3 sm:p-4 xl:col-span-2 2xl:sticky 2xl:top-4 2xl:col-span-1 2xl:self-start"
       >
         <template v-if="selectedBlock">
@@ -907,7 +1043,9 @@ watch(
               </label>
               <label class="block space-y-1 text-xs font-semibold md:col-span-2 2xl:col-span-1">
                 {{ t('reports.designer.columns') }}
-                <span class="font-normal text-[var(--dh-text-muted)]">{{ t('reports.designer.fieldLabel') }}</span>
+                <span class="font-normal text-[var(--dh-text-muted)]">{{
+                  t('reports.designer.fieldLabel')
+                }}</span>
                 <textarea
                   :value="columnsText(selectedBlock)"
                   rows="7"
@@ -990,8 +1128,16 @@ watch(
 
             <label class="space-y-1 text-xs font-semibold">
               {{ t('reports.designer.padding') }}
-              <input v-model.number="selectedBlock.padding" type="range" min="0" max="48" class="w-full" />
-              <span class="font-normal text-[var(--dh-text-muted)]">{{ selectedBlock.padding }} px</span>
+              <input
+                v-model.number="selectedBlock.padding"
+                type="range"
+                min="0"
+                max="48"
+                class="w-full"
+              />
+              <span class="font-normal text-[var(--dh-text-muted)]"
+                >{{ selectedBlock.padding }} px</span
+              >
             </label>
 
             <label
@@ -999,8 +1145,16 @@ watch(
               class="space-y-1 text-xs font-semibold"
             >
               {{ t('reports.designer.height') }}
-              <input v-model.number="selectedBlock.height" type="range" min="1" max="240" class="w-full" />
-              <span class="font-normal text-[var(--dh-text-muted)]">{{ selectedBlock.height }} px</span>
+              <input
+                v-model.number="selectedBlock.height"
+                type="range"
+                min="1"
+                max="240"
+                class="w-full"
+              />
+              <span class="font-normal text-[var(--dh-text-muted)]"
+                >{{ selectedBlock.height }} px</span
+              >
             </label>
           </div>
         </template>

@@ -50,7 +50,14 @@ export interface GenerateReportRequest {
   sheetName?: string | null
 }
 
-export type ReportBlockType = 'heading' | 'text' | 'variable' | 'table' | 'image' | 'divider' | 'spacer'
+export type ReportBlockType =
+  | 'heading'
+  | 'text'
+  | 'variable'
+  | 'table'
+  | 'image'
+  | 'divider'
+  | 'spacer'
 
 export interface ReportTableColumn {
   field: string
@@ -74,7 +81,10 @@ export interface ReportDesignerBlock {
   imageUrl: string
 }
 
+export type ReportDesignerMode = 'visual' | 'html'
+
 export interface ReportDesignerDocument {
-  version: 1
+  version: 1 | 2
+  mode?: ReportDesignerMode
   blocks: ReportDesignerBlock[]
 }

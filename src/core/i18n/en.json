@@ -564,7 +564,8 @@
       "AcceptedByClient": "Accepted by client",
       "RejectedByClient": "Rejected by client",
       "RequestedByClient": "Requested by client",
-      "Closed": "Closed"
+      "Closed": "Closed",
+      "Expired": "Expired"
     },
     "costTypes": {
       "Freight": "Freight",
@@ -841,8 +842,15 @@
         "updatedTitle": "Template updated",
         "updatedMessage": "The template PDF was regenerated.",
         "saveError": "The template could not be saved.",
-        "previewError": "The PDF preview could not be opened."
-      }
+        "previewError": "The PDF preview could not be opened.",
+        "emptyHtmlTitle": "Empty HTML",
+        "emptyHtmlMessage": "Paste or write the template HTML content."
+      },
+      "confirmDiscardHtml": "The HTML contains changes that cannot be converted back into blocks. Discard them and return to the visual designer?",
+      "htmlEditorHint": "Edit the complete HTML document. You can use report variables and collection blocks; they will be processed when the document is generated.",
+      "htmlPlaceholder": "Paste the complete template HTML here…",
+      "htmlLineCount": "{count} HTML lines",
+      "confirmReplaceHtmlWithVisual": "This template was created only with HTML and cannot be converted automatically into blocks. Replace it with a new visual design?"
     },
     "paginationSummary": "Page {page} of {totalPages} · {total} templates",
     "jsonEditorHint": "JSON used to populate variables, tables, and exports.",
