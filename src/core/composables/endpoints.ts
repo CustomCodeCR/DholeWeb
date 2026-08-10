@@ -717,6 +717,21 @@ export const ReportsEndpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+export const NotificationsEndpoints = {
+  browseNotificationMessages: { method: 'GET', path: '/api/notifications/messages', headers: acceptJson },
+  getNotificationMessage: { method: 'GET', path: '/api/notifications/messages/{{notificationId}}', headers: acceptJson },
+  createNotificationMessage: { method: 'POST', path: '/api/notifications/messages', headers: jsonHeaders },
+  cancelNotificationMessage: { method: 'POST', path: '/api/notifications/messages/{{notificationId}}/cancel', headers: acceptJson },
+  notificationHistoryByEntity: { method: 'GET', path: '/api/notifications/messages/history/entity', headers: acceptJson },
+  notificationHistoryByRecipient: { method: 'GET', path: '/api/notifications/messages/history/recipient', headers: acceptJson },
+  browseNotificationTemplates: { method: 'GET', path: '/api/notifications/templates', headers: acceptJson },
+  getNotificationTemplate: { method: 'GET', path: '/api/notifications/templates/{{templateId}}', headers: acceptJson },
+  createNotificationTemplate: { method: 'POST', path: '/api/notifications/templates', headers: jsonHeaders },
+  updateNotificationTemplate: { method: 'PUT', path: '/api/notifications/templates/{{templateId}}', headers: jsonHeaders },
+  setNotificationTemplateActive: { method: 'PATCH', path: '/api/notifications/templates/{{templateId}}/active', headers: jsonHeaders },
+  deleteNotificationTemplate: { method: 'DELETE', path: '/api/notifications/templates/{{templateId}}', headers: acceptJson },
+} satisfies Record<string, Endpoint>
+
 export const Endpoints = {
   ...AuthEndpoints,
   ...ClientBrandingEndpoints,
@@ -732,5 +747,6 @@ export const Endpoints = {
   ...DataExtractionEmailEndpoints,
   ...AiEndpoints,
   ...ReportsEndpoints,
+  ...NotificationsEndpoints,
 } satisfies Record<string, Endpoint>
 

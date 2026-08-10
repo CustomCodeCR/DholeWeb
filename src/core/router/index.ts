@@ -4,12 +4,14 @@ import AuthLayout from '@/shared/components/layouts/AuthLayout.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { VIEW_SCOPES } from '@/core/auth/scopes'
+import { i18n } from '@/core/i18n'
 
 declare module 'vue-router' {
   interface RouteMeta {
     public?: boolean
     requiresAuth?: boolean
     tabTitle?: string
+    tabTitleKey?: string
     closable?: boolean
     requiredScope?: string
     requiredAnyScopes?: string[]
@@ -218,6 +220,31 @@ export const router = createRouter({
 
 
         {
+          path: 'notifications',
+          name: 'notifications',
+          component: () => import('@/modules/notifications/views/NotificationsView.vue'),
+          meta: { tabTitleKey: 'notifications.tabs.messages', closable: true, requiredScope: VIEW_SCOPES.notifications },
+        },
+        {
+          path: 'notifications/templates',
+          name: 'notifications-templates',
+          component: () => import('@/modules/notifications/views/NotificationTemplatesView.vue'),
+          meta: { tabTitleKey: 'notifications.tabs.templates', closable: true, requiredScope: VIEW_SCOPES.notificationTemplates },
+        },
+        {
+          path: 'notifications/templates/new',
+          name: 'notifications-template-create',
+          component: () => import('@/modules/notifications/views/NotificationTemplateDesignerView.vue'),
+          meta: { tabTitleKey: 'notifications.tabs.newTemplate', closable: true, requiredScope: 'notifications.templates.manage' },
+        },
+        {
+          path: 'notifications/templates/:id',
+          name: 'notifications-template-designer',
+          component: () => import('@/modules/notifications/views/NotificationTemplateDesignerView.vue'),
+          meta: { tabTitleKey: 'notifications.tabs.designer', closable: true, requiredScope: VIEW_SCOPES.notificationTemplates },
+        },
+
+        {
           path: 'reports/templates',
           name: 'reports-templates',
           component: () => import('@/modules/reports/views/ReportTemplatesView.vue'),
@@ -398,7 +425,7 @@ router.afterEach((to) => {
   tabsStore.openTab({
     key: to.fullPath,
     path: to.fullPath,
-    title: String(to.meta.tabTitle ?? to.name ?? 'Vista'),
+    title: to.meta.tabTitleKey ? String(i18n.global.t(to.meta.tabTitleKey)) : String(to.meta.tabTitle ?? to.name ?? 'Vista'),
     closable: Boolean(to.meta.closable ?? true),
   })
 })

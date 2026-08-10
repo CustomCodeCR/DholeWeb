@@ -59,7 +59,9 @@
     "noClient": "Sin agente",
     "open": "Abrir",
     "select": "Seleccionar",
-    "back": "Volver"
+    "back": "Volver",
+    "view": "Ver",
+    "notAvailable": "No disponible"
   },
   "topbar": {
     "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos, pricing, reportes, monitoreo o auditoría...",
@@ -96,7 +98,10 @@
     "aiCenter": "Centro de IA",
     "storage": "Storage",
     "reports": "Reportes",
-    "reportTemplates": "Plantillas de reportes"
+    "reportTemplates": "Plantillas de reportes",
+    "notifications": "Notificaciones",
+    "notificationMessages": "Centro de notificaciones",
+    "notificationTemplates": "Plantillas de notificación"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -863,6 +868,204 @@
       "checkedAt": "Revisado: {date}",
       "connected": "Conectada",
       "unavailable": "No disponible"
+    }
+  },
+  "notifications": {
+    "title": "Centro de notificaciones",
+    "subtitle": "Cree, programe y consulte notificaciones internas y envíos por canal.",
+    "emptyTitle": "No hay notificaciones",
+    "emptyDescription": "Las notificaciones creadas o programadas aparecerán aquí.",
+    "cancel": "Cancelar notificación",
+    "cancelConfirm": "¿Desea cancelar esta notificación?",
+    "pagination": "Página {page} de {totalPages} · {total} notificaciones",
+    "channels": {
+      "System": "Sistema",
+      "Email": "Correo electrónico",
+      "WhatsAppFuture": "WhatsApp (futuro)",
+      "SmsFuture": "SMS (futuro)",
+      "WebhookFuture": "Webhook (futuro)"
+    },
+    "statuses": {
+      "Pending": "Pendiente",
+      "Scheduled": "Programada",
+      "Processing": "Procesando",
+      "Sent": "Enviada",
+      "Failed": "Fallida",
+      "Retrying": "Reintentando",
+      "Cancelled": "Cancelada",
+      "DeadLetter": "Dead letter"
+    },
+    "filters": {
+      "searchPlaceholder": "Buscar por tipo, plantilla, entidad o destinatario",
+      "status": "Estado",
+      "channel": "Canal",
+      "allStatuses": "Todos los estados",
+      "allChannels": "Todos los canales",
+      "historyRecipient": "Historial por destinatario",
+      "historyRecipientPlaceholder": "Correo o ID de usuario",
+      "historyEntityType": "Tipo de entidad",
+      "historyEntityTypePlaceholder": "Ej. PricingRate",
+      "historyEntityId": "ID de entidad",
+      "historyEntityIdPlaceholder": "ID relacionado",
+      "historySearch": "Ver historial",
+      "historyHelp": "Si indica un destinatario se consulta su historial. Si no, puede indicar tipo e ID de entidad. Estos filtros tienen prioridad sobre la búsqueda general."
+    },
+    "card": {
+      "type": "Tipo",
+      "created": "Creada",
+      "entity": "Entidad",
+      "recipients": "{count} destinatario(s)",
+      "attempts": "Intentos {current}/{max}"
+    },
+    "create": {
+      "button": "Nueva notificación",
+      "title": "Crear notificación",
+      "notificationType": "Tipo de notificación",
+      "channel": "Canal",
+      "template": "Plantilla",
+      "noTemplate": "Sin plantilla",
+      "schedule": "Programar para",
+      "entityType": "Tipo de entidad",
+      "entityId": "ID de entidad",
+      "recipient": "Destinatario",
+      "recipientName": "Nombre del destinatario",
+      "emailPlaceholder": "correo@dominio.com",
+      "systemRecipientPlaceholder": "ID de usuario o destinatario interno",
+      "subject": "Asunto",
+      "body": "Mensaje",
+      "payload": "Contexto JSON",
+      "payloadHelp": "Use JSON para enviar variables a la plantilla, por ejemplo {\"name\":\"Maurice\",\"actionUrl\":\"https://...\"}.",
+      "scheduleButton": "Programar",
+      "sendButton": "Crear ahora"
+    },
+    "detail": {
+      "title": "Detalle de notificación",
+      "status": "Estado",
+      "channel": "Canal",
+      "scheduled": "Programada para",
+      "body": "Mensaje renderizado",
+      "recipients": "Destinatarios",
+      "attempts": "Intentos de entrega",
+      "unnamedRecipient": "Sin nombre",
+      "attemptNumber": "Intento #{number}",
+      "success": "Correcto",
+      "failure": "Fallido",
+      "noError": "Sin error registrado",
+      "noAttempts": "Todavía no hay intentos de entrega."
+    },
+    "toasts": {
+      "loadError": "No se pudieron cargar las notificaciones.",
+      "invalidJsonTitle": "JSON inválido",
+      "invalidJsonMessage": "El contexto debe contener un JSON válido.",
+      "recipientRequiredTitle": "Destinatario requerido",
+      "recipientRequiredMessage": "Indique al menos un destinatario.",
+      "bodyRequiredTitle": "Mensaje requerido",
+      "bodyRequiredMessage": "Seleccione una plantilla o escriba el mensaje.",
+      "createdTitle": "Notificación creada",
+      "createdMessage": "La notificación fue registrada correctamente.",
+      "createError": "No se pudo crear la notificación.",
+      "cancelledTitle": "Notificación cancelada",
+      "cancelledMessage": "La notificación fue cancelada.",
+      "cancelError": "No se pudo cancelar la notificación."
+    },
+    "tabs": {
+      "messages": "Notificaciones",
+      "templates": "Plantillas de notificación",
+      "newTemplate": "Nueva plantilla de notificación",
+      "designer": "Diseñador de notificaciones"
+    }
+  },
+  "notificationTemplates": {
+    "title": "Plantillas de notificación",
+    "subtitle": "Administre plantillas reutilizables para cada tipo y canal de notificación.",
+    "newTemplate": "Nueva plantilla",
+    "searchPlaceholder": "Buscar por nombre, código o tipo",
+    "emptyTitle": "No hay plantillas",
+    "emptyDescription": "Cree la primera plantilla para comenzar a reutilizar mensajes.",
+    "noDescription": "Sin descripción",
+    "channel": "Canal",
+    "type": "Tipo de notificación",
+    "updated": "Actualizada: {date}",
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "deleteConfirm": "¿Desea eliminar la plantilla “{name}”?",
+    "pagination": "Página {page} de {totalPages} · {total} plantillas",
+    "toasts": {
+      "loadError": "No se pudieron cargar las plantillas.",
+      "updatedTitle": "Plantilla actualizada",
+      "updatedMessage": "El estado de la plantilla fue actualizado.",
+      "updateError": "No se pudo actualizar la plantilla.",
+      "deletedTitle": "Plantilla eliminada",
+      "deleteError": "No se pudo eliminar la plantilla."
+    }
+  },
+  "notificationDesigner": {
+    "createTitle": "Nueva plantilla de notificación",
+    "editTitle": "Diseñador de notificaciones",
+    "subtitle": "Diseñe el contenido por bloques y reutilice variables del contexto con {{variable}}.",
+    "paletteTitle": "Bloques",
+    "paletteHelp": "Arrastre un bloque al lienzo o use Agregar en dispositivos táctiles.",
+    "addBlock": "Agregar",
+    "canvasTitle": "Contenido",
+    "canvasHelp": "Arrastre para ordenar. Suelte nuevos bloques entre los existentes.",
+    "emptyCanvasTitle": "La plantilla está vacía",
+    "emptyCanvasDescription": "Agregue un bloque desde la paleta para comenzar.",
+    "propertiesTitle": "Propiedades del bloque",
+    "noSelection": "Seleccione un bloque para editar sus propiedades.",
+    "removeBlock": "Eliminar bloque",
+    "previewTitle": "Vista previa",
+    "previewHelp": "Así se verá el contenido renderizado del mensaje.",
+    "variablesHelp": "Puede usar variables como {{name}}, {{entityId}} o {{actionUrl}}. Notifications las reemplaza con el contexto recibido.",
+    "blockCount": "{count} bloque(s)",
+    "fields": {
+      "code": "Código",
+      "name": "Nombre",
+      "description": "Descripción",
+      "notificationType": "Tipo de notificación",
+      "channel": "Canal",
+      "subject": "Asunto de la plantilla"
+    },
+    "blocks": {
+      "heading": "Título",
+      "headingHelp": "Encabezado principal o de sección.",
+      "text": "Texto",
+      "textHelp": "Párrafo de contenido.",
+      "button": "Botón",
+      "buttonHelp": "Llamado a la acción con URL.",
+      "alert": "Alerta",
+      "alertHelp": "Mensaje destacado de advertencia o seguimiento.",
+      "divider": "Separador",
+      "dividerHelp": "Línea visual entre secciones.",
+      "spacer": "Espaciador",
+      "spacerHelp": "Espacio vertical entre bloques."
+    },
+    "defaults": {
+      "heading": "Título de la notificación",
+      "text": "Escriba aquí el contenido de la notificación. Puede usar variables como {{name}}.",
+      "button": "Ver detalle",
+      "alert": "Información importante para el destinatario."
+    },
+    "properties": {
+      "text": "Texto",
+      "buttonText": "Texto del botón",
+      "buttonUrl": "URL del botón",
+      "alignment": "Alineación",
+      "spacing": "Espaciado (px)"
+    },
+    "align": {
+      "left": "Izquierda",
+      "center": "Centro",
+      "right": "Derecha"
+    },
+    "toasts": {
+      "loadError": "No se pudo cargar la plantilla.",
+      "requiredTitle": "Campos requeridos",
+      "requiredMessage": "Código, nombre y tipo de notificación son obligatorios.",
+      "emptyTitle": "Plantilla vacía",
+      "emptyMessage": "Agregue al menos un bloque antes de guardar.",
+      "savedTitle": "Plantilla guardada",
+      "savedMessage": "La plantilla fue guardada correctamente.",
+      "saveError": "No se pudo guardar la plantilla."
     }
   }
 }

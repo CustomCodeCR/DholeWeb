@@ -59,7 +59,9 @@
     "noClient": "No agent",
     "open": "Open",
     "select": "Select",
-    "back": "Back"
+    "back": "Back",
+    "view": "View",
+    "notAvailable": "Not available"
   },
   "topbar": {
     "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs, pricing, reports, monitoring or audit logs...",
@@ -96,7 +98,10 @@
     "aiCenter": "AI Center",
     "storage": "Storage",
     "reports": "Reports",
-    "reportTemplates": "Report templates"
+    "reportTemplates": "Report templates",
+    "notifications": "Notifications",
+    "notificationMessages": "Notification center",
+    "notificationTemplates": "Notification templates"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -863,6 +868,204 @@
       "checkedAt": "Checked: {date}",
       "connected": "Connected",
       "unavailable": "Unavailable"
+    }
+  },
+  "notifications": {
+    "title": "Notification center",
+    "subtitle": "Create, schedule, and review internal notifications and channel deliveries.",
+    "emptyTitle": "No notifications",
+    "emptyDescription": "Created or scheduled notifications will appear here.",
+    "cancel": "Cancel notification",
+    "cancelConfirm": "Do you want to cancel this notification?",
+    "pagination": "Page {page} of {totalPages} · {total} notifications",
+    "channels": {
+      "System": "System",
+      "Email": "Email",
+      "WhatsAppFuture": "WhatsApp (future)",
+      "SmsFuture": "SMS (future)",
+      "WebhookFuture": "Webhook (future)"
+    },
+    "statuses": {
+      "Pending": "Pending",
+      "Scheduled": "Scheduled",
+      "Processing": "Processing",
+      "Sent": "Sent",
+      "Failed": "Failed",
+      "Retrying": "Retrying",
+      "Cancelled": "Cancelled",
+      "DeadLetter": "Dead letter"
+    },
+    "filters": {
+      "searchPlaceholder": "Search by type, template, entity, or recipient",
+      "status": "Status",
+      "channel": "Channel",
+      "allStatuses": "All statuses",
+      "allChannels": "All channels",
+      "historyRecipient": "History by recipient",
+      "historyRecipientPlaceholder": "Email or user ID",
+      "historyEntityType": "Entity type",
+      "historyEntityTypePlaceholder": "E.g. PricingRate",
+      "historyEntityId": "Entity ID",
+      "historyEntityIdPlaceholder": "Related ID",
+      "historySearch": "View history",
+      "historyHelp": "When a recipient is provided, its history is queried. Otherwise, enter both entity type and ID. These filters take priority over the general search."
+    },
+    "card": {
+      "type": "Type",
+      "created": "Created",
+      "entity": "Entity",
+      "recipients": "{count} recipient(s)",
+      "attempts": "Attempts {current}/{max}"
+    },
+    "create": {
+      "button": "New notification",
+      "title": "Create notification",
+      "notificationType": "Notification type",
+      "channel": "Channel",
+      "template": "Template",
+      "noTemplate": "No template",
+      "schedule": "Schedule for",
+      "entityType": "Entity type",
+      "entityId": "Entity ID",
+      "recipient": "Recipient",
+      "recipientName": "Recipient name",
+      "emailPlaceholder": "email@domain.com",
+      "systemRecipientPlaceholder": "User ID or internal recipient",
+      "subject": "Subject",
+      "body": "Message",
+      "payload": "JSON context",
+      "payloadHelp": "Use JSON to pass variables to the template, for example {\"name\":\"Maurice\",\"actionUrl\":\"https://...\"}.",
+      "scheduleButton": "Schedule",
+      "sendButton": "Create now"
+    },
+    "detail": {
+      "title": "Notification details",
+      "status": "Status",
+      "channel": "Channel",
+      "scheduled": "Scheduled for",
+      "body": "Rendered message",
+      "recipients": "Recipients",
+      "attempts": "Delivery attempts",
+      "unnamedRecipient": "Unnamed recipient",
+      "attemptNumber": "Attempt #{number}",
+      "success": "Succeeded",
+      "failure": "Failed",
+      "noError": "No error recorded",
+      "noAttempts": "There are no delivery attempts yet."
+    },
+    "toasts": {
+      "loadError": "Notifications could not be loaded.",
+      "invalidJsonTitle": "Invalid JSON",
+      "invalidJsonMessage": "The context must contain valid JSON.",
+      "recipientRequiredTitle": "Recipient required",
+      "recipientRequiredMessage": "Enter at least one recipient.",
+      "bodyRequiredTitle": "Message required",
+      "bodyRequiredMessage": "Select a template or enter a message.",
+      "createdTitle": "Notification created",
+      "createdMessage": "The notification was registered successfully.",
+      "createError": "The notification could not be created.",
+      "cancelledTitle": "Notification cancelled",
+      "cancelledMessage": "The notification was cancelled.",
+      "cancelError": "The notification could not be cancelled."
+    },
+    "tabs": {
+      "messages": "Notifications",
+      "templates": "Notification templates",
+      "newTemplate": "New notification template",
+      "designer": "Notification designer"
+    }
+  },
+  "notificationTemplates": {
+    "title": "Notification templates",
+    "subtitle": "Manage reusable templates for each notification type and channel.",
+    "newTemplate": "New template",
+    "searchPlaceholder": "Search by name, code, or type",
+    "emptyTitle": "No templates",
+    "emptyDescription": "Create the first template to start reusing messages.",
+    "noDescription": "No description",
+    "channel": "Channel",
+    "type": "Notification type",
+    "updated": "Updated: {date}",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "deleteConfirm": "Do you want to delete the “{name}” template?",
+    "pagination": "Page {page} of {totalPages} · {total} templates",
+    "toasts": {
+      "loadError": "Templates could not be loaded.",
+      "updatedTitle": "Template updated",
+      "updatedMessage": "The template status was updated.",
+      "updateError": "The template could not be updated.",
+      "deletedTitle": "Template deleted",
+      "deleteError": "The template could not be deleted."
+    }
+  },
+  "notificationDesigner": {
+    "createTitle": "New notification template",
+    "editTitle": "Notification designer",
+    "subtitle": "Design content with blocks and reuse context variables with {{variable}}.",
+    "paletteTitle": "Blocks",
+    "paletteHelp": "Drag a block to the canvas or use Add on touch devices.",
+    "addBlock": "Add",
+    "canvasTitle": "Content",
+    "canvasHelp": "Drag to reorder. Drop new blocks between existing ones.",
+    "emptyCanvasTitle": "The template is empty",
+    "emptyCanvasDescription": "Add a block from the palette to get started.",
+    "propertiesTitle": "Block properties",
+    "noSelection": "Select a block to edit its properties.",
+    "removeBlock": "Remove block",
+    "previewTitle": "Preview",
+    "previewHelp": "This is how the rendered message content will look.",
+    "variablesHelp": "You can use variables such as {{name}}, {{entityId}}, or {{actionUrl}}. Notifications replaces them with the received context.",
+    "blockCount": "{count} block(s)",
+    "fields": {
+      "code": "Code",
+      "name": "Name",
+      "description": "Description",
+      "notificationType": "Notification type",
+      "channel": "Channel",
+      "subject": "Template subject"
+    },
+    "blocks": {
+      "heading": "Heading",
+      "headingHelp": "Main or section heading.",
+      "text": "Text",
+      "textHelp": "Content paragraph.",
+      "button": "Button",
+      "buttonHelp": "Call to action with a URL.",
+      "alert": "Alert",
+      "alertHelp": "Highlighted warning or follow-up message.",
+      "divider": "Divider",
+      "dividerHelp": "Visual line between sections.",
+      "spacer": "Spacer",
+      "spacerHelp": "Vertical space between blocks."
+    },
+    "defaults": {
+      "heading": "Notification title",
+      "text": "Write the notification content here. You can use variables such as {{name}}.",
+      "button": "View details",
+      "alert": "Important information for the recipient."
+    },
+    "properties": {
+      "text": "Text",
+      "buttonText": "Button text",
+      "buttonUrl": "Button URL",
+      "alignment": "Alignment",
+      "spacing": "Spacing (px)"
+    },
+    "align": {
+      "left": "Left",
+      "center": "Center",
+      "right": "Right"
+    },
+    "toasts": {
+      "loadError": "The template could not be loaded.",
+      "requiredTitle": "Required fields",
+      "requiredMessage": "Code, name, and notification type are required.",
+      "emptyTitle": "Empty template",
+      "emptyMessage": "Add at least one block before saving.",
+      "savedTitle": "Template saved",
+      "savedMessage": "The template was saved successfully.",
+      "saveError": "The template could not be saved."
     }
   }
 }

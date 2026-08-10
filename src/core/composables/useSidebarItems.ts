@@ -19,6 +19,8 @@ import {
   ReceiptText,
   BrainCircuit,
   HardDrive,
+  Bell,
+  BellRing,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { VIEW_SCOPES } from '@/core/auth/scopes'
@@ -150,6 +152,27 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         ],
       },
 
+      {
+        labelKey: 'sidebar.notifications',
+        icon: Bell,
+        name: 'notifications-center',
+        children: [
+          {
+            labelKey: 'sidebar.notificationMessages',
+            icon: Bell,
+            to: '/notifications',
+            name: 'notifications',
+            requiredScope: VIEW_SCOPES.notifications,
+          },
+          {
+            labelKey: 'sidebar.notificationTemplates',
+            icon: BellRing,
+            to: '/notifications/templates',
+            name: 'notifications-templates',
+            requiredScope: VIEW_SCOPES.notificationTemplates,
+          },
+        ],
+      },
       {
         labelKey: 'sidebar.reports',
         icon: FileText,

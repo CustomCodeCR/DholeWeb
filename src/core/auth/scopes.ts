@@ -219,6 +219,20 @@ export const REPORTS_SCOPES = {
   },
 } as const
 
+
+export const NOTIFICATIONS_SCOPES = {
+  messages: {
+    create: 'notifications.messages.create',
+    view: 'notifications.messages.view',
+  },
+  templates: {
+    manage: 'notifications.templates.manage',
+  },
+  history: {
+    view: 'notifications.history.view',
+  },
+} as const
+
 export const MONITORING_SCOPES = {
   services: {
     view: 'monitoring.services.view',
@@ -252,4 +266,6 @@ export const VIEW_SCOPES = {
   storage: STORAGE_SCOPES.files.view,
   monitoring: MONITORING_SCOPES.services.view,
   reportsTemplates: REPORTS_SCOPES.templates.view,
+  notifications: NOTIFICATIONS_SCOPES.messages.view,
+  notificationTemplates: NOTIFICATIONS_SCOPES.messages.view,
 } as const

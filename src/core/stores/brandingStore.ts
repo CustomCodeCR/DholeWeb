@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { ClientBrandingService } from '@/core/services/clientBrandingService'
+import { ClientBackgroundStorage } from '@/core/utils/clientBackgroundStorage'
 import {
   DEFAULT_CLIENT_BRANDING,
   type ClientBrandingSettings,
@@ -11,12 +12,20 @@ import {
 
 const CACHE_PREFIX = 'dhole.client-branding.'
 const DEFAULT_CLIENT_KEY = 'default'
+const MAX_LOCAL_BACKGROUND_BYTES = 25 * 1024 * 1024
 
 const AUTH_STORAGE_KEYS = {
   clientId: 'auth.clientId',
   clientCode: 'auth.clientCode',
   clientName: 'auth.clientName',
 } as const
+
+export interface LocalBackgroundInfo {
+  fileName: string
+  mimeType: string
+  size: number
+  updatedAt: string
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
@@ -78,43 +87,6 @@ function cacheKey(clientKey: string): string {
   return `${CACHE_PREFIX}${clientKey}`
 }
 
-function readCachedSettings(clientKey: string): ClientBrandingSettings | null {
-  const raw = localStorage.getItem(cacheKey(clientKey))
-  if (!raw) return null
-
-  try {
-    const parsed = JSON.parse(raw) as ClientBrandingSettings
-    return normalizeSettings(parsed, clientKey)
-  } catch {
-    localStorage.removeItem(cacheKey(clientKey))
-    return null
-  }
-}
-
-function writeCachedSettings(clientKey: string, value: ClientBrandingSettings) {
-  localStorage.setItem(cacheKey(clientKey), JSON.stringify(value))
-}
-
-function sanitizeBackgroundUrl(value: string | null | undefined): string | null {
-  const trimmed = value?.trim()
-  if (!trimmed) return null
-
-  if (
-    trimmed.startsWith('/') ||
-    trimmed.startsWith('data:image/') ||
-    trimmed.startsWith('https://') ||
-    trimmed.startsWith('http://')
-  ) {
-    return trimmed
-  }
-
-  return null
-}
-
-function toCssUrl(value: string): string {
-  return `url("${value.replace(/["\\\n\r]/g, '')}")`
-}
-
 function normalizeSettings(
   input: Partial<ClientBrandingSettings> | null | undefined,
   clientKey = getCurrentClientKey(),
@@ -126,31 +98,56 @@ function normalizeSettings(
     clientCode: input?.clientCode ?? (readStorageValue(AUTH_STORAGE_KEYS.clientCode) || clientKey),
     clientName: input?.clientName ?? readStorageValue(AUTH_STORAGE_KEYS.clientName),
     primaryColor: normalizeHexColor(input?.primaryColor),
-    backgroundImageUrl: sanitizeBackgroundUrl(input?.backgroundImageUrl),
-    backgroundOverlayOpacity: clamp(
-      Number(input?.backgroundOverlayOpacity ?? DEFAULT_CLIENT_BRANDING.backgroundOverlayOpacity),
-      0,
-      0.95,
-    ),
+    // El fondo nunca forma parte del branding sincronizado. Se guarda únicamente en IndexedDB.
+    backgroundImageUrl: null,
+    backgroundOverlayOpacity: DEFAULT_CLIENT_BRANDING.backgroundOverlayOpacity,
   }
 }
 
-function applyCssVariables(settings: ClientBrandingSettings) {
+function readCachedSettings(clientKey: string): ClientBrandingSettings | null {
+  const raw = localStorage.getItem(cacheKey(clientKey))
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as ClientBrandingSettings
+    const normalized = normalizeSettings(parsed, clientKey)
+
+    // Migra caches anteriores que podían contener URLs/data URLs de imágenes.
+    writeCachedSettings(clientKey, normalized)
+    return normalized
+  } catch {
+    localStorage.removeItem(cacheKey(clientKey))
+    return null
+  }
+}
+
+function writeCachedSettings(clientKey: string, value: ClientBrandingSettings) {
+  const cacheValue = normalizeSettings(value, clientKey)
+  localStorage.setItem(cacheKey(clientKey), JSON.stringify(cacheValue))
+}
+
+function toCssUrl(value: string): string {
+  return `url("${value.replace(/["\\\n\r]/g, '')}")`
+}
+
+function applyBrandingCssVariables(settings: ClientBrandingSettings) {
   const root = document.documentElement
   const color = normalizeHexColor(settings.primaryColor)
-  const imageUrl = sanitizeBackgroundUrl(settings.backgroundImageUrl)
 
   root.style.setProperty('--dh-primary', color)
   root.style.setProperty('--dh-primary-rgb', hexToRgb(color))
+}
+
+function applyBackgroundCss(imageUrl: string | null, overlayOpacity: number) {
+  const root = document.documentElement
   root.style.setProperty(
     '--dh-client-background-image',
     imageUrl ? toCssUrl(imageUrl) : 'linear-gradient(transparent, transparent)',
   )
   root.style.setProperty(
     '--dh-client-background-overlay-opacity',
-    String(settings.backgroundOverlayOpacity ?? DEFAULT_CLIENT_BRANDING.backgroundOverlayOpacity),
+    String(clamp(overlayOpacity, 0, 0.95)),
   )
-
   document.body.classList.toggle('dh-has-client-background', Boolean(imageUrl))
 }
 
@@ -161,21 +158,90 @@ export const useBrandingStore = defineStore('branding', () => {
   const lastLoadFailed = ref(false)
   const lastSaveSynced = ref<boolean | null>(null)
 
+  const localBackgroundUrl = ref<string | null>(null)
+  const localBackgroundInfo = ref<LocalBackgroundInfo | null>(null)
+  const localBackgroundOverlayOpacity = ref(
+    Number(DEFAULT_CLIENT_BRANDING.backgroundOverlayOpacity ?? 0.5),
+  )
+  const localBackgroundLoading = ref(false)
+  let activeObjectUrl: string | null = null
+
   const clientKey = computed(() => getCurrentClientKey())
   const clientLabel = computed(
-    () => settings.value.clientName || settings.value.clientCode || settings.value.clientId || clientKey.value,
+    () =>
+      settings.value.clientName ||
+      settings.value.clientCode ||
+      settings.value.clientId ||
+      clientKey.value,
   )
+  const hasLocalBackground = computed(() => Boolean(localBackgroundUrl.value))
+
+  function revokeActiveObjectUrl() {
+    if (activeObjectUrl) {
+      URL.revokeObjectURL(activeObjectUrl)
+      activeObjectUrl = null
+    }
+  }
+
+  function setBackgroundFromBlob(blob: Blob, info: LocalBackgroundInfo, overlayOpacity: number) {
+    revokeActiveObjectUrl()
+    activeObjectUrl = URL.createObjectURL(blob)
+    localBackgroundUrl.value = activeObjectUrl
+    localBackgroundInfo.value = info
+    localBackgroundOverlayOpacity.value = clamp(overlayOpacity, 0, 0.95)
+    applyBackgroundCss(activeObjectUrl, localBackgroundOverlayOpacity.value)
+  }
+
+  function clearBackgroundState() {
+    revokeActiveObjectUrl()
+    localBackgroundUrl.value = null
+    localBackgroundInfo.value = null
+    localBackgroundOverlayOpacity.value = Number(
+      DEFAULT_CLIENT_BRANDING.backgroundOverlayOpacity ?? 0.5,
+    )
+    applyBackgroundCss(null, localBackgroundOverlayOpacity.value)
+  }
 
   function apply(settingsToApply: ClientBrandingSettings) {
     const normalized = normalizeSettings(settingsToApply, clientKey.value)
     settings.value = normalized
-    applyCssVariables(normalized)
+    applyBrandingCssVariables(normalized)
+    applyBackgroundCss(localBackgroundUrl.value, localBackgroundOverlayOpacity.value)
   }
 
   function applyCachedOrDefault() {
     const currentKey = clientKey.value
     const cached = readCachedSettings(currentKey)
     apply(cached ?? normalizeSettings(DEFAULT_CLIENT_BRANDING, currentKey))
+  }
+
+  async function loadLocalBackground() {
+    const currentKey = clientKey.value
+    localBackgroundLoading.value = true
+
+    try {
+      const record = await ClientBackgroundStorage.get(currentKey)
+
+      if (!record?.blob || !record.mimeType.startsWith('image/')) {
+        clearBackgroundState()
+        return
+      }
+
+      setBackgroundFromBlob(
+        record.blob,
+        {
+          fileName: record.fileName,
+          mimeType: record.mimeType,
+          size: record.size,
+          updatedAt: record.updatedAt,
+        },
+        record.overlayOpacity,
+      )
+    } catch {
+      clearBackgroundState()
+    } finally {
+      localBackgroundLoading.value = false
+    }
   }
 
   async function initialize() {
@@ -200,12 +266,14 @@ export const useBrandingStore = defineStore('branding', () => {
 
       writeCachedSettings(currentKey, normalized)
       apply(normalized)
+      await loadLocalBackground()
 
       return normalized
     } catch {
       lastLoadFailed.value = true
       const fallback = cached ?? normalizeSettings(DEFAULT_CLIENT_BRANDING, currentKey)
       apply(fallback)
+      await loadLocalBackground()
       return fallback
     } finally {
       loading.value = false
@@ -219,6 +287,67 @@ export const useBrandingStore = defineStore('branding', () => {
   function resetPreview() {
     const currentKey = clientKey.value
     apply(normalizeSettings(DEFAULT_CLIENT_BRANDING, currentKey))
+  }
+
+  function previewLocalBackgroundOverlay(value: number) {
+    localBackgroundOverlayOpacity.value = clamp(Number(value), 0, 0.95)
+    applyBackgroundCss(localBackgroundUrl.value, localBackgroundOverlayOpacity.value)
+  }
+
+  async function persistLocalBackgroundOverlay(value: number) {
+    previewLocalBackgroundOverlay(value)
+    const currentKey = clientKey.value
+    const record = await ClientBackgroundStorage.get(currentKey)
+    if (!record) return
+
+    await ClientBackgroundStorage.save({
+      ...record,
+      overlayOpacity: localBackgroundOverlayOpacity.value,
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  async function setLocalBackground(
+    file: File,
+    overlayOpacity = localBackgroundOverlayOpacity.value,
+  ) {
+    if (!file.type.startsWith('image/')) {
+      throw new Error('El archivo seleccionado no es una imagen válida.')
+    }
+
+    if (file.size > MAX_LOCAL_BACKGROUND_BYTES) {
+      throw new Error('La imagen supera el límite local de 25 MB.')
+    }
+
+    const currentKey = clientKey.value
+    const updatedAt = new Date().toISOString()
+    const normalizedOverlay = clamp(Number(overlayOpacity), 0, 0.95)
+
+    await ClientBackgroundStorage.save({
+      clientKey: currentKey,
+      blob: file,
+      fileName: file.name,
+      mimeType: file.type,
+      size: file.size,
+      overlayOpacity: normalizedOverlay,
+      updatedAt,
+    })
+
+    setBackgroundFromBlob(
+      file,
+      {
+        fileName: file.name,
+        mimeType: file.type,
+        size: file.size,
+        updatedAt,
+      },
+      normalizedOverlay,
+    )
+  }
+
+  async function removeLocalBackground() {
+    await ClientBackgroundStorage.remove(clientKey.value)
+    clearBackgroundState()
   }
 
   async function saveForCurrentClient(
@@ -237,8 +366,8 @@ export const useBrandingStore = defineStore('branding', () => {
         clientId: normalized.clientId,
         clientCode: normalized.clientCode,
         primaryColor: normalized.primaryColor,
-        backgroundImageUrl: normalized.backgroundImageUrl,
-        backgroundOverlayOpacity: normalized.backgroundOverlayOpacity,
+        // Fuerza a que las imágenes antiguas de branding no se propaguen desde el servidor.
+        backgroundImageUrl: null,
       })
 
       const synced = normalizeSettings(saved, currentKey)
@@ -263,12 +392,22 @@ export const useBrandingStore = defineStore('branding', () => {
     lastSaveSynced,
     clientKey,
     clientLabel,
+    localBackgroundUrl,
+    localBackgroundInfo,
+    localBackgroundOverlayOpacity,
+    localBackgroundLoading,
+    hasLocalBackground,
     apply,
     applyCachedOrDefault,
     initialize,
     loadCurrentClientBranding,
+    loadLocalBackground,
     preview,
     resetPreview,
+    previewLocalBackgroundOverlay,
+    persistLocalBackgroundOverlay,
+    setLocalBackground,
+    removeLocalBackground,
     saveForCurrentClient,
   }
 })
