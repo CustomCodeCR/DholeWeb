@@ -419,7 +419,7 @@ onMounted(async () => {
             ><div>
               <p class="font-bold">{{ displayRate(row).carrierName }}</p>
               <p class="text-xs text-[var(--dh-text-muted)]">
-                {{ displayRate(row).containerTypeName }}
+                {{ displayRate(row).containerTypeName }} · {{ displayRate(row).incotermCode || displayRate(row).incotermName || 'Sin Incoterm' }}
               </p>
             </div></template
           >

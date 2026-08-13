@@ -357,6 +357,7 @@ onMounted(async () => {
               </p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
                 {{ displayCurrent.carrierName }} · {{ displayCurrent.containerTypeName }} ·
+                {{ displayCurrent.incotermCode || displayCurrent.incotermName || 'Sin Incoterm' }} ·
                 {{ displayCurrent.agentName }}
               </p>
               <p

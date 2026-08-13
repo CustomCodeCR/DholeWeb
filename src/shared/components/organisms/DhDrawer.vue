@@ -25,7 +25,7 @@ const { t } = useI18n()
     <Transition name="drawer-backdrop">
       <div
         v-if="open"
-        class="fixed inset-0 z-[80] flex items-end justify-end bg-black/35 backdrop-blur-sm sm:items-stretch"
+        class="fixed inset-0 z-[80] flex items-end justify-end bg-black/20 backdrop-blur-sm sm:items-stretch"
         @click.self="emit('close')"
       >
         <aside

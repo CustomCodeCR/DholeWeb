@@ -75,6 +75,15 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     critical: true,
   },
   {
+    key: 'notifications',
+    name: 'Notifications Service',
+    nameKey: 'monitoring.services.notifications.name',
+    description: 'Notificaciones internas, correo, programación, reintentos y plantillas.',
+    descriptionKey: 'monitoring.services.notifications.description',
+    url: buildGatewayHealthUrl('notifications'),
+    critical: true,
+  },
+  {
     key: 'storage',
     name: 'Storage Service',
     nameKey: 'monitoring.services.storage.name',

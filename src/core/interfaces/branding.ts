@@ -28,5 +28,5 @@ export const DEFAULT_CLIENT_BRANDING: ClientBrandingSettings = {
   clientName: 'Default',
   primaryColor: '#fc2800',
   backgroundImageUrl: null,
-  backgroundOverlayOpacity: 0.5,
+  backgroundOverlayOpacity: 0.34,
 }

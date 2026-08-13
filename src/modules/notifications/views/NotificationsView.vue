@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, Clock3, Eye, Plus, RefreshCw, Send, XCircle } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Bell, BellRing, Clock3, Eye, Plus, RefreshCw, Send, XCircle } from 'lucide-vue-next'
 import { NotificationsService } from '@/core/services/notificationsService'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useModalStore } from '@/core/stores/modalStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { NOTIFICATIONS_SCOPES } from '@/core/auth/scopes'
 import type { NotificationChannel, NotificationMessageDto, NotificationTemplateDto } from '@/core/interfaces/notifications'
@@ -16,9 +18,12 @@ import DhBadge from '@/shared/components/atoms/DhBadge.vue'
 import DhModal from '@/shared/components/organisms/DhModal.vue'
 import DhEmptyState from '@/shared/components/atoms/DhEmptyState.vue'
 import DhSearchInput from '@/shared/components/molecules/DhSearchInput.vue'
+import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 
 const { t, locale } = useI18n()
 const toast = useToastStore()
+const modalStore = useModalStore()
+const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
 const creating = ref(false)
@@ -43,6 +48,8 @@ const form = ref({
 })
 
 const canCreate = computed(() => auth.hasScope(NOTIFICATIONS_SCOPES.messages.create))
+const canViewTemplates = computed(() => auth.hasScope(NOTIFICATIONS_SCOPES.messages.view))
+const canViewHistory = computed(() => auth.hasScope(NOTIFICATIONS_SCOPES.history.view))
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const channelOptions = computed(() => [
   { value: '', label: t('notifications.filters.allChannels') },
@@ -65,9 +72,9 @@ const templateOptions = computed(() => [
 async function load() {
   loading.value = true
   try {
-    const response = historyRecipient.value.trim()
+    const response = canViewHistory.value && historyRecipient.value.trim()
       ? await NotificationsService.historyByRecipient(historyRecipient.value.trim(), page.value, pageSize)
-      : historyEntityType.value.trim() && historyEntityId.value.trim()
+      : canViewHistory.value && historyEntityType.value.trim() && historyEntityId.value.trim()
         ? await NotificationsService.historyByEntity(historyEntityType.value.trim(), historyEntityId.value.trim(), page.value, pageSize)
         : await NotificationsService.browseMessages({ pageNumber: page.value, pageSize, search: search.value || undefined, status: status.value || undefined, channel: channel.value || undefined })
     messages.value = response.items
@@ -82,11 +89,7 @@ async function loadTemplates() {
 }
 
 function openCreate() {
-  form.value = {
-    notificationType: 'generic', templateCode: '', channel: 'System', entityType: '', entityId: '', subject: '', body: '', payloadJson: '{}', scheduledForLocal: '', maxAttempts: 3,
-    recipientAddress: auth.userId ?? '', recipientName: auth.userDisplayName ?? '',
-  }
-  createOpen.value = true
+  void router.push('/monitoring/notifications/new')
 }
 
 function onTemplateChanged() {
@@ -109,7 +112,7 @@ async function createNotification() {
       entityType: form.value.entityType || null, entityId: form.value.entityId || null, subject: form.value.subject || null,
       body: form.value.body || null, payloadJson: form.value.payloadJson || '{}',
       scheduledForUtc: form.value.scheduledForLocal ? new Date(form.value.scheduledForLocal).toISOString() : null,
-      maxAttempts: Number(form.value.maxAttempts) || 3,
+      maxAttempts: Math.min(20, Math.max(1, Number(form.value.maxAttempts) || 3)),
       recipients: [{ userId: form.value.channel === 'System' && isGuid(form.value.recipientAddress) ? form.value.recipientAddress : null, address: form.value.recipientAddress.trim(), displayName: form.value.recipientName || null }],
     })
     toast.success(t('notifications.toasts.createdTitle'), t('notifications.toasts.createdMessage'))
@@ -120,10 +123,30 @@ async function createNotification() {
   finally { creating.value = false }
 }
 
-async function cancelMessage(message: NotificationMessageDto) {
-  if (!window.confirm(t('notifications.cancelConfirm'))) return
-  try { await NotificationsService.cancelMessage(message.id); toast.success(t('notifications.toasts.cancelledTitle'), t('notifications.toasts.cancelledMessage')); await load() }
-  catch (error) { toast.backendError(error, t('notifications.toasts.cancelError')) }
+function cancelMessage(message: NotificationMessageDto) {
+  modalStore.open({
+    title: t('notifications.cancel'),
+    component: DhConfirmDialog,
+    size: 'md',
+    props: {
+      title: t('notifications.cancel'),
+      message: t('notifications.cancelConfirm'),
+      confirmLabel: t('notifications.cancel'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await NotificationsService.cancelMessage(message.id)
+          modalStore.close()
+          toast.success(t('notifications.toasts.cancelledTitle'), t('notifications.toasts.cancelledMessage'))
+          await load()
+        } catch (error) {
+          toast.backendError(error, t('notifications.toasts.cancelError'))
+        }
+      },
+      onCancel: () => modalStore.close(),
+    },
+  })
 }
 
 function applyFilters() { page.value = 1; void load() }
@@ -150,6 +173,7 @@ onMounted(async () => { await Promise.all([load(), loadTemplates()]) })
   <section class="space-y-5 sm:space-y-6">
     <DhPageHeader :title="t('notifications.title')" :subtitle="t('notifications.subtitle')" :icon="Bell">
       <template #actions>
+        <DhButton v-if="canViewTemplates" :icon="BellRing" :label="t('notifications.templatesButton')" variant="secondary" @click="router.push('/monitoring/notifications/templates')" />
         <DhButton :icon="RefreshCw" :label="t('common.refresh')" variant="secondary" :loading="loading" @click="load" />
         <DhButton v-if="canCreate" :icon="Plus" :label="t('notifications.create.button')" @click="openCreate" />
       </template>
@@ -162,13 +186,13 @@ onMounted(async () => { await Promise.all([load(), loadTemplates()]) })
         <DhSelect v-model="channel" :options="channelOptions" :label="t('notifications.filters.channel')" placeholder="" />
         <DhButton class="w-full lg:self-end" :label="t('common.search')" variant="secondary" @click="applyFilters" />
       </div>
-      <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <div v-if="canViewHistory" class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
         <DhInput v-model="historyRecipient" :label="t('notifications.filters.historyRecipient')" :placeholder="t('notifications.filters.historyRecipientPlaceholder')" />
         <DhInput v-model="historyEntityType" :label="t('notifications.filters.historyEntityType')" :placeholder="t('notifications.filters.historyEntityTypePlaceholder')" />
         <DhInput v-model="historyEntityId" :label="t('notifications.filters.historyEntityId')" :placeholder="t('notifications.filters.historyEntityIdPlaceholder')" />
         <div class="grid grid-cols-2 gap-2 xl:self-end"><DhButton :label="t('notifications.filters.historySearch')" variant="secondary" @click="applyFilters" /><DhButton :label="t('common.clear')" variant="ghost" @click="clearHistoryFilters" /></div>
       </div>
-      <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('notifications.filters.historyHelp') }}</p>
+      <p v-if="canViewHistory" class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('notifications.filters.historyHelp') }}</p>
     </section>
 
     <DhEmptyState v-if="!loading && messages.length === 0" :icon="Bell" :title="t('notifications.emptyTitle')" :description="t('notifications.emptyDescription')" :action-label="canCreate ? t('notifications.create.button') : undefined" @action="openCreate" />
@@ -212,11 +236,13 @@ onMounted(async () => { await Promise.all([load(), loadTemplates()]) })
           <DhInput v-model="form.entityId" :label="t('notifications.create.entityId')" />
           <DhInput v-model="form.recipientAddress" :label="t('notifications.create.recipient')" :placeholder="form.channel === 'Email' ? t('notifications.create.emailPlaceholder') : t('notifications.create.systemRecipientPlaceholder')" />
           <DhInput v-model="form.recipientName" :label="t('notifications.create.recipientName')" />
+          <DhInput v-model="form.maxAttempts" type="number" :label="t('notifications.create.maxAttempts')" />
           <DhInput v-model="form.subject" class="md:col-span-2" :label="t('notifications.create.subject')" />
         </div>
         <DhTextarea v-if="!form.templateCode" v-model="form.body" :label="t('notifications.create.body')" :rows="5" />
         <DhTextarea v-model="form.payloadJson" :label="t('notifications.create.payload')" :rows="8" />
         <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('notifications.create.payloadHelp') }}</p>
+        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('notifications.create.maxAttemptsHelp') }}</p>
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><DhButton :label="t('common.cancel')" variant="secondary" @click="createOpen = false" /><DhButton :icon="form.scheduledForLocal ? Clock3 : Send" :label="form.scheduledForLocal ? t('notifications.create.scheduleButton') : t('notifications.create.sendButton')" :loading="creating" @click="createNotification" /></div>
       </div>
     </DhModal>
@@ -226,9 +252,12 @@ onMounted(async () => { await Promise.all([load(), loadTemplates()]) })
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div class="rounded-2xl bg-[var(--dh-input)] p-3"><p class="text-xs font-black text-[var(--dh-text-muted)]">{{ t('notifications.detail.status') }}</p><p class="mt-1 font-black">{{ t(`notifications.statuses.${detail.status}`) }}</p></div>
           <div class="rounded-2xl bg-[var(--dh-input)] p-3"><p class="text-xs font-black text-[var(--dh-text-muted)]">{{ t('notifications.detail.channel') }}</p><p class="mt-1 font-black">{{ t(`notifications.channels.${detail.channel}`) }}</p></div>
-          <div class="rounded-2xl bg-[var(--dh-input)] p-3"><p class="text-xs font-black text-[var(--dh-text-muted)]">{{ t('notifications.detail.scheduled') }}</p><p class="mt-1 font-black">{{ formatDate(detail.scheduledForUtc) }}</p></div>
+          <div class="rounded-2xl bg-[var(--dh-input)] p-3"><p class="text-xs font-black text-[var(--dh-text-muted)]">{{ t('notifications.detail.scheduled') }}</p><p class="mt-1 break-words font-black">{{ formatDate(detail.scheduledForUtc) }}</p></div>
+          <div class="rounded-2xl bg-[var(--dh-input)] p-3"><p class="text-xs font-black text-[var(--dh-text-muted)]">{{ t('notifications.detail.nextAttempt') }}</p><p class="mt-1 break-words font-black">{{ formatDate(detail.nextAttemptAtUtc) }}</p></div>
+          <div class="rounded-2xl bg-[var(--dh-input)] p-3"><p class="text-xs font-black text-[var(--dh-text-muted)]">{{ t('notifications.detail.sentAt') }}</p><p class="mt-1 break-words font-black">{{ formatDate(detail.sentAtUtc) }}</p></div>
+          <div class="rounded-2xl bg-[var(--dh-input)] p-3"><p class="text-xs font-black text-[var(--dh-text-muted)]">{{ t('notifications.detail.errorCode') }}</p><p class="mt-1 break-all font-black">{{ detail.lastErrorCode || t('common.notAvailable') }}</p></div>
         </div>
-        <div><h3 class="text-sm font-black">{{ t('notifications.detail.body') }}</h3><div class="mt-2 max-h-72 overflow-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-sm" v-html="detail.body || ''" /></div>
+        <div><h3 class="text-sm font-black">{{ t('notifications.detail.body') }}</h3><div class="mt-2 max-h-72 overflow-auto break-words rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-sm [&_*]:max-w-full" v-html="detail.body || ''" /></div>
         <div><h3 class="text-sm font-black">{{ t('notifications.detail.recipients') }}</h3><div class="mt-2 grid gap-2"><div v-for="recipient in detail.recipients" :key="recipient.id" class="rounded-2xl bg-[var(--dh-input)] p-3 text-sm font-semibold">{{ recipient.displayName || t('notifications.detail.unnamedRecipient') }} · {{ recipient.address }}</div></div></div>
         <div><h3 class="text-sm font-black">{{ t('notifications.detail.attempts') }}</h3><div class="mt-2 grid gap-2"><div v-for="attempt in detail.deliveryAttempts" :key="attempt.id" class="rounded-2xl border border-[var(--dh-border)] p-3 text-sm"><div class="flex flex-wrap justify-between gap-2"><strong>{{ t('notifications.detail.attemptNumber', { number: attempt.attemptNumber }) }}</strong><span>{{ attempt.succeeded ? t('notifications.detail.success') : t('notifications.detail.failure') }}</span></div><p class="mt-1 text-[var(--dh-text-muted)]">{{ attempt.provider || '—' }} · {{ attempt.errorMessage || t('notifications.detail.noError') }}</p></div><p v-if="detail.deliveryAttempts.length === 0" class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('notifications.detail.noAttempts') }}</p></div></div>
       </div>

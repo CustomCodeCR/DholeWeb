@@ -217,32 +217,55 @@ export const router = createRouter({
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
         },
+        {
+          path: 'pricing/rate-terms',
+          name: 'pricing-rate-terms',
+          component: () => import('@/modules/pricing/views/PricingRateTermsView.vue'),
+          meta: {
+            tabTitle: 'Ítems de tarifa',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingRateTerms,
+          },
+        },
 
 
         {
-          path: 'notifications',
+          path: 'monitoring/notifications',
           name: 'notifications',
           component: () => import('@/modules/notifications/views/NotificationsView.vue'),
           meta: { tabTitleKey: 'notifications.tabs.messages', closable: true, requiredScope: VIEW_SCOPES.notifications },
         },
         {
-          path: 'notifications/templates',
+          path: 'monitoring/notifications/new',
+          name: 'notifications-create',
+          component: () => import('@/modules/notifications/views/NotificationCreateView.vue'),
+          meta: { tabTitleKey: 'notifications.tabs.newMessage', closable: true, requiredScope: 'notifications.messages.create' },
+        },
+        {
+          path: 'monitoring/notifications/templates',
           name: 'notifications-templates',
           component: () => import('@/modules/notifications/views/NotificationTemplatesView.vue'),
           meta: { tabTitleKey: 'notifications.tabs.templates', closable: true, requiredScope: VIEW_SCOPES.notificationTemplates },
         },
         {
-          path: 'notifications/templates/new',
+          path: 'monitoring/notifications/templates/new',
           name: 'notifications-template-create',
           component: () => import('@/modules/notifications/views/NotificationTemplateDesignerView.vue'),
           meta: { tabTitleKey: 'notifications.tabs.newTemplate', closable: true, requiredScope: 'notifications.templates.manage' },
         },
         {
-          path: 'notifications/templates/:id',
+          path: 'monitoring/notifications/templates/:id',
           name: 'notifications-template-designer',
           component: () => import('@/modules/notifications/views/NotificationTemplateDesignerView.vue'),
           meta: { tabTitleKey: 'notifications.tabs.designer', closable: true, requiredScope: VIEW_SCOPES.notificationTemplates },
         },
+
+        // Backward-compatible redirects for bookmarks created before Notifications moved into Monitoring.
+        { path: 'notifications', redirect: '/monitoring/notifications' },
+        { path: 'notifications/new', redirect: '/monitoring/notifications/new' },
+        { path: 'notifications/templates', redirect: '/monitoring/notifications/templates' },
+        { path: 'notifications/templates/new', redirect: '/monitoring/notifications/templates/new' },
+        { path: 'notifications/templates/:id', redirect: (to) => `/monitoring/notifications/templates/${String(to.params.id)}` },
 
         {
           path: 'reports/templates',

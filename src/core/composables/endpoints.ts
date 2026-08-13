@@ -523,6 +523,36 @@ export const PricingEndpoints = {
   },
   deleteImportRates: { method: 'DELETE', path: '/api/pricing/import-rates', headers: jsonHeaders },
 
+  browseRateTermItems: {
+    method: 'GET',
+    path: '/api/pricing/rate-term-items',
+    headers: acceptJson,
+  },
+  createRateTermItem: {
+    method: 'POST',
+    path: '/api/pricing/rate-term-items',
+    headers: jsonHeaders,
+  },
+  updateRateTermItem: {
+    method: 'PUT',
+    path: '/api/pricing/rate-term-items/{{rateTermItemId}}',
+    headers: jsonHeaders,
+  },
+  setRateTermItemActive: {
+    method: 'PATCH',
+    path: '/api/pricing/rate-term-items/{{rateTermItemId}}/set-active',
+    headers: jsonHeaders,
+  },
+  deleteRateTermItem: {
+    method: 'DELETE',
+    path: '/api/pricing/rate-term-items/{{rateTermItemId}}',
+    headers: acceptJson,
+  },
+  selectRateTermItems: {
+    method: 'GET',
+    path: '/api/pricing/rate-term-items/select',
+    headers: acceptJson,
+  },
   browseRates: { method: 'GET', path: '/api/pricing/rates', headers: acceptJson },
   getRateDashboard: { method: 'GET', path: '/api/pricing/rates/dashboard', headers: acceptJson },
   getRateById: { method: 'GET', path: '/api/pricing/rates/{{rateId}}', headers: acceptJson },
@@ -701,10 +731,22 @@ export const AiEndpoints = {
 
 export const ReportsEndpoints = {
   browseTemplates: { method: 'GET', path: '/api/reports/templates', headers: acceptJson },
-  getTemplate: { method: 'GET', path: '/api/reports/templates/{{templateId}}', headers: acceptJson },
+  getTemplate: {
+    method: 'GET',
+    path: '/api/reports/templates/{{templateId}}',
+    headers: acceptJson,
+  },
   createTemplate: { method: 'POST', path: '/api/reports/templates', headers: jsonHeaders },
-  updateTemplate: { method: 'PUT', path: '/api/reports/templates/{{templateId}}', headers: jsonHeaders },
-  deleteTemplate: { method: 'DELETE', path: '/api/reports/templates/{{templateId}}', headers: acceptJson },
+  updateTemplate: {
+    method: 'PUT',
+    path: '/api/reports/templates/{{templateId}}',
+    headers: jsonHeaders,
+  },
+  deleteTemplate: {
+    method: 'DELETE',
+    path: '/api/reports/templates/{{templateId}}',
+    headers: acceptJson,
+  },
   previewTemplate: {
     method: 'GET',
     path: '/api/reports/templates/{{templateId}}/preview.pdf',
@@ -718,18 +760,66 @@ export const ReportsEndpoints = {
 } satisfies Record<string, Endpoint>
 
 export const NotificationsEndpoints = {
-  browseNotificationMessages: { method: 'GET', path: '/api/notifications/messages', headers: acceptJson },
-  getNotificationMessage: { method: 'GET', path: '/api/notifications/messages/{{notificationId}}', headers: acceptJson },
-  createNotificationMessage: { method: 'POST', path: '/api/notifications/messages', headers: jsonHeaders },
-  cancelNotificationMessage: { method: 'POST', path: '/api/notifications/messages/{{notificationId}}/cancel', headers: acceptJson },
-  notificationHistoryByEntity: { method: 'GET', path: '/api/notifications/messages/history/entity', headers: acceptJson },
-  notificationHistoryByRecipient: { method: 'GET', path: '/api/notifications/messages/history/recipient', headers: acceptJson },
-  browseNotificationTemplates: { method: 'GET', path: '/api/notifications/templates', headers: acceptJson },
-  getNotificationTemplate: { method: 'GET', path: '/api/notifications/templates/{{templateId}}', headers: acceptJson },
-  createNotificationTemplate: { method: 'POST', path: '/api/notifications/templates', headers: jsonHeaders },
-  updateNotificationTemplate: { method: 'PUT', path: '/api/notifications/templates/{{templateId}}', headers: jsonHeaders },
-  setNotificationTemplateActive: { method: 'PATCH', path: '/api/notifications/templates/{{templateId}}/active', headers: jsonHeaders },
-  deleteNotificationTemplate: { method: 'DELETE', path: '/api/notifications/templates/{{templateId}}', headers: acceptJson },
+  browseNotificationMessages: {
+    method: 'GET',
+    path: '/api/notifications/messages',
+    headers: acceptJson,
+  },
+  getNotificationMessage: {
+    method: 'GET',
+    path: '/api/notifications/messages/{{notificationId}}',
+    headers: acceptJson,
+  },
+  createNotificationMessage: {
+    method: 'POST',
+    path: '/api/notifications/messages',
+    headers: jsonHeaders,
+  },
+  cancelNotificationMessage: {
+    method: 'POST',
+    path: '/api/notifications/messages/{{notificationId}}/cancel',
+    headers: acceptJson,
+  },
+  notificationHistoryByEntity: {
+    method: 'GET',
+    path: '/api/notifications/messages/history/entity',
+    headers: acceptJson,
+  },
+  notificationHistoryByRecipient: {
+    method: 'GET',
+    path: '/api/notifications/messages/history/recipient',
+    headers: acceptJson,
+  },
+  browseNotificationTemplates: {
+    method: 'GET',
+    path: '/api/notifications/templates',
+    headers: acceptJson,
+  },
+  getNotificationTemplate: {
+    method: 'GET',
+    path: '/api/notifications/templates/{{templateId}}',
+    headers: acceptJson,
+  },
+  createNotificationTemplate: {
+    method: 'POST',
+    path: '/api/notifications/templates',
+    headers: jsonHeaders,
+  },
+  updateNotificationTemplate: {
+    method: 'PUT',
+    path: '/api/notifications/templates/{{templateId}}',
+    headers: jsonHeaders,
+  },
+  setNotificationTemplateActive: {
+    method: 'PATCH',
+    path: '/api/notifications/templates/{{templateId}}/active',
+    headers: jsonHeaders,
+  },
+  deleteNotificationTemplate: {
+    method: 'DELETE',
+    path: '/api/notifications/templates/{{templateId}}',
+    headers: acceptJson,
+  },
 } satisfies Record<string, Endpoint>
 
 export const Endpoints = {
@@ -749,4 +839,3 @@ export const Endpoints = {
   ...ReportsEndpoints,
   ...NotificationsEndpoints,
 } satisfies Record<string, Endpoint>
-

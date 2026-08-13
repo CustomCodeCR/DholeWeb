@@ -19,7 +19,13 @@ function iconByType(type: ToastType) {
         <article
           v-for="toast in toastStore.items"
           :key="toast.id"
-          class="dh-glass-strong dh-liquid rounded-[var(--dh-radius-lg)] p-4"
+          class="dh-glass-strong dh-liquid rounded-[var(--dh-radius-lg)] border-l-4 p-4"
+          :class="[
+            toast.type === 'success' && 'border-l-green-500',
+            toast.type === 'error' && 'border-l-red-500',
+            toast.type === 'warning' && 'border-l-yellow-500',
+            toast.type === 'info' && 'border-l-[var(--dh-primary)]',
+          ]"
         >
           <div class="flex gap-3">
             <component

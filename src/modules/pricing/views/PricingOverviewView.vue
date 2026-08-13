@@ -1,19 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
-  Anchor,
   CalendarDays,
   Check,
-  CheckCircle2,
-  CircleDollarSign,
   FileSpreadsheet,
-  MapPin,
-  Package,
   RefreshCw,
   Route,
-  Ship,
   Sparkles,
-  Truck,
 } from 'lucide-vue-next'
 import {
   DhBadge,
@@ -51,10 +44,10 @@ const catalogs = usePricingCatalogs()
 const loading = ref(false)
 const selectingImportId = ref('')
 const creatingFinalRate = ref(false)
+const approvingImportId = ref('')
 const dashboard = ref<PricingDecisionDashboardDto | null>(null)
 const selectedRate = ref<PricingDecisionRateDto | null>(null)
 const selectedImport = ref<ImportRateDto | null>(null)
-const activeLaneKey = ref<PricingDecisionLaneDto['key']>('limon-moin')
 const filters = reactive({ dateFrom: '', dateTo: '', containerTypeId: '' })
 const importCache = new Map<string, ImportRateDto>()
 
@@ -97,43 +90,28 @@ const visibleTotalOptions = computed(() =>
   lanes.value.reduce((total, lane) => total + lane.totalOptions, 0),
 )
 
-const activeLane = computed(
-  () => lanes.value.find((lane) => lane.key === activeLaneKey.value) ?? lanes.value[0] ?? null,
+const decisionRows = computed(() =>
+  lanes.value
+    .flatMap((lane) => lane.rates.map((rate) => ({ lane, rate })))
+    .sort(
+      (a, b) =>
+        b.rate.priorityScore - a.rate.priorityScore ||
+        comparableAmount(a.rate) - comparableAmount(b.rate),
+    ),
 )
 
-const activeRates = computed(() =>
-  [...(activeLane.value?.rates ?? [])].sort((a, b) => comparableAmount(a) - comparableAmount(b)),
+const selectedLane = computed(
+  () =>
+    decisionRows.value.find((row) => row.rate.importRateId === selectedRate.value?.importRateId)
+      ?.lane ?? null,
 )
 
 const selectedStatus = computed(() => selectedImport.value?.status ?? null)
 const selectedNeedsApproval = computed(() => selectedStatus.value === 'Pending')
 const selectedCanContinue = computed(() => {
   if (!selectedImport.value || !canCreateFinalRate.value) return false
-  if (selectedImport.value.status === 'Rejected') return false
-  if (selectedImport.value.status === 'Pending') return canApproveImport.value
   return ['Approved', 'Created'].includes(selectedImport.value.status)
 })
-
-const finalActionLabel = computed(() => {
-  if (selectedNeedsApproval.value && canApproveImport.value) return 'Aprobar y crear tarifa final'
-  return 'Crear tarifa final'
-})
-
-function laneIcon(lane: PricingDecisionLaneDto) {
-  if (lane.key === 'multimodal') return Truck
-  if (lane.key === 'puerto-caldera') return Anchor
-  return Ship
-}
-
-function laneAccent(lane: PricingDecisionLaneDto, active = false) {
-  if (active)
-    return 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white shadow-[var(--dh-glow)]'
-  if (lane.key === 'multimodal')
-    return 'border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300'
-  if (lane.key === 'puerto-caldera')
-    return 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-  return 'border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300'
-}
 
 function normalizeCurrency(value: string) {
   return value
@@ -148,7 +126,7 @@ function isUsd(rate: PricingDecisionRateDto) {
 }
 
 function comparableAmount(rate: PricingDecisionRateDto) {
-  return rate.internationalOceanFreight + (rate.internationalLandFreight ?? 0)
+  return (rate.totalSale ?? rate.internationalOceanFreight) + (rate.internationalLandFreight ?? 0)
 }
 
 function totalFreightLabel(rate: PricingDecisionRateDto) {
@@ -164,12 +142,6 @@ function totalFreightLabel(rate: PricingDecisionRateDto) {
     rate.internationalLandFreight,
     'USD',
   )}`
-}
-
-function lowestLaneLabel(lane: PricingDecisionLaneDto) {
-  if (!lane.rates.length) return 'Sin opciones'
-  const best = [...lane.rates].sort((a, b) => comparableAmount(a) - comparableAmount(b))[0]
-  return `Desde ${totalFreightLabel(best!)}`
 }
 
 function statusLabel(status: ImportStatus | null) {
@@ -200,12 +172,6 @@ function clearSelection() {
   selectingImportId.value = ''
 }
 
-function changeLane(key: PricingDecisionLaneDto['key']) {
-  if (activeLaneKey.value === key) return
-  activeLaneKey.value = key
-  clearSelection()
-}
-
 async function load() {
   if (dateRangeInvalid.value) {
     toastStore.warning('La fecha desde no puede ser mayor que la fecha hasta.')
@@ -219,9 +185,6 @@ async function load() {
       dateTo: filters.dateTo || null,
     })
 
-    if (!dashboard.value.lanes.some((lane) => lane.key === activeLaneKey.value)) {
-      activeLaneKey.value = dashboard.value.lanes[0]?.key ?? 'limon-moin'
-    }
     clearSelection()
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar el dashboard para toma de decisiones.')
@@ -284,23 +247,43 @@ async function openCreatedRate(rateId: string) {
   }
 }
 
+async function approveDecisionRate(rate: PricingDecisionRateDto) {
+  if (!canApproveImport.value || rate.status !== 'Pending' || approvingImportId.value) return
+
+  try {
+    approvingImportId.value = rate.importRateId
+    await PricingService.approveImportRate(rate.importRateId)
+    importCache.delete(rate.importRateId)
+    rate.status = 'Approved'
+
+    if (selectedRate.value?.importRateId === rate.importRateId) {
+      const refreshed = await PricingService.getImportRate(rate.importRateId)
+      selectedImport.value = refreshed
+      importCache.set(rate.importRateId, refreshed)
+    }
+
+    toastStore.success(
+      'Tarifa importada aprobada',
+      'La tarifa ya está disponible para crear una tarifa final.',
+    )
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo aprobar la tarifa importada.')
+  } finally {
+    approvingImportId.value = ''
+  }
+}
+
+async function approveSelectedImport() {
+  if (!selectedRate.value) return
+  await approveDecisionRate(selectedRate.value)
+}
+
 async function createFinalRate() {
   if (!selectedRate.value || !selectedImport.value || !selectedCanContinue.value) return
 
   try {
     creatingFinalRate.value = true
-    let source = selectedImport.value
-
-    if (source.status === 'Pending') {
-      await PricingService.approveImportRate(source.id)
-      source = await PricingService.getImportRate(source.id)
-      selectedImport.value = source
-      importCache.set(source.id, source)
-      toastStore.success(
-        'Importación aprobada',
-        'La alternativa seleccionada ya puede convertirse en tarifa final.',
-      )
-    }
+    const source = selectedImport.value
 
     drawerStore.open({
       title: `Crear tarifa final · ${source.carrier}`,
@@ -334,10 +317,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="space-y-6 pb-6">
+  <section class="space-y-5 pb-28">
     <DhPageHeader
-      title="Mesa de decisión FCL"
-      subtitle="Seleccione una alternativa importada y conviértala directamente en la tarifa final para el cliente."
+      title="Selección de tarifas FCL"
+      subtitle="Compare todas las alternativas disponibles en una sola tabla y cree la tarifa final desde la opción seleccionada."
       :icon="Route"
     >
       <template #actions>
@@ -363,462 +346,332 @@ onMounted(() => {
     <PricingWorkflowGuide current="decision" compact />
 
     <section
-      class="dh-liquid overflow-hidden rounded-[32px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]"
+      class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]"
     >
-      <div class="grid lg:grid-cols-[1.25fr_0.75fr]">
-        <div class="relative overflow-hidden p-6 md:p-8">
-          <div
-            class="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[var(--dh-primary)] opacity-[0.08] blur-3xl"
-          />
-          <DhBadge label="Decisión → cotización final" variant="primary" />
-          <h2
-            class="relative mt-4 max-w-3xl text-3xl font-black tracking-[-0.04em] text-[var(--dh-text)] md:text-4xl"
-          >
-            Compare el costo de salida y cree la opción elegida sin perder el contexto.
-          </h2>
-
-          <div class="relative mt-6 flex flex-wrap gap-3">
-            <div
-              class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3"
-            >
-              <p
-                class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
-              >
-                Alternativas disponibles
-              </p>
-              <p class="mt-1 text-2xl font-black text-[var(--dh-text)]">
-                {{ visibleTotalOptions }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="border-t border-[var(--dh-border)] bg-black/[0.025] p-6 dark:bg-white/[0.025] lg:border-l lg:border-t-0 md:p-8"
-        >
-          <div class="flex items-center gap-2">
-            <CalendarDays class="h-4 w-4 text-[var(--dh-primary)]" />
-            <h3 class="text-sm font-black text-[var(--dh-text)]">Filtros de decisión</h3>
-          </div>
-          <div class="mt-4 grid gap-3 sm:grid-cols-2">
-            <DhInput
-              v-model="filters.dateFrom"
-              type="date"
-              label="Fecha desde"
-              :error="dateRangeInvalid ? 'Rango inválido' : undefined"
-            />
-            <DhInput
-              v-model="filters.dateTo"
-              type="date"
-              label="Fecha hasta"
-              :error="dateRangeInvalid ? 'Rango inválido' : undefined"
-            />
-            <DhSelect
-              v-model="filters.containerTypeId"
-              class="sm:col-span-2"
-              label="Contenedor"
-              :options="containerFilterOptions"
-              placeholder=""
-              :disabled="catalogs.loading.value"
-            />
-          </div>
-          <div class="mt-4 flex flex-wrap gap-2">
-            <DhButton
-              label="Aplicar filtros"
-              :icon="CalendarDays"
-              :disabled="dateRangeInvalid"
-              :loading="loading"
-              @click="load"
-            />
-            <DhButton
-              label="Limpiar"
-              variant="ghost"
-              :disabled="
-                loading || (!filters.dateFrom && !filters.dateTo && !filters.containerTypeId)
-              "
-              @click="clearFilters"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <div class="mb-3 flex items-center gap-3">
-        <span
-          class="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-sm font-black text-white"
-          >1</span
-        >
-        <div>
-          <h2 class="text-lg font-black text-[var(--dh-text)]">Seleccione la vía de salida</h2>
-          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-            Las opciones se agrupan automáticamente por POE.
-          </p>
-        </div>
-      </div>
-
-      <div class="grid gap-3 md:grid-cols-3">
-        <button
-          v-for="lane in lanes"
-          :key="lane.key"
-          type="button"
-          class="group rounded-[26px] border p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--dh-shadow-sm)]"
-          :class="
-            activeLaneKey === lane.key
-              ? 'border-[var(--dh-primary)] bg-[var(--dh-card)] ring-2 ring-[var(--dh-primary)]/15'
-              : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/35'
-          "
-          @click="changeLane(lane.key)"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <span
-              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[17px] border transition"
-              :class="laneAccent(lane, activeLaneKey === lane.key)"
-            >
-              <component :is="laneIcon(lane)" class="h-5 w-5" />
-            </span>
-            <span
-              class="flex h-7 w-7 items-center justify-center rounded-full border transition"
-              :class="
-                activeLaneKey === lane.key
-                  ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-                  : 'border-[var(--dh-border)] text-transparent'
-              "
-            >
-              <Check class="h-4 w-4" />
-            </span>
-          </div>
-          <h3 class="mt-4 text-base font-black text-[var(--dh-text)]">{{ lane.name }}</h3>
-          <p class="mt-1 min-h-10 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            {{ lane.description }}
-          </p>
-          <div
-            class="mt-4 flex items-end justify-between gap-3 border-t border-[var(--dh-border)] pt-3"
-          >
-            <div>
-              <p class="text-xl font-black text-[var(--dh-text)]">{{ lane.totalOptions }}</p>
-              <p
-                class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
-              >
-                Opciones
-              </p>
-            </div>
-            <p class="text-right text-xs font-black text-[var(--dh-primary)]">
-              {{ lowestLaneLabel(lane) }}
-            </p>
-          </div>
-        </button>
-      </div>
-    </section>
-
-    <div v-if="loading && !dashboard" class="flex min-h-[360px] items-center justify-center">
-      <DhSpinner size="lg" />
-    </div>
-
-    <section v-else class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_370px] xl:items-start">
-      <article
-        class="rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-[var(--dh-shadow-sm)] md:p-6"
+      <div
+        class="flex flex-col gap-4 border-b border-[var(--dh-border)] p-4 lg:flex-row lg:items-end lg:justify-between"
       >
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex items-center gap-3">
-            <span
-              class="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-sm font-black text-white"
-              >2</span
-            >
-            <div>
-              <h2 class="text-lg font-black text-[var(--dh-text)]">
-                Compare y marque una alternativa
-              </h2>
-              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ activeLane?.name }} · ordenadas de menor a mayor costo de transporte
-              </p>
-            </div>
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">
+            Comparador operativo
+          </p>
+          <div class="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 class="text-xl font-black text-[var(--dh-text)]">Tarifas disponibles</h2>
+            <span class="text-sm font-bold text-[var(--dh-text-muted)]">
+              {{ visibleTotalOptions }} alternativa{{ visibleTotalOptions === 1 ? '' : 's' }}
+            </span>
           </div>
-          <DhBadge :label="`${activeRates.length} disponibles`" variant="neutral" />
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Ordenadas por prioridad: 50% comentarios de espacios · 30% precio · 20% margen.
+          </p>
         </div>
 
-        <div v-if="activeRates.length" class="mt-5 grid gap-4 lg:grid-cols-2">
-          <button
-            v-for="(rate, index) in activeRates"
-            :key="rate.importRateId"
-            type="button"
-            class="relative overflow-hidden rounded-[26px] border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--dh-shadow-sm)]"
-            :class="
-              selectedRate?.importRateId === rate.importRateId
-                ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/[0.035] ring-2 ring-[var(--dh-primary)]/15'
-                : 'border-[var(--dh-border)] bg-[var(--dh-input)] hover:border-[var(--dh-primary)]/35'
-            "
-            @click="selectRate(rate)"
-          >
-            <div
-              v-if="selectedRate?.importRateId === rate.importRateId"
-              class="absolute right-0 top-0 h-20 w-20 rounded-bl-[70px] bg-[var(--dh-primary)]/10"
-            />
+        <div class="grid w-full gap-3 sm:grid-cols-3 lg:w-auto lg:min-w-[650px]">
+          <DhInput
+            v-model="filters.dateFrom"
+            type="date"
+            label="Fecha desde"
+            :error="dateRangeInvalid ? 'Rango inválido' : undefined"
+          />
+          <DhInput
+            v-model="filters.dateTo"
+            type="date"
+            label="Fecha hasta"
+            :error="dateRangeInvalid ? 'Rango inválido' : undefined"
+          />
+          <DhSelect
+            v-model="filters.containerTypeId"
+            label="Contenedor"
+            :options="containerFilterOptions"
+            placeholder=""
+            :disabled="catalogs.loading.value"
+          />
+        </div>
+      </div>
 
-            <div class="relative flex items-start justify-between gap-4">
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <DhBadge v-if="index === 0" label="Menor costo" variant="success" />
-                  <DhBadge :label="rate.containerType" variant="primary" />
-                </div>
-                <h3 class="mt-3 truncate text-xl font-black tracking-tight text-[var(--dh-text)]">
-                  {{ rate.carrier }}
-                </h3>
-                <p
-                  class="mt-1 flex items-center gap-1.5 text-xs font-semibold text-[var(--dh-text-muted)]"
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-3">
+        <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+          <span>Se muestran todas las vías de salida en la misma tabla.</span>
+          <DhBadge
+            v-for="lane in lanes"
+            :key="lane.key"
+            :label="`${lane.name}: ${lane.totalOptions}`"
+            variant="neutral"
+          />
+        </div>
+        <div class="flex gap-2">
+          <DhButton
+            label="Aplicar filtros"
+            :icon="CalendarDays"
+            size="sm"
+            :disabled="dateRangeInvalid"
+            :loading="loading"
+            @click="load"
+          />
+          <DhButton
+            label="Limpiar"
+            size="sm"
+            variant="ghost"
+            :disabled="loading || (!filters.dateFrom && !filters.dateTo && !filters.containerTypeId)"
+            @click="clearFilters"
+          />
+        </div>
+      </div>
+
+      <div v-if="loading && !dashboard" class="flex min-h-[360px] items-center justify-center">
+        <DhSpinner size="lg" />
+      </div>
+
+      <div
+        v-else-if="decisionRows.length"
+        class="dh-scrollbar m-4 overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl"
+      >
+        <table class="w-full min-w-[1720px] border-collapse text-left text-xs sm:text-sm">
+          <thead class="bg-black/[0.035] text-xs text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
+            <tr class="font-black uppercase tracking-[0.1em] sm:tracking-[0.12em]">
+              <th class="w-12 px-3 py-3 text-center">Sel.</th>
+              <th class="w-12 px-3 py-3">#</th>
+              <th class="px-3 py-3">Prioridad</th>
+              <th class="px-3 py-3">Vía / POE</th>
+              <th class="px-3 py-3">Naviera</th>
+              <th class="px-3 py-3">POL</th>
+              <th class="px-3 py-3">POD</th>
+              <th class="px-3 py-3">Contenedor</th>
+              <th class="px-3 py-3 text-right">Flete marítimo</th>
+              <th class="px-3 py-3 text-right">Flete terrestre</th>
+              <th class="px-3 py-3 text-right">Total comparado</th>
+              <th class="px-3 py-3 text-right">Margen</th>
+              <th class="px-3 py-3">Espacio</th>
+              <th class="px-3 py-3">Comentario / criterio</th>
+              <th class="px-3 py-3 text-center">Estado</th>
+              <th class="px-3 py-3">Vigencia</th>
+              <th class="sticky right-0 z-20 bg-[var(--dh-card)] px-3 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="({ lane, rate }, index) in decisionRows"
+              :key="rate.importRateId"
+              class="group cursor-pointer border-t border-[var(--dh-border)] transition-colors"
+              :class="
+                selectedRate?.importRateId === rate.importRateId
+                  ? 'bg-[var(--dh-primary)]/[0.075]'
+                  : index === 0
+                    ? 'bg-emerald-500/[0.035] hover:bg-emerald-500/[0.07]'
+                    : 'bg-[var(--dh-card)] hover:bg-[var(--dh-card-hover)]'
+              "
+              @click="selectRate(rate)"
+            >
+              <td class="px-3 py-3 text-center">
+                <span
+                  class="mx-auto flex h-5 w-5 items-center justify-center rounded-full border-2 transition"
+                  :class="
+                    selectedRate?.importRateId === rate.importRateId
+                      ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border-strong)] bg-[var(--dh-card)] text-transparent group-hover:border-[var(--dh-primary)]/60'
+                  "
                 >
-                  <MapPin class="h-3.5 w-3.5" />
-                  {{ rate.pol }} → {{ rate.poe }}
+                  <Check class="h-3 w-3" />
+                </span>
+              </td>
+              <td class="px-3 py-3 text-sm font-black text-[var(--dh-primary)]">{{ index + 1 }}</td>
+              <td class="px-3 py-3">
+                <div class="flex items-center gap-2 whitespace-nowrap">
+                  <DhBadge v-if="index === 0" label="Recomendada" variant="success" />
+                  <strong class="text-sm text-[var(--dh-text)]">{{ rate.priorityScore.toFixed(1) }}</strong>
+                </div>
+                <div class="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+                  <span
+                    class="block h-full rounded-full bg-[var(--dh-primary)]"
+                    :style="{ width: `${Math.min(100, Math.max(0, rate.priorityScore))}%` }"
+                  />
+                </div>
+              </td>
+              <td class="px-3 py-3">
+                <strong class="block whitespace-nowrap text-sm text-[var(--dh-text)]">{{ lane.name }}</strong>
+                <span class="mt-0.5 block whitespace-nowrap text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                  POE: {{ rate.poe }}
+                </span>
+              </td>
+              <td class="px-3 py-3">
+                <strong class="whitespace-nowrap text-sm text-[var(--dh-text)]">{{ rate.carrier }}</strong>
+              </td>
+              <td class="px-3 py-3 text-xs font-bold text-[var(--dh-text-soft)]">
+                <span class="whitespace-nowrap">{{ rate.pol }}</span>
+              </td>
+              <td class="px-3 py-3 text-xs font-bold text-[var(--dh-text-soft)]">
+                <span class="whitespace-nowrap">{{ rate.pod || '—' }}</span>
+              </td>
+              <td class="px-3 py-3">
+                <DhBadge :label="rate.containerType" variant="primary" />
+              </td>
+              <td class="px-3 py-3 text-right text-sm font-bold text-[var(--dh-text)]">
+                {{ formatMoney(rate.internationalOceanFreight, rate.currency) }}
+              </td>
+              <td class="px-3 py-3 text-right text-sm font-bold text-[var(--dh-text)]">
+                {{
+                  rate.internationalLandFreight != null
+                    ? formatMoney(rate.internationalLandFreight, 'USD')
+                    : '—'
+                }}
+              </td>
+              <td class="px-3 py-3 text-right text-sm font-black text-[var(--dh-primary)]">
+                <span class="whitespace-nowrap">{{ totalFreightLabel(rate) }}</span>
+              </td>
+              <td class="px-3 py-3 text-right">
+                <span
+                  class="whitespace-nowrap text-sm font-black"
+                  :class="
+                    rate.margin == null
+                      ? 'text-[var(--dh-text-muted)]'
+                      : rate.margin >= 12
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-amber-600 dark:text-amber-400'
+                  "
+                >
+                  {{ rate.margin != null ? `${rate.margin.toFixed(1)}%` : '—' }}
+                </span>
+              </td>
+              <td class="px-3 py-3">
+                <DhBadge
+                  :label="`${rate.spaceScore.toFixed(0)}/100 · ${rate.spaceRisk}`"
+                  :variant="
+                    rate.spaceRisk === 'Bajo'
+                      ? 'success'
+                      : rate.spaceRisk === 'Alto'
+                        ? 'danger'
+                        : 'warning'
+                  "
+                />
+              </td>
+              <td class="max-w-[360px] px-3 py-3">
+                <p
+                  class="line-clamp-2 text-xs font-semibold leading-5 text-[var(--dh-text-soft)]"
+                  :title="`${rate.spaceComment || 'Sin comentario operativo'}\n\n${rate.priorityReason}`"
+                >
+                  {{ rate.spaceComment || 'Sin comentario operativo' }}
                 </p>
-              </div>
-              <span
-                class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition"
+                <p class="mt-0.5 line-clamp-1 text-[10px] font-bold text-[var(--dh-text-muted)]">
+                  {{ rate.priorityReason }}
+                </p>
+              </td>
+              <td class="px-3 py-3 text-center">
+                <DhBadge :label="statusLabel(rate.status)" :variant="statusVariant(rate.status)" />
+              </td>
+              <td class="px-3 py-3 text-[11px] font-semibold leading-5 text-[var(--dh-text-muted)]">
+                <span class="whitespace-nowrap">{{ formatDate(rate.validFrom) }}</span>
+                <span class="mx-1">→</span>
+                <span class="whitespace-nowrap">{{ formatDate(rate.validTo) }}</span>
+              </td>
+              <td
+                class="sticky right-0 z-[5] border-l border-[var(--dh-border)] px-3 py-3 text-right"
                 :class="
                   selectedRate?.importRateId === rate.importRateId
-                    ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-transparent'
+                    ? 'bg-[color-mix(in_srgb,var(--dh-primary)_7%,var(--dh-card))]'
+                    : 'bg-[var(--dh-card)] group-hover:bg-[var(--dh-card-hover)]'
                 "
               >
-                <Check class="h-4 w-4" />
-              </span>
-            </div>
+                <div class="flex justify-end gap-1.5">
+                  <DhButton
+                    v-if="rate.status === 'Pending' && canApproveImport"
+                    label="Aprobar"
+                    variant="primary"
+                    size="sm"
+                    :loading="approvingImportId === rate.importRateId"
+                    :disabled="Boolean(approvingImportId)"
+                    @click.stop="approveDecisionRate(rate)"
+                  />
+                  <DhButton
+                    :label="selectedRate?.importRateId === rate.importRateId ? 'Seleccionada' : 'Seleccionar'"
+                    :variant="selectedRate?.importRateId === rate.importRateId ? 'primary' : 'secondary'"
+                    size="sm"
+                    :loading="selectingImportId === rate.importRateId"
+                    @click.stop="selectRate(rate)"
+                  />
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-            <div class="relative mt-5 grid gap-3 sm:grid-cols-2">
-              <div
-                class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5"
-              >
-                <p
-                  class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
-                >
-                  Marítimo internacional
-                </p>
-                <p class="mt-1 text-lg font-black text-[var(--dh-text)]">
-                  {{ formatMoney(rate.internationalOceanFreight, rate.currency) }}
-                </p>
-              </div>
-              <div
-                class="rounded-[18px] border p-3.5"
-                :class="
-                  rate.internationalLandFreight != null
-                    ? 'border-violet-500/20 bg-violet-500/10'
-                    : 'border-[var(--dh-border)] bg-[var(--dh-card)]'
-                "
-              >
-                <p
-                  class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
-                >
-                  {{
-                    rate.internationalLandFreight != null
-                      ? 'Terrestre internacional'
-                      : 'Costo de la vía'
-                  }}
-                </p>
-                <p class="mt-1 text-lg font-black text-[var(--dh-text)]">
-                  {{
-                    rate.internationalLandFreight != null
-                      ? formatMoney(rate.internationalLandFreight, 'USD')
-                      : formatMoney(rate.internationalOceanFreight, rate.currency)
-                  }}
-                </p>
-              </div>
-            </div>
+      <DhEmptyState
+        v-else
+        class="m-5"
+        title="Sin tarifas para comparar"
+        description="Cambie el contenedor o el rango de fechas para encontrar tarifas importadas vigentes."
+        :icon="Route"
+      />
+    </section>
 
-            <div
-              class="relative mt-4 flex items-end justify-between gap-4 border-t border-[var(--dh-border)] pt-4"
-            >
-              <div>
-                <p
-                  class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
-                >
-                  Costo transporte considerado
-                </p>
-                <p class="mt-1 text-xl font-black text-[var(--dh-primary)]">
-                  {{ totalFreightLabel(rate) }}
-                </p>
-              </div>
-              <p class="text-right text-[11px] font-semibold leading-5 text-[var(--dh-text-muted)]">
-                {{ formatDate(rate.validFrom) }}<br />{{ formatDate(rate.validTo) }}
-              </p>
-            </div>
-
-            <div
-              v-if="selectingImportId === rate.importRateId"
-              class="absolute inset-0 flex items-center justify-center bg-[var(--dh-card)]/80 backdrop-blur-sm"
-            >
-              <DhSpinner />
-            </div>
-          </button>
+    <section
+      v-if="selectedRate"
+      class="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)]/95 shadow-[0_-12px_35px_rgba(0,0,0,0.12)] backdrop-blur-2xl"
+    >
+      <div class="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between lg:px-6">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2">
+          <div class="min-w-0">
+            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Tarifa seleccionada</p>
+            <p class="truncate text-sm font-black text-[var(--dh-text)]">
+              {{ selectedRate.carrier }} · {{ selectedRate.pol }} → {{ selectedRate.poe }} · {{ selectedRate.containerType }}
+            </p>
+          </div>
+          <div class="hidden h-8 w-px bg-[var(--dh-border)] md:block" />
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Vía</p>
+            <p class="text-sm font-bold text-[var(--dh-text)]">{{ selectedLane?.name || selectedRate.poe }}</p>
+          </div>
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo comparado</p>
+            <p class="text-sm font-black text-[var(--dh-primary)]">{{ totalFreightLabel(selectedRate) }}</p>
+          </div>
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Prioridad</p>
+            <p class="text-sm font-black text-[var(--dh-text)]">{{ selectedRate.priorityScore.toFixed(1) }}/100</p>
+          </div>
+          <DhBadge
+            v-if="selectedImport"
+            :label="statusLabel(selectedStatus)"
+            :variant="statusVariant(selectedStatus)"
+          />
+          <DhSpinner v-else-if="selectingImportId" size="sm" />
         </div>
 
-        <DhEmptyState
-          v-else
-          class="mt-5"
-          title="Sin alternativas para esta vía"
-          description="Cambie la vía, el contenedor o el rango de fechas para encontrar tarifas importadas vigentes."
-          :icon="activeLane ? laneIcon(activeLane) : Route"
-        />
-      </article>
-
-      <aside class="xl:sticky xl:top-5">
-        <section
-          class="overflow-hidden rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]"
-        >
-          <header class="border-b border-[var(--dh-border)] p-5">
-            <div class="flex items-center gap-3">
-              <span
-                class="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-sm font-black text-white"
-                >3</span
-              >
-              <div>
-                <h2 class="text-lg font-black text-[var(--dh-text)]">Crear tarifa final</h2>
-                <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-                  Confirmación de la opción elegida
-                </p>
-              </div>
-            </div>
-          </header>
-
-          <div v-if="selectedRate" class="p-5">
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <DhBadge
-                  :label="statusLabel(selectedStatus)"
-                  :variant="statusVariant(selectedStatus)"
-                />
-                <h3 class="mt-3 truncate text-xl font-black text-[var(--dh-text)]">
-                  {{ selectedRate.carrier }}
-                </h3>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                  {{ activeLane?.name }}
-                </p>
-              </div>
-              <span
-                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-green-500/10 text-green-600 dark:text-green-400"
-              >
-                <CheckCircle2 class="h-5 w-5" />
-              </span>
-            </div>
-
-            <div class="mt-5 space-y-2.5">
-              <div
-                class="flex items-center justify-between gap-3 rounded-[17px] bg-black/[0.035] px-3.5 py-3 dark:bg-white/[0.05]"
-              >
-                <span class="flex items-center gap-2 text-xs font-bold text-[var(--dh-text-muted)]"
-                  ><Ship class="h-4 w-4" /> Marítimo</span
-                >
-                <strong class="text-sm text-[var(--dh-text)]">{{
-                  formatMoney(selectedRate.internationalOceanFreight, selectedRate.currency)
-                }}</strong>
-              </div>
-              <div
-                v-if="selectedRate.internationalLandFreight != null"
-                class="flex items-center justify-between gap-3 rounded-[17px] bg-violet-500/10 px-3.5 py-3"
-              >
-                <span
-                  class="flex items-center gap-2 text-xs font-bold text-violet-700 dark:text-violet-300"
-                  ><Truck class="h-4 w-4" /> Terrestre</span
-                >
-                <strong class="text-sm text-[var(--dh-text)]">{{
-                  formatMoney(selectedRate.internationalLandFreight, 'USD')
-                }}</strong>
-              </div>
-              <div
-                class="flex items-center justify-between gap-3 rounded-[17px] bg-black/[0.035] px-3.5 py-3 dark:bg-white/[0.05]"
-              >
-                <span class="flex items-center gap-2 text-xs font-bold text-[var(--dh-text-muted)]"
-                  ><Package class="h-4 w-4" /> Contenedor</span
-                >
-                <strong class="text-sm text-[var(--dh-text)]">{{
-                  selectedRate.containerType
-                }}</strong>
-              </div>
-              <div
-                class="flex items-center justify-between gap-3 rounded-[17px] bg-black/[0.035] px-3.5 py-3 dark:bg-white/[0.05]"
-              >
-                <span class="flex items-center gap-2 text-xs font-bold text-[var(--dh-text-muted)]"
-                  ><MapPin class="h-4 w-4" /> Ruta</span
-                >
-                <strong class="max-w-[190px] truncate text-right text-sm text-[var(--dh-text)]"
-                  >{{ selectedRate.pol }} → {{ selectedRate.poe }}</strong
-                >
-              </div>
-            </div>
-
-            <div
-              class="mt-5 rounded-[22px] bg-[var(--dh-primary)] p-4 text-white shadow-[var(--dh-glow)]"
-            >
-              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-white/70">
-                Costo seleccionado
-              </p>
-              <p class="mt-1 text-2xl font-black">{{ totalFreightLabel(selectedRate) }}</p>
-              <p class="mt-1 text-[11px] font-semibold text-white/75">
-                Este será el origen de la tarifa oficial para el cliente.
-              </p>
-            </div>
-
-            <div
-              v-if="selectedNeedsApproval && !canApproveImport"
-              class="mt-4 rounded-[18px] border border-amber-500/20 bg-amber-500/10 p-3 text-xs font-semibold leading-5 text-amber-800 dark:text-amber-300"
-            >
-              La importación está pendiente. Una persona con permiso de aprobación debe aprobarla
-              antes de crear la tarifa final.
-            </div>
-
-            <div
-              v-if="selectedStatus === 'Rejected'"
-              class="mt-4 rounded-[18px] border border-red-500/20 bg-red-500/10 p-3 text-xs font-semibold leading-5 text-red-700 dark:text-red-300"
-            >
-              Esta alternativa fue rechazada y no puede utilizarse para generar una tarifa final.
-            </div>
-
-            <DhButton
-              class="mt-5 w-full"
-              :label="finalActionLabel"
-              :icon="Sparkles"
-              size="lg"
-              :loading="creatingFinalRate || Boolean(selectingImportId)"
-              :disabled="!selectedCanContinue"
-              @click="createFinalRate"
-            />
-            <button
-              type="button"
-              class="mt-3 w-full text-center text-xs font-black text-[var(--dh-text-muted)] transition hover:text-[var(--dh-primary)]"
-              @click="clearSelection"
-            >
-              Cambiar selección
-            </button>
-          </div>
-
-          <div v-else class="p-5">
-            <div
-              class="flex min-h-[360px] flex-col items-center justify-center rounded-[24px] border border-dashed border-[var(--dh-border)] bg-black/[0.02] p-6 text-center dark:bg-white/[0.02]"
-            >
-              <span
-                class="flex h-16 w-16 items-center justify-center rounded-[24px] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]"
-              >
-                <CircleDollarSign class="h-7 w-7" />
-              </span>
-              <h3 class="mt-5 text-lg font-black text-[var(--dh-text)]">
-                Aún no ha elegido una tarifa
-              </h3>
-              <p class="mt-2 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-                Marque una tarjeta en el comparador. Aquí verá exactamente la importación que se
-                convertirá en tarifa final.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <div
-          class="mt-3 flex items-start gap-3 rounded-[22px] border border-green-500/20 bg-green-500/10 p-4"
-        >
-          <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
-          <p class="text-xs font-semibold leading-5 text-green-800 dark:text-green-300">
-            Al guardar, el dashboard abrirá automáticamente la tarifa oficial creada para revisar
-            costos, venta, utilidad y margen.
-          </p>
+        <div class="flex shrink-0 items-center gap-2">
+          <DhButton label="Cancelar selección" variant="ghost" size="sm" @click="clearSelection" />
+          <DhButton
+            v-if="selectedNeedsApproval && canApproveImport"
+            label="Aprobar tarifa importada"
+            :icon="Check"
+            size="sm"
+            :loading="approvingImportId === selectedRate.importRateId"
+            :disabled="Boolean(approvingImportId)"
+            @click="approveSelectedImport"
+          />
+          <DhButton
+            v-else
+            label="Crear tarifa final"
+            :icon="Sparkles"
+            size="sm"
+            :loading="creatingFinalRate || Boolean(selectingImportId)"
+            :disabled="!selectedCanContinue"
+            @click="createFinalRate"
+          />
         </div>
-      </aside>
+      </div>
+
+      <div
+        v-if="selectedNeedsApproval && !canApproveImport"
+        class="border-t border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold text-amber-800 dark:text-amber-300"
+      >
+        Esta importación requiere aprobación antes de poder crear la tarifa final.
+      </div>
+      <div
+        v-else-if="selectedStatus === 'Rejected'"
+        class="border-t border-red-500/20 bg-red-500/10 px-4 py-2 text-center text-xs font-semibold text-red-700 dark:text-red-300"
+      >
+        Esta alternativa fue rechazada y no puede utilizarse para crear una tarifa final.
+      </div>
     </section>
   </section>
 </template>

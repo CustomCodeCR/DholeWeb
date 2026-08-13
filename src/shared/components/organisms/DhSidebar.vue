@@ -31,7 +31,7 @@ const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
     <button
       v-if="mobileOpen"
       type="button"
-      class="fixed inset-0 z-[39] bg-black/45 backdrop-blur-sm lg:hidden"
+      class="fixed inset-0 z-[39] bg-black/25 backdrop-blur-sm lg:hidden"
       :aria-label="t('common.close')"
       @click="emit('close')"
     />

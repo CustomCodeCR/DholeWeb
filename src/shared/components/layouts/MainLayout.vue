@@ -2,6 +2,8 @@
 import {
   Activity,
   BadgeDollarSign,
+  Bell,
+  BellRing,
   BookOpen,
   BrainCircuit,
   ClipboardList,
@@ -9,6 +11,7 @@ import {
   KeyRound,
   Keyboard,
   ListTree,
+  ListChecks,
   LockKeyhole,
   MonitorCheck,
   Palette,
@@ -132,7 +135,8 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     canView(VIEW_SCOPES.pricingRates) ||
     canView(VIEW_SCOPES.pricingImports) ||
     canView(VIEW_SCOPES.pricingDecisions) ||
-    canView(VIEW_SCOPES.pricingCosts)
+    canView(VIEW_SCOPES.pricingCosts) ||
+    canView(VIEW_SCOPES.pricingRateTerms)
 
   if (canView(VIEW_SCOPES.pricingImports)) {
     children.push({
@@ -153,6 +157,10 @@ const pricingChildren = computed<SidebarItem[]>(() => {
 
   if (canView(VIEW_SCOPES.pricingCosts)) {
     children.push({ label: t('sidebar.costs'), path: '/pricing/costs', icon: BadgeDollarSign })
+  }
+
+  if (canView(VIEW_SCOPES.pricingRateTerms)) {
+    children.push({ label: t('sidebar.rateTerms'), path: '/pricing/rate-terms', icon: ListChecks })
   }
 
   return children
@@ -188,6 +196,22 @@ const monitoringChildren = computed<SidebarItem[]>(() => {
       label: t('sidebar.serviceMonitoring'),
       path: '/monitoring/services',
       icon: ServerCog,
+    })
+  }
+
+  if (canView(VIEW_SCOPES.notifications)) {
+    children.push({
+      label: t('sidebar.notificationAdministration'),
+      path: '/monitoring/notifications',
+      icon: Bell,
+    })
+  }
+
+  if (canView(VIEW_SCOPES.notificationTemplates)) {
+    children.push({
+      label: t('sidebar.notificationTemplates'),
+      path: '/monitoring/notifications/templates',
+      icon: BellRing,
     })
   }
 

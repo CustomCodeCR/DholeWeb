@@ -82,6 +82,15 @@ export const PRICING_SCOPES = {
     select: 'pricing.cost.select',
   },
 
+  rateTerms: {
+    create: 'pricing.rate-term.create',
+    view: 'pricing.rate-term.view',
+    update: 'pricing.rate-term.update',
+    delete: 'pricing.rate-term.delete',
+    setActive: 'pricing.rate-term.set-active',
+    select: 'pricing.rate-term.select',
+  },
+
   importFclRates: {
     create: 'pricing.import-fcl-rate.create',
     view: 'pricing.import-fcl-rate.view',
@@ -255,6 +264,7 @@ export const VIEW_SCOPES = {
   pricingDecisions: PRICING_SCOPES.fclDecisions.view,
   pricingCompetition: PRICING_SCOPES.rates.view,
   pricingCosts: PRICING_SCOPES.costs.view,
+  pricingRateTerms: PRICING_SCOPES.rateTerms.view,
 
   aiConnections: AI_SCOPES.connections.view,
   aiModels: AI_SCOPES.models.view,
@@ -267,5 +277,5 @@ export const VIEW_SCOPES = {
   monitoring: MONITORING_SCOPES.services.view,
   reportsTemplates: REPORTS_SCOPES.templates.view,
   notifications: NOTIFICATIONS_SCOPES.messages.view,
-  notificationTemplates: NOTIFICATIONS_SCOPES.messages.view,
+  notificationTemplates: NOTIFICATIONS_SCOPES.templates.manage,
 } as const

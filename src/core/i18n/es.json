@@ -101,7 +101,9 @@
     "reportTemplates": "Plantillas de reportes",
     "notifications": "Notificaciones",
     "notificationMessages": "Centro de notificaciones",
-    "notificationTemplates": "Plantillas de notificación"
+    "notificationTemplates": "Plantillas de notificación",
+    "notificationAdministration": "Administrar notificaciones",
+    "rateTerms": "Ítems de tarifa"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -380,6 +382,10 @@
       "reports": {
         "name": "Reports Service",
         "description": "Plantillas y generación de reportes PDF, XLSX y CSV."
+      },
+      "notifications": {
+        "name": "Notifications Service",
+        "description": "Notificaciones internas, correo, programación, reintentos y plantillas."
       }
     }
   },
@@ -936,7 +942,12 @@
       "payload": "Contexto JSON",
       "payloadHelp": "Use JSON para enviar variables a la plantilla, por ejemplo {\"name\":\"Maurice\",\"actionUrl\":\"https://...\"}.",
       "scheduleButton": "Programar",
-      "sendButton": "Crear ahora"
+      "sendButton": "Crear ahora",
+      "maxAttempts": "Máximo de intentos",
+      "maxAttemptsHelp": "Define cuántas veces puede reintentarse una entrega antes de pasar a estado Dead letter.",
+      "pageSubtitle": "Configure el canal, destinatario, contenido y programación de la notificación.",
+      "backToNotifications": "Volver a notificaciones",
+      "notificationTypePlaceholder": "Ej. pricing.rate.expiring"
     },
     "detail": {
       "title": "Detalle de notificación",
@@ -951,7 +962,10 @@
       "success": "Correcto",
       "failure": "Fallido",
       "noError": "Sin error registrado",
-      "noAttempts": "Todavía no hay intentos de entrega."
+      "noAttempts": "Todavía no hay intentos de entrega.",
+      "nextAttempt": "Próximo intento",
+      "sentAt": "Enviada el",
+      "errorCode": "Código de error"
     },
     "toasts": {
       "loadError": "No se pudieron cargar las notificaciones.",
@@ -966,14 +980,22 @@
       "createError": "No se pudo crear la notificación.",
       "cancelledTitle": "Notificación cancelada",
       "cancelledMessage": "La notificación fue cancelada.",
-      "cancelError": "No se pudo cancelar la notificación."
+      "cancelError": "No se pudo cancelar la notificación.",
+      "typeRequiredTitle": "Tipo requerido",
+      "typeRequiredMessage": "Indique el tipo de notificación.",
+      "invalidEmailTitle": "Correo inválido",
+      "invalidEmailMessage": "Indique una dirección de correo válida para el canal Email.",
+      "invalidScheduleTitle": "Fecha inválida",
+      "invalidScheduleMessage": "La fecha programada no es válida."
     },
     "tabs": {
       "messages": "Notificaciones",
       "templates": "Plantillas de notificación",
       "newTemplate": "Nueva plantilla de notificación",
-      "designer": "Diseñador de notificaciones"
-    }
+      "designer": "Diseñador de notificaciones",
+      "newMessage": "Nueva notificación"
+    },
+    "templatesButton": "Plantillas"
   },
   "notificationTemplates": {
     "title": "Plantillas de notificación",
@@ -997,12 +1019,13 @@
       "updateError": "No se pudo actualizar la plantilla.",
       "deletedTitle": "Plantilla eliminada",
       "deleteError": "No se pudo eliminar la plantilla."
-    }
+    },
+    "notificationsButton": "Notificaciones"
   },
   "notificationDesigner": {
     "createTitle": "Nueva plantilla de notificación",
     "editTitle": "Diseñador de notificaciones",
-    "subtitle": "Diseñe el contenido por bloques y reutilice variables del contexto con {{variable}}.",
+    "subtitle": "Diseñe el contenido por bloques y reutilice variables del contexto con {'{{'}variable{'}}'}.",
     "paletteTitle": "Bloques",
     "paletteHelp": "Arrastre un bloque al lienzo o use Agregar en dispositivos táctiles.",
     "addBlock": "Agregar",
@@ -1015,7 +1038,7 @@
     "removeBlock": "Eliminar bloque",
     "previewTitle": "Vista previa",
     "previewHelp": "Así se verá el contenido renderizado del mensaje.",
-    "variablesHelp": "Puede usar variables como {{name}}, {{entityId}} o {{actionUrl}}. Notifications las reemplaza con el contexto recibido.",
+    "variablesHelp": "Puede usar variables como {'{{'}name{'}}'}, {'{{'}entityId{'}}'} o {'{{'}actionUrl{'}}'}. Notifications las reemplaza con el contexto recibido.",
     "blockCount": "{count} bloque(s)",
     "fields": {
       "code": "Código",
@@ -1041,7 +1064,7 @@
     },
     "defaults": {
       "heading": "Título de la notificación",
-      "text": "Escriba aquí el contenido de la notificación. Puede usar variables como {{name}}.",
+      "text": "Escriba aquí el contenido de la notificación. Puede usar variables como {'{{'}name{'}}'}.",
       "button": "Ver detalle",
       "alert": "Información importante para el destinatario."
     },

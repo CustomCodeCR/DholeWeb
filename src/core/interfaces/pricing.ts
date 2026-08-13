@@ -27,6 +27,12 @@ export type RateStatus =
   | 'Closed'
   | 'Expired'
 
+export interface CostIncotermDto {
+  id: string
+  name: string
+  code: string
+}
+
 export interface CostDto extends Record<string, unknown> {
   id: string
   name: string
@@ -51,6 +57,7 @@ export interface CostDto extends Record<string, unknown> {
   notes?: string | null
   isAccountant: boolean
   isActive: boolean
+  incoterms: CostIncotermDto[]
 }
 
 // Select responses expose the same commercial fields; IsActive is omitted by
@@ -79,6 +86,7 @@ export interface CreateCostRequest extends Record<string, unknown> {
   saleAmount: number
   notes?: string | null
   isAccountant?: boolean
+  incoterms?: CostIncotermDto[]
 }
 
 export type UpdateCostRequest = CreateCostRequest
@@ -124,6 +132,7 @@ export interface ImportRateDto extends Record<string, unknown> {
   currencyCode: string
   currencySlug: string
   commodity?: string | null
+  spaceComment?: string | null
   freight: number
   oceanFreight?: number | null
   originCharges?: number | null
@@ -157,6 +166,14 @@ export interface PricingDecisionRateDto extends Record<string, unknown> {
   poe: string
   validFrom: string
   validTo: string
+  status: ImportStatus
+  totalSale?: number | null
+  margin?: number | null
+  spaceComment: string
+  spaceScore: number
+  spaceRisk: 'Bajo' | 'Medio' | 'Alto' | string
+  priorityScore: number
+  priorityReason: string
 }
 
 export interface PricingDecisionLaneDto extends Record<string, unknown> {
@@ -265,6 +282,7 @@ export interface CreateImportRateRequest extends Record<string, unknown> {
   containerType: CatalogSnapshotRequest
   currency: CatalogSnapshotRequest
   commodity?: string | null
+  spaceComment?: string | null
   oceanFreight: number
   originCharges: number
   destinationCharges: number
@@ -298,6 +316,7 @@ export interface ReviewImportRateRequest extends Record<string, unknown> {
   containerTypeId: string
   currencyId: string
   commodity?: string | null
+  spaceComment?: string | null
   oceanFreight: number
   originCharges: number
   destinationCharges: number
@@ -345,6 +364,28 @@ export interface ExtractImportRatesResultDto extends Record<string, unknown> {
   errorMessage?: string | null
 }
 
+export interface RateTermItemDto extends Record<string, unknown> {
+  id: string
+  text: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface CreateRateTermItemRequest extends Record<string, unknown> {
+  text: string
+  sortOrder?: number
+}
+
+export interface UpdateRateTermItemRequest extends Record<string, unknown> {
+  text: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface SetRateTermItemActiveRequest extends Record<string, unknown> {
+  isActive: boolean
+}
+
 export interface RateDetailDto extends Record<string, unknown> {
   id: string
   rateHeaderId: string
@@ -385,6 +426,9 @@ export interface RateDto extends Record<string, unknown> {
   containerTypeId: string
   containerTypeName: string
   containerTypeCode: string
+  incotermId?: string | null
+  incotermName?: string | null
+  incotermCode?: string | null
   containerQuantity: number
   currencyId: string
   currencyName: string
@@ -454,6 +498,9 @@ export interface CreateRateRequest extends Record<string, unknown> {
   containerTypeId: string
   containerTypeName: string
   containerTypeCode: string
+  incotermId?: string | null
+  incotermName?: string | null
+  incotermCode?: string | null
   currencyId: string
   currencyName: string
   currencyCode: string

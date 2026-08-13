@@ -57,6 +57,7 @@ const columns: DhTableColumn<CostDto>[] = [
   { key: 'costDetailType', label: 'Rubro' },
   { key: 'relation', label: 'Naviera / agente' },
   { key: 'portName', label: 'Puerto' },
+  { key: 'incoterms', label: 'Incoterms' },
   { key: 'costAmount', label: 'Costo', align: 'right' },
   { key: 'saleAmount', label: 'Venta', align: 'right' },
   { key: 'utilityAmount', label: 'Utilidad', align: 'right' },
@@ -342,6 +343,23 @@ onMounted(async () => {
               </p>
             </div></template
           >
+          <template #cell-incoterms="{ row }">
+            <div class="flex max-w-[220px] flex-wrap gap-1">
+              <DhBadge
+                v-if="!displayCost(row).incoterms?.length"
+                label="Todos"
+                variant="neutral"
+              />
+              <template v-else>
+                <DhBadge
+                  v-for="incoterm in displayCost(row).incoterms"
+                  :key="incoterm.id"
+                  :label="incoterm.code || incoterm.name"
+                  variant="primary"
+                />
+              </template>
+            </div>
+          </template>
           <template #cell-costAmount="{ row }"
             ><span class="font-bold">{{
               formatMoney(row.costAmount, displayCost(row).currencyName)

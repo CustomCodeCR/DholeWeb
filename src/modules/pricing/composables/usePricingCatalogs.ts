@@ -16,6 +16,18 @@ export interface PricingOption {
   value: string
 }
 
+export const PRICING_CATALOG_SLUGS = {
+  carriers: 'carriers',
+  pol: 'pol',
+  pod: 'pod',
+  poe: 'poe',
+  currencies: 'currencies',
+  agents: 'agents',
+  containerTypes: 'container-types',
+  importProfiles: 'pricing-imports-profiles',
+  incoterms: 'incoterms',
+} as const
+
 const agents = ref<PricingCatalogItem[]>([])
 const carriers = ref<PricingCatalogItem[]>([])
 const currencies = ref<PricingCatalogItem[]>([])
@@ -24,6 +36,7 @@ const poePorts = ref<PricingCatalogItem[]>([])
 const podPorts = ref<PricingCatalogItem[]>([])
 const containerTypes = ref<PricingCatalogItem[]>([])
 const importProfiles = ref<PricingCatalogItem[]>([])
+const incoterms = ref<PricingCatalogItem[]>([])
 const loading = ref(false)
 const loaded = ref(false)
 let activeLoad: Promise<void> | null = null
@@ -92,15 +105,17 @@ async function loadAll(force = false) {
       podRows,
       containerRows,
       profileRows,
+      incotermRows,
     ] = await Promise.all([
-      loadFirstAvailable(['agents']),
-      loadFirstAvailable(['carriers']),
-      loadFirstAvailable(['currencies']),
-      loadFirstAvailable(['pol', 'ports']),
-      loadFirstAvailable(['poe', 'ports']),
-      loadFirstAvailable(['pod', 'ports']),
-      loadFirstAvailable(['container-types', 'containers-types']),
-      loadFirstAvailable(['pricing-imports-profiles']),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.agents]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.carriers]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.currencies]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.pol, 'ports']),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.poe, 'ports']),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.pod, 'ports']),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.containerTypes, 'containers-types']),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.importProfiles]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.incoterms]),
     ])
 
     agents.value = agentRows
@@ -111,6 +126,7 @@ async function loadAll(force = false) {
     podPorts.value = podRows
     containerTypes.value = containerRows
     importProfiles.value = profileRows
+    incoterms.value = incotermRows
     loaded.value = true
   })().finally(() => {
     loading.value = false
@@ -210,6 +226,9 @@ export function usePricingCatalogs() {
       poeName: label(poePorts.value, rate.poeId, rate.poeName),
       podName: label(podPorts.value, rate.podId, rate.podName),
       containerTypeName: label(containerTypes.value, rate.containerTypeId, rate.containerTypeName),
+      incotermName: label(incoterms.value, rate.incotermId, rate.incotermName),
+      incotermCode:
+        incoterms.value.find((item) => item.id === rate.incotermId)?.code || rate.incotermCode,
       currencyName: label(currencies.value, rate.currencyId, rate.currencyName),
       currencyCode:
         currencies.value.find((item) => item.id === rate.currencyId)?.code || rate.currencyCode,
@@ -235,6 +254,12 @@ export function usePricingCatalogs() {
       portName: portCatalog.find((item) => item.id === cost.portId)?.name || cost.portName,
       currencyName: currency?.name || cost.currencyName,
       currencyCode: currency?.code || cost.currencyCode,
+      incoterms: (cost.incoterms ?? []).map((incoterm) => {
+        const current = incoterms.value.find((item) => item.id === incoterm.id)
+        return current
+          ? { id: current.id, name: current.name, code: current.code }
+          : incoterm
+      }),
     }
   }
 
@@ -247,6 +272,7 @@ export function usePricingCatalogs() {
     podPorts,
     containerTypes,
     importProfiles,
+    incoterms,
     loading,
     loaded,
     agentOptions: computed(() => options(agents.value)),
@@ -257,6 +283,7 @@ export function usePricingCatalogs() {
     podOptions: computed(() => options(podPorts.value)),
     containerOptions: computed(() => options(containerTypes.value)),
     profileOptions: computed(() => options(importProfiles.value)),
+    incotermOptions: computed(() => options(incoterms.value)),
     loadAll,
     findById,
     findByCode,

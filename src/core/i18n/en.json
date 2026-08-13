@@ -101,7 +101,9 @@
     "reportTemplates": "Report templates",
     "notifications": "Notifications",
     "notificationMessages": "Notification center",
-    "notificationTemplates": "Notification templates"
+    "notificationTemplates": "Notification templates",
+    "notificationAdministration": "Manage notifications",
+    "rateTerms": "Rate items"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -380,6 +382,10 @@
       "reports": {
         "name": "Reports Service",
         "description": "Templates and PDF, XLSX, and CSV report generation."
+      },
+      "notifications": {
+        "name": "Notifications Service",
+        "description": "Internal notifications, email, scheduling, retries, and templates."
       }
     }
   },
@@ -936,7 +942,12 @@
       "payload": "JSON context",
       "payloadHelp": "Use JSON to pass variables to the template, for example {\"name\":\"Maurice\",\"actionUrl\":\"https://...\"}.",
       "scheduleButton": "Schedule",
-      "sendButton": "Create now"
+      "sendButton": "Create now",
+      "maxAttempts": "Maximum attempts",
+      "maxAttemptsHelp": "Sets how many delivery attempts are allowed before the notification moves to Dead letter.",
+      "pageSubtitle": "Configure the channel, recipient, content, and schedule for the notification.",
+      "backToNotifications": "Back to notifications",
+      "notificationTypePlaceholder": "E.g. pricing.rate.expiring"
     },
     "detail": {
       "title": "Notification details",
@@ -951,7 +962,10 @@
       "success": "Succeeded",
       "failure": "Failed",
       "noError": "No error recorded",
-      "noAttempts": "There are no delivery attempts yet."
+      "noAttempts": "There are no delivery attempts yet.",
+      "nextAttempt": "Next attempt",
+      "sentAt": "Sent at",
+      "errorCode": "Error code"
     },
     "toasts": {
       "loadError": "Notifications could not be loaded.",
@@ -966,14 +980,22 @@
       "createError": "The notification could not be created.",
       "cancelledTitle": "Notification cancelled",
       "cancelledMessage": "The notification was cancelled.",
-      "cancelError": "The notification could not be cancelled."
+      "cancelError": "The notification could not be cancelled.",
+      "typeRequiredTitle": "Type required",
+      "typeRequiredMessage": "Enter the notification type.",
+      "invalidEmailTitle": "Invalid email",
+      "invalidEmailMessage": "Enter a valid email address for the Email channel.",
+      "invalidScheduleTitle": "Invalid date",
+      "invalidScheduleMessage": "The scheduled date is invalid."
     },
     "tabs": {
       "messages": "Notifications",
       "templates": "Notification templates",
       "newTemplate": "New notification template",
-      "designer": "Notification designer"
-    }
+      "designer": "Notification designer",
+      "newMessage": "New notification"
+    },
+    "templatesButton": "Templates"
   },
   "notificationTemplates": {
     "title": "Notification templates",
@@ -997,12 +1019,13 @@
       "updateError": "The template could not be updated.",
       "deletedTitle": "Template deleted",
       "deleteError": "The template could not be deleted."
-    }
+    },
+    "notificationsButton": "Notifications"
   },
   "notificationDesigner": {
     "createTitle": "New notification template",
     "editTitle": "Notification designer",
-    "subtitle": "Design content with blocks and reuse context variables with {{variable}}.",
+    "subtitle": "Design content with blocks and reuse context variables with {'{{'}variable{'}}'}.",
     "paletteTitle": "Blocks",
     "paletteHelp": "Drag a block to the canvas or use Add on touch devices.",
     "addBlock": "Add",
@@ -1015,7 +1038,7 @@
     "removeBlock": "Remove block",
     "previewTitle": "Preview",
     "previewHelp": "This is how the rendered message content will look.",
-    "variablesHelp": "You can use variables such as {{name}}, {{entityId}}, or {{actionUrl}}. Notifications replaces them with the received context.",
+    "variablesHelp": "You can use variables such as {'{{'}name{'}}'}, {'{{'}entityId{'}}'}, or {'{{'}actionUrl{'}}'}. Notifications replaces them with the received context.",
     "blockCount": "{count} block(s)",
     "fields": {
       "code": "Code",
@@ -1041,7 +1064,7 @@
     },
     "defaults": {
       "heading": "Notification title",
-      "text": "Write the notification content here. You can use variables such as {{name}}.",
+      "text": "Write the notification content here. You can use variables such as {'{{'}name{'}}'}.",
       "button": "View details",
       "alert": "Important information for the recipient."
     },

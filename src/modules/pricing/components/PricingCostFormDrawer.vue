@@ -14,6 +14,7 @@ import type {
   CreateCostRequest,
 } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
+import PricingMultiSelect from './PricingMultiSelect.vue'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
 const props = defineProps<{ cost?: CostDto; onSaved?: () => void | Promise<void> }>()
@@ -34,6 +35,7 @@ const form = reactive({
   agentId: props.cost?.agentId ?? '',
   portId: props.cost?.portId ?? '',
   portRole: (props.cost?.portRole ?? '') as CostPortRole | '',
+  incotermIds: props.cost?.incoterms?.map((item) => item.id) ?? [],
   currencyId: props.cost?.currencyId ?? '',
   costAmount: String(props.cost?.costAmount ?? ''),
   saleAmount: String(props.cost?.saleAmount ?? ''),
@@ -146,6 +148,10 @@ async function submit() {
     form.portId,
   )
   const currency = selected(catalogs.currencies.value, form.currencyId)
+  const incoterms = form.incotermIds
+    .map((id) => selected(catalogs.incoterms.value, id))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .map((item) => ({ id: item.id, name: item.name, code: item.code }))
 
   if (
     !form.name.trim() ||
@@ -178,6 +184,7 @@ async function submit() {
     saleAmount: isAgentCost.value ? 0 : Number(form.saleAmount),
     notes: form.notes.trim() || null,
     isAccountant: isFreightPerContainer.value || form.isAccountant,
+    incoterms,
   }
 
   try {
@@ -279,6 +286,20 @@ onMounted(catalogs.loadAll)
           :options="catalogs.currencyOptions.value"
           :error="fieldError(form.currencyId, 'Seleccione la moneda.')"
         />
+        <div class="md:col-span-2">
+          <PricingMultiSelect
+            v-model="form.incotermIds"
+            :options="catalogs.incotermOptions.value"
+            label="Incoterms aplicables"
+            placeholder="Todos los Incoterms"
+            empty-text="No hay Incoterms activos en Config."
+            search-placeholder="Buscar Incoterm..."
+          />
+          <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Puede seleccionar uno o varios. Si no selecciona ninguno, el costo aplica a cualquier
+            Incoterm.
+          </p>
+        </div>
       </div>
 
       <div
@@ -287,7 +308,7 @@ onMounted(catalogs.loadAll)
         <Info class="mt-0.5 h-4 w-4 shrink-0" />
         <p v-if="form.costType === 'Fixed'">
           El costo se agregará automáticamente cuando coincidan las relaciones configuradas.
-          Puede ser global, solo por puerto, solo por naviera/agente o combinar ambas condiciones.
+          Puede ser global, por puerto, naviera/agente e Incoterm; los Incoterms admiten selección múltiple.
         </p>
         <p v-else-if="form.costType === 'Optional'">
           Este rubro aparecerá en el selector múltiple al construir o editar una tarifa.

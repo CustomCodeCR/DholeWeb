@@ -16,6 +16,7 @@ import type {
   ImportRateDto,
   RateDetailDto,
   RateDto,
+  RateTermItemDto,
   UpdateRateRequest,
 } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -46,6 +47,8 @@ interface EditableDetail {
   importedFreight?: boolean
   estimated?: boolean
   fixedDecisionCost?: boolean
+  insuranceGenerated?: boolean
+  automaticFixed?: boolean
 }
 
 const props = defineProps<{
@@ -60,6 +63,10 @@ const toastStore = useToastStore()
 const authStore = useAuthStore()
 const catalogs = usePricingCatalogs()
 const availableCosts = ref<CostSelectDto[]>([])
+const rateTermItems = ref<RateTermItemDto[]>([])
+const includesTermIds = ref<string[]>([])
+const subjectToTermIds = ref<string[]>([])
+const excludesTermIds = ref<string[]>([])
 const details = ref<EditableDetail[]>([])
 const optionalCostIds = ref<string[]>([])
 const removedDetailIds = ref<string[]>([])
@@ -80,6 +87,7 @@ const form = reactive({
   poeId: props.rate?.poeId ?? '',
   podId: props.rate?.podId ?? '',
   containerTypeId: props.rate?.containerTypeId ?? '',
+  incotermId: props.rate?.incotermId ?? '',
   currencyId: props.rate?.currencyId ?? '',
   containerQuantity: String(props.rate?.containerQuantity ?? 1),
   freeDays: String(props.rate?.freeDays ?? props.sourceImport?.freeDays ?? 0),
@@ -93,6 +101,13 @@ const form = reactive({
   subjectTo: props.rate?.subjectTo ?? '',
   excludes: props.rate?.excludes ?? '',
   transitDays: String(props.rate?.transitDays ?? props.sourceImport?.transitDays ?? ''),
+  cargoValue: '',
+  insurancePercentage: '0.65',
+  insuranceMinimumAmount: '95',
+  insuranceAmount: '95',
+  manualInsurancePercentage: false,
+  manualInsuranceMinimum: false,
+  manualInsuranceAmount: false,
   submitted: false,
   saving: false,
 })
@@ -114,6 +129,78 @@ const currencyName = computed(
     props.sourceImport?.currency ||
     'USD',
 )
+
+type RateTermCategory = 'includes' | 'subjectTo' | 'excludes'
+
+const rateTermOptions = computed<PricingMultiSelectOption[]>(() =>
+  rateTermItems.value
+    .filter((item) => item.isActive)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.text.localeCompare(b.text))
+    .map((item) => ({ value: item.id, label: item.text })),
+)
+
+function setRateTermSelection(category: RateTermCategory, values: string[]) {
+  const selected = [...new Set(values)]
+  const selectedSet = new Set(selected)
+
+  // Los tres selectores comparten el mismo catálogo. Al asignar un ítem a una
+  // categoría se retira automáticamente de las otras dos, en lugar de ocultar
+  // opciones y dejar selectores sin elementos disponibles.
+  if (category === 'includes') {
+    includesTermIds.value = selected
+    subjectToTermIds.value = subjectToTermIds.value.filter((id) => !selectedSet.has(id))
+    excludesTermIds.value = excludesTermIds.value.filter((id) => !selectedSet.has(id))
+    return
+  }
+
+  if (category === 'subjectTo') {
+    subjectToTermIds.value = selected
+    includesTermIds.value = includesTermIds.value.filter((id) => !selectedSet.has(id))
+    excludesTermIds.value = excludesTermIds.value.filter((id) => !selectedSet.has(id))
+    return
+  }
+
+  excludesTermIds.value = selected
+  includesTermIds.value = includesTermIds.value.filter((id) => !selectedSet.has(id))
+  subjectToTermIds.value = subjectToTermIds.value.filter((id) => !selectedSet.has(id))
+}
+
+const defaultInsurancePercentage = 0.65
+const defaultInsuranceMinimumAmount = 95
+const insuranceCostPercentage = 0.2
+const insuranceCostMinimumAmount = 35
+
+function selectedTermText(ids: string[], extra: string) {
+  const selected = ids
+    .map((id) => rateTermItems.value.find((item) => item.id === id)?.text)
+    .filter((value): value is string => Boolean(value?.trim()))
+  const custom = extra
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+  return [...new Set([...selected, ...custom])].join('\n')
+}
+
+function hydrateTermSelection(
+  value: string,
+  target: { value: string[] },
+  alreadyAssigned: Set<string>,
+) {
+  let remainder = value ?? ''
+  const selected: string[] = []
+  for (const item of rateTermItems.value) {
+    if (alreadyAssigned.has(item.id) || !item.text.trim()) continue
+    if (!remainder.toLocaleLowerCase().includes(item.text.trim().toLocaleLowerCase())) continue
+    selected.push(item.id)
+    alreadyAssigned.add(item.id)
+    remainder = remainder
+      .replace(item.text, '')
+      .replace(/\n{2,}/g, '\n')
+      .trim()
+  }
+  target.value = selected
+  return remainder
+}
 
 const missingSelectableImportedFields = computed(() => {
   if (!isCreatingFromImport.value) return []
@@ -270,6 +357,7 @@ function fromRateDetail(detail: RateDetailDto): EditableDetail {
       isFreightPerContainer(detail.costDetailType) ||
       (masterCost?.isAccountant ?? detail.quantity > 1),
     locked: detail.costType === 'Fixed' && Boolean(detail.costId),
+    automaticFixed: detail.costType === 'Fixed' && Boolean(detail.costId),
   }
 }
 
@@ -323,6 +411,8 @@ const optionalCosts = computed(() => {
     if (form.currencyId && cost.currencyId !== form.currencyId) return false
     if (cost.carrierId && cost.carrierId !== form.carrierId) return false
     if (cost.agentId && cost.agentId !== form.agentId) return false
+    if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId))
+      return false
     if (cost.portId && routePortIds.size && !routePortIds.has(cost.portId)) return false
     return true
   })
@@ -341,6 +431,8 @@ function matchesCostScope(cost: CostSelectDto) {
   if (form.currencyId && cost.currencyId !== form.currencyId) return false
   if (cost.agentId && cost.agentId !== form.agentId) return false
   if (cost.carrierId && cost.carrierId !== form.carrierId) return false
+  if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId))
+    return false
   if (!cost.portId) return true
 
   const roleByPort = new Map<string, CostSelectDto['portRole']>([
@@ -375,28 +467,50 @@ const selectorsChanged = computed(() =>
       props.rate.poeId !== form.poeId ||
       props.rate.podId !== form.podId ||
       props.rate.containerTypeId !== form.containerTypeId ||
+      (props.rate.incotermId ?? '') !== form.incotermId ||
       props.rate.currencyId !== form.currencyId ||
       props.rate.containerQuantity !== Number(form.containerQuantity || 1)),
   ),
 )
 
-const visibleDetails = computed(() => {
-  const currentRows = selectorsChanged.value
-    ? details.value.filter((detail) => !detail.locked)
-    : details.value
-  const currentFixedIds = new Set(
-    currentRows.filter((detail) => detail.locked).map((detail) => detail.costId),
+const visibleDetails = computed(() =>
+  selectorsChanged.value
+    ? details.value.filter(
+        (detail) => !detail.locked || detail.automaticFixed || detail.insuranceGenerated,
+      )
+    : details.value,
+)
+
+const cargoInsuranceDetail = computed(() =>
+  visibleDetails.value.find((detail) => detail.insuranceGenerated),
+)
+
+function synchronizeEditableFixedCosts() {
+  if (!initialized.value) return
+
+  const applicable = new Map(automaticFixedCosts.value.map((cost) => [cost.id, cost]))
+  details.value = details.value.filter((detail) => {
+    if (!detail.automaticFixed || !detail.costId) return true
+    return applicable.has(detail.costId)
+  })
+
+  const existingIds = new Set(
+    details.value
+      .filter((detail) => detail.automaticFixed && detail.costId)
+      .map((detail) => detail.costId!),
   )
-  const estimated = automaticFixedCosts.value
-    .filter((cost) => !currentFixedIds.has(cost.id))
-    .map((cost) => ({
+
+  for (const cost of automaticFixedCosts.value) {
+    if (existingIds.has(cost.id)) continue
+    details.value.push({
       ...fromCost(cost),
-      key: `estimated-${cost.id}`,
+      key: `fixed-${cost.id}`,
       locked: true,
-      estimated: true,
-    }))
-  return [...currentRows, ...estimated]
-})
+      estimated: false,
+      automaticFixed: true,
+    })
+  }
+}
 
 function detailQuantity(detail: EditableDetail) {
   return isDetailPerContainer(detail) ? Math.max(1, Number(form.containerQuantity || 1)) : 1
@@ -441,15 +555,29 @@ const groups = computed(() => [
   {
     key: 'other',
     title: 'Otros rubros',
-    hint: 'Origen, documentación, seguro y adicionales.',
+    hint: 'Origen, documentación y adicionales.',
     rows: visibleDetails.value.filter(
       (detail) =>
+        !detail.insuranceGenerated &&
         !['AgentCharge', 'Freight', 'DestinationCharge', 'InlandTransport'].includes(
           detail.costDetailType,
         ),
     ),
   },
 ])
+
+watch(
+  () => [
+    form.agentId,
+    form.carrierId,
+    form.polId,
+    form.poeId,
+    form.podId,
+    form.incotermId,
+    form.currencyId,
+  ],
+  synchronizeEditableFixedCosts,
+)
 
 watch(
   optionalCostIds,
@@ -488,6 +616,101 @@ watch(
       }
     }
   },
+)
+
+function insuranceUsdCurrency() {
+  return catalogs.findByCode(catalogs.currencies.value, 'USD') ?? selectedCurrency.value
+}
+
+function syncCargoInsurance() {
+  if (!initialized.value) return
+  const cargoValue = Number(form.cargoValue || 0)
+  const existingIndex = details.value.findIndex((detail) => detail.insuranceGenerated)
+
+  if (!(cargoValue > 0)) {
+    if (existingIndex >= 0) details.value.splice(existingIndex, 1)
+    return
+  }
+
+  if (!form.manualInsurancePercentage) {
+    form.insurancePercentage = String(defaultInsurancePercentage)
+  }
+  const percentage = Math.max(0, Number(form.insurancePercentage || defaultInsurancePercentage))
+  if (!form.manualInsuranceMinimum) {
+    form.insuranceMinimumAmount = String(defaultInsuranceMinimumAmount)
+  }
+  const minimumAmount = Math.max(
+    0,
+    Number(form.insuranceMinimumAmount || defaultInsuranceMinimumAmount),
+  )
+  const calculated = Math.max(minimumAmount, cargoValue * (percentage / 100))
+  const costAmount = Math.max(
+    insuranceCostMinimumAmount,
+    cargoValue * (insuranceCostPercentage / 100),
+  )
+  if (!form.manualInsuranceAmount) {
+    form.insuranceAmount = calculated.toFixed(2)
+  }
+  const amount = Math.max(0, Number(form.insuranceAmount || calculated))
+  const usd = insuranceUsdCurrency()
+  if (!usd) return
+
+  const notes = `Seguro de carga · valor carga USD ${cargoValue.toFixed(2)} · ${percentage.toFixed(4)}% · mínimo USD ${minimumAmount.toFixed(2)} · costo ${insuranceCostPercentage.toFixed(4)}% · mínimo costo USD ${insuranceCostMinimumAmount.toFixed(2)}${form.manualInsurancePercentage ? ' · porcentaje manual' : ''}${form.manualInsuranceMinimum ? ' · mínimo manual' : ''}${form.manualInsuranceAmount ? ' · tarifa manual' : ''}`
+  const detail: EditableDetail = {
+    key: existingIndex >= 0 ? details.value[existingIndex]!.key : `cargo-insurance-${createUuid()}`,
+    id: existingIndex >= 0 ? details.value[existingIndex]!.id : null,
+    name: 'Seguro de carga',
+    costDetailType: 'Insurance',
+    costType: 'Variable',
+    currencyId: usd.id,
+    currencyName: usd.name,
+    currencyCode: usd.code,
+    costAmount: costAmount.toFixed(2),
+    saleAmount: amount.toFixed(2),
+    notes,
+    isAccountant: false,
+    locked: true,
+    estimated: true,
+    insuranceGenerated: true,
+  }
+
+  if (existingIndex >= 0) details.value.splice(existingIndex, 1, detail)
+  else details.value.push(detail)
+}
+
+function hydrateCargoInsuranceFromDetails() {
+  const detail = details.value.find(
+    (item) =>
+      item.costDetailType === 'Insurance' && /Seguro de carga · valor carga USD/i.test(item.notes),
+  )
+  if (!detail) return
+
+  const cargoMatch = detail.notes.match(/valor carga USD\s+([0-9]+(?:\.[0-9]+)?)/i)
+  const percentageMatch = detail.notes.match(/·\s*([0-9]+(?:\.[0-9]+)?)%/i)
+  const minimumMatch = detail.notes.match(/mínimo USD\s+([0-9]+(?:\.[0-9]+)?)/i)
+  if (cargoMatch?.[1]) form.cargoValue = cargoMatch[1]
+  if (percentageMatch?.[1]) form.insurancePercentage = percentageMatch[1]
+  if (minimumMatch?.[1]) form.insuranceMinimumAmount = minimumMatch[1]
+  form.insuranceAmount = String(detail.saleAmount || form.insuranceMinimumAmount || 95)
+  form.manualInsurancePercentage = /porcentaje manual/i.test(detail.notes)
+  form.manualInsuranceMinimum = /mínimo manual/i.test(detail.notes)
+  form.manualInsuranceAmount = /tarifa manual/i.test(detail.notes)
+  detail.insuranceGenerated = true
+  detail.locked = true
+  detail.estimated = true
+}
+
+watch(
+  () => [
+    form.cargoValue,
+    form.insurancePercentage,
+    form.insuranceMinimumAmount,
+    form.insuranceAmount,
+    form.manualInsurancePercentage,
+    form.manualInsuranceMinimum,
+    form.manualInsuranceAmount,
+  ],
+  syncCargoInsurance,
 )
 
 function fieldError(value: string, label: string) {
@@ -529,9 +752,11 @@ function buildHeader() {
   const poe = catalogs.findById(catalogs.poePorts.value, form.poeId)
   const pod = catalogs.findById(catalogs.podPorts.value, form.podId)
   const container = catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)
+  const incoterm = catalogs.findById(catalogs.incoterms.value, form.incotermId)
   const currency = catalogs.findById(catalogs.currencies.value, form.currencyId)
 
-  if (!agent || !carrier || !pol || !poe || !pod || !container || !currency) return null
+  if (!agent || !carrier || !pol || !poe || !pod || !container || !incoterm || !currency)
+    return null
 
   return {
     agentId: agent.id,
@@ -552,6 +777,9 @@ function buildHeader() {
     containerTypeId: container.id,
     containerTypeName: container.name,
     containerTypeCode: container.code,
+    incotermId: incoterm.id,
+    incotermName: incoterm.name,
+    incotermCode: incoterm.code,
     currencyId: currency.id,
     currencyName: currency.name,
     currencyCode: currency.code,
@@ -562,9 +790,9 @@ function buildHeader() {
     clientName: form.clientName.trim() || null,
     idtraNumber: form.idtraNumber.trim() || null,
     quoNumber: form.quoNumber.trim() || null,
-    includes: form.includes.trim() || null,
-    subjectTo: form.subjectTo.trim() || null,
-    excludes: form.excludes.trim() || null,
+    includes: selectedTermText(includesTermIds.value, form.includes) || null,
+    subjectTo: selectedTermText(subjectToTermIds.value, form.subjectTo) || null,
+    excludes: selectedTermText(excludesTermIds.value, form.excludes) || null,
     transitDays: form.transitDays.trim() ? Number(form.transitDays) : null,
   }
 }
@@ -581,7 +809,13 @@ function validate() {
     form.validTo < form.validFrom
   )
     return false
-  const applicable = details.value.filter((detail) => !selectorsChanged.value || !detail.locked)
+  const applicable = details.value.filter(
+    (detail) =>
+      !selectorsChanged.value ||
+      !detail.locked ||
+      detail.automaticFixed ||
+      detail.insuranceGenerated,
+  )
   if (!applicable.some((detail) => detail.costDetailType === 'Freight')) return false
   return applicable.every((detail) => !detailError(detail))
 }
@@ -627,7 +861,12 @@ async function submit() {
         ...header,
         extraDetails: details.value
           .filter(
-            (detail) => !detail.importedFreight && (!selectorsChanged.value || !detail.locked),
+            (detail) =>
+              !detail.importedFreight &&
+              (detail.insuranceGenerated ||
+                detail.automaticFixed ||
+                !selectorsChanged.value ||
+                !detail.locked),
           )
           .map((detail) => ({ ...mapDetail(detail), id: detail.id ?? null })),
         removedExtraDetailIds: [...new Set(removedDetailIds.value)],
@@ -641,12 +880,20 @@ async function submit() {
           ? details.value
               .filter(
                 (detail) =>
-                  !detail.importedFreight &&
-                  (detail.fixedDecisionCost || detail.costType === 'Optional'),
+                  detail.importedFreight ||
+                  detail.insuranceGenerated ||
+                  detail.fixedDecisionCost ||
+                  detail.automaticFixed ||
+                  detail.costType === 'Optional',
               )
               .map(mapDetail)
           : details.value
-              .filter((detail) => !detail.locked && !detail.importedFreight)
+              .filter(
+                (detail) =>
+                  detail.insuranceGenerated ||
+                  detail.automaticFixed ||
+                  (!detail.locked && !detail.importedFreight),
+              )
               .map(mapDetail),
       }
       rateId = await PricingService.createRate(payload)
@@ -668,6 +915,11 @@ async function submit() {
 async function initialize() {
   await catalogs.loadAll()
 
+  if (!form.incotermId) {
+    form.incotermId =
+      catalogs.findByCode(catalogs.incoterms.value, 'FOB')?.id ?? catalogs.incoterms.value[0]?.id ?? ''
+  }
+
   try {
     // Este endpoint usa pricing.cost.select, el mismo permiso necesario para
     // construir tarifas, y devuelve las notas operativas de costos fijos y opcionales.
@@ -675,6 +927,20 @@ async function initialize() {
   } catch (error) {
     availableCosts.value = []
     toastStore.backendError(error, 'No se pudieron cargar los costos ni sus notas operativas.')
+  }
+
+  try {
+    rateTermItems.value = await PricingService.selectRateTermItems()
+    const assignedTermIds = new Set<string>()
+    form.includes = hydrateTermSelection(form.includes, includesTermIds, assignedTermIds)
+    form.subjectTo = hydrateTermSelection(form.subjectTo, subjectToTermIds, assignedTermIds)
+    form.excludes = hydrateTermSelection(form.excludes, excludesTermIds, assignedTermIds)
+  } catch (error) {
+    rateTermItems.value = []
+    toastStore.backendError(
+      error,
+      'No se pudieron cargar las condiciones comerciales predefinidas.',
+    )
   }
 
   let importForEdit = props.sourceImport
@@ -811,6 +1077,7 @@ async function initialize() {
     }
 
     details.value = props.rate.rateDetails.map(fromRateDetail)
+    hydrateCargoInsuranceFromDetails()
     optionalCostIds.value = props.rate.rateDetails
       .filter((detail) => detail.costType === 'Optional' && detail.costId)
       .map((detail) => detail.costId!)
@@ -845,26 +1112,6 @@ async function initialize() {
       },
     ]
 
-    if ((props.decisionInternationalLandFreight ?? 0) > 0) {
-      const usdCurrency =
-        catalogs.findByCode(catalogs.currencies.value, 'USD') ?? selectedCurrency.value
-      importedDetails.push({
-        key: `decision-land-freight-${props.sourceImport.id}`,
-        name: 'Flete terrestre internacional',
-        costDetailType: 'InlandTransport',
-        costType: 'Variable',
-        currencyId: usdCurrency?.id ?? form.currencyId,
-        currencyName: usdCurrency?.name ?? 'USD',
-        currencyCode: usdCurrency?.code ?? 'USD',
-        costAmount: String(props.decisionInternationalLandFreight),
-        saleAmount: String(props.decisionInternationalLandFreight),
-        notes: 'Valor fijo aplicado por selección de vía multimodal desde el dashboard.',
-        isAccountant: true,
-        locked: true,
-        fixedDecisionCost: true,
-      })
-    }
-
     details.value = importedDetails
   } else {
     form.agentId =
@@ -875,6 +1122,8 @@ async function initialize() {
   }
 
   initialized.value = true
+  synchronizeEditableFixedCosts()
+  syncCargoInsurance()
 }
 
 onMounted(initialize)
@@ -925,8 +1174,8 @@ onMounted(initialize)
           }}. Los datos importados están bloqueados y se copiarán desde los valores reales del
           catálogo.
           <span v-if="decisionInternationalLandFreight">
-            La vía multimodal ya incluye el costo terrestre fijo de
-            {{ formatMoney(decisionInternationalLandFreight, 'USD') }}.
+            La ruta POE Panamá → POD GAM aplicará automáticamente el flete internacional terrestre de
+            {{ formatMoney(decisionInternationalLandFreight, 'USD') }} desde Pricing.
           </span>
         </p>
       </div>
@@ -1039,7 +1288,7 @@ onMounted(initialize)
           </p>
         </div>
       </div>
-      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <DhSelect
           v-model="form.currencyId"
           :disabled="isHeaderLocked"
@@ -1047,6 +1296,13 @@ onMounted(initialize)
           placeholder="Seleccione moneda"
           :options="catalogs.currencyOptions.value"
           :error="fieldError(form.currencyId, 'la moneda')"
+        />
+        <DhSelect
+          v-model="form.incotermId"
+          label="Incoterm"
+          placeholder="Seleccione Incoterm"
+          :options="catalogs.incotermOptions.value"
+          :error="fieldError(form.incotermId, 'el Incoterm')"
         />
         <DhInput
           v-model="form.freeDays"
@@ -1119,10 +1375,41 @@ onMounted(initialize)
         />
       </div>
       <div class="mt-4 grid gap-4 lg:grid-cols-3">
-        <DhTextarea v-model="form.includes" label="Tarifa incluye" :rows="4" />
-        <DhTextarea v-model="form.subjectTo" label="Sujeto a" :rows="4" />
-        <DhTextarea v-model="form.excludes" label="No incluye" :rows="4" />
+        <div class="space-y-3">
+          <PricingMultiSelect
+            :model-value="includesTermIds"
+            :options="rateTermOptions"
+            label="Tarifa incluye"
+            placeholder="Seleccione ítems incluidos"
+            empty-text="No hay ítems de tarifa configurados."
+            @update:model-value="setRateTermSelection('includes', $event)"
+          />
+          <DhTextarea v-model="form.includes" label="Texto adicional" :rows="3" />
+        </div>
+        <div class="space-y-3">
+          <PricingMultiSelect
+            :model-value="subjectToTermIds"
+            :options="rateTermOptions"
+            label="Sujeto a"
+            placeholder="Seleccione condiciones"
+            empty-text="No hay ítems de tarifa configurados."
+            @update:model-value="setRateTermSelection('subjectTo', $event)"
+          />
+          <DhTextarea v-model="form.subjectTo" label="Texto adicional" :rows="3" />
+        </div>
+        <div class="space-y-3">
+          <PricingMultiSelect
+            :model-value="excludesTermIds"
+            :options="rateTermOptions"
+            label="Tarifa no incluye"
+            placeholder="Seleccione exclusiones"
+            empty-text="No hay ítems de tarifa configurados."
+            @update:model-value="setRateTermSelection('excludes', $event)"
+          />
+          <DhTextarea v-model="form.excludes" label="Texto adicional" :rows="3" />
+        </div>
       </div>
+
     </section>
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
@@ -1227,18 +1514,19 @@ onMounted(initialize)
                   type="number"
                   label="Costo"
                   placeholder="0.00"
-                  :disabled="isCreatingFromImport || detail.estimated || detail.fixedDecisionCost"
+                  :disabled="
+                    isCreatingFromImport ||
+                    detail.estimated ||
+                    detail.fixedDecisionCost ||
+                    detail.automaticFixed
+                  "
                 />
                 <DhInput
                   v-model="detail.saleAmount"
                   type="number"
                   label="Venta"
                   placeholder="0.00"
-                  :disabled="
-                    isCreatingFromImport ||
-                    detail.costDetailType === 'AgentCharge' ||
-                    detail.estimated
-                  "
+                  :disabled="detail.costDetailType === 'AgentCharge' || detail.estimated"
                 />
                 <button
                   v-if="
@@ -1289,6 +1577,123 @@ onMounted(initialize)
           label="Costos opcionales"
           placeholder="Seleccione costos opcionales"
         />
+      </div>
+
+      <div class="mt-5 rounded-[22px] border border-sky-500/20 bg-sky-500/[0.07] p-4">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h4 class="text-sm font-black text-[var(--dh-text)]">Seguro de carga</h4>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+              Venta: 0.65% del valor de la carga, con mínimo de USD 95. Costo: 0.20%, con mínimo
+              de USD 35. El porcentaje, el mínimo y la tarifa final de venta se mantienen editables.
+            </p>
+          </div>
+          <DhBadge label="USD" variant="primary" />
+        </div>
+        <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <DhInput
+            v-model="form.cargoValue"
+            type="number"
+            min="0"
+            step="0.01"
+            label="Valor de la carga (USD)"
+            placeholder="0.00"
+          />
+          <div>
+            <DhInput
+              v-model="form.insurancePercentage"
+              type="number"
+              min="0"
+              step="0.0001"
+              label="Porcentaje de seguro"
+              :disabled="!form.manualInsurancePercentage"
+            />
+            <label
+              class="mt-2 flex cursor-pointer items-center gap-2 text-xs font-bold text-[var(--dh-text-muted)]"
+            >
+              <input
+                v-model="form.manualInsurancePercentage"
+                type="checkbox"
+                class="h-4 w-4 accent-[var(--dh-primary)]"
+              />
+              Modificar porcentaje manualmente
+            </label>
+          </div>
+          <div>
+            <DhInput
+              v-model="form.insuranceMinimumAmount"
+              type="number"
+              min="0"
+              step="0.01"
+              label="Tarifa mínima (USD)"
+              :disabled="!form.manualInsuranceMinimum"
+            />
+            <label
+              class="mt-2 flex cursor-pointer items-center gap-2 text-xs font-bold text-[var(--dh-text-muted)]"
+            >
+              <input
+                v-model="form.manualInsuranceMinimum"
+                type="checkbox"
+                class="h-4 w-4 accent-[var(--dh-primary)]"
+              />
+              Modificar mínimo manualmente
+            </label>
+          </div>
+          <div>
+            <DhInput
+              v-model="form.insuranceAmount"
+              type="number"
+              min="0"
+              step="0.01"
+              label="Tarifa de seguro (USD)"
+              :disabled="!form.manualInsuranceAmount"
+            />
+            <label
+              class="mt-2 flex cursor-pointer items-center gap-2 text-xs font-bold text-[var(--dh-text-muted)]"
+            >
+              <input
+                v-model="form.manualInsuranceAmount"
+                type="checkbox"
+                class="h-4 w-4 accent-[var(--dh-primary)]"
+              />
+              Modificar tarifa manualmente
+            </label>
+          </div>
+          <div class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5">
+            <p
+              class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
+            >
+              Costo / venta
+            </p>
+            <div v-if="Number(form.cargoValue || 0) > 0" class="mt-2 space-y-2">
+              <div>
+                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Costo</p>
+                <p class="text-base font-black text-[var(--dh-text)]">
+                  {{ formatMoney(Number(cargoInsuranceDetail?.costAmount || 0), 'USD') }}
+                </p>
+                <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
+                  0.20% · mínimo USD 35
+                </p>
+              </div>
+              <div class="border-t border-[var(--dh-border)] pt-2">
+                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Venta</p>
+                <p class="text-base font-black text-[var(--dh-text)]">
+                  {{ formatMoney(Number(cargoInsuranceDetail?.saleAmount || 0), 'USD') }}
+                </p>
+                <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
+                  Máximo entre valor × porcentaje y mínimo configurado.
+                </p>
+              </div>
+            </div>
+            <p v-else class="mt-2 text-sm font-black text-[var(--dh-text-muted)]">No aplicado</p>
+          </div>
+        </div>
+        <p
+          v-if="!(Number(form.cargoValue || 0) > 0)"
+          class="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-800 dark:text-amber-300"
+        >
+          No se cuenta con valor real de la carga para poder aplicar seguro
+        </p>
       </div>
     </section>
 

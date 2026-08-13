@@ -2,9 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { BellRing, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { Bell, BellRing, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { NotificationsService } from '@/core/services/notificationsService'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useModalStore } from '@/core/stores/modalStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { NOTIFICATIONS_SCOPES } from '@/core/auth/scopes'
 import type { NotificationTemplateDto } from '@/core/interfaces/notifications'
@@ -13,10 +14,12 @@ import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhBadge from '@/shared/components/atoms/DhBadge.vue'
 import DhEmptyState from '@/shared/components/atoms/DhEmptyState.vue'
 import DhSearchInput from '@/shared/components/molecules/DhSearchInput.vue'
+import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const toast = useToastStore()
+const modalStore = useModalStore()
 const auth = useAuthStore()
 const templates = ref<NotificationTemplateDto[]>([])
 const loading = ref(false)
@@ -39,15 +42,35 @@ async function load() {
 function applySearch() { page.value = 1; void load() }
 function clearSearch() { search.value = ''; page.value = 1; void load() }
 function changePage(next: number) { page.value = Math.min(Math.max(1, next), totalPages.value); void load() }
-function open(template?: NotificationTemplateDto) { void router.push(template ? `/notifications/templates/${template.id}` : '/notifications/templates/new') }
+function open(template?: NotificationTemplateDto) { void router.push(template ? `/monitoring/notifications/templates/${template.id}` : '/monitoring/notifications/templates/new') }
 async function toggle(template: NotificationTemplateDto) {
   try { await NotificationsService.setTemplateActive(template.id, !template.isActive); toast.success(t('notificationTemplates.toasts.updatedTitle'), t('notificationTemplates.toasts.updatedMessage')); await load() }
   catch (error) { toast.backendError(error, t('notificationTemplates.toasts.updateError')) }
 }
-async function remove(template: NotificationTemplateDto) {
-  if (!window.confirm(t('notificationTemplates.deleteConfirm', { name: template.name }))) return
-  try { await NotificationsService.deleteTemplate(template.id); toast.success(t('notificationTemplates.toasts.deletedTitle'), template.name); await load() }
-  catch (error) { toast.backendError(error, t('notificationTemplates.toasts.deleteError')) }
+function remove(template: NotificationTemplateDto) {
+  modalStore.open({
+    title: t('common.delete'),
+    component: DhConfirmDialog,
+    size: 'md',
+    props: {
+      title: t('common.delete'),
+      message: t('notificationTemplates.deleteConfirm', { name: template.name }),
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await NotificationsService.deleteTemplate(template.id)
+          modalStore.close()
+          toast.success(t('notificationTemplates.toasts.deletedTitle'), template.name)
+          await load()
+        } catch (error) {
+          toast.backendError(error, t('notificationTemplates.toasts.deleteError'))
+        }
+      },
+      onCancel: () => modalStore.close(),
+    },
+  })
 }
 function formatDate(value: string) {
   const date = new Date(value)
@@ -60,6 +83,7 @@ onMounted(load)
   <section class="space-y-5 sm:space-y-6">
     <DhPageHeader :title="t('notificationTemplates.title')" :subtitle="t('notificationTemplates.subtitle')" :icon="BellRing">
       <template #actions>
+        <DhButton :icon="Bell" :label="t('notificationTemplates.notificationsButton')" variant="secondary" @click="router.push('/monitoring/notifications')" />
         <DhButton :icon="RefreshCw" :label="t('common.refresh')" variant="secondary" :loading="loading" @click="load" />
         <DhButton v-if="canManage" :icon="Plus" :label="t('notificationTemplates.newTemplate')" @click="open()" />
       </template>

@@ -27,6 +27,10 @@ import type {
   PricingRateDashboardDto,
   PricingRateDashboardQuery,
   RateDto,
+  RateTermItemDto,
+  CreateRateTermItemRequest,
+  UpdateRateTermItemRequest,
+  SetRateTermItemActiveRequest,
   RejectImportRateBatchRequest,
   RejectImportRateRequest,
   ReviewImportRateRequest,
@@ -131,6 +135,36 @@ export const PricingService = {
     return callEndpoint<NoContent>(Endpoints.deleteCost, { params: { costId } })
   },
 
+  async browseRateTermItems(isActive?: boolean): Promise<RateTermItemDto[]> {
+    const response = await callEndpoint<unknown>({
+      ...Endpoints.browseRateTermItems,
+      path: withQuery(Endpoints.browseRateTermItems.path, { isActive }),
+    })
+    return unwrapListResponse<RateTermItemDto>(response)
+  },
+
+  async createRateTermItem(payload: CreateRateTermItemRequest): Promise<string> {
+    const response = await callEndpoint<unknown, CreateRateTermItemRequest>(Endpoints.createRateTermItem, { body: payload })
+    return unwrapApiResponse<string>(response as never)
+  },
+
+  updateRateTermItem(rateTermItemId: string, payload: UpdateRateTermItemRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, UpdateRateTermItemRequest>(Endpoints.updateRateTermItem, { params: { rateTermItemId }, body: payload })
+  },
+
+  setRateTermItemActive(rateTermItemId: string, payload: SetRateTermItemActiveRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, SetRateTermItemActiveRequest>(Endpoints.setRateTermItemActive, { params: { rateTermItemId }, body: payload })
+  },
+
+  deleteRateTermItem(rateTermItemId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>(Endpoints.deleteRateTermItem, { params: { rateTermItemId } })
+  },
+
+  async selectRateTermItems(): Promise<RateTermItemDto[]> {
+    const response = await callEndpoint<unknown>(Endpoints.selectRateTermItems)
+    return unwrapListResponse<RateTermItemDto>(response)
+  },
+
   async getDecisionDashboard(
     query?: PricingDecisionDashboardQuery,
   ): Promise<PricingDecisionDashboardDto> {
@@ -225,10 +259,7 @@ export const PricingService = {
     })
   },
 
-  reviewImportRate(
-    importRateId: string,
-    payload: ReviewImportRateRequest,
-  ): Promise<NoContent> {
+  reviewImportRate(importRateId: string, payload: ReviewImportRateRequest): Promise<NoContent> {
     return callEndpoint<NoContent, ReviewImportRateRequest>(Endpoints.reviewImportRate, {
       params: { importRateId },
       body: payload,

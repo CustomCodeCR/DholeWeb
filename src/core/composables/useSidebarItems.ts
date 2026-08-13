@@ -9,6 +9,7 @@ import {
   KeyRound,
   LayoutDashboard,
   ListTree,
+  ListChecks,
   MonitorCog,
   Settings,
   Shield,
@@ -149,30 +150,16 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             name: 'pricing-costs',
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
+          {
+            labelKey: 'sidebar.rateTerms',
+            icon: ListChecks,
+            to: '/pricing/rate-terms',
+            name: 'pricing-rate-terms',
+            requiredScope: VIEW_SCOPES.pricingRateTerms,
+          },
         ],
       },
 
-      {
-        labelKey: 'sidebar.notifications',
-        icon: Bell,
-        name: 'notifications-center',
-        children: [
-          {
-            labelKey: 'sidebar.notificationMessages',
-            icon: Bell,
-            to: '/notifications',
-            name: 'notifications',
-            requiredScope: VIEW_SCOPES.notifications,
-          },
-          {
-            labelKey: 'sidebar.notificationTemplates',
-            icon: BellRing,
-            to: '/notifications/templates',
-            name: 'notifications-templates',
-            requiredScope: VIEW_SCOPES.notificationTemplates,
-          },
-        ],
-      },
       {
         labelKey: 'sidebar.reports',
         icon: FileText,
@@ -220,6 +207,20 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             to: '/monitoring/services',
             name: 'monitoring-services',
             requiredScope: VIEW_SCOPES.monitoring,
+          },
+          {
+            labelKey: 'sidebar.notificationAdministration',
+            icon: Bell,
+            to: '/monitoring/notifications',
+            name: 'notifications',
+            requiredScope: VIEW_SCOPES.notifications,
+          },
+          {
+            labelKey: 'sidebar.notificationTemplates',
+            icon: BellRing,
+            to: '/monitoring/notifications/templates',
+            name: 'notifications-templates',
+            requiredScope: VIEW_SCOPES.notificationTemplates,
           },
           {
             labelKey: 'sidebar.storage',

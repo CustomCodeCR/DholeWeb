@@ -16,8 +16,13 @@ const props = withDefaults(
     label?: string
     placeholder?: string
     emptyText?: string
+    searchPlaceholder?: string
   }>(),
-  { placeholder: 'Seleccione una o varias opciones', emptyText: 'No hay opciones disponibles.' },
+  {
+    placeholder: 'Seleccione una o varias opciones',
+    emptyText: 'No hay opciones disponibles.',
+    searchPlaceholder: 'Buscar costo...',
+  },
 )
 
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
@@ -79,7 +84,7 @@ function toggle(value: string) {
           <input
             v-model="search"
             type="search"
-            placeholder="Buscar costo..."
+            :placeholder="searchPlaceholder"
             class="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[var(--dh-text-muted)]"
           />
         </div>

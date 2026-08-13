@@ -34,6 +34,7 @@ const form = reactive({
   containerTypeId: '',
   currencyId: '',
   commodity: '',
+  spaceComment: '',
   oceanFreight: '',
   originCharges: '',
   destinationCharges: '',
@@ -102,6 +103,7 @@ function hydrate(rate: ImportRateDto) {
     rate.currencySlug,
   )
   form.commodity = rate.commodity ?? ''
+  form.spaceComment = rate.spaceComment ?? ''
   form.oceanFreight = String(rate.oceanFreight ?? rate.freight ?? 0)
   form.originCharges = String(rate.originCharges ?? 0)
   form.destinationCharges = String(rate.destinationCharges ?? 0)
@@ -189,6 +191,7 @@ function payload(): ReviewImportRateRequest {
     containerTypeId: form.containerTypeId,
     currencyId: form.currencyId,
     commodity: form.commodity.trim() || null,
+    spaceComment: form.spaceComment.trim() || null,
     oceanFreight: Number(form.oceanFreight),
     originCharges: Number(form.originCharges),
     destinationCharges: Number(form.destinationCharges),
@@ -330,8 +333,14 @@ onMounted(async () => {
           <DhInput v-model="form.validFrom" type="date" label="Vigente desde *" :error="errors.validFrom" />
           <DhInput v-model="form.validTo" type="date" label="Vigente hasta *" :error="errors.validTo" />
         </div>
-        <div class="mt-4 grid gap-4 md:grid-cols-2">
+        <div class="mt-4 grid gap-4 lg:grid-cols-3">
           <DhTextarea v-model="form.commodity" label="Mercancía / condición comercial" :rows="4" />
+          <DhTextarea
+            v-model="form.spaceComment"
+            label="Comentarios de espacios"
+            :rows="4"
+            placeholder="Ej.: liberar espacio, reservar con anticipación, sujeto a espacio, sin espacio..."
+          />
           <DhTextarea v-model="form.reviewNotes" label="Notas de revisión para auditoría" :rows="4" />
         </div>
       </section>

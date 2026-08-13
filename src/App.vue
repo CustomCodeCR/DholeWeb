@@ -8,6 +8,10 @@ import AiAssistantFloatingButton from '@/modules/ai/components/AiAssistantFloati
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
+import {
+  startNotificationRealtime,
+  stopNotificationRealtime,
+} from '@/core/realtime/notificationRealtime'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -15,6 +19,7 @@ const tabsStore = useWorkspaceTabsStore()
 const brandingStore = useBrandingStore()
 
 function handleAuthExpired() {
+  void stopNotificationRealtime()
   authStore.clearSession()
   tabsStore.clear()
   void brandingStore.loadCurrentClientBranding()
@@ -32,18 +37,21 @@ function handleAuthRefreshed(event: Event) {
   }
 
   authStore.setSession(detail)
+  void startNotificationRealtime()
   void brandingStore.loadCurrentClientBranding()
 }
 
 onMounted(() => {
   brandingStore.applyCachedOrDefault()
   void brandingStore.loadCurrentClientBranding()
+  void startNotificationRealtime()
 
   window.addEventListener('dhole:auth:expired', handleAuthExpired)
   window.addEventListener('dhole:auth:refreshed', handleAuthRefreshed)
 })
 
 onBeforeUnmount(() => {
+  void stopNotificationRealtime()
   window.removeEventListener('dhole:auth:expired', handleAuthExpired)
   window.removeEventListener('dhole:auth:refreshed', handleAuthRefreshed)
 })
