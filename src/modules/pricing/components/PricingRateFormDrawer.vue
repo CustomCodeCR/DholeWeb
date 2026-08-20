@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { AlertTriangle, Info, LockKeyhole, Plus, Save, Ship, Trash2 } from 'lucide-vue-next'
+import {
+  AlertTriangle,
+  ChevronDown,
+  Info,
+  LockKeyhole,
+  Plus,
+  Save,
+  Ship,
+  Trash2,
+} from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -117,6 +126,16 @@ const initialized = ref(false)
 const canEditImportedAgent = ref(false)
 const canEditImportedPoe = ref(false)
 const canEditImportedPod = ref(false)
+const collapsedStages = reactive<Record<1 | 2 | 3 | 4, boolean>>({
+  1: false,
+  2: false,
+  3: false,
+  4: false,
+})
+
+function toggleStage(stage: 1 | 2 | 3 | 4) {
+  collapsedStages[stage] = !collapsedStages[stage]
+}
 
 const today = new Date()
 const nextMonth = new Date(today)
@@ -667,7 +686,7 @@ const chargeBasisOptions: Array<{ label: string; value: ChargeBasis }> = [
   { label: 'Por tonelada', value: 'PerTon' },
   { label: 'Por pallet', value: 'PerPallet' },
   { label: 'Por bulto', value: 'PerPackage' },
-  { label: 'Por documento', value: 'PerDocument' },
+  { label: 'Por BL / documento', value: 'PerDocument' },
 ]
 
 const detailTypeOptions: Array<{ label: string; value: CostDetailType }> = [
@@ -695,6 +714,7 @@ const editableTypeOptions = [
 ]
 
 function defaultChargeBasis(costDetailType: CostDetailType): ChargeBasis {
+  if (costDetailType === 'Documentation') return 'PerDocument'
   if (costDetailType !== 'Freight' && costDetailType !== 'InlandTransport') return 'PerShipment'
   if (isFtl.value) return 'PerTruck'
   if (isConsolidated.value) return 'PerChargeableCbm'
@@ -824,13 +844,20 @@ function fromRateDetail(detail: RateDetailDto): EditableDetail {
 }
 
 function fromCost(cost: CostSelectDto): EditableDetail {
+  const chargeBasis =
+    cost.isAccountant && cost.chargeBasis === 'PerShipment'
+      ? cost.shipmentMode === 'Ftl'
+        ? 'PerTruck'
+        : 'PerContainer'
+      : (cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType))
+
   return {
     key: `cost-${cost.id}`,
     costId: cost.id,
     name: cost.name,
     costDetailType: cost.costDetailType,
     costType: cost.costType,
-    chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+    chargeBasis,
     currencyId: cost.currencyId,
     currencyName: cost.currencyName,
     currencyCode: cost.currencyCode,
@@ -1912,19 +1939,37 @@ onMounted(initialize)
     </section>
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-      <div class="mb-5 flex items-center gap-3">
+      <div
+        :class="[
+          'flex cursor-pointer items-center gap-3 select-none',
+          collapsedStages[1] ? 'mb-0' : 'mb-5',
+        ]"
+        @click="toggleStage(1)"
+      >
         <span
           class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
           >1</span
         >
-        <div>
+        <div class="flex-1">
           <h3 class="font-black text-[var(--dh-text)]">Ruta y responsables</h3>
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">
             Todos los valores provienen de catálogos para evitar datos inconsistentes.
           </p>
         </div>
+        <button
+          type="button"
+          class="rounded-2xl border border-[var(--dh-border)] p-2 text-[var(--dh-text-muted)] transition hover:bg-black/5 hover:text-[var(--dh-text)] dark:hover:bg-white/10"
+          :aria-label="collapsedStages[1] ? 'Expandir etapa 1' : 'Colapsar etapa 1'"
+          :title="collapsedStages[1] ? 'Expandir etapa' : 'Colapsar etapa'"
+          @click.stop="toggleStage(1)"
+        >
+          <ChevronDown
+            class="h-5 w-5 transition-transform duration-200"
+            :class="collapsedStages[1] ? '' : 'rotate-180'"
+          />
+        </button>
       </div>
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div v-show="!collapsedStages[1]" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <DhSelect
           v-model="form.shipmentMode"
           :disabled="isCreatingFromImport"
@@ -1975,6 +2020,7 @@ onMounted(initialize)
 
       <div
         v-if="isFcl"
+        v-show="!collapsedStages[1]"
         class="mt-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-bg)]/45 p-4"
       >
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -2085,6 +2131,7 @@ onMounted(initialize)
 
       <div
         v-if="isFtl"
+        v-show="!collapsedStages[1]"
         class="mt-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-bg)]/45 p-4"
       >
         <div class="grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
@@ -2111,6 +2158,7 @@ onMounted(initialize)
 
       <div
         v-if="isConsolidated"
+        v-show="!collapsedStages[1]"
         class="mt-5 space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-bg)]/45 p-4"
       >
         <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -2216,19 +2264,37 @@ onMounted(initialize)
     </section>
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-      <div class="mb-5 flex items-center gap-3">
+      <div
+        :class="[
+          'flex cursor-pointer items-center gap-3 select-none',
+          collapsedStages[2] ? 'mb-0' : 'mb-5',
+        ]"
+        @click="toggleStage(2)"
+      >
         <span
           class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
           >2</span
         >
-        <div>
+        <div class="flex-1">
           <h3 class="font-black text-[var(--dh-text)]">Vigencia y moneda</h3>
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">
             La vigencia se valida antes de enviar la tarifa.
           </p>
         </div>
+        <button
+          type="button"
+          class="rounded-2xl border border-[var(--dh-border)] p-2 text-[var(--dh-text-muted)] transition hover:bg-black/5 hover:text-[var(--dh-text)] dark:hover:bg-white/10"
+          :aria-label="collapsedStages[2] ? 'Expandir etapa 2' : 'Colapsar etapa 2'"
+          :title="collapsedStages[2] ? 'Expandir etapa' : 'Colapsar etapa'"
+          @click.stop="toggleStage(2)"
+        >
+          <ChevronDown
+            class="h-5 w-5 transition-transform duration-200"
+            :class="collapsedStages[2] ? '' : 'rotate-180'"
+          />
+        </button>
       </div>
-      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div v-show="!collapsedStages[2]" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <DhSelect
           v-model="form.currencyId"
           :disabled="isHeaderLocked"
@@ -2285,19 +2351,37 @@ onMounted(initialize)
     </section>
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-      <div class="mb-5 flex items-center gap-3">
+      <div
+        :class="[
+          'flex cursor-pointer items-center gap-3 select-none',
+          collapsedStages[3] ? 'mb-0' : 'mb-5',
+        ]"
+        @click="toggleStage(3)"
+      >
         <span
           class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
           >3</span
         >
-        <div>
+        <div class="flex-1">
           <h3 class="font-black text-[var(--dh-text)]">Datos y condiciones comerciales</h3>
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">
             Identificadores del cliente y condiciones que se mostrarán en la cotización.
           </p>
         </div>
+        <button
+          type="button"
+          class="rounded-2xl border border-[var(--dh-border)] p-2 text-[var(--dh-text-muted)] transition hover:bg-black/5 hover:text-[var(--dh-text)] dark:hover:bg-white/10"
+          :aria-label="collapsedStages[3] ? 'Expandir etapa 3' : 'Colapsar etapa 3'"
+          :title="collapsedStages[3] ? 'Expandir etapa' : 'Colapsar etapa'"
+          @click.stop="toggleStage(3)"
+        >
+          <ChevronDown
+            class="h-5 w-5 transition-transform duration-200"
+            :class="collapsedStages[3] ? '' : 'rotate-180'"
+          />
+        </button>
       </div>
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div v-show="!collapsedStages[3]" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <DhInput v-model="form.clientName" label="Cliente" placeholder="Nombre del cliente" />
         <DhInput v-model="form.idtraNumber" label="Número IDTRA" placeholder="IDTRA-..." />
         <DhInput v-model="form.quoNumber" label="Número QUO" placeholder="QUO-..." />
@@ -2316,7 +2400,7 @@ onMounted(initialize)
         />
       </div>
       <div
-        v-if="resolvedTermBlocks.length"
+        v-if="resolvedTermBlocks.length && !collapsedStages[3]"
         class="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3"
       >
         <p
@@ -2329,7 +2413,7 @@ onMounted(initialize)
           editables: puede quitarlos, moverlos de categoría o agregar otros.
         </p>
       </div>
-      <div class="mt-4">
+      <div v-show="!collapsedStages[3]" class="mt-4">
         <PricingTermDragBoard
           v-model="rateTermBoardValue"
           :items="rateTermItems"
@@ -2341,7 +2425,13 @@ onMounted(initialize)
     </section>
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-      <div class="mb-5 flex items-center gap-3">
+      <div
+        :class="[
+          'flex cursor-pointer items-center gap-3 select-none',
+          collapsedStages[4] ? 'mb-0' : 'mb-5',
+        ]"
+        @click="toggleStage(4)"
+      >
         <span
           class="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-sm font-black text-white"
           >4</span
@@ -2354,16 +2444,28 @@ onMounted(initialize)
           </p>
         </div>
         <DhButton
-          v-if="!isCreatingFromImport"
+          v-if="!isCreatingFromImport && !collapsedStages[4]"
           label="Rubro manual"
           :icon="Plus"
           variant="secondary"
           size="sm"
-          @click="addManualDetail()"
+          @click.stop="addManualDetail()"
         />
+        <button
+          type="button"
+          class="rounded-2xl border border-[var(--dh-border)] p-2 text-[var(--dh-text-muted)] transition hover:bg-black/5 hover:text-[var(--dh-text)] dark:hover:bg-white/10"
+          :aria-label="collapsedStages[4] ? 'Expandir etapa 4' : 'Colapsar etapa 4'"
+          :title="collapsedStages[4] ? 'Expandir etapa' : 'Colapsar etapa'"
+          @click.stop="toggleStage(4)"
+        >
+          <ChevronDown
+            class="h-5 w-5 transition-transform duration-200"
+            :class="collapsedStages[4] ? '' : 'rotate-180'"
+          />
+        </button>
       </div>
 
-      <div class="mt-5 space-y-4">
+      <div v-show="!collapsedStages[4]" class="mt-5 space-y-4">
         <section
           v-for="group in groups"
           :key="group.key"
@@ -2502,7 +2604,7 @@ onMounted(initialize)
         </section>
       </div>
 
-      <div class="mt-6 border-t border-[var(--dh-border)] pt-5">
+      <div v-show="!collapsedStages[4]" class="mt-6 border-t border-[var(--dh-border)] pt-5">
         <PricingMultiSelect
           v-model="optionalCostIds"
           :options="optionalOptions"
@@ -2511,7 +2613,10 @@ onMounted(initialize)
         />
       </div>
 
-      <div class="mt-5 rounded-[22px] border border-sky-500/20 bg-sky-500/[0.07] p-4">
+      <div
+        v-show="!collapsedStages[4]"
+        class="mt-5 rounded-[22px] border border-sky-500/20 bg-sky-500/[0.07] p-4"
+      >
         <div class="flex items-start justify-between gap-4">
           <div>
             <h4 class="text-sm font-black text-[var(--dh-text)]">Seguro de carga</h4>

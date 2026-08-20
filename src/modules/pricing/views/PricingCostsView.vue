@@ -16,7 +16,13 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
-import type { CostDetailType, CostDto, CostPortRole, CostType } from '@/core/interfaces/pricing'
+import type {
+  ChargeBasis,
+  CostDetailType,
+  CostDto,
+  CostPortRole,
+  CostType,
+} from '@/core/interfaces/pricing'
 import PricingCostFormDrawer from '@/modules/pricing/components/PricingCostFormDrawer.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -61,7 +67,7 @@ const columns: DhTableColumn<CostDto>[] = [
   { key: 'costAmount', label: 'Costo', align: 'right' },
   { key: 'saleAmount', label: 'Venta', align: 'right' },
   { key: 'utilityAmount', label: 'Utilidad', align: 'right' },
-  { key: 'isAccountant', label: 'Contable', align: 'center' },
+  { key: 'chargeBasis', label: 'Base de cobro', align: 'center' },
   { key: 'isActive', label: 'Estado', align: 'center' },
   { key: 'actions', label: '', align: 'right', width: '120px' },
 ]
@@ -119,6 +125,35 @@ function detailLabel(value: CostDetailType) {
       Other: 'Otro',
     } as Record<CostDetailType, string>
   )[value]
+}
+
+function chargeBasisLabel(value: unknown) {
+  const basis = value as ChargeBasis
+  return (
+    (
+      {
+        PerShipment: 'Por embarque',
+        PerContainer: 'Por contenedor',
+        PerTruck: 'Por camión',
+        PerCbm: 'Por CBM',
+        PerChargeableCbm: 'Por CBM cobrable',
+        PerKg: 'Por KG',
+        Per100Kg: 'Por 100 KG',
+        PerTon: 'Por tonelada',
+        PerPallet: 'Por pallet',
+        PerPackage: 'Por bulto',
+        PerDocument: 'Por BL / documento',
+      } as Record<ChargeBasis, string>
+    )[basis] ?? String(value ?? '—')
+  )
+}
+
+function effectiveChargeBasis(cost: CostDto): ChargeBasis {
+  if (cost.isAccountant && cost.chargeBasis === 'PerShipment') {
+    return cost.shipmentMode === 'Ftl' ? 'PerTruck' : 'PerContainer'
+  }
+
+  return cost.chargeBasis
 }
 
 function routeSummary(cost: CostDto) {
@@ -362,11 +397,7 @@ onMounted(async () => {
           </template>
           <template #cell-incoterms="{ row }">
             <div class="flex max-w-[220px] flex-wrap gap-1">
-              <DhBadge
-                v-if="!displayCost(row).incoterms?.length"
-                label="Todos"
-                variant="neutral"
-              />
+              <DhBadge v-if="!displayCost(row).incoterms?.length" label="Todos" variant="neutral" />
               <template v-else>
                 <DhBadge
                   v-for="incoterm in displayCost(row).incoterms"
@@ -396,15 +427,12 @@ onMounted(async () => {
               >{{ formatMoney(row.utilityAmount, displayCost(row).currencyName) }}</span
             ></template
           >
-          <template #cell-isAccountant="{ value, row }"
+          <template #cell-chargeBasis="{ row }"
             ><DhBadge
-              :label="
-                value || ['Freight', 'InlandTransport'].includes(row.costDetailType)
-                  ? 'Por contenedor'
-                  : 'Único'
-              "
+              :label="chargeBasisLabel(effectiveChargeBasis(row))"
               :variant="
-                value || ['Freight', 'InlandTransport'].includes(row.costDetailType)
+                effectiveChargeBasis(row) === 'PerContainer' ||
+                effectiveChargeBasis(row) === 'PerTruck'
                   ? 'primary'
                   : 'neutral'
               "

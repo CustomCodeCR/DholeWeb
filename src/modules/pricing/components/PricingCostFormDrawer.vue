@@ -50,12 +50,24 @@ const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
 
+function initialChargeBasis(cost?: CostDto): ChargeBasis {
+  if (!cost) return 'PerShipment'
+
+  // Compatibility for costs created before chargeBasis existed. The old
+  // isAccountant=true flag meant that the value was applied per equipment unit.
+  if (cost.isAccountant && cost.chargeBasis === 'PerShipment') {
+    return cost.shipmentMode === 'Ftl' ? 'PerTruck' : 'PerContainer'
+  }
+
+  return cost.chargeBasis ?? 'PerShipment'
+}
+
 const form = reactive({
   name: props.cost?.name ?? '',
   costType: (props.cost?.costType ?? 'Fixed') as CostType,
   costDetailType: (props.cost?.costDetailType ?? 'DestinationCharge') as CostDetailType,
   shipmentMode: (props.cost?.shipmentMode ?? '') as ShipmentMode | '',
-  chargeBasis: (props.cost?.chargeBasis ?? 'PerShipment') as ChargeBasis,
+  chargeBasis: initialChargeBasis(props.cost),
   minimumCostAmount: String(props.cost?.minimumCostAmount ?? ''),
   minimumSaleAmount: String(props.cost?.minimumSaleAmount ?? ''),
   kgPerCbm: String(props.cost?.kgPerCbm ?? ''),
@@ -130,7 +142,7 @@ const chargeBasisOptions: Array<{ label: string; value: ChargeBasis }> = [
   { label: 'Por tonelada', value: 'PerTon' },
   { label: 'Por pallet', value: 'PerPallet' },
   { label: 'Por bulto', value: 'PerPackage' },
-  { label: 'Por documento', value: 'PerDocument' },
+  { label: 'Por BL / documento', value: 'PerDocument' },
 ]
 
 const detailTypeOptions: Array<{ label: string; value: CostDetailType }> = [
@@ -191,6 +203,11 @@ watch(
 watch(
   () => [form.costDetailType, form.shipmentMode] as const,
   ([detailType, shipmentMode]) => {
+    if (!props.cost && detailType === 'Documentation' && form.chargeBasis === 'PerShipment') {
+      form.chargeBasis = 'PerDocument'
+      return
+    }
+
     if (!['Freight', 'InlandTransport'].includes(detailType)) return
     if (form.chargeBasis !== 'PerShipment' || props.cost) return
     if (shipmentMode === 'Fcl') form.chargeBasis = 'PerContainer'
@@ -198,6 +215,28 @@ watch(
     else if (shipmentMode === 'Lcl' || shipmentMode === 'Ltl') form.chargeBasis = 'PerChargeableCbm'
   },
   { immediate: true },
+)
+
+watch(
+  () => form.costDetailType,
+  (detailType, previousDetailType) => {
+    if (props.cost) return
+    if (
+      previousDetailType === 'Documentation' &&
+      detailType !== 'Documentation' &&
+      form.chargeBasis === 'PerDocument'
+    ) {
+      if (detailType === 'Freight' || detailType === 'InlandTransport') {
+        if (form.shipmentMode === 'Fcl') form.chargeBasis = 'PerContainer'
+        else if (form.shipmentMode === 'Ftl') form.chargeBasis = 'PerTruck'
+        else if (form.shipmentMode === 'Lcl' || form.shipmentMode === 'Ltl')
+          form.chargeBasis = 'PerChargeableCbm'
+        else form.chargeBasis = 'PerShipment'
+      } else {
+        form.chargeBasis = 'PerShipment'
+      }
+    }
+  },
 )
 
 watch(
