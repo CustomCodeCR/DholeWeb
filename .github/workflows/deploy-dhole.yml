@@ -40,9 +40,25 @@ jobs:
           set -euo pipefail
           SHA_TAG="${GITHUB_SHA::12}"
 
-          set -a
-          source /opt/dhole/.env
-          set +a
+          read_env() {
+            local key="$1"
+            local value
+
+            value="$(grep -m1 "^${key}=" /opt/dhole/.env | cut -d= -f2- || true)"
+            value="${value%$'\r'}"
+
+            if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+              value="${value:1:${#value}-2}"
+            elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+              value="${value:1:${#value}-2}"
+            fi
+
+            printf '%s' "$value"
+          }
+
+          VITE_API_URL="$(read_env VITE_API_URL)"
+          VITE_APP_NAME="$(read_env VITE_APP_NAME)"
+          VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
 
           : "${VITE_API_URL:?VITE_API_URL is required in /opt/dhole/.env}"
           : "${VITE_APP_NAME:?VITE_APP_NAME is required in /opt/dhole/.env}"
