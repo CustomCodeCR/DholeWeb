@@ -8,24 +8,33 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
 import type {
+  ChargeBasis,
   CostDetailType,
   CostSelectDto,
   CostType,
+  CreateRateContainerRequest,
   CreateRateDetailRequest,
   CreateRateRequest,
   ImportRateDto,
+  RateCargoLineRequest,
   RateDetailDto,
   RateDto,
+  ShipmentMode,
+  RateType,
   RateTermItemDto,
+  RateTermBlockDto,
+  CarrierFreeDayRuleDto,
   UpdateRateRequest,
 } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import PricingMultiSelect, { type PricingMultiSelectOption } from './PricingMultiSelect.vue'
+import PricingTermDragBoard, { type PricingTermBoardColumn } from './PricingTermDragBoard.vue'
 import { createUuid } from '@/core/utils/id'
 import {
   calculateMargin,
   formatMoney,
   minimumSale,
+  rateDisplayName,
   toDateInput,
 } from '@/modules/pricing/utils/pricingFormat'
 
@@ -36,6 +45,7 @@ interface EditableDetail {
   name: string
   costDetailType: CostDetailType
   costType: CostType
+  chargeBasis: ChargeBasis
   currencyId: string
   currencyName: string
   currencyCode: string
@@ -49,6 +59,30 @@ interface EditableDetail {
   fixedDecisionCost?: boolean
   insuranceGenerated?: boolean
   automaticFixed?: boolean
+  quantity?: number
+  minimumCostAmount?: number | null
+  minimumSaleAmount?: number | null
+  kgPerCbm?: number | null
+}
+
+interface EditableContainerAllocation {
+  key: string
+  containerTypeId: string
+  quantity: string
+  freightCostAmount: string
+  freightSaleAmount: string
+  freightDetailId?: string | null
+}
+
+interface EditableCargoLine {
+  key: string
+  description: string
+  packages: string
+  pallets: string
+  weightKg: string
+  lengthCm: string
+  widthCm: string
+  heightCm: string
 }
 
 const props = defineProps<{
@@ -62,12 +96,21 @@ const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
 const authStore = useAuthStore()
 const catalogs = usePricingCatalogs()
+const editingDisplayName = computed(() =>
+  props.rate ? rateDisplayName(catalogs.resolveRateLabels(props.rate)) : '',
+)
 const availableCosts = ref<CostSelectDto[]>([])
 const rateTermItems = ref<RateTermItemDto[]>([])
 const includesTermIds = ref<string[]>([])
 const subjectToTermIds = ref<string[]>([])
 const excludesTermIds = ref<string[]>([])
+const resolvedTermBlocks = ref<RateTermBlockDto[]>([])
+const autoTermIds = ref<string[]>([])
+const carrierFreeDayRule = ref<CarrierFreeDayRuleDto | null>(null)
+const loadingFreeDays = ref(false)
 const details = ref<EditableDetail[]>([])
+const containerAllocations = ref<EditableContainerAllocation[]>([])
+const cargoLines = ref<EditableCargoLine[]>([])
 const optionalCostIds = ref<string[]>([])
 const removedDetailIds = ref<string[]>([])
 const initialized = ref(false)
@@ -81,6 +124,9 @@ nextMonth.setDate(nextMonth.getDate() + 30)
 const dateValue = (date: Date) => date.toISOString().slice(0, 10)
 
 const form = reactive({
+  shipmentMode: (props.rate?.shipmentMode ?? 'Fcl') as ShipmentMode,
+  rateType: (props.rate?.rateType ?? 'Tariff') as RateType,
+  kgPerCbm: String(props.rate?.kgPerCbm ?? (props.rate?.shipmentMode === 'Ltl' ? 333 : 500)),
   agentId: props.rate?.agentId ?? '',
   carrierId: props.rate?.carrierId ?? '',
   polId: props.rate?.polId ?? '',
@@ -100,7 +146,9 @@ const form = reactive({
   includes: props.rate?.includes ?? '',
   subjectTo: props.rate?.subjectTo ?? '',
   excludes: props.rate?.excludes ?? '',
-  transitDays: String(props.rate?.transitDays ?? props.sourceImport?.transitDays ?? ''),
+  transitTime:
+    props.rate?.transitTime ??
+    (props.sourceImport?.transitDays != null ? `${props.sourceImport.transitDays} días` : ''),
   cargoValue: '',
   insurancePercentage: '0.65',
   insuranceMinimumAmount: '95',
@@ -115,6 +163,15 @@ const form = reactive({
 const isEditing = computed(() => Boolean(props.rate))
 const isCreatingFromImport = computed(() => Boolean(props.sourceImport && !props.rate))
 const isHeaderLocked = computed(() => isCreatingFromImport.value)
+const isContainerMixLocked = computed(
+  () => isCreatingFromImport.value || Boolean(props.rate?.sourceImportFclRateId),
+)
+const isFcl = computed(() => form.shipmentMode === 'Fcl')
+const isLcl = computed(() => form.shipmentMode === 'Lcl')
+const isFtl = computed(() => form.shipmentMode === 'Ftl')
+const isLtl = computed(() => form.shipmentMode === 'Ltl')
+const isConsolidated = computed(() => isLcl.value || isLtl.value)
+const usesContainerFreight = computed(() => isFcl.value && !isContainerMixLocked.value)
 const isAgentLocked = computed(() => isCreatingFromImport.value && !canEditImportedAgent.value)
 const isPoeLocked = computed(() => isCreatingFromImport.value && !canEditImportedPoe.value)
 const isPodLocked = computed(() => isCreatingFromImport.value && !canEditImportedPod.value)
@@ -130,55 +187,350 @@ const currencyName = computed(
     'USD',
 )
 
-type RateTermCategory = 'includes' | 'subjectTo' | 'excludes'
+const rateTermColumns: PricingTermBoardColumn[] = [
+  {
+    key: 'includes',
+    label: 'Tarifa incluye',
+    hint: 'Servicios y condiciones que sí forman parte de la tarifa.',
+  },
+  {
+    key: 'subjectTo',
+    label: 'Sujeto a',
+    hint: 'Condiciones bajo las cuales aplica la tarifa.',
+  },
+  {
+    key: 'excludes',
+    label: 'Tarifa no incluye',
+    hint: 'Conceptos expresamente excluidos de la cotización.',
+  },
+]
 
-const rateTermOptions = computed<PricingMultiSelectOption[]>(() =>
-  rateTermItems.value
-    .filter((item) => item.isActive)
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.text.localeCompare(b.text))
-    .map((item) => ({ value: item.id, label: item.text })),
+const rateTermBoardValue = computed<Record<string, string[]>>({
+  get: () => ({
+    includes: [...includesTermIds.value],
+    subjectTo: [...subjectToTermIds.value],
+    excludes: [...excludesTermIds.value],
+  }),
+  set: (value) => {
+    const includes = [...new Set(value.includes ?? [])]
+    const includeSet = new Set(includes)
+    const subjectTo = [...new Set(value.subjectTo ?? [])].filter((id) => !includeSet.has(id))
+    const subjectSet = new Set(subjectTo)
+    const excludes = [...new Set(value.excludes ?? [])].filter(
+      (id) => !includeSet.has(id) && !subjectSet.has(id),
+    )
+
+    includesTermIds.value = includes
+    subjectToTermIds.value = subjectTo
+    excludesTermIds.value = excludes
+  },
+})
+
+const allocatedContainerQuantity = computed(() =>
+  containerAllocations.value.reduce(
+    (total, item) => total + Math.max(0, Number(item.quantity || 0)),
+    0,
+  ),
 )
 
-function setRateTermSelection(category: RateTermCategory, values: string[]) {
-  const selected = [...new Set(values)]
-  const selectedSet = new Set(selected)
+const requestedContainerQuantity = computed(() =>
+  containerAllocations.value.length <= 1
+    ? Math.max(0, Number(form.containerQuantity || 0))
+    : allocatedContainerQuantity.value,
+)
 
-  // Los tres selectores comparten el mismo catálogo. Al asignar un ítem a una
-  // categoría se retira automáticamente de las otras dos, en lugar de ocultar
-  // opciones y dejar selectores sin elementos disponibles.
-  if (category === 'includes') {
-    includesTermIds.value = selected
-    subjectToTermIds.value = subjectToTermIds.value.filter((id) => !selectedSet.has(id))
-    excludesTermIds.value = excludesTermIds.value.filter((id) => !selectedSet.has(id))
-    return
-  }
+function distributeContainerQuantities(total: number, allocations = containerAllocations.value) {
+  if (!allocations.length) return
 
-  if (category === 'subjectTo') {
-    subjectToTermIds.value = selected
-    includesTermIds.value = includesTermIds.value.filter((id) => !selectedSet.has(id))
-    excludesTermIds.value = excludesTermIds.value.filter((id) => !selectedSet.has(id))
-    return
-  }
+  const normalizedTotal = Math.max(allocations.length, Math.trunc(Number(total) || 0))
+  const base = Math.floor(normalizedTotal / allocations.length)
+  const remainder = normalizedTotal % allocations.length
 
-  excludesTermIds.value = selected
-  includesTermIds.value = includesTermIds.value.filter((id) => !selectedSet.has(id))
-  subjectToTermIds.value = subjectToTermIds.value.filter((id) => !selectedSet.has(id))
+  allocations.forEach((allocation, index) => {
+    allocation.quantity = String(base + (index < remainder ? 1 : 0))
+  })
+
+  form.containerQuantity = String(normalizedTotal)
 }
+
+function emptyCargoLine(): EditableCargoLine {
+  return {
+    key: createUuid(),
+    description: '',
+    packages: '1',
+    pallets: '0',
+    weightKg: '0',
+    lengthCm: '0',
+    widthCm: '0',
+    heightCm: '0',
+  }
+}
+
+function addCargoLine() {
+  cargoLines.value.push(emptyCargoLine())
+}
+
+function removeCargoLine(key: string) {
+  if (cargoLines.value.length <= 1) return
+  cargoLines.value = cargoLines.value.filter((line) => line.key !== key)
+}
+
+function hydrateCargoLines() {
+  if (props.rate?.cargoLines?.length) {
+    cargoLines.value = props.rate.cargoLines.map((line) => ({
+      key: createUuid(),
+      description: line.description ?? '',
+      packages: String(line.packages ?? 0),
+      pallets: String(line.pallets ?? 0),
+      weightKg: String(line.weightKg ?? 0),
+      lengthCm: String(line.lengthCm ?? 0),
+      widthCm: String(line.widthCm ?? 0),
+      heightCm: String(line.heightCm ?? 0),
+    }))
+  } else if (isConsolidated.value) {
+    cargoLines.value = [emptyCargoLine()]
+  }
+}
+
+function cargoLineVolume(line: EditableCargoLine) {
+  const packages = Math.max(1, Number(line.packages || 0))
+  const length = Math.max(0, Number(line.lengthCm || 0))
+  const width = Math.max(0, Number(line.widthCm || 0))
+  const height = Math.max(0, Number(line.heightCm || 0))
+  return (length * width * height * packages) / 1_000_000
+}
+
+const totalPackages = computed(() =>
+  cargoLines.value.reduce((sum, line) => sum + Math.max(0, Number(line.packages || 0)), 0),
+)
+const totalPallets = computed(() =>
+  cargoLines.value.reduce((sum, line) => sum + Math.max(0, Number(line.pallets || 0)), 0),
+)
+const totalWeightKg = computed(() =>
+  cargoLines.value.reduce((sum, line) => sum + Math.max(0, Number(line.weightKg || 0)), 0),
+)
+const totalVolumeCbm = computed(() =>
+  cargoLines.value.reduce((sum, line) => sum + cargoLineVolume(line), 0),
+)
+const effectiveKgPerCbm = computed(() => Math.max(0, Number(form.kgPerCbm || 0)))
+const weightEquivalentCbm = computed(() =>
+  effectiveKgPerCbm.value > 0 ? totalWeightKg.value / effectiveKgPerCbm.value : 0,
+)
+const chargeableCbm = computed(() => Math.max(totalVolumeCbm.value, weightEquivalentCbm.value))
+
+function cargoLineRequests(): RateCargoLineRequest[] {
+  if (!isConsolidated.value) return []
+  return cargoLines.value.map((line) => ({
+    description: line.description.trim() || null,
+    packages: Math.max(0, Math.trunc(Number(line.packages || 0))),
+    pallets: Math.max(0, Math.trunc(Number(line.pallets || 0))),
+    weightKg: Math.max(0, Number(line.weightKg || 0)),
+    lengthCm: Math.max(0, Number(line.lengthCm || 0)),
+    widthCm: Math.max(0, Number(line.widthCm || 0)),
+    heightCm: Math.max(0, Number(line.heightCm || 0)),
+  }))
+}
+
+const containerAllocationError = computed(() => {
+  if (!form.submitted || !isFcl.value) return undefined
+  if (requestedContainerQuantity.value <= 0) return 'La cantidad total debe ser mayor a cero.'
+  if (containerAllocations.value.length === 0) return 'Agregue al menos un tipo de contenedor.'
+  if (containerAllocations.value.some((item) => !item.containerTypeId)) {
+    return 'Seleccione el tipo de todos los contenedores.'
+  }
+  if (containerAllocations.value.some((item) => Number(item.quantity || 0) <= 0)) {
+    return 'Cada tipo debe tener una cantidad mayor a cero.'
+  }
+  const ids = containerAllocations.value.map((item) => item.containerTypeId)
+  if (new Set(ids).size !== ids.length) return 'No repita el mismo tipo de contenedor.'
+  if (usesContainerFreight.value) {
+    if (containerAllocations.value.some((item) => item.freightCostAmount.trim() === '')) {
+      return 'Indique el costo de flete para cada tipo de contenedor.'
+    }
+    if (containerAllocations.value.some((item) => item.freightSaleAmount.trim() === '')) {
+      return 'Indique la venta de flete para cada tipo de contenedor.'
+    }
+    if (
+      containerAllocations.value.some(
+        (item) => Number(item.freightCostAmount) < 0 || Number(item.freightSaleAmount) < 0,
+      )
+    ) {
+      return 'Los montos de flete no pueden ser negativos.'
+    }
+  }
+  return undefined
+})
+
+function containerOptionsFor(rowKey: string) {
+  const selectedByOtherRows = new Set(
+    containerAllocations.value
+      .filter((item) => item.key !== rowKey)
+      .map((item) => item.containerTypeId)
+      .filter(Boolean),
+  )
+  return catalogs.containerOptions.value.filter((option) => !selectedByOtherRows.has(option.value))
+}
+
+function addContainerAllocation() {
+  if (
+    isContainerMixLocked.value ||
+    containerAllocations.value.some((item) => !item.containerTypeId)
+  )
+    return
+
+  const selected = new Set(
+    containerAllocations.value.map((item) => item.containerTypeId).filter(Boolean),
+  )
+  const next = catalogs.containerOptions.value.find((option) => !selected.has(option.value))
+  if (!next) return
+
+  const totalBeforeAdding = Math.max(
+    1,
+    Number(form.containerQuantity || allocatedContainerQuantity.value || 1),
+  )
+
+  containerAllocations.value.push({
+    key: createUuid(),
+    containerTypeId: next.value,
+    quantity: '1',
+    freightCostAmount: '',
+    freightSaleAmount: '',
+    freightDetailId: null,
+  })
+
+  // Reparte automáticamente el total entre todos los tipos. Ej.:
+  // 4 contenedores / 2 tipos => 2 + 2; 5 / 2 => 3 + 2.
+  // Si el total es menor que la cantidad de tipos, se eleva al mínimo para
+  // garantizar al menos una unidad por cada tipo seleccionado.
+  distributeContainerQuantities(totalBeforeAdding)
+}
+
+function removeContainerAllocation(key: string) {
+  if (isContainerMixLocked.value || containerAllocations.value.length <= 1) return
+  const index = containerAllocations.value.findIndex((item) => item.key === key)
+  if (index < 0) return
+
+  const totalBeforeRemoving = Math.max(1, allocatedContainerQuantity.value)
+  const freightDetailId = containerAllocations.value[index]?.freightDetailId
+  if (freightDetailId) removedDetailIds.value.push(freightDetailId)
+  containerAllocations.value.splice(index, 1)
+
+  // Mantiene el total y vuelve a repartirlo entre los tipos restantes.
+  distributeContainerQuantities(totalBeforeRemoving)
+}
+
+function resolveContainerRequests(): CreateRateContainerRequest[] | null {
+  if (!isFcl.value) return []
+  if (containerAllocations.value.length === 0) return null
+
+  const result: CreateRateContainerRequest[] = []
+  for (const allocation of containerAllocations.value) {
+    const container = catalogs.findById(catalogs.containerTypes.value, allocation.containerTypeId)
+    const quantity = Number(allocation.quantity || 0)
+    if (!container || quantity <= 0) return null
+    result.push({
+      containerTypeId: container.id,
+      containerTypeName: container.name,
+      containerTypeCode: container.code,
+      quantity,
+    })
+  }
+
+  if (new Set(result.map((item) => item.containerTypeId)).size !== result.length) return null
+  return result
+}
+
+function findFreightDetailForContainer(
+  containerTypeName: string,
+  containerTypeCode: string,
+  index: number,
+) {
+  const freight = props.rate?.rateDetails.filter((item) => item.costDetailType === 'Freight') ?? []
+  const name = normalizeKey(containerTypeName)
+  const code = normalizeKey(containerTypeCode)
+  const matched = freight.find((item) => {
+    const detailName = normalizeKey(item.name)
+    return (name && detailName.includes(name)) || (code && detailName.includes(code))
+  })
+  if (matched) return matched
+  if (freight.length === 1 && (props.rate?.containers?.length ?? 1) === 1) return freight[0]
+  return freight[index]
+}
+
+function hydrateContainerAllocations() {
+  const existing = props.rate?.containers?.filter((item) => item.quantity > 0) ?? []
+  if (existing.length > 0) {
+    containerAllocations.value = existing.map((item, index) => {
+      const freight = findFreightDetailForContainer(
+        item.containerTypeName,
+        item.containerTypeCode,
+        index,
+      )
+      return {
+        key: item.id || createUuid(),
+        containerTypeId: item.containerTypeId,
+        quantity: String(item.quantity),
+        freightCostAmount: freight ? String(freight.costAmount) : '',
+        freightSaleAmount: freight ? String(freight.saleAmount) : '',
+        freightDetailId: freight?.id ?? null,
+      }
+    })
+    form.containerQuantity = String(existing.reduce((sum, item) => sum + item.quantity, 0))
+    form.containerTypeId = existing[0]?.containerTypeId ?? form.containerTypeId
+    return
+  }
+
+  const fallbackFreight = props.rate?.rateDetails.find((item) => item.costDetailType === 'Freight')
+  const importedFreightCost = props.sourceImport?.oceanFreight ?? props.sourceImport?.freight
+  const importedFreightSale =
+    props.sourceImport?.totalSale ?? props.sourceImport?.oceanFreight ?? props.sourceImport?.freight
+
+  containerAllocations.value = [
+    {
+      key: createUuid(),
+      containerTypeId: form.containerTypeId,
+      quantity: String(Math.max(1, Number(form.containerQuantity || 1))),
+      freightCostAmount: String(fallbackFreight?.costAmount ?? importedFreightCost ?? ''),
+      freightSaleAmount: String(fallbackFreight?.saleAmount ?? importedFreightSale ?? ''),
+      freightDetailId: fallbackFreight?.id ?? null,
+    },
+  ]
+}
+
+watch(
+  () => form.containerQuantity,
+  (value) => {
+    const quantity = Math.max(1, Number(value || 1))
+    if (containerAllocations.value.length === 1) {
+      containerAllocations.value[0]!.quantity = String(quantity)
+    }
+  },
+)
+
+watch(
+  containerAllocations,
+  (value) => {
+    form.containerTypeId = value[0]?.containerTypeId ?? ''
+    if (value.length > 1) {
+      form.containerQuantity = String(
+        value.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0),
+      )
+    }
+  },
+  { deep: true },
+)
 
 const defaultInsurancePercentage = 0.65
 const defaultInsuranceMinimumAmount = 95
 const insuranceCostPercentage = 0.2
 const insuranceCostMinimumAmount = 35
 
-function selectedTermText(ids: string[], extra: string) {
-  const selected = ids
+function selectedTermText(ids: string[]) {
+  return ids
     .map((id) => rateTermItems.value.find((item) => item.id === id)?.text)
     .filter((value): value is string => Boolean(value?.trim()))
-  const custom = extra
-    .split(/\r?\n/)
-    .map((value) => value.trim())
-    .filter(Boolean)
-  return [...new Set([...selected, ...custom])].join('\n')
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join('\n')
 }
 
 function hydrateTermSelection(
@@ -200,6 +552,79 @@ function hydrateTermSelection(
   }
   target.value = selected
   return remainder
+}
+
+function removeAutomaticTermSelections() {
+  if (!autoTermIds.value.length) return
+  const previous = new Set(autoTermIds.value)
+  includesTermIds.value = includesTermIds.value.filter((id) => !previous.has(id))
+  subjectToTermIds.value = subjectToTermIds.value.filter((id) => !previous.has(id))
+  excludesTermIds.value = excludesTermIds.value.filter((id) => !previous.has(id))
+  autoTermIds.value = []
+}
+
+async function loadAutomaticTermBlocks(applySelections = true) {
+  try {
+    const blocks = await PricingService.resolveRateTermBlocks({
+      rateType: form.rateType,
+      shipmentMode: form.shipmentMode,
+      poeId: form.poeId || undefined,
+      incotermId: form.incotermId || undefined,
+    })
+    resolvedTermBlocks.value = blocks
+    if (!applySelections) return
+
+    removeAutomaticTermSelections()
+    const assigned = new Set([
+      ...includesTermIds.value,
+      ...subjectToTermIds.value,
+      ...excludesTermIds.value,
+    ])
+    const added: string[] = []
+
+    for (const block of blocks) {
+      for (const item of block.items) {
+        if (
+          item.category !== 'Includes' &&
+          item.category !== 'SubjectTo' &&
+          item.category !== 'Excludes'
+        )
+          continue
+        if (assigned.has(item.rateTermItemId)) continue
+        assigned.add(item.rateTermItemId)
+        added.push(item.rateTermItemId)
+        if (item.category === 'Includes') includesTermIds.value.push(item.rateTermItemId)
+        else if (item.category === 'SubjectTo') subjectToTermIds.value.push(item.rateTermItemId)
+        else excludesTermIds.value.push(item.rateTermItemId)
+      }
+    }
+    autoTermIds.value = added
+  } catch (error) {
+    resolvedTermBlocks.value = []
+    console.error('No se pudieron resolver los bloques tarifarios automáticos.', error)
+  }
+}
+
+async function resolveCarrierFreeDays() {
+  if (!form.carrierId) {
+    carrierFreeDayRule.value = null
+    if (!props.sourceImport) form.freeDays = '0'
+    return
+  }
+
+  try {
+    loadingFreeDays.value = true
+    carrierFreeDayRule.value = await PricingService.resolveCarrierFreeDayRule(form.carrierId)
+    if (carrierFreeDayRule.value) form.freeDays = String(carrierFreeDayRule.value.freeDays)
+    else if (props.sourceImport?.freeDays != null)
+      form.freeDays = String(props.sourceImport.freeDays)
+    else form.freeDays = '0'
+  } catch (error) {
+    carrierFreeDayRule.value = null
+    toastStore.backendError(error, 'No se pudieron resolver los días libres de la naviera.')
+  } finally {
+    loadingFreeDays.value = false
+  }
 }
 
 const missingSelectableImportedFields = computed(() => {
@@ -224,6 +649,27 @@ const unresolvedLockedImportedFields = computed(() => {
   ].filter(Boolean)
 })
 
+const shipmentModeOptions: Array<{ label: string; value: ShipmentMode }> = [
+  { label: 'FCL · Contenedor completo', value: 'Fcl' },
+  { label: 'LCL · Marítimo consolidado', value: 'Lcl' },
+  { label: 'FTL · Camión completo', value: 'Ftl' },
+  { label: 'LTL · Terrestre consolidado', value: 'Ltl' },
+]
+
+const chargeBasisOptions: Array<{ label: string; value: ChargeBasis }> = [
+  { label: 'Por embarque', value: 'PerShipment' },
+  { label: 'Por contenedor', value: 'PerContainer' },
+  { label: 'Por camión', value: 'PerTruck' },
+  { label: 'Por CBM', value: 'PerCbm' },
+  { label: 'Por CBM cobrable', value: 'PerChargeableCbm' },
+  { label: 'Por KG', value: 'PerKg' },
+  { label: 'Por 100 KG', value: 'Per100Kg' },
+  { label: 'Por tonelada', value: 'PerTon' },
+  { label: 'Por pallet', value: 'PerPallet' },
+  { label: 'Por bulto', value: 'PerPackage' },
+  { label: 'Por documento', value: 'PerDocument' },
+]
+
 const detailTypeOptions: Array<{ label: string; value: CostDetailType }> = [
   { label: 'Flete internacional', value: 'Freight' },
   { label: 'Costo de agente', value: 'AgentCharge' },
@@ -237,17 +683,30 @@ const detailTypeOptions: Array<{ label: string; value: CostDetailType }> = [
   { label: 'Otro', value: 'Other' },
 ]
 
+const selectableDetailTypeOptions = computed(() =>
+  usesContainerFreight.value
+    ? detailTypeOptions.filter((option) => option.value !== 'Freight')
+    : detailTypeOptions,
+)
+
 const editableTypeOptions = [
   { label: 'Variable', value: 'Variable' },
   { label: 'Opcional', value: 'Optional' },
 ]
 
-function isFreightPerContainer(costDetailType: CostDetailType) {
-  return costDetailType === 'Freight' || costDetailType === 'InlandTransport'
+function defaultChargeBasis(costDetailType: CostDetailType): ChargeBasis {
+  if (costDetailType !== 'Freight' && costDetailType !== 'InlandTransport') return 'PerShipment'
+  if (isFtl.value) return 'PerTruck'
+  if (isConsolidated.value) return 'PerChargeableCbm'
+  return 'PerContainer'
 }
 
 function isDetailPerContainer(detail: EditableDetail) {
-  return detail.isAccountant || isFreightPerContainer(detail.costDetailType)
+  return detail.chargeBasis === 'PerContainer' || detail.chargeBasis === 'PerTruck'
+}
+
+function chargeBasisLabel(basis: ChargeBasis) {
+  return chargeBasisOptions.find((item) => item.value === basis)?.label ?? basis
 }
 
 function normalizeKey(value: string) {
@@ -344,6 +803,7 @@ function fromRateDetail(detail: RateDetailDto): EditableDetail {
     name: detail.name,
     costDetailType: detail.costDetailType,
     costType: detail.costType,
+    chargeBasis: detail.chargeBasis ?? defaultChargeBasis(detail.costDetailType),
     currencyId: detail.currencyId,
     currencyName: detail.currencyName,
     currencyCode: detail.currencyCode,
@@ -353,11 +813,13 @@ function fromRateDetail(detail: RateDetailDto): EditableDetail {
       detail.costDetailType === 'Freight'
         ? cleanFreightNotes(detail.notes)
         : detail.notes?.trim() || masterCost?.notes?.trim() || '',
-    isAccountant:
-      isFreightPerContainer(detail.costDetailType) ||
-      (masterCost?.isAccountant ?? detail.quantity > 1),
+    isAccountant: masterCost?.isAccountant ?? detail.quantity > 1,
     locked: detail.costType === 'Fixed' && Boolean(detail.costId),
     automaticFixed: detail.costType === 'Fixed' && Boolean(detail.costId),
+    quantity: detail.quantity,
+    minimumCostAmount: masterCost?.minimumCostAmount ?? null,
+    minimumSaleAmount: masterCost?.minimumSaleAmount ?? null,
+    kgPerCbm: masterCost?.kgPerCbm ?? null,
   }
 }
 
@@ -368,14 +830,18 @@ function fromCost(cost: CostSelectDto): EditableDetail {
     name: cost.name,
     costDetailType: cost.costDetailType,
     costType: cost.costType,
+    chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
     currencyId: cost.currencyId,
     currencyName: cost.currencyName,
     currencyCode: cost.currencyCode,
     costAmount: String(cost.costAmount),
     saleAmount: String(cost.agentId ? 0 : cost.saleAmount),
     notes: cost.notes ?? '',
-    isAccountant: cost.isAccountant || isFreightPerContainer(cost.costDetailType),
+    isAccountant: cost.isAccountant,
     locked: false,
+    minimumCostAmount: cost.minimumCostAmount ?? null,
+    minimumSaleAmount: cost.minimumSaleAmount ?? null,
+    kgPerCbm: cost.kgPerCbm ?? null,
   }
 }
 
@@ -385,13 +851,15 @@ function addManualDetail(type: CostDetailType = 'Other') {
     name: type === 'Freight' ? 'Flete internacional' : '',
     costDetailType: type,
     costType: 'Variable',
+    chargeBasis: defaultChargeBasis(type),
     currencyId: form.currencyId,
     currencyName: selectedCurrency.value?.name ?? '',
     currencyCode: selectedCurrency.value?.code ?? '',
     costAmount: '',
     saleAmount: '',
     notes: '',
-    isAccountant: isFreightPerContainer(type),
+    isAccountant:
+      defaultChargeBasis(type) === 'PerContainer' || defaultChargeBasis(type) === 'PerTruck',
     locked: false,
   })
 }
@@ -404,35 +872,39 @@ function removeDetail(detail: EditableDetail) {
   details.value = details.value.filter((item) => item.key !== detail.key)
 }
 
-const optionalCosts = computed(() => {
-  const routePortIds = new Set([form.polId, form.poeId, form.podId].filter(Boolean))
-  return availableCosts.value.filter((cost) => {
-    if (cost.costType !== 'Optional') return false
-    if (form.currencyId && cost.currencyId !== form.currencyId) return false
-    if (cost.carrierId && cost.carrierId !== form.carrierId) return false
-    if (cost.agentId && cost.agentId !== form.agentId) return false
-    if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId))
-      return false
-    if (cost.portId && routePortIds.size && !routePortIds.has(cost.portId)) return false
-    return true
-  })
-})
+const optionalCosts = computed(() =>
+  availableCosts.value.filter(
+    (cost) =>
+      cost.costType === 'Optional' &&
+      matchesCostScope(cost) &&
+      !(usesContainerFreight.value && cost.costDetailType === 'Freight'),
+  ),
+)
 
 const optionalOptions = computed<PricingMultiSelectOption[]>(() =>
   optionalCosts.value.map((cost) => ({
     value: cost.id,
     label: cost.name,
-    description: `${cost.costDetailType} · ${formatMoney(cost.costAmount, cost.currencyName)}${cost.isAccountant || isFreightPerContainer(cost.costDetailType) ? ' · Por contenedor' : ''}`,
+    description: `${cost.costDetailType} · ${formatMoney(cost.costAmount, cost.currencyName)} · ${chargeBasisLabel(cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType))}`,
     notes: cost.notes?.trim() || undefined,
   })),
 )
 
 function matchesCostScope(cost: CostSelectDto) {
+  if (cost.shipmentMode && cost.shipmentMode !== form.shipmentMode) return false
   if (form.currencyId && cost.currencyId !== form.currencyId) return false
   if (cost.agentId && cost.agentId !== form.agentId) return false
   if (cost.carrierId && cost.carrierId !== form.carrierId) return false
   if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId))
     return false
+  const hasStructuredRoute = Boolean(cost.polId || cost.poeId || cost.podId)
+  if (hasStructuredRoute) {
+    if (cost.polId && cost.polId !== form.polId) return false
+    if (cost.poeId && cost.poeId !== form.poeId) return false
+    if (cost.podId && cost.podId !== form.podId) return false
+    return true
+  }
+
   if (!cost.portId) return true
 
   const roleByPort = new Map<string, CostSelectDto['portRole']>([
@@ -446,7 +918,12 @@ function matchesCostScope(cost: CostSelectDto) {
 }
 
 const automaticFixedCosts = computed(() =>
-  availableCosts.value.filter((cost) => cost.costType === 'Fixed' && matchesCostScope(cost)),
+  availableCosts.value.filter(
+    (cost) =>
+      cost.costType === 'Fixed' &&
+      matchesCostScope(cost) &&
+      !(usesContainerFreight.value && cost.costDetailType === 'Freight'),
+  ),
 )
 
 async function loadOperationalCosts(): Promise<CostSelectDto[]> {
@@ -458,6 +935,21 @@ async function loadOperationalCosts(): Promise<CostSelectDto[]> {
   }))
 }
 
+const containerSelectorsChanged = computed(() => {
+  if (!props.rate) return false
+  const current = containerAllocations.value
+    .map((item) => `${item.containerTypeId}:${Number(item.quantity || 0)}`)
+    .sort()
+  const existing = (
+    props.rate.containers?.length
+      ? props.rate.containers.map((item) => `${item.containerTypeId}:${item.quantity}`)
+      : [`${props.rate.containerTypeId}:${props.rate.containerQuantity}`]
+  ).sort()
+  return (
+    current.length !== existing.length || current.some((value, index) => value !== existing[index])
+  )
+})
+
 const selectorsChanged = computed(() =>
   Boolean(
     props.rate &&
@@ -466,10 +958,10 @@ const selectorsChanged = computed(() =>
       props.rate.polId !== form.polId ||
       props.rate.poeId !== form.poeId ||
       props.rate.podId !== form.podId ||
-      props.rate.containerTypeId !== form.containerTypeId ||
+      props.rate.shipmentMode !== form.shipmentMode ||
+      (isFcl.value && containerSelectorsChanged.value) ||
       (props.rate.incotermId ?? '') !== form.incotermId ||
-      props.rate.currencyId !== form.currencyId ||
-      props.rate.containerQuantity !== Number(form.containerQuantity || 1)),
+      props.rate.currencyId !== form.currencyId),
   ),
 )
 
@@ -513,20 +1005,70 @@ function synchronizeEditableFixedCosts() {
 }
 
 function detailQuantity(detail: EditableDetail) {
-  return isDetailPerContainer(detail) ? Math.max(1, Number(form.containerQuantity || 1)) : 1
+  switch (detail.chargeBasis) {
+    case 'PerContainer':
+    case 'PerTruck':
+      return Math.max(1, requestedContainerQuantity.value)
+    case 'PerCbm':
+      return totalVolumeCbm.value
+    case 'PerChargeableCbm': {
+      const factor = Math.max(0, Number(detail.kgPerCbm || effectiveKgPerCbm.value))
+      return factor > 0
+        ? Math.max(totalVolumeCbm.value, totalWeightKg.value / factor)
+        : chargeableCbm.value
+    }
+    case 'PerKg':
+      return totalWeightKg.value
+    case 'Per100Kg':
+      return totalWeightKg.value / 100
+    case 'PerTon':
+      return totalWeightKg.value / 1000
+    case 'PerPallet':
+      return totalPallets.value
+    case 'PerPackage':
+      return totalPackages.value
+    default:
+      return Math.max(1, detail.quantity ?? 1)
+  }
 }
 
-const totalCost = computed(() =>
-  visibleDetails.value.reduce(
-    (sum, detail) => sum + Number(detail.costAmount || 0) * detailQuantity(detail),
-    0,
-  ),
+const containerFreightCostTotal = computed(() =>
+  usesContainerFreight.value
+    ? containerAllocations.value.reduce(
+        (sum, item) =>
+          sum + Number(item.freightCostAmount || 0) * Math.max(0, Number(item.quantity || 0)),
+        0,
+      )
+    : 0,
 )
-const totalSale = computed(() =>
-  visibleDetails.value.reduce(
-    (sum, detail) => sum + Number(detail.saleAmount || 0) * detailQuantity(detail),
-    0,
-  ),
+const containerFreightSaleTotal = computed(() =>
+  usesContainerFreight.value
+    ? containerAllocations.value.reduce(
+        (sum, item) =>
+          sum + Number(item.freightSaleAmount || 0) * Math.max(0, Number(item.quantity || 0)),
+        0,
+      )
+    : 0,
+)
+function detailCostTotal(detail: EditableDetail) {
+  const calculated = Number(detail.costAmount || 0) * detailQuantity(detail)
+  return Math.max(calculated, Number(detail.minimumCostAmount || 0))
+}
+
+function detailSaleTotal(detail: EditableDetail) {
+  const calculated = Number(detail.saleAmount || 0) * detailQuantity(detail)
+  return Math.max(calculated, Number(detail.minimumSaleAmount || 0))
+}
+
+const totalCost = computed(
+  () =>
+    containerFreightCostTotal.value +
+    visibleDetails.value.reduce((sum, detail) => sum + detailCostTotal(detail), 0),
+)
+const totalSale = computed(
+  () =>
+    containerFreightSaleTotal.value +
+    visibleDetails.value.reduce((sum, detail) => sum + detailSaleTotal(detail), 0),
 )
 const totalUtility = computed(() => totalSale.value - totalCost.value)
 const margin = computed(() => calculateMargin(totalCost.value, totalSale.value))
@@ -538,12 +1080,16 @@ const groups = computed(() => [
     hint: 'No generan venta.',
     rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'AgentCharge'),
   },
-  {
-    key: 'freight',
-    title: 'Flete internacional',
-    hint: 'Costo y venta marítima.',
-    rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'Freight'),
-  },
+  ...(usesContainerFreight.value
+    ? []
+    : [
+        {
+          key: 'freight',
+          title: 'Flete internacional',
+          hint: 'Costo y venta marítima.',
+          rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'Freight'),
+        },
+      ]),
   {
     key: 'destination',
     title: 'Costos de destino',
@@ -573,6 +1119,7 @@ watch(
     form.polId,
     form.poeId,
     form.podId,
+    form.shipmentMode,
     form.incotermId,
     form.currencyId,
   ],
@@ -662,6 +1209,7 @@ function syncCargoInsurance() {
     name: 'Seguro de carga',
     costDetailType: 'Insurance',
     costType: 'Variable',
+    chargeBasis: 'PerShipment',
     currencyId: usd.id,
     currencyName: usd.name,
     currencyCode: usd.code,
@@ -736,13 +1284,45 @@ function mapDetail(detail: EditableDetail): CreateRateDetailRequest {
     name: detail.name.trim(),
     costDetailType: detail.costDetailType,
     costType: detail.costType,
+    chargeBasis: detail.chargeBasis,
     currencyId: detail.currencyId,
     currencyName: detail.currencyName,
     currencyCode: detail.currencyCode,
     costAmount: Number(detail.costAmount || 0),
     saleAmount: agentCost ? 0 : Number(detail.saleAmount || 0),
     notes: notes || null,
+    quantity: detailQuantity(detail),
   }
+}
+
+function containerFreightDetails() {
+  if (!usesContainerFreight.value) return []
+  const currency = catalogs.findById(catalogs.currencies.value, form.currencyId)
+  if (!currency) return []
+
+  return containerAllocations.value.flatMap((allocation) => {
+    const container = catalogs.findById(catalogs.containerTypes.value, allocation.containerTypeId)
+    const quantity = Number(allocation.quantity || 0)
+    if (!container || quantity <= 0) return []
+
+    return [
+      {
+        id: allocation.freightDetailId ?? null,
+        costId: null,
+        name: `Flete internacional · ${container.name}`,
+        costDetailType: 'Freight' as CostDetailType,
+        costType: 'Variable' as CostType,
+        chargeBasis: 'PerContainer' as ChargeBasis,
+        currencyId: currency.id,
+        currencyName: currency.name,
+        currencyCode: currency.code,
+        costAmount: Number(allocation.freightCostAmount || 0),
+        saleAmount: Number(allocation.freightSaleAmount || 0),
+        notes: null,
+        quantity,
+      },
+    ]
+  })
 }
 
 function buildHeader() {
@@ -751,11 +1331,29 @@ function buildHeader() {
   const pol = catalogs.findById(catalogs.polPorts.value, form.polId)
   const poe = catalogs.findById(catalogs.poePorts.value, form.poeId)
   const pod = catalogs.findById(catalogs.podPorts.value, form.podId)
-  const container = catalogs.findById(catalogs.containerTypes.value, form.containerTypeId)
+  const containers = resolveContainerRequests()
+  const container = isFcl.value
+    ? containers?.[0]
+    : {
+        containerTypeId: '00000000-0000-0000-0000-000000000000',
+        containerTypeName: '',
+        containerTypeCode: '',
+        quantity: Math.max(1, requestedContainerQuantity.value),
+      }
   const incoterm = catalogs.findById(catalogs.incoterms.value, form.incotermId)
   const currency = catalogs.findById(catalogs.currencies.value, form.currencyId)
 
-  if (!agent || !carrier || !pol || !poe || !pod || !container || !incoterm || !currency)
+  if (
+    !agent ||
+    !carrier ||
+    !pol ||
+    !poe ||
+    !pod ||
+    !container ||
+    containers === null ||
+    !incoterm ||
+    !currency
+  )
     return null
 
   return {
@@ -774,9 +1372,9 @@ function buildHeader() {
     podId: pod.id,
     podName: pod.name,
     podCode: pod.code,
-    containerTypeId: container.id,
-    containerTypeName: container.name,
-    containerTypeCode: container.code,
+    containerTypeId: container.containerTypeId,
+    containerTypeName: container.containerTypeName,
+    containerTypeCode: container.containerTypeCode,
     incotermId: incoterm.id,
     incotermName: incoterm.name,
     incotermCode: incoterm.code,
@@ -786,14 +1384,27 @@ function buildHeader() {
     freeDays: Number(form.freeDays || 0),
     validFrom: form.validFrom,
     validTo: form.validTo,
-    containerQuantity: Number(form.containerQuantity || 1),
+    containerQuantity: isConsolidated.value
+      ? 1
+      : isFcl.value
+        ? Math.max(1, allocatedContainerQuantity.value || requestedContainerQuantity.value)
+        : Math.max(1, requestedContainerQuantity.value),
+    containers: isFcl.value ? containers : [],
     clientName: form.clientName.trim() || null,
     idtraNumber: form.idtraNumber.trim() || null,
     quoNumber: form.quoNumber.trim() || null,
-    includes: selectedTermText(includesTermIds.value, form.includes) || null,
-    subjectTo: selectedTermText(subjectToTermIds.value, form.subjectTo) || null,
-    excludes: selectedTermText(excludesTermIds.value, form.excludes) || null,
-    transitDays: form.transitDays.trim() ? Number(form.transitDays) : null,
+    includes: selectedTermText(includesTermIds.value) || null,
+    subjectTo: selectedTermText(subjectToTermIds.value) || null,
+    excludes: selectedTermText(excludesTermIds.value) || null,
+    transitTime: form.transitTime.trim() || null,
+    rateType: form.rateType,
+    shipmentMode: form.shipmentMode,
+    totalPackages: isConsolidated.value ? totalPackages.value : 0,
+    totalPallets: isConsolidated.value ? totalPallets.value : 0,
+    totalWeightKg: isConsolidated.value ? totalWeightKg.value : 0,
+    totalVolumeCbm: isConsolidated.value ? totalVolumeCbm.value : 0,
+    kgPerCbm: isConsolidated.value ? effectiveKgPerCbm.value : 500,
+    cargoLines: cargoLineRequests(),
   }
 }
 
@@ -802,8 +1413,12 @@ function validate() {
   if (!buildHeader()) return false
   if (
     Number(form.freeDays) < 0 ||
-    Number(form.containerQuantity) <= 0 ||
-    (form.transitDays.trim() && Number(form.transitDays) < 0) ||
+    ((isFcl.value || isFtl.value) && requestedContainerQuantity.value <= 0) ||
+    Boolean(containerAllocationError.value) ||
+    (isConsolidated.value &&
+      (effectiveKgPerCbm.value <= 0 ||
+        cargoLines.value.length === 0 ||
+        chargeableCbm.value <= 0)) ||
     !form.validFrom ||
     !form.validTo ||
     form.validTo < form.validFrom
@@ -816,7 +1431,11 @@ function validate() {
       detail.automaticFixed ||
       detail.insuranceGenerated,
   )
-  if (!applicable.some((detail) => detail.costDetailType === 'Freight')) return false
+  if (
+    !usesContainerFreight.value &&
+    !applicable.some((detail) => detail.costDetailType === 'Freight')
+  )
+    return false
   return applicable.every((detail) => !detailError(detail))
 }
 
@@ -859,16 +1478,20 @@ async function submit() {
     if (props.rate) {
       const payload: UpdateRateRequest = {
         ...header,
-        extraDetails: details.value
-          .filter(
-            (detail) =>
-              !detail.importedFreight &&
-              (detail.insuranceGenerated ||
-                detail.automaticFixed ||
-                !selectorsChanged.value ||
-                !detail.locked),
-          )
-          .map((detail) => ({ ...mapDetail(detail), id: detail.id ?? null })),
+        extraDetails: [
+          ...containerFreightDetails(),
+          ...details.value
+            .filter(
+              (detail) =>
+                (!usesContainerFreight.value || detail.costDetailType !== 'Freight') &&
+                !detail.importedFreight &&
+                (detail.insuranceGenerated ||
+                  detail.automaticFixed ||
+                  !selectorsChanged.value ||
+                  !detail.locked),
+            )
+            .map((detail) => ({ ...mapDetail(detail), id: detail.id ?? null })),
+        ],
         removedExtraDetailIds: [...new Set(removedDetailIds.value)],
       }
       await PricingService.updateRate(props.rate.id, payload)
@@ -887,14 +1510,18 @@ async function submit() {
                   detail.costType === 'Optional',
               )
               .map(mapDetail)
-          : details.value
-              .filter(
-                (detail) =>
-                  detail.insuranceGenerated ||
-                  detail.automaticFixed ||
-                  (!detail.locked && !detail.importedFreight),
-              )
-              .map(mapDetail),
+          : [
+              ...containerFreightDetails().map(({ id: _id, ...detail }) => detail),
+              ...details.value
+                .filter(
+                  (detail) =>
+                    (!usesContainerFreight.value || detail.costDetailType !== 'Freight') &&
+                    (detail.insuranceGenerated ||
+                      detail.automaticFixed ||
+                      (!detail.locked && !detail.importedFreight)),
+                )
+                .map(mapDetail),
+            ],
       }
       rateId = await PricingService.createRate(payload)
     }
@@ -915,9 +1542,15 @@ async function submit() {
 async function initialize() {
   await catalogs.loadAll()
 
+  if (!form.currencyId) {
+    form.currencyId = catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ?? ''
+  }
+
   if (!form.incotermId) {
     form.incotermId =
-      catalogs.findByCode(catalogs.incoterms.value, 'FOB')?.id ?? catalogs.incoterms.value[0]?.id ?? ''
+      catalogs.findByCode(catalogs.incoterms.value, 'FOB')?.id ??
+      catalogs.incoterms.value[0]?.id ??
+      ''
   }
 
   try {
@@ -932,9 +1565,13 @@ async function initialize() {
   try {
     rateTermItems.value = await PricingService.selectRateTermItems()
     const assignedTermIds = new Set<string>()
-    form.includes = hydrateTermSelection(form.includes, includesTermIds, assignedTermIds)
-    form.subjectTo = hydrateTermSelection(form.subjectTo, subjectToTermIds, assignedTermIds)
-    form.excludes = hydrateTermSelection(form.excludes, excludesTermIds, assignedTermIds)
+    hydrateTermSelection(form.includes, includesTermIds, assignedTermIds)
+    hydrateTermSelection(form.subjectTo, subjectToTermIds, assignedTermIds)
+    hydrateTermSelection(form.excludes, excludesTermIds, assignedTermIds)
+    // Ya no existe texto libre adicional: solo se persisten los ítems seleccionados.
+    form.includes = ''
+    form.subjectTo = ''
+    form.excludes = ''
   } catch (error) {
     rateTermItems.value = []
     toastStore.backendError(
@@ -942,6 +1579,9 @@ async function initialize() {
       'No se pudieron cargar las condiciones comerciales predefinidas.',
     )
   }
+
+  await resolveCarrierFreeDays()
+  if (rateTermItems.value.length) await loadAutomaticTermBlocks(!isEditing.value)
 
   let importForEdit = props.sourceImport
   if (!importForEdit && props.rate?.sourceImportFclRateId) {
@@ -1076,7 +1716,14 @@ async function initialize() {
         importedCurrencyMatch?.id ?? catalogs.findByCode(catalogs.currencies.value, 'USD')?.id ?? ''
     }
 
-    details.value = props.rate.rateDetails.map(fromRateDetail)
+    details.value = props.rate.rateDetails
+      .filter(
+        (detail) =>
+          props.rate?.sourceImportFclRateId ||
+          props.rate?.shipmentMode !== 'Fcl' ||
+          detail.costDetailType !== 'Freight',
+      )
+      .map(fromRateDetail)
     hydrateCargoInsuranceFromDetails()
     optionalCostIds.value = props.rate.rateDetails
       .filter((detail) => detail.costType === 'Optional' && detail.costId)
@@ -1096,6 +1743,7 @@ async function initialize() {
         name: 'Flete internacional',
         costDetailType: 'Freight',
         costType: 'Variable',
+        chargeBasis: 'PerContainer',
         currencyId: form.currencyId,
         currencyName: selectedCurrency.value?.name ?? props.sourceImport.currency,
         currencyCode: selectedCurrency.value?.code ?? props.sourceImport.currencyCode,
@@ -1118,13 +1766,65 @@ async function initialize() {
       catalogs.findByCode(catalogs.agents.value, 'WWL')?.id ??
       catalogs.findByCode(catalogs.agents.value, 'RS')?.id ??
       ''
-    addManualDetail('Freight')
   }
 
+  hydrateCargoLines()
+  hydrateContainerAllocations()
+  if (!isFcl.value && !details.value.some((detail) => detail.costDetailType === 'Freight')) {
+    addManualDetail('Freight')
+  }
   initialized.value = true
   synchronizeEditableFixedCosts()
   syncCargoInsurance()
 }
+
+watch(
+  () => form.shipmentMode,
+  (mode, previous) => {
+    if (isCreatingFromImport.value && mode !== 'Fcl') {
+      form.shipmentMode = 'Fcl'
+      return
+    }
+    if (!initialized.value || mode === previous) return
+
+    if (mode === 'Ltl' && (!form.kgPerCbm || Number(form.kgPerCbm) === 500)) form.kgPerCbm = '333'
+    if (mode === 'Lcl' && (!form.kgPerCbm || Number(form.kgPerCbm) === 333)) form.kgPerCbm = '500'
+    if (mode === 'Lcl' || mode === 'Ltl') {
+      if (!cargoLines.value.length) cargoLines.value = [emptyCargoLine()]
+    }
+
+    for (const detail of details.value) {
+      if (
+        !detail.costId &&
+        (detail.costDetailType === 'Freight' || detail.costDetailType === 'InlandTransport')
+      ) {
+        detail.chargeBasis = defaultChargeBasis(detail.costDetailType)
+        detail.isAccountant =
+          detail.chargeBasis === 'PerContainer' || detail.chargeBasis === 'PerTruck'
+      }
+    }
+    if (mode !== 'Fcl' && !details.value.some((detail) => detail.costDetailType === 'Freight')) {
+      addManualDetail('Freight')
+    }
+    synchronizeEditableFixedCosts()
+  },
+)
+
+watch(
+  () => form.carrierId,
+  async (value, previous) => {
+    if (!initialized.value || value === previous) return
+    await resolveCarrierFreeDays()
+  },
+)
+
+watch(
+  () => [form.rateType, form.shipmentMode, form.poeId, form.incotermId] as const,
+  async (value, previous) => {
+    if (!initialized.value || value.every((item, index) => item === previous?.[index])) return
+    await loadAutomaticTermBlocks(true)
+  },
+)
 
 onMounted(initialize)
 </script>
@@ -1139,7 +1839,7 @@ onMounted(initialize)
         Nombre de la tarifa
       </p>
       <p class="mt-1 text-lg font-black text-[var(--dh-text)]">
-        {{ rate.rateName || rate.rateCode }}
+        {{ editingDisplayName }}
       </p>
     </section>
 
@@ -1174,7 +1874,8 @@ onMounted(initialize)
           }}. Los datos importados están bloqueados y se copiarán desde los valores reales del
           catálogo.
           <span v-if="decisionInternationalLandFreight">
-            La ruta POE Panamá → POD GAM aplicará automáticamente el flete internacional terrestre de
+            La ruta POE Panamá → POD GAM aplicará automáticamente el flete internacional terrestre
+            de
             {{ formatMoney(decisionInternationalLandFreight, 'USD') }} desde Pricing.
           </span>
         </p>
@@ -1225,6 +1926,12 @@ onMounted(initialize)
       </div>
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <DhSelect
+          v-model="form.shipmentMode"
+          :disabled="isCreatingFromImport"
+          label="Modalidad"
+          :options="shipmentModeOptions"
+        />
+        <DhSelect
           v-model="form.agentId"
           :disabled="isAgentLocked"
           label="Agente"
@@ -1239,14 +1946,6 @@ onMounted(initialize)
           placeholder="Seleccione naviera"
           :options="catalogs.carrierOptions.value"
           :error="fieldError(form.carrierId, 'la naviera')"
-        />
-        <DhSelect
-          v-model="form.containerTypeId"
-          :disabled="isHeaderLocked"
-          label="Contenedor"
-          placeholder="Seleccione contenedor"
-          :options="catalogs.containerOptions.value"
-          :error="fieldError(form.containerTypeId, 'el contenedor')"
         />
         <DhSelect
           v-model="form.polId"
@@ -1272,6 +1971,247 @@ onMounted(initialize)
           :options="catalogs.podOptions.value"
           :error="fieldError(form.podId, 'el POD')"
         />
+      </div>
+
+      <div
+        v-if="isFcl"
+        class="mt-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-bg)]/45 p-4"
+      >
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="text-sm font-black text-[var(--dh-text)]">Distribución de contenedores</p>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+              Con un solo tipo se indica únicamente el total. Al agregar más tipos, la cantidad se
+              reparte automáticamente entre ellos y el total se mantiene sincronizado.
+            </p>
+          </div>
+          <DhInput
+            v-model="form.containerQuantity"
+            class="w-full sm:w-52"
+            type="number"
+            min="1"
+            :disabled="containerAllocations.length > 1"
+            :label="
+              containerAllocations.length > 1 ? 'Cantidad total (automática)' : 'Cantidad total'
+            "
+            :error="
+              form.submitted && requestedContainerQuantity <= 0
+                ? 'Debe ser mayor a cero.'
+                : undefined
+            "
+          />
+        </div>
+
+        <div class="mt-4 space-y-3">
+          <div
+            v-for="allocation in containerAllocations"
+            :key="allocation.key"
+            :class="[
+              'grid gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 xl:items-end',
+              containerAllocations.length > 1
+                ? 'xl:grid-cols-[minmax(0,1fr)_110px_150px_150px_auto]'
+                : 'xl:grid-cols-[minmax(0,1fr)_150px_150px_auto]',
+            ]"
+          >
+            <DhSelect
+              v-model="allocation.containerTypeId"
+              :disabled="isContainerMixLocked"
+              label="Tipo de contenedor"
+              placeholder="Seleccione contenedor"
+              :options="containerOptionsFor(allocation.key)"
+            />
+            <DhInput
+              v-if="containerAllocations.length > 1"
+              v-model="allocation.quantity"
+              type="number"
+              min="1"
+              label="Cantidad"
+            />
+            <DhInput
+              v-if="usesContainerFreight"
+              v-model="allocation.freightCostAmount"
+              type="number"
+              min="0"
+              :label="`Costo flete (${currencyName})`"
+              placeholder="0.00"
+            />
+            <DhInput
+              v-if="usesContainerFreight"
+              v-model="allocation.freightSaleAmount"
+              type="number"
+              min="0"
+              :label="`Venta flete (${currencyName})`"
+              placeholder="0.00"
+            />
+            <DhButton
+              v-if="containerAllocations.length > 1 && !isContainerMixLocked"
+              label="Quitar"
+              :icon="Trash2"
+              variant="ghost"
+              size="sm"
+              type="button"
+              @click="removeContainerAllocation(allocation.key)"
+            />
+          </div>
+        </div>
+
+        <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-xs font-black text-emerald-600 dark:text-emerald-400">
+            Total de contenedores:
+            {{
+              containerAllocations.length > 1
+                ? allocatedContainerQuantity
+                : requestedContainerQuantity
+            }}
+          </p>
+          <DhButton
+            v-if="!isContainerMixLocked"
+            label="Agregar tipo de contenedor"
+            :icon="Plus"
+            variant="secondary"
+            size="sm"
+            type="button"
+            :disabled="
+              containerAllocations.some((item) => !item.containerTypeId) ||
+              containerAllocations.length >= catalogs.containerOptions.value.length
+            "
+            @click="addContainerAllocation()"
+          />
+        </div>
+        <p v-if="containerAllocationError" class="mt-2 text-xs font-bold text-red-500">
+          {{ containerAllocationError }}
+        </p>
+      </div>
+
+      <div
+        v-if="isFtl"
+        class="mt-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-bg)]/45 p-4"
+      >
+        <div class="grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
+          <div>
+            <p class="text-sm font-black text-[var(--dh-text)]">Camión completo · FTL</p>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+              El flete se puede cobrar por camión y los demás rubros conservan su propia base de
+              cobro.
+            </p>
+          </div>
+          <DhInput
+            v-model="form.containerQuantity"
+            type="number"
+            min="1"
+            label="Cantidad de camiones"
+            :error="
+              form.submitted && requestedContainerQuantity <= 0
+                ? 'Debe ser mayor a cero.'
+                : undefined
+            "
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="isConsolidated"
+        class="mt-5 space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-bg)]/45 p-4"
+      >
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p class="text-sm font-black text-[var(--dh-text)]">
+              Detalle de carga · {{ form.shipmentMode.toUpperCase() }}
+            </p>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+              El sistema calcula CBM dimensional, equivalente por peso y la cantidad cobrable.
+            </p>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <DhInput
+              v-model="form.kgPerCbm"
+              type="number"
+              min="0.01"
+              step="0.01"
+              label="KG por CBM"
+              class="sm:w-44"
+            />
+            <DhButton
+              label="Agregar línea"
+              :icon="Plus"
+              variant="secondary"
+              size="sm"
+              type="button"
+              @click="addCargoLine()"
+            />
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div
+            v-for="(line, index) in cargoLines"
+            :key="line.key"
+            class="grid gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 md:grid-cols-2 xl:grid-cols-[1.2fr_90px_90px_120px_100px_100px_100px_100px_auto] xl:items-end"
+          >
+            <DhInput
+              v-model="line.description"
+              :label="`Descripción #${index + 1}`"
+              placeholder="Mercancía"
+            />
+            <DhInput v-model="line.packages" type="number" min="0" label="Bultos" />
+            <DhInput v-model="line.pallets" type="number" min="0" label="Pallets" />
+            <DhInput v-model="line.weightKg" type="number" min="0" step="0.01" label="Peso KG" />
+            <DhInput v-model="line.lengthCm" type="number" min="0" step="0.01" label="Largo CM" />
+            <DhInput v-model="line.widthCm" type="number" min="0" step="0.01" label="Ancho CM" />
+            <DhInput v-model="line.heightCm" type="number" min="0" step="0.01" label="Alto CM" />
+            <div class="rounded-xl border border-[var(--dh-border)] px-3 py-2">
+              <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">CBM</p>
+              <p class="mt-1 text-sm font-black text-[var(--dh-text)]">
+                {{ cargoLineVolume(line).toFixed(3) }}
+              </p>
+            </div>
+            <DhButton
+              v-if="cargoLines.length > 1"
+              label="Quitar"
+              :icon="Trash2"
+              variant="ghost"
+              size="sm"
+              type="button"
+              @click="removeCargoLine(line.key)"
+            />
+          </div>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+            <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Peso</p>
+            <p class="mt-1 font-black text-[var(--dh-text)]">{{ totalWeightKg.toFixed(2) }} KG</p>
+          </div>
+          <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+            <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">
+              CBM dimensional
+            </p>
+            <p class="mt-1 font-black text-[var(--dh-text)]">{{ totalVolumeCbm.toFixed(3) }}</p>
+          </div>
+          <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+            <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">CBM por peso</p>
+            <p class="mt-1 font-black text-[var(--dh-text)]">
+              {{ weightEquivalentCbm.toFixed(3) }}
+            </p>
+          </div>
+          <div
+            class="rounded-2xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/10 p-3"
+          >
+            <p class="text-[10px] font-black uppercase text-[var(--dh-primary)]">CBM cobrable</p>
+            <p class="mt-1 font-black text-[var(--dh-text)]">{{ chargeableCbm.toFixed(3) }}</p>
+          </div>
+          <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+            <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">
+              Pallets / bultos
+            </p>
+            <p class="mt-1 font-black text-[var(--dh-text)]">
+              {{ totalPallets }} / {{ totalPackages }}
+            </p>
+          </div>
+        </div>
+        <p v-if="form.submitted && chargeableCbm <= 0" class="text-xs font-bold text-red-500">
+          Ingrese peso o dimensiones válidas para calcular la carga cobrable.
+        </p>
       </div>
     </section>
 
@@ -1304,15 +2244,25 @@ onMounted(initialize)
           :options="catalogs.incotermOptions.value"
           :error="fieldError(form.incotermId, 'el Incoterm')"
         />
-        <DhInput
-          v-model="form.freeDays"
-          :disabled="isHeaderLocked"
-          type="number"
-          label="Días libres"
-          :error="
-            form.submitted && Number(form.freeDays) < 0 ? 'No puede ser negativo.' : undefined
-          "
-        />
+        <div>
+          <DhInput v-model="form.freeDays" disabled type="number" label="Días libres" />
+          <p
+            class="mt-1 text-[11px] font-semibold"
+            :class="
+              carrierFreeDayRule
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-amber-600 dark:text-amber-300'
+            "
+          >
+            {{
+              loadingFreeDays
+                ? 'Consultando naviera…'
+                : carrierFreeDayRule
+                  ? `Automático · ${carrierFreeDayRule.carrierName}`
+                  : 'Sin mapeo activo para esta naviera'
+            }}
+          </p>
+        </div>
         <DhInput
           v-model="form.validFrom"
           :disabled="isHeaderLocked"
@@ -1351,65 +2301,43 @@ onMounted(initialize)
         <DhInput v-model="form.clientName" label="Cliente" placeholder="Nombre del cliente" />
         <DhInput v-model="form.idtraNumber" label="Número IDTRA" placeholder="IDTRA-..." />
         <DhInput v-model="form.quoNumber" label="Número QUO" placeholder="QUO-..." />
-        <DhInput
-          v-model="form.containerQuantity"
-          type="number"
-          min="1"
-          label="Cantidad de contenedores"
-          :error="
-            form.submitted && Number(form.containerQuantity) <= 0
-              ? 'Debe ser mayor a cero.'
-              : undefined
-          "
+        <DhSelect
+          v-model="form.rateType"
+          label="Tipo de tarifa"
+          :options="[
+            { label: 'SPOT', value: 'Spot' },
+            { label: 'TARIFARIO', value: 'Tariff' },
+          ]"
         />
         <DhInput
-          v-model="form.transitDays"
-          type="number"
-          min="0"
-          label="Tiempo de tránsito (días)"
-          :error="
-            form.submitted && form.transitDays && Number(form.transitDays) < 0
-              ? 'No puede ser negativo.'
-              : undefined
-          "
+          v-model="form.transitTime"
+          label="Tiempo de tránsito"
+          placeholder="Ej.: 28-35 días / 4 semanas / Por confirmar"
         />
       </div>
-      <div class="mt-4 grid gap-4 lg:grid-cols-3">
-        <div class="space-y-3">
-          <PricingMultiSelect
-            :model-value="includesTermIds"
-            :options="rateTermOptions"
-            label="Tarifa incluye"
-            placeholder="Seleccione ítems incluidos"
-            empty-text="No hay ítems de tarifa configurados."
-            @update:model-value="setRateTermSelection('includes', $event)"
-          />
-          <DhTextarea v-model="form.includes" label="Texto adicional" :rows="3" />
-        </div>
-        <div class="space-y-3">
-          <PricingMultiSelect
-            :model-value="subjectToTermIds"
-            :options="rateTermOptions"
-            label="Sujeto a"
-            placeholder="Seleccione condiciones"
-            empty-text="No hay ítems de tarifa configurados."
-            @update:model-value="setRateTermSelection('subjectTo', $event)"
-          />
-          <DhTextarea v-model="form.subjectTo" label="Texto adicional" :rows="3" />
-        </div>
-        <div class="space-y-3">
-          <PricingMultiSelect
-            :model-value="excludesTermIds"
-            :options="rateTermOptions"
-            label="Tarifa no incluye"
-            placeholder="Seleccione exclusiones"
-            empty-text="No hay ítems de tarifa configurados."
-            @update:model-value="setRateTermSelection('excludes', $event)"
-          />
-          <DhTextarea v-model="form.excludes" label="Texto adicional" :rows="3" />
-        </div>
+      <div
+        v-if="resolvedTermBlocks.length"
+        class="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3"
+      >
+        <p
+          class="text-xs font-black uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300"
+        >
+          Bloques automáticos aplicados
+        </p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+          {{ resolvedTermBlocks.map((block) => block.name).join(' · ') }}. Los ítems siguen siendo
+          editables: puede quitarlos, moverlos de categoría o agregar otros.
+        </p>
       </div>
-
+      <div class="mt-4">
+        <PricingTermDragBoard
+          v-model="rateTermBoardValue"
+          :items="rateTermItems"
+          :columns="rateTermColumns"
+          available-label="Disponibles"
+          available-hint="Arrastre un ítem a cualquiera de las tres categorías para agregarlo a la cotización."
+        />
+      </div>
     </section>
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
@@ -1421,8 +2349,8 @@ onMounted(initialize)
         <div class="flex-1">
           <h3 class="font-black text-[var(--dh-text)]">Construcción de la tarifa</h3>
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">
-            Costo, venta y utilidad visibles por rubro. El flete marítimo y terrestre se calcula por
-            contenedor.
+            Costo, venta y utilidad visibles por rubro. Cada concepto usa su base de cobro según la
+            modalidad.
           </p>
         </div>
         <DhButton
@@ -1485,8 +2413,7 @@ onMounted(initialize)
                       variant="primary"
                     />
                     <DhBadge
-                      v-if="isDetailPerContainer(detail)"
-                      :label="`Por contenedor × ${detailQuantity(detail)}`"
+                      :label="`${chargeBasisLabel(detail.chargeBasis)} × ${Number(detailQuantity(detail).toFixed(3))}`"
                       variant="primary"
                     />
                   </div>
@@ -1501,7 +2428,7 @@ onMounted(initialize)
                 <DhSelect
                   v-model="detail.costDetailType"
                   label="Rubro"
-                  :options="detailTypeOptions"
+                  :options="selectableDetailTypeOptions"
                   :disabled="
                     isCreatingFromImport ||
                     detail.locked ||
@@ -1550,12 +2477,17 @@ onMounted(initialize)
                   !detail.locked &&
                   !detail.fixedDecisionCost
                 "
-                class="mt-3 grid gap-3 md:grid-cols-[180px_1fr]"
+                class="mt-3 grid gap-3 md:grid-cols-[180px_220px_1fr]"
               >
                 <DhSelect
                   v-model="detail.costType"
                   label="Aplicación"
                   :options="editableTypeOptions"
+                />
+                <DhSelect
+                  v-model="detail.chargeBasis"
+                  label="Base de cobro"
+                  :options="chargeBasisOptions"
                 />
                 <DhTextarea v-model="detail.notes" label="Notas" :rows="2" />
               </div>
@@ -1584,8 +2516,8 @@ onMounted(initialize)
           <div>
             <h4 class="text-sm font-black text-[var(--dh-text)]">Seguro de carga</h4>
             <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-              Venta: 0.65% del valor de la carga, con mínimo de USD 95. Costo: 0.20%, con mínimo
-              de USD 35. El porcentaje, el mínimo y la tarifa final de venta se mantienen editables.
+              Venta: 0.65% del valor de la carga, con mínimo de USD 95. Costo: 0.20%, con mínimo de
+              USD 35. El porcentaje, el mínimo y la tarifa final de venta se mantienen editables.
             </p>
           </div>
           <DhBadge label="USD" variant="primary" />

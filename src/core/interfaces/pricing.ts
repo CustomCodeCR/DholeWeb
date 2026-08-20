@@ -13,6 +13,20 @@ export type CostDetailType =
   | 'Insurance'
   | 'Other'
 export type CostPortRole = 'Any' | 'Pol' | 'Poe' | 'Pod'
+export type ShipmentMode = 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl'
+export type RateType = 'Spot' | 'Tariff'
+export type ChargeBasis =
+  | 'PerShipment'
+  | 'PerContainer'
+  | 'PerTruck'
+  | 'PerCbm'
+  | 'PerChargeableCbm'
+  | 'PerKg'
+  | 'Per100Kg'
+  | 'PerTon'
+  | 'PerPallet'
+  | 'PerPackage'
+  | 'PerDocument'
 export type ImportSourceType = 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
 export type ImportStatus = 'Pending' | 'Approved' | 'Rejected' | 'Created' | 'Expired'
 export type RateStatus =
@@ -48,6 +62,15 @@ export interface CostDto extends Record<string, unknown> {
   portName?: string | null
   portCode?: string | null
   portRole?: CostPortRole | null
+  polId?: string | null
+  polName?: string | null
+  polCode?: string | null
+  poeId?: string | null
+  poeName?: string | null
+  poeCode?: string | null
+  podId?: string | null
+  podName?: string | null
+  podCode?: string | null
   currencyId: string
   currencyName: string
   currencyCode: string
@@ -58,6 +81,11 @@ export interface CostDto extends Record<string, unknown> {
   isAccountant: boolean
   isActive: boolean
   incoterms: CostIncotermDto[]
+  shipmentMode?: ShipmentMode | null
+  chargeBasis: ChargeBasis
+  minimumCostAmount?: number | null
+  minimumSaleAmount?: number | null
+  kgPerCbm?: number | null
 }
 
 // Select responses expose the same commercial fields; IsActive is omitted by
@@ -79,6 +107,15 @@ export interface CreateCostRequest extends Record<string, unknown> {
   portName?: string | null
   portCode?: string | null
   portRole?: CostPortRole | null
+  polId?: string | null
+  polName?: string | null
+  polCode?: string | null
+  poeId?: string | null
+  poeName?: string | null
+  poeCode?: string | null
+  podId?: string | null
+  podName?: string | null
+  podCode?: string | null
   currencyId: string
   currencyName: string
   currencyCode: string
@@ -87,6 +124,11 @@ export interface CreateCostRequest extends Record<string, unknown> {
   notes?: string | null
   isAccountant?: boolean
   incoterms?: CostIncotermDto[]
+  shipmentMode?: ShipmentMode | null
+  chargeBasis?: ChargeBasis
+  minimumCostAmount?: number | null
+  minimumSaleAmount?: number | null
+  kgPerCbm?: number | null
 }
 
 export type UpdateCostRequest = CreateCostRequest
@@ -386,6 +428,63 @@ export interface SetRateTermItemActiveRequest extends Record<string, unknown> {
   isActive: boolean
 }
 
+export interface CarrierFreeDayRuleDto extends Record<string, unknown> {
+  id: string
+  carrierId: string
+  carrierName: string
+  carrierCode: string
+  freeDays: number
+  isActive: boolean
+}
+
+export interface UpsertCarrierFreeDayRuleRequest extends Record<string, unknown> {
+  carrierId: string
+  carrierName: string
+  carrierCode: string
+  freeDays: number
+  isActive: boolean
+}
+
+export type RateTermCategory = 'Includes' | 'SubjectTo' | 'Excludes'
+
+export interface RateTermBlockItemDto extends Record<string, unknown> {
+  rateTermItemId: string
+  text: string
+  category: RateTermCategory
+  sortOrder: number
+}
+
+export interface RateTermBlockDto extends Record<string, unknown> {
+  id: string
+  name: string
+  rateType?: RateType | null
+  shipmentMode?: ShipmentMode | null
+  poeId?: string | null
+  poeName?: string | null
+  poeCode?: string | null
+  incotermId?: string | null
+  incotermName?: string | null
+  incotermCode?: string | null
+  sortOrder: number
+  isActive: boolean
+  items: RateTermBlockItemDto[]
+}
+
+export interface UpsertRateTermBlockRequest extends Record<string, unknown> {
+  name: string
+  rateType?: RateType | null
+  shipmentMode?: ShipmentMode | null
+  poeId?: string | null
+  poeName?: string | null
+  poeCode?: string | null
+  incotermId?: string | null
+  incotermName?: string | null
+  incotermCode?: string | null
+  sortOrder: number
+  isActive: boolean
+  items: Array<{ rateTermItemId: string; category: RateTermCategory; sortOrder: number }>
+}
+
 export interface RateDetailDto extends Record<string, unknown> {
   id: string
   rateHeaderId: string
@@ -393,6 +492,7 @@ export interface RateDetailDto extends Record<string, unknown> {
   name: string
   costDetailType: CostDetailType
   costType: CostType
+  chargeBasis: ChargeBasis
   currencyId: string
   currencyName: string
   currencyCode: string
@@ -401,6 +501,36 @@ export interface RateDetailDto extends Record<string, unknown> {
   utilityAmount: number
   quantity: number
   notes?: string | null
+}
+
+export interface RateContainerDto extends Record<string, unknown> {
+  id: string
+  rateHeaderId: string
+  containerTypeId: string
+  containerTypeName: string
+  containerTypeCode: string
+  quantity: number
+}
+
+export interface RateCargoLineDto extends Record<string, unknown> {
+  description?: string | null
+  packages: number
+  pallets: number
+  weightKg: number
+  lengthCm: number
+  widthCm: number
+  heightCm: number
+  volumeCbm: number
+}
+
+export interface RateCargoLineRequest extends Record<string, unknown> {
+  description?: string | null
+  packages: number
+  pallets: number
+  weightKg: number
+  lengthCm: number
+  widthCm: number
+  heightCm: number
 }
 
 export interface RateDto extends Record<string, unknown> {
@@ -442,7 +572,16 @@ export interface RateDto extends Record<string, unknown> {
   includes?: string | null
   subjectTo?: string | null
   excludes?: string | null
-  transitDays?: number | null
+  transitTime?: string | null
+  rateType: RateType
+  shipmentMode: ShipmentMode
+  totalPackages: number
+  totalPallets: number
+  totalWeightKg: number
+  totalVolumeCbm: number
+  kgPerCbm: number
+  chargeableQuantity: number
+  cargoLines: RateCargoLineDto[]
   totalCostAmount: number
   totalSaleAmount: number
   totalUtilityAmount: number
@@ -455,6 +594,7 @@ export interface RateDto extends Record<string, unknown> {
   closedByUserId?: string | null
   closedByUserName?: string | null
   closedByDisplayName?: string | null
+  containers?: RateContainerDto[]
   rateDetails: RateDetailDto[]
 }
 
@@ -470,12 +610,21 @@ export interface CreateRateDetailRequest extends Record<string, unknown> {
   name: string
   costDetailType: CostDetailType
   costType: CostType
+  chargeBasis?: ChargeBasis
   currencyId: string
   currencyName: string
   currencyCode: string
   costAmount: number
   saleAmount: number
   notes?: string | null
+  quantity?: number | null
+}
+
+export interface CreateRateContainerRequest extends Record<string, unknown> {
+  containerTypeId: string
+  containerTypeName: string
+  containerTypeCode: string
+  quantity: number
 }
 
 export interface CreateRateRequest extends Record<string, unknown> {
@@ -514,7 +663,16 @@ export interface CreateRateRequest extends Record<string, unknown> {
   includes?: string | null
   subjectTo?: string | null
   excludes?: string | null
-  transitDays?: number | null
+  transitTime?: string | null
+  rateType?: RateType
+  containers?: CreateRateContainerRequest[]
+  shipmentMode?: ShipmentMode
+  totalPackages?: number
+  totalPallets?: number
+  totalWeightKg?: number
+  totalVolumeCbm?: number
+  kgPerCbm?: number
+  cargoLines?: RateCargoLineRequest[]
   details: CreateRateDetailRequest[]
 }
 

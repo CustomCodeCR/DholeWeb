@@ -78,6 +78,47 @@ export function routeLabel(rate: Pick<RateDto, 'polName' | 'poeName' | 'podName'
   return [rate.polName, rate.poeName, rate.podName].filter(Boolean).join(' → ')
 }
 
+function rateViaLabel(poeName: string) {
+  const normalized = poeName
+    .trim()
+    .toLocaleLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  if (normalized.includes('caldera')) return 'Caldera'
+  if (normalized.includes('limon') || normalized.includes('moin')) return 'Limón/Moín'
+  if (
+    normalized.includes('manzanillo') ||
+    normalized.includes('colon') ||
+    normalized.includes('rodman') ||
+    normalized.includes('cristobal')
+  )
+    return 'Multimodal'
+
+  return poeName
+}
+
+export function rateDisplayName(rate: RateDto) {
+  const allocations = rate.containers?.filter((item) => item.quantity > 0) ?? []
+  const shipmentDescription =
+    rate.shipmentMode === 'Lcl' || rate.shipmentMode === 'Ltl'
+      ? `${rate.shipmentMode.toUpperCase()} · ${Number(rate.chargeableQuantity || 0).toFixed(3)} CBM cobrables`
+      : rate.shipmentMode === 'Ftl'
+        ? `${rate.containerQuantity} x FTL`
+        : allocations.length > 0
+          ? allocations
+              .slice()
+              .sort((a, b) => a.containerTypeName.localeCompare(b.containerTypeName))
+              .map((item) => `${item.quantity} x ${item.containerTypeName}`)
+              .join(' + ')
+          : `${rate.containerQuantity} x ${rate.containerTypeName}`
+  const incoterm = rate.incotermName?.trim() || rate.incotermCode?.trim() || 'FOB'
+  const via = rateViaLabel(rate.poeName)
+  const baseName = `${rate.rateCode} - Tarifa ${shipmentDescription} - ${incoterm} - ${rate.polName} To ${rate.podName} Via ${via}`
+
+  return rate.clientName?.trim() ? `${baseName} - ${rate.clientName.trim()}` : baseName
+}
+
 export function createCorrelationId() {
   return `pricing-web-${Date.now()}-${createUuid().slice(0, 8)}`
 }

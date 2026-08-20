@@ -28,6 +28,7 @@ import {
   formatDate,
   formatMoney,
   marginTone,
+  rateDisplayName,
   routeLabel,
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
@@ -39,6 +40,17 @@ const modalStore = useModalStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
 const displayRate = (rate: RateDto) => catalogs.resolveRateLabels(rate)
+const displayRateName = (rate: RateDto) => rateDisplayName(displayRate(rate))
+
+function containerSummary(rate: RateDto) {
+  if (rate.shipmentMode === 'Lcl' || rate.shipmentMode === 'Ltl') {
+    return `${rate.shipmentMode.toUpperCase()} · ${Number(rate.chargeableQuantity || 0).toFixed(3)} CBM`
+  }
+  if (rate.shipmentMode === 'Ftl') return `${rate.containerQuantity} × FTL`
+  const allocations = rate.containers?.filter((item) => item.quantity > 0) ?? []
+  if (allocations.length === 0) return `${rate.containerQuantity} × ${rate.containerTypeName}`
+  return allocations.map((item) => `${item.quantity} × ${item.containerTypeName}`).join(' + ')
+}
 
 const rows = ref<RateDto[]>([])
 const selectedIds = ref<string[]>([])
@@ -71,13 +83,10 @@ const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete)
 
 const columns: DhTableColumn<RateDto>[] = [
   { key: 'selected', label: '', width: '48px', align: 'center' },
-  { key: 'route', label: 'Tarifa / ruta' },
-  { key: 'agentName', label: 'Agente' },
-  { key: 'carrierName', label: 'Naviera / contenedor' },
-  { key: 'totalCostAmount', label: 'Costo', align: 'right' },
-  { key: 'totalSaleAmount', label: 'Venta', align: 'right' },
-  { key: 'totalUtilityAmount', label: 'Utilidad', align: 'right' },
-  { key: 'marginPercentage', label: 'Margen', align: 'right' },
+  { key: 'rate', label: 'Tarifa' },
+  { key: 'logistics', label: 'Operación' },
+  { key: 'commercial', label: 'Resumen comercial', align: 'right' },
+  { key: 'validity', label: 'Vigencia' },
   { key: 'status', label: 'Estado', align: 'center' },
   { key: 'actions', label: '', align: 'right', width: '130px' },
 ]
@@ -100,6 +109,27 @@ const approvalOptions = [
   { label: 'Requieren aprobación', value: 'true' },
   { label: 'Sin aprobación pendiente', value: 'false' },
 ]
+
+const quickStatusOptions: Array<{ label: string; value: RateStatus | '' }> = [
+  { label: 'Todas', value: '' },
+  { label: 'Abiertas', value: 'Open' },
+  { label: 'Pendientes', value: 'PendingApproval' },
+  { label: 'Enviadas', value: 'Sent' },
+  { label: 'Solicitadas', value: 'RequestedByClient' },
+  { label: 'Aceptadas', value: 'AcceptedByClient' },
+  { label: 'Vencidas', value: 'Expired' },
+]
+
+const activeFiltersCount = computed(
+  () =>
+    Object.entries(filters).filter(([key, value]) => key !== 'search' && String(value || '').trim())
+      .length + (filters.search.trim() ? 1 : 0),
+)
+
+function applyQuickStatus(status: RateStatus | '') {
+  filters.status = status
+  applyFilters()
+}
 
 function statusLabel(status: string) {
   return (
@@ -194,7 +224,7 @@ function openCreate() {
 
 function openDetail(rate: RateDto) {
   drawerStore.open({
-    title: rate.rateName || `Tarifa · ${routeLabel(displayRate(rate))}`,
+    title: displayRateName(rate),
     component: PricingRateDetailDrawer,
     size: 'xl',
     props: { rate, onSaved: load },
@@ -203,7 +233,7 @@ function openDetail(rate: RateDto) {
 
 function openEdit(rate: RateDto) {
   drawerStore.open({
-    title: `Editar · ${rate.rateName || rate.rateCode}`,
+    title: `Editar · ${displayRateName(rate)}`,
     component: PricingRateFormDrawer,
     size: 'full',
     props: { rate, onSaved: load },
@@ -282,10 +312,45 @@ onMounted(async () => {
       >
         <template #description
           ><p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-            {{ total }} tarifas · Margen esperado 12%.
+            {{ total }} tarifas · Margen esperado 12%
+            <span v-if="activeFiltersCount">
+              · {{ activeFiltersCount }} filtro{{ activeFiltersCount === 1 ? '' : 's' }} activo{{
+                activeFiltersCount === 1 ? '' : 's'
+              }}</span
+            >.
           </p></template
         >
       </DhCrudToolbar>
+
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <span
+          class="mr-1 text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
+        >
+          Vista rápida
+        </span>
+        <button
+          v-for="option in quickStatusOptions"
+          :key="option.value || 'all'"
+          type="button"
+          class="rounded-full border px-3 py-1.5 text-xs font-black transition"
+          :class="
+            filters.status === option.value
+              ? 'border-[var(--dh-primary)] dh-bg-primary-soft text-[var(--dh-primary)]'
+              : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-soft)] hover:border-[var(--dh-primary)]/50'
+          "
+          @click="applyQuickStatus(option.value)"
+        >
+          {{ option.label }}
+        </button>
+        <button
+          v-if="activeFiltersCount"
+          type="button"
+          class="ml-auto text-xs font-black text-[var(--dh-primary)] hover:underline"
+          @click="clearFilters"
+        >
+          Limpiar filtros
+        </button>
+      </div>
 
       <div
         v-if="filtersOpen"
@@ -393,65 +458,87 @@ onMounted(async () => {
                 @update:model-value="toggleSelection(row.id)"
               /></div
           ></template>
-          <template #cell-route="{ row }"
-            ><div>
-              <p class="font-black text-[var(--dh-text)]">
-                {{ row.rateName || row.rateCode }}
-              </p>
-              <p class="mt-0.5 text-sm font-bold text-[var(--dh-text-soft)]">
+          <template #cell-rate="{ row }">
+            <div class="min-w-[320px]">
+              <div class="flex flex-wrap items-center gap-2">
+                <span
+                  class="rounded-full dh-bg-primary-soft px-2.5 py-1 text-[11px] font-black text-[var(--dh-primary)]"
+                >
+                  {{ row.rateCode }}
+                </span>
+                <DhBadge
+                  :label="row.rateType === 'Spot' ? 'SPOT' : 'TARIFARIO'"
+                  :variant="row.rateType === 'Spot' ? 'warning' : 'neutral'"
+                />
+                <span v-if="row.clientName" class="text-xs font-bold text-[var(--dh-text-soft)]">
+                  {{ row.clientName }}
+                </span>
+              </div>
+              <p class="mt-2 font-black text-[var(--dh-text)]">
                 {{ routeLabel(displayRate(row)) }}
               </p>
-              <p class="mt-0.5 text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ row.rateCode }}
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{
+                  displayRate(row).incotermName || displayRate(row).incotermCode || 'Sin Incoterm'
+                }}
                 <span v-if="row.idtraNumber"> · IDTRA {{ row.idtraNumber }}</span>
-                <span v-if="row.quoNumber"> · QUO {{ row.quoNumber }}</span>
+                <span v-if="row.quoNumber"> · {{ row.quoNumber }}</span>
               </p>
-              <p class="mt-0.5 text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ formatDate(row.validFrom) }} – {{ formatDate(row.validTo) }} ·
+            </div>
+          </template>
+          <template #cell-logistics="{ row }">
+            <div class="min-w-[210px]">
+              <p class="font-black text-[var(--dh-text)]">
+                {{ displayRate(row).carrierName || 'Sin naviera' }}
+              </p>
+              <p class="mt-1 text-sm font-bold text-[var(--dh-text-soft)]">
+                {{ containerSummary(displayRate(row)) }}
+              </p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Agente: {{ displayRate(row).agentName || '—' }}
+              </p>
+            </div>
+          </template>
+          <template #cell-commercial="{ row }">
+            <div class="min-w-[180px] text-right">
+              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Venta</p>
+              <p class="font-black text-[var(--dh-text)]">
+                {{ formatMoney(row.totalSaleAmount, displayRate(row).currencyName) }}
+              </p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Costo {{ formatMoney(row.totalCostAmount, displayRate(row).currencyName) }}
+              </p>
+              <div class="mt-2 flex items-center justify-end gap-2">
+                <span
+                  class="text-xs font-black"
+                  :class="
+                    row.totalUtilityAmount >= 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-red-500'
+                  "
+                >
+                  {{ formatMoney(row.totalUtilityAmount, displayRate(row).currencyName) }}
+                </span>
+                <DhBadge
+                  :label="`${row.marginPercentage.toFixed(2)}%`"
+                  :variant="marginTone(row.marginPercentage)"
+                />
+              </div>
+            </div>
+          </template>
+          <template #cell-validity="{ row }">
+            <div class="min-w-[155px]">
+              <p class="text-sm font-black text-[var(--dh-text)]">
+                {{ formatDate(row.validFrom) }}
+              </p>
+              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                hasta {{ formatDate(row.validTo) }}
+              </p>
+              <p class="mt-1 text-xs font-bold text-[var(--dh-text-soft)]">
                 {{ row.freeDays }} días libres
               </p>
-            </div></template
-          >
-          <template #cell-agentName="{ row }"
-            ><span class="font-bold">{{ displayRate(row).agentName || '—' }}</span></template
-          >
-          <template #cell-carrierName="{ row }"
-            ><div>
-              <p class="font-bold">{{ displayRate(row).carrierName }}</p>
-              <p class="text-xs text-[var(--dh-text-muted)]">
-                {{ displayRate(row).containerTypeName }} · {{ displayRate(row).incotermCode || displayRate(row).incotermName || 'Sin Incoterm' }}
-              </p>
-            </div></template
-          >
-          <template #cell-totalCostAmount="{ row }"
-            ><span class="font-bold">{{
-              formatMoney(row.totalCostAmount, displayRate(row).currencyName)
-            }}</span></template
-          >
-          <template #cell-totalSaleAmount="{ row }"
-            ><span class="font-black">{{
-              formatMoney(row.totalSaleAmount, displayRate(row).currencyName)
-            }}</span></template
-          >
-          <template #cell-totalUtilityAmount="{ row }"
-            ><span
-              class="font-black"
-              :class="
-                row.totalUtilityAmount >= 0
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-red-500'
-              "
-              >{{ formatMoney(row.totalUtilityAmount, displayRate(row).currencyName) }}</span
-            ></template
-          >
-          <template #cell-marginPercentage="{ row }"
-            ><div class="flex items-center justify-end gap-2">
-              <span class="font-black">{{ row.marginPercentage.toFixed(2) }}%</span
-              ><DhBadge
-                :label="row.marginPercentage >= 12 ? 'OK' : 'Bajo'"
-                :variant="marginTone(row.marginPercentage)"
-              /></div
-          ></template>
+            </div>
+          </template>
           <template #cell-status="{ row }"
             ><DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)"
           /></template>

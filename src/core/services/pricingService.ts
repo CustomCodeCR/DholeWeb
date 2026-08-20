@@ -31,6 +31,10 @@ import type {
   CreateRateTermItemRequest,
   UpdateRateTermItemRequest,
   SetRateTermItemActiveRequest,
+  CarrierFreeDayRuleDto,
+  UpsertCarrierFreeDayRuleRequest,
+  RateTermBlockDto,
+  UpsertRateTermBlockRequest,
   RejectImportRateBatchRequest,
   RejectImportRateRequest,
   ReviewImportRateRequest,
@@ -144,16 +148,31 @@ export const PricingService = {
   },
 
   async createRateTermItem(payload: CreateRateTermItemRequest): Promise<string> {
-    const response = await callEndpoint<unknown, CreateRateTermItemRequest>(Endpoints.createRateTermItem, { body: payload })
+    const response = await callEndpoint<unknown, CreateRateTermItemRequest>(
+      Endpoints.createRateTermItem,
+      { body: payload },
+    )
     return unwrapApiResponse<string>(response as never)
   },
 
-  updateRateTermItem(rateTermItemId: string, payload: UpdateRateTermItemRequest): Promise<NoContent> {
-    return callEndpoint<NoContent, UpdateRateTermItemRequest>(Endpoints.updateRateTermItem, { params: { rateTermItemId }, body: payload })
+  updateRateTermItem(
+    rateTermItemId: string,
+    payload: UpdateRateTermItemRequest,
+  ): Promise<NoContent> {
+    return callEndpoint<NoContent, UpdateRateTermItemRequest>(Endpoints.updateRateTermItem, {
+      params: { rateTermItemId },
+      body: payload,
+    })
   },
 
-  setRateTermItemActive(rateTermItemId: string, payload: SetRateTermItemActiveRequest): Promise<NoContent> {
-    return callEndpoint<NoContent, SetRateTermItemActiveRequest>(Endpoints.setRateTermItemActive, { params: { rateTermItemId }, body: payload })
+  setRateTermItemActive(
+    rateTermItemId: string,
+    payload: SetRateTermItemActiveRequest,
+  ): Promise<NoContent> {
+    return callEndpoint<NoContent, SetRateTermItemActiveRequest>(Endpoints.setRateTermItemActive, {
+      params: { rateTermItemId },
+      body: payload,
+    })
   },
 
   deleteRateTermItem(rateTermItemId: string): Promise<NoContent> {
@@ -163,6 +182,83 @@ export const PricingService = {
   async selectRateTermItems(): Promise<RateTermItemDto[]> {
     const response = await callEndpoint<unknown>(Endpoints.selectRateTermItems)
     return unwrapListResponse<RateTermItemDto>(response)
+  },
+
+  async browseCarrierFreeDayRules(): Promise<CarrierFreeDayRuleDto[]> {
+    const response = await callEndpoint<unknown>(Endpoints.browseCarrierFreeDayRules)
+    return unwrapListResponse<CarrierFreeDayRuleDto>(response)
+  },
+
+  async resolveCarrierFreeDayRule(carrierId: string): Promise<CarrierFreeDayRuleDto | null> {
+    try {
+      const response = await callEndpoint<unknown>(Endpoints.resolveCarrierFreeDayRule, {
+        params: { carrierId },
+      })
+      return unwrapApiResponse<CarrierFreeDayRuleDto>(response as never)
+    } catch (error: unknown) {
+      const status = Number((error as { status?: number })?.status ?? 0)
+      if (status === 404) return null
+      throw error
+    }
+  },
+
+  async createCarrierFreeDayRule(payload: UpsertCarrierFreeDayRuleRequest): Promise<string> {
+    const response = await callEndpoint<unknown, UpsertCarrierFreeDayRuleRequest>(
+      Endpoints.createCarrierFreeDayRule,
+      { body: payload },
+    )
+    return unwrapApiResponse<string>(response as never)
+  },
+
+  updateCarrierFreeDayRule(
+    ruleId: string,
+    payload: UpsertCarrierFreeDayRuleRequest,
+  ): Promise<NoContent> {
+    return callEndpoint<NoContent, UpsertCarrierFreeDayRuleRequest>(
+      Endpoints.updateCarrierFreeDayRule,
+      { params: { ruleId }, body: payload },
+    )
+  },
+
+  deleteCarrierFreeDayRule(ruleId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>(Endpoints.deleteCarrierFreeDayRule, { params: { ruleId } })
+  },
+
+  async browseRateTermBlocks(): Promise<RateTermBlockDto[]> {
+    const response = await callEndpoint<unknown>(Endpoints.browseRateTermBlocks)
+    return unwrapListResponse<RateTermBlockDto>(response)
+  },
+
+  async resolveRateTermBlocks(query: {
+    rateType?: string
+    shipmentMode?: string
+    poeId?: string
+    incotermId?: string
+  }): Promise<RateTermBlockDto[]> {
+    const response = await callEndpoint<unknown>({
+      ...Endpoints.resolveRateTermBlocks,
+      path: withQuery(Endpoints.resolveRateTermBlocks.path, query),
+    })
+    return unwrapListResponse<RateTermBlockDto>(response)
+  },
+
+  async createRateTermBlock(payload: UpsertRateTermBlockRequest): Promise<string> {
+    const response = await callEndpoint<unknown, UpsertRateTermBlockRequest>(
+      Endpoints.createRateTermBlock,
+      { body: payload },
+    )
+    return unwrapApiResponse<string>(response as never)
+  },
+
+  updateRateTermBlock(blockId: string, payload: UpsertRateTermBlockRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, UpsertRateTermBlockRequest>(Endpoints.updateRateTermBlock, {
+      params: { blockId },
+      body: payload,
+    })
+  },
+
+  deleteRateTermBlock(blockId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>(Endpoints.deleteRateTermBlock, { params: { blockId } })
   },
 
   async getDecisionDashboard(

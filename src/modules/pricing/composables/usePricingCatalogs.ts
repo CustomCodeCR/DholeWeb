@@ -62,6 +62,15 @@ function mapItem(item: CatalogItemDto): PricingCatalogItem {
   }
 }
 
+function normalizeIncoterm(item: PricingCatalogItem): PricingCatalogItem {
+  const displayValue = item.value.trim() || item.name.trim() || item.code.trim()
+
+  return {
+    ...item,
+    name: displayValue,
+  }
+}
+
 function normalizeCurrency(item: PricingCatalogItem): PricingCatalogItem {
   const isoLabel = [item.value, item.name, item.slug, item.code]
     .map((candidate) => candidate.trim())
@@ -126,7 +135,7 @@ async function loadAll(force = false) {
     podPorts.value = podRows
     containerTypes.value = containerRows
     importProfiles.value = profileRows
-    incoterms.value = incotermRows
+    incoterms.value = incotermRows.map(normalizeIncoterm)
     loaded.value = true
   })().finally(() => {
     loading.value = false
@@ -226,7 +235,9 @@ export function usePricingCatalogs() {
       poeName: label(poePorts.value, rate.poeId, rate.poeName),
       podName: label(podPorts.value, rate.podId, rate.podName),
       containerTypeName: label(containerTypes.value, rate.containerTypeId, rate.containerTypeName),
-      incotermName: label(incoterms.value, rate.incotermId, rate.incotermName),
+      incotermName:
+        incoterms.value.find((item) => item.id === rate.incotermId)?.value?.trim() ||
+        label(incoterms.value, rate.incotermId, rate.incotermName),
       incotermCode:
         incoterms.value.find((item) => item.id === rate.incotermId)?.code || rate.incotermCode,
       currencyName: label(currencies.value, rate.currencyId, rate.currencyName),
@@ -252,13 +263,17 @@ export function usePricingCatalogs() {
       carrierName:
         carriers.value.find((item) => item.id === cost.carrierId)?.name || cost.carrierName,
       portName: portCatalog.find((item) => item.id === cost.portId)?.name || cost.portName,
+      polName: polPorts.value.find((item) => item.id === cost.polId)?.name || cost.polName,
+      polCode: polPorts.value.find((item) => item.id === cost.polId)?.code || cost.polCode,
+      poeName: poePorts.value.find((item) => item.id === cost.poeId)?.name || cost.poeName,
+      poeCode: poePorts.value.find((item) => item.id === cost.poeId)?.code || cost.poeCode,
+      podName: podPorts.value.find((item) => item.id === cost.podId)?.name || cost.podName,
+      podCode: podPorts.value.find((item) => item.id === cost.podId)?.code || cost.podCode,
       currencyName: currency?.name || cost.currencyName,
       currencyCode: currency?.code || cost.currencyCode,
       incoterms: (cost.incoterms ?? []).map((incoterm) => {
         const current = incoterms.value.find((item) => item.id === incoterm.id)
-        return current
-          ? { id: current.id, name: current.name, code: current.code }
-          : incoterm
+        return current ? { id: current.id, name: current.name, code: current.code } : incoterm
       }),
     }
   }

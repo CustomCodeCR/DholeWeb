@@ -2,20 +2,47 @@
 import { computed, onMounted, reactive, watch } from 'vue'
 import { BadgeDollarSign, Info, Save } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import { DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { PricingService } from '@/core/services/pricingService'
 import type {
+  ChargeBasis,
   CostDetailType,
   CostDto,
-  CostPortRole,
   CostType,
   CreateCostRequest,
+  ShipmentMode,
 } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import PricingMultiSelect from './PricingMultiSelect.vue'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
+
+type CostRouteScope =
+  | ''
+  | 'Any'
+  | 'Pol'
+  | 'Poe'
+  | 'Pod'
+  | 'PolPoe'
+  | 'PoePod'
+  | 'PodPol'
+  | 'PolPoePod'
+
+function initialRouteScope(cost?: CostDto): CostRouteScope {
+  const roles = [
+    cost?.polId ? 'Pol' : '',
+    cost?.poeId ? 'Poe' : '',
+    cost?.podId ? 'Pod' : '',
+  ].filter(Boolean)
+  if (roles.length === 3) return 'PolPoePod'
+  if (roles.includes('Pol') && roles.includes('Poe')) return 'PolPoe'
+  if (roles.includes('Poe') && roles.includes('Pod')) return 'PoePod'
+  if (roles.includes('Pod') && roles.includes('Pol')) return 'PodPol'
+  if (roles.length === 1) return roles[0] as CostRouteScope
+  if (cost?.portId) return (cost.portRole ?? 'Any') as CostRouteScope
+  return ''
+}
 
 const props = defineProps<{ cost?: CostDto; onSaved?: () => void | Promise<void> }>()
 const { locale, t } = useI18n()
@@ -27,23 +54,27 @@ const form = reactive({
   name: props.cost?.name ?? '',
   costType: (props.cost?.costType ?? 'Fixed') as CostType,
   costDetailType: (props.cost?.costDetailType ?? 'DestinationCharge') as CostDetailType,
+  shipmentMode: (props.cost?.shipmentMode ?? '') as ShipmentMode | '',
+  chargeBasis: (props.cost?.chargeBasis ?? 'PerShipment') as ChargeBasis,
+  minimumCostAmount: String(props.cost?.minimumCostAmount ?? ''),
+  minimumSaleAmount: String(props.cost?.minimumSaleAmount ?? ''),
+  kgPerCbm: String(props.cost?.kgPerCbm ?? ''),
   associationType: (props.cost?.agentId ? 'Agent' : props.cost?.carrierId ? 'Carrier' : 'None') as
     | 'None'
     | 'Agent'
     | 'Carrier',
   carrierId: props.cost?.carrierId ?? '',
   agentId: props.cost?.agentId ?? '',
+  routeScope: initialRouteScope(props.cost),
   portId: props.cost?.portId ?? '',
-  portRole: (props.cost?.portRole ?? '') as CostPortRole | '',
+  polId: props.cost?.polId ?? (props.cost?.portRole === 'Pol' ? (props.cost?.portId ?? '') : ''),
+  poeId: props.cost?.poeId ?? (props.cost?.portRole === 'Poe' ? (props.cost?.portId ?? '') : ''),
+  podId: props.cost?.podId ?? (props.cost?.portRole === 'Pod' ? (props.cost?.portId ?? '') : ''),
   incotermIds: props.cost?.incoterms?.map((item) => item.id) ?? [],
   currencyId: props.cost?.currencyId ?? '',
   costAmount: String(props.cost?.costAmount ?? ''),
   saleAmount: String(props.cost?.saleAmount ?? ''),
-  isAccountant:
-    props.cost?.isAccountant ||
-    props.cost?.costDetailType === 'Freight' ||
-    props.cost?.costDetailType === 'InlandTransport' ||
-    false,
+  isAccountant: props.cost?.isAccountant ?? false,
   notes: props.cost?.notes ?? '',
   saving: false,
   submitted: false,
@@ -51,27 +82,55 @@ const form = reactive({
 
 const isAgentCost = computed(() => form.associationType === 'Agent')
 const isCarrierCost = computed(() => form.associationType === 'Carrier')
-const isFreightPerContainer = computed(() =>
-  ['Freight', 'InlandTransport'].includes(form.costDetailType),
+const isEquipmentBasis = computed(
+  () => form.chargeBasis === 'PerContainer' || form.chargeBasis === 'PerTruck',
 )
 const utility = computed(() => Number(form.saleAmount || 0) - Number(form.costAmount || 0))
-const portOptions = computed(() => {
-  if (form.portRole === 'Pol') return catalogs.polOptions.value
-  if (form.portRole === 'Poe') return catalogs.poeOptions.value
-  if (form.portRole === 'Pod') return catalogs.podOptions.value
-  return [
-    ...catalogs.polOptions.value,
-    ...catalogs.poeOptions.value,
-    ...catalogs.podOptions.value,
-  ].filter(
+const anyPortOptions = computed(() =>
+  [...catalogs.polOptions.value, ...catalogs.poeOptions.value, ...catalogs.podOptions.value].filter(
     (option, index, values) => values.findIndex((item) => item.value === option.value) === index,
-  )
+  ),
+)
+
+function scopeIncludes(role: 'Pol' | 'Poe' | 'Pod') {
+  return form.routeScope.includes(role)
+}
+
+const routeSelectionValid = computed(() => {
+  if (!form.routeScope) return true
+  if (form.routeScope === 'Any') return Boolean(form.portId)
+  if (scopeIncludes('Pol') && !form.polId) return false
+  if (scopeIncludes('Poe') && !form.poeId) return false
+  if (scopeIncludes('Pod') && !form.podId) return false
+  return true
 })
 
 const costTypeOptions = [
   { label: 'Fijo automático', value: 'Fixed' },
   { label: 'Opcional', value: 'Optional' },
   { label: 'Variable', value: 'Variable' },
+]
+
+const shipmentModeOptions: Array<{ label: string; value: ShipmentMode | '' }> = [
+  { label: 'Todas las modalidades', value: '' },
+  { label: 'FCL · Contenedor completo', value: 'Fcl' },
+  { label: 'LCL · Marítimo consolidado', value: 'Lcl' },
+  { label: 'FTL · Camión completo', value: 'Ftl' },
+  { label: 'LTL · Terrestre consolidado', value: 'Ltl' },
+]
+
+const chargeBasisOptions: Array<{ label: string; value: ChargeBasis }> = [
+  { label: 'Por embarque', value: 'PerShipment' },
+  { label: 'Por contenedor', value: 'PerContainer' },
+  { label: 'Por camión', value: 'PerTruck' },
+  { label: 'Por CBM', value: 'PerCbm' },
+  { label: 'Por CBM cobrable', value: 'PerChargeableCbm' },
+  { label: 'Por KG', value: 'PerKg' },
+  { label: 'Por 100 KG', value: 'Per100Kg' },
+  { label: 'Por tonelada', value: 'PerTon' },
+  { label: 'Por pallet', value: 'PerPallet' },
+  { label: 'Por bulto', value: 'PerPackage' },
+  { label: 'Por documento', value: 'PerDocument' },
 ]
 
 const detailTypeOptions: Array<{ label: string; value: CostDetailType }> = [
@@ -87,11 +146,16 @@ const detailTypeOptions: Array<{ label: string; value: CostDetailType }> = [
   { label: 'Otro', value: 'Other' },
 ]
 
-const portRoleOptions = [
-  { label: 'Cualquier punto', value: 'Any' },
-  { label: 'POL · Puerto de origen', value: 'Pol' },
-  { label: 'POE · Puerto de entrada', value: 'Poe' },
-  { label: 'POD · Destino final', value: 'Pod' },
+const routeScopeOptions: Array<{ label: string; value: CostRouteScope }> = [
+  { label: 'Sin condición de ruta', value: '' },
+  { label: 'Cualquier punto específico', value: 'Any' },
+  { label: 'POL', value: 'Pol' },
+  { label: 'POE', value: 'Poe' },
+  { label: 'POD', value: 'Pod' },
+  { label: 'POL + POE', value: 'PolPoe' },
+  { label: 'POE + POD', value: 'PoePod' },
+  { label: 'POD + POL', value: 'PodPol' },
+  { label: 'POL + POE + POD', value: 'PolPoePod' },
 ]
 
 const associationTypeOptions = [
@@ -125,17 +189,32 @@ watch(
 )
 
 watch(
-  () => form.costDetailType,
-  () => {
-    if (isFreightPerContainer.value) form.isAccountant = true
+  () => [form.costDetailType, form.shipmentMode] as const,
+  ([detailType, shipmentMode]) => {
+    if (!['Freight', 'InlandTransport'].includes(detailType)) return
+    if (form.chargeBasis !== 'PerShipment' || props.cost) return
+    if (shipmentMode === 'Fcl') form.chargeBasis = 'PerContainer'
+    else if (shipmentMode === 'Ftl') form.chargeBasis = 'PerTruck'
+    else if (shipmentMode === 'Lcl' || shipmentMode === 'Ltl') form.chargeBasis = 'PerChargeableCbm'
   },
   { immediate: true },
 )
 
 watch(
-  () => form.portRole,
-  () => {
-    if (!portOptions.value.some((option) => option.value === form.portId)) form.portId = ''
+  () => form.chargeBasis,
+  (basis) => {
+    form.isAccountant = basis === 'PerContainer' || basis === 'PerTruck'
+  },
+  { immediate: true },
+)
+
+watch(
+  () => form.routeScope,
+  (scope) => {
+    if (scope !== 'Any') form.portId = ''
+    if (!scope.includes('Pol')) form.polId = ''
+    if (!scope.includes('Poe')) form.poeId = ''
+    if (!scope.includes('Pod')) form.podId = ''
   },
 )
 
@@ -147,6 +226,9 @@ async function submit() {
     [...catalogs.polPorts.value, ...catalogs.poePorts.value, ...catalogs.podPorts.value],
     form.portId,
   )
+  const pol = selected(catalogs.polPorts.value, form.polId)
+  const poe = selected(catalogs.poePorts.value, form.poeId)
+  const pod = selected(catalogs.podPorts.value, form.podId)
   const currency = selected(catalogs.currencies.value, form.currencyId)
   const incoterms = form.incotermIds
     .map((id) => selected(catalogs.incoterms.value, id))
@@ -158,8 +240,12 @@ async function submit() {
     !currency ||
     (isAgentCost.value && !agent) ||
     (isCarrierCost.value && !carrier) ||
+    !routeSelectionValid.value ||
     Number(form.costAmount) < 0 ||
-    Number(form.saleAmount) < 0
+    Number(form.saleAmount) < 0 ||
+    (form.minimumCostAmount !== '' && Number(form.minimumCostAmount) < 0) ||
+    (form.minimumSaleAmount !== '' && Number(form.minimumSaleAmount) < 0) ||
+    (form.kgPerCbm !== '' && Number(form.kgPerCbm) <= 0)
   )
     return
 
@@ -173,18 +259,32 @@ async function submit() {
     agentId: agent?.id ?? null,
     agentName: agent?.name ?? null,
     agentCode: agent?.code ?? null,
-    portId: port?.id ?? null,
-    portName: port?.name ?? null,
-    portCode: port?.code ?? null,
-    portRole: port ? form.portRole || null : null,
+    portId: form.routeScope === 'Any' ? (port?.id ?? null) : null,
+    portName: form.routeScope === 'Any' ? (port?.name ?? null) : null,
+    portCode: form.routeScope === 'Any' ? (port?.code ?? null) : null,
+    portRole: form.routeScope === 'Any' && port ? 'Any' : null,
+    polId: scopeIncludes('Pol') ? (pol?.id ?? null) : null,
+    polName: scopeIncludes('Pol') ? (pol?.name ?? null) : null,
+    polCode: scopeIncludes('Pol') ? (pol?.code ?? null) : null,
+    poeId: scopeIncludes('Poe') ? (poe?.id ?? null) : null,
+    poeName: scopeIncludes('Poe') ? (poe?.name ?? null) : null,
+    poeCode: scopeIncludes('Poe') ? (poe?.code ?? null) : null,
+    podId: scopeIncludes('Pod') ? (pod?.id ?? null) : null,
+    podName: scopeIncludes('Pod') ? (pod?.name ?? null) : null,
+    podCode: scopeIncludes('Pod') ? (pod?.code ?? null) : null,
     currencyId: currency.id,
     currencyName: currency.name,
     currencyCode: currency.code,
     costAmount: Number(form.costAmount),
     saleAmount: isAgentCost.value ? 0 : Number(form.saleAmount),
     notes: form.notes.trim() || null,
-    isAccountant: isFreightPerContainer.value || form.isAccountant,
+    isAccountant: isEquipmentBasis.value,
     incoterms,
+    shipmentMode: form.shipmentMode || null,
+    chargeBasis: form.chargeBasis,
+    minimumCostAmount: form.minimumCostAmount === '' ? null : Number(form.minimumCostAmount),
+    minimumSaleAmount: form.minimumSaleAmount === '' ? null : Number(form.minimumSaleAmount),
+    kgPerCbm: form.kgPerCbm === '' ? null : Number(form.kgPerCbm),
   }
 
   try {
@@ -237,10 +337,15 @@ onMounted(catalogs.loadAll)
         <DhSelect v-model="form.costType" label="Aplicación" :options="costTypeOptions" />
         <DhSelect v-model="form.costDetailType" label="Rubro" :options="detailTypeOptions" />
         <DhSelect
-          v-model="form.portRole"
-          label="Punto de aplicación"
-          placeholder="Sin puerto específico"
-          :options="[{ label: 'Sin puerto específico', value: '' }, ...portRoleOptions]"
+          v-model="form.shipmentMode"
+          label="Modalidad aplicable"
+          :options="shipmentModeOptions"
+        />
+        <DhSelect v-model="form.chargeBasis" label="Base de cobro" :options="chargeBasisOptions" />
+        <DhSelect
+          v-model="form.routeScope"
+          label="Condición de ruta"
+          :options="routeScopeOptions"
         />
       </div>
     </section>
@@ -274,10 +379,36 @@ onMounted(catalogs.loadAll)
           :error="fieldError(form.carrierId, 'Seleccione la naviera.')"
         />
         <DhSelect
+          v-if="form.routeScope === 'Any'"
           v-model="form.portId"
-          label="Puerto"
+          label="Puerto aplicable en cualquier punto"
           placeholder="Seleccione puerto"
-          :options="[{ label: 'Sin puerto específico', value: '' }, ...portOptions]"
+          :options="anyPortOptions"
+          :error="fieldError(form.portId, 'Seleccione el puerto.')"
+        />
+        <DhSelect
+          v-if="scopeIncludes('Pol')"
+          v-model="form.polId"
+          label="POL · Puerto de origen"
+          placeholder="Seleccione POL"
+          :options="catalogs.polOptions.value"
+          :error="fieldError(form.polId, 'Seleccione el POL.')"
+        />
+        <DhSelect
+          v-if="scopeIncludes('Poe')"
+          v-model="form.poeId"
+          label="POE · Puerto de entrada"
+          placeholder="Seleccione POE"
+          :options="catalogs.poeOptions.value"
+          :error="fieldError(form.poeId, 'Seleccione el POE.')"
+        />
+        <DhSelect
+          v-if="scopeIncludes('Pod')"
+          v-model="form.podId"
+          label="POD · Destino final"
+          placeholder="Seleccione POD"
+          :options="catalogs.podOptions.value"
+          :error="fieldError(form.podId, 'Seleccione el POD.')"
         />
         <DhSelect
           v-model="form.currencyId"
@@ -307,8 +438,9 @@ onMounted(catalogs.loadAll)
       >
         <Info class="mt-0.5 h-4 w-4 shrink-0" />
         <p v-if="form.costType === 'Fixed'">
-          El costo se agregará automáticamente cuando coincidan las relaciones configuradas.
-          Puede ser global, por puerto, naviera/agente e Incoterm; los Incoterms admiten selección múltiple.
+          El costo se agregará automáticamente únicamente cuando coincidan todas las relaciones
+          configuradas. Puede usar una ruta simple o combinaciones POL + POE, POE + POD, POD + POL y
+          POL + POE + POD, además de naviera/agente e Incoterm.
         </p>
         <p v-else-if="form.costType === 'Optional'">
           Este rubro aparecerá en el selector múltiple al construir o editar una tarifa.
@@ -322,7 +454,7 @@ onMounted(catalogs.loadAll)
         <DhInput
           v-model="form.costAmount"
           type="number"
-          label="Costo"
+          label="Costo por unidad"
           placeholder="0.00"
           :error="
             form.submitted && Number(form.costAmount) < 0
@@ -333,7 +465,7 @@ onMounted(catalogs.loadAll)
         <DhInput
           v-model="form.saleAmount"
           type="number"
-          label="Venta"
+          label="Venta por unidad"
           placeholder="0.00"
           :disabled="isAgentCost"
           :error="
@@ -341,6 +473,29 @@ onMounted(catalogs.loadAll)
               ? 'La venta no puede ser negativa.'
               : undefined
           "
+        />
+        <DhInput
+          v-model="form.minimumCostAmount"
+          type="number"
+          min="0"
+          label="Costo mínimo total"
+          placeholder="Sin mínimo"
+        />
+        <DhInput
+          v-model="form.minimumSaleAmount"
+          type="number"
+          min="0"
+          label="Venta mínima total"
+          placeholder="Sin mínimo"
+        />
+        <DhInput
+          v-if="form.chargeBasis === 'PerChargeableCbm'"
+          v-model="form.kgPerCbm"
+          type="number"
+          min="0.01"
+          step="0.01"
+          label="KG por CBM"
+          :placeholder="form.shipmentMode === 'Ltl' ? '333' : '500'"
         />
       </div>
       <div
@@ -362,20 +517,15 @@ onMounted(catalogs.loadAll)
         >
       </div>
       <div class="mt-4 rounded-2xl border border-[var(--dh-border)] p-4">
-        <DhCheckbox
-          v-model="form.isAccountant"
-          label="Costo contable por contenedor"
-          :disabled="isFreightPerContainer"
-        />
-        <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-          <template v-if="isFreightPerContainer">
-            El flete marítimo y terrestre siempre multiplica costo y venta por la cantidad de
-            contenedores.
-          </template>
-          <template v-else>
-            Al activarlo, el costo y la venta de este rubro se multiplican por la cantidad de
-            contenedores indicada al crear o editar la tarifa.
-          </template>
+        <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+          Regla de cálculo
+        </p>
+        <p class="mt-2 text-sm font-semibold text-[var(--dh-text)]">
+          {{ chargeBasisOptions.find((item) => item.value === form.chargeBasis)?.label }}
+          <span v-if="form.shipmentMode"> · {{ form.shipmentMode.toUpperCase() }}</span>
+        </p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+          Los mínimos se aplican al total del rubro después de calcular su cantidad cobrable.
         </p>
       </div>
       <p v-if="isAgentCost" class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">

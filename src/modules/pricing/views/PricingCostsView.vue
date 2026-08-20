@@ -56,7 +56,7 @@ const columns: DhTableColumn<CostDto>[] = [
   { key: 'costType', label: 'Aplicación' },
   { key: 'costDetailType', label: 'Rubro' },
   { key: 'relation', label: 'Naviera / agente' },
-  { key: 'portName', label: 'Puerto' },
+  { key: 'portName', label: 'Ruta / puerto' },
   { key: 'incoterms', label: 'Incoterms' },
   { key: 'costAmount', label: 'Costo', align: 'right' },
   { key: 'saleAmount', label: 'Venta', align: 'right' },
@@ -119,6 +119,20 @@ function detailLabel(value: CostDetailType) {
       Other: 'Otro',
     } as Record<CostDetailType, string>
   )[value]
+}
+
+function routeSummary(cost: CostDto) {
+  const current = displayCost(cost)
+  const parts: string[] = []
+  if (current.polId) parts.push(`POL · ${current.polName || current.polCode || '—'}`)
+  if (current.poeId) parts.push(`POE · ${current.poeName || current.poeCode || '—'}`)
+  if (current.podId) parts.push(`POD · ${current.podName || current.podCode || '—'}`)
+
+  if (parts.length) return parts
+  if (current.portId) {
+    return [`${current.portRole || 'Any'} · ${current.portName || current.portCode || '—'}`]
+  }
+  return ['Sin condición de ruta']
 }
 
 async function load() {
@@ -335,14 +349,17 @@ onMounted(async () => {
               </p>
             </div></template
           >
-          <template #cell-portName="{ row }"
-            ><div>
-              <p class="font-bold">{{ displayCost(row).portName || 'Sin puerto específico' }}</p>
-              <p class="text-xs text-[var(--dh-text-muted)]">
-                {{ row.portRole || 'Cualquier punto' }}
+          <template #cell-portName="{ row }">
+            <div class="space-y-1">
+              <p
+                v-for="route in routeSummary(row)"
+                :key="route"
+                class="text-xs font-bold text-[var(--dh-text-soft)]"
+              >
+                {{ route }}
               </p>
-            </div></template
-          >
+            </div>
+          </template>
           <template #cell-incoterms="{ row }">
             <div class="flex max-w-[220px] flex-wrap gap-1">
               <DhBadge

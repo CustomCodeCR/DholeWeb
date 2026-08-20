@@ -235,7 +235,7 @@ onBeforeUnmount(() => {
     >
       <section
         v-if="isVisible && panelOpen"
-        class="fixed bottom-24 right-4 z-[100] flex h-[min(680px,calc(100vh-8rem))] w-[calc(100vw-2rem)] max-w-[430px] flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[0_28px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:bottom-28 sm:right-7"
+        class="fixed bottom-24 left-4 z-[100] flex h-[min(680px,calc(100vh-8rem))] w-[calc(100vw-2rem)] max-w-[430px] flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[0_28px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:bottom-28 sm:left-7"
         aria-label="Asistente IA"
       >
         <header
@@ -461,7 +461,7 @@ onBeforeUnmount(() => {
       <button
         v-if="isVisible"
         type="button"
-        class="group fixed bottom-5 right-5 z-[101] flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-[var(--dh-primary)] text-white shadow-[0_18px_45px_rgba(0,0,0,0.34)] transition hover:-translate-y-1 hover:scale-105 hover:shadow-[0_22px_60px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--dh-primary)_30%,transparent)] sm:bottom-7 sm:right-7"
+        class="group fixed bottom-5 left-5 z-[101] flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-[var(--dh-primary)] text-white shadow-[0_18px_45px_rgba(0,0,0,0.34)] transition hover:-translate-y-1 hover:scale-105 hover:shadow-[0_22px_60px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--dh-primary)_30%,transparent)] sm:bottom-7 sm:left-7"
         :aria-expanded="panelOpen"
         aria-label="Abrir asistente IA"
         title="Asistente IA"

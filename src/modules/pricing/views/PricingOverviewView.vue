@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import {
-  CalendarDays,
-  Check,
-  FileSpreadsheet,
-  RefreshCw,
-  Route,
-  Sparkles,
-} from 'lucide-vue-next'
+import { CalendarDays, Check, FileSpreadsheet, RefreshCw, Route, Sparkles } from 'lucide-vue-next'
 import {
   DhBadge,
   DhButton,
@@ -48,7 +41,16 @@ const approvingImportId = ref('')
 const dashboard = ref<PricingDecisionDashboardDto | null>(null)
 const selectedRate = ref<PricingDecisionRateDto | null>(null)
 const selectedImport = ref<ImportRateDto | null>(null)
-const filters = reactive({ dateFrom: '', dateTo: '', containerTypeId: '' })
+type DecisionLaneFilter = '' | PricingDecisionLaneDto['key']
+
+const filters = reactive({
+  dateFrom: '',
+  dateTo: '',
+  containerTypeId: '',
+  pol: '',
+  poe: '',
+  laneKey: '' as DecisionLaneFilter,
+})
 const importCache = new Map<string, ImportRateDto>()
 
 const canUpload = computed(() => authStore.hasScope(PRICING_SCOPES.importFclRates.create))
@@ -66,6 +68,31 @@ const containerFilterOptions = computed(() => [
   ...catalogs.containerOptions.value,
 ])
 
+const dashboardRates = computed(() => (dashboard.value?.lanes ?? []).flatMap((lane) => lane.rates))
+
+function uniqueRateOptions(field: 'pol' | 'poe', allLabel: string) {
+  const values = Array.from(
+    new Set(
+      dashboardRates.value
+        .map((rate) => rate[field]?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
+
+  return [{ label: allLabel, value: '' }, ...values.map((value) => ({ label: value, value }))]
+}
+
+const polFilterOptions = computed(() => uniqueRateOptions('pol', 'Todos los POL'))
+const poeFilterOptions = computed(() => uniqueRateOptions('poe', 'Todos los POE'))
+
+function normalizedRouteValue(value: string | null | undefined) {
+  return (value ?? '')
+    .trim()
+    .toLocaleLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
 function matchesContainer(rate: PricingDecisionRateDto) {
   if (!filters.containerTypeId) return true
 
@@ -75,13 +102,73 @@ function matchesContainer(rate: PricingDecisionRateDto) {
   )
 }
 
-const lanes = computed<PricingDecisionLaneDto[]>(() => {
+function matchesOperationalFilters(rate: PricingDecisionRateDto) {
+  if (!matchesContainer(rate)) return false
+  if (filters.pol && normalizedRouteValue(rate.pol) !== normalizedRouteValue(filters.pol))
+    return false
+  if (filters.poe && normalizedRouteValue(rate.poe) !== normalizedRouteValue(filters.poe))
+    return false
+  return true
+}
+
+function laneShortLabel(key: PricingDecisionLaneDto['key']) {
+  if (key === 'limon-moin') return 'Moín'
+  if (key === 'puerto-caldera') return 'Caldera'
+  return 'Multimodal'
+}
+
+function laneBadgeClass(key: PricingDecisionLaneDto['key']) {
+  if (key === 'limon-moin') {
+    return 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+  }
+  if (key === 'puerto-caldera') {
+    return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+  }
+  return 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
+}
+
+function laneAccentClass(key: PricingDecisionLaneDto['key']) {
+  if (key === 'limon-moin') return 'border-l-4 border-l-sky-500/70'
+  if (key === 'puerto-caldera') return 'border-l-4 border-l-emerald-500/70'
+  return 'border-l-4 border-l-violet-500/70'
+}
+
+function laneSelectorClass(key: PricingDecisionLaneDto['key']) {
+  const active = filters.laneKey === key
+  if (key === 'limon-moin') {
+    return active
+      ? 'border-sky-500/50 bg-sky-500/15 text-sky-800 ring-2 ring-sky-500/15 dark:text-sky-200'
+      : 'border-sky-500/20 bg-sky-500/[0.055] text-sky-700 hover:bg-sky-500/10 dark:text-sky-300'
+  }
+  if (key === 'puerto-caldera') {
+    return active
+      ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-800 ring-2 ring-emerald-500/15 dark:text-emerald-200'
+      : 'border-emerald-500/20 bg-emerald-500/[0.055] text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300'
+  }
+  return active
+    ? 'border-violet-500/50 bg-violet-500/15 text-violet-800 ring-2 ring-violet-500/15 dark:text-violet-200'
+    : 'border-violet-500/20 bg-violet-500/[0.055] text-violet-700 hover:bg-violet-500/10 dark:text-violet-300'
+}
+
+const laneFilterOptions = computed(() => {
   const source = dashboard.value?.lanes ?? []
-  const order = ['limon-moin', 'puerto-caldera', 'multimodal']
+  const order: PricingDecisionLaneDto['key'][] = ['limon-moin', 'puerto-caldera', 'multimodal']
   return [...source]
     .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key))
+    .map((lane) => ({
+      ...lane,
+      totalOptions: lane.rates.filter(matchesOperationalFilters).length,
+    }))
+})
+
+const lanes = computed<PricingDecisionLaneDto[]>(() => {
+  const source = dashboard.value?.lanes ?? []
+  const order: PricingDecisionLaneDto['key'][] = ['limon-moin', 'puerto-caldera', 'multimodal']
+  return [...source]
+    .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key))
+    .filter((lane) => !filters.laneKey || lane.key === filters.laneKey)
     .map((lane) => {
-      const rates = lane.rates.filter(matchesContainer)
+      const rates = lane.rates.filter(matchesOperationalFilters)
       return { ...lane, rates, totalOptions: rates.length }
     })
 })
@@ -197,6 +284,9 @@ async function clearFilters() {
   filters.dateFrom = ''
   filters.dateTo = ''
   filters.containerTypeId = ''
+  filters.pol = ''
+  filters.poe = ''
+  filters.laneKey = ''
   await load()
 }
 
@@ -306,7 +396,7 @@ async function createFinalRate() {
 }
 
 watch(
-  () => filters.containerTypeId,
+  () => [filters.containerTypeId, filters.pol, filters.poe, filters.laneKey],
   () => clearSelection(),
 )
 
@@ -366,7 +456,7 @@ onMounted(() => {
           </p>
         </div>
 
-        <div class="grid w-full gap-3 sm:grid-cols-3 lg:w-auto lg:min-w-[650px]">
+        <div class="grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-5 lg:w-auto lg:min-w-[980px]">
           <DhInput
             v-model="filters.dateFrom"
             type="date"
@@ -379,6 +469,8 @@ onMounted(() => {
             label="Fecha hasta"
             :error="dateRangeInvalid ? 'Rango inválido' : undefined"
           />
+          <DhSelect v-model="filters.pol" label="POL" :options="polFilterOptions" placeholder="" />
+          <DhSelect v-model="filters.poe" label="POE" :options="poeFilterOptions" placeholder="" />
           <DhSelect
             v-model="filters.containerTypeId"
             label="Contenedor"
@@ -389,32 +481,66 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-3">
-        <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-          <span>Se muestran todas las vías de salida en la misma tabla.</span>
-          <DhBadge
-            v-for="lane in lanes"
-            :key="lane.key"
-            :label="`${lane.name}: ${lane.totalOptions}`"
-            variant="neutral"
-          />
-        </div>
-        <div class="flex gap-2">
-          <DhButton
-            label="Aplicar filtros"
-            :icon="CalendarDays"
-            size="sm"
-            :disabled="dateRangeInvalid"
-            :loading="loading"
-            @click="load"
-          />
-          <DhButton
-            label="Limpiar"
-            size="sm"
-            variant="ghost"
-            :disabled="loading || (!filters.dateFrom && !filters.dateTo && !filters.containerTypeId)"
-            @click="clearFilters"
-          />
+      <div class="border-b border-[var(--dh-border)] px-4 py-3">
+        <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              class="mr-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
+            >
+              Vía
+            </span>
+            <button
+              type="button"
+              class="rounded-xl border px-3 py-2 text-xs font-black transition"
+              :class="
+                !filters.laneKey
+                  ? 'border-[var(--dh-primary)]/40 bg-[var(--dh-primary)]/10 text-[var(--dh-primary)] ring-2 ring-[var(--dh-primary)]/10'
+                  : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:bg-[var(--dh-card-hover)]'
+              "
+              @click="filters.laneKey = ''"
+            >
+              Todas · {{ laneFilterOptions.reduce((total, lane) => total + lane.totalOptions, 0) }}
+            </button>
+            <button
+              v-for="lane in laneFilterOptions"
+              :key="lane.key"
+              type="button"
+              class="rounded-xl border px-3 py-2 text-xs font-black transition"
+              :class="laneSelectorClass(lane.key)"
+              @click="filters.laneKey = filters.laneKey === lane.key ? '' : lane.key"
+            >
+              {{ laneShortLabel(lane.key) }} · {{ lane.totalOptions }}
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold text-[var(--dh-text-muted)]">
+              POL y POE filtran inmediatamente; las fechas consultan nuevamente Pricing.
+            </span>
+            <DhButton
+              label="Aplicar fechas"
+              :icon="CalendarDays"
+              size="sm"
+              :disabled="dateRangeInvalid"
+              :loading="loading"
+              @click="load"
+            />
+            <DhButton
+              label="Limpiar"
+              size="sm"
+              variant="ghost"
+              :disabled="
+                loading ||
+                (!filters.dateFrom &&
+                  !filters.dateTo &&
+                  !filters.containerTypeId &&
+                  !filters.pol &&
+                  !filters.poe &&
+                  !filters.laneKey)
+              "
+              @click="clearFilters"
+            />
+          </div>
         </div>
       </div>
 
@@ -462,7 +588,7 @@ onMounted(() => {
               "
               @click="selectRate(rate)"
             >
-              <td class="px-3 py-3 text-center">
+              <td class="px-3 py-3 text-center" :class="laneAccentClass(lane.key)">
                 <span
                   class="mx-auto flex h-5 w-5 items-center justify-center rounded-full border-2 transition"
                   :class="
@@ -478,9 +604,13 @@ onMounted(() => {
               <td class="px-3 py-3">
                 <div class="flex items-center gap-2 whitespace-nowrap">
                   <DhBadge v-if="index === 0" label="Recomendada" variant="success" />
-                  <strong class="text-sm text-[var(--dh-text)]">{{ rate.priorityScore.toFixed(1) }}</strong>
+                  <strong class="text-sm text-[var(--dh-text)]">{{
+                    rate.priorityScore.toFixed(1)
+                  }}</strong>
                 </div>
-                <div class="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+                <div
+                  class="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-black/10 dark:bg-white/10"
+                >
                   <span
                     class="block h-full rounded-full bg-[var(--dh-primary)]"
                     :style="{ width: `${Math.min(100, Math.max(0, rate.priorityScore))}%` }"
@@ -488,13 +618,22 @@ onMounted(() => {
                 </div>
               </td>
               <td class="px-3 py-3">
-                <strong class="block whitespace-nowrap text-sm text-[var(--dh-text)]">{{ lane.name }}</strong>
-                <span class="mt-0.5 block whitespace-nowrap text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                <span
+                  class="inline-flex items-center rounded-lg border px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em]"
+                  :class="laneBadgeClass(lane.key)"
+                >
+                  {{ laneShortLabel(lane.key) }}
+                </span>
+                <span
+                  class="mt-1.5 block whitespace-nowrap text-[11px] font-bold text-[var(--dh-text-muted)]"
+                >
                   POE: {{ rate.poe }}
                 </span>
               </td>
               <td class="px-3 py-3">
-                <strong class="whitespace-nowrap text-sm text-[var(--dh-text)]">{{ rate.carrier }}</strong>
+                <strong class="whitespace-nowrap text-sm text-[var(--dh-text)]">{{
+                  rate.carrier
+                }}</strong>
               </td>
               <td class="px-3 py-3 text-xs font-bold text-[var(--dh-text-soft)]">
                 <span class="whitespace-nowrap">{{ rate.pol }}</span>
@@ -582,8 +721,14 @@ onMounted(() => {
                     @click.stop="approveDecisionRate(rate)"
                   />
                   <DhButton
-                    :label="selectedRate?.importRateId === rate.importRateId ? 'Seleccionada' : 'Seleccionar'"
-                    :variant="selectedRate?.importRateId === rate.importRateId ? 'primary' : 'secondary'"
+                    :label="
+                      selectedRate?.importRateId === rate.importRateId
+                        ? 'Seleccionada'
+                        : 'Seleccionar'
+                    "
+                    :variant="
+                      selectedRate?.importRateId === rate.importRateId ? 'primary' : 'secondary'
+                    "
                     size="sm"
                     :loading="selectingImportId === rate.importRateId"
                     @click.stop="selectRate(rate)"
@@ -599,7 +744,7 @@ onMounted(() => {
         v-else
         class="m-5"
         title="Sin tarifas para comparar"
-        description="Cambie el contenedor o el rango de fechas para encontrar tarifas importadas vigentes."
+        description="Cambie la vía, POL, POE, contenedor o rango de fechas para encontrar tarifas importadas vigentes."
         :icon="Route"
       />
     </section>
@@ -608,26 +753,49 @@ onMounted(() => {
       v-if="selectedRate"
       class="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)]/95 shadow-[0_-12px_35px_rgba(0,0,0,0.12)] backdrop-blur-2xl"
     >
-      <div class="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between lg:px-6">
+      <div
+        class="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between lg:px-6"
+      >
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2">
           <div class="min-w-0">
-            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Tarifa seleccionada</p>
+            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">
+              Tarifa seleccionada
+            </p>
             <p class="truncate text-sm font-black text-[var(--dh-text)]">
-              {{ selectedRate.carrier }} · {{ selectedRate.pol }} → {{ selectedRate.poe }} · {{ selectedRate.containerType }}
+              {{ selectedRate.carrier }} · {{ selectedRate.pol }} → {{ selectedRate.poe }} ·
+              {{ selectedRate.containerType }}
             </p>
           </div>
           <div class="hidden h-8 w-px bg-[var(--dh-border)] md:block" />
           <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Vía</p>
-            <p class="text-sm font-bold text-[var(--dh-text)]">{{ selectedLane?.name || selectedRate.poe }}</p>
+            <p
+              class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
+            >
+              Vía
+            </p>
+            <p class="text-sm font-bold text-[var(--dh-text)]">
+              {{ selectedLane?.name || selectedRate.poe }}
+            </p>
           </div>
           <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo comparado</p>
-            <p class="text-sm font-black text-[var(--dh-primary)]">{{ totalFreightLabel(selectedRate) }}</p>
+            <p
+              class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
+            >
+              Costo comparado
+            </p>
+            <p class="text-sm font-black text-[var(--dh-primary)]">
+              {{ totalFreightLabel(selectedRate) }}
+            </p>
           </div>
           <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Prioridad</p>
-            <p class="text-sm font-black text-[var(--dh-text)]">{{ selectedRate.priorityScore.toFixed(1) }}/100</p>
+            <p
+              class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
+            >
+              Prioridad
+            </p>
+            <p class="text-sm font-black text-[var(--dh-text)]">
+              {{ selectedRate.priorityScore.toFixed(1) }}/100
+            </p>
           </div>
           <DhBadge
             v-if="selectedImport"

@@ -33,6 +33,7 @@ import {
   formatDate,
   formatMoney,
   marginTone,
+  rateDisplayName,
   routeLabel,
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
@@ -45,6 +46,17 @@ const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
 const current = ref<RateDto>(props.rate)
 const displayCurrent = computed(() => catalogs.resolveRateLabels(current.value))
+const currentDisplayName = computed(() => rateDisplayName(displayCurrent.value))
+
+function containerSummary(rate: RateDto) {
+  if (rate.shipmentMode === 'Lcl' || rate.shipmentMode === 'Ltl') {
+    return `${rate.shipmentMode.toUpperCase()} · ${Number(rate.chargeableQuantity || 0).toFixed(3)} CBM`
+  }
+  if (rate.shipmentMode === 'Ftl') return `${rate.containerQuantity} × FTL`
+  const allocations = rate.containers?.filter((item) => item.quantity > 0) ?? []
+  if (allocations.length === 0) return `${rate.containerQuantity} × ${rate.containerTypeName}`
+  return allocations.map((item) => `${item.quantity} × ${item.containerTypeName}`).join(' + ')
+}
 const loading = ref(false)
 const printing = ref(false)
 const costNotesById = ref<Record<string, string>>({})
@@ -92,7 +104,9 @@ function isUuid(value: string) {
 }
 
 function firstText(...values: Array<string | null | undefined>) {
-  return values.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() ?? null
+  return (
+    values.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() ?? null
+  )
 }
 
 async function resolveClosedByUser() {
@@ -126,7 +140,8 @@ async function resolveClosedByUser() {
     .filter(Boolean)
 
   if (currentUserIds.includes(rawUser.toLowerCase())) {
-    closedByDisplay.value = authStore.userDisplayName || authStore.username || authStore.email || 'Usuario actual'
+    closedByDisplay.value =
+      authStore.userDisplayName || authStore.username || authStore.email || 'Usuario actual'
     return
   }
 
@@ -297,10 +312,7 @@ async function printRate() {
   try {
     printing.value = true
     const fileName =
-      current.value.rateName ||
-      current.value.quoNumber ||
-      current.value.rateCode ||
-      'cotizacion'
+      currentDisplayName.value || current.value.quoNumber || current.value.rateCode || 'cotizacion'
 
     await PricingService.downloadRateDocument(current.value.id, fileName, {
       templateCode: 'pricing-fcl-client-quote',
@@ -350,14 +362,14 @@ onMounted(async () => {
             </div>
             <div>
               <h2 class="text-2xl font-black tracking-tight text-[var(--dh-text)]">
-                {{ current.rateName || current.rateCode }}
+                {{ currentDisplayName }}
               </h2>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
                 {{ routeLabel(displayCurrent) }}
               </p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-                {{ displayCurrent.carrierName }} · {{ displayCurrent.containerTypeName }} ·
-                {{ displayCurrent.incotermCode || displayCurrent.incotermName || 'Sin Incoterm' }} ·
+                {{ displayCurrent.carrierName }} · {{ containerSummary(displayCurrent) }} ·
+                {{ displayCurrent.incotermName || displayCurrent.incotermCode || 'Sin Incoterm' }} ·
                 {{ displayCurrent.agentName }}
               </p>
               <p
@@ -594,21 +606,24 @@ onMounted(async () => {
           <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
             Contenedores
           </p>
-          <p class="mt-1 font-black">{{ current.containerQuantity }}</p>
+          <p class="mt-1 font-black">{{ containerSummary(displayCurrent) }}</p>
         </div>
         <div>
           <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
             Tiempo de tránsito
           </p>
           <p class="mt-1 font-black">
-            {{ current.transitDays != null ? `${current.transitDays} días` : '—' }}
+            {{ current.transitTime || '—' }}
           </p>
         </div>
         <div>
           <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
-            Estado comercial
+            Tipo de tarifa · Estado
           </p>
-          <p class="mt-1 font-black">{{ statusLabel(current.status) }}</p>
+          <p class="mt-1 font-black">
+            {{ current.rateType === 'Spot' ? 'SPOT' : 'TARIFARIO' }} ·
+            {{ statusLabel(current.status) }}
+          </p>
         </div>
       </div>
       <div class="mt-5 grid gap-4 lg:grid-cols-3">
