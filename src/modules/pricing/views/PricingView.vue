@@ -3123,7 +3123,7 @@ onMounted(refreshAll)
                       <th class="px-4 py-3 text-right">{{ t('pricing.matrix.sale') }}</th>
                       <th class="px-4 py-3 text-right">{{ t('pricing.matrix.profit') }}</th>
                       <th class="px-4 py-3 text-center">{{ t('common.status') }}</th>
-                      <th class="px-4 py-3 text-right">{{ t('common.actions') }}</th>
+                      <th class="sticky right-0 z-20 border-l border-white/10 bg-[#111] px-4 py-3 text-right">{{ t('common.actions') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3172,7 +3172,7 @@ onMounted(refreshAll)
                           />
                         </button>
                       </td>
-                      <td class="px-4 py-3">
+                      <td class="sticky right-0 z-10 border-l border-[var(--dh-border)] bg-[var(--dh-surface)] px-4 py-3 shadow-[-10px_0_18px_-18px_rgba(0,0,0,0.45)]">
                         <div class="flex justify-end gap-2">
                           <DhButton
                             size="sm"

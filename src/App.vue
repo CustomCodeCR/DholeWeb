@@ -8,6 +8,8 @@ import AiAssistantFloatingButton from '@/modules/ai/components/AiAssistantFloati
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
+import { useToastStore } from '@/core/stores/toastStore'
+import { initializePricingOfflineSync, flushPricingOfflineQueue } from '@/core/offline/pricingOfflineQueue'
 import {
   startNotificationRealtime,
   stopNotificationRealtime,
@@ -17,6 +19,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const tabsStore = useWorkspaceTabsStore()
 const brandingStore = useBrandingStore()
+const toastStore = useToastStore()
 
 function handleAuthExpired() {
   void stopNotificationRealtime()
@@ -43,6 +46,19 @@ function handleAuthRefreshed(event: Event) {
 
 onMounted(() => {
   brandingStore.applyCachedOrDefault()
+  initializePricingOfflineSync()
+  const handleOffline = () => toastStore.warning('Sin conexión', 'Los cambios de Pricing se conservarán localmente y se sincronizarán al recuperar Internet.')
+  const handleOnline = () => {
+    toastStore.info('Conexión recuperada', 'Sincronizando cambios pendientes…')
+    void flushPricingOfflineQueue()
+  }
+  window.addEventListener('offline', handleOffline)
+  window.addEventListener('online', handleOnline)
+  ;(window as Window & { __dholeConnectivityCleanup?: () => void }).__dholeConnectivityCleanup = () => {
+    window.removeEventListener('offline', handleOffline)
+    window.removeEventListener('online', handleOnline)
+  }
+
   void brandingStore.loadCurrentClientBranding()
   void startNotificationRealtime()
 
@@ -52,6 +68,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   void stopNotificationRealtime()
+  ;(window as Window & { __dholeConnectivityCleanup?: () => void }).__dholeConnectivityCleanup?.()
   window.removeEventListener('dhole:auth:expired', handleAuthExpired)
   window.removeEventListener('dhole:auth:refreshed', handleAuthRefreshed)
 })

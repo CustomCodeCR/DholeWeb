@@ -45,6 +45,7 @@ let stopped = true
 let reconnectAttempt = 0
 let reconnectTimer: number | null = null
 let connecting: Promise<void> | null = null
+let lastFailureToastAt = 0
 
 function normalizeBaseUrl(value: unknown): URL | null {
   const configured = String(value ?? '').trim()
@@ -62,8 +63,10 @@ function notificationHubCandidates(): URL[] {
   // retained only as a development fallback for environments whose gateway has not
   // yet enabled WebSocket proxying.
   const candidates = [
-    normalizeBaseUrl(import.meta.env.VITE_API_URL),
+    // The Notifications service is the canonical SignalR endpoint. Try it before
+    // the gateway so a gateway without WebSocket routing does not cause a false 404.
     normalizeBaseUrl(import.meta.env.VITE_NOTIFICATIONS_URL),
+    normalizeBaseUrl(import.meta.env.VITE_API_URL),
     new URL(window.location.origin),
   ].filter((value): value is URL => value !== null)
 
@@ -79,20 +82,25 @@ function notificationHubCandidates(): URL[] {
   return [...unique.values()]
 }
 
-function hubHttpUrl(base: URL, path = '') {
-  const url = new URL(base.toString())
-  const basePath = url.pathname.replace(/\/$/, '')
-  url.pathname = `${basePath}/api/notifications/hub${path}`.replace(/\/+/g, '/')
-  url.search = ''
-  url.hash = ''
-  return url
+function hubHttpUrls(base: URL, path = '') {
+  const basePath = base.pathname.replace(/\/$/, '')
+  // First path matches DholeNotificationsService. The second keeps compatibility
+  // with reverse proxies that mount notification routes without the /api prefix.
+  return ['/api/notifications/hub', '/notifications/hub'].map((hubPath) => {
+    const url = new URL(base.toString())
+    url.pathname = `${basePath}${hubPath}${path}`.replace(/\/+/g, '/')
+    url.search = ''
+    url.hash = ''
+    return url
+  })
 }
 
 async function negotiate(base: URL, accessToken: string) {
-  const url = hubHttpUrl(base, '/negotiate')
-  url.searchParams.set('negotiateVersion', '1')
+  let lastError: Error | null = null
+  for (const url of hubHttpUrls(base, '/negotiate')) {
+    url.searchParams.set('negotiateVersion', '1')
 
-  const response = await fetch(url, {
+    const response = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -100,16 +108,26 @@ async function negotiate(base: URL, accessToken: string) {
     },
   })
 
-  if (!response.ok) throw new Error(`SignalR negotiate failed (${response.status}) at ${url.origin}.`)
-  const result = (await response.json()) as SignalRNegotiateResponse
-  if (result.error) throw new Error(result.error)
-  if (!result.connectionToken && !result.connectionId)
-    throw new Error('SignalR negotiate did not return a connection token.')
-  return result
+    if (!response.ok) {
+      lastError = new Error(`SignalR negotiate failed (${response.status}) at ${url.toString()}.`)
+      continue
+    }
+    const result = (await response.json()) as SignalRNegotiateResponse
+    if (result.error) {
+      lastError = new Error(result.error)
+      continue
+    }
+    if (!result.connectionToken && !result.connectionId) {
+      lastError = new Error('SignalR negotiate did not return a connection token.')
+      continue
+    }
+    return { result, hubUrl: new URL(url.toString().replace(/\/negotiate(?:\?.*)?$/, '')) }
+  }
+  throw lastError ?? new Error('SignalR negotiate failed.')
 }
 
-function websocketUrl(base: URL, connectionToken: string, accessToken: string) {
-  const url = hubHttpUrl(base)
+function websocketUrl(hubUrl: URL, connectionToken: string, accessToken: string) {
+  const url = new URL(hubUrl.toString())
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.searchParams.set('id', connectionToken)
   // Browsers cannot set Authorization headers on WebSocket upgrade requests.
@@ -243,8 +261,8 @@ async function openSignalRSocket(accessToken: string): Promise<WebSocket> {
   for (const base of notificationHubCandidates()) {
     try {
       const negotiation = await negotiate(base, accessToken)
-      const connectionToken = negotiation.connectionToken ?? negotiation.connectionId!
-      const ws = new WebSocket(websocketUrl(base, connectionToken, accessToken))
+      const connectionToken = negotiation.result.connectionToken ?? negotiation.result.connectionId!
+      const ws = new WebSocket(websocketUrl(negotiation.hubUrl, connectionToken, accessToken))
       await waitForWebSocketOpen(ws)
       return ws
     } catch (error) {
@@ -294,7 +312,16 @@ async function connect() {
 
       ws.send(JSON.stringify({ protocol: 'json', version: 1 }) + recordSeparator)
       window.dispatchEvent(new CustomEvent('dhole:notification:realtime-connected'))
-    } catch {
+    } catch (error) {
+      const now = Date.now()
+      if (now - lastFailureToastAt > 60_000) {
+        lastFailureToastAt = now
+        useToastStore().warning(
+          'Notificaciones en tiempo real desconectadas',
+          'Se reintentará la conexión automáticamente. Las notificaciones siguen disponibles en el historial.',
+        )
+      }
+      window.dispatchEvent(new CustomEvent('dhole:notification:realtime-error', { detail: error }))
       scheduleReconnect()
     }
   })().finally(() => {

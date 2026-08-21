@@ -21,6 +21,11 @@ const { t } = useI18n()
 function valueOf(row: T, key: keyof T | string): unknown {
   return row[key as keyof T]
 }
+
+function isStickyActionColumn(key: keyof T | string): boolean {
+  const value = String(key).toLowerCase()
+  return value === 'actions' || value === '__actions'
+}
 </script>
 
 <template>
@@ -38,6 +43,8 @@ function valueOf(row: T, key: keyof T | string): unknown {
             :class="[
               column.align === 'center' && 'text-center',
               column.align === 'right' && 'text-right',
+              isStickyActionColumn(column.key) &&
+                'sticky right-0 z-20 border-l border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[-10px_0_18px_-18px_rgba(0,0,0,0.45)]',
             ]"
           >
             {{ column.label }}
@@ -69,6 +76,8 @@ function valueOf(row: T, key: keyof T | string): unknown {
             :class="[
               column.align === 'center' && 'text-center',
               column.align === 'right' && 'text-right',
+              isStickyActionColumn(column.key) &&
+                'sticky right-0 z-10 border-l border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[-10px_0_18px_-18px_rgba(0,0,0,0.45)]',
             ]"
           >
             <slot :name="`cell-${String(column.key)}`" :row="row" :value="valueOf(row, column.key)">

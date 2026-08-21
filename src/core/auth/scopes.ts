@@ -56,6 +56,7 @@ export const CONFIG_SCOPES = {
 
   catalogSelects: {
     view: 'config.catalog-selects.view',
+    select: 'config.select',
   },
 } as const
 

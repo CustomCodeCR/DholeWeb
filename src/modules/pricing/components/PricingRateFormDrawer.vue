@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   AlertTriangle,
   ChevronDown,
@@ -16,6 +16,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
+import { isConnectionFailure, queueRateCreate, queueRateUpdate } from '@/core/offline/pricingOfflineQueue'
 import type {
   ChargeBasis,
   CostDetailType,
@@ -68,6 +69,7 @@ interface EditableDetail {
   fixedDecisionCost?: boolean
   insuranceGenerated?: boolean
   automaticFixed?: boolean
+  exwGenerated?: boolean
   quantity?: number
   minimumCostAmount?: number | null
   minimumSaleAmount?: number | null
@@ -140,7 +142,12 @@ function toggleStage(stage: 1 | 2 | 3 | 4) {
 const today = new Date()
 const nextMonth = new Date(today)
 nextMonth.setDate(nextMonth.getDate() + 30)
-const dateValue = (date: Date) => date.toISOString().slice(0, 10)
+const dateValue = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 const form = reactive({
   shipmentMode: (props.rate?.shipmentMode ?? 'Fcl') as ShipmentMode,
@@ -178,6 +185,76 @@ const form = reactive({
   submitted: false,
   saving: false,
 })
+
+
+const draftStorageKey = computed(() =>
+  props.rate?.id
+    ? `dhole.pricing.rate-draft.${props.rate.id}`
+    : props.sourceImport?.id
+      ? `dhole.pricing.rate-draft.import.${props.sourceImport.id}`
+      : 'dhole.pricing.rate-draft.new',
+)
+let draftTimer: number | null = null
+let restoringDraft = false
+
+function clearDraft() {
+  localStorage.removeItem(draftStorageKey.value)
+}
+
+function persistDraft() {
+  if (!initialized.value || restoringDraft) return
+  const snapshot = {
+    savedAt: new Date().toISOString(),
+    form: { ...form, submitted: false, saving: false },
+    details: details.value,
+    containerAllocations: containerAllocations.value,
+    cargoLines: cargoLines.value,
+    optionalCostIds: optionalCostIds.value,
+    removedDetailIds: removedDetailIds.value,
+    includesTermIds: includesTermIds.value,
+    subjectToTermIds: subjectToTermIds.value,
+    excludesTermIds: excludesTermIds.value,
+  }
+  localStorage.setItem(draftStorageKey.value, JSON.stringify(snapshot))
+}
+
+function scheduleDraftSave() {
+  if (!initialized.value || restoringDraft) return
+  if (draftTimer !== null) window.clearTimeout(draftTimer)
+  draftTimer = window.setTimeout(() => {
+    draftTimer = null
+    persistDraft()
+  }, 500)
+}
+
+function restoreDraftIfAvailable() {
+  const raw = localStorage.getItem(draftStorageKey.value)
+  if (!raw) return false
+  try {
+    const draft = JSON.parse(raw) as Record<string, any>
+    if (!draft?.savedAt || Date.now() - new Date(draft.savedAt).getTime() > 7 * 24 * 60 * 60 * 1000) {
+      clearDraft()
+      return false
+    }
+    restoringDraft = true
+    if (draft.form) Object.assign(form, draft.form, { submitted: false, saving: false })
+    if (Array.isArray(draft.details)) details.value = draft.details
+    if (Array.isArray(draft.containerAllocations)) containerAllocations.value = draft.containerAllocations
+    if (Array.isArray(draft.cargoLines)) cargoLines.value = draft.cargoLines
+    if (Array.isArray(draft.optionalCostIds)) optionalCostIds.value = draft.optionalCostIds
+    if (Array.isArray(draft.removedDetailIds)) removedDetailIds.value = draft.removedDetailIds
+    if (Array.isArray(draft.includesTermIds)) includesTermIds.value = draft.includesTermIds
+    if (Array.isArray(draft.subjectToTermIds)) subjectToTermIds.value = draft.subjectToTermIds
+    if (Array.isArray(draft.excludesTermIds)) excludesTermIds.value = draft.excludesTermIds
+    toastStore.info('Borrador recuperado', 'Se restauraron los cambios que estaban guardados en este navegador.')
+    return true
+  } catch {
+    clearDraft()
+    return false
+  } finally {
+    restoringDraft = false
+  }
+}
 
 const isEditing = computed(() => Boolean(props.rate))
 const isCreatingFromImport = computed(() => Boolean(props.sourceImport && !props.rate))
@@ -891,6 +968,69 @@ function addManualDetail(type: CostDetailType = 'Other') {
   })
 }
 
+const exwOriginConcepts = ['Recolecta', 'Cargos en Origen'] as const
+
+function isExwSelected() {
+  const incoterm = catalogs.findById(catalogs.incoterms.value, form.incotermId)
+  const code = normalizeKey(incoterm?.code || '')
+  if (code) return code === 'exw'
+
+  const name = normalizeKey(incoterm?.name || '')
+  return name === 'exw' || name.startsWith('exw') || name === 'exworks'
+}
+
+function createExwOriginDetail(name: (typeof exwOriginConcepts)[number]): EditableDetail {
+  return {
+    key: `exw-origin-${normalizeKey(name)}-${createUuid()}`,
+    name,
+    costDetailType: 'OriginCharge',
+    costType: 'Variable',
+    chargeBasis: 'PerShipment',
+    currencyId: form.currencyId,
+    currencyName: selectedCurrency.value?.name ?? '',
+    currencyCode: selectedCurrency.value?.code ?? '',
+    costAmount: '',
+    saleAmount: '',
+    notes: '',
+    isAccountant: false,
+    locked: false,
+    exwGenerated: true,
+  }
+}
+
+function syncExwOriginDetails() {
+  if (!initialized.value) return
+
+  if (!isExwSelected()) {
+    const removed = details.value.filter((detail) => detail.exwGenerated)
+    for (const detail of removed) {
+      if (detail.id) removedDetailIds.value.push(detail.id)
+    }
+    details.value = details.value.filter((detail) => !detail.exwGenerated)
+    return
+  }
+
+  for (const name of exwOriginConcepts) {
+    const normalizedName = normalizeKey(name)
+    const existing = details.value.find(
+      (detail) =>
+        !detail.costId &&
+        !detail.fixedDecisionCost &&
+        !detail.insuranceGenerated &&
+        detail.costDetailType === 'OriginCharge' &&
+        normalizeKey(detail.name) === normalizedName,
+    )
+
+    if (existing) {
+      existing.exwGenerated = true
+      existing.locked = false
+      continue
+    }
+
+    details.value.push(createExwOriginDetail(name))
+  }
+}
+
 function removeDetail(detail: EditableDetail) {
   if (detail.locked || detail.fixedDecisionCost) return
   if (detail.id) removedDetailIds.value.push(detail.id)
@@ -1100,44 +1240,58 @@ const totalSale = computed(
 const totalUtility = computed(() => totalSale.value - totalCost.value)
 const margin = computed(() => calculateMargin(totalCost.value, totalSale.value))
 
-const groups = computed(() => [
-  {
-    key: 'agent',
-    title: 'Costos de agente',
-    hint: 'No generan venta.',
-    rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'AgentCharge'),
-  },
-  ...(usesContainerFreight.value
-    ? []
-    : [
-        {
-          key: 'freight',
-          title: 'Flete internacional',
-          hint: 'Costo y venta marítima.',
-          rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'Freight'),
-        },
-      ]),
-  {
-    key: 'destination',
-    title: 'Costos de destino',
-    hint: 'POE, POD y transporte interno.',
-    rows: visibleDetails.value.filter((detail) =>
-      ['DestinationCharge', 'InlandTransport'].includes(detail.costDetailType),
-    ),
-  },
-  {
-    key: 'other',
-    title: 'Otros rubros',
-    hint: 'Origen, documentación y adicionales.',
-    rows: visibleDetails.value.filter(
-      (detail) =>
-        !detail.insuranceGenerated &&
-        !['AgentCharge', 'Freight', 'DestinationCharge', 'InlandTransport'].includes(
-          detail.costDetailType,
-        ),
-    ),
-  },
-])
+const groups = computed(() => {
+  const originRows = visibleDetails.value.filter((detail) => detail.costDetailType === 'OriginCharge')
+
+  return [
+    {
+      key: 'agent',
+      title: 'Costos de agente',
+      hint: 'No generan venta.',
+      rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'AgentCharge'),
+    },
+    ...(usesContainerFreight.value
+      ? []
+      : [
+          {
+            key: 'freight',
+            title: 'Flete internacional',
+            hint: 'Costo y venta marítima.',
+            rows: visibleDetails.value.filter((detail) => detail.costDetailType === 'Freight'),
+          },
+        ]),
+    ...(originRows.length
+      ? [
+          {
+            key: 'origin',
+            title: 'Cargos en origen',
+            hint: 'Recolecta, manejo y demás cargos aplicables en origen.',
+            rows: originRows,
+          },
+        ]
+      : []),
+    {
+      key: 'destination',
+      title: 'Costos de destino',
+      hint: 'POE, POD y transporte interno.',
+      rows: visibleDetails.value.filter((detail) =>
+        ['DestinationCharge', 'InlandTransport'].includes(detail.costDetailType),
+      ),
+    },
+    {
+      key: 'other',
+      title: 'Otros rubros',
+      hint: 'Documentación y cargos adicionales.',
+      rows: visibleDetails.value.filter(
+        (detail) =>
+          !detail.insuranceGenerated &&
+          !['AgentCharge', 'Freight', 'OriginCharge', 'DestinationCharge', 'InlandTransport'].includes(
+            detail.costDetailType,
+          ),
+      ),
+    },
+  ]
+})
 
 watch(
   () => [
@@ -1494,9 +1648,33 @@ async function approveIfAllowed(rateId: string) {
   }
 }
 
+function notifyValidationProblems() {
+  const missing: string[] = []
+  if (!form.agentId) missing.push('agente')
+  if (!form.carrierId) missing.push('naviera')
+  if (!form.polId) missing.push('POL')
+  if (!form.poeId) missing.push('POE')
+  if (!form.podId) missing.push('POD')
+  if (!form.containerTypeId && isFcl.value) missing.push('contenedor')
+  if (!form.incotermId) missing.push('Incoterm')
+  if (!form.currencyId) missing.push('moneda')
+  if (!form.validFrom || !form.validTo) missing.push('vigencia')
+  if (containerAllocationError.value) missing.push('distribución de contenedores')
+  toastStore.warning(
+    'Faltan datos para guardar',
+    missing.length ? `Revise: ${missing.join(', ')}.` : 'Revise los rubros, cantidades y montos marcados antes de guardar.',
+  )
+}
+
 async function submit() {
-  if (!validate()) return
+  if (!validate()) {
+    notifyValidationProblems()
+    return
+  }
   const header = buildHeader()!
+
+  let pendingUpdate: UpdateRateRequest | null = null
+  let pendingCreate: CreateRateRequest | null = null
 
   try {
     form.saving = true
@@ -1521,6 +1699,7 @@ async function submit() {
         ],
         removedExtraDetailIds: [...new Set(removedDetailIds.value)],
       }
+      pendingUpdate = payload
       await PricingService.updateRate(props.rate.id, payload)
     } else {
       const payload: CreateRateRequest = {
@@ -1534,7 +1713,7 @@ async function submit() {
                   detail.insuranceGenerated ||
                   detail.fixedDecisionCost ||
                   detail.automaticFixed ||
-                  detail.costType === 'Optional',
+                  !detail.locked,
               )
               .map(mapDetail)
           : [
@@ -1550,13 +1729,26 @@ async function submit() {
                 .map(mapDetail),
             ],
       }
+      pendingCreate = payload
       rateId = await PricingService.createRate(payload)
     }
 
     if (rateId) await approveIfAllowed(rateId)
+    clearDraft()
     drawerStore.close()
     await props.onSaved?.(rateId)
   } catch (error) {
+    if (isConnectionFailure(error)) {
+      if (props.rate && pendingUpdate) queueRateUpdate(props.rate.id, pendingUpdate)
+      else if (!props.rate && pendingCreate) queueRateCreate(pendingCreate)
+      persistDraft()
+      toastStore.warning(
+        'Cambio guardado sin conexión',
+        'El cambio quedó almacenado en este navegador y se enviará automáticamente cuando vuelva la conexión.',
+      )
+      drawerStore.close()
+      return
+    }
     toastStore.backendError(
       error,
       isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.',
@@ -1800,8 +1992,20 @@ async function initialize() {
   if (!isFcl.value && !details.value.some((detail) => detail.costDetailType === 'Freight')) {
     addManualDetail('Freight')
   }
+  if (form.rateType === 'Spot') {
+    const todayValue = dateValue(new Date())
+    form.validFrom = todayValue
+    form.validTo = todayValue
+  }
   initialized.value = true
+  const draftRestored = restoreDraftIfAvailable()
+  if (draftRestored && form.rateType === 'Spot') {
+    const todayValue = dateValue(new Date())
+    form.validFrom = todayValue
+    form.validTo = todayValue
+  }
   synchronizeEditableFixedCosts()
+  syncExwOriginDetails()
   syncCargoInsurance()
 }
 
@@ -1846,12 +2050,51 @@ watch(
 )
 
 watch(
+  () => form.incotermId,
+  (value, previous) => {
+    if (!initialized.value || value === previous) return
+    syncExwOriginDetails()
+  },
+)
+
+watch(
   () => [form.rateType, form.shipmentMode, form.poeId, form.incotermId] as const,
   async (value, previous) => {
     if (!initialized.value || value.every((item, index) => item === previous?.[index])) return
     await loadAutomaticTermBlocks(true)
   },
 )
+
+watch(
+  () => form.rateType,
+  (rateType) => {
+    if (rateType !== 'Spot') return
+    const todayValue = dateValue(new Date())
+    form.validFrom = todayValue
+    form.validTo = todayValue
+  },
+)
+
+watch(
+  [
+    () => ({ ...form }),
+    details,
+    containerAllocations,
+    cargoLines,
+    optionalCostIds,
+    removedDetailIds,
+    includesTermIds,
+    subjectToTermIds,
+    excludesTermIds,
+  ],
+  scheduleDraftSave,
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  if (draftTimer !== null) window.clearTimeout(draftTimer)
+  if (initialized.value && !form.saving) persistDraft()
+})
 
 onMounted(initialize)
 </script>
@@ -2331,14 +2574,14 @@ onMounted(initialize)
         </div>
         <DhInput
           v-model="form.validFrom"
-          :disabled="isHeaderLocked"
+          :disabled="isHeaderLocked || form.rateType === 'Spot'"
           type="date"
           label="Válida desde"
           :error="form.submitted && !form.validFrom ? 'Indique la fecha.' : undefined"
         />
         <DhInput
           v-model="form.validTo"
-          :disabled="isHeaderLocked"
+          :disabled="isHeaderLocked || form.rateType === 'Spot'"
           type="date"
           label="Válida hasta"
           :error="
@@ -2347,6 +2590,9 @@ onMounted(initialize)
               : undefined
           "
         />
+        <p v-if="form.rateType === 'Spot'" class="sm:col-span-2 xl:col-span-5 text-xs font-bold text-amber-600 dark:text-amber-300">
+          Las tarifas SPOT aplican únicamente para hoy; la vigencia se fija automáticamente de hoy para hoy.
+        </p>
       </div>
     </section>
 
@@ -2443,14 +2689,6 @@ onMounted(initialize)
             modalidad.
           </p>
         </div>
-        <DhButton
-          v-if="!isCreatingFromImport && !collapsedStages[4]"
-          label="Rubro manual"
-          :icon="Plus"
-          variant="secondary"
-          size="sm"
-          @click.stop="addManualDetail()"
-        />
         <button
           type="button"
           class="rounded-2xl border border-[var(--dh-border)] p-2 text-[var(--dh-text-muted)] transition hover:bg-black/5 hover:text-[var(--dh-text)] dark:hover:bg-white/10"
@@ -2489,8 +2727,8 @@ onMounted(initialize)
                     label="Concepto"
                     placeholder="Nombre del rubro"
                     :disabled="
-                      isCreatingFromImport ||
                       detail.locked ||
+                      detail.exwGenerated ||
                       Boolean(detail.costId) ||
                       detail.fixedDecisionCost
                     "
@@ -2509,6 +2747,11 @@ onMounted(initialize)
                     <DhBadge v-if="detail.locked" label="Automático" variant="neutral"
                       ><LockKeyhole class="mr-1 h-3 w-3" /> Automático</DhBadge
                     >
+                    <DhBadge
+                      v-if="detail.exwGenerated"
+                      label="EXW · Monto manual"
+                      variant="primary"
+                    />
                     <DhBadge
                       v-if="detail.fixedDecisionCost"
                       label="Valor fijo del dashboard"
@@ -2532,8 +2775,8 @@ onMounted(initialize)
                   label="Rubro"
                   :options="selectableDetailTypeOptions"
                   :disabled="
-                    isCreatingFromImport ||
                     detail.locked ||
+                    detail.exwGenerated ||
                     Boolean(detail.costId) ||
                     detail.fixedDecisionCost
                   "
@@ -2544,7 +2787,6 @@ onMounted(initialize)
                   label="Costo"
                   placeholder="0.00"
                   :disabled="
-                    isCreatingFromImport ||
                     detail.estimated ||
                     detail.fixedDecisionCost ||
                     detail.automaticFixed
@@ -2559,8 +2801,8 @@ onMounted(initialize)
                 />
                 <button
                   v-if="
-                    !isCreatingFromImport &&
                     !detail.locked &&
+                    !detail.exwGenerated &&
                     !detail.importedFreight &&
                     !detail.fixedDecisionCost
                   "
@@ -2574,7 +2816,6 @@ onMounted(initialize)
               </div>
               <div
                 v-if="
-                  !isCreatingFromImport &&
                   !detail.costId &&
                   !detail.locked &&
                   !detail.fixedDecisionCost
@@ -2602,6 +2843,19 @@ onMounted(initialize)
             Sin rubros en esta sección.
           </p>
         </section>
+      </div>
+
+      <div
+        v-show="!collapsedStages[4]"
+        class="mt-5 flex justify-end border-t border-[var(--dh-border)] pt-5"
+      >
+        <DhButton
+          label="Rubro manual"
+          :icon="Plus"
+          variant="secondary"
+          size="sm"
+          @click="addManualDetail()"
+        />
       </div>
 
       <div v-show="!collapsedStages[4]" class="mt-6 border-t border-[var(--dh-border)] pt-5">

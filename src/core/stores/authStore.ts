@@ -432,11 +432,17 @@ export const useAuthStore = defineStore('auth', () => {
     if (hasRole('SuperUsuario') || hasRole('SuperUser')) return true
 
     const normalizedScope = scope.trim().toLowerCase()
+    const compatibleScopes =
+      normalizedScope === 'config.catalog-selects.view'
+        ? new Set([normalizedScope, 'config.select'])
+        : normalizedScope === 'config.select'
+          ? new Set([normalizedScope, 'config.catalog-selects.view'])
+          : new Set([normalizedScope])
 
     return scopes.value.some((value) => {
       const normalizedValue = value.trim().toLowerCase()
 
-      if (normalizedValue === '*' || normalizedValue === normalizedScope) return true
+      if (normalizedValue === '*' || compatibleScopes.has(normalizedValue)) return true
       if (!normalizedValue.endsWith('.*')) return false
 
       return normalizedScope.startsWith(normalizedValue.slice(0, -1))
