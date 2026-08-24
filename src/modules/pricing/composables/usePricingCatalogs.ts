@@ -225,7 +225,10 @@ function equipmentDimensions(item?: PricingCatalogItem | null): ContainerEquipme
   const match = compact(item.code || item.value || item.name).toUpperCase().match(/^(20|40|45|48)(DV|HC|OT|OS|TK|FR|NOR)$/)
   if (!match) return null
 
-  const [, size, kindCode] = match
+  const size = match[1]
+  const kindCode = match[2]
+  if (!size || !kindCode) return null
+
   return {
     size,
     kindCode,
