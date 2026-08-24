@@ -74,6 +74,22 @@ jobs:
             -t "dhole/web:$SHA_TAG" \
             .
 
+      - name: Verify production bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh dhole/web:latest -ec '
+            if grep -R -n -E "https?://(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" /usr/share/nginx/html; then
+              echo "Production bundle contains a private-network URL."
+              exit 1
+            fi
+
+            if grep -R -n -F ":5209/api/notifications" /usr/share/nginx/html; then
+              echo "Production bundle contains a direct Notifications service URL."
+              exit 1
+            fi
+          '
+
       - name: Deploy Web
         shell: bash
         run: |
