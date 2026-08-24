@@ -47,49 +47,23 @@ let reconnectTimer: number | null = null
 let connecting: Promise<void> | null = null
 let lastFailureToastAt = 0
 
-function normalizeBaseUrl(value: unknown): URL | null {
-  const configured = String(value ?? '').trim()
+function apiGatewayBaseUrl(): URL | null {
+  const configured = String(import.meta.env.VITE_API_URL ?? '').trim()
   if (!configured) return null
 
   try {
-    return new URL(configured, window.location.origin)
+    const url = new URL(configured, window.location.origin)
+    url.pathname = url.pathname.replace(/\/$/, '')
+    url.search = ''
+    url.hash = ''
+    return url
   } catch {
     return null
   }
 }
 
-function notificationHubCandidates(): URL[] {
-  // Production traffic must always enter through the public API Gateway. This avoids
-  // leaking/baking private LAN service URLs into the browser and prevents HTTPS pages
-  // from attempting mixed-content connections to the Notifications container.
-  const candidates: Array<URL | null> = [normalizeBaseUrl(import.meta.env.VITE_API_URL)]
-
-  // Direct service and same-origin fallbacks are useful only while developing locally.
-  // In production they would either be unreachable private addresses or the Web SPA
-  // origin, where /api/notifications/hub is not served.
-  if (import.meta.env.DEV) {
-    candidates.push(
-      normalizeBaseUrl(import.meta.env.VITE_NOTIFICATIONS_URL),
-      new URL(window.location.origin),
-    )
-  }
-
-  const unique = new Map<string, URL>()
-  for (const candidate of candidates.filter((value): value is URL => value !== null)) {
-    const normalized = new URL(candidate.toString())
-    normalized.pathname = normalized.pathname.replace(/\/$/, '')
-    normalized.search = ''
-    normalized.hash = ''
-    unique.set(normalized.toString(), normalized)
-  }
-
-  return [...unique.values()]
-}
-
 function hubHttpUrls(base: URL, path = '') {
   const basePath = base.pathname.replace(/\/$/, '')
-  // First path matches DholeNotificationsService. The second keeps compatibility
-  // with reverse proxies that mount notification routes without the /api prefix.
   return ['/api/notifications/hub', '/notifications/hub'].map((hubPath) => {
     const url = new URL(base.toString())
     url.pathname = `${basePath}${hubPath}${path}`.replace(/\/+/g, '/')
@@ -101,6 +75,7 @@ function hubHttpUrls(base: URL, path = '') {
 
 async function negotiate(base: URL, accessToken: string) {
   let lastError: Error | null = null
+
   for (const url of hubHttpUrls(base, '/negotiate')) {
     url.searchParams.set('negotiateVersion', '1')
 
@@ -116,17 +91,24 @@ async function negotiate(base: URL, accessToken: string) {
       lastError = new Error(`SignalR negotiate failed (${response.status}) at ${url.toString()}.`)
       continue
     }
+
     const result = (await response.json()) as SignalRNegotiateResponse
     if (result.error) {
       lastError = new Error(result.error)
       continue
     }
+
     if (!result.connectionToken && !result.connectionId) {
       lastError = new Error('SignalR negotiate did not return a connection token.')
       continue
     }
-    return { result, hubUrl: new URL(url.toString().replace(/\/negotiate(?:\?.*)?$/, '')) }
+
+    return {
+      result,
+      hubUrl: new URL(url.toString().replace(/\/negotiate(?:\?.*)?$/, '')),
+    }
   }
+
   throw lastError ?? new Error('SignalR negotiate failed.')
 }
 
@@ -134,8 +116,6 @@ function websocketUrl(hubUrl: URL, connectionToken: string, accessToken: string)
   const url = new URL(hubUrl.toString())
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.searchParams.set('id', connectionToken)
-  // Browsers cannot set Authorization headers on WebSocket upgrade requests.
-  // JwtBearer on Notifications explicitly reads the token from this query string.
   url.searchParams.set('access_token', accessToken)
   return url.toString()
 }
@@ -200,14 +180,12 @@ function processFrame(frame: string) {
     return
   }
 
-  // type 1 = Invocation; server calls notificationReceived(SystemNotificationPush).
   if (message.type === 1 && message.target?.toLocaleLowerCase() === 'notificationreceived') {
     const notification = message.arguments?.[0] as SystemNotificationPush | undefined
     if (notification?.notificationId) handleNotification(notification)
     return
   }
 
-  // type 7 = Close. Force reconnect unless the application explicitly stopped realtime.
   if (message.type === 7 && !stopped) {
     socket?.close()
   }
@@ -260,21 +238,16 @@ function waitForWebSocketOpen(ws: WebSocket, timeoutMs = 7_000): Promise<void> {
 }
 
 async function openSignalRSocket(accessToken: string): Promise<WebSocket> {
-  let lastError: unknown = null
-
-  for (const base of notificationHubCandidates()) {
-    try {
-      const negotiation = await negotiate(base, accessToken)
-      const connectionToken = negotiation.result.connectionToken ?? negotiation.result.connectionId!
-      const ws = new WebSocket(websocketUrl(negotiation.hubUrl, connectionToken, accessToken))
-      await waitForWebSocketOpen(ws)
-      return ws
-    } catch (error) {
-      lastError = error
-    }
+  const base = apiGatewayBaseUrl()
+  if (!base) {
+    throw new Error('VITE_API_URL is not configured for realtime notifications.')
   }
 
-  throw lastError instanceof Error ? lastError : new Error('No SignalR endpoint is available.')
+  const negotiation = await negotiate(base, accessToken)
+  const connectionToken = negotiation.result.connectionToken ?? negotiation.result.connectionId!
+  const ws = new WebSocket(websocketUrl(negotiation.hubUrl, connectionToken, accessToken))
+  await waitForWebSocketOpen(ws)
+  return ws
 }
 
 async function connect() {
