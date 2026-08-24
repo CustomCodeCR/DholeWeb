@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import type { CatalogItemDto } from '@/core/interfaces/catalogs'
+import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import type { CostDto, RateDto } from '@/core/interfaces/pricing'
 
 export interface PricingCatalogItem {
@@ -71,8 +71,8 @@ function normalize(value: string) {
     .replace(/[\u0300-\u036f]/g, '')
 }
 
-function mapItem(item: CatalogItemDto): PricingCatalogItem {
-  const displayName = String(item.name || item.value || item.code).trim()
+function mapSelectItem(item: CatalogItemSelectDto): PricingCatalogItem {
+  const displayName = String(item.label || item.value || item.code).trim()
   const catalogCode = String(item.code || item.value || displayName).trim()
 
   return {
@@ -112,8 +112,8 @@ function normalizeCurrency(item: PricingCatalogItem): PricingCatalogItem {
 async function loadFirstAvailable(slugs: string[]): Promise<PricingCatalogItem[]> {
   for (const slug of slugs) {
     try {
-      const items = await CatalogItemsService.getByGroupSlug(slug)
-      if (items.length > 0) return items.filter((item) => item.isActive !== false).map(mapItem)
+      const items = await CatalogItemsService.select({ catalogGroupSlug: slug })
+      if (items.length > 0) return items.filter((item) => item.isActive !== false).map(mapSelectItem)
     } catch {
       // Try the compatibility slug used by older Config deployments.
     }
