@@ -37,6 +37,7 @@ import type {
   UpdateRateRequest,
 } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
+import PricingContainerSelector from './PricingContainerSelector.vue'
 import PricingMultiSelect, { type PricingMultiSelectOption } from './PricingMultiSelect.vue'
 import PricingTermDragBoard, { type PricingTermBoardColumn } from './PricingTermDragBoard.vue'
 import { createUuid } from '@/core/utils/id'
@@ -185,7 +186,6 @@ const form = reactive({
   submitted: false,
   saving: false,
 })
-
 
 const draftStorageKey = computed(() =>
   props.rate?.id
@@ -432,7 +432,7 @@ const containerAllocationError = computed(() => {
   if (requestedContainerQuantity.value <= 0) return 'La cantidad total debe ser mayor a cero.'
   if (containerAllocations.value.length === 0) return 'Agregue al menos un tipo de contenedor.'
   if (containerAllocations.value.some((item) => !item.containerTypeId)) {
-    return 'Seleccione el tipo de todos los contenedores.'
+    return 'Seleccione el tamaño y tipo de todos los contenedores.'
   }
   if (containerAllocations.value.some((item) => Number(item.quantity || 0) <= 0)) {
     return 'Cada tipo debe tener una cantidad mayor a cero.'
@@ -457,14 +457,11 @@ const containerAllocationError = computed(() => {
   return undefined
 })
 
-function containerOptionsFor(rowKey: string) {
-  const selectedByOtherRows = new Set(
-    containerAllocations.value
-      .filter((item) => item.key !== rowKey)
-      .map((item) => item.containerTypeId)
-      .filter(Boolean),
-  )
-  return catalogs.containerOptions.value.filter((option) => !selectedByOtherRows.has(option.value))
+function excludedContainerIdsFor(rowKey: string) {
+  return containerAllocations.value
+    .filter((item) => item.key !== rowKey)
+    .map((item) => item.containerTypeId)
+    .filter(Boolean)
 }
 
 function addContainerAllocation() {
@@ -2270,8 +2267,8 @@ onMounted(initialize)
           <div>
             <p class="text-sm font-black text-[var(--dh-text)]">Distribución de contenedores</p>
             <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-              Con un solo tipo se indica únicamente el total. Al agregar más tipos, la cantidad se
-              reparte automáticamente entre ellos y el total se mantiene sincronizado.
+              Seleccione tamaño y tipo por separado. Dhole resolverá el equipo canónico y mantendrá
+              el total sincronizado cuando agregue varias combinaciones.
             </p>
           </div>
           <DhInput
@@ -2302,12 +2299,10 @@ onMounted(initialize)
                 : 'xl:grid-cols-[minmax(0,1fr)_150px_150px_auto]',
             ]"
           >
-            <DhSelect
+            <PricingContainerSelector
               v-model="allocation.containerTypeId"
               :disabled="isContainerMixLocked"
-              label="Tipo de contenedor"
-              placeholder="Seleccione contenedor"
-              :options="containerOptionsFor(allocation.key)"
+              :excluded-equipment-ids="excludedContainerIdsFor(allocation.key)"
             />
             <DhInput
               v-if="containerAllocations.length > 1"
@@ -2355,7 +2350,7 @@ onMounted(initialize)
           </p>
           <DhButton
             v-if="!isContainerMixLocked"
-            label="Agregar tipo de contenedor"
+            label="Agregar combinación"
             :icon="Plus"
             variant="secondary"
             size="sm"
