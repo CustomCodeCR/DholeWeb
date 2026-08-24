@@ -31,12 +31,21 @@ const hasDimensionCatalogs = computed(
 )
 
 const sizeOptions = computed(() => catalogs.containerSizeOptions.value)
-const kindOptions = computed(() =>
-  catalogs.containerKindsForSize(sizeId.value).map((item) => ({
-    label: item.name,
-    value: item.id,
-  })),
-)
+const kindOptions = computed(() => {
+  const excluded = new Set(props.excludedEquipmentIds)
+
+  return catalogs
+    .containerKindsForSize(sizeId.value)
+    .filter((kind) => {
+      const equipment = catalogs.resolveContainerEquipment(sizeId.value, kind.id)
+      if (!equipment) return false
+      return equipment.id === props.modelValue || !excluded.has(equipment.id)
+    })
+    .map((item) => ({
+      label: item.name,
+      value: item.id,
+    }))
+})
 
 const legacyEquipmentOptions = computed(() => {
   const excluded = new Set(props.excludedEquipmentIds)
@@ -72,11 +81,15 @@ watch(
 )
 
 watch(
-  () => [catalogs.containerSizes.value.length, catalogs.containerKinds.value.length, catalogs.containerTypes.value.length],
+  () => [
+    catalogs.containerSizes.value.length,
+    catalogs.containerKinds.value.length,
+    catalogs.containerTypes.value.length,
+  ],
   hydrateFromEquipment,
 )
 
-watch(sizeId, () => {
+watch([sizeId, () => props.excludedEquipmentIds], () => {
   if (hydrating) return
   if (kindId.value && !kindOptions.value.some((option) => option.value === kindId.value)) {
     kindId.value = ''
@@ -98,7 +111,12 @@ watch([sizeId, kindId], () => {
   }
 
   const excluded = new Set(props.excludedEquipmentIds)
-  if (excluded.has(equipment.id) && equipment.id !== props.modelValue) return
+  if (excluded.has(equipment.id) && equipment.id !== props.modelValue) {
+    kindId.value = ''
+    if (props.modelValue) emit('update:modelValue', '')
+    return
+  }
+
   if (equipment.id !== props.modelValue) emit('update:modelValue', equipment.id)
 })
 </script>
