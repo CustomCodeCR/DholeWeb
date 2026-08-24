@@ -59,19 +59,23 @@ function normalizeBaseUrl(value: unknown): URL | null {
 }
 
 function notificationHubCandidates(): URL[] {
-  // DholeWeb must enter through the API Gateway first. A direct Notifications URL is
-  // retained only as a development fallback for environments whose gateway has not
-  // yet enabled WebSocket proxying.
-  const candidates = [
-    // The Notifications service is the canonical SignalR endpoint. Try it before
-    // the gateway so a gateway without WebSocket routing does not cause a false 404.
-    normalizeBaseUrl(import.meta.env.VITE_NOTIFICATIONS_URL),
-    normalizeBaseUrl(import.meta.env.VITE_API_URL),
-    new URL(window.location.origin),
-  ].filter((value): value is URL => value !== null)
+  // Production traffic must always enter through the public API Gateway. This avoids
+  // leaking/baking private LAN service URLs into the browser and prevents HTTPS pages
+  // from attempting mixed-content connections to the Notifications container.
+  const candidates: Array<URL | null> = [normalizeBaseUrl(import.meta.env.VITE_API_URL)]
+
+  // Direct service and same-origin fallbacks are useful only while developing locally.
+  // In production they would either be unreachable private addresses or the Web SPA
+  // origin, where /api/notifications/hub is not served.
+  if (import.meta.env.DEV) {
+    candidates.push(
+      normalizeBaseUrl(import.meta.env.VITE_NOTIFICATIONS_URL),
+      new URL(window.location.origin),
+    )
+  }
 
   const unique = new Map<string, URL>()
-  for (const candidate of candidates) {
+  for (const candidate of candidates.filter((value): value is URL => value !== null)) {
     const normalized = new URL(candidate.toString())
     normalized.pathname = normalized.pathname.replace(/\/$/, '')
     normalized.search = ''
@@ -101,12 +105,12 @@ async function negotiate(base: URL, accessToken: string) {
     url.searchParams.set('negotiateVersion', '1')
 
     const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'text/plain;charset=UTF-8',
-    },
-  })
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'text/plain;charset=UTF-8',
+      },
+    })
 
     if (!response.ok) {
       lastError = new Error(`SignalR negotiate failed (${response.status}) at ${url.toString()}.`)
