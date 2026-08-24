@@ -8,10 +8,12 @@ const props = withDefaults(
     modelValue: string
     disabled?: boolean
     excludedEquipmentIds?: string[]
+    error?: string
   }>(),
   {
     disabled: false,
     excludedEquipmentIds: () => [],
+    error: '',
   },
 )
 
@@ -121,6 +123,9 @@ watch([sizeId, kindId], () => {
       Equipo: <strong>{{ selectedEquipment.name }}</strong>
       <span v-if="selectedEquipment.code"> ({{ selectedEquipment.code }})</span>
     </p>
+    <p v-if="error" class="-mt-1 text-xs font-semibold text-red-500 sm:col-span-2">
+      {{ error }}
+    </p>
   </div>
 
   <DhSelect
@@ -130,6 +135,7 @@ watch([sizeId, kindId], () => {
     label="Tipo de contenedor"
     placeholder="Seleccione contenedor"
     :options="legacyEquipmentOptions"
+    :error="error"
     @update:model-value="emit('update:modelValue', String($event ?? ''))"
   />
 </template>
