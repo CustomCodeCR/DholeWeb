@@ -6,6 +6,7 @@ import { PricingService } from '@/core/services/pricingService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { ImportRateDto, ReviewImportRateRequest } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
+import PricingContainerSelector from './PricingContainerSelector.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -148,7 +149,7 @@ function validate() {
     ['podId', 'Seleccione el POD.'],
     ['carrierId', 'Seleccione la naviera.'],
     ['agentId', 'Seleccione el agente.'],
-    ['containerTypeId', 'Seleccione el contenedor.'],
+    ['containerTypeId', 'Seleccione el tamaño y tipo de contenedor.'],
     ['currencyId', 'Seleccione la moneda.'],
   ]
   for (const [key, message] of requiredCatalogs) {
@@ -287,7 +288,7 @@ onMounted(async () => {
           <DhSelect v-model="form.importProfileId" label="Perfil de importación *" :options="catalogs.profileOptions.value" :error="errors.importProfileId" />
           <DhSelect v-model="form.agentId" label="Agente *" :options="catalogs.agentOptions.value" :error="errors.agentId" />
           <DhSelect v-model="form.carrierId" label="Naviera *" :options="catalogs.carrierOptions.value" :error="errors.carrierId" />
-          <DhSelect v-model="form.containerTypeId" label="Contenedor *" :options="catalogs.containerOptions.value" :error="errors.containerTypeId" />
+          <PricingContainerSelector v-model="form.containerTypeId" :error="errors.containerTypeId" />
         </div>
       </section>
 
