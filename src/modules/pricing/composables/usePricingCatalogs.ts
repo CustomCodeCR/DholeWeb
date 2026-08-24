@@ -9,11 +9,18 @@ export interface PricingCatalogItem {
   code: string
   slug: string
   value: string
+  metadataJson: string | null
 }
 
 export interface PricingOption {
   label: string
   value: string
+}
+
+export interface ContainerEquipmentDimensions {
+  size: string
+  kind: string
+  kindCode: string
 }
 
 export const PRICING_CATALOG_SLUGS = {
@@ -23,7 +30,10 @@ export const PRICING_CATALOG_SLUGS = {
   poe: 'poe',
   currencies: 'currencies',
   agents: 'agents',
+  // containerTypes remains the canonical equipment catalog for backwards compatibility.
   containerTypes: 'container-types',
+  containerSizes: 'container-sizes',
+  containerKinds: 'container-kinds',
   importProfiles: 'pricing-imports-profiles',
   incoterms: 'incoterms',
 } as const
@@ -35,11 +45,23 @@ const polPorts = ref<PricingCatalogItem[]>([])
 const poePorts = ref<PricingCatalogItem[]>([])
 const podPorts = ref<PricingCatalogItem[]>([])
 const containerTypes = ref<PricingCatalogItem[]>([])
+const containerSizes = ref<PricingCatalogItem[]>([])
+const containerKinds = ref<PricingCatalogItem[]>([])
 const importProfiles = ref<PricingCatalogItem[]>([])
 const incoterms = ref<PricingCatalogItem[]>([])
 const loading = ref(false)
 const loaded = ref(false)
 let activeLoad: Promise<void> | null = null
+
+const legacyKindSlugs: Record<string, string> = {
+  DV: 'dry-van',
+  HC: 'high-cube',
+  OT: 'open-top',
+  OS: 'open-side',
+  TK: 'tank',
+  FR: 'flat-rack',
+  NOR: 'nor',
+}
 
 function normalize(value: string) {
   return value
@@ -59,6 +81,7 @@ function mapItem(item: CatalogItemDto): PricingCatalogItem {
     code: catalogCode,
     slug: item.slug || normalize(displayName).replace(/\s+/g, '-'),
     value: String(item.value || ''),
+    metadataJson: item.metadataJson ?? null,
   }
 }
 
@@ -113,6 +136,8 @@ async function loadAll(force = false) {
       poeRows,
       podRows,
       containerRows,
+      containerSizeRows,
+      containerKindRows,
       profileRows,
       incotermRows,
     ] = await Promise.all([
@@ -123,6 +148,8 @@ async function loadAll(force = false) {
       loadFirstAvailable([PRICING_CATALOG_SLUGS.poe, 'ports']),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.pod, 'ports']),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.containerTypes, 'containers-types']),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.containerSizes]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.containerKinds]),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.importProfiles]),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.incoterms]),
     ])
@@ -134,6 +161,8 @@ async function loadAll(force = false) {
     poePorts.value = poeRows
     podPorts.value = podRows
     containerTypes.value = containerRows
+    containerSizes.value = containerSizeRows
+    containerKinds.value = containerKindRows
     importProfiles.value = profileRows
     incoterms.value = incotermRows.map(normalizeIncoterm)
     loaded.value = true
@@ -176,6 +205,79 @@ function findByCode(items: PricingCatalogItem[], value?: string | null) {
 
 function compact(value: string) {
   return normalize(value).replace(/[^a-z0-9]/g, '')
+}
+
+function equipmentDimensions(item?: PricingCatalogItem | null): ContainerEquipmentDimensions | null {
+  if (!item) return null
+
+  if (item.metadataJson) {
+    try {
+      const metadata = JSON.parse(item.metadataJson) as Record<string, unknown>
+      const size = String(metadata.size ?? '').trim()
+      const kind = String(metadata.kind ?? '').trim()
+      const kindCode = String(metadata.kindCode ?? '').trim().toUpperCase()
+      if (size && kind && kindCode) return { size, kind, kindCode }
+    } catch {
+      // Fall back to the legacy equipment code below.
+    }
+  }
+
+  const match = compact(item.code || item.value || item.name).toUpperCase().match(/^(20|40|45|48)(DV|HC|OT|OS|TK|FR|NOR)$/)
+  if (!match) return null
+
+  const [, size, kindCode] = match
+  return {
+    size,
+    kindCode,
+    kind: legacyKindSlugs[kindCode] ?? kindCode.toLowerCase(),
+  }
+}
+
+function splitContainerEquipment(equipmentId?: string | null) {
+  const equipment = findById(containerTypes.value, equipmentId)
+  const dimensions = equipmentDimensions(equipment)
+  if (!equipment || !dimensions) {
+    return { equipment, size: undefined, kind: undefined }
+  }
+
+  const size = containerSizes.value.find((item) =>
+    [item.code, item.value, item.slug].some((candidate) => candidate === dimensions.size),
+  )
+  const kind = containerKinds.value.find(
+    (item) => item.slug === dimensions.kind || item.code.toUpperCase() === dimensions.kindCode,
+  )
+
+  return { equipment, size, kind }
+}
+
+function containerKindsForSize(sizeId?: string | null) {
+  const size = findById(containerSizes.value, sizeId)
+  if (!size) return containerKinds.value
+
+  const sizeCode = size.code || size.value || size.slug
+  const allowed = new Set(
+    containerTypes.value
+      .map(equipmentDimensions)
+      .filter((dimension): dimension is ContainerEquipmentDimensions => Boolean(dimension))
+      .filter((dimension) => dimension.size === sizeCode)
+      .map((dimension) => dimension.kindCode),
+  )
+
+  return containerKinds.value.filter((kind) => allowed.has(kind.code.toUpperCase()))
+}
+
+function resolveContainerEquipment(sizeId?: string | null, kindId?: string | null) {
+  const size = findById(containerSizes.value, sizeId)
+  const kind = findById(containerKinds.value, kindId)
+  if (!size || !kind) return undefined
+
+  const sizeCode = size.code || size.value || size.slug
+  const kindCode = kind.code.toUpperCase()
+
+  return containerTypes.value.find((equipment) => {
+    const dimensions = equipmentDimensions(equipment)
+    return dimensions?.size === sizeCode && dimensions.kindCode === kindCode
+  })
 }
 
 function findBestMatch(
@@ -286,6 +388,8 @@ export function usePricingCatalogs() {
     poePorts,
     podPorts,
     containerTypes,
+    containerSizes,
+    containerKinds,
     importProfiles,
     incoterms,
     loading,
@@ -297,12 +401,18 @@ export function usePricingCatalogs() {
     poeOptions: computed(() => options(poePorts.value)),
     podOptions: computed(() => options(podPorts.value)),
     containerOptions: computed(() => options(containerTypes.value)),
+    containerSizeOptions: computed(() => options(containerSizes.value)),
+    containerKindOptions: computed(() => options(containerKinds.value)),
     profileOptions: computed(() => options(importProfiles.value)),
     incotermOptions: computed(() => options(incoterms.value)),
     loadAll,
     findById,
     findByCode,
     findBestMatch,
+    equipmentDimensions,
+    splitContainerEquipment,
+    containerKindsForSize,
+    resolveContainerEquipment,
     resolveRateLabels,
     resolveCostLabels,
   }
