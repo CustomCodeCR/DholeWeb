@@ -274,12 +274,13 @@ const shipmentModeOptions = computed(() => {
 })
 
 const equipmentSource = computed(() => {
-  if (!form.modality) return []
+  const modality = String(form.modality)
+  if (!modality) return []
   return catalogs.containers.filter((item) => {
     const meta = metadata(item)
-    if (meta?.modalities?.length) return meta.modalities.includes(form.modality as string)
-    if (form.modality === 'Air') return ['LOOSE', 'PALLET', 'ULD'].includes(item.code.toUpperCase())
-    return form.modality !== 'Air'
+    if (meta?.modalities?.length) return meta.modalities.includes(modality)
+    if (modality === 'Air') return ['LOOSE', 'PALLET', 'ULD'].includes(item.code.toUpperCase())
+    return modality !== 'Air'
   })
 })
 
