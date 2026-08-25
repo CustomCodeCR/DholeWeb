@@ -74,6 +74,10 @@ export const AUDITLOGS_SCOPES = {
 } as const
 
 export const PRICING_SCOPES = {
+  workspace: {
+    access: 'pricing.workspace.access',
+  },
+
   costs: {
     create: 'pricing.cost.create',
     view: 'pricing.cost.view',
@@ -93,6 +97,7 @@ export const PRICING_SCOPES = {
   },
 
   importFclRates: {
+    review: 'pricing.import-fcl-rate.review',
     create: 'pricing.import-fcl-rate.create',
     view: 'pricing.import-fcl-rate.view',
     approve: 'pricing.import-fcl-rate.approve',
@@ -151,14 +156,13 @@ export const PRICING_SCOPES = {
   },
 
   dashboard: {
-    view: 'pricing.rate.view',
+    view: 'pricing.workspace.access',
   },
 
   selects: {
     view: 'pricing.rate.select',
   },
 } as const
-
 
 export const AI_SCOPES = {
   connections: {
@@ -199,7 +203,6 @@ export const AI_SCOPES = {
   },
 } as const
 
-
 export const STORAGE_SCOPES = {
   files: {
     create: 'storage.files.create',
@@ -216,7 +219,6 @@ export const STORAGE_SCOPES = {
   },
 } as const
 
-
 export const REPORTS_SCOPES = {
   templates: {
     create: 'reports.templates.create',
@@ -228,7 +230,6 @@ export const REPORTS_SCOPES = {
     generate: 'reports.reports.generate',
   },
 } as const
-
 
 export const NOTIFICATIONS_SCOPES = {
   messages: {
@@ -259,11 +260,11 @@ export const VIEW_SCOPES = {
 
   auditLogs: AUDITLOGS_SCOPES.events.view,
 
-  pricing: PRICING_SCOPES.rates.view,
+  pricing: PRICING_SCOPES.workspace.access,
   pricingRates: PRICING_SCOPES.rates.view,
-  pricingImports: PRICING_SCOPES.importFclRates.view,
-  pricingDecisions: PRICING_SCOPES.fclDecisions.view,
-  pricingCompetition: PRICING_SCOPES.rates.view,
+  pricingImports: PRICING_SCOPES.importFclRates.review,
+  pricingDecisions: PRICING_SCOPES.workspace.access,
+  pricingCompetition: PRICING_SCOPES.workspace.access,
   pricingCosts: PRICING_SCOPES.costs.view,
   pricingRateTerms: PRICING_SCOPES.rateTerms.view,
 
