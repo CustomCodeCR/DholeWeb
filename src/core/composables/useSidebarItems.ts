@@ -17,7 +17,6 @@ import {
   Users,
   FileText,
   Mail,
-  ReceiptText,
   BrainCircuit,
   HardDrive,
   Bell,
@@ -120,7 +119,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             icon: TrendingUp,
             to: '/pricing',
             name: 'pricing',
-            requiredScope: VIEW_SCOPES.pricingRates,
+            requiredScope: VIEW_SCOPES.pricing,
           },
           {
             labelKey: 'sidebar.importedRates',
@@ -135,13 +134,6 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             to: '/pricing/email-imports',
             name: 'pricing-email-imports',
             requiredScope: VIEW_SCOPES.pricingImports,
-          },
-          {
-            labelKey: 'sidebar.rates',
-            icon: ReceiptText,
-            to: '/pricing/rates',
-            name: 'pricing-rates',
-            requiredScope: VIEW_SCOPES.pricingRates,
           },
           {
             labelKey: 'sidebar.costs',
