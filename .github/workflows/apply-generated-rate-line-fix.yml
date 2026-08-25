@@ -22,31 +22,16 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
           source = path.read_text(encoding='utf-8')
-
-          freight_old = """      name: 'Flete Internacional',
-      costDetailType: 'Freight',
-      costType: 'Fixed',
-      currencyId: currency.id,"""
-          freight_new = """      name: 'Flete Internacional',
-      costDetailType: 'Freight',
-      costType: 'Variable',
-      currencyId: currency.id,"""
-
-          service_old = """        costDetailType: detailType,
-        costType: optional ? 'Optional' : 'Fixed',
-        currencyId: currency.id,"""
-          service_new = """        costDetailType: detailType,
-        costType: optional ? 'Optional' : 'Variable',
-        currencyId: currency.id,"""
-
+          freight_old = "      costType: 'Fixed',"
+          freight_new = "      costType: 'Variable',"
+          service_old = "        costType: optional ? 'Optional' : 'Fixed',"
+          service_new = "        costType: optional ? 'Optional' : 'Variable',"
           if source.count(freight_old) != 1:
-              raise SystemExit(f'Expected one freight pattern, found {source.count(freight_old)}')
+              raise SystemExit(f'Expected one generated freight Fixed line, found {source.count(freight_old)}')
           if source.count(service_old) != 1:
-              raise SystemExit(f'Expected one service pattern, found {source.count(service_old)}')
-
+              raise SystemExit(f'Expected one generated service Fixed line, found {source.count(service_old)}')
           source = source.replace(freight_old, freight_new, 1)
           source = source.replace(service_old, service_new, 1)
           path.write_text(source, encoding='utf-8')
