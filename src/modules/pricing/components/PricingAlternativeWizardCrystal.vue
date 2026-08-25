@@ -184,27 +184,65 @@ function metadata(item?: CatalogItemSelectDto | null): CatalogMetadata | null {
 }
 
 function displayValue(item?: CatalogItemSelectDto | null) {
-  if (!item) return ''
-  const value = String(item.value ?? '').trim()
-  if (value) return value
-  const label = String(item.label ?? '').trim()
-  if (label) return label
-  return String(item.code ?? '').trim()
+  return item ? String(item.value ?? '').trim() : ''
+}
+
+function normalizeCatalogValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .replace(/\b(puerto|port|de|del|of|the)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function valueTokens(value: string) {
+  return normalizeCatalogValue(value)
+    .split(' ')
+    .filter((token) => token.length > 1)
+}
+
+function valueMatchScore(leftValue: string, rightValue: string) {
+  const left = new Set(valueTokens(leftValue))
+  const right = new Set(valueTokens(rightValue))
+  if (!left.size || !right.size) return 0
+
+  let intersection = 0
+  left.forEach((token) => {
+    if (right.has(token)) intersection += 1
+  })
+
+  return intersection / Math.min(left.size, right.size)
 }
 
 function findById(items: CatalogItemSelectDto[], id: string) {
   return items.find((item) => item.id === id) ?? null
 }
 
-function sameCatalogValue(a: CatalogItemSelectDto, b: CatalogItemSelectDto) {
-  const left = [a.code, a.slug, a.value, a.label].map((value) => String(value ?? '').trim().toLocaleLowerCase()).filter(Boolean)
-  const right = new Set([b.code, b.slug, b.value, b.label].map((value) => String(value ?? '').trim().toLocaleLowerCase()).filter(Boolean))
-  return left.some((value) => right.has(value))
+function findEquivalentValue(items: CatalogItemSelectDto[], sourceValue?: string | null) {
+  const source = String(sourceValue ?? '').trim()
+  const normalizedSource = normalizeCatalogValue(source)
+  if (!normalizedSource) return null
+
+  const exact = items.filter(
+    (item) => normalizeCatalogValue(displayValue(item)) === normalizedSource,
+  )
+  if (exact.length === 1) return exact[0]
+
+  const scored = items
+    .map((item) => ({ item, score: valueMatchScore(displayValue(item), source) }))
+    .filter((candidate) => candidate.score >= 0.75)
+    .sort((a, b) => b.score - a.score)
+
+  if (!scored.length) return null
+  if (scored.length > 1 && scored[0].score === scored[1].score) return null
+  return scored[0].item
 }
 
 function findEquivalent(items: CatalogItemSelectDto[], source?: CatalogItemSelectDto | null) {
-  if (!source) return null
-  return items.find((item) => sameCatalogValue(item, source)) ?? null
+  return findEquivalentValue(items, displayValue(source))
 }
 
 function todayIso() {
@@ -251,23 +289,26 @@ function sectionLabel(section: RateSection) {
 function isCostaRica(item: CatalogItemSelectDto) {
   const meta = metadata(item)
   if (meta?.countryCode?.toUpperCase() === 'CR') return true
-  const text = `${item.code} ${item.value} ${item.label} ${item.slug}`.toLocaleLowerCase()
-  return text.includes('costa rica') || text.includes('costarica') || text.includes(', cr') || text.includes(' cr ')
+  const text = displayValue(item).toLocaleLowerCase()
+  return text.includes('costa rica') || text.includes('costarica')
 }
 
 function catalogSearchText(item: CatalogItemSelectDto) {
-  return `${item.code}|${displayValue(item)}`
+  return displayValue(item)
 }
 
 const shipmentModeOptions = computed(() => {
   if (!form.modality) return []
   const allowed = allowedShipmentModes[form.modality]
   const configured = catalogs.shipmentModes
-    .filter((item) => allowed.includes(item.code.toUpperCase()))
-    .map((item) => ({
-      value: item.code.toUpperCase(),
-      label: shipmentLabel(displayValue(item) || item.code, form.modality as Modality),
-    }))
+    .filter((item) => allowed.includes(displayValue(item).toUpperCase()))
+    .map((item) => {
+      const value = displayValue(item).toUpperCase()
+      return {
+        value,
+        label: shipmentLabel(value, form.modality as Modality),
+      }
+    })
   return configured.length
     ? configured
     : allowed.map((value) => ({ value, label: shipmentLabel(value, form.modality as Modality) }))
@@ -279,7 +320,10 @@ const equipmentSource = computed(() => {
   return catalogs.containers.filter((item) => {
     const meta = metadata(item)
     if (meta?.modalities?.length) return meta.modalities.includes(modality)
-    if (modality === 'Air') return ['LOOSE', 'PALLET', 'ULD'].includes(item.code.toUpperCase())
+    if (modality === 'Air') {
+      const value = displayValue(item).toUpperCase()
+      return ['LOOSE', 'PALLET', 'ULD'].some((kind) => value.includes(kind))
+    }
     return modality !== 'Air'
   })
 })
@@ -377,11 +421,12 @@ const canNext = computed(() => {
   return true
 })
 
-function detailTypeForService(code: string): CostDetailType {
-  if (code === 'INT_TRANSPORT') return 'Freight'
-  if (code === 'CARGO_INSURANCE') return 'Insurance'
-  if (code === 'CUSTOMS_CR' || code === 'CUSTOMS_FOREIGN') return 'CustomsCharge'
-  if (code === 'DELIVERY' || code === 'PICKUP') return 'InlandTransport'
+function detailTypeForService(service: CatalogItemSelectDto): CostDetailType {
+  const value = normalizeCatalogValue(displayValue(service))
+  if (value.includes('transporte internacional')) return 'Freight'
+  if (value.includes('seguro') && value.includes('carga')) return 'Insurance'
+  if (value.includes('aduana')) return 'CustomsCharge'
+  if (value.includes('transporte entrega') || value.includes('transporte recoleccion')) return 'InlandTransport'
   return 'Other'
 }
 
@@ -412,7 +457,8 @@ function applicableCost(cost: CostSelectDto) {
 
 function serviceAmounts(service: CatalogItemSelectDto) {
   const meta = metadata(service)
-  if (service.code === 'CARGO_INSURANCE' && form.cargoValue > 0) {
+  const serviceValue = normalizeCatalogValue(displayValue(service))
+  if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
     const cost = Math.max(form.cargoValue * number(meta?.costFactor), number(meta?.costMinimumUsd))
     const sale = Math.max(form.cargoValue * number(meta?.saleFactor), number(meta?.saleMinimumUsd))
     return { cost, sale }
@@ -446,11 +492,12 @@ function rebuildRateLines() {
   }
 
   selectedServices.value
-    .filter((service) => service.code !== 'INT_TRANSPORT')
+    .filter((service) => !normalizeCatalogValue(displayValue(service)).includes('transporte internacional'))
     .forEach((service) => {
       const meta = metadata(service)
       const name = displayValue(service)
-      const section = meta?.rateSections?.[0] ?? sectionForDetail(detailTypeForService(service.code), name)
+      const detailType = detailTypeForService(service)
+      const section = meta?.rateSections?.[0] ?? sectionForDetail(detailType, name)
       if (!visible.has(section)) return
       const amounts = serviceAmounts(service)
       const optional = Boolean(meta?.optional)
@@ -458,7 +505,7 @@ function rebuildRateLines() {
         key: `service:${service.id}`,
         section,
         name,
-        costDetailType: detailTypeForService(service.code),
+        costDetailType: detailType,
         costType: optional ? 'Optional' : 'Fixed',
         currencyId: currency.id,
         currencyName: displayValue(currency),
@@ -520,7 +567,7 @@ function addManualCharge() {
 
 function selectDefaultService() {
   const internationalTransport = catalogs.services.find((item) =>
-    item.code === 'INT_TRANSPORT' || displayValue(item).toLocaleLowerCase().includes('transporte internacional'),
+    normalizeCatalogValue(displayValue(item)).includes('transporte internacional'),
   )
   form.serviceIds = internationalTransport ? [internationalTransport.id] : []
 }
@@ -577,7 +624,7 @@ async function loadCatalogs() {
       currencies,
     })
     costs.value = selectedCosts
-    const usd = currencies.find((item) => item.code.toUpperCase() === 'USD') ?? currencies[0]
+    const usd = currencies.find((item) => normalizeCatalogValue(displayValue(item)) === 'usd') ?? currencies[0]
     form.currencyId = usd?.id ?? ''
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar los catálogos de Pricing.')
@@ -590,7 +637,12 @@ function resolvePodForDestination() {
   const fromRate = selectedImportRate.value?.podId
     ? findById(catalogs.pod, selectedImportRate.value.podId)
     : null
-  return fromRate ?? findEquivalent(catalogs.pod, selectedDestination.value)
+  if (fromRate) return fromRate
+
+  const fromDestination = findEquivalent(catalogs.pod, selectedDestination.value)
+  if (fromDestination) return fromDestination
+
+  return findEquivalentValue(catalogs.pod, selectedImportRate.value?.pod)
 }
 
 async function searchApprovedRates() {
@@ -629,13 +681,15 @@ function chooseRate(rate: ImportRateSelectDto) {
   form.freightCost = number(rate.freight)
   form.freightSale = number(rate.totalSale ?? rate.freight)
 
+  const rateCarrier = normalizeCatalogValue(String(rate.carrier ?? ''))
   const carrier = catalogs.carriers.find((item) =>
-    `${item.code} ${displayValue(item)}`.toLocaleLowerCase().includes(String(rate.carrier ?? '').toLocaleLowerCase()),
+    normalizeCatalogValue(displayValue(item)).includes(rateCarrier),
   )
   if (carrier) form.carrierId = carrier.id
 
+  const rateCurrency = normalizeCatalogValue(String(rate.currency ?? ''))
   const currency = catalogs.currencies.find((item) =>
-    `${item.code} ${displayValue(item)}`.toLocaleLowerCase().includes(String(rate.currency ?? '').toLocaleLowerCase()),
+    normalizeCatalogValue(displayValue(item)).includes(rateCurrency),
   )
   if (currency) form.currencyId = currency.id
 }
@@ -718,8 +772,18 @@ async function saveRate() {
   const carrier = selectedCarrier.value
   const currency = selectedCurrency.value
 
-  if (!origin || !poe || !pod || !equipment || !incoterm || !agent || !carrier || !currency) {
-    toastStore.error('Falta una equivalencia de catálogo. Revise origen, destino/POE, POD relacionado, equipo, agente, proveedor y moneda.')
+  const missing: string[] = []
+  if (!origin) missing.push('origen')
+  if (!poe) missing.push('destino/POE')
+  if (!pod) missing.push(`POD relacionado con “${displayValue(poe)}”`)
+  if (!equipment) missing.push('equipo')
+  if (!incoterm) missing.push('Incoterm')
+  if (!agent) missing.push('agente')
+  if (!carrier) missing.push('proveedor')
+  if (!currency) missing.push('moneda')
+
+  if (missing.length) {
+    toastStore.error(`No se pudo resolver: ${missing.join(', ')}.`)
     return
   }
 
@@ -740,33 +804,33 @@ async function saveRate() {
 
   try {
     saving.value = true
-    const equipmentName = displayValue(equipment)
+    const equipmentName = displayValue(equipment!)
     createdRateId.value = await PricingService.createRate({
       sourceImportFclRateId: form.selectedImportRateId || null,
-      agentId: agent.id,
+      agentId: agent!.id,
       agentName: displayValue(agent),
-      agentCode: agent.code,
-      carrierId: carrier.id,
+      agentCode: agent!.code,
+      carrierId: carrier!.id,
       carrierName: displayValue(carrier),
-      carrierCode: carrier.code,
-      polId: origin.id,
+      carrierCode: carrier!.code,
+      polId: origin!.id,
       polName: displayValue(origin),
-      polCode: origin.code,
-      poeId: poe.id,
+      polCode: origin!.code,
+      poeId: poe!.id,
       poeName: displayValue(poe),
-      poeCode: poe.code,
-      podId: pod.id,
+      poeCode: poe!.code,
+      podId: pod!.id,
       podName: displayValue(pod),
-      podCode: pod.code,
-      containerTypeId: equipment.id,
+      podCode: pod!.code,
+      containerTypeId: equipment!.id,
       containerTypeName: equipmentName,
-      containerTypeCode: equipment.code,
-      incotermId: incoterm.id,
+      containerTypeCode: equipment!.code,
+      incotermId: incoterm!.id,
       incotermName: displayValue(incoterm),
-      incotermCode: incoterm.code,
-      currencyId: currency.id,
+      incotermCode: incoterm!.code,
+      currencyId: currency!.id,
       currencyName: displayValue(currency),
-      currencyCode: currency.code,
+      currencyCode: currency!.code,
       freeDays: number(selectedImportRate.value?.freeDays),
       validFrom: form.loadDate,
       validTo: selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
@@ -775,9 +839,9 @@ async function saveRate() {
       shipmentMode: shipmentModeForApi.value,
       containers: [
         {
-          containerTypeId: equipment.id,
+          containerTypeId: equipment!.id,
           containerTypeName: equipmentName,
-          containerTypeCode: equipment.code,
+          containerTypeCode: equipment!.code,
           quantity: form.equipmentQuantity,
         },
       ],
