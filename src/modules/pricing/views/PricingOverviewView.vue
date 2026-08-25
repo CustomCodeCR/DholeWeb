@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import PricingAlternativeWizard from '@/modules/pricing/components/PricingAlternativeWizard.vue'
+import PricingAlternativeWizardCrystal from '@/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 </script>
 
 <template>
-  <PricingAlternativeWizard />
+  <PricingAlternativeWizardCrystal />
 </template>
