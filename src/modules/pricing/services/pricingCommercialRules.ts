@@ -85,6 +85,7 @@ export async function resolveCommercialTerms(query: {
   direction: string
   incotermId: string
   serviceCodes: string[]
+  routeText?: string
 }): Promise<CommercialTerms> {
   const params = new URLSearchParams()
   params.set('transportModality', query.transportModality)
@@ -92,6 +93,7 @@ export async function resolveCommercialTerms(query: {
   params.set('direction', query.direction)
   params.set('incotermId', query.incotermId)
   if (query.serviceCodes.length) params.set('serviceCodes', query.serviceCodes.join(','))
+  if (query.routeText?.trim()) params.set('routeText', query.routeText.trim())
 
   return callEndpoint<CommercialTerms>({
     method: 'GET',

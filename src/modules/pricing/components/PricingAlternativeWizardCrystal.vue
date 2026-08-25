@@ -894,13 +894,25 @@ async function saveRate() {
         : null,
   }))
 
-  const serviceCodes = new Set(
-    selectedServices.value
-      .map((service) => service.code?.trim().toUpperCase())
-      .filter((code): code is string => Boolean(code)),
+  const includedNameKeys = new Set(
+    includedLines.value.map((line) => normalizeCatalogValue(line.name)),
   )
+  const serviceCodes = new Set<string>()
+  selectedServices.value.forEach((service) => {
+    const code = service.code?.trim().toUpperCase()
+    if (!code) return
+    const canonical = canonicalServiceLine(code, displayValue(service))
+    if (
+      Boolean(metadata(service)?.optional) &&
+      !includedNameKeys.has(normalizeCatalogValue(canonical.name))
+    ) return
+    serviceCodes.add(code)
+  })
   if (!incotermBuyerPaysMainTransport(incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
-  if (includedLines.value.some((line) => line.costDetailType === 'Insurance')) serviceCodes.add('CARGO_INSURANCE')
+  if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))
+    serviceCodes.add('CARGO_INSURANCE')
+  else
+    serviceCodes.delete('CARGO_INSURANCE')
   if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')
 
   let commercialTerms: Awaited<ReturnType<typeof resolveCommercialTerms>> | null = null
@@ -911,6 +923,9 @@ async function saveRate() {
       direction: direction.value,
       incotermId: incoterm!.id,
       serviceCodes: [...serviceCodes],
+      routeText: [displayValue(origin), displayValue(poe), displayValue(pod)]
+        .filter(Boolean)
+        .join(' '),
     })
   } catch {
     // La tarifa puede guardarse aunque el resolver de textos no esté disponible;
