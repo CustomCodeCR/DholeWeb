@@ -1,2 +1,328 @@
 @import './theme.css';
 @import './base.css';
+
+/* Pricing rate wizard visual polish */
+html body .pricing-rate-wizard.pricing-rate-wizard--new {
+  margin: 0 !important;
+  padding: 0 0 10.5rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-wizard__inner {
+  width: min(100%, 1320px) !important;
+  margin-inline: auto !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-stepper {
+  width: min(100%, 720px) !important;
+  margin-bottom: 0.8rem !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-card {
+  width: 100% !important;
+  max-width: 1320px !important;
+  margin-inline: auto !important;
+  overflow: visible !important;
+  border-radius: 24px !important;
+  background: color-mix(in srgb, var(--dh-card) 82%, transparent) !important;
+  box-shadow: 0 16px 42px rgb(0 0 0 / 12%) !important;
+  backdrop-filter: blur(24px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(145%) !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-card__header {
+  border-radius: 24px 24px 0 0 !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form {
+  min-height: 0 !important;
+  padding: 0.75rem !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(-n + 4) {
+  min-width: 0 !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form input,
+html body .pricing-rate-wizard--new .pricing-rate-form select,
+html body .pricing-rate-wizard--new .pricing-rate-form textarea,
+html body .pricing-rate-wizard--new .pricing-rate-form button {
+  max-width: 100%;
+}
+
+/* Persistent commercial summary: aligned with the actual card instead of the full viewport. */
+html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: 0.75rem !important;
+  z-index: 120 !important;
+  display: block !important;
+  width: min(calc(100vw - 2rem), 1320px) !important;
+  max-width: 1320px !important;
+  margin: 0 !important;
+  transform: translateX(-50%) !important;
+  border: 1px solid color-mix(in srgb, var(--dh-primary) 26%, var(--dh-border)) !important;
+  border-radius: 20px !important;
+  background: color-mix(in srgb, var(--dh-card) 82%, transparent) !important;
+  padding: 0.75rem 0.9rem !important;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 24%) !important;
+  backdrop-filter: blur(30px) saturate(165%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(165%) !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div {
+  min-width: 0 !important;
+  padding: 0.15rem 0.9rem !important;
+  border-right: 1px solid color-mix(in srgb, var(--dh-border) 78%, transparent) !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div:first-child {
+  padding-left: 0 !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div:last-child {
+  border-right: 0 !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:nth-child(2) {
+  margin-top: 0.55rem !important;
+  padding: 0.55rem 0.7rem !important;
+  border-radius: 13px !important;
+  font-size: 0.75rem !important;
+  line-height: 1.3 !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:last-child {
+  margin-top: 0.55rem !important;
+  gap: 0.5rem !important;
+}
+
+/* Keep the previous/next controls out of the summary bar instead of behind it. */
+@media (min-width: 1100px) {
+  html body .pricing-rate-wizard--new .pricing-rate-navigation {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: 11.3rem !important;
+    z-index: 119 !important;
+    width: min(calc(100vw - 2rem), 1320px) !important;
+    transform: translateX(-50%) !important;
+    border: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    pointer-events: none;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__button,
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__progress,
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__finish-hint {
+    pointer-events: auto;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__button {
+    min-width: 132px;
+    border-radius: 14px !important;
+    box-shadow: 0 10px 24px rgb(0 0 0 / 16%);
+    backdrop-filter: blur(18px) !important;
+    -webkit-backdrop-filter: blur(18px) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__button:disabled {
+    visibility: hidden;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__progress {
+    justify-self: center;
+    border: 1px solid color-mix(in srgb, var(--dh-border) 72%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--dh-card) 76%, transparent);
+    padding: 0.45rem 0.75rem;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+}
+
+@media (max-width: 1099px) {
+  html body .pricing-rate-wizard.pricing-rate-wizard--new {
+    padding-bottom: 13.5rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation {
+    display: none !important;
+  }
+
+  html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+    width: calc(100vw - 1.25rem) !important;
+    bottom: 0.55rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.35rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div {
+    padding: 0.45rem 0.65rem !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--dh-border) 64%, transparent) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div:nth-last-child(-n + 2) {
+    border-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html body .pricing-rate-wizard.pricing-rate-wizard--new {
+    padding: 0 0 15.75rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-stepper {
+    position: sticky !important;
+    top: -0.75rem !important;
+    z-index: 60 !important;
+    width: calc(100% + 0.25rem) !important;
+    margin: -0.25rem -0.125rem 0.65rem !important;
+    border: 1px solid color-mix(in srgb, var(--dh-border) 62%, transparent);
+    border-radius: 0 0 16px 16px;
+    background: color-mix(in srgb, var(--dh-card) 78%, transparent);
+    padding: 0.55rem 0.2rem 0.45rem !important;
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-step {
+    min-height: 3.35rem !important;
+    gap: 0.3rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-step__number {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    flex-basis: 1.75rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-step__label {
+    max-width: 5.5rem !important;
+    font-size: 0.61rem !important;
+    line-height: 1.1 !important;
+    white-space: normal !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-card {
+    border-radius: 18px !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-card__header {
+    min-height: 0 !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 0.8rem 0.9rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-card__title {
+    font-size: 1.05rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-card__subtitle {
+    font-size: 0.66rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form {
+    padding: 0.5rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form,
+  html body .pricing-rate-wizard--new .pricing-rate-form form section,
+  html body .pricing-rate-wizard--new .pricing-rate-form form article,
+  html body .pricing-rate-wizard--new .pricing-rate-form form .grid {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form section .grid,
+  html body .pricing-rate-wizard--new .pricing-rate-form form article > div:first-child {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form input,
+  html body .pricing-rate-wizard--new .pricing-rate-form select,
+  html body .pricing-rate-wizard--new .pricing-rate-form textarea,
+  html body .pricing-rate-wizard--new .pricing-rate-form button {
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(-n + 4) {
+    border-radius: 15px !important;
+    padding: 0.55rem !important;
+  }
+
+  html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+    width: calc(100vw - 0.5rem) !important;
+    bottom: 0.25rem !important;
+    border-radius: 16px !important;
+    padding: 0.6rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div {
+    padding: 0.35rem 0.45rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child p:first-child {
+    font-size: 0.62rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child p:last-child {
+    font-size: 0.9rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:nth-child(2) {
+    margin-top: 0.4rem !important;
+    padding: 0.45rem 0.55rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:last-child {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.45rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:last-child > * {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-height: 720px) and (orientation: landscape) {
+  html body .pricing-rate-wizard.pricing-rate-wizard--new {
+    padding-bottom: 9.5rem !important;
+  }
+
+  html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+    padding: 0.5rem 0.7rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:nth-child(2) {
+    display: none !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:last-child {
+    margin-top: 0.35rem !important;
+  }
+}
