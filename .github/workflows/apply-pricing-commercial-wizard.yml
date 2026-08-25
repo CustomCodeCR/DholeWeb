@@ -18,14 +18,16 @@ jobs:
           fetch-depth: 0
 
       - name: Integrate commercial rules into wizard
-        run: python .github/scripts/apply_pricing_commercial_wizard.py
+        run: |
+          python .github/scripts/apply_pricing_commercial_wizard.py
+          python .github/scripts/apply_pricing_commercial_route.py
 
       - name: Commit integration
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue src/modules/pricing/services/pricingCommercialRules.ts
           git diff --cached --check
-          git commit -m 'feat(pricing): apply incoterm and commercial item rules'
+          git commit -m 'feat(pricing): resolve route-aware commercial items'
           git push origin master
