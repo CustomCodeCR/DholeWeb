@@ -85,12 +85,22 @@ function mapSelectItem(item: CatalogItemSelectDto): PricingCatalogItem {
   }
 }
 
+function canonicalIncotermValue(value: string) {
+  const trimmed = value.trim()
+  return /^[a-z]{3}$/i.test(trimmed) ? trimmed.toUpperCase() : trimmed
+}
+
 function normalizeIncoterm(item: PricingCatalogItem): PricingCatalogItem {
-  const displayValue = item.value.trim() || item.name.trim() || item.code.trim()
+  const businessValue = canonicalIncotermValue(
+    item.value.trim() || item.code.trim() || item.name.trim(),
+  )
+  const code = canonicalIncotermValue(item.code.trim() || businessValue)
 
   return {
     ...item,
-    name: displayValue,
+    name: businessValue,
+    value: businessValue,
+    code,
   }
 }
 
@@ -332,6 +342,8 @@ export function usePricingCatalogs() {
       fallback?: string | null,
     ) => items.find((item) => item.id === id)?.name || fallback || '—'
 
+    const incoterm = incoterms.value.find((item) => item.id === rate.incotermId)
+
     return {
       ...rate,
       agentName: label(agents.value, rate.agentId, rate.agentName),
@@ -340,11 +352,8 @@ export function usePricingCatalogs() {
       poeName: label(poePorts.value, rate.poeId, rate.poeName),
       podName: label(podPorts.value, rate.podId, rate.podName),
       containerTypeName: label(containerTypes.value, rate.containerTypeId, rate.containerTypeName),
-      incotermName:
-        incoterms.value.find((item) => item.id === rate.incotermId)?.value?.trim() ||
-        label(incoterms.value, rate.incotermId, rate.incotermName),
-      incotermCode:
-        incoterms.value.find((item) => item.id === rate.incotermId)?.code || rate.incotermCode,
+      incotermName: incoterm?.value || canonicalIncotermValue(rate.incotermName ?? ''),
+      incotermCode: incoterm?.code || canonicalIncotermValue(rate.incotermCode ?? ''),
       currencyName: label(currencies.value, rate.currencyId, rate.currencyName),
       currencyCode:
         currencies.value.find((item) => item.id === rate.currencyId)?.code || rate.currencyCode,
@@ -376,9 +385,15 @@ export function usePricingCatalogs() {
       podCode: podPorts.value.find((item) => item.id === cost.podId)?.code || cost.podCode,
       currencyName: currency?.name || cost.currencyName,
       currencyCode: currency?.code || cost.currencyCode,
-      incoterms: (cost.incoterms ?? []).map((incoterm) => {
-        const current = incoterms.value.find((item) => item.id === incoterm.id)
-        return current ? { id: current.id, name: current.name, code: current.code } : incoterm
+      incoterms: (cost.incoterms ?? []).map((costIncoterm) => {
+        const current = incoterms.value.find((item) => item.id === costIncoterm.id)
+        return current
+          ? { id: current.id, name: current.value, code: current.code }
+          : {
+              ...costIncoterm,
+              name: canonicalIncotermValue(costIncoterm.name ?? ''),
+              code: canonicalIncotermValue(costIncoterm.code ?? ''),
+            }
       }),
     }
   }
