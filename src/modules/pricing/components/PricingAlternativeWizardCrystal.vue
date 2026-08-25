@@ -30,6 +30,15 @@ import { PricingService } from '@/core/services/pricingService'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import {
+  buildOperationalLines,
+  calculateCargoInsurance,
+  canonicalServiceLine,
+  cargoInsuranceNote,
+  incotermBuyerPaysMainTransport,
+  incotermRateSections,
+  resolveCommercialTerms,
+} from '@/modules/pricing/services/pricingCommercialRules'
 
 type Modality = 'Maritime' | 'Air' | 'Land' | 'Multimodal'
 type RateSection =
@@ -409,9 +418,19 @@ const direction = computed(() => {
 })
 
 const visibleSections = computed<RateSection[]>(() => {
-  const sections = new Set<RateSection>(['international_freight'])
-  metadata(selectedIncoterm.value)?.rateSections?.forEach((section) => sections.add(section))
-  effectiveServices.value.forEach((service) => metadata(service)?.rateSections?.forEach((section) => sections.add(section)))
+  const configured = metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']
+  const sections = new Set<RateSection>(
+    incotermRateSections(selectedIncoterm.value?.code, configured) as RateSection[],
+  )
+
+  effectiveServices.value.forEach((service) => {
+    if (
+      service.code?.toUpperCase() === 'INT_TRANSPORT' &&
+      !incotermBuyerPaysMainTransport(selectedIncoterm.value?.code)
+    ) return
+    metadata(service)?.rateSections?.forEach((section) => sections.add(section))
+  })
+
   if (form.cargoValue > 0) sections.add('destination_charges')
   return sectionOrder.filter((section) => sections.has(section))
 })
@@ -477,16 +496,10 @@ function applicableCost(cost: CostSelectDto) {
 }
 
 function serviceAmounts(service: CatalogItemSelectDto) {
-  const meta = metadata(service)
   const serviceValue = normalizeCatalogValue(displayValue(service))
   if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
-    const costFactor = meta?.costFactor ?? 0.20
-    const saleFactor = meta?.saleFactor ?? 0.65
-    const costMinimum = meta?.costMinimumUsd ?? 35
-    const saleMinimum = meta?.saleMinimumUsd ?? 95
-    const cost = Math.max(form.cargoValue * costFactor, costMinimum)
-    const sale = Math.max(form.cargoValue * saleFactor, saleMinimum)
-    return { cost, sale }
+    const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
+    return { cost: insurance.cost, sale: insurance.sale }
   }
   return { cost: 0, sale: 0 }
 }
@@ -516,20 +529,49 @@ function rebuildRateLines() {
     })
   }
 
+  buildOperationalLines({
+    modality: form.modality as Modality,
+    shipmentMode: shipmentModeForApi.value,
+    direction: direction.value,
+    incotermCode: selectedIncoterm.value?.code ?? '',
+    destinationText: displayValue(selectedDestination.value),
+  }).forEach((template) => {
+    if (!visible.has(template.section)) return
+    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(template.name))) return
+    lines.push({
+      key: `operational:${normalizeCatalogValue(template.name)}`,
+      section: template.section,
+      name: template.name,
+      costDetailType: template.costDetailType,
+      costType: template.costType,
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: template.costAmount,
+      saleAmount: template.saleAmount,
+      included: template.included,
+      optional: template.optional,
+      manual: false,
+    })
+  })
+
   effectiveServices.value
     .filter((service) => !normalizeCatalogValue(displayValue(service)).includes('transporte internacional'))
     .forEach((service) => {
       const meta = metadata(service)
       const name = displayValue(service)
-      const detailType = detailTypeForService(service)
-      const section = meta?.rateSections?.[0] ?? sectionForDetail(detailType, name)
+      const canonical = canonicalServiceLine(service.code, name)
+      const lineName = canonical.name
+      const detailType = canonical.type ?? detailTypeForService(service)
+      const section = canonical.section ?? meta?.rateSections?.[0] ?? sectionForDetail(detailType, lineName)
       if (!visible.has(section)) return
+      if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(lineName))) return
       const amounts = serviceAmounts(service)
       const optional = detailType === 'Insurance' || Boolean(meta?.optional)
       lines.push({
         key: `service:${service.id}`,
         section,
-        name,
+        name: lineName,
         costDetailType: detailType,
         costType: optional ? 'Optional' : 'Variable',
         currencyId: currency.id,
@@ -553,8 +595,8 @@ function rebuildRateLines() {
       currencyId: currency.id,
       currencyName: displayValue(currency),
       currencyCode: currency.code,
-      costAmount: Math.max(form.cargoValue * 0.20, 35),
-      saleAmount: Math.max(form.cargoValue * 0.65, 95),
+      costAmount: calculateCargoInsurance(form.cargoValue, form.freightCost).cost,
+      saleAmount: calculateCargoInsurance(form.cargoValue, form.freightCost).sale,
       included: false,
       optional: true,
       manual: false,
@@ -845,8 +887,62 @@ async function saveRate() {
     costAmount: number(line.costAmount),
     saleAmount: number(line.saleAmount),
     quantity: line.costDetailType === 'Freight' ? form.equipmentQuantity : 1,
-    notes: line.manual ? 'Cargo manual agregado desde el wizard de Pricing.' : null,
+    notes: line.costDetailType === 'Insurance'
+      ? cargoInsuranceNote(form.cargoValue, form.freightCost)
+      : line.manual
+        ? 'Cargo manual agregado desde el wizard de Pricing.'
+        : null,
   }))
+
+  const serviceCodes = new Set(
+    selectedServices.value
+      .map((service) => service.code?.trim().toUpperCase())
+      .filter((code): code is string => Boolean(code)),
+  )
+  if (!incotermBuyerPaysMainTransport(incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
+  if (includedLines.value.some((line) => line.costDetailType === 'Insurance')) serviceCodes.add('CARGO_INSURANCE')
+  if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')
+
+  let commercialTerms: Awaited<ReturnType<typeof resolveCommercialTerms>> | null = null
+  try {
+    commercialTerms = await resolveCommercialTerms({
+      transportModality: form.modality as Modality,
+      shipmentMode: shipmentModeForApi.value,
+      direction: direction.value,
+      incotermId: incoterm!.id,
+      serviceCodes: [...serviceCodes],
+    })
+  } catch {
+    // La tarifa puede guardarse aunque el resolver de textos no esté disponible;
+    // las líneas comerciales visibles siguen siendo la fuente de respaldo.
+  }
+
+  const uniqueText = (values: Array<string | null | undefined>) => {
+    const seen = new Set<string>()
+    return values.filter((value): value is string => {
+      const text = String(value ?? '').trim()
+      if (!text) return false
+      const key = normalizeCatalogValue(text)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  const includeTerms = uniqueText([
+    ...(commercialTerms?.includes.map((item) => item.text) ?? []),
+    ...includedLines.value.map((line) => line.name),
+  ])
+  const includeKeys = new Set(includeTerms.map(normalizeCatalogValue))
+  const subjectTerms = uniqueText([
+    ...(commercialTerms?.subjectTo.map((item) => item.text) ?? []),
+    form.dangerousCargo ? 'Carga peligrosa' : null,
+    form.nonStackable ? 'Carga no estibable' : null,
+    form.overweight ? 'Sobrepeso' : null,
+  ])
+  const excludeTerms = uniqueText(
+    commercialTerms?.excludes.map((item) => item.text) ?? [],
+  ).filter((text) => !includeKeys.has(normalizeCatalogValue(text)))
 
   try {
     saving.value = true
@@ -892,13 +988,9 @@ async function saveRate() {
         },
       ],
       transitTime: selectedImportRate.value?.transitDays ? `${selectedImportRate.value.transitDays} días` : null,
-      includes: selectedServices.value.map(displayValue).join('\n'),
-      subjectTo: [
-        form.dangerousCargo ? 'Carga peligrosa' : '',
-        form.nonStackable ? 'Carga no estibable' : '',
-        form.overweight ? 'Carga con sobrepeso' : '',
-      ].filter(Boolean).join('\n') || null,
-      excludes: null,
+      includes: includeTerms.join('\n') || null,
+      subjectTo: subjectTerms.join('\n') || null,
+      excludes: excludeTerms.join('\n') || null,
       totalPackages: 0,
       totalPallets: 0,
       totalWeightKg: 0,
