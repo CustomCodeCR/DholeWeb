@@ -1,7 +1,9 @@
 @import './theme.css';
 @import './base.css';
 
-/* Pricing rate wizard visual polish */
+/* --------------------------------------------------------------------------
+ * Pricing rate wizard
+ * -------------------------------------------------------------------------- */
 html body .pricing-rate-wizard.pricing-rate-wizard--new {
   margin: 0 !important;
   padding: 0 0 10.5rem !important;
@@ -13,6 +15,11 @@ html body .pricing-rate-wizard.pricing-rate-wizard--new {
   -webkit-backdrop-filter: none !important;
 }
 
+html body .pricing-rate-wizard--new::before,
+html body .pricing-rate-wizard--new .pricing-rate-card::before {
+  display: none !important;
+}
+
 html body .pricing-rate-wizard--new .pricing-rate-wizard__inner {
   width: min(100%, 1320px) !important;
   margin-inline: auto !important;
@@ -20,7 +27,7 @@ html body .pricing-rate-wizard--new .pricing-rate-wizard__inner {
 
 html body .pricing-rate-wizard--new .pricing-rate-stepper {
   width: min(100%, 720px) !important;
-  margin-bottom: 0.8rem !important;
+  margin: 0 auto 0.8rem !important;
 }
 
 html body .pricing-rate-wizard--new .pricing-rate-card {
@@ -29,7 +36,7 @@ html body .pricing-rate-wizard--new .pricing-rate-card {
   margin-inline: auto !important;
   overflow: visible !important;
   border-radius: 24px !important;
-  background: color-mix(in srgb, var(--dh-card) 82%, transparent) !important;
+  background: color-mix(in srgb, var(--dh-card) 86%, transparent) !important;
   box-shadow: 0 16px 42px rgb(0 0 0 / 12%) !important;
   backdrop-filter: blur(24px) saturate(145%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(145%) !important;
@@ -44,6 +51,7 @@ html body .pricing-rate-wizard--new .pricing-rate-form {
   padding: 0.75rem !important;
 }
 
+html body .pricing-rate-wizard--new .pricing-rate-form form,
 html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(-n + 4) {
   min-width: 0 !important;
 }
@@ -55,7 +63,7 @@ html body .pricing-rate-wizard--new .pricing-rate-form button {
   max-width: 100%;
 }
 
-/* Persistent commercial summary: aligned with the actual card instead of the full viewport. */
+/* Resumen persistente alineado con el formulario. */
 html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
   position: fixed !important;
   left: 50% !important;
@@ -69,7 +77,7 @@ html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form 
   transform: translateX(-50%) !important;
   border: 1px solid color-mix(in srgb, var(--dh-primary) 26%, var(--dh-border)) !important;
   border-radius: 20px !important;
-  background: color-mix(in srgb, var(--dh-card) 82%, transparent) !important;
+  background: color-mix(in srgb, var(--dh-card) 86%, transparent) !important;
   padding: 0.75rem 0.9rem !important;
   box-shadow: 0 18px 50px rgb(0 0 0 / 24%) !important;
   backdrop-filter: blur(30px) saturate(165%) !important;
@@ -96,7 +104,7 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
   border-right: 0 !important;
 }
 
-html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:nth-child(2) {
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div[class*='bg-amber'] {
   margin-top: 0.55rem !important;
   padding: 0.55rem 0.7rem !important;
   border-radius: 13px !important;
@@ -109,7 +117,7 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
   gap: 0.5rem !important;
 }
 
-/* Keep the previous/next controls out of the summary bar instead of behind it. */
+/* Desktop: navegación flotante encima del resumen. */
 @media (min-width: 1100px) {
   html body .pricing-rate-wizard--new .pricing-rate-navigation {
     position: fixed !important;
@@ -156,9 +164,10 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
   }
 }
 
+/* Tablet: no duplicar la navegación, los steps superiores hacen la navegación. */
 @media (max-width: 1099px) {
   html body .pricing-rate-wizard.pricing-rate-wizard--new {
-    padding-bottom: 13.5rem !important;
+    padding-bottom: 12rem !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-navigation {
@@ -167,7 +176,7 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
 
   html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
     width: calc(100vw - 1.25rem) !important;
-    bottom: 0.55rem !important;
+    bottom: max(0.55rem, env(safe-area-inset-bottom)) !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child {
@@ -186,64 +195,83 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
   }
 }
 
+/* --------------------------------------------------------------------------
+ * Mobile
+ * -------------------------------------------------------------------------- */
 @media (max-width: 760px) {
-  html body .pricing-rate-wizard.pricing-rate-wizard--new {
-    padding: 0 0 15.75rem !important;
+  /* El drawer de Pricing ocupa el ancho útil, sin el gran marco negro alrededor. */
+  html body aside:has(.pricing-rate-wizard--new) {
+    background: color-mix(in srgb, var(--dh-bg) 88%, transparent) !important;
   }
 
+  html body main:has(.pricing-rate-wizard--new) {
+    padding: 0.35rem !important;
+    background: transparent !important;
+  }
+
+  html body .pricing-rate-wizard.pricing-rate-wizard--new {
+    min-height: calc(100dvh - 66px);
+    padding: 0 0 8.75rem !important;
+  }
+
+  /* En celular NO es sticky. Así nunca tapa Vigencia, Ruta o Costos al hacer scroll. */
   html body .pricing-rate-wizard--new .pricing-rate-stepper {
-    position: sticky !important;
-    top: -0.75rem !important;
-    z-index: 60 !important;
-    width: calc(100% + 0.25rem) !important;
-    margin: -0.25rem -0.125rem 0.65rem !important;
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    width: 100% !important;
+    margin: 0 0 0.45rem !important;
     border: 1px solid color-mix(in srgb, var(--dh-border) 62%, transparent);
-    border-radius: 0 0 16px 16px;
-    background: color-mix(in srgb, var(--dh-card) 78%, transparent);
-    padding: 0.55rem 0.2rem 0.45rem !important;
-    backdrop-filter: blur(22px) saturate(150%);
-    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--dh-card) 84%, transparent);
+    padding: 0.42rem 0.15rem 0.35rem !important;
+    box-shadow: 0 7px 18px rgb(0 0 0 / 8%);
+    backdrop-filter: blur(20px) saturate(145%);
+    -webkit-backdrop-filter: blur(20px) saturate(145%);
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-step {
-    min-height: 3.35rem !important;
-    gap: 0.3rem !important;
+    min-height: 3rem !important;
+    gap: 0.25rem !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-step__number {
-    width: 1.75rem !important;
-    height: 1.75rem !important;
-    flex-basis: 1.75rem !important;
-    font-size: 0.68rem !important;
+    width: 1.7rem !important;
+    height: 1.7rem !important;
+    flex-basis: 1.7rem !important;
+    font-size: 0.64rem !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-step__label {
-    max-width: 5.5rem !important;
-    font-size: 0.61rem !important;
-    line-height: 1.1 !important;
+    max-width: 6rem !important;
+    font-size: 0.59rem !important;
+    line-height: 1.08 !important;
     white-space: normal !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-card {
-    border-radius: 18px !important;
+    overflow: hidden !important;
+    border-radius: 15px !important;
+    box-shadow: 0 8px 22px rgb(0 0 0 / 8%) !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-card__header {
     min-height: 0 !important;
-    border-radius: 18px 18px 0 0 !important;
-    padding: 0.8rem 0.9rem !important;
+    border-radius: 15px 15px 0 0 !important;
+    padding: 0.72rem 0.75rem !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-card__title {
-    font-size: 1.05rem !important;
+    font-size: 1rem !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-card__subtitle {
-    font-size: 0.66rem !important;
+    font-size: 0.64rem !important;
+    line-height: 1.25 !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form {
-    padding: 0.5rem !important;
+    padding: 0.4rem !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form,
@@ -268,61 +296,117 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(-n + 4) {
-    border-radius: 15px !important;
-    padding: 0.55rem !important;
+    border-radius: 13px !important;
+    padding: 0.5rem !important;
   }
 
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(-n + 4) > div:first-child {
+    min-height: 40px !important;
+    margin: 0 0 0.45rem !important;
+    border-radius: 11px !important;
+    padding: 0.38rem 0.45rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(-n + 4) > div:first-child p {
+    display: none !important;
+  }
+
+  /* El resumen móvil conserva las 4 métricas, pero elimina la alerta larga que tapaba el formulario. */
   html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
-    width: calc(100vw - 0.5rem) !important;
-    bottom: 0.25rem !important;
-    border-radius: 16px !important;
-    padding: 0.6rem !important;
+    width: calc(100vw - 0.7rem) !important;
+    max-height: none !important;
+    overflow: visible !important;
+    bottom: max(0.3rem, env(safe-area-inset-bottom)) !important;
+    border-radius: 14px !important;
+    padding: 0.45rem !important;
+    box-shadow: 0 12px 34px rgb(0 0 0 / 24%) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0 !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div {
-    padding: 0.35rem 0.45rem !important;
+    padding: 0.28rem 0.4rem !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--dh-border) 48%, transparent) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div:nth-child(odd) {
+    border-right: 1px solid color-mix(in srgb, var(--dh-border) 48%, transparent) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div:nth-last-child(-n + 2) {
+    border-bottom: 0 !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child p:first-child {
-    font-size: 0.62rem !important;
+    font-size: 0.54rem !important;
+    line-height: 1.05 !important;
+    letter-spacing: 0.04em !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child p:last-child {
-    font-size: 0.9rem !important;
+    margin-top: 0.12rem !important;
+    font-size: 0.78rem !important;
+    line-height: 1.05 !important;
   }
 
-  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:nth-child(2) {
-    margin-top: 0.4rem !important;
-    padding: 0.45rem 0.55rem !important;
-    font-size: 0.68rem !important;
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div[class*='bg-amber'] {
+    display: none !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:last-child {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 0.45rem !important;
+    grid-template-columns: 0.85fr 1.15fr !important;
+    gap: 0.35rem !important;
+    margin-top: 0.35rem !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:last-child > * {
     width: 100% !important;
     min-width: 0 !important;
+    min-height: 2.35rem !important;
+  }
+
+  /* Nunca mostrar Regresar/Siguiente debajo del resumen en móvil. */
+  html body .pricing-rate-wizard--new .pricing-rate-navigation {
+    display: none !important;
   }
 }
 
-@media (max-height: 720px) and (orientation: landscape) {
-  html body .pricing-rate-wizard.pricing-rate-wizard--new {
-    padding-bottom: 9.5rem !important;
+@media (max-width: 390px) {
+  html body main:has(.pricing-rate-wizard--new) {
+    padding-inline: 0.2rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-step__label {
+    max-width: 5rem !important;
+    font-size: 0.54rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form {
+    padding: 0.28rem !important;
   }
 
   html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
-    padding: 0.5rem 0.7rem !important;
+    width: calc(100vw - 0.4rem) !important;
+    padding: 0.38rem !important;
+  }
+}
+
+/* Landscape bajo: priorizar formulario y métricas. */
+@media (max-width: 760px) and (max-height: 680px) {
+  html body .pricing-rate-wizard.pricing-rate-wizard--new {
+    padding-bottom: 7.75rem !important;
   }
 
-  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:nth-child(2) {
-    display: none !important;
+  html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+    padding: 0.35rem 0.45rem !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:last-child {
-    margin-top: 0.35rem !important;
+    margin-top: 0.25rem !important;
   }
 }
