@@ -1,0 +1,161 @@
+/*
+ * Resumen comercial persistente del wizard de Pricing.
+ *
+ * El quinto <section> pertenece al formulario funcional original de Dhole y ya contiene
+ * costo, venta, utilidad, margen, advertencias y acciones. No duplicamos cálculos ni
+ * estado: únicamente lo mantenemos visible durante todo el flujo manual.
+ */
+
+html body .pricing-rate-wizard--new {
+  position: relative;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html body .pricing-rate-wizard--new::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  content: '';
+  pointer-events: none;
+  background: color-mix(in srgb, var(--dh-bg) 54%, transparent);
+  backdrop-filter: blur(28px) saturate(145%);
+  -webkit-backdrop-filter: blur(28px) saturate(145%);
+}
+
+html body .pricing-rate-wizard--new > .pricing-rate-wizard__inner {
+  position: relative;
+  z-index: 1;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-card {
+  position: relative;
+  overflow: visible !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  content: '';
+  pointer-events: none;
+  background: color-mix(in srgb, var(--dh-card) 72%, transparent);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * La barra sale del flujo visual y queda anclada a la parte inferior del drawer full.
+ * El drawer de creación de tarifas usa size="full", por lo que ocupa todo el viewport.
+ */
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+  position: fixed !important;
+  right: 1rem !important;
+  bottom: 0.85rem !important;
+  left: 1rem !important;
+  z-index: 120 !important;
+  display: block !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  border: 1px solid color-mix(in srgb, var(--dh-primary) 24%, var(--dh-border)) !important;
+  border-radius: 21px !important;
+  background: color-mix(in srgb, var(--dh-card) 74%, transparent) !important;
+  padding: 0.9rem 1.15rem !important;
+  box-shadow:
+    0 22px 60px rgb(15 23 42 / 18%),
+    inset 0 1px 0 rgb(255 255 255 / 8%) !important;
+  backdrop-filter: blur(30px) saturate(165%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(165%) !important;
+}
+
+/* Dejar suficiente espacio de scroll para que la barra nunca tape el último contenido. */
+html body .pricing-rate-wizard--new .pricing-rate-form {
+  padding-bottom: 11.5rem !important;
+}
+
+/* Métricas principales siempre en una sola franja en escritorio. */
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div {
+  min-width: 0;
+  padding: 0.25rem 1rem !important;
+  border-right: 1px solid color-mix(in srgb, var(--dh-border) 82%, transparent) !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div:first-child {
+  padding-left: 0 !important;
+}
+
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div:last-child {
+  border-right: 0 !important;
+}
+
+/* Mantener advertencia y acciones compactas dentro del glass. */
+html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:last-child {
+  margin-top: 0.75rem !important;
+}
+
+/* El footer Regresar/Siguiente puede alcanzarse por scroll sin quedar debajo del resumen. */
+html body .pricing-rate-wizard--new .pricing-rate-navigation {
+  margin-bottom: 0.25rem;
+}
+
+@media (max-width: 900px) {
+  html body .pricing-rate-wizard--new .pricing-rate-form {
+    padding-bottom: 14rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+    right: 0.65rem !important;
+    bottom: 0.6rem !important;
+    left: 0.65rem !important;
+    padding: 0.8rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div {
+    padding: 0.5rem 0.7rem !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--dh-border) 70%, transparent);
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child > div:nth-last-child(-n + 2) {
+    border-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 560px) {
+  html body .pricing-rate-wizard--new .pricing-rate-form {
+    padding-bottom: 15.5rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+    right: 0.4rem !important;
+    bottom: 0.4rem !important;
+    left: 0.4rem !important;
+    border-radius: 17px !important;
+    padding: 0.7rem !important;
+  }
+
+  /* En móvil se priorizan las cifras; el bloque mantiene sus acciones reales debajo. */
+  html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
