@@ -418,7 +418,7 @@ const direction = computed(() => {
 })
 
 const visibleSections = computed<RateSection[]>(() => {
-  const configured = metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']
+  const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
   const sections = new Set<RateSection>(
     incotermRateSections(selectedIncoterm.value?.code, configured) as RateSection[],
   )
