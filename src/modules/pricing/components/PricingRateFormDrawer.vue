@@ -154,12 +154,13 @@ onMounted(collapseCommercialConditionsByDefault)
   --rate-text: var(--dh-text);
   --rate-muted: var(--dh-text-muted);
   width: 100%;
+  min-width: 0;
   scroll-margin-top: 1rem;
 }
 
 .pricing-rate-wizard--new {
   margin: -0.25rem;
-  padding: 1rem 1rem 12.5rem;
+  padding: 1rem 1rem 11.75rem;
   border: 1px solid color-mix(in srgb, var(--rate-border) 72%, transparent);
   border-radius: 30px;
   background: color-mix(in srgb, var(--rate-bg) 64%, transparent);
@@ -170,9 +171,11 @@ onMounted(collapseCommercialConditionsByDefault)
 
 .pricing-rate-wizard__inner {
   width: min(100%, 1480px);
+  min-width: 0;
   margin-inline: auto;
 }
 
+/* ---------- STEPPER ---------- */
 .pricing-rate-stepper {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -186,9 +189,11 @@ onMounted(collapseCommercialConditionsByDefault)
   z-index: 0;
   display: flex;
   min-width: 0;
+  min-height: 3.8rem;
   cursor: pointer;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.42rem;
   border: 0;
   background: transparent;
@@ -218,6 +223,7 @@ onMounted(collapseCommercialConditionsByDefault)
   display: inline-flex;
   width: 2.1rem;
   height: 2.1rem;
+  flex: 0 0 2.1rem;
   align-items: center;
   justify-content: center;
   border: 2px solid color-mix(in srgb, var(--rate-border) 92%, transparent);
@@ -245,9 +251,19 @@ onMounted(collapseCommercialConditionsByDefault)
 }
 
 .pricing-rate-step--current .pricing-rate-step__number { transform: scale(1.08); }
-.pricing-rate-step__label { max-width: 10rem; font-size: 0.78rem; font-weight: 850; line-height: 1.15; }
 
+.pricing-rate-step__label {
+  max-width: 10rem;
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+}
+
+/* ---------- CARD ---------- */
 .pricing-rate-card {
+  min-width: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--rate-border) 78%, transparent);
   border-radius: 28px;
@@ -268,13 +284,61 @@ onMounted(collapseCommercialConditionsByDefault)
   -webkit-backdrop-filter: blur(20px) saturate(135%);
 }
 
-.pricing-rate-card__title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; }
-.pricing-rate-card__title { color: var(--rate-text); font-size: clamp(1.2rem, 1.7vw, 1.45rem); font-weight: 900; letter-spacing: -0.025em; }
-.pricing-rate-card__status { display: inline-flex; min-height: 1.7rem; align-items: center; border: 1px solid color-mix(in srgb, var(--rate-primary) 22%, var(--rate-border)); border-radius: 999px; background: color-mix(in srgb, var(--rate-primary) 8%, transparent); padding: 0.18rem 0.68rem; color: var(--rate-primary); font-size: 0.7rem; font-weight: 850; backdrop-filter: blur(12px); }
-.pricing-rate-card__subtitle { margin-top: 0.28rem; color: var(--rate-muted); font-size: 0.78rem; font-weight: 650; }
+.pricing-rate-card__header > div { min-width: 0; }
 
-.pricing-rate-form { min-width: 0; padding: 0.9rem; }
-.pricing-rate-form :deep(form) { width: 100%; }
+.pricing-rate-card__title-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.pricing-rate-card__title {
+  color: var(--rate-text);
+  font-size: clamp(1.2rem, 1.7vw, 1.45rem);
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+
+.pricing-rate-card__status {
+  display: inline-flex;
+  min-height: 1.7rem;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--rate-primary) 22%, var(--rate-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rate-primary) 8%, transparent);
+  padding: 0.18rem 0.68rem;
+  color: var(--rate-primary);
+  font-size: 0.7rem;
+  font-weight: 850;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.pricing-rate-card__subtitle {
+  margin-top: 0.28rem;
+  color: var(--rate-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.pricing-rate-form {
+  min-width: 0;
+  padding: 0.9rem;
+}
+
+.pricing-rate-form :deep(form) {
+  width: 100%;
+  min-width: 0;
+}
+
+.pricing-rate-form :deep(input),
+.pricing-rate-form :deep(select),
+.pricing-rate-form :deep(textarea) {
+  max-width: 100%;
+}
 
 .pricing-rate-wizard--new .pricing-rate-form :deep(form) {
   display: grid;
@@ -284,9 +348,10 @@ onMounted(collapseCommercialConditionsByDefault)
 
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > * + *) { margin-top: 0 !important; }
 
-/* Las cuatro secciones editables siguen montadas, pero el wizard muestra solo las del paso actual. */
+/* Las cuatro secciones editables siguen montadas; el wizard muestra solo las del paso actual. */
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4)) {
   display: none !important;
+  min-width: 0;
   margin: 0 !important;
 }
 
@@ -305,6 +370,7 @@ onMounted(collapseCommercialConditionsByDefault)
   grid-column: 1 / -1;
 }
 
+/* ---------- ACORDEONES ---------- */
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4)) {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--rate-border) 78%, transparent) !important;
@@ -330,6 +396,7 @@ onMounted(collapseCommercialConditionsByDefault)
 
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4) > div:first-child > button) {
   display: inline-flex !important;
+  flex: 0 0 auto;
 }
 
 .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(2) > div:last-child),
@@ -344,6 +411,7 @@ onMounted(collapseCommercialConditionsByDefault)
 }
 
 .pricing-rate-wizard--step-3 .pricing-rate-form :deep(form > section:nth-of-type(4) section) {
+  min-width: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--rate-border) 75%, transparent) !important;
   border-radius: 15px !important;
@@ -353,7 +421,7 @@ onMounted(collapseCommercialConditionsByDefault)
   -webkit-backdrop-filter: blur(16px);
 }
 
-/* Resumen real: costo, venta, utilidad, margen, alerta y acciones siempre visibles. */
+/* ---------- RESUMEN PERSISTENTE ---------- */
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5)) {
   position: fixed !important;
   right: 1rem !important;
@@ -380,14 +448,25 @@ onMounted(collapseCommercialConditionsByDefault)
 }
 
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div) {
+  min-width: 0;
   padding: 0.15rem 1rem !important;
   border-right: 1px solid color-mix(in srgb, var(--rate-border) 72%, transparent);
 }
 
-.pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div:first-child) { padding-left: 0 !important; }
-.pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div:last-child) { border-right: 0; }
-.pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:last-child) { margin-top: 0.7rem !important; justify-content: flex-end !important; }
+.pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div:first-child) {
+  padding-left: 0 !important;
+}
 
+.pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div:last-child) {
+  border-right: 0;
+}
+
+.pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:last-child) {
+  margin-top: 0.7rem !important;
+  justify-content: flex-end !important;
+}
+
+/* ---------- NAVEGACIÓN ---------- */
 .pricing-rate-navigation {
   display: grid;
   grid-template-columns: minmax(130px, auto) 1fr minmax(130px, auto);
@@ -402,29 +481,72 @@ onMounted(collapseCommercialConditionsByDefault)
 
 .pricing-rate-navigation__button {
   display: inline-flex;
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   cursor: pointer;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
   border-radius: 14px;
-  padding: 0.5rem 0.9rem;
+  padding: 0.55rem 0.95rem;
   font-size: 0.78rem;
   font-weight: 850;
 }
 
 .pricing-rate-navigation__button:disabled { cursor: not-allowed; opacity: 0.38; }
-.pricing-rate-navigation__button--secondary { border: 1px solid color-mix(in srgb, var(--rate-border) 90%, transparent); background: color-mix(in srgb, var(--rate-card) 66%, transparent); color: var(--rate-text); }
-.pricing-rate-navigation__button--primary { border: 1px solid color-mix(in srgb, var(--rate-primary) 84%, transparent); background: var(--rate-primary); color: white; box-shadow: 0 8px 18px color-mix(in srgb, var(--rate-primary) 18%, transparent); }
-.pricing-rate-navigation__progress { display: flex; align-items: baseline; justify-content: center; gap: 0.45rem; color: var(--rate-muted); text-align: center; }
-.pricing-rate-navigation__progress span { color: var(--rate-text); font-size: 0.76rem; font-weight: 800; }
+
+.pricing-rate-navigation__button--secondary {
+  border: 1px solid color-mix(in srgb, var(--rate-border) 90%, transparent);
+  background: color-mix(in srgb, var(--rate-card) 66%, transparent);
+  color: var(--rate-text);
+}
+
+.pricing-rate-navigation__button--primary {
+  border: 1px solid color-mix(in srgb, var(--rate-primary) 84%, transparent);
+  background: var(--rate-primary);
+  color: white;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--rate-primary) 18%, transparent);
+}
+
+.pricing-rate-navigation__progress {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.45rem;
+  color: var(--rate-muted);
+  text-align: center;
+}
+
+.pricing-rate-navigation__progress span {
+  overflow: hidden;
+  color: var(--rate-text);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pricing-rate-navigation__progress small { font-size: 0.68rem; font-weight: 800; }
-.pricing-rate-navigation__finish-hint { justify-self: end; color: var(--rate-muted); font-size: 0.72rem; font-weight: 650; text-align: right; }
+
+.pricing-rate-navigation__finish-hint {
+  justify-self: end;
+  color: var(--rate-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-align: right;
+}
 
 .pricing-rate-wizard--contextual .pricing-rate-form { padding: 1rem; }
 
+/* ---------- LAPTOP / TABLET GRANDE ---------- */
 @media (max-width: 1279px) {
-  .pricing-rate-wizard--new .pricing-rate-form :deep(form) { grid-template-columns: 1fr; }
+  .pricing-rate-wizard--new {
+    padding-inline: 0.8rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form) {
+    grid-template-columns: 1fr;
+  }
 
   .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(2)),
   .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3)) {
@@ -434,46 +556,376 @@ onMounted(collapseCommercialConditionsByDefault)
   .pricing-rate-wizard--step-2 .pricing-rate-form :deep(form > section:nth-of-type(1) > div:nth-child(2)) {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
+
+  .pricing-rate-wizard--step-3 .pricing-rate-form :deep(form > section:nth-of-type(4) article > div:first-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
-@media (max-width: 760px) {
-  .pricing-rate-wizard--new { margin: 0; padding: 0.45rem 0.45rem 15rem; border-radius: 20px; }
-  .pricing-rate-stepper { width: 100%; margin-bottom: 0.7rem; padding-inline: 0.1rem; }
-  .pricing-rate-step__number { width: 1.82rem; height: 1.82rem; box-shadow: 0 0 0 3px color-mix(in srgb, var(--rate-bg) 72%, transparent); }
-  .pricing-rate-step::after { top: 0.88rem; left: calc(50% + 0.95rem); width: calc(100% - 1.9rem); }
-  .pricing-rate-step__label { max-width: 6rem; font-size: 0.62rem; }
-  .pricing-rate-card { border-radius: 20px; }
-  .pricing-rate-card__header { min-height: 66px; padding: 0.85rem 1rem; }
-  .pricing-rate-card__subtitle { font-size: 0.68rem; }
-  .pricing-rate-form { padding: 0.6rem; }
+/* ---------- TABLET ---------- */
+@media (max-width: 900px) {
+  .pricing-rate-wizard--new {
+    padding: 0.7rem 0.7rem 12.5rem;
+    border-radius: 24px;
+  }
+
+  .pricing-rate-stepper {
+    width: min(100%, 680px);
+    margin-bottom: 0.8rem;
+  }
+
+  .pricing-rate-card {
+    border-radius: 22px;
+  }
+
+  .pricing-rate-card__header {
+    min-height: 70px;
+    padding: 0.9rem 1rem;
+  }
+
+  .pricing-rate-form {
+    padding: 0.7rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4)) {
+    border-radius: 17px !important;
+    padding: 0.7rem !important;
+  }
 
   .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(2) > div:last-child),
-  .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3) > div:nth-child(2)),
-  .pricing-rate-wizard--step-2 .pricing-rate-form :deep(form > section:nth-of-type(1) > div:nth-child(2)) {
-    grid-template-columns: 1fr !important;
+  .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3) > div:nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
   .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5)) {
-    right: 0.5rem !important;
-    bottom: 0.5rem !important;
-    left: 0.5rem !important;
-    border-radius: 18px !important;
-    padding: 0.7rem !important;
+    right: 0.65rem !important;
+    bottom: 0.65rem !important;
+    left: 0.65rem !important;
+    border-radius: 19px !important;
+    padding: 0.75rem 0.85rem !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div) {
+    padding-inline: 0.65rem !important;
+  }
+}
+
+/* ---------- CELULAR ---------- */
+@media (max-width: 640px) {
+  .pricing-rate-wizard {
+    scroll-margin-top: 0.25rem;
+  }
+
+  .pricing-rate-wizard--new {
+    margin: 0;
+    padding: 0.35rem 0.35rem 10.75rem;
+    border-radius: 18px;
+    box-shadow: none;
+  }
+
+  /* Stepper compacto, pegado arriba mientras se navega dentro del drawer. */
+  .pricing-rate-stepper {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    width: 100%;
+    margin: 0 0 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--rate-border) 68%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--rate-card) 76%, transparent);
+    padding: 0.45rem 0.3rem 0.4rem;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
+    backdrop-filter: blur(22px) saturate(145%);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+  }
+
+  .pricing-rate-step {
+    min-height: 3rem;
+    gap: 0.28rem;
+    padding-inline: 0.15rem;
+  }
+
+  .pricing-rate-step::after {
+    top: 0.82rem;
+    left: calc(50% + 0.88rem);
+    width: calc(100% - 1.76rem);
+  }
+
+  .pricing-rate-step__number {
+    width: 1.7rem;
+    height: 1.7rem;
+    flex-basis: 1.7rem;
+    border-width: 1.5px;
+    font-size: 0.64rem;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--rate-bg) 72%, transparent);
+  }
+
+  .pricing-rate-step__label {
+    max-width: 6.2rem;
+    font-size: 0.6rem;
+    line-height: 1.1;
+  }
+
+  .pricing-rate-card {
+    border-radius: 17px;
+    box-shadow: 0 10px 30px rgb(15 23 42 / 6%);
+  }
+
+  .pricing-rate-card__header {
+    min-height: auto;
+    padding: 0.75rem 0.8rem;
+  }
+
+  .pricing-rate-card__title-row {
+    gap: 0.45rem;
+  }
+
+  .pricing-rate-card__title {
+    font-size: 1rem;
+  }
+
+  .pricing-rate-card__status {
+    min-height: 1.45rem;
+    padding: 0.12rem 0.5rem;
+    font-size: 0.62rem;
+  }
+
+  .pricing-rate-card__subtitle {
+    margin-top: 0.2rem;
+    font-size: 0.64rem;
+    line-height: 1.3;
+  }
+
+  .pricing-rate-form {
+    padding: 0.45rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4)) {
+    grid-column: 1 !important;
+    border-radius: 14px !important;
+    padding: 0.5rem !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4) > div:first-child) {
+    min-height: 42px !important;
+    margin: -0.05rem -0.05rem 0.5rem !important;
+    border-radius: 12px;
+    padding: 0.42rem 0.5rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4) > div:first-child h3) {
+    font-size: 0.82rem !important;
+    line-height: 1.2;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4) > div:first-child p) {
+    display: none;
+  }
+
+  /* Cualquier grid interno de las etapas pasa a una columna en celular. */
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4) [class*='grid-cols-']) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(2) > div:last-child),
+  .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3) > div:nth-child(2)),
+  .pricing-rate-wizard--step-2 .pricing-rate-form :deep(form > section:nth-of-type(1) > div:nth-child(2)),
+  .pricing-rate-wizard--step-3 .pricing-rate-form :deep(form > section:nth-of-type(4) article > div:first-child) {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.5rem !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(input),
+  .pricing-rate-wizard--new .pricing-rate-form :deep(select),
+  .pricing-rate-wizard--new .pricing-rate-form :deep(textarea) {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(input),
+  .pricing-rate-wizard--new .pricing-rate-form :deep(select) {
+    min-height: 2.65rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(textarea) {
+    min-height: 5.5rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(div[class*='rounded-[22px]']),
+  .pricing-rate-wizard--new .pricing-rate-form :deep(div[class*='rounded-2xl']),
+  .pricing-rate-wizard--new .pricing-rate-form :deep(section[class*='rounded']) {
+    max-width: 100%;
+  }
+
+  /* Resumen inferior: 4 métricas compactas + alerta/acciones, sin tapar media pantalla. */
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5)) {
+    right: 0.35rem !important;
+    bottom: max(0.35rem, env(safe-area-inset-bottom)) !important;
+    left: 0.35rem !important;
+    max-height: 9.75rem;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    border-radius: 16px !important;
+    padding: 0.55rem !important;
+    box-shadow: 0 16px 44px rgb(0 0 0 / 24%) !important;
   }
 
   .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child) {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 0.45rem !important;
+    gap: 0.25rem !important;
   }
 
   .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div) {
-    padding: 0.35rem 0.55rem !important;
-    border-right: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--rate-border) 55%, transparent);
+    min-width: 0;
+    padding: 0.32rem 0.45rem !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--rate-border) 50%, transparent);
   }
 
-  .pricing-rate-navigation { grid-template-columns: 1fr 1fr; padding: 0.65rem; }
-  .pricing-rate-navigation__progress { display: none; }
-  .pricing-rate-navigation__finish-hint { grid-column: 2; }
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div:nth-child(odd)) {
+    border-right: 1px solid color-mix(in srgb, var(--rate-border) 50%, transparent) !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div:nth-last-child(-n + 2)) {
+    border-bottom: 0;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child p:first-child) {
+    font-size: 0.58rem !important;
+    line-height: 1.1;
+    letter-spacing: 0.05em !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child p:last-child) {
+    margin-top: 0.15rem !important;
+    font-size: 0.82rem !important;
+    line-height: 1.1;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div[class*='bg-amber']) {
+    margin-top: 0.35rem !important;
+    padding: 0.4rem 0.5rem !important;
+    font-size: 0.62rem !important;
+    line-height: 1.25;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:last-child) {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem !important;
+    margin-top: 0.4rem !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:last-child > *) {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .pricing-rate-navigation {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    padding: 0.55rem;
+  }
+
+  .pricing-rate-navigation__button {
+    width: 100%;
+    min-height: 2.75rem;
+    padding-inline: 0.65rem;
+  }
+
+  .pricing-rate-navigation__progress {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-content: flex-start;
+    padding-inline: 0.15rem;
+  }
+
+  .pricing-rate-navigation__button--secondary {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .pricing-rate-navigation__button--primary {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .pricing-rate-navigation__finish-hint {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    justify-self: stretch;
+    font-size: 0.62rem;
+    line-height: 1.25;
+    text-align: center;
+  }
+}
+
+/* ---------- CELULAR MUY PEQUEÑO ---------- */
+@media (max-width: 390px) {
+  .pricing-rate-wizard--new {
+    padding-inline: 0.2rem;
+  }
+
+  .pricing-rate-stepper {
+    border-radius: 13px;
+    padding-inline: 0.12rem;
+  }
+
+  .pricing-rate-step__label {
+    max-width: 5rem;
+    font-size: 0.55rem;
+  }
+
+  .pricing-rate-card__header {
+    padding-inline: 0.65rem;
+  }
+
+  .pricing-rate-card__subtitle {
+    max-width: 19rem;
+  }
+
+  .pricing-rate-form {
+    padding: 0.3rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5)) {
+    right: 0.2rem !important;
+    left: 0.2rem !important;
+    padding: 0.45rem !important;
+  }
+
+  .pricing-rate-navigation {
+    padding-inline: 0.4rem;
+  }
+
+  .pricing-rate-navigation__button {
+    font-size: 0.7rem;
+  }
+}
+
+/* Landscape bajo: el resumen no debe comerse toda la pantalla. */
+@media (max-width: 760px) and (max-height: 680px) {
+  .pricing-rate-wizard--new {
+    padding-bottom: 8.5rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5)) {
+    max-height: 7.4rem;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div[class*='bg-amber']) {
+    display: none !important;
+  }
 }
 </style>
