@@ -1,0 +1,85 @@
+/* Desktop polish for the Pricing manual-rate wizard navigation. */
+@media (min-width: 1100px) {
+  html body .pricing-rate-wizard--new .pricing-rate-navigation {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: 11.1rem !important;
+    z-index: 119 !important;
+    display: inline-flex !important;
+    width: auto !important;
+    min-width: 0 !important;
+    grid-template-columns: none !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.55rem !important;
+    transform: translateX(-50%) !important;
+    border: 1px solid color-mix(in srgb, var(--dh-primary) 14%, var(--dh-border)) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--dh-card) 84%, transparent) !important;
+    padding: 0.45rem 0.55rem !important;
+    box-shadow: 0 14px 34px rgb(0 0 0 / 18%) !important;
+    pointer-events: auto !important;
+    backdrop-filter: blur(22px) saturate(150%) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(150%) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__button,
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__progress,
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__finish-hint {
+    pointer-events: auto !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__button {
+    min-width: 124px !important;
+    min-height: 2.7rem !important;
+    border-radius: 999px !important;
+    padding: 0.6rem 1rem !important;
+    box-shadow: none !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__button:disabled {
+    display: none !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__button--secondary {
+    background: color-mix(in srgb, var(--dh-card) 72%, transparent) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__button--primary {
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--dh-primary) 18%, transparent) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__progress {
+    min-width: 126px !important;
+    justify-content: center !important;
+    border: 1px solid color-mix(in srgb, var(--dh-border) 72%, transparent) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--dh-bg) 54%, transparent) !important;
+    padding: 0.48rem 0.85rem !important;
+    backdrop-filter: blur(18px) !important;
+    -webkit-backdrop-filter: blur(18px) !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__progress span {
+    font-size: 0.72rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__progress small {
+    font-size: 0.66rem !important;
+  }
+
+  html body .pricing-rate-wizard--new .pricing-rate-navigation__finish-hint {
+    justify-self: center !important;
+    min-width: 220px !important;
+    border: 1px dashed color-mix(in srgb, var(--dh-border) 62%, transparent) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--dh-bg) 46%, transparent) !important;
+    padding: 0.55rem 0.85rem !important;
+    font-size: 0.68rem !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+    backdrop-filter: blur(18px) !important;
+    -webkit-backdrop-filter: blur(18px) !important;
+  }
+}
