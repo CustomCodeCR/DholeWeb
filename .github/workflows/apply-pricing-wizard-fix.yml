@@ -17,288 +17,363 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply wizard fixes
+      - name: Apply wizard patch
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
-          s = path.read_text(encoding='utf-8')
-
-          def rep(old, new, count=-1):
-              global s
-              if old not in s:
-                  raise SystemExit(f'Pattern not found: {old[:100]!r}')
-              s = s.replace(old, new, count)
-
-          rep("  destinationId: '',\n  equipmentSize:", "  destinationId: '',\n  podId: '',\n  equipmentSize:", 1)
-
-          rep(
-              "const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))\nconst selectedEquipment",
-              "const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))\nconst selectedPod = computed(() => findById(catalogs.pod, form.podId))\nconst selectedEquipment",
-              1,
-          )
-          rep(
-              "const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))\nconst selectedAgent",
-              """const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
-          const cargoInsuranceService = computed(() =>
-            catalogs.services.find((item) => {
-              const value = normalizeCatalogValue(displayValue(item))
-              return value.includes('seguro') && value.includes('carga')
-            }) ?? null,
-          )
-          const effectiveServices = computed(() => {
-            const services = [...selectedServices.value]
-            const insurance = cargoInsuranceService.value
-            if (form.cargoValue > 0 && insurance && !services.some((item) => item.id === insurance.id)) {
-              services.push(insurance)
-            }
-            return services
-          })
-          const selectedAgent""",
-              1,
-          )
-          rep(
-              "const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))\nconst incotermOptions",
-              "const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))\nconst podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))\nconst incotermOptions",
-              1,
-          )
-          rep(
-              "  selectedServices.value.forEach((service) => metadata(service)?.rateSections?.forEach((section) => sections.add(section)))\n  return sectionOrder.filter",
-              "  effectiveServices.value.forEach((service) => metadata(service)?.rateSections?.forEach((section) => sections.add(section)))\n  if (form.cargoValue > 0) sections.add('destination_charges')\n  return sectionOrder.filter",
-              1,
-          )
-          rep("      form.destinationId &&\n      form.equipmentId &&", "      form.destinationId &&\n      form.podId &&\n      form.equipmentId &&", 1)
-
-          rep(
-              """  if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
-            const cost = Math.max(form.cargoValue * number(meta?.costFactor), number(meta?.costMinimumUsd))
-            const sale = Math.max(form.cargoValue * number(meta?.saleFactor), number(meta?.saleMinimumUsd))
-            return { cost, sale }
-          }""",
-              """  if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
-            const costFactor = meta?.costFactor ?? 0.20
-            const saleFactor = meta?.saleFactor ?? 0.65
-            const costMinimum = meta?.costMinimumUsd ?? 35
-            const saleMinimum = meta?.saleMinimumUsd ?? 95
-            const cost = Math.max(form.cargoValue * costFactor, costMinimum)
-            const sale = Math.max(form.cargoValue * saleFactor, saleMinimum)
-            return { cost, sale }
-          }""",
-              1,
-          )
-
-          rep("  selectedServices.value\n    .filter", "  effectiveServices.value\n    .filter", 1)
-          rep("        included: true,\n        optional,\n        manual: false,", "        included: !optional,\n        optional,\n        manual: false,", 1)
-          rep(
-              """    })
-
-          costs.value.filter(applicableCost).forEach((cost) => {""",
-              """    })
-
-          if (form.cargoValue > 0 && !cargoInsuranceService.value && !lines.some((line) => line.costDetailType === 'Insurance')) {
-            lines.push({
-              key: 'cargo-insurance:auto',
-              section: 'destination_charges',
-              name: 'Seguro de carga',
-              costDetailType: 'Insurance',
-              costType: 'Optional',
-              currencyId: currency.id,
-              currencyName: displayValue(currency),
-              currencyCode: currency.code,
-              costAmount: Math.max(form.cargoValue * 0.20, 35),
-              saleAmount: Math.max(form.cargoValue * 0.65, 95),
-              included: false,
-              optional: true,
-              manual: false,
-            })
-          }
-
-          costs.value.filter(applicableCost).forEach((cost) => {""",
-              1,
-          )
-
-          start = s.index('function resolvePodForDestination() {')
-          end = s.index('\n}\n\nasync function searchApprovedRates()', start) + 2
-          s = s[:start] + """function resolvePodForDestination() {
-            if (selectedPod.value) return selectedPod.value
-
-            const fromRate = selectedImportRate.value?.podId
-              ? findById(catalogs.pod, selectedImportRate.value.podId)
-              : null
-            if (fromRate) return fromRate
-
-            return findEquivalentValue(catalogs.pod, selectedImportRate.value?.pod)
-          }""" + s[end:]
-
-          rep(
-              "  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {",
-              "  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedPod.value || !selectedEquipment.value) {",
-              1,
-          )
-          rep(
-              """    const query: BrowseImportRatesQuery = {
-              pol: catalogSearchText(selectedOrigin.value),
-              poe: catalogSearchText(selectedDestination.value),
-              containerType: catalogSearchText(selectedEquipment.value),
-              quoteDate: form.loadDate,
-            }
-            const pod = resolvePodForDestination()
-            if (pod) query.pod = catalogSearchText(pod)""",
-              """    const query: BrowseImportRatesQuery = {
-              pol: catalogSearchText(selectedOrigin.value),
-              poe: catalogSearchText(selectedDestination.value),
-              pod: catalogSearchText(selectedPod.value),
-              containerType: catalogSearchText(selectedEquipment.value),
-              quoteDate: form.loadDate,
-            }""",
-              1,
-          )
-          rep(
-              "  form.freightSale = number(rate.totalSale ?? rate.freight)\n\n  const rateCarrier",
-              """  form.freightSale = number(rate.totalSale ?? rate.freight)
-
-          const ratePod = rate.podId
-            ? findById(catalogs.pod, rate.podId)
-            : findEquivalentValue(catalogs.pod, rate.pod)
-          if (ratePod) form.podId = ratePod.id
-
-          const rateCarrier""",
-              1,
-          )
-          rep("  if (!pod) missing.push(`POD relacionado con “${displayValue(poe)}”`)", "  if (!pod) missing.push('POD')", 1)
-          rep("    destinationId: '',\n    equipmentSize:", "    destinationId: '',\n    podId: '',\n    equipmentSize:", 1)
-
-          marker = "watch(\n  () => form.equipmentSize,"
-          rep(
-              marker,
-              """watch(
-            () => form.destinationId,
-            () => {
-              const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
-              form.podId = equivalent?.id ?? ''
-            },
-          )
-
-          """ + marker,
-              1,
-          )
-
-          rep(
-              '            <p class="crystal-description">Destino corresponde al POE. Los equipos se filtran automáticamente por modalidad.</p>',
-              '            <p class="crystal-description">Seleccione POE y POD de forma independiente. Si existe una equivalencia clara, el POD se sugiere automáticamente.</p>',
-              1,
-          )
-          rep(
-              '            <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />\n\n            <DhSelect',
-              '            <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />\n            <DhSelect v-model="form.podId" label="POD" placeholder="Seleccione POD" :options="podOptions" />\n\n            <DhSelect',
-              1,
-          )
-          rep(
-              '            <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga.</p>',
-              '            <p class="crystal-description">La búsqueda usa POL, POE, POD, equipo y fecha de carga.</p>',
-              1,
-          )
-          rep(
-              '            <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>',
-              '            <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>\n            <p v-if="form.cargoValue > 0" class="crystal-insurance-hint">Se mostrará Seguro de carga como opcional en Líneas con costo y venta calculados sobre el valor de la carga.</p>',
-              1,
-          )
-
-          rep(
-              """              <span>Costo <strong>{{ formatMoney(totalCost, selectedCurrency?.code || 'USD') }}</strong></span>
-              <span>Venta <strong>{{ formatMoney(totalSale, selectedCurrency?.code || 'USD') }}</strong></span>
-              <span>Utilidad <strong>{{ formatMoney(totalUtility, selectedCurrency?.code || 'USD') }}</strong></span>""",
-              """              <span>Costo <strong>{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span>
-              <span>Venta <strong>{{ formatMoney(totalSale, displayValue(selectedCurrency) || 'USD') }}</strong></span>
-              <span>Utilidad <strong>{{ formatMoney(totalUtility, displayValue(selectedCurrency) || 'USD') }}</strong></span>""",
-              1,
-          )
-          rep(
-              '              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto]"\n            >',
-              '              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto]"\n              :class="{ \'crystal-line--optional-off\': line.optional && !line.included }"\n            >',
-              1,
-          )
-          rep("                    {{ line.included ? 'Incluido' : 'Excluir' }}", "                    {{ line.included ? 'Agregado' : '+ Agregar' }}", 1)
-          rep('                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ line.currencyCode }}</p>', '                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>', 1)
-          rep('<DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.manual && line.costType !== \'Optional\' && line.costType !== \'Variable\'" />', '<DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== \'Optional\' && line.costType !== \'Variable\')" />', 1)
-          rep('<DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />', '<DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />', 1)
-
-          rep(
-              """  background: color-mix(in srgb, var(--dh-card) 68%, transparent);
-            box-shadow: 0 22px 65px rgb(15 23 42 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.32);
-            backdrop-filter: blur(28px) saturate(145%);
-            -webkit-backdrop-filter: blur(28px) saturate(145%);""",
-              """  background: color-mix(in srgb, var(--dh-card) 58%, transparent);
-            box-shadow: 0 24px 72px rgb(15 23 42 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.38);
-            backdrop-filter: blur(44px) saturate(165%);
-            -webkit-backdrop-filter: blur(44px) saturate(165%);""",
-              1,
-          )
-          rep(
-              """  background: color-mix(in srgb, var(--dh-card) 54%, transparent);
-            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
-            backdrop-filter: blur(20px) saturate(135%);
-            -webkit-backdrop-filter: blur(20px) saturate(135%);""",
-              """  background: color-mix(in srgb, var(--dh-card) 48%, transparent);
-            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.30);
-            backdrop-filter: blur(34px) saturate(155%);
-            -webkit-backdrop-filter: blur(34px) saturate(155%);""",
-              1,
-          )
-          rep(
-              """  background-color: color-mix(in srgb, var(--dh-input) 68%, transparent);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);""",
-              """  background-color: color-mix(in srgb, var(--dh-input) 62%, transparent);
-            backdrop-filter: blur(30px) saturate(150%);
-            -webkit-backdrop-filter: blur(30px) saturate(150%);""",
-              1,
-          )
-          rep(
-              """.crystal-line {
-            border-radius: 20px;
-          }
-          """,
-              """.crystal-line {
-            border-radius: 20px;
-            transition: opacity 160ms ease, border-color 160ms ease, background 160ms ease;
-          }
-
-          .crystal-line--optional-off {
-            border-style: dashed;
-            opacity: 0.68;
-            background: color-mix(in srgb, var(--dh-card) 42%, transparent);
-          }
-
-          .crystal-line--optional-off .crystal-mini-toggle {
-            opacity: 1;
-            border-color: rgb(var(--dh-primary-rgb) / 0.32);
-            background: rgb(var(--dh-primary-rgb) / 0.06);
-            color: var(--dh-primary);
-          }
-
-          .crystal-insurance-hint {
-            border-radius: 14px;
-            border: 1px solid rgb(var(--dh-primary-rgb) / 0.18);
-            background: rgb(var(--dh-primary-rgb) / 0.06);
-            padding: 0.7rem 0.85rem;
-            font-size: 0.78rem;
-            font-weight: 750;
-            color: var(--dh-text-soft);
-          }
-          """,
-              1,
-          )
-
-          required = ['podId', 'label="POD"', 'included: !optional', 'Seguro de carga', 'displayValue(selectedCurrency)', 'blur(44px)', '+ Agregar', 'Moneda: {{ line.currencyName }}']
-          for token in required:
-              if token not in s:
-                  raise SystemExit(f'Missing expected token after patch: {token}')
-
-          path.write_text(s, encoding='utf-8')
-          PY
+          cat > /tmp/pricing-wizard.patch <<'PATCH'
+          --- a/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          +++ b/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          @@ -106,6 +106,7 @@
+            shipmentMode: '',
+            originId: '',
+            destinationId: '',
+          +  podId: '',
+            equipmentSize: '',
+            equipmentType: '',
+            equipmentId: '',
+          @@ -358,9 +359,24 @@
+           
+           const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))
+           const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
+          +const selectedPod = computed(() => findById(catalogs.pod, form.podId))
+           const selectedEquipment = computed(() => findById(catalogs.containers, form.equipmentId))
+           const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
+           const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
+          +const cargoInsuranceService = computed(() =>
+          +  catalogs.services.find((item) => {
+          +    const value = normalizeCatalogValue(displayValue(item))
+          +    return value.includes('seguro') && value.includes('carga')
+          +  }) ?? null,
+          +)
+          +const effectiveServices = computed(() => {
+          +  const services = [...selectedServices.value]
+          +  const insurance = cargoInsuranceService.value
+          +  if (form.cargoValue > 0 && insurance && !services.some((item) => item.id === insurance.id)) {
+          +    services.push(insurance)
+          +  }
+          +  return services
+          +})
+           const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))
+           const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))
+           const selectedCurrency = computed(() => findById(catalogs.currencies, form.currencyId))
+          @@ -368,6 +384,7 @@
+           
+           const originOptions = computed(() => catalogs.pol.map((item) => ({ value: item.id, label: displayValue(item) })))
+           const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))
+          +const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
+           const incotermOptions = computed(() => catalogs.incoterms.map((item) => ({ value: item.id, label: displayValue(item) })))
+           const agentOptions = computed(() => catalogs.agents.map((item) => ({ value: item.id, label: displayValue(item) })))
+           const carrierOptions = computed(() => catalogs.carriers.map((item) => ({ value: item.id, label: displayValue(item) })))
+          @@ -394,7 +411,8 @@
+           const visibleSections = computed<RateSection[]>(() => {
+             const sections = new Set<RateSection>(['international_freight'])
+             metadata(selectedIncoterm.value)?.rateSections?.forEach((section) => sections.add(section))
+          -  selectedServices.value.forEach((service) => metadata(service)?.rateSections?.forEach((section) => sections.add(section)))
+          +  effectiveServices.value.forEach((service) => metadata(service)?.rateSections?.forEach((section) => sections.add(section)))
+          +  if (form.cargoValue > 0) sections.add('destination_charges')
+             return sectionOrder.filter((section) => sections.has(section))
+           })
+           
+          @@ -410,6 +428,7 @@
+               return Boolean(
+                 form.originId &&
+                 form.destinationId &&
+          +      form.podId &&
+                 form.equipmentId &&
+                 form.equipmentQuantity > 0 &&
+                 form.incotermId &&
+          @@ -461,8 +480,12 @@
+             const meta = metadata(service)
+             const serviceValue = normalizeCatalogValue(displayValue(service))
+             if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
+          -    const cost = Math.max(form.cargoValue * number(meta?.costFactor), number(meta?.costMinimumUsd))
+          -    const sale = Math.max(form.cargoValue * number(meta?.saleFactor), number(meta?.saleMinimumUsd))
+          +    const costFactor = meta?.costFactor ?? 0.20
+          +    const saleFactor = meta?.saleFactor ?? 0.65
+          +    const costMinimum = meta?.costMinimumUsd ?? 35
+          +    const saleMinimum = meta?.saleMinimumUsd ?? 95
+          +    const cost = Math.max(form.cargoValue * costFactor, costMinimum)
+          +    const sale = Math.max(form.cargoValue * saleFactor, saleMinimum)
+               return { cost, sale }
+             }
+             return { cost: 0, sale: 0 }
+          @@ -493,7 +516,7 @@
+               })
+             }
+           
+          -  selectedServices.value
+          +  effectiveServices.value
+               .filter((service) => !normalizeCatalogValue(displayValue(service)).includes('transporte internacional'))
+               .forEach((service) => {
+                 const meta = metadata(service)
+          @@ -514,12 +537,30 @@
+                   currencyCode: currency.code,
+                   costAmount: amounts.cost,
+                   saleAmount: amounts.sale,
+          -        included: true,
+          +        included: !optional,
+                   optional,
+                   manual: false,
+                 })
+               })
+           
+          +  if (form.cargoValue > 0 && !cargoInsuranceService.value && !lines.some((line) => line.costDetailType === 'Insurance')) {
+          +    lines.push({
+          +      key: 'cargo-insurance:auto',
+          +      section: 'destination_charges',
+          +      name: 'Seguro de carga',
+          +      costDetailType: 'Insurance',
+          +      costType: 'Optional',
+          +      currencyId: currency.id,
+          +      currencyName: displayValue(currency),
+          +      currencyCode: currency.code,
+          +      costAmount: Math.max(form.cargoValue * 0.20, 35),
+          +      saleAmount: Math.max(form.cargoValue * 0.65, 95),
+          +      included: false,
+          +      optional: true,
+          +      manual: false,
+          +    })
+          +  }
+          +
+             costs.value.filter(applicableCost).forEach((cost) => {
+               const section = sectionForDetail(cost.costDetailType, cost.name)
+               if (!visible.has(section)) return
+          @@ -636,14 +677,13 @@
+           }
+           
+           function resolvePodForDestination() {
+          +  if (selectedPod.value) return selectedPod.value
+          +
+             const fromRate = selectedImportRate.value?.podId
+               ? findById(catalogs.pod, selectedImportRate.value.podId)
+               : null
+             if (fromRate) return fromRate
+           
+          -  const fromDestination = findEquivalent(catalogs.pod, selectedDestination.value)
+          -  if (fromDestination) return fromDestination
+          -
+             return findEquivalentValue(catalogs.pod, selectedImportRate.value?.pod)
+           }
+           
+          @@ -652,7 +692,7 @@
+             form.selectedImportRateId = ''
+             form.manualRate = false
+           
+          -  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {
+          +  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedPod.value || !selectedEquipment.value) {
+               form.manualRate = true
+               return
+             }
+          @@ -662,11 +702,10 @@
+               const query: BrowseImportRatesQuery = {
+                 pol: catalogSearchText(selectedOrigin.value),
+                 poe: catalogSearchText(selectedDestination.value),
+          +      pod: catalogSearchText(selectedPod.value),
+                 containerType: catalogSearchText(selectedEquipment.value),
+                 quoteDate: form.loadDate,
+               }
+          -    const pod = resolvePodForDestination()
+          -    if (pod) query.pod = catalogSearchText(pod)
+               availableRates.value = await PricingService.selectImportRates(query)
+             } catch (error) {
+               toastStore.backendError(error, 'No se pudieron consultar las tarifas aprobadas.')
+          @@ -683,6 +722,11 @@
+             form.freightCost = number(rate.freight)
+             form.freightSale = number(rate.totalSale ?? rate.freight)
+           
+          +  const ratePod = rate.podId
+          +    ? findById(catalogs.pod, rate.podId)
+          +    : findEquivalentValue(catalogs.pod, rate.pod)
+          +  if (ratePod) form.podId = ratePod.id
+          +
+             const rateCarrier = normalizeCatalogValue(String(rate.carrier ?? ''))
+             const carrier = catalogs.carriers.find((item) =>
+               normalizeCatalogValue(displayValue(item)).includes(rateCarrier),
+          @@ -777,7 +821,7 @@
+             const missing: string[] = []
+             if (!origin) missing.push('origen')
+             if (!poe) missing.push('destino/POE')
+          -  if (!pod) missing.push(`POD relacionado con “${displayValue(poe)}”`)
+          +  if (!pod) missing.push('POD')
+             if (!equipment) missing.push('equipo')
+             if (!incoterm) missing.push('Incoterm')
+             if (!agent) missing.push('agente')
+          @@ -890,6 +934,7 @@
+               shipmentMode: '',
+               originId: '',
+               destinationId: '',
+          +    podId: '',
+               equipmentSize: '',
+               equipmentType: '',
+               equipmentId: '',
+          @@ -916,6 +961,14 @@
+           }
+           
+           watch(
+          +  () => form.destinationId,
+          +  () => {
+          +    const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
+          +    form.podId = equivalent?.id ?? ''
+          +  },
+          +)
+          +
+          +watch(
+             () => form.equipmentSize,
+             () => {
+               if (!equipmentHasSizes.value) return
+          @@ -1039,12 +1092,13 @@
+                     <div>
+                       <p class="crystal-kicker">Pantalla 3</p>
+                       <h2 class="crystal-title">Ruta, equipo, Incoterm y servicios</h2>
+          -            <p class="crystal-description">Destino corresponde al POE. Los equipos se filtran automáticamente por modalidad.</p>
+          +            <p class="crystal-description">Seleccione POE y POD de forma independiente. Si existe una equivalencia clara, el POD se sugiere automáticamente.</p>
+                     </div>
+           
+                     <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
+                       <DhSelect v-model="form.originId" label="Origen" placeholder="Seleccione origen" :options="originOptions" />
+                       <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />
+          +            <DhSelect v-model="form.podId" label="POD" placeholder="Seleccione POD" :options="podOptions" />
+           
+                       <DhSelect
+                         v-if="equipmentHasSizes"
+          @@ -1096,7 +1150,7 @@
+                     <div>
+                       <p class="crystal-kicker">Pantalla 4</p>
+                       <h2 class="crystal-title">Tarifas aprobadas disponibles</h2>
+          -            <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga.</p>
+          +            <p class="crystal-description">La búsqueda usa POL, POE, POD, equipo y fecha de carga.</p>
+                     </div>
+           
+                     <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
+          @@ -1189,6 +1243,9 @@
+                       </div>
+           
+                       <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>
+          +            <p v-if="form.cargoValue > 0" class="crystal-insurance-hint">
+          +              Se mostrará Seguro de carga como opcional en Líneas con costo y venta calculados sobre el valor de la carga.
+          +            </p>
+                     </div>
+           
+                     <div class="grid gap-3 md:grid-cols-3">
+          @@ -1212,9 +1269,9 @@
+                         <p class="crystal-description">Las etapas se forman con el Incoterm y los servicios seleccionados.</p>
+                       </div>
+                       <div class="crystal-total-card">
+          -              <span>Costo <strong>{{ formatMoney(totalCost, selectedCurrency?.code || 'USD') }}</strong></span>
+          -              <span>Venta <strong>{{ formatMoney(totalSale, selectedCurrency?.code || 'USD') }}</strong></span>
+          -              <span>Utilidad <strong>{{ formatMoney(totalUtility, selectedCurrency?.code || 'USD') }}</strong></span>
+          +              <span>Costo <strong>{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+          +              <span>Venta <strong>{{ formatMoney(totalSale, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+          +              <span>Utilidad <strong>{{ formatMoney(totalUtility, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+                       </div>
+                     </div>
+           
+          @@ -1224,6 +1281,7 @@
+                         v-for="line in rateLines.filter((item) => item.section === section)"
+                         :key="line.key"
+                         class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto]"
+          +              :class="{ 'crystal-line--optional-off': line.optional && !line.included }"
+                       >
+                         <div>
+                           <div class="flex flex-wrap items-center gap-2">
+          @@ -1234,16 +1292,16 @@
+                               :class="line.included ? 'crystal-mini-toggle--active' : ''"
+                               @click="line.included = !line.included"
+                             >
+          -                    {{ line.included ? 'Incluido' : 'Excluir' }}
+          +                    {{ line.included ? 'Agregado' : '+ Agregar' }}
+                             </button>
+                             <p class="font-bold">{{ line.name }}</p>
+                             <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
+                             <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
+                           </div>
+          -                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ line.currencyCode }}</p>
+          +                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>
+                         </div>
+          -              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable'" />
+          -              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+          +              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
+          +              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />
+                         <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
+                       </div>
+                     </div>
+          @@ -1316,10 +1374,10 @@
+           .crystal-line,
+           .crystal-success {
+             border: 1px solid color-mix(in srgb, var(--dh-border-strong) 64%, transparent);
+          -  background: color-mix(in srgb, var(--dh-card) 68%, transparent);
+          -  box-shadow: 0 22px 65px rgb(15 23 42 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.32);
+          -  backdrop-filter: blur(28px) saturate(145%);
+          -  -webkit-backdrop-filter: blur(28px) saturate(145%);
+          +  background: color-mix(in srgb, var(--dh-card) 58%, transparent);
+          +  box-shadow: 0 24px 72px rgb(15 23 42 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.38);
+          +  backdrop-filter: blur(44px) saturate(165%);
+          +  -webkit-backdrop-filter: blur(44px) saturate(165%);
+           }
+           
+           .crystal-panel {
+          @@ -1365,10 +1423,10 @@
+             position: relative;
+             border-radius: 22px;
+             border: 1px solid color-mix(in srgb, var(--dh-border) 72%, transparent);
+          -  background: color-mix(in srgb, var(--dh-card) 54%, transparent);
+          -  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
+          -  backdrop-filter: blur(20px) saturate(135%);
+          -  -webkit-backdrop-filter: blur(20px) saturate(135%);
+          +  background: color-mix(in srgb, var(--dh-card) 48%, transparent);
+          +  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.30);
+          +  backdrop-filter: blur(34px) saturate(155%);
+          +  -webkit-backdrop-filter: blur(34px) saturate(155%);
+             transition: 180ms ease;
+           }
+           
+          @@ -1459,6 +1517,30 @@
+           
+           .crystal-line {
+             border-radius: 20px;
+          +  transition: opacity 160ms ease, border-color 160ms ease, background 160ms ease;
+          +}
+          +
+          +.crystal-line--optional-off {
+          +  border-style: dashed;
+          +  opacity: 0.68;
+          +  background: color-mix(in srgb, var(--dh-card) 42%, transparent);
+          +}
+          +
+          +.crystal-line--optional-off .crystal-mini-toggle {
+          +  opacity: 1;
+          +  border-color: rgb(var(--dh-primary-rgb) / 0.32);
+          +  background: rgb(var(--dh-primary-rgb) / 0.06);
+          +  color: var(--dh-primary);
+          +}
+          +
+          +.crystal-insurance-hint {
+          +  border-radius: 14px;
+          +  border: 1px solid rgb(var(--dh-primary-rgb) / 0.18);
+          +  background: rgb(var(--dh-primary-rgb) / 0.06);
+          +  padding: 0.7rem 0.85rem;
+          +  font-size: 0.78rem;
+          +  font-weight: 750;
+          +  color: var(--dh-text-soft);
+           }
+           
+           .crystal-mini-toggle {
+          @@ -1502,9 +1584,9 @@
+           
+           .crystal-panel :deep(select),
+           .crystal-panel :deep(input) {
+          -  background-color: color-mix(in srgb, var(--dh-input) 68%, transparent);
+          -  backdrop-filter: blur(18px);
+          -  -webkit-backdrop-filter: blur(18px);
+          +  background-color: color-mix(in srgb, var(--dh-input) 62%, transparent);
+          +  backdrop-filter: blur(30px) saturate(150%);
+          +  -webkit-backdrop-filter: blur(30px) saturate(150%);
+           }
+           
+           @media (max-width: 640px) {
+          PATCH
+          git apply --check /tmp/pricing-wizard.patch
+          git apply /tmp/pricing-wizard.patch
 
       - name: Commit fix
         shell: bash
