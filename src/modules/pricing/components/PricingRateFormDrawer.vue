@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { ImportRateDto, RateDto } from '@/core/interfaces/pricing'
 import PricingRateFormDrawerLegacy from './PricingRateFormDrawerLegacy.vue'
 
-type WizardStep = 1 | 2 | 3 | 4
+type WizardStep = 1 | 2 | 3
 
 const props = defineProps<{
   rate?: RateDto
@@ -23,7 +23,6 @@ const steps: Array<{ id: WizardStep; label: string; hint: string }> = [
   { id: 1, label: 'Datos generales', hint: 'Vigencia, moneda y condiciones comerciales' },
   { id: 2, label: 'Ruta y equipo', hint: 'Modalidad, puertos, naviera y equipo' },
   { id: 3, label: 'Costos y margen', hint: 'Rubros, seguro, costo, venta y utilidad' },
-  { id: 4, label: 'Confirmación', hint: 'Revise la tarifa antes de crearla' },
 ]
 
 const activeStepMeta = computed(() => steps.find((step) => step.id === activeStep.value) ?? steps[0]!)
@@ -39,15 +38,17 @@ function previousStep() {
 }
 
 function nextStep() {
-  if (activeStep.value < 4) goToStep((activeStep.value + 1) as WizardStep)
+  if (activeStep.value < 3) goToStep((activeStep.value + 1) as WizardStep)
 }
 
 async function collapseCommercialConditionsByDefault() {
   if (!isManualWizard.value) return
   await nextTick()
+
   const legacyInstance = legacyRef.value as unknown as { $el?: HTMLElement } | null
   const formElement = legacyInstance?.$el
   if (!formElement) return
+
   const commercialSection = formElement.querySelector(':scope > section:nth-of-type(3)')
   const commercialHeader = commercialSection?.firstElementChild as HTMLElement | null
   commercialHeader?.click()
@@ -94,7 +95,7 @@ onMounted(collapseCommercialConditionsByDefault)
               </span>
             </div>
             <p v-if="isManualWizard" class="pricing-rate-card__subtitle">
-              Paso {{ activeStep }} de 4 · {{ activeStepMeta.label }} — {{ activeStepMeta.hint }}
+              Paso {{ activeStep }} de 3 · {{ activeStepMeta.label }} — {{ activeStepMeta.hint }}
             </p>
             <p v-else class="pricing-rate-card__subtitle">Complete los datos operativos y comerciales de la tarifa.</p>
           </div>
@@ -123,11 +124,11 @@ onMounted(collapseCommercialConditionsByDefault)
 
           <div class="pricing-rate-navigation__progress">
             <span>{{ activeStepMeta.label }}</span>
-            <small>{{ activeStep }}/4</small>
+            <small>{{ activeStep }}/3</small>
           </div>
 
           <button
-            v-if="activeStep < 4"
+            v-if="activeStep < 3"
             type="button"
             class="pricing-rate-navigation__button pricing-rate-navigation__button--primary"
             @click="nextStep"
@@ -135,7 +136,9 @@ onMounted(collapseCommercialConditionsByDefault)
             Siguiente
             <ChevronRight class="h-4 w-4" />
           </button>
-          <span v-else class="pricing-rate-navigation__finish-hint">Use <strong>Crear tarifa</strong> en el resumen inferior.</span>
+          <span v-else class="pricing-rate-navigation__finish-hint">
+            La tarifa se crea desde el resumen inferior.
+          </span>
         </footer>
       </section>
     </div>
@@ -172,8 +175,8 @@ onMounted(collapseCommercialConditionsByDefault)
 
 .pricing-rate-stepper {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  width: min(100%, 900px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 760px);
   margin: 0 auto 1rem;
   padding: 0.35rem 0.7rem;
 }
@@ -236,7 +239,9 @@ onMounted(collapseCommercialConditionsByDefault)
   border-color: var(--rate-primary);
   background: color-mix(in srgb, var(--rate-primary) 92%, transparent);
   color: white;
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--rate-bg) 72%, transparent), 0 7px 18px color-mix(in srgb, var(--rate-primary) 22%, transparent);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--rate-bg) 72%, transparent),
+    0 7px 18px color-mix(in srgb, var(--rate-primary) 22%, transparent);
 }
 
 .pricing-rate-step--current .pricing-rate-step__number { transform: scale(1.08); }
@@ -279,14 +284,16 @@ onMounted(collapseCommercialConditionsByDefault)
 
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > * + *) { margin-top: 0 !important; }
 
-/* Solo ocultamos las cuatro etapas editables. El resumen real queda SIEMPRE montado y visible. */
+/* Las cuatro secciones editables siguen montadas, pero el wizard muestra solo las del paso actual. */
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4)) {
   display: none !important;
   margin: 0 !important;
 }
 
 .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(2)),
-.pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3)) { display: block !important; }
+.pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3)) {
+  display: block !important;
+}
 
 .pricing-rate-wizard--step-2 .pricing-rate-form :deep(form > section:nth-of-type(1)) {
   display: block !important;
@@ -297,8 +304,6 @@ onMounted(collapseCommercialConditionsByDefault)
   display: block !important;
   grid-column: 1 / -1;
 }
-
-.pricing-rate-wizard--step-4 .pricing-rate-form :deep(form) { min-height: 8rem; }
 
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4)) {
   overflow: hidden;
@@ -323,7 +328,9 @@ onMounted(collapseCommercialConditionsByDefault)
   -webkit-backdrop-filter: blur(18px) saturate(135%);
 }
 
-.pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4) > div:first-child > button) { display: inline-flex !important; }
+.pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(-n + 4) > div:first-child > button) {
+  display: inline-flex !important;
+}
 
 .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(2) > div:last-child),
 .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3) > div:nth-child(2)) {
@@ -346,7 +353,7 @@ onMounted(collapseCommercialConditionsByDefault)
   -webkit-backdrop-filter: blur(16px);
 }
 
-/* El bloque real de costo/venta/utilidad/margen queda fijo en todos los pasos. */
+/* Resumen real: costo, venta, utilidad, margen, alerta y acciones siempre visibles. */
 .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5)) {
   position: fixed !important;
   right: 1rem !important;
@@ -393,7 +400,19 @@ onMounted(collapseCommercialConditionsByDefault)
   -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
 
-.pricing-rate-navigation__button { display: inline-flex; min-height: 2.5rem; cursor: pointer; align-items: center; justify-content: center; gap: 0.45rem; border-radius: 14px; padding: 0.5rem 0.9rem; font-size: 0.78rem; font-weight: 850; }
+.pricing-rate-navigation__button {
+  display: inline-flex;
+  min-height: 2.5rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 14px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
 .pricing-rate-navigation__button:disabled { cursor: not-allowed; opacity: 0.38; }
 .pricing-rate-navigation__button--secondary { border: 1px solid color-mix(in srgb, var(--rate-border) 90%, transparent); background: color-mix(in srgb, var(--rate-card) 66%, transparent); color: var(--rate-text); }
 .pricing-rate-navigation__button--primary { border: 1px solid color-mix(in srgb, var(--rate-primary) 84%, transparent); background: var(--rate-primary); color: white; box-shadow: 0 8px 18px color-mix(in srgb, var(--rate-primary) 18%, transparent); }
@@ -401,23 +420,28 @@ onMounted(collapseCommercialConditionsByDefault)
 .pricing-rate-navigation__progress span { color: var(--rate-text); font-size: 0.76rem; font-weight: 800; }
 .pricing-rate-navigation__progress small { font-size: 0.68rem; font-weight: 800; }
 .pricing-rate-navigation__finish-hint { justify-self: end; color: var(--rate-muted); font-size: 0.72rem; font-weight: 650; text-align: right; }
-.pricing-rate-navigation__finish-hint strong { color: var(--rate-primary); }
 
 .pricing-rate-wizard--contextual .pricing-rate-form { padding: 1rem; }
 
 @media (max-width: 1279px) {
   .pricing-rate-wizard--new .pricing-rate-form :deep(form) { grid-template-columns: 1fr; }
+
   .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(2)),
-  .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3)) { grid-column: 1; }
-  .pricing-rate-wizard--step-2 .pricing-rate-form :deep(form > section:nth-of-type(1) > div:nth-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3)) {
+    grid-column: 1;
+  }
+
+  .pricing-rate-wizard--step-2 .pricing-rate-form :deep(form > section:nth-of-type(1) > div:nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
 @media (max-width: 760px) {
   .pricing-rate-wizard--new { margin: 0; padding: 0.45rem 0.45rem 15rem; border-radius: 20px; }
-  .pricing-rate-stepper { margin-bottom: 0.7rem; padding-inline: 0.1rem; }
+  .pricing-rate-stepper { width: 100%; margin-bottom: 0.7rem; padding-inline: 0.1rem; }
   .pricing-rate-step__number { width: 1.82rem; height: 1.82rem; box-shadow: 0 0 0 3px color-mix(in srgb, var(--rate-bg) 72%, transparent); }
   .pricing-rate-step::after { top: 0.88rem; left: calc(50% + 0.95rem); width: calc(100% - 1.9rem); }
-  .pricing-rate-step__label { max-width: 5.5rem; font-size: 0.62rem; }
+  .pricing-rate-step__label { max-width: 6rem; font-size: 0.62rem; }
   .pricing-rate-card { border-radius: 20px; }
   .pricing-rate-card__header { min-height: 66px; padding: 0.85rem 1rem; }
   .pricing-rate-card__subtitle { font-size: 0.68rem; }
@@ -425,7 +449,9 @@ onMounted(collapseCommercialConditionsByDefault)
 
   .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(2) > div:last-child),
   .pricing-rate-wizard--step-1 .pricing-rate-form :deep(form > section:nth-of-type(3) > div:nth-child(2)),
-  .pricing-rate-wizard--step-2 .pricing-rate-form :deep(form > section:nth-of-type(1) > div:nth-child(2)) { grid-template-columns: 1fr !important; }
+  .pricing-rate-wizard--step-2 .pricing-rate-form :deep(form > section:nth-of-type(1) > div:nth-child(2)) {
+    grid-template-columns: 1fr !important;
+  }
 
   .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5)) {
     right: 0.5rem !important;
@@ -435,8 +461,16 @@ onMounted(collapseCommercialConditionsByDefault)
     padding: 0.7rem !important;
   }
 
-  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 0.45rem !important; }
-  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div) { padding: 0.35rem 0.55rem !important; border-right: 0; border-bottom: 1px solid color-mix(in srgb, var(--rate-border) 55%, transparent); }
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.45rem !important;
+  }
+
+  .pricing-rate-wizard--new .pricing-rate-form :deep(form > section:nth-of-type(5) > div:first-child > div) {
+    padding: 0.35rem 0.55rem !important;
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--rate-border) 55%, transparent);
+  }
 
   .pricing-rate-navigation { grid-template-columns: 1fr 1fr; padding: 0.65rem; }
   .pricing-rate-navigation__progress { display: none; }
