@@ -1,5 +1,4 @@
 import './assets/main.css'
-import './assets/pricing-rate-persistent-summary.css'
 
 import { createApp, nextTick, watch } from 'vue'
 import { createPinia } from 'pinia'
