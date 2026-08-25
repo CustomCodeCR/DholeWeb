@@ -236,9 +236,11 @@ function findEquivalentValue(items: CatalogItemSelectDto[], sourceValue?: string
     .filter((candidate) => candidate.score >= 0.75)
     .sort((a, b) => b.score - a.score)
 
-  if (!scored.length) return null
-  if (scored.length > 1 && scored[0].score === scored[1].score) return null
-  return scored[0].item
+  const best = scored[0]
+  if (!best) return null
+  const second = scored[1]
+  if (second && best.score === second.score) return null
+  return best.item
 }
 
 function findEquivalent(items: CatalogItemSelectDto[], source?: CatalogItemSelectDto | null) {
