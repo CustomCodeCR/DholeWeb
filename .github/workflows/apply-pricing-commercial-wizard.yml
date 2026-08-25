@@ -1,0 +1,293 @@
+name: Apply pricing commercial wizard integration
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/apply-pricing-commercial-wizard.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Integrate commercial rules into wizard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          source = path.read_text(encoding='utf-8')
+
+          import_marker = "import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'\n"
+          commercial_import = """import {
+  buildOperationalLines,
+  calculateCargoInsurance,
+  canonicalServiceLine,
+  cargoInsuranceNote,
+  incotermBuyerPaysMainTransport,
+  incotermRateSections,
+  resolveCommercialTerms,
+} from '@/modules/pricing/services/pricingCommercialRules'\n"""
+          if commercial_import not in source:
+              if import_marker not in source:
+                  raise SystemExit('Import marker not found')
+              source = source.replace(import_marker, import_marker + commercial_import, 1)
+
+          old_visible = """const visibleSections = computed<RateSection[]>(() => {
+  const sections = new Set<RateSection>(['international_freight'])
+  metadata(selectedIncoterm.value)?.rateSections?.forEach((section) => sections.add(section))
+  effectiveServices.value.forEach((service) => metadata(service)?.rateSections?.forEach((section) => sections.add(section)))
+  if (form.cargoValue > 0) sections.add('destination_charges')
+  return sectionOrder.filter((section) => sections.has(section))
+})
+"""
+          new_visible = """const visibleSections = computed<RateSection[]>(() => {
+  const configured = metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']
+  const sections = new Set<RateSection>(
+    incotermRateSections(selectedIncoterm.value?.code, configured) as RateSection[],
+  )
+
+  effectiveServices.value.forEach((service) => {
+    if (
+      service.code?.toUpperCase() === 'INT_TRANSPORT' &&
+      !incotermBuyerPaysMainTransport(selectedIncoterm.value?.code)
+    ) return
+    metadata(service)?.rateSections?.forEach((section) => sections.add(section))
+  })
+
+  if (form.cargoValue > 0) sections.add('destination_charges')
+  return sectionOrder.filter((section) => sections.has(section))
+})
+"""
+          if old_visible in source:
+              source = source.replace(old_visible, new_visible, 1)
+          elif new_visible not in source:
+              raise SystemExit('visibleSections marker not found')
+
+          old_amounts = """function serviceAmounts(service: CatalogItemSelectDto) {
+  const meta = metadata(service)
+  const serviceValue = normalizeCatalogValue(displayValue(service))
+  if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
+    const costFactor = meta?.costFactor ?? 0.20
+    const saleFactor = meta?.saleFactor ?? 0.65
+    const costMinimum = meta?.costMinimumUsd ?? 35
+    const saleMinimum = meta?.saleMinimumUsd ?? 95
+    const cost = Math.max(form.cargoValue * costFactor, costMinimum)
+    const sale = Math.max(form.cargoValue * saleFactor, saleMinimum)
+    return { cost, sale }
+  }
+  return { cost: 0, sale: 0 }
+}
+"""
+          new_amounts = """function serviceAmounts(service: CatalogItemSelectDto) {
+  const serviceValue = normalizeCatalogValue(displayValue(service))
+  if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
+    const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
+    return { cost: insurance.cost, sale: insurance.sale }
+  }
+  return { cost: 0, sale: 0 }
+}
+"""
+          if old_amounts in source:
+              source = source.replace(old_amounts, new_amounts, 1)
+          elif new_amounts not in source:
+              raise SystemExit('serviceAmounts marker not found')
+
+          operational_marker = """  effectiveServices.value
+    .filter((service) => !normalizeCatalogValue(displayValue(service)).includes('transporte internacional'))
+"""
+          operational_block = """  buildOperationalLines({
+    modality: form.modality as Modality,
+    shipmentMode: shipmentModeForApi.value,
+    direction: direction.value,
+    incotermCode: selectedIncoterm.value?.code ?? '',
+    destinationText: displayValue(selectedDestination.value),
+  }).forEach((template) => {
+    if (!visible.has(template.section)) return
+    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(template.name))) return
+    lines.push({
+      key: `operational:${normalizeCatalogValue(template.name)}`,
+      section: template.section,
+      name: template.name,
+      costDetailType: template.costDetailType,
+      costType: template.costType,
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: template.costAmount,
+      saleAmount: template.saleAmount,
+      included: template.included,
+      optional: template.optional,
+      manual: false,
+    })
+  })
+
+"""
+          if operational_block not in source:
+              if operational_marker not in source:
+                  raise SystemExit('Operational insertion marker not found')
+              source = source.replace(operational_marker, operational_block + operational_marker, 1)
+
+          old_service_head = """      const meta = metadata(service)
+      const name = displayValue(service)
+      const detailType = detailTypeForService(service)
+      const section = meta?.rateSections?.[0] ?? sectionForDetail(detailType, name)
+      if (!visible.has(section)) return
+      const amounts = serviceAmounts(service)
+      const optional = detailType === 'Insurance' || Boolean(meta?.optional)
+"""
+          new_service_head = """      const meta = metadata(service)
+      const name = displayValue(service)
+      const canonical = canonicalServiceLine(service.code, name)
+      const lineName = canonical.name
+      const detailType = canonical.type ?? detailTypeForService(service)
+      const section = canonical.section ?? meta?.rateSections?.[0] ?? sectionForDetail(detailType, lineName)
+      if (!visible.has(section)) return
+      if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(lineName))) return
+      const amounts = serviceAmounts(service)
+      const optional = detailType === 'Insurance' || Boolean(meta?.optional)
+"""
+          if old_service_head in source:
+              source = source.replace(old_service_head, new_service_head, 1)
+          elif new_service_head not in source:
+              raise SystemExit('Service canonical marker not found')
+
+          old_service_name = """        key: `service:${service.id}`,
+        section,
+        name,
+        costDetailType: detailType,
+"""
+          new_service_name = """        key: `service:${service.id}`,
+        section,
+        name: lineName,
+        costDetailType: detailType,
+"""
+          if old_service_name in source:
+              source = source.replace(old_service_name, new_service_name, 1)
+          elif new_service_name not in source:
+              raise SystemExit('Service line name marker not found')
+
+          old_fallback = """      costAmount: Math.max(form.cargoValue * 0.20, 35),
+      saleAmount: Math.max(form.cargoValue * 0.65, 95),
+"""
+          new_fallback = """      costAmount: calculateCargoInsurance(form.cargoValue, form.freightCost).cost,
+      saleAmount: calculateCargoInsurance(form.cargoValue, form.freightCost).sale,
+"""
+          if old_fallback in source:
+              source = source.replace(old_fallback, new_fallback, 1)
+          elif new_fallback not in source:
+              raise SystemExit('Insurance fallback marker not found')
+
+          old_notes = """    notes: line.manual ? 'Cargo manual agregado desde el wizard de Pricing.' : null,
+"""
+          new_notes = """    notes: line.costDetailType === 'Insurance'
+      ? cargoInsuranceNote(form.cargoValue, form.freightCost)
+      : line.manual
+        ? 'Cargo manual agregado desde el wizard de Pricing.'
+        : null,
+"""
+          if old_notes in source:
+              source = source.replace(old_notes, new_notes, 1)
+          elif new_notes not in source:
+              raise SystemExit('Detail notes marker not found')
+
+          save_marker = """  try {
+    saving.value = true
+    const equipmentName = displayValue(equipment!)
+"""
+          save_terms = """  const serviceCodes = new Set(
+    selectedServices.value
+      .map((service) => service.code?.trim().toUpperCase())
+      .filter((code): code is string => Boolean(code)),
+  )
+  if (!incotermBuyerPaysMainTransport(incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
+  if (includedLines.value.some((line) => line.costDetailType === 'Insurance')) serviceCodes.add('CARGO_INSURANCE')
+  if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')
+
+  let commercialTerms: Awaited<ReturnType<typeof resolveCommercialTerms>> | null = null
+  try {
+    commercialTerms = await resolveCommercialTerms({
+      transportModality: form.modality as Modality,
+      shipmentMode: shipmentModeForApi.value,
+      direction: direction.value,
+      incotermId: incoterm!.id,
+      serviceCodes: [...serviceCodes],
+    })
+  } catch {
+    // La tarifa puede guardarse aunque el resolver de textos no esté disponible;
+    // las líneas comerciales visibles siguen siendo la fuente de respaldo.
+  }
+
+  const uniqueText = (values: Array<string | null | undefined>) => {
+    const seen = new Set<string>()
+    return values.filter((value): value is string => {
+      const text = String(value ?? '').trim()
+      if (!text) return false
+      const key = normalizeCatalogValue(text)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  const includeTerms = uniqueText([
+    ...(commercialTerms?.includes.map((item) => item.text) ?? []),
+    ...includedLines.value.map((line) => line.name),
+  ])
+  const includeKeys = new Set(includeTerms.map(normalizeCatalogValue))
+  const subjectTerms = uniqueText([
+    ...(commercialTerms?.subjectTo.map((item) => item.text) ?? []),
+    form.dangerousCargo ? 'Carga peligrosa' : null,
+    form.nonStackable ? 'Carga no estibable' : null,
+    form.overweight ? 'Sobrepeso' : null,
+  ])
+  const excludeTerms = uniqueText(
+    commercialTerms?.excludes.map((item) => item.text) ?? [],
+  ).filter((text) => !includeKeys.has(normalizeCatalogValue(text)))
+
+  try {
+    saving.value = true
+    const equipmentName = displayValue(equipment!)
+"""
+          if save_terms not in source:
+              if save_marker not in source:
+                  raise SystemExit('Save marker not found')
+              source = source.replace(save_marker, save_terms, 1)
+
+          old_terms = """      includes: selectedServices.value.map(displayValue).join('\\n'),
+      subjectTo: [
+        form.dangerousCargo ? 'Carga peligrosa' : '',
+        form.nonStackable ? 'Carga no estibable' : '',
+        form.overweight ? 'Carga con sobrepeso' : '',
+      ].filter(Boolean).join('\\n') || null,
+      excludes: null,
+"""
+          new_terms = """      includes: includeTerms.join('\\n') || null,
+      subjectTo: subjectTerms.join('\\n') || null,
+      excludes: excludeTerms.join('\\n') || null,
+"""
+          if old_terms in source:
+              source = source.replace(old_terms, new_terms, 1)
+          elif new_terms not in source:
+              raise SystemExit('Commercial payload marker not found')
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Commit integration
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git diff --cached --check
+          git commit -m 'feat(pricing): apply incoterm and commercial item rules'
+          git push origin master
