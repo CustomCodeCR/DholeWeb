@@ -1,0 +1,311 @@
+name: Apply Pricing Wizard Fix
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/apply-pricing-wizard-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply wizard fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          s = path.read_text(encoding='utf-8')
+
+          def rep(old, new, count=-1):
+              global s
+              if old not in s:
+                  raise SystemExit(f'Pattern not found: {old[:100]!r}')
+              s = s.replace(old, new, count)
+
+          rep("  destinationId: '',\n  equipmentSize:", "  destinationId: '',\n  podId: '',\n  equipmentSize:", 1)
+
+          rep(
+              "const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))\nconst selectedEquipment",
+              "const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))\nconst selectedPod = computed(() => findById(catalogs.pod, form.podId))\nconst selectedEquipment",
+              1,
+          )
+          rep(
+              "const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))\nconst selectedAgent",
+              """const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
+          const cargoInsuranceService = computed(() =>
+            catalogs.services.find((item) => {
+              const value = normalizeCatalogValue(displayValue(item))
+              return value.includes('seguro') && value.includes('carga')
+            }) ?? null,
+          )
+          const effectiveServices = computed(() => {
+            const services = [...selectedServices.value]
+            const insurance = cargoInsuranceService.value
+            if (form.cargoValue > 0 && insurance && !services.some((item) => item.id === insurance.id)) {
+              services.push(insurance)
+            }
+            return services
+          })
+          const selectedAgent""",
+              1,
+          )
+          rep(
+              "const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))\nconst incotermOptions",
+              "const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))\nconst podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))\nconst incotermOptions",
+              1,
+          )
+          rep(
+              "  selectedServices.value.forEach((service) => metadata(service)?.rateSections?.forEach((section) => sections.add(section)))\n  return sectionOrder.filter",
+              "  effectiveServices.value.forEach((service) => metadata(service)?.rateSections?.forEach((section) => sections.add(section)))\n  if (form.cargoValue > 0) sections.add('destination_charges')\n  return sectionOrder.filter",
+              1,
+          )
+          rep("      form.destinationId &&\n      form.equipmentId &&", "      form.destinationId &&\n      form.podId &&\n      form.equipmentId &&", 1)
+
+          rep(
+              """  if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
+            const cost = Math.max(form.cargoValue * number(meta?.costFactor), number(meta?.costMinimumUsd))
+            const sale = Math.max(form.cargoValue * number(meta?.saleFactor), number(meta?.saleMinimumUsd))
+            return { cost, sale }
+          }""",
+              """  if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
+            const costFactor = meta?.costFactor ?? 0.20
+            const saleFactor = meta?.saleFactor ?? 0.65
+            const costMinimum = meta?.costMinimumUsd ?? 35
+            const saleMinimum = meta?.saleMinimumUsd ?? 95
+            const cost = Math.max(form.cargoValue * costFactor, costMinimum)
+            const sale = Math.max(form.cargoValue * saleFactor, saleMinimum)
+            return { cost, sale }
+          }""",
+              1,
+          )
+
+          rep("  selectedServices.value\n    .filter", "  effectiveServices.value\n    .filter", 1)
+          rep("        included: true,\n        optional,\n        manual: false,", "        included: !optional,\n        optional,\n        manual: false,", 1)
+          rep(
+              """    })
+
+          costs.value.filter(applicableCost).forEach((cost) => {""",
+              """    })
+
+          if (form.cargoValue > 0 && !cargoInsuranceService.value && !lines.some((line) => line.costDetailType === 'Insurance')) {
+            lines.push({
+              key: 'cargo-insurance:auto',
+              section: 'destination_charges',
+              name: 'Seguro de carga',
+              costDetailType: 'Insurance',
+              costType: 'Optional',
+              currencyId: currency.id,
+              currencyName: displayValue(currency),
+              currencyCode: currency.code,
+              costAmount: Math.max(form.cargoValue * 0.20, 35),
+              saleAmount: Math.max(form.cargoValue * 0.65, 95),
+              included: false,
+              optional: true,
+              manual: false,
+            })
+          }
+
+          costs.value.filter(applicableCost).forEach((cost) => {""",
+              1,
+          )
+
+          start = s.index('function resolvePodForDestination() {')
+          end = s.index('\n}\n\nasync function searchApprovedRates()', start) + 2
+          s = s[:start] + """function resolvePodForDestination() {
+            if (selectedPod.value) return selectedPod.value
+
+            const fromRate = selectedImportRate.value?.podId
+              ? findById(catalogs.pod, selectedImportRate.value.podId)
+              : null
+            if (fromRate) return fromRate
+
+            return findEquivalentValue(catalogs.pod, selectedImportRate.value?.pod)
+          }""" + s[end:]
+
+          rep(
+              "  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {",
+              "  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedPod.value || !selectedEquipment.value) {",
+              1,
+          )
+          rep(
+              """    const query: BrowseImportRatesQuery = {
+              pol: catalogSearchText(selectedOrigin.value),
+              poe: catalogSearchText(selectedDestination.value),
+              containerType: catalogSearchText(selectedEquipment.value),
+              quoteDate: form.loadDate,
+            }
+            const pod = resolvePodForDestination()
+            if (pod) query.pod = catalogSearchText(pod)""",
+              """    const query: BrowseImportRatesQuery = {
+              pol: catalogSearchText(selectedOrigin.value),
+              poe: catalogSearchText(selectedDestination.value),
+              pod: catalogSearchText(selectedPod.value),
+              containerType: catalogSearchText(selectedEquipment.value),
+              quoteDate: form.loadDate,
+            }""",
+              1,
+          )
+          rep(
+              "  form.freightSale = number(rate.totalSale ?? rate.freight)\n\n  const rateCarrier",
+              """  form.freightSale = number(rate.totalSale ?? rate.freight)
+
+          const ratePod = rate.podId
+            ? findById(catalogs.pod, rate.podId)
+            : findEquivalentValue(catalogs.pod, rate.pod)
+          if (ratePod) form.podId = ratePod.id
+
+          const rateCarrier""",
+              1,
+          )
+          rep("  if (!pod) missing.push(`POD relacionado con “${displayValue(poe)}”`)", "  if (!pod) missing.push('POD')", 1)
+          rep("    destinationId: '',\n    equipmentSize:", "    destinationId: '',\n    podId: '',\n    equipmentSize:", 1)
+
+          marker = "watch(\n  () => form.equipmentSize,"
+          rep(
+              marker,
+              """watch(
+            () => form.destinationId,
+            () => {
+              const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
+              form.podId = equivalent?.id ?? ''
+            },
+          )
+
+          """ + marker,
+              1,
+          )
+
+          rep(
+              '            <p class="crystal-description">Destino corresponde al POE. Los equipos se filtran automáticamente por modalidad.</p>',
+              '            <p class="crystal-description">Seleccione POE y POD de forma independiente. Si existe una equivalencia clara, el POD se sugiere automáticamente.</p>',
+              1,
+          )
+          rep(
+              '            <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />\n\n            <DhSelect',
+              '            <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />\n            <DhSelect v-model="form.podId" label="POD" placeholder="Seleccione POD" :options="podOptions" />\n\n            <DhSelect',
+              1,
+          )
+          rep(
+              '            <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga.</p>',
+              '            <p class="crystal-description">La búsqueda usa POL, POE, POD, equipo y fecha de carga.</p>',
+              1,
+          )
+          rep(
+              '            <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>',
+              '            <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>\n            <p v-if="form.cargoValue > 0" class="crystal-insurance-hint">Se mostrará Seguro de carga como opcional en Líneas con costo y venta calculados sobre el valor de la carga.</p>',
+              1,
+          )
+
+          rep(
+              """              <span>Costo <strong>{{ formatMoney(totalCost, selectedCurrency?.code || 'USD') }}</strong></span>
+              <span>Venta <strong>{{ formatMoney(totalSale, selectedCurrency?.code || 'USD') }}</strong></span>
+              <span>Utilidad <strong>{{ formatMoney(totalUtility, selectedCurrency?.code || 'USD') }}</strong></span>""",
+              """              <span>Costo <strong>{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+              <span>Venta <strong>{{ formatMoney(totalSale, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+              <span>Utilidad <strong>{{ formatMoney(totalUtility, displayValue(selectedCurrency) || 'USD') }}</strong></span>""",
+              1,
+          )
+          rep(
+              '              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto]"\n            >',
+              '              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto]"\n              :class="{ \'crystal-line--optional-off\': line.optional && !line.included }"\n            >',
+              1,
+          )
+          rep("                    {{ line.included ? 'Incluido' : 'Excluir' }}", "                    {{ line.included ? 'Agregado' : '+ Agregar' }}", 1)
+          rep('                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ line.currencyCode }}</p>', '                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>', 1)
+          rep('<DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.manual && line.costType !== \'Optional\' && line.costType !== \'Variable\'" />', '<DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== \'Optional\' && line.costType !== \'Variable\')" />', 1)
+          rep('<DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />', '<DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />', 1)
+
+          rep(
+              """  background: color-mix(in srgb, var(--dh-card) 68%, transparent);
+            box-shadow: 0 22px 65px rgb(15 23 42 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.32);
+            backdrop-filter: blur(28px) saturate(145%);
+            -webkit-backdrop-filter: blur(28px) saturate(145%);""",
+              """  background: color-mix(in srgb, var(--dh-card) 58%, transparent);
+            box-shadow: 0 24px 72px rgb(15 23 42 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.38);
+            backdrop-filter: blur(44px) saturate(165%);
+            -webkit-backdrop-filter: blur(44px) saturate(165%);""",
+              1,
+          )
+          rep(
+              """  background: color-mix(in srgb, var(--dh-card) 54%, transparent);
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
+            backdrop-filter: blur(20px) saturate(135%);
+            -webkit-backdrop-filter: blur(20px) saturate(135%);""",
+              """  background: color-mix(in srgb, var(--dh-card) 48%, transparent);
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.30);
+            backdrop-filter: blur(34px) saturate(155%);
+            -webkit-backdrop-filter: blur(34px) saturate(155%);""",
+              1,
+          )
+          rep(
+              """  background-color: color-mix(in srgb, var(--dh-input) 68%, transparent);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);""",
+              """  background-color: color-mix(in srgb, var(--dh-input) 62%, transparent);
+            backdrop-filter: blur(30px) saturate(150%);
+            -webkit-backdrop-filter: blur(30px) saturate(150%);""",
+              1,
+          )
+          rep(
+              """.crystal-line {
+            border-radius: 20px;
+          }
+          """,
+              """.crystal-line {
+            border-radius: 20px;
+            transition: opacity 160ms ease, border-color 160ms ease, background 160ms ease;
+          }
+
+          .crystal-line--optional-off {
+            border-style: dashed;
+            opacity: 0.68;
+            background: color-mix(in srgb, var(--dh-card) 42%, transparent);
+          }
+
+          .crystal-line--optional-off .crystal-mini-toggle {
+            opacity: 1;
+            border-color: rgb(var(--dh-primary-rgb) / 0.32);
+            background: rgb(var(--dh-primary-rgb) / 0.06);
+            color: var(--dh-primary);
+          }
+
+          .crystal-insurance-hint {
+            border-radius: 14px;
+            border: 1px solid rgb(var(--dh-primary-rgb) / 0.18);
+            background: rgb(var(--dh-primary-rgb) / 0.06);
+            padding: 0.7rem 0.85rem;
+            font-size: 0.78rem;
+            font-weight: 750;
+            color: var(--dh-text-soft);
+          }
+          """,
+              1,
+          )
+
+          required = ['podId', 'label="POD"', 'included: !optional', 'Seguro de carga', 'displayValue(selectedCurrency)', 'blur(44px)', '+ Agregar', 'Moneda: {{ line.currencyName }}']
+          for token in required:
+              if token not in s:
+                  raise SystemExit(f'Missing expected token after patch: {token}')
+
+          path.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git diff --cached --check
+          git commit -m "fix(pricing): improve wizard options and cargo insurance"
+          git push origin HEAD:master
