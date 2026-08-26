@@ -2,22 +2,33 @@ name: Apply rate line cost type fix
 
 on:
   push:
+    branches: [master]
     paths:
       - '.github/workflows/apply-rate-line-cost-types.yml'
 
 permissions:
   contents: write
 
+concurrency:
+  group: dhole-web-rate-line-fix
+  cancel-in-progress: false
+
+env:
+  COMPOSE_FILE: /opt/dhole/docker-compose.services.yml
+
 jobs:
-  patch:
-    runs-on: ubuntu-latest
+  patch-and-deploy:
+    runs-on: [self-hosted, linux, x64, dhole]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout service
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Patch rate line classification
+
+      - name: Apply line classification fix
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -25,48 +36,39 @@ jobs:
           path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
           text = path.read_text()
 
-          def replace_once(old: str, new: str, label: str):
+          def sub(pattern: str, replacement: str, label: str, flags=0):
+              global text
+              text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+
+          def replace(old: str, new: str, label: str):
               global text
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f'{label}: expected 1 match, found {count}')
               text = text.replace(old, new, 1)
 
-          replace_once(
-          '''  BrowseImportRatesQuery,
-            CostDetailType,
-            CostSelectDto,
-            CostType,
-          ''',
-          '''  BrowseImportRatesQuery,
-            ChargeBasis,
-            CostDetailType,
-            CostPortRole,
-            CostSelectDto,
-            CostType,
-          ''',
-          'pricing type imports')
+          sub(
+              r'(import type \{\n  BrowseImportRatesQuery,\n)(  CostDetailType,\n)',
+              r'\1  ChargeBasis,\n\2  CostPortRole,\n',
+              'type imports',
+          )
 
-          replace_once(
-          '''  costDetailType: CostDetailType
-            costType: CostType
-            costId?: string | null
-          ''',
-          '''  costDetailType: CostDetailType
-            costType: CostType
-            chargeBasis: ChargeBasis
-            costId?: string | null
-            contextLabel?: string | null
-          ''',
-          'RateLine fields')
+          sub(
+              r'(  costDetailType: CostDetailType\n  costType: CostType\n)(  costId\?: string \| null\n)',
+              r'\1  chargeBasis: ChargeBasis\n\2  contextLabel?: string | null\n',
+              'RateLine fields',
+          )
 
-          pattern = re.compile(r"function sectionForDetail\(type: CostDetailType, name = ''\): RateSection \{.*?\n\}\n\nfunction serviceAmounts", re.S)
-          replacement = '''function sectionFromPortRole(
+          functions = '''function sectionFromPortRole(
             role: CostPortRole | null | undefined,
             detailType: CostDetailType,
           ): RateSection | null {
             if (!role || role === 'Any') return null
-            if (role === 'Pol') return detailType === 'InlandTransport' ? 'pickup_origin' : 'origin_charges'
+            if (role === 'Pol') {
+              return detailType === 'InlandTransport' ? 'pickup_origin' : 'origin_charges'
+            }
             return detailType === 'InlandTransport' ? 'delivery_destination' : 'destination_charges'
           }
 
@@ -81,8 +83,14 @@ jobs:
             if (type === 'OriginCharge') return 'origin_charges'
             if (type === 'DestinationCharge' || type === 'Insurance') return 'destination_charges'
             if (type === 'PortCharge') return mentionsOrigin ? 'origin_charges' : 'destination_charges'
-            if (type === 'InlandTransport') return mentionsPickup || mentionsOrigin ? 'pickup_origin' : 'delivery_destination'
-            if (type === 'CustomsCharge') return mentionsOrigin || /exterior|export/.test(normalized) ? 'origin_charges' : 'destination_charges'
+            if (type === 'InlandTransport') {
+              return mentionsPickup || mentionsOrigin ? 'pickup_origin' : 'delivery_destination'
+            }
+            if (type === 'CustomsCharge') {
+              return mentionsOrigin || /exterior|export/.test(normalized)
+                ? 'origin_charges'
+                : 'destination_charges'
+            }
             if (type === 'AgentCharge' || type === 'Documentation') {
               if (mentionsOrigin) return 'origin_charges'
               if (mentionsDestination) return 'destination_charges'
@@ -102,7 +110,9 @@ jobs:
               return cost.costDetailType === 'InlandTransport' ? 'pickup_origin' : 'origin_charges'
             }
             if ((cost.poeId || cost.podId) && !cost.polId) {
-              return cost.costDetailType === 'InlandTransport' ? 'delivery_destination' : 'destination_charges'
+              return cost.costDetailType === 'InlandTransport'
+                ? 'delivery_destination'
+                : 'destination_charges'
             }
 
             return sectionForDetail(cost.costDetailType, cost.name)
@@ -121,13 +131,17 @@ jobs:
             if (type === 'Freight' || type === 'InlandTransport') {
               if (shipmentModeForApi.value === 'Fcl') return 'PerContainer'
               if (shipmentModeForApi.value === 'Ftl') return 'PerTruck'
-              if (shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'Ltl') return 'PerChargeableCbm'
+              if (shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'Ltl') {
+                return 'PerChargeableCbm'
+              }
             }
             return 'PerShipment'
           }
 
           function quantityForChargeBasis(basis: ChargeBasis) {
-            if (basis === 'PerContainer' || basis === 'PerTruck') return Math.max(1, form.equipmentQuantity)
+            if (basis === 'PerContainer' || basis === 'PerTruck') {
+              return Math.max(1, form.equipmentQuantity)
+            }
             return 1
           }
 
@@ -200,84 +214,46 @@ jobs:
           }
 
           function serviceAmounts'''
-          text, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise SystemExit(f'cost classification functions: expected 1 match, found {count}')
 
-          replace_once(
-          '''      costDetailType: 'Freight',
-                costType: 'Variable',
-                currencyId: currency.id,
-          ''',
-          '''      costDetailType: 'Freight',
-                costType: 'Variable',
-                chargeBasis: defaultChargeBasis('Freight'),
-                currencyId: currency.id,
-          ''',
-          'freight line charge basis')
+          sub(
+              r"function sectionForDetail\(type: CostDetailType, name = ''\): RateSection \{.*?\n\}\n\nfunction serviceAmounts",
+              functions,
+              'cost classification functions',
+              re.S,
+          )
 
-          replace_once(
-          '''      costDetailType: template.costDetailType,
-                costType: template.costType,
-                currencyId: currency.id,
-          ''',
-          '''      costDetailType: template.costDetailType,
-                costType: template.costType,
-                chargeBasis: defaultChargeBasis(template.costDetailType),
-                currencyId: currency.id,
-          ''',
-          'operational line charge basis')
+          replace(
+              "      costDetailType: 'Freight',\n      costType: 'Variable',\n",
+              "      costDetailType: 'Freight',\n      costType: 'Variable',\n      chargeBasis: defaultChargeBasis('Freight'),\n",
+              'freight charge basis',
+          )
+          replace(
+              "      costDetailType: template.costDetailType,\n      costType: template.costType,\n",
+              "      costDetailType: template.costDetailType,\n      costType: template.costType,\n      chargeBasis: defaultChargeBasis(template.costDetailType),\n",
+              'operational charge basis',
+          )
+          replace(
+              "        costDetailType: detailType,\n        costType: optional ? 'Optional' : 'Variable',\n",
+              "        costDetailType: detailType,\n        costType: optional ? 'Optional' : 'Variable',\n        chargeBasis: defaultChargeBasis(detailType),\n",
+              'service charge basis',
+          )
+          replace(
+              "      costDetailType: 'Insurance',\n      costType: 'Optional',\n",
+              "      costDetailType: 'Insurance',\n      costType: 'Optional',\n      chargeBasis: 'PerShipment',\n",
+              'insurance charge basis',
+          )
+          replace(
+              "  costs.value.filter(applicableCost).forEach((cost) => {\n    const section = sectionForDetail(cost.costDetailType, cost.name)\n",
+              "  costs.value.filter(applicableCost).forEach((cost) => {\n    const section = sectionForCost(cost)\n",
+              'configured cost section',
+          )
+          replace(
+              "      costDetailType: cost.costDetailType,\n      costType: cost.costType,\n      costId: cost.id,\n",
+              "      costDetailType: cost.costDetailType,\n      costType: cost.costType,\n      chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),\n      costId: cost.id,\n      contextLabel: costContextLabel(cost),\n",
+              'configured cost metadata',
+          )
 
-          replace_once(
-          '''        costDetailType: detailType,
-                  costType: optional ? 'Optional' : 'Variable',
-                  currencyId: currency.id,
-          ''',
-          '''        costDetailType: detailType,
-                  costType: optional ? 'Optional' : 'Variable',
-                  chargeBasis: defaultChargeBasis(detailType),
-                  currencyId: currency.id,
-          ''',
-          'service line charge basis')
-
-          replace_once(
-          '''      costDetailType: 'Insurance',
-                costType: 'Optional',
-                currencyId: currency.id,
-          ''',
-          '''      costDetailType: 'Insurance',
-                costType: 'Optional',
-                chargeBasis: 'PerShipment',
-                currencyId: currency.id,
-          ''',
-          'insurance line charge basis')
-
-          replace_once(
-          '''  costs.value.filter(applicableCost).forEach((cost) => {
-              const section = sectionForDetail(cost.costDetailType, cost.name)
-          ''',
-          '''  costs.value.filter(applicableCost).forEach((cost) => {
-              const section = sectionForCost(cost)
-          ''',
-          'cost section resolver')
-
-          replace_once(
-          '''      costDetailType: cost.costDetailType,
-                costType: cost.costType,
-                costId: cost.id,
-                currencyId: cost.currencyId,
-          ''',
-          '''      costDetailType: cost.costDetailType,
-                costType: cost.costType,
-                chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
-                costId: cost.id,
-                contextLabel: costContextLabel(cost),
-                currencyId: cost.currencyId,
-          ''',
-          'configured cost line fields')
-
-          manual_pattern = re.compile(r"function addManualCharge\(\) \{.*?\n\}\n\nfunction selectDefaultService", re.S)
-          manual_replacement = '''function addManualCharge() {
+          manual = '''function addManualCharge() {
             const name = form.manualName.trim()
             const currency = selectedCurrency.value
             if (!name || !currency) return
@@ -302,57 +278,150 @@ jobs:
           }
 
           function selectDefaultService'''
-          text, count = manual_pattern.subn(manual_replacement, text, count=1)
-          if count != 1:
-              raise SystemExit(f'manual line function: expected 1 match, found {count}')
+          sub(
+              r'function addManualCharge\(\) \{.*?\n\}\n\nfunction selectDefaultService',
+              manual,
+              'manual charge',
+              re.S,
+          )
 
-          replace_once(
-          '''    chargeBasis: line.costDetailType === 'Freight' || shipmentModeForApi.value === 'Fcl' ? 'PerContainer' : 'PerShipment',
-          ''',
-          '''    chargeBasis: line.chargeBasis,
-          ''',
-          'detail charge basis payload')
+          replace(
+              "    chargeBasis: line.costDetailType === 'Freight' || shipmentModeForApi.value === 'Fcl' ? 'PerContainer' : 'PerShipment',\n",
+              "    chargeBasis: line.chargeBasis,\n",
+              'payload charge basis',
+          )
+          replace(
+              "    quantity: line.costDetailType === 'Freight' ? form.equipmentQuantity : 1,\n",
+              "    quantity: quantityForChargeBasis(line.chargeBasis),\n",
+              'payload quantity',
+          )
 
-          replace_once(
-          '''    quantity: line.costDetailType === 'Freight' ? form.equipmentQuantity : 1,
-          ''',
-          '''    quantity: quantityForChargeBasis(line.chargeBasis),
-          ''',
-          'detail quantity payload')
+          visible_anchor = '''  effectiveServices.value.forEach((service) => {
+            if (
+              service.code?.toUpperCase() === 'INT_TRANSPORT' &&
+              !incotermBuyerPaysMainTransport(selectedIncoterm.value?.code)
+            ) return
+            metadata(service)?.rateSections?.forEach((section) => sections.add(section))
+          })
 
-          replace_once(
-          '''                  <p class="font-bold">{{ line.name }}</p>
-                            <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
-                            <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
-                          </div>
-                          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>
-                        </div>
-                        <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
-                        <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />
-          ''',
-          '''                  <p class="font-bold">{{ line.name }}</p>
-                            <DhBadge variant="neutral">{{ detailTypeLabel(line.costDetailType, line.section) }}</DhBadge>
-                            <DhBadge variant="neutral">{{ chargeBasisLabel(line.chargeBasis) }}</DhBadge>
-                            <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
-                            <DhBadge v-if="line.costType === 'Fixed'" variant="neutral">Fijo</DhBadge>
-                            <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
-                          </div>
-                          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>
-                          <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
-                        </div>
-                        <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" :label="`Costo · ${chargeBasisLabel(line.chargeBasis)}`" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
-                        <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" :label="`Venta · ${chargeBasisLabel(line.chargeBasis)}`" :disabled="!line.included" />
-          ''',
-          'rate line UI')
+          if (form.cargoValue > 0) sections.add('destination_charges')'''
+          visible_replacement = '''  effectiveServices.value.forEach((service) => {
+            if (
+              service.code?.toUpperCase() === 'INT_TRANSPORT' &&
+              !incotermBuyerPaysMainTransport(selectedIncoterm.value?.code)
+            ) return
+            metadata(service)?.rateSections?.forEach((section) => sections.add(section))
+          })
+
+          costs.value.filter(applicableCost).forEach((cost) => sections.add(sectionForCost(cost)))
+
+          if (form.cargoValue > 0) sections.add('destination_charges')'''
+          replace(visible_anchor, visible_replacement, 'visible configured-cost sections')
+
+          ui_old = '''                  <p class="font-bold">{{ line.name }}</p>
+                  <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
+                  <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
+                </div>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>
+              </div>
+              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
+              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />'''
+          ui_new = '''                  <p class="font-bold">{{ line.name }}</p>
+                  <DhBadge variant="neutral">{{ detailTypeLabel(line.costDetailType, line.section) }}</DhBadge>
+                  <DhBadge variant="neutral">{{ chargeBasisLabel(line.chargeBasis) }}</DhBadge>
+                  <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
+                  <DhBadge v-if="line.costType === 'Fixed'" variant="neutral">Fijo</DhBadge>
+                  <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
+                </div>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>
+                <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
+              </div>
+              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" :label="`Costo · ${chargeBasisLabel(line.chargeBasis)}`" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
+              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" :label="`Venta · ${chargeBasisLabel(line.chargeBasis)}`" :disabled="!line.included" />'''
+          replace(ui_old, ui_new, 'line UI')
 
           path.write_text(text)
           PY
-      - name: Commit fix and remove helper workflow
+
+      - name: Commit source fix and remove helper
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/apply-rate-line-cost-types.yml
           git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
           git commit -m "fix(pricing): respect configured cost detail fields"
           git push origin HEAD:master
+
+      - name: Verify server
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker version
+          docker compose version
+          docker network inspect dhole >/dev/null
+          test -r /opt/dhole/.env
+          test -r "$COMPOSE_FILE"
+          docker compose --env-file /opt/dhole/.env -f "$COMPOSE_FILE" config -q
+
+      - name: Build image
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA_TAG="$(git rev-parse --short=12 HEAD)"
+
+          read_env() {
+            local key="$1"
+            local value
+            value="$(grep -m1 "^${key}=" /opt/dhole/.env | cut -d= -f2- || true)"
+            value="${value%$'\r'}"
+            if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+              value="${value:1:${#value}-2}"
+            elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+              value="${value:1:${#value}-2}"
+            fi
+            printf '%s' "$value"
+          }
+
+          VITE_API_URL="$(read_env VITE_API_URL)"
+          VITE_APP_NAME="$(read_env VITE_APP_NAME)"
+          VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
+          : "${VITE_API_URL:?VITE_API_URL is required in /opt/dhole/.env}"
+          : "${VITE_APP_NAME:?VITE_APP_NAME is required in /opt/dhole/.env}"
+          : "${VITE_FRONTEND_DOMAIN:?VITE_FRONTEND_DOMAIN is required in /opt/dhole/.env}"
+
+          docker build \
+            --pull \
+            -f Dockerfile \
+            --build-arg VITE_API_URL="$VITE_API_URL" \
+            --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
+            --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
+            -t dhole/web:latest \
+            -t "dhole/web:$SHA_TAG" \
+            .
+
+      - name: Verify production bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh dhole/web:latest -ec '
+            if grep -R -n -E "https?://(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" /usr/share/nginx/html; then
+              echo "Production bundle contains a private-network URL."
+              exit 1
+            fi
+            if grep -R -n -F ":5209/api/notifications" /usr/share/nginx/html; then
+              echo "Production bundle contains a direct Notifications service URL."
+              exit 1
+            fi
+          '
+
+      - name: Deploy Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file /opt/dhole/.env -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --pull never dhole-web
+          docker compose --env-file /opt/dhole/.env -f "$COMPOSE_FILE" ps dhole-web
+
+      - name: Cleanup old images
+        run: docker image prune -f
