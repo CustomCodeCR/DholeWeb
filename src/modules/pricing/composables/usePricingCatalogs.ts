@@ -30,10 +30,13 @@ export const PRICING_CATALOG_SLUGS = {
   poe: 'poe',
   currencies: 'currencies',
   agents: 'agents',
-  // containerTypes remains the canonical equipment catalog for backwards compatibility.
+  // containerTypes remains the canonical maritime equipment catalog for backwards compatibility.
   containerTypes: 'container-types',
   containerSizes: 'container-sizes',
   containerKinds: 'container-kinds',
+  landEquipmentTypes: 'land-equipment-types',
+  landEquipmentSizes: 'land-equipment-sizes',
+  landEquipmentKinds: 'land-equipment-kinds',
   importProfiles: 'pricing-imports-profiles',
   incoterms: 'incoterms',
 } as const
@@ -47,6 +50,9 @@ const podPorts = ref<PricingCatalogItem[]>([])
 const containerTypes = ref<PricingCatalogItem[]>([])
 const containerSizes = ref<PricingCatalogItem[]>([])
 const containerKinds = ref<PricingCatalogItem[]>([])
+const landEquipmentTypes = ref<PricingCatalogItem[]>([])
+const landEquipmentSizes = ref<PricingCatalogItem[]>([])
+const landEquipmentKinds = ref<PricingCatalogItem[]>([])
 const importProfiles = ref<PricingCatalogItem[]>([])
 const incoterms = ref<PricingCatalogItem[]>([])
 const loading = ref(false)
@@ -148,6 +154,9 @@ async function loadAll(force = false) {
       containerRows,
       containerSizeRows,
       containerKindRows,
+      landEquipmentRows,
+      landEquipmentSizeRows,
+      landEquipmentKindRows,
       profileRows,
       incotermRows,
     ] = await Promise.all([
@@ -160,6 +169,9 @@ async function loadAll(force = false) {
       loadFirstAvailable([PRICING_CATALOG_SLUGS.containerTypes, 'containers-types']),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.containerSizes]),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.containerKinds]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.landEquipmentTypes]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.landEquipmentSizes]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.landEquipmentKinds]),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.importProfiles]),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.incoterms]),
     ])
@@ -173,6 +185,9 @@ async function loadAll(force = false) {
     containerTypes.value = containerRows
     containerSizes.value = containerSizeRows
     containerKinds.value = containerKindRows
+    landEquipmentTypes.value = landEquipmentRows
+    landEquipmentSizes.value = landEquipmentSizeRows
+    landEquipmentKinds.value = landEquipmentKindRows
     importProfiles.value = profileRows
     incoterms.value = incotermRows.map(normalizeIncoterm)
     loaded.value = true
@@ -228,11 +243,13 @@ function equipmentDimensions(item?: PricingCatalogItem | null): ContainerEquipme
       const kindCode = String(metadata.kindCode ?? '').trim().toUpperCase()
       if (size && kind && kindCode) return { size, kind, kindCode }
     } catch {
-      // Fall back to the legacy equipment code below.
+      // Fall back to the legacy maritime equipment code below.
     }
   }
 
-  const match = compact(item.code || item.value || item.name).toUpperCase().match(/^(20|40|45|48)(DV|HC|OT|OS|TK|FR|NOR)$/)
+  const match = compact(item.code || item.value || item.name)
+    .toUpperCase()
+    .match(/^(20|40|45|48)(DV|HC|OT|OS|TK|FR|NOR)$/)
   if (!match) return null
 
   const size = match[1]
@@ -246,51 +263,107 @@ function equipmentDimensions(item?: PricingCatalogItem | null): ContainerEquipme
   }
 }
 
-function splitContainerEquipment(equipmentId?: string | null) {
-  const equipment = findById(containerTypes.value, equipmentId)
+function splitEquipment(
+  equipmentId: string | null | undefined,
+  equipmentItems: PricingCatalogItem[],
+  sizeItems: PricingCatalogItem[],
+  kindItems: PricingCatalogItem[],
+) {
+  const equipment = findById(equipmentItems, equipmentId)
   const dimensions = equipmentDimensions(equipment)
   if (!equipment || !dimensions) {
     return { equipment, size: undefined, kind: undefined }
   }
 
-  const size = containerSizes.value.find((item) =>
+  const size = sizeItems.find((item) =>
     [item.code, item.value, item.slug].some((candidate) => candidate === dimensions.size),
   )
-  const kind = containerKinds.value.find(
+  const kind = kindItems.find(
     (item) => item.slug === dimensions.kind || item.code.toUpperCase() === dimensions.kindCode,
   )
 
   return { equipment, size, kind }
 }
 
-function containerKindsForSize(sizeId?: string | null) {
-  const size = findById(containerSizes.value, sizeId)
-  if (!size) return containerKinds.value
+function equipmentKindsForSize(
+  sizeId: string | null | undefined,
+  equipmentItems: PricingCatalogItem[],
+  sizeItems: PricingCatalogItem[],
+  kindItems: PricingCatalogItem[],
+) {
+  const size = findById(sizeItems, sizeId)
+  if (!size) return kindItems
 
   const sizeCode = size.code || size.value || size.slug
   const allowed = new Set(
-    containerTypes.value
+    equipmentItems
       .map(equipmentDimensions)
       .filter((dimension): dimension is ContainerEquipmentDimensions => Boolean(dimension))
       .filter((dimension) => dimension.size === sizeCode)
       .map((dimension) => dimension.kindCode),
   )
 
-  return containerKinds.value.filter((kind) => allowed.has(kind.code.toUpperCase()))
+  return kindItems.filter((kind) => allowed.has(kind.code.toUpperCase()))
 }
 
-function resolveContainerEquipment(sizeId?: string | null, kindId?: string | null) {
-  const size = findById(containerSizes.value, sizeId)
-  const kind = findById(containerKinds.value, kindId)
+function resolveEquipment(
+  sizeId: string | null | undefined,
+  kindId: string | null | undefined,
+  equipmentItems: PricingCatalogItem[],
+  sizeItems: PricingCatalogItem[],
+  kindItems: PricingCatalogItem[],
+) {
+  const size = findById(sizeItems, sizeId)
+  const kind = findById(kindItems, kindId)
   if (!size || !kind) return undefined
 
   const sizeCode = size.code || size.value || size.slug
   const kindCode = kind.code.toUpperCase()
 
-  return containerTypes.value.find((equipment) => {
+  return equipmentItems.find((equipment) => {
     const dimensions = equipmentDimensions(equipment)
     return dimensions?.size === sizeCode && dimensions.kindCode === kindCode
   })
+}
+
+function splitContainerEquipment(equipmentId?: string | null) {
+  return splitEquipment(equipmentId, containerTypes.value, containerSizes.value, containerKinds.value)
+}
+
+function containerKindsForSize(sizeId?: string | null) {
+  return equipmentKindsForSize(sizeId, containerTypes.value, containerSizes.value, containerKinds.value)
+}
+
+function resolveContainerEquipment(sizeId?: string | null, kindId?: string | null) {
+  return resolveEquipment(sizeId, kindId, containerTypes.value, containerSizes.value, containerKinds.value)
+}
+
+function splitLandEquipment(equipmentId?: string | null) {
+  return splitEquipment(
+    equipmentId,
+    landEquipmentTypes.value,
+    landEquipmentSizes.value,
+    landEquipmentKinds.value,
+  )
+}
+
+function landEquipmentKindsForSize(sizeId?: string | null) {
+  return equipmentKindsForSize(
+    sizeId,
+    landEquipmentTypes.value,
+    landEquipmentSizes.value,
+    landEquipmentKinds.value,
+  )
+}
+
+function resolveLandEquipment(sizeId?: string | null, kindId?: string | null) {
+  return resolveEquipment(
+    sizeId,
+    kindId,
+    landEquipmentTypes.value,
+    landEquipmentSizes.value,
+    landEquipmentKinds.value,
+  )
 }
 
 function findBestMatch(
@@ -343,6 +416,10 @@ export function usePricingCatalogs() {
     ) => items.find((item) => item.id === id)?.name || fallback || '—'
 
     const incoterm = incoterms.value.find((item) => item.id === rate.incotermId)
+    const equipmentCatalog =
+      rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl'
+        ? landEquipmentTypes.value
+        : containerTypes.value
 
     return {
       ...rate,
@@ -351,7 +428,7 @@ export function usePricingCatalogs() {
       polName: label(polPorts.value, rate.polId, rate.polName),
       poeName: label(poePorts.value, rate.poeId, rate.poeName),
       podName: label(podPorts.value, rate.podId, rate.podName),
-      containerTypeName: label(containerTypes.value, rate.containerTypeId, rate.containerTypeName),
+      containerTypeName: label(equipmentCatalog, rate.containerTypeId, rate.containerTypeName),
       incotermName: incoterm?.value || canonicalIncotermValue(rate.incotermName ?? ''),
       incotermCode: incoterm?.code || canonicalIncotermValue(rate.incotermCode ?? ''),
       currencyName: label(currencies.value, rate.currencyId, rate.currencyName),
@@ -408,6 +485,9 @@ export function usePricingCatalogs() {
     containerTypes,
     containerSizes,
     containerKinds,
+    landEquipmentTypes,
+    landEquipmentSizes,
+    landEquipmentKinds,
     importProfiles,
     incoterms,
     loading,
@@ -421,6 +501,9 @@ export function usePricingCatalogs() {
     containerOptions: computed(() => options(containerTypes.value)),
     containerSizeOptions: computed(() => options(containerSizes.value)),
     containerKindOptions: computed(() => options(containerKinds.value)),
+    landEquipmentOptions: computed(() => options(landEquipmentTypes.value)),
+    landEquipmentSizeOptions: computed(() => options(landEquipmentSizes.value)),
+    landEquipmentKindOptions: computed(() => options(landEquipmentKinds.value)),
     profileOptions: computed(() => options(importProfiles.value)),
     incotermOptions: computed(() => options(incoterms.value)),
     loadAll,
@@ -431,6 +514,9 @@ export function usePricingCatalogs() {
     splitContainerEquipment,
     containerKindsForSize,
     resolveContainerEquipment,
+    splitLandEquipment,
+    landEquipmentKindsForSize,
+    resolveLandEquipment,
     resolveRateLabels,
     resolveCostLabels,
   }
