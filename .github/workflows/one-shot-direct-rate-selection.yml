@@ -1,0 +1,70 @@
+name: Apply direct rate selection flow
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/one-shot-direct-rate-selection.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Make rate selection advance immediately
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          source = path.read_text(encoding='utf-8')
+
+          old_rate = """  if (currency) form.currencyId = currency.id
+}
+
+function continueManual() {
+  form.selectedImportRateId = ''
+  form.manualRate = true
+}
+"""
+          new_rate = """  if (currency) form.currencyId = currency.id
+
+  step.value = 5
+}
+
+function continueManual() {
+  form.selectedImportRateId = ''
+  form.manualRate = true
+  step.value = 5
+}
+"""
+          if old_rate not in source:
+              raise SystemExit('Could not find rate/manual selection functions')
+          source = source.replace(old_rate, new_rate, 1)
+
+          old_footer = '<DhButton v-if="step < 7" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>'
+          new_footer = '<DhButton v-if="step < 7 && step !== 4" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>'
+          if old_footer not in source:
+              raise SystemExit('Could not find footer Continue button')
+          source = source.replace(old_footer, new_footer, 1)
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Commit functional change and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/one-shot-direct-rate-selection.yml
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git diff --cached --check
+          git commit -m 'fix(pricing): advance directly from rate selection'
+          git push origin master
