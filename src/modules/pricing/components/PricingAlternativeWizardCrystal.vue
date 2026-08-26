@@ -332,16 +332,40 @@ const shipmentModeOptions = computed(() => {
 
 const equipmentSource = computed(() => {
   const modality = String(form.modality)
-  if (!modality || modality === 'Land') return []
+  if (!modality) return []
 
   return catalogs.containers.filter((item) => {
     const meta = metadata(item)
-    if (meta?.modalities?.length) return meta.modalities.includes(modality)
+    const normalizedModality = modality.toLocaleLowerCase()
+
+    if (meta?.modalities?.length) {
+      return meta.modalities.some(
+        (value) => String(value).trim().toLocaleLowerCase() === normalizedModality,
+      )
+    }
+
+    if (meta?.shipmentModes?.length && form.shipmentMode) {
+      const currentMode = form.shipmentMode.toUpperCase()
+      if (meta.shipmentModes.some((value) => String(value).trim().toUpperCase() === currentMode)) {
+        return true
+      }
+    }
+
     if (modality === 'Air') {
       const value = displayValue(item).toUpperCase()
       return ['LOOSE', 'PALLET', 'ULD'].some((kind) => value.includes(kind))
     }
-    return modality !== 'Air'
+
+    if (modality === 'Land') {
+      const text = normalizeCatalogValue(
+        [displayValue(item), item.code, item.slug].filter(Boolean).join(' '),
+      )
+      return ['furgon', 'truck', 'trailer', 'camion', 'remolque', 'plataforma'].some(
+        (token) => text.includes(token),
+      )
+    }
+
+    return true
   })
 })
 
@@ -374,15 +398,7 @@ const equipmentTypeOptions = computed(() => {
 const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))
 const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
-const selectedEquipment = computed(() => {
-  if (form.modality === 'Land') {
-    const shipmentMode = form.shipmentMode.toUpperCase()
-    return catalogs.shipmentModes.find((item) =>
-      item.code?.toUpperCase() === shipmentMode || displayValue(item).toUpperCase() === shipmentMode,
-    ) ?? null
-  }
-  return findById(equipmentSource.value, form.equipmentId)
-})
+const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
 const cargoInsuranceService = computed(() =>
@@ -451,6 +467,33 @@ const visibleSections = computed<RateSection[]>(() => {
 })
 
 const includedLines = computed(() => rateLines.value.filter((line) => line.included))
+const optionalChargeOptions = computed(() =>
+  rateLines.value
+    .filter((line) => line.optional)
+    .map((line) => ({
+      value: line.key,
+      label: `${line.name} · ${sectionLabel(line.section)}`,
+    })),
+)
+const selectedOptionalChargeKeys = computed<string[]>({
+  get: () =>
+    rateLines.value
+      .filter((line) => line.optional && line.included)
+      .map((line) => line.key),
+  set: (keys) => {
+    const selected = new Set(keys)
+    rateLines.value.forEach((line) => {
+      if (line.optional) line.included = selected.has(line.key)
+    })
+  },
+})
+const displayedRateSections = computed(() =>
+  visibleSections.value.filter((section) =>
+    rateLines.value.some(
+      (line) => line.section === section && (!line.optional || line.included),
+    ),
+  ),
+)
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
 const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
 const totalUtility = computed(() => totalSale.value - totalCost.value)
@@ -515,7 +558,14 @@ function sectionForDetail(type: CostDetailType, name = ''): RateSection {
       ? 'origin_charges'
       : 'destination_charges'
   }
-  if (type === 'AgentCharge' || type === 'Documentation') {
+  if (type === 'AgentCharge') {
+    if (mentionsOrigin) return 'origin_charges'
+    if (mentionsDestination) return 'destination_charges'
+    return normalizeCatalogValue(direction.value).includes('exportacion')
+      ? 'origin_charges'
+      : 'destination_charges'
+  }
+  if (type === 'Documentation') {
     if (mentionsOrigin) return 'origin_charges'
     if (mentionsDestination) return 'destination_charges'
     return 'international_freight'
@@ -1056,7 +1106,7 @@ async function saveRate() {
   if (!origin) missing.push('origen')
   if (!poe) missing.push('destino/POE')
   if (!pod) missing.push('POD')
-  if (!equipment) missing.push(form.modality === 'Land' ? 'tipo de embarque' : 'equipo')
+  if (!equipment) missing.push(form.modality === 'Land' ? 'furgón / equipo terrestre' : 'equipo')
   if (!incoterm) missing.push('Incoterm')
   if (!agent) missing.push('agente')
   if (!carrier) missing.push('proveedor')
@@ -1276,10 +1326,6 @@ watch(
 watch(
   () => [form.equipmentSize, form.equipmentType, form.modality] as const,
   () => {
-    if (form.modality === 'Land') {
-      form.equipmentId = ''
-      return
-    }
     if (!form.modality || !form.equipmentType) {
       form.equipmentId = ''
       return
@@ -1389,7 +1435,7 @@ onMounted(loadCatalogs)
         <div v-else-if="step === 3" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 3</p>
-            <h2 class="crystal-title">{{ form.modality === 'Land' ? 'Ruta, Incoterm y servicios' : 'Ruta, equipo, Incoterm y servicios' }}</h2>
+            <h2 class="crystal-title">{{ form.modality === 'Land' ? 'Ruta, furgón, Incoterm y servicios' : 'Ruta, equipo, Incoterm y servicios' }}</h2>
             <p class="crystal-description">Seleccione POE y POD de forma independiente. Si existe una equivalencia clara, el POD se sugiere automáticamente.</p>
           </div>
 
@@ -1401,15 +1447,14 @@ onMounted(loadCatalogs)
             <DhSelect
               v-if="equipmentHasSizes"
               v-model="form.equipmentSize"
-              label="Tamaño"
-              placeholder="Seleccione tamaño"
+              :label="form.modality === 'Land' ? 'Tamaño de furgón' : 'Tamaño'"
+              :placeholder="form.modality === 'Land' ? 'Seleccione tamaño de furgón' : 'Seleccione tamaño'"
               :options="equipmentSizeOptions"
             />
             <DhSelect
-              v-if="form.modality !== 'Land'"
               v-model="form.equipmentType"
-              :label="equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
-              :placeholder="equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
+              :label="form.modality === 'Land' ? 'Furgón / equipo terrestre' : equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
+              :placeholder="form.modality === 'Land' ? 'Seleccione furgón' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
               :disabled="equipmentHasSizes && !form.equipmentSize"
               :options="equipmentTypeOptions"
             />
@@ -1434,8 +1479,8 @@ onMounted(loadCatalogs)
               <span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Operación</span>
               <strong class="mt-1 block text-sm">{{ direction || 'Por determinar' }}</strong>
             </div>
-            <div v-if="selectedEquipment && form.modality !== 'Land'">
-              <span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Equipo</span>
+            <div v-if="selectedEquipment">
+              <span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">{{ form.modality === 'Land' ? 'Furgón' : 'Equipo' }}</span>
               <strong class="mt-1 block text-sm">{{ displayValue(selectedEquipment) }}</strong>
             </div>
             <div>
@@ -1574,25 +1619,25 @@ onMounted(loadCatalogs)
             </div>
           </div>
 
-          <div v-for="section in visibleSections" :key="section" class="space-y-2">
+          <div v-if="optionalChargeOptions.length" class="crystal-soft p-4">
+            <PricingCrystalMultiSelect
+              v-model="selectedOptionalChargeKeys"
+              label="Cargos opcionales"
+              placeholder="Seleccione cargos opcionales"
+              search-placeholder="Buscar cargo opcional..."
+              :options="optionalChargeOptions"
+            />
+          </div>
+
+          <div v-for="section in displayedRateSections" :key="section" class="space-y-2">
             <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ sectionLabel(section) }}</h3>
             <div
-              v-for="line in rateLines.filter((item) => item.section === section)"
+              v-for="line in rateLines.filter((item) => item.section === section && (!item.optional || item.included))"
               :key="line.key"
               class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
-              :class="{ 'crystal-line--optional-off': line.optional && !line.included }"
             >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
-                  <button
-                    v-if="line.optional"
-                    type="button"
-                    class="crystal-mini-toggle"
-                    :class="line.included ? 'crystal-mini-toggle--active' : ''"
-                    @click="line.included = !line.included"
-                  >
-                    {{ line.included ? 'Agregado' : '+ Agregar' }}
-                  </button>
                   <p class="font-bold">{{ line.name }}</p>
                   <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
                   <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
