@@ -60,6 +60,11 @@ const pricingBatchJob = computed(() =>
 
 const canSendToPricing = computed(() => Boolean(reviewJob.value))
 
+const showClassificationResult = computed(() =>
+  Boolean(current.value?.errorMessage) ||
+  (current.value?.status === 'NeedsReview' && Boolean(current.value?.classificationReason)),
+)
+
 const bodyPreview = computed(() => {
   if (!current.value) return ''
   if (current.value.bodyText?.trim()) return current.value.bodyText.trim()
@@ -361,7 +366,7 @@ onMounted(load)
       </section>
 
       <section
-        v-if="current.classificationReason || current.errorMessage"
+        v-if="showClassificationResult"
         class="rounded-[26px] border p-5"
         :class="
           current.errorMessage

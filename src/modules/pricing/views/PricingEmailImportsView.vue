@@ -109,7 +109,7 @@ const nextAction = computed(() => {
   if (summary.value.review > 0) {
     return {
       title: `${summary.value.review} correo${summary.value.review === 1 ? '' : 's'} requiere${summary.value.review === 1 ? '' : 'n'} revisión`,
-      description: 'Abra el correo y envíe la extracción utilizable a la pantalla de revisión de Pricing.',
+      description: 'Abra el correo únicamente cuando exista un problema real que impida crear automáticamente la revisión en Pricing.',
       action: 'Mostrar pendientes',
       status: 'NeedsReview' as EmailMessageStatus,
     }
@@ -245,6 +245,12 @@ function clearFilters() {
 }
 
 function openDetail(message: EmailMessageDto) {
+  const job = latestJob(message.id)
+  if (job?.pricingImportBatchId) {
+    openPricingBatch(job.pricingImportBatchId)
+    return
+  }
+
   drawerStore.open({
     title: 'Detalle del correo de tarifas',
     component: PricingEmailMessageDrawer,
@@ -304,7 +310,7 @@ async function reprocess(message: EmailMessageDto) {
     await EmailExtractionService.reprocessMessage(message.id)
     toastStore.success(
       'Correo enviado a reproceso',
-      'La extracción se ejecutará nuevamente y se enviará a Pricing si supera la confianza configurada.',
+      'La extracción se ejecutará nuevamente y, si produce filas válidas, creará automáticamente la revisión en Pricing.',
     )
     await load(true)
   } catch (error) {
