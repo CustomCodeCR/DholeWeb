@@ -5,6 +5,7 @@ import {
   Download,
   Eye,
   ExternalLink,
+  FileSpreadsheet,
   FileText,
   Mail,
   Paperclip,
@@ -19,6 +20,7 @@ import { STORAGE_SCOPES } from '@/core/auth/scopes'
 import { parseStorageReference, StorageService, storagePreviewKind } from '@/core/services/storageService'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
+import { downloadExcelWorkbook } from '@/core/utils/excel'
 import type {
   EmailExtractionJobStatus,
   EmailMessageDetailDto,
@@ -128,6 +130,101 @@ function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function exportMessageExcel() {
+  const message = current.value
+  if (!message) return
+
+  const classificationResult = message.errorMessage || message.classificationReason || 'Sin observaciones'
+
+  downloadExcelWorkbook({
+    fileName: `correo-${message.subject || message.id}.xlsx`,
+    sheets: [
+      {
+        name: 'Resumen',
+        columns: [
+          { key: 'field', label: 'Campo' },
+          { key: 'value', label: 'Valor' },
+        ],
+        rows: [
+          { field: 'Asunto', value: message.subject },
+          { field: 'Remitente', value: message.fromName || message.fromAddress },
+          { field: 'Correo remitente', value: message.fromAddress },
+          { field: 'Destinatarios', value: message.toAddresses || '' },
+          { field: 'CC', value: message.ccAddresses || '' },
+          { field: 'Recibido', value: formatDateTime(message.receivedAt) },
+          { field: 'Estado', value: messageStatusLabel(message.status) },
+          { field: 'Confianza clasificación', value: message.classificationConfidence ?? '' },
+          { field: 'ID mensaje', value: message.id },
+          { field: 'ID externo', value: message.externalMessageId },
+        ],
+      },
+      {
+        name: 'Clasificación',
+        columns: [
+          { key: 'field', label: 'Campo' },
+          { key: 'value', label: 'Resultado' },
+        ],
+        rows: [
+          { field: 'Estado', value: messageStatusLabel(message.status) },
+          { field: 'Confianza', value: message.classificationConfidence ?? '' },
+          { field: 'Resultado de clasificación', value: classificationResult },
+          { field: 'Motivo', value: message.classificationReason || '' },
+          { field: 'Error', value: message.errorMessage || '' },
+        ],
+      },
+      {
+        name: 'Adjuntos',
+        columns: [
+          { key: 'fileName', label: 'Archivo' },
+          { key: 'sourceFileType', label: 'Tipo origen' },
+          { key: 'contentType', label: 'Content-Type' },
+          { key: 'size', label: 'Tamaño' },
+          { key: 'status', label: 'Estado' },
+          { key: 'error', label: 'Error' },
+          { key: 'storagePath', label: 'Storage' },
+        ],
+        rows: message.attachments.map((attachment) => ({
+          fileName: attachment.fileName,
+          sourceFileType: attachment.sourceFileType,
+          contentType: attachment.contentType || '',
+          size: formatSize(attachment.sizeBytes),
+          status: attachment.status,
+          error: attachment.errorMessage || '',
+          storagePath: attachment.storagePath,
+        })),
+      },
+      {
+        name: 'Extracciones',
+        columns: [
+          { key: 'status', label: 'Estado' },
+          { key: 'source', label: 'Fuente' },
+          { key: 'confidence', label: 'Confianza' },
+          { key: 'error', label: 'Error' },
+          { key: 'startedAt', label: 'Inicio' },
+          { key: 'finishedAt', label: 'Fin' },
+          { key: 'executionId', label: 'Execution ID' },
+          { key: 'pricingBatchId', label: 'Lote Pricing' },
+        ],
+        rows: message.jobs.map((job) => ({
+          status: jobStatusLabel(job.status),
+          source: job.sourceType === 'Body' ? 'Cuerpo del correo' : 'Adjunto',
+          confidence: job.confidenceScore ?? '',
+          error: job.errorMessage || '',
+          startedAt: formatDateTime(job.startedAt),
+          finishedAt: formatDateTime(job.finishedAt),
+          executionId: job.extractionExecutionId || '',
+          pricingBatchId: job.pricingImportBatchId || '',
+        })),
+      },
+      {
+        name: 'Contenido',
+        columns: [{ key: 'body', label: 'Contenido del correo' }],
+        rows: [{ body: bodyPreview.value }],
+      },
+    ],
+  })
 }
 
 async function load() {
@@ -314,6 +411,14 @@ onMounted(load)
           </div>
         </div>
         <div class="flex shrink-0 flex-wrap justify-end gap-2">
+          <DhButton
+            v-if="current"
+            label="Exportar Excel"
+            :icon="FileSpreadsheet"
+            variant="secondary"
+            size="sm"
+            @click="exportMessageExcel"
+          />
           <DhButton
             v-if="pricingBatchJob?.pricingImportBatchId"
             label="Ver revisión"
