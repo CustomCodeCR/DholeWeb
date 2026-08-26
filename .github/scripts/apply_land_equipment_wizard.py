@@ -89,13 +89,33 @@ replace_once(
 )
 
 replace_once(
-    '''      containers,
+    '''    const [
+      shipmentModes,
+      services,
+      incoterms,
+      pol,
+      pod,
+      poe,
+      containers,
       agents,
-      carriers,''',
-    '''      containers,
+      carriers,
+      currencies,
+      selectedCosts,
+    ] = await Promise.all([''',
+    '''    const [
+      shipmentModes,
+      services,
+      incoterms,
+      pol,
+      pod,
+      poe,
+      containers,
       landEquipment,
       agents,
-      carriers,''',
+      carriers,
+      currencies,
+      selectedCosts,
+    ] = await Promise.all([''',
     'catalog destructure',
 )
 replace_once(
@@ -107,12 +127,26 @@ replace_once(
     'catalog promise',
 )
 replace_once(
-    '''      containers,
+    '''    Object.assign(catalogs, {
+      shipmentModes,
+      services,
+      incoterms,
+      pol,
+      pod,
+      poe,
+      containers,
       agents,
       carriers,
       currencies,
     })''',
-    '''      containers,
+    '''    Object.assign(catalogs, {
+      shipmentModes,
+      services,
+      incoterms,
+      pol,
+      pod,
+      poe,
+      containers,
       landEquipment,
       agents,
       carriers,
