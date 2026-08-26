@@ -105,6 +105,7 @@ const catalogs = reactive({
   pod: [] as CatalogItemSelectDto[],
   poe: [] as CatalogItemSelectDto[],
   containers: [] as CatalogItemSelectDto[],
+  landEquipment: [] as CatalogItemSelectDto[],
   agents: [] as CatalogItemSelectDto[],
   carriers: [] as CatalogItemSelectDto[],
   currencies: [] as CatalogItemSelectDto[],
@@ -154,14 +155,14 @@ const stepTitles = [
 const modalityOptions: Array<{ value: Modality; label: string; caption: string }> = [
   { value: 'Maritime', label: 'Marítimo', caption: 'FCL y LCL' },
   { value: 'Air', label: 'Aéreo', caption: 'Carga aérea LCL' },
-  { value: 'Land', label: 'Terrestre', caption: 'FTL y FCL' },
+  { value: 'Land', label: 'Terrestre', caption: 'FTL y LTL' },
   { value: 'Multimodal', label: 'Multimodal', caption: 'Marítimo + terrestre' },
 ]
 
 const allowedShipmentModes: Record<Modality, string[]> = {
   Maritime: ['FCL', 'LCL'],
   Air: ['LCL'],
-  Land: ['FTL', 'FCL'],
+  Land: ['FTL', 'LTL'],
   Multimodal: ['FCL', 'LCL'],
 }
 
@@ -329,6 +330,17 @@ const shipmentModeOptions = computed(() => {
 const equipmentSource = computed(() => {
   const modality = String(form.modality)
   if (!modality) return []
+
+  if (modality === 'Land') {
+    const shipmentMode = form.shipmentMode.toUpperCase()
+    return catalogs.landEquipment.filter((item) => {
+      const meta = metadata(item)
+      if (meta?.modalities?.length && !meta.modalities.includes('Land')) return false
+      if (meta?.shipmentModes?.length && shipmentMode) return meta.shipmentModes.includes(shipmentMode)
+      return true
+    })
+  }
+
   return catalogs.containers.filter((item) => {
     const meta = metadata(item)
     if (meta?.modalities?.length) return meta.modalities.includes(modality)
@@ -369,7 +381,7 @@ const equipmentTypeOptions = computed(() => {
 const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))
 const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
-const selectedEquipment = computed(() => findById(catalogs.containers, form.equipmentId))
+const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
 const cargoInsuranceService = computed(() =>
@@ -669,6 +681,9 @@ function chooseModality(value: Modality) {
 
 function chooseShipmentMode(value: string) {
   form.shipmentMode = value
+  form.equipmentSize = ''
+  form.equipmentType = ''
+  form.equipmentId = ''
   step.value = 3
 }
 
@@ -684,6 +699,7 @@ async function loadCatalogs() {
       pod,
       poe,
       containers,
+      landEquipment,
       agents,
       carriers,
       currencies,
@@ -696,6 +712,7 @@ async function loadCatalogs() {
       select('pod'),
       select('poe'),
       select('container-types'),
+      select('land-equipment-types'),
       select('agents'),
       select('carriers'),
       select('currencies'),
@@ -710,6 +727,7 @@ async function loadCatalogs() {
       pod,
       poe,
       containers,
+      landEquipment,
       agents,
       carriers,
       currencies,
@@ -1225,8 +1243,8 @@ onMounted(loadCatalogs)
             />
             <DhSelect
               v-model="form.equipmentType"
-              :label="equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
-              :placeholder="equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
+              :label="form.modality === 'Land' ? 'Tipo de unidad / furgón' : equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
+              :placeholder="form.modality === 'Land' ? 'Seleccione unidad terrestre' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
               :disabled="equipmentHasSizes && !form.equipmentSize"
               :options="equipmentTypeOptions"
             />
@@ -1300,7 +1318,7 @@ onMounted(loadCatalogs)
           </template>
 
           <div v-else class="crystal-empty p-9 text-center">
-            <p class="text-lg font-black">No existen tarifas vigentes para esa ruta y tamaño de equipo</p>
+            <p class="text-lg font-black">No existen tarifas vigentes para esa ruta y equipo</p>
             <p class="mt-2 text-sm text-[var(--dh-text-muted)]">Puede continuar y capturar el flete manualmente.</p>
             <DhButton class="mt-5" @click="continueManual">Continuar de manera manual</DhButton>
           </div>
