@@ -664,6 +664,12 @@ function chooseModality(value: Modality) {
   form.equipmentType = ''
   form.equipmentId = ''
   selectDefaultService()
+  step.value = 2
+}
+
+function chooseShipmentMode(value: string) {
+  form.shipmentMode = value
+  step.value = 3
 }
 
 async function loadCatalogs() {
@@ -1190,7 +1196,7 @@ onMounted(loadCatalogs)
               type="button"
               class="crystal-choice min-h-[120px]"
               :class="form.shipmentMode === option.value ? 'crystal-choice--active' : ''"
-              @click="form.shipmentMode = option.value"
+              @click="chooseShipmentMode(option.value)"
             >
               <span class="text-lg font-black">{{ option.label }}</span>
               <Check v-if="form.shipmentMode === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
@@ -1437,7 +1443,7 @@ onMounted(loadCatalogs)
     <div class="crystal-footer flex items-center justify-between gap-3 p-3">
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
       <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / 7</div>
-      <DhButton v-if="step < 7 && step !== 4" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-if="step < 7 && ![1, 2, 4].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else :disabled="saving || !includedLines.length || Boolean(createdRateId)" @click="saveRate"><Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : 'Crear alternativa' }}</DhButton>
     </div>
   </div>
@@ -1484,10 +1490,10 @@ onMounted(loadCatalogs)
 .crystal-line,
 .crystal-success {
   border: 1px solid color-mix(in srgb, var(--dh-border-strong) 64%, transparent);
-  background: color-mix(in srgb, var(--dh-card) 58%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 82%, transparent);
   box-shadow: 0 24px 72px rgb(15 23 42 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.38);
-  backdrop-filter: blur(44px) saturate(165%);
-  -webkit-backdrop-filter: blur(44px) saturate(165%);
+  backdrop-filter: blur(72px) saturate(175%);
+  -webkit-backdrop-filter: blur(72px) saturate(175%);
 }
 
 .crystal-panel {
@@ -1533,10 +1539,10 @@ onMounted(loadCatalogs)
   position: relative;
   border-radius: 22px;
   border: 1px solid color-mix(in srgb, var(--dh-border) 72%, transparent);
-  background: color-mix(in srgb, var(--dh-card) 48%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 74%, transparent);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.30);
-  backdrop-filter: blur(34px) saturate(155%);
-  -webkit-backdrop-filter: blur(34px) saturate(155%);
+  backdrop-filter: blur(58px) saturate(170%);
+  -webkit-backdrop-filter: blur(58px) saturate(170%);
   transition: 180ms ease;
 }
 
@@ -1694,9 +1700,9 @@ onMounted(loadCatalogs)
 
 .crystal-panel :deep(select),
 .crystal-panel :deep(input) {
-  background-color: color-mix(in srgb, var(--dh-input) 62%, transparent);
-  backdrop-filter: blur(30px) saturate(150%);
-  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  background-color: color-mix(in srgb, var(--dh-input) 82%, transparent);
+  backdrop-filter: blur(48px) saturate(165%);
+  -webkit-backdrop-filter: blur(48px) saturate(165%);
 }
 
 @media (max-width: 640px) {
