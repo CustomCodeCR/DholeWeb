@@ -52,6 +52,7 @@ type RateSection =
   | 'delivery_destination'
 
 interface CatalogMetadata {
+  modality?: string
   modalities?: string[]
   shipmentModes?: string[]
   rateSections?: RateSection[]
@@ -110,6 +111,9 @@ const catalogs = reactive({
   pol: [] as CatalogItemSelectDto[],
   pod: [] as CatalogItemSelectDto[],
   poe: [] as CatalogItemSelectDto[],
+  landEquipmentTypes: [] as CatalogItemSelectDto[],
+  landEquipmentSizes: [] as CatalogItemSelectDto[],
+  landEquipmentKinds: [] as CatalogItemSelectDto[],
   containers: [] as CatalogItemSelectDto[],
   agents: [] as CatalogItemSelectDto[],
   carriers: [] as CatalogItemSelectDto[],
@@ -336,6 +340,22 @@ const equipmentSource = computed(() => {
   const modality = String(form.modality)
   if (!modality) return []
 
+  if (modality === 'Land') {
+    return catalogs.landEquipmentTypes.filter((item) => {
+      const meta = metadata(item)
+      if (meta?.modality && meta.modality.toLocaleLowerCase() !== 'land') return false
+
+      if (meta?.shipmentModes?.length && form.shipmentMode) {
+        const currentMode = form.shipmentMode.toUpperCase()
+        return meta.shipmentModes.some(
+          (value) => String(value).trim().toUpperCase() === currentMode,
+        )
+      }
+
+      return true
+    })
+  }
+
   return catalogs.containers.filter((item) => {
     const meta = metadata(item)
     const normalizedModality = modality.toLocaleLowerCase()
@@ -358,15 +378,6 @@ const equipmentSource = computed(() => {
       return ['LOOSE', 'PALLET', 'ULD'].some((kind) => value.includes(kind))
     }
 
-    if (modality === 'Land') {
-      const text = normalizeCatalogValue(
-        [displayValue(item), item.code, item.slug].filter(Boolean).join(' '),
-      )
-      return ['furgon', 'truck', 'trailer', 'camion', 'remolque', 'plataforma'].some(
-        (token) => text.includes(token),
-      )
-    }
-
     return true
   })
 })
@@ -374,27 +385,49 @@ const equipmentSource = computed(() => {
 const equipmentHasSizes = computed(() => equipmentSource.value.some((item) => Boolean(metadata(item)?.size)))
 
 const equipmentSizeOptions = computed(() => {
-  const sizes = [...new Set(equipmentSource.value.map((item) => metadata(item)?.size?.trim()).filter((value): value is string => Boolean(value)))]
-  return sizes
+  const availableSizes = new Set(
+    equipmentSource.value
+      .map((item) => metadata(item)?.size?.trim())
+      .filter((value): value is string => Boolean(value)),
+  )
+
+  if (form.modality === 'Land' && catalogs.landEquipmentSizes.length) {
+    return catalogs.landEquipmentSizes
+      .filter((item) => availableSizes.has(displayValue(item)))
+      .map((item) => ({ value: displayValue(item), label: item.label || `${displayValue(item)} pies` }))
+  }
+
+  return [...availableSizes]
     .sort((a, b) => number(a) - number(b))
     .map((size) => ({ value: size, label: size }))
 })
 
 const equipmentTypeOptions = computed(() => {
   if (!equipmentHasSizes.value) {
-    return equipmentSource.value.map((item) => ({ value: item.id, label: displayValue(item) }))
+    return equipmentSource.value.map((item) => ({ value: item.id, label: item.label || displayValue(item) }))
   }
 
   if (!form.equipmentSize) return []
-  const kinds = new Map<string, string>()
-  equipmentSource.value
-    .filter((item) => metadata(item)?.size === form.equipmentSize)
-    .forEach((item) => {
-      const kind = metadata(item)?.kind?.trim()
-      if (kind) kinds.set(kind, kindLabels[kind] ?? kind.replaceAll('-', ' '))
-    })
 
-  return [...kinds.entries()].map(([value, label]) => ({ value, label }))
+  const availableKinds = new Set(
+    equipmentSource.value
+      .filter((item) => metadata(item)?.size === form.equipmentSize)
+      .map((item) => metadata(item)?.kind?.trim())
+      .filter((value): value is string => Boolean(value)),
+  )
+
+  if (form.modality === 'Land' && catalogs.landEquipmentKinds.length) {
+    const configured = catalogs.landEquipmentKinds
+      .filter((item) => availableKinds.has(item.slug))
+      .map((item) => ({ value: item.slug, label: item.label || displayValue(item) }))
+
+    if (configured.length) return configured
+  }
+
+  return [...availableKinds].map((kind) => ({
+    value: kind,
+    label: kindLabels[kind] ?? kind.replaceAll('-', ' '),
+  }))
 })
 
 const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))
@@ -935,6 +968,9 @@ async function loadCatalogs() {
       pol,
       pod,
       poe,
+      landEquipmentTypes,
+      landEquipmentSizes,
+      landEquipmentKinds,
       containers,
       agents,
       carriers,
@@ -947,6 +983,9 @@ async function loadCatalogs() {
       select('pol'),
       select('pod'),
       select('poe'),
+      select('land-equipment-types'),
+      select('land-equipment-sizes'),
+      select('land-equipment-kinds'),
       select('container-types'),
       select('agents'),
       select('carriers'),
@@ -961,6 +1000,9 @@ async function loadCatalogs() {
       pol,
       pod,
       poe,
+      landEquipmentTypes,
+      landEquipmentSizes,
+      landEquipmentKinds,
       containers,
       agents,
       carriers,
