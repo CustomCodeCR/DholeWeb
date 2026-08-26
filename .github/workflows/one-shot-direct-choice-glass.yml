@@ -1,0 +1,126 @@
+name: Apply direct choice glass flow
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/one-shot-direct-choice-glass.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Make selection cards advance and strengthen glass
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          source = path.read_text(encoding='utf-8')
+
+          old = '''function chooseModality(value: Modality) {
+  form.modality = value
+  form.shipmentMode = ''
+  form.equipmentSize = ''
+  form.equipmentType = ''
+  form.equipmentId = ''
+  selectDefaultService()
+}
+'''
+          new = '''function chooseModality(value: Modality) {
+  form.modality = value
+  form.shipmentMode = ''
+  form.equipmentSize = ''
+  form.equipmentType = ''
+  form.equipmentId = ''
+  selectDefaultService()
+  step.value = 2
+}
+
+function chooseShipmentMode(value: string) {
+  form.shipmentMode = value
+  step.value = 3
+}
+'''
+          if old not in source:
+              raise SystemExit('chooseModality block not found')
+          source = source.replace(old, new, 1)
+
+          old_click = '@click="form.shipmentMode = option.value"'
+          if old_click not in source:
+              raise SystemExit('shipment mode click not found')
+          source = source.replace(old_click, '@click="chooseShipmentMode(option.value)"', 1)
+
+          source = source.replace(
+              'v-if="step < 7 && step !== 4"',
+              'v-if="step < 7 && ![1, 2, 4].includes(step)"',
+              1,
+          )
+
+          source = source.replace(
+              'background: color-mix(in srgb, var(--dh-card) 58%, transparent);',
+              'background: color-mix(in srgb, var(--dh-card) 82%, transparent);',
+              1,
+          )
+          source = source.replace(
+              'backdrop-filter: blur(44px) saturate(165%);',
+              'backdrop-filter: blur(72px) saturate(175%);',
+              1,
+          )
+          source = source.replace(
+              '-webkit-backdrop-filter: blur(44px) saturate(165%);',
+              '-webkit-backdrop-filter: blur(72px) saturate(175%);',
+              1,
+          )
+          source = source.replace(
+              'background: color-mix(in srgb, var(--dh-card) 48%, transparent);',
+              'background: color-mix(in srgb, var(--dh-card) 74%, transparent);',
+              1,
+          )
+          source = source.replace(
+              'backdrop-filter: blur(34px) saturate(155%);',
+              'backdrop-filter: blur(58px) saturate(170%);',
+              1,
+          )
+          source = source.replace(
+              '-webkit-backdrop-filter: blur(34px) saturate(155%);',
+              '-webkit-backdrop-filter: blur(58px) saturate(170%);',
+              1,
+          )
+          source = source.replace(
+              'background-color: color-mix(in srgb, var(--dh-input) 62%, transparent);',
+              'background-color: color-mix(in srgb, var(--dh-input) 82%, transparent);',
+              1,
+          )
+          source = source.replace(
+              'backdrop-filter: blur(30px) saturate(150%);',
+              'backdrop-filter: blur(48px) saturate(165%);',
+              1,
+          )
+          source = source.replace(
+              '-webkit-backdrop-filter: blur(30px) saturate(150%);',
+              '-webkit-backdrop-filter: blur(48px) saturate(165%);',
+              1,
+          )
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Commit functional changes
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/one-shot-direct-choice-glass.yml
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git diff --cached --check
+          git commit -m 'fix(pricing): advance selection cards and strengthen glass'
+          git push origin master
