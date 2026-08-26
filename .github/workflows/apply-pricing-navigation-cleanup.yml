@@ -1,0 +1,83 @@
+name: Apply Pricing Navigation Cleanup
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/apply-pricing-navigation-cleanup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove duplicated pricing workflow guide and rename section
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str, label: str):
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected 1 occurrence, found {count} in {path}")
+              path.write_text(text.replace(old, new, 1))
+
+          email_view = Path('src/modules/pricing/views/PricingEmailImportsView.vue')
+          replace_once(
+              email_view,
+              "import PricingWorkflowGuide from '@/modules/pricing/components/PricingWorkflowGuide.vue'\n",
+              '',
+              'email guide import',
+          )
+          replace_once(
+              email_view,
+              '    <PricingWorkflowGuide current="inbox" />\n\n',
+              '',
+              'email guide block',
+          )
+
+          rates_view = Path('src/modules/pricing/views/PricingRatesView.vue')
+          replace_once(
+              rates_view,
+              "import PricingWorkflowGuide from '@/modules/pricing/components/PricingWorkflowGuide.vue'\n",
+              '',
+              'rates guide import',
+          )
+          replace_once(
+              rates_view,
+              '    <PricingWorkflowGuide current="rates" compact />\n\n',
+              '',
+              'rates guide block',
+          )
+
+          es = Path('src/core/i18n/es.json')
+          replace_once(es, '    "pricing": "Operación de Pricing",', '    "pricing": "Gestión de tarifas",', 'spanish pricing label')
+
+          en = Path('src/core/i18n/en.json')
+          replace_once(en, '    "pricing": "Pricing operations",', '    "pricing": "Rate management",', 'english pricing label')
+          PY
+
+          git diff --check
+          git diff -- src/modules/pricing/views/PricingEmailImportsView.vue src/modules/pricing/views/PricingRatesView.vue src/core/i18n/es.json src/core/i18n/en.json
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/modules/pricing/views/PricingEmailImportsView.vue src/modules/pricing/views/PricingRatesView.vue src/core/i18n/es.json src/core/i18n/en.json
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(web): simplify pricing navigation"
+          git push origin HEAD:master
