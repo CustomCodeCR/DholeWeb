@@ -84,9 +84,11 @@ export async function resolveCommercialTerms(query: {
   shipmentMode: ShipmentMode
   direction: string
   incotermId: string
+  incotermCode?: string
   serviceCodes: string[]
   routeText?: string
 }): Promise<CommercialTerms> {
+  const fallback = buildFallbackCommercialTerms(query)
   const params = new URLSearchParams()
   params.set('transportModality', query.transportModality)
   params.set('shipmentMode', query.shipmentMode)
@@ -95,11 +97,19 @@ export async function resolveCommercialTerms(query: {
   if (query.serviceCodes.length) params.set('serviceCodes', query.serviceCodes.join(','))
   if (query.routeText?.trim()) params.set('routeText', query.routeText.trim())
 
-  return callEndpoint<CommercialTerms>({
-    method: 'GET',
-    path: `/api/pricing/commercial-terms/resolve?${params.toString()}`,
-    headers: { Accept: 'application/json' },
-  })
+  try {
+    const configured = await callEndpoint<CommercialTerms>({
+      method: 'GET',
+      path: `/api/pricing/commercial-terms/resolve?${params.toString()}`,
+      headers: { Accept: 'application/json' },
+    })
+    return mergeCommercialTerms(fallback, configured)
+  } catch {
+    // Las condiciones comerciales no pueden quedar vacías por una caída del resolver.
+    // El fallback reproduce las reglas operativas del manual de Pricing; los bloques
+    // configurados en Pricing se agregan cuando el endpoint está disponible.
+    return fallback
+  }
 }
 
 export function buildOperationalLines(context: {
@@ -218,6 +228,196 @@ export function canonicalServiceLine(code: string, fallbackName: string) {
       return { name: 'Embalaje', section: 'origin_charges' as PricingRateSection, type: 'OriginCharge' as CostDetailType }
     default:
       return { name: fallbackName, section: null, type: null }
+  }
+}
+
+function buildFallbackCommercialTerms(query: {
+  transportModality: PricingModality
+  shipmentMode: ShipmentMode
+  direction: string
+  incotermId: string
+  incotermCode?: string
+  serviceCodes: string[]
+  routeText?: string
+}): CommercialTerms {
+  const includes: string[] = []
+  const subjectTo: string[] = [
+    'Inspecciones, revisiones y escáner',
+    'Cambios sin previo aviso',
+    'Mensajería USD 8 a 15 IVI',
+  ]
+  const excludes: string[] = ['Impuestos', 'Trámites de aduanas', 'Bodegaje', 'Permisos', 'Seguro de carga']
+  const modality = query.transportModality
+  const mode = query.shipmentMode
+  const direction = normalize(query.direction)
+  const incoterm = String(query.incotermCode ?? '').trim().toUpperCase()
+  const route = normalize(query.routeText ?? '')
+  const isImport = direction.includes('importacion')
+  const isExport = direction.includes('exportacion')
+
+  const add = (target: string[], ...values: string[]) => {
+    values.forEach((value) => {
+      if (value && !target.some((current) => normalize(current) === normalize(value))) target.push(value)
+    })
+  }
+
+  if (incoterm === 'EXW') {
+    add(includes, 'Recolección', 'Trámite de exportación', 'Cargos en origen')
+  } else if (incoterm === 'FCA' && modality === 'Air') {
+    add(includes, 'Cargos en origen de la línea aérea')
+    add(excludes, 'Recolección', 'Embalaje')
+  } else if (incoterm === 'FOB') {
+    add(excludes, 'Cargos en origen')
+    if (isExport) add(excludes, 'Recolección')
+  }
+
+  if (modality === 'Maritime' && mode === 'Lcl') {
+    add(includes, 'Flete internacional marítimo', 'Manejos', 'HBL')
+    if (isImport) {
+      add(includes, 'Cargos en destino de la línea naviera')
+      add(subjectTo, 'IVA de los cargos en destino', 'Marchamo electrónico USD 35 + IVA (si aplica)')
+      if (route.includes('caldera')) add(subjectTo, 'Transitorio y bodegaje transitorio si la carga ingresa por Puerto Caldera')
+    }
+    if (isExport) add(excludes, 'Cargos en destino')
+  }
+
+  if (modality === 'Maritime' && mode === 'Fcl') {
+    add(includes, 'Flete internacional marítimo', 'Manejos', 'HBL')
+    if (isImport) {
+      add(includes, 'Cargos en destino de la línea naviera', 'THC / Destino')
+      if (route.includes('caldera')) add(includes, 'Interno Puerto Caldera → SJO')
+      if (route.includes('moin')) add(includes, 'Interno Puerto Moín → SJO')
+      add(
+        subjectTo,
+        'Muellaje',
+        route.includes('moin') ? 'Anticipado USD 125 + IVA o Redestino USD 65 + IVA' : 'Anticipado USD 150 + IVA o Redestino USD 65 + IVA',
+        'Marchamo USD 100 + IVA',
+        'Retiro vacío USD 150 + IVA',
+        'Sobrepeso USD 200 + IVA / Patio USD 100 + IVA',
+        'Demoras de chasis USD 100 + IVA',
+        'Demoras de contenedor USD 130 + IVA',
+        'Carta de transbordo USD 55 + IVA',
+        '7 días libres de contenedor',
+        'IVA de los cargos en destino',
+      )
+      if (route.includes('caldera')) add(subjectTo, 'Carrusel USD 265 + IVA')
+      add(excludes, 'Traslado a almacén en puerto para inspecciones o revisión de aforo amarillo o rojo')
+    }
+    if (isExport) {
+      add(subjectTo, '5 días libres de contenedor')
+      add(
+        excludes,
+        'Cargos en destino',
+        'Traslado a almacén en puerto para inspecciones o revisión de aforo amarillo o rojo',
+        'Muellaje',
+        'Marchamo USD 100 + IVA',
+        'Retiro vacío USD 150 + IVA',
+        'Sobrepeso USD 200 + IVA / Patio USD 100 + IVA',
+        'Demoras de chasis USD 100 + IVA',
+        'Demoras de contenedor USD 130 + IVA',
+      )
+      if (route.includes('caldera')) add(excludes, 'Carrusel USD 230 + IVA')
+    }
+  }
+
+  if (modality === 'Land') {
+    add(includes, 'Flete internacional terrestre', 'Manejos', 'Carta porte', 'Manifiesto de carga', 'DUCA-T')
+    add(subjectTo, 'DUCA-F USD 40 (si aplica)')
+    if (mode === 'Ftl' && isExport) add(includes, 'Trámite de exportación', 'Impuesto de exportación USD 28')
+    if (mode === 'Ltl' && incoterm === 'EXW') add(includes, 'Impuesto de exportación USD 28')
+    add(excludes, 'Cargos en destino')
+    if (isExport) add(excludes, 'Trámites de aduanas destino')
+  }
+
+  if (modality === 'Air' && mode === 'Lcl') {
+    add(includes, 'Flete internacional aéreo', 'Manejos', 'HAWB')
+    if (isImport) {
+      add(includes, 'Cargos en destino de la línea aérea')
+      add(subjectTo, 'IVA de los cargos en destino', 'Retiro de guía aérea en destino USD 65 + IVA')
+    }
+    if (isExport) add(excludes, 'Cargos en destino de la línea aérea')
+  }
+
+  if (modality === 'Multimodal' && isImport) {
+    includes.splice(0, includes.length)
+    add(
+      includes,
+      'Flete internacional',
+      'Manejos',
+      'Cargos en destino en Panamá',
+      'HUB de transbordo en Panamá',
+      'Inland Panamá → Costa Rica',
+      'Documentación',
+      'Ingreso a Almacén A257 Castro Fallas en San José',
+    )
+    if (incoterm === 'EXW') add(includes, 'Recolección', 'Trámite de exportación', 'Cargos en origen')
+    add(subjectTo, 'Certificado de reexportación USD 125', 'No sobrepeso')
+    add(excludes, 'Traslado a almacén en puerto para inspecciones o revisión de aforo amarillo o rojo')
+  }
+
+  const serviceCodes = new Set(query.serviceCodes.map((code) => code.toUpperCase()))
+  if (serviceCodes.has('CARGO_INSURANCE')) {
+    removeNormalized(excludes, 'Seguro de carga')
+    add(includes, 'Seguro de carga')
+  }
+  if (serviceCodes.has('CUSTOMS_CR')) {
+    removeNormalized(excludes, 'Trámites de aduanas')
+    removeNormalized(excludes, 'Trámites de aduanas destino')
+    add(includes, 'Trámites de aduanas')
+  }
+  if (serviceCodes.has('STORAGE')) {
+    removeNormalized(excludes, 'Bodegaje')
+    add(includes, 'Bodegaje')
+  }
+  if (serviceCodes.has('PICKUP')) {
+    removeNormalized(excludes, 'Recolección')
+    add(includes, 'Recolección')
+  }
+  if (serviceCodes.has('PACKING')) {
+    removeNormalized(excludes, 'Embalaje')
+    add(includes, 'Embalaje')
+  }
+
+  return {
+    includes: includes.map(fallbackTerm),
+    subjectTo: subjectTo.map(fallbackTerm),
+    excludes: excludes.map(fallbackTerm),
+  }
+}
+
+function mergeCommercialTerms(primary: CommercialTerms, secondary: CommercialTerms): CommercialTerms {
+  const result: CommercialTerms = {
+    includes: [...primary.includes],
+    subjectTo: [...primary.subjectTo],
+    excludes: [...primary.excludes],
+  }
+  const seen = new Set(
+    [...result.includes, ...result.subjectTo, ...result.excludes].map((item) => normalize(item.text)),
+  )
+
+  const append = (target: CommercialTermItem[], items: CommercialTermItem[]) => {
+    items.forEach((item) => {
+      const key = normalize(item.text)
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      target.push(item)
+    })
+  }
+
+  append(result.includes, secondary.includes ?? [])
+  append(result.subjectTo, secondary.subjectTo ?? [])
+  append(result.excludes, secondary.excludes ?? [])
+  return result
+}
+
+function fallbackTerm(text: string): CommercialTermItem {
+  return { id: `manual:${normalize(text).replaceAll(' ', '-')}`, text }
+}
+
+function removeNormalized(values: string[], target: string) {
+  const normalizedTarget = normalize(target)
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    if (normalize(values[index] ?? '') === normalizedTarget) values.splice(index, 1)
   }
 }
 
