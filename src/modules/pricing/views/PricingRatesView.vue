@@ -22,7 +22,6 @@ import PricingRateFormDrawer from '@/modules/pricing/components/PricingRateFormD
 import PricingRateDetailDrawer from '@/modules/pricing/components/PricingRateDetailDrawer.vue'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
-import PricingWorkflowGuide from '@/modules/pricing/components/PricingWorkflowGuide.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import {
   formatDate,
@@ -296,8 +295,6 @@ onMounted(async () => {
         ><DhButton label="Crear tarifa manual" :icon="Plus" @click="openCreate"
       /></template>
     </DhPageHeader>
-
-    <PricingWorkflowGuide current="rates" compact />
 
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
       <DhCrudToolbar

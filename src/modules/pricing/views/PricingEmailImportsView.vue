@@ -28,7 +28,6 @@ import type {
   EmailMessageStatus,
 } from '@/core/interfaces/emailExtraction'
 import PricingEmailMessageDrawer from '@/modules/pricing/components/PricingEmailMessageDrawer.vue'
-import PricingWorkflowGuide from '@/modules/pricing/components/PricingWorkflowGuide.vue'
 
 const AUTO_REFRESH_MS = 30_000
 
@@ -359,8 +358,6 @@ onBeforeUnmount(() => {
         />
       </template>
     </DhPageHeader>
-
-    <PricingWorkflowGuide current="inbox" />
 
     <section
       class="rounded-[28px] border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.07)] p-5"
