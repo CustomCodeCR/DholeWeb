@@ -1,0 +1,176 @@
+name: Apply Land Equipment Wizard
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/apply-land-equipment-wizard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch terrestrial equipment selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 occurrence, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "  containers: [] as CatalogItemSelectDto[],\n  agents: [] as CatalogItemSelectDto[],",
+              "  containers: [] as CatalogItemSelectDto[],\n  landEquipment: [] as CatalogItemSelectDto[],\n  agents: [] as CatalogItemSelectDto[],",
+              'land catalog state',
+          )
+          replace_once(
+              "  { value: 'Land', label: 'Terrestre', caption: 'FTL y FCL' },",
+              "  { value: 'Land', label: 'Terrestre', caption: 'FTL y LTL' },",
+              'land caption',
+          )
+          replace_once(
+              "  Land: ['FTL', 'FCL'],",
+              "  Land: ['FTL', 'LTL'],",
+              'land shipment modes',
+          )
+
+          old_source = '''const equipmentSource = computed(() => {
+  const modality = String(form.modality)
+  if (!modality) return []
+  return catalogs.containers.filter((item) => {
+    const meta = metadata(item)
+    if (meta?.modalities?.length) return meta.modalities.includes(modality)
+    if (modality === 'Air') {
+      const value = displayValue(item).toUpperCase()
+      return ['LOOSE', 'PALLET', 'ULD'].some((kind) => value.includes(kind))
+    }
+    return modality !== 'Air'
+  })
+})'''
+          new_source = '''const equipmentSource = computed(() => {
+  const modality = String(form.modality)
+  if (!modality) return []
+
+  if (modality === 'Land') {
+    const shipmentMode = form.shipmentMode.toUpperCase()
+    return catalogs.landEquipment.filter((item) => {
+      const meta = metadata(item)
+      if (meta?.modalities?.length && !meta.modalities.includes('Land')) return false
+      if (meta?.shipmentModes?.length && shipmentMode) return meta.shipmentModes.includes(shipmentMode)
+      return true
+    })
+  }
+
+  return catalogs.containers.filter((item) => {
+    const meta = metadata(item)
+    if (meta?.modalities?.length) return meta.modalities.includes(modality)
+    if (modality === 'Air') {
+      const value = displayValue(item).toUpperCase()
+      return ['LOOSE', 'PALLET', 'ULD'].some((kind) => value.includes(kind))
+    }
+    return modality !== 'Air'
+  })
+})'''
+          replace_once(old_source, new_source, 'equipment source')
+
+          replace_once(
+              "const selectedEquipment = computed(() => findById(catalogs.containers, form.equipmentId))",
+              "const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))",
+              'selected equipment source',
+          )
+
+          replace_once(
+              '''function chooseShipmentMode(value: string) {
+  form.shipmentMode = value
+  step.value = 3
+}''',
+              '''function chooseShipmentMode(value: string) {
+  form.shipmentMode = value
+  form.equipmentSize = ''
+  form.equipmentType = ''
+  form.equipmentId = ''
+  step.value = 3
+}''',
+              'shipment mode reset',
+          )
+
+          replace_once(
+              '''      containers,
+      agents,
+      carriers,''',
+              '''      containers,
+      landEquipment,
+      agents,
+      carriers,''',
+              'catalog destructure',
+          )
+          replace_once(
+              '''      select('container-types'),
+      select('agents'),''',
+              '''      select('container-types'),
+      select('land-equipment-types'),
+      select('agents'),''',
+              'catalog promise',
+          )
+          replace_once(
+              '''      containers,
+      agents,
+      carriers,
+      currencies,
+    })''',
+              '''      containers,
+      landEquipment,
+      agents,
+      carriers,
+      currencies,
+    })''',
+              'catalog assign',
+          )
+
+          replace_once(
+              ''':label="equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
+              :placeholder="equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"''',
+              ''':label="form.modality === 'Land' ? 'Tipo de unidad / furgón' : equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
+              :placeholder="form.modality === 'Land' ? 'Seleccione unidad terrestre' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"''',
+              'terrestrial labels',
+          )
+          replace_once(
+              'No existen tarifas vigentes para esa ruta y tamaño de equipo',
+              'No existen tarifas vigentes para esa ruta y equipo',
+              'empty rate text',
+          )
+
+          path.write_text(text)
+          PY
+
+          git diff --check
+          git diff -- src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(pricing): use terrestrial equipment for FTL and LTL"
+          git push origin HEAD:master
