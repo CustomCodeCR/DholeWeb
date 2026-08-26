@@ -143,27 +143,15 @@ text, count = type_pattern.subn(type_replacement, text, count=1)
 if count != 1:
     raise RuntimeError(f'equipmentTypeOptions: expected 1 replacement, got {count}')
 
-replace_once(
-    "      poe,\n      containers,\n      agents,",
-    "      poe,\n      landEquipmentTypes,\n      landEquipmentSizes,\n      landEquipmentKinds,\n      containers,\n      agents,",
-    'catalog destructuring',
-)
+catalog_entries_old = "      poe,\n      containers,\n      agents,"
+catalog_entries_new = "      poe,\n      landEquipmentTypes,\n      landEquipmentSizes,\n      landEquipmentKinds,\n      containers,\n      agents,"
+replace_once(catalog_entries_old, catalog_entries_new, 'catalog destructuring')
 replace_once(
     "      select('poe'),\n      select('container-types'),",
     "      select('poe'),\n      select('land-equipment-types'),\n      select('land-equipment-sizes'),\n      select('land-equipment-kinds'),\n      select('container-types'),",
     'catalog requests',
 )
-
-assignment_pattern = re.compile(
-    r"(catalogs\.poe\s*=\s*poe\s*\n)(\s*catalogs\.containers\s*=\s*containers)",
-)
-text, count = assignment_pattern.subn(
-    r"\1    catalogs.landEquipmentTypes = landEquipmentTypes\n    catalogs.landEquipmentSizes = landEquipmentSizes\n    catalogs.landEquipmentKinds = landEquipmentKinds\n\2",
-    text,
-    count=1,
-)
-if count != 1:
-    raise RuntimeError(f'catalog assignments: expected 1 replacement, got {count}')
+replace_once(catalog_entries_old, catalog_entries_new, 'catalog object assignment')
 
 if text == original:
     raise RuntimeError('No changes applied')
