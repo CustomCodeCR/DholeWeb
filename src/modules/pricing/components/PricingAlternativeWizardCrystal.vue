@@ -780,11 +780,14 @@ function chooseRate(rate: ImportRateSelectDto) {
     normalizeCatalogValue(displayValue(item)).includes(rateCurrency),
   )
   if (currency) form.currencyId = currency.id
+
+  step.value = 5
 }
 
 function continueManual() {
   form.selectedImportRateId = ''
   form.manualRate = true
+  step.value = 5
 }
 
 async function next() {
@@ -1434,7 +1437,7 @@ onMounted(loadCatalogs)
     <div class="crystal-footer flex items-center justify-between gap-3 p-3">
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
       <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / 7</div>
-      <DhButton v-if="step < 7" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-if="step < 7 && step !== 4" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else :disabled="saving || !includedLines.length || Boolean(createdRateId)" @click="saveRate"><Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : 'Crear alternativa' }}</DhButton>
     </div>
   </div>
