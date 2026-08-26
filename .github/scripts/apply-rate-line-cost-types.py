@@ -5,13 +5,6 @@ path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 text = path.read_text()
 
 
-def sub(pattern: str, replacement: str, label: str, flags=0):
-    global text
-    text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
-    if count != 1:
-        raise SystemExit(f'{label}: expected 1 match, found {count}')
-
-
 def replace(old: str, new: str, label: str):
     global text
     count = text.count(old)
@@ -20,103 +13,62 @@ def replace(old: str, new: str, label: str):
     text = text.replace(old, new, 1)
 
 
-sub(
-    r'(import type \{\n  BrowseImportRatesQuery,\n)(  CostDetailType,\n)',
-    r'\1  ChargeBasis,\n\2  CostPortRole,\n',
-    'type imports',
+def sub(pattern: str, replacement: str, label: str, flags=0):
+    global text
+    text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+    if count != 1:
+        raise SystemExit(f'{label}: expected 1 match, found {count}')
+
+
+replace(
+    "  landEquipment: [] as CatalogItemSelectDto[],\n",
+    "",
+    "remove land equipment catalog state",
 )
 
 sub(
-    r'(  costDetailType: CostDetailType\n  costType: CostType\n)(  costId\?: string \| null\n)',
-    r'\1  chargeBasis: ChargeBasis\n\2  contextLabel?: string | null\n',
-    'RateLine fields',
-)
+    r"const equipmentSource = computed\(\(\) => \{.*?\n\}\)\n\nconst equipmentHasSizes",
+    """const equipmentSource = computed(() => {
+  const modality = String(form.modality)
+  if (!modality || modality === 'Land') return []
 
-functions = '''function sectionFromPortRole(
-  role: CostPortRole | null | undefined,
-  detailType: CostDetailType,
-): RateSection | null {
-  if (!role || role === 'Any') return null
-  if (role === 'Pol') {
-    return detailType === 'InlandTransport' ? 'pickup_origin' : 'origin_charges'
-  }
-  return detailType === 'InlandTransport' ? 'delivery_destination' : 'destination_charges'
-}
-
-function sectionForDetail(type: CostDetailType, name = ''): RateSection {
-  const normalized = normalizeCatalogValue(name)
-  const mentionsOrigin = /(^| )(origen|origin)( |$)/.test(normalized)
-  const mentionsDestination = /(^| )(destino|destination)( |$)/.test(normalized)
-  const mentionsPickup = /recole|pickup/.test(normalized)
-  const mentionsDelivery = /entrega|delivery/.test(normalized)
-
-  if (type === 'Freight') return 'international_freight'
-  if (type === 'OriginCharge') return 'origin_charges'
-  if (type === 'DestinationCharge' || type === 'Insurance') return 'destination_charges'
-  if (type === 'PortCharge') return mentionsOrigin ? 'origin_charges' : 'destination_charges'
-  if (type === 'InlandTransport') {
-    return mentionsPickup || mentionsOrigin ? 'pickup_origin' : 'delivery_destination'
-  }
-  if (type === 'CustomsCharge') {
-    return mentionsOrigin || /exterior|export/.test(normalized)
-      ? 'origin_charges'
-      : 'destination_charges'
-  }
-  if (type === 'AgentCharge' || type === 'Documentation') {
-    if (mentionsOrigin) return 'origin_charges'
-    if (mentionsDestination) return 'destination_charges'
-    return 'international_freight'
-  }
-  if (mentionsPickup) return 'pickup_origin'
-  if (mentionsDelivery) return 'delivery_destination'
-  if (mentionsOrigin) return 'origin_charges'
-  return 'destination_charges'
-}
-
-function sectionForCost(cost: CostSelectDto): RateSection {
-  const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)
-  if (byPortRole) return byPortRole
-
-  if (cost.polId && !cost.poeId && !cost.podId) {
-    return cost.costDetailType === 'InlandTransport' ? 'pickup_origin' : 'origin_charges'
-  }
-  if ((cost.poeId || cost.podId) && !cost.polId) {
-    return cost.costDetailType === 'InlandTransport'
-      ? 'delivery_destination'
-      : 'destination_charges'
-  }
-
-  return sectionForDetail(cost.costDetailType, cost.name)
-}
-
-function sectionForManual(section: RateSection): CostDetailType {
-  if (section === 'international_freight') return 'Freight'
-  if (section === 'origin_charges') return 'OriginCharge'
-  if (section === 'destination_charges') return 'DestinationCharge'
-  if (section === 'pickup_origin' || section === 'delivery_destination') return 'InlandTransport'
-  return 'Other'
-}
-
-function defaultChargeBasis(type: CostDetailType): ChargeBasis {
-  if (type === 'Documentation') return 'PerDocument'
-  if (type === 'Freight' || type === 'InlandTransport') {
-    if (shipmentModeForApi.value === 'Fcl') return 'PerContainer'
-    if (shipmentModeForApi.value === 'Ftl') return 'PerTruck'
-    if (shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'Ltl') {
-      return 'PerChargeableCbm'
+  return catalogs.containers.filter((item) => {
+    const meta = metadata(item)
+    if (meta?.modalities?.length) return meta.modalities.includes(modality)
+    if (modality === 'Air') {
+      const value = displayValue(item).toUpperCase()
+      return ['LOOSE', 'PALLET', 'ULD'].some((kind) => value.includes(kind))
     }
-  }
-  return 'PerShipment'
-}
+    return modality !== 'Air'
+  })
+})
 
-function quantityForChargeBasis(basis: ChargeBasis) {
-  if (basis === 'PerContainer' || basis === 'PerTruck') {
-    return Math.max(1, form.equipmentQuantity)
-  }
-  return 1
-}
+const equipmentHasSizes""",
+    "remove land equipment source",
+    re.S,
+)
 
-function detailTypeLabel(type: CostDetailType, section?: RateSection) {
+replace(
+    "const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))",
+    """const selectedEquipment = computed(() => {
+  if (form.modality === 'Land') {
+    const shipmentMode = form.shipmentMode.toUpperCase()
+    return catalogs.shipmentModes.find((item) =>
+      item.code?.toUpperCase() === shipmentMode || displayValue(item).toUpperCase() === shipmentMode,
+    ) ?? null
+  }
+  return findById(equipmentSource.value, form.equipmentId)
+})""",
+    "use shipment mode as land technical snapshot",
+)
+
+replace(
+    "      form.equipmentId &&\n",
+    "      selectedEquipment.value &&\n",
+    "land does not require equipment selection",
+)
+
+old_detail = """function detailTypeLabel(type: CostDetailType, section?: RateSection) {
   return ({
     Freight: 'Flete',
     OriginCharge: 'Cargo en origen',
@@ -129,39 +81,24 @@ function detailTypeLabel(type: CostDetailType, section?: RateSection) {
     Insurance: 'Seguro',
     Other: 'Otro',
   } as Record<CostDetailType, string>)[type]
-}
-
-function chargeBasisLabel(basis: ChargeBasis) {
+}"""
+new_detail = """function detailTypeLabel(type: CostDetailType) {
   return ({
-    PerShipment: 'Por embarque',
-    PerContainer: 'Por contenedor',
-    PerTruck: 'Por camión',
-    PerCbm: 'Por CBM',
-    PerChargeableCbm: 'Por CBM cobrable',
-    PerKg: 'Por kg',
-    Per100Kg: 'Por 100 kg',
-    PerTon: 'Por tonelada',
-    PerPallet: 'Por pallet',
-    PerPackage: 'Por bulto',
-    PerDocument: 'Por documento',
-  } as Record<ChargeBasis, string>)[basis]
-}
+    Freight: 'Flete internacional',
+    AgentCharge: 'Costo de agente',
+    OriginCharge: 'Cargo en origen',
+    DestinationCharge: 'Cargo en destino',
+    PortCharge: 'Cargo portuario',
+    CustomsCharge: 'Aduana',
+    InlandTransport: 'Transporte interno',
+    Documentation: 'Documentación',
+    Insurance: 'Seguro',
+    Other: 'Otro',
+  } as Record<CostDetailType, string>)[type]
+}"""
+replace(old_detail, new_detail, "canonical rubro labels")
 
-function costContextLabel(cost: CostSelectDto) {
-  const parts: string[] = []
-  if (cost.agentName) parts.push(`Agente: ${cost.agentName}`)
-  if (cost.carrierName) parts.push(`Naviera: ${cost.carrierName}`)
-  if (cost.polName) parts.push(`POL: ${cost.polName}`)
-  if (cost.poeName) parts.push(`POE: ${cost.poeName}`)
-  if (cost.podName) parts.push(`POD: ${cost.podName}`)
-  if (cost.portName && !parts.some((part) => part.includes(cost.portName!))) {
-    const role = cost.portRole && cost.portRole !== 'Any' ? cost.portRole.toUpperCase() : 'Puerto'
-    parts.push(`${role}: ${cost.portName}`)
-  }
-  return parts.join(' · ') || null
-}
-
-function applicableCost(cost: CostSelectDto) {
+anchor = """function applicableCost(cost: CostSelectDto) {
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
   if (cost.carrierId && cost.carrierId !== form.carrierId) return false
@@ -183,121 +120,207 @@ function applicableCost(cost: CostSelectDto) {
 
   return true
 }
-
-function serviceAmounts'''
-
-sub(
-    r"function sectionForDetail\(type: CostDetailType, name = ''\): RateSection \{.*?\n\}\n\nfunction serviceAmounts",
-    functions,
-    'cost classification functions',
-    re.S,
-)
-
-replace(
-    "      costDetailType: 'Freight',\n      costType: 'Variable',\n",
-    "      costDetailType: 'Freight',\n      costType: 'Variable',\n      chargeBasis: defaultChargeBasis('Freight'),\n",
-    'freight charge basis',
-)
-replace(
-    "      costDetailType: template.costDetailType,\n      costType: template.costType,\n",
-    "      costDetailType: template.costDetailType,\n      costType: template.costType,\n      chargeBasis: defaultChargeBasis(template.costDetailType),\n",
-    'operational charge basis',
-)
-replace(
-    "        costDetailType: detailType,\n        costType: optional ? 'Optional' : 'Variable',\n",
-    "        costDetailType: detailType,\n        costType: optional ? 'Optional' : 'Variable',\n        chargeBasis: defaultChargeBasis(detailType),\n",
-    'service charge basis',
-)
-replace(
-    "      costDetailType: 'Insurance',\n      costType: 'Optional',\n",
-    "      costDetailType: 'Insurance',\n      costType: 'Optional',\n      chargeBasis: 'PerShipment',\n",
-    'insurance charge basis',
-)
-replace(
-    "  costs.value.filter(applicableCost).forEach((cost) => {\n    const section = sectionForDetail(cost.costDetailType, cost.name)\n",
-    "  costs.value.filter(applicableCost).forEach((cost) => {\n    const section = sectionForCost(cost)\n",
-    'configured cost section',
-)
-replace(
-    "      costDetailType: cost.costDetailType,\n      costType: cost.costType,\n      costId: cost.id,\n",
-    "      costDetailType: cost.costDetailType,\n      costType: cost.costType,\n      chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),\n      costId: cost.id,\n      contextLabel: costContextLabel(cost),\n",
-    'configured cost metadata',
-)
-
-manual = '''function addManualCharge() {
-  const name = form.manualName.trim()
-  const currency = selectedCurrency.value
-  if (!name || !currency) return
-  const detailType = sectionForManual(form.manualSection)
-  rateLines.value.push({
-    key: `manual:${crypto.randomUUID()}`,
-    section: form.manualSection,
-    name,
-    costDetailType: detailType,
-    costType: 'Variable',
-    chargeBasis: defaultChargeBasis(detailType),
-    currencyId: currency.id,
-    currencyName: displayValue(currency),
-    currencyCode: currency.code,
-    costAmount: 0,
-    saleAmount: 0,
-    included: true,
-    optional: false,
-    manual: true,
-  })
-  form.manualName = ''
+"""
+replacement = anchor + """
+function costSpecificity(cost: CostSelectDto) {
+  let score = 0
+  if (cost.shipmentMode) score += 2
+  if (cost.incoterms?.length) score += 2
+  if (cost.carrierId) score += 3
+  if (cost.agentId) score += 3
+  if (cost.polId) score += 4
+  if (cost.poeId) score += 4
+  if (cost.podId) score += 4
+  if (cost.portId) score += 4
+  if (cost.portRole && cost.portRole !== 'Any') score += 1
+  return score
 }
 
-function selectDefaultService'''
+function applicableConfiguredCosts() {
+  return costs.value
+    .filter(applicableCost)
+    .sort((left, right) => costSpecificity(right) - costSpecificity(left))
+}
+"""
+replace(anchor, replacement, "configured cost specificity")
+
+new_rebuild = r'''function rebuildRateLines() {
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!currency) return
+
+  const visible = new Set(visibleSections.value)
+  const lines: RateLine[] = []
+  const hasEquivalent = (name: string, detailType: CostDetailType) =>
+    lines.some((line) =>
+      line.costDetailType === detailType &&
+      normalizeCatalogValue(line.name) === normalizeCatalogValue(name),
+    )
+
+  // El flete capturado/seleccionado en el flujo es la fuente principal del flete internacional.
+  if (visible.has('international_freight')) {
+    lines.push({
+      key: 'freight',
+      section: 'international_freight',
+      name: 'Flete Internacional',
+      costDetailType: 'Freight',
+      costType: 'Variable',
+      chargeBasis: defaultChargeBasis('Freight'),
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: number(form.freightCost),
+      saleAmount: number(form.freightSale),
+      included: true,
+      optional: false,
+      manual: false,
+    })
+  }
+
+  // Los Cost configurados en Pricing tienen prioridad sobre las líneas de respaldo del manual.
+  // Si existen versiones genéricas y específicas del mismo rubro/nombre, gana la más específica.
+  applicableConfiguredCosts().forEach((cost) => {
+    const section = sectionForCost(cost)
+    if (!visible.has(section)) return
+    if (cost.costDetailType === 'Freight' && lines.some((line) => line.costDetailType === 'Freight')) return
+    if (hasEquivalent(cost.name, cost.costDetailType)) return
+    lines.push({
+      key: `cost:${cost.id}`,
+      section,
+      name: cost.name,
+      costDetailType: cost.costDetailType,
+      costType: cost.costType,
+      chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+      costId: cost.id,
+      contextLabel: costContextLabel(cost),
+      currencyId: cost.currencyId,
+      currencyName: cost.currencyName,
+      currencyCode: cost.currencyCode,
+      costAmount: number(cost.costAmount),
+      saleAmount: number(cost.saleAmount),
+      included: cost.costType !== 'Optional',
+      optional: cost.costType === 'Optional',
+      manual: false,
+    })
+  })
+
+  // El manual queda como respaldo únicamente cuando Pricing no tiene ese costo configurado.
+  buildOperationalLines({
+    modality: form.modality as Modality,
+    shipmentMode: shipmentModeForApi.value,
+    direction: direction.value,
+    incotermCode: selectedIncoterm.value?.code ?? '',
+    destinationText: displayValue(selectedDestination.value),
+  }).forEach((template) => {
+    if (!visible.has(template.section)) return
+    if (hasEquivalent(template.name, template.costDetailType)) return
+    lines.push({
+      key: `operational:${normalizeCatalogValue(template.name)}`,
+      section: template.section,
+      name: template.name,
+      costDetailType: template.costDetailType,
+      costType: template.costType,
+      chargeBasis: defaultChargeBasis(template.costDetailType),
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: template.costAmount,
+      saleAmount: template.saleAmount,
+      included: template.included,
+      optional: template.optional,
+      manual: false,
+    })
+  })
+
+  effectiveServices.value
+    .filter((service) => !normalizeCatalogValue(displayValue(service)).includes('transporte internacional'))
+    .forEach((service) => {
+      const meta = metadata(service)
+      const name = displayValue(service)
+      const canonical = canonicalServiceLine(service.code, name)
+      const lineName = canonical.name
+      const detailType = canonical.type ?? detailTypeForService(service)
+      const section = canonical.section ?? meta?.rateSections?.[0] ?? sectionForDetail(detailType, lineName)
+      if (!visible.has(section)) return
+      if (hasEquivalent(lineName, detailType)) return
+      const amounts = serviceAmounts(service)
+      const optional = detailType === 'Insurance' || Boolean(meta?.optional)
+      lines.push({
+        key: `service:${service.id}`,
+        section,
+        name: lineName,
+        costDetailType: detailType,
+        costType: optional ? 'Optional' : 'Variable',
+        chargeBasis: defaultChargeBasis(detailType),
+        currencyId: currency.id,
+        currencyName: displayValue(currency),
+        currencyCode: currency.code,
+        costAmount: amounts.cost,
+        saleAmount: amounts.sale,
+        included: !optional,
+        optional,
+        manual: false,
+      })
+    })
+
+  if (form.cargoValue > 0 && !cargoInsuranceService.value && !lines.some((line) => line.costDetailType === 'Insurance')) {
+    const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
+    lines.push({
+      key: 'cargo-insurance:auto',
+      section: 'destination_charges',
+      name: 'Seguro de carga',
+      costDetailType: 'Insurance',
+      costType: 'Optional',
+      chargeBasis: 'PerShipment',
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: insurance.cost,
+      saleAmount: insurance.sale,
+      included: false,
+      optional: true,
+      manual: false,
+    })
+  }
+
+  rateLines.value = lines
+}'''
 sub(
-    r'function addManualCharge\(\) \{.*?\n\}\n\nfunction selectDefaultService',
-    manual,
-    'manual charge',
+    r"function rebuildRateLines\(\) \{.*?\n\}\n\nfunction addManualCharge",
+    new_rebuild + "\n\nfunction addManualCharge",
+    "configured costs before manual fallback",
     re.S,
 )
 
+# Land is identified by FTL/LTL itself; there is no separate terrestrial equipment catalog.
+replace("      landEquipment,\n", "", "remove land equipment destructuring")
+replace("      select('land-equipment-types'),\n", "", "stop loading land equipment catalog")
+replace("      landEquipment,\n", "", "remove land equipment assignment")
+
 replace(
-    "    chargeBasis: line.costDetailType === 'Freight' || shipmentModeForApi.value === 'Fcl' ? 'PerContainer' : 'PerShipment',\n",
-    "    chargeBasis: line.chargeBasis,\n",
-    'payload charge basis',
+    "              v-model=\"form.equipmentType\"\n              :label=\"form.modality === 'Land' ? 'Tipo de unidad / furgón' : equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'\"\n              :placeholder=\"form.modality === 'Land' ? 'Seleccione unidad terrestre' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'\"",
+    "              v-if=\"form.modality !== 'Land'\"\n              v-model=\"form.equipmentType\"\n              :label=\"equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'\"\n              :placeholder=\"equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'\"",
+    "hide terrestrial equipment selector",
 )
+
 replace(
-    "    quantity: line.costDetailType === 'Freight' ? form.equipmentQuantity : 1,\n",
-    "    quantity: quantityForChargeBasis(line.chargeBasis),\n",
-    'payload quantity',
+    "            <h2 class=\"crystal-title\">Ruta, equipo, Incoterm y servicios</h2>",
+    "            <h2 class=\"crystal-title\">{{ form.modality === 'Land' ? 'Ruta, Incoterm y servicios' : 'Ruta, equipo, Incoterm y servicios' }}</h2>",
+    "land step title",
 )
 
-visible_anchor = '''  effectiveServices.value.forEach((service) => {
-    if (
-      service.code?.toUpperCase() === 'INT_TRANSPORT' &&
-      !incotermBuyerPaysMainTransport(selectedIncoterm.value?.code)
-    ) return
-    metadata(service)?.rateSections?.forEach((section) => sections.add(section))
-  })
+replace(
+    "            <div v-if=\"selectedEquipment\">\n              <span class=\"block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]\">Equipo</span>",
+    "            <div v-if=\"selectedEquipment && form.modality !== 'Land'\">\n              <span class=\"block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]\">Equipo</span>",
+    "hide land equipment summary",
+)
 
-  if (form.cargoValue > 0) sections.add('destination_charges')'''
-visible_replacement = '''  effectiveServices.value.forEach((service) => {
-    if (
-      service.code?.toUpperCase() === 'INT_TRANSPORT' &&
-      !incotermBuyerPaysMainTransport(selectedIncoterm.value?.code)
-    ) return
-    metadata(service)?.rateSections?.forEach((section) => sections.add(section))
-  })
+replace(
+    "      incotermId: form.incotermId,\n      serviceCodes,",
+    "      incotermId: form.incotermId,\n      incotermCode: selectedIncoterm.value?.code ?? '',\n      serviceCodes,",
+    "pass incoterm code to commercial fallback",
+)
 
-  costs.value.filter(applicableCost).forEach((cost) => sections.add(sectionForCost(cost)))
-
-  if (form.cargoValue > 0) sections.add('destination_charges')'''
-replace(visible_anchor, visible_replacement, 'visible configured-cost sections')
-
-ui_old = '''                  <p class="font-bold">{{ line.name }}</p>
-                  <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
-                  <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
-                </div>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>
-              </div>
-              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
-              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />'''
-ui_new = '''                  <p class="font-bold">{{ line.name }}</p>
+old_ui = '''                  <p class="font-bold">{{ line.name }}</p>
                   <DhBadge variant="neutral">{{ detailTypeLabel(line.costDetailType, line.section) }}</DhBadge>
                   <DhBadge variant="neutral">{{ chargeBasisLabel(line.chargeBasis) }}</DhBadge>
                   <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
@@ -309,6 +332,17 @@ ui_new = '''                  <p class="font-bold">{{ line.name }}</p>
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" :label="`Costo · ${chargeBasisLabel(line.chargeBasis)}`" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" :label="`Venta · ${chargeBasisLabel(line.chargeBasis)}`" :disabled="!line.included" />'''
-replace(ui_old, ui_new, 'line UI')
+new_ui = '''                  <p class="font-bold">{{ line.name }}</p>
+                  <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
+                  <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
+                </div>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
+                </p>
+                <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
+              </div>
+              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
+              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />'''
+replace(old_ui, new_ui, "clean rate line UI")
 
 path.write_text(text)
