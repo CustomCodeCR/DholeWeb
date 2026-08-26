@@ -1,0 +1,56 @@
+name: Apply land equipment Config integration
+
+on:
+  push:
+    branches:
+      - fix/pricing-land-equipment-config-catalog
+    paths:
+      - .github/scripts/patch-land-equipment-config.py
+      - .github/workflows/apply-land-equipment-config.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/pricing-land-equipment-config-catalog
+          fetch-depth: 0
+
+      - name: Apply focused patch
+        shell: bash
+        run: python3 .github/scripts/patch-land-equipment-config.py
+
+      - name: Build Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull \
+            --target build \
+            --build-arg VITE_API_URL="http://localhost:8080" \
+            --build-arg VITE_APP_NAME="DholeSystem" \
+            --build-arg VITE_FRONTEND_DOMAIN="localhost" \
+            -t dhole/web:land-equipment-config-check \
+            .
+
+      - name: Commit validated fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/scripts/patch-land-equipment-config.py .github/workflows/apply-land-equipment-config.yml
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git diff --cached --check
+          git commit -m "fix(pricing): load terrestrial equipment from Config"
+          git push origin HEAD:fix/pricing-land-equipment-config-catalog
+
+      - name: Cleanup validation image
+        if: always()
+        shell: bash
+        run: docker image rm -f dhole/web:land-equipment-config-check 2>/dev/null || true
