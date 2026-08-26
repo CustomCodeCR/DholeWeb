@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Check, MessageSquareText, RefreshCw, X } from 'lucide-vue-next'
+import { Check, ChevronLeft, ChevronRight, MessageSquareText, RefreshCw, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
-import { unwrapListResponse } from '@/core/api/apiResponse'
+import { unwrapPagedResponse } from '@/core/api/apiResponse'
 import { toQueryString } from '@/core/api/queryString'
 import { PricingService } from '@/core/services/pricingService'
 import { useDrawerStore } from '@/core/stores/drawerStore'
@@ -12,6 +12,7 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingImportReviewDrawer from '@/modules/pricing/components/PricingImportReviewDrawer.vue'
 import PricingReasonModal from '@/modules/pricing/components/PricingReasonModal.vue'
+import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
 type QueueStatus = '' | 'Pending' | 'Approved' | 'Rejected' | 'Created'
@@ -39,15 +40,24 @@ interface ReviewQueueItem {
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
+const catalogs = usePricingCatalogs()
 
 const rows = ref<ReviewQueueItem[]>([])
 const selectedIds = ref<string[]>([])
 const loading = ref(false)
 const processing = ref(false)
+const pageNumber = ref(1)
+const pageSize = ref('25')
+const totalCount = ref(0)
+const totalPages = ref(1)
+
 const filters = reactive({
   search: '',
   sourceType: '' as QueueSource,
   status: 'Pending' as QueueStatus,
+  carrierId: '',
+  polId: '',
+  poeId: '',
   createdFrom: '',
   createdTo: '',
 })
@@ -67,6 +77,25 @@ const sourceOptions = [
   { label: 'CSV', value: 'Csv' },
   { label: 'Imagen', value: 'Image' },
 ]
+const pageSizeOptions = [
+  { label: '10', value: '10' },
+  { label: '25', value: '25' },
+  { label: '50', value: '50' },
+  { label: '100', value: '100' },
+]
+
+const carrierFilterOptions = computed(() => [
+  { label: 'Todas las navieras', value: '' },
+  ...catalogs.carrierOptions.value,
+])
+const polFilterOptions = computed(() => [
+  { label: 'Todos los POL', value: '' },
+  ...catalogs.polOptions.value,
+])
+const poeFilterOptions = computed(() => [
+  { label: 'Todos los POE', value: '' },
+  ...catalogs.poeOptions.value,
+])
 
 const selectedPendingIds = computed(() =>
   rows.value
@@ -75,6 +104,19 @@ const selectedPendingIds = computed(() =>
 )
 const allSelected = computed(
   () => rows.value.length > 0 && rows.value.every((row) => selectedIds.value.includes(row.id)),
+)
+const visiblePages = computed(() => {
+  const total = totalPages.value
+  const visibleCount = Math.min(5, total)
+  const maxStart = Math.max(1, total - visibleCount + 1)
+  const start = Math.min(Math.max(1, pageNumber.value - 2), maxStart)
+  return Array.from({ length: visibleCount }, (_, index) => start + index)
+})
+const firstVisibleItem = computed(() =>
+  totalCount.value === 0 ? 0 : (pageNumber.value - 1) * Number(pageSize.value) + 1,
+)
+const lastVisibleItem = computed(() =>
+  Math.min(pageNumber.value * Number(pageSize.value), totalCount.value),
 )
 
 function statusLabel(value: string) {
@@ -108,13 +150,25 @@ async function load() {
           search: filters.search || undefined,
           sourceType: filters.sourceType || undefined,
           status: filters.status || undefined,
+          carrierId: filters.carrierId || undefined,
+          polId: filters.polId || undefined,
+          poeId: filters.poeId || undefined,
           createdFrom: filters.createdFrom || undefined,
           createdTo: filters.createdTo || undefined,
-          take: 500,
+          pageNumber: pageNumber.value,
+          pageSize: Number(pageSize.value),
         }),
       headers: { Accept: 'application/json' },
     })
-    rows.value = unwrapListResponse<ReviewQueueItem>(response)
+
+    const paged = unwrapPagedResponse<ReviewQueueItem>(response)
+    rows.value = paged.items
+    totalCount.value = paged.totalCount ?? paged.items.length
+    totalPages.value = Math.max(
+      1,
+      paged.totalPages ?? Math.ceil(totalCount.value / Number(pageSize.value)),
+    )
+    pageNumber.value = paged.pageNumber ?? pageNumber.value
     selectedIds.value = selectedIds.value.filter((id) => rows.value.some((row) => row.id === id))
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la cola de revisión.')
@@ -123,13 +177,34 @@ async function load() {
   }
 }
 
+function applyFilters() {
+  pageNumber.value = 1
+  void load()
+}
+
 function clearFilters() {
   filters.search = ''
   filters.sourceType = ''
   filters.status = 'Pending'
+  filters.carrierId = ''
+  filters.polId = ''
+  filters.poeId = ''
   filters.createdFrom = ''
   filters.createdTo = ''
-  load()
+  applyFilters()
+}
+
+function changePageSize(value: string | number) {
+  pageSize.value = String(value)
+  pageNumber.value = 1
+  void load()
+}
+
+function goToPage(target: number) {
+  const next = Math.min(Math.max(target, 1), totalPages.value)
+  if (next === pageNumber.value || loading.value) return
+  pageNumber.value = next
+  void load()
 }
 
 function toggleAll() {
@@ -194,7 +269,10 @@ async function openReview(row: ReviewQueueItem) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  void catalogs.loadAll()
+  void load()
+})
 </script>
 
 <template>
@@ -212,16 +290,19 @@ onMounted(load)
     </DhPageHeader>
 
     <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <DhInput v-model="filters.search" label="Buscar" placeholder="Naviera, ruta, equipo..." @keyup.enter="load" />
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <DhInput v-model="filters.search" label="Buscar" placeholder="Naviera, ruta, equipo..." @keyup.enter="applyFilters" />
         <DhSelect v-model="filters.sourceType" label="Origen" :options="sourceOptions" />
         <DhSelect v-model="filters.status" label="Estado" :options="statusOptions" />
+        <DhSelect v-model="filters.carrierId" label="Naviera" :options="carrierFilterOptions" />
+        <DhSelect v-model="filters.polId" label="POL" :options="polFilterOptions" />
+        <DhSelect v-model="filters.poeId" label="POE" :options="poeFilterOptions" />
         <DhInput v-model="filters.createdFrom" type="date" label="Cargada desde" />
         <DhInput v-model="filters.createdTo" type="date" label="Cargada hasta" />
       </div>
       <div class="mt-3 flex flex-wrap justify-end gap-2">
         <DhButton variant="ghost" @click="clearFilters">Limpiar</DhButton>
-        <DhButton @click="load">Aplicar filtros</DhButton>
+        <DhButton @click="applyFilters">Aplicar filtros</DhButton>
       </div>
     </section>
 
@@ -249,7 +330,7 @@ onMounted(load)
           <thead class="border-b border-[var(--dh-border)] bg-black/[0.025] dark:bg-white/[0.025]">
             <tr class="text-left text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">
               <th class="px-4 py-3">
-                <input type="checkbox" :checked="allSelected" aria-label="Seleccionar todas" @change="toggleAll" />
+                <input type="checkbox" :checked="allSelected" aria-label="Seleccionar todos los de esta página" @change="toggleAll" />
               </th>
               <th class="px-4 py-3">Cargada</th>
               <th class="px-4 py-3">Origen</th>
@@ -303,6 +384,58 @@ onMounted(load)
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div
+        v-if="!loading && totalCount > 0"
+        class="flex flex-col gap-3 border-t border-[var(--dh-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+          Mostrando {{ firstVisibleItem }}–{{ lastVisibleItem }} de {{ totalCount }} tarifas
+        </p>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="w-24">
+            <DhSelect
+              :model-value="pageSize"
+              label="Por página"
+              placeholder=""
+              :options="pageSizeOptions"
+              @update:model-value="changePageSize"
+            />
+          </div>
+
+          <DhButton
+            size="sm"
+            variant="secondary"
+            :disabled="pageNumber <= 1"
+            aria-label="Página anterior"
+            @click="goToPage(pageNumber - 1)"
+          >
+            <ChevronLeft class="h-4 w-4" />
+          </DhButton>
+
+          <DhButton
+            v-for="page in visiblePages"
+            :key="page"
+            size="sm"
+            :variant="page === pageNumber ? 'primary' : 'ghost'"
+            :disabled="page === pageNumber"
+            @click="goToPage(page)"
+          >
+            {{ page }}
+          </DhButton>
+
+          <DhButton
+            size="sm"
+            variant="secondary"
+            :disabled="pageNumber >= totalPages"
+            aria-label="Página siguiente"
+            @click="goToPage(pageNumber + 1)"
+          >
+            <ChevronRight class="h-4 w-4" />
+          </DhButton>
+        </div>
       </div>
     </section>
 
