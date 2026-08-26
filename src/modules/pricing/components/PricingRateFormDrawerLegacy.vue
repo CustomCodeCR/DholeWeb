@@ -267,7 +267,14 @@ const isLcl = computed(() => form.shipmentMode === 'Lcl')
 const isFtl = computed(() => form.shipmentMode === 'Ftl')
 const isLtl = computed(() => form.shipmentMode === 'Ltl')
 const isConsolidated = computed(() => isLcl.value || isLtl.value)
+const usesEquipmentDistribution = computed(() => isFcl.value || isFtl.value)
 const usesContainerFreight = computed(() => isFcl.value && !isContainerMixLocked.value)
+const currentEquipmentItems = computed(() =>
+  isFtl.value ? catalogs.landEquipmentTypes.value : catalogs.containerTypes.value,
+)
+const currentEquipmentOptions = computed(() =>
+  isFtl.value ? catalogs.landEquipmentOptions.value : catalogs.containerOptions.value,
+)
 const isAgentLocked = computed(() => isCreatingFromImport.value && !canEditImportedAgent.value)
 const isPoeLocked = computed(() => isCreatingFromImport.value && !canEditImportedPoe.value)
 const isPodLocked = computed(() => isCreatingFromImport.value && !canEditImportedPod.value)
@@ -428,17 +435,18 @@ function cargoLineRequests(): RateCargoLineRequest[] {
 }
 
 const containerAllocationError = computed(() => {
-  if (!form.submitted || !isFcl.value) return undefined
+  if (!form.submitted || !usesEquipmentDistribution.value) return undefined
+  const equipmentLabel = isFtl.value ? 'equipo terrestre' : 'contenedor'
   if (requestedContainerQuantity.value <= 0) return 'La cantidad total debe ser mayor a cero.'
-  if (containerAllocations.value.length === 0) return 'Agregue al menos un tipo de contenedor.'
+  if (containerAllocations.value.length === 0) return `Agregue al menos un ${equipmentLabel}.`
   if (containerAllocations.value.some((item) => !item.containerTypeId)) {
-    return 'Seleccione el tamaño y tipo de todos los contenedores.'
+    return `Seleccione el tamaño y tipo de cada ${equipmentLabel}.`
   }
   if (containerAllocations.value.some((item) => Number(item.quantity || 0) <= 0)) {
-    return 'Cada tipo debe tener una cantidad mayor a cero.'
+    return 'Cada combinación debe tener una cantidad mayor a cero.'
   }
   const ids = containerAllocations.value.map((item) => item.containerTypeId)
-  if (new Set(ids).size !== ids.length) return 'No repita el mismo tipo de contenedor.'
+  if (new Set(ids).size !== ids.length) return `No repita el mismo ${equipmentLabel}.`
   if (usesContainerFreight.value) {
     if (containerAllocations.value.some((item) => item.freightCostAmount.trim() === '')) {
       return 'Indique el costo de flete para cada tipo de contenedor.'
@@ -474,7 +482,7 @@ function addContainerAllocation() {
   const selected = new Set(
     containerAllocations.value.map((item) => item.containerTypeId).filter(Boolean),
   )
-  const next = catalogs.containerOptions.value.find((option) => !selected.has(option.value))
+  const next = currentEquipmentOptions.value.find((option) => !selected.has(option.value))
   if (!next) return
 
   const totalBeforeAdding = Math.max(
@@ -491,10 +499,7 @@ function addContainerAllocation() {
     freightDetailId: null,
   })
 
-  // Reparte automáticamente el total entre todos los tipos. Ej.:
-  // 4 contenedores / 2 tipos => 2 + 2; 5 / 2 => 3 + 2.
-  // Si el total es menor que la cantidad de tipos, se eleva al mínimo para
-  // garantizar al menos una unidad por cada tipo seleccionado.
+  // Mantiene el total y lo reparte entre las combinaciones seleccionadas.
   distributeContainerQuantities(totalBeforeAdding)
 }
 
@@ -508,23 +513,22 @@ function removeContainerAllocation(key: string) {
   if (freightDetailId) removedDetailIds.value.push(freightDetailId)
   containerAllocations.value.splice(index, 1)
 
-  // Mantiene el total y vuelve a repartirlo entre los tipos restantes.
   distributeContainerQuantities(totalBeforeRemoving)
 }
 
 function resolveContainerRequests(): CreateRateContainerRequest[] | null {
-  if (!isFcl.value) return []
+  if (!usesEquipmentDistribution.value) return []
   if (containerAllocations.value.length === 0) return null
 
   const result: CreateRateContainerRequest[] = []
   for (const allocation of containerAllocations.value) {
-    const container = catalogs.findById(catalogs.containerTypes.value, allocation.containerTypeId)
+    const equipment = catalogs.findById(currentEquipmentItems.value, allocation.containerTypeId)
     const quantity = Number(allocation.quantity || 0)
-    if (!container || quantity <= 0) return null
+    if (!equipment || quantity <= 0) return null
     result.push({
-      containerTypeId: container.id,
-      containerTypeName: container.name,
-      containerTypeCode: container.code,
+      containerTypeId: equipment.id,
+      containerTypeName: equipment.name,
+      containerTypeCode: equipment.code,
       quantity,
     })
   }
@@ -1123,7 +1127,7 @@ const selectorsChanged = computed(() =>
       props.rate.poeId !== form.poeId ||
       props.rate.podId !== form.podId ||
       props.rate.shipmentMode !== form.shipmentMode ||
-      (isFcl.value && containerSelectorsChanged.value) ||
+      (usesEquipmentDistribution.value && containerSelectorsChanged.value) ||
       (props.rate.incotermId ?? '') !== form.incotermId ||
       props.rate.currencyId !== form.currencyId),
   ),
@@ -1510,7 +1514,7 @@ function buildHeader() {
   const poe = catalogs.findById(catalogs.poePorts.value, form.poeId)
   const pod = catalogs.findById(catalogs.podPorts.value, form.podId)
   const containers = resolveContainerRequests()
-  const container = isFcl.value
+  const container = usesEquipmentDistribution.value
     ? containers?.[0]
     : {
         containerTypeId: '00000000-0000-0000-0000-000000000000',
@@ -1564,10 +1568,10 @@ function buildHeader() {
     validTo: form.validTo,
     containerQuantity: isConsolidated.value
       ? 1
-      : isFcl.value
+      : usesEquipmentDistribution.value
         ? Math.max(1, allocatedContainerQuantity.value || requestedContainerQuantity.value)
         : Math.max(1, requestedContainerQuantity.value),
-    containers: isFcl.value ? containers : [],
+    containers: usesEquipmentDistribution.value ? containers : [],
     clientName: form.clientName.trim() || null,
     idtraNumber: form.idtraNumber.trim() || null,
     quoNumber: form.quoNumber.trim() || null,
@@ -1652,11 +1656,15 @@ function notifyValidationProblems() {
   if (!form.polId) missing.push('POL')
   if (!form.poeId) missing.push('POE')
   if (!form.podId) missing.push('POD')
-  if (!form.containerTypeId && isFcl.value) missing.push('contenedor')
+  if (!form.containerTypeId && usesEquipmentDistribution.value) {
+    missing.push(isFtl.value ? 'equipo terrestre' : 'contenedor')
+  }
   if (!form.incotermId) missing.push('Incoterm')
   if (!form.currencyId) missing.push('moneda')
   if (!form.validFrom || !form.validTo) missing.push('vigencia')
-  if (containerAllocationError.value) missing.push('distribución de contenedores')
+  if (containerAllocationError.value) {
+    missing.push(isFtl.value ? 'distribución de equipos terrestres' : 'distribución de contenedores')
+  }
   toastStore.warning(
     'Faltan datos para guardar',
     missing.length ? `Revise: ${missing.join(', ')}.` : 'Revise los rubros, cantidades y montos marcados antes de guardar.',
@@ -2021,6 +2029,26 @@ watch(
       if (!cargoLines.value.length) cargoLines.value = [emptyCargoLine()]
     }
 
+    if (mode === 'Fcl' || mode === 'Ftl') {
+      const validEquipment =
+        mode === 'Ftl' ? catalogs.landEquipmentTypes.value : catalogs.containerTypes.value
+      const selectedId = containerAllocations.value[0]?.containerTypeId || form.containerTypeId
+      if (!validEquipment.some((item) => item.id === selectedId)) {
+        const quantity = Math.max(1, Number(form.containerQuantity || 1))
+        containerAllocations.value = [
+          {
+            key: createUuid(),
+            containerTypeId: '',
+            quantity: String(quantity),
+            freightCostAmount: '',
+            freightSaleAmount: '',
+            freightDetailId: null,
+          },
+        ]
+        form.containerTypeId = ''
+      }
+    }
+
     for (const detail of details.value) {
       if (
         !detail.costId &&
@@ -2259,16 +2287,18 @@ onMounted(initialize)
       </div>
 
       <div
-        v-if="isFcl"
+        v-if="usesEquipmentDistribution"
         v-show="!collapsedStages[1]"
         class="mt-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-bg)]/45 p-4"
       >
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p class="text-sm font-black text-[var(--dh-text)]">Distribución de contenedores</p>
+            <p class="text-sm font-black text-[var(--dh-text)]">
+              {{ isFtl ? 'Distribución de equipo terrestre' : 'Distribución de contenedores' }}
+            </p>
             <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-              Seleccione tamaño y tipo por separado. Dhole resolverá el equipo canónico y mantendrá
-              el total sincronizado cuando agregue varias combinaciones.
+              Seleccione tamaño y tipo de equipo por separado. Dhole resolverá la combinación
+              canónica y mantendrá el total sincronizado cuando agregue varias combinaciones.
             </p>
           </div>
           <DhInput
@@ -2278,7 +2308,13 @@ onMounted(initialize)
             min="1"
             :disabled="containerAllocations.length > 1"
             :label="
-              containerAllocations.length > 1 ? 'Cantidad total (automática)' : 'Cantidad total'
+              containerAllocations.length > 1
+                ? isFtl
+                  ? 'Camiones totales (automático)'
+                  : 'Cantidad total (automática)'
+                : isFtl
+                  ? 'Cantidad de camiones'
+                  : 'Cantidad total'
             "
             :error="
               form.submitted && requestedContainerQuantity <= 0
@@ -2294,13 +2330,18 @@ onMounted(initialize)
             :key="allocation.key"
             :class="[
               'grid gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 xl:items-end',
-              containerAllocations.length > 1
-                ? 'xl:grid-cols-[minmax(0,1fr)_110px_150px_150px_auto]'
-                : 'xl:grid-cols-[minmax(0,1fr)_150px_150px_auto]',
+              usesContainerFreight
+                ? containerAllocations.length > 1
+                  ? 'xl:grid-cols-[minmax(0,1fr)_110px_150px_150px_auto]'
+                  : 'xl:grid-cols-[minmax(0,1fr)_150px_150px]'
+                : containerAllocations.length > 1
+                  ? 'xl:grid-cols-[minmax(0,1fr)_110px_auto]'
+                  : 'xl:grid-cols-1',
             ]"
           >
             <PricingContainerSelector
               v-model="allocation.containerTypeId"
+              :transport="isFtl ? 'land' : 'maritime'"
               :disabled="isContainerMixLocked"
               :excluded-equipment-ids="excludedContainerIdsFor(allocation.key)"
             />
@@ -2341,7 +2382,7 @@ onMounted(initialize)
 
         <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p class="text-xs font-black text-emerald-600 dark:text-emerald-400">
-            Total de contenedores:
+            {{ isFtl ? 'Total de camiones' : 'Total de contenedores' }}:
             {{
               containerAllocations.length > 1
                 ? allocatedContainerQuantity
@@ -2357,7 +2398,7 @@ onMounted(initialize)
             type="button"
             :disabled="
               containerAllocations.some((item) => !item.containerTypeId) ||
-              containerAllocations.length >= catalogs.containerOptions.value.length
+              containerAllocations.length >= currentEquipmentOptions.length
             "
             @click="addContainerAllocation()"
           />
@@ -2365,33 +2406,6 @@ onMounted(initialize)
         <p v-if="containerAllocationError" class="mt-2 text-xs font-bold text-red-500">
           {{ containerAllocationError }}
         </p>
-      </div>
-
-      <div
-        v-if="isFtl"
-        v-show="!collapsedStages[1]"
-        class="mt-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-bg)]/45 p-4"
-      >
-        <div class="grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
-          <div>
-            <p class="text-sm font-black text-[var(--dh-text)]">Camión completo · FTL</p>
-            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-              El flete se puede cobrar por camión y los demás rubros conservan su propia base de
-              cobro.
-            </p>
-          </div>
-          <DhInput
-            v-model="form.containerQuantity"
-            type="number"
-            min="1"
-            label="Cantidad de camiones"
-            :error="
-              form.submitted && requestedContainerQuantity <= 0
-                ? 'Debe ser mayor a cero.'
-                : undefined
-            "
-          />
-        </div>
       </div>
 
       <div
