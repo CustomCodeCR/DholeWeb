@@ -159,8 +159,13 @@ export function buildOperationalLines(context: {
       add('Impuestos de exportación', 'origin_charges', 'OriginCharge', 28)
   }
 
-  if (context.modality === 'Air' && incoterm === 'FCA')
-    add('Cargos en origen de la línea aérea', 'origin_charges', 'OriginCharge')
+  if (incoterm === 'FCA') {
+    add(
+      context.modality === 'Air' ? 'Cargos en origen de la línea aérea' : 'Cargos en origen',
+      'origin_charges',
+      'OriginCharge',
+    )
+  }
 
   if (context.modality === 'Maritime') {
     if (context.shipmentMode === 'Lcl') {
@@ -263,9 +268,10 @@ function buildFallbackCommercialTerms(query: {
 
   if (incoterm === 'EXW') {
     add(includes, 'Recolección', 'Trámite de exportación', 'Cargos en origen')
-  } else if (incoterm === 'FCA' && modality === 'Air') {
-    add(includes, 'Cargos en origen de la línea aérea')
-    add(excludes, 'Recolección', 'Embalaje')
+  } else if (incoterm === 'FCA') {
+    add(includes, modality === 'Air' ? 'Cargos en origen de la línea aérea' : 'Cargos en origen')
+    add(excludes, 'Recolección')
+    if (modality === 'Air') add(excludes, 'Embalaje')
   } else if (incoterm === 'FOB') {
     add(excludes, 'Cargos en origen')
     if (isExport) add(excludes, 'Recolección')

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Copy, Edit3, Eye, Plus, ReceiptText, Trash2 } from 'lucide-vue-next'
+import { Copy, Edit3, Eye, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import {
   DhCrudToolbar,
@@ -212,15 +212,6 @@ function toggleSelection(id: string) {
     : [...selectedIds.value, id]
 }
 
-function openCreate() {
-  drawerStore.open({
-    title: 'Crear tarifa manual',
-    component: PricingRateFormDrawer,
-    size: 'full',
-    props: { onSaved: load },
-  })
-}
-
 function openDetail(rate: RateDto) {
   drawerStore.open({
     title: displayRateName(rate),
@@ -271,16 +262,34 @@ function confirmDelete() {
 }
 
 watch([page, pageSize], load)
+async function openRequestedRate() {
+  const rateId = typeof route.query.rateId === 'string' ? route.query.rateId.trim() : ''
+  if (!rateId) return
+
+  try {
+    const rate = await PricingService.getRate(rateId)
+    openDetail(rate)
+  } catch (error) {
+    toastStore.backendError(error, 'La tarifa fue creada, pero no se pudo abrir su detalle.')
+  }
+}
+
 useViewShortcuts({
-  create: () => {
-    if (canCreate.value) openCreate()
-  },
   save: load,
   refresh: load,
 })
+
+watch(
+  () => route.query.rateId,
+  async (rateId, previousRateId) => {
+    if (rateId && rateId !== previousRateId) await openRequestedRate()
+  },
+)
+
 onMounted(async () => {
   await catalogs.loadAll()
   await load()
+  await openRequestedRate()
 })
 </script>
 
@@ -290,19 +299,13 @@ onMounted(async () => {
       title="Tarifas"
       subtitle="Construya y revise tarifas FCL con costo, venta, utilidad y margen en una sola vista."
       :icon="ReceiptText"
-    >
-      <template v-if="canCreate" #actions
-        ><DhButton label="Crear tarifa manual" :icon="Plus" @click="openCreate"
-      /></template>
-    </DhPageHeader>
+    />
 
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
       <DhCrudToolbar
         v-model:search="filters.search"
         title="Tarifas oficiales"
-        create-label="Crear tarifa"
-        :show-create="canCreate"
-        @create="openCreate"
+        :show-create="false"
         @refresh="load"
         @search="applyFilters"
         @filter="filtersOpen = !filtersOpen"

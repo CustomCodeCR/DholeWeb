@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   Check,
   ChevronLeft,
@@ -89,6 +90,7 @@ interface RateLine {
   manual: boolean
 }
 
+const router = useRouter()
 const toastStore = useToastStore()
 const step = ref(1)
 const loadingCatalogs = ref(false)
@@ -487,12 +489,29 @@ const selectedOptionalChargeKeys = computed<string[]>({
     })
   },
 })
-const displayedRateSections = computed(() =>
-  visibleSections.value.filter((section) =>
-    rateLines.value.some(
-      (line) => line.section === section && (!line.optional || line.included),
-    ),
+function standardSectionLines(section: RateSection) {
+  return rateLines.value.filter(
+    (line) =>
+      line.section === section &&
+      line.included &&
+      !line.optional &&
+      !line.manual &&
+      line.costDetailType !== 'AgentCharge',
+  )
+}
+
+const agentLines = computed(() =>
+  rateLines.value.filter(
+    (line) => line.included && !line.optional && !line.manual && line.costDetailType === 'AgentCharge',
   ),
+)
+
+const bottomRateLines = computed(() =>
+  rateLines.value.filter((line) => line.included && (line.optional || line.manual)),
+)
+
+const displayedRateSections = computed(() =>
+  visibleSections.value.filter((section) => standardSectionLines(section).length > 0),
 )
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
 const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
@@ -773,34 +792,34 @@ function rebuildRateLines() {
     })
   })
 
-  if (!configuredCosts.length) {
-    buildOperationalLines({
-      modality: form.modality as Modality,
-      shipmentMode: shipmentModeForApi.value,
-      direction: direction.value,
-      incotermCode: selectedIncoterm.value?.code ?? '',
-      destinationText: displayValue(selectedDestination.value),
-    }).forEach((template) => {
-      if (!visible.has(template.section)) return
-      if (hasEquivalent(template.name, template.costDetailType)) return
-      lines.push({
-        key: `operational:${normalizeCatalogValue(template.name)}`,
-        section: template.section,
-        name: template.name,
-        costDetailType: template.costDetailType,
-        costType: template.costType,
-        chargeBasis: defaultChargeBasis(template.costDetailType),
-        currencyId: currency.id,
-        currencyName: displayValue(currency),
-        currencyCode: currency.code,
-        costAmount: template.costAmount,
-        saleAmount: template.saleAmount,
-        included: template.included,
-        optional: template.optional,
-        manual: false,
-      })
+  // Las reglas de Incoterm complementan los costos configurados. Antes este bloque solo
+  // corría cuando no existía ningún costo, por lo que EXW/FCA perdían Recolección/Cargos en origen.
+  buildOperationalLines({
+    modality: form.modality as Modality,
+    shipmentMode: shipmentModeForApi.value,
+    direction: direction.value,
+    incotermCode: selectedIncoterm.value?.code ?? '',
+    destinationText: displayValue(selectedDestination.value),
+  }).forEach((template) => {
+    if (!visible.has(template.section)) return
+    if (hasEquivalent(template.name, template.costDetailType)) return
+    lines.push({
+      key: `operational:${normalizeCatalogValue(template.name)}`,
+      section: template.section,
+      name: template.name,
+      costDetailType: template.costDetailType,
+      costType: template.costType,
+      chargeBasis: defaultChargeBasis(template.costDetailType),
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: template.costAmount,
+      saleAmount: template.saleAmount,
+      included: template.included,
+      optional: template.optional,
+      manual: false,
     })
-  }
+  })
 
   effectiveServices.value
     .filter((service) => !normalizeCatalogValue(displayValue(service)).includes('transporte internacional'))
@@ -1199,7 +1218,7 @@ async function saveRate() {
   try {
     saving.value = true
     const equipmentName = displayValue(equipment!)
-    createdRateId.value = await PricingService.createRate({
+    const rateId = await PricingService.createRate({
       sourceImportFclRateId: form.selectedImportRateId || null,
       agentId: agent!.id,
       agentName: displayValue(agent),
@@ -1260,9 +1279,11 @@ async function saveRate() {
         : [],
       details,
     })
-    toastStore.success('Alternativa creada correctamente.')
+    createdRateId.value = rateId
+    toastStore.success('Tarifa creada correctamente.')
+    await router.push({ name: 'pricing-rates', query: { rateId } })
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo crear la alternativa.')
+    toastStore.backendError(error, 'No se pudo crear la tarifa.')
   } finally {
     saving.value = false
   }
@@ -1605,7 +1626,7 @@ onMounted(loadCatalogs)
           </div>
         </div>
 
-        <div v-else class="space-y-6">
+        <div v-else class="crystal-lines-stage space-y-6">
           <div class="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p class="crystal-kicker">Pantalla 7</p>
@@ -1619,27 +1640,16 @@ onMounted(loadCatalogs)
             </div>
           </div>
 
-          <div v-if="optionalChargeOptions.length" class="crystal-soft p-4">
-            <PricingCrystalMultiSelect
-              v-model="selectedOptionalChargeKeys"
-              label="Cargos opcionales"
-              placeholder="Seleccione cargos opcionales"
-              search-placeholder="Buscar cargo opcional..."
-              :options="optionalChargeOptions"
-            />
-          </div>
-
           <div v-for="section in displayedRateSections" :key="section" class="space-y-2">
             <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ sectionLabel(section) }}</h3>
             <div
-              v-for="line in rateLines.filter((item) => item.section === section && (!item.optional || item.included))"
+              v-for="line in standardSectionLines(section)"
               :key="line.key"
               class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
             >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="font-bold">{{ line.name }}</p>
-                  <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
                   <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
                 </div>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
@@ -1647,25 +1657,79 @@ onMounted(loadCatalogs)
                 </p>
                 <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
               </div>
-              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
-              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />
-              <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
+              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costType !== 'Variable'" />
+              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+              <span />
             </div>
           </div>
 
-          <div class="crystal-soft p-4">
-            <p class="mb-3 text-sm font-black">Agregar cargo manual</p>
-            <div class="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-              <DhInput v-model="form.manualName" label="Nombre del cargo" />
-              <DhSelect v-model="form.manualSection" label="Etapa" :options="visibleSections.map((value) => ({ value, label: sectionLabel(value) }))" />
-              <DhButton class="md:mt-6" variant="secondary" :disabled="!form.manualName.trim()" @click="addManualCharge"><Plus class="h-4 w-4" /> Añadir cargo</DhButton>
+          <div v-if="agentLines.length" class="space-y-2">
+            <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Costos de Agente</h3>
+            <div
+              v-for="line in agentLines"
+              :key="line.key"
+              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
+            >
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="font-bold">{{ line.name }}</p>
+                  <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
+                </div>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Rubro: Costo de agente · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
+                </p>
+                <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
+              </div>
+              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costType !== 'Variable'" />
+              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+              <span />
             </div>
           </div>
 
-          <div v-if="createdRateId" class="crystal-success p-4">
-            <div class="flex items-center gap-3"><CircleCheck class="h-5 w-5" /><strong>Alternativa creada</strong></div>
-            <p class="mt-1 text-xs font-semibold">ID: {{ createdRateId }}</p>
-            <DhButton class="mt-3" variant="secondary" @click="resetWizard">Crear otra alternativa</DhButton>
+          <div class="crystal-bottom-charges space-y-4 p-4">
+            <div v-if="optionalChargeOptions.length">
+              <PricingCrystalMultiSelect
+                v-model="selectedOptionalChargeKeys"
+                label="Cargos opcionales"
+                placeholder="Seleccione cargos opcionales"
+                search-placeholder="Buscar cargo opcional..."
+                :options="optionalChargeOptions"
+              />
+            </div>
+
+            <div v-if="bottomRateLines.length" class="space-y-2">
+              <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Opcionales y rubros manuales</p>
+              <div
+                v-for="line in bottomRateLines"
+                :key="line.key"
+                class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
+              >
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="font-bold">{{ line.name }}</p>
+                    <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
+                    <DhBadge v-if="line.manual" variant="primary">Manual</DhBadge>
+                    <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
+                  </div>
+                  <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                    {{ sectionLabel(line.section) }} · Rubro: {{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}
+                  </p>
+                </div>
+                <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" />
+                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+                <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
+                <span v-else />
+              </div>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm font-black">Agregar rubro manual</p>
+              <div class="grid gap-3 md:grid-cols-[1fr_220px_auto]">
+                <DhInput v-model="form.manualName" label="Nombre del rubro" />
+                <DhSelect v-model="form.manualSection" label="Etapa" :options="visibleSections.map((value) => ({ value, label: sectionLabel(value) }))" />
+                <DhButton class="md:mt-6" variant="secondary" :disabled="!form.manualName.trim()" @click="addManualCharge"><Plus class="h-4 w-4" /> Añadir rubro</DhButton>
+              </div>
+            </div>
           </div>
         </div>
       </template>
@@ -1675,7 +1739,7 @@ onMounted(loadCatalogs)
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
       <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / 7</div>
       <DhButton v-if="step < 7 && ![1, 2, 4].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
-      <DhButton v-else :disabled="saving || !includedLines.length || Boolean(createdRateId)" @click="saveRate"><Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : 'Crear alternativa' }}</DhButton>
+      <DhButton v-else :disabled="saving || !includedLines.length" @click="saveRate"><Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : 'Crear tarifa' }}</DhButton>
     </div>
   </div>
 </template>
@@ -1720,11 +1784,11 @@ onMounted(loadCatalogs)
 .crystal-total-card,
 .crystal-line,
 .crystal-success {
-  border: 1px solid color-mix(in srgb, var(--dh-border-strong) 64%, transparent);
-  background: color-mix(in srgb, var(--dh-card) 82%, transparent);
-  box-shadow: 0 24px 72px rgb(15 23 42 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.38);
-  backdrop-filter: blur(72px) saturate(175%);
-  -webkit-backdrop-filter: blur(72px) saturate(175%);
+  border: 1px solid color-mix(in srgb, var(--dh-border-strong) 82%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 96%, var(--dh-text) 4%);
+  box-shadow: 0 26px 76px rgb(15 23 42 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.34);
+  backdrop-filter: blur(34px) saturate(145%);
+  -webkit-backdrop-filter: blur(34px) saturate(145%);
 }
 
 .crystal-panel {
@@ -1769,11 +1833,11 @@ onMounted(loadCatalogs)
 .crystal-flag {
   position: relative;
   border-radius: 22px;
-  border: 1px solid color-mix(in srgb, var(--dh-border) 72%, transparent);
-  background: color-mix(in srgb, var(--dh-card) 74%, transparent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.30);
-  backdrop-filter: blur(58px) saturate(170%);
-  -webkit-backdrop-filter: blur(58px) saturate(170%);
+  border: 1px solid color-mix(in srgb, var(--dh-border) 84%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 94%, var(--dh-text) 6%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24);
+  backdrop-filter: blur(30px) saturate(145%);
+  -webkit-backdrop-filter: blur(30px) saturate(145%);
   transition: 180ms ease;
 }
 
@@ -1810,7 +1874,20 @@ onMounted(loadCatalogs)
 
 .crystal-soft {
   border-radius: 24px;
-  box-shadow: 0 14px 40px rgb(15 23 42 / 0.055), inset 0 1px 0 rgb(255 255 255 / 0.28);
+  box-shadow: 0 14px 40px rgb(15 23 42 / 0.09), inset 0 1px 0 rgb(255 255 255 / 0.24);
+}
+
+.crystal-lines-stage {
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--dh-card) 97%, var(--dh-text) 3%);
+  padding: 1rem;
+}
+
+.crystal-bottom-charges {
+  border: 1px solid color-mix(in srgb, var(--dh-border-strong) 82%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--dh-card) 96%, var(--dh-text) 4%);
+  box-shadow: 0 18px 48px rgb(15 23 42 / 0.12);
 }
 
 .crystal-route-summary {
@@ -1931,9 +2008,9 @@ onMounted(loadCatalogs)
 
 .crystal-panel :deep(select),
 .crystal-panel :deep(input) {
-  background-color: color-mix(in srgb, var(--dh-input) 82%, transparent);
-  backdrop-filter: blur(48px) saturate(165%);
-  -webkit-backdrop-filter: blur(48px) saturate(165%);
+  background-color: color-mix(in srgb, var(--dh-input) 94%, var(--dh-card) 6%);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
 }
 
 @media (max-width: 640px) {
