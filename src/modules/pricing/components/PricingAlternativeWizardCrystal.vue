@@ -109,7 +109,6 @@ const catalogs = reactive({
   pod: [] as CatalogItemSelectDto[],
   poe: [] as CatalogItemSelectDto[],
   containers: [] as CatalogItemSelectDto[],
-  landEquipment: [] as CatalogItemSelectDto[],
   agents: [] as CatalogItemSelectDto[],
   carriers: [] as CatalogItemSelectDto[],
   currencies: [] as CatalogItemSelectDto[],
@@ -333,17 +332,7 @@ const shipmentModeOptions = computed(() => {
 
 const equipmentSource = computed(() => {
   const modality = String(form.modality)
-  if (!modality) return []
-
-  if (modality === 'Land') {
-    const shipmentMode = form.shipmentMode.toUpperCase()
-    return catalogs.landEquipment.filter((item) => {
-      const meta = metadata(item)
-      if (meta?.modalities?.length && !meta.modalities.includes('Land')) return false
-      if (meta?.shipmentModes?.length && shipmentMode) return meta.shipmentModes.includes(shipmentMode)
-      return true
-    })
-  }
+  if (!modality || modality === 'Land') return []
 
   return catalogs.containers.filter((item) => {
     const meta = metadata(item)
@@ -385,7 +374,15 @@ const equipmentTypeOptions = computed(() => {
 const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))
 const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
-const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
+const selectedEquipment = computed(() => {
+  if (form.modality === 'Land') {
+    const shipmentMode = form.shipmentMode.toUpperCase()
+    return catalogs.shipmentModes.find((item) =>
+      item.code?.toUpperCase() === shipmentMode || displayValue(item).toUpperCase() === shipmentMode,
+    ) ?? null
+  }
+  return findById(equipmentSource.value, form.equipmentId)
+})
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
 const cargoInsuranceService = computed(() =>
@@ -466,7 +463,7 @@ const canNext = computed(() => {
       form.originId &&
       form.destinationId &&
       form.podId &&
-      form.equipmentId &&
+      selectedEquipment.value &&
       form.equipmentQuantity > 0 &&
       form.incotermId &&
       form.serviceIds.length &&
@@ -572,15 +569,15 @@ function quantityForChargeBasis(basis: ChargeBasis) {
   return 1
 }
 
-function detailTypeLabel(type: CostDetailType, section?: RateSection) {
+function detailTypeLabel(type: CostDetailType) {
   return ({
-    Freight: 'Flete',
+    Freight: 'Flete internacional',
+    AgentCharge: 'Costo de agente',
     OriginCharge: 'Cargo en origen',
     DestinationCharge: 'Cargo en destino',
     PortCharge: 'Cargo portuario',
-    CustomsCharge: 'Aduanas',
-    InlandTransport: section === 'pickup_origin' ? 'Recolecta' : 'Transporte terrestre',
-    AgentCharge: 'Agente',
+    CustomsCharge: 'Aduana',
+    InlandTransport: 'Transporte interno',
     Documentation: 'Documentación',
     Insurance: 'Seguro',
     Other: 'Otro',
@@ -640,6 +637,26 @@ function applicableCost(cost: CostSelectDto) {
   return true
 }
 
+function costSpecificity(cost: CostSelectDto) {
+  let score = 0
+  if (cost.shipmentMode) score += 2
+  if (cost.incoterms?.length) score += 2
+  if (cost.carrierId) score += 3
+  if (cost.agentId) score += 3
+  if (cost.polId) score += 4
+  if (cost.poeId) score += 4
+  if (cost.podId) score += 4
+  if (cost.portId) score += 4
+  if (cost.portRole && cost.portRole !== 'Any') score += 1
+  return score
+}
+
+function applicableConfiguredCosts() {
+  return costs.value
+    .filter(applicableCost)
+    .sort((left, right) => costSpecificity(right) - costSpecificity(left))
+}
+
 function serviceAmounts(service: CatalogItemSelectDto) {
   const serviceValue = normalizeCatalogValue(displayValue(service))
   if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
@@ -655,6 +672,11 @@ function rebuildRateLines() {
 
   const visible = new Set(visibleSections.value)
   const lines: RateLine[] = []
+  const hasEquivalent = (name: string, detailType: CostDetailType) =>
+    lines.some((line) =>
+      line.costDetailType === detailType &&
+      normalizeCatalogValue(line.name) === normalizeCatalogValue(name),
+    )
 
   if (visible.has('international_freight')) {
     lines.push({
@@ -675,32 +697,60 @@ function rebuildRateLines() {
     })
   }
 
-  buildOperationalLines({
-    modality: form.modality as Modality,
-    shipmentMode: shipmentModeForApi.value,
-    direction: direction.value,
-    incotermCode: selectedIncoterm.value?.code ?? '',
-    destinationText: displayValue(selectedDestination.value),
-  }).forEach((template) => {
-    if (!visible.has(template.section)) return
-    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(template.name))) return
+  const configuredCosts = applicableConfiguredCosts()
+  configuredCosts.forEach((cost) => {
+    const section = sectionForCost(cost)
+    if (!visible.has(section)) return
+    if (cost.costDetailType === 'Freight' && lines.some((line) => line.costDetailType === 'Freight')) return
+    if (hasEquivalent(cost.name, cost.costDetailType)) return
     lines.push({
-      key: `operational:${normalizeCatalogValue(template.name)}`,
-      section: template.section,
-      name: template.name,
-      costDetailType: template.costDetailType,
-      costType: template.costType,
-      chargeBasis: defaultChargeBasis(template.costDetailType),
-      currencyId: currency.id,
-      currencyName: displayValue(currency),
-      currencyCode: currency.code,
-      costAmount: template.costAmount,
-      saleAmount: template.saleAmount,
-      included: template.included,
-      optional: template.optional,
+      key: `cost:${cost.id}`,
+      section,
+      name: cost.name,
+      costDetailType: cost.costDetailType,
+      costType: cost.costType,
+      chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+      costId: cost.id,
+      contextLabel: costContextLabel(cost),
+      currencyId: cost.currencyId,
+      currencyName: cost.currencyName,
+      currencyCode: cost.currencyCode,
+      costAmount: number(cost.costAmount),
+      saleAmount: number(cost.saleAmount),
+      included: cost.costType !== 'Optional',
+      optional: cost.costType === 'Optional',
       manual: false,
     })
   })
+
+  if (!configuredCosts.length) {
+    buildOperationalLines({
+      modality: form.modality as Modality,
+      shipmentMode: shipmentModeForApi.value,
+      direction: direction.value,
+      incotermCode: selectedIncoterm.value?.code ?? '',
+      destinationText: displayValue(selectedDestination.value),
+    }).forEach((template) => {
+      if (!visible.has(template.section)) return
+      if (hasEquivalent(template.name, template.costDetailType)) return
+      lines.push({
+        key: `operational:${normalizeCatalogValue(template.name)}`,
+        section: template.section,
+        name: template.name,
+        costDetailType: template.costDetailType,
+        costType: template.costType,
+        chargeBasis: defaultChargeBasis(template.costDetailType),
+        currencyId: currency.id,
+        currencyName: displayValue(currency),
+        currencyCode: currency.code,
+        costAmount: template.costAmount,
+        saleAmount: template.saleAmount,
+        included: template.included,
+        optional: template.optional,
+        manual: false,
+      })
+    })
+  }
 
   effectiveServices.value
     .filter((service) => !normalizeCatalogValue(displayValue(service)).includes('transporte internacional'))
@@ -712,7 +762,7 @@ function rebuildRateLines() {
       const detailType = canonical.type ?? detailTypeForService(service)
       const section = canonical.section ?? meta?.rateSections?.[0] ?? sectionForDetail(detailType, lineName)
       if (!visible.has(section)) return
-      if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(lineName))) return
+      if (hasEquivalent(lineName, detailType)) return
       const amounts = serviceAmounts(service)
       const optional = detailType === 'Insurance' || Boolean(meta?.optional)
       lines.push({
@@ -734,6 +784,7 @@ function rebuildRateLines() {
     })
 
   if (form.cargoValue > 0 && !cargoInsuranceService.value && !lines.some((line) => line.costDetailType === 'Insurance')) {
+    const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
     lines.push({
       key: 'cargo-insurance:auto',
       section: 'destination_charges',
@@ -744,37 +795,13 @@ function rebuildRateLines() {
       currencyId: currency.id,
       currencyName: displayValue(currency),
       currencyCode: currency.code,
-      costAmount: calculateCargoInsurance(form.cargoValue, form.freightCost).cost,
-      saleAmount: calculateCargoInsurance(form.cargoValue, form.freightCost).sale,
+      costAmount: insurance.cost,
+      saleAmount: insurance.sale,
       included: false,
       optional: true,
       manual: false,
     })
   }
-
-  costs.value.filter(applicableCost).forEach((cost) => {
-    const section = sectionForCost(cost)
-    if (!visible.has(section)) return
-    if (lines.some((line) => line.name.trim().toLocaleLowerCase() === cost.name.trim().toLocaleLowerCase())) return
-    lines.push({
-      key: `cost:${cost.id}`,
-      section,
-      name: cost.name,
-      costDetailType: cost.costDetailType,
-      costType: cost.costType,
-      chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
-      costId: cost.id,
-      contextLabel: costContextLabel(cost),
-      currencyId: cost.currencyId,
-      currencyName: cost.currencyName,
-      currencyCode: cost.currencyCode,
-      costAmount: number(cost.costAmount),
-      saleAmount: number(cost.saleAmount),
-      included: cost.costType !== 'Optional',
-      optional: cost.costType === 'Optional',
-      manual: false,
-    })
-  })
 
   rateLines.value = lines
 }
@@ -840,7 +867,6 @@ async function loadCatalogs() {
       pod,
       poe,
       containers,
-      landEquipment,
       agents,
       carriers,
       currencies,
@@ -853,7 +879,6 @@ async function loadCatalogs() {
       select('pod'),
       select('poe'),
       select('container-types'),
-      select('land-equipment-types'),
       select('agents'),
       select('carriers'),
       select('currencies'),
@@ -868,7 +893,6 @@ async function loadCatalogs() {
       pod,
       poe,
       containers,
-      landEquipment,
       agents,
       carriers,
       currencies,
@@ -1032,7 +1056,7 @@ async function saveRate() {
   if (!origin) missing.push('origen')
   if (!poe) missing.push('destino/POE')
   if (!pod) missing.push('POD')
-  if (!equipment) missing.push('equipo')
+  if (!equipment) missing.push(form.modality === 'Land' ? 'tipo de embarque' : 'equipo')
   if (!incoterm) missing.push('Incoterm')
   if (!agent) missing.push('agente')
   if (!carrier) missing.push('proveedor')
@@ -1083,22 +1107,17 @@ async function saveRate() {
     serviceCodes.delete('CARGO_INSURANCE')
   if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')
 
-  let commercialTerms: Awaited<ReturnType<typeof resolveCommercialTerms>> | null = null
-  try {
-    commercialTerms = await resolveCommercialTerms({
-      transportModality: form.modality as Modality,
-      shipmentMode: shipmentModeForApi.value,
-      direction: direction.value,
-      incotermId: incoterm!.id,
-      serviceCodes: [...serviceCodes],
-      routeText: [displayValue(origin), displayValue(poe), displayValue(pod)]
-        .filter(Boolean)
-        .join(' '),
-    })
-  } catch {
-    // La tarifa puede guardarse aunque el resolver de textos no esté disponible;
-    // las líneas comerciales visibles siguen siendo la fuente de respaldo.
-  }
+  const commercialTerms = await resolveCommercialTerms({
+    transportModality: form.modality as Modality,
+    shipmentMode: shipmentModeForApi.value,
+    direction: direction.value,
+    incotermId: incoterm!.id,
+    incotermCode: incoterm!.code,
+    serviceCodes: [...serviceCodes],
+    routeText: [displayValue(origin), displayValue(poe), displayValue(pod)]
+      .filter(Boolean)
+      .join(' '),
+  })
 
   const uniqueText = (values: Array<string | null | undefined>) => {
     const seen = new Set<string>()
@@ -1113,18 +1132,18 @@ async function saveRate() {
   }
 
   const includeTerms = uniqueText([
-    ...(commercialTerms?.includes.map((item) => item.text) ?? []),
+    ...commercialTerms.includes.map((item) => item.text),
     ...includedLines.value.map((line) => line.name),
   ])
   const includeKeys = new Set(includeTerms.map(normalizeCatalogValue))
   const subjectTerms = uniqueText([
-    ...(commercialTerms?.subjectTo.map((item) => item.text) ?? []),
+    ...commercialTerms.subjectTo.map((item) => item.text),
     form.dangerousCargo ? 'Carga peligrosa' : null,
     form.nonStackable ? 'Carga no estibable' : null,
     form.overweight ? 'Sobrepeso' : null,
   ])
   const excludeTerms = uniqueText(
-    commercialTerms?.excludes.map((item) => item.text) ?? [],
+    commercialTerms.excludes.map((item) => item.text),
   ).filter((text) => !includeKeys.has(normalizeCatalogValue(text)))
 
   try {
@@ -1257,6 +1276,10 @@ watch(
 watch(
   () => [form.equipmentSize, form.equipmentType, form.modality] as const,
   () => {
+    if (form.modality === 'Land') {
+      form.equipmentId = ''
+      return
+    }
     if (!form.modality || !form.equipmentType) {
       form.equipmentId = ''
       return
@@ -1366,7 +1389,7 @@ onMounted(loadCatalogs)
         <div v-else-if="step === 3" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 3</p>
-            <h2 class="crystal-title">Ruta, equipo, Incoterm y servicios</h2>
+            <h2 class="crystal-title">{{ form.modality === 'Land' ? 'Ruta, Incoterm y servicios' : 'Ruta, equipo, Incoterm y servicios' }}</h2>
             <p class="crystal-description">Seleccione POE y POD de forma independiente. Si existe una equivalencia clara, el POD se sugiere automáticamente.</p>
           </div>
 
@@ -1383,14 +1406,15 @@ onMounted(loadCatalogs)
               :options="equipmentSizeOptions"
             />
             <DhSelect
+              v-if="form.modality !== 'Land'"
               v-model="form.equipmentType"
-              :label="form.modality === 'Land' ? 'Tipo de unidad / furgón' : equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
-              :placeholder="form.modality === 'Land' ? 'Seleccione unidad terrestre' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
+              :label="equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
+              :placeholder="equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
               :disabled="equipmentHasSizes && !form.equipmentSize"
               :options="equipmentTypeOptions"
             />
 
-            <DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />
+            <DhInput v-model.number="form.equipmentQuantity" type="number" min="1" :label="form.modality === 'Land' ? 'Cantidad de unidades' : 'Cantidad'" />
             <DhSelect v-model="form.incotermId" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
             <DhInput v-model="form.loadDate" type="date" label="Fecha de carga" />
 
@@ -1410,7 +1434,7 @@ onMounted(loadCatalogs)
               <span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Operación</span>
               <strong class="mt-1 block text-sm">{{ direction || 'Por determinar' }}</strong>
             </div>
-            <div v-if="selectedEquipment">
+            <div v-if="selectedEquipment && form.modality !== 'Land'">
               <span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Equipo</span>
               <strong class="mt-1 block text-sm">{{ displayValue(selectedEquipment) }}</strong>
             </div>
@@ -1541,7 +1565,7 @@ onMounted(loadCatalogs)
             <div>
               <p class="crystal-kicker">Pantalla 7</p>
               <h2 class="crystal-title">Líneas de tarifa</h2>
-              <p class="crystal-description">Las etapas y campos respetan el tipo, la ruta y la base de cobro configurados en cada costo.</p>
+              <p class="crystal-description">Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.</p>
             </div>
             <div class="crystal-total-card">
               <span>Costo <strong>{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span>
@@ -1570,17 +1594,16 @@ onMounted(loadCatalogs)
                     {{ line.included ? 'Agregado' : '+ Agregar' }}
                   </button>
                   <p class="font-bold">{{ line.name }}</p>
-                  <DhBadge variant="neutral">{{ detailTypeLabel(line.costDetailType, line.section) }}</DhBadge>
-                  <DhBadge variant="neutral">{{ chargeBasisLabel(line.chargeBasis) }}</DhBadge>
                   <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
-                  <DhBadge v-if="line.costType === 'Fixed'" variant="neutral">Fijo</DhBadge>
                   <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
                 </div>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Moneda: {{ line.currencyName }}</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
+                </p>
                 <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
               </div>
-              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" :label="`Costo · ${chargeBasisLabel(line.chargeBasis)}`" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
-              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" :label="`Venta · ${chargeBasisLabel(line.chargeBasis)}`" :disabled="!line.included" />
+              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="!line.included || (!line.manual && line.costType !== 'Optional' && line.costType !== 'Variable')" />
+              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="!line.included" />
               <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
             </div>
           </div>
