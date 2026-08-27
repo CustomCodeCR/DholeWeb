@@ -68,7 +68,7 @@ const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
           <button
             v-if="mobileOpen"
             type="button"
-            class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:hidden"
+            class="inline-flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:hidden"
             :aria-label="t('common.close')"
             @click="emit('close')"
           >
@@ -103,7 +103,7 @@ const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
               v-for="child in item.children"
               :key="child.path"
               :to="child.path ?? '/'"
-              class="flex items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
+              class="flex min-h-11 touch-manipulation items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
               :class="compact ? 'justify-center' : 'gap-3'"
               :title="compact ? child.label : undefined"
               active-class="!bg-[var(--dh-primary)] !text-white shadow-[var(--dh-glow)]"
@@ -117,7 +117,7 @@ const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
           <RouterLink
             v-else
             :to="item.path ?? '/'"
-            class="flex items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
+            class="flex min-h-11 touch-manipulation items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
             :class="compact ? 'justify-center' : 'gap-3'"
             :title="compact ? item.label : undefined"
             active-class="!bg-[var(--dh-primary)] !text-white shadow-[var(--dh-glow)]"

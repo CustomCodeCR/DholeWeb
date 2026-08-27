@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   Ship,
+  Sparkles,
   Truck,
   Waypoints,
 } from 'lucide-vue-next'
@@ -33,6 +34,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
+import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import {
   calculateCargoInsurance,
@@ -487,21 +489,35 @@ const pickupCoordinates = computed(() => {
   if (form.pickupLatitude == null || form.pickupLongitude == null) return null
   return { latitude: form.pickupLatitude, longitude: form.pickupLongitude }
 })
-const collectionMapUrl = computed(() => {
-  const coordinates = pickupCoordinates.value
-  if (!coordinates) {
-    return 'https://www.openstreetmap.org/export/embed.html?bbox=-180%2C-75%2C180%2C75&layer=mapnik'
-  }
-  const span = 0.08
-  const left = coordinates.longitude - span
-  const right = coordinates.longitude + span
-  const bottom = coordinates.latitude - span
-  const top = coordinates.latitude + span
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${coordinates.latitude}%2C${coordinates.longitude}`
-})
-const exwLocationReady = computed(() => selectedIncotermCode.value !== 'EXW' || Boolean(form.pickupAddress.trim()))
+const warehouseMapMarkers = computed(() =>
+  catalogs.warehouses.flatMap((warehouse) => {
+    let latitude = metadataNumber(warehouse, 'latitude', 'lat')
+    let longitude = metadataNumber(warehouse, 'longitude', 'lng')
+
+    if (warehouse.id === form.warehouseId) {
+      latitude ??= form.pickupLatitude
+      longitude ??= form.pickupLongitude
+    }
+
+    if (latitude == null || longitude == null) return []
+    return [{
+      id: warehouse.id,
+      label: warehouse.label || displayValue(warehouse) || warehouse.code,
+      latitude,
+      longitude,
+      selected: warehouse.id === form.warehouseId,
+    }]
+  }),
+)
+const exwLocationReady = computed(() =>
+  selectedIncotermCode.value !== 'EXW' ||
+  Boolean(form.pickupAddress.trim() && pickupCoordinates.value),
+)
 const fcaLocationReady = computed(() =>
-  selectedIncotermCode.value !== 'FCA' || Boolean(form.warehouseId || form.pickupAddress.trim()),
+  selectedIncotermCode.value !== 'FCA' ||
+  (catalogs.warehouses.length
+    ? Boolean(form.warehouseId)
+    : Boolean(form.pickupAddress.trim() && pickupCoordinates.value)),
 )
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
 const cargoInsuranceService = computed(() =>
@@ -1304,6 +1320,39 @@ function continueManual() {
   step.value = 5
 }
 
+async function reverseGeocodePickup(latitude: number, longitude: number) {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
+    { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+  )
+  if (!response.ok) throw new Error(`Nominatim ${response.status}`)
+  const location = await response.json() as { display_name?: string }
+  return location.display_name?.trim() || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+}
+
+async function selectPickupFromMap(point: { latitude: number; longitude: number }) {
+  form.pickupLatitude = point.latitude
+  form.pickupLongitude = point.longitude
+  nearestPortRecommendations.value = []
+
+  try {
+    locatingPickup.value = true
+    form.pickupAddress = await reverseGeocodePickup(point.latitude, point.longitude)
+  } catch {
+    form.pickupAddress = `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`
+  } finally {
+    locatingPickup.value = false
+  }
+
+  if (selectedIncotermCode.value === 'EXW') await recommendNearestPorts()
+}
+
+function selectWarehouseFromMap(warehouseId: string) {
+  if (catalogs.warehouses.some((warehouse) => warehouse.id === warehouseId)) {
+    form.warehouseId = warehouseId
+  }
+}
+
 function parseNearestPortResponse(content: string) {
   const cleaned = content
     .trim()
@@ -1417,25 +1466,10 @@ async function useCurrentLocation() {
         maximumAge: 30000,
       }),
     )
-    form.pickupLatitude = position.coords.latitude
-    form.pickupLongitude = position.coords.longitude
-
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.coords.latitude}&lon=${position.coords.longitude}`,
-        { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
-      )
-      if (response.ok) {
-        const location = await response.json() as { display_name?: string }
-        form.pickupAddress = location.display_name?.trim() || `${position.coords.latitude}, ${position.coords.longitude}`
-      } else {
-        form.pickupAddress = `${position.coords.latitude}, ${position.coords.longitude}`
-      }
-    } catch {
-      form.pickupAddress = `${position.coords.latitude}, ${position.coords.longitude}`
-    }
-
-    if (selectedIncotermCode.value === 'EXW') await recommendNearestPorts()
+    await selectPickupFromMap({
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    })
   } catch (error) {
     toastStore.backendError(error, 'No se pudo obtener la ubicación actual.')
   } finally {
@@ -2006,14 +2040,34 @@ onMounted(loadCatalogs)
               </DhButton>
             </div>
 
-            <div class="overflow-hidden rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
-              <iframe
-                title="Mapa interactivo de recolección"
-                class="h-72 w-full"
-                :src="collectionMapUrl"
-                loading="lazy"
-              />
-            </div>
+            <PricingInteractiveOsmMap
+              v-if="selectedIncotermCode === 'EXW'"
+              :latitude="form.pickupLatitude"
+              :longitude="form.pickupLongitude"
+              :interactive-selection="true"
+              :initial-zoom="11"
+              :selection-zoom="13"
+              hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección."
+              @select-point="selectPickupFromMap"
+            />
+            <PricingInteractiveOsmMap
+              v-else
+              :latitude="form.pickupLatitude"
+              :longitude="form.pickupLongitude"
+              :markers="warehouseMapMarkers"
+              :interactive-selection="false"
+              :fit-markers="true"
+              :initial-zoom="3"
+              :selection-zoom="10"
+              hint="Los marcadores corresponden a los WHS globales configurados en Dhole. Toque uno para seleccionarlo."
+              @select-marker="selectWarehouseFromMap"
+            />
+            <p
+              v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length > warehouseMapMarkers.length"
+              class="text-[11px] font-bold text-amber-600"
+            >
+              Algunos WHS todavía no tienen coordenadas configuradas; siguen disponibles en la lista y se ubican al seleccionarlos.
+            </p>
             <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
               Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
             </p>
@@ -2642,14 +2696,15 @@ onMounted(loadCatalogs)
 
 .crystal-lines-header {
   position: sticky;
-  top: 0.5rem;
-  z-index: 20;
+  top: 6.25rem;
+  z-index: 25;
   border: 1px solid var(--dh-border);
   border-radius: 20px;
   padding: 0.8rem;
-  background: color-mix(in srgb, var(--dh-card) 94%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 97%, transparent);
   box-shadow: var(--dh-shadow-md);
   backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
 }
 
 .crystal-total-card span {
@@ -2751,8 +2806,36 @@ onMounted(loadCatalogs)
   }
 
   .crystal-lines-header {
-    top: 0.25rem;
+    top: 5rem;
+    gap: 0.5rem;
+    padding: 0.65rem;
   }
+
+  .crystal-lines-header .crystal-kicker,
+  .crystal-lines-header .crystal-description {
+    display: none;
+  }
+
+  .crystal-lines-header .crystal-title {
+    margin-top: 0;
+    font-size: 1rem;
+  }
+
+  .crystal-lines-header .crystal-total-card {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    padding: 0.4rem;
+  }
+
+  .crystal-lines-header .crystal-total-card__metric {
+    min-width: 0;
+    justify-content: space-between;
+    border-radius: 12px;
+    padding: 0.4rem 0.5rem;
+  }
+
   .crystal-panel {
     border-radius: 24px;
   }

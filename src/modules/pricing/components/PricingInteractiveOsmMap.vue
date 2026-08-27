@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Crosshair, MapPin, Minus, Plus, ScanSearch } from 'lucide-vue-next'
 
-export interface PricingMapMarker {
+interface PricingMapMarker {
   id: string
   label: string
   latitude: number
