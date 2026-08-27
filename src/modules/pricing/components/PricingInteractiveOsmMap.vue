@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Crosshair, MapPin, Minus, Plus, ScanSearch } from 'lucide-vue-next'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { AlertTriangle } from 'lucide-vue-next'
 
 interface PricingMapMarker {
   id: string
@@ -8,6 +8,38 @@ interface PricingMapMarker {
   latitude: number
   longitude: number
   selected?: boolean
+}
+
+type LeafletLatLng = { lat: number; lng: number }
+type LeafletMap = {
+  setView: (latlng: [number, number], zoom?: number, options?: Record<string, unknown>) => LeafletMap
+  fitBounds: (bounds: unknown, options?: Record<string, unknown>) => LeafletMap
+  invalidateSize: (options?: Record<string, unknown>) => LeafletMap
+  getZoom: () => number
+  on: (event: string, handler: (event: any) => void) => LeafletMap
+  off: () => LeafletMap
+  remove: () => void
+}
+type LeafletMarker = {
+  setLatLng: (latlng: [number, number]) => LeafletMarker
+  getLatLng: () => LeafletLatLng
+  bindTooltip: (text: string, options?: Record<string, unknown>) => LeafletMarker
+  on: (event: string, handler: (event: any) => void) => LeafletMarker
+  remove: () => void
+}
+type LeafletApi = {
+  map: (element: HTMLElement, options?: Record<string, unknown>) => LeafletMap
+  tileLayer: (url: string, options?: Record<string, unknown>) => { addTo: (map: LeafletMap) => unknown }
+  marker: (latlng: [number, number], options?: Record<string, unknown>) => LeafletMarker & { addTo: (map: LeafletMap) => LeafletMarker }
+  latLngBounds: (points: Array<[number, number]>) => unknown
+  divIcon: (options: Record<string, unknown>) => unknown
+}
+
+declare global {
+  interface Window {
+    L?: LeafletApi
+    __dholeLeafletLoader?: Promise<LeafletApi>
+  }
 }
 
 const props = withDefaults(
@@ -31,7 +63,7 @@ const props = withDefaults(
     initialZoom: 11,
     selectionZoom: 11,
     minZoom: 2,
-    maxZoom: 17,
+    maxZoom: 19,
     fitMarkers: false,
     hint: '',
   },
@@ -42,559 +74,250 @@ const emit = defineEmits<{
   'select-marker': [id: string]
 }>()
 
-const TILE_SIZE = 256
-const MAX_LATITUDE = 85.05112878
-const viewport = ref<HTMLDivElement | null>(null)
-const width = ref(640)
-const height = ref(320)
-const zoom = ref(clampZoom(props.initialZoom))
-const centerLatitude = ref(validLatitude(props.latitude) ? Number(props.latitude) : 9.7489)
-const centerLongitude = ref(validLongitude(props.longitude) ? Number(props.longitude) : -83.7534)
-const dragging = ref(false)
-const dragMoved = ref(false)
+const mapElement = ref<HTMLDivElement | null>(null)
+const loading = ref(true)
+const loadError = ref('')
+let map: LeafletMap | null = null
+let selectedMarker: LeafletMarker | null = null
+let catalogMarkers: Array<{ id: string; marker: LeafletMarker }> = []
 let resizeObserver: ResizeObserver | null = null
-let dragState:
-  | {
-      pointerId: number
-      startX: number
-      startY: number
-      centerX: number
-      centerY: number
-    }
-  | null = null
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
+function isLatitude(value: unknown): value is number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= -90 && parsed <= 90
+}
+
+function isLongitude(value: unknown): value is number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= -180 && parsed <= 180
 }
 
 function clampZoom(value: number) {
-  return Math.round(clamp(Number(value) || props.initialZoom, props.minZoom, props.maxZoom))
+  return Math.min(props.maxZoom, Math.max(props.minZoom, Math.round(Number(value) || props.initialZoom)))
 }
 
-function validLatitude(value: unknown): value is number {
-  return Number.isFinite(Number(value)) && Math.abs(Number(value)) <= MAX_LATITUDE
+function loadLeaflet(): Promise<LeafletApi> {
+  if (window.L) return Promise.resolve(window.L)
+  if (window.__dholeLeafletLoader) return window.__dholeLeafletLoader
+
+  window.__dholeLeafletLoader = new Promise<LeafletApi>((resolve, reject) => {
+    const cssId = 'dhole-leaflet-css'
+    if (!document.getElementById(cssId)) {
+      const css = document.createElement('link')
+      css.id = cssId
+      css.rel = 'stylesheet'
+      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+      css.crossOrigin = ''
+      document.head.appendChild(css)
+    }
+
+    const existing = document.getElementById('dhole-leaflet-js') as HTMLScriptElement | null
+    if (existing) {
+      if (window.L) resolve(window.L)
+      else {
+        existing.addEventListener('load', () => (window.L ? resolve(window.L) : reject(new Error('Leaflet no quedó disponible.'))), { once: true })
+        existing.addEventListener('error', () => reject(new Error('No se pudo cargar Leaflet.')), { once: true })
+      }
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = 'dhole-leaflet-js'
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+    script.crossOrigin = ''
+    script.async = true
+    script.onload = () => (window.L ? resolve(window.L) : reject(new Error('Leaflet no quedó disponible.')))
+    script.onerror = () => reject(new Error('No se pudo cargar Leaflet.'))
+    document.head.appendChild(script)
+  })
+
+  return window.__dholeLeafletLoader
 }
 
-function validLongitude(value: unknown): value is number {
-  return Number.isFinite(Number(value)) && Math.abs(Number(value)) <= 180
+function selectedPoint(): [number, number] | null {
+  if (!isLatitude(props.latitude) || !isLongitude(props.longitude)) return null
+  return [Number(props.latitude), Number(props.longitude)]
 }
 
-function normalizeLongitude(value: number) {
-  let result = value
-  while (result > 180) result -= 360
-  while (result < -180) result += 360
-  return result
+function selectedIcon(L: LeafletApi) {
+  return L.divIcon({
+    className: 'dhole-leaflet-selected-icon',
+    html: '<span class="dhole-leaflet-pin"><span></span></span>',
+    iconSize: [28, 36],
+    iconAnchor: [14, 34],
+  })
 }
 
-function project(latitude: number, longitude: number, mapZoom: number) {
-  const lat = clamp(latitude, -MAX_LATITUDE, MAX_LATITUDE)
-  const lon = normalizeLongitude(longitude)
-  const scale = TILE_SIZE * 2 ** mapZoom
-  const sin = Math.sin((lat * Math.PI) / 180)
-  const x = ((lon + 180) / 360) * scale
-  const y =
-    (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale
-  return { x, y, scale }
+function catalogIcon(L: LeafletApi, selected: boolean) {
+  return L.divIcon({
+    className: selected ? 'dhole-leaflet-catalog-icon is-selected' : 'dhole-leaflet-catalog-icon',
+    html: '<span class="dhole-leaflet-dot"></span>',
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  })
 }
 
-function unproject(x: number, y: number, mapZoom: number) {
-  const scale = TILE_SIZE * 2 ** mapZoom
-  const wrappedX = ((x % scale) + scale) % scale
-  const longitude = (wrappedX / scale) * 360 - 180
-  const mercator = Math.PI - (2 * Math.PI * y) / scale
-  const latitude = (180 / Math.PI) * Math.atan(Math.sinh(mercator))
-  return {
-    latitude: clamp(latitude, -MAX_LATITUDE, MAX_LATITUDE),
-    longitude: normalizeLongitude(longitude),
+function syncSelectedMarker(recenter = false) {
+  if (!map || !window.L) return
+  const point = selectedPoint()
+  if (!point) {
+    selectedMarker?.remove()
+    selectedMarker = null
+    return
   }
-}
 
-const centerWorld = computed(() =>
-  project(centerLatitude.value, centerLongitude.value, zoom.value),
-)
+  if (!selectedMarker) {
+    selectedMarker = window.L.marker(point, {
+      draggable: props.interactiveSelection,
+      icon: selectedIcon(window.L),
+      keyboard: true,
+      zIndexOffset: 1000,
+    }).addTo(map)
 
-const tiles = computed(() => {
-  const mapZoom = zoom.value
-  const count = 2 ** mapZoom
-  const center = centerWorld.value
-  const left = center.x - width.value / 2
-  const top = center.y - height.value / 2
-  const minX = Math.floor(left / TILE_SIZE) - 1
-  const maxX = Math.floor((left + width.value) / TILE_SIZE) + 1
-  const minY = Math.max(0, Math.floor(top / TILE_SIZE) - 1)
-  const maxY = Math.min(count - 1, Math.floor((top + height.value) / TILE_SIZE) + 1)
-  const result: Array<{ key: string; src: string; left: number; top: number }> = []
-
-  for (let tileX = minX; tileX <= maxX; tileX += 1) {
-    const wrappedX = ((tileX % count) + count) % count
-    for (let tileY = minY; tileY <= maxY; tileY += 1) {
-      result.push({
-        key: `${mapZoom}/${tileX}/${tileY}`,
-        src: `https://tile.openstreetmap.org/${mapZoom}/${wrappedX}/${tileY}.png`,
-        left: tileX * TILE_SIZE - left,
-        top: tileY * TILE_SIZE - top,
+    if (props.interactiveSelection) {
+      selectedMarker.on('dragend', () => {
+        const position = selectedMarker?.getLatLng()
+        if (!position) return
+        emit('select-point', { latitude: position.lat, longitude: position.lng })
       })
     }
+  } else {
+    selectedMarker.setLatLng(point)
   }
 
-  return result
-})
+  if (recenter) map.setView(point, clampZoom(Math.max(map.getZoom(), props.selectionZoom)), { animate: true })
+}
 
-function relativePoint(latitude: number, longitude: number) {
-  const center = centerWorld.value
-  const point = project(latitude, longitude, zoom.value)
-  let dx = point.x - center.x
-  const worldWidth = point.scale
-  if (dx > worldWidth / 2) dx -= worldWidth
-  if (dx < -worldWidth / 2) dx += worldWidth
-  return {
-    left: width.value / 2 + dx,
-    top: height.value / 2 + (point.y - center.y),
+function syncCatalogMarkers() {
+  if (!map || !window.L) return
+  for (const entry of catalogMarkers) entry.marker.remove()
+  catalogMarkers = []
+
+  for (const item of props.markers) {
+    if (!isLatitude(item.latitude) || !isLongitude(item.longitude)) continue
+    const marker = window.L.marker([Number(item.latitude), Number(item.longitude)], {
+      icon: catalogIcon(window.L, Boolean(item.selected)),
+      keyboard: true,
+      title: item.label,
+    }).addTo(map)
+    marker.bindTooltip(item.label, { direction: 'top', offset: [0, -10] })
+    marker.on('click', () => emit('select-marker', item.id))
+    catalogMarkers.push({ id: item.id, marker })
   }
 }
 
-const markerPositions = computed(() =>
-  props.markers
-    .filter(
-      (marker) => validLatitude(marker.latitude) && validLongitude(marker.longitude),
-    )
-    .map((marker) => ({ marker, ...relativePoint(marker.latitude, marker.longitude) }))
-    .filter(
-      ({ left, top }) =>
-        left >= -40 && left <= width.value + 40 && top >= -50 && top <= height.value + 50,
-    ),
-)
+function fitVisiblePoints() {
+  if (!map || !window.L) return
+  const points: Array<[number, number]> = props.markers
+    .filter((item) => isLatitude(item.latitude) && isLongitude(item.longitude))
+    .map((item) => [Number(item.latitude), Number(item.longitude)])
+  const selected = selectedPoint()
+  if (selected) points.push(selected)
 
-const selectedPointPosition = computed(() => {
-  if (!validLatitude(props.latitude) || !validLongitude(props.longitude)) return null
-  return relativePoint(Number(props.latitude), Number(props.longitude))
-})
-
-function pointFromClient(clientX: number, clientY: number) {
-  const element = viewport.value
-  if (!element) return null
-  const rect = element.getBoundingClientRect()
-  const center = centerWorld.value
-  return unproject(
-    center.x + (clientX - rect.left - rect.width / 2),
-    center.y + (clientY - rect.top - rect.height / 2),
-    zoom.value,
-  )
+  if (!points.length) return void map.setView([9.7489, -83.7534], clampZoom(props.initialZoom))
+  if (points.length === 1) return void map.setView(points[0], clampZoom(props.selectionZoom))
+  map.fitBounds(window.L.latLngBounds(points), { padding: [48, 48], maxZoom: clampZoom(props.selectionZoom) })
 }
 
-function onPointerDown(event: PointerEvent) {
-  if (event.button !== 0 && event.pointerType === 'mouse') return
-  const element = viewport.value
+async function initializeMap() {
+  const element = mapElement.value
   if (!element) return
-  const center = centerWorld.value
-  dragging.value = true
-  dragMoved.value = false
-  dragState = {
-    pointerId: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    centerX: center.x,
-    centerY: center.y,
-  }
-  element.setPointerCapture?.(event.pointerId)
-}
 
-function onPointerMove(event: PointerEvent) {
-  if (!dragState || dragState.pointerId !== event.pointerId) return
-  const dx = event.clientX - dragState.startX
-  const dy = event.clientY - dragState.startY
-  if (Math.abs(dx) + Math.abs(dy) > 5) dragMoved.value = true
-  if (!dragMoved.value) return
+  try {
+    loading.value = true
+    loadError.value = ''
+    const L = await loadLeaflet()
+    if (!mapElement.value || map) return
 
-  const center = unproject(
-    dragState.centerX - dx,
-    dragState.centerY - dy,
-    zoom.value,
-  )
-  centerLatitude.value = center.latitude
-  centerLongitude.value = center.longitude
-}
-
-function finishPointer(event: PointerEvent) {
-  if (!dragState || dragState.pointerId !== event.pointerId) return
-  const element = viewport.value
-  element?.releasePointerCapture?.(event.pointerId)
-  const wasDrag = dragMoved.value
-  dragState = null
-  dragging.value = false
-  dragMoved.value = false
-
-  if (!wasDrag && props.interactiveSelection) {
-    const point = pointFromClient(event.clientX, event.clientY)
-    if (point) emit('select-point', point)
-  }
-}
-
-function changeZoom(delta: number) {
-  zoom.value = clampZoom(zoom.value + delta)
-}
-
-function centerOnSelection() {
-  if (validLatitude(props.latitude) && validLongitude(props.longitude)) {
-    centerLatitude.value = Number(props.latitude)
-    centerLongitude.value = Number(props.longitude)
-    zoom.value = clampZoom(Math.max(zoom.value, props.selectionZoom))
-    return
-  }
-  if (props.markers.length) void fitAllMarkers()
-}
-
-async function fitAllMarkers() {
-  const valid = props.markers.filter(
-    (marker) => validLatitude(marker.latitude) && validLongitude(marker.longitude),
-  )
-  if (!valid.length) {
-    centerLatitude.value = 9.7489
-    centerLongitude.value = -83.7534
-    zoom.value = clampZoom(props.minZoom)
-    return
-  }
-
-  await nextTick()
-  const availableWidth = Math.max(120, width.value - 96)
-  const availableHeight = Math.max(120, height.value - 96)
-  let selectedZoom = props.minZoom
-  let selectedCenter = {
-    latitude: valid.reduce((sum, marker) => sum + marker.latitude, 0) / valid.length,
-    longitude: valid.reduce((sum, marker) => sum + marker.longitude, 0) / valid.length,
-  }
-
-  for (let candidateZoom = props.maxZoom; candidateZoom >= props.minZoom; candidateZoom -= 1) {
-    const projected = valid.map((marker) =>
-      project(marker.latitude, marker.longitude, candidateZoom),
-    )
-    const xs = projected.map((point) => point.x)
-    const ys = projected.map((point) => point.y)
-    const minX = Math.min(...xs)
-    const maxX = Math.max(...xs)
-    const minY = Math.min(...ys)
-    const maxY = Math.max(...ys)
-    if (maxX - minX <= availableWidth && maxY - minY <= availableHeight) {
-      selectedZoom = candidateZoom
-      selectedCenter = unproject((minX + maxX) / 2, (minY + maxY) / 2, candidateZoom)
-      break
-    }
-  }
-
-  zoom.value = clampZoom(selectedZoom)
-  centerLatitude.value = selectedCenter.latitude
-  centerLongitude.value = selectedCenter.longitude
-}
-
-function onMarkerClick(id: string) {
-  emit('select-marker', id)
-}
-
-watch(
-  () => [props.latitude, props.longitude] as const,
-  ([latitude, longitude], previous) => {
-    if (!validLatitude(latitude) || !validLongitude(longitude)) return
-    const changed = latitude !== previous?.[0] || longitude !== previous?.[1]
-    if (!changed) return
-    centerLatitude.value = Number(latitude)
-    centerLongitude.value = Number(longitude)
-    zoom.value = clampZoom(Math.max(zoom.value, props.selectionZoom))
-  },
-)
-
-watch(
-  () => props.markers.map((marker) => `${marker.id}:${marker.latitude}:${marker.longitude}`).join('|'),
-  () => {
-    if (props.fitMarkers && !validLatitude(props.latitude) && !validLongitude(props.longitude)) {
-      void fitAllMarkers()
-    }
-  },
-)
-
-onMounted(() => {
-  const element = viewport.value
-  if (element) {
-    resizeObserver = new ResizeObserver(([entry]) => {
-      if (!entry) return
-      width.value = Math.max(1, entry.contentRect.width)
-      height.value = Math.max(1, entry.contentRect.height)
+    const point = selectedPoint()
+    map = L.map(mapElement.value, {
+      zoomControl: true,
+      minZoom: props.minZoom,
+      maxZoom: props.maxZoom,
+      attributionControl: true,
+      preferCanvas: true,
     })
-    resizeObserver.observe(element)
-  }
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: props.maxZoom,
+      minZoom: props.minZoom,
+    }).addTo(map)
+    map.setView(point ?? [9.7489, -83.7534], clampZoom(point ? props.selectionZoom : props.initialZoom))
+    map.on('click', (event: { latlng?: LeafletLatLng }) => {
+      if (!props.interactiveSelection || !event.latlng) return
+      emit('select-point', { latitude: event.latlng.lat, longitude: event.latlng.lng })
+    })
 
-  if (props.fitMarkers && props.markers.length && !validLatitude(props.latitude)) {
-    void fitAllMarkers()
-  } else if (validLatitude(props.latitude) && validLongitude(props.longitude)) {
-    centerOnSelection()
+    syncSelectedMarker(false)
+    syncCatalogMarkers()
+    if (props.fitMarkers && props.markers.length) fitVisiblePoints()
+    await nextTick()
+    setTimeout(() => map?.invalidateSize({ animate: false }), 0)
+    resizeObserver = new ResizeObserver(() => map?.invalidateSize({ animate: false }))
+    resizeObserver.observe(mapElement.value)
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : 'No se pudo cargar el mapa Leaflet.'
+  } finally {
+    loading.value = false
   }
+}
+
+watch(() => [props.latitude, props.longitude] as const, ([latitude, longitude], previous) => {
+  if (latitude === previous?.[0] && longitude === previous?.[1]) return
+  syncSelectedMarker(true)
 })
 
+watch(() => props.markers.map((item) => `${item.id}:${item.latitude}:${item.longitude}:${item.selected ? 1 : 0}`).join('|'), () => {
+  syncCatalogMarkers()
+  if (props.fitMarkers) fitVisiblePoints()
+})
+
+onMounted(() => void initializeMap())
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
+  for (const entry of catalogMarkers) entry.marker.remove()
+  catalogMarkers = []
+  selectedMarker?.remove()
+  selectedMarker = null
+  map?.off()
+  map?.remove()
+  map = null
 })
 </script>
 
 <template>
   <div class="pricing-map-shell">
     <div class="pricing-map-toolbar">
-      <p class="pricing-map-hint">
-        {{ hint || (interactiveSelection ? 'Arrastre para mover y toque el mapa para seleccionar el punto.' : 'Arrastre para mover el mapa y seleccione un marcador.') }}
-      </p>
-      <div class="pricing-map-controls">
-        <button type="button" class="pricing-map-control" aria-label="Alejar mapa" @click="changeZoom(-1)">
-          <Minus class="h-4 w-4" />
-        </button>
-        <button type="button" class="pricing-map-control" aria-label="Acercar mapa" @click="changeZoom(1)">
-          <Plus class="h-4 w-4" />
-        </button>
-        <button type="button" class="pricing-map-control" aria-label="Centrar selección" @click="centerOnSelection">
-          <Crosshair class="h-4 w-4" />
-        </button>
-        <button v-if="markers.length > 1" type="button" class="pricing-map-control" aria-label="Ver todos los puntos" @click="fitAllMarkers">
-          <ScanSearch class="h-4 w-4" />
-        </button>
-      </div>
+      <p class="pricing-map-hint">{{ hint || (interactiveSelection ? 'Arrastre para explorar y haga clic en el punto exacto de recolección.' : 'Explore el mapa y seleccione un marcador.') }}</p>
     </div>
-
-    <div
-      ref="viewport"
-      class="pricing-map-viewport"
-      :class="{ 'pricing-map-viewport--dragging': dragging }"
-      @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
-      @pointerup="finishPointer"
-      @pointercancel="finishPointer"
-    >
-      <img
-        v-for="tile in tiles"
-        :key="tile.key"
-        :src="tile.src"
-        alt=""
-        draggable="false"
-        class="pricing-map-tile"
-        :style="{ left: `${tile.left}px`, top: `${tile.top}px` }"
-      />
-
-      <button
-        v-for="entry in markerPositions"
-        :key="entry.marker.id"
-        type="button"
-        class="pricing-map-marker"
-        :class="entry.marker.selected ? 'pricing-map-marker--selected' : ''"
-        :style="{ left: `${entry.left}px`, top: `${entry.top}px` }"
-        :title="entry.marker.label"
-        :aria-label="`Seleccionar ${entry.marker.label}`"
-        @pointerdown.stop
-        @click.stop="onMarkerClick(entry.marker.id)"
-      >
-        <MapPin class="h-5 w-5" />
-      </button>
-
-      <div
-        v-if="selectedPointPosition"
-        class="pricing-map-selected-point"
-        :style="{ left: `${selectedPointPosition.left}px`, top: `${selectedPointPosition.top}px` }"
-        aria-hidden="true"
-      >
-        <MapPin class="h-6 w-6" />
-      </div>
-
-      <div v-if="interactiveSelection" class="pricing-map-crosshair" aria-hidden="true">
-        <span />
-      </div>
-
-      <a
-        class="pricing-map-attribution"
-        href="https://www.openstreetmap.org/copyright"
-        target="_blank"
-        rel="noopener noreferrer"
-        @pointerdown.stop
-        @click.stop
-      >© OpenStreetMap</a>
+    <div class="pricing-map-stage">
+      <div ref="mapElement" class="pricing-map-viewport" />
+      <div v-if="loading" class="pricing-map-state"><span class="pricing-map-spinner" /><span>Cargando Leaflet…</span></div>
+      <div v-else-if="loadError" class="pricing-map-state pricing-map-state--error"><AlertTriangle class="h-5 w-5" /><span>{{ loadError }}</span></div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.pricing-map-shell {
-  overflow: hidden;
-  border: 1px solid var(--dh-border);
-  border-radius: 20px;
-  background: var(--dh-card);
-}
-
-.pricing-map-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border-bottom: 1px solid var(--dh-border);
-  background: color-mix(in srgb, var(--dh-card) 95%, transparent);
-}
-
-.pricing-map-hint {
-  min-width: 0;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  font-weight: 750;
-  color: var(--dh-text-muted);
-}
-
-.pricing-map-controls {
-  display: flex;
-  flex-shrink: 0;
-  gap: 0.35rem;
-}
-
-.pricing-map-control {
-  display: inline-flex;
-  width: 2.75rem;
-  height: 2.75rem;
-  touch-action: manipulation;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--dh-border);
-  border-radius: 14px;
-  background: var(--dh-input);
-  color: var(--dh-text);
-  transition: 150ms ease;
-}
-
-.pricing-map-control:hover {
-  border-color: rgb(var(--dh-primary-rgb) / 0.45);
-  background: var(--dh-card-hover);
-}
-
-.pricing-map-viewport {
-  position: relative;
-  height: clamp(18rem, 42vw, 28rem);
-  overflow: hidden;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  background: #d9e3ea;
-}
-
-.pricing-map-viewport--dragging {
-  cursor: grabbing;
-}
-
-.pricing-map-tile {
-  position: absolute;
-  width: 256px;
-  height: 256px;
-  max-width: none;
-  pointer-events: none;
-  user-select: none;
-}
-
-.pricing-map-marker,
-.pricing-map-selected-point {
-  position: absolute;
-  z-index: 5;
-  transform: translate(-50%, -100%);
-  color: var(--dh-primary);
-  filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.28));
-}
-
-.pricing-map-marker {
-  display: inline-flex;
-  width: 2.75rem;
-  height: 2.75rem;
-  touch-action: manipulation;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid white;
-  border-radius: 999px;
-  background: var(--dh-card);
-  box-shadow: 0 6px 18px rgb(15 23 42 / 0.22);
-}
-
-.pricing-map-marker--selected {
-  border-color: var(--dh-primary);
-  background: rgb(var(--dh-primary-rgb) / 0.12);
-}
-
-.pricing-map-selected-point {
-  pointer-events: none;
-  z-index: 6;
-}
-
-.pricing-map-crosshair {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 3;
-  width: 1.35rem;
-  height: 1.35rem;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  border: 1px solid rgb(var(--dh-primary-rgb) / 0.25);
-  border-radius: 999px;
-}
-
-.pricing-map-crosshair::before,
-.pricing-map-crosshair::after,
-.pricing-map-crosshair span::before,
-.pricing-map-crosshair span::after {
-  content: '';
-  position: absolute;
-  background: rgb(var(--dh-primary-rgb) / 0.55);
-}
-
-.pricing-map-crosshair::before,
-.pricing-map-crosshair::after {
-  left: 50%;
-  width: 1px;
-  height: 0.45rem;
-}
-
-.pricing-map-crosshair::before { top: -0.5rem; }
-.pricing-map-crosshair::after { bottom: -0.5rem; }
-.pricing-map-crosshair span::before,
-.pricing-map-crosshair span::after {
-  top: 50%;
-  width: 0.45rem;
-  height: 1px;
-}
-.pricing-map-crosshair span::before { left: -0.5rem; }
-.pricing-map-crosshair span::after { right: -0.5rem; }
-
-.pricing-map-attribution {
-  position: absolute;
-  right: 0.35rem;
-  bottom: 0.35rem;
-  z-index: 8;
-  min-height: 1.8rem;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 8px;
-  background: rgb(255 255 255 / 0.86);
-  padding: 0.15rem 0.4rem;
-  font-size: 0.62rem;
-  font-weight: 700;
-  color: #334155;
-}
-
-@media (max-width: 640px) {
-  .pricing-map-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .pricing-map-controls {
-    width: 100%;
-  }
-
-  .pricing-map-control {
-    flex: 1 1 0;
-    min-width: 2.75rem;
-  }
-
-  .pricing-map-viewport {
-    height: 20rem;
-  }
-}
+.pricing-map-shell { overflow: hidden; border: 1px solid var(--dh-border); border-radius: 20px; background: var(--dh-card); }
+.pricing-map-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem .85rem; border-bottom: 1px solid var(--dh-border); background: color-mix(in srgb, var(--dh-card) 96%, transparent); }
+.pricing-map-hint { min-width: 0; font-size: .74rem; line-height: 1.4; font-weight: 750; color: var(--dh-text-muted); }
+.pricing-map-stage { position: relative; }
+.pricing-map-viewport { width: 100%; min-height: 390px; height: clamp(390px, 48vh, 590px); background: color-mix(in srgb, var(--dh-card) 88%, var(--dh-primary) 12%); }
+.pricing-map-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: .65rem; padding: 1rem; background: color-mix(in srgb, var(--dh-card) 88%, transparent); color: var(--dh-text-muted); font-size: .82rem; font-weight: 800; backdrop-filter: blur(6px); }
+.pricing-map-state--error { color: #dc2626; }
+.pricing-map-spinner { width: 1.1rem; height: 1.1rem; border: 2px solid color-mix(in srgb, var(--dh-primary) 25%, transparent); border-top-color: var(--dh-primary); border-radius: 999px; animation: map-spin .8s linear infinite; }
+@keyframes map-spin { to { transform: rotate(360deg); } }
+:deep(.leaflet-container) { font-family: inherit; cursor: grab; }
+:deep(.leaflet-container:active) { cursor: grabbing; }
+:deep(.leaflet-control-zoom a) { color: var(--dh-text); background: color-mix(in srgb, var(--dh-card) 94%, transparent); border-color: var(--dh-border); }
+:deep(.leaflet-control-attribution) { background: color-mix(in srgb, var(--dh-card) 88%, transparent); color: var(--dh-text-muted); }
+:deep(.leaflet-control-attribution a) { color: var(--dh-primary); }
+:deep(.dhole-leaflet-selected-icon), :deep(.dhole-leaflet-catalog-icon) { background: transparent !important; border: 0 !important; }
+:deep(.dhole-leaflet-pin) { position: relative; display: block; width: 28px; height: 28px; transform: rotate(45deg); border: 3px solid #fff; border-radius: 50% 50% 50% 8%; background: var(--dh-primary); box-shadow: 0 5px 16px rgb(0 0 0 / 30%); }
+:deep(.dhole-leaflet-pin > span) { position: absolute; top: 7px; left: 7px; width: 8px; height: 8px; border-radius: 999px; background: #fff; }
+:deep(.dhole-leaflet-dot) { display: block; width: 18px; height: 18px; border: 3px solid #fff; border-radius: 999px; background: #64748b; box-shadow: 0 3px 10px rgb(0 0 0 / 28%); }
+:deep(.dhole-leaflet-catalog-icon.is-selected .dhole-leaflet-dot) { width: 20px; height: 20px; background: var(--dh-primary); }
+@media (max-width: 640px) { .pricing-map-viewport { min-height: 340px; height: 52vh; } }
 </style>
