@@ -32,6 +32,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
@@ -117,6 +118,8 @@ interface RateLine {
 
 const router = useRouter()
 const toastStore = useToastStore()
+const authStore = useAuthStore()
+const executiveName = computed(() => authStore.userDisplayName || authStore.email || 'Usuario')
 const step = ref(1)
 const loadingCatalogs = ref(false)
 const loadingRates = ref(false)
@@ -130,6 +133,8 @@ const rateLines = ref<RateLine[]>([])
 const locatingPickup = ref(false)
 const recommendingPorts = ref(false)
 const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
+const destinationVatEnabled = ref(false)
+const optionalVatEnabled = ref(false)
 
 const catalogs = reactive({
   shipmentModes: [] as CatalogItemSelectDto[],
@@ -323,6 +328,16 @@ function number(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function distanceKm(fromLatitude: number, fromLongitude: number, toLatitude: number, toLongitude: number) {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180
+  const latitudeDelta = radians(toLatitude - fromLatitude)
+  const longitudeDelta = radians(toLongitude - fromLongitude)
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(radians(fromLatitude)) * Math.cos(radians(toLatitude)) * Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 function modalityIcon(value: Modality) {
   if (value === 'Maritime') return Ship
   if (value === 'Air') return Plane
@@ -474,7 +489,12 @@ const selectedDestination = computed(() => findById(catalogs.poe, form.destinati
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
 const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
-const selectedIncotermCode = computed(() => String(selectedIncoterm.value?.code ?? displayValue(selectedIncoterm.value)).toUpperCase())
+const selectedIncotermCode = computed(() => {
+  const raw = normalizeCatalogValue(`${selectedIncoterm.value?.code ?? ''} ${displayValue(selectedIncoterm.value)}`)
+  if (/(^|\s)exw(\s|$)/.test(raw)) return 'EXW'
+  if (/(^|\s)fca(\s|$)/.test(raw)) return 'FCA'
+  return String(selectedIncoterm.value?.code ?? displayValue(selectedIncoterm.value)).trim().toUpperCase()
+})
 const selectedWarehouse = computed(() => findById(catalogs.warehouses, form.warehouseId))
 
 function metadataNumber(item: CatalogItemSelectDto | null | undefined, ...keys: Array<keyof CatalogMetadata>) {
@@ -558,7 +578,9 @@ const destinationTaxRate = computed(() => {
     const code = String(item.code ?? metadata(item)?.countryCode ?? '').trim().toUpperCase()
     return code === destinationCountryCode.value
   })
-  return Math.max(0, metadataNumber(country, 'vatRate', 'taxRate') ?? 0)
+  const configured = metadataNumber(country, 'vatRate', 'taxRate')
+  if (configured != null && configured > 0) return configured
+  return ({ CR: 13, PA: 7, GT: 15 } as Record<string, number>)[destinationCountryCode.value] ?? 0
 })
 const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
 
@@ -632,9 +654,25 @@ const visibleSections = computed<RateSection[]>(() => {
 })
 
 const includedLines = computed(() => rateLines.value.filter((line) => line.included))
+function haulageAssociation(line: RateLine) {
+  const value = normalizeCatalogValue(line.name)
+  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
+  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
+  return null
+}
+
+const selectableOptionalLines = computed(() =>
+  rateLines.value.filter((line) => {
+    if (!line.optional) return false
+    const association = haulageAssociation(line)
+    if (!association) return true
+    if (form.merchantHaulage) return association === 'merchant'
+    if (form.carrierHaulage) return association === 'carrier'
+    return false
+  }),
+)
 const optionalChargeOptions = computed(() =>
-  rateLines.value
-    .filter((line) => line.optional)
+  selectableOptionalLines.value
     .map((line) => ({
       value: line.key,
       label: `${line.name} · ${sectionLabel(line.section)}`,
@@ -642,13 +680,18 @@ const optionalChargeOptions = computed(() =>
 )
 const selectedOptionalChargeKeys = computed<string[]>({
   get: () =>
-    rateLines.value
+    selectableOptionalLines.value
       .filter((line) => line.optional && line.included)
       .map((line) => line.key),
   set: (keys) => {
     const selected = new Set(keys)
     rateLines.value.forEach((line) => {
-      if (line.optional) line.included = selected.has(line.key)
+      if (!line.optional) return
+      const selectable = selectableOptionalLines.value.some((candidate) => candidate.key === line.key)
+      line.included = selectable && selected.has(line.key)
+      if (line.included && optionalVatEnabled.value && canApplyDestinationTax(line)) {
+        line.applyDestinationTax = true
+      }
     })
   },
 })
@@ -721,6 +764,27 @@ function lineTaxAmount(line: RateLine) {
 }
 function lineSaleWithTax(line: RateLine) {
   return number(line.saleAmount) + lineTaxAmount(line)
+}
+function setDestinationVat(enabled: boolean) {
+  destinationVatEnabled.value = enabled
+  rateLines.value.forEach((line) => {
+    if (line.section === 'destination_charges' && !line.optional && line.costDetailType !== 'AgentCharge') {
+      line.applyDestinationTax = enabled
+    }
+  })
+}
+function setOptionalVat(enabled: boolean) {
+  optionalVatEnabled.value = enabled
+  rateLines.value.forEach((line) => {
+    if (line.optional) line.applyDestinationTax = enabled && line.included
+  })
+}
+function vatSummary(lines: RateLine[]) {
+  const applicable = lines.filter((line) => line.included && canApplyDestinationTax(line))
+  return {
+    tax: applicable.reduce((sum, line) => sum + lineTaxAmount(line), 0),
+    total: applicable.reduce((sum, line) => sum + lineSaleWithTax(line), 0),
+  }
 }
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
 const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + lineSaleWithTax(line), 0))
@@ -1134,6 +1198,7 @@ addVariableSectionFallback(
 
   const addHaulageOption = (key: string, name: string) => {
     if (!visible.has('destination_charges')) return
+    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(name))) return
     lines.push({
       key,
       section: 'destination_charges',
@@ -1176,6 +1241,8 @@ addVariableSectionFallback(
   }
 
   rateLines.value = lines
+  if (destinationVatEnabled.value) setDestinationVat(true)
+  if (optionalVatEnabled.value) setOptionalVat(true)
 }
 
 function addManualCharge() {
@@ -1444,6 +1511,22 @@ async function recommendNearestPorts() {
   try {
     recommendingPorts.value = true
     nearestPortRecommendations.value = []
+    const eligiblePorts = catalogs.pol.filter((port) => {
+      if (!pickupCoordinates.value) return true
+      const latitude = metadataNumber(port, 'latitude', 'lat')
+      const longitude = metadataNumber(port, 'longitude', 'lng')
+      if (latitude == null || longitude == null) return false
+      return distanceKm(
+        pickupCoordinates.value.latitude,
+        pickupCoordinates.value.longitude,
+        latitude,
+        longitude,
+      ) <= 500
+    })
+    if (!eligiblePorts.length) {
+      toastStore.warning('Sin puertos dentro de 500 km', 'No hay POL configurados dentro del radio solicitado.')
+      return
+    }
     const response = await callEndpoint<unknown, Record<string, unknown>>(
       { method: 'POST', path: '/api/ai/logistics/nearest-ports', headers: { Accept: 'application/json' } },
       {
@@ -1451,7 +1534,8 @@ async function recommendNearestPorts() {
           pickupAddress: form.pickupAddress.trim(),
           latitude: form.pickupLatitude,
           longitude: form.pickupLongitude,
-          ports: catalogs.pol.map((port) => ({
+          maxDistanceKm: 500,
+          ports: eligiblePorts.map((port) => ({
             id: port.id,
             name: displayValue(port) || port.label || port.code,
             code: port.code,
@@ -1464,7 +1548,7 @@ async function recommendNearestPorts() {
     )
     const result = unwrapApiResponse<{ content?: string }>(response as never)
     const recommendations = parseNearestPortResponse(String(result.content ?? ''))
-    const allowed = new Map(catalogs.pol.map((port) => [port.id, port]))
+    const allowed = new Map(eligiblePorts.map((port) => [port.id, port]))
     const seen = new Set<string>()
     nearestPortRecommendations.value = recommendations
       .filter((item) => Boolean(item.portId && allowed.has(item.portId) && !seen.has(item.portId)))
@@ -1824,6 +1908,8 @@ function resetWizard() {
   createdRateId.value = ''
   availableRates.value = []
   rateLines.value = []
+  destinationVatEnabled.value = false
+  optionalVatEnabled.value = false
   Object.assign(form, {
     modality: '',
     shipmentMode: '',
@@ -1858,6 +1944,8 @@ function resetWizard() {
     dangerousCargo: false,
     nonStackable: false,
     overweight: false,
+    merchantHaulage: false,
+    carrierHaulage: false,
     manualName: '',
     manualSection: 'destination_charges',
   })
@@ -2028,6 +2116,7 @@ onMounted(loadCatalogs)
           </div>
 
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
+            <DhInput :model-value="executiveName" label="Ejecutivo" disabled />
             <DhInput v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" />
             <DhSelect v-model="form.originId" label="Origen" placeholder="Seleccione origen" :options="originOptions" />
             <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />
@@ -2148,7 +2237,7 @@ onMounted(loadCatalogs)
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p class="text-sm font-black">Puertos cercanos sugeridos por IA</p>
-                  <p class="text-xs font-semibold text-[var(--dh-text-muted)]">La IA solo puede elegir entre los POL configurados en Dhole.</p>
+                  <p class="text-xs font-semibold text-[var(--dh-text-muted)]">La IA solo puede elegir POL configurados en Dhole dentro de un radio máximo de 500 km.</p>
                 </div>
                 <DhButton
                   variant="secondary"
@@ -2331,7 +2420,7 @@ onMounted(loadCatalogs)
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
-              <DhInput v-model="form.cargoDescription" label="Descripción de la carga" />
+              <DhInput v-model="form.cargoDescription" label="Descripción de la carga (opcional)" />
               <DhInput v-model.number="form.cargoValue" type="number" min="0" step="0.01" label="Valor de la carga (si aplica)" />
             </div>
             <DhTextarea v-model="form.cargoObservations" label="Observaciones de la carga" :rows="4" />
@@ -2377,11 +2466,23 @@ onMounted(loadCatalogs)
           </div>
 
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
-            <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
+            <div class="crystal-group-header">
+              <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
+              <div v-if="group.key === 'destination'" class="crystal-vat-header">
+                <DhCheckbox
+                  :model-value="destinationVatEnabled"
+                  :label="`Aplicar IVA destino (${destinationTaxRate}%)`"
+                  :disabled="destinationTaxRate <= 0"
+                  @update:model-value="setDestinationVat"
+                />
+                <DhInput :model-value="vatSummary(group.lines).tax" type="number" label="Monto IVA" disabled />
+                <DhInput :model-value="vatSummary(group.lines).total" type="number" label="Venta + IVA" disabled />
+              </div>
+            </div>
             <div
               v-for="line in group.lines"
               :key="line.key"
-              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
+              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px]"
             >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -2399,22 +2500,26 @@ onMounted(loadCatalogs)
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costType !== 'Variable'" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
-              <div v-if="canApplyDestinationTax(line)" class="space-y-2">
-                <DhCheckbox :model-value="Boolean(line.applyDestinationTax)" :label="`Aplicar IVA destino (${destinationTaxRate}%)`" :disabled="destinationTaxRate <= 0" @update:model-value="line.applyDestinationTax = $event" />
-                <div v-if="line.applyDestinationTax" class="grid grid-cols-2 gap-2">
-                  <DhInput :model-value="lineTaxAmount(line)" type="number" label="Monto IVA" disabled />
-                  <DhInput :model-value="lineSaleWithTax(line)" type="number" label="Venta + IVA" disabled />
-                </div>
-              </div>
-              <span v-else />
             </div>
           </div>
 
           <div class="crystal-bottom-charges space-y-4 p-4">
             <div v-if="optionalChargeOptions.length">
+              <div class="crystal-group-header mb-3">
+                <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Cargos opcionales</p>
+                <div class="crystal-vat-header">
+                  <DhCheckbox
+                    :model-value="optionalVatEnabled"
+                    :label="`Aplicar IVA destino (${destinationTaxRate}%)`"
+                    :disabled="destinationTaxRate <= 0"
+                    @update:model-value="setOptionalVat"
+                  />
+                  <DhInput :model-value="vatSummary(bottomRateLines.filter((line) => line.optional)).tax" type="number" label="Monto IVA" disabled />
+                  <DhInput :model-value="vatSummary(bottomRateLines.filter((line) => line.optional)).total" type="number" label="Venta + IVA" disabled />
+                </div>
+              </div>
               <PricingCrystalMultiSelect
                 v-model="selectedOptionalChargeKeys"
-                label="Cargos opcionales"
                 placeholder="Seleccione cargos opcionales"
                 search-placeholder="Buscar cargo opcional..."
                 :options="optionalChargeOptions"
@@ -2446,13 +2551,6 @@ onMounted(loadCatalogs)
                 </div>
                 <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" />
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
-                <div v-if="canApplyDestinationTax(line)" class="space-y-2">
-                  <DhCheckbox :model-value="Boolean(line.applyDestinationTax)" :label="`Aplicar IVA destino (${destinationTaxRate}%)`" :disabled="destinationTaxRate <= 0" @update:model-value="line.applyDestinationTax = $event" />
-                  <div v-if="line.applyDestinationTax" class="grid grid-cols-2 gap-2">
-                    <DhInput :model-value="lineTaxAmount(line)" type="number" label="Monto IVA" disabled />
-                    <DhInput :model-value="lineSaleWithTax(line)" type="number" label="Venta + IVA" disabled />
-                  </div>
-                </div>
                 <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
                 <span v-else />
               </div>
@@ -2787,9 +2885,12 @@ onMounted(loadCatalogs)
 }
 
 .crystal-lines-header {
+  position: -webkit-sticky;
   position: sticky;
   top: 6.25rem;
-  z-index: 25;
+  z-index: 29;
+  align-self: flex-start;
+  width: 100%;
   border: 1px solid var(--dh-border);
   border-radius: 20px;
   padding: 0.8rem;
@@ -2797,6 +2898,26 @@ onMounted(loadCatalogs)
   box-shadow: var(--dh-shadow-md);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
+}
+
+.crystal-group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.crystal-vat-header {
+  display: grid;
+  width: min(100%, 640px);
+  grid-template-columns: minmax(190px, 1fr) minmax(130px, 170px) minmax(130px, 170px);
+  align-items: end;
+  gap: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--dh-border) 88%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--dh-card) 92%, transparent);
+  padding: 0.65rem;
 }
 
 .crystal-total-card span {
@@ -2926,6 +3047,14 @@ onMounted(loadCatalogs)
     justify-content: space-between;
     border-radius: 12px;
     padding: 0.4rem 0.5rem;
+  }
+
+  .crystal-vat-header {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .crystal-vat-header :deep(label:first-child) {
+    grid-column: 1 / -1;
   }
 
   .crystal-panel {
