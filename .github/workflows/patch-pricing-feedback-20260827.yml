@@ -22,12 +22,11 @@ jobs:
       - name: Apply patch
         run: python3 .github/scripts/patch-pricing-feedback-20260827.py
 
-      - name: Build web
+      - name: Build web image
         shell: bash
         run: |
           set -euo pipefail
-          pnpm install --frozen-lockfile
-          pnpm run build
+          docker build -f Dockerfile -t dhole/web:pricing-feedback-check .
 
       - name: Commit patch and clean helper
         shell: bash
