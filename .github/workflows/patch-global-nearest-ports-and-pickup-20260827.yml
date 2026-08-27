@@ -1,0 +1,45 @@
+name: Patch global nearest ports and pickup
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/scripts/patch-global-nearest-ports-and-pickup-20260827.py'
+      - '.github/workflows/patch-global-nearest-ports-and-pickup-20260827.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply patch
+        run: python3 .github/scripts/patch-global-nearest-ports-and-pickup-20260827.py
+
+      - name: Build web
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --build-arg VITE_API_URL=https://api.example.invalid \
+            --build-arg VITE_APP_NAME=Dhole \
+            --build-arg VITE_FRONTEND_DOMAIN=example.invalid \
+            -t dhole-web-patch-check .
+
+      - name: Commit patch and cleanup helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/scripts/patch-global-nearest-ports-and-pickup-20260827.py
+          rm -f .github/workflows/patch-global-nearest-ports-and-pickup-20260827.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(pricing): search real nearby ports and persist pickup'
+          git push origin HEAD:master
