@@ -66,6 +66,7 @@ interface CatalogMetadata {
   costMinimumUsd?: number
   countryCode?: string
   taxRate?: number | string
+  vatRate?: number | string
   address?: string
   latitude?: number | string
   longitude?: number | string
@@ -556,7 +557,7 @@ const destinationTaxRate = computed(() => {
     const code = String(item.code ?? metadata(item)?.countryCode ?? '').trim().toUpperCase()
     return code === destinationCountryCode.value
   })
-  return Math.max(0, metadataNumber(country, 'taxRate') ?? 0)
+  return Math.max(0, metadataNumber(country, 'vatRate', 'taxRate') ?? 0)
 })
 const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
 
@@ -1283,7 +1284,7 @@ async function loadCatalogs() {
       select('carriers'),
       select('currencies'),
       selectOptional('pricing-warehouses', 'warehouses', 'whs', 'fca-warehouses'),
-      selectOptional('countries', 'country-tax-rates'),
+      selectOptional('country-vat-rates', 'countries', 'country-tax-rates'),
       PricingService.selectCosts().catch(() => [] as CostSelectDto[]),
     ])
 
