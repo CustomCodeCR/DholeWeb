@@ -1,5 +1,6 @@
 import './assets/main.css'
 import './assets/pricing-rate-navigation.css'
+import './assets/pricing-metric-colors.css'
 
 import { createApp, nextTick, watch } from 'vue'
 import { createPinia } from 'pinia'
