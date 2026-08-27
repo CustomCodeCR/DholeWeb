@@ -785,10 +785,13 @@ function vatSummary(lines: RateLine[]) {
   }
 }
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
-const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + lineSaleWithTax(line), 0))
-const totalUtility = computed(() => totalSale.value - totalCost.value)
+const totalSaleBeforeTax = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
+const totalTax = computed(() => includedLines.value.reduce((sum, line) => sum + lineTaxAmount(line), 0))
+// totalSale es el total a cobrar al cliente; el IVA se muestra, pero queda fuera de utilidad y margen.
+const totalSale = computed(() => totalSaleBeforeTax.value + totalTax.value)
+const totalUtility = computed(() => totalSaleBeforeTax.value - totalCost.value)
 const totalMarginPercentage = computed(() =>
-  totalSale.value > 0 ? (totalUtility.value / totalSale.value) * 100 : 0,
+  totalSaleBeforeTax.value > 0 ? (totalUtility.value / totalSaleBeforeTax.value) * 100 : 0,
 )
 
 function financialTone(value: number) {
@@ -1745,7 +1748,7 @@ async function saveRate() {
     currencyName: line.currencyName,
     currencyCode: line.currencyCode,
     costAmount: number(line.costAmount),
-    saleAmount: lineSaleWithTax(line),
+    saleAmount: number(line.saleAmount),
     quantity: quantityForChargeBasis(line.chargeBasis),
     notes: line.costDetailType === 'Insurance'
       ? [line.notes, cargoInsuranceNote(form.cargoValue, form.freightCost)].filter(Boolean).join(' · ')
@@ -1790,31 +1793,39 @@ async function saveRate() {
       .join(' '),
   })
 
-  const uniqueText = (values: Array<string | null | undefined>) => {
+  const uniqueTermLines = (values: Array<string | null | undefined>) => {
     const seen = new Set<string>()
-    return values.filter((value): value is string => {
-      const text = String(value ?? '').trim()
-      if (!text) return false
-      const key = normalizeCatalogValue(text)
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
+    const result: string[] = []
+
+    values.forEach((value) => {
+      String(value ?? '')
+        .split(/\r?\n/)
+        .forEach((rawLine) => {
+          const text = rawLine.trim()
+          if (!text) return
+          const key = commercialTermKey(text) || normalizeCatalogValue(text)
+          if (!key || seen.has(key)) return
+          seen.add(key)
+          result.push(text)
+        })
     })
+
+    return result
   }
 
-  const includeTerms = uniqueText([
+  const includeTerms = uniqueTermLines([
     ...commercialTerms.includes.map((item) => item.text),
     ...includedLines.value.map((line) => line.name),
   ])
   const includeKeys = new Set(includeTerms.map(commercialTermKey))
-  const subjectTerms = uniqueText([
+  const subjectTerms = uniqueTermLines([
     ...commercialTerms.subjectTo.map((item) => item.text),
     form.dangerousCargo ? 'Carga peligrosa' : null,
     form.nonStackable ? 'Carga no estibable' : null,
     form.overweight ? 'Sobrepeso' : null,
   ]).filter((text) => !includeKeys.has(commercialTermKey(text)))
   const subjectKeys = new Set(subjectTerms.map(commercialTermKey))
-  const excludeTerms = uniqueText(
+  const excludeTerms = uniqueTermLines(
     commercialTerms.excludes.map((item) => item.text),
   ).filter((text) => {
     const key = commercialTermKey(text)
@@ -2114,7 +2125,7 @@ onMounted(loadCatalogs)
           </div>
 
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
-            <DhInput v-model="form.executiveName" label="Ejecutivo de venta" placeholder="Escriba el nombre del ejecutivo" />
+            <DhInput v-model="form.executiveName" label="Ejecutivo de venta" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
             <DhInput v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" />
             <DhSelect v-model="form.originId" label="Origen" placeholder="Seleccione origen" :options="originOptions" />
             <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />

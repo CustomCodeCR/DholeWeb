@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
       <DhTopbar @navigation="toggleMobileSidebar" @search="commandOpen = true" @logout="logout" />
       <DhWorkspaceTabs />
 
-      <main class="min-w-0 overflow-x-hidden p-2 sm:p-4">
+      <main class="min-w-0 overflow-x-clip p-2 sm:p-4">
         <div v-if="tabsStore.splitPane && !isEmbedded" class="grid gap-4 xl:grid-cols-2">
           <section
             class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] min-w-0 overflow-hidden rounded-[24px] sm:rounded-[32px]"
