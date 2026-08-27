@@ -134,6 +134,7 @@ const shipmentModeOptions: Array<{ label: string; value: ShipmentMode | '' }> = 
 const chargeBasisOptions: Array<{ label: string; value: ChargeBasis }> = [
   { label: 'Por embarque', value: 'PerShipment' },
   { label: 'Por contenedor', value: 'PerContainer' },
+  { label: 'Por TEU', value: 'PerTeu' },
   { label: 'Por camión', value: 'PerTruck' },
   { label: 'Por CBM', value: 'PerCbm' },
   { label: 'Por CBM cobrable', value: 'PerChargeableCbm' },
