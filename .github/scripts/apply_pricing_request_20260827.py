@@ -1,0 +1,297 @@
+from pathlib import Path
+
+path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+text = path.read_text(encoding='utf-8-sig')
+
+
+def once(old: str, new: str, label: str):
+    global text
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f'{label}: expected 1 occurrence, found {count}')
+    text = text.replace(old, new, 1)
+
+
+once(
+    "import { useToastStore } from '@/core/stores/toastStore'\n",
+    "import { useToastStore } from '@/core/stores/toastStore'\nimport { useAuthStore } from '@/core/stores/authStore'\n",
+    'auth store import',
+)
+once(
+    "const router = useRouter()\nconst toastStore = useToastStore()\n",
+    "const router = useRouter()\nconst toastStore = useToastStore()\nconst authStore = useAuthStore()\nconst executiveName = computed(() => authStore.userDisplayName || authStore.email || 'Usuario')\n",
+    'executive state',
+)
+once(
+    "  countryCode?: string\n  address?: string\n",
+    "  countryCode?: string\n  vatRate?: number | string\n  ivaRate?: number | string\n  address?: string\n",
+    'VAT metadata',
+)
+once(
+    "interface NearestPortRecommendation {\n  portId: string\n  name: string\n  reason: string\n}\n",
+    "interface NearestPortRecommendation {\n  portId: string\n  name: string\n  reason: string\n  distanceKm: number | null\n}\n",
+    'port recommendation type',
+)
+once(
+    "  optional: boolean\n  manual: boolean\n}\n",
+    "  optional: boolean\n  manual: boolean\n  applyVat: boolean\n}\n",
+    'rate line VAT state',
+)
+once(
+    "  currencies: [] as CatalogItemSelectDto[],\n  warehouses: [] as CatalogItemSelectDto[],\n})\n",
+    "  currencies: [] as CatalogItemSelectDto[],\n  warehouses: [] as CatalogItemSelectDto[],\n  countryVatRates: [] as CatalogItemSelectDto[],\n})\n",
+    'VAT catalogs state',
+)
+once(
+    "  dangerousCargo: false,\n  nonStackable: false,\n  overweight: false,\n  manualName: '',\n",
+    "  dangerousCargo: false,\n  nonStackable: false,\n  overweight: false,\n  merchantHaulage: false,\n  carrierHaulage: false,\n  manualName: '',\n",
+    'haulage form flags',
+)
+once(
+    "  if (step.value === 6) return Boolean(form.cargoDescription || form.cabysCode)\n",
+    "  if (step.value === 6) return true\n",
+    'optional description validation',
+)
+
+marker = "const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)\n"
+vat_helpers = marker + """
+const destinationCountryCode = computed(() =>
+  String(
+    metadata(selectedPod.value)?.countryCode
+      ?? metadata(selectedDestination.value)?.countryCode
+      ?? '',
+  ).trim().toUpperCase(),
+)
+const destinationVatCatalogItem = computed(() =>
+  catalogs.countryVatRates.find((item) => {
+    const code = String(metadata(item)?.countryCode ?? item.code ?? '').trim().toUpperCase()
+    return Boolean(code && code === destinationCountryCode.value)
+  }) ?? null,
+)
+const destinationVatRate = computed(() => {
+  const item = destinationVatCatalogItem.value
+  if (!item) return 0
+  const raw = metadata(item)?.vatRate ?? metadata(item)?.ivaRate ?? item.value ?? 0
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+})
+function isVatEligibleLine(line: RateLine) {
+  return line.section === 'destination_charges' || line.optional
+}
+function lineVatAmount(line: RateLine) {
+  if (!line.applyVat || !isVatEligibleLine(line)) return 0
+  return number(line.saleAmount) * destinationVatRate.value / 100
+}
+function lineTotalWithVat(line: RateLine) {
+  return number(line.saleAmount) + lineVatAmount(line)
+}
+function toggleLineVat(line: RateLine) {
+  if (!isVatEligibleLine(line)) return
+  if (destinationVatRate.value <= 0) {
+    toastStore.warning(
+      'IVA no configurado',
+      destinationCountryCode.value
+        ? `No existe una tasa de IVA configurada para ${destinationCountryCode.value}.`
+        : 'El destino no tiene countryCode configurado para resolver el IVA.',
+    )
+    line.applyVat = false
+    return
+  }
+  line.applyVat = !line.applyVat
+}
+"""
+once(marker, vat_helpers, 'VAT helpers')
+
+once(
+    "function isOverweightCost(cost: CostSelectDto) {\n  const value = normalizeCatalogValue(`${cost.name} ${cost.notes ?? ''}`)\n  return value.includes('sobrepeso') || value.includes('overweight') || value.includes('over weight')\n}\n",
+    "function isOverweightCost(cost: CostSelectDto) {\n  const value = normalizeCatalogValue(`${cost.name} ${cost.notes ?? ''}`)\n  return value.includes('sobrepeso') || value.includes('overweight') || value.includes('over weight')\n}\n\nfunction isMerchantHaulageCost(cost: CostSelectDto) {\n  const value = normalizeCatalogValue(`${cost.name} ${cost.notes ?? ''}`)\n  return value.includes('gate inland gam merchant')\n    || value.includes('inland gam merchant')\n    || (value.includes('merchant') && value.includes('inland'))\n}\n\nfunction isCarrierHaulageCost(cost: CostSelectDto) {\n  const value = normalizeCatalogValue(`${cost.name} ${cost.notes ?? ''}`)\n  return value.includes('inland gam naviera')\n    || (value.includes('naviera') && value.includes('inland'))\n    || (value.includes('carrier') && value.includes('inland'))\n}\n",
+    'haulage cost helpers',
+)
+once(
+    "  configuredCosts.forEach((cost) => {\n    const section = sectionForCost(cost)\n",
+    "  configuredCosts.forEach((cost) => {\n    if (cost.costType === 'Optional' && isMerchantHaulageCost(cost) && !form.merchantHaulage) return\n    if (cost.costType === 'Optional' && isCarrierHaulageCost(cost) && !form.carrierHaulage) return\n    const section = sectionForCost(cost)\n",
+    'haulage configured filtering',
+)
+
+text = text.replace("      manual: false,\n", "      manual: false,\n      applyVat: false,\n")
+text = text.replace("    manual: false,\n", "    manual: false,\n    applyVat: false,\n")
+text = text.replace("    manual: true,\n", "    manual: true,\n    applyVat: false,\n")
+
+anchor = "  if (form.dangerousCargo) addCargoConditionFallback('dangerous', 'Carga peligrosa')\n  if (form.overweight) addCargoConditionFallback('overweight', 'Sobrepeso')\n\n"
+replacement = anchor + """  const addHaulageOptionalFallback = (key: 'merchant' | 'carrier', name: string, enabled: boolean) => {
+    if (!enabled) return
+    const normalizedName = normalizeCatalogValue(name)
+    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizedName)) return
+    const section: RateSection = visible.has('destination_charges')
+      ? 'destination_charges'
+      : visibleSections.value[0] ?? 'destination_charges'
+    lines.push({
+      key: `haulage:${key}`,
+      section,
+      name,
+      costDetailType: 'InlandTransport',
+      costType: 'Optional',
+      chargeBasis: defaultChargeBasis('InlandTransport'),
+      contextLabel: 'Opción habilitada por condición Merchant / Carrier.',
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: 0,
+      saleAmount: 0,
+      included: false,
+      optional: true,
+      manual: false,
+      applyVat: false,
+    })
+  }
+
+  addHaulageOptionalFallback('merchant', 'Gate + Inland GAM Merchant', form.merchantHaulage)
+  addHaulageOptionalFallback('carrier', 'Inland GAM Naviera', form.carrierHaulage)
+
+"""
+once(anchor, replacement, 'haulage optional fallbacks')
+
+once(
+    "      currencies,\n      warehouses,\n      selectedCosts,\n",
+    "      currencies,\n      warehouses,\n      countryVatRates,\n      selectedCosts,\n",
+    'VAT destructuring',
+)
+once(
+    "      select('currencies'),\n      selectOptional('pricing-warehouses', 'warehouses', 'whs', 'fca-warehouses'),\n      PricingService.selectCosts().catch(() => [] as CostSelectDto[]),\n",
+    "      select('currencies'),\n      selectOptional('pricing-warehouses', 'warehouses', 'whs', 'fca-warehouses'),\n      selectOptional('country-vat-rates', 'country-tax-rates', 'vat-rates'),\n      PricingService.selectCosts().catch(() => [] as CostSelectDto[]),\n",
+    'VAT catalog load',
+)
+once(
+    "      currencies,\n      warehouses,\n    })\n",
+    "      currencies,\n      warehouses,\n      countryVatRates,\n    })\n",
+    'VAT catalog assign',
+)
+
+once(
+    "    recommendations?: Array<{ portId?: string; reason?: string }>\n",
+    "    recommendations?: Array<{ portId?: string; distanceKm?: number; reason?: string }>\n",
+    'distance response parser',
+)
+once(
+    "          longitude: form.pickupLongitude,\n          ports: catalogs.pol.map((port) => ({\n",
+    "          longitude: form.pickupLongitude,\n          maxDistanceKm: 500,\n          ports: catalogs.pol.map((port) => ({\n",
+    '500 km request',
+)
+once(
+    "          name: displayValue(port) || port.label || port.code,\n          reason: String(item.reason ?? 'Puerto recomendado por cercanía logística.'),\n",
+    "          name: displayValue(port) || port.label || port.code,\n          reason: String(item.reason ?? 'Puerto recomendado por cercanía logística.'),\n          distanceKm: Number.isFinite(Number(item.distanceKm)) ? Number(item.distanceKm) : null,\n",
+    'distance recommendation mapping',
+)
+
+details_start = text.index("  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({")
+details_end = text.index("\n\n  const includedNameKeys", details_start)
+new_details = """  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => {
+    const baseNotes = line.costDetailType === 'Insurance'
+      ? [line.notes, cargoInsuranceNote(form.cargoValue, form.freightCost)].filter(Boolean).join(' · ')
+      : line.manual
+        ? line.notes || 'Cargo manual agregado desde el wizard de Pricing.'
+        : line.notes || null
+    const vatNotes = line.applyVat
+      ? `IVA ${destinationVatRate.value}% (${destinationCountryCode.value || 'destino'}): ${lineVatAmount(line).toFixed(2)} · Total con IVA: ${lineTotalWithVat(line).toFixed(2)}`
+      : null
+
+    return {
+      costId: line.costId ?? null,
+      name: line.name,
+      costDetailType: line.costDetailType,
+      costType: line.costType,
+      chargeBasis: line.chargeBasis,
+      currencyId: line.currencyId,
+      currencyName: line.currencyName,
+      currencyCode: line.currencyCode,
+      costAmount: number(line.costAmount),
+      saleAmount: number(line.saleAmount),
+      quantity: quantityForChargeBasis(line.chargeBasis),
+      notes: [baseNotes, vatNotes].filter(Boolean).join(' · ') || null,
+    }
+  })"""
+text = text[:details_start] + new_details + text[details_end:]
+
+once(
+    "    dangerousCargo: false,\n    nonStackable: false,\n    overweight: false,\n    manualName: '',\n",
+    "    dangerousCargo: false,\n    nonStackable: false,\n    overweight: false,\n    merchantHaulage: false,\n    carrierHaulage: false,\n    manualName: '',\n",
+    'reset haulage flags',
+)
+
+once(
+    "          <div class=\"crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5\">\n            <DhInput v-model=\"form.clientName\" label=\"Nombre del cliente\" placeholder=\"Escriba el nombre del cliente\" />\n",
+    "          <div class=\"crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5\">\n            <DhInput :model-value=\"executiveName\" label=\"Ejecutivo\" disabled />\n            <DhInput v-model=\"form.clientName\" label=\"Nombre del cliente\" placeholder=\"Escriba el nombre del cliente\" />\n",
+    'screen 3 executive',
+)
+once(
+    "                  <p class=\"text-xs font-semibold text-[var(--dh-text-muted)]\">La IA solo puede elegir entre los POL configurados en Dhole.</p>\n",
+    "                  <p class=\"text-xs font-semibold text-[var(--dh-text-muted)]\">La IA solo evalúa POL configurados en Dhole que estén dentro de un radio máximo de 500 km.</p>\n",
+    '500 km helper text',
+)
+once(
+    "                  <span class=\"block text-sm font-black\">{{ recommendation.name }}</span>\n                  <span class=\"mt-1 block text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]\">{{ recommendation.reason }}</span>\n",
+    "                  <span class=\"block text-sm font-black\">{{ recommendation.name }}</span>\n                  <span v-if=\"recommendation.distanceKm != null\" class=\"mt-1 block text-xs font-black text-[var(--dh-primary)]\">{{ recommendation.distanceKm.toFixed(1) }} km</span>\n                  <span class=\"mt-1 block text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]\">{{ recommendation.reason }}</span>\n",
+    'port distance UI',
+)
+
+once(
+    '<DhInput v-model="form.cargoDescription" label="Descripción de la carga" />',
+    '<DhInput v-model="form.cargoDescription" label="Descripción de la carga (opcional)" />',
+    'optional description label',
+)
+flags_end = """            <button type="button" class="crystal-flag" :class="form.overweight ? 'crystal-flag--active' : ''" @click="form.overweight = !form.overweight">
+              <Check v-if="form.overweight" class="h-4 w-4" /> Sobrepeso
+            </button>
+          </div>"""
+flags_new = """            <button type="button" class="crystal-flag" :class="form.overweight ? 'crystal-flag--active' : ''" @click="form.overweight = !form.overweight">
+              <Check v-if="form.overweight" class="h-4 w-4" /> Sobrepeso
+            </button>
+            <button type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="form.merchantHaulage = !form.merchantHaulage">
+              <Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant
+            </button>
+            <button type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="form.carrierHaulage = !form.carrierHaulage">
+              <Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier
+            </button>
+          </div>"""
+once(flags_end, flags_new, 'Merchant Carrier flags')
+once(
+    "          <div class=\"grid gap-3\" :class=\"shipmentModeForApi === 'Fcl' ? 'md:grid-cols-2' : 'md:grid-cols-3'\">\n",
+    "          <div class=\"grid gap-3 sm:grid-cols-2 lg:grid-cols-5\">\n",
+    'screen 6 flag grid',
+)
+
+standard_anchor = """              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+              <span />
+            </div>"""
+vat_ui_standard = """              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+              <span />
+              <div v-if="isVatEligibleLine(line)" class="md:col-span-4 grid gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-3 sm:grid-cols-[auto_1fr_1fr] sm:items-end">
+                <button type="button" class="crystal-mini-toggle min-h-11 justify-self-start" :class="line.applyVat ? 'crystal-mini-toggle--active' : ''" :disabled="destinationVatRate <= 0" @click="toggleLineVat(line)">
+                  <Check v-if="line.applyVat" class="mr-1 inline h-3.5 w-3.5" /> Aplicar IVA{{ destinationVatRate > 0 ? ` ${destinationVatRate}%` : '' }}
+                </button>
+                <DhInput v-if="line.applyVat" :model-value="lineVatAmount(line).toFixed(2)" :label="`Monto IVA (${destinationVatRate}%)`" disabled />
+                <DhInput v-if="line.applyVat" :model-value="lineTotalWithVat(line).toFixed(2)" label="Total venta + IVA" disabled />
+                <p v-if="destinationVatRate <= 0" class="text-xs font-bold text-amber-600 sm:col-span-2">IVA no configurado para {{ destinationCountryCode || 'el país destino' }}.</p>
+              </div>
+            </div>"""
+once(standard_anchor, vat_ui_standard, 'VAT standard line UI')
+
+bottom_anchor = """                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+                <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
+                <span v-else />
+              </div>"""
+vat_ui_bottom = """                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+                <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
+                <span v-else />
+                <div v-if="isVatEligibleLine(line)" class="md:col-span-4 grid gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-3 sm:grid-cols-[auto_1fr_1fr] sm:items-end">
+                  <button type="button" class="crystal-mini-toggle min-h-11 justify-self-start" :class="line.applyVat ? 'crystal-mini-toggle--active' : ''" :disabled="destinationVatRate <= 0" @click="toggleLineVat(line)">
+                    <Check v-if="line.applyVat" class="mr-1 inline h-3.5 w-3.5" /> Aplicar IVA{{ destinationVatRate > 0 ? ` ${destinationVatRate}%` : '' }}
+                  </button>
+                  <DhInput v-if="line.applyVat" :model-value="lineVatAmount(line).toFixed(2)" :label="`Monto IVA (${destinationVatRate}%)`" disabled />
+                  <DhInput v-if="line.applyVat" :model-value="lineTotalWithVat(line).toFixed(2)" label="Total venta + IVA" disabled />
+                  <p v-if="destinationVatRate <= 0" class="text-xs font-bold text-amber-600 sm:col-span-2">IVA no configurado para {{ destinationCountryCode || 'el país destino' }}.</p>
+                </div>
+              </div>"""
+once(bottom_anchor, vat_ui_bottom, 'VAT bottom line UI')
+
+path.write_text(text, encoding='utf-8')
