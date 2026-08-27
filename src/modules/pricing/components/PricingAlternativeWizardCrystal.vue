@@ -768,6 +768,28 @@ function serviceAmounts(service: CatalogItemSelectDto) {
   return { cost: 0, sale: 0 }
 }
 
+async function loadApplicableCosts() {
+  try {
+    costs.value = await PricingService.selectCosts({
+      carrierId: form.carrierId || undefined,
+      agentId: form.agentId || undefined,
+      polId: form.originId || undefined,
+      poeId: form.destinationId || undefined,
+      podId: form.podId || undefined,
+      incotermId: form.incotermId || undefined,
+      shipmentMode: shipmentModeForApi.value,
+      isActive: true,
+      applicableToContext: true,
+    } as any)
+  } catch (error) {
+    costs.value = []
+    toastStore.backendError(
+      error,
+      'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.',
+    )
+  }
+}
+
 function rebuildRateLines() {
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
   if (!currency) return
@@ -825,67 +847,7 @@ function rebuildRateLines() {
     })
   })
 
-  // Las reglas de Incoterm complementan los costos configurados. Antes este bloque solo
-  // corría cuando no existía ningún costo, por lo que EXW/FCA perdían Recolección/Cargos en origen.
-  buildOperationalLines({
-    modality: form.modality as Modality,
-    shipmentMode: shipmentModeForApi.value,
-    direction: direction.value,
-    incotermCode: selectedIncoterm.value?.code ?? '',
-    destinationText: displayValue(selectedDestination.value),
-  }).forEach((template) => {
-    if (!visible.has(template.section)) return
-    if (hasEquivalent(template.name, template.costDetailType)) return
-    lines.push({
-      key: `operational:${normalizeCatalogValue(template.name)}`,
-      section: template.section,
-      name: template.name,
-      costDetailType: template.costDetailType,
-      costType: template.costType,
-      chargeBasis: defaultChargeBasis(template.costDetailType),
-      currencyId: currency.id,
-      currencyName: displayValue(currency),
-      currencyCode: currency.code,
-      costAmount: template.costAmount,
-      saleAmount: template.saleAmount,
-      included: template.included,
-      optional: template.optional,
-      manual: false,
-    })
-  })
-
-  effectiveServices.value
-    .filter((service) => !normalizeCatalogValue(displayValue(service)).includes('transporte internacional'))
-    .forEach((service) => {
-      const meta = metadata(service)
-      const name = displayValue(service)
-      const canonical = canonicalServiceLine(service.code, name)
-      const lineName = canonical.name
-      const detailType = canonical.type ?? detailTypeForService(service)
-      const section = canonical.section ?? meta?.rateSections?.[0] ?? sectionForDetail(detailType, lineName)
-      if (!visible.has(section)) return
-      if (hasEquivalent(lineName, detailType)) return
-      const amounts = serviceAmounts(service)
-      const optional = detailType === 'Insurance' || Boolean(meta?.optional)
-      lines.push({
-        key: `service:${service.id}`,
-        section,
-        name: lineName,
-        costDetailType: detailType,
-        costType: optional ? 'Optional' : 'Variable',
-        chargeBasis: defaultChargeBasis(detailType),
-        currencyId: currency.id,
-        currencyName: displayValue(currency),
-        currencyCode: currency.code,
-        costAmount: amounts.cost,
-        saleAmount: amounts.sale,
-        included: !optional,
-        optional,
-        manual: false,
-      })
-    })
-
-  if (form.cargoValue > 0 && !cargoInsuranceService.value && !lines.some((line) => line.costDetailType === 'Insurance')) {
+  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance')) {
     const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
     lines.push({
       key: 'cargo-insurance:auto',
@@ -1093,7 +1055,10 @@ function continueManual() {
 async function next() {
   if (!canNext.value) return
   if (step.value === 3) await searchApprovedRates()
-  if (step.value === 6) rebuildRateLines()
+  if (step.value === 6) {
+  await loadApplicableCosts()
+  rebuildRateLines()
+}
   if (step.value < 7) step.value += 1
 }
 
