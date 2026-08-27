@@ -550,9 +550,9 @@ export interface RateDto extends Record<string, unknown> {
   poeId: string
   poeName: string
   poeCode: string
-  podId: string
-  podName: string
-  podCode: string
+  podId?: string | null
+  podName?: string | null
+  podCode?: string | null
   containerTypeId: string
   containerTypeName: string
   containerTypeCode: string
@@ -641,9 +641,9 @@ export interface CreateRateRequest extends Record<string, unknown> {
   poeId: string
   poeName: string
   poeCode: string
-  podId: string
-  podName: string
-  podCode: string
+  podId?: string | null
+  podName?: string | null
+  podCode?: string | null
   containerTypeId: string
   containerTypeName: string
   containerTypeCode: string

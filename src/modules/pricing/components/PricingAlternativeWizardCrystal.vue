@@ -299,11 +299,11 @@ function shipmentLabel(value: string, modality: Modality) {
 
 function sectionLabel(section: RateSection) {
   return ({
-    pickup_origin: 'Recolecta en Origen',
+    pickup_origin: 'Recolecta',
     origin_charges: 'Cargos en Origen',
     international_freight: 'Flete Internacional',
     destination_charges: 'Cargos en Destino',
-    delivery_destination: 'Entrega en Destino',
+    delivery_destination: 'Entrega',
   } as Record<RateSection, string>)[section]
 }
 
@@ -454,6 +454,32 @@ const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierI
 const selectedCurrency = computed(() => findById(catalogs.currencies, form.currencyId))
 const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
 
+function rateCommentRank(comment?: string | null) {
+  const value = normalizeCatalogValue(String(comment ?? ''))
+  if (!value) return 1
+  const negative = ['sin espacio', 'no disponible', 'no space', 'not available', 'full', 'cerrado', 'closed', 'negativo', 'rechazado']
+  if (negative.some((term) => value.includes(normalizeCatalogValue(term)))) return 0
+  const positive = ['espacio disponible', 'disponible', 'available', 'confirmado', 'confirmed', 'positivo', 'ok', 'aprobado']
+  if (positive.some((term) => value.includes(normalizeCatalogValue(term)))) return 2
+  return 1
+}
+
+const sortedAvailableRates = computed(() =>
+  [...availableRates.value].sort((left, right) => {
+    const price = number(left.freight) - number(right.freight)
+    if (price !== 0) return price
+    const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)
+    if (comment !== 0) return comment
+    return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
+  }),
+)
+
+function remainingValidityDays(validTo: string) {
+  const end = new Date(`${String(validTo).slice(0, 10)}T12:00:00`)
+  const today = new Date(`${todayIso()}T12:00:00`)
+  return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86_400_000))
+}
+
 const originOptions = computed(() => catalogs.pol.map((item) => ({ value: item.id, label: displayValue(item) })))
 const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))
 const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
@@ -480,24 +506,17 @@ const direction = computed(() => {
   return 'Tránsito / doméstico'
 })
 
-const visibleSections = computed<RateSection[]>(() => {
+const incotermResponsibilitySections = computed<RateSection[]>(() => {
   const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
-  const sections = new Set<RateSection>(
-    incotermRateSections(selectedIncoterm.value?.code, configured) as RateSection[],
-  )
+  return incotermRateSections(selectedIncoterm.value?.code, configured) as RateSection[]
+})
 
-  effectiveServices.value.forEach((service) => {
-    if (
-      service.code?.toUpperCase() === 'INT_TRANSPORT' &&
-      !incotermBuyerPaysMainTransport(selectedIncoterm.value?.code)
-    ) return
-    metadata(service)?.rateSections?.forEach((section) => sections.add(section))
-  })
-
-  costs.value.filter(applicableCost).forEach((cost) => sections.add(sectionForCost(cost)))
-
-  if (form.cargoValue > 0) sections.add('destination_charges')
-  return sectionOrder.filter((section) => sections.has(section))
+const visibleSections = computed<RateSection[]>(() => {
+  // El Incoterm es el límite de responsabilidad. Servicios y costos pueden aportar
+  // líneas dentro de ese límite, pero nunca volver a mostrar una etapa que el
+  // Incoterm quitó para el comprador.
+  const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
+  return sectionOrder.filter((section) => allowed.has(section))
 })
 
 const includedLines = computed(() => rateLines.value.filter((line) => line.included))
@@ -538,12 +557,29 @@ const agentLines = computed(() =>
   ),
 )
 
-const bottomRateLines = computed(() =>
-  rateLines.value.filter((line) => line.included && (line.optional || line.manual)),
+const insuranceLines = computed(() =>
+  rateLines.value.filter((line) => line.included && !line.manual && line.costDetailType === 'Insurance'),
 )
 
-const displayedRateSections = computed(() =>
-  visibleSections.value.filter((section) => standardSectionLines(section).length > 0),
+const bottomRateLines = computed(() =>
+  rateLines.value.filter(
+    (line) => line.included && (line.optional || line.manual) && line.costDetailType !== 'Insurance',
+  ),
+)
+
+const orderedRateGroups = computed(() => [
+  { key: 'pickup', label: 'Recolecta', lines: standardSectionLines('pickup_origin') },
+  { key: 'origin', label: 'Cargos de origen', lines: standardSectionLines('origin_charges') },
+  { key: 'agent', label: 'Costos de agente', lines: agentLines.value },
+  { key: 'freight', label: 'Flete internacional', lines: standardSectionLines('international_freight') },
+  { key: 'destination', label: 'Cargos en destino', lines: standardSectionLines('destination_charges') },
+  { key: 'insurance', label: 'Seguro de carga', lines: insuranceLines.value },
+  { key: 'delivery', label: 'Entrega', lines: standardSectionLines('delivery_destination') },
+].filter((group) => group.lines.length > 0))
+
+const freightUtility = computed(() => number(form.freightSale) - number(form.freightCost))
+const freightMarginPercentage = computed(() =>
+  number(form.freightSale) > 0 ? (freightUtility.value / number(form.freightSale)) * 100 : 0,
 )
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
 const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
@@ -556,7 +592,6 @@ const canNext = computed(() => {
     return Boolean(
       form.originId &&
       form.destinationId &&
-      form.podId &&
       selectedEquipment.value &&
       form.equipmentQuantity > 0 &&
       form.incotermId &&
@@ -723,6 +758,7 @@ function applicableCost(cost: CostSelectDto) {
   if (cost.polId && cost.polId !== form.originId) return false
   if (cost.poeId && cost.poeId !== form.destinationId) return false
   if (cost.podId && cost.podId !== form.podId) return false
+  if (!incotermResponsibilitySections.value.includes(sectionForCost(cost))) return false
 
   if (cost.portId) {
     const matchesLegacyPort = cost.portRole === 'Pol'
@@ -750,6 +786,23 @@ function costSpecificity(cost: CostSelectDto) {
   if (cost.portId) score += 4
   if (cost.portRole && cost.portRole !== 'Any') score += 1
   return score
+}
+
+function isDangerousCargoCost(cost: CostSelectDto) {
+  const value = normalizeCatalogValue(`${cost.name} ${cost.notes ?? ''}`)
+  return value.includes('carga peligrosa') || value.includes('dangerous') || value.includes('hazmat')
+}
+
+function isOverweightCost(cost: CostSelectDto) {
+  const value = normalizeCatalogValue(`${cost.name} ${cost.notes ?? ''}`)
+  return value.includes('sobrepeso') || value.includes('overweight') || value.includes('over weight')
+}
+
+function isCargoConditionLine(line: RateLine, kind: 'dangerous' | 'overweight') {
+  const value = normalizeCatalogValue(line.name)
+  return kind === 'dangerous'
+    ? value.includes('carga peligrosa') || value.includes('dangerous') || value.includes('hazmat')
+    : value.includes('sobrepeso') || value.includes('overweight') || value.includes('over weight')
 }
 
 function applicableConfiguredCosts() {
@@ -831,13 +884,46 @@ function rebuildRateLines() {
       currencyCode: cost.currencyCode,
       costAmount: number(cost.costAmount),
       saleAmount: number(cost.saleAmount),
-      included: cost.costType !== 'Optional',
+      included:
+        cost.costType !== 'Optional' ||
+        (form.dangerousCargo && isDangerousCargoCost(cost)) ||
+        (form.overweight && isOverweightCost(cost)),
       optional: cost.costType === 'Optional',
       manual: false,
     })
   })
 
-  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance')) {
+  const cargoConditionSection: RateSection | null = visible.has('destination_charges')
+    ? 'destination_charges'
+    : visible.has('international_freight')
+      ? 'international_freight'
+      : visibleSections.value[0] ?? null
+
+  const addCargoConditionFallback = (kind: 'dangerous' | 'overweight', name: string) => {
+    if (!cargoConditionSection || lines.some((line) => isCargoConditionLine(line, kind))) return
+    lines.push({
+      key: `cargo-condition:${kind}`,
+      section: cargoConditionSection,
+      name,
+      costDetailType: 'Other',
+      costType: 'Variable',
+      chargeBasis: 'PerShipment',
+      contextLabel: 'Agregado automáticamente por condición de carga.',
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: 0,
+      saleAmount: 0,
+      included: true,
+      optional: false,
+      manual: false,
+    })
+  }
+
+  if (form.dangerousCargo) addCargoConditionFallback('dangerous', 'Carga peligrosa')
+  if (form.overweight) addCargoConditionFallback('overweight', 'Sobrepeso')
+
+  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance') && visible.has('destination_charges')) {
     const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
     lines.push({
       key: 'cargo-insurance:auto',
@@ -906,6 +992,7 @@ function chooseShipmentMode(value: string) {
   form.equipmentSize = ''
   form.equipmentType = ''
   form.equipmentId = ''
+  if (value.toUpperCase() === 'FCL') form.nonStackable = false
   step.value = 3
 }
 
@@ -986,7 +1073,7 @@ async function searchApprovedRates() {
   form.selectedImportRateId = ''
   form.manualRate = false
 
-  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedPod.value || !selectedEquipment.value) {
+  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {
     form.manualRate = true
     return
   }
@@ -996,7 +1083,7 @@ async function searchApprovedRates() {
     const query: BrowseImportRatesQuery = {
       pol: catalogSearchText(selectedOrigin.value),
       poe: catalogSearchText(selectedDestination.value),
-      pod: catalogSearchText(selectedPod.value),
+      pod: selectedPod.value ? catalogSearchText(selectedPod.value) : undefined,
       containerType: catalogSearchText(selectedEquipment.value),
       quoteDate: form.loadDate,
     }
@@ -1121,7 +1208,6 @@ async function saveRate() {
   const missing: string[] = []
   if (!origin) missing.push('origen')
   if (!poe) missing.push('destino/POE')
-  if (!pod) missing.push('POD')
   if (!equipment) missing.push(form.modality === 'Land' ? 'furgón / equipo terrestre' : 'equipo')
   if (!incoterm) missing.push('Incoterm')
   if (!agent) missing.push('agente')
@@ -1172,6 +1258,7 @@ async function saveRate() {
   else
     serviceCodes.delete('CARGO_INSURANCE')
   if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')
+  if (form.overweight) serviceCodes.add('OVERWEIGHT')
 
   const commercialTerms = await resolveCommercialTerms({
     transportModality: form.modality as Modality,
@@ -1229,9 +1316,9 @@ async function saveRate() {
       poeId: poe!.id,
       poeName: displayValue(poe),
       poeCode: poe!.code,
-      podId: pod!.id,
-      podName: displayValue(pod),
-      podCode: pod!.code,
+      podId: pod?.id ?? null,
+      podName: pod ? displayValue(pod) : null,
+      podCode: pod?.code ?? null,
       containerTypeId: equipment!.id,
       containerTypeName: equipmentName,
       containerTypeCode: equipment!.code,
@@ -1454,13 +1541,13 @@ onMounted(loadCatalogs)
           <div>
             <p class="crystal-kicker">Pantalla 3</p>
             <h2 class="crystal-title">{{ form.modality === 'Land' ? 'Ruta, furgón, Incoterm y servicios' : 'Ruta, equipo, Incoterm y servicios' }}</h2>
-            <p class="crystal-description">Seleccione POE y POD de forma independiente. Si existe una equivalencia clara, el POD se sugiere automáticamente.</p>
+            <p class="crystal-description">Seleccione el POE. El POD es opcional; si existe una equivalencia clara, se sugiere automáticamente.</p>
           </div>
 
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
             <DhSelect v-model="form.originId" label="Origen" placeholder="Seleccione origen" :options="originOptions" />
             <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />
-            <DhSelect v-model="form.podId" label="POD" placeholder="Seleccione POD" :options="podOptions" />
+            <DhSelect v-model="form.podId" label="POD (opcional)" placeholder="Seleccione POD si aplica" :options="podOptions" />
 
             <DhSelect
               v-if="equipmentHasSizes"
@@ -1512,7 +1599,7 @@ onMounted(loadCatalogs)
           <div>
             <p class="crystal-kicker">Pantalla 4</p>
             <h2 class="crystal-title">Tarifas aprobadas disponibles</h2>
-            <p class="crystal-description">La búsqueda usa POL, POE, POD, equipo y fecha de carga.</p>
+            <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
           </div>
 
           <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
@@ -1520,7 +1607,7 @@ onMounted(loadCatalogs)
           <template v-else-if="availableRates.length">
             <div class="grid gap-4 lg:grid-cols-2">
               <button
-                v-for="rate in availableRates"
+                v-for="rate in sortedAvailableRates"
                 :key="rate.id"
                 type="button"
                 class="crystal-rate-card"
@@ -1537,7 +1624,13 @@ onMounted(loadCatalogs)
                   <DhBadge variant="success">Aprobada</DhBadge>
                 </div>
                 <p class="mt-5 text-2xl font-black">{{ formatMoney(rate.freight, displayValue(findById(catalogs.currencies, rate.currencyId)) || rate.currency || 'USD') }}</p>
-                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Vigencia {{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}</p>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                  Vigencia {{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }} ·
+                  <strong>{{ remainingValidityDays(rate.validTo) }} días restantes</strong>
+                </p>
+                <p v-if="rate.spaceComment" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-left text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Comentario: {{ rate.spaceComment }}
+                </p>
               </button>
             </div>
             <div class="flex justify-end">
@@ -1569,6 +1662,13 @@ onMounted(loadCatalogs)
             <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
             <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
             <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
+          </div>
+
+          <div class="crystal-route-summary grid gap-3 md:grid-cols-4">
+            <div><span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Costo</span><strong class="mt-1 block text-sm">{{ formatMoney(form.freightCost, displayValue(selectedCurrency) || 'USD') }}</strong></div>
+            <div><span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Venta</span><strong class="mt-1 block text-sm">{{ formatMoney(form.freightSale, displayValue(selectedCurrency) || 'USD') }}</strong></div>
+            <div><span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Utilidad</span><strong class="mt-1 block text-sm">{{ formatMoney(freightUtility, displayValue(selectedCurrency) || 'USD') }}</strong></div>
+            <div><span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Margen</span><strong class="mt-1 block text-sm">{{ freightMarginPercentage.toFixed(2) }}%</strong></div>
           </div>
         </div>
 
@@ -1610,11 +1710,11 @@ onMounted(loadCatalogs)
             </p>
           </div>
 
-          <div class="grid gap-3 md:grid-cols-3">
+          <div class="grid gap-3" :class="shipmentModeForApi === 'Fcl' ? 'md:grid-cols-2' : 'md:grid-cols-3'">
             <button type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">
               <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa
             </button>
-            <button type="button" class="crystal-flag" :class="form.nonStackable ? 'crystal-flag--active' : ''" @click="form.nonStackable = !form.nonStackable">
+            <button v-if="shipmentModeForApi !== 'Fcl'" type="button" class="crystal-flag" :class="form.nonStackable ? 'crystal-flag--active' : ''" @click="form.nonStackable = !form.nonStackable">
               <Check v-if="form.nonStackable" class="h-4 w-4" /> No estibable
             </button>
             <button type="button" class="crystal-flag" :class="form.overweight ? 'crystal-flag--active' : ''" @click="form.overweight = !form.overweight">
@@ -1637,10 +1737,10 @@ onMounted(loadCatalogs)
             </div>
           </div>
 
-          <div v-for="section in displayedRateSections" :key="section" class="space-y-2">
-            <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ sectionLabel(section) }}</h3>
+          <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
+            <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
             <div
-              v-for="line in standardSectionLines(section)"
+              v-for="line in group.lines"
               :key="line.key"
               class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
             >
@@ -1651,29 +1751,6 @@ onMounted(loadCatalogs)
                 </div>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                   Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
-                </p>
-                <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
-              </div>
-              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costType !== 'Variable'" />
-              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
-              <span />
-            </div>
-          </div>
-
-          <div v-if="agentLines.length" class="space-y-2">
-            <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Costos de Agente</h3>
-            <div
-              v-for="line in agentLines"
-              :key="line.key"
-              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
-            >
-              <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="font-bold">{{ line.name }}</p>
-                  <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
-                </div>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                  Rubro: Costo de agente · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
                 </p>
                 <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
               </div>
