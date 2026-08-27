@@ -1,0 +1,94 @@
+name: Apply pricing Cost context fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-pricing-cost-context-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply focused wizard patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text(encoding='utf-8')
+
+          insert_marker = 'function rebuildRateLines() {'
+          if 'async function loadApplicableCosts() {' not in text:
+              assert insert_marker in text, 'rebuildRateLines marker not found'
+              loader = '''async function loadApplicableCosts() {
+            try {
+              costs.value = await PricingService.selectCosts({
+                carrierId: form.carrierId || undefined,
+                agentId: form.agentId || undefined,
+                polId: form.originId || undefined,
+                poeId: form.destinationId || undefined,
+                podId: form.podId || undefined,
+                incotermId: form.incotermId || undefined,
+                shipmentMode: shipmentModeForApi.value,
+                isActive: true,
+                applicableToContext: true,
+              } as any)
+            } catch (error) {
+              costs.value = []
+              toastStore.backendError(
+                error,
+                'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.',
+              )
+            }
+          }
+
+          '''
+              text = text.replace(insert_marker, loader + insert_marker, 1)
+
+          synthetic_start = '  // Las reglas de Incoterm complementan los costos configurados.'
+          insurance_old = "  if (form.cargoValue > 0 && !cargoInsuranceService.value && !lines.some((line) => line.costDetailType === 'Insurance')) {"
+          if synthetic_start in text:
+              start = text.index(synthetic_start)
+              end = text.index(insurance_old, start)
+              text = text[:start] + text[end:]
+
+          assert insurance_old in text, 'insurance condition marker not found'
+          text = text.replace(
+              insurance_old,
+              "  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance')) {",
+              1,
+          )
+
+          next_old = '  if (step.value === 6) rebuildRateLines()'
+          next_new = '''  if (step.value === 6) {
+            await loadApplicableCosts()
+            rebuildRateLines()
+          }'''
+          assert next_old in text, 'step 6 marker not found'
+          text = text.replace(next_old, next_new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and build
+        run: npm run build
+
+      - name: Commit fix and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/apply-pricing-cost-context-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue .github/workflows/apply-pricing-cost-context-fix.yml
+          git commit -m "fix(pricing): use Cost table context for wizard lines"
+          git push
