@@ -16,6 +16,7 @@ import {
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapApiResponse } from '@/core/api/apiResponse'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import type {
   BrowseImportRatesQuery,
@@ -62,6 +63,11 @@ interface CatalogMetadata {
   costFactor?: number
   costMinimumUsd?: number
   countryCode?: string
+  address?: string
+  latitude?: number | string
+  longitude?: number | string
+  lat?: number | string
+  lng?: number | string
   size?: string
   kind?: string
 }
@@ -69,6 +75,18 @@ interface CatalogMetadata {
 interface CabysItem {
   code: string
   description: string
+}
+
+interface NearestPortRecommendation {
+  portId: string
+  name: string
+  reason: string
+}
+
+interface NominatimResult {
+  lat: string
+  lon: string
+  display_name?: string
 }
 
 interface RateLine {
@@ -103,6 +121,9 @@ const availableRates = ref<ImportRateSelectDto[]>([])
 const costs = ref<CostSelectDto[]>([])
 const cabysResults = ref<CabysItem[]>([])
 const rateLines = ref<RateLine[]>([])
+const locatingPickup = ref(false)
+const recommendingPorts = ref(false)
+const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
 
 const catalogs = reactive({
   shipmentModes: [] as CatalogItemSelectDto[],
@@ -118,6 +139,7 @@ const catalogs = reactive({
   agents: [] as CatalogItemSelectDto[],
   carriers: [] as CatalogItemSelectDto[],
   currencies: [] as CatalogItemSelectDto[],
+  warehouses: [] as CatalogItemSelectDto[],
 })
 
 const form = reactive({
@@ -137,6 +159,9 @@ const form = reactive({
   manualRate: false,
   clientName: '',
   pickupAddress: '',
+  warehouseId: '',
+  pickupLatitude: null as number | null,
+  pickupLongitude: null as number | null,
   freeDays: 0,
   transitDays: 0,
   agentId: '',
@@ -441,8 +466,42 @@ const selectedPod = computed(() => findById(catalogs.pod, form.podId))
 const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
 const selectedIncotermCode = computed(() => String(selectedIncoterm.value?.code ?? displayValue(selectedIncoterm.value)).toUpperCase())
-const collectionMapUrl = computed(() =>
-  `https://www.openstreetmap.org/export/embed.html?search=${encodeURIComponent(form.pickupAddress || displayValue(selectedOrigin.value))}`,
+const selectedWarehouse = computed(() => findById(catalogs.warehouses, form.warehouseId))
+
+function metadataNumber(item: CatalogItemSelectDto | null | undefined, ...keys: Array<keyof CatalogMetadata>) {
+  const meta = metadata(item)
+  for (const key of keys) {
+    const raw = meta?.[key]
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+function warehouseAddress(item: CatalogItemSelectDto | null | undefined) {
+  const meta = metadata(item)
+  return String(meta?.address ?? displayValue(item) ?? item?.label ?? '').trim()
+}
+
+const pickupCoordinates = computed(() => {
+  if (form.pickupLatitude == null || form.pickupLongitude == null) return null
+  return { latitude: form.pickupLatitude, longitude: form.pickupLongitude }
+})
+const collectionMapUrl = computed(() => {
+  const coordinates = pickupCoordinates.value
+  if (!coordinates) {
+    return 'https://www.openstreetmap.org/export/embed.html?bbox=-180%2C-75%2C180%2C75&layer=mapnik'
+  }
+  const span = 0.08
+  const left = coordinates.longitude - span
+  const right = coordinates.longitude + span
+  const bottom = coordinates.latitude - span
+  const top = coordinates.latitude + span
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${coordinates.latitude}%2C${coordinates.longitude}`
+})
+const exwLocationReady = computed(() => selectedIncotermCode.value !== 'EXW' || Boolean(form.pickupAddress.trim()))
+const fcaLocationReady = computed(() =>
+  selectedIncotermCode.value !== 'FCA' || Boolean(form.warehouseId || form.pickupAddress.trim()),
 )
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
 const cargoInsuranceService = computed(() =>
@@ -498,6 +557,10 @@ const agentOptions = computed(() => catalogs.agents.map((item) => ({ value: item
 const carrierOptions = computed(() => catalogs.carriers.map((item) => ({ value: item.id, label: displayValue(item) })))
 const currencyOptions = computed(() => catalogs.currencies.map((item) => ({ value: item.id, label: displayValue(item) })))
 const serviceOptions = computed(() => catalogs.services.map((item) => ({ value: item.id, label: displayValue(item) })))
+const warehouseOptions = computed(() => catalogs.warehouses.map((item) => ({
+  value: item.id,
+  label: item.label || displayValue(item) || item.code,
+})))
 
 const shipmentModeForApi = computed<ShipmentMode>(() => {
   const value = form.shipmentMode.toUpperCase()
@@ -612,6 +675,9 @@ const providerMarginPercentage = computed(() =>
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
 const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
 const totalUtility = computed(() => totalSale.value - totalCost.value)
+const totalMarginPercentage = computed(() =>
+  totalSale.value > 0 ? (totalUtility.value / totalSale.value) * 100 : 0,
+)
 
 function financialTone(value: number) {
   if (value < 0) return 'danger'
@@ -637,7 +703,9 @@ const canNext = computed(() => {
       form.equipmentQuantity > 0 &&
       form.incotermId &&
       form.serviceIds.length &&
-      form.loadDate,
+      form.loadDate &&
+      exwLocationReady.value &&
+      fcaLocationReady.value,
     )
   }
   if (step.value === 4) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
@@ -1091,6 +1159,17 @@ async function loadCatalogs() {
   try {
     loadingCatalogs.value = true
     const select = (slug: string) => CatalogItemsService.select({ catalogGroupSlug: slug })
+    const selectOptional = async (...slugs: string[]) => {
+      for (const slug of slugs) {
+        try {
+          const items = await select(slug)
+          if (items.length) return items
+        } catch {
+          // Compatibility with installations that use an older WHS catalog slug.
+        }
+      }
+      return [] as CatalogItemSelectDto[]
+    }
     const [
       shipmentModes,
       services,
@@ -1105,6 +1184,7 @@ async function loadCatalogs() {
       agents,
       carriers,
       currencies,
+      warehouses,
       selectedCosts,
     ] = await Promise.all([
       select('shipment-modes'),
@@ -1120,6 +1200,7 @@ async function loadCatalogs() {
       select('agents'),
       select('carriers'),
       select('currencies'),
+      selectOptional('pricing-warehouses', 'warehouses', 'whs', 'fca-warehouses'),
       PricingService.selectCosts().catch(() => [] as CostSelectDto[]),
     ])
 
@@ -1137,6 +1218,7 @@ async function loadCatalogs() {
       agents,
       carriers,
       currencies,
+      warehouses,
     })
     costs.value = selectedCosts
     const usd = currencies.find((item) => normalizeCatalogValue(displayValue(item)) === 'usd') ?? currencies[0]
@@ -1220,6 +1302,161 @@ function continueManual() {
   form.selectedImportRateId = ''
   form.manualRate = true
   step.value = 5
+}
+
+function parseNearestPortResponse(content: string) {
+  const cleaned = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+  const parsed = JSON.parse(cleaned) as {
+    recommendations?: Array<{ portId?: string; reason?: string }>
+  }
+  return Array.isArray(parsed.recommendations) ? parsed.recommendations : []
+}
+
+async function recommendNearestPorts() {
+  if (selectedIncotermCode.value !== 'EXW' || !form.pickupAddress.trim()) return
+  if (!catalogs.pol.length) {
+    toastStore.warning('Sin puertos configurados', 'No existen POL configurados para calcular opciones cercanas.')
+    return
+  }
+
+  try {
+    recommendingPorts.value = true
+    nearestPortRecommendations.value = []
+    const response = await callEndpoint<unknown, Record<string, unknown>>(
+      { method: 'POST', path: '/api/ai/logistics/nearest-ports', headers: { Accept: 'application/json' } },
+      {
+        body: {
+          pickupAddress: form.pickupAddress.trim(),
+          latitude: form.pickupLatitude,
+          longitude: form.pickupLongitude,
+          ports: catalogs.pol.map((port) => ({
+            id: port.id,
+            name: displayValue(port) || port.label || port.code,
+            code: port.code,
+            country: metadata(port)?.countryCode ?? null,
+            latitude: metadataNumber(port, 'latitude', 'lat'),
+            longitude: metadataNumber(port, 'longitude', 'lng'),
+          })),
+        },
+      },
+    )
+    const result = unwrapApiResponse<{ content?: string }>(response as never)
+    const recommendations = parseNearestPortResponse(String(result.content ?? ''))
+    const allowed = new Map(catalogs.pol.map((port) => [port.id, port]))
+    const seen = new Set<string>()
+    nearestPortRecommendations.value = recommendations
+      .filter((item) => Boolean(item.portId && allowed.has(item.portId) && !seen.has(item.portId)))
+      .slice(0, 3)
+      .map((item) => {
+        const portId = item.portId!
+        seen.add(portId)
+        const port = allowed.get(portId)!
+        return {
+          portId,
+          name: displayValue(port) || port.label || port.code,
+          reason: String(item.reason ?? 'Puerto recomendado por cercanía logística.'),
+        }
+      })
+
+    if (!nearestPortRecommendations.value.length) {
+      toastStore.warning('Sin recomendación concluyente', 'La IA no pudo determinar un puerto cercano con suficiente confianza.')
+    }
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron recomendar los puertos cercanos con IA.')
+  } finally {
+    recommendingPorts.value = false
+  }
+}
+
+async function geocodePickupAddress(recommendAfter = true) {
+  const address = form.pickupAddress.trim()
+  if (!address) {
+    toastStore.warning('Dirección requerida', 'Escriba la dirección que desea ubicar.')
+    return
+  }
+
+  try {
+    locatingPickup.value = true
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${encodeURIComponent(address)}`,
+      { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+    )
+    if (!response.ok) throw new Error(`Nominatim ${response.status}`)
+    const rows = await response.json() as NominatimResult[]
+    const match = rows[0]
+    if (!match) {
+      toastStore.warning('Dirección no encontrada', 'Revise la dirección e inténtelo nuevamente.')
+      return
+    }
+    form.pickupLatitude = Number(match.lat)
+    form.pickupLongitude = Number(match.lon)
+    if (match.display_name) form.pickupAddress = match.display_name
+    if (recommendAfter && selectedIncotermCode.value === 'EXW') await recommendNearestPorts()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo ubicar la dirección en OpenStreetMap.')
+  } finally {
+    locatingPickup.value = false
+  }
+}
+
+async function useCurrentLocation() {
+  if (!navigator.geolocation) {
+    toastStore.warning('Ubicación no disponible', 'El navegador no permite obtener la ubicación actual.')
+    return
+  }
+
+  try {
+    locatingPickup.value = true
+    const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 30000,
+      }),
+    )
+    form.pickupLatitude = position.coords.latitude
+    form.pickupLongitude = position.coords.longitude
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.coords.latitude}&lon=${position.coords.longitude}`,
+        { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+      )
+      if (response.ok) {
+        const location = await response.json() as { display_name?: string }
+        form.pickupAddress = location.display_name?.trim() || `${position.coords.latitude}, ${position.coords.longitude}`
+      } else {
+        form.pickupAddress = `${position.coords.latitude}, ${position.coords.longitude}`
+      }
+    } catch {
+      form.pickupAddress = `${position.coords.latitude}, ${position.coords.longitude}`
+    }
+
+    if (selectedIncotermCode.value === 'EXW') await recommendNearestPorts()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo obtener la ubicación actual.')
+  } finally {
+    locatingPickup.value = false
+  }
+}
+
+function selectRecommendedPort(portId: string) {
+  if (catalogs.pol.some((port) => port.id === portId)) form.originId = portId
+}
+
+async function applySelectedWarehouse() {
+  const warehouse = selectedWarehouse.value
+  if (!warehouse) return
+  form.pickupAddress = warehouseAddress(warehouse)
+  form.pickupLatitude = metadataNumber(warehouse, 'latitude', 'lat')
+  form.pickupLongitude = metadataNumber(warehouse, 'longitude', 'lng')
+  nearestPortRecommendations.value = []
+  if (form.pickupAddress && (form.pickupLatitude == null || form.pickupLongitude == null)) {
+    await geocodePickupAddress(false)
+  }
 }
 
 async function next() {
@@ -1454,6 +1691,7 @@ async function saveRate() {
               `${form.cabysCode ? `CABYS ${form.cabysCode} · ` : ''}${form.cargoDescription}`,
               form.cargoObservations ? `Observaciones: ${form.cargoObservations}` : '',
               form.pickupAddress ? `Recolección: ${form.pickupAddress}` : '',
+              selectedWarehouse.value ? `WHS FCA: ${selectedWarehouse.value.label || displayValue(selectedWarehouse.value)}` : '',
             ].filter(Boolean).join(' · '),
             packages: 0,
             pallets: 0,
@@ -1495,6 +1733,13 @@ function resetWizard() {
     loadDate: todayIso(),
     selectedImportRateId: '',
     manualRate: false,
+    clientName: '',
+    pickupAddress: '',
+    warehouseId: '',
+    pickupLatitude: null,
+    pickupLongitude: null,
+    freeDays: 0,
+    transitDays: 0,
     agentId: '',
     carrierId: '',
     freightCost: 0,
@@ -1502,6 +1747,7 @@ function resetWizard() {
     cabysSearch: '',
     cabysCode: '',
     cargoDescription: '',
+    cargoObservations: '',
     cargoValue: 0,
     dangerousCargo: false,
     nonStackable: false,
@@ -1510,6 +1756,26 @@ function resetWizard() {
     manualSection: 'destination_charges',
   })
 }
+
+watch(
+  () => selectedIncotermCode.value,
+  (code) => {
+    nearestPortRecommendations.value = []
+    if (code !== 'FCA') form.warehouseId = ''
+    if (code !== 'EXW' && code !== 'FCA') {
+      form.pickupAddress = ''
+      form.pickupLatitude = null
+      form.pickupLongitude = null
+    }
+  },
+)
+
+watch(
+  () => form.warehouseId,
+  () => {
+    if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()
+  },
+)
 
 watch(
   () => form.destinationId,
@@ -1693,30 +1959,105 @@ onMounted(loadCatalogs)
 
           <div v-if="selectedIncotermCode === 'EXW' || selectedIncotermCode === 'FCA'" class="crystal-soft space-y-4 p-4 md:p-5">
             <div>
-              <p class="font-black">{{ selectedIncotermCode === 'EXW' ? 'Lugar de recolección' : 'WHS de entrega FCA' }}</p>
+              <p class="font-black">{{ selectedIncotermCode === 'EXW' ? 'Lugar de recolección EXW' : 'WHS de entrega FCA' }}</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Escriba y ubique la dirección en el mapa. Los puertos de origen configurados quedan disponibles para seleccionar el más cercano.
+                {{ selectedIncotermCode === 'EXW'
+                  ? 'Ubique la recolección en el mapa y consulte con IA los POL configurados más cercanos.'
+                  : 'Seleccione uno de los WHS globales configurados. Su ubicación se refleja en el mapa.' }}
               </p>
             </div>
+
+            <DhSelect
+              v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length"
+              v-model="form.warehouseId"
+              label="WHS global"
+              placeholder="Seleccione WHS"
+              :options="warehouseOptions"
+            />
+            <div
+              v-else-if="selectedIncotermCode === 'FCA'"
+              class="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold text-[var(--dh-text-soft)]"
+            >
+              No hay WHS cargados todavía en Config. Puede indicar una dirección temporal mientras se completa el catálogo “WHS globales”.
+            </div>
+
             <DhInput
               v-model="form.pickupAddress"
-              :label="selectedIncotermCode === 'EXW' ? 'Dirección de recolección' : 'WHS / dirección global'"
+              :label="selectedIncotermCode === 'EXW' ? 'Dirección de recolección' : 'Dirección del WHS'"
               placeholder="Ciudad, provincia/estado y país"
+              :disabled="selectedIncotermCode === 'FCA' && warehouseOptions.length > 0"
             />
+
+            <div class="flex flex-wrap gap-2">
+              <DhButton
+                variant="secondary"
+                :disabled="locatingPickup || !form.pickupAddress.trim()"
+                @click="geocodePickupAddress(selectedIncotermCode === 'EXW')"
+              >
+                <Waypoints class="h-4 w-4" /> {{ locatingPickup ? 'Ubicando…' : 'Ubicar en mapa' }}
+              </DhButton>
+              <DhButton
+                v-if="selectedIncotermCode === 'EXW'"
+                variant="ghost"
+                :disabled="locatingPickup"
+                @click="useCurrentLocation"
+              >
+                Usar mi ubicación
+              </DhButton>
+            </div>
+
             <div class="overflow-hidden rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
               <iframe
                 title="Mapa interactivo de recolección"
-                class="h-64 w-full"
+                class="h-72 w-full"
                 :src="collectionMapUrl"
                 loading="lazy"
               />
             </div>
+            <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
+              Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
+            </p>
+
+            <div v-if="selectedIncotermCode === 'EXW'" class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p class="text-sm font-black">Puertos cercanos sugeridos por IA</p>
+                  <p class="text-xs font-semibold text-[var(--dh-text-muted)]">La IA solo puede elegir entre los POL configurados en Dhole.</p>
+                </div>
+                <DhButton
+                  variant="secondary"
+                  :disabled="recommendingPorts || !form.pickupAddress.trim()"
+                  @click="recommendNearestPorts"
+                >
+                  <Sparkles class="h-4 w-4" /> {{ recommendingPorts ? 'Analizando…' : 'Buscar puertos cercanos' }}
+                </DhButton>
+              </div>
+
+              <div v-if="nearestPortRecommendations.length" class="grid gap-2 md:grid-cols-3">
+                <button
+                  v-for="recommendation in nearestPortRecommendations"
+                  :key="recommendation.portId"
+                  type="button"
+                  class="min-h-24 rounded-2xl border p-3 text-left transition"
+                  :class="form.originId === recommendation.portId
+                    ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)]'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[rgb(var(--dh-primary-rgb)/0.35)]'"
+                  @click="selectRecommendedPort(recommendation.portId)"
+                >
+                  <span class="block text-sm font-black">{{ recommendation.name }}</span>
+                  <span class="mt-1 block text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]">{{ recommendation.reason }}</span>
+                </button>
+              </div>
+            </div>
+
             <a
-              class="inline-flex min-h-11 items-center font-black text-[var(--dh-primary)]"
-              :href="`https://www.openstreetmap.org/search?query=${encodeURIComponent(form.pickupAddress)}`"
+              class="inline-flex min-h-11 touch-manipulation items-center font-black text-[var(--dh-primary)]"
+              :href="pickupCoordinates
+                ? `https://www.openstreetmap.org/?mlat=${pickupCoordinates.latitude}&mlon=${pickupCoordinates.longitude}#map=12/${pickupCoordinates.latitude}/${pickupCoordinates.longitude}`
+                : `https://www.openstreetmap.org/search?query=${encodeURIComponent(form.pickupAddress)}`"
               target="_blank"
               rel="noopener noreferrer"
-            >Abrir dirección en el mapa</a>
+            >Abrir ubicación en OpenStreetMap</a>
           </div>
 
           <div v-if="selectedEquipment || direction" class="crystal-route-summary">
@@ -1899,6 +2240,7 @@ onMounted(loadCatalogs)
     <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo <strong>{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span>
     <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta <strong>{{ formatMoney(totalSale, displayValue(selectedCurrency) || 'USD') }}</strong></span>
     <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtility)}`">Utilidad <strong>{{ formatMoney(totalUtility, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+    <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
   </div>
           </div>
 
