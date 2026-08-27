@@ -32,7 +32,6 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
-import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
@@ -118,8 +117,6 @@ interface RateLine {
 
 const router = useRouter()
 const toastStore = useToastStore()
-const authStore = useAuthStore()
-const executiveName = computed(() => authStore.userDisplayName || authStore.email || 'Usuario')
 const step = ref(1)
 const loadingCatalogs = ref(false)
 const loadingRates = ref(false)
@@ -170,6 +167,7 @@ const form = reactive({
   selectedImportRateId: '',
   manualRate: false,
   clientName: '',
+  executiveName: '',
   pickupAddress: '',
   warehouseId: '',
   pickupLatitude: null as number | null,
@@ -2116,7 +2114,7 @@ onMounted(loadCatalogs)
           </div>
 
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
-            <DhInput :model-value="executiveName" label="Ejecutivo" disabled />
+            <DhInput v-model="form.executiveName" label="Ejecutivo de venta" placeholder="Escriba el nombre del ejecutivo" />
             <DhInput v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" />
             <DhSelect v-model="form.originId" label="Origen" placeholder="Seleccione origen" :options="originOptions" />
             <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />
