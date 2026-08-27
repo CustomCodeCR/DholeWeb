@@ -19,6 +19,7 @@ export type ChargeBasis =
   | 'PerShipment'
   | 'PerContainer'
   | 'PerTruck'
+  | 'PerTeu'
   | 'PerCbm'
   | 'PerChargeableCbm'
   | 'PerKg'

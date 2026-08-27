@@ -13,7 +13,7 @@ import {
   Truck,
   Waypoints,
 } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
+import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -135,6 +135,10 @@ const form = reactive({
   loadDate: todayIso(),
   selectedImportRateId: '',
   manualRate: false,
+  clientName: '',
+  pickupAddress: '',
+  freeDays: 0,
+  transitDays: 0,
   agentId: '',
   carrierId: '',
   currencyId: '',
@@ -143,6 +147,7 @@ const form = reactive({
   cabysSearch: '',
   cabysCode: '',
   cargoDescription: '',
+  cargoObservations: '',
   cargoValue: 0,
   dangerousCargo: false,
   nonStackable: false,
@@ -435,6 +440,10 @@ const selectedDestination = computed(() => findById(catalogs.poe, form.destinati
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
 const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
+const selectedIncotermCode = computed(() => String(selectedIncoterm.value?.code ?? displayValue(selectedIncoterm.value)).toUpperCase())
+const collectionMapUrl = computed(() =>
+  `https://www.openstreetmap.org/export/embed.html?search=${encodeURIComponent(form.pickupAddress || displayValue(selectedOrigin.value))}`,
+)
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
 const cargoInsuranceService = computed(() =>
   catalogs.services.find((item) => {
@@ -734,6 +743,11 @@ function quantityForChargeBasis(basis: ChargeBasis) {
   if (basis === 'PerContainer' || basis === 'PerTruck') {
     return Math.max(1, form.equipmentQuantity)
   }
+  if (basis === 'PerTeu') {
+    const equipment = `${selectedEquipment.value?.code ?? ''} ${displayValue(selectedEquipment.value)}`
+    const multiplier = /(^|\D)20(\D|$)/.test(equipment) ? 1 : 2
+    return Math.max(1, form.equipmentQuantity) * multiplier
+  }
   return 1
 }
 
@@ -756,6 +770,7 @@ function chargeBasisLabel(basis: ChargeBasis) {
   return ({
     PerShipment: 'Por embarque',
     PerContainer: 'Por contenedor',
+    PerTeu: 'Por TEU',
     PerTruck: 'Por camión',
     PerCbm: 'Por CBM',
     PerChargeableCbm: 'Por CBM cobrable',
@@ -1178,6 +1193,8 @@ function chooseRate(rate: ImportRateSelectDto) {
   form.manualRate = false
   form.freightCost = number(rate.freight)
   form.freightSale = number(rate.totalSale ?? rate.freight)
+  form.freeDays = number(rate.freeDays)
+  form.transitDays = number(rate.transitDays)
 
   const ratePod = rate.podId
     ? findById(catalogs.pod, rate.podId)
@@ -1370,10 +1387,14 @@ async function saveRate() {
     form.dangerousCargo ? 'Carga peligrosa' : null,
     form.nonStackable ? 'Carga no estibable' : null,
     form.overweight ? 'Sobrepeso' : null,
-  ])
+  ]).filter((text) => !includeKeys.has(normalizeCatalogValue(text)))
+  const subjectKeys = new Set(subjectTerms.map(normalizeCatalogValue))
   const excludeTerms = uniqueText(
     commercialTerms.excludes.map((item) => item.text),
-  ).filter((text) => !includeKeys.has(normalizeCatalogValue(text)))
+  ).filter((text) => {
+    const key = normalizeCatalogValue(text)
+    return !includeKeys.has(key) && !subjectKeys.has(key)
+  })
 
   try {
     saving.value = true
@@ -1404,7 +1425,8 @@ async function saveRate() {
       currencyId: currency!.id,
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
-      freeDays: number(selectedImportRate.value?.freeDays),
+      clientName: form.clientName.trim() || null,
+      freeDays: number(form.freeDays),
       validFrom: form.loadDate,
       validTo: selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
       containerQuantity: form.equipmentQuantity,
@@ -1418,7 +1440,7 @@ async function saveRate() {
           quantity: form.equipmentQuantity,
         },
       ],
-      transitTime: selectedImportRate.value?.transitDays ? `${selectedImportRate.value.transitDays} días` : null,
+      transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
       includes: includeTerms.join('\n') || null,
       subjectTo: subjectTerms.join('\n') || null,
       excludes: excludeTerms.join('\n') || null,
@@ -1428,7 +1450,11 @@ async function saveRate() {
       totalVolumeCbm: 0,
       cargoLines: form.cargoDescription
         ? [{
-            description: `${form.cabysCode ? `CABYS ${form.cabysCode} · ` : ''}${form.cargoDescription}`,
+            description: [
+              `${form.cabysCode ? `CABYS ${form.cabysCode} · ` : ''}${form.cargoDescription}`,
+              form.cargoObservations ? `Observaciones: ${form.cargoObservations}` : '',
+              form.pickupAddress ? `Recolección: ${form.pickupAddress}` : '',
+            ].filter(Boolean).join(' · '),
             packages: 0,
             pallets: 0,
             weightKg: 0,
@@ -1630,6 +1656,7 @@ onMounted(loadCatalogs)
           </div>
 
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
+            <DhInput v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" />
             <DhSelect v-model="form.originId" label="Origen" placeholder="Seleccione origen" :options="originOptions" />
             <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />
             <DhSelect v-model="form.podId" label="POD (opcional)" placeholder="Seleccione POD si aplica" :options="podOptions" />
@@ -1662,6 +1689,34 @@ onMounted(loadCatalogs)
                 :options="serviceOptions"
               />
             </div>
+          </div>
+
+          <div v-if="selectedIncotermCode === 'EXW' || selectedIncotermCode === 'FCA'" class="crystal-soft space-y-4 p-4 md:p-5">
+            <div>
+              <p class="font-black">{{ selectedIncotermCode === 'EXW' ? 'Lugar de recolección' : 'WHS de entrega FCA' }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Escriba y ubique la dirección en el mapa. Los puertos de origen configurados quedan disponibles para seleccionar el más cercano.
+              </p>
+            </div>
+            <DhInput
+              v-model="form.pickupAddress"
+              :label="selectedIncotermCode === 'EXW' ? 'Dirección de recolección' : 'WHS / dirección global'"
+              placeholder="Ciudad, provincia/estado y país"
+            />
+            <div class="overflow-hidden rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+              <iframe
+                title="Mapa interactivo de recolección"
+                class="h-64 w-full"
+                :src="collectionMapUrl"
+                loading="lazy"
+              />
+            </div>
+            <a
+              class="inline-flex min-h-11 items-center font-black text-[var(--dh-primary)]"
+              :href="`https://www.openstreetmap.org/search?query=${encodeURIComponent(form.pickupAddress)}`"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Abrir dirección en el mapa</a>
           </div>
 
           <div v-if="selectedEquipment || direction" class="crystal-route-summary">
@@ -1722,6 +1777,9 @@ onMounted(loadCatalogs)
                 <p v-if="rate.spaceComment" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-left text-xs font-semibold text-[var(--dh-text-muted)]">
                   Comentario: {{ rate.spaceComment }}
                 </p>
+                <p class="mt-3 text-left text-xs font-black" :class="rate.freeDays > 0 ? 'text-emerald-600' : 'text-amber-600'">
+                  {{ rate.freeDays > 0 ? `Incluye ${rate.freeDays} días libres` : 'No incluye días libres; deberá ingresarlos en la pantalla 5' }}
+                </p>
               </button>
             </div>
             <div class="flex justify-end">
@@ -1753,6 +1811,8 @@ onMounted(loadCatalogs)
             <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
             <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
             <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
+            <DhInput v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
+            <DhInput v-model.number="form.transitDays" type="number" min="0" label="Días de tránsito" />
           </div>
 
           <div class="crystal-route-summary grid gap-3 md:grid-cols-4">
@@ -1807,6 +1867,7 @@ onMounted(loadCatalogs)
               <DhInput v-model="form.cargoDescription" label="Descripción de la carga" />
               <DhInput v-model.number="form.cargoValue" type="number" min="0" step="0.01" label="Valor de la carga (si aplica)" />
             </div>
+            <DhTextarea v-model="form.cargoObservations" label="Observaciones de la carga" :rows="4" />
 
             <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>
             <p v-if="form.cargoValue > 0" class="crystal-insurance-hint">
@@ -1828,7 +1889,7 @@ onMounted(loadCatalogs)
         </div>
 
         <div v-else class="crystal-lines-stage space-y-6">
-          <div class="flex flex-wrap items-end justify-between gap-4">
+          <div class="crystal-lines-header flex flex-wrap items-end justify-between gap-4">
             <div>
               <p class="crystal-kicker">Pantalla 7</p>
               <h2 class="crystal-title">Líneas de tarifa</h2>
@@ -2237,6 +2298,18 @@ onMounted(loadCatalogs)
   font-size: 0.78rem;
 }
 
+.crystal-lines-header {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 20;
+  border: 1px solid var(--dh-border);
+  border-radius: 20px;
+  padding: 0.8rem;
+  background: color-mix(in srgb, var(--dh-card) 94%, transparent);
+  box-shadow: var(--dh-shadow-md);
+  backdrop-filter: blur(22px);
+}
+
 .crystal-total-card span {
   display: flex;
   gap: 0.3rem;
@@ -2317,6 +2390,27 @@ onMounted(loadCatalogs)
 }
 
 @media (max-width: 640px) {
+  .pricing-crystal-shell :deep(button),
+  .pricing-crystal-shell :deep(a) {
+    min-height: 44px;
+  }
+
+  .crystal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    background: color-mix(in srgb, var(--dh-card) 96%, transparent);
+    backdrop-filter: blur(20px);
+  }
+
+  .crystal-footer :deep(button) {
+    flex: 1 1 0;
+    padding-inline: 0.75rem;
+  }
+
+  .crystal-lines-header {
+    top: 0.25rem;
+  }
   .crystal-panel {
     border-radius: 24px;
   }
