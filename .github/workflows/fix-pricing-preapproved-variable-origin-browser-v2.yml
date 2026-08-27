@@ -1,0 +1,227 @@
+name: Fix pricing preapproved variable origin browser v2
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-pricing-preapproved-variable-origin-browser-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout web
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          wizard = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = wizard.read_text(encoding='utf-8-sig')
+
+          if 'Tarifas aprobadas disponibles' not in text:
+              raise SystemExit('screen 4 title not found')
+          text = text.replace('Tarifas aprobadas disponibles', 'Tarifas preaprobadas disponibles', 1)
+
+          cargo_anchor = "\n  const cargoConditionSection: RateSection | null = visible.has('destination_charges')"
+          if cargo_anchor not in text:
+              raise SystemExit('cargo condition anchor not found')
+
+          fallback = '''
+
+          const addVariableSectionFallback = (
+            section: RateSection,
+            name: string,
+            detailType: CostDetailType,
+            contextLabel: string,
+          ) => {
+            if (!visible.has(section) || lines.some((line) => line.section === section)) return
+            lines.push({
+              key: `variable-section:${section}`,
+              section,
+              name,
+              costDetailType: detailType,
+              costType: 'Variable',
+              chargeBasis: defaultChargeBasis(detailType),
+              contextLabel,
+              currencyId: currency.id,
+              currencyName: displayValue(currency),
+              currencyCode: currency.code,
+              costAmount: 0,
+              saleAmount: 0,
+              included: true,
+              optional: false,
+              manual: false,
+            })
+          }
+
+          addVariableSectionFallback(
+            'pickup_origin',
+            'Recolecta',
+            'InlandTransport',
+            'Variable: complete costo y venta según la recolección aplicable.',
+          )
+          addVariableSectionFallback(
+            'origin_charges',
+            'Cargos en Origen',
+            'OriginCharge',
+            'Variable: complete costo y venta según los cargos de origen aplicables.',
+          )
+          '''.replace('\n          ', '\n')
+          text = text.replace(cargo_anchor, fallback + cargo_anchor, 1)
+          wizard.write_text(text, encoding='utf-8')
+
+          Path('src/shared/components/atoms/DhSelect.vue').write_text('''<script setup lang="ts">
+          export interface DhSelectOption { label: string; value: string | number; disabled?: boolean }
+
+          defineProps<{ modelValue: string | number | null; label?: string; placeholder?: string; options: DhSelectOption[]; error?: string; disabled?: boolean }>()
+          const emit = defineEmits<{ 'update:modelValue': [value: string | number] }>()
+          </script>
+
+          <template>
+            <label class="dh-select-wrap block">
+              <span v-if="label" class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ label }}</span>
+              <select
+                :value="modelValue ?? ''"
+                :disabled="disabled"
+                class="dh-select h-11 w-full rounded-[18px] border border-[var(--dh-border)] px-3 text-sm font-semibold shadow-[var(--dh-shadow-sm)] outline-none transition dh-focus-primary disabled:cursor-not-allowed disabled:opacity-50"
+                :class="error && 'border-red-500'"
+                @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
+              >
+                <option v-if="placeholder !== ''" value="" disabled>{{ placeholder ?? 'Seleccione una opción' }}</option>
+                <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">{{ option.label }}</option>
+              </select>
+              <span v-if="error" class="mt-1 block text-xs font-semibold text-red-500">{{ error }}</span>
+            </label>
+          </template>
+
+          <style scoped>
+          .dh-select-wrap {
+            position: relative;
+            z-index: 0;
+            min-width: 0;
+            isolation: isolate;
+          }
+
+          .dh-select-wrap:focus-within {
+            z-index: 80;
+          }
+
+          .dh-select {
+            position: relative;
+            z-index: 1;
+            display: block;
+            max-width: 100%;
+            background-color: var(--dh-input);
+            color: var(--dh-text);
+            color-scheme: light;
+            -webkit-appearance: menulist;
+            appearance: auto;
+          }
+
+          .dh-select option,
+          .dh-select optgroup {
+            background-color: #ffffff;
+            color: #030202;
+          }
+
+          :global(.dark) .dh-select {
+            color-scheme: dark;
+          }
+
+          :global(.dark) .dh-select option,
+          :global(.dark) .dh-select optgroup {
+            background-color: #18181b;
+            color: #ffffff;
+          }
+
+          @supports (-webkit-touch-callout: none) {
+            .dh-select {
+              -webkit-appearance: menulist;
+              appearance: menulist;
+            }
+          }
+          </style>
+          '''.replace('\n          ', '\n').lstrip(), encoding='utf-8')
+
+          multi = Path('src/modules/pricing/components/PricingCrystalMultiSelect.vue')
+          mtext = multi.read_text(encoding='utf-8-sig')
+
+          search_anchor = "const search = ref('')\n"
+          if search_anchor not in mtext:
+              raise SystemExit('multi-select search anchor not found')
+          mtext = mtext.replace(search_anchor, search_anchor + '''const detailsRef = ref<HTMLDetailsElement | null>(null)
+
+          function handleToggle() {
+            const current = detailsRef.value
+            if (!current?.open) return
+            document.querySelectorAll<HTMLDetailsElement>('details[data-dh-dropdown="true"][open]').forEach((item) => {
+              if (item !== current) item.removeAttribute('open')
+            })
+          }
+
+          '''.replace('\n          ', '\n'), 1)
+
+          details_anchor = '<details class="crystal-multi group relative">'
+          if details_anchor not in mtext:
+              raise SystemExit('multi-select details anchor not found')
+          mtext = mtext.replace(details_anchor, '<details ref="detailsRef" data-dh-dropdown="true" class="crystal-multi group relative" @toggle="handleToggle">', 1)
+
+          css_anchor = '.crystal-multi__trigger {'
+          if css_anchor not in mtext:
+              raise SystemExit('multi-select css anchor not found')
+          mtext = mtext.replace(css_anchor, '''.crystal-multi {
+            position: relative;
+            z-index: 0;
+            min-width: 0;
+            isolation: isolate;
+          }
+
+          .crystal-multi[open] {
+            z-index: 1000;
+          }
+
+          .crystal-multi__trigger {'''.replace('\n          ', '\n'), 1)
+          mtext = mtext.replace('  z-index: 60;\n', '  z-index: 1001;\n', 1)
+          mtext = mtext.replace('  background: color-mix(in srgb, var(--dh-shell-strong) 78%, transparent);\n', '  background-color: var(--dh-bg-2);\n', 1)
+          mtext = mtext.replace(
+              '  width: 100%;\n  min-width: min(360px, 86vw);\n',
+              '  inset-inline-start: 0;\n  width: 100%;\n  min-width: min(360px, 86vw);\n  max-width: min(520px, calc(100vw - 2rem));\n  overflow: hidden;\n',
+              1,
+          )
+          safari_anchor = '  -webkit-backdrop-filter: blur(32px) saturate(155%);\n}\n'
+          if safari_anchor not in mtext:
+              raise SystemExit('multi-select backdrop anchor not found')
+          mtext = mtext.replace(safari_anchor, safari_anchor + '''
+
+          :global(.dark) .crystal-multi__menu {
+            background-color: #111114;
+            color: #ffffff;
+          }
+
+          @supports (-webkit-touch-callout: none) {
+            .crystal-multi__menu {
+              backdrop-filter: none;
+              -webkit-backdrop-filter: none;
+            }
+          }
+          '''.replace('\n          ', '\n'), 1)
+          multi.write_text(mtext, encoding='utf-8')
+          PY
+
+          rm -f .github/workflows/fix-pricing-preapproved-variable-origin-browser.yml
+          rm -f .github/workflows/fix-pricing-preapproved-variable-origin-browser-v2.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(pricing): preapproved rates variable origin and browser dropdowns"
+          git push origin HEAD:master
