@@ -45,7 +45,7 @@ function onDragStart(event: DragEvent, key: string) {
       v-for="tab in tabsStore.tabs"
       :key="tab.key"
       draggable="true"
-      class="group flex shrink-0 items-center gap-2 rounded-[18px] px-3 py-2 text-xs sm:text-sm font-black transition"
+      class="group flex min-h-11 shrink-0 touch-manipulation items-center gap-2 rounded-[18px] px-3 py-2 text-xs sm:text-sm font-black transition"
       :class="
         tabsStore.activeKey === tab.key
           ? 'bg-[var(--dh-primary)] text-white shadow-[var(--dh-glow)]'
@@ -58,7 +58,7 @@ function onDragStart(event: DragEvent, key: string) {
 
       <span
         v-if="tab.path !== '/home'"
-        class="rounded-lg p-0.5 opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10"
+        class="inline-flex min-h-9 min-w-9 touch-manipulation items-center justify-center rounded-lg opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10 sm:min-h-0 sm:min-w-0 sm:p-0.5"
         :title="t('tabs.openSplit')"
         @click.stop="split(tab.key)"
       >
@@ -67,7 +67,7 @@ function onDragStart(event: DragEvent, key: string) {
 
       <span
         v-if="tab.closable"
-        class="rounded-lg p-0.5 opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10"
+        class="inline-flex min-h-9 min-w-9 touch-manipulation items-center justify-center rounded-lg opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10 sm:min-h-0 sm:min-w-0 sm:p-0.5"
         :title="t('tabs.close')"
         @click.stop="close(tab.key)"
       >
