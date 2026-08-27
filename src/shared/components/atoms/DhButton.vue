@@ -21,7 +21,7 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
   <button
     :type="type"
     :disabled="disabled || loading"
-    class="inline-flex items-center justify-center gap-2 rounded-[18px] font-black tracking-tight transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+    class="inline-flex touch-manipulation select-none items-center justify-center gap-2 rounded-[18px] font-black tracking-tight transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 max-sm:min-h-11 max-sm:px-4"
     :class="[
       size === 'sm' && 'h-9 px-3 text-xs',
       size === 'md' && 'h-11 px-4 text-sm',
