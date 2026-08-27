@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 
 export interface PricingCrystalMultiSelectOption {
@@ -36,6 +36,15 @@ function handleToggle() {
   })
 }
 
+function handleOutsidePointer(event: PointerEvent) {
+  const current = detailsRef.value
+  const target = event.target
+  if (!current?.open || !(target instanceof Node) || current.contains(target)) return
+  current.removeAttribute('open')
+}
+
+onMounted(() => document.addEventListener('pointerdown', handleOutsidePointer, true))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsidePointer, true))
 
 const selected = computed(() => props.options.filter((item) => props.modelValue.includes(item.value)))
 const filtered = computed(() => {
@@ -182,7 +191,6 @@ function toggle(value: string) {
   backdrop-filter: blur(32px) saturate(155%);
   -webkit-backdrop-filter: blur(32px) saturate(155%);
 }
-
 
 :global(.dark) .crystal-multi__menu {
   background-color: #111114;
