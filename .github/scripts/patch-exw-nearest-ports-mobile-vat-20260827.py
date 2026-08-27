@@ -155,7 +155,7 @@ async function recommendNearestPorts() {
 
 async function geocodePickupAddress'''
 
-text, count = parse_pattern.subn(replacement, text, count=1)
+text, count = parse_pattern.subn(lambda _: replacement, text, count=1)
 if count != 1:
     raise SystemExit(f'No se reemplazó el bloque de recomendación de puertos: {count}')
 
