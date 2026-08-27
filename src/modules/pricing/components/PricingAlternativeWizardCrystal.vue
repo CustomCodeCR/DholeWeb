@@ -14,7 +14,7 @@ import {
   Truck,
   Waypoints,
 } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
@@ -65,6 +65,7 @@ interface CatalogMetadata {
   costFactor?: number
   costMinimumUsd?: number
   countryCode?: string
+  taxRate?: number | string
   address?: string
   latitude?: number | string
   longitude?: number | string
@@ -109,6 +110,7 @@ interface RateLine {
   included: boolean
   optional: boolean
   manual: boolean
+  applyDestinationTax?: boolean
 }
 
 const router = useRouter()
@@ -142,6 +144,7 @@ const catalogs = reactive({
   carriers: [] as CatalogItemSelectDto[],
   currencies: [] as CatalogItemSelectDto[],
   warehouses: [] as CatalogItemSelectDto[],
+  countries: [] as CatalogItemSelectDto[],
 })
 
 const form = reactive({
@@ -179,6 +182,8 @@ const form = reactive({
   dangerousCargo: false,
   nonStackable: false,
   overweight: false,
+  merchantHaulage: false,
+  carrierHaulage: false,
   manualName: '',
   manualSection: 'destination_charges' as RateSection,
 })
@@ -537,6 +542,22 @@ const effectiveServices = computed(() => {
 const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))
 const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))
 const selectedCurrency = computed(() => findById(catalogs.currencies, form.currencyId))
+const destinationCountryCode = computed(() => {
+  const configured = String(metadata(selectedDestination.value)?.countryCode ?? '').trim().toUpperCase()
+  if (configured) return configured
+  const destination = normalizeCatalogValue(displayValue(selectedDestination.value))
+  if (destination.includes('costa rica')) return 'CR'
+  if (destination.includes('panama')) return 'PA'
+  if (destination.includes('guatemala')) return 'GT'
+  return ''
+})
+const destinationTaxRate = computed(() => {
+  const country = catalogs.countries.find((item) => {
+    const code = String(item.code ?? metadata(item)?.countryCode ?? '').trim().toUpperCase()
+    return code === destinationCountryCode.value
+  })
+  return Math.max(0, metadataNumber(country, 'taxRate') ?? 0)
+})
 const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
 
 function rateCommentRank(comment?: string | null) {
@@ -688,8 +709,19 @@ const providerUtility = computed(() => providerSale.value - providerCost.value)
 const providerMarginPercentage = computed(() =>
   providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
 )
+function canApplyDestinationTax(line: RateLine) {
+  return line.section === 'destination_charges' || line.optional
+}
+function lineTaxAmount(line: RateLine) {
+  return line.applyDestinationTax && canApplyDestinationTax(line)
+    ? Math.round(number(line.saleAmount) * destinationTaxRate.value) / 100
+    : 0
+}
+function lineSaleWithTax(line: RateLine) {
+  return number(line.saleAmount) + lineTaxAmount(line)
+}
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
-const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
+const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + lineSaleWithTax(line), 0))
 const totalUtility = computed(() => totalSale.value - totalCost.value)
 const totalMarginPercentage = computed(() =>
   totalSale.value > 0 ? (totalUtility.value / totalSale.value) * 100 : 0,
@@ -726,7 +758,7 @@ const canNext = computed(() => {
   }
   if (step.value === 4) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
   if (step.value === 5) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
-  if (step.value === 6) return Boolean(form.cargoDescription || form.cabysCode)
+  if (step.value === 6) return true
   return true
 })
 
@@ -1098,6 +1130,29 @@ addVariableSectionFallback(
   if (form.dangerousCargo) addCargoConditionFallback('dangerous', 'Carga peligrosa')
   if (form.overweight) addCargoConditionFallback('overweight', 'Sobrepeso')
 
+  const addHaulageOption = (key: string, name: string) => {
+    if (!visible.has('destination_charges')) return
+    lines.push({
+      key,
+      section: 'destination_charges',
+      name,
+      costDetailType: 'InlandTransport',
+      costType: 'Optional',
+      chargeBasis: 'PerShipment',
+      contextLabel: 'Opción agregada automáticamente según la responsabilidad de transporte seleccionada.',
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: 0,
+      saleAmount: 0,
+      included: false,
+      optional: true,
+      manual: false,
+    })
+  }
+  if (form.merchantHaulage) addHaulageOption('haulage:merchant', 'Gate + Inland GAM Merchant')
+  if (form.carrierHaulage) addHaulageOption('haulage:carrier', 'Inland GAM Naviera')
+
   if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance') && visible.has('destination_charges')) {
     const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
     lines.push({
@@ -1171,6 +1226,16 @@ function chooseShipmentMode(value: string) {
   step.value = 3
 }
 
+function toggleMerchantHaulage() {
+  form.merchantHaulage = !form.merchantHaulage
+  if (form.merchantHaulage) form.carrierHaulage = false
+}
+
+function toggleCarrierHaulage() {
+  form.carrierHaulage = !form.carrierHaulage
+  if (form.carrierHaulage) form.merchantHaulage = false
+}
+
 async function loadCatalogs() {
   try {
     loadingCatalogs.value = true
@@ -1201,6 +1266,7 @@ async function loadCatalogs() {
       carriers,
       currencies,
       warehouses,
+      countries,
       selectedCosts,
     ] = await Promise.all([
       select('shipment-modes'),
@@ -1217,6 +1283,7 @@ async function loadCatalogs() {
       select('carriers'),
       select('currencies'),
       selectOptional('pricing-warehouses', 'warehouses', 'whs', 'fca-warehouses'),
+      selectOptional('countries', 'country-tax-rates'),
       PricingService.selectCosts().catch(() => [] as CostSelectDto[]),
     ])
 
@@ -1234,6 +1301,7 @@ async function loadCatalogs() {
       agents,
       carriers,
       currencies,
+      countries,
       warehouses,
     })
     costs.value = selectedCosts
@@ -1593,10 +1661,12 @@ async function saveRate() {
     currencyName: line.currencyName,
     currencyCode: line.currencyCode,
     costAmount: number(line.costAmount),
-    saleAmount: number(line.saleAmount),
+    saleAmount: lineSaleWithTax(line),
     quantity: quantityForChargeBasis(line.chargeBasis),
     notes: line.costDetailType === 'Insurance'
       ? [line.notes, cargoInsuranceNote(form.cargoValue, form.freightCost)].filter(Boolean).join(' · ')
+      : line.applyDestinationTax
+        ? [line.notes, `IVA ${destinationTaxRate.value}%: ${lineTaxAmount(line).toFixed(2)}; venta total: ${lineSaleWithTax(line).toFixed(2)}`].filter(Boolean).join(' · ')
       : line.manual
         ? line.notes || 'Cargo manual agregado desde el wizard de Pricing.'
         : line.notes || null,
@@ -2270,7 +2340,7 @@ onMounted(loadCatalogs)
             </p>
           </div>
 
-          <div class="grid gap-3" :class="shipmentModeForApi === 'Fcl' ? 'md:grid-cols-2' : 'md:grid-cols-3'">
+          <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
             <button type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">
               <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa
             </button>
@@ -2279,6 +2349,12 @@ onMounted(loadCatalogs)
             </button>
             <button type="button" class="crystal-flag" :class="form.overweight ? 'crystal-flag--active' : ''" @click="form.overweight = !form.overweight">
               <Check v-if="form.overweight" class="h-4 w-4" /> Sobrepeso
+            </button>
+            <button type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">
+              <Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant
+            </button>
+            <button type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">
+              <Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier
             </button>
           </div>
         </div>
@@ -2321,7 +2397,14 @@ onMounted(loadCatalogs)
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costType !== 'Variable'" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
-              <span />
+              <div v-if="canApplyDestinationTax(line)" class="space-y-2">
+                <DhCheckbox :model-value="Boolean(line.applyDestinationTax)" :label="`Aplicar IVA destino (${destinationTaxRate}%)`" :disabled="destinationTaxRate <= 0" @update:model-value="line.applyDestinationTax = $event" />
+                <div v-if="line.applyDestinationTax" class="grid grid-cols-2 gap-2">
+                  <DhInput :model-value="lineTaxAmount(line)" type="number" label="Monto IVA" disabled />
+                  <DhInput :model-value="lineSaleWithTax(line)" type="number" label="Venta + IVA" disabled />
+                </div>
+              </div>
+              <span v-else />
             </div>
           </div>
 
@@ -2361,6 +2444,13 @@ onMounted(loadCatalogs)
                 </div>
                 <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" />
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+                <div v-if="canApplyDestinationTax(line)" class="space-y-2">
+                  <DhCheckbox :model-value="Boolean(line.applyDestinationTax)" :label="`Aplicar IVA destino (${destinationTaxRate}%)`" :disabled="destinationTaxRate <= 0" @update:model-value="line.applyDestinationTax = $event" />
+                  <div v-if="line.applyDestinationTax" class="grid grid-cols-2 gap-2">
+                    <DhInput :model-value="lineTaxAmount(line)" type="number" label="Monto IVA" disabled />
+                    <DhInput :model-value="lineSaleWithTax(line)" type="number" label="Venta + IVA" disabled />
+                  </div>
+                </div>
                 <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
                 <span v-else />
               </div>
