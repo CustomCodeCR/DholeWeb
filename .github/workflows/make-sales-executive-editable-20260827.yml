@@ -1,0 +1,38 @@
+name: Make sales executive editable
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/make-sales-executive-editable-20260827.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout web
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Make executive editable
+        run: python3 .github/scripts/make_sales_executive_editable_20260827.py
+
+      - name: Validate build
+        run: docker build --target build -t dhole-web-sales-executive-validation .
+
+      - name: Commit change
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/make-sales-executive-editable-20260827.yml
+          rm -f .github/scripts/make_sales_executive_editable_20260827.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(pricing): allow typing sales executive name"
+          git push origin HEAD:master
