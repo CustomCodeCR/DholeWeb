@@ -74,7 +74,7 @@ helper_replacement = """  const uniqueTermLines = (values: Array<string | null |
   }
 
   const includeTerms ="""
-wizard, helper_count = helper_pattern.subn(helper_replacement, wizard, count=1)
+wizard, helper_count = helper_pattern.subn(lambda _: helper_replacement, wizard, count=1)
 if helper_count != 1:
     raise SystemExit(f'Helper de términos no reemplazado: {helper_count}')
 
