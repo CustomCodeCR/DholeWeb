@@ -40,6 +40,7 @@ import {
   calculateCargoInsurance,
   canonicalServiceLine,
   cargoInsuranceNote,
+  commercialTermKey,
   incotermBuyerPaysMainTransport,
   incotermRateSections,
   resolveCommercialTerms,
@@ -1723,18 +1724,18 @@ async function saveRate() {
     ...commercialTerms.includes.map((item) => item.text),
     ...includedLines.value.map((line) => line.name),
   ])
-  const includeKeys = new Set(includeTerms.map(normalizeCatalogValue))
+  const includeKeys = new Set(includeTerms.map(commercialTermKey))
   const subjectTerms = uniqueText([
     ...commercialTerms.subjectTo.map((item) => item.text),
     form.dangerousCargo ? 'Carga peligrosa' : null,
     form.nonStackable ? 'Carga no estibable' : null,
     form.overweight ? 'Sobrepeso' : null,
-  ]).filter((text) => !includeKeys.has(normalizeCatalogValue(text)))
-  const subjectKeys = new Set(subjectTerms.map(normalizeCatalogValue))
+  ]).filter((text) => !includeKeys.has(commercialTermKey(text)))
+  const subjectKeys = new Set(subjectTerms.map(commercialTermKey))
   const excludeTerms = uniqueText(
     commercialTerms.excludes.map((item) => item.text),
   ).filter((text) => {
-    const key = normalizeCatalogValue(text)
+    const key = commercialTermKey(text)
     return !includeKeys.has(key) && !subjectKeys.has(key)
   })
 
