@@ -37,6 +37,7 @@ import {
   routeLabel,
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
+import { commercialTermKey } from '@/modules/pricing/services/pricingCommercialRules'
 
 const props = defineProps<{ rate: RateDto; onSaved?: () => void | Promise<void> }>()
 const authStore = useAuthStore()
@@ -47,6 +48,28 @@ const catalogs = usePricingCatalogs()
 const current = ref<RateDto>(props.rate)
 const displayCurrent = computed(() => catalogs.resolveRateLabels(current.value))
 const currentDisplayName = computed(() => rateDisplayName(displayCurrent.value))
+
+function splitTerms(value?: string | null) {
+  return String(value ?? '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
+}
+
+const exclusiveTerms = computed(() => {
+  const includes = splitTerms(current.value.includes)
+  const includeKeys = new Set(includes.map(commercialTermKey))
+  const subjectTo = splitTerms(current.value.subjectTo)
+    .filter((item) => !includeKeys.has(commercialTermKey(item)))
+  const subjectKeys = new Set(subjectTo.map(commercialTermKey))
+  const excludes = splitTerms(current.value.excludes)
+    .filter((item) => {
+      const key = commercialTermKey(item)
+      return !includeKeys.has(key) && !subjectKeys.has(key)
+    })
+  return {
+    includes: includes.join('\n') || '—',
+    subjectTo: subjectTo.join('\n') || '—',
+    excludes: excludes.join('\n') || '—',
+  }
+})
 
 function containerSummary(rate: RateDto) {
   if (rate.shipmentMode === 'Lcl' || rate.shipmentMode === 'Ltl') {
@@ -632,7 +655,7 @@ onMounted(async () => {
             Tarifa incluye
           </p>
           <p class="mt-2 whitespace-pre-line text-sm font-semibold">
-            {{ current.includes || '—' }}
+            {{ exclusiveTerms.includes }}
           </p>
         </div>
         <div class="rounded-[20px] bg-black/[0.035] p-4 dark:bg-white/[0.05]">
@@ -640,7 +663,7 @@ onMounted(async () => {
             Sujeto a
           </p>
           <p class="mt-2 whitespace-pre-line text-sm font-semibold">
-            {{ current.subjectTo || '—' }}
+            {{ exclusiveTerms.subjectTo }}
           </p>
         </div>
         <div class="rounded-[20px] bg-black/[0.035] p-4 dark:bg-white/[0.05]">
@@ -648,7 +671,7 @@ onMounted(async () => {
             No incluye
           </p>
           <p class="mt-2 whitespace-pre-line text-sm font-semibold">
-            {{ current.excludes || '—' }}
+            {{ exclusiveTerms.excludes }}
           </p>
         </div>
       </div>
