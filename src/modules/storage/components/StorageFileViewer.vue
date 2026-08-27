@@ -19,6 +19,11 @@ const objectUrl = ref<string | null>(null)
 const textContent = ref('')
 const errorMessage = ref<string | null>(null)
 const kind = computed(() => storagePreviewKind(props))
+const pdfPreviewUrl = computed(() =>
+  kind.value === 'pdf' && objectUrl.value
+    ? `${objectUrl.value}#toolbar=1&navpanes=0&view=FitH`
+    : null,
+)
 
 function revokeObjectUrl() {
   if (!objectUrl.value) return
@@ -161,21 +166,12 @@ onBeforeUnmount(revokeObjectUrl)
       class="mx-auto max-h-[72vh] max-w-full rounded-[24px] object-contain shadow-[var(--dh-shadow-lg)]"
     />
 
-    <object
-      v-else-if="kind === 'pdf' && objectUrl"
-      :data="objectUrl"
-      type="application/pdf"
-      :aria-label="fileName"
+    <iframe
+      v-else-if="kind === 'pdf' && pdfPreviewUrl"
+      :src="pdfPreviewUrl"
+      :title="fileName"
       class="h-[72vh] w-full rounded-[24px] border border-[var(--dh-border)] bg-white"
-    >
-      <div class="flex h-full min-h-[420px] flex-col items-center justify-center gap-3 p-8 text-center text-[var(--dh-text)]">
-        <FileText class="h-8 w-8 text-[var(--dh-primary)]" />
-        <p class="font-black">El navegador no pudo mostrar el PDF incrustado.</p>
-        <button type="button" class="font-black text-[var(--dh-primary)] underline" @click="downloadCurrentFile">
-          Descargar PDF
-        </button>
-      </div>
-    </object>
+    />
 
     <pre
       v-else-if="kind === 'text'"
