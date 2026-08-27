@@ -80,6 +80,7 @@ interface RateLine {
   chargeBasis: ChargeBasis
   costId?: string | null
   contextLabel?: string | null
+  notes?: string | null
   currencyId: string
   currencyName: string
   currencyCode: string
@@ -910,6 +911,7 @@ function rebuildRateLines() {
       chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
       costId: cost.id,
       contextLabel: costContextLabel(cost),
+      notes: cost.notes?.trim() || null,
       currencyId: cost.currencyId,
       currencyName: cost.currencyName,
       currencyCode: cost.currencyCode,
@@ -1306,10 +1308,10 @@ async function saveRate() {
     saleAmount: number(line.saleAmount),
     quantity: quantityForChargeBasis(line.chargeBasis),
     notes: line.costDetailType === 'Insurance'
-      ? cargoInsuranceNote(form.cargoValue, form.freightCost)
+      ? [line.notes, cargoInsuranceNote(form.cargoValue, form.freightCost)].filter(Boolean).join(' · ')
       : line.manual
-        ? 'Cargo manual agregado desde el wizard de Pricing.'
-        : null,
+        ? line.notes || 'Cargo manual agregado desde el wizard de Pricing.'
+        : line.notes || null,
   }))
 
   const includedNameKeys = new Set(
@@ -1855,6 +1857,10 @@ onMounted(loadCatalogs)
                   Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
                 </p>
                 <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
+      <div v-if="line.notes" class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-left">
+        <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Comentario de Costos y recargos</span>
+        <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>
+      </div>
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costType !== 'Variable'" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
@@ -1890,6 +1896,11 @@ onMounted(loadCatalogs)
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                     {{ sectionLabel(line.section) }} · Rubro: {{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}
                   </p>
+        <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
+        <div v-if="line.notes" class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-left">
+          <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Comentario de Costos y recargos</span>
+          <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>
+        </div>
                 </div>
                 <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" />
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
