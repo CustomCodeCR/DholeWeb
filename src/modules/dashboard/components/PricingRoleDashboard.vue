@@ -131,6 +131,16 @@ function formatDateTime(value?: string | null) {
   }).format(date)
 }
 
+function currencyDisplayValue(currencyCode?: string | null) {
+  if (!currencyCode) return '—'
+
+  const summary = dashboard.value?.financials.find(
+    (financial) => financial.currencyCode === currencyCode,
+  )
+
+  return summary?.currencyName || currencyCode
+}
+
 onMounted(loadDashboard)
 </script>
 
@@ -211,8 +221,8 @@ onMounted(loadDashboard)
             >
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ financial.currencyName }}</p>
-                  <p class="mt-1 text-lg font-black text-[var(--dh-text)]">{{ financial.currencyCode }}</p>
+                  <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Moneda</p>
+                  <p class="mt-1 text-lg font-black text-[var(--dh-text)]">{{ financial.currencyName }}</p>
                 </div>
                 <DhBadge :label="`${financial.rateCount} tarifas`" variant="neutral" />
               </div>
@@ -220,7 +230,7 @@ onMounted(loadDashboard)
                 <div>
                   <p class="font-semibold text-[var(--dh-text-muted)]">Utilidad proyectada</p>
                   <p class="mt-1 text-xl font-black text-green-600 dark:text-green-400">
-                    {{ formatMoney(financial.totalUtilityAmount, financial.currencyCode) }}
+                    {{ formatMoney(financial.totalUtilityAmount, financial.currencyName) }}
                   </p>
                 </div>
                 <div>
@@ -229,11 +239,11 @@ onMounted(loadDashboard)
                 </div>
                 <div>
                   <p class="font-semibold text-[var(--dh-text-muted)]">Costo</p>
-                  <p class="mt-1 font-black text-[var(--dh-text)]">{{ formatMoney(financial.totalCostAmount, financial.currencyCode) }}</p>
+                  <p class="mt-1 font-black text-[var(--dh-text)]">{{ formatMoney(financial.totalCostAmount, financial.currencyName) }}</p>
                 </div>
                 <div>
                   <p class="font-semibold text-[var(--dh-text-muted)]">Venta</p>
-                  <p class="mt-1 font-black text-[var(--dh-text)]">{{ formatMoney(financial.totalSaleAmount, financial.currencyCode) }}</p>
+                  <p class="mt-1 font-black text-[var(--dh-text)]">{{ formatMoney(financial.totalSaleAmount, financial.currencyName) }}</p>
                 </div>
               </div>
             </article>
@@ -315,7 +325,7 @@ onMounted(loadDashboard)
                   {{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}
                 </td>
                 <td class="px-5 py-4 text-right font-black text-green-600 dark:text-green-400">
-                  {{ formatMoney(rate.totalUtilityAmount, rate.currencyCode) }}
+                  {{ formatMoney(rate.totalUtilityAmount, currencyDisplayValue(rate.currencyCode)) }}
                 </td>
               </tr>
               <tr v-if="!dashboard.recentRates.length">
