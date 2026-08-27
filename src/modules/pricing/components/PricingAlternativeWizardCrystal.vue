@@ -931,7 +931,10 @@ const addVariableSectionFallback = (
   detailType: CostDetailType,
   contextLabel: string,
 ) => {
-  if (!visible.has(section) || lines.some((line) => line.section === section)) return
+  const alreadyPresent = section === 'pickup_origin'
+    ? lines.some((line) => line.section === section && line.costDetailType === 'InlandTransport')
+    : lines.some((line) => line.section === section && line.costDetailType === 'OriginCharge')
+  if (!visible.has(section) || alreadyPresent) return
   lines.push({
     key: `variable-section:${section}`,
     section,
