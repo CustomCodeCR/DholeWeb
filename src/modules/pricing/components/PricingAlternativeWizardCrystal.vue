@@ -34,9 +34,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import {
-  buildOperationalLines,
   calculateCargoInsurance,
-  canonicalServiceLine,
   cargoInsuranceNote,
   incotermBuyerPaysMainTransport,
   incotermRateSections,
@@ -759,15 +757,6 @@ function applicableConfiguredCosts() {
     .sort((left, right) => costSpecificity(right) - costSpecificity(left))
 }
 
-function serviceAmounts(service: CatalogItemSelectDto) {
-  const serviceValue = normalizeCatalogValue(displayValue(service))
-  if (serviceValue.includes('seguro') && serviceValue.includes('carga') && form.cargoValue > 0) {
-    const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
-    return { cost: insurance.cost, sale: insurance.sale }
-  }
-  return { cost: 0, sale: 0 }
-}
-
 async function loadApplicableCosts() {
   try {
     costs.value = await PricingService.selectCosts({
@@ -1056,9 +1045,9 @@ async function next() {
   if (!canNext.value) return
   if (step.value === 3) await searchApprovedRates()
   if (step.value === 6) {
-  await loadApplicableCosts()
-  rebuildRateLines()
-}
+    await loadApplicableCosts()
+    rebuildRateLines()
+  }
   if (step.value < 7) step.value += 1
 }
 
