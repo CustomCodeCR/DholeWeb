@@ -1,0 +1,84 @@
+name: Apply pricing Cost context fix fast
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-pricing-cost-context-fix-fast.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch pricing wizard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text(encoding='utf-8')
+
+          insert_marker = 'function rebuildRateLines() {'
+          if 'async function loadApplicableCosts() {' not in text:
+              assert insert_marker in text
+              loader = '''async function loadApplicableCosts() {
+            try {
+              costs.value = await PricingService.selectCosts({
+                carrierId: form.carrierId || undefined,
+                agentId: form.agentId || undefined,
+                polId: form.originId || undefined,
+                poeId: form.destinationId || undefined,
+                podId: form.podId || undefined,
+                incotermId: form.incotermId || undefined,
+                shipmentMode: shipmentModeForApi.value,
+                isActive: true,
+                applicableToContext: true,
+              } as any)
+            } catch (error) {
+              costs.value = []
+              toastStore.backendError(
+                error,
+                'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.',
+              )
+            }
+          }
+
+          '''
+              text = text.replace(insert_marker, loader + insert_marker, 1)
+
+          synthetic_start = '  // Las reglas de Incoterm complementan los costos configurados.'
+          insurance_old = "  if (form.cargoValue > 0 && !cargoInsuranceService.value && !lines.some((line) => line.costDetailType === 'Insurance')) {"
+          insurance_new = "  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance')) {"
+          if synthetic_start in text:
+              start = text.index(synthetic_start)
+              end = text.index(insurance_old, start)
+              text = text[:start] + text[end:]
+          if insurance_old in text:
+              text = text.replace(insurance_old, insurance_new, 1)
+
+          next_old = '  if (step.value === 6) rebuildRateLines()'
+          next_new = '''  if (step.value === 6) {
+            await loadApplicableCosts()
+            rebuildRateLines()
+          }'''
+          if next_old in text:
+              text = text.replace(next_old, next_new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit focused fix
+        shell: bash
+        run: |
+          rm -f .github/workflows/apply-pricing-cost-context-fix.yml
+          rm -f .github/workflows/apply-pricing-cost-context-fix-fast.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(pricing): respect Cost filters in wizard lines"
+          git push
