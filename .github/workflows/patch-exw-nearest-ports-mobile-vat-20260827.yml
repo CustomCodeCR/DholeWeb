@@ -1,3 +1,4 @@
+# One-shot patch workflow; it removes itself after applying the validated change.
 name: Patch EXW nearest ports and mobile VAT
 
 on:
