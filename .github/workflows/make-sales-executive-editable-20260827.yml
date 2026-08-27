@@ -36,3 +36,5 @@ jobs:
           git diff --cached --check
           git commit -m "fix(pricing): allow typing sales executive name"
           git push origin HEAD:master
+
+# Retried after fixing Leaflet type-check on master.
