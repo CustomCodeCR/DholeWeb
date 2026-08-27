@@ -9,7 +9,7 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
     :aria-label="label"
     :title="label"
     :disabled="disabled"
-    class="inline-flex items-center justify-center rounded-[18px] transition-all duration-200 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
+    class="inline-flex touch-manipulation items-center justify-center rounded-[18px] transition-all duration-200 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 max-sm:min-h-11 max-sm:min-w-11"
     :class="[
       size === 'sm' && 'h-9 w-9', size === 'md' && 'h-11 w-11', size === 'lg' && 'h-13 w-13',
       variant === 'primary' && 'bg-[var(--dh-primary)] text-white shadow-[var(--dh-glow)]',
