@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 
 export interface PricingMultiSelectOption {
@@ -27,6 +27,25 @@ const props = withDefaults(
 
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const search = ref('')
+const detailsRef = ref<HTMLDetailsElement | null>(null)
+
+function handleToggle() {
+  const current = detailsRef.value
+  if (!current?.open) return
+  document.querySelectorAll<HTMLDetailsElement>('details[data-dh-dropdown="true"][open]').forEach((item) => {
+    if (item !== current) item.removeAttribute('open')
+  })
+}
+
+function handleOutsidePointer(event: PointerEvent) {
+  const current = detailsRef.value
+  const target = event.target
+  if (!current?.open || !(target instanceof Node) || current.contains(target)) return
+  current.removeAttribute('open')
+}
+
+onMounted(() => document.addEventListener('pointerdown', handleOutsidePointer, true))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsidePointer, true))
 
 const selected = computed(() =>
   props.options.filter((option) => props.modelValue.includes(option.value)),
@@ -58,7 +77,7 @@ function toggle(value: string) {
       class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
       >{{ label }}</span
     >
-    <details class="group relative">
+    <details ref="detailsRef" data-dh-dropdown="true" class="group relative" @toggle="handleToggle">
       <summary
         class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] dh-focus-primary"
       >
