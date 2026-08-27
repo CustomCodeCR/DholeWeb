@@ -26,6 +26,16 @@ const props = withDefaults(
 
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const search = ref('')
+const detailsRef = ref<HTMLDetailsElement | null>(null)
+
+function handleToggle() {
+  const current = detailsRef.value
+  if (!current?.open) return
+  document.querySelectorAll<HTMLDetailsElement>('details[data-dh-dropdown="true"][open]').forEach((item) => {
+    if (item !== current) item.removeAttribute('open')
+  })
+}
+
 
 const selected = computed(() => props.options.filter((item) => props.modelValue.includes(item.value)))
 const filtered = computed(() => {
@@ -48,7 +58,7 @@ function toggle(value: string) {
       {{ label }}
     </span>
 
-    <details class="crystal-multi group relative">
+    <details ref="detailsRef" data-dh-dropdown="true" class="crystal-multi group relative" @toggle="handleToggle">
       <summary class="crystal-multi__trigger">
         <span class="min-w-0 flex-1 truncate" :class="selected.length ? 'text-[var(--dh-text)]' : 'text-[var(--dh-text-muted)]'">
           {{ selected.length ? selected.map((item) => item.label).join(', ') : placeholder }}
@@ -109,6 +119,17 @@ function toggle(value: string) {
 </template>
 
 <style scoped>
+.crystal-multi {
+  position: relative;
+  z-index: 0;
+  min-width: 0;
+  isolation: isolate;
+}
+
+.crystal-multi[open] {
+  z-index: 1000;
+}
+
 .crystal-multi__trigger {
   display: flex;
   min-height: 44px;
@@ -146,17 +167,33 @@ function toggle(value: string) {
 
 .crystal-multi__menu {
   position: absolute;
-  z-index: 60;
+  z-index: 1001;
   top: calc(100% + 0.55rem);
+  inset-inline-start: 0;
   width: 100%;
   min-width: min(360px, 86vw);
+  max-width: min(520px, calc(100vw - 2rem));
+  overflow: hidden;
   border-radius: 22px;
   border: 1px solid color-mix(in srgb, var(--dh-border-strong) 70%, transparent);
-  background: color-mix(in srgb, var(--dh-shell-strong) 78%, transparent);
+  background-color: var(--dh-bg-2);
   padding: 0.7rem;
   box-shadow: 0 26px 70px rgb(15 23 42 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.34);
   backdrop-filter: blur(32px) saturate(155%);
   -webkit-backdrop-filter: blur(32px) saturate(155%);
+}
+
+
+:global(.dark) .crystal-multi__menu {
+  background-color: #111114;
+  color: #ffffff;
+}
+
+@supports (-webkit-touch-callout: none) {
+  .crystal-multi__menu {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 .crystal-multi__search {

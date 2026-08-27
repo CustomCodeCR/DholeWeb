@@ -924,6 +924,46 @@ function rebuildRateLines() {
     })
   })
 
+
+const addVariableSectionFallback = (
+  section: RateSection,
+  name: string,
+  detailType: CostDetailType,
+  contextLabel: string,
+) => {
+  if (!visible.has(section) || lines.some((line) => line.section === section)) return
+  lines.push({
+    key: `variable-section:${section}`,
+    section,
+    name,
+    costDetailType: detailType,
+    costType: 'Variable',
+    chargeBasis: defaultChargeBasis(detailType),
+    contextLabel,
+    currencyId: currency.id,
+    currencyName: displayValue(currency),
+    currencyCode: currency.code,
+    costAmount: 0,
+    saleAmount: 0,
+    included: true,
+    optional: false,
+    manual: false,
+  })
+}
+
+addVariableSectionFallback(
+  'pickup_origin',
+  'Recolecta',
+  'InlandTransport',
+  'Variable: complete costo y venta según la recolección aplicable.',
+)
+addVariableSectionFallback(
+  'origin_charges',
+  'Cargos en Origen',
+  'OriginCharge',
+  'Variable: complete costo y venta según los cargos de origen aplicables.',
+)
+
   const cargoConditionSection: RateSection | null = visible.has('destination_charges')
     ? 'destination_charges'
     : visible.has('international_freight')
@@ -1638,7 +1678,7 @@ onMounted(loadCatalogs)
         <div v-else-if="step === 4" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 4</p>
-            <h2 class="crystal-title">Tarifas aprobadas disponibles</h2>
+            <h2 class="crystal-title">Tarifas preaprobadas disponibles</h2>
             <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
           </div>
 
