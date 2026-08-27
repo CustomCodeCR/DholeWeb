@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-vue-next'
 import { DhButton, DhEmptyState, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
-import { DhSearchInput } from '@/shared/components/molecules'
+import { DhConfirmDialog, DhSearchInput } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -35,6 +35,7 @@ const page = ref(1)
 const pageSize = 24
 
 const generateTarget = ref<ReportTemplateListDto | null>(null)
+const deleteTarget = ref<ReportTemplateListDto | null>(null)
 const generating = ref(false)
 const format = ref<ReportFormat>('pdf')
 const fileName = ref('')
@@ -112,11 +113,18 @@ async function preview(template: ReportTemplateListDto) {
 }
 
 async function remove(template: ReportTemplateListDto) {
-  if (!canDelete.value || !window.confirm(t('reports.deleteConfirm', { name: template.name }))) return
+  if (!canDelete.value) return
+  deleteTarget.value = template
+}
+
+async function confirmRemove() {
+  const template = deleteTarget.value
+  if (!template) return
 
   try {
     await ReportsService.delete(template.id)
     toastStore.success(t('reports.toasts.deletedTitle'), template.name)
+    deleteTarget.value = null
     await load()
   } catch (error) {
     toastStore.backendError(error, t('reports.toasts.deleteError'))
@@ -337,6 +345,23 @@ onMounted(load)
         />
       </div>
     </section>
+
+    <DhModal
+      :open="Boolean(deleteTarget)"
+      title="Eliminar plantilla"
+      size="sm"
+      @close="deleteTarget = null"
+    >
+      <DhConfirmDialog
+        title="Eliminar plantilla"
+        :message="deleteTarget ? t('reports.deleteConfirm', { name: deleteTarget.name }) : ''"
+        :confirm-label="t('common.delete')"
+        :cancel-label="t('common.cancel')"
+        danger
+        :on-confirm="confirmRemove"
+        :on-cancel="() => { deleteTarget = null }"
+      />
+    </DhModal>
 
     <DhModal
       :open="Boolean(generateTarget)"
