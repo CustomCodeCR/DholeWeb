@@ -22,10 +22,7 @@ jobs:
         run: python3 .github/scripts/apply_pricing_request_20260827.py
 
       - name: Validate build
-        run: |
-          corepack enable
-          pnpm install --frozen-lockfile
-          pnpm run build
+        run: docker build --target build -t dhole-web-pricing-validation .
 
       - name: Commit pricing changes
         run: |
