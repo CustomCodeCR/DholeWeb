@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Check, ChevronLeft, ChevronRight, MessageSquareText, RefreshCw, X } from 'lucide-vue-next'
+import { Check, ChevronLeft, ChevronRight, MessageSquareText, RefreshCw, UploadCloud, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -13,6 +13,7 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingImportReviewDrawer from '@/modules/pricing/components/PricingImportReviewDrawer.vue'
 import PricingReasonModal from '@/modules/pricing/components/PricingReasonModal.vue'
+import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawer.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
@@ -269,6 +270,21 @@ function reject(ids: string[]) {
   })
 }
 
+function openManualUpload() {
+  drawerStore.open({
+    title: 'Subir tarifario manualmente',
+    component: PricingUploadDrawer,
+    size: 'lg',
+    props: {
+      onSaved: async () => {
+        pageNumber.value = 1
+        filters.status = 'Pending'
+        await load()
+      },
+    },
+  })
+}
+
 async function openReview(row: ReviewQueueItem) {
   try {
     const detail = await PricingService.getImportRate(row.id)
@@ -298,9 +314,13 @@ onMounted(() => {
   <div class="space-y-5">
     <DhPageHeader
       title="Revisión de tarifas recibidas"
-      description="Revise, comente, apruebe o rechace sin salir de esta pestaña."
+      description="Revise tarifas de correo o cargue Excel/PDF manualmente para enviarlos al mismo flujo de extracción y aprobación."
     >
       <template #actions>
+        <DhButton @click="openManualUpload">
+          <UploadCloud class="h-4 w-4" />
+          Subir Excel / PDF
+        </DhButton>
         <DhButton variant="secondary" :disabled="loading" @click="load">
           <RefreshCw class="h-4 w-4" />
           Actualizar
