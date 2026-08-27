@@ -416,6 +416,12 @@ function mergeCommercialTerms(primary: CommercialTerms, secondary: CommercialTer
   return result
 }
 
+export function commercialTermKey(value: string) {
+  const normalized = normalize(value)
+  const qualifier = normalized.search(/\s(?:usd|eur|crc|ivi|iva|itbms|\d)/)
+  return qualifier > 0 ? normalized.slice(0, qualifier).trim() : normalized
+}
+
 function fallbackTerm(text: string): CommercialTermItem {
   return { id: `manual:${normalize(text).replaceAll(' ', '-')}`, text }
 }
