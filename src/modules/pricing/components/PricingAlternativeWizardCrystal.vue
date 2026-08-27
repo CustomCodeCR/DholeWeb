@@ -35,6 +35,7 @@ import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCryst
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import {
   calculateCargoInsurance,
+  canonicalServiceLine,
   cargoInsuranceNote,
   incotermBuyerPaysMainTransport,
   incotermRateSections,
