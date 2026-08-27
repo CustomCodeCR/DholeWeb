@@ -215,7 +215,7 @@ function fitVisiblePoints() {
   if (selected) points.push(selected)
 
   if (!points.length) return void map.setView([9.7489, -83.7534], clampZoom(props.initialZoom))
-  if (points.length === 1) return void map.setView(points[0], clampZoom(props.selectionZoom))
+  if (points.length === 1) return void map.setView(points[0]!, clampZoom(props.selectionZoom))
   map.fitBounds(window.L.latLngBounds(points), { padding: [48, 48], maxZoom: clampZoom(props.selectionZoom) })
 }
 
