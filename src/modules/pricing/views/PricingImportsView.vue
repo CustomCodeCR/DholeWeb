@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { Check, ChevronLeft, ChevronRight, MessageSquareText, RefreshCw, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -41,6 +42,7 @@ const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
+const route = useRoute()
 
 const rows = ref<ReviewQueueItem[]>([])
 const selectedIds = ref<string[]>([])
@@ -56,6 +58,9 @@ const filters = reactive({
   sourceType: '' as QueueSource,
   status: 'Pending' as QueueStatus,
   carrierId: '',
+  agentId: '',
+  containerTypeId: '',
+  importBatchId: typeof route.query.importBatchId === 'string' ? route.query.importBatchId : '',
   polId: '',
   poeId: '',
   createdFrom: '',
@@ -95,6 +100,14 @@ const polFilterOptions = computed(() => [
 const poeFilterOptions = computed(() => [
   { label: 'Todos los POE', value: '' },
   ...catalogs.poeOptions.value,
+])
+const agentFilterOptions = computed(() => [
+  { label: 'Todos los agentes', value: '' },
+  ...catalogs.agentOptions.value,
+])
+const containerFilterOptions = computed(() => [
+  { label: 'Todos los contenedores', value: '' },
+  ...catalogs.containerOptions.value,
 ])
 
 const selectedPendingIds = computed(() =>
@@ -151,6 +164,9 @@ async function load() {
           sourceType: filters.sourceType || undefined,
           status: filters.status || undefined,
           carrierId: filters.carrierId || undefined,
+          agentId: filters.agentId || undefined,
+          containerTypeId: filters.containerTypeId || undefined,
+          importBatchId: filters.importBatchId || undefined,
           polId: filters.polId || undefined,
           poeId: filters.poeId || undefined,
           createdFrom: filters.createdFrom || undefined,
@@ -187,6 +203,9 @@ function clearFilters() {
   filters.sourceType = ''
   filters.status = 'Pending'
   filters.carrierId = ''
+  filters.agentId = ''
+  filters.containerTypeId = ''
+  filters.importBatchId = ''
   filters.polId = ''
   filters.poeId = ''
   filters.createdFrom = ''
@@ -295,6 +314,8 @@ onMounted(() => {
         <DhSelect v-model="filters.sourceType" label="Origen" :options="sourceOptions" />
         <DhSelect v-model="filters.status" label="Estado" :options="statusOptions" />
         <DhSelect v-model="filters.carrierId" label="Naviera" :options="carrierFilterOptions" />
+        <DhSelect v-model="filters.agentId" label="Agente" :options="agentFilterOptions" />
+        <DhSelect v-model="filters.containerTypeId" label="Contenedor" :options="containerFilterOptions" />
         <DhSelect v-model="filters.polId" label="POL" :options="polFilterOptions" />
         <DhSelect v-model="filters.poeId" label="POE" :options="poeFilterOptions" />
         <DhInput v-model="filters.createdFrom" type="date" label="Cargada desde" />
