@@ -577,13 +577,44 @@ const orderedRateGroups = computed(() => [
   { key: 'delivery', label: 'Entrega', lines: standardSectionLines('delivery_destination') },
 ].filter((group) => group.lines.length > 0))
 
-const freightUtility = computed(() => number(form.freightSale) - number(form.freightCost))
-const freightMarginPercentage = computed(() =>
-  number(form.freightSale) > 0 ? (freightUtility.value / number(form.freightSale)) * 100 : 0,
+const providerAgentCosts = computed(() => {
+  const seen = new Set<string>()
+  return applicableConfiguredCosts().filter((cost) => {
+    if (cost.costDetailType !== 'AgentCharge' || cost.costType === 'Optional') return false
+    const key = normalizeCatalogValue(cost.name)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+})
+const providerAgentCost = computed(() =>
+  providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.costAmount), 0),
+)
+const providerAgentSale = computed(() =>
+  providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.saleAmount), 0),
+)
+const providerCost = computed(() => number(form.freightCost) + providerAgentCost.value)
+const providerSale = computed(() => number(form.freightSale) + providerAgentSale.value)
+const providerUtility = computed(() => providerSale.value - providerCost.value)
+const providerMarginPercentage = computed(() =>
+  providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
 )
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
 const totalSale = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
 const totalUtility = computed(() => totalSale.value - totalCost.value)
+
+function financialTone(value: number) {
+  if (value < 0) return 'danger'
+  if (value > 0) return 'success'
+  return 'neutral'
+}
+
+function validityTone(validTo: string) {
+  const days = remainingValidityDays(validTo)
+  if (days <= 3) return 'danger'
+  if (days <= 7) return 'warning'
+  return 'success'
+}
 
 const canNext = computed(() => {
   if (step.value === 1) return Boolean(form.modality)
@@ -1451,6 +1482,15 @@ watch(
   },
 )
 
+watch(
+  () => [form.agentId, form.carrierId] as const,
+  async ([agentId]) => {
+    if (step.value < 5 || !agentId) return
+    await loadApplicableCosts()
+    if (step.value === 7) rebuildRateLines()
+  },
+)
+
 watch(() => form.currencyId, () => {
   if (step.value === 7) rebuildRateLines()
 })
@@ -1624,10 +1664,16 @@ onMounted(loadCatalogs)
                   <DhBadge variant="success">Aprobada</DhBadge>
                 </div>
                 <p class="mt-5 text-2xl font-black">{{ formatMoney(rate.freight, displayValue(findById(catalogs.currencies, rate.currencyId)) || rate.currency || 'USD') }}</p>
-                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-                  Vigencia {{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }} ·
-                  <strong>{{ remainingValidityDays(rate.validTo) }} días restantes</strong>
-                </p>
+                <div class="crystal-validity">
+        <div class="crystal-validity-range">
+          <span>Vigencia</span>
+          <strong>{{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}</strong>
+        </div>
+        <div class="crystal-validity-days" :class="`crystal-validity-days--${validityTone(rate.validTo)}`">
+          <strong>{{ remainingValidityDays(rate.validTo) }}</strong>
+          <span>días restantes</span>
+        </div>
+      </div>
                 <p v-if="rate.spaceComment" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-left text-xs font-semibold text-[var(--dh-text-muted)]">
                   Comentario: {{ rate.spaceComment }}
                 </p>
@@ -1665,11 +1711,24 @@ onMounted(loadCatalogs)
           </div>
 
           <div class="crystal-route-summary grid gap-3 md:grid-cols-4">
-            <div><span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Costo</span><strong class="mt-1 block text-sm">{{ formatMoney(form.freightCost, displayValue(selectedCurrency) || 'USD') }}</strong></div>
-            <div><span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Venta</span><strong class="mt-1 block text-sm">{{ formatMoney(form.freightSale, displayValue(selectedCurrency) || 'USD') }}</strong></div>
-            <div><span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Utilidad</span><strong class="mt-1 block text-sm">{{ formatMoney(freightUtility, displayValue(selectedCurrency) || 'USD') }}</strong></div>
-            <div><span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Margen</span><strong class="mt-1 block text-sm">{{ freightMarginPercentage.toFixed(2) }}%</strong></div>
-          </div>
+  <div class="crystal-metric crystal-metric--cost">
+    <span class="block text-[10px] font-black uppercase tracking-[0.16em]">Costo</span>
+    <strong class="mt-1 block text-sm">{{ formatMoney(providerCost, displayValue(selectedCurrency) || 'USD') }}</strong>
+    <small v-if="providerAgentCost > 0">Incluye {{ formatMoney(providerAgentCost, displayValue(selectedCurrency) || 'USD') }} de agente</small>
+  </div>
+  <div class="crystal-metric crystal-metric--sale">
+    <span class="block text-[10px] font-black uppercase tracking-[0.16em]">Venta</span>
+    <strong class="mt-1 block text-sm">{{ formatMoney(providerSale, displayValue(selectedCurrency) || 'USD') }}</strong>
+  </div>
+  <div class="crystal-metric" :class="`crystal-metric--${financialTone(providerUtility)}`">
+    <span class="block text-[10px] font-black uppercase tracking-[0.16em]">Utilidad</span>
+    <strong class="mt-1 block text-sm">{{ formatMoney(providerUtility, displayValue(selectedCurrency) || 'USD') }}</strong>
+  </div>
+  <div class="crystal-metric" :class="`crystal-metric--${financialTone(providerMarginPercentage)}`">
+    <span class="block text-[10px] font-black uppercase tracking-[0.16em]">Margen</span>
+    <strong class="mt-1 block text-sm">{{ providerMarginPercentage.toFixed(2) }}%</strong>
+  </div>
+</div>
         </div>
 
         <div v-else-if="step === 6" class="space-y-6">
@@ -1731,10 +1790,10 @@ onMounted(loadCatalogs)
               <p class="crystal-description">Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.</p>
             </div>
             <div class="crystal-total-card">
-              <span>Costo <strong>{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span>
-              <span>Venta <strong>{{ formatMoney(totalSale, displayValue(selectedCurrency) || 'USD') }}</strong></span>
-              <span>Utilidad <strong>{{ formatMoney(totalUtility, displayValue(selectedCurrency) || 'USD') }}</strong></span>
-            </div>
+    <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo <strong>{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta <strong>{{ formatMoney(totalSale, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+    <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtility)}`">Utilidad <strong>{{ formatMoney(totalUtility, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+  </div>
           </div>
 
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
@@ -1975,6 +2034,122 @@ onMounted(loadCatalogs)
 .crystal-rate-card {
   padding: 1rem;
   text-align: left;
+}
+
+.crystal-validity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid color-mix(in srgb, var(--dh-border) 86%, transparent);
+}
+
+.crystal-validity-range {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  color: var(--dh-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.crystal-validity-range strong {
+  color: var(--dh-text-soft);
+  font-size: 0.78rem;
+}
+
+.crystal-validity-days {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 120px;
+  border: 1px solid currentColor;
+  border-radius: 14px;
+  padding: 0.42rem 0.65rem;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  line-height: 1;
+}
+
+.crystal-validity-days strong {
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.crystal-validity-days span {
+  max-width: 54px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.08;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.crystal-validity-days--success { color: rgb(5 150 105); }
+.crystal-validity-days--warning { color: rgb(217 119 6); }
+.crystal-validity-days--danger { color: rgb(220 38 38); }
+
+.crystal-metric {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--dh-border) 88%, transparent);
+  border-radius: 14px;
+  padding: 0.55rem 0.7rem;
+  background: color-mix(in srgb, var(--dh-card) 72%, transparent);
+  color: var(--dh-text-soft);
+}
+
+.crystal-metric small {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: currentColor;
+  opacity: 0.82;
+}
+
+.crystal-total-card__metric {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--dh-border) 88%, transparent);
+  border-radius: 999px;
+  padding: 0.32rem 0.55rem;
+}
+
+.crystal-metric--cost,
+.crystal-total-card__metric--cost {
+  color: rgb(217 119 6);
+  border-color: rgb(217 119 6 / 0.28);
+  background: rgb(217 119 6 / 0.08);
+}
+
+.crystal-metric--sale,
+.crystal-total-card__metric--sale {
+  color: var(--dh-primary);
+  border-color: rgb(var(--dh-primary-rgb) / 0.26);
+  background: rgb(var(--dh-primary-rgb) / 0.08);
+}
+
+.crystal-metric--success,
+.crystal-total-card__metric--success {
+  color: rgb(5 150 105);
+  border-color: rgb(5 150 105 / 0.28);
+  background: rgb(5 150 105 / 0.08);
+}
+
+.crystal-metric--danger,
+.crystal-total-card__metric--danger {
+  color: rgb(220 38 38);
+  border-color: rgb(220 38 38 / 0.3);
+  background: rgb(220 38 38 / 0.09);
+}
+
+.crystal-metric--neutral,
+.crystal-total-card__metric--neutral {
+  color: var(--dh-text-soft);
+  border-color: color-mix(in srgb, var(--dh-border) 88%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 72%, transparent);
 }
 
 .crystal-empty {
