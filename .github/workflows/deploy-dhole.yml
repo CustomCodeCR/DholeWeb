@@ -96,7 +96,20 @@ jobs:
         run: |
           set -euo pipefail
           docker compose --env-file /opt/dhole/.env -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --pull never dhole-web
+          for attempt in {1..30}; do
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' dhole-dhole-web-1)"
+            if [[ "$health" == "healthy" || "$health" == "running" ]]; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              docker logs --tail 100 dhole-dhole-web-1
+              exit 1
+            fi
+            sleep 2
+          done
           docker compose --env-file /opt/dhole/.env -f "$COMPOSE_FILE" ps dhole-web
+          docker exec dhole-dhole-web-1 wget -qO- http://127.0.0.1/health | grep -qx 'ok'
 
       - name: Cleanup old images
+        continue-on-error: true
         run: docker image prune -f
