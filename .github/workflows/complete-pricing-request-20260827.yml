@@ -31,16 +31,16 @@ jobs:
           text = text.replace("    manual: false,\\n", "    manual: false,\\n    applyVat: false,\\n")
           text = text.replace("    manual: true,\\n", "    manual: true,\\n    applyVat: false,\\n")'''.replace('          ', '')
           new = '''lines = text.splitlines(keepends=True)
-          output = []
-          for index, line in enumerate(lines):
-              output.append(line)
-              stripped = line.lstrip()
-              if stripped in {"manual: false,\\n", "manual: true,\\n"}:
-                  indent = line[:len(line) - len(stripped)]
-                  next_line = lines[index + 1] if index + 1 < len(lines) else ''
-                  if next_line.strip() != 'applyVat: false,':
-                      output.append(f"{indent}applyVat: false,\\n")
-          text = ''.join(output)'''.replace('          ', '')
+output = []
+for index, line in enumerate(lines):
+    output.append(line)
+    stripped = line.lstrip()
+    if stripped in {"manual: false,\\n", "manual: true,\\n"}:
+        indent = line[:len(line) - len(stripped)]
+        next_line = lines[index + 1] if index + 1 < len(lines) else ''
+        if next_line.strip() != 'applyVat: false,':
+            output.append(f"{indent}applyVat: false,\\n")
+text = ''.join(output)'''
           if old not in text:
               raise SystemExit('Could not locate unsafe applyVat insertion block')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
