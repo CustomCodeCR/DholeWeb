@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Pricing wizard release trigger — 2026-08-27
+# Pricing wizard release trigger — EXW nearest ports + mobile VAT 2026-08-27
 
 on:
   push:
