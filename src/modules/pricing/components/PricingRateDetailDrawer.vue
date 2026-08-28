@@ -25,6 +25,7 @@ import type { ImportRateDto, RateDetailDto, RateDto, SetRateStatusRequest } from
 import PricingRateFormDrawer from './PricingRateFormDrawer.vue'
 import PricingReasonModal from './PricingReasonModal.vue'
 import PricingDuplicateRateModal from './PricingDuplicateRateModal.vue'
+import PricingEmailSourceModal from './PricingEmailSourceModal.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import {
   detailGroup,
@@ -36,7 +37,7 @@ import {
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
 import { commercialTermKey } from '@/modules/pricing/services/pricingCommercialRules'
-import { openPricingSourcePopup, sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
+import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 
 const props = defineProps<{ rate: RateDto; onSaved?: () => void | Promise<void> }>()
 const authStore = useAuthStore()
@@ -149,7 +150,14 @@ async function loadSourceTrace() {
 }
 
 function openRateSource() {
-  if (sourceImportRate.value) openPricingSourcePopup(sourceImportRate.value)
+  const source = sourceImportRate.value
+  if (!source) return
+  modalStore.open({
+    title: `Correo / fuente de la tarifa · ${sourceLabel.value || 'Fuente de la tarifa'}`,
+    component: PricingEmailSourceModal,
+    size: 'xl',
+    props: { batchId: source.importBatchId },
+  })
 }
 
 async function reload() {

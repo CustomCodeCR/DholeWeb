@@ -37,11 +37,13 @@ import { PricingService } from '@/core/services/pricingService'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useModalStore } from '@/core/stores/modalStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
+import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
-import { openPricingSourcePopup, sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
+import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
   calculateCargoInsurance,
   canonicalServiceLine,
@@ -141,6 +143,7 @@ interface RateLine {
 
 const router = useRouter()
 const toastStore = useToastStore()
+const modalStore = useModalStore()
 const step = ref(1)
 const loadingCatalogs = ref(false)
 const loadingRates = ref(false)
@@ -1884,7 +1887,12 @@ function chooseCabys(item: CabysItem) {
 }
 
 function openImportSource(rate: ImportRateSelectDto) {
-  openPricingSourcePopup(rate)
+  modalStore.open({
+    title: `Correo / fuente de la tarifa · ${importSourceTitle(rate)}`,
+    component: PricingEmailSourceModal,
+    size: 'xl',
+    props: { batchId: rate.importBatchId },
+  })
 }
 
 async function uploadSupportDocument(category: string, categoryLabel: string, event: Event) {
