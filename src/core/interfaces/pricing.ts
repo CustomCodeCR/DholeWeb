@@ -273,6 +273,7 @@ export interface PricingRateDashboardItemDto extends Record<string, unknown> {
   rateName: string
   status: RateStatus
   clientName?: string | null
+  executiveName?: string | null
   carrierName?: string | null
   polName: string
   poeName: string
@@ -571,6 +572,7 @@ export interface RateDto extends Record<string, unknown> {
   validFrom: string
   validTo: string
   clientName?: string | null
+  executiveName?: string | null
   idtraNumber?: string | null
   quoNumber?: string | null
   includes?: string | null
@@ -654,6 +656,9 @@ export interface CreateRateRequest extends Record<string, unknown> {
   incotermId?: string | null
   incotermName?: string | null
   incotermCode?: string | null
+  pickupAddress?: string | null
+  pickupLatitude?: number | null
+  pickupLongitude?: number | null
   currencyId: string
   currencyName: string
   currencyCode: string
@@ -662,6 +667,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   validTo: string
   containerQuantity: number
   clientName?: string | null
+  executiveName?: string | null
   idtraNumber?: string | null
   quoNumber?: string | null
   includes?: string | null

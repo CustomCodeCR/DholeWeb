@@ -35,6 +35,7 @@ import { PricingService } from '@/core/services/pricingService'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
+import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import {
   calculateCargoInsurance,
@@ -1949,6 +1950,7 @@ async function saveRate() {
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
+      executiveName: form.executiveName.trim() || null,
       freeDays: number(form.freeDays),
       validFrom: form.loadDate,
       validTo: selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
@@ -2022,6 +2024,7 @@ function resetWizard() {
     selectedImportRateId: '',
     manualRate: false,
     clientName: '',
+    executiveName: '',
     pickupAddress: '',
     warehouseId: '',
     pickupLatitude: null,
@@ -2211,41 +2214,74 @@ onMounted(loadCatalogs)
             <p class="crystal-description">Seleccione el POE. El POD es opcional; si existe una equivalencia clara, se sugiere automáticamente.</p>
           </div>
 
-          <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
-            <DhInput v-model="form.executiveName" label="Ejecutivo de venta" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
-            <DhInput v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" />
-            <DhSelect v-model="form.originId" label="Origen" placeholder="Seleccione origen" :options="originOptions" />
-            <DhSelect v-model="form.destinationId" label="Destino (POE)" placeholder="Seleccione POE" :options="destinationOptions" />
-            <DhSelect v-model="form.podId" label="POD (opcional)" placeholder="Seleccione POD si aplica" :options="podOptions" />
+          <div class="crystal-soft space-y-5 p-4 md:p-5">
+            <!-- Fila 1: se mantienen editables hasta que el maestro de clientes/ejecutivos se cierre. -->
+            <div class="grid gap-4 md:grid-cols-2">
+              <DhInput v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
+              <DhInput v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
+            </div>
 
-            <DhSelect
-              v-if="equipmentHasSizes"
-              v-model="form.equipmentSize"
-              :label="form.modality === 'Land' ? 'Tamaño de furgón' : 'Tamaño'"
-              :placeholder="form.modality === 'Land' ? 'Seleccione tamaño de furgón' : 'Seleccione tamaño'"
-              :options="equipmentSizeOptions"
-            />
-            <DhSelect
-              v-model="form.equipmentType"
-              :label="form.modality === 'Land' ? 'Furgón / equipo terrestre' : equipmentHasSizes ? 'Tipo' : 'Tipo de equipo'"
-              :placeholder="form.modality === 'Land' ? 'Seleccione furgón' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
-              :disabled="equipmentHasSizes && !form.equipmentSize"
-              :options="equipmentTypeOptions"
-            />
-
-            <DhInput v-model.number="form.equipmentQuantity" type="number" min="1" :label="form.modality === 'Land' ? 'Cantidad de unidades' : 'Cantidad'" />
-            <DhSelect v-model="form.incotermId" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
-            <DhInput v-model="form.loadDate" type="date" label="Fecha de carga" />
-
-            <div class="md:col-span-2 xl:col-span-3">
-              <PricingCrystalMultiSelect
-                v-model="form.serviceIds"
-                label="Servicios"
-                placeholder="Seleccione servicios"
-                search-placeholder="Buscar servicio..."
-                :options="serviceOptions"
+            <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
+            <div class="grid gap-4 md:grid-cols-3">
+              <PricingLocationSearchSelect
+                v-model="form.originId"
+                label="Origen (POL)"
+                placeholder="Buscar puerto de origen"
+                search-placeholder="Buscar puerto, ciudad o país…"
+                terminal-type="CY"
+                :options="originOptions"
+              />
+              <PricingLocationSearchSelect
+                v-model="form.destinationId"
+                label="Destino (POE)"
+                placeholder="Buscar puerto de salida"
+                search-placeholder="Buscar puerto, ciudad o país…"
+                terminal-type="CY"
+                :options="destinationOptions"
+              />
+              <PricingLocationSearchSelect
+                v-model="form.podId"
+                label="POD"
+                placeholder="Buscar destino final"
+                search-placeholder="Buscar destino, ciudad o región…"
+                terminal-type="SD"
+                :optional="true"
+                :options="podOptions"
               />
             </div>
+
+            <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->
+            <div class="grid gap-4 md:grid-cols-3">
+              <DhSelect
+                v-if="equipmentHasSizes"
+                v-model="form.equipmentSize"
+                :label="form.modality === 'Land' ? 'Tamaño de furgón' : 'Tamaño de equipo'"
+                :placeholder="form.modality === 'Land' ? 'Seleccione tamaño de furgón' : 'Seleccione tamaño'"
+                :options="equipmentSizeOptions"
+              />
+              <DhSelect
+                v-model="form.equipmentType"
+                :label="form.modality === 'Land' ? 'Tipo de furgón' : equipmentHasSizes ? 'Tipo de equipo' : 'Tipo de equipo'"
+                :placeholder="form.modality === 'Land' ? 'Seleccione furgón' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
+                :disabled="equipmentHasSizes && !form.equipmentSize"
+                :options="equipmentTypeOptions"
+              />
+              <DhInput v-model.number="form.equipmentQuantity" type="number" min="1" :label="form.modality === 'Land' ? 'Cantidad de unidades' : 'Cantidad de equipo'" />
+            </div>
+
+            <!-- Fila 4: Incoterm y fecha de carga lista. -->
+            <div class="grid gap-4 md:grid-cols-2">
+              <DhSelect v-model="form.incotermId" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
+              <DhInput v-model="form.loadDate" type="date" label="Fecha carga lista" />
+            </div>
+
+            <PricingCrystalMultiSelect
+              v-model="form.serviceIds"
+              label="Servicios"
+              placeholder="Seleccione servicios"
+              search-placeholder="Buscar servicio..."
+              :options="serviceOptions"
+            />
           </div>
 
           <div v-if="selectedIncotermCode === 'EXW' || selectedIncotermCode === 'FCA'" class="crystal-soft space-y-4 p-4 md:p-5">
