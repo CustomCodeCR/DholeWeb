@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# WHS search, solid header, VAT rules and source modal release — 2026-08-28
+# Five official rate categories, themed solid header and source modal — 2026-08-28
 
 on:
   push:
