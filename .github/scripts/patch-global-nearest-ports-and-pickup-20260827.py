@@ -86,8 +86,6 @@ async function recommendNearestPorts() {
     recommendingPorts.value = true
     nearestPortRecommendations.value = []
 
-    // La búsqueda geográfica NO depende del catálogo POL. AI Logistics descubre puertos
-    // reales alrededor del pin EXW y aplica el radio de 500 km desde esas coordenadas.
     const response = await callEndpoint<unknown, Record<string, unknown>>(
       { method: 'POST', path: '/api/ai/logistics/nearest-ports', headers: { Accept: 'application/json' } },
       {
@@ -139,8 +137,6 @@ async function recommendNearestPorts() {
       )
     }
   } catch {
-    // No convertir un fallo temporal del proveedor geográfico en el falso error de
-    // “no existen puertos configurados”. El usuario puede volver a consultar sin bloquear el flujo.
     toastStore.warning(
       'Búsqueda de puertos no disponible',
       'No fue posible consultar los puertos cercanos en este momento. Inténtelo nuevamente.',
@@ -241,7 +237,6 @@ if old_cards not in text:
     raise SystemExit('No se encontró el bloque de tarjetas de puertos.')
 text = text.replace(old_cards, new_cards, 1)
 
-# Persist pickup coordinates/address in the create-rate request for EXW/FCA.
 payload_anchor = '''      incotermId: incoterm!.id,
       incotermName: displayValue(incoterm),
       incotermCode: incoterm!.code,
@@ -261,11 +256,9 @@ if text == original:
     raise SystemExit('El wizard no cambió.')
 wizard.write_text(text, encoding='utf-8')
 
-# Update shared frontend API types.
 interfaces = Path('src/core/interfaces/pricing.ts')
 itext = interfaces.read_text(encoding='utf-8')
 ioriginal = itext
-
 create_anchor = '''  incotermId?: string | null
   incotermName?: string | null
   incotermCode?: string | null
@@ -277,12 +270,9 @@ create_replacement = '''  incotermId?: string | null
   pickupLatitude?: number | null
   pickupLongitude?: number | null
   containerQuantity: number'''
-# The first occurrence is RateDto, the second is CreateRateRequest. Apply both safely.
-occurrences = itext.count(create_anchor)
-if occurrences < 2:
-    raise SystemExit(f'Se esperaban al menos 2 bloques incoterm en pricing.ts, encontrados: {occurrences}')
-itext = itext.replace(create_anchor, create_replacement, 2)
-
+if create_anchor not in itext:
+    raise SystemExit('No se encontró bloque incoterm en pricing.ts')
+itext = itext.replace(create_anchor, create_replacement, 1)
 if itext == ioriginal:
     raise SystemExit('pricing.ts no cambió.')
 interfaces.write_text(itext, encoding='utf-8')
