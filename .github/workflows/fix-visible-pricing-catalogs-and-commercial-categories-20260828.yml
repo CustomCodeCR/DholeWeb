@@ -1,0 +1,195 @@
+name: Fix visible pricing catalogs and commercial categories
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-visible-pricing-catalogs-and-commercial-categories-20260828.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply Web corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 occurrence, found {count}')
+              return text.replace(old, new, 1)
+
+          settings_path = Path('src/modules/settings/views/PricingSelectSettingsView.vue')
+          settings = settings_path.read_text(encoding='utf-8-sig')
+          settings = replace_once(
+              settings,
+              "const selectedSlug = ref('ports')",
+              "const selectedSlug = ref('pricing-warehouses')",
+              'default warehouse catalog',
+          )
+          settings = replace_once(
+              settings,
+              "const catalogs: SelectCatalogConfig[] = [\n",
+              """const catalogs: SelectCatalogConfig[] = [
+  {
+    slug: 'pricing-warehouses',
+    name: 'WHS globales',
+    description: 'Warehouses FCA administrables desde Config. Incluyen dirección, horario, contactos, email, teléfono y coordenadas.',
+    requiredIn: 'Wizard de Pricing / FCA / Recolección',
+  },
+  {
+    slug: 'pricing-clients',
+    name: 'Clientes de Pricing (temporal)',
+    description: 'Clientes usados por Pricing mientras el módulo Comercial no sea la fuente de verdad.',
+    requiredIn: 'Wizard de Pricing / Datos comerciales',
+  },
+  {
+    slug: 'pricing-sales-executives',
+    name: 'Ejecutivos comerciales (temporal)',
+    description: 'Ejecutivos usados por Pricing mientras el módulo Comercial no sea la fuente de verdad.',
+    requiredIn: 'Wizard de Pricing / Datos comerciales',
+  },
+""",
+              'visible pricing catalogs',
+          )
+          settings_path.write_text(settings, encoding='utf-8')
+
+          catalogs_path = Path('src/modules/catalogs/views/CatalogsView.vue')
+          catalogs = catalogs_path.read_text(encoding='utf-8-sig')
+          catalogs = replace_once(catalogs, 'const pageSize = ref(10)', 'const pageSize = ref(25)', 'catalog page size')
+          catalogs_path.write_text(catalogs, encoding='utf-8')
+
+          dashboard_path = Path('src/modules/dashboard/components/PricingRoleDashboard.vue')
+          dashboard = dashboard_path.read_text(encoding='utf-8-sig')
+          dashboard = replace_once(dashboard, '  Ban,\n', '', 'remove closed icon')
+          old_cards = """  return [
+    { label: 'Abiertas', value: data.openCount, status: 'Open' as RateStatus, icon: FileCheck2 },
+    {
+      label: 'Aprobadas',
+      value: data.approvedCount,
+      status: 'ApprovedByManagement' as RateStatus,
+      icon: BadgeCheck,
+    },
+    {
+      label: 'Rechazadas',
+      value: data.rejectedCount,
+      status: null as RateStatus | null,
+      icon: XCircle,
+    },
+    {
+      label: 'Solicitadas por cliente',
+      value: data.requestedByClientCount,
+      status: 'RequestedByClient' as RateStatus,
+      icon: Send,
+    },
+    { label: 'Cerradas', value: data.closedCount, status: 'Closed' as RateStatus, icon: Ban },
+    { label: 'Vencidas', value: data.expiredCount, status: 'Expired' as RateStatus, icon: TimerOff },
+  ]
+"""
+          new_cards = """  return [
+    { label: 'Abiertas', value: data.openCount, status: 'Open' as RateStatus, icon: FileCheck2 },
+    { label: 'Enviadas', value: data.sentCount, status: 'Sent' as RateStatus, icon: Send },
+    { label: 'Vencidas', value: data.expiredCount, status: 'Expired' as RateStatus, icon: TimerOff },
+    {
+      label: 'Aceptadas',
+      value: data.acceptedByClientCount,
+      status: 'AcceptedByClient' as RateStatus,
+      icon: BadgeCheck,
+    },
+    {
+      label: 'No aceptadas',
+      value: data.rejectedCount,
+      status: 'RejectedByClient' as RateStatus,
+      icon: XCircle,
+    },
+  ]
+"""
+          dashboard = replace_once(dashboard, old_cards, new_cards, 'five status cards')
+          old_labels = """function statusLabel(status: RateStatus) {
+  return (
+    {
+      PendingApproval: 'Pendiente de autorización',
+      ApprovedByManagement: 'Aprobada por gerencia',
+      RejectedByManagement: 'Rechazada por gerencia',
+      Open: 'Abierta',
+      Sent: 'Enviada',
+      AcceptedByClient: 'Aceptada por el cliente',
+      RejectedByClient: 'Rechazada por el cliente',
+      RequestedByClient: 'Solicitada por el cliente',
+      Closed: 'Cerrada',
+      Expired: 'Vencida',
+    } satisfies Record<RateStatus, string>
+  )[status]
+}
+"""
+          new_labels = """function commercialStatus(status: RateStatus): RateStatus {
+  if (
+    status === 'PendingApproval'
+    || status === 'ApprovedByManagement'
+    || status === 'RejectedByManagement'
+    || status === 'RequestedByClient'
+  ) return 'Open'
+  if (status === 'Closed') return 'RejectedByClient'
+  return status
+}
+
+function statusLabel(status: RateStatus) {
+  const labels: Partial<Record<RateStatus, string>> = {
+    Open: 'Abierta',
+    Sent: 'Enviada',
+    Expired: 'Vencida',
+    AcceptedByClient: 'Aceptada',
+    RejectedByClient: 'No aceptada',
+  }
+  return labels[commercialStatus(status)] ?? 'Abierta'
+}
+"""
+          dashboard = replace_once(dashboard, old_labels, new_labels, 'commercial status labels')
+          dashboard = replace_once(dashboard, 'xl:grid-cols-6', 'xl:grid-cols-5', 'five card grid')
+          dashboard = replace_once(
+              dashboard,
+              'Incluye tarifas aprobadas, abiertas, enviadas, solicitadas o aceptadas; excluye rechazadas, cerradas y vencidas.',
+              'Incluye tarifas abiertas, enviadas y aceptadas; excluye no aceptadas y vencidas.',
+              'financial description',
+          )
+          dashboard = replace_once(
+              dashboard,
+              '<p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Pendientes de autorización</p>\n              <p class="mt-2 text-3xl font-black text-yellow-600 dark:text-yellow-400">{{ dashboard.pendingApprovalCount }}</p>',
+              '<p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Tarifas abiertas</p>\n              <p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ dashboard.openCount }}</p>',
+              'activity open count',
+          )
+          dashboard = replace_once(dashboard, '@click="openStatus(rate.status)"', '@click="openStatus(commercialStatus(rate.status))"', 'recent row navigation')
+          dashboard = replace_once(dashboard, ':variant="statusTone(rate.status)"', ':variant="statusTone(commercialStatus(rate.status))"', 'recent row tone')
+          dashboard_path.write_text(dashboard, encoding='utf-8')
+          PY
+          git diff --check
+
+      - name: Validate production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --target build -t dhole-web-pricing-commercial-validation .
+
+      - name: Commit corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-visible-pricing-catalogs-and-commercial-categories-20260828.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(pricing-web): expose catalogs and five commercial categories"
+          git push origin HEAD:master
