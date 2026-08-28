@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Editable Hacienda exchange-rate release — 2026-08-28
+# Editable Hacienda Compra/Venta on Screen 7 release — 2026-08-28
 
 on:
   push:
