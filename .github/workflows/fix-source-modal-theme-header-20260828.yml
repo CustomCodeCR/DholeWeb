@@ -1,0 +1,120 @@
+name: Apply source modal and themed solid header
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-source-modal-theme-header-20260828.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply requested UI corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          theme = Path('src/assets/theme.css')
+          text = theme.read_text()
+          if '--dh-card-solid:' not in text:
+              old = '  --dh-card: rgb(255 255 255 / 0.42);\n'
+              new = old + '  --dh-card-solid: #ffffff;\n'
+              if old not in text:
+                  raise SystemExit('Light theme card pattern not found')
+              text = text.replace(old, new, 1)
+
+              old = '  --dh-card: rgb(255 255 255 / 0.085);\n'
+              new = old + '  --dh-card-solid: #18181b;\n'
+              if old not in text:
+                  raise SystemExit('Dark theme card pattern not found')
+              text = text.replace(old, new, 1)
+          theme.write_text(text)
+
+          wizard = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = wizard.read_text()
+          old = '''  background-color: #ffffff;
+  background-image: none;
+  opacity: 1;
+  box-shadow: var(--dh-shadow-md);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:global(.dark) .crystal-lines-header {
+  background-color: #18181b;
+}'''
+          new = '''  background-color: var(--dh-card-solid);
+  background-image: none;
+  opacity: 1;
+  box-shadow: var(--dh-shadow-md);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}'''
+          if old not in text:
+              raise SystemExit('Header CSS pattern not found')
+          text = text.replace(old, new, 1)
+
+          required = [
+              "const modalStore = useModalStore()",
+              "component: PricingEmailSourceModal",
+              '@click.stop="openImportSource(rate)"',
+          ]
+          for marker in required:
+              if marker not in text:
+                  raise SystemExit(f'Modal integration marker missing: {marker}')
+          if 'openPricingSourcePopup' in text:
+              raise SystemExit('Wizard still references popup helper')
+          wizard.write_text(text)
+
+          trace = Path('src/modules/pricing/utils/pricingSourceTrace.ts')
+          text = trace.read_text()
+          popup_block = '''\nexport function sourcePopupUrl(rate: PricingSourceCarrier) {
+  return `/pricing/email-source/${encodeURIComponent(rate.importBatchId)}`
+}
+
+export function openPricingSourcePopup(rate: PricingSourceCarrier) {
+  const popup = window.open(
+    sourcePopupUrl(rate),
+    'dholePricingSource',
+    'popup=yes,width=1280,height=860,resizable=yes,scrollbars=yes',
+  )
+  popup?.focus()
+}
+'''
+          if popup_block in text:
+              text = text.replace(popup_block, '\n', 1)
+          if 'window.open(' in text or 'openPricingSourcePopup' in text:
+              raise SystemExit('Popup implementation still exists in pricingSourceTrace')
+          trace.write_text(text)
+
+          detail = Path('src/modules/pricing/components/PricingRateDetailDrawer.vue').read_text()
+          if 'component: PricingEmailSourceModal' not in detail or 'openPricingSourcePopup' in detail:
+              raise SystemExit('Official rate source is not modal-only')
+          PY
+
+      - name: Validate production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --target build -t dhole-web-source-modal-theme-validation .
+
+      - name: Commit functional changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-source-modal-theme-header-20260828.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/assets/theme.css src/modules/pricing/components/PricingAlternativeWizardCrystal.vue src/modules/pricing/utils/pricingSourceTrace.ts .github/workflows/fix-source-modal-theme-header-20260828.yml
+          git commit -m 'fix(pricing): enforce source modal and themed solid header'
+          git push origin HEAD:master
