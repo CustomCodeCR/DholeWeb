@@ -26,6 +26,7 @@ import type {
   PricingDecisionDashboardQuery,
   PricingRateDashboardDto,
   PricingRateDashboardQuery,
+  PricingExchangeRateDto,
   RateDto,
   RateTermItemDto,
   CreateRateTermItemRequest,
@@ -379,6 +380,11 @@ export const PricingService = {
     return callEndpoint<NoContent, DeleteBatchRequest>(Endpoints.deleteImportRates, {
       body: { ids },
     })
+  },
+
+  async getUsdCrcExchangeRate(): Promise<PricingExchangeRateDto> {
+    const response = await callEndpoint<unknown>(Endpoints.getUsdCrcExchangeRate)
+    return unwrapApiResponse<PricingExchangeRateDto>(response as never)
   },
 
   async browseRates(query?: BrowseRatesQuery): Promise<PagedResponse<RateDto>> {

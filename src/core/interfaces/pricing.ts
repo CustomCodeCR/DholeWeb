@@ -535,6 +535,14 @@ export interface RateCargoLineRequest extends Record<string, unknown> {
   heightCm: number
 }
 
+export interface PricingExchangeRateDto extends Record<string, unknown> {
+  purchase: number
+  sale: number
+  rateDate: string
+  capturedAtUtc: string
+  source: string
+}
+
 export interface RateDto extends Record<string, unknown> {
   id: string
   rateCode: string
@@ -568,6 +576,13 @@ export interface RateDto extends Record<string, unknown> {
   currencyId: string
   currencyName: string
   currencyCode: string
+  exchangeRatePurchase?: number | null
+  exchangeRateSale?: number | null
+  exchangeRateApplied?: number | null
+  exchangeRateDate?: string | null
+  exchangeRateCapturedAtUtc?: string | null
+  exchangeRateSource?: string | null
+  exchangeRateManualOverride: boolean
   freeDays: number
   validFrom: string
   validTo: string
@@ -659,6 +674,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   pickupAddress?: string | null
   pickupLatitude?: number | null
   pickupLongitude?: number | null
+  exchangeRateApplied?: number | null
   currencyId: string
   currencyName: string
   currencyCode: string

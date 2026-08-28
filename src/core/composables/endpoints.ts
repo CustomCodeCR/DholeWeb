@@ -565,6 +565,7 @@ export const PricingEndpoints = {
   deleteRateTermBlock: { method: 'DELETE', path: '/api/pricing/rate-term-blocks/{{blockId}}', headers: acceptJson },
   browseRates: { method: 'GET', path: '/api/pricing/rates', headers: acceptJson },
   getRateDashboard: { method: 'GET', path: '/api/pricing/rates/dashboard', headers: acceptJson },
+  getUsdCrcExchangeRate: { method: 'GET', path: '/api/pricing/rates/exchange-rate/usd-crc', headers: acceptJson },
   getRateById: { method: 'GET', path: '/api/pricing/rates/{{rateId}}', headers: acceptJson },
   getRateReportTemplateDefinition: {
     method: 'GET',

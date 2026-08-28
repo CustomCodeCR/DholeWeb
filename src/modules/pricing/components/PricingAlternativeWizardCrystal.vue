@@ -152,6 +152,13 @@ const loadingCatalogs = ref(false)
 const loadingRates = ref(false)
 const loadingCabys = ref(false)
 const saving = ref(false)
+const exchangeRateLoading = ref(false)
+const exchangeRatePurchase = ref<number | null>(null)
+const exchangeRateSale = ref<number | null>(null)
+const exchangeRateApplied = ref<number | null>(null)
+const exchangeRateDate = ref('')
+const exchangeRateSource = ref('Ministerio de Hacienda de Costa Rica')
+const exchangeRateError = ref('')
 const createdRateId = ref('')
 const availableRates = ref<ImportRateSelectDto[]>([])
 const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
@@ -1898,6 +1905,26 @@ function openImportSource(rate: ImportRateSelectDto) {
   })
 }
 
+async function loadHaciendaExchangeRate(resetApplied = false) {
+  if (exchangeRateLoading.value) return
+  try {
+    exchangeRateLoading.value = true
+    exchangeRateError.value = ''
+    const snapshot = await PricingService.getUsdCrcExchangeRate()
+    exchangeRatePurchase.value = Number(snapshot.purchase)
+    exchangeRateSale.value = Number(snapshot.sale)
+    exchangeRateDate.value = snapshot.rateDate
+    exchangeRateSource.value = snapshot.source || 'Ministerio de Hacienda de Costa Rica'
+    if (resetApplied || !exchangeRateApplied.value || exchangeRateApplied.value <= 0) {
+      exchangeRateApplied.value = Number(snapshot.sale)
+    }
+  } catch (error) {
+    exchangeRateError.value = 'Hacienda no respondió. Puede ingresar manualmente el tipo de cambio aplicado y continuar.'
+  } finally {
+    exchangeRateLoading.value = false
+  }
+}
+
 async function uploadSupportDocument(category: string, categoryLabel: string, event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -1983,6 +2010,7 @@ async function saveOpenRequest() {
       pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
       pickupLatitude: form.pickupLatitude,
       pickupLongitude: form.pickupLongitude,
+      exchangeRateApplied: exchangeRateApplied.value && exchangeRateApplied.value > 0 ? exchangeRateApplied.value : null,
       currencyId: currency.id,
       currencyName: displayValue(currency),
       currencyCode: currency.code,
@@ -2176,6 +2204,7 @@ async function saveRate() {
       pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
       pickupLatitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLatitude : null,
       pickupLongitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLongitude : null,
+      exchangeRateApplied: exchangeRateApplied.value && exchangeRateApplied.value > 0 ? exchangeRateApplied.value : null,
       currencyId: currency!.id,
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
@@ -2379,7 +2408,13 @@ watch(() => form.currencyId, () => {
   if (step.value === 7) rebuildRateLines()
 })
 
-onMounted(loadCatalogs)
+watch(step, (value) => {
+  if (value === 8) void loadHaciendaExchangeRate(false)
+})
+
+onMounted(async () => {
+  await Promise.allSettled([loadCatalogs(), loadHaciendaExchangeRate(true)])
+})
 </script>
 
 <template>
@@ -3053,6 +3088,29 @@ onMounted(loadCatalogs)
             <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
             <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
           </div>
+          <div class="crystal-soft p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tipo de cambio USD / CRC</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se consulta automáticamente a Hacienda. El valor aplicado queda editable antes de crear la tarifa.</p>
+              </div>
+              <DhButton variant="secondary" size="sm" :loading="exchangeRateLoading" :disabled="exchangeRateLoading" @click="loadHaciendaExchangeRate(true)">Actualizar Hacienda</DhButton>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-3">
+              <div class="crystal-exchange-metric">
+                <span>Compra Hacienda</span>
+                <strong>{{ exchangeRatePurchase ? `₡ ${exchangeRatePurchase.toFixed(2)}` : '—' }}</strong>
+              </div>
+              <div class="crystal-exchange-metric">
+                <span>Venta Hacienda</span>
+                <strong>{{ exchangeRateSale ? `₡ ${exchangeRateSale.toFixed(2)}` : '—' }}</strong>
+              </div>
+              <DhInput v-model.number="exchangeRateApplied" type="number" min="0.000001" step="0.01" label="Tipo de cambio aplicado (editable)" />
+            </div>
+            <p v-if="exchangeRateDate" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ exchangeRateSource }} · fecha {{ formatDate(exchangeRateDate) }} · el valor se vuelve a validar al crear.</p>
+            <p v-if="exchangeRateSale && exchangeRateApplied && Math.abs(exchangeRateApplied - exchangeRateSale) > 0.0001" class="mt-2 text-[11px] font-black text-amber-600">Valor manual: la tarifa conservará Compra/Venta de Hacienda y también el tipo de cambio aplicado por el usuario.</p>
+            <p v-if="exchangeRateError" class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-700">{{ exchangeRateError }}</p>
+          </div>
           <div class="grid gap-4 lg:grid-cols-2">
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
@@ -3302,6 +3360,30 @@ onMounted(loadCatalogs)
 .crystal-validity-days--success { color: rgb(5 150 105); }
 .crystal-validity-days--warning { color: rgb(217 119 6); }
 .crystal-validity-days--danger { color: rgb(220 38 38); }
+
+.crystal-exchange-metric {
+  display: grid;
+  gap: 0.3rem;
+  min-height: 66px;
+  align-content: center;
+  border: 1px solid var(--dh-border);
+  border-radius: 16px;
+  padding: 0.65rem 0.8rem;
+  background: var(--dh-card);
+}
+
+.crystal-exchange-metric span {
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dh-text-muted);
+}
+
+.crystal-exchange-metric strong {
+  font-size: 1rem;
+  color: var(--dh-text);
+}
 
 .crystal-metric {
   min-width: 0;
