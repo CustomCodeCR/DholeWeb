@@ -3391,16 +3391,12 @@ onMounted(loadCatalogs)
   border: 1px solid var(--dh-border);
   border-radius: 20px;
   padding: 0.8rem;
-  background-color: #ffffff;
+  background-color: var(--dh-card-solid);
   background-image: none;
   opacity: 1;
   box-shadow: var(--dh-shadow-md);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-}
-
-:global(.dark) .crystal-lines-header {
-  background-color: #18181b;
 }
 
 .crystal-group-header {

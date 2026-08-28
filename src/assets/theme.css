@@ -13,6 +13,7 @@
   --dh-shell: rgb(255 255 255 / 0.44);
   --dh-shell-strong: rgb(255 255 255 / 0.58);
   --dh-card: rgb(255 255 255 / 0.42);
+  --dh-card-solid: #ffffff;
   --dh-card-hover: rgb(255 255 255 / 0.62);
   --dh-input: rgb(255 255 255 / 0.48);
   --dh-surface: rgb(255 255 255 / 0.36);
@@ -45,6 +46,7 @@
   --dh-shell: rgb(18 18 22 / 0.44);
   --dh-shell-strong: rgb(24 24 28 / 0.60);
   --dh-card: rgb(255 255 255 / 0.085);
+  --dh-card-solid: #18181b;
   --dh-card-hover: rgb(255 255 255 / 0.15);
   --dh-input: rgb(255 255 255 / 0.10);
   --dh-surface: rgb(255 255 255 / 0.065);

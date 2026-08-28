@@ -58,16 +58,3 @@ export function sourceTitle(
     resolved?.subject || trace?.subject || resolved?.originalFileName || trace?.originalFileName || 'Fuente de la tarifa',
   ).trim()
 }
-
-export function sourcePopupUrl(rate: PricingSourceCarrier) {
-  return `/pricing/email-source/${encodeURIComponent(rate.importBatchId)}`
-}
-
-export function openPricingSourcePopup(rate: PricingSourceCarrier) {
-  const popup = window.open(
-    sourcePopupUrl(rate),
-    'dholePricingSource',
-    'popup=yes,width=1280,height=860,resizable=yes,scrollbars=yes',
-  )
-  popup?.focus()
-}
