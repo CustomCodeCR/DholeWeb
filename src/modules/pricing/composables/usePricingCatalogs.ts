@@ -39,6 +39,7 @@ export const PRICING_CATALOG_SLUGS = {
   landEquipmentKinds: 'land-equipment-kinds',
   importProfiles: 'pricing-imports-profiles',
   incoterms: 'incoterms',
+  services: 'pricing-services',
 } as const
 
 const agents = ref<PricingCatalogItem[]>([])
@@ -55,6 +56,7 @@ const landEquipmentSizes = ref<PricingCatalogItem[]>([])
 const landEquipmentKinds = ref<PricingCatalogItem[]>([])
 const importProfiles = ref<PricingCatalogItem[]>([])
 const incoterms = ref<PricingCatalogItem[]>([])
+const services = ref<PricingCatalogItem[]>([])
 const loading = ref(false)
 const loaded = ref(false)
 let activeLoad: Promise<void> | null = null
@@ -159,6 +161,7 @@ async function loadAll(force = false) {
       landEquipmentKindRows,
       profileRows,
       incotermRows,
+      serviceRows,
     ] = await Promise.all([
       loadFirstAvailable([PRICING_CATALOG_SLUGS.agents]),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.carriers]),
@@ -174,6 +177,7 @@ async function loadAll(force = false) {
       loadFirstAvailable([PRICING_CATALOG_SLUGS.landEquipmentKinds]),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.importProfiles]),
       loadFirstAvailable([PRICING_CATALOG_SLUGS.incoterms]),
+      loadFirstAvailable([PRICING_CATALOG_SLUGS.services]),
     ])
 
     agents.value = agentRows
@@ -190,6 +194,7 @@ async function loadAll(force = false) {
     landEquipmentKinds.value = landEquipmentKindRows
     importProfiles.value = profileRows
     incoterms.value = incotermRows.map(normalizeIncoterm)
+    services.value = serviceRows
     loaded.value = true
   })().finally(() => {
     loading.value = false
@@ -462,6 +467,12 @@ export function usePricingCatalogs() {
       podCode: podPorts.value.find((item) => item.id === cost.podId)?.code || cost.podCode,
       currencyName: currency?.name || cost.currencyName,
       currencyCode: currency?.code || cost.currencyCode,
+      services: (cost.services ?? []).map((costService) => {
+        const current = services.value.find((item) => item.id === costService.id)
+        return current
+          ? { id: current.id, name: current.name, code: current.code }
+          : costService
+      }),
       incoterms: (cost.incoterms ?? []).map((costIncoterm) => {
         const current = incoterms.value.find((item) => item.id === costIncoterm.id)
         return current
@@ -490,6 +501,7 @@ export function usePricingCatalogs() {
     landEquipmentKinds,
     importProfiles,
     incoterms,
+    services,
     loading,
     loaded,
     agentOptions: computed(() => options(agents.value)),
@@ -506,6 +518,7 @@ export function usePricingCatalogs() {
     landEquipmentKindOptions: computed(() => options(landEquipmentKinds.value)),
     profileOptions: computed(() => options(importProfiles.value)),
     incotermOptions: computed(() => options(incoterms.value)),
+    serviceOptions: computed(() => options(services.value)),
     loadAll,
     findById,
     findByCode,

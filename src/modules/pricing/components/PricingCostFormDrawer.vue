@@ -83,6 +83,7 @@ const form = reactive({
   poeId: props.cost?.poeId ?? (props.cost?.portRole === 'Poe' ? (props.cost?.portId ?? '') : ''),
   podId: props.cost?.podId ?? (props.cost?.portRole === 'Pod' ? (props.cost?.portId ?? '') : ''),
   incotermIds: props.cost?.incoterms?.map((item) => item.id) ?? [],
+  serviceIds: props.cost?.services?.map((item) => item.id) ?? [],
   currencyId: props.cost?.currencyId ?? '',
   costAmount: String(props.cost?.costAmount ?? ''),
   saleAmount: String(props.cost?.saleAmount ?? ''),
@@ -274,6 +275,10 @@ async function submit() {
     .map((id) => selected(catalogs.incoterms.value, id))
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
     .map((item) => ({ id: item.id, name: item.name, code: item.code }))
+  const services = form.serviceIds
+    .map((id) => selected(catalogs.services.value, id))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .map((item) => ({ id: item.id, name: item.name, code: item.code }))
 
   if (
     !form.name.trim() ||
@@ -320,6 +325,7 @@ async function submit() {
     notes: form.notes.trim() || null,
     isAccountant: isEquipmentBasis.value,
     incoterms,
+    services,
     shipmentMode: form.shipmentMode || null,
     chargeBasis: form.chargeBasis,
     minimumCostAmount: form.minimumCostAmount === '' ? null : Number(form.minimumCostAmount),
@@ -457,6 +463,19 @@ onMounted(catalogs.loadAll)
           :options="catalogs.currencyOptions.value"
           :error="fieldError(form.currencyId, 'Seleccione la moneda.')"
         />
+        <div class="md:col-span-2">
+          <PricingMultiSelect
+            v-model="form.serviceIds"
+            :options="catalogs.serviceOptions.value"
+            label="Servicios de Pricing asociados"
+            placeholder="Aplica a cualquier servicio"
+            empty-text="No hay servicios activos en pricing-services."
+            search-placeholder="Buscar servicio..."
+          />
+          <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Si selecciona servicios, este costo o recargo solo se ofrecerá cuando la tarifa incluya al menos uno de ellos.
+          </p>
+        </div>
         <div class="md:col-span-2">
           <PricingMultiSelect
             v-model="form.incotermIds"
