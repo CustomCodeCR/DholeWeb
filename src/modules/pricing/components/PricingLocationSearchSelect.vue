@@ -166,15 +166,15 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
-      class="absolute z-[120] mt-2 max-h-72 w-full min-w-[260px] overflow-auto rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-1.5 shadow-2xl"
+      class="pricing-location-menu absolute z-[120] mt-2 max-h-72 w-full min-w-[260px] overflow-auto rounded-[18px] border border-[var(--dh-border-strong)] p-1.5 shadow-2xl"
     >
       <div v-if="filteredOptions.length" class="space-y-1">
         <button
           v-for="option in filteredOptions"
           :key="option.value"
           type="button"
-          class="flex min-h-11 w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition hover:bg-[rgb(var(--dh-primary-rgb)/0.08)]"
-          :class="option.value === modelValue ? 'bg-[rgb(var(--dh-primary-rgb)/0.10)]' : ''"
+          class="pricing-location-option flex min-h-11 w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left transition"
+          :class="option.value === modelValue ? 'pricing-location-option--selected' : ''"
           @mousedown.prevent
           @click="choose(option)"
         >
@@ -189,3 +189,33 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.pricing-location-menu {
+  background-color: #ffffff;
+  color: #030202;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.pricing-location-option:hover {
+  background-color: #f3f4f6;
+}
+
+.pricing-location-option--selected {
+  background-color: rgb(var(--dh-primary-rgb) / 0.10);
+}
+
+:global(.dark) .pricing-location-menu {
+  background-color: #18181b;
+  color: #ffffff;
+}
+
+:global(.dark) .pricing-location-option:hover {
+  background-color: #27272a;
+}
+
+:global(.dark) .pricing-location-option--selected {
+  background-color: rgb(var(--dh-primary-rgb) / 0.16);
+}
+</style>
