@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  Archive,
   CheckCircle2,
-  Clock,
   Copy,
   Edit3,
+  ExternalLink,
   FolderOpen,
   Printer,
   RefreshCw,
@@ -21,12 +20,11 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
-import { UsersService } from '@/core/services/usersService'
-import type { RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'
+import { EmailExtractionService } from '@/core/services/emailExtractionService'
+import type { ImportRateDto, RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'
 import PricingRateFormDrawer from './PricingRateFormDrawer.vue'
 import PricingReasonModal from './PricingReasonModal.vue'
 import PricingDuplicateRateModal from './PricingDuplicateRateModal.vue'
-import PricingCloseRateModal from './PricingCloseRateModal.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import {
   detailGroup,
@@ -38,6 +36,7 @@ import {
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
 import { commercialTermKey } from '@/modules/pricing/services/pricingCommercialRules'
+import { openPricingSourcePopup, sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 
 const props = defineProps<{ rate: RateDto; onSaved?: () => void | Promise<void> }>()
 const authStore = useAuthStore()
@@ -83,24 +82,13 @@ function containerSummary(rate: RateDto) {
 const loading = ref(false)
 const printing = ref(false)
 const costNotesById = ref<Record<string, string>>({})
-const closedByDisplay = ref<string | null>(null)
+const sourceImportRate = ref<ImportRateDto | null>(null)
+const sourceEmail = ref<Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>> | null>(null)
+const sourceLabel = computed(() => sourceImportRate.value ? sourceTitle(sourceImportRate.value, sourceEmail.value) : '')
 
 const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDuplicate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
 const canApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
-const canCloseCurrent = computed(
-  () =>
-    canUpdate.value &&
-    [
-      'PendingApproval',
-      'ApprovedByManagement',
-      'RejectedByManagement',
-      'Open',
-      'Sent',
-      'RequestedByClient',
-    ].includes(current.value.status),
-)
-
 const groups = computed(() => {
   const byGroup = (key: ReturnType<typeof detailGroup>) =>
     current.value.rateDetails.filter((detail) => detailGroup(detail.costDetailType) === key)
@@ -122,71 +110,6 @@ const groups = computed(() => {
   ]
 })
 
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
-}
-
-function firstText(...values: Array<string | null | undefined>) {
-  return (
-    values.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() ?? null
-  )
-}
-
-async function resolveClosedByUser() {
-  const closedByValue = firstText(current.value.closedBy)
-  const explicitName = firstText(
-    current.value.closedByDisplayName,
-    current.value.closedByUserName,
-    closedByValue && !isUuid(closedByValue) ? closedByValue : null,
-  )
-  if (explicitName) {
-    closedByDisplay.value = explicitName
-    return
-  }
-
-  const rawUser = firstText(
-    current.value.closedByUserId,
-    closedByValue && isUuid(closedByValue) ? closedByValue : null,
-  )
-  if (!rawUser) {
-    closedByDisplay.value = null
-    return
-  }
-
-  if (!isUuid(rawUser)) {
-    closedByDisplay.value = rawUser
-    return
-  }
-
-  const currentUserIds = [authStore.userId, authStore.sessionUserId]
-    .map((value) => value?.toLowerCase())
-    .filter(Boolean)
-
-  if (currentUserIds.includes(rawUser.toLowerCase())) {
-    closedByDisplay.value =
-      authStore.userDisplayName || authStore.username || authStore.email || 'Usuario actual'
-    return
-  }
-
-  try {
-    let result = await UsersService.browsePaged({
-      pageNumber: 1,
-      pageSize: 25,
-      search: rawUser,
-    })
-    let user = result.items.find((item) => item.id.toLowerCase() === rawUser.toLowerCase())
-
-    if (!user) {
-      result = await UsersService.browsePaged({ pageNumber: 1, pageSize: 500 })
-      user = result.items.find((item) => item.id.toLowerCase() === rawUser.toLowerCase())
-    }
-
-    closedByDisplay.value = user ? user.displayName || user.userName : 'Usuario no disponible'
-  } catch {
-    closedByDisplay.value = 'Usuario no disponible'
-  }
-}
-
 function statusLabel(status: string) {
   return (
     (
@@ -206,12 +129,35 @@ function statusLabel(status: string) {
   )
 }
 
+async function loadSourceTrace() {
+  sourceImportRate.value = null
+  sourceEmail.value = null
+  const importRateId = current.value.sourceImportFclRateId?.trim()
+  if (!importRateId) return
+
+  try {
+    const importRate = await PricingService.getImportRate(importRateId)
+    sourceImportRate.value = importRate
+    try {
+      sourceEmail.value = await EmailExtractionService.getPricingImportSource(importRate.importBatchId)
+    } catch {
+      // Para importaciones históricas se conserva el fallback de RawData.
+    }
+  } catch {
+    // El detalle oficial sigue disponible aun si la fuente histórica ya no existe.
+  }
+}
+
+function openRateSource() {
+  if (sourceImportRate.value) openPricingSourcePopup(sourceImportRate.value)
+}
+
 async function reload() {
   try {
     loading.value = true
     current.value = await PricingService.getRate(current.value.id)
     await loadMissingCostNotes(current.value.rateDetails)
-    await resolveClosedByUser()
+    await loadSourceTrace()
   } catch (error) {
     toastStore.backendError(error, 'No se pudo actualizar el detalle de la tarifa.')
   } finally {
@@ -279,20 +225,6 @@ function reject() {
     props: {
       target: 'margin',
       id: current.value.id,
-      onSaved: async () => {
-        await reload()
-        await props.onSaved?.()
-      },
-    },
-  })
-}
-
-function closeRate() {
-  modalStore.open({
-    title: 'Cerrar tarifa',
-    component: PricingCloseRateModal,
-    props: {
-      rateId: current.value.id,
       onSaved: async () => {
         await reload()
         await props.onSaved?.()
@@ -466,14 +398,6 @@ onMounted(async () => {
             @click="setCommercialStatus('Sent')"
           />
           <DhButton
-            v-if="canUpdate && current.status === 'Sent'"
-            label="Solicitada por cliente"
-            :icon="Clock"
-            variant="secondary"
-            size="sm"
-            @click="setCommercialStatus('RequestedByClient')"
-          />
-          <DhButton
             v-if="canUpdate && ['Sent', 'RequestedByClient'].includes(current.status)"
             label="Aceptada por cliente"
             :icon="CheckCircle2"
@@ -488,14 +412,6 @@ onMounted(async () => {
             size="sm"
             @click="rejectByClient"
           />
-          <DhButton
-            v-if="canCloseCurrent"
-            label="Cerrar tarifa"
-            :icon="Archive"
-            variant="danger"
-            size="sm"
-            @click="closeRate"
-          />
           <button
             type="button"
             class="rounded-2xl p-2.5 text-[var(--dh-text-muted)] hover:bg-[var(--dh-card-hover)]"
@@ -504,41 +420,6 @@ onMounted(async () => {
           >
             <RefreshCw class="h-4 w-4" :class="loading && 'animate-spin'" />
           </button>
-        </div>
-      </div>
-    </section>
-
-    <section
-      v-if="current.status === 'RequestedByClient'"
-      class="rounded-[26px] border border-sky-500/20 bg-sky-500/10 p-5"
-    >
-      <div class="flex items-start gap-3 text-sky-900 dark:text-sky-100">
-        <Clock class="mt-0.5 h-5 w-5 shrink-0" />
-        <div>
-          <h3 class="font-black">Solicitada por el cliente</h3>
-          <p class="mt-1 text-sm font-semibold opacity-80">
-            El cliente solicitó la tarifa para analizarla, pero todavía no la aceptó ni la rechazó.
-            Este estado no se contabiliza como una decisión del cliente.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section
-      v-if="current.status === 'Closed'"
-      class="rounded-[26px] border border-slate-500/20 bg-slate-500/10 p-5"
-    >
-      <div class="flex items-start gap-3 text-slate-900 dark:text-slate-100">
-        <Archive class="mt-0.5 h-5 w-5 shrink-0" />
-        <div>
-          <h3 class="font-black">Tarifa cerrada</h3>
-          <p class="mt-1 text-sm font-semibold opacity-80">
-            {{ current.closedReason || 'No se registró un motivo de cierre.' }}
-          </p>
-          <p v-if="current.closedAtUtc" class="mt-2 text-xs font-bold opacity-65">
-            Cerrada el {{ formatDate(current.closedAtUtc) }}
-            <span v-if="closedByDisplay"> · Cerrada por: {{ closedByDisplay }}</span>
-          </p>
         </div>
       </div>
     </section>
@@ -708,6 +589,15 @@ onMounted(async () => {
         <div>
           <h3 class="font-black text-[var(--dh-text)]">{{ group.title }}</h3>
           <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ group.subtitle }}</p>
+          <button
+            v-if="group.key === 'freight' && sourceImportRate"
+            type="button"
+            class="mt-2 inline-flex max-w-full items-center gap-2 text-left text-xs font-black text-[var(--dh-primary)] hover:underline"
+            @click="openRateSource"
+          >
+            <ExternalLink class="h-3.5 w-3.5 shrink-0" />
+            <span class="break-words">Fuente: {{ sourceLabel }}</span>
+          </button>
         </div>
         <DhBadge :label="String(group.rows.length)" variant="neutral" />
       </header>

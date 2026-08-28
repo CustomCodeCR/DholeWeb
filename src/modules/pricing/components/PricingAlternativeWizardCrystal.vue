@@ -34,12 +34,14 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { openPricingSourcePopup, sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
   calculateCargoInsurance,
   canonicalServiceLine,
@@ -146,6 +148,7 @@ const loadingCabys = ref(false)
 const saving = ref(false)
 const createdRateId = ref('')
 const availableRates = ref<ImportRateSelectDto[]>([])
+const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
 const costs = ref<CostSelectDto[]>([])
 const cabysResults = ref<CabysItem[]>([])
 const rateLines = ref<RateLine[]>([])
@@ -670,6 +673,27 @@ const destinationTaxRate = computed(() => {
   return ({ CR: 13, PA: 7, GT: 15 } as Record<string, number>)[destinationCountryCode.value] ?? 0
 })
 const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
+
+function resolvedImportSource(rate: ImportRateSelectDto) {
+  return importSourceByBatch.value[rate.importBatchId] ?? null
+}
+
+function importSourceTitle(rate: ImportRateSelectDto) {
+  return sourceTitle(rate, resolvedImportSource(rate))
+}
+
+async function loadImportSources(rates: ImportRateSelectDto[]) {
+  const batchIds = [...new Set(rates.map((rate) => rate.importBatchId).filter(Boolean))]
+  await Promise.all(batchIds.map(async (batchId) => {
+    if (importSourceByBatch.value[batchId]) return
+    try {
+      const source = await EmailExtractionService.getPricingImportSource(batchId)
+      importSourceByBatch.value = { ...importSourceByBatch.value, [batchId]: source }
+    } catch {
+      // Importaciones históricas pueden no tener vínculo de correo; RawData sigue siendo fallback.
+    }
+  }))
+}
 
 function rateCommentRank(comment?: string | null) {
   const value = normalizeCatalogValue(String(comment ?? ''))
@@ -1509,6 +1533,7 @@ async function searchApprovedRates() {
       quoteDate: form.loadDate,
     }
     availableRates.value = await PricingService.selectImportRates(query)
+    await loadImportSources(availableRates.value)
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron consultar las tarifas aprobadas.')
   } finally {
@@ -1845,14 +1870,8 @@ function chooseCabys(item: CabysItem) {
   form.cargoDescription = item.description
 }
 
-function sourceImportTraceUrl(rate: ImportRateSelectDto) {
-  const raw = String(rate.rawDataJson ?? '')
-  const explicitUrl = raw.match(/https?:\/\/[^"'\s\\]+/i)?.[0]
-  return explicitUrl || `/pricing/imports/review/${rate.importBatchId}`
-}
-
 function openImportSource(rate: ImportRateSelectDto) {
-  window.open(sourceImportTraceUrl(rate), '_blank', 'noopener,noreferrer')
+  openPricingSourcePopup(rate)
 }
 
 async function uploadSupportDocument(category: string, categoryLabel: string, event: Event) {
@@ -2709,7 +2728,10 @@ onMounted(loadCatalogs)
                 <p class="mt-3 text-left text-xs font-black" :class="rate.freeDays > 0 ? 'text-emerald-600' : 'text-amber-600'">
                   {{ rate.freeDays > 0 ? `Incluye ${rate.freeDays} días libres` : 'No incluye días libres; deberá ingresarlos en Proveedor' }}
                 </p>
-                <span class="mt-3 inline-flex items-center gap-1 text-xs font-black text-[var(--dh-primary)] hover:underline" role="link" tabindex="0" @click.stop="openImportSource(rate)" @keyup.enter.stop="openImportSource(rate)">
+                <p class="mt-3 text-left text-[11px] font-bold text-[var(--dh-text-muted)]">
+                  Fuente: {{ importSourceTitle(rate) }}
+                </p>
+                <span class="mt-1 inline-flex items-center gap-1 text-xs font-black text-[var(--dh-primary)] hover:underline" role="link" tabindex="0" @click.stop="openImportSource(rate)" @keyup.enter.stop="openImportSource(rate)">
                   <ExternalLink class="h-3.5 w-3.5" /> Ver correo / fuente de la tarifa
                 </span>
               </button>
@@ -2882,6 +2904,18 @@ onMounted(loadCatalogs)
                   Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
                 </p>
                 <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
+                <button
+                  v-if="group.key === 'freight' && selectedImportRate"
+                  type="button"
+                  class="mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-left text-xs font-black text-[var(--dh-primary)] hover:underline"
+                  @click="openImportSource(selectedImportRate)"
+                >
+                  <ExternalLink class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span class="min-w-0">
+                    <span class="block text-[9px] uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Fuente del flete internacional</span>
+                    <span class="block break-words">{{ importSourceTitle(selectedImportRate) }}</span>
+                  </span>
+                </button>
       <div v-if="line.notes" class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-left">
         <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Comentario de Costos y recargos</span>
         <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>

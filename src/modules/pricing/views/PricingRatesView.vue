@@ -61,7 +61,6 @@ const total = ref(0)
 const filters = reactive({
   search: '',
   status: (typeof route.query.status === 'string' ? route.query.status : '') as RateStatus | '',
-  approval: '',
   agentId: '',
   carrierId: '',
   polId: '',
@@ -97,11 +96,6 @@ const statusOptions = [
   { label: 'Vencidas', value: 'Expired' },
   { label: 'Aceptadas', value: 'AcceptedByClient' },
   { label: 'No aceptadas', value: 'RejectedByClient' },
-]
-const approvalOptions = [
-  { label: 'Todas', value: '' },
-  { label: 'Requieren aprobación', value: 'true' },
-  { label: 'Sin aprobación pendiente', value: 'false' },
 ]
 
 const quickStatusOptions: Array<{ label: string; value: RateStatus | '' }> = [
@@ -151,7 +145,6 @@ async function load() {
       pageSize: pageSize.value,
       search: filters.search || undefined,
       status: filters.status || undefined,
-      requiredApproval: filters.approval === '' ? undefined : filters.approval === 'true',
       agentId: filters.agentId || undefined,
       carrierId: filters.carrierId || undefined,
       polId: filters.polId || undefined,
@@ -183,8 +176,7 @@ function clearFilters() {
   Object.assign(filters, {
     search: '',
     status: '',
-    approval: '',
-    agentId: '',
+      agentId: '',
     carrierId: '',
     polId: '',
     poeId: '',
@@ -290,8 +282,8 @@ onMounted(async () => {
 <template>
   <section class="space-y-6">
     <DhPageHeader
-      title="Tarifas"
-      subtitle="Construya y revise tarifas FCL con costo, venta, utilidad y margen en una sola vista."
+      title="Tarifas oficiales"
+      subtitle="Seguimiento comercial únicamente por Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."
       :icon="ReceiptText"
     />
 
@@ -355,12 +347,6 @@ onMounted(async () => {
             v-model="filters.status"
             label="Estado"
             :options="statusOptions"
-            placeholder=""
-          />
-          <DhSelect
-            v-model="filters.approval"
-            label="Aprobación"
-            :options="approvalOptions"
             placeholder=""
           />
           <DhSelect

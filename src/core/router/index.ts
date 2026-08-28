@@ -198,6 +198,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/email-source/:batchId',
+          name: 'pricing-email-source',
+          component: () => import('@/modules/pricing/views/PricingEmailSourceView.vue'),
+          meta: {
+            tabTitle: 'Fuente de tarifa',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+        },
+        {
           path: 'pricing/rates',
           name: 'pricing-rates',
           component: () => import('@/modules/pricing/views/PricingRatesView.vue'),
