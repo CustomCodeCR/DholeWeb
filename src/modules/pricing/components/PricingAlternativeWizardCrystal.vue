@@ -164,8 +164,6 @@ const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.fl
     selected: false,
   }]
 }))
-const destinationVatEnabled = ref(false)
-const optionalVatEnabled = ref(false)
 const supportEntityId = ref(crypto.randomUUID())
 const supportDocuments = ref<SupportDocument[]>([])
 const uploadingSupportKey = ref('')
@@ -780,9 +778,6 @@ const selectedOptionalChargeKeys = computed<string[]>({
       if (!line.optional) return
       const selectable = selectableOptionalLines.value.some((candidate) => candidate.key === line.key)
       line.included = selectable && selected.has(line.key)
-      if (line.included && optionalVatEnabled.value && canApplyDestinationTax(line)) {
-        line.applyDestinationTax = true
-      }
     })
   },
 })
@@ -856,26 +851,8 @@ function lineTaxAmount(line: RateLine) {
 function lineSaleWithTax(line: RateLine) {
   return number(line.saleAmount) + lineTaxAmount(line)
 }
-function setDestinationVat(enabled: boolean) {
-  destinationVatEnabled.value = enabled
-  rateLines.value.forEach((line) => {
-    if (line.section === 'destination_charges' && !line.optional && line.costDetailType !== 'AgentCharge') {
-      line.applyDestinationTax = enabled
-    }
-  })
-}
-function setOptionalVat(enabled: boolean) {
-  optionalVatEnabled.value = enabled
-  rateLines.value.forEach((line) => {
-    if (line.optional) line.applyDestinationTax = enabled && line.included
-  })
-}
-function vatSummary(lines: RateLine[]) {
-  const applicable = lines.filter((line) => line.included && canApplyDestinationTax(line))
-  return {
-    tax: applicable.reduce((sum, line) => sum + lineTaxAmount(line), 0),
-    total: applicable.reduce((sum, line) => sum + lineSaleWithTax(line), 0),
-  }
+function setLineDestinationTax(line: RateLine, enabled: boolean) {
+  line.applyDestinationTax = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0
 }
 const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
 const totalSaleBeforeTax = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
@@ -1337,8 +1314,6 @@ addVariableSectionFallback(
   }
 
   rateLines.value = lines
-  if (destinationVatEnabled.value) setDestinationVat(true)
-  if (optionalVatEnabled.value) setOptionalVat(true)
 }
 
 function addManualCharge() {
@@ -1403,8 +1378,6 @@ function syncHaulageOptionalLines() {
 
     if (!line.included) {
       line.applyDestinationTax = false
-    } else if (optionalVatEnabled.value && canApplyDestinationTax(line)) {
-      line.applyDestinationTax = true
     }
   })
 }
@@ -2221,8 +2194,6 @@ function resetWizard() {
   createdRateId.value = ''
   availableRates.value = []
   rateLines.value = []
-  destinationVatEnabled.value = false
-  optionalVatEnabled.value = false
   supportEntityId.value = crypto.randomUUID()
   supportDocuments.value = []
   Object.assign(form, {
@@ -2896,21 +2867,11 @@ onMounted(loadCatalogs)
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
-              <div v-if="group.key === 'destination'" class="crystal-vat-header">
-                <DhCheckbox
-                  :model-value="destinationVatEnabled"
-                  :label="`Aplicar IVA destino (${destinationTaxRate}%)`"
-                  :disabled="destinationTaxRate <= 0"
-                  @update:model-value="setDestinationVat"
-                />
-                <DhInput :model-value="vatSummary(group.lines).tax" type="number" label="Monto IVA" disabled />
-                <DhInput :model-value="vatSummary(group.lines).total" type="number" label="Venta + IVA" disabled />
-              </div>
             </div>
             <div
               v-for="line in group.lines"
               :key="line.key"
-              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px]"
+              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_160px_160px_minmax(220px,280px)]"
             >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -2928,6 +2889,18 @@ onMounted(loadCatalogs)
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              <div v-if="canApplyDestinationTax(line)" class="crystal-line-vat">
+                <DhCheckbox
+                  :model-value="Boolean(line.applyDestinationTax)"
+                  :label="`IVA destino (${destinationTaxRate}%)`"
+                  :disabled="destinationTaxRate <= 0"
+                  @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
+                />
+                <div class="crystal-line-vat__amounts">
+                  <span>IVA <strong>{{ formatMoney(lineTaxAmount(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>
+                  <span>Venta + IVA <strong>{{ formatMoney(lineSaleWithTax(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2935,16 +2908,7 @@ onMounted(loadCatalogs)
             <div v-if="optionalChargeOptions.length">
               <div class="crystal-group-header mb-3">
                 <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Cargos opcionales</p>
-                <div class="crystal-vat-header">
-                  <DhCheckbox
-                    :model-value="optionalVatEnabled"
-                    :label="`Aplicar IVA destino (${destinationTaxRate}%)`"
-                    :disabled="destinationTaxRate <= 0"
-                    @update:model-value="setOptionalVat"
-                  />
-                  <DhInput :model-value="vatSummary(bottomRateLines.filter((line) => line.optional)).tax" type="number" label="Monto IVA" disabled />
-                  <DhInput :model-value="vatSummary(bottomRateLines.filter((line) => line.optional)).total" type="number" label="Venta + IVA" disabled />
-                </div>
+                <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El IVA se selecciona individualmente en cada rubro.</p>
               </div>
               <PricingCrystalMultiSelect
                 v-model="selectedOptionalChargeKeys"
@@ -2959,7 +2923,7 @@ onMounted(loadCatalogs)
               <div
                 v-for="line in bottomRateLines"
                 :key="line.key"
-                class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
+                class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_160px_160px_minmax(220px,280px)_auto]"
               >
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
@@ -2979,6 +2943,19 @@ onMounted(loadCatalogs)
                 </div>
                 <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+                <div v-if="canApplyDestinationTax(line)" class="crystal-line-vat">
+                  <DhCheckbox
+                    :model-value="Boolean(line.applyDestinationTax)"
+                    :label="`IVA destino (${destinationTaxRate}%)`"
+                    :disabled="destinationTaxRate <= 0"
+                    @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
+                  />
+                  <div class="crystal-line-vat__amounts">
+                    <span>IVA <strong>{{ formatMoney(lineTaxAmount(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>
+                    <span>Venta + IVA <strong>{{ formatMoney(lineSaleWithTax(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>
+                  </div>
+                </div>
+                <span v-else />
                 <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
                 <span v-else />
               </div>
@@ -3352,10 +3329,10 @@ onMounted(loadCatalogs)
   border: 1px solid var(--dh-border);
   border-radius: 20px;
   padding: 0.8rem;
-  background: color-mix(in srgb, var(--dh-card) 97%, transparent);
+  background: var(--dh-card);
   box-shadow: var(--dh-shadow-md);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .crystal-group-header {
@@ -3366,16 +3343,33 @@ onMounted(loadCatalogs)
   gap: 0.75rem;
 }
 
-.crystal-vat-header {
+.crystal-line-vat {
   display: grid;
-  width: min(100%, 640px);
-  grid-template-columns: minmax(190px, 1fr) minmax(130px, 170px) minmax(130px, 170px);
-  align-items: end;
-  gap: 0.6rem;
-  border: 1px solid color-mix(in srgb, var(--dh-border) 88%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--dh-card) 92%, transparent);
-  padding: 0.65rem;
+  gap: 0.45rem;
+  align-self: stretch;
+  border: 1px solid var(--dh-border);
+  border-radius: 16px;
+  background: var(--dh-card);
+  padding: 0.6rem 0.7rem;
+}
+
+.crystal-line-vat__amounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--dh-text-muted);
+}
+
+.crystal-line-vat__amounts span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.crystal-line-vat__amounts strong {
+  color: var(--dh-text);
+  font-size: 0.76rem;
 }
 
 .crystal-total-card span {
@@ -3507,21 +3501,13 @@ onMounted(loadCatalogs)
     padding: 0.4rem 0.5rem;
   }
 
-  .crystal-vat-header {
+  .crystal-line-vat {
     width: 100%;
-    max-width: 100%;
+    min-width: 0;
+  }
+
+  .crystal-line-vat__amounts {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .crystal-vat-header > * {
-    min-width: 0;
-    max-width: 100%;
-  }
-
-  .crystal-vat-header :deep(input) {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
   }
 
   .crystal-panel {
