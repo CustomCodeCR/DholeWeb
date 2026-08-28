@@ -10,7 +10,14 @@ import type {
   AuditEventSummaryQuery,
   BrowseAuditEventsQuery,
   EntityHistoryQuery,
+  RegisterAuditAccessRequest,
 } from '@/core/interfaces/auditLogs'
+
+const registerAuditAccessEndpoint = {
+  method: 'POST',
+  path: '/api/auditlogs/access',
+  headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+} as const
 
 export const AuditLogsService = {
   async browse(query?: BrowseAuditEventsQuery): Promise<AuditEventListItemDto[]> {
@@ -78,5 +85,11 @@ export const AuditLogsService = {
     })
 
     return unwrapListResponse<AuditEventListItemDto>(response)
+  },
+
+  async registerAccess(request: RegisterAuditAccessRequest): Promise<void> {
+    await callEndpoint<unknown, RegisterAuditAccessRequest>(registerAuditAccessEndpoint, {
+      body: request,
+    })
   },
 }

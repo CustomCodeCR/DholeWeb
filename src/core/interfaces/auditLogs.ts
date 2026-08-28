@@ -5,6 +5,7 @@ export interface AuditEventDto {
   sourceService: string
   entityType: string | null
   entityId: string | null
+  entityName: string | null
   action: string
   eventType: string | null
   userId: string | null
@@ -13,6 +14,9 @@ export interface AuditEventDto {
   userAgent: string | null
   occurredAt: string
   createdAt: string
+  description: string | null
+  httpMethod: string | null
+  requestPath: string | null
   beforeJson: string | null
   afterJson: string | null
   payloadJson: string | null
@@ -29,13 +33,18 @@ export interface AuditEventListItemDto {
   sourceService: string
   entityType: string | null
   entityId: string | null
+  entityName: string | null
   action: string
   eventType: string | null
   userId: string | null
   userName: string | null
   ipAddress: string | null
+  userAgent: string | null
   occurredAt: string
   createdAt: string
+  description: string | null
+  httpMethod: string | null
+  requestPath: string | null
   hasBeforeJson: boolean
   hasAfterJson: boolean
   hasPayloadJson: boolean
@@ -100,4 +109,11 @@ export interface AuditEventSummaryQuery {
 export interface EntityHistoryQuery {
   entityType: string
   entityId: string
+}
+
+export interface RegisterAuditAccessRequest {
+  pageName: string
+  route: string
+  resourceType?: string | null
+  resourceId?: string | null
 }
