@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# International cargo port filtering release — 2026-08-27
+# Searchable CY/SD pricing fields release — 2026-08-28
 
 on:
   push:
