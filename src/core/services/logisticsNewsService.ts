@@ -1,5 +1,5 @@
 import { callEndpoint } from '@/core/api/callEndpoint'
-import { unwrapApiResponse, unwrapListResponse } from '@/core/api/apiResponse'
+import { unwrapApiResponse, unwrapListResponse, type ApiResponse } from '@/core/api/apiResponse'
 import type { Endpoint } from '@/core/composables/endpoints'
 
 export interface LogisticsNewsDto {
@@ -73,6 +73,8 @@ const endpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+type NewsResponse = LogisticsNewsDto | ApiResponse<LogisticsNewsDto>
+
 export const LogisticsNewsService = {
   async list(): Promise<LogisticsNewsDto[]> {
     const response = await callEndpoint<unknown>(endpoints.list)
@@ -80,7 +82,7 @@ export const LogisticsNewsService = {
   },
 
   async create(request: CreateLogisticsNewsRequest): Promise<LogisticsNewsDto> {
-    const response = await callEndpoint<unknown, CreateLogisticsNewsRequest>(endpoints.create, {
+    const response = await callEndpoint<NewsResponse, CreateLogisticsNewsRequest>(endpoints.create, {
       body: request,
     })
     return unwrapApiResponse<LogisticsNewsDto>(response)
@@ -94,14 +96,14 @@ export const LogisticsNewsService = {
   },
 
   async reprocess(newsId: string): Promise<LogisticsNewsDto> {
-    const response = await callEndpoint<unknown>(endpoints.reprocess, {
+    const response = await callEndpoint<NewsResponse>(endpoints.reprocess, {
       params: { newsId },
     })
     return unwrapApiResponse<LogisticsNewsDto>(response)
   },
 
   async setActive(newsId: string, isActive: boolean): Promise<LogisticsNewsDto> {
-    const response = await callEndpoint<unknown, { isActive: boolean }>(endpoints.setActive, {
+    const response = await callEndpoint<NewsResponse, { isActive: boolean }>(endpoints.setActive, {
       params: { newsId },
       body: { isActive },
     })
