@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Locked agent cost/sale fields release — 2026-08-28
+# Carrier haulage auto-selection release — 2026-08-28
 
 on:
   push:
