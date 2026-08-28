@@ -2660,8 +2660,8 @@ onMounted(loadCatalogs)
         <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>
       </div>
               </div>
-              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costType !== 'Variable'" />
-              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
+              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
             </div>
           </div>
 
@@ -2711,8 +2711,8 @@ onMounted(loadCatalogs)
           <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>
         </div>
                 </div>
-                <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" />
-                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" />
+                <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
+                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
                 <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
                 <span v-else />
               </div>
