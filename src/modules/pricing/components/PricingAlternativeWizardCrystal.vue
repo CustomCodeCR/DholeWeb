@@ -31,6 +31,7 @@ import type {
   CostType,
   CreateRateDetailRequest,
   ImportRateSelectDto,
+  RateOperationType,
   ShipmentMode,
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -141,6 +142,7 @@ interface RateLine {
   included: boolean
   optional: boolean
   manual: boolean
+  serviceIds?: string[]
   applyDestinationTax?: boolean
 }
 
@@ -776,6 +778,80 @@ const direction = computed(() => {
   if (!originCr && destinationCr) return 'Importación'
   return 'Tránsito / doméstico'
 })
+const operationType = computed<RateOperationType>(() => {
+  if (direction.value === 'Importación') return 'Import'
+  if (direction.value === 'Exportación') return 'Export'
+  return 'TransitDomestic'
+})
+
+const forcedCrcServiceIds = computed(() => {
+  const forcedNames = new Set([
+    'agencia de aduanas crc',
+    'almacenamiento',
+    'embalaje de carga',
+    'picking cargas',
+    'recepcion de carga',
+    'transporte de entrega',
+    'transporte de recoleccion',
+  ])
+  return new Set(
+    catalogs.services
+      .filter((service) => {
+        const values = [displayValue(service), service.label, service.code, service.slug]
+          .map((value) => normalizeCatalogValue(String(value ?? '')))
+        return values.some((value) => forcedNames.has(value))
+      })
+      .map((service) => service.id),
+  )
+})
+const crcImportContext = computed(() => operationType.value === 'Import' && destinationCountryCode.value === 'CR')
+const usdCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'USD') ?? null)
+const crcCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'CRC') ?? null)
+const lineCurrencyOptions = computed(() => {
+  const options = catalogs.currencies
+    .filter((item) => ['USD', 'CRC'].includes(String(item.code || displayValue(item)).trim().toUpperCase()))
+    .map((item) => ({ value: item.id, label: String(item.code || displayValue(item)).trim().toUpperCase() }))
+  return options.length ? options : currencyOptions.value
+})
+
+function isLineCrcForced(line: RateLine) {
+  if (!crcImportContext.value || !line.serviceIds?.length) return false
+  return line.serviceIds.some((id) => forcedCrcServiceIds.value.has(id) && form.serviceIds.includes(id))
+}
+
+function setLineCurrency(line: RateLine, currencyId: string) {
+  const currency = findById(catalogs.currencies, currencyId)
+  if (!currency) return
+
+  const previousCode = String(line.currencyCode || '').trim().toUpperCase()
+  const nextCode = String(currency.code || displayValue(currency)).trim().toUpperCase()
+  const exchangeRate = number(exchangeRateSale.value)
+
+  // Cambiar la divisa no debe reinterpretar USD 100 como CRC 100. Se conserva
+  // el valor económico de la línea usando el tipo de cambio visible de Hacienda.
+  if (previousCode && previousCode !== nextCode && exchangeRate > 0) {
+    if (previousCode === 'USD' && nextCode === 'CRC') {
+      line.costAmount = Math.round(number(line.costAmount) * exchangeRate * 100) / 100
+      line.saleAmount = Math.round(number(line.saleAmount) * exchangeRate * 100) / 100
+    } else if (previousCode === 'CRC' && nextCode === 'USD') {
+      line.costAmount = Math.round((number(line.costAmount) / exchangeRate) * 100) / 100
+      line.saleAmount = Math.round((number(line.saleAmount) / exchangeRate) * 100) / 100
+    }
+  }
+
+  line.currencyId = currency.id
+  line.currencyName = displayValue(currency) || currency.label || currency.code
+  line.currencyCode = nextCode
+}
+
+function enforceLineCurrency(line: RateLine) {
+  if (isLineCrcForced(line) && crcCurrency.value) setLineCurrency(line, crcCurrency.value.id)
+}
+
+watch(
+  [crcImportContext, () => form.serviceIds.join('|'), crcCurrency],
+  () => rateLines.value.forEach(enforceLineCurrency),
+)
 
 const incotermResponsibilitySections = computed<RateSection[]>(() => {
   const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
@@ -903,15 +979,40 @@ function lineSaleWithTax(line: RateLine) {
 function setLineDestinationTax(line: RateLine, enabled: boolean) {
   line.applyDestinationTax = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0
 }
-const totalCost = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.costAmount), 0))
-const totalSaleBeforeTax = computed(() => includedLines.value.reduce((sum, line) => sum + number(line.saleAmount), 0))
-const totalTax = computed(() => includedLines.value.reduce((sum, line) => sum + lineTaxAmount(line), 0))
-// totalSale es el total a cobrar al cliente; el IVA se muestra, pero queda fuera de utilidad y margen.
-const totalSale = computed(() => totalSaleBeforeTax.value + totalTax.value)
-const totalUtility = computed(() => totalSaleBeforeTax.value - totalCost.value)
+function convertUsdCrc(amount: number, sourceCode: string, targetCode: 'USD' | 'CRC') {
+  const source = String(sourceCode || 'USD').trim().toUpperCase()
+  if (source === targetCode) return number(amount)
+  const rate = number(exchangeRateSale.value)
+  if (rate <= 0) return 0
+  if (source === 'USD' && targetCode === 'CRC') return number(amount) * rate
+  if (source === 'CRC' && targetCode === 'USD') return number(amount) / rate
+  return 0
+}
+function sumLinesInCurrency(amount: (line: RateLine) => number, target: 'USD' | 'CRC') {
+  return includedLines.value.reduce(
+    (sum, line) => sum + convertUsdCrc(amount(line), line.currencyCode, target),
+    0,
+  )
+}
+const totalCostUsd = computed(() => sumLinesInCurrency((line) => number(line.costAmount), 'USD'))
+const totalCostCrc = computed(() => sumLinesInCurrency((line) => number(line.costAmount), 'CRC'))
+const totalSaleBeforeTaxUsd = computed(() => sumLinesInCurrency((line) => number(line.saleAmount), 'USD'))
+const totalSaleBeforeTaxCrc = computed(() => sumLinesInCurrency((line) => number(line.saleAmount), 'CRC'))
+const totalTaxUsd = computed(() => sumLinesInCurrency(lineTaxAmount, 'USD'))
+const totalTaxCrc = computed(() => sumLinesInCurrency(lineTaxAmount, 'CRC'))
+const totalSaleUsd = computed(() => totalSaleBeforeTaxUsd.value + totalTaxUsd.value)
+const totalSaleCrc = computed(() => totalSaleBeforeTaxCrc.value + totalTaxCrc.value)
+const totalUtilityUsd = computed(() => totalSaleBeforeTaxUsd.value - totalCostUsd.value)
+const totalUtilityCrc = computed(() => totalSaleBeforeTaxCrc.value - totalCostCrc.value)
 const totalMarginPercentage = computed(() =>
-  totalSaleBeforeTax.value > 0 ? (totalUtility.value / totalSaleBeforeTax.value) * 100 : 0,
+  totalSaleBeforeTaxUsd.value > 0 ? (totalUtilityUsd.value / totalSaleBeforeTaxUsd.value) * 100 : 0,
 )
+const includedCurrencyCodes = computed(() => new Set(includedLines.value.map((line) => String(line.currencyCode).trim().toUpperCase())))
+const hasMixedCurrencies = computed(() => includedCurrencyCodes.value.size > 1)
+// Compatibility aliases used by existing visual helpers. Header currency is still preserved in the persisted rate.
+const totalCost = computed(() => String(selectedCurrency.value?.code ?? '').toUpperCase() === 'CRC' ? totalCostCrc.value : totalCostUsd.value)
+const totalSale = computed(() => String(selectedCurrency.value?.code ?? '').toUpperCase() === 'CRC' ? totalSaleCrc.value : totalSaleUsd.value)
+const totalUtility = computed(() => String(selectedCurrency.value?.code ?? '').toUpperCase() === 'CRC' ? totalUtilityCrc.value : totalUtilityUsd.value)
 
 function financialTone(value: number) {
   if (value < 0) return 'danger'
@@ -1100,6 +1201,7 @@ function costContextLabel(cost: CostSelectDto) {
 }
 
 function applicableCost(cost: CostSelectDto) {
+  if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
   if (cost.carrierId && cost.carrierId !== form.carrierId) return false
@@ -1127,6 +1229,7 @@ function costSpecificity(cost: CostSelectDto) {
   let score = 0
   if (cost.shipmentMode) score += 2
   if (cost.incoterms?.length) score += 2
+  if (cost.services?.length) score += 2
   if (cost.carrierId) score += 3
   if (cost.agentId) score += 3
   if (cost.polId) score += 4
@@ -1172,7 +1275,8 @@ async function loadApplicableCosts() {
       shipmentMode: shipmentModeForApi.value,
       isActive: true,
       applicableToContext: true,
-    } as any)
+      serviceIds: form.serviceIds.join(',') || undefined,
+    })
   } catch (error) {
     costs.value = []
     toastStore.backendError(
@@ -1229,6 +1333,7 @@ function rebuildRateLines() {
       costId: cost.id,
       contextLabel: costContextLabel(cost),
       notes: cost.notes?.trim() || null,
+      serviceIds: cost.services?.map((service) => service.id) ?? [],
       currencyId: cost.currencyId,
       currencyName: cost.currencyName,
       currencyCode: cost.currencyCode,
@@ -1362,6 +1467,7 @@ addVariableSectionFallback(
     })
   }
 
+  lines.forEach(enforceLineCurrency)
   rateLines.value = lines
 }
 
@@ -2029,6 +2135,8 @@ async function saveOpenRequest() {
       validTo: addDaysIso(form.loadDate, 30),
       containerQuantity: form.equipmentQuantity,
       rateType: 'Spot',
+      operationType: operationType.value,
+      services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
       containers: [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
       totalPackages: 0,
@@ -2236,6 +2344,8 @@ async function saveRate() {
       validTo: selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
       containerQuantity: form.equipmentQuantity,
       rateType: 'Spot',
+      operationType: operationType.value,
+      services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
       containers: [
         {
@@ -2976,10 +3086,13 @@ onMounted(async () => {
               <p class="crystal-description">Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.</p>
             </div>
             <div class="crystal-total-card">
-    <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo <strong>{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span>
-    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta <strong>{{ formatMoney(totalSale, displayValue(selectedCurrency) || 'USD') }}</strong></span>
-    <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtility)}`">Utilidad <strong>{{ formatMoney(totalUtility, displayValue(selectedCurrency) || 'USD') }}</strong></span>
+    <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo USD <strong>{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
+    <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo CRC <strong>{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
+    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta USD <strong>{{ formatMoney(totalSaleUsd, 'USD') }}</strong></span>
+    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta CRC <strong>{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></span>
+    <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityUsd)}`">Utilidad USD <strong>{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
     <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
+    <span v-if="hasMixedCurrencies" class="crystal-total-card__metric crystal-total-card__metric--neutral">Oferta mixta <strong>USD + CRC</strong></span>
   </div>
           </div>
 
@@ -3006,7 +3119,7 @@ onMounted(async () => {
             <div
               v-for="line in group.lines"
               :key="line.key"
-              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_160px_160px_minmax(220px,280px)]"
+              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_130px_160px_160px_minmax(220px,280px)]"
             >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -3033,6 +3146,16 @@ onMounted(async () => {
         <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Comentario de Costos y recargos</span>
         <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>
       </div>
+              </div>
+              <div>
+                <DhSelect
+                  :model-value="line.currencyId"
+                  label="Divisa"
+                  :options="lineCurrencyOptions"
+                  :disabled="isLineCrcForced(line)"
+                  @update:model-value="(value) => setLineCurrency(line, String(value))"
+                />
+                <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · Importación Costa Rica</p>
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
@@ -3070,7 +3193,7 @@ onMounted(async () => {
               <div
                 v-for="line in bottomRateLines"
                 :key="line.key"
-                class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_160px_160px_minmax(220px,280px)_auto]"
+                class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_130px_160px_160px_minmax(220px,280px)_auto]"
               >
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
@@ -3087,6 +3210,16 @@ onMounted(async () => {
           <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Comentario de Costos y recargos</span>
           <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>
         </div>
+                </div>
+                <div>
+                  <DhSelect
+                    :model-value="line.currencyId"
+                    label="Divisa"
+                    :options="lineCurrencyOptions"
+                    :disabled="isLineCrcForced(line)"
+                    @update:model-value="(value) => setLineCurrency(line, String(value))"
+                  />
+                  <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · Importación Costa Rica</p>
                 </div>
                 <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
@@ -3131,13 +3264,22 @@ onMounted(async () => {
               <p class="mt-3 text-lg font-black">{{ form.clientName || 'Cliente sin definir' }}</p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Ejecutivo: {{ form.executiveName || 'Sin asignar' }}</p>
               <p class="mt-4 text-sm font-bold">{{ displayValue(selectedOrigin) }} → {{ displayValue(selectedDestination) }}<span v-if="selectedPod"> → {{ displayValue(selectedPod) }}</span></p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ form.modality }} · {{ form.shipmentMode }} · {{ displayValue(selectedEquipment) }} · {{ displayValue(selectedIncoterm) }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }} · {{ displayValue(selectedEquipment) }} · {{ displayValue(selectedIncoterm) }}</p>
             </div>
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Resumen comercial</p>
               <p class="mt-3 text-sm font-bold">Proveedor: {{ displayValue(selectedCarrier) || 'Sin proveedor' }}</p>
               <p class="mt-1 text-sm font-bold">Agente: {{ displayValue(selectedAgent) || 'Sin agente' }}</p>
-              <div class="mt-4 grid grid-cols-2 gap-2 text-sm"><span>Costo <strong class="block">{{ formatMoney(totalCost, displayValue(selectedCurrency) || 'USD') }}</strong></span><span>Venta <strong class="block">{{ formatMoney(totalSale, displayValue(selectedCurrency) || 'USD') }}</strong></span><span>Utilidad <strong class="block">{{ formatMoney(totalUtility, displayValue(selectedCurrency) || 'USD') }}</strong></span><span>Margen <strong class="block">{{ totalMarginPercentage.toFixed(2) }}%</strong></span></div>
+              <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+                <span>Costo USD <strong class="block">{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
+                <span>Costo CRC <strong class="block">{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
+                <span>Venta USD <strong class="block">{{ formatMoney(totalSaleUsd, 'USD') }}</strong></span>
+                <span>Venta CRC <strong class="block">{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></span>
+                <span>Utilidad USD <strong class="block">{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
+                <span>Utilidad CRC <strong class="block">{{ formatMoney(totalUtilityCrc, 'CRC') }}</strong></span>
+                <span>Margen <strong class="block">{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
+                <span>Operación <strong class="block">{{ direction }}</strong></span>
+              </div>
             </div>
             <div class="crystal-soft p-5 lg:col-span-2">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Carga y respaldos</p>

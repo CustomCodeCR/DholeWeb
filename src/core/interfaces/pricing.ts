@@ -48,6 +48,20 @@ export interface CostIncotermDto {
   code: string
 }
 
+export interface CostServiceDto {
+  id: string
+  name: string
+  code: string
+}
+
+export interface RateServiceDto {
+  id: string
+  name: string
+  code: string
+}
+
+export type RateOperationType = 'Import' | 'Export' | 'TransitDomestic'
+
 export interface CostDto extends Record<string, unknown> {
   id: string
   name: string
@@ -82,6 +96,7 @@ export interface CostDto extends Record<string, unknown> {
   isAccountant: boolean
   isActive: boolean
   incoterms: CostIncotermDto[]
+  services?: CostServiceDto[]
   shipmentMode?: ShipmentMode | null
   chargeBasis: ChargeBasis
   minimumCostAmount?: number | null
@@ -125,6 +140,7 @@ export interface CreateCostRequest extends Record<string, unknown> {
   notes?: string | null
   isAccountant?: boolean
   incoterms?: CostIncotermDto[]
+  services?: CostServiceDto[]
   shipmentMode?: ShipmentMode | null
   chargeBasis?: ChargeBasis
   minimumCostAmount?: number | null
@@ -596,6 +612,7 @@ export interface RateDto extends Record<string, unknown> {
   transitTime?: string | null
   rateType: RateType
   shipmentMode: ShipmentMode
+  operationType: RateOperationType
   totalPackages: number
   totalPallets: number
   totalWeightKg: number
@@ -606,6 +623,12 @@ export interface RateDto extends Record<string, unknown> {
   totalCostAmount: number
   totalSaleAmount: number
   totalUtilityAmount: number
+  totalCostUsd: number
+  totalSaleUsd: number
+  totalUtilityUsd: number
+  totalCostCrc: number
+  totalSaleCrc: number
+  totalUtilityCrc: number
   marginPercentage: number
   requiredApproval: boolean
   status: RateStatus
@@ -617,6 +640,7 @@ export interface RateDto extends Record<string, unknown> {
   closedByDisplayName?: string | null
   containers?: RateContainerDto[]
   rateDetails: RateDetailDto[]
+  services?: RateServiceDto[]
 }
 
 export interface RateSelectDto extends Record<string, unknown> {
@@ -693,6 +717,8 @@ export interface CreateRateRequest extends Record<string, unknown> {
   excludes?: string | null
   transitTime?: string | null
   rateType?: RateType
+  operationType?: RateOperationType
+  services?: RateServiceDto[]
   containers?: CreateRateContainerRequest[]
   shipmentMode?: ShipmentMode
   totalPackages?: number
@@ -761,6 +787,13 @@ export interface BrowseCostsQuery extends Record<string, unknown> {
   portRole?: CostPortRole | null
   currencyId?: string | null
   isActive?: boolean | null
+  polId?: string | null
+  poeId?: string | null
+  podId?: string | null
+  incotermId?: string | null
+  shipmentMode?: ShipmentMode | null
+  applicableToContext?: boolean | null
+  serviceIds?: string | null
 }
 
 export interface BrowseImportRatesQuery extends Record<string, unknown> {
