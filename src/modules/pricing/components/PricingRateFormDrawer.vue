@@ -17,18 +17,18 @@ const legacyRef = ref<InstanceType<typeof PricingRateFormDrawerLegacy> | null>(n
 const wizardRootRef = ref<HTMLElement | null>(null)
 const activeStep = ref<WizardStep>(1)
 
-const isManualWizard = computed(() => !props.rate && !props.sourceImport)
+const isWizardFlow = computed(() => !props.sourceImport)
 
 const steps: Array<{ id: WizardStep; label: string; hint: string }> = [
-  { id: 1, label: 'Datos generales', hint: 'Vigencia, moneda y condiciones comerciales' },
+  { id: 1, label: 'Datos y vigencia', hint: 'Vigencia, moneda y condiciones comerciales' },
   { id: 2, label: 'Ruta y equipo', hint: 'Modalidad, puertos, naviera y equipo' },
-  { id: 3, label: 'Costos y margen', hint: 'Rubros, seguro, costo, venta y utilidad' },
+  { id: 3, label: 'Líneas y margen', hint: 'Rubros, seguro, costo, venta y utilidad' },
 ]
 
 const activeStepMeta = computed(() => steps.find((step) => step.id === activeStep.value) ?? steps[0]!)
 
 function goToStep(step: WizardStep) {
-  if (!isManualWizard.value) return
+  if (!isWizardFlow.value) return
   activeStep.value = step
   requestAnimationFrame(() => wizardRootRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
@@ -42,7 +42,7 @@ function nextStep() {
 }
 
 async function collapseCommercialConditionsByDefault() {
-  if (!isManualWizard.value) return
+  if (!isWizardFlow.value) return
   await nextTick()
 
   const legacyInstance = legacyRef.value as unknown as { $el?: HTMLElement } | null
@@ -62,12 +62,12 @@ onMounted(collapseCommercialConditionsByDefault)
     ref="wizardRootRef"
     class="pricing-rate-wizard"
     :class="[
-      isManualWizard ? 'pricing-rate-wizard--new' : 'pricing-rate-wizard--contextual',
-      isManualWizard ? `pricing-rate-wizard--step-${activeStep}` : '',
+      isWizardFlow ? 'pricing-rate-wizard--new' : 'pricing-rate-wizard--contextual',
+      isWizardFlow ? `pricing-rate-wizard--step-${activeStep}` : '',
     ]"
   >
     <div class="pricing-rate-wizard__inner">
-      <nav v-if="isManualWizard" class="pricing-rate-stepper" aria-label="Flujo de creación de tarifa">
+      <nav v-if="isWizardFlow" class="pricing-rate-stepper" aria-label="Flujo de creación de tarifa">
         <button
           v-for="step in steps"
           :key="step.id"
@@ -94,7 +94,7 @@ onMounted(collapseCommercialConditionsByDefault)
                 {{ props.rate ? 'Edición' : props.sourceImport ? 'Desde importación' : 'Borrador' }}
               </span>
             </div>
-            <p v-if="isManualWizard" class="pricing-rate-card__subtitle">
+            <p v-if="isWizardFlow" class="pricing-rate-card__subtitle">
               Paso {{ activeStep }} de 3 · {{ activeStepMeta.label }} — {{ activeStepMeta.hint }}
             </p>
             <p v-else class="pricing-rate-card__subtitle">Complete los datos operativos y comerciales de la tarifa.</p>
@@ -111,7 +111,7 @@ onMounted(collapseCommercialConditionsByDefault)
           />
         </div>
 
-        <footer v-if="isManualWizard" class="pricing-rate-navigation">
+        <footer v-if="isWizardFlow" class="pricing-rate-navigation">
           <button
             type="button"
             class="pricing-rate-navigation__button pricing-rate-navigation__button--secondary"
@@ -137,7 +137,7 @@ onMounted(collapseCommercialConditionsByDefault)
             <ChevronRight class="h-4 w-4" />
           </button>
           <span v-else class="pricing-rate-navigation__finish-hint">
-            La tarifa se crea desde el resumen inferior.
+            {{ props.rate ? 'Guarde los cambios desde el resumen inferior.' : 'La tarifa se crea desde el resumen inferior.' }}
           </span>
         </footer>
       </section>

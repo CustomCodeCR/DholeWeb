@@ -724,6 +724,7 @@ export interface SetRateStatusRequest extends Record<string, unknown> {
     'Open' | 'Sent' | 'RequestedByClient' | 'AcceptedByClient' | 'RejectedByClient' | 'Closed'
   >
   reason?: string | null
+  idtraNumber?: string | null
 }
 
 export interface DeleteBatchRequest extends Record<string, unknown> {

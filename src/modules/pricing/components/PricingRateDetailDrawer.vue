@@ -23,6 +23,7 @@ import { PricingService } from '@/core/services/pricingService'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import type { ImportRateDto, RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'
 import PricingRateFormDrawer from './PricingRateFormDrawer.vue'
+import PricingAcceptRateModal from './PricingAcceptRateModal.vue'
 import PricingReasonModal from './PricingReasonModal.vue'
 import PricingDuplicateRateModal from './PricingDuplicateRateModal.vue'
 import PricingEmailSourceModal from './PricingEmailSourceModal.vue'
@@ -222,7 +223,25 @@ function duplicate() {
   modalStore.open({
     title: 'Duplicar tarifa',
     component: PricingDuplicateRateModal,
-    props: { rate: current.value, onSaved: props.onSaved },
+    size: 'lg',
+    props: {
+      rate: current.value,
+      onDuplicated: async (duplicatedRateId: string) => {
+        const duplicatedRate = await PricingService.getRate(duplicatedRateId)
+        drawerStore.open({
+          title: 'Revisar tarifa duplicada',
+          component: PricingRateFormDrawer,
+          size: 'full',
+          props: {
+            rate: duplicatedRate,
+            onSaved: async () => {
+              await props.onSaved?.()
+            },
+          },
+        })
+        await props.onSaved?.()
+      },
+    },
   })
 }
 
@@ -270,12 +289,22 @@ function rejectByClient() {
   })
 }
 
+function acceptByClient() {
+  modalStore.open({
+    title: 'Aceptar tarifa por cliente',
+    component: PricingAcceptRateModal,
+    size: 'md',
+    props: {
+      rate: current.value,
+      onSaved: async () => {
+        await reload()
+        await props.onSaved?.()
+      },
+    },
+  })
+}
+
 async function setCommercialStatus(status: SetRateStatusRequest['status']) {
-  if (status === 'AcceptedByClient' && !current.value.idtraNumber?.trim()) {
-    toastStore.warning('IDTRA requerido', 'Registre el IDTRA en Editar antes de marcar la tarifa como Aceptada.')
-    edit()
-    return
-  }
   try {
     await PricingService.setRateStatus(current.value.id, { status })
     toastStore.success(
@@ -410,7 +439,7 @@ onMounted(async () => {
             label="Aceptada por cliente"
             :icon="CheckCircle2"
             size="sm"
-            @click="setCommercialStatus('AcceptedByClient')"
+            @click="acceptByClient"
           />
           <DhButton
             v-if="canUpdate && ['Sent', 'RequestedByClient'].includes(current.status)"
