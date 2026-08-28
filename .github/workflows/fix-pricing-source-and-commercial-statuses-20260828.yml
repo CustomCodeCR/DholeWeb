@@ -1,0 +1,178 @@
+name: Fix pricing source trace and commercial statuses
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-pricing-source-and-commercial-statuses-20260828.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply requested Pricing changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 occurrence, found {count}')
+              return text.replace(old, new, 1)
+
+          # Router: dedicated popup route that keeps the active tariff untouched.
+          router_path = Path('src/core/router/index.ts')
+          router = router_path.read_text(encoding='utf-8-sig')
+          route_anchor = '''        {\n          path: 'pricing/rates',\n          name: 'pricing-rates',\n'''
+          route_insert = '''        {\n          path: 'pricing/email-source/:batchId',\n          name: 'pricing-email-source',\n          component: () => import('@/modules/pricing/views/PricingEmailSourceView.vue'),\n          meta: {\n            tabTitle: 'Fuente de tarifa',\n            closable: true,\n            requiredScope: VIEW_SCOPES.pricingRates,\n          },\n        },\n        {\n          path: 'pricing/rates',\n          name: 'pricing-rates',\n'''
+          if "name: 'pricing-email-source'" not in router:
+              router = replace_once(router, route_anchor, route_insert, 'source popup route')
+          router_path.write_text(router, encoding='utf-8')
+
+          # Wizard: carry email source from pre-approved card into international freight.
+          wizard_path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          wizard = wizard_path.read_text(encoding='utf-8-sig')
+          wizard = replace_once(
+              wizard,
+              "import { PricingService } from '@/core/services/pricingService'\n",
+              "import { PricingService } from '@/core/services/pricingService'\nimport { EmailExtractionService } from '@/core/services/emailExtractionService'\n",
+              'wizard email service import',
+          )
+          wizard = replace_once(
+              wizard,
+              "import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'\n",
+              "import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'\nimport { openPricingSourcePopup, sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'\n",
+              'wizard source utility import',
+          )
+          wizard = replace_once(
+              wizard,
+              "const availableRates = ref<ImportRateSelectDto[]>([])\n",
+              "const availableRates = ref<ImportRateSelectDto[]>([])\nconst importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})\n",
+              'wizard source state',
+          )
+          selected_anchor = "const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)\n"
+          selected_insert = selected_anchor + '''\nfunction resolvedImportSource(rate: ImportRateSelectDto) {\n  return importSourceByBatch.value[rate.importBatchId] ?? null\n}\n\nfunction importSourceTitle(rate: ImportRateSelectDto) {\n  return sourceTitle(rate, resolvedImportSource(rate))\n}\n\nasync function loadImportSources(rates: ImportRateSelectDto[]) {\n  const batchIds = [...new Set(rates.map((rate) => rate.importBatchId).filter(Boolean))]\n  await Promise.all(batchIds.map(async (batchId) => {\n    if (importSourceByBatch.value[batchId]) return\n    try {\n      const source = await EmailExtractionService.getPricingImportSource(batchId)\n      importSourceByBatch.value = { ...importSourceByBatch.value, [batchId]: source }\n    } catch {\n      // Importaciones históricas pueden no tener vínculo de correo; RawData sigue siendo fallback.\n    }\n  }))\n}\n'''
+          if 'function resolvedImportSource' not in wizard:
+              wizard = replace_once(wizard, selected_anchor, selected_insert, 'wizard source helpers')
+          wizard = replace_once(
+              wizard,
+              "    availableRates.value = await PricingService.selectImportRates(query)\n",
+              "    availableRates.value = await PricingService.selectImportRates(query)\n    await loadImportSources(availableRates.value)\n",
+              'wizard load source metadata',
+          )
+          old_source_funcs = '''function sourceImportTraceUrl(rate: ImportRateSelectDto) {\n  const raw = String(rate.rawDataJson ?? '')\n  const explicitUrl = raw.match(/https?:\\/\\/[^\"'\\s\\\\]+/i)?.[0]\n  return explicitUrl || `/pricing/imports/review/${rate.importBatchId}`\n}\n\nfunction openImportSource(rate: ImportRateSelectDto) {\n  window.open(sourceImportTraceUrl(rate), '_blank', 'noopener,noreferrer')\n}\n'''
+          new_source_funcs = '''function openImportSource(rate: ImportRateSelectDto) {\n  openPricingSourcePopup(rate)\n}\n'''
+          wizard = replace_once(wizard, old_source_funcs, new_source_funcs, 'wizard popup source')
+          old_card_source = '''                <span class="mt-3 inline-flex items-center gap-1 text-xs font-black text-[var(--dh-primary)] hover:underline" role="link" tabindex="0" @click.stop="openImportSource(rate)" @keyup.enter.stop="openImportSource(rate)">\n                  <ExternalLink class="h-3.5 w-3.5" /> Ver correo / fuente de la tarifa\n                </span>\n'''
+          new_card_source = '''                <p class="mt-3 text-left text-[11px] font-bold text-[var(--dh-text-muted)]">\n                  Fuente: {{ importSourceTitle(rate) }}\n                </p>\n                <span class="mt-1 inline-flex items-center gap-1 text-xs font-black text-[var(--dh-primary)] hover:underline" role="link" tabindex="0" @click.stop="openImportSource(rate)" @keyup.enter.stop="openImportSource(rate)">\n                  <ExternalLink class="h-3.5 w-3.5" /> Ver correo / fuente de la tarifa\n                </span>\n'''
+          wizard = replace_once(wizard, old_card_source, new_card_source, 'wizard source title card')
+          line_context = '''                <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>\n'''
+          line_source = line_context + '''                <button\n                  v-if="group.key === 'freight' && selectedImportRate"\n                  type="button"\n                  class="mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-left text-xs font-black text-[var(--dh-primary)] hover:underline"\n                  @click="openImportSource(selectedImportRate)"\n                >\n                  <ExternalLink class="mt-0.5 h-3.5 w-3.5 shrink-0" />\n                  <span class="min-w-0">\n                    <span class="block text-[9px] uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Fuente del flete internacional</span>\n                    <span class="block break-words">{{ importSourceTitle(selectedImportRate) }}</span>\n                  </span>\n                </button>\n'''
+          if 'Fuente del flete internacional' not in wizard:
+              wizard = replace_once(wizard, line_context, line_source, 'wizard freight source')
+          wizard_path.write_text(wizard, encoding='utf-8')
+
+          # Official rate detail: same source trace inside Flete internacional and only commercial state actions.
+          detail_path = Path('src/modules/pricing/components/PricingRateDetailDrawer.vue')
+          detail = detail_path.read_text(encoding='utf-8-sig')
+          detail = detail.replace('  Archive,\n', '')
+          detail = detail.replace('  Clock,\n', '')
+          detail = replace_once(detail, '  Edit3,\n', '  Edit3,\n  ExternalLink,\n', 'detail external link icon')
+          detail = detail.replace("import { UsersService } from '@/core/services/usersService'\n", '')
+          detail = replace_once(
+              detail,
+              "import { PricingService } from '@/core/services/pricingService'\n",
+              "import { PricingService } from '@/core/services/pricingService'\nimport { EmailExtractionService } from '@/core/services/emailExtractionService'\n",
+              'detail email service import',
+          )
+          detail = replace_once(
+              detail,
+              "import type { RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'\n",
+              "import type { ImportRateDto, RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'\n",
+              'detail import rate type',
+          )
+          detail = detail.replace("import PricingCloseRateModal from './PricingCloseRateModal.vue'\n", '')
+          detail = replace_once(
+              detail,
+              "import { commercialTermKey } from '@/modules/pricing/services/pricingCommercialRules'\n",
+              "import { commercialTermKey } from '@/modules/pricing/services/pricingCommercialRules'\nimport { openPricingSourcePopup, sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'\n",
+              'detail source utility',
+          )
+          detail = replace_once(
+              detail,
+              "const costNotesById = ref<Record<string, string>>({})\nconst closedByDisplay = ref<string | null>(null)\n",
+              "const costNotesById = ref<Record<string, string>>({})\nconst sourceImportRate = ref<ImportRateDto | null>(null)\nconst sourceEmail = ref<Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>> | null>(null)\nconst sourceLabel = computed(() => sourceImportRate.value ? sourceTitle(sourceImportRate.value, sourceEmail.value) : '')\n",
+              'detail source state',
+          )
+          detail, n = re.subn(r"const canCloseCurrent = computed\([\s\S]*?\n\)\n\n", '', detail, count=1)
+          if n != 1:
+              raise SystemExit(f'detail canCloseCurrent: expected 1, found {n}')
+          detail, n = re.subn(r"function isUuid\([\s\S]*?(?=function statusLabel)", '', detail, count=1)
+          if n != 1:
+              raise SystemExit(f'detail closed user helpers: expected 1, found {n}')
+          source_loader = '''async function loadSourceTrace() {\n  sourceImportRate.value = null\n  sourceEmail.value = null\n  const importRateId = current.value.sourceImportFclRateId?.trim()\n  if (!importRateId) return\n\n  try {\n    const importRate = await PricingService.getImportRate(importRateId)\n    sourceImportRate.value = importRate\n    try {\n      sourceEmail.value = await EmailExtractionService.getPricingImportSource(importRate.importBatchId)\n    } catch {\n      // Para importaciones históricas se conserva el fallback de RawData.\n    }\n  } catch {\n    // El detalle oficial sigue disponible aun si la fuente histórica ya no existe.\n  }\n}\n\nfunction openRateSource() {\n  if (sourceImportRate.value) openPricingSourcePopup(sourceImportRate.value)\n}\n\n'''
+          detail = replace_once(detail, 'async function reload() {\n', source_loader + 'async function reload() {\n', 'detail source loader')
+          detail = replace_once(
+              detail,
+              '    await loadMissingCostNotes(current.value.rateDetails)\n    await resolveClosedByUser()\n',
+              '    await loadMissingCostNotes(current.value.rateDetails)\n    await loadSourceTrace()\n',
+              'detail reload source trace',
+          )
+          detail, n = re.subn(r"function closeRate\(\) \{[\s\S]*?(?=async function approve)", '', detail, count=1)
+          if n != 1:
+              raise SystemExit(f'detail closeRate: expected 1, found {n}')
+          requested_button = '''          <DhButton\n            v-if="canUpdate && current.status === 'Sent'"\n            label="Solicitada por cliente"\n            :icon="Clock"\n            variant="secondary"\n            size="sm"\n            @click="setCommercialStatus('RequestedByClient')"\n          />\n'''
+          detail = replace_once(detail, requested_button, '', 'remove requested-by-client action')
+          close_button = '''          <DhButton\n            v-if="canCloseCurrent"\n            label="Cerrar tarifa"\n            :icon="Archive"\n            variant="danger"\n            size="sm"\n            @click="closeRate"\n          />\n'''
+          detail = replace_once(detail, close_button, '', 'remove close action')
+          requested_section = '''    <section\n      v-if="current.status === 'RequestedByClient'"\n      class="rounded-[26px] border border-sky-500/20 bg-sky-500/10 p-5"\n    >\n      <div class="flex items-start gap-3 text-sky-900 dark:text-sky-100">\n        <Clock class="mt-0.5 h-5 w-5 shrink-0" />\n        <div>\n          <h3 class="font-black">Solicitada por el cliente</h3>\n          <p class="mt-1 text-sm font-semibold opacity-80">\n            El cliente solicitó la tarifa para analizarla, pero todavía no la aceptó ni la rechazó.\n            Este estado no se contabiliza como una decisión del cliente.\n          </p>\n        </div>\n      </div>\n    </section>\n\n'''
+          detail = replace_once(detail, requested_section, '', 'remove requested section')
+          closed_section = '''    <section\n      v-if="current.status === 'Closed'"\n      class="rounded-[26px] border border-slate-500/20 bg-slate-500/10 p-5"\n    >\n      <div class="flex items-start gap-3 text-slate-900 dark:text-slate-100">\n        <Archive class="mt-0.5 h-5 w-5 shrink-0" />\n        <div>\n          <h3 class="font-black">Tarifa cerrada</h3>\n          <p class="mt-1 text-sm font-semibold opacity-80">\n            {{ current.closedReason || 'No se registró un motivo de cierre.' }}\n          </p>\n          <p v-if="current.closedAtUtc" class="mt-2 text-xs font-bold opacity-65">\n            Cerrada el {{ formatDate(current.closedAtUtc) }}\n            <span v-if="closedByDisplay"> · Cerrada por: {{ closedByDisplay }}</span>\n          </p>\n        </div>\n      </div>\n    </section>\n\n'''
+          detail = replace_once(detail, closed_section, '', 'remove closed section')
+          group_header = '''        <div>\n          <h3 class="font-black text-[var(--dh-text)]">{{ group.title }}</h3>\n          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ group.subtitle }}</p>\n        </div>\n'''
+          group_header_source = '''        <div>\n          <h3 class="font-black text-[var(--dh-text)]">{{ group.title }}</h3>\n          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ group.subtitle }}</p>\n          <button\n            v-if="group.key === 'freight' && sourceImportRate"\n            type="button"\n            class="mt-2 inline-flex max-w-full items-center gap-2 text-left text-xs font-black text-[var(--dh-primary)] hover:underline"\n            @click="openRateSource"\n          >\n            <ExternalLink class="h-3.5 w-3.5 shrink-0" />\n            <span class="break-words">Fuente: {{ sourceLabel }}</span>\n          </button>\n        </div>\n'''
+          detail = replace_once(detail, group_header, group_header_source, 'official freight source')
+          detail_path.write_text(detail, encoding='utf-8')
+
+          # Official rates: expose only the five commercial categories, no technical approval category.
+          rates_path = Path('src/modules/pricing/views/PricingRatesView.vue')
+          rates = rates_path.read_text(encoding='utf-8-sig')
+          rates = rates.replace("  approval: '',\n", '')
+          rates, n = re.subn(r"const approvalOptions = \[[\s\S]*?\n\]\n", '', rates, count=1)
+          if n != 1:
+              raise SystemExit(f'rates approvalOptions: expected 1, found {n}')
+          rates = rates.replace("      requiredApproval: filters.approval === '' ? undefined : filters.approval === 'true',\n", '')
+          approval_select = '''          <DhSelect\n            v-model="filters.approval"\n            label="Aprobación"\n            :options="approvalOptions"\n            placeholder=""\n          />\n'''
+          rates = replace_once(rates, approval_select, '', 'remove technical approval filter')
+          rates = replace_once(
+              rates,
+              '      title="Tarifas"\n      subtitle="Construya y revise tarifas FCL con costo, venta, utilidad y margen en una sola vista."\n',
+              '      title="Tarifas oficiales"\n      subtitle="Seguimiento comercial únicamente por Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."\n',
+              'official rates heading',
+          )
+          rates_path.write_text(rates, encoding='utf-8')
+          PY
+          git diff --check
+      - name: Validate production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --target build -t dhole-web-source-status-validation .
+      - name: Commit functional changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-pricing-source-and-commercial-statuses-20260828.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "feat(pricing): preserve source trace and commercial statuses"
+          git push origin HEAD:master
