@@ -1,0 +1,41 @@
+name: Validate Web Logistics News and WHS
+
+on:
+  push:
+    branches: [feature/logistics-news-whs-20260828]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  validate:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply navigation and WHS image patch
+        run: python .github/scripts/apply_logistics_news_web_20260828.py
+
+      - name: Validate Web build
+        run: |
+          set -euo pipefail
+          docker build -f Dockerfile -t dhole/web-logistics-news-validation .
+
+      - name: Commit applied patch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/validate-logistics-news-whs.yml
+          rm -f .github/scripts/apply_logistics_news_web_20260828.py
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m 'feat(web): add pricing logistics news and WHS images'
+          git push origin HEAD:feature/logistics-news-whs-20260828
