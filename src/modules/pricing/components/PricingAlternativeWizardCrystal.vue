@@ -712,7 +712,7 @@ const visibleSections = computed<RateSection[]>(() => {
 })
 
 const includedLines = computed(() => rateLines.value.filter((line) => line.included))
-function haulageAssociation(line: RateLine) {
+function haulageAssociation(line: { name: string }) {
   const value = normalizeCatalogValue(line.name)
   if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
   if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
@@ -1178,7 +1178,9 @@ function rebuildRateLines() {
       included:
         cost.costType !== 'Optional' ||
         (form.dangerousCargo && isDangerousCargoCost(cost)) ||
-        (form.overweight && isOverweightCost(cost)),
+        (form.overweight && isOverweightCost(cost)) ||
+        (form.merchantHaulage && haulageAssociation(cost) === 'merchant') ||
+        (form.carrierHaulage && haulageAssociation(cost) === 'carrier'),
       optional: cost.costType === 'Optional',
       manual: false,
     })
@@ -1356,14 +1358,34 @@ function chooseShipmentMode(value: string) {
   step.value = 3
 }
 
+function syncHaulageOptionalLines() {
+  rateLines.value.forEach((line) => {
+    if (!line.optional) return
+    const association = haulageAssociation(line)
+    if (!association) return
+
+    line.included =
+      (association === 'merchant' && form.merchantHaulage) ||
+      (association === 'carrier' && form.carrierHaulage)
+
+    if (!line.included) {
+      line.applyDestinationTax = false
+    } else if (optionalVatEnabled.value && canApplyDestinationTax(line)) {
+      line.applyDestinationTax = true
+    }
+  })
+}
+
 function toggleMerchantHaulage() {
   form.merchantHaulage = !form.merchantHaulage
   if (form.merchantHaulage) form.carrierHaulage = false
+  syncHaulageOptionalLines()
 }
 
 function toggleCarrierHaulage() {
   form.carrierHaulage = !form.carrierHaulage
   if (form.carrierHaulage) form.merchantHaulage = false
+  syncHaulageOptionalLines()
 }
 
 async function loadCatalogs() {
