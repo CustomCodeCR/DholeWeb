@@ -19,13 +19,42 @@ type SelectCatalogConfig = {
 
 type SelectOption = { label: string; value: string }
 
+type WarehouseMetadata = {
+  address?: string
+  countryCode?: string
+  schedule?: string
+  contacts?: string
+  email?: string
+  phone?: string
+  latitude?: number | string
+  longitude?: number | string
+}
+
 const router = useRouter()
 const toastStore = useToastStore()
 const loading = ref(false)
-const selectedSlug = ref('ports')
+const selectedSlug = ref('pricing-warehouses')
 const items = ref<CatalogItemDto[]>([])
 
 const catalogs: SelectCatalogConfig[] = [
+  {
+    slug: 'pricing-warehouses',
+    name: 'WHS globales',
+    description: 'Warehouses FCA administrables desde Config. Incluyen dirección, horario, contactos, email, teléfono y coordenadas cuando estén disponibles.',
+    requiredIn: 'Wizard de Pricing / FCA / Recolección',
+  },
+  {
+    slug: 'pricing-clients',
+    name: 'Clientes de Pricing (temporal)',
+    description: 'Clientes usados por Pricing mientras el módulo Comercial no sea la fuente de verdad.',
+    requiredIn: 'Wizard de Pricing / Datos comerciales',
+  },
+  {
+    slug: 'pricing-sales-executives',
+    name: 'Ejecutivos comerciales (temporal)',
+    description: 'Ejecutivos usados por Pricing mientras el módulo Comercial no sea la fuente de verdad.',
+    requiredIn: 'Wizard de Pricing / Datos comerciales',
+  },
   { slug: 'ports', name: 'Puertos', description: 'Origen, puerto de salida y destino para decisiones y tarifas FCL.', requiredIn: 'Tarifas FCL / Decisión tarifaria' },
   { slug: 'container-types', name: 'Tipos de contenedor', description: '20DV, 40DV, 40HC, 45HC u otros contenedores usados en pricing.', requiredIn: 'Tarifas FCL / Decisión tarifaria' },
   { slug: 'carriers', name: 'Navieras', description: 'Maersk, MSC, CMA CGM, Hapag-Lloyd y otras navieras.', requiredIn: 'Tarifas FCL / Decisión tarifaria' },
@@ -39,14 +68,41 @@ const catalogs: SelectCatalogConfig[] = [
 const catalogOptions = computed<SelectOption[]>(() => catalogs.map((catalog) => ({ label: catalog.name, value: catalog.slug })))
 const selectedCatalog = computed<SelectCatalogConfig>(() => catalogs.find((catalog) => catalog.slug === selectedSlug.value) ?? catalogs[0]!)
 
-const columns: DhTableColumn<CatalogItemDto>[] = [
-  { key: 'name', label: 'Nombre' },
-  { key: 'code', label: 'Código', width: '140px' },
-  { key: 'slug', label: 'Slug', width: '180px' },
-  { key: 'value', label: 'Valor enviado a Pricing', width: '190px' },
-  { key: 'sortOrder', label: 'Orden', align: 'right', width: '90px' },
-  { key: 'isActive', label: 'Activo', align: 'center', width: '100px' },
-]
+const columns = computed<DhTableColumn<CatalogItemDto>[]>(() => {
+  const base: DhTableColumn<CatalogItemDto>[] = [
+    { key: 'name', label: 'Nombre' },
+    { key: 'code', label: 'Código', width: '150px' },
+    { key: 'slug', label: 'Slug', width: '180px' },
+    { key: 'value', label: 'Valor enviado a Pricing', width: '190px' },
+  ]
+
+  if (selectedSlug.value === 'pricing-warehouses') {
+    base.push({ key: 'metadataJson', label: 'Datos del WHS', width: '430px' })
+  }
+
+  base.push(
+    { key: 'sortOrder', label: 'Orden', align: 'right', width: '90px' },
+    { key: 'isActive', label: 'Activo', align: 'center', width: '100px' },
+  )
+
+  return base
+})
+
+function warehouseMetadata(row: CatalogItemDto): WarehouseMetadata {
+  if (!row.metadataJson) return {}
+
+  try {
+    return JSON.parse(row.metadataJson) as WarehouseMetadata
+  } catch {
+    return {}
+  }
+}
+
+function warehouseCoordinates(row: CatalogItemDto) {
+  const metadata = warehouseMetadata(row)
+  if (metadata.latitude == null || metadata.longitude == null) return ''
+  return `${metadata.latitude}, ${metadata.longitude}`
+}
 
 async function loadItems() {
   loading.value = true
@@ -62,7 +118,7 @@ async function loadItems() {
 }
 
 function openCatalogAdmin() {
-  router.push('/config/catalogs')
+  router.push({ path: '/config/catalogs', query: { search: selectedSlug.value } })
 }
 
 watch(selectedSlug, loadItems)
@@ -111,6 +167,18 @@ onMounted(loadItems)
         <template #cell-value="{ row, value }">
           <span class="font-mono text-xs font-black text-[var(--dh-text)]">{{ value || row.code || row.slug }}</span>
         </template>
+
+        <template #cell-metadataJson="{ row }">
+          <div v-if="selectedSlug === 'pricing-warehouses'" class="space-y-1 text-xs leading-5 text-[var(--dh-text)]">
+            <p v-if="warehouseMetadata(row).address"><strong>Dirección:</strong> {{ warehouseMetadata(row).address }}</p>
+            <p v-if="warehouseMetadata(row).schedule"><strong>Horario:</strong> {{ warehouseMetadata(row).schedule }}</p>
+            <p v-if="warehouseMetadata(row).contacts"><strong>Contactos:</strong> {{ warehouseMetadata(row).contacts }}</p>
+            <p v-if="warehouseMetadata(row).email"><strong>Email:</strong> {{ warehouseMetadata(row).email }}</p>
+            <p v-if="warehouseMetadata(row).phone"><strong>Teléfono:</strong> {{ warehouseMetadata(row).phone }}</p>
+            <p v-if="warehouseCoordinates(row)"><strong>Coordenadas:</strong> {{ warehouseCoordinates(row) }}</p>
+          </div>
+        </template>
+
         <template #cell-isActive="{ value }">
           <DhBadge :label="value ? 'Sí' : 'No'" :variant="value ? 'success' : 'danger'" />
         </template>
