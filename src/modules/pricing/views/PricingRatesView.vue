@@ -32,6 +32,26 @@ import {
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
 
+type CommercialRateStatus = 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient'
+
+const commercialStatuses = new Set<CommercialRateStatus>([
+  'Open',
+  'Sent',
+  'Expired',
+  'AcceptedByClient',
+  'RejectedByClient',
+])
+
+function normalizeCommercialStatus(value: unknown): CommercialRateStatus {
+  const status = typeof value === 'string' ? value : ''
+  if (commercialStatuses.has(status as CommercialRateStatus)) return status as CommercialRateStatus
+  if (status === 'RejectedByClient' || status === 'Closed') return 'RejectedByClient'
+  if (status === 'Sent') return 'Sent'
+  if (status === 'Expired') return 'Expired'
+  if (status === 'AcceptedByClient') return 'AcceptedByClient'
+  return 'Open'
+}
+
 const route = useRoute()
 const authStore = useAuthStore()
 const drawerStore = useDrawerStore()
@@ -60,7 +80,7 @@ const pageSize = ref(10)
 const total = ref(0)
 const filters = reactive({
   search: '',
-  status: (typeof route.query.status === 'string' ? route.query.status : '') as RateStatus | '',
+  status: normalizeCommercialStatus(route.query.status),
   agentId: '',
   carrierId: '',
   polId: '',
@@ -89,8 +109,7 @@ const columns: DhTableColumn<RateDto>[] = [
   { key: 'actions', label: '', align: 'right', width: '130px' },
 ]
 
-const statusOptions = [
-  { label: 'Todos', value: '' },
+const statusOptions: Array<{ label: string; value: CommercialRateStatus }> = [
   { label: 'Abiertas', value: 'Open' },
   { label: 'Enviadas', value: 'Sent' },
   { label: 'Vencidas', value: 'Expired' },
@@ -98,22 +117,15 @@ const statusOptions = [
   { label: 'No aceptadas', value: 'RejectedByClient' },
 ]
 
-const quickStatusOptions: Array<{ label: string; value: RateStatus | '' }> = [
-  { label: 'Todas', value: '' },
-  { label: 'Abiertas', value: 'Open' },
-  { label: 'Enviadas', value: 'Sent' },
-  { label: 'Vencidas', value: 'Expired' },
-  { label: 'Aceptadas', value: 'AcceptedByClient' },
-  { label: 'No aceptadas', value: 'RejectedByClient' },
-]
+const quickStatusOptions = statusOptions
 
 const activeFiltersCount = computed(
   () =>
-    Object.entries(filters).filter(([key, value]) => key !== 'search' && String(value || '').trim())
+    Object.entries(filters).filter(([key, value]) => !['search', 'status'].includes(key) && String(value || '').trim())
       .length + (filters.search.trim() ? 1 : 0),
 )
 
-function applyQuickStatus(status: RateStatus | '') {
+function applyQuickStatus(status: CommercialRateStatus) {
   filters.status = status
   applyFilters()
 }
@@ -175,8 +187,8 @@ function applyFilters() {
 function clearFilters() {
   Object.assign(filters, {
     search: '',
-    status: '',
-      agentId: '',
+    status: 'Open',
+    agentId: '',
     carrierId: '',
     polId: '',
     poeId: '',
@@ -312,11 +324,11 @@ onMounted(async () => {
         <span
           class="mr-1 text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
         >
-          Vista rápida
+          Categorías
         </span>
         <button
           v-for="option in quickStatusOptions"
-          :key="option.value || 'all'"
+          :key="option.value"
           type="button"
           class="rounded-full border px-3 py-1.5 text-xs font-black transition"
           :class="
