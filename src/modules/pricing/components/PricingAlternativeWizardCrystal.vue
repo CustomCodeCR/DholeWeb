@@ -215,6 +215,48 @@ const modalityOptions: Array<{ value: Modality; label: string; caption: string }
   { value: 'Multimodal', label: 'Multimodal', caption: 'Marítimo + terrestre' },
 ]
 
+const nearbyOriginCopy = computed(() => {
+  if (form.modality === 'Air') {
+    return {
+      title: 'Aeropuertos más cercanos a la recolección',
+      description: 'La IA busca aeropuertos reales aptos para carga aérea dentro de 500 km desde el pin EXW. El catálogo de orígenes solo se usa para ofrecer cambio rápido cuando existe una coincidencia.',
+      action: 'Buscar aeropuertos cercanos',
+      badge: 'Aeropuerto cercano',
+      defaultReason: 'Aeropuerto recomendado por cercanía y viabilidad logística desde la recolección.',
+      emptyTitle: 'Sin aeropuertos encontrados',
+      emptyDescription: 'La búsqueda geográfica no encontró un aeropuerto verificable dentro de 500 km del punto marcado.',
+      unavailableTitle: 'Búsqueda de aeropuertos no disponible',
+      unavailableDescription: 'No fue posible consultar los aeropuertos cercanos en este momento. Inténtelo nuevamente.',
+    }
+  }
+
+  if (form.modality === 'Land') {
+    return {
+      title: 'Puntos logísticos cercanos a la recolección',
+      description: 'La IA busca terminales o nodos logísticos terrestres dentro de 500 km desde el pin EXW.',
+      action: 'Buscar puntos cercanos',
+      badge: 'Punto cercano',
+      defaultReason: 'Punto logístico recomendado por cercanía desde la recolección.',
+      emptyTitle: 'Sin puntos logísticos encontrados',
+      emptyDescription: 'La búsqueda geográfica no encontró un nodo logístico terrestre verificable dentro de 500 km del punto marcado.',
+      unavailableTitle: 'Búsqueda terrestre no disponible',
+      unavailableDescription: 'No fue posible consultar puntos logísticos terrestres cercanos en este momento. Inténtelo nuevamente.',
+    }
+  }
+
+  return {
+    title: 'Puertos marítimos más cercanos a la recolección',
+    description: 'La IA busca exclusivamente puertos marítimos reales dentro de 500 km desde el pin EXW. El catálogo de orígenes solo se usa para ofrecer cambio rápido cuando existe una coincidencia.',
+    action: 'Buscar puertos marítimos cercanos',
+    badge: 'Puerto marítimo cercano',
+    defaultReason: 'Puerto marítimo recomendado por cercanía y viabilidad logística desde la recolección.',
+    emptyTitle: 'Sin puertos marítimos encontrados',
+    emptyDescription: 'La búsqueda geográfica no encontró un puerto marítimo verificable dentro de 500 km del punto marcado.',
+    unavailableTitle: 'Búsqueda de puertos no disponible',
+    unavailableDescription: 'No fue posible consultar los puertos marítimos cercanos en este momento. Inténtelo nuevamente.',
+  }
+})
+
 const allowedShipmentModes: Record<Modality, string[]> = {
   Maritime: ['FCL', 'LCL'],
   Air: ['LCL'],
@@ -1561,6 +1603,7 @@ async function recommendNearestPorts() {
           latitude: form.pickupLatitude,
           longitude: form.pickupLongitude,
           maxDistanceKm: 500,
+          transportMode: form.modality,
         },
       },
     )
@@ -1587,7 +1630,7 @@ async function recommendNearestPorts() {
           key,
           name,
           code,
-          reason: String(item.reason ?? 'Puerto recomendado por cercanía y viabilidad logística desde la recolección.'),
+          reason: String(item.reason ?? nearbyOriginCopy.value.defaultReason),
           distanceKm: Math.round(distance * 10) / 10,
           latitude: Number.isFinite(latitude) ? latitude : null,
           longitude: Number.isFinite(longitude) ? longitude : null,
@@ -1599,14 +1642,14 @@ async function recommendNearestPorts() {
 
     if (!nearestPortRecommendations.value.length) {
       toastStore.warning(
-        'Sin puertos marítimos encontrados',
-        'La búsqueda geográfica no encontró un puerto marítimo verificable dentro de 500 km del punto marcado.',
+        nearbyOriginCopy.value.emptyTitle,
+        nearbyOriginCopy.value.emptyDescription,
       )
     }
   } catch {
     toastStore.warning(
-      'Búsqueda de puertos no disponible',
-      'No fue posible consultar los puertos cercanos en este momento. Inténtelo nuevamente.',
+      nearbyOriginCopy.value.unavailableTitle,
+      nearbyOriginCopy.value.unavailableDescription,
     )
   } finally {
     recommendingPorts.value = false
@@ -2210,7 +2253,7 @@ onMounted(loadCatalogs)
               <p class="font-black">{{ selectedIncotermCode === 'EXW' ? 'Lugar de recolección EXW' : 'WHS de entrega FCA' }}</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                 {{ selectedIncotermCode === 'EXW'
-                  ? 'Ubique la recolección en el mapa. La IA buscará puertos marítimos reales dentro de 500 km desde ese punto.'
+                  ? nearbyOriginCopy.description
                   : 'Seleccione uno de los WHS globales configurados. Su ubicación se refleja en el mapa.' }}
               </p>
             </div>
@@ -2289,15 +2332,15 @@ onMounted(loadCatalogs)
             <div v-if="selectedIncotermCode === 'EXW'" class="space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p class="text-sm font-black">Puertos más cercanos a la recolección</p>
-                  <p class="text-xs font-semibold text-[var(--dh-text-muted)]">La IA busca puertos marítimos por ubicación en un radio de 500 km desde el pin EXW. El catálogo POL solo se usa para ofrecer cambio rápido cuando existe una coincidencia.</p>
+                  <p class="text-sm font-black">{{ nearbyOriginCopy.title }}</p>
+                  <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ nearbyOriginCopy.description }}</p>
                 </div>
                 <DhButton
                   variant="secondary"
                   :disabled="recommendingPorts || !form.pickupAddress.trim()"
                   @click="recommendNearestPorts"
                 >
-                  <Sparkles class="h-4 w-4" /> {{ recommendingPorts ? 'Analizando…' : 'Buscar puertos cercanos' }}
+                  <Sparkles class="h-4 w-4" /> {{ recommendingPorts ? 'Analizando…' : nearbyOriginCopy.action }}
                 </DhButton>
               </div>
 
@@ -2320,7 +2363,7 @@ onMounted(loadCatalogs)
                         ? 'POL actual'
                         : recommendation.polId
                           ? 'Cambiar POL'
-                          : 'Puerto cercano' }}
+                          : nearbyOriginCopy.badge }}
                     </DhBadge>
                   </span>
                   <span v-if="recommendation.distanceKm != null" class="mt-2 block text-xs font-black text-[var(--dh-primary)]">
@@ -2328,7 +2371,7 @@ onMounted(loadCatalogs)
                   </span>
                   <span class="mt-1 block text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]">{{ recommendation.reason }}</span>
                   <span v-if="!recommendation.polId" class="mt-2 block text-[11px] font-bold text-[var(--dh-text-muted)]">
-                    No está en el catálogo POL; se muestra porque sí está dentro del radio geográfico.
+                    No está en el catálogo de orígenes (POL); se muestra porque sí está dentro del radio geográfico y corresponde a la modalidad seleccionada.
                   </span>
                 </button>
               </div>
