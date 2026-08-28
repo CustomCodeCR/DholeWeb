@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# EXW nearest-port map markers release — 2026-08-28
+# Locked agent cost/sale fields release — 2026-08-28
 
 on:
   push:
