@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Auto select carrier/merchant haulage optional charges
+      - name: Auto select carrier and merchant haulage charges
         shell: bash
         run: |
           set -euo pipefail
@@ -34,58 +34,66 @@ jobs:
               raise SystemExit('Could not locate haulageAssociation signature')
           text = text.replace(old_signature, new_signature, 1)
 
-          old_included = '''      included:
-        cost.costType !== 'Optional' ||
-        (form.dangerousCargo && isDangerousCargoCost(cost)) ||
-        (form.overweight && isOverweightCost(cost)),'''
-          new_included = '''      included:
-        cost.costType !== 'Optional' ||
-        (form.dangerousCargo && isDangerousCargoCost(cost)) ||
-        (form.overweight && isOverweightCost(cost)) ||
-        (form.merchantHaulage && haulageAssociation(cost) === 'merchant') ||
-        (form.carrierHaulage && haulageAssociation(cost) === 'carrier'),'''
+          old_included = "\n".join([
+              "      included:",
+              "        cost.costType !== 'Optional' ||",
+              "        (form.dangerousCargo && isDangerousCargoCost(cost)) ||",
+              "        (form.overweight && isOverweightCost(cost)),",
+          ])
+          new_included = "\n".join([
+              "      included:",
+              "        cost.costType !== 'Optional' ||",
+              "        (form.dangerousCargo && isDangerousCargoCost(cost)) ||",
+              "        (form.overweight && isOverweightCost(cost)) ||",
+              "        (form.merchantHaulage && haulageAssociation(cost) === 'merchant') ||",
+              "        (form.carrierHaulage && haulageAssociation(cost) === 'carrier'),",
+          ])
           if old_included not in text:
               raise SystemExit('Could not locate optional included rules')
           text = text.replace(old_included, new_included, 1)
 
-          old_toggles = '''function toggleMerchantHaulage() {
-  form.merchantHaulage = !form.merchantHaulage
-  if (form.merchantHaulage) form.carrierHaulage = false
-}
-
-function toggleCarrierHaulage() {
-  form.carrierHaulage = !form.carrierHaulage
-  if (form.carrierHaulage) form.merchantHaulage = false
-}'''
-          new_toggles = '''function syncHaulageOptionalLines() {
-  rateLines.value.forEach((line) => {
-    if (!line.optional) return
-    const association = haulageAssociation(line)
-    if (!association) return
-
-    line.included =
-      (association === 'merchant' && form.merchantHaulage) ||
-      (association === 'carrier' && form.carrierHaulage)
-
-    if (!line.included) {
-      line.applyDestinationTax = false
-    } else if (optionalVatEnabled.value && canApplyDestinationTax(line)) {
-      line.applyDestinationTax = true
-    }
-  })
-}
-
-function toggleMerchantHaulage() {
-  form.merchantHaulage = !form.merchantHaulage
-  if (form.merchantHaulage) form.carrierHaulage = false
-  syncHaulageOptionalLines()
-}
-
-function toggleCarrierHaulage() {
-  form.carrierHaulage = !form.carrierHaulage
-  if (form.carrierHaulage) form.merchantHaulage = false
-  syncHaulageOptionalLines()
-}'''
+          old_toggles = "\n".join([
+              "function toggleMerchantHaulage() {",
+              "  form.merchantHaulage = !form.merchantHaulage",
+              "  if (form.merchantHaulage) form.carrierHaulage = false",
+              "}",
+              "",
+              "function toggleCarrierHaulage() {",
+              "  form.carrierHaulage = !form.carrierHaulage",
+              "  if (form.carrierHaulage) form.merchantHaulage = false",
+              "}",
+          ])
+          new_toggles = "\n".join([
+              "function syncHaulageOptionalLines() {",
+              "  rateLines.value.forEach((line) => {",
+              "    if (!line.optional) return",
+              "    const association = haulageAssociation(line)",
+              "    if (!association) return",
+              "",
+              "    line.included =",
+              "      (association === 'merchant' && form.merchantHaulage) ||",
+              "      (association === 'carrier' && form.carrierHaulage)",
+              "",
+              "    if (!line.included) {",
+              "      line.applyDestinationTax = false",
+              "    } else if (optionalVatEnabled.value && canApplyDestinationTax(line)) {",
+              "      line.applyDestinationTax = true",
+              "    }",
+              "  })",
+              "}",
+              "",
+              "function toggleMerchantHaulage() {",
+              "  form.merchantHaulage = !form.merchantHaulage",
+              "  if (form.merchantHaulage) form.carrierHaulage = false",
+              "  syncHaulageOptionalLines()",
+              "}",
+              "",
+              "function toggleCarrierHaulage() {",
+              "  form.carrierHaulage = !form.carrierHaulage",
+              "  if (form.carrierHaulage) form.merchantHaulage = false",
+              "  syncHaulageOptionalLines()",
+              "}",
+          ])
           if old_toggles not in text:
               raise SystemExit('Could not locate haulage toggle functions')
           text = text.replace(old_toggles, new_toggles, 1)
