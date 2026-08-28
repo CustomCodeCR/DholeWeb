@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Five official rate categories, themed solid header and source modal — 2026-08-28
+# Five-state Pricing dashboard, official rate categories, themed header and source modal — 2026-08-28
 
 on:
   push:
