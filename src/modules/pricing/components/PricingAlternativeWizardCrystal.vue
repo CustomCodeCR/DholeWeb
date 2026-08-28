@@ -136,6 +136,18 @@ const rateLines = ref<RateLine[]>([])
 const locatingPickup = ref(false)
 const recommendingPorts = ref(false)
 const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
+const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.flatMap((recommendation) => {
+  if (recommendation.latitude == null || recommendation.longitude == null) return []
+  if (!Number.isFinite(recommendation.latitude) || !Number.isFinite(recommendation.longitude)) return []
+  const distanceLabel = recommendation.distanceKm == null ? '' : ` · ${recommendation.distanceKm.toFixed(1)} km`
+  return [{
+    id: `nearest-port:${recommendation.key}`,
+    label: `${recommendation.name}${distanceLabel}`,
+    latitude: recommendation.latitude,
+    longitude: recommendation.longitude,
+    selected: false,
+  }]
+}))
 const destinationVatEnabled = ref(false)
 const optionalVatEnabled = ref(false)
 
@@ -2337,10 +2349,12 @@ onMounted(loadCatalogs)
               v-if="selectedIncotermCode === 'EXW'"
               :latitude="form.pickupLatitude"
               :longitude="form.pickupLongitude"
+              :markers="nearestPortMapMarkers"
+              :fit-markers="nearestPortMapMarkers.length > 0"
               :interactive-selection="true"
               :initial-zoom="11"
               :selection-zoom="13"
-              hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección."
+              hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección. Los puertos encontrados se muestran como marcadores."
               @select-point="selectPickupFromMap"
             />
             <PricingInteractiveOsmMap
