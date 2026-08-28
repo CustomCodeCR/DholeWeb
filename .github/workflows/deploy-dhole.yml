@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Global EXW nearest ports + pickup persistence release — 2026-08-27
+# Modality-aware EXW origins release — 2026-08-27
 
 on:
   push:
