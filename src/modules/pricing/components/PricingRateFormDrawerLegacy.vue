@@ -2218,7 +2218,7 @@ onMounted(initialize)
       </div>
     </section>
 
-    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+    <section class="pricing-edit-stage pricing-edit-stage--route rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
       <div
         :class="[
           'flex cursor-pointer items-center gap-3 select-none',
@@ -2527,7 +2527,7 @@ onMounted(initialize)
       </div>
     </section>
 
-    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+    <section class="pricing-edit-stage pricing-edit-stage--validity rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
       <div
         :class="[
           'flex cursor-pointer items-center gap-3 select-none',
@@ -2617,7 +2617,7 @@ onMounted(initialize)
       </div>
     </section>
 
-    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+    <section class="pricing-edit-stage pricing-edit-stage--commercial rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
       <div
         :class="[
           'flex cursor-pointer items-center gap-3 select-none',
@@ -2691,7 +2691,7 @@ onMounted(initialize)
       </div>
     </section>
 
-    <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+    <section class="pricing-edit-stage pricing-edit-stage--lines rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
       <div
         :class="[
           'flex cursor-pointer items-center gap-3 select-none',
@@ -3010,7 +3010,7 @@ onMounted(initialize)
     </section>
 
     <section
-      class="sticky bottom-0 z-20 rounded-[28px] border border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)] p-4 shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl"
+      class="pricing-edit-summary rounded-[28px] border border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)] p-4 shadow-[var(--dh-shadow-lg)]"
     >
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
