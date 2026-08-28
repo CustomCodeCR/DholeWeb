@@ -1,0 +1,109 @@
+name: Fix carrier haulage auto selection
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-carrier-haulage-autoselect-20260828.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout web
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auto select carrier/merchant haulage optional charges
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text(encoding='utf-8')
+
+          old_signature = "function haulageAssociation(line: RateLine) {"
+          new_signature = "function haulageAssociation(line: { name: string }) {"
+          if old_signature not in text:
+              raise SystemExit('Could not locate haulageAssociation signature')
+          text = text.replace(old_signature, new_signature, 1)
+
+          old_included = '''      included:
+        cost.costType !== 'Optional' ||
+        (form.dangerousCargo && isDangerousCargoCost(cost)) ||
+        (form.overweight && isOverweightCost(cost)),'''
+          new_included = '''      included:
+        cost.costType !== 'Optional' ||
+        (form.dangerousCargo && isDangerousCargoCost(cost)) ||
+        (form.overweight && isOverweightCost(cost)) ||
+        (form.merchantHaulage && haulageAssociation(cost) === 'merchant') ||
+        (form.carrierHaulage && haulageAssociation(cost) === 'carrier'),'''
+          if old_included not in text:
+              raise SystemExit('Could not locate optional included rules')
+          text = text.replace(old_included, new_included, 1)
+
+          old_toggles = '''function toggleMerchantHaulage() {
+  form.merchantHaulage = !form.merchantHaulage
+  if (form.merchantHaulage) form.carrierHaulage = false
+}
+
+function toggleCarrierHaulage() {
+  form.carrierHaulage = !form.carrierHaulage
+  if (form.carrierHaulage) form.merchantHaulage = false
+}'''
+          new_toggles = '''function syncHaulageOptionalLines() {
+  rateLines.value.forEach((line) => {
+    if (!line.optional) return
+    const association = haulageAssociation(line)
+    if (!association) return
+
+    line.included =
+      (association === 'merchant' && form.merchantHaulage) ||
+      (association === 'carrier' && form.carrierHaulage)
+
+    if (!line.included) {
+      line.applyDestinationTax = false
+    } else if (optionalVatEnabled.value && canApplyDestinationTax(line)) {
+      line.applyDestinationTax = true
+    }
+  })
+}
+
+function toggleMerchantHaulage() {
+  form.merchantHaulage = !form.merchantHaulage
+  if (form.merchantHaulage) form.carrierHaulage = false
+  syncHaulageOptionalLines()
+}
+
+function toggleCarrierHaulage() {
+  form.carrierHaulage = !form.carrierHaulage
+  if (form.carrierHaulage) form.merchantHaulage = false
+  syncHaulageOptionalLines()
+}'''
+          if old_toggles not in text:
+              raise SystemExit('Could not locate haulage toggle functions')
+          text = text.replace(old_toggles, new_toggles, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate build
+        run: docker build --target build -t dhole-web-carrier-haulage-validation .
+
+      - name: Commit carrier haulage auto selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-carrier-haulage-autoselect-20260828.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(pricing): auto select carrier haulage charge"
+          git push origin HEAD:master
