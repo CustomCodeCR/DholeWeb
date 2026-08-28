@@ -619,7 +619,7 @@ const warehouseMapMarkers = computed(() =>
     if (latitude == null || longitude == null) return []
     return [{
       id: warehouse.id,
-      label: warehouse.label || displayValue(warehouse) || warehouse.code,
+      label: `WHS · ${warehouse.label || displayValue(warehouse) || warehouse.code}`,
       latitude,
       longitude,
       selected: warehouse.id === form.warehouseId,
@@ -729,10 +729,22 @@ const agentOptions = computed(() => catalogs.agents.map((item) => ({ value: item
 const carrierOptions = computed(() => catalogs.carriers.map((item) => ({ value: item.id, label: displayValue(item) })))
 const currencyOptions = computed(() => catalogs.currencies.map((item) => ({ value: item.id, label: displayValue(item) })))
 const serviceOptions = computed(() => catalogs.services.map((item) => ({ value: item.id, label: displayValue(item) })))
-const warehouseOptions = computed(() => catalogs.warehouses.map((item) => ({
-  value: item.id,
-  label: item.label || displayValue(item) || item.code,
-})))
+const warehouseOptions = computed(() => catalogs.warehouses.map((item) => {
+  const meta = metadata(item)
+  const name = item.label || displayValue(item) || item.code
+  return {
+    value: item.id,
+    label: name,
+    searchText: [
+      name,
+      displayValue(item),
+      item.code,
+      item.slug,
+      meta?.countryCode,
+      meta?.address,
+    ].filter(Boolean).join(' '),
+  }
+}))
 const clientOptions = computed(() => catalogs.clients.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
 const salesExecutiveOptions = computed(() => catalogs.salesExecutives.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
 
@@ -865,7 +877,8 @@ const providerMarginPercentage = computed(() =>
   providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
 )
 function canApplyDestinationTax(line: RateLine) {
-  return line.section === 'destination_charges' || line.optional
+  // IVA destino solo pertenece a cargos de destino. Recolecta, origen y costos de agente no llevan IVA.
+  return line.section === 'destination_charges' && line.costDetailType !== 'AgentCharge'
 }
 function lineTaxAmount(line: RateLine) {
   return line.applyDestinationTax && canApplyDestinationTax(line)
@@ -2526,11 +2539,13 @@ onMounted(loadCatalogs)
               </p>
             </div>
 
-            <DhSelect
+            <PricingLocationSearchSelect
               v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length"
               v-model="form.warehouseId"
               label="WHS global"
-              placeholder="Seleccione WHS"
+              placeholder="Buscar o seleccionar WHS"
+              search-placeholder="Buscar WHS, país, ciudad, código o iniciales…"
+              terminal-type="WHS"
               :options="warehouseOptions"
             />
             <div
@@ -2547,6 +2562,11 @@ onMounted(loadCatalogs)
               <p v-if="metadata(selectedWarehouse)?.contacts" class="mt-1"><strong>Contactos:</strong> {{ metadata(selectedWarehouse)?.contacts }}</p>
               <p v-if="metadata(selectedWarehouse)?.email" class="mt-1"><strong>Email:</strong> {{ metadata(selectedWarehouse)?.email }}</p>
               <p v-if="metadata(selectedWarehouse)?.phone" class="mt-1"><strong>Teléfono:</strong> {{ metadata(selectedWarehouse)?.phone }}</p>
+              <p v-if="metadataNumber(selectedWarehouse, 'latitude', 'lat') != null && metadataNumber(selectedWarehouse, 'longitude', 'lng') != null" class="mt-1">
+                <strong>Ubicación:</strong>
+                {{ metadataNumber(selectedWarehouse, 'latitude', 'lat')?.toFixed(6) }},
+                {{ metadataNumber(selectedWarehouse, 'longitude', 'lng')?.toFixed(6) }}
+              </p>
             </div>
             <DhButton v-if="selectedIncotermCode === 'FCA'" variant="ghost" @click="router.push({ name: 'config-catalogs' })">Administrar / crear WHS en Config</DhButton>
 
@@ -3363,10 +3383,16 @@ onMounted(loadCatalogs)
   border: 1px solid var(--dh-border);
   border-radius: 20px;
   padding: 0.8rem;
-  background: var(--dh-card);
+  background-color: #ffffff;
+  background-image: none;
+  opacity: 1;
   box-shadow: var(--dh-shadow-md);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+:global(.dark) .crystal-lines-header {
+  background-color: #18181b;
 }
 
 .crystal-group-header {

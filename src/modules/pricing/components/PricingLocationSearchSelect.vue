@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Anchor, ChevronDown, Search, Truck, X } from 'lucide-vue-next'
+import { Anchor, ChevronDown, Search, Truck, Warehouse, X } from 'lucide-vue-next'
 
 interface LocationOption {
   value: string
   label: string
+  searchText?: string
 }
 
 const props = withDefaults(defineProps<{
@@ -13,7 +14,7 @@ const props = withDefaults(defineProps<{
   placeholder?: string
   searchPlaceholder?: string
   options: LocationOption[]
-  terminalType?: 'CY' | 'SD'
+  terminalType?: 'CY' | 'SD' | 'WHS'
   optional?: boolean
 }>(), {
   placeholder: 'Seleccione una ubicación',
@@ -31,7 +32,10 @@ const query = ref('')
 const typing = ref(false)
 
 const selected = computed(() => props.options.find((option) => option.value === props.modelValue) ?? null)
-const icon = computed(() => props.terminalType === 'SD' ? Truck : Anchor)
+const icon = computed(() => {
+  if (props.terminalType === 'WHS') return Warehouse
+  return props.terminalType === 'SD' ? Truck : Anchor
+})
 
 function normalize(value: string) {
   return value
@@ -49,7 +53,7 @@ const filteredOptions = computed(() => {
   const tokens = needle.split(' ').filter(Boolean)
   return props.options
     .filter((option) => {
-      const haystack = normalize(option.label)
+      const haystack = normalize(`${option.label} ${option.searchText ?? ''}`)
       return tokens.every((token) => haystack.includes(token))
     })
     .slice(0, 80)
