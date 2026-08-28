@@ -123,6 +123,20 @@ export interface EmailMessageDetailDto extends EmailMessageDto {
   jobs: EmailExtractionJobDto[]
 }
 
+export interface PricingImportEmailSourceDto extends Record<string, unknown> {
+  pricingImportBatchId: string
+  emailMessageId: string
+  emailAttachmentId?: string | null
+  sourceType: string
+  subject: string
+  fromName?: string | null
+  fromAddress: string
+  originalFileName?: string | null
+  attachmentStoragePath?: string | null
+  rawEmailStoragePath?: string | null
+  receivedAt: string
+}
+
 export interface SendEmailExtractionToPricingResponse extends Record<string, unknown> {
   id?: string
   jobId?: string
