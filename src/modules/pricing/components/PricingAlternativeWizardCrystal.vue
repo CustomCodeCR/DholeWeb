@@ -17,6 +17,7 @@ import {
   Waypoints,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
@@ -87,6 +88,8 @@ interface CatalogMetadata {
   contacts?: string
   email?: string
   phone?: string
+  imageStorageId?: string
+  imageFileName?: string
   salesExecutiveId?: string
 }
 
@@ -2564,19 +2567,29 @@ onMounted(loadCatalogs)
             </div>
 
             <div v-if="selectedIncotermCode === 'FCA' && selectedWarehouse" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-xs font-semibold text-[var(--dh-text-soft)]">
-              <p class="text-sm font-black text-[var(--dh-text)]">{{ selectedWarehouse.label || displayValue(selectedWarehouse) }}</p>
-              <p class="mt-2"><strong>Dirección:</strong> {{ warehouseAddress(selectedWarehouse) || 'Sin dirección' }}</p>
-              <p v-if="metadata(selectedWarehouse)?.schedule" class="mt-1"><strong>Horario:</strong> {{ metadata(selectedWarehouse)?.schedule }}</p>
-              <p v-if="metadata(selectedWarehouse)?.contacts" class="mt-1"><strong>Contactos:</strong> {{ metadata(selectedWarehouse)?.contacts }}</p>
-              <p v-if="metadata(selectedWarehouse)?.email" class="mt-1"><strong>Email:</strong> {{ metadata(selectedWarehouse)?.email }}</p>
-              <p v-if="metadata(selectedWarehouse)?.phone" class="mt-1"><strong>Teléfono:</strong> {{ metadata(selectedWarehouse)?.phone }}</p>
-              <p v-if="metadataNumber(selectedWarehouse, 'latitude', 'lat') != null && metadataNumber(selectedWarehouse, 'longitude', 'lng') != null" class="mt-1">
-                <strong>Ubicación:</strong>
-                {{ metadataNumber(selectedWarehouse, 'latitude', 'lat')?.toFixed(6) }},
-                {{ metadataNumber(selectedWarehouse, 'longitude', 'lng')?.toFixed(6) }}
-              </p>
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+                <DhStorageImage
+                  v-if="metadata(selectedWarehouse)?.imageStorageId"
+                  :file-id="metadata(selectedWarehouse)?.imageStorageId"
+                  :alt="`Imagen de ${selectedWarehouse.label || displayValue(selectedWarehouse)}`"
+                  class="h-28 w-28 shrink-0 self-start sm:h-32 sm:w-32"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-black text-[var(--dh-text)]">{{ selectedWarehouse.label || displayValue(selectedWarehouse) }}</p>
+                  <p class="mt-2"><strong>Dirección:</strong> {{ warehouseAddress(selectedWarehouse) || 'Sin dirección' }}</p>
+                  <p v-if="metadata(selectedWarehouse)?.schedule" class="mt-1"><strong>Horario:</strong> {{ metadata(selectedWarehouse)?.schedule }}</p>
+                  <p v-if="metadata(selectedWarehouse)?.contacts" class="mt-1"><strong>Contactos:</strong> {{ metadata(selectedWarehouse)?.contacts }}</p>
+                  <p v-if="metadata(selectedWarehouse)?.email" class="mt-1 break-words"><strong>Email:</strong> {{ metadata(selectedWarehouse)?.email }}</p>
+                  <p v-if="metadata(selectedWarehouse)?.phone" class="mt-1"><strong>Teléfono:</strong> {{ metadata(selectedWarehouse)?.phone }}</p>
+                  <p v-if="metadataNumber(selectedWarehouse, 'latitude', 'lat') != null && metadataNumber(selectedWarehouse, 'longitude', 'lng') != null" class="mt-1">
+                    <strong>Ubicación:</strong>
+                    {{ metadataNumber(selectedWarehouse, 'latitude', 'lat')?.toFixed(6) }},
+                    {{ metadataNumber(selectedWarehouse, 'longitude', 'lng')?.toFixed(6) }}
+                  </p>
+                </div>
+              </div>
             </div>
-            <DhButton v-if="selectedIncotermCode === 'FCA'" variant="ghost" @click="router.push({ name: 'config-catalogs' })">Administrar / crear WHS en Config</DhButton>
+            <DhButton v-if="selectedIncotermCode === 'FCA'" variant="ghost" @click="router.push({ name: 'config-catalogs', query: { search: 'pricing-warehouses' } })">Administrar / crear WHS en Config</DhButton>
 
             <DhInput
               v-model="form.pickupAddress"
@@ -2621,10 +2634,10 @@ onMounted(loadCatalogs)
               :longitude="form.pickupLongitude"
               :markers="warehouseMapMarkers"
               :interactive-selection="false"
-              :fit-markers="true"
+              :fit-markers="!form.warehouseId"
               :initial-zoom="3"
               :selection-zoom="10"
-              hint="Los marcadores corresponden a los WHS globales configurados en Dhole. Toque uno para seleccionarlo."
+              hint="Los marcadores corresponden a los WHS globales configurados en Dhole. Al seleccionar uno, el mapa se centra en ese WHS."
               @select-marker="selectWarehouseFromMap"
             />
             <p
