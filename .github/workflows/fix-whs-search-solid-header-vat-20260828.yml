@@ -1,0 +1,186 @@
+name: Apply WHS search and VAT rules
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-whs-search-solid-header-vat-20260828.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply requested Pricing UI corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          location = Path('src/modules/pricing/components/PricingLocationSearchSelect.vue')
+          text = location.read_text()
+
+          replacements = [
+              (
+                  "import { Anchor, ChevronDown, Search, Truck, X } from 'lucide-vue-next'",
+                  "import { Anchor, ChevronDown, Search, Truck, Warehouse, X } from 'lucide-vue-next'",
+              ),
+              (
+                  "interface LocationOption {\n  value: string\n  label: string\n}",
+                  "interface LocationOption {\n  value: string\n  label: string\n  searchText?: string\n}",
+              ),
+              (
+                  "  terminalType?: 'CY' | 'SD'",
+                  "  terminalType?: 'CY' | 'SD' | 'WHS'",
+              ),
+              (
+                  "const icon = computed(() => props.terminalType === 'SD' ? Truck : Anchor)",
+                  "const icon = computed(() => {\n  if (props.terminalType === 'WHS') return Warehouse\n  return props.terminalType === 'SD' ? Truck : Anchor\n})",
+              ),
+              (
+                  "      const haystack = normalize(option.label)\n      return tokens.every((token) => haystack.includes(token))",
+                  "      const haystack = normalize(`${option.label} ${option.searchText ?? ''}`)\n      return tokens.every((token) => haystack.includes(token))",
+              ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'PricingLocationSearchSelect pattern not found: {old[:80]}')
+              text = text.replace(old, new, 1)
+          location.write_text(text)
+
+          wizard = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = wizard.read_text()
+
+          old = """const warehouseOptions = computed(() => catalogs.warehouses.map((item) => ({
+  value: item.id,
+  label: item.label || displayValue(item) || item.code,
+})))"""
+          new = """const warehouseOptions = computed(() => catalogs.warehouses.map((item) => {
+  const meta = metadata(item)
+  const name = item.label || displayValue(item) || item.code
+  return {
+    value: item.id,
+    label: name,
+    searchText: [
+      name,
+      displayValue(item),
+      item.code,
+      item.slug,
+      meta?.countryCode,
+      meta?.address,
+    ].filter(Boolean).join(' '),
+  }
+}))"""
+          if old not in text:
+              raise SystemExit('warehouseOptions pattern not found')
+          text = text.replace(old, new, 1)
+
+          old = """function canApplyDestinationTax(line: RateLine) {
+  return line.section === 'destination_charges' || line.optional
+}"""
+          new = """function canApplyDestinationTax(line: RateLine) {
+  // El IVA de destino nunca aplica a Recolecta, Cargos de origen ni Costos de agente.
+  // Los opcionales solo muestran IVA cuando pertenecen realmente a Cargos en Destino.
+  return line.section === 'destination_charges' && line.costDetailType !== 'AgentCharge'
+}"""
+          if old not in text:
+              raise SystemExit('canApplyDestinationTax pattern not found')
+          text = text.replace(old, new, 1)
+
+          old = """    return [{
+      id: warehouse.id,
+      label: warehouse.label || displayValue(warehouse) || warehouse.code,
+      latitude,
+      longitude,
+      selected: warehouse.id === form.warehouseId,
+    }]"""
+          new = """    return [{
+      id: warehouse.id,
+      label: `WHS · ${warehouse.label || displayValue(warehouse) || warehouse.code}`,
+      latitude,
+      longitude,
+      selected: warehouse.id === form.warehouseId,
+    }]"""
+          if old not in text:
+              raise SystemExit('warehouseMapMarkers label pattern not found')
+          text = text.replace(old, new, 1)
+
+          old = """            <DhSelect
+              v-if=\"selectedIncotermCode === 'FCA' && warehouseOptions.length\"
+              v-model=\"form.warehouseId\"
+              label=\"WHS global\"
+              placeholder=\"Seleccione WHS\"
+              :options=\"warehouseOptions\"
+            />"""
+          new = """            <PricingLocationSearchSelect
+              v-if=\"selectedIncotermCode === 'FCA' && warehouseOptions.length\"
+              v-model=\"form.warehouseId\"
+              label=\"WHS global\"
+              placeholder=\"Buscar o seleccionar WHS\"
+              search-placeholder=\"Buscar WHS, país, ciudad, código o iniciales…\"
+              terminal-type=\"WHS\"
+              :options=\"warehouseOptions\"
+            />"""
+          if old not in text:
+              raise SystemExit('FCA WHS select pattern not found')
+          text = text.replace(old, new, 1)
+
+          old = """              <p v-if=\"metadata(selectedWarehouse)?.phone\" class=\"mt-1\"><strong>Teléfono:</strong> {{ metadata(selectedWarehouse)?.phone }}</p>
+            </div>"""
+          new = """              <p v-if=\"metadata(selectedWarehouse)?.phone\" class=\"mt-1\"><strong>Teléfono:</strong> {{ metadata(selectedWarehouse)?.phone }}</p>
+              <p v-if=\"metadataNumber(selectedWarehouse, 'latitude', 'lat') != null && metadataNumber(selectedWarehouse, 'longitude', 'lng') != null\" class=\"mt-1\">
+                <strong>Ubicación:</strong>
+                {{ metadataNumber(selectedWarehouse, 'latitude', 'lat')?.toFixed(6) }},
+                {{ metadataNumber(selectedWarehouse, 'longitude', 'lng')?.toFixed(6) }}
+              </p>
+            </div>"""
+          if old not in text:
+              raise SystemExit('WHS details pattern not found')
+          text = text.replace(old, new, 1)
+
+          old = """  background: var(--dh-card);
+  box-shadow: var(--dh-shadow-md);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}"""
+          new = """  background-color: #ffffff;
+  background-image: none;
+  opacity: 1;
+  box-shadow: var(--dh-shadow-md);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:global(.dark) .crystal-lines-header {
+  background-color: #18181b;
+}"""
+          if old not in text:
+              raise SystemExit('solid header CSS pattern not found')
+          text = text.replace(old, new, 1)
+
+          wizard.write_text(text)
+          PY
+
+      - name: Validate production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --target build -t dhole-web-whs-vat-validation .
+
+      - name: Commit functional changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-whs-search-solid-header-vat-20260828.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue src/modules/pricing/components/PricingLocationSearchSelect.vue .github/workflows/fix-whs-search-solid-header-vat-20260828.yml
+          git commit -m 'fix(pricing): improve WHS picker and destination VAT rules'
+          git push origin HEAD:master
