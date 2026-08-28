@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Carrier haulage auto-selection release — 2026-08-28
+# Per-line VAT and solid sticky pricing header release — 2026-08-28
 
 on:
   push:
