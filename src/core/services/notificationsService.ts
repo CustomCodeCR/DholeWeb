@@ -3,13 +3,45 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { toQueryString } from '@/core/api/queryString'
 import { unwrapApiResponse, unwrapPagedResponse, type PagedResponse } from '@/core/api/apiResponse'
 import type {
-  BrowseNotificationsQuery, BrowseNotificationTemplatesQuery, CreateNotificationMessageRequest,
-  CreateNotificationTemplateRequest, NotificationMessageDto, NotificationTemplateDto, UpdateNotificationTemplateRequest,
+  BrowseNotificationInboxQuery, BrowseNotificationsQuery, BrowseNotificationTemplatesQuery, CreateNotificationMessageRequest,
+  CreateNotificationTemplateRequest, NotificationInboxItemDto, NotificationMessageDto, NotificationTemplateDto,
+  NotificationUnreadCountDto, UpdateNotificationTemplateRequest,
 } from '@/core/interfaces/notifications'
 
 type NoContent = Record<string, never>
+const inboxHeaders = { Accept: 'application/json' }
 
 export const NotificationsService = {
+  async browseInbox(query: BrowseNotificationInboxQuery = {}): Promise<PagedResponse<NotificationInboxItemDto>> {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/notifications/inbox' + toQueryString(query as Record<string, unknown>),
+      headers: inboxHeaders,
+    })
+    return unwrapPagedResponse<NotificationInboxItemDto>(response)
+  },
+  async getUnreadInboxCount(): Promise<number> {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/notifications/inbox/unread-count',
+      headers: inboxHeaders,
+    })
+    return unwrapApiResponse<NotificationUnreadCountDto>(response as never).unreadCount ?? 0
+  },
+  markInboxRead(recipientId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>({
+      method: 'POST',
+      path: `/api/notifications/inbox/${encodeURIComponent(recipientId)}/read`,
+      headers: inboxHeaders,
+    })
+  },
+  markAllInboxRead(): Promise<{ markedRead: number }> {
+    return callEndpoint<{ markedRead: number }>({
+      method: 'POST',
+      path: '/api/notifications/inbox/read-all',
+      headers: inboxHeaders,
+    })
+  },
   async browseMessages(query: BrowseNotificationsQuery = {}): Promise<PagedResponse<NotificationMessageDto>> {
     const response = await callEndpoint<unknown>({ ...Endpoints.browseNotificationMessages, path: Endpoints.browseNotificationMessages.path + toQueryString(query as Record<string, unknown>) })
     return unwrapPagedResponse<NotificationMessageDto>(response)
