@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Per-line VAT and solid sticky pricing header release — 2026-08-28
+# Source trace and five commercial statuses release — 2026-08-28
 
 on:
   push:
