@@ -11,6 +11,7 @@ import type {
   EmailExtractionJobDto,
   EmailMessageDetailDto,
   EmailMessageDto,
+  PricingImportEmailSourceDto,
   SendEmailExtractionToPricingResponse,
 } from '@/core/interfaces/emailExtraction'
 
@@ -49,6 +50,16 @@ export const EmailExtractionService = {
     })
 
     return unwrapApiResponse<EmailMessageDetailDto>(response as never)
+  },
+
+  async getPricingImportSource(pricingImportBatchId: string): Promise<PricingImportEmailSourceDto> {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: `/api/data-extraction/email/pricing-imports/${encodeURIComponent(pricingImportBatchId)}/source`,
+      headers: { Accept: 'application/json' },
+    })
+
+    return unwrapApiResponse<PricingImportEmailSourceDto>(response as never)
   },
 
   async reprocessMessage(messageId: string): Promise<AcceptedResponse> {
