@@ -44,26 +44,10 @@ const statusCards = computed(() => {
 
   return [
     { label: 'Abiertas', value: data.openCount, status: 'Open' as RateStatus, icon: FileCheck2 },
-    {
-      label: 'Aprobadas',
-      value: data.approvedCount,
-      status: 'ApprovedByManagement' as RateStatus,
-      icon: BadgeCheck,
-    },
-    {
-      label: 'Rechazadas',
-      value: data.rejectedCount,
-      status: null as RateStatus | null,
-      icon: XCircle,
-    },
-    {
-      label: 'Solicitadas por cliente',
-      value: data.requestedByClientCount,
-      status: 'RequestedByClient' as RateStatus,
-      icon: Send,
-    },
-    { label: 'Cerradas', value: data.closedCount, status: 'Closed' as RateStatus, icon: Ban },
+    { label: 'Enviadas', value: data.sentCount, status: 'Sent' as RateStatus, icon: Send },
     { label: 'Vencidas', value: data.expiredCount, status: 'Expired' as RateStatus, icon: TimerOff },
+    { label: 'Aceptadas', value: data.acceptedByClientCount, status: 'AcceptedByClient' as RateStatus, icon: BadgeCheck },
+    { label: 'No aceptadas', value: data.rejectedCount, status: 'RejectedByClient' as RateStatus, icon: XCircle },
   ]
 })
 
@@ -96,26 +80,27 @@ function clearFilters() {
   void loadDashboard()
 }
 
+function commercialStatus(status: RateStatus): RateStatus {
+  if (['PendingApproval', 'ApprovedByManagement', 'RejectedByManagement', 'RequestedByClient', 'Open'].includes(status)) return 'Open'
+  if (status === 'Closed' || status === 'RejectedByClient') return 'RejectedByClient'
+  return status
+}
+
 function openStatus(status: RateStatus | null) {
   if (!status) return
-  router.push({ path: '/pricing/rates', query: { status } })
+  router.push({ path: '/pricing/rates', query: { status: commercialStatus(status) } })
 }
 
 function statusLabel(status: RateStatus) {
   return (
     {
-      PendingApproval: 'Pendiente de autorización',
-      ApprovedByManagement: 'Aprobada por gerencia',
-      RejectedByManagement: 'Rechazada por gerencia',
       Open: 'Abierta',
       Sent: 'Enviada',
-      AcceptedByClient: 'Aceptada por el cliente',
-      RejectedByClient: 'Rechazada por el cliente',
-      RequestedByClient: 'Solicitada por el cliente',
-      Closed: 'Cerrada',
       Expired: 'Vencida',
-    } satisfies Record<RateStatus, string>
-  )[status]
+      AcceptedByClient: 'Aceptada',
+      RejectedByClient: 'No aceptada',
+    } as Record<string, string>
+  )[commercialStatus(status)] ?? 'Abierta'
 }
 
 function formatDateTime(value?: string | null) {
@@ -187,7 +172,7 @@ onMounted(loadDashboard)
     </div>
 
     <template v-else-if="dashboard">
-      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <button
           v-for="card in statusCards"
           :key="card.label"
@@ -210,7 +195,7 @@ onMounted(loadDashboard)
             <CircleDollarSign class="h-5 w-5 text-[var(--dh-primary)]" />
             <div>
               <h3 class="font-black text-[var(--dh-text)]">Utilidad proyectada por moneda</h3>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incluye tarifas aprobadas, abiertas, enviadas, solicitadas o aceptadas; excluye rechazadas, cerradas y vencidas.</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incluye tarifas abiertas, enviadas y aceptadas; excluye no aceptadas y vencidas.</p>
             </div>
           </div>
           <div v-if="dashboard.financials.length" class="mt-4 grid gap-3 md:grid-cols-2">
@@ -272,8 +257,8 @@ onMounted(loadDashboard)
               <p class="mt-2 font-black text-[var(--dh-text)]">{{ formatDateTime(dashboard.lastModifiedAtUtc) }}</p>
             </div>
             <div class="rounded-[22px] bg-[var(--dh-input)] p-4">
-              <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Pendientes de autorización</p>
-              <p class="mt-2 text-3xl font-black text-yellow-600 dark:text-yellow-400">{{ dashboard.pendingApprovalCount }}</p>
+              <p class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Abiertas</p>
+              <p class="mt-2 text-3xl font-black text-yellow-600 dark:text-yellow-400">{{ dashboard.openCount }}</p>
             </div>
           </div>
         </div>
