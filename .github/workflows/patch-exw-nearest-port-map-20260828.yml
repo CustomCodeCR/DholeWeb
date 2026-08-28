@@ -28,9 +28,8 @@ jobs:
           path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
           text = path.read_text(encoding='utf-8')
 
-          declaration_anchor = '''const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
-          const destinationVatEnabled = ref(false)'''.replace('          ', '')
-          declaration_replacement = '''const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
+          declaration_anchor = "const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])\nconst destinationVatEnabled = ref(false)"
+          declaration_replacement = """const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
           const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.flatMap((recommendation) => {
             if (recommendation.latitude == null || recommendation.longitude == null) return []
             if (!Number.isFinite(recommendation.latitude) || !Number.isFinite(recommendation.longitude)) return []
@@ -43,34 +42,39 @@ jobs:
               selected: false,
             }]
           }))
-          const destinationVatEnabled = ref(false)'''.replace('          ', '')
+          const destinationVatEnabled = ref(false)"""
+          declaration_replacement = '\n'.join(line[10:] if line.startswith('          ') else line for line in declaration_replacement.splitlines())
 
           if declaration_anchor not in text:
               raise SystemExit('Could not locate nearestPortRecommendations declaration anchor')
           text = text.replace(declaration_anchor, declaration_replacement, 1)
 
-          map_anchor = '''            <PricingInteractiveOsmMap
-                        v-if="selectedIncotermCode === 'EXW'"
-                        :latitude="form.pickupLatitude"
-                        :longitude="form.pickupLongitude"
-                        :interactive-selection="true"
-                        :initial-zoom="11"
-                        :selection-zoom="13"
-                        hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección."
-                        @select-point="selectPickupFromMap"
-                      />'''.replace('            ', '')
-          map_replacement = '''            <PricingInteractiveOsmMap
-                        v-if="selectedIncotermCode === 'EXW'"
-                        :latitude="form.pickupLatitude"
-                        :longitude="form.pickupLongitude"
-                        :markers="nearestPortMapMarkers"
-                        :fit-markers="nearestPortMapMarkers.length > 0"
-                        :interactive-selection="true"
-                        :initial-zoom="11"
-                        :selection-zoom="13"
-                        hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección. Los puertos encontrados se muestran como marcadores."
-                        @select-point="selectPickupFromMap"
-                      />'''.replace('            ', '')
+          map_anchor = '\n'.join([
+              '            <PricingInteractiveOsmMap',
+              "              v-if=\"selectedIncotermCode === 'EXW'\"",
+              '              :latitude="form.pickupLatitude"',
+              '              :longitude="form.pickupLongitude"',
+              '              :interactive-selection="true"',
+              '              :initial-zoom="11"',
+              '              :selection-zoom="13"',
+              '              hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección."',
+              '              @select-point="selectPickupFromMap"',
+              '            />',
+          ])
+          map_replacement = '\n'.join([
+              '            <PricingInteractiveOsmMap',
+              "              v-if=\"selectedIncotermCode === 'EXW'\"",
+              '              :latitude="form.pickupLatitude"',
+              '              :longitude="form.pickupLongitude"',
+              '              :markers="nearestPortMapMarkers"',
+              '              :fit-markers="nearestPortMapMarkers.length > 0"',
+              '              :interactive-selection="true"',
+              '              :initial-zoom="11"',
+              '              :selection-zoom="13"',
+              '              hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección. Los puertos encontrados se muestran como marcadores."',
+              '              @select-point="selectPickupFromMap"',
+              '            />',
+          ])
 
           if map_anchor not in text:
               raise SystemExit('Could not locate EXW PricingInteractiveOsmMap anchor')
