@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Searchable CY/SD pricing fields release — 2026-08-28
+# EXW nearest-port map markers release — 2026-08-28
 
 on:
   push:
