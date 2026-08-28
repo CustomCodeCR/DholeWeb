@@ -155,7 +155,6 @@ const saving = ref(false)
 const exchangeRateLoading = ref(false)
 const exchangeRatePurchase = ref<number | null>(null)
 const exchangeRateSale = ref<number | null>(null)
-const exchangeRateApplied = ref<number | null>(null)
 const exchangeRateDate = ref('')
 const exchangeRateSource = ref('Ministerio de Hacienda de Costa Rica')
 const exchangeRateError = ref('')
@@ -1905,21 +1904,28 @@ function openImportSource(rate: ImportRateSelectDto) {
   })
 }
 
-async function loadHaciendaExchangeRate(resetApplied = false) {
+async function loadHaciendaExchangeRate(force = false) {
   if (exchangeRateLoading.value) return
+  if (!force && exchangeRatePurchase.value && exchangeRateSale.value) return
+
   try {
     exchangeRateLoading.value = true
     exchangeRateError.value = ''
     const snapshot = await PricingService.getUsdCrcExchangeRate()
-    exchangeRatePurchase.value = Number(snapshot.purchase)
-    exchangeRateSale.value = Number(snapshot.sale)
-    exchangeRateDate.value = snapshot.rateDate
-    exchangeRateSource.value = snapshot.source || 'Ministerio de Hacienda de Costa Rica'
-    if (resetApplied || !exchangeRateApplied.value || exchangeRateApplied.value <= 0) {
-      exchangeRateApplied.value = Number(snapshot.sale)
+    const purchase = Number(snapshot.purchase)
+    const sale = Number(snapshot.sale)
+
+    if (!Number.isFinite(purchase) || purchase <= 0 || !Number.isFinite(sale) || sale <= 0) {
+      throw new Error('Hacienda devolvió un tipo de cambio inválido')
     }
-  } catch (error) {
-    exchangeRateError.value = 'Hacienda no respondió. Puede ingresar manualmente el tipo de cambio aplicado y continuar.'
+
+    exchangeRatePurchase.value = purchase
+    exchangeRateSale.value = sale
+    exchangeRateDate.value = snapshot.rateDate || ''
+    exchangeRateSource.value = snapshot.source || 'Ministerio de Hacienda de Costa Rica'
+  } catch {
+    // No borrar valores escritos por el usuario si una actualización falla.
+    exchangeRateError.value = 'No fue posible consultar Hacienda. Ingrese Compra y Venta manualmente o intente actualizar.'
   } finally {
     exchangeRateLoading.value = false
   }
@@ -2010,7 +2016,9 @@ async function saveOpenRequest() {
       pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
       pickupLatitude: form.pickupLatitude,
       pickupLongitude: form.pickupLongitude,
-      exchangeRateApplied: exchangeRateApplied.value && exchangeRateApplied.value > 0 ? exchangeRateApplied.value : null,
+      exchangeRatePurchase: exchangeRatePurchase.value,
+      exchangeRateSale: exchangeRateSale.value,
+      exchangeRateApplied: exchangeRateSale.value,
       currencyId: currency.id,
       currencyName: displayValue(currency),
       currencyCode: currency.code,
@@ -2058,6 +2066,17 @@ async function saveOpenRequest() {
 }
 
 async function saveRate() {
+  if (
+    !exchangeRatePurchase.value ||
+    exchangeRatePurchase.value <= 0 ||
+    !exchangeRateSale.value ||
+    exchangeRateSale.value <= 0
+  ) {
+    step.value = 7
+    exchangeRateError.value = 'Ingrese los tipos de cambio de Compra y Venta antes de crear la tarifa.'
+    return
+  }
+
   const origin = selectedOrigin.value
   const poe = selectedDestination.value
   const pod = resolvePodForDestination()
@@ -2204,7 +2223,9 @@ async function saveRate() {
       pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
       pickupLatitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLatitude : null,
       pickupLongitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLongitude : null,
-      exchangeRateApplied: exchangeRateApplied.value && exchangeRateApplied.value > 0 ? exchangeRateApplied.value : null,
+      exchangeRatePurchase: exchangeRatePurchase.value,
+      exchangeRateSale: exchangeRateSale.value,
+      exchangeRateApplied: exchangeRateSale.value,
       currencyId: currency!.id,
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
@@ -2409,7 +2430,7 @@ watch(() => form.currencyId, () => {
 })
 
 watch(step, (value) => {
-  if (value === 8) void loadHaciendaExchangeRate(false)
+  if (value === 7) void loadHaciendaExchangeRate(false)
 })
 
 onMounted(async () => {
@@ -2962,6 +2983,22 @@ onMounted(async () => {
   </div>
           </div>
 
+          <div class="crystal-soft p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tipo de cambio USD / CRC</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se consulta automáticamente a Hacienda. Compra y Venta se pueden ajustar manualmente.</p>
+              </div>
+              <DhButton variant="secondary" size="sm" :loading="exchangeRateLoading" :disabled="exchangeRateLoading" @click="loadHaciendaExchangeRate(true)">Actualizar Hacienda</DhButton>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-2">
+              <DhInput v-model.number="exchangeRatePurchase" type="number" min="0.000001" step="0.01" label="Compra Hacienda (editable)" />
+              <DhInput v-model.number="exchangeRateSale" type="number" min="0.000001" step="0.01" label="Venta Hacienda (editable)" />
+            </div>
+            <p v-if="exchangeRateDate" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ exchangeRateSource }} · fecha {{ formatDate(exchangeRateDate) }}</p>
+            <p v-if="exchangeRateError" class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-700">{{ exchangeRateError }}</p>
+          </div>
+
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
@@ -3087,29 +3124,6 @@ onMounted(async () => {
             <p class="crystal-kicker">Pantalla 8</p>
             <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
             <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
-          </div>
-          <div class="crystal-soft p-5">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tipo de cambio USD / CRC</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se consulta automáticamente a Hacienda. El valor aplicado queda editable antes de crear la tarifa.</p>
-              </div>
-              <DhButton variant="secondary" size="sm" :loading="exchangeRateLoading" :disabled="exchangeRateLoading" @click="loadHaciendaExchangeRate(true)">Actualizar Hacienda</DhButton>
-            </div>
-            <div class="mt-4 grid gap-3 md:grid-cols-3">
-              <div class="crystal-exchange-metric">
-                <span>Compra Hacienda</span>
-                <strong>{{ exchangeRatePurchase ? `₡ ${exchangeRatePurchase.toFixed(2)}` : '—' }}</strong>
-              </div>
-              <div class="crystal-exchange-metric">
-                <span>Venta Hacienda</span>
-                <strong>{{ exchangeRateSale ? `₡ ${exchangeRateSale.toFixed(2)}` : '—' }}</strong>
-              </div>
-              <DhInput v-model.number="exchangeRateApplied" type="number" min="0.000001" step="0.01" label="Tipo de cambio aplicado (editable)" />
-            </div>
-            <p v-if="exchangeRateDate" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ exchangeRateSource }} · fecha {{ formatDate(exchangeRateDate) }} · el valor se vuelve a validar al crear.</p>
-            <p v-if="exchangeRateSale && exchangeRateApplied && Math.abs(exchangeRateApplied - exchangeRateSale) > 0.0001" class="mt-2 text-[11px] font-black text-amber-600">Valor manual: la tarifa conservará Compra/Venta de Hacienda y también el tipo de cambio aplicado por el usuario.</p>
-            <p v-if="exchangeRateError" class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-700">{{ exchangeRateError }}</p>
           </div>
           <div class="grid gap-4 lg:grid-cols-2">
             <div class="crystal-soft p-5">

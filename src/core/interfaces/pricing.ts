@@ -674,6 +674,8 @@ export interface CreateRateRequest extends Record<string, unknown> {
   pickupAddress?: string | null
   pickupLatitude?: number | null
   pickupLongitude?: number | null
+  exchangeRatePurchase?: number | null
+  exchangeRateSale?: number | null
   exchangeRateApplied?: number | null
   currencyId: string
   currencyName: string
