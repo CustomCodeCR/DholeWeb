@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# FCA WHS map focus and warehouse images release — 2026-08-28
+# Modern Pricing accept, edit, duplicate and FCA WHS image release — 2026-08-28
 
 on:
   push:
