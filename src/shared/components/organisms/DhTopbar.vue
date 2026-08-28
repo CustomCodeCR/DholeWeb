@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
 
         <section
           v-if="inboxOpen"
-          class="absolute right-0 top-[calc(100%+0.65rem)] z-50 flex max-h-[72vh] w-[min(430px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-shell)] shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl"
+          class="absolute right-0 top-[calc(100%+0.65rem)] z-50 flex max-h-[72vh] w-[min(430px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card-solid)] shadow-[var(--dh-shadow-lg)]"
         >
           <div class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-3">
             <div class="min-w-0">
