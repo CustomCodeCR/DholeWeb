@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Five-state Pricing dashboard, official rate categories, themed header and source modal — 2026-08-28
+# FCA WHS map focus and warehouse images release — 2026-08-28
 
 on:
   push:
