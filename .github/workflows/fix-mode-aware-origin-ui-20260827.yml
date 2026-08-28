@@ -1,0 +1,176 @@
+name: Fix modality-aware EXW origin UI
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-mode-aware-origin-ui-20260827.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch mode-aware origin UI
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text(encoding='utf-8')
+
+          anchor = '''const modalityOptions: Array<{ value: Modality; label: string; caption: string }> = [
+            { value: 'Maritime', label: 'Marítimo', caption: 'FCL y LCL' },
+            { value: 'Air', label: 'Aéreo', caption: 'Carga aérea LCL' },
+            { value: 'Land', label: 'Terrestre', caption: 'FTL y LTL' },
+            { value: 'Multimodal', label: 'Multimodal', caption: 'Marítimo + terrestre' },
+          ]
+
+          '''
+          insert = anchor + '''const nearbyOriginCopy = computed(() => {
+            if (form.modality === 'Air') {
+              return {
+                title: 'Aeropuertos más cercanos a la recolección',
+                description: 'La IA busca aeropuertos reales aptos para carga aérea dentro de 500 km desde el pin EXW. El catálogo de orígenes solo se usa para ofrecer cambio rápido cuando existe una coincidencia.',
+                action: 'Buscar aeropuertos cercanos',
+                badge: 'Aeropuerto cercano',
+                defaultReason: 'Aeropuerto recomendado por cercanía y viabilidad logística desde la recolección.',
+                emptyTitle: 'Sin aeropuertos encontrados',
+                emptyDescription: 'La búsqueda geográfica no encontró un aeropuerto verificable dentro de 500 km del punto marcado.',
+                unavailableTitle: 'Búsqueda de aeropuertos no disponible',
+                unavailableDescription: 'No fue posible consultar los aeropuertos cercanos en este momento. Inténtelo nuevamente.',
+              }
+            }
+
+            if (form.modality === 'Land') {
+              return {
+                title: 'Puntos logísticos cercanos a la recolección',
+                description: 'La IA busca terminales o nodos logísticos terrestres dentro de 500 km desde el pin EXW.',
+                action: 'Buscar puntos cercanos',
+                badge: 'Punto cercano',
+                defaultReason: 'Punto logístico recomendado por cercanía desde la recolección.',
+                emptyTitle: 'Sin puntos logísticos encontrados',
+                emptyDescription: 'La búsqueda geográfica no encontró un nodo logístico terrestre verificable dentro de 500 km del punto marcado.',
+                unavailableTitle: 'Búsqueda terrestre no disponible',
+                unavailableDescription: 'No fue posible consultar puntos logísticos terrestres cercanos en este momento. Inténtelo nuevamente.',
+              }
+            }
+
+            return {
+              title: 'Puertos marítimos más cercanos a la recolección',
+              description: 'La IA busca exclusivamente puertos marítimos reales dentro de 500 km desde el pin EXW. El catálogo de orígenes solo se usa para ofrecer cambio rápido cuando existe una coincidencia.',
+              action: 'Buscar puertos marítimos cercanos',
+              badge: 'Puerto marítimo cercano',
+              defaultReason: 'Puerto marítimo recomendado por cercanía y viabilidad logística desde la recolección.',
+              emptyTitle: 'Sin puertos marítimos encontrados',
+              emptyDescription: 'La búsqueda geográfica no encontró un puerto marítimo verificable dentro de 500 km del punto marcado.',
+              unavailableTitle: 'Búsqueda de puertos no disponible',
+              unavailableDescription: 'No fue posible consultar los puertos marítimos cercanos en este momento. Inténtelo nuevamente.',
+            }
+          })
+
+          '''
+          if anchor not in text:
+              raise SystemExit('modality options anchor not found')
+          text = text.replace(anchor, insert, 1)
+
+          old = '''          longitude: form.pickupLongitude,
+                    maxDistanceKm: 500,
+          '''
+          new = '''          longitude: form.pickupLongitude,
+                    maxDistanceKm: 500,
+                    transportMode: form.modality,
+          '''
+          if old not in text:
+              raise SystemExit('request body anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = "          reason: String(item.reason ?? 'Puerto recomendado por cercanía y viabilidad logística desde la recolección.'),"
+          new = "          reason: String(item.reason ?? nearbyOriginCopy.value.defaultReason),"
+          if old not in text:
+              raise SystemExit('default reason anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '''    if (!nearestPortRecommendations.value.length) {
+              toastStore.warning(
+                'Sin puertos marítimos encontrados',
+                'La búsqueda geográfica no encontró un puerto marítimo verificable dentro de 500 km del punto marcado.',
+              )
+            }
+          } catch {
+            toastStore.warning(
+              'Búsqueda de puertos no disponible',
+              'No fue posible consultar los puertos cercanos en este momento. Inténtelo nuevamente.',
+            )
+          } finally {
+          '''
+          new = '''    if (!nearestPortRecommendations.value.length) {
+              toastStore.warning(
+                nearbyOriginCopy.value.emptyTitle,
+                nearbyOriginCopy.value.emptyDescription,
+              )
+            }
+          } catch {
+            toastStore.warning(
+              nearbyOriginCopy.value.unavailableTitle,
+              nearbyOriginCopy.value.unavailableDescription,
+            )
+          } finally {
+          '''
+          if old not in text:
+              raise SystemExit('toast block not found')
+          text = text.replace(old, new, 1)
+
+          old = "                  ? 'Ubique la recolección en el mapa. La IA buscará puertos marítimos reales dentro de 500 km desde ese punto.'"
+          new = "                  ? nearbyOriginCopy.description"
+          if old not in text:
+              raise SystemExit('EXW intro copy anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '''                  <p class="text-sm font-black">Puertos más cercanos a la recolección</p>
+                            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">La IA busca puertos marítimos por ubicación en un radio de 500 km desde el pin EXW. El catálogo POL solo se usa para ofrecer cambio rápido cuando existe una coincidencia.</p>
+          '''
+          new = '''                  <p class="text-sm font-black">{{ nearbyOriginCopy.title }}</p>
+                            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ nearbyOriginCopy.description }}</p>
+          '''
+          if old not in text:
+              raise SystemExit('nearby origin section copy anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = "                  <Sparkles class=\"h-4 w-4\" /> {{ recommendingPorts ? 'Analizando…' : 'Buscar puertos cercanos' }}"
+          new = "                  <Sparkles class=\"h-4 w-4\" /> {{ recommendingPorts ? 'Analizando…' : nearbyOriginCopy.action }}"
+          if old not in text:
+              raise SystemExit('button label anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = "                          : 'Puerto cercano' }}"
+          new = "                          : nearbyOriginCopy.badge }}"
+          if old not in text:
+              raise SystemExit('badge anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '                    No está en el catálogo POL; se muestra porque sí está dentro del radio geográfico.'
+          new = '                    No está en el catálogo de orígenes (POL); se muestra porque sí está dentro del radio geográfico y corresponde a la modalidad seleccionada.'
+          if old not in text:
+              raise SystemExit('catalog note anchor not found')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          print('Mode-aware EXW origin UI patched.')
+          PY
+      - name: Commit patch and clean temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-mode-aware-origin-ui-20260827.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(web): show EXW origins by transport modality'
+          git push origin HEAD:master
