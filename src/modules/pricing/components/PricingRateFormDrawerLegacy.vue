@@ -1687,23 +1687,34 @@ async function submit() {
     let rateId = props.rate?.id
 
     if (props.rate) {
+      const rawExtraDetails = [
+        ...containerFreightDetails(),
+        ...details.value
+          .filter(
+            (detail) =>
+              (!usesContainerFreight.value || detail.costDetailType !== 'Freight') &&
+              !detail.importedFreight &&
+              (detail.insuranceGenerated ||
+                detail.automaticFixed ||
+                !selectorsChanged.value ||
+                !detail.locked),
+          )
+          .map((detail) => ({ ...mapDetail(detail), id: detail.id ?? null })),
+      ]
+      const liveDetailIds = new Set<string>()
+      const extraDetails = rawExtraDetails.filter((detail) => {
+        const id = detail.id?.trim()
+        if (!id) return true
+        if (liveDetailIds.has(id)) return false
+        liveDetailIds.add(id)
+        return true
+      })
       const payload: UpdateRateRequest = {
         ...header,
-        extraDetails: [
-          ...containerFreightDetails(),
-          ...details.value
-            .filter(
-              (detail) =>
-                (!usesContainerFreight.value || detail.costDetailType !== 'Freight') &&
-                !detail.importedFreight &&
-                (detail.insuranceGenerated ||
-                  detail.automaticFixed ||
-                  !selectorsChanged.value ||
-                  !detail.locked),
-            )
-            .map((detail) => ({ ...mapDetail(detail), id: detail.id ?? null })),
-        ],
-        removedExtraDetailIds: [...new Set(removedDetailIds.value)],
+        extraDetails,
+        removedExtraDetailIds: [...new Set(removedDetailIds.value)].filter(
+          (id) => !liveDetailIds.has(id),
+        ),
       }
       pendingUpdate = payload
       await PricingService.updateRate(props.rate.id, payload)
