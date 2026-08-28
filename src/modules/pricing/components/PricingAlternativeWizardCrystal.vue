@@ -245,15 +245,15 @@ const nearbyOriginCopy = computed(() => {
   }
 
   return {
-    title: 'Puertos marítimos más cercanos a la recolección',
-    description: 'La IA busca exclusivamente puertos marítimos reales dentro de 500 km desde el pin EXW. El catálogo de orígenes solo se usa para ofrecer cambio rápido cuando existe una coincidencia.',
-    action: 'Buscar puertos marítimos cercanos',
-    badge: 'Puerto marítimo cercano',
-    defaultReason: 'Puerto marítimo recomendado por cercanía y viabilidad logística desde la recolección.',
-    emptyTitle: 'Sin puertos marítimos encontrados',
-    emptyDescription: 'La búsqueda geográfica no encontró un puerto marítimo verificable dentro de 500 km del punto marcado.',
+    title: 'Puertos marítimos de carga internacional más cercanos',
+    description: 'La IA busca exclusivamente puertos marítimos comerciales que operen carga internacional dentro de 500 km desde el pin EXW: contenedores, carga general, graneles, RoRo de carga o terminales tanker. No muestra marinas, pesca, ferris o terminales solo de pasajeros, cruceros ni muelles locales.',
+    action: 'Buscar puertos de carga cercanos',
+    badge: 'Puerto de carga internacional',
+    defaultReason: 'Puerto marítimo de carga internacional recomendado por cercanía y viabilidad logística desde la recolección.',
+    emptyTitle: 'Sin puertos de carga internacional encontrados',
+    emptyDescription: 'La búsqueda no encontró un puerto marítimo de carga internacional verificable dentro de 500 km del punto marcado.',
     unavailableTitle: 'Búsqueda de puertos no disponible',
-    unavailableDescription: 'No fue posible consultar los puertos marítimos cercanos en este momento. Inténtelo nuevamente.',
+    unavailableDescription: 'No fue posible consultar los puertos marítimos de carga internacional cercanos en este momento. Inténtelo nuevamente.',
   }
 })
 
