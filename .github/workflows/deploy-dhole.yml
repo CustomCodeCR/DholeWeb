@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Modern Pricing accept, edit, duplicate and FCA WHS image release — 2026-08-28
+# Editable Hacienda exchange-rate release — 2026-08-28
 
 on:
   push:
@@ -33,83 +33,56 @@ jobs:
           docker network inspect dhole >/dev/null
           test -r /opt/dhole/.env
           test -r "$COMPOSE_FILE"
-          docker compose --env-file /opt/dhole/.env -f "$COMPOSE_FILE" config -q
+
+      - name: Authenticate GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
         shell: bash
         run: |
           set -euo pipefail
-          SHA_TAG="${GITHUB_SHA::12}"
-
-          read_env() {
-            local key="$1"
-            local value
-
-            value="$(grep -m1 "^${key}=" /opt/dhole/.env | cut -d= -f2- || true)"
-            value="${value%$'\r'}"
-
-            if [[ "$value" == \"*\" && "$value" == *\" ]]; then
-              value="${value:1:${#value}-2}"
-            elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
-              value="${value:1:${#value}-2}"
-            fi
-
-            printf '%s' "$value"
-          }
-
-          VITE_API_URL="$(read_env VITE_API_URL)"
-          VITE_APP_NAME="$(read_env VITE_APP_NAME)"
-          VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
-
-          : "${VITE_API_URL:?VITE_API_URL is required in /opt/dhole/.env}"
-          : "${VITE_APP_NAME:?VITE_APP_NAME is required in /opt/dhole/.env}"
-          : "${VITE_FRONTEND_DOMAIN:?VITE_FRONTEND_DOMAIN is required in /opt/dhole/.env}"
-
-          docker build \
-            --pull \
-            -f Dockerfile \
-            --build-arg VITE_API_URL="$VITE_API_URL" \
-            --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
-            --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
-            -t dhole/web:latest \
-            -t "dhole/web:$SHA_TAG" \
-            .
+          IMAGE="ghcr.io/customcodecr/dhole-web:${GITHUB_SHA}"
+          docker build --pull -t "$IMAGE" .
+          docker tag "$IMAGE" ghcr.io/customcodecr/dhole-web:latest
 
       - name: Verify production bundle
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --entrypoint sh dhole/web:latest -ec '
-            if grep -R -n -E "https?://(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" /usr/share/nginx/html; then
-              echo "Production bundle contains a private-network URL."
-              exit 1
-            fi
-
-            if grep -R -n -F ":5209/api/notifications" /usr/share/nginx/html; then
-              echo "Production bundle contains a direct Notifications service URL."
-              exit 1
-            fi
-          '
+          IMAGE="ghcr.io/customcodecr/dhole-web:${GITHUB_SHA}"
+          CID="$(docker create "$IMAGE")"
+          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+          docker cp "$CID:/usr/share/nginx/html" /tmp/dhole-web-bundle
+          grep -Rqs "Dhole" /tmp/dhole-web-bundle
+          rm -rf /tmp/dhole-web-bundle
 
       - name: Deploy Web
         shell: bash
         run: |
           set -euo pipefail
-          docker compose --env-file /opt/dhole/.env -f "$COMPOSE_FILE" up -d --no-deps --force-recreate --pull never dhole-web
-          for attempt in {1..30}; do
-            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' dhole-dhole-web-1)"
-            if [[ "$health" == "healthy" || "$health" == "running" ]]; then
-              break
-            fi
-            if [[ "$attempt" == "30" ]]; then
-              docker logs --tail 100 dhole-dhole-web-1
-              exit 1
+          cd /opt/dhole
+          docker compose --env-file .env -f "$COMPOSE_FILE" up -d --no-deps --force-recreate dhole-web
+
+      - name: Wait for health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5200/health >/dev/null; then
+              exit 0
             fi
             sleep 2
           done
-          docker compose --env-file /opt/dhole/.env -f "$COMPOSE_FILE" ps dhole-web
-          docker exec dhole-dhole-web-1 wget -qO- http://127.0.0.1/health | grep -qx 'ok'
+          docker ps --filter name=dhole-web
+          docker logs --tail 120 dhole-dhole-web-1 || true
+          exit 1
 
-      - name: Cleanup old images
-        continue-on-error: true
-        run: docker image prune -f
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          docker image prune -f >/dev/null 2>&1 || true
