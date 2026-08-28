@@ -2002,7 +2002,7 @@ async function saveOpenRequest() {
         notes: supportText || 'Solicitud abierta pendiente de completar costos y proveedor.',
       }],
     })
-    await PricingService.setRateStatus(rateId, { status: 'RequestedByClient' })
+    await PricingService.setRateStatus(rateId, { status: 'Open' })
     const created = await PricingService.getRate(rateId)
     toastStore.success('Solicitud abierta guardada', `Seguimiento ${created.rateCode}. Pricing puede continuarla sin perder la solicitud.`)
     await router.push({ name: 'pricing-rates', query: { rateId } })
