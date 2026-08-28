@@ -14,11 +14,13 @@ import { useLocale } from '@/core/stores/locale'
 import { useThemeStore } from '@/core/stores/themeStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
 import { createUiTextBridge } from '@/core/i18n/uiTextBridge'
+import { installAuditNavigation } from '@/core/audit/installAuditNavigation'
 
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 app.use(router)
+installAuditNavigation(router)
 
 const localeStore = useLocale()
 const themeStore = useThemeStore()
