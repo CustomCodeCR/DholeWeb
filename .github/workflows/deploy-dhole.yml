@@ -1,5 +1,5 @@
 name: Deploy Dhole Web
-# Source trace and five commercial statuses release — 2026-08-28
+# WHS search, solid header, VAT rules and source modal release — 2026-08-28
 
 on:
   push:
