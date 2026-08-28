@@ -560,6 +560,9 @@ export interface RateDto extends Record<string, unknown> {
   incotermId?: string | null
   incotermName?: string | null
   incotermCode?: string | null
+  pickupAddress?: string | null
+  pickupLatitude?: number | null
+  pickupLongitude?: number | null
   containerQuantity: number
   currencyId: string
   currencyName: string
