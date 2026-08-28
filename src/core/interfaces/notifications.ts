@@ -29,6 +29,19 @@ export interface NotificationMessageDto {
   attemptCount: number; maxAttempts: number; lastErrorCode: string | null; lastErrorMessage: string | null
   createdAtUtc: string; updatedAtUtc: string | null; recipients: NotificationRecipientDto[]; deliveryAttempts: NotificationDeliveryAttemptDto[]
 }
+export interface NotificationInboxItemDto {
+  recipientId: string
+  notificationId: string
+  notificationType: string
+  subject: string | null
+  body: string | null
+  payloadJson: string
+  entityType: string | null
+  entityId: string | null
+  createdAtUtc: string
+  readAtUtc: string | null
+}
+export interface NotificationUnreadCountDto { unreadCount: number }
 export interface CreateNotificationTemplateRequest {
   code: string; name: string; description?: string | null; notificationType: string; channel: NotificationChannel
   subjectTemplate?: string | null; bodyTemplate: string; designerJson: string
@@ -40,4 +53,5 @@ export interface CreateNotificationMessageRequest {
   recipients: Array<{ userId?: string | null; address: string; displayName?: string | null }>
 }
 export interface BrowseNotificationsQuery { pageNumber?: number; pageSize?: number; search?: string; status?: string; channel?: string }
+export interface BrowseNotificationInboxQuery { pageNumber?: number; pageSize?: number; unreadOnly?: boolean }
 export interface BrowseNotificationTemplatesQuery { pageNumber?: number; pageSize?: number; search?: string; isActive?: boolean | null }
