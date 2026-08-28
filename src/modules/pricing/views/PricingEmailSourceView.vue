@@ -5,6 +5,7 @@ import { ExternalLink, FileText, Mail, Paperclip, X } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
+import { parseStorageReference } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { EmailAttachmentDto, EmailMessageDetailDto, PricingImportEmailSourceDto } from '@/core/interfaces/emailExtraction'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
@@ -14,7 +15,7 @@ const toastStore = useToastStore()
 const loading = ref(true)
 const source = ref<PricingImportEmailSourceDto | null>(null)
 const message = ref<EmailMessageDetailDto | null>(null)
-const viewer = ref<{ fileName: string; storagePath: string; contentType?: string | null } | null>(null)
+const viewer = ref<{ id: string; fileName: string; contentType?: string | null } | null>(null)
 
 const batchId = computed(() => String(route.params.batchId ?? ''))
 const bodyText = computed(() => {
@@ -25,21 +26,26 @@ const bodyText = computed(() => {
   return document.body.textContent?.replace(/\n{3,}/g, '\n\n').trim() || 'El correo no contiene cuerpo de texto disponible.'
 })
 
-function openAttachment(attachment: EmailAttachmentDto) {
-  viewer.value = {
-    fileName: attachment.fileName,
-    storagePath: attachment.storagePath,
-    contentType: attachment.contentType,
+function openStoredFile(storagePath: string | null | undefined, fileName: string, contentType?: string | null) {
+  const id = parseStorageReference(storagePath)
+  if (!id) {
+    toastStore.warning('Archivo no disponible', 'La referencia del archivo original no corresponde a un archivo de Storage.')
+    return
   }
+  viewer.value = { id, fileName, contentType }
+}
+
+function openAttachment(attachment: EmailAttachmentDto) {
+  openStoredFile(attachment.storagePath, attachment.fileName, attachment.contentType)
 }
 
 function openRawEmail() {
   if (!message.value?.rawEmailStoragePath) return
-  viewer.value = {
-    fileName: `${message.value.subject || 'correo-original'}.eml`,
-    storagePath: message.value.rawEmailStoragePath,
-    contentType: 'message/rfc822',
-  }
+  openStoredFile(
+    message.value.rawEmailStoragePath,
+    `${message.value.subject || 'correo-original'}.eml`,
+    'message/rfc822',
+  )
 }
 
 function closeWindow() {
@@ -128,12 +134,15 @@ onMounted(load)
       <p class="mt-2 text-sm font-semibold opacity-80">La tarifa puede provenir de una importación histórica anterior a la trazabilidad por correo.</p>
     </article>
 
-    <StorageFileViewer
-      v-if="viewer"
-      :file-name="viewer.fileName"
-      :storage-path="viewer.storagePath"
-      :content-type="viewer.contentType"
-      @close="viewer = null"
-    />
+    <article v-if="viewer" class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <div class="mb-3 flex justify-end">
+        <DhButton label="Cerrar archivo" :icon="X" variant="secondary" size="sm" @click="viewer = null" />
+      </div>
+      <StorageFileViewer
+        :id="viewer.id"
+        :file-name="viewer.fileName"
+        :content-type="viewer.contentType"
+      />
+    </article>
   </section>
 </template>
