@@ -7,7 +7,7 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 
 const props = defineProps<{
-  target: 'import' | 'margin'
+  target: 'import' | 'margin' | 'client'
   id?: string
   ids?: string[]
   onSaved?: () => void | Promise<void>
@@ -34,6 +34,8 @@ async function submit() {
       } else {
         throw new Error('No se indicó ninguna tarifa importada para rechazar.')
       }
+    } else if (props.target === 'client' && props.id) {
+      await PricingService.setRateStatus(props.id, { status: 'RejectedByClient', reason: form.reason.trim() })
     } else if (props.id) {
       await PricingService.rejectRateMargin(props.id, { reason: form.reason.trim() })
     } else {
@@ -45,7 +47,9 @@ async function submit() {
         ? isBatchImport.value
           ? `${importIds.value.length} importaciones rechazadas`
           : 'Importación rechazada'
-        : 'Margen rechazado',
+        : props.target === 'client'
+          ? 'Tarifa no aceptada por el cliente'
+          : 'Margen rechazado',
     )
     modalStore.close()
     await props.onSaved?.()

@@ -93,15 +93,10 @@ const columns: DhTableColumn<RateDto>[] = [
 const statusOptions = [
   { label: 'Todos', value: '' },
   { label: 'Abiertas', value: 'Open' },
-  { label: 'Pendientes de autorización', value: 'PendingApproval' },
-  { label: 'Aprobadas por gerencia', value: 'ApprovedByManagement' },
-  { label: 'Rechazadas por gerencia', value: 'RejectedByManagement' },
   { label: 'Enviadas', value: 'Sent' },
-  { label: 'Solicitadas por el cliente', value: 'RequestedByClient' },
-  { label: 'Aceptadas por el cliente', value: 'AcceptedByClient' },
-  { label: 'Rechazadas por el cliente', value: 'RejectedByClient' },
-  { label: 'Cerradas', value: 'Closed' },
   { label: 'Vencidas', value: 'Expired' },
+  { label: 'Aceptadas', value: 'AcceptedByClient' },
+  { label: 'No aceptadas', value: 'RejectedByClient' },
 ]
 const approvalOptions = [
   { label: 'Todas', value: '' },
@@ -112,11 +107,10 @@ const approvalOptions = [
 const quickStatusOptions: Array<{ label: string; value: RateStatus | '' }> = [
   { label: 'Todas', value: '' },
   { label: 'Abiertas', value: 'Open' },
-  { label: 'Pendientes', value: 'PendingApproval' },
   { label: 'Enviadas', value: 'Sent' },
-  { label: 'Solicitadas', value: 'RequestedByClient' },
-  { label: 'Aceptadas', value: 'AcceptedByClient' },
   { label: 'Vencidas', value: 'Expired' },
+  { label: 'Aceptadas', value: 'AcceptedByClient' },
+  { label: 'No aceptadas', value: 'RejectedByClient' },
 ]
 
 const activeFiltersCount = computed(
@@ -135,14 +129,14 @@ function statusLabel(status: string) {
     (
       {
         Open: 'Abierta',
-        PendingApproval: 'Pendiente',
-        ApprovedByManagement: 'Aprobada por gerencia',
-        RejectedByManagement: 'Rechazada por gerencia',
+        PendingApproval: 'Abierta',
+        ApprovedByManagement: 'Abierta',
+        RejectedByManagement: 'Abierta',
         Sent: 'Enviada',
-        RequestedByClient: 'Solicitada por el cliente',
-        AcceptedByClient: 'Aceptada por el cliente',
-        RejectedByClient: 'Rechazada por el cliente',
-        Closed: 'Cerrada',
+        RequestedByClient: 'Abierta',
+        AcceptedByClient: 'Aceptada',
+        RejectedByClient: 'No aceptada',
+        Closed: 'No aceptada',
         Expired: 'Vencida',
       } as Record<string, string>
     )[status] ?? status

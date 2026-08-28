@@ -191,15 +191,15 @@ function statusLabel(status: string) {
   return (
     (
       {
-        PendingApproval: 'Pendiente de autorización',
-        ApprovedByManagement: 'Aprobada por gerencia',
-        RejectedByManagement: 'Rechazada por gerencia',
+        PendingApproval: 'Abierta',
+        ApprovedByManagement: 'Abierta',
+        RejectedByManagement: 'Abierta',
         Open: 'Abierta',
         Sent: 'Enviada',
-        RequestedByClient: 'Solicitada por el cliente',
-        AcceptedByClient: 'Aceptada por el cliente',
-        RejectedByClient: 'Rechazada por el cliente',
-        Closed: 'Cerrada',
+        RequestedByClient: 'Abierta',
+        AcceptedByClient: 'Aceptada',
+        RejectedByClient: 'No aceptada',
+        Closed: 'No aceptada',
         Expired: 'Vencida',
       } as Record<string, string>
     )[status] ?? status
@@ -315,7 +315,27 @@ async function approve() {
   }
 }
 
+function rejectByClient() {
+  modalStore.open({
+    title: 'Registrar no aceptación del cliente',
+    component: PricingReasonModal,
+    props: {
+      target: 'client',
+      id: current.value.id,
+      onSaved: async () => {
+        await reload()
+        await props.onSaved?.()
+      },
+    },
+  })
+}
+
 async function setCommercialStatus(status: SetRateStatusRequest['status']) {
+  if (status === 'AcceptedByClient' && !current.value.idtraNumber?.trim()) {
+    toastStore.warning('IDTRA requerido', 'Registre el IDTRA en Editar antes de marcar la tarifa como Aceptada.')
+    edit()
+    return
+  }
   try {
     await PricingService.setRateStatus(current.value.id, { status })
     toastStore.success(
@@ -466,7 +486,7 @@ onMounted(async () => {
             :icon="XCircle"
             variant="danger"
             size="sm"
-            @click="setCommercialStatus('RejectedByClient')"
+            @click="rejectByClient"
           />
           <DhButton
             v-if="canCloseCurrent"
