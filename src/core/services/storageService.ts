@@ -25,6 +25,7 @@ export const STORAGE_BASE_URL = `${gatewayBaseUrl}${storageGatewayPath}`
 
 const endpoints = {
   browse: { method: 'GET', path: '/api/v1/storage/files', baseUrl: STORAGE_BASE_URL },
+  upload: { method: 'POST', path: '/api/v1/storage/files', baseUrl: STORAGE_BASE_URL },
   summary: { method: 'GET', path: '/api/v1/storage/files/summary', baseUrl: STORAGE_BASE_URL },
   get: { method: 'GET', path: '/api/v1/storage/files/{{fileId}}', baseUrl: STORAGE_BASE_URL },
   delete: { method: 'DELETE', path: '/api/v1/storage/files/{{fileId}}', baseUrl: STORAGE_BASE_URL },
@@ -75,6 +76,15 @@ export function parseStorageReference(reference?: string | null): string | null 
     : null
 }
 
+export interface UploadStorageFileInput {
+  file: File
+  sourceService: string
+  entityType: string
+  entityId: string
+  providerId?: string | null
+  metadataJson?: string | null
+}
+
 export const StorageService = {
   async browse(query?: BrowseStorageFilesQuery): Promise<PagedResponse<StorageFileListItemDto>> {
     const response = await callEndpoint<unknown>({
@@ -82,6 +92,19 @@ export const StorageService = {
       path: endpoints.browse.path + (query ? toQueryString(query) : ''),
     })
     return unwrapPagedResponse<StorageFileListItemDto>(response)
+  },
+
+  async uploadFile(input: UploadStorageFileInput): Promise<StorageFileDto> {
+    const body = new FormData()
+    body.append('file', input.file)
+    body.append('sourceService', input.sourceService)
+    body.append('entityType', input.entityType)
+    body.append('entityId', input.entityId)
+    if (input.providerId) body.append('providerId', input.providerId)
+    if (input.metadataJson) body.append('metadataJson', input.metadataJson)
+
+    const response = await callEndpoint<unknown>(endpoints.upload, { body, isFormData: true })
+    return unwrapApiResponse<StorageFileDto>(response as never)
   },
 
   async getSummary(): Promise<StorageSummaryDto> {
