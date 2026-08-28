@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { BookOpen, Pencil, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import {
@@ -21,15 +22,16 @@ import CatalogGroupDetailDrawer from '@/modules/catalogs/components/CatalogGroup
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
+const route = useRoute()
 const toastStore = useToastStore()
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const authStore = useAuthStore()
 
 const loading = ref(false)
-const search = ref('')
+const search = ref(typeof route.query.search === 'string' ? route.query.search : '')
 const page = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(25)
 const total = ref(0)
 const groups = ref<CatalogGroupDto[]>([])
 
@@ -137,6 +139,15 @@ function confirmDelete(group: CatalogGroupDto) {
 }
 
 watch([page, pageSize], loadCatalogGroups)
+
+watch(
+  () => route.query.search,
+  (value) => {
+    search.value = typeof value === 'string' ? value : ''
+    page.value = 1
+    void loadCatalogGroups()
+  },
+)
 
 useViewShortcuts({
   create: () => {
