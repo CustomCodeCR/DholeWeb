@@ -178,6 +178,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/news',
+          name: 'pricing-logistics-news',
+          component: () => import('@/modules/pricing/views/PricingLogisticsNewsView.vue'),
+          meta: {
+            tabTitle: 'Noticias logísticas',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingImports,
+          },
+        },
+        {
           path: 'pricing/imports/review/:batchId',
           name: 'pricing-import-review',
           component: () => import('@/modules/pricing/views/PricingImportReviewView.vue'),

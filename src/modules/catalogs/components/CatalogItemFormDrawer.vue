@@ -83,13 +83,13 @@ function selectWarehouseImage(event: Event) {
   input.value = ''
   if (!file) return
 
-  if (!file.type.startsWith('image/')) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     toastStore.warning('Archivo no válido', 'Seleccione una imagen del WHS.')
     return
   }
 
-  if (file.size > 8 * 1024 * 1024) {
-    toastStore.warning('Imagen muy grande', 'La imagen del WHS no puede superar 8 MB.')
+  if (file.size > 5 * 1024 * 1024) {
+    toastStore.warning('Imagen muy grande', 'La imagen del WHS no puede superar 5 MB.')
     return
   }
 

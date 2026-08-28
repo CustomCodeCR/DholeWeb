@@ -24,6 +24,7 @@ import {
   FileText,
   HardDrive,
   Mail,
+  Newspaper,
   ReceiptText,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -145,6 +146,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
       icon: Mail,
     })
     children.push({ label: t('sidebar.importedRates'), path: '/pricing/imports', icon: FileText })
+    children.push({ label: 'Noticias logísticas', path: '/pricing/news', icon: Newspaper })
   }
 
   if (canOpenPricing) {
