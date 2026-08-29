@@ -25,6 +25,7 @@ const displayEmail = computed(() => authStore.email || 'Sesión activa')
 const searchShortcut = computed(() => shortcutStore.byAction('global.search')?.keys ?? 'ctrl+k')
 
 const inboxRoot = ref<HTMLElement | null>(null)
+const inboxPanel = ref<HTMLElement | null>(null)
 const inboxOpen = ref(false)
 const inboxLoading = ref(false)
 const inboxLoadingMore = ref(false)
@@ -121,9 +122,12 @@ function formatNotificationDate(value: string) {
 }
 
 function handleOutsidePointer(event: PointerEvent) {
-  if (!inboxOpen.value || !inboxRoot.value) return
+  if (!inboxOpen.value) return
   const target = event.target
-  if (target instanceof Node && !inboxRoot.value.contains(target)) inboxOpen.value = false
+  if (!(target instanceof Node)) return
+
+  if (inboxRoot.value?.contains(target) || inboxPanel.value?.contains(target)) return
+  inboxOpen.value = false
 }
 
 function handleRealtimeNotification() {
@@ -187,30 +191,33 @@ onBeforeUnmount(() => {
             {{ unreadBadge }}
           </span>
         </div>
+      </div>
 
+      <Teleport to="body">
         <section
           v-if="inboxOpen"
-          class="absolute right-0 top-[calc(100%+0.65rem)] z-50 flex max-h-[72vh] w-[min(430px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card-solid)] shadow-[var(--dh-shadow-lg)]"
+          ref="inboxPanel"
+          class="fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] top-[calc(env(safe-area-inset-top)+5rem)] z-[100] flex min-w-0 flex-col overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card-solid)] shadow-[var(--dh-shadow-lg)] sm:bottom-auto sm:left-auto sm:right-4 sm:top-[6.25rem] sm:max-h-[72vh] sm:w-[430px]"
         >
-          <div class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-3">
-            <div class="min-w-0">
-              <h2 class="text-sm font-black text-[var(--dh-text)]">Notificaciones</h2>
-              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+          <div class="flex min-w-0 items-center justify-between gap-2 border-b border-[var(--dh-border)] px-3 py-3 sm:gap-3 sm:px-4">
+            <div class="min-w-0 flex-1">
+              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">Notificaciones</h2>
+              <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">
                 {{ unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día' }}
               </p>
             </div>
             <button
               v-if="unreadCount > 0"
               type="button"
-              class="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-black text-[var(--dh-primary)] transition hover:bg-[var(--dh-card-hover)]"
+              class="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-black text-[var(--dh-primary)] transition hover:bg-[var(--dh-card-hover)] sm:px-2.5 sm:text-xs"
               @click="markAllNotificationsRead"
             >
-              <CheckCheck class="h-4 w-4" />
-              Marcar todas
+              <CheckCheck class="h-4 w-4 shrink-0" />
+              <span>Marcar todas</span>
             </button>
           </div>
 
-          <div class="min-h-0 flex-1 overflow-y-auto p-2">
+          <div class="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2">
             <div v-if="inboxLoading && inboxItems.length === 0" class="flex items-center justify-center gap-2 py-10 text-sm font-semibold text-[var(--dh-text-muted)]">
               <LoaderCircle class="h-4 w-4 animate-spin" />
               Cargando notificaciones...
@@ -227,27 +234,30 @@ onBeforeUnmount(() => {
                 v-for="item in inboxItems"
                 :key="item.recipientId"
                 type="button"
-                class="w-full rounded-[18px] border px-3 py-3 text-left transition hover:bg-[var(--dh-card-hover)]"
+                class="w-full min-w-0 overflow-hidden rounded-[18px] border px-3 py-3 text-left transition hover:bg-[var(--dh-card-hover)]"
                 :class="item.readAtUtc ? 'border-transparent bg-transparent' : 'border-[var(--dh-border)] bg-[var(--dh-card)]'"
                 @click="markNotificationRead(item)"
               >
-                <div class="flex items-start gap-3">
+                <div class="flex min-w-0 items-start gap-2.5 sm:gap-3">
                   <span
                     class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
                     :class="item.readAtUtc ? 'bg-[var(--dh-border)]' : 'bg-[var(--dh-primary)]'"
                   />
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-start justify-between gap-3">
-                      <p class="min-w-0 text-sm text-[var(--dh-text)]" :class="item.readAtUtc ? 'font-bold' : 'font-black'">
+                  <div class="min-w-0 flex-1 overflow-hidden">
+                    <div class="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                      <p
+                        class="min-w-0 break-words text-sm leading-5 text-[var(--dh-text)] [overflow-wrap:anywhere]"
+                        :class="item.readAtUtc ? 'font-bold' : 'font-black'"
+                      >
                         {{ item.subject || 'Nueva notificación' }}
                       </p>
-                      <time class="shrink-0 text-[10px] font-bold text-[var(--dh-text-muted)]">
+                      <time class="shrink-0 whitespace-nowrap text-[10px] font-bold text-[var(--dh-text-muted)]">
                         {{ formatNotificationDate(item.createdAtUtc) }}
                       </time>
                     </div>
                     <p
                       v-if="item.body"
-                      class="mt-1 whitespace-pre-line text-xs font-semibold leading-5 text-[var(--dh-text-muted)]"
+                      class="mt-1 min-w-0 whitespace-pre-line break-words text-xs font-semibold leading-5 text-[var(--dh-text-muted)] [overflow-wrap:anywhere]"
                       :class="expandedRecipientId === item.recipientId ? '' : 'max-h-10 overflow-hidden'"
                     >
                       {{ item.body }}
@@ -269,7 +279,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </section>
-      </div>
+      </Teleport>
 
       <div class="flex items-center gap-1 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-1 shadow-[var(--dh-shadow-sm)] sm:ml-1 sm:gap-3 sm:rounded-[24px] sm:px-3 sm:py-2">
         <DhAvatar :name="displayName" status="online" class="hidden sm:flex" />
