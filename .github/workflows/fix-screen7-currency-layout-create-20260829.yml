@@ -17,7 +17,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.12.0'
-          cache: 'pnpm'
       - name: Enable pnpm
         run: corepack enable
       - name: Patch Screen 7
@@ -35,6 +34,8 @@ jobs:
           def replace_once(old: str, new: str, label: str):
               global text
               if old not in text:
+                  if new in text:
+                      return
                   raise SystemExit(f'{label}: anchor not found')
               text = text.replace(old, new, 1)
 
@@ -56,7 +57,6 @@ jobs:
               'setLineCurrency amount snapshot',
           )
 
-          # Existing persisted details already have amounts expressed in detail.currencyCode.
           hydration_anchor = "        currencyCode: detail.currencyCode,\n        costAmount: Number(detail.costAmount || 0),"
           if hydration_anchor in text:
               text = text.replace(
@@ -67,16 +67,13 @@ jobs:
           elif "amountCurrencyCode: detail.currencyCode" not in text:
               raise SystemExit('hydrate amount currency: anchor not found')
 
-          # El usuario pidió eliminar por completo la leyenda del IVA en Pantalla 7.
-          text, removed = re.subn(
+          text, _ = re.subn(
               r'\n\s*<p class="text-\[10px\] font-bold leading-snug text-\[var\(--dh-text-muted\)\]">\s*\n\s*Importe del IVA se refleja en pantalla 8\s*\n\s*</p>',
               '',
               text,
           )
           if 'Importe del IVA se refleja en pantalla 8' in text:
               raise SystemExit('IVA helper text still present')
-          if removed == 0 and original == text:
-              raise SystemExit('IVA helper text: nothing removed')
 
           replace_once(
               "  .crystal-line--freight {\n    grid-template-columns: minmax(260px, 500px) 120px 140px 140px !important;\n    justify-content: start;\n    max-width: 1040px;\n  }",
