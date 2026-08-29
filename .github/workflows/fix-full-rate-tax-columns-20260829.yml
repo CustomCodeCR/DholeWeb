@@ -1,0 +1,105 @@
+name: Fix full rate tax columns
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-full-rate-tax-columns-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update full rate financial columns
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text(encoding='utf-8-sig')
+
+          text = text.replace(
+              '<table class="min-w-[980px] w-full text-left text-xs">',
+              '<table class="min-w-[1180px] w-full text-left text-xs">',
+              1,
+          )
+
+          old_header = '<tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta total</th></tr>'
+          new_header = '<tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta subtotal</th><th class="px-4 py-3 text-right">IVA</th><th class="px-4 py-3 text-right">Venta total</th></tr>'
+          if old_header not in text:
+              raise SystemExit('Full-rate header not found')
+          text = text.replace(old_header, new_header, 1)
+
+          old_tax_note = '''                      <p
+                        v-if="line.applyDestinationTax && canApplyDestinationTax(line)"
+                        class="mt-1 text-[10px] font-black text-[var(--dh-primary)]"
+                      >
+                        IVA {{ lineDestinationTaxRate(line) }}%:
+                        {{ formatMoney(lineTaxTotalAmount(line), detailCurrencyValue(line)) }}
+                      </p>
+'''
+          if old_tax_note not in text:
+              raise SystemExit('Inline IVA note not found')
+          text = text.replace(old_tax_note, '', 1)
+
+          old_sale_cell = '''                    <td class="px-4 py-3 text-right">
+                      {{ formatMoney(number(line.saleAmount), detailCurrencyValue(line)) }}
+                      <span
+                        v-if="canApplyDestinationTax(line)"
+                        class="mt-1 flex items-center justify-end gap-2 text-[10px] font-bold text-[var(--dh-text-muted)]"
+                      >
+                        <DhCheckbox
+                          :model-value="Boolean(line.applyDestinationTax)"
+                          :label="`IVA ${lineDestinationTaxRate(line)}%`"
+                          :disabled="viewOnly || destinationTaxRate <= 0"
+                          @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
+                        />
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-right font-black">
+                      {{ formatMoney(lineSaleWithTax(line) * quantityForChargeBasis(line.chargeBasis), detailCurrencyValue(line)) }}
+                    </td>'''
+
+          new_sale_cells = '''                    <td class="px-4 py-3 text-right">
+                      {{ formatMoney(number(line.saleAmount), detailCurrencyValue(line)) }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-semibold">
+                      {{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), detailCurrencyValue(line)) }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-semibold" :class="lineTaxTotalAmount(line) > 0 ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'">
+                      {{ formatMoney(lineTaxTotalAmount(line), detailCurrencyValue(line)) }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-black">
+                      {{ formatMoney(lineSaleWithTax(line) * quantityForChargeBasis(line.chargeBasis), detailCurrencyValue(line)) }}
+                    </td>'''
+
+          if old_sale_cell not in text:
+              raise SystemExit('Full-rate sale/IVA cell block not found')
+          text = text.replace(old_sale_cell, new_sale_cells, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Maurice Lang"
+          git config user.email "106346768+MauLang18@users.noreply.github.com"
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git commit -m "fix(pricing-web): show subtotal IVA and total columns"
+          git push origin HEAD:master
