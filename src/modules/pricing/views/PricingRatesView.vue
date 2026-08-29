@@ -68,70 +68,128 @@ function containerSummary(rate: RateDto) {
   return allocations.map((item) => `${item.quantity} × ${item.containerTypeName}`).join(' + ')
 }
 
-function rateFinancialSummary(rate: RateDto) {
+function canonicalRateCurrency(code?: string | null, name?: string | null) {
+  const value = `${code ?? ''} ${name ?? ''}`
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toUpperCase()
+
+  if (value.includes('CRC') || value.includes('COLON')) return 'CRC'
+  if (value.includes('USD') || value.includes('DOLAR') || value.includes('DOLLAR')) return 'USD'
+  return ''
+}
+
+function rateFinancialSummary(rate: RatoDto) {
   const exchangeRate = Number(rate.exchangeRateApplied || rate.exchangeRateSale || 0)
   let costUsd = 0
-  let subtotalUsd = 0
+  let saleUsd = 0
   let costCrc = 0
-  let subtotalCrc = 0
+  let saleCrc = 0
   let taxUsd = 0
   let taxCrc = 0
-  let recognized = false
+  let recognizedDetails = false
 
   for (const detail of rate.rateDetails ?? []) {
-    const quantity = Number(detail.quantity || 1) > 0 ? Number(detail.quantity || 1) : 1
+    const quantity = Number(detail.quantity) > 0 ? Number(detail.quantity) : 1
     const cost = Number(detail.costAmount || 0) * quantity
     const sale = Number(detail.saleAmount || 0) * quantity
-    const fallbackTax = detail.applyDestinationTax
-      ? sale * Number(detail.destinationTaxRate || 0) / 100
-      : 0
-    const tax = Number(detail.destinationTaxAmount ?? fallbackTax)
-    const currency = String(detail.currencyCode || '').trim().toUpperCase()
+    const tax = Number(detail.destinationTaxAmount || 0) * quantity
+    const code = canonicalRateCurrency(detail.currencyCode, detail.currencyName)
 
-    if (currency === 'USD') {
-      recognized = true
+    if (code === 'USD') {
+      recognizedDetails = true
       costUsd += cost
-      subtotalUsd += sale
+      saleUsd += sale
       taxUsd += tax
       if (exchangeRate > 0) {
         costCrc += cost * exchangeRate
-        subtotalCrc += sale * exchangeRate
+        saleCrc += sale * exchangeRate
         taxCrc += tax * exchangeRate
       }
-    } else if (currency === 'CRC') {
-      recognized = true
+    } else if (code === 'CRC') {
+      recognizedDetails = true
       costCrc += cost
-      subtotalCrc += sale
+      saleCrc += sale
       taxCrc += tax
       if (exchangeRate > 0) {
         costUsd += cost / exchangeRate
-        subtotalUsd += sale / exchangeRate
+        saleUsd += sale / exchangeRate
         taxUsd += tax / exchangeRate
       }
     }
   }
 
-  if (!recognized) {
+  const detailValues = Math.abs(costUsd) + Math.abs(saleUsd) + Math.abs(costCrc) + Math.abs(saleCrc)
+
+  if (!recognizedDetails || detailValues === 0) {
     costUsd = Number(rate.totalCostUsd || 0)
-    subtotalUsd = Number(rate.totalSaleUsd || 0)
+    saleUsd = Number(rate.totalSaleUsd || 0)
     costCrc = Number(rate.totalCostCrc || 0)
-    subtotalCrc = Number(rate.totalSaleCrc || 0)
-    taxUsd = Number(rate.totalTaxUsd || 0)
-    taxCrc = Number(rate.totalTaxCrc || 0)
+    saleCrc = Number(rate.totalSaleCrc || 0)
+    taxUsd = Number((rate as RateDto & { totalTaxUsd?: number }).totalTaxUsd || 0)
+    taxCrc = Number((rate as RateDto & { totalTaxCrc?: number }).totalTaxCrc || 0)
+
+    const dualValues = Math.abs(costUsd) + Math.abs(saleUsd) + Math.abs(costCrc) + Math.abs(saleCrc)
+
+    if (dualValues === 0) {
+      const nativeCost = Number(rate.totalCostAmount || 0)
+      const nativeSale = Number(rate.totalSaleAmount || 0)
+      const nativeCode = canonicalRateCurrency(rate.currencyCode, rate.currencyName) || 'USD'
+
+      if (nativeCode === 'CRC') {
+        costCrc = nativeCost
+        saleCrc = nativeSale
+        if (exchangeRate > 0) {
+          costUsd = nativeCost / exchangeRate
+          saleUsd = nativeSale / exchangeRate
+        }
+      } else {
+        costUsd = nativeCost
+        saleUsd = nativeSale
+        if (exchangeRate > 0) {
+          costCrc = nativeCost * exchangeRate
+          saleCrc = nativeSale * exchangeRate
+        }
+      }
+    }
   }
 
-  const utilityUsd = subtotalUsd - costUsd
-  const utilityCrc = subtotalCrc - costCrc
+  if (exchangeRate > 0) {
+    if ((costUsd !== 0 || saleUsd !== 0) && costCrc === 0 && saleCrc === 0) {
+      costCrc = costUsd * exchangeRate
+      saleCrc = saleUsd * exchangeRate
+    } else if ((costCrc !== 0 || saleCrc !== 0) && costUsd === 0 && saleUsd === 0) {
+      costUsd = costCrc / exchangeRate
+      saleUsd = saleCrc / exchangeRate
+    }
+
+    if (taxUsd !== 0 && taxCrc === 0) taxCrc = taxUsd * exchangeRate
+    if (taxCrc !== 0 && taxUsd === 0) taxUsd = taxCrc / exchangeRate
+  }
+
+  const utilityUsd = saleUsd - costUsd
+  const utilityCrc = saleCrc - costCrc
+  const margin = saleUsd > 0
+    ? (utilityUsd / saleUsd) * 100
+    : saleCrc > 0
+      ? (utilityCrc / saleCrc) * 100
+      : Number(rate.marginPercentage || 0)
+
   return {
-    subtotalUsd,
-    subtotalCrc,
+    costUsd,
+    costCrc,
+    saleUsd,
+    saleCrc,
+    subtotalUsd: saleUsd,
+    subtotalCrc: saleCrc,
     taxUsd,
     taxCrc,
-    totalUsd: subtotalUsd + taxUsd,
-    totalCrc: subtotalCrc + taxCrc,
+    totalUsd: saleUsd + taxUsd,
+    totalCrc: saleCrc + taxCrc,
     utilityUsd,
     utilityCrc,
-    margin: subtotalUsd > 0 ? utilityUsd / subtotalUsd * 100 : Number(rate.marginPercentage || 0),
+    margin,
   }
 }
 
@@ -546,22 +604,18 @@ onMounted(async () => {
               </p>
             </div>
           </template>
-          <template #cell-commercial="{ row }">
+          <template #cell-commercial="{.row }">
             <div class="min-w-[300px] text-right">
-              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Subtotal · IVA · Total</p>
-              <div class="mt-1 grid grid-cols-[auto_auto] justify-end gap-x-2 gap-y-0.5 text-xs">
-                <span class="font-semibold text-[var(--dh-text-muted)]">Subtotal</span>
-                <strong>{{ formatMoney(rateFinancialSummary(row).subtotalUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).subtotalCrc, 'CRC') }}</strong>
-                <span class="font-semibold text-[var(--dh-text-muted)]">IVA</span>
-                <strong>{{ formatMoney(rateFinancialSummary(row).taxUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).taxCrc, 'CRC') }}</strong>
-                <span class="font-black text-[var(--dh-primary)]">Total</span>
-                <strong class="text-[var(--dh-primary)]">{{ formatMoney(rateFinancialSummary(row).totalUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).totalCrc, 'CRC') }}</strong>
-              </div>
-              <div class="mt-2 flex flex-wrap items-center justify-end gap-2">
-                <span class="text-xs font-black" :class="rateFinancialSummary(row).utilityUsd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'">
-                  Utilidad {{ formatMoney(rateFinancialSummary(row).utilityUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).utilityCrc, 'CRC') }}
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo ÷ Venta ÷ Margen</p>
+              <div class="mt-1 grid grid-cols-[auto_auto] justify-end gap-x-2 gap-y-1 text-xs">
+                <span class="font-semibold text-[var(--dh-text-muted)]">Costo</span>
+                <strong>{{ formatMoney(rateFinancialSummary(row).costUsd, 'USD') }} ÷ {{ formatMoney(rateFinancialSummary(row).costCrc, 'CRC') }}</strong>
+                <span class="font-semibold text-[var(--dh-text-muted)]">Venta</span>
+                <strong class="text-[var(--dh-primary)]">{{ formatMoney(rateFinancialSummary(row).saleUsd, 'USD') }} ÷ {{ formatMoney(rateFinancialSummary(row).saleCrc, 'CRC') }}</strong>
+                <span class="font-semibold text-[var(--dh-text-muted)]">Margen</span>
+                <span class="flex justify-end">
+                  <DhBadge :label="`${rateFinancialSummary(row).margin.toFixed(2)}%`" :variant="marginTone(rateFinancialSummary(row).margin)" />
                 </span>
-                <DhBadge :label="`${rateFinancialSummary(row).margin.toFixed(2)}%`" :variant="marginTone(rateFinancialSummary(row).margin)" />
               </div>
             </div>
           </template>
