@@ -149,6 +149,7 @@ interface RateLine {
   manual: boolean
   serviceIds?: string[]
   applyDestinationTax?: boolean
+  destinationTaxRate?: number
   detailId?: string | null
 }
 
@@ -1033,16 +1034,26 @@ function canApplyDestinationTax(line: RateLine) {
   // IVA destino solo pertenece a cargos de destino. Recolecta, origen y costos de agente no llevan IVA.
   return line.section === 'destination_charges' && line.costDetailType !== 'AgentCharge'
 }
+function lineDestinationTaxRate(line: RateLine) {
+  const persistedRate = number(line.destinationTaxRate)
+  return persistedRate > 0 ? persistedRate : destinationTaxRate.value
+}
 function lineTaxAmount(line: RateLine) {
-  return line.applyDestinationTax && canApplyDestinationTax(line)
-    ? Math.round(number(line.saleAmount) * destinationTaxRate.value) / 100
+  const taxRate = lineDestinationTaxRate(line)
+  return line.applyDestinationTax && canApplyDestinationTax(line) && taxRate > 0
+    ? Math.round(number(line.saleAmount) * taxRate) / 100
     : 0
+}
+function lineTaxTotalAmount(line: RateLine) {
+  return lineTaxAmount(line) * quantityForChargeBasis(line.chargeBasis)
 }
 function lineSaleWithTax(line: RateLine) {
   return number(line.saleAmount) + lineTaxAmount(line)
 }
 function setLineDestinationTax(line: RateLine, enabled: boolean) {
-  line.applyDestinationTax = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0
+  const active = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0
+  line.applyDestinationTax = active
+  line.destinationTaxRate = active ? destinationTaxRate.value : 0
 }
 function canonicalCurrencyCode(line: Pick<RateLine, 'currencyId' | 'currencyCode' | 'currencyName'>) {
   const catalogCurrency = findById(catalogs.currencies, line.currencyId)
@@ -2119,7 +2130,9 @@ async function hydrateExistingRate() {
         included: true,
         optional: detail.costType === 'Optional',
         manual: !detail.costId,
-        applyDestinationTax: /IVA\\s+\\d+/i.test(String(detail.notes ?? '')),
+        applyDestinationTax:
+          Boolean(detail.applyDestinationTax) || /IVA\s+\d+/i.test(String(detail.notes ?? '')),
+        destinationTaxRate: Number(detail.destinationTaxRate || 0),
       } as RateLine
     })
     step.value = props.viewOnly ? 9 : 8
@@ -2526,10 +2539,15 @@ async function saveRate() {
     costAmount: number(line.costAmount),
     saleAmount: number(line.saleAmount),
     quantity: quantityForChargeBasis(line.chargeBasis),
+    applyDestinationTax: Boolean(line.applyDestinationTax) && canApplyDestinationTax(line),
+    destinationTaxRate:
+      Boolean(line.applyDestinationTax) && canApplyDestinationTax(line)
+        ? lineDestinationTaxRate(line)
+        : 0,
     notes: line.costDetailType === 'Insurance'
       ? [line.notes, cargoInsuranceNote(form.cargoValue, form.freightCost)].filter(Boolean).join(' · ')
       : line.applyDestinationTax
-        ? [line.notes, `IVA ${destinationTaxRate.value}%: ${lineTaxAmount(line).toFixed(2)}; venta total: ${lineSaleWithTax(line).toFixed(2)}`].filter(Boolean).join(' · ')
+        ? [line.notes, `IVA ${lineDestinationTaxRate(line)}%: ${lineTaxAmount(line).toFixed(2)}; venta total: ${lineSaleWithTax(line).toFixed(2)}`].filter(Boolean).join(' · ')
       : line.manual
         ? line.notes || 'Cargo manual agregado desde el wizard de Pricing.'
         : line.notes || null,
@@ -3550,7 +3568,7 @@ onMounted(async () => {
                   @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                 />
                 <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">
-                  El importe del IVA se refleja en Pantalla 8.
+                  El IVA se guarda por rubro y se refleja en esta pantalla y en Pantalla 8.
                 </p>
               </div>
             </div>
@@ -3613,7 +3631,7 @@ onMounted(async () => {
                     @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                   />
                   <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">
-                    El importe del IVA se refleja en Pantalla 8.
+                    El IVA se guarda por rubro y se refleja en esta pantalla y en Pantalla 8.
                   </p>
                 </div>
                 <span v-else />
@@ -3822,14 +3840,39 @@ onMounted(async () => {
                   <tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta total</th></tr>
                 </thead>
                 <tbody>
-                  <tr v-for="detail in editingRate.rateDetails" :key="detail.id" class="border-t border-[var(--dh-border)]">
-                    <td class="px-4 py-3"><strong>{{ detail.name }}</strong><p v-if="detail.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detail.notes }}</p></td>
-                    <td class="px-4 py-3">{{ chargeBasisLabel(detail.chargeBasis) }}</td>
-                    <td class="px-4 py-3">{{ Number(detail.quantity || 0).toLocaleString('es-CR') }}</td>
-                    <td class="px-4 py-3 font-black">{{ detailCurrencyValue(detail) }}</td>
-                    <td class="px-4 py-3 text-right">{{ formatMoney(Number(detail.costAmount || 0), detailCurrencyValue(detail)) }}</td>
-                    <td class="px-4 py-3 text-right">{{ formatMoney(Number(detail.saleAmount || 0), detailCurrencyValue(detail)) }}</td>
-                    <td class="px-4 py-3 text-right font-black">{{ formatMoney(Number(detail.saleAmount || 0) * Number(detail.quantity || 0), detailCurrencyValue(detail)) }}</td>
+                  <tr v-for="line in includedLines" :key="line.key" class="border-t border-[var(--dh-border)]">
+                    <td class="px-4 py-3">
+                      <strong>{{ line.name }}</strong>
+                      <p v-if="line.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ line.notes }}</p>
+                      <p
+                        v-if="line.applyDestinationTax && canApplyDestinationTax(line)"
+                        class="mt-1 text-[10px] font-black text-[var(--dh-primary)]"
+                      >
+                        IVA {{ lineDestinationTaxRate(line) }}%:
+                        {{ formatMoney(lineTaxTotalAmount(line), detailCurrencyValue(line)) }}
+                      </p>
+                    </td>
+                    <td class="px-4 py-3">{{ chargeBasisLabel(line.chargeBasis) }}</td>
+                    <td class="px-4 py-3">{{ quantityForChargeBasis(line.chargeBasis).toLocaleString('es-CR') }}</td>
+                    <td class="px-4 py-3 font-black">{{ detailCurrencyValue(line) }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(number(line.costAmount), detailCurrencyValue(line)) }}</td>
+                    <td class="px-4 py-3 text-right">
+                      {{ formatMoney(number(line.saleAmount), detailCurrencyValue(line)) }}
+                      <span
+                        v-if="canApplyDestinationTax(line)"
+                        class="mt-1 flex items-center justify-end gap-2 text-[10px] font-bold text-[var(--dh-text-muted)]"
+                      >
+                        <DhCheckbox
+                          :model-value="Boolean(line.applyDestinationTax)"
+                          :label="`IVA ${lineDestinationTaxRate(line)}%`"
+                          :disabled="viewOnly || destinationTaxRate <= 0"
+                          @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
+                        />
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-right font-black">
+                      {{ formatMoney(lineSaleWithTax(line) * quantityForChargeBasis(line.chargeBasis), detailCurrencyValue(line)) }}
+                    </td>
                   </tr>
                 </tbody>
               </table>

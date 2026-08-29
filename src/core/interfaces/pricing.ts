@@ -520,6 +520,9 @@ export interface RateDetailDto extends Record<string, unknown> {
   utilityAmount: number
   quantity: number
   notes?: string | null
+  applyDestinationTax: boolean
+  destinationTaxRate: number
+  destinationTaxAmount: number
 }
 
 export interface RateContainerDto extends Record<string, unknown> {
@@ -681,6 +684,8 @@ export interface CreateRateDetailRequest extends Record<string, unknown> {
   saleAmount: number
   notes?: string | null
   quantity?: number | null
+  applyDestinationTax?: boolean
+  destinationTaxRate?: number
 }
 
 export interface CreateRateContainerRequest extends Record<string, unknown> {
