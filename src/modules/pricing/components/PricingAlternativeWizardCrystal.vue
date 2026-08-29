@@ -388,6 +388,18 @@ function displayValue(item?: CatalogItemSelectDto | null) {
   return item ? String(item.value ?? '').trim() : ''
 }
 
+function detailCurrencyValue(detail: { currencyId: string; currencyName: string; currencyCode: string }) {
+  const configuredCurrency = findById(catalogs.currencies, detail.currencyId)
+  const configuredValue = displayValue(configuredCurrency)
+  if (configuredValue) return configuredValue
+
+  // Historical rates can predate the current catalog item. In that case prefer
+  // the persisted display value/name and use the internal CODE only as last fallback.
+  const persistedValue = String(detail.currencyName ?? '').trim()
+  if (persistedValue) return persistedValue
+  return String(detail.currencyCode ?? '').trim()
+}
+
 function normalizeCatalogValue(value: string) {
   return value
     .normalize('NFD')
@@ -3814,10 +3826,10 @@ onMounted(async () => {
                     <td class="px-4 py-3"><strong>{{ detail.name }}</strong><p v-if="detail.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detail.notes }}</p></td>
                     <td class="px-4 py-3">{{ chargeBasisLabel(detail.chargeBasis) }}</td>
                     <td class="px-4 py-3">{{ Number(detail.quantity || 0).toLocaleString('es-CR') }}</td>
-                    <td class="px-4 py-3 font-black">{{ detail.currencyCode }}</td>
-                    <td class="px-4 py-3 text-right">{{ formatMoney(Number(detail.costAmount || 0), detail.currencyCode) }}</td>
-                    <td class="px-4 py-3 text-right">{{ formatMoney(Number(detail.saleAmount || 0), detail.currencyCode) }}</td>
-                    <td class="px-4 py-3 text-right font-black">{{ formatMoney(Number(detail.saleAmount || 0) * Number(detail.quantity || 0), detail.currencyCode) }}</td>
+                    <td class="px-4 py-3 font-black">{{ detailCurrencyValue(detail) }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(Number(detail.costAmount || 0), detailCurrencyValue(detail)) }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(Number(detail.saleAmount || 0), detailCurrencyValue(detail)) }}</td>
+                    <td class="px-4 py-3 text-right font-black">{{ formatMoney(Number(detail.saleAmount || 0) * Number(detail.quantity || 0), detailCurrencyValue(detail)) }}</td>
                   </tr>
                 </tbody>
               </table>
