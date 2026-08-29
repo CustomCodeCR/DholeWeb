@@ -18,8 +18,8 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 
-const DIRECTORY_GROUP_ID = 'c2900000-0000-4000-8000-000000000001'
-const DIRECTORY_GROUP_SLUG = 'employee-directory'
+const DIRECTORY_GROUP_ID = 'c2920000-0000-4000-8000-000000000001'
+const DIRECTORY_GROUP_SLUG = 'internal-directory'
 
 interface DirectoryMetadata {
   department?: string | null
