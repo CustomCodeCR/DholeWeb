@@ -142,6 +142,10 @@ interface RateLine {
   currencyId: string
   currencyName: string
   currencyCode: string
+  // Moneda real en la que están expresados costAmount/saleAmount. Puede diferir
+  // temporalmente de currencyCode cuando una regla fuerza la divisa visual antes
+  // de que se ejecute la conversión.
+  amountCurrencyCode?: string
   costAmount: number
   saleAmount: number
   included: boolean
@@ -881,7 +885,19 @@ function setLineCurrency(line: RateLine, currencyId: string) {
   const currency = findById(catalogs.currencies, currencyId)
   if (!currency) return
 
-  const previousCode = canonicalCurrencyCode(line)
+  // Para costos configurados la fuente monetaria es la moneda del maestro, no
+  // necesariamente la etiqueta que ya tenga la línea. Esto evita el caso USD 15 ->
+  // mostrar CRC 15 cuando una regla de servicio cambió primero la divisa.
+  const configuredCost = line.costId ? costs.value.find((cost) => cost.id === line.costId) : null
+  const previousRaw = String(
+    line.amountCurrencyCode ||
+      configuredCost?.currencyCode ||
+      configuredCost?.currencyName ||
+      canonicalCurrencyCode(line),
+  ).trim()
+  const previousNormalized = normalizeCatalogValue(previousRaw)
+  const previousCode =
+    previousRaw.toUpperCase() === 'CRC' || previousNormalized.includes('colon') ? 'CRC' : 'USD'
   const nextRaw = String(currency.code || displayValue(currency)).trim()
   const nextNormalized = normalizeCatalogValue([nextRaw, currency.label, currency.slug, displayValue(currency)].filter(Boolean).join(' '))
   const nextCode = nextRaw.toUpperCase() === 'CRC' || nextNormalized.includes('colon') ? 'CRC' : 'USD'
@@ -908,6 +924,7 @@ function setLineCurrency(line: RateLine, currencyId: string) {
   line.currencyId = currency.id
   line.currencyName = displayValue(currency) || currency.label || currency.code
   line.currencyCode = nextCode
+  line.amountCurrencyCode = nextCode
 }
 
 function enforceLineCurrency(line: RateLine) {
@@ -2169,6 +2186,7 @@ async function hydrateExistingRate() {
         currencyId: detail.currencyId,
         currencyName: detail.currencyName,
         currencyCode: detail.currencyCode,
+        amountCurrencyCode: detail.currencyCode,
         costAmount: Number(detail.costAmount || 0),
         saleAmount: Number(detail.saleAmount || 0),
         included: true,
@@ -2526,8 +2544,14 @@ async function saveOpenRequest() {
         notes: supportText || 'Solicitud abierta pendiente de completar costos y proveedor.',
       }],
     })
-    await PricingService.setRateStatus(rateId, { status: 'Open' })
-    const created = await PricingService.getRate(rateId)
+    // CreateRate puede devolver la solicitud ya Open cuando el usuario tiene
+    // permiso de aprobación. No enviamos Open -> Open porque esa transición era la
+    // causa del RateInvalidStatus al crear.
+    let created = await PricingService.getRate(rateId)
+    if (created.status !== 'Open') {
+      await PricingService.setRateStatus(rateId, { status: 'Open' })
+      created = await PricingService.getRate(rateId)
+    }
     toastStore.success('Solicitud abierta guardada', `Seguimiento ${created.rateCode}. Pricing puede continuarla sin perder la solicitud.`)
     await router.push({ name: 'pricing-rates', query: { rateId } })
   } catch (error) {
@@ -3617,9 +3641,6 @@ onMounted(async () => {
                   :disabled="destinationTaxRate <= 0"
                   @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                 />
-                <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">
-                  Importe del IVA se refleja en pantalla 8
-                </p>
               </div>
             </div>
           </div>
@@ -3679,9 +3700,6 @@ onMounted(async () => {
                     :disabled="destinationTaxRate <= 0"
                     @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                   />
-                  <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">
-                    Importe del IVA se refleja en pantalla 8
-                  </p>
                 </div>
                 <span v-else />
                 <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
@@ -4378,9 +4396,10 @@ onMounted(async () => {
 
 @media (min-width: 1024px) {
   .crystal-line--freight {
-    grid-template-columns: minmax(260px, 500px) 120px 140px 140px !important;
-    justify-content: start;
-    max-width: 1040px;
+    width: 100%;
+    max-width: none;
+    grid-template-columns: minmax(320px, 1fr) 120px 140px 140px !important;
+    justify-content: stretch;
   }
 
   .crystal-line--freight .crystal-line-vat {
