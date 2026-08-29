@@ -1581,6 +1581,49 @@ addVariableSectionFallback(
   rateLines.value = lines
 }
 
+function mergeConfiguredOptionalCostsIntoRateLines() {
+  const visible = new Set(visibleSections.value)
+  const existingCostIds = new Set(
+    rateLines.value.map((line) => line.costId).filter((value): value is string => Boolean(value)),
+  )
+  const existingKeys = new Set(
+    rateLines.value.map((line) => `${normalizeCatalogValue(line.name)}|${line.costDetailType}`),
+  )
+
+  applicableConfiguredCosts()
+    .filter((cost) => cost.costType === 'Optional')
+    .forEach((cost) => {
+      const section = sectionForCost(cost)
+      const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`
+      if (!visible.has(section) || existingCostIds.has(cost.id) || existingKeys.has(equivalentKey)) return
+
+      rateLines.value.push({
+        key: `cost:${cost.id}`,
+        section,
+        name: cost.name,
+        costDetailType: cost.costDetailType,
+        costType: cost.costType,
+        chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+        costId: cost.id,
+        contextLabel: costContextLabel(cost),
+        notes: cost.notes?.trim() || null,
+        serviceIds: cost.services?.map((service) => service.id) ?? [],
+        currencyId: cost.currencyId,
+        currencyName: cost.currencyName,
+        currencyCode: cost.currencyCode,
+        costAmount: number(cost.costAmount),
+        saleAmount: number(cost.saleAmount),
+        included: false,
+        optional: true,
+        manual: false,
+        applyDestinationTax: false,
+        destinationTaxRate: 0,
+      })
+    })
+
+  rateLines.value.forEach(enforceLineCurrency)
+}
+
 function addManualCharge() {
   const name = form.manualName.trim()
   const currency = selectedCurrency.value
@@ -2100,6 +2143,7 @@ async function hydrateExistingRate() {
     form.agentId = rate.agentId ?? ''
     form.carrierId = rate.carrierId ?? ''
     form.currencyId = rate.currencyId
+    await loadApplicableCosts()
     exchangeRatePurchase.value = Number(rate.exchangeRatePurchase || rate.exchangeRateApplied || 0) || null
     exchangeRateSale.value = Number(rate.exchangeRateSale || rate.exchangeRateApplied || 0) || null
     exchangeRateDate.value = String(rate.exchangeRateDate ?? '').slice(0,10)
@@ -2135,6 +2179,7 @@ async function hydrateExistingRate() {
         destinationTaxRate: Number(detail.destinationTaxRate || 0),
       } as RateLine
     })
+    mergeConfiguredOptionalCostsIntoRateLines()
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
@@ -3486,15 +3531,20 @@ onMounted(async () => {
               <h2 class="crystal-title">Líneas de tarifa</h2>
               <p class="crystal-description">Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.</p>
             </div>
-            <div class="crystal-total-card">
-    <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo USD <strong>{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
-    <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo CRC <strong>{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
-    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta USD <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
-    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta CRC <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
-    <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityUsd)}`">Utilidad USD <strong>{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
-    <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
-    <span v-if="hasMixedCurrencies" class="crystal-total-card__metric crystal-total-card__metric--neutral">Oferta mixta <strong>USD + CRC</strong></span>
-  </div>
+            <div class="crystal-total-card" aria-label="Resumen financiero de la tarifa">
+              <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo USD <strong>{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo CRC <strong>{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Subtotal USD <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Subtotal CRC <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--tax">IVA USD <strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--tax">IVA CRC <strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--total">Total USD <strong>{{ formatMoney(totalSaleUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--total">Total CRC <strong>{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityUsd)}`">Utilidad USD <strong>{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityCrc)}`">Utilidad CRC <strong>{{ formatMoney(totalUtilityCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
+              <span v-if="hasMixedCurrencies" class="crystal-total-card__metric crystal-total-card__metric--neutral">Oferta mixta <strong>USD + CRC</strong></span>
+            </div>
           </div>
 
           <div class="crystal-soft p-5">
@@ -3520,7 +3570,7 @@ onMounted(async () => {
             <div
               v-for="line in group.lines"
               :key="line.key"
-              class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_130px_160px_160px_minmax(220px,280px)]"
+              :class="['crystal-line grid items-end gap-3 p-3 lg:grid-cols-[minmax(200px,1fr)_120px_140px_140px_minmax(190px,230px)]', group.key === 'freight' ? 'crystal-line--freight' : '']"
             >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -3568,7 +3618,7 @@ onMounted(async () => {
                   @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                 />
                 <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">
-                  El IVA se guarda por rubro y se refleja en esta pantalla y en Pantalla 8.
+                  Importe del IVA se refleja en pantalla 8
                 </p>
               </div>
             </div>
@@ -3578,7 +3628,6 @@ onMounted(async () => {
             <div v-if="optionalChargeOptions.length">
               <div class="crystal-group-header mb-3">
                 <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Cargos opcionales</p>
-                <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El IVA se selecciona individualmente en cada rubro.</p>
               </div>
               <PricingCrystalMultiSelect
                 v-model="selectedOptionalChargeKeys"
@@ -3593,7 +3642,7 @@ onMounted(async () => {
               <div
                 v-for="line in bottomRateLines"
                 :key="line.key"
-                class="crystal-line grid items-end gap-3 p-3 md:grid-cols-[minmax(220px,1fr)_130px_160px_160px_minmax(220px,280px)_auto]"
+                class="crystal-line grid items-end gap-3 p-3 lg:grid-cols-[minmax(200px,1fr)_120px_140px_140px_minmax(190px,230px)_auto]"
               >
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
@@ -3631,7 +3680,7 @@ onMounted(async () => {
                     @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                   />
                   <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">
-                    El IVA se guarda por rubro y se refleja en esta pantalla y en Pantalla 8.
+                    Importe del IVA se refleja en pantalla 8
                   </p>
                 </div>
                 <span v-else />
@@ -3799,7 +3848,7 @@ onMounted(async () => {
               <p class="mt-3 text-lg font-black">{{ editingRate.clientName || 'Cliente sin definir' }}</p>
               <p class="mt-1 text-sm font-bold">Ejecutivo: {{ editingRate.executiveName || 'Sin asignar' }}</p>
               <p class="mt-1 text-sm font-bold">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }}</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incoterm {{ editingRate.incotermCode || editingRate.incotermName || '—' }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incoterm {{ displayValue(selectedIncoterm) || editingRate.incotermName || editingRate.incotermCode || '—' }}</p>
             </div>
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Vigencia y cambio</p>
@@ -4241,29 +4290,82 @@ onMounted(async () => {
 
 .crystal-total-card {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem 1rem;
-  border-radius: 18px;
-  padding: 0.75rem 0.9rem;
-  font-size: 0.78rem;
+  width: 100%;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 16px;
+  padding: 0.42rem 0.5rem;
+  font-size: 0.62rem;
+  scrollbar-width: thin;
+  overscroll-behavior-inline: contain;
+}
+
+.crystal-total-card__metric {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: max-content;
+  align-items: center;
+  gap: 0.22rem;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.crystal-total-card__metric strong {
+  font-size: 0.69rem;
+  white-space: nowrap;
+}
+
+.crystal-total-card__metric--subtotal {
+  color: rgb(2 132 199);
+  border-color: rgb(2 132 199 / 0.28);
+  background: rgb(2 132 199 / 0.08);
+}
+
+.crystal-total-card__metric--tax {
+  color: rgb(124 58 237);
+  border-color: rgb(124 58 237 / 0.28);
+  background: rgb(124 58 237 / 0.08);
+}
+
+.crystal-total-card__metric--total {
+  color: rgb(5 150 105);
+  border-color: rgb(5 150 105 / 0.3);
+  background: rgb(5 150 105 / 0.1);
 }
 
 .crystal-lines-header {
   position: -webkit-sticky;
   position: sticky;
-  top: 6.25rem;
-  z-index: 29;
+  top: 5.75rem;
+  z-index: 120;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
   align-self: flex-start;
   width: 100%;
+  min-width: 0;
+  gap: 0.55rem !important;
+  isolation: isolate;
   border: 1px solid var(--dh-border);
   border-radius: 20px;
-  padding: 0.8rem;
+  padding: 0.72rem;
   background-color: var(--dh-card-solid);
   background-image: none;
   opacity: 1;
-  box-shadow: var(--dh-shadow-md);
+  box-shadow: 0 14px 34px rgb(15 23 42 / 0.22);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+.crystal-lines-header > div {
+  min-width: 0;
+}
+
+.crystal-lines-stage {
+  isolation: isolate;
 }
 
 .crystal-group-header {
@@ -4274,16 +4376,34 @@ onMounted(async () => {
   gap: 0.75rem;
 }
 
+@media (min-width: 1024px) {
+  .crystal-line--freight {
+    grid-template-columns: minmax(260px, 500px) 120px 140px 140px !important;
+    justify-content: start;
+    max-width: 1040px;
+  }
+
+  .crystal-line--freight .crystal-line-vat {
+    grid-column: 1 / -1;
+    max-width: 320px;
+  }
+}
+
 .crystal-line-vat {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.35rem;
   align-self: stretch;
   border: 1px solid var(--dh-border);
   border-radius: 16px;
   background: var(--dh-card);
-  padding: 0.6rem 0.7rem;
+  padding: 0.55rem 0.65rem;
 }
 
+.crystal-line-vat p {
+  white-space: nowrap;
+  font-size: 0.62rem;
+  line-height: 1.15;
+}
 
 .crystal-total-card span {
   display: flex;
@@ -4400,23 +4520,28 @@ onMounted(async () => {
   }
 
   .crystal-lines-header .crystal-total-card {
+    display: flex;
     width: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.35rem;
-    padding: 0.4rem;
+    flex-wrap: nowrap;
+    gap: 0.28rem;
+    padding: 0.32rem;
   }
 
   .crystal-lines-header .crystal-total-card__metric {
-    min-width: 0;
-    justify-content: space-between;
-    border-radius: 12px;
-    padding: 0.4rem 0.5rem;
+    flex: 0 0 auto;
+    min-width: max-content;
+    justify-content: flex-start;
+    border-radius: 999px;
+    padding: 0.32rem 0.42rem;
   }
 
   .crystal-line-vat {
     width: 100%;
     min-width: 0;
+  }
+
+  .crystal-line-vat p {
+    white-space: normal;
   }
 
 

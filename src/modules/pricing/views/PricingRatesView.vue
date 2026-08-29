@@ -68,6 +68,73 @@ function containerSummary(rate: RateDto) {
   return allocations.map((item) => `${item.quantity} × ${item.containerTypeName}`).join(' + ')
 }
 
+function rateFinancialSummary(rate: RateDto) {
+  const exchangeRate = Number(rate.exchangeRateApplied || rate.exchangeRateSale || 0)
+  let costUsd = 0
+  let subtotalUsd = 0
+  let costCrc = 0
+  let subtotalCrc = 0
+  let taxUsd = 0
+  let taxCrc = 0
+  let recognized = false
+
+  for (const detail of rate.rateDetails ?? []) {
+    const quantity = Number(detail.quantity || 1) > 0 ? Number(detail.quantity || 1) : 1
+    const cost = Number(detail.costAmount || 0) * quantity
+    const sale = Number(detail.saleAmount || 0) * quantity
+    const fallbackTax = detail.applyDestinationTax
+      ? sale * Number(detail.destinationTaxRate || 0) / 100
+      : 0
+    const tax = Number(detail.destinationTaxAmount ?? fallbackTax)
+    const currency = String(detail.currencyCode || '').trim().toUpperCase()
+
+    if (currency === 'USD') {
+      recognized = true
+      costUsd += cost
+      subtotalUsd += sale
+      taxUsd += tax
+      if (exchangeRate > 0) {
+        costCrc += cost * exchangeRate
+        subtotalCrc += sale * exchangeRate
+        taxCrc += tax * exchangeRate
+      }
+    } else if (currency === 'CRC') {
+      recognized = true
+      costCrc += cost
+      subtotalCrc += sale
+      taxCrc += tax
+      if (exchangeRate > 0) {
+        costUsd += cost / exchangeRate
+        subtotalUsd += sale / exchangeRate
+        taxUsd += tax / exchangeRate
+      }
+    }
+  }
+
+  if (!recognized) {
+    costUsd = Number(rate.totalCostUsd || 0)
+    subtotalUsd = Number(rate.totalSaleUsd || 0)
+    costCrc = Number(rate.totalCostCrc || 0)
+    subtotalCrc = Number(rate.totalSaleCrc || 0)
+    taxUsd = Number(rate.totalTaxUsd || 0)
+    taxCrc = Number(rate.totalTaxCrc || 0)
+  }
+
+  const utilityUsd = subtotalUsd - costUsd
+  const utilityCrc = subtotalCrc - costCrc
+  return {
+    subtotalUsd,
+    subtotalCrc,
+    taxUsd,
+    taxCrc,
+    totalUsd: subtotalUsd + taxUsd,
+    totalCrc: subtotalCrc + taxCrc,
+    utilityUsd,
+    utilityCrc,
+    margin: subtotalUsd > 0 ? utilityUsd / subtotalUsd * 100 : Number(rate.marginPercentage || 0),
+  }
+}
+
 const rows = ref<RateDto[]>([])
 const selectedIds = ref<string[]>([])
 const loading = ref(false)
@@ -480,15 +547,21 @@ onMounted(async () => {
             </div>
           </template>
           <template #cell-commercial="{ row }">
-            <div class="min-w-[190px] text-right">
-              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Venta de la revisión</p>
-              <p class="font-black text-[var(--dh-text)]">USD {{ Number(row.totalSaleUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
-              <p class="text-sm font-black text-[var(--dh-primary)]">CRC ₡{{ Number(row.totalSaleCrc || 0).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
-              <div class="mt-2 flex items-center justify-end gap-2">
-                <span class="text-xs font-black" :class="row.totalUtilityUsd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'">
-                  Utilidad USD {{ Number(row.totalUtilityUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+            <div class="min-w-[300px] text-right">
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Subtotal · IVA · Total</p>
+              <div class="mt-1 grid grid-cols-[auto_auto] justify-end gap-x-2 gap-y-0.5 text-xs">
+                <span class="font-semibold text-[var(--dh-text-muted)]">Subtotal</span>
+                <strong>{{ formatMoney(rateFinancialSummary(row).subtotalUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).subtotalCrc, 'CRC') }}</strong>
+                <span class="font-semibold text-[var(--dh-text-muted)]">IVA</span>
+                <strong>{{ formatMoney(rateFinancialSummary(row).taxUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).taxCrc, 'CRC') }}</strong>
+                <span class="font-black text-[var(--dh-primary)]">Total</span>
+                <strong class="text-[var(--dh-primary)]">{{ formatMoney(rateFinancialSummary(row).totalUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).totalCrc, 'CRC') }}</strong>
+              </div>
+              <div class="mt-2 flex flex-wrap items-center justify-end gap-2">
+                <span class="text-xs font-black" :class="rateFinancialSummary(row).utilityUsd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'">
+                  Utilidad {{ formatMoney(rateFinancialSummary(row).utilityUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).utilityCrc, 'CRC') }}
                 </span>
-                <DhBadge :label="`${row.marginPercentage.toFixed(2)}%`" :variant="marginTone(row.marginPercentage)" />
+                <DhBadge :label="`${rateFinancialSummary(row).margin.toFixed(2)}%`" :variant="marginTone(rateFinancialSummary(row).margin)" />
               </div>
             </div>
           </template>

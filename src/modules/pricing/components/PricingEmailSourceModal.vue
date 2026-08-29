@@ -61,23 +61,23 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="space-y-4">
+  <section class="min-w-0 space-y-4">
     <div v-if="loading" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-8 text-center font-bold text-[var(--dh-text-muted)]">
       Cargando correo fuente…
     </div>
 
     <template v-else-if="source && message">
-      <article class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <article class="min-w-0 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 sm:rounded-[22px] sm:p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">
               <Mail class="h-4 w-4" /> Asunto original
             </div>
             <h3 class="mt-2 break-words text-lg font-black text-[var(--dh-text)]">{{ message.subject }}</h3>
-            <p class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">
+            <p class="mt-2 break-words text-xs font-semibold text-[var(--dh-text-muted)] sm:text-sm">
               De: {{ message.fromName ? `${message.fromName} · ` : '' }}{{ message.fromAddress }}
             </p>
-            <p v-if="message.toAddresses" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Para: {{ message.toAddresses }}</p>
+            <p v-if="message.toAddresses" class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">Para: {{ message.toAddresses }}</p>
             <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Recibido: {{ new Date(message.receivedAt).toLocaleString('es-CR') }}</p>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -86,12 +86,12 @@ onMounted(load)
           </div>
         </div>
 
-        <div class="mt-4 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-[18px] bg-black/[0.035] p-4 text-sm font-medium leading-6 text-[var(--dh-text)] dark:bg-white/[0.05]">
+        <div class="mt-4 max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-[18px] bg-black/[0.035] p-3 text-xs font-medium leading-5 sm:p-4 sm:text-sm sm:leading-6 text-[var(--dh-text)] dark:bg-white/[0.05]">
           {{ bodyText }}
         </div>
       </article>
 
-      <article class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <article class="min-w-0 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 sm:rounded-[22px] sm:p-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="font-black">Archivos originales</h3>
@@ -100,7 +100,7 @@ onMounted(load)
           <DhButton v-if="message.rawEmailStoragePath" label="Ver correo original (.eml)" :icon="FileText" variant="secondary" size="sm" @click="openRawEmail" />
         </div>
 
-        <div v-if="message.attachments.length" class="mt-4 grid gap-2 md:grid-cols-2">
+        <div v-if="message.attachments.length" class="mt-4 grid min-w-0 gap-2 sm:grid-cols-2">
           <button
             v-for="attachment in message.attachments"
             :key="attachment.id"
@@ -108,7 +108,7 @@ onMounted(load)
             class="flex items-center justify-between gap-3 rounded-[18px] border border-[var(--dh-border)] p-3 text-left hover:bg-[var(--dh-card-hover)]"
             @click="openAttachment(attachment)"
           >
-            <span class="flex min-w-0 items-center gap-2"><Paperclip class="h-4 w-4 shrink-0" /><span class="truncate text-sm font-black">{{ attachment.fileName }}</span></span>
+            <span class="flex min-w-0 items-center gap-2"><Paperclip class="h-4 w-4 shrink-0" /><span class="min-w-0 truncate text-xs font-black sm:text-sm">{{ attachment.fileName }}</span></span>
           </button>
         </div>
         <p v-else class="mt-4 text-sm font-semibold text-[var(--dh-text-muted)]">Este correo no tiene adjuntos registrados.</p>

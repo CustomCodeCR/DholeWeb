@@ -634,6 +634,10 @@ export interface RateDto extends Record<string, unknown> {
   totalCostCrc: number
   totalSaleCrc: number
   totalUtilityCrc: number
+  totalTaxUsd?: number
+  totalTaxCrc?: number
+  totalSaleWithTaxUsd?: number
+  totalSaleWithTaxCrc?: number
   marginPercentage: number
   requiredApproval: boolean
   status: RateStatus
