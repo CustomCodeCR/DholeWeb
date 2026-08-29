@@ -42,7 +42,10 @@ replace_once(
     """watch(\n  [crcImportContext, () => form.serviceIds.join('|'), crcCurrency, exchangeRateSale],\n  () => rateLines.value.forEach(enforceLineCurrency),\n)\n""",
 )
 
-replace_once(
+label_count = text.count("CRC obligatorio · Importación Costa Rica")
+if label_count != 2:
+    raise RuntimeError(f'Expected two CRC mandatory labels, found {label_count}')
+text = text.replace(
     "CRC obligatorio · Importación Costa Rica",
     "CRC obligatorio · POE Costa Rica / importación",
 )
