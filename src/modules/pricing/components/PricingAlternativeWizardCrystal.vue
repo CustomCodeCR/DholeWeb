@@ -1172,6 +1172,7 @@ function detailTypeLabel(type: CostDetailType) {
 function chargeBasisLabel(basis: ChargeBasis) {
   return ({
     PerShipment: 'Por embarque',
+    PerService: 'Por Servicio',
     PerContainer: 'Por contenedor',
     PerTeu: 'Por TEU',
     PerTruck: 'Por camión',
