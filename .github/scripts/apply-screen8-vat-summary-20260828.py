@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
 text = path.read_text(encoding='utf-8')
@@ -25,9 +26,23 @@ replace_exact(
 )
 
 # En Pantalla 7 solo se marca si el rubro lleva IVA; los importes se presentan en Pantalla 8.
-vat_amounts = '''                  <div class="crystal-line-vat__amounts">\n                    <span>IVA <strong>{{ formatMoney(lineTaxAmount(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>\n                    <span>Venta + IVA <strong>{{ formatMoney(lineSaleWithTax(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>\n                  </div>'''
-vat_note = '''                  <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">\n                    El importe del IVA se refleja en Pantalla 8.\n                  </p>'''
-replace_exact(vat_amounts, vat_note, expected=2)
+vat_pattern = re.compile(
+    r'(?P<indent>^[ \t]*)<div class="crystal-line-vat__amounts">\n.*?\n(?P=indent)</div>',
+    re.MULTILINE | re.DOTALL,
+)
+vat_matches = list(vat_pattern.finditer(text))
+if len(vat_matches) != 2:
+    raise RuntimeError(f'Expected 2 VAT amount blocks, found {len(vat_matches)}')
+
+def vat_replacement(match: re.Match[str]) -> str:
+    indent = match.group('indent')
+    return (
+        f'{indent}<p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">\n'
+        f'{indent}  El importe del IVA se refleja en Pantalla 8.\n'
+        f'{indent}</p>'
+    )
+
+text = vat_pattern.sub(vat_replacement, text)
 
 replace_exact(
     '''                <span>Venta USD <strong class="block">{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>\n                <span>Venta CRC <strong class="block">{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>''',
@@ -35,7 +50,7 @@ replace_exact(
 )
 
 cargo_card = '''            <div class="crystal-soft p-5 lg:col-span-2">\n              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Carga y respaldos</p>'''
-vat_summary = '''            <div class="crystal-soft p-5 lg:col-span-2">\n              <div class="flex flex-wrap items-start justify-between gap-3">\n                <div>\n                  <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Totales de la oferta</p>\n                  <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El IVA no forma parte de los totales de Pantalla 7. Aquí se presenta separado del subtotal.</p>\n                </div>\n                <DhBadge :variant="totalTaxUsd > 0 ? 'primary' : 'neutral'">\n                  {{ totalTaxUsd > 0 ? `IVA aplicado ${destinationTaxRate}%` : 'Sin IVA aplicado' }}\n                </DhBadge>\n              </div>\n\n              <div class="mt-4 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">\n                <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">\n                  <span>Concepto</span>\n                  <span>USD</span>\n                  <span>CRC</span>\n                </div>\n                <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm">\n                  <strong>Subtotal</strong>\n                  <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong>\n                  <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong>\n                </div>\n                <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm">\n                  <strong>IVA</strong>\n                  <strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong>\n                  <strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong>\n                </div>\n                <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-4 text-base">\n                  <strong>Total</strong>\n                  <strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleUsd, 'USD') }}</strong>\n                  <strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleCrc, 'CRC') }}</strong>\n                </div>\n              </div>\n            </div>\n\n''' + cargo_card
+vat_summary = '''            <div class="crystal-soft p-5 lg:col-span-2">\n              <div class="flex flex-wrap items-start justify-between gap-3">\n                <div>\n                  <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Totales de la oferta</p>\n                  <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El IVA no forma parte de los totales de Pantalla 7. Aquí se presenta separado del subtotal.</p>\n                </div>\n                <DhBadge :variant="totalTaxUsd > 0 ? 'primary' : 'neutral'">\n                  {{ totalTaxUsd > 0 ? `IVA aplicado ${destinationTaxRate}%` : 'Sin IVA aplicado' }}\n                </DhBadge>\n              </div>\n\n              <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">\n                <div class="min-w-[440px]">\n                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">\n                    <span>Concepto</span>\n                    <span>USD</span>\n                    <span>CRC</span>\n                  </div>\n                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm">\n                    <strong>Subtotal</strong>\n                    <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong>\n                    <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong>\n                  </div>\n                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm">\n                    <strong>IVA</strong>\n                    <strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong>\n                    <strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong>\n                  </div>\n                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-4 text-base">\n                    <strong>Total</strong>\n                    <strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleUsd, 'USD') }}</strong>\n                    <strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleCrc, 'CRC') }}</strong>\n                  </div>\n                </div>\n              </div>\n            </div>\n\n''' + cargo_card
 replace_exact(cargo_card, vat_summary)
 
 # Quitar CSS ya sin uso de los importes IVA por línea.
