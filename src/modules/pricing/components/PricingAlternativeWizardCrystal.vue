@@ -92,7 +92,6 @@ interface CatalogMetadata {
   imageStorageId?: string
   imageFileName?: string
   salesExecutiveId?: string
-  forceCrcInCostaRica?: boolean
 }
 
 interface CabysItem {
@@ -808,9 +807,6 @@ const forcedCrcServiceIds = computed(() => {
   return new Set(
     catalogs.services
       .filter((service) => {
-        const configured = metadata(service)?.forceCrcInCostaRica
-        if (typeof configured === 'boolean') return configured
-
         const values = [displayValue(service), service.label, service.code, service.slug]
           .map((value) => normalizeCatalogValue(String(value ?? '')))
         return values.some((value) => forcedNames.has(value))
