@@ -4,6 +4,7 @@ name: Deploy Dhole Web
 # Live USD/CRC amount conversion on line currency change — 2026-08-29
 # Official rates Cost/Venta/Margen summary fallback — 2026-08-29
 # Corrected official financial summary template syntax — 2026-08-29
+# Corrected official RateDto financial type — 2026-08-29
 
 on:
   push:
