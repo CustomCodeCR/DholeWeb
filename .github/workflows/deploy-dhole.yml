@@ -1,5 +1,6 @@
 name: Deploy Dhole Web
 # Editable Hacienda Compra/Venta on Screen 7 release — 2026-08-28
+# Pricing Screen 7 VAT persistence and live additional-cost summary — 2026-08-29
 
 on:
   push:
