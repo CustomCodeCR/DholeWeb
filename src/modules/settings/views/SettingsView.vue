@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ContactRound, Keyboard, ListChecks, Palette, Settings } from 'lucide-vue-next'
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { ArrowLeft, ContactRound, Keyboard, ListChecks, Palette, Settings } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
+import EmployeeDirectorySettingsView from './EmployeeDirectorySettingsView.vue'
 
+const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const showDirectory = computed(() => route.query.section === 'extensions')
 
 const cards = [
   {
@@ -18,7 +23,7 @@ const cards = [
     title: 'Directorio de extensiones',
     description: 'Empleados, departamentos, extensiones, correos y celulares.',
     icon: ContactRound,
-    path: '/settings/extensions',
+    path: '/settings?section=extensions',
   },
   {
     title: t('settings.shortcuts'),
@@ -36,7 +41,17 @@ const cards = [
 </script>
 
 <template>
-  <section class="space-y-6">
+  <section v-if="showDirectory" class="space-y-4">
+    <DhButton
+      label="Volver a Configuración"
+      variant="secondary"
+      :icon="ArrowLeft"
+      @click="router.push('/settings')"
+    />
+    <EmployeeDirectorySettingsView />
+  </section>
+
+  <section v-else class="space-y-6">
     <DhPageHeader :title="t('settings.title')" :subtitle="t('settings.subtitle')" :icon="Settings" />
     <div class="grid gap-4 md:grid-cols-2">
       <button
