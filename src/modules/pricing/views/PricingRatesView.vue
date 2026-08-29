@@ -604,14 +604,14 @@ onMounted(async () => {
               </p>
             </div>
           </template>
-          <template #cell-commercial="{.row }">
+          <template #cell-commercial="{ row }">
             <div class="min-w-[300px] text-right">
-              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo ÷ Venta ÷ Margen</p>
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo / Venta / Margen</p>
               <div class="mt-1 grid grid-cols-[auto_auto] justify-end gap-x-2 gap-y-1 text-xs">
                 <span class="font-semibold text-[var(--dh-text-muted)]">Costo</span>
-                <strong>{{ formatMoney(rateFinancialSummary(row).costUsd, 'USD') }} ÷ {{ formatMoney(rateFinancialSummary(row).costCrc, 'CRC') }}</strong>
+                <strong>{{ formatMoney(rateFinancialSummary(row).costUsd, 'USD') }} / {{ formatMoney(rateFinancialSummary(row).costCrc, 'CRC') }}</strong>
                 <span class="font-semibold text-[var(--dh-text-muted)]">Venta</span>
-                <strong class="text-[var(--dh-primary)]">{{ formatMoney(rateFinancialSummary(row).saleUsd, 'USD') }} ÷ {{ formatMoney(rateFinancialSummary(row).saleCrc, 'CRC') }}</strong>
+                <strong class="text-[var(--dh-primary)]">{{ formatMoney(rateFinancialSummary(row).saleUsd, 'USD') }} / {{ formatMoney(rateFinancialSummary(row).saleCrc, 'CRC') }}</strong>
                 <span class="font-semibold text-[var(--dh-text-muted)]">Margen</span>
                 <span class="flex justify-end">
                   <DhBadge :label="`${rateFinancialSummary(row).margin.toFixed(2)}%`" :variant="marginTone(rateFinancialSummary(row).margin)" />
