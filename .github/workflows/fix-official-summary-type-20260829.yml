@@ -1,0 +1,48 @@
+name: Fix official summary RateDto type
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-official-summary-type-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix RateDto type
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/modules/pricing/views/PricingRatesView.vue')
+          text = path.read_text(encoding='utf-8-sig')
+          old = 'function rateFinancialSummary(rate: RatoDto) {'
+          if old not in text:
+              raise SystemExit('RatoDto typo not found')
+          text = text.replace(old, 'function rateFinancialSummary(rate: RateDto) {', 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+          grep -F 'function rateFinancialSummary(rate: RateDto) {' src/modules/pricing/views/PricingRatesView.vue
+          git diff --check
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-official-summary-type-20260829.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(pricing-web): correct official summary RateDto type"
+          git push origin HEAD:master
