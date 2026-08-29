@@ -1,0 +1,140 @@
+name: Fix live USD CRC line conversion
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-live-line-currency-conversion-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch line currency conversion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text(encoding='utf-8-sig')
+
+          start_marker = 'function setLineCurrency(line: RateLine, currencyId: string) {'
+          end_marker = 'function enforceLineCurrency(line: RateLine) {'
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('setLineCurrency markers not found')
+
+          replacement = '''function setLineCurrency(line: RateLine, currencyId: string) {
+            const currency = findById(catalogs.currencies, currencyId)
+            if (!currency) return
+
+            // amountCurrencyCode represents the currency in which the numeric amounts are
+            // currently expressed. Never infer it again from the Cost master when the user
+            // changes the selector: doing so can make the UI change USD/CRC without changing
+            // the actual numeric amounts.
+            const previousCode = String(
+              line.amountCurrencyCode || canonicalCurrencyCode(line),
+            ).trim().toUpperCase()
+            const nextCode = String(canonicalCurrencyCode({
+              currencyId: currency.id,
+              currencyCode: String(currency.code ?? ''),
+              currencyName: displayValue(currency) || currency.label || String(currency.code ?? ''),
+            })).trim().toUpperCase()
+
+            if (!['USD', 'CRC'].includes(nextCode)) return
+
+            if (previousCode !== nextCode) {
+              const exchangeRate = number(exchangeRateSale.value)
+              if (exchangeRate <= 0) {
+                toastStore.warning(
+                  'Tipo de cambio requerido',
+                  'No se puede convertir USD/CRC hasta tener un tipo de cambio de Venta válido.',
+                )
+                return
+              }
+
+              if (previousCode === 'USD' && nextCode === 'CRC') {
+                line.costAmount = Math.round(number(line.costAmount) * exchangeRate * 100) / 100
+                line.saleAmount = Math.round(number(line.saleAmount) * exchangeRate * 100) / 100
+              } else if (previousCode === 'CRC' && nextCode === 'USD') {
+                line.costAmount = Math.round((number(line.costAmount) / exchangeRate) * 100) / 100
+                line.saleAmount = Math.round((number(line.saleAmount) / exchangeRate) * 100) / 100
+              } else {
+                return
+              }
+            }
+
+            line.currencyId = currency.id
+            line.currencyName = displayValue(currency) || currency.label || currency.code
+            line.currencyCode = nextCode
+            line.amountCurrencyCode = nextCode
+          }
+
+          '''
+          text = text[:start] + replacement + text[end:]
+
+          rebuild_old = '''  lines.forEach(enforceLineCurrency)\n  rateLines.value = lines'''
+          rebuild_new = '''  lines.forEach((line) => {\n    line.amountCurrencyCode = canonicalCurrencyCode(line)\n    enforceLineCurrency(line)\n  })\n  rateLines.value = lines'''
+          if rebuild_old not in text:
+              raise SystemExit('rebuildRateLines currency initializer marker not found')
+          text = text.replace(rebuild_old, rebuild_new, 1)
+
+          merge_old = '''  rateLines.value.forEach(enforceLineCurrency)\n}\n\nfunction addManualCharge'''
+          merge_new = '''  rateLines.value.forEach((line) => {\n    line.amountCurrencyCode ||= canonicalCurrencyCode(line)\n    enforceLineCurrency(line)\n  })\n}\n\nfunction addManualCharge'''
+          if merge_old not in text:
+              raise SystemExit('mergeConfiguredOptionalCosts currency initializer marker not found')
+          text = text.replace(merge_old, merge_new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue').read_text(encoding='utf-8')
+          start = text.index('function setLineCurrency(line: RateLine, currencyId: string) {')
+          end = text.index('function enforceLineCurrency(line: RateLine) {', start)
+          block = text[start:end]
+          assert 'configuredCost' not in block
+          assert "previousCode === 'USD' && nextCode === 'CRC'" in block
+          assert "previousCode === 'CRC' && nextCode === 'USD'" in block
+          assert 'line.amountCurrencyCode = nextCode' in block
+          assert 'line.costAmount) * exchangeRate' in block
+          assert 'line.costAmount) / exchangeRate' in block
+          print('Live USD/CRC amount conversion patch validated.')
+          PY
+          git diff --check
+
+      - name: Build Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-live-line-currency-conversion-20260829.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(pricing-web): convert amounts immediately when currency changes"
+          git push origin HEAD:master
