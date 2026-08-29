@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Sun } from 'lucide-vue-next'
+import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
 import { useThemeStore } from '@/core/stores/themeStore'
@@ -12,6 +13,7 @@ import { NotificationsService } from '@/core/services/notificationsService'
 import type { NotificationInboxItemDto } from '@/core/interfaces/notifications'
 
 const { t } = useI18n()
+const router = useRouter()
 const themeStore = useThemeStore()
 const localeStore = useLocale()
 const authStore = useAuthStore()
@@ -102,6 +104,11 @@ function toggleInbox() {
   if (inboxOpen.value) void refreshInbox()
 }
 
+function openSettings() {
+  inboxOpen.value = false
+  void router.push('/settings')
+}
+
 function formatNotificationDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
@@ -163,6 +170,7 @@ onBeforeUnmount(() => {
     <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
       <DhIconButton :icon="Languages" :label="t('topbar.language')" variant="secondary" @click="localeStore.toggleLocale()" />
       <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" @click="themeStore.toggleTheme()" />
+      <DhIconButton :icon="Settings" label="Configuración" variant="secondary" @click="openSettings" />
 
       <div ref="inboxRoot" class="relative">
         <div class="relative">
