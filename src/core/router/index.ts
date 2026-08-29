@@ -218,6 +218,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/rates/:rateId/wizard',
+          name: 'pricing-rate-wizard',
+          component: () => import('@/modules/pricing/views/PricingOverviewView.vue'),
+          meta: {
+            tabTitle: 'Tarifa · Wizard',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+        },
+        {
           path: 'pricing/rates',
           name: 'pricing-rates',
           component: () => import('@/modules/pricing/views/PricingRatesView.vue'),

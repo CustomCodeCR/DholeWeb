@@ -7,6 +7,7 @@ import {
   ChevronRight,
   CircleCheck,
   ExternalLink,
+  Edit3,
   FileUp,
   Plane,
   Plus,
@@ -30,7 +31,11 @@ import type {
   CostSelectDto,
   CostType,
   CreateRateDetailRequest,
+  CreateRateRequest,
   ImportRateSelectDto,
+  RateDto,
+  RateRevisionDto,
+  UpdateRateRequest,
   RateOperationType,
   ShipmentMode,
 } from '@/core/interfaces/pricing'
@@ -144,7 +149,13 @@ interface RateLine {
   manual: boolean
   serviceIds?: string[]
   applyDestinationTax?: boolean
+  detailId?: string | null
 }
+
+const props = withDefaults(defineProps<{ rateId?: string | null; viewOnly?: boolean }>(), {
+  rateId: null,
+  viewOnly: false,
+})
 
 const router = useRouter()
 const toastStore = useToastStore()
@@ -161,6 +172,15 @@ const exchangeRateDate = ref('')
 const exchangeRateSource = ref('Ministerio de Hacienda de Costa Rica')
 const exchangeRateError = ref('')
 const createdRateId = ref('')
+const editingRate = ref<RateDto | null>(null)
+const rateRevisions = ref<RateRevisionDto[]>([])
+const loadingExistingRate = ref(false)
+const hydratingExistingRate = ref(false)
+const isEditing = computed(() => Boolean(props.rateId))
+const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Seleccionar alternativa')
+const pageDescription = computed(() => isEditing.value
+  ? 'Toda la tarifa se revisa en el mismo wizard. Las tarifas aceptadas crean una nueva revisión al guardar.'
+  : 'Construya la alternativa paso a paso con catálogos filtrados por modalidad.')
 const availableRates = ref<ImportRateSelectDto[]>([])
 const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
 const costs = ref<CostSelectDto[]>([])
@@ -225,12 +245,14 @@ const form = reactive({
   incotermId: '',
   serviceIds: [] as string[],
   loadDate: todayIso(),
+  validTo: addDaysIso(todayIso(), 30),
   selectedImportRateId: '',
   manualRate: false,
   clientId: '',
   clientName: '',
   executiveId: '',
   executiveName: '',
+  idtraNumber: '',
   pickupAddress: '',
   warehouseId: '',
   pickupLatitude: null as number | null,
@@ -1989,6 +2011,105 @@ async function applySelectedWarehouse() {
   }
 }
 
+function modalityForRate(rate: RateDto): Modality {
+  if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Land'
+  if (rate.shipmentMode === 'Fcl' || rate.shipmentMode === 'Lcl') return 'Maritime'
+  return 'Multimodal'
+}
+
+function transitDaysFrom(value?: string | null) {
+  const match = String(value ?? '').match(/\\d+/)
+  return match ? Number(match[0]) : 0
+}
+
+async function hydrateExistingRate() {
+  if (!props.rateId) return
+  try {
+    loadingExistingRate.value = true
+    hydratingExistingRate.value = true
+    const [rate, revisions] = await Promise.all([
+      PricingService.getRate(props.rateId),
+      PricingService.getRateRevisions(props.rateId).catch(() => [] as RateRevisionDto[]),
+    ])
+    editingRate.value = rate
+    rateRevisions.value = revisions
+    const modality = modalityForRate(rate)
+    const equipment = [...catalogs.containers, ...catalogs.landEquipmentTypes].find((item) => item.id === rate.containerTypeId) ?? null
+    const equipmentMeta = metadata(equipment)
+    form.modality = modality
+    form.shipmentMode = String(rate.shipmentMode).toUpperCase()
+    form.originId = rate.polId
+    form.destinationId = rate.poeId
+    form.podId = rate.podId ?? ''
+    form.equipmentId = rate.containerTypeId
+    form.equipmentQuantity = Math.max(1, Number(rate.containerQuantity || 1))
+    form.equipmentSize = String(equipmentMeta?.size ?? '')
+    form.equipmentType = equipmentHasSizes.value ? String(equipmentMeta?.kind ?? '') : rate.containerTypeId
+    form.incotermId = rate.incotermId ?? ''
+    form.serviceIds = (rate.services ?? []).map((service) => service.id)
+    form.loadDate = String(rate.validFrom).slice(0,10)
+    form.validTo = String(rate.validTo).slice(0,10)
+    form.selectedImportRateId = rate.sourceImportFclRateId ?? ''
+    form.manualRate = !rate.sourceImportFclRateId
+    form.clientName = rate.clientName ?? ''
+    form.executiveName = rate.executiveName ?? ''
+    form.idtraNumber = rate.idtraNumber ?? ''
+    form.pickupAddress = rate.pickupAddress ?? ''
+    form.pickupLatitude = rate.pickupLatitude ?? null
+    form.pickupLongitude = rate.pickupLongitude ?? null
+    form.freeDays = Number(rate.freeDays || 0)
+    form.transitDays = transitDaysFrom(rate.transitTime)
+    form.agentId = rate.agentId ?? ''
+    form.carrierId = rate.carrierId ?? ''
+    form.currencyId = rate.currencyId
+    exchangeRatePurchase.value = Number(rate.exchangeRatePurchase || rate.exchangeRateApplied || 0) || null
+    exchangeRateSale.value = Number(rate.exchangeRateSale || rate.exchangeRateApplied || 0) || null
+    exchangeRateDate.value = String(rate.exchangeRateDate ?? '').slice(0,10)
+    exchangeRateSource.value = rate.exchangeRateSource || exchangeRateSource.value
+    const freight = rate.rateDetails.find((detail) => detail.costDetailType === 'Freight')
+    form.freightCost = Number(freight?.costAmount || 0)
+    form.freightSale = Number(freight?.saleAmount || 0)
+    form.cargoDescription = rate.cargoLines?.[0]?.description ?? ''
+
+    rateLines.value = rate.rateDetails.map((detail) => {
+      const configuredCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
+      return {
+        key: `existing:${detail.id}`,
+        detailId: detail.id,
+        section: sectionForDetail(detail.costDetailType, detail.name),
+        name: detail.name,
+        costDetailType: detail.costDetailType,
+        costType: detail.costType,
+        chargeBasis: detail.chargeBasis,
+        costId: detail.costId ?? null,
+        notes: detail.notes ?? null,
+        serviceIds: configuredCost?.services?.map((service) => service.id) ?? [],
+        currencyId: detail.currencyId,
+        currencyName: detail.currencyName,
+        currencyCode: detail.currencyCode,
+        costAmount: Number(detail.costAmount || 0),
+        saleAmount: Number(detail.saleAmount || 0),
+        included: true,
+        optional: detail.costType === 'Optional',
+        manual: !detail.costId,
+        applyDestinationTax: /IVA\\s+\\d+/i.test(String(detail.notes ?? '')),
+      } as RateLine
+    })
+    step.value = 8
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
+    await router.push({ name: 'pricing-rates' })
+  } finally {
+    hydratingExistingRate.value = false
+    loadingExistingRate.value = false
+  }
+}
+
+function editCurrentRate() {
+  if (!editingRate.value) return
+  router.replace({ name: 'pricing-rate-wizard', params: { rateId: editingRate.value.id }, query: { mode: 'edit' } })
+}
+
 async function next() {
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
@@ -2184,6 +2305,7 @@ async function saveOpenRequest() {
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
+      idtraNumber: form.idtraNumber.trim() || null,
       freeDays: 0,
       validFrom: form.loadDate,
       validTo: addDaysIso(form.loadDate, 30),
@@ -2359,7 +2481,7 @@ async function saveRate() {
   try {
     saving.value = true
     const equipmentName = displayValue(equipment!)
-    const rateId = await PricingService.createRate({
+    const createPayload: CreateRateRequest = {
       sourceImportFclRateId: form.selectedImportRateId || null,
       agentId: agent!.id,
       agentName: displayValue(agent),
@@ -2393,9 +2515,10 @@ async function saveRate() {
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
+      idtraNumber: form.idtraNumber.trim() || null,
       freeDays: number(form.freeDays),
       validFrom: form.loadDate,
-      validTo: selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
+      validTo: form.validTo || selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
       containerQuantity: form.equipmentQuantity,
       rateType: 'Spot',
       operationType: operationType.value,
@@ -2435,12 +2558,52 @@ async function saveRate() {
           }]
         : [],
       details,
-    })
+    }
+
+    let rateId: string
+    if (editingRate.value) {
+      const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
+      const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
+      const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
+      const extraDetails = createPayload.details.map((detail, index) => ({
+        ...detail,
+        id: includedLines.value[index]?.detailId ?? null,
+      }))
+      const { sourceImportFclRateId: _sourceImportFclRateId, details: _details, ...baseUpdate } = createPayload
+      const updatePayload = {
+        ...baseUpdate,
+        agentId: agent!.id,
+        agentName: displayValue(agent),
+        agentCode: agent!.code,
+        carrierId: carrier!.id,
+        carrierName: displayValue(carrier),
+        carrierCode: carrier!.code,
+        rateType: editingRate.value.rateType,
+        quoNumber: editingRate.value.quoNumber ?? null,
+        includes: editingRate.value.includes ?? createPayload.includes ?? null,
+        subjectTo: editingRate.value.subjectTo ?? createPayload.subjectTo ?? null,
+        excludes: editingRate.value.excludes ?? createPayload.excludes ?? null,
+        extraDetails,
+        removedExtraDetailIds,
+      } as UpdateRateRequest
+      await PricingService.updateRate(editingRate.value.id, updatePayload)
+      rateId = editingRate.value.id
+      const nextRevision = editingRate.value.status === 'AcceptedByClient'
+        ? (editingRate.value.revisionNumber || 1) + 1
+        : (editingRate.value.revisionNumber || 1)
+      toastStore.success(
+        editingRate.value.status === 'AcceptedByClient'
+          ? `Revisión ${nextRevision} creada y versión aceptada anterior conservada.`
+          : 'Tarifa actualizada correctamente.',
+      )
+    } else {
+      rateId = await PricingService.createRate(createPayload)
+      toastStore.success('Tarifa creada correctamente.')
+    }
     createdRateId.value = rateId
-    toastStore.success('Tarifa creada correctamente.')
-    await router.push({ name: 'pricing-rates', query: { rateId } })
+    await router.push({ name: 'pricing-rates' })
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo crear la tarifa.')
+    toastStore.backendError(error, isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.')
   } finally {
     saving.value = false
   }
@@ -2466,12 +2629,14 @@ function resetWizard() {
     incotermId: '',
     serviceIds: [],
     loadDate: todayIso(),
+    validTo: addDaysIso(todayIso(), 30),
     selectedImportRateId: '',
     manualRate: false,
     clientId: '',
     clientName: '',
     executiveId: '',
     executiveName: '',
+    idtraNumber: '',
     pickupAddress: '',
     warehouseId: '',
     pickupLatitude: null,
@@ -2583,13 +2748,14 @@ watch(
 watch(
   () => [form.agentId, form.carrierId] as const,
   async ([agentId]) => {
-    if (step.value < 6 || !agentId) return
+    if (hydratingExistingRate.value || step.value < 6 || !agentId) return
     await loadApplicableCosts()
     if (step.value >= 7) rebuildRateLines()
   },
 )
 
 watch(() => form.currencyId, () => {
+  if (hydratingExistingRate.value) return
   if (step.value === 7) rebuildRateLines()
 })
 
@@ -2598,7 +2764,9 @@ watch(step, (value) => {
 })
 
 onMounted(async () => {
-  await Promise.allSettled([loadCatalogs(), loadHaciendaExchangeRate(true)])
+  await loadCatalogs()
+  if (props.rateId) await hydrateExistingRate()
+  else await loadHaciendaExchangeRate(true)
 })
 </script>
 
@@ -2608,9 +2776,40 @@ onMounted(async () => {
     <div class="crystal-orb crystal-orb--two" />
 
     <DhPageHeader
-      title="Seleccionar alternativa"
-      description="Construya la alternativa paso a paso con catálogos filtrados por modalidad."
+      :title="pageTitle"
+      :description="pageDescription"
     />
+
+    <div v-if="loadingExistingRate" class="crystal-soft p-5 text-sm font-black">Cargando tarifa completa…</div>
+
+    <div v-else-if="editingRate" class="crystal-soft p-5">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <DhBadge :label="editingRate.rateCode" variant="primary" />
+            <DhBadge :label="`Revisión ${editingRate.revisionNumber || 1}`" variant="neutral" />
+            <DhBadge :label="editingRate.status" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
+          </div>
+          <p class="mt-3 text-lg font-black">{{ editingRate.rateName }}</p>
+          <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ editingRate.quoNumber || '—' }}</p>
+        </div>
+        <DhButton v-if="viewOnly" variant="secondary" @click="editCurrentRate">Editar en este wizard</DhButton>
+      </div>
+      <div v-if="editingRate.status === 'AcceptedByClient' && !viewOnly" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">
+        Esta tarifa ya fue aceptada. Al guardar, Dhole conservará la revisión {{ editingRate.revisionNumber || 1 }} como versión histórica y abrirá la revisión {{ (editingRate.revisionNumber || 1) + 1 }}.
+      </div>
+      <details v-if="rateRevisions.length" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+        <summary class="cursor-pointer text-sm font-black">Historial de revisiones · {{ rateRevisions.length }} versión{{ rateRevisions.length === 1 ? '' : 'es' }} anterior{{ rateRevisions.length === 1 ? '' : 'es' }}</summary>
+        <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="revision in rateRevisions" :key="revision.id" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs">
+            <div class="flex items-center justify-between gap-2"><strong>Revisión {{ revision.revisionNumber }}</strong><DhBadge :label="revision.status" variant="success" /></div>
+            <p class="mt-2 font-bold">{{ revision.idtraNumber || 'Sin IDTRA' }} · {{ revision.quoNumber || 'Sin QUO' }}</p>
+            <p class="mt-1 text-[var(--dh-text-muted)]">USD {{ Number(revision.totalSaleUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) }} · CRC ₡{{ Number(revision.totalSaleCrc || 0).toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</p>
+            <p class="mt-1 text-[var(--dh-text-muted)]">Margen {{ Number(revision.marginPercentage || 0).toFixed(2) }}% · {{ new Date(revision.createdAtUtc).toLocaleString() }}</p>
+          </div>
+        </div>
+      </details>
+    </div>
 
     <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4 xl:grid-cols-8">
       <button
@@ -2748,7 +2947,8 @@ onMounted(async () => {
             <!-- Fila 4: Incoterm y fecha de carga lista. -->
             <div class="grid gap-4 md:grid-cols-2">
               <DhSelect v-model="form.incotermId" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
-              <DhInput v-model="form.loadDate" type="date" label="Fecha carga lista" />
+              <DhInput v-model="form.loadDate" type="date" label="Vigente desde / carga lista" />
+              <DhInput v-model="form.validTo" type="date" label="Vigente hasta" />
             </div>
 
             <PricingCrystalMultiSelect
@@ -3315,6 +3515,7 @@ onMounted(async () => {
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
               <p class="mt-3 text-lg font-black">{{ form.clientName || 'Cliente sin definir' }}</p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Ejecutivo: {{ form.executiveName || 'Sin asignar' }}</p>
+              <div class="mt-4"><DhInput v-model="form.idtraNumber" label="Número IDTRA" placeholder="Ej. IDTRA-2026-00125" :disabled="viewOnly" /></div>
               <p class="mt-4 text-sm font-bold">{{ displayValue(selectedOrigin) }} → {{ displayValue(selectedDestination) }}<span v-if="selectedPod"> → {{ displayValue(selectedPod) }}</span></p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }} · {{ displayValue(selectedEquipment) }} · {{ displayValue(selectedIncoterm) }}</p>
             </div>
@@ -3385,7 +3586,8 @@ onMounted(async () => {
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
       <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / 8</div>
       <DhButton v-if="step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
-      <DhButton v-else-if="step === 8" :disabled="saving || !includedLines.length" @click="saveRate"><Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : 'Crear tarifa' }}</DhButton>
+      <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
+      <DhButton v-else-if="step === 8" :disabled="saving || !includedLines.length" @click="saveRate"><Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}</DhButton>
       <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Seleccione una alternativa para continuar</span>
     </div>
   </div>

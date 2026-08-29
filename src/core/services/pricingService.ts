@@ -28,6 +28,7 @@ import type {
   PricingRateDashboardQuery,
   PricingExchangeRateDto,
   RateDto,
+  RateRevisionDto,
   RateTermItemDto,
   CreateRateTermItemRequest,
   UpdateRateTermItemRequest,
@@ -394,6 +395,11 @@ export const PricingService = {
     })
 
     return unwrapPagedResponse<RateDto>(response)
+  },
+
+  async getRateRevisions(rateId: string): Promise<RateRevisionDto[]> {
+    const response = await callEndpoint<unknown>({ method: 'GET', path: `/api/pricing/rates/${rateId}/revisions` })
+    return unwrapApiResponse<RateRevisionDto[]>(response as never)
   },
 
   async getRate(rateId: string): Promise<RateDto> {
