@@ -133,6 +133,7 @@ function chargeBasisLabel(value: unknown) {
     (
       {
         PerShipment: 'Por embarque',
+        PerService: 'Por Servicio',
         PerContainer: 'Por contenedor',
         PerTeu: 'Por TEU',
         PerTruck: 'Por camión',

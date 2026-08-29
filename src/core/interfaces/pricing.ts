@@ -17,6 +17,7 @@ export type ShipmentMode = 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl'
 export type RateType = 'Spot' | 'Tariff'
 export type ChargeBasis =
   | 'PerShipment'
+  | 'PerService'
   | 'PerContainer'
   | 'PerTruck'
   | 'PerTeu'

@@ -98,6 +98,12 @@ const isCarrierCost = computed(() => form.associationType === 'Carrier')
 const isEquipmentBasis = computed(
   () => form.chargeBasis === 'PerContainer' || form.chargeBasis === 'PerTruck',
 )
+const perServiceId = computed<string>({
+  get: () => form.serviceIds[0] ?? '',
+  set: (value) => {
+    form.serviceIds = value ? [value] : []
+  },
+})
 const utility = computed(() => Number(form.saleAmount || 0) - Number(form.costAmount || 0))
 const anyPortOptions = computed(() =>
   [...catalogs.polOptions.value, ...catalogs.poeOptions.value, ...catalogs.podOptions.value].filter(
@@ -134,6 +140,7 @@ const shipmentModeOptions: Array<{ label: string; value: ShipmentMode | '' }> = 
 
 const chargeBasisOptions: Array<{ label: string; value: ChargeBasis }> = [
   { label: 'Por embarque', value: 'PerShipment' },
+  { label: 'Por Servicio', value: 'PerService' },
   { label: 'Por contenedor', value: 'PerContainer' },
   { label: 'Por TEU', value: 'PerTeu' },
   { label: 'Por camión', value: 'PerTruck' },
@@ -245,6 +252,9 @@ watch(
   () => form.chargeBasis,
   (basis) => {
     form.isAccountant = basis === 'PerContainer' || basis === 'PerTruck'
+    if (basis === 'PerService' && form.serviceIds.length > 1) {
+      form.serviceIds = form.serviceIds.slice(0, 1)
+    }
   },
   { immediate: true },
 )
@@ -286,6 +296,7 @@ async function submit() {
     (isAgentCost.value && !agent) ||
     (isCarrierCost.value && !carrier) ||
     !routeSelectionValid.value ||
+    (form.chargeBasis === 'PerService' && services.length !== 1) ||
     Number(form.costAmount) < 0 ||
     Number(form.saleAmount) < 0 ||
     (form.minimumCostAmount !== '' && Number(form.minimumCostAmount) < 0) ||
@@ -389,6 +400,14 @@ onMounted(catalogs.loadAll)
         />
         <DhSelect v-model="form.chargeBasis" label="Base de cobro" :options="chargeBasisOptions" />
         <DhSelect
+          v-if="form.chargeBasis === 'PerService'"
+          v-model="perServiceId"
+          label="Servicio de Pricing"
+          placeholder="Seleccione el servicio"
+          :options="catalogs.serviceOptions.value"
+          :error="form.submitted && !perServiceId ? 'Seleccione el servicio de Pricing.' : undefined"
+        />
+        <DhSelect
           v-model="form.routeScope"
           label="Condición de ruta"
           :options="routeScopeOptions"
@@ -463,7 +482,7 @@ onMounted(catalogs.loadAll)
           :options="catalogs.currencyOptions.value"
           :error="fieldError(form.currencyId, 'Seleccione la moneda.')"
         />
-        <div class="md:col-span-2">
+        <div v-if="form.chargeBasis !== 'PerService'" class="md:col-span-2">
           <PricingMultiSelect
             v-model="form.serviceIds"
             :options="catalogs.serviceOptions.value"
