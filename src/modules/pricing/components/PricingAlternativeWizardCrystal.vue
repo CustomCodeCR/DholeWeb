@@ -176,6 +176,12 @@ const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
+const commercialAction = ref<'accept' | 'reject' | null>(null)
+const commercialIdtra = ref('')
+const commercialRejectionReason = ref('')
+const commercialStatusSaving = ref(false)
+const commercialActionError = ref('')
+const downloadingQuote = ref(false)
 const isEditing = computed(() => Boolean(props.rateId))
 const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Seleccionar alternativa')
 const pageDescription = computed(() => isEditing.value
@@ -288,6 +294,11 @@ const stepTitles = [
   'Líneas',
   'Borrador',
 ]
+const visibleStepTitles = computed(() => props.viewOnly ? [...stepTitles, 'Vista completa'] : stepTitles)
+const maxStep = computed(() => visibleStepTitles.value.length)
+const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')
+const canMarkSent = computed(() => currentCommercialStatus.value === 'Open')
+const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))
 
 const modalityOptions: Array<{ value: Modality; label: string; caption: string }> = [
   { value: 'Maritime', label: 'Marítimo', caption: 'FCL y LCL' },
@@ -2054,6 +2065,10 @@ async function hydrateExistingRate() {
     form.clientName = rate.clientName ?? ''
     form.executiveName = rate.executiveName ?? ''
     form.idtraNumber = rate.idtraNumber ?? ''
+    commercialIdtra.value = rate.idtraNumber ?? ''
+    commercialRejectionReason.value = rate.status === 'RejectedByClient' ? rate.closedReason ?? '' : ''
+    commercialAction.value = null
+    commercialActionError.value = ''
     form.pickupAddress = rate.pickupAddress ?? ''
     form.pickupLatitude = rate.pickupLatitude ?? null
     form.pickupLongitude = rate.pickupLongitude ?? null
@@ -2095,7 +2110,7 @@ async function hydrateExistingRate() {
         applyDestinationTax: /IVA\\s+\\d+/i.test(String(detail.notes ?? '')),
       } as RateLine
     })
-    step.value = 8
+    step.value = props.viewOnly ? 9 : 8
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
     await router.push({ name: 'pricing-rates' })
@@ -2110,7 +2125,110 @@ function editCurrentRate() {
   router.replace({ name: 'pricing-rate-wizard', params: { rateId: editingRate.value.id }, query: { mode: 'edit' } })
 }
 
+function goToStep(target: number) {
+  if (target < 1 || target > maxStep.value) return
+  // Crear mantiene el flujo guiado; Ver y Editar pueden recorrer libremente toda la tarifa.
+  if (props.rateId || target <= step.value) step.value = target
+}
+
+function commercialStatusLabel(status: string) {
+  return ({
+    PendingApproval: 'Pendiente de aprobación',
+    ApprovedByManagement: 'Aprobada por gerencia',
+    RejectedByManagement: 'Rechazada por gerencia',
+    Open: 'Abierta',
+    Sent: 'Enviada',
+    AcceptedByClient: 'Aceptada',
+    RejectedByClient: 'Rechazada',
+    RequestedByClient: 'Solicitada por cliente',
+    Closed: 'Cerrada',
+    Expired: 'Vencida',
+  } as Record<string, string>)[status] ?? status
+}
+
+async function markCurrentRateSent() {
+  if (!editingRate.value || !canMarkSent.value) return
+  try {
+    commercialStatusSaving.value = true
+    commercialActionError.value = ''
+    await PricingService.setRateStatus(editingRate.value.id, { status: 'Sent' })
+    toastStore.success('Tarifa marcada como enviada.')
+    await hydrateExistingRate()
+  } catch (error) {
+    commercialActionError.value = 'No se pudo marcar la tarifa como enviada.'
+    toastStore.backendError(error, commercialActionError.value)
+  } finally {
+    commercialStatusSaving.value = false
+  }
+}
+
+function startCommercialDecision(action: 'accept' | 'reject') {
+  if (!canAcceptOrReject.value) return
+  commercialAction.value = action
+  commercialActionError.value = ''
+  if (action === 'accept') commercialIdtra.value = editingRate.value?.idtraNumber ?? form.idtraNumber ?? ''
+  if (action === 'reject') commercialRejectionReason.value = ''
+}
+
+async function submitCommercialDecision() {
+  if (!editingRate.value || !commercialAction.value || !canAcceptOrReject.value) return
+  if (commercialAction.value === 'accept' && !commercialIdtra.value.trim()) {
+    commercialActionError.value = 'El IDTRA es obligatorio para aceptar la tarifa.'
+    return
+  }
+  if (commercialAction.value === 'reject' && !commercialRejectionReason.value.trim()) {
+    commercialActionError.value = 'El motivo de rechazo es obligatorio.'
+    return
+  }
+
+  try {
+    commercialStatusSaving.value = true
+    commercialActionError.value = ''
+    if (commercialAction.value === 'accept') {
+      await PricingService.setRateStatus(editingRate.value.id, {
+        status: 'AcceptedByClient',
+        idtraNumber: commercialIdtra.value.trim(),
+      })
+      toastStore.success('Tarifa aceptada', `IDTRA ${commercialIdtra.value.trim()} registrado.`)
+    } else {
+      await PricingService.setRateStatus(editingRate.value.id, {
+        status: 'RejectedByClient',
+        reason: commercialRejectionReason.value.trim(),
+      })
+      toastStore.success('Tarifa marcada como rechazada.')
+    }
+    await hydrateExistingRate()
+  } catch (error) {
+    commercialActionError.value = commercialAction.value === 'accept'
+      ? 'No se pudo aceptar la tarifa.'
+      : 'No se pudo rechazar la tarifa.'
+    toastStore.backendError(error, commercialActionError.value)
+  } finally {
+    commercialStatusSaving.value = false
+  }
+}
+
+async function downloadCurrentQuote() {
+  if (!editingRate.value || downloadingQuote.value) return
+  try {
+    downloadingQuote.value = true
+    await PricingService.downloadRateDocument(
+      editingRate.value.id,
+      editingRate.value.rateName || editingRate.value.rateCode,
+      { format: 'pdf' },
+    )
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo descargar la cotización.')
+  } finally {
+    downloadingQuote.value = false
+  }
+}
+
 async function next() {
+  if (props.rateId) {
+    if (step.value < maxStep.value) step.value += 1
+    return
+  }
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
@@ -2810,9 +2928,9 @@ onMounted(async () => {
       </details>
     </div>
 
-    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4 xl:grid-cols-8">
+    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">
       <button
-        v-for="(title, index) in stepTitles"
+        v-for="(title, index) in visibleStepTitles"
         :key="title"
         type="button"
         class="crystal-step"
@@ -2820,14 +2938,14 @@ onMounted(async () => {
           'crystal-step--active': index + 1 === step,
           'crystal-step--done': index + 1 < step,
         }"
-        @click="index + 1 < step ? (step = index + 1) : undefined"
+        @click="goToStep(index + 1)"
       >
         <span class="text-[10px] font-black uppercase tracking-[0.16em]">{{ String(index + 1).padStart(2, '0') }}</span>
         <span class="mt-1 block text-xs font-extrabold">{{ title }}</span>
       </button>
     </div>
 
-    <section class="crystal-panel min-h-[470px] p-5 md:p-8">
+    <section class="crystal-panel min-h-[470px] p-5 md:p-8" :class="{ 'wizard-view-readonly': viewOnly && step !== 9 }">
       <div v-if="loadingCatalogs" class="grid min-h-[390px] place-items-center text-sm font-semibold text-[var(--dh-text-muted)]">
         Cargando configuración de Pricing…
       </div>
@@ -3503,7 +3621,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-else class="space-y-6">
+        <div v-else-if="step === 8" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 8</p>
             <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
@@ -3578,14 +3696,167 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <div v-else-if="step === 9 && viewOnly && editingRate" class="space-y-6">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p class="crystal-kicker">Pantalla 9</p>
+              <h2 class="crystal-title">Vista completa de la tarifa</h2>
+              <p class="crystal-description">Resumen integral de la revisión actual, decisión comercial, líneas, condiciones y totales.</p>
+            </div>
+            <DhButton variant="secondary" :loading="downloadingQuote" :disabled="downloadingQuote" @click="downloadCurrentQuote">
+              Descargar cotización PDF
+            </DhButton>
+          </div>
+
+          <div class="crystal-soft p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Estado comercial</p>
+                <div class="mt-2 flex flex-wrap items-center gap-2">
+                  <DhBadge :label="commercialStatusLabel(editingRate.status)" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : editingRate.status === 'RejectedByClient' ? 'danger' : 'neutral'" />
+                  <DhBadge :label="`REV ${editingRate.revisionNumber || 1}`" variant="neutral" />
+                  <DhBadge v-if="editingRate.idtraNumber" :label="`IDTRA ${editingRate.idtraNumber}`" variant="primary" />
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <DhButton variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
+                <DhButton :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
+                <DhButton variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
+              </div>
+            </div>
+            <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.
+            </p>
+
+            <div v-if="commercialAction === 'accept'" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
+              <p class="text-sm font-black">Aceptar tarifa</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Para aceptar la tarifa debe registrar el número IDTRA.</p>
+              <div class="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
+                <DhInput v-model="commercialIdtra" label="Número IDTRA" placeholder="Ej. IDTRA-2026-00125" />
+                <DhButton :loading="commercialStatusSaving" :disabled="commercialStatusSaving || !commercialIdtra.trim()" @click="submitCommercialDecision">Confirmar aceptación</DhButton>
+                <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Cancelar</DhButton>
+              </div>
+            </div>
+
+            <div v-if="commercialAction === 'reject'" class="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4">
+              <p class="text-sm font-black">Rechazar tarifa</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El motivo es obligatorio y quedará guardado en la tarifa y visible en la cotización.</p>
+              <DhTextarea v-model="commercialRejectionReason" class="mt-3" label="Motivo de rechazo" placeholder="Indique por qué el cliente rechazó la tarifa" :rows="4" />
+              <div class="mt-3 flex flex-wrap justify-end gap-2">
+                <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Cancelar</DhButton>
+                <DhButton variant="danger" :loading="commercialStatusSaving" :disabled="commercialStatusSaving || !commercialRejectionReason.trim()" @click="submitCommercialDecision">Confirmar rechazo</DhButton>
+              </div>
+            </div>
+
+            <p v-if="commercialActionError" class="mt-3 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-black text-red-600 dark:text-red-300">{{ commercialActionError }}</p>
+            <div v-if="editingRate.status === 'RejectedByClient' && editingRate.closedReason" class="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4">
+              <p class="text-[10px] font-black uppercase tracking-[0.14em] text-red-600 dark:text-red-300">Motivo de rechazo</p>
+              <p class="mt-2 whitespace-pre-wrap text-sm font-bold">{{ editingRate.closedReason }}</p>
+            </div>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Identificación</p>
+              <p class="mt-3 text-lg font-black">{{ editingRate.rateCode }}</p>
+              <p class="mt-1 text-sm font-bold">QUO: {{ editingRate.quoNumber || '—' }}</p>
+              <p class="mt-1 text-sm font-bold">IDTRA: {{ editingRate.idtraNumber || 'Pendiente' }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ editingRate.rateName }}</p>
+            </div>
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
+              <p class="mt-3 text-lg font-black">{{ editingRate.clientName || 'Cliente sin definir' }}</p>
+              <p class="mt-1 text-sm font-bold">Ejecutivo: {{ editingRate.executiveName || 'Sin asignar' }}</p>
+              <p class="mt-1 text-sm font-bold">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incoterm {{ editingRate.incotermCode || editingRate.incotermName || '—' }}</p>
+            </div>
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Vigencia y cambio</p>
+              <p class="mt-3 text-sm font-bold">{{ formatDate(editingRate.validFrom) }} → {{ formatDate(editingRate.validTo) }}</p>
+              <p class="mt-1 text-sm font-bold">Días libres: {{ editingRate.freeDays }}</p>
+              <p class="mt-1 text-sm font-bold">Tránsito: {{ editingRate.transitTime || 'Por confirmar' }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">TC venta: {{ Number(editingRate.exchangeRateSale || editingRate.exchangeRateApplied || 0).toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</p>
+            </div>
+          </div>
+
+          <div class="crystal-soft p-5">
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Ruta, proveedor y servicios</p>
+            <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Ruta</span><p class="mt-1 font-bold">{{ editingRate.polName }} → {{ editingRate.poeName }}<span v-if="editingRate.podName"> → {{ editingRate.podName }}</span></p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Naviera / proveedor</span><p class="mt-1 font-bold">{{ editingRate.carrierName || 'Sin asignar' }}</p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Agente</span><p class="mt-1 font-bold">{{ editingRate.agentName || 'Sin asignar' }}</p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Equipo</span><p class="mt-1 font-bold">{{ editingRate.containerQuantity }} × {{ editingRate.containerTypeName }}</p></div>
+            </div>
+            <div class="mt-4">
+              <span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Servicios</span>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <DhBadge v-for="service in editingRate.services || []" :key="service.id" :label="service.name" variant="neutral" />
+                <span v-if="!(editingRate.services || []).length" class="text-xs font-semibold text-[var(--dh-text-muted)]">Sin servicios asociados</span>
+              </div>
+            </div>
+            <div v-if="editingRate.pickupAddress" class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-sm font-semibold">
+              Recolección: {{ editingRate.pickupAddress }}
+            </div>
+          </div>
+
+          <div class="crystal-soft overflow-hidden p-0">
+            <div class="border-b border-[var(--dh-border)] px-5 py-4">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-[980px] w-full text-left text-xs">
+                <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+                  <tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta total</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="detail in editingRate.rateDetails" :key="detail.id" class="border-t border-[var(--dh-border)]">
+                    <td class="px-4 py-3"><strong>{{ detail.name }}</strong><p v-if="detail.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detail.notes }}</p></td>
+                    <td class="px-4 py-3">{{ chargeBasisLabel(detail.chargeBasis) }}</td>
+                    <td class="px-4 py-3">{{ Number(detail.quantity || 0).toLocaleString('es-CR') }}</td>
+                    <td class="px-4 py-3 font-black">{{ detail.currencyCode }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(Number(detail.costAmount || 0), detail.currencyCode) }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(Number(detail.saleAmount || 0), detail.currencyCode) }}</td>
+                    <td class="px-4 py-3 text-right font-black">{{ formatMoney(Number(detail.saleAmount || 0) * Number(detail.quantity || 0), detail.currencyCode) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="crystal-soft p-5">
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Totales de la oferta</p>
+            <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+              <div class="min-w-[520px]">
+                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-[10px] font-black uppercase text-[var(--dh-text-muted)]"><span>Concepto</span><span>USD</span><span>CRC</span></div>
+                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm"><strong>Subtotal</strong><strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong><strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></div>
+                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm"><strong>IVA</strong><strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong><strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong></div>
+                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-4 text-base"><strong>Total</strong><strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleUsd, 'USD') }}</strong><strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></div>
+              </div>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-3 text-sm">
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Costo</span><p class="mt-1 font-black">{{ formatMoney(totalCostUsd, 'USD') }} / {{ formatMoney(totalCostCrc, 'CRC') }}</p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Utilidad</span><p class="mt-1 font-black">{{ formatMoney(totalUtilityUsd, 'USD') }} / {{ formatMoney(totalUtilityCrc, 'CRC') }}</p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Margen</span><p class="mt-1 font-black">{{ totalMarginPercentage.toFixed(2) }}%</p></div>
+            </div>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="crystal-soft p-5"><p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifa incluye</p><p class="mt-3 whitespace-pre-wrap text-sm font-semibold">{{ editingRate.includes || '—' }}</p></div>
+            <div class="crystal-soft p-5"><p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Sujeta a</p><p class="mt-3 whitespace-pre-wrap text-sm font-semibold">{{ editingRate.subjectTo || '—' }}</p></div>
+            <div class="crystal-soft p-5"><p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifa no incluye</p><p class="mt-3 whitespace-pre-wrap text-sm font-semibold">{{ editingRate.excludes || '—' }}</p></div>
+          </div>
+        </div>
       </template>
     </section>
 
     <div class="crystal-footer flex items-center justify-between gap-3 p-3">
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
-      <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / 8</div>
-      <DhButton v-if="step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
-      <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
+      <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
+      <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
+      <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="step === 8" :disabled="saving || !includedLines.length" @click="saveRate"><Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}</DhButton>
       <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Seleccione una alternativa para continuar</span>
     </div>
@@ -4101,5 +4372,13 @@ onMounted(async () => {
   .crystal-orb {
     opacity: 0.12;
   }
+}
+</style>
+
+
+<style scoped>
+.wizard-view-readonly {
+  pointer-events: none;
+  user-select: text;
 }
 </style>
