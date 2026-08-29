@@ -4,8 +4,7 @@ on:
   push:
     branches: [feature/rate-wizard-edit-revisions-20260828]
     paths:
-      - '.github/scripts/apply-rate-wizard-edit-revisions-20260828.py'
-      - '.github/scripts/prepare-rate-wizard-edit-revisions-20260828.py'
+      - '.github/scripts/refine-rate-wizard-edit-revisions-20260829.py'
       - '.github/workflows/apply-rate-wizard-edit-revisions-20260828.yml'
   workflow_dispatch:
 
@@ -21,10 +20,8 @@ jobs:
           ref: feature/rate-wizard-edit-revisions-20260828
           fetch-depth: 0
 
-      - name: Apply implementation
-        run: |
-          python3 .github/scripts/prepare-rate-wizard-edit-revisions-20260828.py
-          python3 .github/scripts/apply-rate-wizard-edit-revisions-20260828.py
+      - name: Apply final refinement
+        run: python3 .github/scripts/refine-rate-wizard-edit-revisions-20260829.py
 
       - name: Build production image
         shell: bash
@@ -50,15 +47,15 @@ jobs:
             --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
             -t dhole/web-rate-wizard-revisions-validation .
 
-      - name: Commit implementation
+      - name: Commit refinement
         run: |
           set -euo pipefail
           git config user.name 'Maurice Lang'
           git config user.email '106346768+MauLang18@users.noreply.github.com'
           git add src
           if git diff --cached --quiet; then
-            echo 'No implementation changes to commit.'
+            echo 'No final changes to commit.'
             exit 0
           fi
-          git commit -m 'feat(web): edit official rates in wizard with revisions'
+          git commit -m 'fix(web): persist edited wizard commercial terms'
           git push origin HEAD:feature/rate-wizard-edit-revisions-20260828
