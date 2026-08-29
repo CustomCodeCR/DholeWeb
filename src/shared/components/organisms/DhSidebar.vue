@@ -31,6 +31,14 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
 
+// Settings is intentionally centralized in the topbar. Keep it available in the
+// application/router, but do not render the Settings group in the left sidebar.
+const visibleItems = computed(() =>
+  props.items.filter(
+    (item) => !item.children?.some((child) => child.path === '/settings/appearance'),
+  ),
+)
+
 function sidebarChildren(item: SidebarItem): SidebarItem[] {
   const result = [...(item.children ?? [])]
 
@@ -45,21 +53,6 @@ function sidebarChildren(item: SidebarItem): SidebarItem[] {
     result.splice(catalogsIndex, 0, {
       label: 'Directorio interno',
       path: '/settings?section=extensions&mode=admin',
-      icon: ContactRound,
-    })
-  }
-
-  // The quick directory requested in Settings stays between Appearance and Shortcuts.
-  const appearanceIndex = result.findIndex((child) => child.path === '/settings/appearance')
-  const shortcutsIndex = result.findIndex((child) => child.path === '/settings/shortcuts')
-  if (
-    appearanceIndex !== -1 &&
-    shortcutsIndex !== -1 &&
-    !result.some((child) => child.path === '/settings?section=extensions')
-  ) {
-    result.splice(appearanceIndex + 1, 0, {
-      label: 'Directorio de extensiones',
-      path: '/settings?section=extensions',
       icon: ContactRound,
     })
   }
@@ -129,7 +122,7 @@ function sidebarChildren(item: SidebarItem): SidebarItem[] {
       </div>
 
       <nav class="dh-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pr-2">
-        <template v-for="item in items" :key="item.label">
+        <template v-for="item in visibleItems" :key="item.label">
           <div v-if="item.children" class="space-y-1.5">
             <div
               class="flex items-center rounded-[20px] px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[var(--dh-text-muted)]"
