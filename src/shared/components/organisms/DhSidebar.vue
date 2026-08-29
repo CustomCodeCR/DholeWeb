@@ -2,7 +2,13 @@
 import { computed, type Component } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, X } from 'lucide-vue-next'
+import {
+  ChevronDown,
+  ContactRound,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+} from 'lucide-vue-next'
 
 export interface SidebarItem {
   label: string
@@ -24,6 +30,29 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
+
+function sidebarChildren(item: SidebarItem): SidebarItem[] {
+  const children = item.children ?? []
+  const appearanceIndex = children.findIndex((child) => child.path === '/settings/appearance')
+  const shortcutsIndex = children.findIndex((child) => child.path === '/settings/shortcuts')
+
+  if (
+    appearanceIndex === -1 ||
+    shortcutsIndex === -1 ||
+    children.some((child) => child.path === '/settings?section=extensions')
+  ) {
+    return children
+  }
+
+  const result = [...children]
+  result.splice(appearanceIndex + 1, 0, {
+    label: 'Directorio de extensiones',
+    path: '/settings?section=extensions',
+    icon: ContactRound,
+  })
+
+  return result
+}
 </script>
 
 <template>
@@ -100,7 +129,7 @@ const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
             </div>
 
             <RouterLink
-              v-for="child in item.children"
+              v-for="child in sidebarChildren(item)"
               :key="child.path"
               :to="child.path ?? '/'"
               class="flex min-h-11 touch-manipulation items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
