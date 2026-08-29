@@ -885,39 +885,39 @@ function setLineCurrency(line: RateLine, currencyId: string) {
   const currency = findById(catalogs.currencies, currencyId)
   if (!currency) return
 
-  // Para costos configurados la fuente monetaria es la moneda del maestro, no
-  // necesariamente la etiqueta que ya tenga la línea. Esto evita el caso USD 15 ->
-  // mostrar CRC 15 cuando una regla de servicio cambió primero la divisa.
-  const configuredCost = line.costId ? costs.value.find((cost) => cost.id === line.costId) : null
-  const previousRaw = String(
-    line.amountCurrencyCode ||
-      configuredCost?.currencyCode ||
-      configuredCost?.currencyName ||
-      canonicalCurrencyCode(line),
-  ).trim()
-  const previousNormalized = normalizeCatalogValue(previousRaw)
-  const previousCode =
-    previousRaw.toUpperCase() === 'CRC' || previousNormalized.includes('colon') ? 'CRC' : 'USD'
-  const nextRaw = String(currency.code || displayValue(currency)).trim()
-  const nextNormalized = normalizeCatalogValue([nextRaw, currency.label, currency.slug, displayValue(currency)].filter(Boolean).join(' '))
-  const nextCode = nextRaw.toUpperCase() === 'CRC' || nextNormalized.includes('colon') ? 'CRC' : 'USD'
-  const exchangeRate = number(exchangeRateSale.value)
-  const requiresUsdCrcConversion =
-    previousCode !== nextCode &&
-    ['USD', 'CRC'].includes(previousCode) &&
-    ['USD', 'CRC'].includes(nextCode)
+  // amountCurrencyCode represents the currency in which the numeric amounts are
+  // currently expressed. Never infer it again from the Cost master when the user
+  // changes the selector: doing so can make the UI change USD/CRC without changing
+  // the actual numeric amounts.
+  const previousCode = String(
+    line.amountCurrencyCode || canonicalCurrencyCode(line),
+  ).trim().toUpperCase()
+  const nextCode = String(canonicalCurrencyCode({
+    currencyId: currency.id,
+    currencyCode: String(currency.code ?? ''),
+    currencyName: displayValue(currency) || currency.label || String(currency.code ?? ''),
+  })).trim().toUpperCase()
 
-  // Nunca se cambia solamente la etiqueta de moneda. Si falta tipo de cambio,
-  // la línea conserva su moneda original y el watcher la convierte cuando llegue Hacienda.
-  if (requiresUsdCrcConversion && exchangeRate <= 0) return
+  if (!['USD', 'CRC'].includes(nextCode)) return
 
-  if (requiresUsdCrcConversion) {
+  if (previousCode !== nextCode) {
+    const exchangeRate = number(exchangeRateSale.value)
+    if (exchangeRate <= 0) {
+      toastStore.warning(
+        'Tipo de cambio requerido',
+        'No se puede convertir USD/CRC hasta tener un tipo de cambio de Venta válido.',
+      )
+      return
+    }
+
     if (previousCode === 'USD' && nextCode === 'CRC') {
       line.costAmount = Math.round(number(line.costAmount) * exchangeRate * 100) / 100
       line.saleAmount = Math.round(number(line.saleAmount) * exchangeRate * 100) / 100
     } else if (previousCode === 'CRC' && nextCode === 'USD') {
       line.costAmount = Math.round((number(line.costAmount) / exchangeRate) * 100) / 100
       line.saleAmount = Math.round((number(line.saleAmount) / exchangeRate) * 100) / 100
+    } else {
+      return
     }
   }
 
@@ -1594,7 +1594,10 @@ addVariableSectionFallback(
     })
   }
 
-  lines.forEach(enforceLineCurrency)
+  lines.forEach((line) => {
+    line.amountCurrencyCode = canonicalCurrencyCode(line)
+    enforceLineCurrency(line)
+  })
   rateLines.value = lines
 }
 
@@ -1638,7 +1641,10 @@ function mergeConfiguredOptionalCostsIntoRateLines() {
       })
     })
 
-  rateLines.value.forEach(enforceLineCurrency)
+  rateLines.value.forEach((line) => {
+    line.amountCurrencyCode ||= canonicalCurrencyCode(line)
+    enforceLineCurrency(line)
+  })
 }
 
 function addManualCharge() {
