@@ -2580,9 +2580,8 @@ async function saveRate() {
         carrierCode: carrier!.code,
         rateType: editingRate.value.rateType,
         quoNumber: editingRate.value.quoNumber ?? null,
-        includes: editingRate.value.includes ?? createPayload.includes ?? null,
-        subjectTo: editingRate.value.subjectTo ?? createPayload.subjectTo ?? null,
-        excludes: editingRate.value.excludes ?? createPayload.excludes ?? null,
+        // Includes / SubjectTo / Excludes already come from baseUpdate, recalculated by
+        // this same wizard from the edited Incoterm, services and tariff lines.
         extraDetails,
         removedExtraDetailIds,
       } as UpdateRateRequest
