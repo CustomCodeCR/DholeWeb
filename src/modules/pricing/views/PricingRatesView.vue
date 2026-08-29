@@ -80,7 +80,7 @@ function canonicalRateCurrency(code?: string | null, name?: string | null) {
   return ''
 }
 
-function rateFinancialSummary(rate: RatoDto) {
+function rateFinancialSummary(rate: RateDto) {
   const exchangeRate = Number(rate.exchangeRateApplied || rate.exchangeRateSale || 0)
   let costUsd = 0
   let saleUsd = 0
