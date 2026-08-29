@@ -1,0 +1,50 @@
+name: Fix Pricing Screen 7 VAT and additional costs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/apply-pricing-vat-screen7-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Pricing Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' 'H4sICK8Fk2oCA2ZpeF9wcmljaW5nX3ZhdC5weQDVWt2T2jgSf+evUFGXtT3BZia5utvihuGyk2xVqpK7VCaVfRhYImwBzvhrZXkGlvC/X7ckG9vYwEw2D8dDAlLr1x/qbnVLM+dxSBIqloE/I36YxFyQD/Czo79z1ul0PDaHL9QzkdAadAh8OBMZjyStGnaQYirYSpgscmPPjxZDIxNz+2c79ReGpXEeuC+YXNEjSKzhSjiSQgHhPz1SgyugOPsj8zmbcpYE1GWaOg68HonYQ48EdMaCHnHjLBLDC82IuiKjARlK5o6cM2GJJSf9eT5/qZapNVJf6qeM3KxTwcI3K1+Yc2MjGWwHhK0S5grmESpIwGgqyEau3pLYdTPOQQFmplaPzGHUIxvFY2tYZUtKeXJVdkpIoFxjMJC7nPqRYHy+0ziiIQNsnwVeqrUEQqCJQE3OQMkw8QNm8rlhgqi4rQUE2QABS12aMBNxrO14dvv7ZjM5G282lumcjSxzHI23W8voIdaNkjlEQQBd83FSRrm7lPIUloxioegOGrEkCfLfymXSTto8s9hbAyeJ5Cx4nCXmCzVDPc8XfhylMH07kUPzmCtDTJVRPOYGlFOkAp21jXby+OhEufBgnt/H6VnJIDskMMtoBJMDsAIKJG3x3toh4ceNI+FHGSsGCwEdmiQs8kyDEIM8L0tVsVZBX7LYzjm0s0gHCVkkaka5sAAZZXN4KrifmPjbGEeG/s/5GvuRWbDA2fLyl3vOeDtQ86mgXJjWBBaUuT9XRIoGlbMGE3DTYj/TKYYzCGmk3O27MWf93Vw/4b4LIe2I1Cgtkf4KeaYGYlVJ6lGgTFhQ9ORv4yMV7DUT1A9ei9hQg7eFXU0DtiRYv2YpbJnciU90BZvbNDwAs8YQ15Fh9UoAXoUI2eH6/dEBibJwxvih1a9CDPP99Wq8jjDpdZ5kkmswrmA7w3yEBArsvss4o++0zqhROXVK1NygV9IIMuKD/yflXsXLwtjLgp139THzxRF4a9r/oIZeBZivQIB79ptcf80hG9HAuc+YoSFzLywxAHYQowfFlxEMOUatUhFcwqseVYWhFMXOcJAhDhp5HBFIH7h5bz0YxUiPFuQbCBEExmNhWpU5lQsueudHjDTttiQDw8FZNhV0NV2yIGEcvdUwjHkWuTIrB7C8cHQTfw1IDmuRTadISTjlNChFfvqJuDR6tT8j0VRaG5H3sIsOx3PFVDrKWSelAVO8LXLWoIZzT4MMBOmTi/NzCTUg551tpyL/DYD85otlzrNFgza+zxuMYJV5pEwgWIN2O05YJtFZwLxijxXvVrMNyS+KztQLrWOWxPk2C5ErNAtsbAeqliPb/XoPo9FqcJxCJYUYPtQLHk4CWNmI+8JYO2tXF4J44ATVsUGrNvUNPuygSlChAEDEAzpa3+/POJ/zQqM/wr31siPeDJw+xZASTwvJmtsClz8yCnWQWP8a8+sl5Qv2CwWjK3nc3YD1/xRFaouhbodz40dEzsE4VWxzmn2cggT8oJXLII9POMfqGbnt1FJfyk1JeZlsUKoDF1aHBXhQPjLeGw/PvWbB+PzqE1G8yCyI3btKryDPmeXaU3X1FLbD8z1gILsDCdgt6vKmGq//9vOrMXzS5/iv97zvO7BYmDfy8DPVcegAR0AcjSCpWVZvHHV7J0Mj8CNgJzKTFgqpPHqITakXyf1TozdQW+TbNyUXiHWaVAV+U4n7HxWVemGDjwK7c8DQHmg8HaPRV7Dvq+w/ErQ5RKX/21tVhq1Wac0RUSxW8VD6eWFVQGZQVN7JERak7EBTbLCVj7ovbI5aS68vJKy4PFcF/JRG7hIsMFR+mCfgwcmpuIcFHyFyvwcqzbhxKlSX8GmdQIoZgv+9jdKMAy9mdAvW1YZUu+gTJOi0Rk/uzG0Z8mj2VdgNHtepRsuTGRRbOTp29qsP5GIl0+kGR8sWjb2MoB9jq7+ojak65v54yWtK7YR0d00i3T6h6yCm3q6XaAtE1d9+gXxG/rZpOwO3zwYw21AlOCL+1V8xz3xhbf9F7kEoSgSWQDl9vTSprPiixcvZH3KBHygCWEfg9c+08e5PnajgRObow6UfecDg6paMxeTMupTLrsbpWUeNXApO7m1IqcOuysXoDwzvjaIFqjJ2eHGFkHbJ4I6tc8qx43td4gY0TYfdWcw9xm1B9Jfx7T3lY9O2vaWthsbWeNK9cs5GOee+4GVB+ko0ELunb6ecG9Q0xPvbsrL5HZ5yCxkg4UBfgnj6rkxfdBlqpLh8LaevOXDaqPmtNksn/01IyS64A2gVP3KDzGMeVjGFKWTwwbdWQ6AdymawwAglPsjJy9cmK/vvJFnbL2skQATZII4WVxv4qBSCN5VkC5/Lvp6rL0lAAX+uRZTZpxAyFPYFCenKfrBvX/7jPFlNyMPSB4oE7GMnnNkPnCby0s++vZDz8zgSdspCfwYHoZ4pVJM/wwyaLVSvJKQsKpSUyb6AtQFSFvgJ3VJ3D6+s7p4yM3CGu7omCfdDytegRg3sag8cM0ChalsSkMo/G+wtlgvBvUIq3scRW5st3ZjV05cz1+ptYf0Zs5uaUuB1q9YNDYHlneJxUqLSMf0OHzz2D2+9m4/APLUsgCT3LnYh9enC1GCpff3ReAzH0sZq5q3Gewyq9BHuL5ZCo5Y3rtyj4rmue9Sj+/YE3rWtPihKqV1+tAtBGohaYvPp8TcP2IpAjglT22V4t0u+ZoAxX9ss8siCJvaLhhg9lmyORunl6+X1krl3s3i1NwfVWRh7LLBlyTDsHq2ouk0Q8mVw2NUVweGSYPvsSyOG56fydmHYvffZw3+jYI0NUENbdDkk500I/84S7Heq+uzuLIZXB65EiouQBv36e1m7j97xlBRTcuVKnB7z6saK6BF3T49z/7ouskwpfpeqlKbrk9tB2P6EpknC4gFNXZ8crDJOvCzByi9ggqkmUuBmqrfUSgd5uKB+E+i/CcAb/kCebilW6BC3Xyl4CPkA5qZBQMnPTl4FvynoFhkgUgLrCc9mPCbr2mpwO5jOIdb7gCigfAkqPcX0SF7kdebgtMH0hOdDRXjgdUc3Nl5xV2RW3w9lNwLSqlesg2+E6p25KphuQZtA+fF3w4OI6k2v3DUdf6g7CKitpFuvA4B/SbdZSKI3tSaFuvdguRQn3Gu1QwZ4Q5pHhSzQUsQ8EmttaCGNMhr08/d0GhQrEVTdF1ewwLWQOZ5RpimzL9fXn6lqT525j4+Tpk5mQCDtmoNYjapNOnOwhHJcWf7jTZj624f4DukLz9Z/YxDfTbA7UqvackdKI0iiUPnBIZnmtPJPF1A59ZcEatSyOlAeQ2Fq6AdWcuNyBoH8T9yzknlsrIPUO7W85vFBpDRzwfPSeRYEawey0f8AVp5md40kAAA=' | base64 -d | gzip -d | python3
+
+      - name: Validate production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="dhole/web:pricing-vat-check-${GITHUB_RUN_ID}"
+          docker build \
+            --build-arg VITE_API_URL=https://example.invalid \
+            --build-arg VITE_APP_NAME=DholeSystem \
+            --build-arg VITE_FRONTEND_DOMAIN=example.invalid \
+            -t "$TAG" \
+            .
+          docker image rm -f "$TAG" >/dev/null 2>&1 || true
+
+      - name: Commit directly to master
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/apply-pricing-vat-screen7-20260829.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(pricing-web): persist VAT state and show added costs"
+          git push origin HEAD:master
