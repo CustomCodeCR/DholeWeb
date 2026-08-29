@@ -1,0 +1,214 @@
+name: Fix official rate financial summary
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/fix-official-rate-financial-summary-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch official rates financial summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/views/PricingRatesView.vue')
+          text = path.read_text(encoding='utf-8-sig')
+
+          function_start = text.index('function rateFinancialSummary(rate: RateDto) {')
+          function_end = text.index('\nconst rows = ref<RateDto[]>([])', function_start)
+
+          replacement = r'''function canonicalRateCurrency(code?: string | null, name?: string | null) {
+            const value = `${code ?? ''} ${name ?? ''}`
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .trim()
+              .toUpperCase()
+
+            if (value.includes('CRC') || value.includes('COLON')) return 'CRC'
+            if (value.includes('USD') || value.includes('DOLAR') || value.includes('DOLLAR')) return 'USD'
+            return ''
+          }
+
+          function rateFinancialSummary(rate: RateDto) {
+            const exchangeRate = Number(rate.exchangeRateApplied || rate.exchangeRateSale || 0)
+            let costUsd = 0
+            let saleUsd = 0
+            let costCrc = 0
+            let saleCrc = 0
+            let taxUsd = 0
+            let taxCrc = 0
+            let recognizedDetails = false
+
+            for (const detail of rate.rateDetails ?? []) {
+              const quantity = Number(detail.quantity) > 0 ? Number(detail.quantity) : 1
+              const cost = Number(detail.costAmount || 0) * quantity
+              const sale = Number(detail.saleAmount || 0) * quantity
+              const tax = Number(detail.destinationTaxAmount || 0) * quantity
+              const code = canonicalRateCurrency(detail.currencyCode, detail.currencyName)
+
+              if (code === 'USD') {
+                recognizedDetails = true
+                costUsd += cost
+                saleUsd += sale
+                taxUsd += tax
+                if (exchangeRate > 0) {
+                  costCrc += cost * exchangeRate
+                  saleCrc += sale * exchangeRate
+                  taxCrc += tax * exchangeRate
+                }
+              } else if (code === 'CRC') {
+                recognizedDetails = true
+                costCrc += cost
+                saleCrc += sale
+                taxCrc += tax
+                if (exchangeRate > 0) {
+                  costUsd += cost / exchangeRate
+                  saleUsd += sale / exchangeRate
+                  taxUsd += tax / exchangeRate
+                }
+              }
+            }
+
+            const detailValues = Math.abs(costUsd) + Math.abs(saleUsd) + Math.abs(costCrc) + Math.abs(saleCrc)
+
+            if (!recognizedDetails || detailValues === 0) {
+              costUsd = Number(rate.totalCostUsd || 0)
+              saleUsd = Number(rate.totalSaleUsd || 0)
+              costCrc = Number(rate.totalCostCrc || 0)
+              saleCrc = Number(rate.totalSaleCrc || 0)
+              taxUsd = Number((rate as RateDto & { totalTaxUsd?: number }).totalTaxUsd || 0)
+              taxCrc = Number((rate as RateDto & { totalTaxCrc?: number }).totalTaxCrc || 0)
+
+              const dualValues = Math.abs(costUsd) + Math.abs(saleUsd) + Math.abs(costCrc) + Math.abs(saleCrc)
+
+              if (dualValues === 0) {
+                const nativeCost = Number(rate.totalCostAmount || 0)
+                const nativeSale = Number(rate.totalSaleAmount || 0)
+                const nativeCode = canonicalRateCurrency(rate.currencyCode, rate.currencyName) || 'USD'
+
+                if (nativeCode === 'CRC') {
+                  costCrc = nativeCost
+                  saleCrc = nativeSale
+                  if (exchangeRate > 0) {
+                    costUsd = nativeCost / exchangeRate
+                    saleUsd = nativeSale / exchangeRate
+                  }
+                } else {
+                  costUsd = nativeCost
+                  saleUsd = nativeSale
+                  if (exchangeRate > 0) {
+                    costCrc = nativeCost * exchangeRate
+                    saleCrc = nativeSale * exchangeRate
+                  }
+                }
+              }
+            }
+
+            if (exchangeRate > 0) {
+              if ((costUsd !== 0 || saleUsd !== 0) && costCrc === 0 && saleCrc === 0) {
+                costCrc = costUsd * exchangeRate
+                saleCrc = saleUsd * exchangeRate
+              } else if ((costCrc !== 0 || saleCrc !== 0) && costUsd === 0 && saleUsd === 0) {
+                costUsd = costCrc / exchangeRate
+                saleUsd = saleCrc / exchangeRate
+              }
+
+              if (taxUsd !== 0 && taxCrc === 0) taxCrc = taxUsd * exchangeRate
+              if (taxCrc !== 0 && taxUsd === 0) taxUsd = taxCrc / exchangeRate
+            }
+
+            const utilityUsd = saleUsd - costUsd
+            const utilityCrc = saleCrc - costCrc
+            const margin = saleUsd > 0
+              ? (utilityUsd / saleUsd) * 100
+              : saleCrc > 0
+                ? (utilityCrc / saleCrc) * 100
+                : Number(rate.marginPercentage || 0)
+
+            return {
+              costUsd,
+              costCrc,
+              saleUsd,
+              saleCrc,
+              subtotalUsd: saleUsd,
+              subtotalCrc: saleCrc,
+              taxUsd,
+              taxCrc,
+              totalUsd: saleUsd + taxUsd,
+              totalCrc: saleCrc + taxCrc,
+              utilityUsd,
+              utilityCrc,
+              margin,
+            }
+          }
+          '''
+
+          text = text[:function_start] + replacement + text[function_end:]
+
+          template_start = text.index('          <template #cell-commercial="{ row }">')
+          template_end = text.index('          <template #cell-validity="{ row }">', template_start)
+
+          template = r'''          <template #cell-commercial="{ row }">
+            <div class="min-w-[300px] text-right">
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo · Venta · Margen</p>
+              <div class="mt-1 grid grid-cols-[auto_auto] justify-end gap-x-2 gap-y-1 text-xs">
+                <span class="font-semibold text-[var(--dh-text-muted)]">Costo</span>
+                <strong>{{ formatMoney(rateFinancialSummary(row).costUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).costCrc, 'CRC') }}</strong>
+                <span class="font-semibold text-[var(--dh-text-muted)]">Venta</span>
+                <strong class="text-[var(--dh-primary)]">{{ formatMoney(rateFinancialSummary(row).saleUsd, 'USD') }} · {{ formatMoney(rateFinancialSummary(row).saleCrc, 'CRC') }}</strong>
+                <span class="font-semibold text-[var(--dh-text-muted)]">Margen</span>
+                <span class="flex justify-end">
+                  <DhBadge :label="`${rateFinancialSummary(row).margin.toFixed(2)}%`" :variant="marginTone(rateFinancialSummary(row).margin)" />
+                </span>
+              </div>
+            </div>
+          </template>
+'''
+
+          text = text[:template_start] + template + text[template_end:]
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('src/modules/pricing/views/PricingRatesView.vue').read_text(encoding='utf-8')
+          assert 'Costo · Venta · Margen' in text
+          assert 'rateFinancialSummary(row).costUsd' in text
+          assert 'rateFinancialSummary(row).saleUsd' in text
+          assert 'rate.totalCostAmount' in text
+          assert 'rate.totalSaleAmount' in text
+          assert 'canonicalRateCurrency' in text
+          assert "canonicalRateCurrency(rate.currencyCode, rate.currencyName) || 'USD'" in text
+          print('Official rate financial summary patch validated.')
+          PY
+          git diff --check
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-official-rate-financial-summary-20260829.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(pricing-web): show cost sale and margin totals"
+          git push origin HEAD:master
