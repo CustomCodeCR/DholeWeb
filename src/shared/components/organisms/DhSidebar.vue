@@ -2,13 +2,7 @@
 import { computed, type Component } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import {
-  ChevronDown,
-  ContactRound,
-  PanelLeftClose,
-  PanelLeftOpen,
-  X,
-} from 'lucide-vue-next'
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, X } from 'lucide-vue-next'
 
 export interface SidebarItem {
   label: string
@@ -31,34 +25,13 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
 
-// Settings is intentionally centralized in the topbar. Keep it available in the
-// application/router, but do not render the Settings group in the left sidebar.
+// Settings is centralized in the topbar. Keep the routes available, but do not
+// render the Settings group in the left sidebar.
 const visibleItems = computed(() =>
   props.items.filter(
     (item) => !item.children?.some((child) => child.path === '/settings/appearance'),
   ),
 )
-
-function sidebarChildren(item: SidebarItem): SidebarItem[] {
-  const result = [...(item.children ?? [])]
-
-  // Config has two different concerns: the generic catalogs (Pricing/WHS, etc.)
-  // and the internal employee directory. Keep them as independent entries so
-  // opening the directory never lands in the WHS catalog screen.
-  const catalogsIndex = result.findIndex((child) => child.path === '/config/catalogs')
-  if (
-    catalogsIndex !== -1 &&
-    !result.some((child) => child.path === '/settings?section=extensions&mode=admin')
-  ) {
-    result.splice(catalogsIndex, 0, {
-      label: 'Directorio interno',
-      path: '/settings?section=extensions&mode=admin',
-      icon: ContactRound,
-    })
-  }
-
-  return result
-}
 </script>
 
 <template>
@@ -135,7 +108,7 @@ function sidebarChildren(item: SidebarItem): SidebarItem[] {
             </div>
 
             <RouterLink
-              v-for="child in sidebarChildren(item)"
+              v-for="child in item.children"
               :key="child.path"
               :to="child.path ?? '/'"
               class="flex min-h-11 touch-manipulation items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
