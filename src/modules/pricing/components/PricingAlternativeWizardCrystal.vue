@@ -979,6 +979,38 @@ function lineSaleWithTax(line: RateLine) {
 function setLineDestinationTax(line: RateLine, enabled: boolean) {
   line.applyDestinationTax = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0
 }
+function canonicalCurrencyCode(line: Pick<RateLine, 'currencyId' | 'currencyCode' | 'currencyName'>) {
+  const catalogCurrency = findById(catalogs.currencies, line.currencyId)
+  const candidates = [
+    line.currencyCode,
+    line.currencyName,
+    catalogCurrency?.code,
+    catalogCurrency?.slug,
+    catalogCurrency?.label,
+    displayValue(catalogCurrency),
+  ]
+
+  for (const candidate of candidates) {
+    const raw = String(candidate ?? '').trim()
+    const normalized = normalizeCatalogValue(raw)
+    const upper = raw.toUpperCase()
+    if (upper === 'USD' || normalized === 'usd' || normalized.includes('dolar') || normalized.includes('dollar')) {
+      return 'USD' as const
+    }
+    if (
+      upper === 'CRC' ||
+      normalized === 'crc' ||
+      normalized.includes('colon costarricense') ||
+      normalized.includes('colones') ||
+      normalized === 'colon'
+    ) {
+      return 'CRC' as const
+    }
+  }
+
+  return String(line.currencyCode ?? '').trim().toUpperCase()
+}
+
 function convertUsdCrc(amount: number, sourceCode: string, targetCode: 'USD' | 'CRC') {
   const source = String(sourceCode || 'USD').trim().toUpperCase()
   if (source === targetCode) return number(amount)
@@ -989,10 +1021,11 @@ function convertUsdCrc(amount: number, sourceCode: string, targetCode: 'USD' | '
   return 0
 }
 function sumLinesInCurrency(amount: (line: RateLine) => number, target: 'USD' | 'CRC') {
-  return includedLines.value.reduce(
-    (sum, line) => sum + convertUsdCrc(amount(line), line.currencyCode, target),
-    0,
-  )
+  return includedLines.value.reduce((sum, line) => {
+    const quantity = Math.max(0, number(quantityForChargeBasis(line.chargeBasis)))
+    const lineTotal = number(amount(line)) * quantity
+    return sum + convertUsdCrc(lineTotal, canonicalCurrencyCode(line), target)
+  }, 0)
 }
 const totalCostUsd = computed(() => sumLinesInCurrency((line) => number(line.costAmount), 'USD'))
 const totalCostCrc = computed(() => sumLinesInCurrency((line) => number(line.costAmount), 'CRC'))
@@ -1007,7 +1040,7 @@ const totalUtilityCrc = computed(() => totalSaleBeforeTaxCrc.value - totalCostCr
 const totalMarginPercentage = computed(() =>
   totalSaleBeforeTaxUsd.value > 0 ? (totalUtilityUsd.value / totalSaleBeforeTaxUsd.value) * 100 : 0,
 )
-const includedCurrencyCodes = computed(() => new Set(includedLines.value.map((line) => String(line.currencyCode).trim().toUpperCase())))
+const includedCurrencyCodes = computed(() => new Set(includedLines.value.map((line) => canonicalCurrencyCode(line)).filter(Boolean)))
 const hasMixedCurrencies = computed(() => includedCurrencyCodes.value.size > 1)
 // Compatibility aliases used by existing visual helpers. Header currency is still preserved in the persisted rate.
 const totalCost = computed(() => String(selectedCurrency.value?.code ?? '').toUpperCase() === 'CRC' ? totalCostCrc.value : totalCostUsd.value)
