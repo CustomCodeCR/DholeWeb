@@ -3,6 +3,7 @@ name: Deploy Dhole Web
 # Pricing Screen 7 VAT persistence and live additional-cost summary — 2026-08-29
 # Live USD/CRC amount conversion on line currency change — 2026-08-29
 # Official rates Cost/Venta/Margen summary fallback — 2026-08-29
+# Corrected official financial summary template syntax — 2026-08-29
 
 on:
   push:
