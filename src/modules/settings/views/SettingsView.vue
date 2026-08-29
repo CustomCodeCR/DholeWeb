@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ContactRound, Keyboard, ListChecks, Palette, Settings } from 'lucide-vue-next'
+import { ArrowLeft, ContactRound, Keyboard, Palette, Settings } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { DhButton } from '@/shared/components/atoms'
@@ -30,12 +30,6 @@ const cards = [
     description: 'Atajos configurables en el navegador.',
     icon: Keyboard,
     path: '/settings/shortcuts',
-  },
-  {
-    title: 'Selects de Pricing',
-    description: 'Puertos, contenedores, navieras, incoterms y catálogos usados por Pricing.',
-    icon: ListChecks,
-    path: '/settings/pricing-selects',
   },
 ]
 </script>
