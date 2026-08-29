@@ -564,6 +564,7 @@ export interface RateDto extends Record<string, unknown> {
   id: string
   rateCode: string
   rateName: string
+  revisionNumber: number
   sourceImportFclRateId?: string | null
   agentId?: string | null
   agentName?: string | null
@@ -642,6 +643,22 @@ export interface RateDto extends Record<string, unknown> {
   containers?: RateContainerDto[]
   rateDetails: RateDetailDto[]
   services?: RateServiceDto[]
+}
+
+export interface RateRevisionDto extends Record<string, unknown> {
+  id: string
+  rateHeaderId: string
+  revisionNumber: number
+  status: string
+  rateName: string
+  idtraNumber?: string | null
+  quoNumber?: string | null
+  totalSaleUsd: number
+  totalSaleCrc: number
+  marginPercentage: number
+  createdAtUtc: string
+  createdBy?: string | null
+  snapshotJson: string
 }
 
 export interface RateSelectDto extends Record<string, unknown> {

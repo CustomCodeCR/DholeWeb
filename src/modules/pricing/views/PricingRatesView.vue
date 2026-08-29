@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Copy, Edit3, Eye, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import {
@@ -11,15 +11,12 @@ import {
 } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
-import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
-import PricingRateFormDrawer from '@/modules/pricing/components/PricingRateFormDrawer.vue'
-import PricingRateDetailDrawer from '@/modules/pricing/components/PricingRateDetailDrawer.vue'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -53,8 +50,8 @@ function normalizeCommercialStatus(value: unknown): CommercialRateStatus {
 }
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
-const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
@@ -211,21 +208,11 @@ function toggleSelection(id: string) {
 }
 
 function openDetail(rate: RateDto) {
-  drawerStore.open({
-    title: displayRateName(rate),
-    component: PricingRateDetailDrawer,
-    size: 'xl',
-    props: { rate, onSaved: load },
-  })
+  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'view' } })
 }
 
 function openEdit(rate: RateDto) {
-  drawerStore.open({
-    title: `Editar · ${displayRateName(rate)}`,
-    component: PricingRateFormDrawer,
-    size: 'full',
-    props: { rate, onSaved: load },
-  })
+  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
 }
 
 function duplicate(rate: RateDto) {
@@ -458,6 +445,7 @@ onMounted(async () => {
                 >
                   {{ row.rateCode }}
                 </span>
+                <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
                 <DhBadge
                   :label="row.rateType === 'Spot' ? 'SPOT' : 'TARIFARIO'"
                   :variant="row.rateType === 'Spot' ? 'warning' : 'neutral'"
@@ -473,7 +461,7 @@ onMounted(async () => {
                 {{
                   displayRate(row).incotermName || displayRate(row).incotermCode || 'Sin Incoterm'
                 }}
-                <span v-if="row.idtraNumber"> · IDTRA {{ row.idtraNumber }}</span>
+                <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
                 <span v-if="row.quoNumber"> · {{ row.quoNumber }}</span>
               </p>
             </div>
@@ -492,29 +480,15 @@ onMounted(async () => {
             </div>
           </template>
           <template #cell-commercial="{ row }">
-            <div class="min-w-[180px] text-right">
-              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Venta</p>
-              <p class="font-black text-[var(--dh-text)]">
-                {{ formatMoney(row.totalSaleAmount, displayRate(row).currencyName) }}
-              </p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Costo {{ formatMoney(row.totalCostAmount, displayRate(row).currencyName) }}
-              </p>
+            <div class="min-w-[190px] text-right">
+              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Venta de la revisión</p>
+              <p class="font-black text-[var(--dh-text)]">USD {{ Number(row.totalSaleUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
+              <p class="text-sm font-black text-[var(--dh-primary)]">CRC ₡{{ Number(row.totalSaleCrc || 0).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
               <div class="mt-2 flex items-center justify-end gap-2">
-                <span
-                  class="text-xs font-black"
-                  :class="
-                    row.totalUtilityAmount >= 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-red-500'
-                  "
-                >
-                  {{ formatMoney(row.totalUtilityAmount, displayRate(row).currencyName) }}
+                <span class="text-xs font-black" :class="row.totalUtilityUsd >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'">
+                  Utilidad USD {{ Number(row.totalUtilityUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
                 </span>
-                <DhBadge
-                  :label="`${row.marginPercentage.toFixed(2)}%`"
-                  :variant="marginTone(row.marginPercentage)"
-                />
+                <DhBadge :label="`${row.marginPercentage.toFixed(2)}%`" :variant="marginTone(row.marginPercentage)" />
               </div>
             </div>
           </template>
@@ -539,7 +513,7 @@ onMounted(async () => {
               <button
                 type="button"
                 class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
-                title="Ver detalle"
+                title="Ver en wizard"
                 @click.stop="openDetail(row)"
               >
                 <Eye class="h-4 w-4" /></button
@@ -547,7 +521,7 @@ onMounted(async () => {
                 v-if="canUpdate"
                 type="button"
                 class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
-                title="Editar"
+                title="Editar en wizard"
                 @click.stop="openEdit(row)"
               >
                 <Edit3 class="h-4 w-4" /></button
