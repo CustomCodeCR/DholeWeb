@@ -3908,22 +3908,15 @@ onMounted(async () => {
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>
             </div>
             <div class="overflow-x-auto">
-              <table class="min-w-[980px] w-full text-left text-xs">
+              <table class="min-w-[1180px] w-full text-left text-xs">
                 <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
-                  <tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta total</th></tr>
+                  <tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta subtotal</th><th class="px-4 py-3 text-right">IVA</th><th class="px-4 py-3 text-right">Venta total</th></tr>
                 </thead>
                 <tbody>
                   <tr v-for="line in includedLines" :key="line.key" class="border-t border-[var(--dh-border)]">
                     <td class="px-4 py-3">
                       <strong>{{ line.name }}</strong>
                       <p v-if="line.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ line.notes }}</p>
-                      <p
-                        v-if="line.applyDestinationTax && canApplyDestinationTax(line)"
-                        class="mt-1 text-[10px] font-black text-[var(--dh-primary)]"
-                      >
-                        IVA {{ lineDestinationTaxRate(line) }}%:
-                        {{ formatMoney(lineTaxTotalAmount(line), detailCurrencyValue(line)) }}
-                      </p>
                     </td>
                     <td class="px-4 py-3">{{ chargeBasisLabel(line.chargeBasis) }}</td>
                     <td class="px-4 py-3">{{ quantityForChargeBasis(line.chargeBasis).toLocaleString('es-CR') }}</td>
@@ -3931,17 +3924,15 @@ onMounted(async () => {
                     <td class="px-4 py-3 text-right">{{ formatMoney(number(line.costAmount), detailCurrencyValue(line)) }}</td>
                     <td class="px-4 py-3 text-right">
                       {{ formatMoney(number(line.saleAmount), detailCurrencyValue(line)) }}
-                      <span
-                        v-if="canApplyDestinationTax(line)"
-                        class="mt-1 flex items-center justify-end gap-2 text-[10px] font-bold text-[var(--dh-text-muted)]"
-                      >
-                        <DhCheckbox
-                          :model-value="Boolean(line.applyDestinationTax)"
-                          :label="`IVA ${lineDestinationTaxRate(line)}%`"
-                          :disabled="viewOnly || destinationTaxRate <= 0"
-                          @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
-                        />
-                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-right font-semibold">
+                      {{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), detailCurrencyValue(line)) }}
+                    </td>
+                    <td
+                      class="px-4 py-3 text-right font-semibold"
+                      :class="lineTaxTotalAmount(line) > 0 ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'"
+                    >
+                      {{ formatMoney(lineTaxTotalAmount(line), detailCurrencyValue(line)) }}
                     </td>
                     <td class="px-4 py-3 text-right font-black">
                       {{ formatMoney(lineSaleWithTax(line) * quantityForChargeBasis(line.chargeBasis), detailCurrencyValue(line)) }}
