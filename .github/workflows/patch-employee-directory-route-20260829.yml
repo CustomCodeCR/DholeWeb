@@ -1,0 +1,69 @@
+name: Patch employee directory route
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/patch-employee-directory-route-20260829.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add settings route
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/core/router/index.ts')
+          text = path.read_text(encoding='utf-8-sig')
+
+          if "name: 'settings-extensions'" in text:
+              print('Route already present')
+              raise SystemExit(0)
+
+          marker = """        {
+          path: 'settings/shortcuts',
+          name: 'settings-shortcuts',
+"""
+          block = """        {
+          path: 'settings/extensions',
+          name: 'settings-extensions',
+          component: () => import('@/modules/settings/views/EmployeeDirectorySettingsView.vue'),
+          meta: {
+            tabTitle: 'Extensiones',
+            closable: true,
+          },
+        },
+
+"""
+          if marker not in text:
+              raise SystemExit('Settings shortcuts route marker not found')
+
+          text = text.replace(marker, block + marker, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit route
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Maurice Lang"
+          git config user.email "106346768+MauLang18@users.noreply.github.com"
+          git add src/core/router/index.ts
+          if git diff --cached --quiet; then
+            echo "No route changes needed"
+            exit 0
+          fi
+          git commit -m "feat(settings): route employee extension directory"
+          git push origin HEAD:master
