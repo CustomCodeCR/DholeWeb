@@ -92,6 +92,7 @@ interface CatalogMetadata {
   imageStorageId?: string
   imageFileName?: string
   salesExecutiveId?: string
+  forceCrcInCostaRica?: boolean
 }
 
 interface CabysItem {
@@ -466,10 +467,15 @@ function sectionLabel(section: RateSection) {
   } as Record<RateSection, string>)[section]
 }
 
-function isCostaRica(item: CatalogItemSelectDto) {
+function isCostaRica(item?: CatalogItemSelectDto | null) {
+  if (!item) return false
   const meta = metadata(item)
   if (meta?.countryCode?.toUpperCase() === 'CR') return true
-  const text = displayValue(item).toLocaleLowerCase()
+
+  const code = String(item.code ?? '').trim().toUpperCase()
+  if (code === 'CR' || /^CR[A-Z0-9]{3}$/.test(code)) return true
+
+  const text = normalizeCatalogValue([displayValue(item), item.label, item.code, item.slug].filter(Boolean).join(' '))
   return text.includes('costa rica') || text.includes('costarica')
 }
 
@@ -671,8 +677,13 @@ const selectedCurrency = computed(() => findById(catalogs.currencies, form.curre
 const destinationCountryCode = computed(() => {
   const configured = String(metadata(selectedDestination.value)?.countryCode ?? '').trim().toUpperCase()
   if (configured) return configured
-  const destination = normalizeCatalogValue(displayValue(selectedDestination.value))
-  if (destination.includes('costa rica')) return 'CR'
+  if (isCostaRica(selectedDestination.value)) return 'CR'
+  const destination = normalizeCatalogValue([
+    displayValue(selectedDestination.value),
+    selectedDestination.value?.label,
+    selectedDestination.value?.code,
+    selectedDestination.value?.slug,
+  ].filter(Boolean).join(' '))
   if (destination.includes('panama')) return 'PA'
   if (destination.includes('guatemala')) return 'GT'
   return ''
@@ -797,6 +808,9 @@ const forcedCrcServiceIds = computed(() => {
   return new Set(
     catalogs.services
       .filter((service) => {
+        const configured = metadata(service)?.forceCrcInCostaRica
+        if (typeof configured === 'boolean') return configured
+
         const values = [displayValue(service), service.label, service.code, service.slug]
           .map((value) => normalizeCatalogValue(String(value ?? '')))
         return values.some((value) => forcedNames.has(value))
@@ -804,7 +818,9 @@ const forcedCrcServiceIds = computed(() => {
       .map((service) => service.id),
   )
 })
-const crcImportContext = computed(() => operationType.value === 'Import' && destinationCountryCode.value === 'CR')
+// Un POE de Costa Rica o una operación clasificada como importación activa la regla CRC.
+// El OR evita que un catálogo incompleto de país deje una importación CR cobrando en USD.
+const crcImportContext = computed(() => operationType.value === 'Import' || destinationCountryCode.value === 'CR')
 const usdCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'USD') ?? null)
 const crcCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'CRC') ?? null)
 const lineCurrencyOptions = computed(() => {
@@ -823,13 +839,21 @@ function setLineCurrency(line: RateLine, currencyId: string) {
   const currency = findById(catalogs.currencies, currencyId)
   if (!currency) return
 
-  const previousCode = String(line.currencyCode || '').trim().toUpperCase()
-  const nextCode = String(currency.code || displayValue(currency)).trim().toUpperCase()
+  const previousCode = canonicalCurrencyCode(line)
+  const nextRaw = String(currency.code || displayValue(currency)).trim()
+  const nextNormalized = normalizeCatalogValue([nextRaw, currency.label, currency.slug, displayValue(currency)].filter(Boolean).join(' '))
+  const nextCode = nextRaw.toUpperCase() === 'CRC' || nextNormalized.includes('colon') ? 'CRC' : 'USD'
   const exchangeRate = number(exchangeRateSale.value)
+  const requiresUsdCrcConversion =
+    previousCode !== nextCode &&
+    ['USD', 'CRC'].includes(previousCode) &&
+    ['USD', 'CRC'].includes(nextCode)
 
-  // Cambiar la divisa no debe reinterpretar USD 100 como CRC 100. Se conserva
-  // el valor económico de la línea usando el tipo de cambio visible de Hacienda.
-  if (previousCode && previousCode !== nextCode && exchangeRate > 0) {
+  // Nunca se cambia solamente la etiqueta de moneda. Si falta tipo de cambio,
+  // la línea conserva su moneda original y el watcher la convierte cuando llegue Hacienda.
+  if (requiresUsdCrcConversion && exchangeRate <= 0) return
+
+  if (requiresUsdCrcConversion) {
     if (previousCode === 'USD' && nextCode === 'CRC') {
       line.costAmount = Math.round(number(line.costAmount) * exchangeRate * 100) / 100
       line.saleAmount = Math.round(number(line.saleAmount) * exchangeRate * 100) / 100
@@ -849,7 +873,7 @@ function enforceLineCurrency(line: RateLine) {
 }
 
 watch(
-  [crcImportContext, () => form.serviceIds.join('|'), crcCurrency],
+  [crcImportContext, () => form.serviceIds.join('|'), crcCurrency, exchangeRateSale],
   () => rateLines.value.forEach(enforceLineCurrency),
 )
 
@@ -3189,7 +3213,7 @@ onMounted(async () => {
                   :disabled="isLineCrcForced(line)"
                   @update:model-value="(value) => setLineCurrency(line, String(value))"
                 />
-                <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · Importación Costa Rica</p>
+                <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · POE Costa Rica / importación</p>
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
@@ -3253,7 +3277,7 @@ onMounted(async () => {
                     :disabled="isLineCrcForced(line)"
                     @update:model-value="(value) => setLineCurrency(line, String(value))"
                   />
-                  <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · Importación Costa Rica</p>
+                  <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · POE Costa Rica / importación</p>
                 </div>
                 <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
