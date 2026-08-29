@@ -32,24 +32,37 @@ const { t } = useI18n()
 const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
 
 function sidebarChildren(item: SidebarItem): SidebarItem[] {
-  const children = item.children ?? []
-  const appearanceIndex = children.findIndex((child) => child.path === '/settings/appearance')
-  const shortcutsIndex = children.findIndex((child) => child.path === '/settings/shortcuts')
+  const result = [...(item.children ?? [])]
 
+  // Config has two different concerns: the generic catalogs (Pricing/WHS, etc.)
+  // and the internal employee directory. Keep them as independent entries so
+  // opening the directory never lands in the WHS catalog screen.
+  const catalogsIndex = result.findIndex((child) => child.path === '/config/catalogs')
   if (
-    appearanceIndex === -1 ||
-    shortcutsIndex === -1 ||
-    children.some((child) => child.path === '/settings?section=extensions')
+    catalogsIndex !== -1 &&
+    !result.some((child) => child.path === '/settings?section=extensions&mode=admin')
   ) {
-    return children
+    result.splice(catalogsIndex, 0, {
+      label: 'Directorio interno',
+      path: '/settings?section=extensions&mode=admin',
+      icon: ContactRound,
+    })
   }
 
-  const result = [...children]
-  result.splice(appearanceIndex + 1, 0, {
-    label: 'Directorio de extensiones',
-    path: '/settings?section=extensions',
-    icon: ContactRound,
-  })
+  // The quick directory requested in Settings stays between Appearance and Shortcuts.
+  const appearanceIndex = result.findIndex((child) => child.path === '/settings/appearance')
+  const shortcutsIndex = result.findIndex((child) => child.path === '/settings/shortcuts')
+  if (
+    appearanceIndex !== -1 &&
+    shortcutsIndex !== -1 &&
+    !result.some((child) => child.path === '/settings?section=extensions')
+  ) {
+    result.splice(appearanceIndex + 1, 0, {
+      label: 'Directorio de extensiones',
+      path: '/settings?section=extensions',
+      icon: ContactRound,
+    })
+  }
 
   return result
 }
