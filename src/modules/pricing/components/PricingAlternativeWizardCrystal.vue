@@ -3142,8 +3142,8 @@ onMounted(async () => {
             <div class="crystal-total-card">
     <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo USD <strong>{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
     <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo CRC <strong>{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
-    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta USD <strong>{{ formatMoney(totalSaleUsd, 'USD') }}</strong></span>
-    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta CRC <strong>{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></span>
+    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta USD <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
+    <span class="crystal-total-card__metric crystal-total-card__metric--sale">Venta CRC <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
     <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityUsd)}`">Utilidad USD <strong>{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
     <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
     <span v-if="hasMixedCurrencies" class="crystal-total-card__metric crystal-total-card__metric--neutral">Oferta mixta <strong>USD + CRC</strong></span>
@@ -3220,10 +3220,9 @@ onMounted(async () => {
                   :disabled="destinationTaxRate <= 0"
                   @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                 />
-                <div class="crystal-line-vat__amounts">
-                  <span>IVA <strong>{{ formatMoney(lineTaxAmount(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>
-                  <span>Venta + IVA <strong>{{ formatMoney(lineSaleWithTax(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>
-                </div>
+                <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">
+                  El importe del IVA se refleja en Pantalla 8.
+                </p>
               </div>
             </div>
           </div>
@@ -3284,10 +3283,9 @@ onMounted(async () => {
                     :disabled="destinationTaxRate <= 0"
                     @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                   />
-                  <div class="crystal-line-vat__amounts">
-                    <span>IVA <strong>{{ formatMoney(lineTaxAmount(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>
-                    <span>Venta + IVA <strong>{{ formatMoney(lineSaleWithTax(line), line.currencyName || line.currencyCode || 'USD') }}</strong></span>
-                  </div>
+                  <p class="text-[10px] font-bold leading-snug text-[var(--dh-text-muted)]">
+                    El importe del IVA se refleja en Pantalla 8.
+                  </p>
                 </div>
                 <span v-else />
                 <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
@@ -3327,14 +3325,51 @@ onMounted(async () => {
               <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
                 <span>Costo USD <strong class="block">{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
                 <span>Costo CRC <strong class="block">{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
-                <span>Venta USD <strong class="block">{{ formatMoney(totalSaleUsd, 'USD') }}</strong></span>
-                <span>Venta CRC <strong class="block">{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></span>
+                <span>Venta sin IVA USD <strong class="block">{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
+                <span>Venta sin IVA CRC <strong class="block">{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
                 <span>Utilidad USD <strong class="block">{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
                 <span>Utilidad CRC <strong class="block">{{ formatMoney(totalUtilityCrc, 'CRC') }}</strong></span>
                 <span>Margen <strong class="block">{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
                 <span>Operación <strong class="block">{{ direction }}</strong></span>
               </div>
             </div>
+            <div class="crystal-soft p-5 lg:col-span-2">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Totales de la oferta</p>
+                  <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El IVA no forma parte de los totales de Pantalla 7. Aquí se presenta separado del subtotal.</p>
+                </div>
+                <DhBadge :variant="totalTaxUsd > 0 ? 'primary' : 'neutral'">
+                  {{ totalTaxUsd > 0 ? `IVA aplicado ${destinationTaxRate}%` : 'Sin IVA aplicado' }}
+                </DhBadge>
+              </div>
+
+              <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+                <div class="min-w-[440px]">
+                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                    <span>Concepto</span>
+                    <span>USD</span>
+                    <span>CRC</span>
+                  </div>
+                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm">
+                    <strong>Subtotal</strong>
+                    <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong>
+                    <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong>
+                  </div>
+                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm">
+                    <strong>IVA</strong>
+                    <strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong>
+                    <strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong>
+                  </div>
+                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-4 text-base">
+                    <strong>Total</strong>
+                    <strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleUsd, 'USD') }}</strong>
+                    <strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleCrc, 'CRC') }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="crystal-soft p-5 lg:col-span-2">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Carga y respaldos</p>
               <p class="mt-3 text-sm font-semibold">{{ form.cargoDescription || 'Sin descripción adicional' }}</p>
@@ -3722,24 +3757,6 @@ onMounted(async () => {
   padding: 0.6rem 0.7rem;
 }
 
-.crystal-line-vat__amounts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem;
-  font-size: 0.68rem;
-  font-weight: 800;
-  color: var(--dh-text-muted);
-}
-
-.crystal-line-vat__amounts span {
-  display: grid;
-  gap: 0.1rem;
-}
-
-.crystal-line-vat__amounts strong {
-  color: var(--dh-text);
-  font-size: 0.76rem;
-}
 
 .crystal-total-card span {
   display: flex;
@@ -3875,9 +3892,6 @@ onMounted(async () => {
     min-width: 0;
   }
 
-  .crystal-line-vat__amounts {
-    grid-template-columns: minmax(0, 1fr);
-  }
 
   .crystal-panel {
     border-radius: 24px;
