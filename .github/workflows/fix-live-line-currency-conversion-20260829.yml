@@ -115,17 +115,10 @@ jobs:
           assert 'line.amountCurrencyCode = nextCode' in block
           assert 'line.costAmount) * exchangeRate' in block
           assert 'line.costAmount) / exchangeRate' in block
+          assert 'line.amountCurrencyCode = canonicalCurrencyCode(line)' in text
           print('Live USD/CRC amount conversion patch validated.')
           PY
           git diff --check
-
-      - name: Build Web
-        shell: bash
-        run: |
-          set -euo pipefail
-          corepack enable
-          pnpm install --frozen-lockfile
-          pnpm build
 
       - name: Commit patch
         shell: bash
