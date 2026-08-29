@@ -5,6 +5,7 @@ on:
     branches: [feature/rate-wizard-edit-revisions-20260828]
     paths:
       - '.github/scripts/apply-rate-wizard-edit-revisions-20260828.py'
+      - '.github/scripts/prepare-rate-wizard-edit-revisions-20260828.py'
       - '.github/workflows/apply-rate-wizard-edit-revisions-20260828.yml'
   workflow_dispatch:
 
@@ -21,7 +22,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply implementation
-        run: python3 .github/scripts/apply-rate-wizard-edit-revisions-20260828.py
+        run: |
+          python3 .github/scripts/prepare-rate-wizard-edit-revisions-20260828.py
+          python3 .github/scripts/apply-rate-wizard-edit-revisions-20260828.py
 
       - name: Build production image
         shell: bash
