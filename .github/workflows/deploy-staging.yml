@@ -1,0 +1,109 @@
+name: Deploy Dhole Web - Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dhole-web-staging
+  cancel-in-progress: true
+
+env:
+  COMPOSE_FILE: .dhole-system/deploy/docker-compose.services.yml
+  COMPOSE_OVERRIDE: .dhole-system/deploy/docker-compose.staging.yml
+  DHOLE_IMAGE_TAG: staging
+  DHOLE_NETWORK: dhole-staging
+  COMPOSE_PROJECT: dhole-staging
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - name: Checkout service
+        uses: actions/checkout@v4
+
+      - name: Load Dhole deployment infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .dhole-system
+          git clone --depth 1 --branch master https://github.com/CustomCodeCR/DholeSystem.git .dhole-system
+          mkdir -p "$RUNNER_TEMP/dhole-env"
+          bash .dhole-system/deploy/prepare-environments.sh /opt/dhole/.env "$RUNNER_TEMP/dhole-env"
+          echo "DHOLE_ENV_FILE=$RUNNER_TEMP/dhole-env/.env.staging" >> "$GITHUB_ENV"
+
+      - name: Verify staging server
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker network inspect "$DHOLE_NETWORK" >/dev/null
+          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" config -q
+
+      - name: Build image
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA_TAG="${GITHUB_SHA::12}"
+          read_env() {
+            local key="$1"
+            local value
+            value="$(grep -m1 "^${key}=" "$DHOLE_ENV_FILE" | cut -d= -f2- || true)"
+            value="${value%$'\r'}"
+            if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+              value="${value:1:${#value}-2}"
+            elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+              value="${value:1:${#value}-2}"
+            fi
+            printf '%s' "$value"
+          }
+          VITE_API_URL="$(read_env VITE_API_URL)"
+          VITE_APP_NAME="$(read_env VITE_APP_NAME)"
+          VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
+          : "${VITE_API_URL:?VITE_API_URL is required}"
+          : "${VITE_APP_NAME:?VITE_APP_NAME is required}"
+          : "${VITE_FRONTEND_DOMAIN:?VITE_FRONTEND_DOMAIN is required}"
+          docker build --pull -f Dockerfile \
+            --build-arg VITE_API_URL="$VITE_API_URL" \
+            --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
+            --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
+            -t dhole/web:staging -t "dhole/web:staging-$SHA_TAG" .
+
+      - name: Verify staging bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh dhole/web:staging -ec '
+            if grep -R -n -E "https?://(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" /usr/share/nginx/html; then
+              echo "Staging bundle contains a private-network URL."
+              exit 1
+            fi
+            if grep -R -n -F ":5209/api/notifications" /usr/share/nginx/html; then
+              echo "Staging bundle contains a direct Notifications service URL."
+              exit 1
+            fi
+          '
+
+      - name: Deploy Web staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" up -d --no-deps --force-recreate --pull never dhole-web
+          CONTAINER_ID="$(docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" ps -q dhole-web)"
+          test -n "$CONTAINER_ID"
+          for attempt in $(seq 1 30); do
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER_ID")"
+            if [[ "$health" == "healthy" || "$health" == "running" ]]; then break; fi
+            if [[ "$attempt" == "30" ]]; then docker logs --tail 100 "$CONTAINER_ID"; exit 1; fi
+            sleep 2
+          done
+          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" ps dhole-web
+          docker exec "$CONTAINER_ID" wget -qO- http://127.0.0.1/health | grep -qx 'ok'
+
+      - name: Cleanup old images
+        if: always()
+        continue-on-error: true
+        run: docker image prune -f
