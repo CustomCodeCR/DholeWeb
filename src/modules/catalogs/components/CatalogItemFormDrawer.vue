@@ -195,7 +195,9 @@ function selectWarehouseImages(event: Event) {
 function removePendingWarehouseImage(pendingId: string) {
   const index = pendingWarehouseImages.value.findIndex((image) => image.id === pendingId)
   if (index < 0) return
-  URL.revokeObjectURL(pendingWarehouseImages.value[index].previewUrl)
+  const image = pendingWarehouseImages.value[index]
+  if (!image) return
+  URL.revokeObjectURL(image.previewUrl)
   pendingWarehouseImages.value.splice(index, 1)
 }
 
