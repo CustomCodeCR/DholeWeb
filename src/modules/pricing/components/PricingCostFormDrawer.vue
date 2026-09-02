@@ -18,6 +18,7 @@ import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCata
 import PricingMultiSelect from './PricingMultiSelect.vue'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
+type CostShipmentMode = ShipmentMode | 'Any'
 type CostRouteScope =
   | ''
   | 'Any'
@@ -66,7 +67,7 @@ const form = reactive({
   name: props.cost?.name ?? '',
   costType: (props.cost?.costType ?? 'Fixed') as CostType,
   costDetailType: (props.cost?.costDetailType ?? 'DestinationCharge') as CostDetailType,
-  shipmentMode: (props.cost?.shipmentMode ?? '') as ShipmentMode | '',
+  shipmentMode: (props.cost?.shipmentMode ?? 'Any') as CostShipmentMode,
   chargeBasis: initialChargeBasis(props.cost),
   minimumCostAmount: String(props.cost?.minimumCostAmount ?? ''),
   minimumSaleAmount: String(props.cost?.minimumSaleAmount ?? ''),
@@ -130,8 +131,8 @@ const costTypeOptions = [
   { label: 'Variable', value: 'Variable' },
 ]
 
-const shipmentModeOptions: Array<{ label: string; value: ShipmentMode | '' }> = [
-  { label: 'Todas las modalidades', value: '' },
+const shipmentModeOptions: Array<{ label: string; value: CostShipmentMode }> = [
+  { label: 'Any · Todas las modalidades', value: 'Any' },
   { label: 'FCL · Contenedor completo', value: 'Fcl' },
   { label: 'LCL · Marítimo consolidado', value: 'Lcl' },
   { label: 'FTL · Camión completo', value: 'Ftl' },
@@ -337,7 +338,8 @@ async function submit() {
     isAccountant: isEquipmentBasis.value,
     incoterms,
     services,
-    shipmentMode: form.shipmentMode || null,
+    // "Any" is the explicit UI/API value; null remains the internal wildcard in Pricing.
+    shipmentMode: form.shipmentMode === 'Any' ? null : form.shipmentMode,
     chargeBasis: form.chargeBasis,
     minimumCostAmount: form.minimumCostAmount === '' ? null : Number(form.minimumCostAmount),
     minimumSaleAmount: form.minimumSaleAmount === '' ? null : Number(form.minimumSaleAmount),
@@ -600,7 +602,7 @@ onMounted(catalogs.loadAll)
         </p>
         <p class="mt-2 text-sm font-semibold text-[var(--dh-text)]">
           {{ chargeBasisOptions.find((item) => item.value === form.chargeBasis)?.label }}
-          <span v-if="form.shipmentMode"> · {{ form.shipmentMode.toUpperCase() }}</span>
+          <span> · {{ form.shipmentMode.toUpperCase() }}</span>
         </p>
         <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
           Los mínimos se aplican al total del rubro después de calcular su cantidad cobrable.
