@@ -1,4 +1,5 @@
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapApiResponse, unwrapListResponse } from '@/core/api/apiResponse'
 import type { Endpoint } from '@/core/composables/endpoints'
 
 const jsonHeaders = { Accept: 'application/json', 'Content-Type': 'application/json' }
@@ -130,20 +131,26 @@ export interface CalculateOwnLclQuoteRequest {
   discount: number
 }
 
+type CreatedOwnLcl = { id: string; consolidationNumber: number; name: string; matrixVersion: string }
+
 export const OwnLclConsolidationService = {
-  browse() {
-    return callEndpoint<OwnLclConsolidationDto[]>(endpoints.browse)
+  async browse(): Promise<OwnLclConsolidationDto[]> {
+    const response = await callEndpoint<unknown>(endpoints.browse)
+    return unwrapListResponse<OwnLclConsolidationDto>(response)
   },
-  get(id: string) {
-    return callEndpoint<OwnLclConsolidationDto>(endpoints.get, { params: { id } })
+  async get(id: string): Promise<OwnLclConsolidationDto> {
+    const response = await callEndpoint<unknown>(endpoints.get, { params: { id } })
+    return unwrapApiResponse<OwnLclConsolidationDto>(response as never)
   },
-  create(payload: CreateOwnLclConsolidationRequest) {
-    return callEndpoint<{ id: string; consolidationNumber: number; name: string; matrixVersion: string }, CreateOwnLclConsolidationRequest>(endpoints.create, { body: payload })
+  async create(payload: CreateOwnLclConsolidationRequest): Promise<CreatedOwnLcl> {
+    const response = await callEndpoint<unknown, CreateOwnLclConsolidationRequest>(endpoints.create, { body: payload })
+    return unwrapApiResponse<CreatedOwnLcl>(response as never)
   },
   update(id: string, payload: CreateOwnLclConsolidationRequest) {
     return callEndpoint<Record<string, never>, CreateOwnLclConsolidationRequest>(endpoints.update, { params: { id }, body: payload })
   },
-  calculate(id: string, payload: CalculateOwnLclQuoteRequest) {
-    return callEndpoint<OwnLclQuoteCalculationDto, CalculateOwnLclQuoteRequest>(endpoints.calculate, { params: { id }, body: payload })
+  async calculate(id: string, payload: CalculateOwnLclQuoteRequest): Promise<OwnLclQuoteCalculationDto> {
+    const response = await callEndpoint<unknown, CalculateOwnLclQuoteRequest>(endpoints.calculate, { params: { id }, body: payload })
+    return unwrapApiResponse<OwnLclQuoteCalculationDto>(response as never)
   },
 }
