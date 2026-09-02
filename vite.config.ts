@@ -2,10 +2,10 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import { pricingWizardEnhancements } from './build/pricingWizardEnhancements'
+import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
 
 export default defineConfig({
-  plugins: [pricingWizardEnhancements(), vue(), tailwindcss()],
+  plugins: [pricingWizardEnhancementsScoped(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
