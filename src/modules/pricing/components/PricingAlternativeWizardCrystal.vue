@@ -69,6 +69,18 @@ type RateSection =
   | 'destination_charges'
   | 'delivery_destination'
 
+interface WarehouseContactDirectoryEntry {
+  name?: string
+  email?: string
+  phone?: string
+  role?: string
+  shipmentModes?: string[]
+  modalities?: string[]
+  routes?: string[]
+  isPrimary?: boolean
+  isActive?: boolean
+}
+
 interface CatalogMetadata {
   modality?: string
   modalities?: string[]
@@ -96,6 +108,7 @@ interface CatalogMetadata {
   phone?: string
   imageStorageId?: string
   imageFileName?: string
+  contactDirectory?: WarehouseContactDirectoryEntry[]
   salesExecutiveId?: string
 }
 
@@ -655,6 +668,56 @@ const selectedIncotermCode = computed(() => {
   return String(selectedIncoterm.value?.code ?? displayValue(selectedIncoterm.value)).trim().toUpperCase()
 })
 const selectedWarehouse = computed(() => findById(catalogs.warehouses, form.warehouseId))
+
+function normalizedWarehouseContactModes(contact: WarehouseContactDirectoryEntry) {
+  return [...new Set([...(contact.shipmentModes ?? []), ...(contact.modalities ?? [])]
+    .map((value) => String(value ?? '').trim().toUpperCase())
+    .filter(Boolean))]
+}
+
+const selectedWarehouseContacts = computed<WarehouseContactDirectoryEntry[] | null>(() => {
+  const directory = metadata(selectedWarehouse.value)?.contactDirectory
+  if (!Array.isArray(directory)) return null
+
+  const active = directory.filter((contact) => contact && contact.isActive !== false)
+  const currentMode = form.shipmentMode.trim().toUpperCase()
+  if (!currentMode) {
+    return [...active].sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
+  }
+
+  const eligible = active.filter((contact) => {
+    const modes = normalizedWarehouseContactModes(contact)
+    return modes.length === 0 || modes.includes(currentMode)
+  })
+
+  // Cuando existen contactos específicos para la modalidad actual, no mezclar
+  // contactos genéricos ni registros legacy configurados simultáneamente FCL/LCL.
+  const specific = eligible.filter((contact) => {
+    const modes = normalizedWarehouseContactModes(contact)
+    return modes.length > 0 && modes.includes(currentMode) && modes.every((mode) => mode === currentMode)
+  })
+
+  const resolved = specific.length ? specific : eligible
+  return [...resolved].sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
+})
+
+function warehouseContactDisplay(
+  field: 'name' | 'email' | 'phone',
+  legacyField: 'contacts' | 'email' | 'phone',
+) {
+  const meta = metadata(selectedWarehouse.value)
+  const directory = selectedWarehouseContacts.value
+
+  if (directory === null) return String(meta?.[legacyField] ?? '').trim()
+
+  return [...new Set(directory
+    .map((contact) => String(contact[field] ?? '').trim())
+    .filter(Boolean))].join(' / ')
+}
+
+const selectedWarehouseContactNames = computed(() => warehouseContactDisplay('name', 'contacts'))
+const selectedWarehouseContactEmails = computed(() => warehouseContactDisplay('email', 'email'))
+const selectedWarehouseContactPhones = computed(() => warehouseContactDisplay('phone', 'phone'))
 
 function metadataNumber(item: CatalogItemSelectDto | null | undefined, ...keys: Array<keyof CatalogMetadata>) {
   const meta = metadata(item)
@@ -3220,9 +3283,9 @@ onMounted(async () => {
                   <p class="text-sm font-black text-[var(--dh-text)]">{{ selectedWarehouse.label || displayValue(selectedWarehouse) }}</p>
                   <p class="mt-2"><strong>Dirección:</strong> {{ warehouseAddress(selectedWarehouse) || 'Sin dirección' }}</p>
                   <p v-if="metadata(selectedWarehouse)?.schedule" class="mt-1"><strong>Horario:</strong> {{ metadata(selectedWarehouse)?.schedule }}</p>
-                  <p v-if="metadata(selectedWarehouse)?.contacts" class="mt-1"><strong>Contactos:</strong> {{ metadata(selectedWarehouse)?.contacts }}</p>
-                  <p v-if="metadata(selectedWarehouse)?.email" class="mt-1 break-words"><strong>Email:</strong> {{ metadata(selectedWarehouse)?.email }}</p>
-                  <p v-if="metadata(selectedWarehouse)?.phone" class="mt-1"><strong>Teléfono:</strong> {{ metadata(selectedWarehouse)?.phone }}</p>
+                  <p v-if="selectedWarehouseContactNames" class="mt-1"><strong>Contactos:</strong> {{ selectedWarehouseContactNames }}</p>
+                  <p v-if="selectedWarehouseContactEmails" class="mt-1 break-words"><strong>Email:</strong> {{ selectedWarehouseContactEmails }}</p>
+                  <p v-if="selectedWarehouseContactPhones" class="mt-1"><strong>Teléfono:</strong> {{ selectedWarehouseContactPhones }}</p>
                   <p v-if="metadataNumber(selectedWarehouse, 'latitude', 'lat') != null && metadataNumber(selectedWarehouse, 'longitude', 'lng') != null" class="mt-1">
                     <strong>Ubicación:</strong>
                     {{ metadataNumber(selectedWarehouse, 'latitude', 'lat')?.toFixed(6) }},
