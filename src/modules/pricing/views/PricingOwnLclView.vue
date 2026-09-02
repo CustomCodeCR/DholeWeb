@@ -245,7 +245,7 @@ async function save() {
     saving.value = true
     if (selectedId.value) {
       await OwnLclConsolidationService.update(selectedId.value, body)
-      toastStore.success('Consolidado actualizado', 'Los costos y el POD se recalcularon con el perfil automático vigente.')
+      toastStore.success('Consolidado actualizado', 'Los costos y el POD se recalcularon con la Matriz de costos vigente.')
     } else {
       const created = await OwnLclConsolidationService.create(body)
       selectedId.value = created.id
@@ -400,12 +400,12 @@ onMounted(load)
             <div class="flex items-center justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cargos en destino automáticos</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Naviera + POE de llegada determinan estos costos y el POD final del consolidado. Pricing no los escribe manualmente.</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Naviera + POE de llegada consultan directamente la Matriz de costos. Si no hay cargos LCL/Any, el destino queda en USD 0.00 y el consolidado se puede crear igual.</p>
               </div>
               <span class="inline-flex items-center gap-1 rounded-full border border-[var(--dh-border)] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><Lock class="h-3 w-3" /> bloqueado</span>
             </div>
 
-            <div v-if="previewLoading" class="mt-4 text-sm font-bold text-[var(--dh-text-muted)]">Resolviendo perfil...</div>
+            <div v-if="previewLoading" class="mt-4 text-sm font-bold text-[var(--dh-text-muted)]">Resolviendo costos...</div>
             <div v-else-if="effectiveProfile" class="mt-4 space-y-2">
               <div class="rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-4 py-3">
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">POD final</p>
@@ -413,6 +413,9 @@ onMounted(load)
                   {{ effectiveProfile.finalRatePointName }}
                   <span v-if="effectiveProfile.finalRatePointCode" class="text-[var(--dh-text-muted)]">({{ effectiveProfile.finalRatePointCode }})</span>
                 </p>
+              </div>
+              <div v-if="effectiveProfile.charges.length === 0" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+                No hay cargos LCL/Any aplicables para esta naviera + POE. Destino: USD 0.00. Esto no bloquea la creación del consolidado.
               </div>
               <div v-for="charge in effectiveProfile.charges" :key="charge.code" class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
                 <div>
@@ -422,10 +425,10 @@ onMounted(load)
                 <p class="font-black">USD {{ money(charge.included ? charge.amount : 0) }}</p>
               </div>
               <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Perfil {{ effectiveProfile.profileCode }} · {{ effectiveProfile.version }} · {{ effectiveProfile.source }}
+                {{ effectiveProfile.source }}
               </div>
             </div>
-            <div v-else class="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">No existe un perfil para la combinación seleccionada. Configure naviera + POE en Config antes de crear el consolidado.</div>
+            <div v-else class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione naviera + POE para consultar la Matriz de costos. No se requiere configurar ningún perfil en Config.</div>
           </section>
         </div>
 
@@ -452,7 +455,7 @@ onMounted(load)
 
           <div v-if="!readOnly" class="flex justify-end gap-2">
             <DhButton label="Cancelar" variant="secondary" @click="closeEditor" />
-            <DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="!effectiveProfile || previewLoading" @click="save" />
+            <DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="previewLoading" @click="save" />
           </div>
           <div v-else class="flex justify-end"><DhButton label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false; previewProfile()" /></div>
         </aside>
