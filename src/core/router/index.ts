@@ -36,6 +36,13 @@ export const router = createRouter({
     },
 
     {
+      path: '/origin',
+      name: 'public-origin-office',
+      component: () => import('@/modules/pricing/views/PublicOriginOfficeView.vue'),
+      meta: { public: true },
+    },
+
+    {
       path: '/',
       redirect: () => {
         const authStore = useAuthStore()
