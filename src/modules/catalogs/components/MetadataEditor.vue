@@ -93,7 +93,7 @@ function syncFromModel(value?: string | null) {
       id: createId(),
       key,
       value: toInputValue(itemValue),
-      type: detectType(itemValue),
+      type: key.trim().toLowerCase() === 'contactdirectory' ? 'json' : detectType(itemValue),
     }))
   } catch {
     rows.value = []
@@ -209,13 +209,14 @@ watch(
           class="grid gap-2"
           :class="isContactDirectory(row) ? 'md:grid-cols-[1fr_130px_auto]' : 'md:grid-cols-[1fr_130px_1.4fr_auto]'"
         >
-          <DhInput v-model="row.key" label="Campo" placeholder="category" />
+          <DhInput v-model="row.key" label="Campo" placeholder="category" :disabled="isContactDirectory(row)" />
 
           <label class="block">
             <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Tipo</span>
             <select
               v-model="row.type"
-              class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 text-sm font-bold text-[var(--dh-text)] outline-none"
+              :disabled="isContactDirectory(row)"
+              class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 text-sm font-bold text-[var(--dh-text)] outline-none disabled:cursor-not-allowed disabled:opacity-60"
             >
               <option value="string">Texto</option>
               <option value="number">Número</option>
