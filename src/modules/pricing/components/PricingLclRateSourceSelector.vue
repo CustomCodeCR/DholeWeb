@@ -170,7 +170,7 @@ function ownLineType(name: string): CostDetailType {
   if (value.includes('custom')) return 'CustomsCharge'
   if (value.includes('doc') || value.includes('manifest') || value.includes('vgm')) return 'Documentation'
   if (value.includes('flete terrestre')) return 'InlandTransport'
-  if (value.includes('cfs')) return 'OriginCharge'
+  if (value.includes('cfs') || value.includes('whse') || value.includes('warehouse')) return 'OriginCharge'
   return 'DestinationCharge'
 }
 function ownBasis(basis: string): ChargeBasis {
@@ -243,15 +243,18 @@ function cargoForCbm(cbm: number) {
 function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateLine[] {
   return calculation.lines.map((line, index) => {
     const type = ownLineType(line.name)
+    const normalizedName = normalize(line.name)
+    const variable = normalizedName.includes('recolecta') || normalizedName.includes('pickup')
+    const sourceBasis = normalize(line.chargeBasis)
     return {
       key: `own-lcl:${calculation.consolidationId}:${index}`,
       section: sectionForDetail(type, line.name),
       name: line.name,
       costDetailType: type,
-      costType: 'Fixed',
+      costType: variable ? 'Variable' : 'Fixed',
       chargeBasis: ownBasis(line.chargeBasis),
       contextLabel: `Consolidado ${calculation.consolidationNumber} · ${calculation.matrixVersion}`,
-      notes: null,
+      notes: sourceBasis.includes('cbm') ? null : `Base del Excel: ${line.chargeBasis}; cantidad aplicada: 1.`,
       currencyId: props.currencyId,
       currencyName: props.currencyName,
       currencyCode: props.currencyCode,
@@ -259,7 +262,7 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateL
       saleAmount: n(line.saleUnit),
       included: true,
       optional: false,
-      manual: false,
+      manual: variable,
       applyDestinationTax: false,
       destinationTaxRate: 0,
     }
