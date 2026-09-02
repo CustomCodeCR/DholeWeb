@@ -16,6 +16,13 @@ import { useBrandingStore } from '@/core/stores/brandingStore'
 import { createUiTextBridge } from '@/core/i18n/uiTextBridge'
 import { installAuditNavigation } from '@/core/audit/installAuditNavigation'
 
+router.addRoute({
+  path: '/origin-office/:polCode',
+  name: 'public-origin-office',
+  component: () => import('@/modules/pricing/views/PublicOriginOfficeView.vue'),
+  meta: { public: true },
+})
+
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
