@@ -17,9 +17,20 @@ import { createUiTextBridge } from '@/core/i18n/uiTextBridge'
 import { installAuditNavigation } from '@/core/audit/installAuditNavigation'
 
 router.addRoute({
-  path: '/origin-office/:polCode',
+  path: '/origen/:polCode',
   name: 'public-origin-office',
   component: () => import('@/modules/pricing/views/PublicOriginOfficeView.vue'),
+  meta: { public: true },
+})
+
+router.addRoute({
+  path: '/origin-office/:polCode',
+  name: 'public-origin-office-legacy',
+  redirect: (to) => ({
+    name: 'public-origin-office',
+    params: { polCode: to.params.polCode },
+    query: to.query,
+  }),
   meta: { public: true },
 })
 
