@@ -75,8 +75,11 @@ export interface LclColoaderRateDto extends Record<string, unknown> {
 
 export interface BrowseLclColoaderRatesQuery {
   polId?: string | null
+  pol?: string | null
   poeId?: string | null
+  poe?: string | null
   podId?: string | null
+  pod?: string | null
   incotermId?: string | null
   quoteDate?: string | null
 }
