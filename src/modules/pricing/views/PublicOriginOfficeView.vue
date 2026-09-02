@@ -44,7 +44,6 @@ const failed = ref(false)
 
 const polValue = computed(() => String(route.query.pol ?? '').trim())
 const polCode = computed(() => String(route.query.polCode ?? route.params.polCode ?? '').trim().toUpperCase())
-const polId = computed(() => String(route.query.polId ?? '').trim())
 const polLocator = computed(() => polValue.value || polCode.value)
 const polDisplay = computed(() => office.value?.polValue || polValue.value || office.value?.polCode || polCode.value)
 
@@ -70,14 +69,14 @@ async function load() {
     const shipmentMode = String(route.query.shipmentMode ?? '').trim()
     const routeKey = String(route.query.route ?? '').trim()
 
-    if (polValue.value) query.set('polValue', polValue.value)
-    if (polCode.value) query.set('polCode', polCode.value)
-    if (polId.value) query.set('polId', polId.value)
+    // The public QR landing page resolves the WHS directly from the
+    // pricing-warehouses catalog. POL identifies the warehouse; mode/route
+    // only refine the applicable routing/contact information.
+    query.set('pol', polLocator.value)
     if (shipmentMode) query.set('shipmentMode', shipmentMode)
     if (routeKey) query.set('route', routeKey)
 
-    const suffix = query.size ? `?${query.toString()}` : ''
-    const response = await fetch(`/api/config/public/origin-offices/${encodeURIComponent(polLocator.value)}${suffix}`, {
+    const response = await fetch(`/api/config/public/pricing-warehouses/resolve?${query.toString()}`, {
       headers: { Accept: 'application/json' },
       credentials: 'omit',
     })
