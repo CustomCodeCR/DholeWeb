@@ -43,6 +43,11 @@ export interface OwnLclConsolidationDto {
   panamaToCostaRicaCost: number
   bunkerCost: number
   costaRicaTransferBaseCbm: number
+  oceanCostPerCbm: number
+  destinationCostPerCbm: number
+  panamaBaseCostPerCbm: number
+  panamaToCostaRicaCostPerCbm: number
+  costaRicaProjectedCostPerCbm: number
   matrixVersion: string
   status: string
   isActive: boolean
@@ -131,7 +136,9 @@ export interface OwnLclQuoteCalculationDto {
   baseOceanCostPerCbm: number
   originSurchargePerCbm: number
   destinationCostPerCbm: number
+  panamaBaseCostPerCbm: number
   costaRicaTransferCostPerCbm: number
+  costaRicaProjectedCostPerCbm: number
   freightCostPerCbm: number
   recommendedSalePerCbm: number
   freightSalePerCbm: number
