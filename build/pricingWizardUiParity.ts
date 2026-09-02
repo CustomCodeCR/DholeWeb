@@ -20,6 +20,9 @@ export function pricingWizardUiParity(): Plugin {
 
       let code = source
 
+      code = replaceOne(code, '  calculateCargoInsurance,\n', '', 'legacy Crystal insurance calculator import')
+      code = replaceOne(code, '  cargoInsuranceNote,\n', '', 'legacy Crystal insurance note import')
+
       const importAnchor = "import PricingLclRateSourceSelector, { type LclRateSourceSelection } from '@/modules/pricing/components/PricingLclRateSourceSelector.vue'"
       code = replaceOne(
         code,
@@ -29,11 +32,12 @@ export function pricingWizardUiParity(): Plugin {
       )
 
       const stateAnchor = 'const draftCommercialTermsInitialized = ref(false)'
+      const sharedInsuranceLogic = `const cargoInsuranceEnabled = ref(false)\n\nfunction calculateCargoInsurance(cargoValue: number, _freightAmount: number) {\n  const value = Math.max(0, Number(cargoValue) || 0)\n  const roundMoney = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100\n  return {\n    insuredValue: roundMoney(value),\n    cost: Math.max(35, roundMoney(value * 0.002)),\n    sale: Math.max(95, roundMoney(value * 0.0065)),\n  }\n}\n\nfunction cargoInsuranceNote(cargoValue: number, freightAmount: number) {\n  const calculated = calculateCargoInsurance(cargoValue, freightAmount)\n  return \`Seguro de carga · valor carga USD \${calculated.insuredValue.toFixed(2)} · venta 0.65% · mínimo USD 95 · costo 0.20% · mínimo costo USD 35\`\n}`
       code = replaceOne(
         code,
         stateAnchor,
-        `${stateAnchor}\nconst cargoInsuranceEnabled = ref(false)`,
-        'cargo insurance enabled state',
+        `${stateAnchor}\n${sharedInsuranceLogic}`,
+        'shared cargo insurance business rule',
       )
 
       const effectiveServicesAnchor = `  if (form.cargoValue > 0 && insurance && !services.some((item) => item.id === insurance.id)) {`
