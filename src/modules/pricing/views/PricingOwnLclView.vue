@@ -14,11 +14,13 @@ import {
 import { useToastStore } from '@/core/stores/toastStore'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
+type OwnLclTableRow = OwnLclConsolidationDto & Record<string, unknown>
+
 const toastStore = useToastStore()
 const loading = ref(false)
 const saving = ref(false)
 const previewLoading = ref(false)
-const rows = ref<OwnLclConsolidationDto[]>([])
+const rows = ref<OwnLclTableRow[]>([])
 const carriers = ref<CatalogItemSelectDto[]>([])
 const containers = ref<CatalogItemSelectDto[]>([])
 const pols = ref<CatalogItemSelectDto[]>([])
@@ -43,7 +45,7 @@ const form = reactive({
   includeEmptyReturn: true,
 })
 
-const columns: DhTableColumn[] = [
+const columns: DhTableColumn<OwnLclTableRow>[] = [
   { key: 'consolidation', label: 'Consolidado', width: '180px' },
   { key: 'route', label: 'Ruta / logística' },
   { key: 'etd', label: 'ETD', width: '120px' },
@@ -71,19 +73,8 @@ const filteredRows = computed(() => {
   return rows.value.filter((row) => {
     if (statusFilter.value && normalize(row.status) !== normalize(statusFilter.value)) return false
     if (!q) return true
-    return [
-      row.name,
-      row.consolidationNumber,
-      row.booking,
-      row.carrierName,
-      row.carrierCode,
-      row.polName,
-      row.polCode,
-      row.containerName,
-      row.containerCode,
-      row.etd,
-      row.matrixVersion,
-    ].some((value) => normalize(value).includes(q))
+    return [row.name, row.consolidationNumber, row.booking, row.carrierName, row.carrierCode, row.polName, row.polCode, row.containerName, row.containerCode, row.etd, row.matrixVersion]
+      .some((value) => normalize(value).includes(q))
   })
 })
 
@@ -92,15 +83,12 @@ const selected = computed(() => rows.value.find((row) => row.id === selectedId.v
 function destinationPerCbm(row: OwnLclConsolidationDto) {
   return row.maximumCbm > 0 ? row.carrierDestinationCostTotal / row.maximumCbm : 0
 }
-
 function oceanPerCbm(row: OwnLclConsolidationDto) {
   return row.maximumCbm > 0 ? row.oceanFreight / row.maximumCbm : 0
 }
-
 function baseCostPerCbm(row: OwnLclConsolidationDto) {
   return oceanPerCbm(row) + destinationPerCbm(row)
 }
-
 function crTransferPerCbm(row: OwnLclConsolidationDto) {
   const base = row.costaRicaTransferBaseCbm || 95
   return base > 0 ? (row.panamaToCostaRicaCost + row.bunkerCost) / base : 0
@@ -116,7 +104,7 @@ async function load() {
       CatalogItemsService.select({ catalogGroupSlug: 'pol' }),
       CatalogItemsService.select({ catalogGroupSlug: 'panama-arrival-ports' }),
     ])
-    rows.value = consolidations
+    rows.value = consolidations.map((row) => ({ ...row })) as OwnLclTableRow[]
     carriers.value = carrierRows
     containers.value = containerRows
     pols.value = polRows
@@ -144,7 +132,7 @@ function newConsolidation() {
   editorOpen.value = true
 }
 
-async function openRow(row: OwnLclConsolidationDto, mode: 'view' | 'edit') {
+async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
   selectedId.value = row.id
   readOnly.value = mode === 'view'
   editorOpen.value = true
@@ -168,6 +156,10 @@ async function openRow(row: OwnLclConsolidationDto, mode: 'view' | 'edit') {
     selectedAutomation.value = null
     toastStore.backendError(error, 'No fue posible cargar el detalle automático del consolidado.')
   }
+}
+
+function handleRowClick(row: OwnLclTableRow) {
+  void openRow(row, 'view')
 }
 
 async function previewProfile() {
@@ -206,7 +198,7 @@ const previewBunker = computed(() => effectiveProfile.value?.bunkerTotal ?? sele
 const previewTransferBase = computed(() => effectiveProfile.value?.costaRicaTransferBaseCbm ?? selectedAutomation.value?.costaRicaTransferBaseCbm ?? selected.value?.costaRicaTransferBaseCbm ?? 95)
 const previewCrTransferPerCbm = computed(() => (previewTransfer.value + previewBunker.value) / Math.max(previewTransferBase.value, 0.01))
 
-function payload() {
+function buildPayload() {
   const carrier = option(carriers.value, form.carrierId)
   const container = option(containers.value, form.containerId)
   const pol = option(pols.value, form.polId)
@@ -231,7 +223,7 @@ function payload() {
 
 async function save() {
   if (readOnly.value) return
-  const body = payload()
+  const body = buildPayload()
   if (!body.carrierCode || !body.panamaArrivalPortCode || !body.polCode || body.oceanFreight <= 0) {
     toastStore.warning('Datos incompletos', 'Seleccione naviera, puerto de llegada en Panamá, POL e indique el Ocean Freight.')
     return
@@ -240,7 +232,7 @@ async function save() {
     saving.value = true
     if (selectedId.value) {
       await OwnLclConsolidationService.updateAutomatic(selectedId.value, body)
-      toastStore.success('Consolidado actualizado', 'Los costos quedaron recalculados con el perfil automático vigente.')
+      toastStore.success('Consolidado actualizado', 'Los costos se recalcularon con el perfil automático vigente.')
     } else {
       const created = await OwnLclConsolidationService.createAutomatic(body)
       selectedId.value = created.id
@@ -269,7 +261,7 @@ onMounted(load)
   <div class="space-y-5">
     <DhPageHeader
       title="Consolidados propios LCL"
-      description="Administre el costo real de cada consolidado. Las cotizaciones LCL los consumen después como una fuente tarifaria, igual que una tarifa de coloader."
+      description="Administre el costo real de cada consolidado. El wizard LCL los consume después como fuente tarifaria, igual que un coloader."
     />
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl">
@@ -293,8 +285,14 @@ onMounted(load)
         </div>
       </div>
 
-      <div class="mt-4 overflow-hidden rounded-[24px] border border-[var(--dh-border)]">
-        <DhDataTable :columns="columns" :rows="filteredRows" :loading="loading" empty-text="No hay consolidados propios que coincidan con la búsqueda." @row-click="(row) => openRow(row as OwnLclConsolidationDto, 'view')">
+      <div class="mt-4">
+        <DhDataTable
+          :columns="columns"
+          :rows="filteredRows"
+          :loading="loading"
+          empty-text="No hay consolidados propios que coincidan con la búsqueda."
+          @row-click="handleRowClick"
+        >
           <template #cell-consolidation="{ row }">
             <div class="min-w-0">
               <p class="font-black text-[var(--dh-text)]">{{ row.name }}</p>
@@ -322,7 +320,7 @@ onMounted(load)
               <p class="text-[11px] text-[var(--dh-text-muted)]">CR +{{ money(crTransferPerCbm(row)) }}/CBM</p>
             </div>
           </template>
-          <template #cell-status="{ row }"><DhBadge :label="row.status" :tone="row.status === 'Open' ? 'success' : 'neutral'" /></template>
+          <template #cell-status="{ row }"><DhBadge :label="row.status" :variant="row.status === 'Open' ? 'success' : 'neutral'" /></template>
           <template #cell-actions="{ row }">
             <div class="flex justify-end gap-1" @click.stop>
               <DhButton :icon="Eye" variant="ghost" size="sm" aria-label="Ver consolidado" @click="openRow(row, 'view')" />
@@ -339,9 +337,9 @@ onMounted(load)
           <div class="flex items-center gap-2">
             <Ship class="h-5 w-5 text-[var(--dh-primary)]" />
             <h2 class="text-lg font-black">{{ selected ? selected.name : 'Nuevo consolidado propio' }}</h2>
-            <DhBadge v-if="readOnly" label="Solo lectura" tone="neutral" />
+            <DhBadge v-if="readOnly" label="Solo lectura" variant="neutral" />
           </div>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El proyecto define cuánto cuesta el consolidado. El wizard únicamente seleccionará este resultado para cotizar.</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Este proyecto determina el costo del consolidado; la cotización se construye después en el wizard.</p>
         </div>
         <DhButton :icon="X" variant="ghost" aria-label="Cerrar" @click="closeEditor" />
       </header>
@@ -357,8 +355,8 @@ onMounted(load)
               <DhSelect v-model="form.panamaArrivalPortCode" label="Puerto de llegada en Panamá" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...panamaPorts.map((x) => ({ label: x.label, value: x.code || x.value }))]" />
               <DhSelect v-model="form.polId" label="POL" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...pols.map((x) => ({ label: x.label, value: x.id }))]" />
               <DhSelect v-model="form.containerId" label="Contenedor" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...containers.map((x) => ({ label: x.label, value: x.id }))]" />
-              <DhInput v-model.number="form.oceanFreight" type="number" min="0" step="0.01" label="Ocean Freight USD" :disabled="readOnly" />
-              <DhInput v-model.number="form.maximumCbm" type="number" min="1" step="0.01" label="Capacidad máxima CBM" :disabled="readOnly" />
+              <DhInput v-model.number="form.oceanFreight" type="number" label="Ocean Freight USD" :disabled="readOnly" />
+              <DhInput v-model.number="form.maximumCbm" type="number" label="Capacidad máxima CBM" :disabled="readOnly" />
               <div class="flex items-end pb-1"><DhCheckbox v-model="form.includeEmptyReturn" label="Incluir retiro de vacío" :disabled="readOnly" /></div>
             </div>
           </section>
@@ -367,7 +365,7 @@ onMounted(load)
             <div class="flex items-center justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cargos en destino automáticos</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Naviera + puerto de llegada determinan estos costos. Pricing no puede escribirlos manualmente.</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Naviera + puerto de llegada determinan estos costos. Pricing no los escribe manualmente.</p>
               </div>
               <span class="inline-flex items-center gap-1 rounded-full border border-[var(--dh-border)] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><Lock class="h-3 w-3" /> bloqueado</span>
             </div>
@@ -380,7 +378,7 @@ onMounted(load)
               </div>
               <div v-if="!effectiveProfile" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Snapshot guardado: {{ selectedAutomation?.profileCode || 'Perfil histórico' }}.</div>
             </div>
-            <div v-else class="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">No existe un perfil para la combinación seleccionada. Configure la naviera + puerto en Config antes de crear el consolidado.</div>
+            <div v-else class="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">No existe un perfil para la combinación seleccionada. Configure naviera + puerto en Config antes de crear el consolidado.</div>
           </section>
         </div>
 
@@ -393,14 +391,16 @@ onMounted(load)
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Base Panamá / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm) }}</p></div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Panamá → CR / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewCrTransferPerCbm) }}</p></div>
             </div>
-            <div class="mt-3 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/8 p-4">
-              <div class="flex items-end justify-between gap-3"><div><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p></div><span class="text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</span></div>
+            <div class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p>
+              <p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p>
+              <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</p>
             </div>
           </section>
 
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]">
             <p class="font-black text-[var(--dh-text)]">Regla de operación</p>
-            <p class="mt-2">La venta no se define aquí como una tarifa de cliente. Este módulo calcula y versiona el costo del proyecto. La venta y el margen se resuelven cuando el wizard usa este consolidado como fuente tarifaria.</p>
+            <p class="mt-2">Aquí se calcula y versiona el costo del proyecto. La venta y el margen se resuelven cuando el wizard usa este consolidado como fuente tarifaria.</p>
           </section>
 
           <div v-if="!readOnly" class="flex justify-end gap-2">
