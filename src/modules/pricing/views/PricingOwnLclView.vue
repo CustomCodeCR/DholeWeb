@@ -238,18 +238,18 @@ async function save() {
   if (readOnly.value) return
   const body = buildPayload()
   if (!body.carrierCode || !body.panamaArrivalPortCode || !body.polCode || !body.containerCode || body.oceanFreight <= 0) {
-    toastStore.warning('Datos incompletos', 'Seleccione naviera, POE, POL, tamaño y tipo de equipo, e indique el Ocean Freight.')
+    toastStore.warning('Datos incompletos', 'Seleccione naviera, POE de llegada, POL, tamaño y tipo de equipo, e indique el Ocean Freight.')
     return
   }
   try {
     saving.value = true
     if (selectedId.value) {
       await OwnLclConsolidationService.update(selectedId.value, body)
-      toastStore.success('Consolidado actualizado', 'Los costos se recalcularon con el perfil automático vigente.')
+      toastStore.success('Consolidado actualizado', 'Los costos y el POD se recalcularon con el perfil automático vigente.')
     } else {
       const created = await OwnLclConsolidationService.create(body)
       selectedId.value = created.id
-      toastStore.success('Consolidado creado', `${created.name} fue creado con costos automáticos.`)
+      toastStore.success('Consolidado creado', `${created.name} fue creado con costos y POD automáticos.`)
     }
     await load()
     const row = rows.value.find((item) => item.id === selectedId.value)
@@ -314,7 +314,7 @@ onMounted(load)
           </template>
           <template #cell-route="{ row }">
             <div class="min-w-0">
-              <p class="font-bold text-[var(--dh-text)]">{{ row.polName || row.polCode }} → Panamá</p>
+              <p class="font-bold text-[var(--dh-text)]">{{ row.polName || row.polCode }} → Panamá / POD automático</p>
               <p class="mt-0.5 truncate text-xs text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · {{ row.booking || 'Sin booking' }} · {{ row.containerCode || row.containerName || 'Sin equipo' }}</p>
             </div>
           </template>
@@ -376,7 +376,7 @@ onMounted(load)
               />
               <PricingLocationSearchSelect
                 v-model="form.panamaArrivalPortCode"
-                label="Puerto de llegada (POE)"
+                label="Puerto de llegada naviera (POE)"
                 placeholder="Buscar POE"
                 search-placeholder="Buscar cualquier POE activo…"
                 terminal-type="CY"
@@ -400,13 +400,20 @@ onMounted(load)
             <div class="flex items-center justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cargos en destino automáticos</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Naviera + POE seleccionado determinan estos costos. Pricing no los escribe manualmente.</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Naviera + POE de llegada determinan estos costos y el POD final del consolidado. Pricing no los escribe manualmente.</p>
               </div>
               <span class="inline-flex items-center gap-1 rounded-full border border-[var(--dh-border)] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><Lock class="h-3 w-3" /> bloqueado</span>
             </div>
 
             <div v-if="previewLoading" class="mt-4 text-sm font-bold text-[var(--dh-text-muted)]">Resolviendo perfil...</div>
             <div v-else-if="effectiveProfile" class="mt-4 space-y-2">
+              <div class="rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-4 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">POD final</p>
+                <p class="mt-1 text-sm font-black text-[var(--dh-text)]">
+                  {{ effectiveProfile.finalRatePointName }}
+                  <span v-if="effectiveProfile.finalRatePointCode" class="text-[var(--dh-text-muted)]">({{ effectiveProfile.finalRatePointCode }})</span>
+                </p>
+              </div>
               <div v-for="charge in effectiveProfile.charges" :key="charge.code" class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
                 <div>
                   <p class="text-sm font-bold">{{ charge.name }}</p>
