@@ -27,28 +27,16 @@ jobs:
           path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
           text = path.read_text()
 
-          old = '''  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance') && visible.has('destination_charges')) {
-            const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
-            lines.push({
-              key: 'cargo-insurance:auto',
-              section: 'destination_charges',
-              name: 'Seguro de carga',
-              costDetailType: 'Insurance',
-              costType: 'Optional',
-              chargeBasis: 'PerShipment',
-              currencyId: currency.id,
-              currencyName: displayValue(currency),
-              currencyCode: currency.code,
-              costAmount: insurance.cost,
-              saleAmount: insurance.sale,
-              included: false,
-              optional: true,
-              manual: false,
-            })
-          }
-          '''
+          start_marker = "  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance') && visible.has('destination_charges')) {"
+          end_marker = "\n\n  lines.forEach((line) => {"
+          start = text.find(start_marker)
+          if start < 0:
+            raise SystemExit('Insurance start marker not found; refusing unsafe patch')
+          end = text.find(end_marker, start)
+          if end < 0:
+            raise SystemExit('Insurance end marker not found; refusing unsafe patch')
 
-          new = '''  const insuranceServiceSelected = Boolean(
+          new_block = '''  const insuranceServiceSelected = Boolean(
             cargoInsuranceService.value && form.serviceIds.includes(cargoInsuranceService.value.id),
           )
           const insuranceRequested = insuranceServiceSelected || form.cargoValue > 0
@@ -92,21 +80,17 @@ jobs:
                 manual: false,
               })
             }
-          }
-          '''
+          }'''
+          text = text[:start] + new_block + text[end:]
 
-          if old not in text:
-            raise SystemExit('Insurance block not found; refusing unsafe patch')
-          text = text.replace(old, new, 1)
-
-          old_watch = '''watch(() => form.currencyId, () => {
+          watch_anchor = '''watch(() => form.currencyId, () => {
             if (hydratingExistingRate.value) return
             if (step.value === 7) rebuildRateLines()
           })
 
           watch(step, (value) => {
           '''
-          new_watch = '''watch(() => form.currencyId, () => {
+          watch_replacement = '''watch(() => form.currencyId, () => {
             if (hydratingExistingRate.value) return
             if (step.value === 7) rebuildRateLines()
           })
@@ -121,9 +105,9 @@ jobs:
 
           watch(step, (value) => {
           '''
-          if old_watch not in text:
+          if watch_anchor not in text:
             raise SystemExit('Watcher anchor not found; refusing unsafe patch')
-          text = text.replace(old_watch, new_watch, 1)
+          text = text.replace(watch_anchor, watch_replacement, 1)
 
           path.write_text(text)
 
