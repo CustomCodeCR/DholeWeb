@@ -1,0 +1,138 @@
+name: One-off cargo insurance line fix
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/workflows/oneoff-fix-cargo-insurance.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Patch cargo insurance behavior
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text()
+
+          old = '''  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance') && visible.has('destination_charges')) {
+            const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
+            lines.push({
+              key: 'cargo-insurance:auto',
+              section: 'destination_charges',
+              name: 'Seguro de carga',
+              costDetailType: 'Insurance',
+              costType: 'Optional',
+              chargeBasis: 'PerShipment',
+              currencyId: currency.id,
+              currencyName: displayValue(currency),
+              currencyCode: currency.code,
+              costAmount: insurance.cost,
+              saleAmount: insurance.sale,
+              included: false,
+              optional: true,
+              manual: false,
+            })
+          }
+          '''
+
+          new = '''  const insuranceServiceSelected = Boolean(
+            cargoInsuranceService.value && form.serviceIds.includes(cargoInsuranceService.value.id),
+          )
+          const insuranceRequested = insuranceServiceSelected || form.cargoValue > 0
+          const existingInsurance = lines.find((line) => line.costDetailType === 'Insurance')
+
+          if (insuranceRequested && visible.has('destination_charges')) {
+            const insurance = form.cargoValue > 0
+              ? calculateCargoInsurance(form.cargoValue, form.freightCost)
+              : null
+
+            if (existingInsurance) {
+              // A configured Insurance cost must not suppress the cargo-insurance line.
+              // Selecting the service or entering cargo value means the user requested it.
+              existingInsurance.included = true
+              existingInsurance.optional = true
+              existingInsurance.costType = 'Optional'
+              existingInsurance.chargeBasis = 'PerShipment'
+              existingInsurance.section = 'destination_charges'
+              if (insurance) {
+                existingInsurance.costAmount = insurance.cost
+                existingInsurance.saleAmount = insurance.sale
+              }
+            } else {
+              lines.push({
+                key: 'cargo-insurance:auto',
+                section: 'destination_charges',
+                name: 'Seguro de carga',
+                costDetailType: 'Insurance',
+                costType: 'Optional',
+                chargeBasis: 'PerShipment',
+                contextLabel: form.cargoValue > 0
+                  ? 'Calculado automáticamente sobre el valor declarado de la carga.'
+                  : 'Ingrese el valor de la carga para calcular costo y venta del seguro.',
+                currencyId: currency.id,
+                currencyName: displayValue(currency),
+                currencyCode: currency.code,
+                costAmount: insurance?.cost ?? 0,
+                saleAmount: insurance?.sale ?? 0,
+                included: true,
+                optional: true,
+                manual: false,
+              })
+            }
+          }
+          '''
+
+          if old not in text:
+            raise SystemExit('Insurance block not found; refusing unsafe patch')
+          text = text.replace(old, new, 1)
+
+          old_watch = '''watch(() => form.currencyId, () => {
+            if (hydratingExistingRate.value) return
+            if (step.value === 7) rebuildRateLines()
+          })
+
+          watch(step, (value) => {
+          '''
+          new_watch = '''watch(() => form.currencyId, () => {
+            if (hydratingExistingRate.value) return
+            if (step.value === 7) rebuildRateLines()
+          })
+
+          watch(
+            () => [form.cargoValue, form.freightCost, form.serviceIds.join('|')] as const,
+            () => {
+              if (hydratingExistingRate.value || step.value < 7) return
+              rebuildRateLines()
+            },
+          )
+
+          watch(step, (value) => {
+          '''
+          if old_watch not in text:
+            raise SystemExit('Watcher anchor not found; refusing unsafe patch')
+          text = text.replace(old_watch, new_watch, 1)
+
+          path.write_text(text)
+
+      - name: Commit fix and remove one-off workflow
+        shell: bash
+        run: |
+          rm .github/workflows/oneoff-fix-cargo-insurance.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue .github/workflows/oneoff-fix-cargo-insurance.yml
+          git commit -m 'fix(web): make cargo insurance line visible and reactive'
+          git push origin develop
