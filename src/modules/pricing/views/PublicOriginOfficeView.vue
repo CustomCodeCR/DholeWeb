@@ -42,6 +42,19 @@ const office = ref<OriginOffice | null>(null)
 const loading = ref(true)
 const failed = ref(false)
 
+const apiBaseUrl = String(import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '')
+
+function gatewayUrl(path: string) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return `${apiBaseUrl}${normalizedPath}`
+}
+
+function publicAssetUrl(path: string) {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  return gatewayUrl(path)
+}
+
 const polValue = computed(() => String(route.query.pol ?? '').trim())
 const polCode = computed(() => String(route.query.polCode ?? route.params.polCode ?? '').trim().toUpperCase())
 const polLocator = computed(() => polValue.value || polCode.value)
@@ -58,7 +71,7 @@ async function load() {
   failed.value = false
   office.value = null
 
-  if (!polLocator.value) {
+  if (!polLocator.value || !apiBaseUrl) {
     failed.value = true
     loading.value = false
     return
@@ -76,7 +89,8 @@ async function load() {
     if (shipmentMode) query.set('shipmentMode', shipmentMode)
     if (routeKey) query.set('route', routeKey)
 
-    const response = await fetch(`/api/config/public/pricing-warehouses/resolve?${query.toString()}`, {
+    const endpoint = gatewayUrl(`/api/config/public/pricing-warehouses/resolve?${query.toString()}`)
+    const response = await fetch(endpoint, {
       headers: { Accept: 'application/json' },
       credentials: 'omit',
     })
@@ -143,7 +157,7 @@ onMounted(load)
           <div class="mb-4"><p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Fotografías</p><h2 class="mt-1 text-xl font-black">Referencia de la oficina / WHS</h2></div>
           <div v-if="office.photos.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <figure v-for="photo in office.photos" :key="photo.storageId" class="overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
-              <img :src="photo.publicContentPath" :alt="photo.fileName || office.name" class="aspect-[4/3] h-full w-full object-cover" loading="lazy" referrerpolicy="no-referrer" />
+              <img :src="publicAssetUrl(photo.publicContentPath)" :alt="photo.fileName || office.name" class="aspect-[4/3] h-full w-full object-cover" loading="lazy" referrerpolicy="no-referrer" />
             </figure>
           </div>
           <p v-else class="text-sm text-slate-500">No hay fotografías publicadas para esta oficina.</p>
