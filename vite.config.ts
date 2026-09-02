@@ -3,9 +3,10 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
+import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 
 export default defineConfig({
-  plugins: [pricingWizardEnhancementsScoped(), vue(), tailwindcss()],
+  plugins: [pricingWizardEnhancementsScoped(), pricingWizardUiParity(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
