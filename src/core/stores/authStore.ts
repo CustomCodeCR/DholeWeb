@@ -437,10 +437,9 @@ export const useAuthStore = defineStore('auth', () => {
 
     const normalizedScope = scope.trim().toLowerCase()
 
-    // Pricing is a bounded operational role: it may satisfy only Pricing permissions.
-    // Backend seeding keeps the JWT scopes in sync; this fallback prevents the UI from
-    // hiding/redirecting the workspace while an existing session is being refreshed.
-    if (hasRole('Pricing') && normalizedScope.startsWith('pricing.')) return true
+    // Pricing is only the base operational role. Additional Pricing views/actions
+    // remain controlled by their explicit scopes.
+    if (hasRole('Pricing') && normalizedScope === 'pricing.workspace.access') return true
 
     const compatibleScopes =
       normalizedScope === 'config.catalog-selects.view'
