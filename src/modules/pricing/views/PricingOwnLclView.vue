@@ -14,10 +14,13 @@ import {
 import { useToastStore } from '@/core/stores/toastStore'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
+import PricingContainerSelector from '@/modules/pricing/components/PricingContainerSelector.vue'
+import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 
 type OwnLclTableRow = OwnLclConsolidationDto & Record<string, unknown>
 
 const toastStore = useToastStore()
+const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
 const saving = ref(false)
 const previewLoading = ref(false)
@@ -25,7 +28,7 @@ const rows = ref<OwnLclTableRow[]>([])
 const carriers = ref<CatalogItemSelectDto[]>([])
 const containers = ref<CatalogItemSelectDto[]>([])
 const pols = ref<CatalogItemSelectDto[]>([])
-const panamaPorts = ref<CatalogItemSelectDto[]>([])
+const poePorts = ref<CatalogItemSelectDto[]>([])
 const search = ref('')
 const statusFilter = ref('')
 const selectedId = ref('')
@@ -83,7 +86,7 @@ const polLocationOptions = computed(() => pols.value.map((item) => ({
   label: item.label,
   searchText: [item.code, item.value, item.label].filter(Boolean).join(' '),
 })))
-const panamaLocationOptions = computed(() => panamaPorts.value.map((item) => ({
+const poeLocationOptions = computed(() => poePorts.value.map((item) => ({
   value: item.code || item.value,
   label: item.label,
   searchText: [item.code, item.value, item.label].filter(Boolean).join(' '),
@@ -106,18 +109,19 @@ function crTransferPerCbm(row: OwnLclConsolidationDto) {
 async function load() {
   try {
     loading.value = true
-    const [consolidations, carrierRows, containerRows, polRows, portRows] = await Promise.all([
+    await pricingCatalogs.loadAll()
+    const [consolidations, carrierRows, containerRows, polRows, poeRows] = await Promise.all([
       OwnLclConsolidationService.browse(),
       CatalogItemsService.select({ catalogGroupSlug: 'carriers' }),
       CatalogItemsService.select({ catalogGroupSlug: 'container-types' }).catch(() => CatalogItemsService.select({ catalogGroupSlug: 'containers-types' })),
       CatalogItemsService.select({ catalogGroupSlug: 'pol' }),
-      CatalogItemsService.select({ catalogGroupSlug: 'panama-arrival-ports' }),
+      CatalogItemsService.select({ catalogGroupSlug: 'poe' }).catch(() => CatalogItemsService.select({ catalogGroupSlug: 'ports' })),
     ])
     rows.value = consolidations.map((row) => ({ ...row })) as OwnLclTableRow[]
     carriers.value = carrierRows
     containers.value = containerRows
     pols.value = polRows
-    panamaPorts.value = portRows
+    poePorts.value = poeRows
   } catch (error) {
     toastStore.backendError(error, 'No fue posible cargar los consolidados propios.')
   } finally {
@@ -208,7 +212,7 @@ function buildPayload() {
   const carrier = option(carriers.value, form.carrierId)
   const container = option(containers.value, form.containerId)
   const pol = option(pols.value, form.polId)
-  const panamaPort = panamaPorts.value.find((item) => (item.code || item.value) === form.panamaArrivalPortCode) ?? null
+  const arrivalPoe = poePorts.value.find((item) => (item.code || item.value) === form.panamaArrivalPortCode) ?? null
   return {
     booking: form.booking.trim() || null,
     etd: form.etd || null,
@@ -223,8 +227,8 @@ function buildPayload() {
     polCode: pol?.code || pol?.value || '',
     oceanFreight: Number(form.oceanFreight || 0),
     maximumCbm: Number(form.maximumCbm || 50),
-    panamaArrivalPortId: panamaPort?.id ?? null,
-    panamaArrivalPortName: panamaPort?.label ?? null,
+    panamaArrivalPortId: arrivalPoe?.id ?? null,
+    panamaArrivalPortName: arrivalPoe?.label ?? null,
     panamaArrivalPortCode: form.panamaArrivalPortCode,
     includeEmptyReturn: form.includeEmptyReturn,
   }
@@ -233,8 +237,8 @@ function buildPayload() {
 async function save() {
   if (readOnly.value) return
   const body = buildPayload()
-  if (!body.carrierCode || !body.panamaArrivalPortCode || !body.polCode || body.oceanFreight <= 0) {
-    toastStore.warning('Datos incompletos', 'Seleccione naviera, puerto de llegada en Panamá, POL e indique el Ocean Freight.')
+  if (!body.carrierCode || !body.panamaArrivalPortCode || !body.polCode || !body.containerCode || body.oceanFreight <= 0) {
+    toastStore.warning('Datos incompletos', 'Seleccione naviera, POE, POL, tamaño y tipo de equipo, e indique el Ocean Freight.')
     return
   }
   try {
@@ -372,14 +376,20 @@ onMounted(load)
               />
               <PricingLocationSearchSelect
                 v-model="form.panamaArrivalPortCode"
-                label="Destino (POE) · Panamá"
-                placeholder="Buscar puerto de llegada"
-                search-placeholder="Buscar puerto de llegada en Panamá…"
+                label="Puerto de llegada (POE)"
+                placeholder="Buscar POE"
+                search-placeholder="Buscar cualquier POE activo…"
                 terminal-type="CY"
                 :disabled="readOnly"
-                :options="panamaLocationOptions"
+                :options="poeLocationOptions"
               />
-              <DhSelect v-model="form.containerId" label="Contenedor" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...containers.map((x) => ({ label: x.label, value: x.id }))]" />
+              <div class="md:col-span-2 xl:col-span-2">
+                <PricingContainerSelector
+                  v-model="form.containerId"
+                  transport="maritime"
+                  :disabled="readOnly"
+                />
+              </div>
               <DhInput v-model.number="form.oceanFreight" type="number" label="Ocean Freight USD" :disabled="readOnly" />
               <DhInput v-model.number="form.maximumCbm" type="number" label="Capacidad máxima CBM" :disabled="readOnly" />
               <div class="flex items-end pb-1"><DhCheckbox v-model="form.includeEmptyReturn" label="Incluir retiro de vacío" :disabled="readOnly" /></div>
@@ -390,7 +400,7 @@ onMounted(load)
             <div class="flex items-center justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cargos en destino automáticos</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Naviera + puerto de llegada determinan estos costos. Pricing no los escribe manualmente.</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Naviera + POE seleccionado determinan estos costos. Pricing no los escribe manualmente.</p>
               </div>
               <span class="inline-flex items-center gap-1 rounded-full border border-[var(--dh-border)] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><Lock class="h-3 w-3" /> bloqueado</span>
             </div>
@@ -408,7 +418,7 @@ onMounted(load)
                 Perfil {{ effectiveProfile.profileCode }} · {{ effectiveProfile.version }} · {{ effectiveProfile.source }}
               </div>
             </div>
-            <div v-else class="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">No existe un perfil para la combinación seleccionada. Configure naviera + puerto en Config antes de crear el consolidado.</div>
+            <div v-else class="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">No existe un perfil para la combinación seleccionada. Configure naviera + POE en Config antes de crear el consolidado.</div>
           </section>
         </div>
 
