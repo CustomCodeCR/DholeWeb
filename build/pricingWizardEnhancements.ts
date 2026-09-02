@@ -10,6 +10,22 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
   return source.replace(anchor, replacement)
 }
 
+function replaceMany(
+  source: string,
+  anchor: string,
+  replacement: string,
+  expectedOccurrences: number,
+  label: string,
+) {
+  const occurrences = source.split(anchor).length - 1
+  if (occurrences !== expectedOccurrences) {
+    throw new Error(
+      `[pricingWizardEnhancements] Expected ${expectedOccurrences} ${label} anchors, found ${occurrences}.`,
+    )
+  }
+  return source.split(anchor).join(replacement)
+}
+
 export function pricingWizardEnhancements(): Plugin {
   return {
     name: 'dhole-pricing-wizard-enhancements',
@@ -37,7 +53,7 @@ export function pricingWizardEnhancements(): Plugin {
       )
 
       const termsHelperAnchor = 'async function saveRate() {'
-      const termsHelpers = `function draftTermsForEditor(value?: string | null) {\n  const seen = new Set<string>()\n  return String(value ?? '')\n    .split(/\\r\\n|\\n|\\r|,/g)\n    .map((item) => item.trim())\n    .filter((item) => {\n      if (!item) return false\n      const key = commercialTermKey(item)\n      if (!key || seen.has(key)) return false\n      seen.add(key)\n      return true\n    })\n    .join(', ')\n}\n\nfunction draftTermsForSave(value: string) {\n  const seen = new Set<string>()\n  const values = String(value ?? '')\n    .split(/\\r\\n|\\n|\\r|,/g)\n    .map((item) => item.trim())\n    .filter((item) => {\n      if (!item) return false\n      const key = commercialTermKey(item)\n      if (!key || seen.has(key)) return false\n      seen.add(key)\n      return true\n    })\n  return values.length ? values.join('\\n') : null\n}\n\nasync function initializeDraftCommercialTerms() {\n  draftCommercialTermsInitialized.value = false\n\n  if (editingRate.value) {\n    draftIncludes.value = draftTermsForEditor(editingRate.value.includes)\n    draftSubjectTo.value = draftTermsForEditor(editingRate.value.subjectTo)\n    draftExcludes.value = draftTermsForEditor(editingRate.value.excludes)\n    draftCommercialTermsInitialized.value = true\n    return\n  }\n\n  const origin = selectedOrigin.value\n  const poe = selectedDestination.value\n  const pod = resolvePodForDestination()\n  const incoterm = selectedIncoterm.value\n  if (!origin || !poe || !incoterm) {\n    draftIncludes.value = ''\n    draftSubjectTo.value = ''\n    draftExcludes.value = ''\n    draftCommercialTermsInitialized.value = true\n    return\n  }\n\n  const includedNameKeys = new Set(\n    includedLines.value.map((line) => normalizeCatalogValue(line.name)),\n  )\n  const serviceCodes = new Set<string>()\n  selectedServices.value.forEach((service) => {\n    const code = service.code?.trim().toUpperCase()\n    if (!code) return\n    const canonical = canonicalServiceLine(code, displayValue(service))\n    if (\n      Boolean(metadata(service)?.optional) &&\n      !includedNameKeys.has(normalizeCatalogValue(canonical.name))\n    ) return\n    serviceCodes.add(code)\n  })\n\n  if (!incotermBuyerPaysMainTransport(incoterm.code)) serviceCodes.delete('INT_TRANSPORT')\n  if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))\n    serviceCodes.add('CARGO_INSURANCE')\n  else\n    serviceCodes.delete('CARGO_INSURANCE')\n  if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')\n  if (form.overweight) serviceCodes.add('OVERWEIGHT')\n\n  const commercialTerms = await resolveCommercialTerms({\n    transportModality: form.modality as Modality,\n    shipmentMode: shipmentModeForApi.value,\n    direction: direction.value,\n    incotermId: incoterm.id,\n    incotermCode: incoterm.code,\n    serviceCodes: [...serviceCodes],\n    routeText: [displayValue(origin), displayValue(poe), displayValue(pod)]\n      .filter(Boolean)\n      .join(' '),\n  })\n\n  const unique = (values: Array<string | null | undefined>) => {\n    const seen = new Set<string>()\n    return values\n      .map((value) => String(value ?? '').trim())\n      .filter((value) => {\n        if (!value) return false\n        const key = commercialTermKey(value)\n        if (!key || seen.has(key)) return false\n        seen.add(key)\n        return true\n      })\n  }\n\n  const includeTerms = unique([\n    ...commercialTerms.includes.map((item) => item.text),\n    ...includedLines.value.map((line) => line.name),\n  ])\n  const includeKeys = new Set(includeTerms.map(commercialTermKey))\n  const subjectTerms = unique([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => !includeKeys.has(commercialTermKey(text)))\n  const subjectKeys = new Set(subjectTerms.map(commercialTermKey))\n  const excludeTerms = unique(commercialTerms.excludes.map((item) => item.text)).filter((text) => {\n    const key = commercialTermKey(text)\n    return !includeKeys.has(key) && !subjectKeys.has(key)\n  })\n\n  draftIncludes.value = includeTerms.join(', ')\n  draftSubjectTo.value = subjectTerms.join(', ')\n  draftExcludes.value = excludeTerms.join(', ')\n  draftCommercialTermsInitialized.value = true\n}\n\n`
+      const termsHelpers = `function draftTermsForEditor(value?: string | null) {\n  const seen = new Set<string>()\n  return String(value ?? '')\n    .split(/\\r\\n|\\n|\\r|,/g)\n    .map((item) => item.trim())\n    .filter((item) => {\n      if (!item) return false\n      const key = commercialTermKey(item) || normalizeCatalogValue(item)\n      if (!key || seen.has(key)) return false\n      seen.add(key)\n      return true\n    })\n    .join(', ')\n}\n\nfunction draftTermsForSave(value: string) {\n  const seen = new Set<string>()\n  const values = String(value ?? '')\n    .split(/\\r\\n|\\n|\\r|,/g)\n    .map((item) => item.trim())\n    .filter((item) => {\n      if (!item) return false\n      const key = commercialTermKey(item) || normalizeCatalogValue(item)\n      if (!key || seen.has(key)) return false\n      seen.add(key)\n      return true\n    })\n  return values.length ? values.join('\\n') : null\n}\n\nasync function initializeDraftCommercialTerms() {\n  draftCommercialTermsInitialized.value = false\n\n  if (editingRate.value) {\n    draftIncludes.value = draftTermsForEditor(editingRate.value.includes)\n    draftSubjectTo.value = draftTermsForEditor(editingRate.value.subjectTo)\n    draftExcludes.value = draftTermsForEditor(editingRate.value.excludes)\n    draftCommercialTermsInitialized.value = true\n    return\n  }\n\n  const origin = selectedOrigin.value\n  const poe = selectedDestination.value\n  const pod = resolvePodForDestination()\n  const incoterm = selectedIncoterm.value\n  if (!origin || !poe || !incoterm) {\n    draftIncludes.value = ''\n    draftSubjectTo.value = ''\n    draftExcludes.value = ''\n    draftCommercialTermsInitialized.value = true\n    return\n  }\n\n  const includedNameKeys = new Set(\n    includedLines.value.map((line) => normalizeCatalogValue(line.name)),\n  )\n  const serviceCodes = new Set<string>()\n  selectedServices.value.forEach((service) => {\n    const code = service.code?.trim().toUpperCase()\n    if (!code) return\n    const canonical = canonicalServiceLine(code, displayValue(service))\n    if (\n      Boolean(metadata(service)?.optional) &&\n      !includedNameKeys.has(normalizeCatalogValue(canonical.name))\n    ) return\n    serviceCodes.add(code)\n  })\n\n  if (!incotermBuyerPaysMainTransport(incoterm.code)) serviceCodes.delete('INT_TRANSPORT')\n  if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))\n    serviceCodes.add('CARGO_INSURANCE')\n  else\n    serviceCodes.delete('CARGO_INSURANCE')\n  if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')\n  if (form.overweight) serviceCodes.add('OVERWEIGHT')\n\n  const commercialTerms = await resolveCommercialTerms({\n    transportModality: form.modality as Modality,\n    shipmentMode: shipmentModeForApi.value,\n    direction: direction.value,\n    incotermId: incoterm.id,\n    incotermCode: incoterm.code,\n    serviceCodes: [...serviceCodes],\n    routeText: [displayValue(origin), displayValue(poe), displayValue(pod)]\n      .filter(Boolean)\n      .join(' '),\n  })\n\n  const unique = (values: Array<string | null | undefined>) => {\n    const seen = new Set<string>()\n    return values\n      .map((value) => String(value ?? '').trim())\n      .filter((value) => {\n        if (!value) return false\n        const key = commercialTermKey(value) || normalizeCatalogValue(value)\n        if (!key || seen.has(key)) return false\n        seen.add(key)\n        return true\n      })\n  }\n\n  const includeTerms = unique([\n    ...commercialTerms.includes.map((item) => item.text),\n    ...includedLines.value.map((line) => line.name),\n  ])\n  const includeKeys = new Set(includeTerms.map((item) => commercialTermKey(item) || normalizeCatalogValue(item)))\n  const subjectTerms = unique([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => !includeKeys.has(commercialTermKey(text) || normalizeCatalogValue(text)))\n  const subjectKeys = new Set(subjectTerms.map((item) => commercialTermKey(item) || normalizeCatalogValue(item)))\n  const excludeTerms = unique(commercialTerms.excludes.map((item) => item.text)).filter((text) => {\n    const key = commercialTermKey(text) || normalizeCatalogValue(text)\n    return !includeKeys.has(key) && !subjectKeys.has(key)\n  })\n\n  draftIncludes.value = includeTerms.join(', ')\n  draftSubjectTo.value = subjectTerms.join(', ')\n  draftExcludes.value = excludeTerms.join(', ')\n  draftCommercialTermsInitialized.value = true\n}\n\n`
       code = replaceOne(
         code,
         termsHelperAnchor,
@@ -54,6 +70,35 @@ export function pricingWizardEnhancements(): Plugin {
         'persisted commercial terms',
       )
 
+      code = replaceMany(
+        code,
+        "pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value)",
+        "pickupAddress: ['EXW', 'FCA', 'FOB'].includes(selectedIncotermCode.value)",
+        2,
+        'pickup address persistence',
+      )
+      code = replaceOne(
+        code,
+        "pickupLatitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value)",
+        "pickupLatitude: ['EXW', 'FCA', 'FOB'].includes(selectedIncotermCode.value)",
+        'pickup latitude persistence',
+      )
+      code = replaceOne(
+        code,
+        "pickupLongitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value)",
+        "pickupLongitude: ['EXW', 'FCA', 'FOB'].includes(selectedIncotermCode.value)",
+        'pickup longitude persistence',
+      )
+
+      const cargoWarehouseAnchor = "              selectedWarehouse.value ? `WHS FCA: ${selectedWarehouse.value.label || displayValue(selectedWarehouse.value)}` : '',"
+      const cargoWarehouseReplacement = "              selectedWarehouse.value ? `WHS ${selectedIncotermCode.value}: ${selectedWarehouse.value.label || displayValue(selectedWarehouse.value)}` : '',"
+      code = replaceOne(
+        code,
+        cargoWarehouseAnchor,
+        cargoWarehouseReplacement,
+        'cargo WHS description',
+      )
+
       const incotermWatchAnchor = `watch(\n  () => selectedIncotermCode.value,\n  (code) => {\n    nearestPortRecommendations.value = []\n    if (code !== 'FCA') form.warehouseId = ''\n    if (code !== 'EXW' && code !== 'FCA') {\n      form.pickupAddress = ''\n      form.pickupLatitude = null\n      form.pickupLongitude = null\n    }\n  },\n)\n\nwatch(\n  () => form.warehouseId,\n  () => {\n    if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()\n  },\n)`
       const incotermWatchReplacement = `watch(\n  () => selectedIncotermCode.value,\n  (code) => {\n    nearestPortRecommendations.value = []\n    draftCommercialTermsInitialized.value = false\n\n    if (code === 'FOB') {\n      void applyAutomaticFobWarehouse()\n      return\n    }\n\n    if (code !== 'FCA') form.warehouseId = ''\n    if (code !== 'EXW' && code !== 'FCA') {\n      form.pickupAddress = ''\n      form.pickupLatitude = null\n      form.pickupLongitude = null\n    }\n  },\n)\n\nwatch(\n  () => form.originId,\n  () => {\n    draftCommercialTermsInitialized.value = false\n    if (selectedIncotermCode.value === 'FOB') void applyAutomaticFobWarehouse()\n  },\n)\n\nwatch(\n  () => form.warehouseId,\n  () => {\n    if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()\n  },\n)`
       code = replaceOne(
@@ -64,7 +109,7 @@ export function pricingWizardEnhancements(): Plugin {
       )
 
       const stepWatchAnchor = `watch(step, (value) => {\n  if (value === 7) void loadHaciendaExchangeRate(false)\n})`
-      const stepWatchReplacement = `watch(step, (value) => {\n  if (value === 7) void loadHaciendaExchangeRate(false)\n  if (value === 8) void initializeDraftCommercialTerms()\n})`
+      const stepWatchReplacement = `watch(step, (value) => {\n  if (value === 7) void loadHaciendaExchangeRate(false)\n  if (value === 8) {\n    void initializeDraftCommercialTerms().catch(() => {\n      draftIncludes.value = draftTermsForEditor(editingRate.value?.includes)\n      draftSubjectTo.value = draftTermsForEditor(editingRate.value?.subjectTo)\n      draftExcludes.value = draftTermsForEditor(editingRate.value?.excludes)\n      draftCommercialTermsInitialized.value = true\n    })\n  }\n})`
       code = replaceOne(
         code,
         stepWatchAnchor,
