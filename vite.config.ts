@@ -4,12 +4,13 @@ import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { pricingWizardLclCorrections } from './build/pricingWizardLclCorrections'
 import { pricingLclSourceVisibilityFix } from './build/pricingLclSourceVisibilityFix'
+import { pricingLclCostBreakdownUi } from './build/pricingLclCostBreakdownUi'
 import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
 import { pricingWizardLclRouteContextFix } from './build/pricingWizardLclRouteContextFix'
 import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 
 export default defineConfig({
-  plugins: [pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
