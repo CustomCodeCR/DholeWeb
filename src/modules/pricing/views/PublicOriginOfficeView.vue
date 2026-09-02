@@ -24,6 +24,8 @@ interface OriginOffice {
   id: string
   name: string
   code: string
+  polId: string | null
+  polValue: string
   polCode: string
   address: string
   city: string
@@ -40,7 +42,12 @@ const office = ref<OriginOffice | null>(null)
 const loading = ref(true)
 const failed = ref(false)
 
-const polCode = computed(() => String(route.query.pol ?? route.params.polCode ?? '').trim().toUpperCase())
+const polValue = computed(() => String(route.query.pol ?? '').trim())
+const polCode = computed(() => String(route.query.polCode ?? route.params.polCode ?? '').trim().toUpperCase())
+const polId = computed(() => String(route.query.polId ?? '').trim())
+const polLocator = computed(() => polValue.value || polCode.value)
+const polDisplay = computed(() => office.value?.polValue || polValue.value || office.value?.polCode || polCode.value)
+
 const coordinates = computed(() => {
   if (office.value?.latitude == null || office.value?.longitude == null) return ''
   return `${office.value.latitude}, ${office.value.longitude}`
@@ -52,7 +59,7 @@ async function load() {
   failed.value = false
   office.value = null
 
-  if (!polCode.value) {
+  if (!polLocator.value) {
     failed.value = true
     loading.value = false
     return
@@ -62,11 +69,15 @@ async function load() {
     const query = new URLSearchParams()
     const shipmentMode = String(route.query.shipmentMode ?? '').trim()
     const routeKey = String(route.query.route ?? '').trim()
+
+    if (polValue.value) query.set('polValue', polValue.value)
+    if (polCode.value) query.set('polCode', polCode.value)
+    if (polId.value) query.set('polId', polId.value)
     if (shipmentMode) query.set('shipmentMode', shipmentMode)
     if (routeKey) query.set('route', routeKey)
-    const suffix = query.size ? `?${query.toString()}` : ''
 
-    const response = await fetch(`/api/config/public/origin-offices/${encodeURIComponent(polCode.value)}${suffix}`, {
+    const suffix = query.size ? `?${query.toString()}` : ''
+    const response = await fetch(`/api/config/public/origin-offices/${encodeURIComponent(polLocator.value)}${suffix}`, {
       headers: { Accept: 'application/json' },
       credentials: 'omit',
     })
@@ -92,7 +103,7 @@ onMounted(load)
           <div>
             <p class="text-xs font-black uppercase tracking-[.2em] text-red-700">Grupo Castro Fallas</p>
             <h1 class="mt-2 text-2xl font-black sm:text-3xl">Estos son los datos de Castro Fallas en origen.</h1>
-            <p class="mt-2 text-sm font-semibold text-slate-500">Información pública de coordinación correspondiente al POL {{ polCode || 'seleccionado' }}.</p>
+            <p class="mt-2 text-sm font-semibold text-slate-500">Información pública de coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
           </div>
           <Building2 class="h-12 w-12 text-red-700" />
         </div>
