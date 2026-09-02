@@ -16,6 +16,53 @@ import { useBrandingStore } from '@/core/stores/brandingStore'
 import { createUiTextBridge } from '@/core/i18n/uiTextBridge'
 import { installAuditNavigation } from '@/core/audit/installAuditNavigation'
 
+const STALE_CHUNK_RELOAD_KEY = 'dhole:stale-chunk-reload'
+const STALE_CHUNK_RELOAD_WINDOW_MS = 30_000
+
+function isStaleChunkError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  const normalized = message.toLowerCase()
+
+  return normalized.includes('error loading dynamically imported module')
+    || normalized.includes('failed to fetch dynamically imported module')
+    || normalized.includes('importing a module script failed')
+    || normalized.includes('unable to preload css')
+}
+
+function recoverFromStaleChunk(error: unknown) {
+  if (!isStaleChunkError(error)) return false
+
+  const now = Date.now()
+  const lastReload = Number(sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) ?? '0')
+
+  // A deployment replaces Vite fingerprinted chunks. An already-open tab can still
+  // reference a chunk from the previous build, so reload once to obtain the current
+  // index/module graph. The time guard prevents an infinite loop for genuine failures.
+  if (!Number.isFinite(lastReload) || now - lastReload > STALE_CHUNK_RELOAD_WINDOW_MS) {
+    sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, String(now))
+    window.location.reload()
+    return true
+  }
+
+  return false
+}
+
+// Vite emits this before a stale preload/dynamic import bubbles into Vue Router.
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  recoverFromStaleChunk((event as Event & { payload?: unknown }).payload)
+})
+
+router.onError((error) => {
+  recoverFromStaleChunk(error)
+})
+
+router.afterEach(() => {
+  // Once a navigation succeeds with the current build, allow a future deployment to
+  // trigger one fresh recovery again.
+  sessionStorage.removeItem(STALE_CHUNK_RELOAD_KEY)
+})
+
 const PublicOriginOfficeView = () => import('@/modules/pricing/views/PublicOriginOfficeView.vue')
 
 // Public commercial landing page. It deliberately lives outside MainLayout and does not
