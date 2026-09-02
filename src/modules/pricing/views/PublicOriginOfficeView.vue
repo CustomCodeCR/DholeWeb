@@ -51,7 +51,14 @@ async function load() {
   loading.value = true
   failed.value = false
   try {
-    const response = await fetch(`/api/config/public/origin-offices/${encodeURIComponent(polCode.value)}`, {
+    const query = new URLSearchParams()
+    const shipmentMode = String(route.query.shipmentMode ?? '').trim()
+    const routeKey = String(route.query.route ?? '').trim()
+    if (shipmentMode) query.set('shipmentMode', shipmentMode)
+    if (routeKey) query.set('route', routeKey)
+    const suffix = query.size ? `?${query.toString()}` : ''
+
+    const response = await fetch(`/api/config/public/origin-offices/${encodeURIComponent(polCode.value)}${suffix}`, {
       headers: { Accept: 'application/json' },
     })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
