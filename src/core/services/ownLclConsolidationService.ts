@@ -1,4 +1,5 @@
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { callEndpointWithQuery } from '@/core/api/callEndpointWithQuery'
 import { unwrapApiResponse, unwrapListResponse } from '@/core/api/apiResponse'
 import type { Endpoint } from '@/core/composables/endpoints'
 
@@ -8,8 +9,10 @@ const acceptJson = { Accept: 'application/json' }
 const endpoints = {
   browse: { method: 'GET', path: '/api/pricing/own-lcl-consolidations', headers: acceptJson },
   get: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}', headers: acceptJson },
-  create: { method: 'POST', path: '/api/pricing/own-lcl-consolidations', headers: jsonHeaders },
-  update: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}', headers: jsonHeaders },
+  createAutomatic: { method: 'POST', path: '/api/pricing/own-lcl-automation/consolidations', headers: jsonHeaders },
+  updateAutomatic: { method: 'PUT', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: jsonHeaders },
+  getAutomation: { method: 'GET', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: acceptJson },
+  destinationPreview: { method: 'GET', path: '/api/pricing/own-lcl-automation/destination-preview', headers: acceptJson },
   calculate: { method: 'POST', path: '/api/pricing/own-lcl-consolidations/{{id}}/calculate', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 
@@ -37,6 +40,48 @@ export interface OwnLclConsolidationDto {
   matrixVersion: string
   status: string
   isActive: boolean
+}
+
+export interface OwnLclDestinationChargeDto {
+  code: string
+  name: string
+  amount: number
+  basis: string
+  required: boolean
+  optional: boolean
+  included: boolean
+  components: string[]
+}
+
+export interface OwnLclDestinationProfileDto {
+  profileCode: string
+  version: string
+  profileName: string
+  currency: string
+  arrivalPortCode: string
+  finalRatePointCode: string
+  finalRatePointName: string
+  includeEmptyReturn: boolean
+  charges: OwnLclDestinationChargeDto[]
+  totalCost: number
+  costPerCbm: number
+  costaRicaTransfer: {
+    panamaToCostaRica: number
+    bunker: number
+    baseCbm: number
+  }
+  costsEditable: boolean
+  source: string
+}
+
+export interface OwnLclAutomationSnapshotDto {
+  panamaArrivalPortId: string | null
+  panamaArrivalPortName: string | null
+  panamaArrivalPortCode: string | null
+  destinationProfileCode: string | null
+  destinationProfileVersion: string | null
+  destinationProfile: OwnLclDestinationProfileDto | null
+  includeEmptyReturn: boolean
 }
 
 export interface OwnLclCargoLineRequest {
@@ -98,7 +143,7 @@ export interface OwnLclQuoteCalculationDto {
   requiresLowMarginApproval: boolean
 }
 
-export interface CreateOwnLclConsolidationRequest {
+export interface AutomaticOwnLclConsolidationRequest {
   booking: string | null
   etd: string | null
   carrierId: string | null
@@ -112,10 +157,10 @@ export interface CreateOwnLclConsolidationRequest {
   polCode: string
   oceanFreight: number
   maximumCbm: number
-  carrierDestinationCostTotal: number
-  panamaToCostaRicaCost: number
-  bunkerCost: number
-  costaRicaTransferBaseCbm: number
+  panamaArrivalPortId: string | null
+  panamaArrivalPortName: string | null
+  panamaArrivalPortCode: string
+  includeEmptyReturn: boolean
 }
 
 export interface CalculateOwnLclQuoteRequest {
@@ -131,7 +176,13 @@ export interface CalculateOwnLclQuoteRequest {
   discount: number
 }
 
-type CreatedOwnLcl = { id: string; consolidationNumber: number; name: string; matrixVersion: string }
+type CreatedOwnLcl = {
+  id: string
+  consolidationNumber: number
+  name: string
+  matrixVersion: string
+  destinationProfile: OwnLclDestinationProfileDto
+}
 
 export const OwnLclConsolidationService = {
   async browse(): Promise<OwnLclConsolidationDto[]> {
@@ -142,12 +193,27 @@ export const OwnLclConsolidationService = {
     const response = await callEndpoint<unknown>(endpoints.get, { params: { id } })
     return unwrapApiResponse<OwnLclConsolidationDto>(response as never)
   },
-  async create(payload: CreateOwnLclConsolidationRequest): Promise<CreatedOwnLcl> {
-    const response = await callEndpoint<unknown, CreateOwnLclConsolidationRequest>(endpoints.create, { body: payload })
+  async getAutomation(id: string): Promise<OwnLclAutomationSnapshotDto> {
+    const response = await callEndpoint<unknown>(endpoints.getAutomation, { params: { id } })
+    return unwrapApiResponse<OwnLclAutomationSnapshotDto>(response as never)
+  },
+  async previewDestinationCosts(query: {
+    carrierCode?: string | null
+    carrierName?: string | null
+    arrivalPortCode?: string | null
+    maximumCbm: number
+    includeEmptyReturn: boolean
+  }): Promise<OwnLclDestinationProfileDto> {
+    const response = await callEndpointWithQuery<unknown>(endpoints.destinationPreview, { query })
+    return unwrapApiResponse<OwnLclDestinationProfileDto>(response as never)
+  },
+  async create(payload: AutomaticOwnLclConsolidationRequest): Promise<CreatedOwnLcl> {
+    const response = await callEndpoint<unknown, AutomaticOwnLclConsolidationRequest>(endpoints.createAutomatic, { body: payload })
     return unwrapApiResponse<CreatedOwnLcl>(response as never)
   },
-  update(id: string, payload: CreateOwnLclConsolidationRequest) {
-    return callEndpoint<Record<string, never>, CreateOwnLclConsolidationRequest>(endpoints.update, { params: { id }, body: payload })
+  async update(id: string, payload: AutomaticOwnLclConsolidationRequest): Promise<OwnLclDestinationProfileDto> {
+    const response = await callEndpoint<unknown, AutomaticOwnLclConsolidationRequest>(endpoints.updateAutomatic, { params: { id }, body: payload })
+    return unwrapApiResponse<OwnLclDestinationProfileDto>(response as never)
   },
   async calculate(id: string, payload: CalculateOwnLclQuoteRequest): Promise<OwnLclQuoteCalculationDto> {
     const response = await callEndpoint<unknown, CalculateOwnLclQuoteRequest>(endpoints.calculate, { params: { id }, body: payload })
