@@ -13,7 +13,7 @@ const endpoints = {
   updateAutomatic: { method: 'PUT', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: jsonHeaders },
   getAutomation: { method: 'GET', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: acceptJson },
   destinationPreview: { method: 'GET', path: '/api/pricing/own-lcl-automation/destination-preview', headers: acceptJson },
-  calculate: { method: 'POST', path: '/api/pricing/own-lcl-consolidations/{{id}}/calculate', headers: jsonHeaders },
+  calculate: { method: 'POST', path: '/api/pricing/own-lcl-route-matrix/{{id}}/calculate', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 
 export interface OwnLclConsolidationDto {
@@ -139,6 +139,10 @@ export interface OwnLclQuoteCalculationDto {
   panamaBaseCostPerCbm: number
   costaRicaTransferCostPerCbm: number
   costaRicaProjectedCostPerCbm: number
+  routeTransferCostPerCbm: number
+  routeWarehouseCostPerCbm: number
+  routeInlandCostPerCbm: number
+  routeCostPerCbm: number
   freightCostPerCbm: number
   recommendedSalePerCbm: number
   freightSalePerCbm: number
