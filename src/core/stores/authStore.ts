@@ -416,7 +416,11 @@ export const useAuthStore = defineStore('auth', () => {
 
     applyClaimsFromAccessToken(accessToken.value)
 
-    if (isAccessTokenExpired(accessToken.value)) {
+    const pricingRoleNeedsScopeRefresh =
+      hasRole('Pricing') &&
+      !scopes.value.some((scope) => scope.trim().toLowerCase() === 'pricing.workspace.access')
+
+    if (isAccessTokenExpired(accessToken.value) || pricingRoleNeedsScopeRefresh) {
       await refreshSession()
       return
     }
@@ -432,6 +436,12 @@ export const useAuthStore = defineStore('auth', () => {
     if (hasRole('SuperUsuario') || hasRole('SuperUser')) return true
 
     const normalizedScope = scope.trim().toLowerCase()
+
+    // Pricing is a bounded operational role: it may satisfy only Pricing permissions.
+    // Backend seeding keeps the JWT scopes in sync; this fallback prevents the UI from
+    // hiding/redirecting the workspace while an existing session is being refreshed.
+    if (hasRole('Pricing') && normalizedScope.startsWith('pricing.')) return true
+
     const compatibleScopes =
       normalizedScope === 'config.catalog-selects.view'
         ? new Set([normalizedScope, 'config.select'])
