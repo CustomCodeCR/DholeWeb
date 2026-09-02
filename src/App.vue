@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
 import DhToastContainer from '@/shared/components/containers/DhToastContainer.vue'
 import DhModalContainer from '@/shared/components/containers/DhModalContainer.vue'
@@ -20,8 +20,16 @@ const authStore = useAuthStore()
 const tabsStore = useWorkspaceTabsStore()
 const brandingStore = useBrandingStore()
 const toastStore = useToastStore()
+const isPublicRoute = computed(() => router.currentRoute.value.meta.public === true)
 
 function handleAuthExpired() {
+  // Public origin pages must never redirect to Login because they intentionally work
+  // without a Dhole session. Clearing a stale session is fine; navigation is not.
+  if (isPublicRoute.value) {
+    authStore.clearSession()
+    return
+  }
+
   void stopNotificationRealtime()
   authStore.clearSession()
   tabsStore.clear()
@@ -33,6 +41,8 @@ function handleAuthExpired() {
 }
 
 function handleAuthRefreshed(event: Event) {
+  if (isPublicRoute.value) return
+
   const detail = (event as CustomEvent).detail
 
   if (!detail?.accessToken || !detail?.refreshToken || !detail?.sessionId) {
@@ -46,6 +56,14 @@ function handleAuthRefreshed(event: Event) {
 
 onMounted(() => {
   brandingStore.applyCachedOrDefault()
+
+  // The public origin page is a deliberately isolated surface: no Pricing offline
+  // synchronization, authenticated realtime channels, modals/drawers or AI assistant.
+  if (isPublicRoute.value) {
+    window.addEventListener('dhole:auth:expired', handleAuthExpired)
+    return
+  }
+
   initializePricingOfflineSync()
   const handleOffline = () => toastStore.warning('Sin conexión', 'Los cambios de Pricing se conservarán localmente y se sincronizarán al recuperar Internet.')
   const handleOnline = () => {
@@ -67,7 +85,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  void stopNotificationRealtime()
+  if (!isPublicRoute.value) void stopNotificationRealtime()
   ;(window as Window & { __dholeConnectivityCleanup?: () => void }).__dholeConnectivityCleanup?.()
   window.removeEventListener('dhole:auth:expired', handleAuthExpired)
   window.removeEventListener('dhole:auth:refreshed', handleAuthRefreshed)
@@ -75,10 +93,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <DhToastContainer />
-  <DhModalContainer />
-  <DhDrawerContainer />
+  <template v-if="!isPublicRoute">
+    <DhToastContainer />
+    <DhModalContainer />
+    <DhDrawerContainer />
+  </template>
 
   <RouterView />
-  <AiAssistantFloatingButton />
+  <AiAssistantFloatingButton v-if="!isPublicRoute" />
 </template>
