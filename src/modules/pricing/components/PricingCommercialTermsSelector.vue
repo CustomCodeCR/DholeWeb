@@ -109,6 +109,11 @@ watch(() => props.modelValue, syncFromProps, { deep: true })
 onMounted(load)
 
 const activeCount = computed(() => catalogItems.value.filter((item) => item.isActive).length)
+const commaPreview = computed(() => ({
+  includes: unique(props.modelValue.includes).join(', '),
+  subjectTo: unique(props.modelValue.subjectTo).join(', '),
+  excludes: unique(props.modelValue.excludes).join(', '),
+}))
 </script>
 
 <template>
@@ -143,5 +148,12 @@ const activeCount = computed(() => catalogItems.value.filter((item) => item.isAc
       available-hint="Busque y arrastre únicamente términos aprobados del catálogo."
       @update:model-value="emitBoard"
     />
+
+    <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 text-xs leading-6 text-[var(--dh-text)]">
+      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Vista de oferta</p>
+      <p class="mt-2"><strong>Tarifa incluye:</strong> {{ commaPreview.includes || '—' }}</p>
+      <p><strong>Sujeta a:</strong> {{ commaPreview.subjectTo || '—' }}</p>
+      <p><strong>Tarifa no incluye:</strong> {{ commaPreview.excludes || '—' }}</p>
+    </div>
   </section>
 </template>
