@@ -1637,8 +1637,30 @@ addVariableSectionFallback(
   if (form.merchantHaulage) addHaulageOption('haulage:merchant', 'Gate + Inland GAM Merchant')
   if (form.carrierHaulage) addHaulageOption('haulage:carrier', 'Inland GAM Naviera')
 
-  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance') && visible.has('destination_charges')) {
-    const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
+  const insuranceServiceSelected = Boolean(
+  cargoInsuranceService.value && form.serviceIds.includes(cargoInsuranceService.value.id),
+)
+const insuranceRequested = insuranceServiceSelected || form.cargoValue > 0
+const existingInsurance = lines.find((line) => line.costDetailType === 'Insurance')
+
+if (insuranceRequested && visible.has('destination_charges')) {
+  const insurance = form.cargoValue > 0
+    ? calculateCargoInsurance(form.cargoValue, form.freightCost)
+    : null
+
+  if (existingInsurance) {
+    // A configured Insurance cost must not suppress the cargo-insurance line.
+    // Selecting the service or entering cargo value means the user requested it.
+    existingInsurance.included = true
+    existingInsurance.optional = true
+    existingInsurance.costType = 'Optional'
+    existingInsurance.chargeBasis = 'PerShipment'
+    existingInsurance.section = 'destination_charges'
+    if (insurance) {
+      existingInsurance.costAmount = insurance.cost
+      existingInsurance.saleAmount = insurance.sale
+    }
+  } else {
     lines.push({
       key: 'cargo-insurance:auto',
       section: 'destination_charges',
@@ -1646,16 +1668,20 @@ addVariableSectionFallback(
       costDetailType: 'Insurance',
       costType: 'Optional',
       chargeBasis: 'PerShipment',
+      contextLabel: form.cargoValue > 0
+        ? 'Calculado automáticamente sobre el valor declarado de la carga.'
+        : 'Ingrese el valor de la carga para calcular costo y venta del seguro.',
       currencyId: currency.id,
       currencyName: displayValue(currency),
       currencyCode: currency.code,
-      costAmount: insurance.cost,
-      saleAmount: insurance.sale,
-      included: false,
+      costAmount: insurance?.cost ?? 0,
+      saleAmount: insurance?.sale ?? 0,
+      included: true,
       optional: true,
       manual: false,
     })
   }
+}
 
   lines.forEach((line) => {
     line.amountCurrencyCode = canonicalCurrencyCode(line)
@@ -3043,6 +3069,14 @@ watch(() => form.currencyId, () => {
   if (hydratingExistingRate.value) return
   if (step.value === 7) rebuildRateLines()
 })
+
+watch(
+  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|')] as const,
+  () => {
+    if (hydratingExistingRate.value || step.value < 7) return
+    rebuildRateLines()
+  },
+)
 
 watch(step, (value) => {
   if (value === 7) void loadHaciendaExchangeRate(false)
