@@ -5,10 +5,11 @@ import tailwindcss from '@tailwindcss/vite'
 import { pricingWizardLclCorrections } from './build/pricingWizardLclCorrections'
 import { pricingLclSourceVisibilityFix } from './build/pricingLclSourceVisibilityFix'
 import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
+import { pricingWizardLclRouteContextFix } from './build/pricingWizardLclRouteContextFix'
 import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 
 export default defineConfig({
-  plugins: [pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingWizardEnhancementsScoped(), pricingWizardUiParity(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
