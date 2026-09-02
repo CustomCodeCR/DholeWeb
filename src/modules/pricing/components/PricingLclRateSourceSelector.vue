@@ -5,6 +5,7 @@ import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
 import { DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import {
   OwnLclConsolidationService,
+  type OwnLclCargoLineRequest,
   type OwnLclConsolidationDto,
   type OwnLclQuoteCalculationDto,
 } from '@/core/services/ownLclConsolidationService'
@@ -85,6 +86,8 @@ const props = withDefaults(defineProps<{
   currencyCode: string
   modelValue?: string | null
   requestedCbm?: number
+  requestedCbmLocked?: boolean
+  cargoLines?: OwnLclCargoLineRequest[]
 }>(), {
   polId: null,
   polCode: null,
@@ -96,6 +99,8 @@ const props = withDefaults(defineProps<{
   quoteDate: null,
   modelValue: null,
   requestedCbm: 1,
+  requestedCbmLocked: false,
+  cargoLines: () => [],
 })
 
 const emit = defineEmits<{
@@ -178,12 +183,22 @@ function requested() {
   return Math.max(1, n(props.requestedCbm || 1))
 }
 
+const chinaOwnLclOrigins = new Set([
+  'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',
+  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',
+])
+
+function ownConsolidationSupportsPol(row: OwnLclConsolidationDto, pol: string) {
+  if (!pol || normalize(row.polCode) === pol) return true
+  return normalize(row.polCode) === 'shanghai' && chinaOwnLclOrigins.has(pol)
+}
+
 const filteredOwn = computed(() => {
   const q = normalize(search.value)
   const pol = normalize(props.polCode)
   return ownRows.value.filter((row) => {
     if (!row.isActive || normalize(row.status) === 'closed') return false
-    if (pol && normalize(row.polCode) !== pol) return false
+    if (!ownConsolidationSupportsPol(row, pol)) return false
     if (!q) return true
     return [row.name, row.booking, row.carrierName, row.carrierCode, row.polName, row.polCode, row.containerName, row.containerCode, row.etd]
       .some((value) => normalize(value).includes(q))
@@ -263,7 +278,7 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
     const calculation = await OwnLclConsolidationService.calculate(row.id, {
       destinationCode: destination,
       incoterm: props.incotermCode || 'FOB',
-      cargoLines: cargoForCbm(cbm),
+      cargoLines: props.cargoLines.length ? props.cargoLines : cargoForCbm(cbm),
       polCode: props.polCode || row.polCode,
       salePerCbm: null,
       sets: 1,
@@ -373,6 +388,7 @@ function chooseColoader(rate: LclColoaderRateDto) {
 }
 
 function updateCbm(value: string | number | null) {
+  if (props.requestedCbmLocked) return
   emit('update:requestedCbm', Math.max(1, n(value)))
 }
 
@@ -384,7 +400,7 @@ onMounted(load)
   <section class="space-y-4">
     <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_210px_auto] lg:items-end">
       <DhSearchInput v-model="search" placeholder="Buscar consolidado, coloader, naviera, ruta o código..." />
-      <DhInput :model-value="requestedCbm" type="number" label="CBM cobrable" @update:model-value="updateCbm" />
+      <DhInput :model-value="requestedCbm" type="number" label="CBM cobrable calculado" :disabled="requestedCbmLocked" @update:model-value="updateCbm" />
       <DhButton label="Actualizar tarifas" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
     </div>
 
@@ -405,7 +421,7 @@ onMounted(load)
           <div><p class="font-black">{{ row.name }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.matrixVersion }} · {{ row.booking || 'Sin booking' }}</p></div>
         </template>
         <template #cell-route="{ row }">
-          <div><p class="font-bold">{{ row.polName || row.polCode }} → Panamá / Centroamérica</p><p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · ETD {{ row.etd || '—' }}</p></div>
+          <div><p class="font-bold">{{ row.polName || row.polCode }} → {{ row.poeName || row.poeCode || 'Panamá' }} / Centroamérica</p><p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · ETD {{ row.etd || '—' }}</p></div>
         </template>
         <template #cell-capacity="{ row }"><span class="font-black">{{ n(row.maximumCbm).toFixed(2) }} CBM</span></template>
         <template #cell-cost="{ row }"><span class="font-black">USD {{ money((n(row.oceanFreight) + n(row.carrierDestinationCostTotal)) / Math.max(n(row.maximumCbm), 1)) }}</span></template>

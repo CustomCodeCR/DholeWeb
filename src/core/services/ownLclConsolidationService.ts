@@ -31,6 +31,12 @@ export interface OwnLclConsolidationDto {
   polId: string | null
   polName: string | null
   polCode: string
+  poeId: string | null
+  poeName: string | null
+  poeCode: string | null
+  podId: string | null
+  podName: string | null
+  podCode: string | null
   oceanFreight: number
   maximumCbm: number
   carrierDestinationCostTotal: number
@@ -161,6 +167,7 @@ export interface AutomaticOwnLclConsolidationRequest {
   panamaArrivalPortName: string | null
   panamaArrivalPortCode: string
   includeEmptyReturn: boolean
+  bunkerCost: number
 }
 
 export interface CalculateOwnLclQuoteRequest {
@@ -203,6 +210,8 @@ export const OwnLclConsolidationService = {
     arrivalPortCode?: string | null
     maximumCbm: number
     includeEmptyReturn: boolean
+    containerCode?: string | null
+    bunkerCost?: number | null
   }): Promise<OwnLclDestinationProfileDto> {
     const response = await callEndpointWithQuery<unknown>(endpoints.destinationPreview, { query })
     return unwrapApiResponse<OwnLclDestinationProfileDto>(response as never)

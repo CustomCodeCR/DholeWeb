@@ -293,6 +293,11 @@ const form = reactive({
   cargoDescription: '',
   cargoObservations: '',
   cargoValue: 0,
+  cargoWeightKg: 0,
+  cargoPallets: 1,
+  cargoLengthCm: 0,
+  cargoWidthCm: 0,
+  cargoHeightCm: 0,
   dangerousCargo: false,
   nonStackable: false,
   overweight: false,
@@ -892,6 +897,27 @@ const shipmentModeForApi = computed<ShipmentMode>(() => {
   if (value === 'LTL') return 'Ltl'
   return 'Fcl'
 })
+
+const lclDimensionalCbm = computed(() => {
+  const pallets = Math.max(0, number(form.cargoPallets))
+  const volume = number(form.cargoLengthCm) * number(form.cargoWidthCm) * number(form.cargoHeightCm) * pallets
+  return Math.max(0, volume / 1_000_000)
+})
+const lclWeightCbm = computed(() => Math.max(0, number(form.cargoWeightKg)) / 500)
+const lclChargeableCbm = computed(() => {
+  const calculated = Math.max(lclDimensionalCbm.value, lclWeightCbm.value)
+  return calculated > 0 ? Math.max(1, calculated) : 0
+})
+const lclCargoLines = computed(() => shipmentModeForApi.value === 'Lcl' && lclChargeableCbm.value > 0
+  ? [{
+      description: form.cargoDescription.trim() || 'Carga LCL',
+      units: Math.max(1, Math.trunc(number(form.cargoPallets))),
+      totalWeightKg: Math.max(0, number(form.cargoWeightKg)),
+      lengthCm: Math.max(0, number(form.cargoLengthCm)),
+      widthCm: Math.max(0, number(form.cargoWidthCm)),
+      heightCm: Math.max(0, number(form.cargoHeightCm)),
+    }]
+  : [])
 
 const direction = computed(() => {
   if (!selectedOrigin.value || !selectedDestination.value) return ''
@@ -1690,7 +1716,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
   rateLines.value = lines
 }
 
-function mergeConfiguredOptionalCostsIntoRateLines() {
+function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
   const visible = new Set(visibleSections.value)
   const existingCostIds = new Set(
     rateLines.value.map((line) => line.costId).filter((value): value is string => Boolean(value)),
@@ -1700,7 +1726,7 @@ function mergeConfiguredOptionalCostsIntoRateLines() {
   )
 
   applicableConfiguredCosts()
-    .filter((cost) => cost.costType === 'Optional')
+    .filter((cost) => includeFixed ? cost.costDetailType !== 'Freight' : cost.costType === 'Optional')
     .forEach((cost) => {
       const section = sectionForCost(cost)
       const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`
@@ -1722,8 +1748,8 @@ function mergeConfiguredOptionalCostsIntoRateLines() {
         currencyCode: cost.currencyCode,
         costAmount: number(cost.costAmount),
         saleAmount: number(cost.saleAmount),
-        included: false,
-        optional: true,
+        included: includeFixed && cost.costType !== 'Optional',
+        optional: cost.costType === 'Optional',
         manual: false,
         applyDestinationTax: false,
         destinationTaxRate: 0,
@@ -2264,6 +2290,11 @@ async function hydrateExistingRate() {
     form.freightCost = Number(freight?.costAmount || 0)
     form.freightSale = Number(freight?.saleAmount || 0)
     form.cargoDescription = rate.cargoLines?.[0]?.description ?? ''
+    form.cargoWeightKg = Number(rate.cargoLines?.[0]?.weightKg ?? rate.totalWeightKg ?? 0)
+    form.cargoPallets = Math.max(1, Number(rate.cargoLines?.[0]?.pallets ?? rate.totalPallets ?? 1))
+    form.cargoLengthCm = Number(rate.cargoLines?.[0]?.lengthCm ?? 0)
+    form.cargoWidthCm = Number(rate.cargoLines?.[0]?.widthCm ?? 0)
+    form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
 
     rateLines.value = rate.rateDetails.map((detail) => {
       const configuredCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
@@ -2616,13 +2647,21 @@ async function saveOpenRequest() {
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
       containers: [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
-      totalPackages: 0,
-      totalPallets: 0,
-      totalWeightKg: 0,
-      totalVolumeCbm: shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'Ltl' ? 0.001 : 0,
-      cargoLines: form.cargoDescription || supportText ? [{
+      totalPackages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+      totalPallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+      totalWeightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
+      totalVolumeCbm: shipmentModeForApi.value === 'Lcl'
+        ? lclDimensionalCbm.value
+        : shipmentModeForApi.value === 'Ltl' ? 0.001 : 0,
+      kgPerCbm: shipmentModeForApi.value === 'Lcl' ? 500 : undefined,
+      cargoLines: form.cargoDescription || supportText || shipmentModeForApi.value === 'Lcl' ? [{
         description: [form.cabysCode ? `CABYS ${form.cabysCode}` : '', form.cargoDescription, form.cargoObservations, supportText].filter(Boolean).join(' · '),
-        packages: 0, pallets: 0, weightKg: 0, lengthCm: 0, widthCm: 0, heightCm: 0,
+        packages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+        pallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+        weightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
+        lengthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoLengthCm)) : 0,
+        widthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWidthCm)) : 0,
+        heightCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoHeightCm)) : 0,
       }] : [],
       details: [{
         costId: null,
@@ -2963,6 +3002,11 @@ function resetWizard() {
     cargoDescription: '',
     cargoObservations: '',
     cargoValue: 0,
+    cargoWeightKg: 0,
+    cargoPallets: 1,
+    cargoLengthCm: 0,
+    cargoWidthCm: 0,
+    cargoHeightCm: 0,
     dangerousCargo: false,
     nonStackable: false,
     overweight: false,
@@ -3604,6 +3648,38 @@ onMounted(async () => {
               <DhInput v-model="form.cargoDescription" label="Descripción de la carga (opcional)" />
               <DhInput v-model.number="form.cargoValue" type="number" min="0" step="0.01" label="Valor de la carga (si aplica)" />
             </div>
+
+            <div v-if="shipmentModeForApi === 'Lcl'" class="space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
+              <div>
+                <p class="font-black">Medidas de la carga LCL</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Ingrese las medidas de cada tarima en centímetros. El sistema multiplica por la cantidad de tarimas y compara volumen contra peso/500.</p>
+              </div>
+              <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <DhInput v-model.number="form.cargoWeightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />
+                <DhInput v-model.number="form.cargoPallets" type="number" min="1" step="1" label="Tarimas" />
+                <DhInput v-model.number="form.cargoLengthCm" type="number" min="0" step="0.01" label="Largo (cm)" />
+                <DhInput v-model.number="form.cargoWidthCm" type="number" min="0" step="0.01" label="Ancho (cm)" />
+                <DhInput v-model.number="form.cargoHeightCm" type="number" min="0" step="0.01" label="Alto (cm)" />
+              </div>
+              <div class="grid gap-3 sm:grid-cols-3">
+                <div class="crystal-metric crystal-metric--neutral">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">CBM dimensional</span>
+                  <strong class="mt-1 block text-base">{{ lclDimensionalCbm.toFixed(3) }} CBM</strong>
+                </div>
+                <div class="crystal-metric crystal-metric--neutral">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">Equivalente por peso</span>
+                  <strong class="mt-1 block text-base">{{ lclWeightCbm.toFixed(3) }} CBM</strong>
+                </div>
+                <div class="crystal-metric crystal-metric--sale">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">CBM cobrable</span>
+                  <strong class="mt-1 block text-base">{{ lclChargeableCbm.toFixed(3) }} CBM</strong>
+                  <small>Mínimo facturable: 1 CBM</small>
+                </div>
+              </div>
+              <p v-if="form.cargoWeightKg <= 0 || form.cargoPallets <= 0 || form.cargoLengthCm <= 0 || form.cargoWidthCm <= 0 || form.cargoHeightCm <= 0" class="text-xs font-bold text-amber-600">
+                Complete peso, tarimas, largo, ancho y alto para continuar.
+              </p>
+            </div>
             <DhTextarea v-model="form.cargoObservations" label="Observaciones de la carga" :rows="4" />
 
             <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>
@@ -3891,6 +3967,12 @@ onMounted(async () => {
             <div class="crystal-soft p-5 lg:col-span-2">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Carga y respaldos</p>
               <p class="mt-3 text-sm font-semibold">{{ form.cargoDescription || 'Sin descripción adicional' }}</p>
+              <div v-if="shipmentModeForApi === 'Lcl'" class="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
+                <span>{{ form.cargoPallets }} tarima{{ Number(form.cargoPallets) === 1 ? '' : 's' }}</span>
+                <span>· {{ Number(form.cargoWeightKg).toLocaleString('es-CR') }} kg</span>
+                <span>· {{ lclDimensionalCbm.toFixed(3) }} CBM dimensional</span>
+                <span>· {{ lclChargeableCbm.toFixed(3) }} CBM cobrable</span>
+              </div>
               <p v-if="form.cabysCode" class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">CABYS {{ form.cabysCode }}</p>
               <p class="mt-2 text-xs font-bold text-[var(--dh-text-muted)]">{{ supportDocuments.length }} documento{{ supportDocuments.length === 1 ? '' : 's' }} de respaldo en Storage.</p>
             </div>

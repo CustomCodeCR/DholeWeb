@@ -46,6 +46,7 @@ const form = reactive({
   panamaArrivalPortCode: '',
   oceanFreight: 0,
   maximumCbm: 50,
+  bunkerCost: 280,
   includeEmptyReturn: true,
 })
 
@@ -136,7 +137,7 @@ function resetForm() {
   readOnly.value = false
   Object.assign(form, {
     booking: '', etd: '', carrierId: '', containerId: '', polId: '', panamaArrivalPortCode: '',
-    oceanFreight: 0, maximumCbm: 50, includeEmptyReturn: true,
+    oceanFreight: 0, maximumCbm: 50, bunkerCost: 280, includeEmptyReturn: true,
   })
 }
 function newConsolidation() {
@@ -158,6 +159,7 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
     panamaArrivalPortCode: '',
     oceanFreight: row.oceanFreight,
     maximumCbm: row.maximumCbm,
+    bunkerCost: row.bunkerCost,
     includeEmptyReturn: true,
   })
   try {
@@ -181,12 +183,15 @@ async function previewProfile() {
   }
   try {
     previewLoading.value = true
+    const container = option(containers.value, form.containerId)
     profilePreview.value = await OwnLclConsolidationService.previewDestinationCosts({
       carrierCode: carrier.code || carrier.value,
       carrierName: carrier.label,
       arrivalPortCode: form.panamaArrivalPortCode,
       maximumCbm: Math.max(Number(form.maximumCbm || 50), 0.01),
       includeEmptyReturn: form.includeEmptyReturn,
+      containerCode: container?.code || container?.value || null,
+      bunkerCost: Math.max(Number(form.bunkerCost || 0), 0),
     })
   } catch {
     profilePreview.value = null
@@ -195,7 +200,7 @@ async function previewProfile() {
   }
 }
 
-watch(() => [form.carrierId, form.panamaArrivalPortCode, form.maximumCbm, form.includeEmptyReturn], () => {
+watch(() => [form.carrierId, form.containerId, form.panamaArrivalPortCode, form.maximumCbm, form.bunkerCost, form.includeEmptyReturn], () => {
   if (!readOnly.value) void previewProfile()
 })
 
@@ -204,7 +209,7 @@ const previewDestinationTotal = computed(() => effectiveProfile.value?.totalCost
 const previewDestinationPerCbm = computed(() => effectiveProfile.value?.costPerCbm ?? previewDestinationTotal.value / Math.max(Number(form.maximumCbm || 50), 0.01))
 const previewOceanPerCbm = computed(() => Number(form.oceanFreight || 0) / Math.max(Number(form.maximumCbm || 50), 0.01))
 const previewTransfer = computed(() => effectiveProfile.value?.costaRicaTransfer.panamaToCostaRica ?? selected.value?.panamaToCostaRicaCost ?? 0)
-const previewBunker = computed(() => effectiveProfile.value?.costaRicaTransfer.bunker ?? selected.value?.bunkerCost ?? 0)
+const previewBunker = computed(() => Number(form.bunkerCost ?? effectiveProfile.value?.costaRicaTransfer.bunker ?? selected.value?.bunkerCost ?? 280))
 const previewTransferBase = computed(() => effectiveProfile.value?.costaRicaTransfer.baseCbm ?? selected.value?.costaRicaTransferBaseCbm ?? 95)
 const previewCrTransferPerCbm = computed(() => (previewTransfer.value + previewBunker.value) / Math.max(previewTransferBase.value, 0.01))
 
@@ -231,14 +236,15 @@ function buildPayload() {
     panamaArrivalPortName: arrivalPoe?.label ?? null,
     panamaArrivalPortCode: form.panamaArrivalPortCode,
     includeEmptyReturn: form.includeEmptyReturn,
+    bunkerCost: Math.max(Number(form.bunkerCost || 0), 0),
   }
 }
 
 async function save() {
   if (readOnly.value) return
   const body = buildPayload()
-  if (!body.carrierCode || !body.panamaArrivalPortCode || !body.polCode || !body.containerCode || body.oceanFreight <= 0) {
-    toastStore.warning('Datos incompletos', 'Seleccione naviera, POE de llegada, POL, tamaño y tipo de equipo, e indique el Ocean Freight.')
+  if (!body.booking || !body.etd || !body.carrierCode || !body.panamaArrivalPortCode || !body.polCode || !body.containerCode || body.oceanFreight <= 0) {
+    toastStore.warning('Datos incompletos', 'Ingrese booking y ETD; seleccione naviera, POE, POL y equipo; e indique el flete marítimo.')
     return
   }
   try {
@@ -314,7 +320,7 @@ onMounted(load)
           </template>
           <template #cell-route="{ row }">
             <div class="min-w-0">
-              <p class="font-bold text-[var(--dh-text)]">{{ row.polName || row.polCode }} → Panamá / POD automático</p>
+              <p class="font-bold text-[var(--dh-text)]">{{ row.polName || row.polCode }} → {{ row.poeName || row.poeCode || 'POE pendiente' }}<span v-if="row.podName || row.podCode"> → {{ row.podName || row.podCode }}</span></p>
               <p class="mt-0.5 truncate text-xs text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · {{ row.booking || 'Sin booking' }} · {{ row.containerCode || row.containerName || 'Sin equipo' }}</p>
             </div>
           </template>
@@ -392,6 +398,7 @@ onMounted(load)
               </div>
               <DhInput v-model.number="form.oceanFreight" type="number" label="Ocean Freight USD" :disabled="readOnly" />
               <DhInput v-model.number="form.maximumCbm" type="number" label="Capacidad máxima CBM" :disabled="readOnly" />
+              <DhInput v-model.number="form.bunkerCost" type="number" min="0" step="0.01" label="Bunker Panamá → Costa Rica USD" :disabled="readOnly" />
               <div class="flex items-end pb-1"><DhCheckbox v-model="form.includeEmptyReturn" label="Incluir retiro de vacío" :disabled="readOnly" /></div>
             </div>
           </section>
