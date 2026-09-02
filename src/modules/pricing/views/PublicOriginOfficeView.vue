@@ -40,7 +40,7 @@ const office = ref<OriginOffice | null>(null)
 const loading = ref(true)
 const failed = ref(false)
 
-const polCode = computed(() => String(route.params.polCode ?? '').trim().toUpperCase())
+const polCode = computed(() => String(route.query.pol ?? route.params.polCode ?? '').trim().toUpperCase())
 const coordinates = computed(() => {
   if (office.value?.latitude == null || office.value?.longitude == null) return ''
   return `${office.value.latitude}, ${office.value.longitude}`
@@ -50,6 +50,14 @@ const mapUrl = computed(() => coordinates.value ? `https://www.google.com/maps?q
 async function load() {
   loading.value = true
   failed.value = false
+  office.value = null
+
+  if (!polCode.value) {
+    failed.value = true
+    loading.value = false
+    return
+  }
+
   try {
     const query = new URLSearchParams()
     const shipmentMode = String(route.query.shipmentMode ?? '').trim()
@@ -60,6 +68,7 @@ async function load() {
 
     const response = await fetch(`/api/config/public/origin-offices/${encodeURIComponent(polCode.value)}${suffix}`, {
       headers: { Accept: 'application/json' },
+      credentials: 'omit',
     })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const payload = await response.json()
@@ -83,7 +92,7 @@ onMounted(load)
           <div>
             <p class="text-xs font-black uppercase tracking-[.2em] text-red-700">Grupo Castro Fallas</p>
             <h1 class="mt-2 text-2xl font-black sm:text-3xl">Estos son los datos de Castro Fallas en origen.</h1>
-            <p class="mt-2 text-sm font-semibold text-slate-500">Oficina correspondiente al POL {{ polCode }}</p>
+            <p class="mt-2 text-sm font-semibold text-slate-500">Información pública de coordinación correspondiente al POL {{ polCode || 'seleccionado' }}.</p>
           </div>
           <Building2 class="h-12 w-12 text-red-700" />
         </div>
@@ -102,7 +111,7 @@ onMounted(load)
             <h2 class="mt-2 text-2xl font-black">{{ office.name }}</h2>
             <div class="mt-5 space-y-3 text-sm">
               <div class="flex gap-3"><MapPin class="mt-0.5 h-5 w-5 shrink-0 text-red-700" /><span>{{ office.address || 'Dirección por confirmar' }}<template v-if="office.city || office.country"><br>{{ [office.city, office.country].filter(Boolean).join(', ') }}</template></span></div>
-              <div v-if="coordinates" class="flex gap-3"><Navigation class="mt-0.5 h-5 w-5 shrink-0 text-red-700" /><a :href="mapUrl" target="_blank" rel="noopener" class="font-bold text-red-700 hover:underline">{{ coordinates }} · Abrir mapa</a></div>
+              <div v-if="coordinates" class="flex gap-3"><Navigation class="mt-0.5 h-5 w-5 shrink-0 text-red-700" /><a :href="mapUrl" target="_blank" rel="noopener noreferrer" class="font-bold text-red-700 hover:underline">{{ coordinates }} · Abrir mapa</a></div>
             </div>
           </article>
 
@@ -124,7 +133,7 @@ onMounted(load)
           <div class="mb-4"><p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Fotografías</p><h2 class="mt-1 text-xl font-black">Referencia de la oficina / WHS</h2></div>
           <div v-if="office.photos.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <figure v-for="photo in office.photos" :key="photo.storageId" class="overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
-              <img :src="photo.publicContentPath" :alt="photo.fileName || office.name" class="aspect-[4/3] h-full w-full object-cover" loading="lazy" />
+              <img :src="photo.publicContentPath" :alt="photo.fileName || office.name" class="aspect-[4/3] h-full w-full object-cover" loading="lazy" referrerpolicy="no-referrer" />
             </figure>
           </div>
           <p v-else class="text-sm text-slate-500">No hay fotografías publicadas para esta oficina.</p>
