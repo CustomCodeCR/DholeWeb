@@ -7,8 +7,8 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import {
   OwnLclConsolidationService,
+  type OwnLclAutomationSnapshotDto,
   type OwnLclConsolidationDto,
-  type OwnLclDestinationAutomationDto,
   type OwnLclDestinationProfileDto,
 } from '@/core/services/ownLclConsolidationService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -30,7 +30,7 @@ const statusFilter = ref('')
 const selectedId = ref('')
 const editorOpen = ref(false)
 const readOnly = ref(false)
-const selectedAutomation = ref<OwnLclDestinationAutomationDto | null>(null)
+const selectedAutomation = ref<OwnLclAutomationSnapshotDto | null>(null)
 const profilePreview = ref<OwnLclDestinationProfileDto | null>(null)
 
 const form = reactive({
@@ -63,7 +63,6 @@ const decimal = (value: number | null | undefined, digits = 2) => Number(value ?
 function option(items: CatalogItemSelectDto[], id: string) {
   return items.find((item) => item.id === id) ?? null
 }
-
 function normalize(value: unknown) {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 }
@@ -77,7 +76,6 @@ const filteredRows = computed(() => {
       .some((value) => normalize(value).includes(q))
   })
 })
-
 const selected = computed(() => rows.value.find((row) => row.id === selectedId.value) ?? null)
 
 function destinationPerCbm(row: OwnLclConsolidationDto) {
@@ -126,7 +124,6 @@ function resetForm() {
     oceanFreight: 0, maximumCbm: 50, includeEmptyReturn: true,
   })
 }
-
 function newConsolidation() {
   resetForm()
   editorOpen.value = true
@@ -150,14 +147,13 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
   })
   try {
     selectedAutomation.value = await OwnLclConsolidationService.getAutomation(row.id)
-    form.panamaArrivalPortCode = selectedAutomation.value.panamaArrivalPortCode
+    form.panamaArrivalPortCode = selectedAutomation.value.panamaArrivalPortCode ?? ''
     form.includeEmptyReturn = selectedAutomation.value.includeEmptyReturn
   } catch (error) {
     selectedAutomation.value = null
     toastStore.backendError(error, 'No fue posible cargar el detalle automático del consolidado.')
   }
 }
-
 function handleRowClick(row: OwnLclTableRow) {
   void openRow(row, 'view')
 }
@@ -170,10 +166,13 @@ async function previewProfile() {
   }
   try {
     previewLoading.value = true
-    profilePreview.value = await OwnLclConsolidationService.getDestinationProfile(
-      carrier.code || carrier.value,
-      form.panamaArrivalPortCode,
-    )
+    profilePreview.value = await OwnLclConsolidationService.previewDestinationCosts({
+      carrierCode: carrier.code || carrier.value,
+      carrierName: carrier.label,
+      arrivalPortCode: form.panamaArrivalPortCode,
+      maximumCbm: Math.max(Number(form.maximumCbm || 50), 0.01),
+      includeEmptyReturn: form.includeEmptyReturn,
+    })
   } catch {
     profilePreview.value = null
   } finally {
@@ -181,27 +180,24 @@ async function previewProfile() {
   }
 }
 
-watch(() => [form.carrierId, form.panamaArrivalPortCode], () => {
+watch(() => [form.carrierId, form.panamaArrivalPortCode, form.maximumCbm, form.includeEmptyReturn], () => {
   if (!readOnly.value) void previewProfile()
 })
 
-const effectiveProfile = computed(() => profilePreview.value)
-const previewDestinationTotal = computed(() => {
-  const profile = effectiveProfile.value
-  if (!profile) return selectedAutomation.value?.destinationCostTotal ?? selected.value?.carrierDestinationCostTotal ?? 0
-  return profile.carrierChargeTotal + profile.balboaToCfzTotal + profile.additionalTotal + (form.includeEmptyReturn ? profile.emptyReturnTotal : 0)
-})
-const previewDestinationPerCbm = computed(() => previewDestinationTotal.value / Math.max(Number(form.maximumCbm || 50), 0.01))
+const effectiveProfile = computed(() => profilePreview.value ?? selectedAutomation.value?.destinationProfile ?? null)
+const previewDestinationTotal = computed(() => effectiveProfile.value?.totalCost ?? selected.value?.carrierDestinationCostTotal ?? 0)
+const previewDestinationPerCbm = computed(() => effectiveProfile.value?.costPerCbm ?? previewDestinationTotal.value / Math.max(Number(form.maximumCbm || 50), 0.01))
 const previewOceanPerCbm = computed(() => Number(form.oceanFreight || 0) / Math.max(Number(form.maximumCbm || 50), 0.01))
-const previewTransfer = computed(() => effectiveProfile.value?.transferToCostaRicaTotal ?? selectedAutomation.value?.panamaToCostaRicaCost ?? selected.value?.panamaToCostaRicaCost ?? 0)
-const previewBunker = computed(() => effectiveProfile.value?.bunkerTotal ?? selectedAutomation.value?.bunkerCost ?? selected.value?.bunkerCost ?? 0)
-const previewTransferBase = computed(() => effectiveProfile.value?.costaRicaTransferBaseCbm ?? selectedAutomation.value?.costaRicaTransferBaseCbm ?? selected.value?.costaRicaTransferBaseCbm ?? 95)
+const previewTransfer = computed(() => effectiveProfile.value?.costaRicaTransfer.panamaToCostaRica ?? selected.value?.panamaToCostaRicaCost ?? 0)
+const previewBunker = computed(() => effectiveProfile.value?.costaRicaTransfer.bunker ?? selected.value?.bunkerCost ?? 0)
+const previewTransferBase = computed(() => effectiveProfile.value?.costaRicaTransfer.baseCbm ?? selected.value?.costaRicaTransferBaseCbm ?? 95)
 const previewCrTransferPerCbm = computed(() => (previewTransfer.value + previewBunker.value) / Math.max(previewTransferBase.value, 0.01))
 
 function buildPayload() {
   const carrier = option(carriers.value, form.carrierId)
   const container = option(containers.value, form.containerId)
   const pol = option(pols.value, form.polId)
+  const panamaPort = panamaPorts.value.find((item) => (item.code || item.value) === form.panamaArrivalPortCode) ?? null
   return {
     booking: form.booking.trim() || null,
     etd: form.etd || null,
@@ -214,9 +210,11 @@ function buildPayload() {
     polId: pol?.id ?? null,
     polName: pol?.label ?? null,
     polCode: pol?.code || pol?.value || '',
-    panamaArrivalPortCode: form.panamaArrivalPortCode,
     oceanFreight: Number(form.oceanFreight || 0),
     maximumCbm: Number(form.maximumCbm || 50),
+    panamaArrivalPortId: panamaPort?.id ?? null,
+    panamaArrivalPortName: panamaPort?.label ?? null,
+    panamaArrivalPortCode: form.panamaArrivalPortCode,
     includeEmptyReturn: form.includeEmptyReturn,
   }
 }
@@ -231,10 +229,10 @@ async function save() {
   try {
     saving.value = true
     if (selectedId.value) {
-      await OwnLclConsolidationService.updateAutomatic(selectedId.value, body)
+      await OwnLclConsolidationService.update(selectedId.value, body)
       toastStore.success('Consolidado actualizado', 'Los costos se recalcularon con el perfil automático vigente.')
     } else {
-      const created = await OwnLclConsolidationService.createAutomatic(body)
+      const created = await OwnLclConsolidationService.create(body)
       selectedId.value = created.id
       toastStore.success('Consolidado creado', `${created.name} fue creado con costos automáticos.`)
     }
@@ -371,12 +369,17 @@ onMounted(load)
             </div>
 
             <div v-if="previewLoading" class="mt-4 text-sm font-bold text-[var(--dh-text-muted)]">Resolviendo perfil...</div>
-            <div v-else-if="effectiveProfile || selectedAutomation" class="mt-4 space-y-2">
-              <div v-for="detail in effectiveProfile?.details ?? []" :key="detail.name" class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
-                <div><p class="text-sm font-bold">{{ detail.name }}</p><p v-if="detail.optional" class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Opcional</p></div>
-                <p class="font-black">USD {{ money(detail.amount) }}</p>
+            <div v-else-if="effectiveProfile" class="mt-4 space-y-2">
+              <div v-for="charge in effectiveProfile.charges" :key="charge.code" class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
+                <div>
+                  <p class="text-sm font-bold">{{ charge.name }}</p>
+                  <p class="mt-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">{{ charge.basis }}<span v-if="charge.optional"> · opcional</span></p>
+                </div>
+                <p class="font-black">USD {{ money(charge.included ? charge.amount : 0) }}</p>
               </div>
-              <div v-if="!effectiveProfile" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Snapshot guardado: {{ selectedAutomation?.profileCode || 'Perfil histórico' }}.</div>
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Perfil {{ effectiveProfile.profileCode }} · {{ effectiveProfile.version }} · {{ effectiveProfile.source }}
+              </div>
             </div>
             <div v-else class="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">No existe un perfil para la combinación seleccionada. Configure naviera + puerto en Config antes de crear el consolidado.</div>
           </section>
