@@ -13,6 +13,7 @@ import {
 } from '@/core/services/ownLclConsolidationService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
+import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 
 type OwnLclTableRow = OwnLclConsolidationDto & Record<string, unknown>
 
@@ -77,6 +78,16 @@ const filteredRows = computed(() => {
   })
 })
 const selected = computed(() => rows.value.find((row) => row.id === selectedId.value) ?? null)
+const polLocationOptions = computed(() => pols.value.map((item) => ({
+  value: item.id,
+  label: item.label,
+  searchText: [item.code, item.value, item.label].filter(Boolean).join(' '),
+})))
+const panamaLocationOptions = computed(() => panamaPorts.value.map((item) => ({
+  value: item.code || item.value,
+  label: item.label,
+  searchText: [item.code, item.value, item.label].filter(Boolean).join(' '),
+})))
 
 function destinationPerCbm(row: OwnLclConsolidationDto) {
   return row.maximumCbm > 0 ? row.carrierDestinationCostTotal / row.maximumCbm : 0
@@ -350,8 +361,24 @@ onMounted(load)
               <DhInput v-model="form.booking" label="Booking" placeholder="Booking de naviera" :disabled="readOnly" />
               <DhInput v-model="form.etd" type="date" label="ETD" :disabled="readOnly" />
               <DhSelect v-model="form.carrierId" label="Naviera" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...carriers.map((x) => ({ label: x.label, value: x.id }))]" />
-              <DhSelect v-model="form.panamaArrivalPortCode" label="Puerto de llegada en Panamá" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...panamaPorts.map((x) => ({ label: x.label, value: x.code || x.value }))]" />
-              <DhSelect v-model="form.polId" label="POL" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...pols.map((x) => ({ label: x.label, value: x.id }))]" />
+              <PricingLocationSearchSelect
+                v-model="form.polId"
+                label="Origen (POL)"
+                placeholder="Buscar puerto de origen"
+                search-placeholder="Buscar ciudad, puerto o código…"
+                terminal-type="CY"
+                :disabled="readOnly"
+                :options="polLocationOptions"
+              />
+              <PricingLocationSearchSelect
+                v-model="form.panamaArrivalPortCode"
+                label="Destino (POE) · Panamá"
+                placeholder="Buscar puerto de llegada"
+                search-placeholder="Buscar puerto de llegada en Panamá…"
+                terminal-type="CY"
+                :disabled="readOnly"
+                :options="panamaLocationOptions"
+              />
               <DhSelect v-model="form.containerId" label="Contenedor" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...containers.map((x) => ({ label: x.label, value: x.id }))]" />
               <DhInput v-model.number="form.oceanFreight" type="number" label="Ocean Freight USD" :disabled="readOnly" />
               <DhInput v-model.number="form.maximumCbm" type="number" label="Capacidad máxima CBM" :disabled="readOnly" />
