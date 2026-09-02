@@ -15,6 +15,23 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 
+function resolveLandingRoute() {
+  const isPrivilegedUser =
+    authStore.hasRole('SuperUsuario') ||
+    authStore.hasRole('SuperUser') ||
+    authStore.hasRole('SuperAdmin') ||
+    authStore.hasRole('Administrador') ||
+    authStore.hasRole('Administrator') ||
+    authStore.hasRole('Admin')
+
+  const isPricingUser =
+    authStore.hasRole('Pricing') ||
+    authStore.roles.some((role) => role.trim().toLowerCase().includes('pricing'))
+
+  if (isPricingUser && !isPrivilegedUser) return '/pricing'
+  return '/home'
+}
+
 async function login() {
   if (!email.value || !password.value) {
     toastStore.warning('Datos incompletos', t('auth.missingData'))
@@ -24,7 +41,7 @@ async function login() {
     loading.value = true
     await authStore.login({ email: email.value, password: password.value })
     toastStore.success('Sesión iniciada', 'Bienvenido a Dhole.')
-    await router.push('/home')
+    await router.push(resolveLandingRoute())
   } catch (error) {
     toastStore.backendError(error, t('auth.loginError'))
   } finally {
