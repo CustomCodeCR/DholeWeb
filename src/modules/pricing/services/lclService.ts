@@ -142,12 +142,18 @@ export const LclService = {
   },
 
   async createOwn(payload: CreateOwnLclPayload) {
-    const response = await callEndpoint<unknown, CreateOwnLclPayload>(endpoints.createOwn, { body: payload })
+    const response = await callEndpoint<Record<string, unknown>, CreateOwnLclPayload>(
+      endpoints.createOwn,
+      { body: payload },
+    )
     return unwrapApiResponse<Record<string, unknown>>(response)
   },
 
   async createColoader(payload: Record<string, unknown>) {
-    const response = await callEndpoint<unknown, Record<string, unknown>>(endpoints.createColoader, { body: payload })
+    const response = await callEndpoint<Record<string, unknown>, Record<string, unknown>>(
+      endpoints.createColoader,
+      { body: payload },
+    )
     return unwrapApiResponse<Record<string, unknown>>(response)
   },
 
@@ -156,15 +162,15 @@ export const LclService = {
   },
 
   async getRouteRules() {
-    const response = await callEndpoint<unknown>(endpoints.routeRules)
+    const response = await callEndpoint<LclRouteRules>(endpoints.routeRules)
     return unwrapApiResponse<LclRouteRules>(response)
   },
 
   async calculateCargo(lines: LclCargoLineInput[], kgPerCbm = 500) {
-    const response = await callEndpoint<unknown, { kgPerCbm: number; lines: LclCargoLineInput[] }>(
-      endpoints.calculateCargo,
-      { body: { kgPerCbm, lines } },
-    )
+    const response = await callEndpoint<
+      LclCargoCalculation,
+      { kgPerCbm: number; lines: LclCargoLineInput[] }
+    >(endpoints.calculateCargo, { body: { kgPerCbm, lines } })
     return unwrapApiResponse<LclCargoCalculation>(response)
   },
 }
