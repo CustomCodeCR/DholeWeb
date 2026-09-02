@@ -20,6 +20,55 @@ import type {
 
 type NoContent = Record<string, never>
 
+type ContactDirectoryEntry = {
+  name?: unknown
+  email?: unknown
+  phone?: unknown
+  isPrimary?: unknown
+  isActive?: unknown
+}
+
+function contactText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function uniqueContactValues(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))]
+}
+
+function preferContactDirectory(item: CatalogItemSelectDto): CatalogItemSelectDto {
+  if (!item.metadataJson) return item
+
+  try {
+    const parsed = JSON.parse(item.metadataJson) as Record<string, unknown>
+    if (!Array.isArray(parsed.contactDirectory)) return item
+
+    const directory = parsed.contactDirectory
+      .filter((entry): entry is ContactDirectoryEntry => Boolean(entry) && typeof entry === 'object')
+      .filter((entry) => entry.isActive !== false)
+      .sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
+
+    // contactDirectory is the source of truth for WHS contacts. The legacy
+    // contacts/email/phone fields are kept only for old records that do not have
+    // a directory at all. If a directory exists, never leak stale legacy values.
+    const contacts = uniqueContactValues(directory.map((entry) => contactText(entry.name)))
+    const emails = uniqueContactValues(directory.map((entry) => contactText(entry.email)))
+    const phones = uniqueContactValues(directory.map((entry) => contactText(entry.phone)))
+
+    return {
+      ...item,
+      metadataJson: JSON.stringify({
+        ...parsed,
+        contacts: contacts.join(' / '),
+        email: emails.join(' / '),
+        phone: phones.join(' / '),
+      }),
+    }
+  } catch {
+    return item
+  }
+}
+
 export const CatalogItemsService = {
   async create(payload: CreateCatalogItemRequest): Promise<string> {
     const response = await callEndpoint<string, CreateCatalogItemRequest>(
@@ -73,7 +122,7 @@ export const CatalogItemsService = {
       path: endpointWithQuery,
     })
 
-    return unwrapListResponse<CatalogItemSelectDto>(response)
+    return unwrapListResponse<CatalogItemSelectDto>(response).map(preferContactDirectory)
   },
 
   async getByGroupSlug(catalogGroupSlug: string): Promise<CatalogItemDto[]> {
