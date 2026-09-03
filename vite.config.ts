@@ -24,9 +24,10 @@ import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 import { pricingWizardToastErrors } from './build/pricingWizardToastErrors'
 import { pricingWizardLclSourceSummary } from './build/pricingWizardLclSourceSummary'
+import { pricingWizardLclResolvedCallback } from './build/pricingWizardLclResolvedCallback'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingLclSelectionEventOrderFix(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclAtomicSelection(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingLclSelectionEventOrderFix(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclAtomicSelection(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), pricingWizardLclResolvedCallback(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
