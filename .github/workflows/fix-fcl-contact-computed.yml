@@ -21,12 +21,16 @@ jobs:
       - name: Fix shipment mode bindings
         run: |
           set -euo pipefail
-          FILE='src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
-          before="$(grep -c \"shipmentMode !== 'FCL' && selectedWarehouseContact\" "$FILE" || true)"
-          test "$before" -eq 3
-          sed -i "s/shipmentMode !== 'FCL' && selectedWarehouseContact/form.shipmentMode !== 'FCL' \&\& selectedWarehouseContact/g" "$FILE"
-          after="$(grep -c \"form.shipmentMode !== 'FCL' && selectedWarehouseContact\" "$FILE" || true)"
-          test "$after" -eq 3
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text()
+          old = "shipmentMode !== 'FCL' && selectedWarehouseContact"
+          new = "form.shipmentMode !== 'FCL' && selectedWarehouseContact"
+          if text.count(old) != 3:
+              raise SystemExit(f'Expected 3 WHS shipment mode bindings, found {text.count(old)}')
+          path.write_text(text.replace(old, new))
+          PY
           git diff --check
 
       - name: Commit fix
