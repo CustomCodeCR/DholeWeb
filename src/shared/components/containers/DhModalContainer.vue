@@ -10,12 +10,12 @@ const modalStore = useModalStore()
     <Transition name="modal-backdrop">
       <div
         v-if="modalStore.isOpen"
-        class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-2 backdrop-blur-sm sm:p-4"
         @click.self="modalStore.close()"
       >
         <Transition name="modal-panel" appear>
           <section
-            class="dh-glass-strong dh-liquid max-h-[90vh] overflow-hidden rounded-[var(--dh-radius-xl)]"
+            class="dh-glass-strong dh-liquid max-h-[calc(100dvh-1rem)] min-w-0 overflow-hidden rounded-[22px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
             :class="[
               modalStore.size === 'sm' && 'w-full max-w-sm',
               modalStore.size === 'md' && 'w-full max-w-lg',
@@ -24,22 +24,22 @@ const modalStore = useModalStore()
             ]"
           >
             <header
-              class="flex items-center justify-between border-b border-[var(--dh-border)] px-5 py-4"
+              class="flex min-h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--dh-border)] px-3 py-3 sm:px-5 sm:py-4"
             >
-              <h2 class="text-base font-bold text-[var(--dh-text)]">
+              <h2 class="min-w-0 flex-1 break-words text-sm font-bold text-[var(--dh-text)] sm:text-base">
                 {{ modalStore.title }}
               </h2>
 
               <button
                 type="button"
-                class="rounded-2xl p-2 text-[var(--dh-text-muted)] hover:bg-black/5 dark:hover:bg-white/10"
+                class="inline-flex min-h-11 min-w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl p-2 text-[var(--dh-text-muted)] hover:bg-black/5 dark:hover:bg-white/10"
                 @click="modalStore.close()"
               >
                 <X class="h-4 w-4" />
               </button>
             </header>
 
-            <main class="max-h-[calc(90vh-65px)] overflow-y-auto p-5 dh-scrollbar">
+            <main class="dh-scrollbar max-h-[calc(100dvh-5rem)] min-w-0 overflow-x-hidden overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:max-h-[calc(90vh-65px)] sm:p-5">
               <component
                 :is="modalStore.component"
                 v-if="modalStore.component"
