@@ -13,9 +13,11 @@ const router = useRouter()
 const authStore = useAuthStore()
 const rateId = computed(() => typeof route.params.rateId === 'string' ? route.params.rateId : null)
 const viewOnly = computed(() => route.query.mode === 'view')
-const ownLcl = computed(() => route.query.workspace === 'own-lcl')
 const canCreateOwnLcl = computed(() =>
   authStore.hasScope(PRICING_SCOPES.ownLclConsolidations.create),
+)
+const ownLcl = computed(() =>
+  route.query.workspace === 'own-lcl' && canCreateOwnLcl.value,
 )
 
 function switchWorkspace(value: 'quote' | 'own-lcl') {
