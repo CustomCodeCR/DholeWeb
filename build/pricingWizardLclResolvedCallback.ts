@@ -41,13 +41,13 @@ function patchSelector(source: string) {
 function patchWizard(source: string) {
   let code = source
 
-  const initializeAnchor = `async function initializeDraftCommercialTerms() {`
+  const saveAnchor = `async function saveRate() {`
   const handler = `function handleResolvedLclSelection(selection: LclRateSourceSelection) {\n  applyLclRateSource(selection)\n  step.value = 6\n}\n\n`
   code = replaceOne(
     code,
-    initializeAnchor,
-    handler + initializeAnchor,
-    'resolved LCL handler',
+    saveAnchor,
+    handler + saveAnchor,
+    'stable save handler anchor',
   )
 
   // Previous fixes used the custom select event. Replace it with a direct function
