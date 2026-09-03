@@ -5,7 +5,6 @@ import tailwindcss from '@tailwindcss/vite'
 import { pricingWizardLclCorrections } from './build/pricingWizardLclCorrections'
 import { pricingLclSourceVisibilityFix } from './build/pricingLclSourceVisibilityFix'
 import { pricingLclCostBreakdownUi } from './build/pricingLclCostBreakdownUi'
-import { pricingLclSelectionEventOrderFix } from './build/pricingLclSelectionEventOrderFix'
 import { pricingWizardFixedAutomaticCostEditFix } from './build/pricingWizardFixedAutomaticCostEditFix'
 import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
 import { pricingWizardOwnLclLinePersistence } from './build/pricingWizardOwnLclLinePersistence'
@@ -14,6 +13,7 @@ import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 import { pricingWizardLclFclParityFix } from './build/pricingWizardLclFclParityFix'
 import { pricingWizardLclSelectionHydrationFix } from './build/pricingWizardLclSelectionHydrationFix'
 import { pricingWizardLclAtomicSelection } from './build/pricingWizardLclAtomicSelection'
+import { pricingWizardLclStableFlow } from './build/pricingWizardLclStableFlow'
 import { pricingWizardSep02Requirements } from './build/pricingWizardSep02Requirements'
 import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptionalWeight'
 import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
@@ -24,10 +24,9 @@ import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 import { pricingWizardToastErrors } from './build/pricingWizardToastErrors'
 import { pricingWizardLclSourceSummary } from './build/pricingWizardLclSourceSummary'
-import { pricingWizardLclResolvedCallback } from './build/pricingWizardLclResolvedCallback'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingLclSelectionEventOrderFix(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclAtomicSelection(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), pricingWizardLclResolvedCallback(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclAtomicSelection(), pricingWizardLclStableFlow(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
