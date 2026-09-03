@@ -15,9 +15,10 @@ import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptional
 import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
 import { pricingWizardAgentCountryFilter } from './build/pricingWizardAgentCountryFilter'
+import { pricingWizardOwnLclExcelOnly } from './build/pricingWizardOwnLclExcelOnly'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
