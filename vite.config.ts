@@ -11,6 +11,7 @@ import { pricingWizardOwnLclLinePersistence } from './build/pricingWizardOwnLclL
 import { pricingWizardLclRouteContextFix } from './build/pricingWizardLclRouteContextFix'
 import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 import { pricingWizardLclFclParityFix } from './build/pricingWizardLclFclParityFix'
+import { pricingWizardLclSelectionHydrationFix } from './build/pricingWizardLclSelectionHydrationFix'
 import { pricingWizardSep02Requirements } from './build/pricingWizardSep02Requirements'
 import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptionalWeight'
 import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
@@ -23,7 +24,7 @@ import { pricingWizardToastErrors } from './build/pricingWizardToastErrors'
 import { pricingWizardLclSourceSummary } from './build/pricingWizardLclSourceSummary'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
@@ -39,7 +40,7 @@ export default defineConfig({
 
   preview: {
     host: '0.0.0.0',
-    port: 5173,
+    port: 4173,
     strictPort: true,
   },
 })
