@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { pricingWizardLclCorrections } from './build/pricingWizardLclCorrections'
 import { pricingLclSourceVisibilityFix } from './build/pricingLclSourceVisibilityFix'
 import { pricingLclCostBreakdownUi } from './build/pricingLclCostBreakdownUi'
+import { pricingLclSelectionEventOrderFix } from './build/pricingLclSelectionEventOrderFix'
 import { pricingWizardFixedAutomaticCostEditFix } from './build/pricingWizardFixedAutomaticCostEditFix'
 import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
 import { pricingWizardOwnLclLinePersistence } from './build/pricingWizardOwnLclLinePersistence'
@@ -24,7 +25,7 @@ import { pricingWizardToastErrors } from './build/pricingWizardToastErrors'
 import { pricingWizardLclSourceSummary } from './build/pricingWizardLclSourceSummary'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingLclSelectionEventOrderFix(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
