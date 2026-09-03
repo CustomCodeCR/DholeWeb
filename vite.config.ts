@@ -11,9 +11,10 @@ import { pricingWizardLclRouteContextFix } from './build/pricingWizardLclRouteCo
 import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 import { pricingWizardLclFclParityFix } from './build/pricingWizardLclFclParityFix'
 import { pricingWizardSep02Requirements } from './build/pricingWizardSep02Requirements'
+import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptionalWeight'
 
 export default defineConfig({
-  plugins: [pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
