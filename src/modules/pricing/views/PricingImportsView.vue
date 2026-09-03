@@ -8,6 +8,8 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapPagedResponse } from '@/core/api/apiResponse'
 import { toQueryString } from '@/core/api/queryString'
 import { PricingService } from '@/core/services/pricingService'
+import { PRICING_SCOPES } from '@/core/auth/scopes'
+import { useAuthStore } from '@/core/stores/authStore'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -42,6 +44,7 @@ interface ReviewQueueItem {
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
+const authStore = useAuthStore()
 const catalogs = usePricingCatalogs()
 const route = useRoute()
 
@@ -111,6 +114,16 @@ const containerFilterOptions = computed(() => [
   { label: 'Todos los contenedores', value: '' },
   ...catalogs.containerOptions.value,
 ])
+
+const isPricingAdmin = computed(() =>
+  authStore.hasRole('Administrador') || authStore.hasRole('Admin') || authStore.hasRole('Administrator'),
+)
+const canPreApprove = computed(() =>
+  isPricingAdmin.value || authStore.hasScope(PRICING_SCOPES.importFclRates.approve),
+)
+const canRejectImported = computed(() =>
+  isPricingAdmin.value || authStore.hasScope(PRICING_SCOPES.importFclRates.reject),
+)
 
 const selectedPendingIds = computed(() =>
   rows.value
@@ -241,6 +254,10 @@ function toggle(id: string) {
 }
 
 async function approve(ids: string[]) {
+  if (!canPreApprove.value) {
+    toastStore.warning('Permiso requerido', 'Necesita permiso para preaprobar tarifas importadas.')
+    return
+  }
   const pending = ids.filter((id) => rows.value.some((row) => row.id === id && ['Pending', 'PreAuthorized'].includes(row.status)))
   if (!pending.length || processing.value) return
   try {
@@ -257,6 +274,10 @@ async function approve(ids: string[]) {
 }
 
 function reject(ids: string[]) {
+  if (!canRejectImported.value) {
+    toastStore.warning('Permiso requerido', 'Necesita permiso para rechazar tarifas importadas.')
+    return
+  }
   const pending = ids.filter((id) => rows.value.some((row) => row.id === id && ['Pending', 'PreAuthorized'].includes(row.status)))
   if (!pending.length) return
   modalStore.open({
@@ -297,7 +318,7 @@ async function openReview(row: ReviewQueueItem) {
       size: 'full',
       props: {
         importRate: detail,
-        canApprove: ['Pending', 'PreAuthorized'].includes(row.status),
+        canApprove: canPreApprove.value && ['Pending', 'PreAuthorized'].includes(row.status),
         onSaved: load,
         onApproved: load,
       },
@@ -317,7 +338,7 @@ onMounted(() => {
   <div class="space-y-5">
     <DhPageHeader
       title="Revisión de tarifas recibidas"
-      description="Revise tarifas de correo o cargue Excel/PDF manualmente para enviarlos al mismo flujo de extracción y aprobación."
+      description="Revise tarifas de correo o cargue Excel/PDF manualmente para enviarlos al flujo de extracción, preautorización y preaprobación."
     >
       <template #actions>
         <DhButton @click="openManualUpload">
@@ -351,19 +372,19 @@ onMounted(() => {
     </section>
 
     <section
-      v-if="selectedPendingIds.length"
+      v-if="selectedPendingIds.length && (canPreApprove || canRejectImported)"
       class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-3"
     >
       <div>
-        <p class="font-black text-[var(--dh-text)]">{{ selectedPendingIds.length }} pendientes seleccionadas</p>
-        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Aprobación y rechazo por batch.</p>
+        <p class="font-black text-[var(--dh-text)]">{{ selectedPendingIds.length }} tarifas preautorizadas seleccionadas</p>
+        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Preaprobación y rechazo por batch.</p>
       </div>
       <div class="flex gap-2">
-        <DhButton variant="danger" :disabled="processing" @click="reject(selectedPendingIds)">
+        <DhButton v-if="canRejectImported" variant="danger" :disabled="processing" @click="reject(selectedPendingIds)">
           <X class="h-4 w-4" /> Rechazar
         </DhButton>
-        <DhButton :disabled="processing" @click="approve(selectedPendingIds)">
-          <Check class="h-4 w-4" /> Aprobar
+        <DhButton v-if="canPreApprove" :disabled="processing" @click="approve(selectedPendingIds)">
+          <Check class="h-4 w-4" /> Preaprobar
         </DhButton>
       </div>
     </section>
@@ -420,8 +441,8 @@ onMounted(() => {
                   <DhButton size="sm" variant="secondary" @click="openReview(row)">
                     <MessageSquareText class="h-4 w-4" /> Revisar
                   </DhButton>
-                  <DhButton v-if="['Pending', 'PreAuthorized'].includes(row.status)" size="sm" :disabled="processing" @click="approve([row.id])">
-                    <Check class="h-4 w-4" /> Aprobar
+                  <DhButton v-if="canPreApprove && ['Pending', 'PreAuthorized'].includes(row.status)" size="sm" :disabled="processing" @click="approve([row.id])">
+                    <Check class="h-4 w-4" /> Preaprobar
                   </DhButton>
                 </div>
               </td>
