@@ -34,6 +34,48 @@ function patchWizard(source: string) {
     'LCL cargo warning copy',
   )
 
+  code = replaceOne(
+    code,
+    "  if (value.toUpperCase() === 'FCL') form.nonStackable = false\n  step.value = 3",
+    "  if (value.toUpperCase() === 'FCL') form.nonStackable = false\n  if (value.toUpperCase() === 'LCL') {\n    form.overweight = false\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    loadingRates.value = false\n  }\n  step.value = 3",
+    'LCL shipment reset',
+  )
+
+  code = replaceOne(
+    code,
+    "  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {\n    form.manualRate = true\n    return\n  }",
+    "  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {\n    loadingRates.value = false\n    form.manualRate = true\n    return\n  }",
+    'non-FCL rate lookup early return',
+  )
+
+  code = replaceOne(
+    code,
+    '<button type="button" class="crystal-flag" :class="form.overweight ? \'crystal-flag--active\' : \'\'" @click="form.overweight = !form.overweight">',
+    '<button v-if="shipmentModeForApi !== \'Lcl\'" type="button" class="crystal-flag" :class="form.overweight ? \'crystal-flag--active\' : \'\'" @click="form.overweight = !form.overweight">',
+    'LCL overweight visibility',
+  )
+
+  code = replaceOne(
+    code,
+    '<button type="button" class="crystal-flag" :class="form.merchantHaulage ? \'crystal-flag--active\' : \'\'" @click="toggleMerchantHaulage">',
+    '<button v-if="shipmentModeForApi !== \'Lcl\'" type="button" class="crystal-flag" :class="form.merchantHaulage ? \'crystal-flag--active\' : \'\'" @click="toggleMerchantHaulage">',
+    'LCL merchant visibility',
+  )
+
+  code = replaceOne(
+    code,
+    '<button type="button" class="crystal-flag" :class="form.carrierHaulage ? \'crystal-flag--active\' : \'\'" @click="toggleCarrierHaulage">',
+    '<button v-if="shipmentModeForApi !== \'Lcl\'" type="button" class="crystal-flag" :class="form.carrierHaulage ? \'crystal-flag--active\' : \'\'" @click="toggleCarrierHaulage">',
+    'LCL carrier visibility',
+  )
+
+  code = replaceOne(
+    code,
+    ':disabled="!canNext || loadingRates" @click="next">Continuar',
+    ':disabled="!canNext || (loadingRates && shipmentModeForApi === \'Fcl\')" @click="next">Continuar',
+    'LCL continue loading guard',
+  )
+
   return code
 }
 
