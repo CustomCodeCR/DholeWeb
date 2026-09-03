@@ -221,7 +221,7 @@ async function save(approveAfter: boolean) {
       await PricingService.approveImportRate(current.value.id)
       const approved = { ...refreshed, status: 'Approved' as const }
       current.value = approved
-      toastStore.success('Revisión aplicada', 'La tarifa fue corregida y aprobada correctamente.')
+      toastStore.success('Revisión aplicada', 'La tarifa fue corregida y preaprobada correctamente.')
       await props.onApproved?.(approved)
     } else {
       toastStore.success('Revisión guardada', 'Los cambios quedaron aplicados a la tarifa importada.')
@@ -265,7 +265,7 @@ onMounted(async () => {
             <h3 class="mt-2 text-xl font-black text-[var(--dh-text)]">{{ completionPercent }}% completa</h3>
             <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
               <span v-if="missingRequired.length">Falta completar: {{ missingRequired.map((field) => field.label).join(', ') }}.</span>
-              <span v-else>Todos los datos obligatorios están listos para guardar y aprobar.</span>
+              <span v-else>Todos los datos obligatorios están listos para guardar y preaprobar.</span>
             </p>
           </div>
           <div class="min-w-[160px]">
@@ -349,12 +349,12 @@ onMounted(async () => {
       <div class="sticky bottom-0 z-10 -mx-1 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]/95 p-4 shadow-xl backdrop-blur-xl">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
-            <span v-if="missingRequired.length">Puede guardar el avance, pero complete los campos marcados antes de aprobar.</span>
-            <span v-else>La tarifa está lista para guardarse y aprobarse.</span>
+            <span v-if="missingRequired.length">Puede guardar el avance, pero complete los campos marcados antes de preaprobar.</span>
+            <span v-else>La tarifa está lista para guardarse y preaprobarse.</span>
           </p>
           <div class="flex flex-col-reverse gap-2 sm:flex-row">
             <DhButton label="Guardar cambios" :icon="Save" variant="secondary" :loading="saving" @click="save(false)" />
-            <DhButton v-if="canApprove" label="Guardar y aprobar" :icon="Check" :loading="savingAndApproving" @click="save(true)" />
+            <DhButton v-if="canApprove" label="Guardar y preaprobar" :icon="Check" :loading="savingAndApproving" @click="save(true)" />
           </div>
         </div>
       </div>

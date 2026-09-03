@@ -17,7 +17,7 @@ import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawe
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
-type QueueStatus = '' | 'Pending' | 'Approved' | 'Rejected' | 'Created'
+type QueueStatus = '' | 'Pending' | 'PreAuthorized' | 'Approved' | 'Rejected' | 'Created'
 type QueueSource = '' | 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
 
 interface ReviewQueueItem {
@@ -57,7 +57,7 @@ const totalPages = ref(1)
 const filters = reactive({
   search: '',
   sourceType: '' as QueueSource,
-  status: 'Pending' as QueueStatus,
+  status: 'PreAuthorized' as QueueStatus,
   carrierId: '',
   agentId: '',
   containerTypeId: '',
@@ -70,8 +70,9 @@ const filters = reactive({
 
 const statusOptions = [
   { label: 'Todos', value: '' },
-  { label: 'Pendientes', value: 'Pending' },
-  { label: 'Aprobadas', value: 'Approved' },
+  { label: 'Pendientes manuales', value: 'Pending' },
+  { label: 'Preautorizadas', value: 'PreAuthorized' },
+  { label: 'Preaprobadas', value: 'Approved' },
   { label: 'Rechazadas', value: 'Rejected' },
   { label: 'Utilizadas', value: 'Created' },
 ]
@@ -113,7 +114,7 @@ const containerFilterOptions = computed(() => [
 
 const selectedPendingIds = computed(() =>
   rows.value
-    .filter((row) => row.status === 'Pending' && selectedIds.value.includes(row.id))
+    .filter((row) => ['Pending', 'PreAuthorized'].includes(row.status) && selectedIds.value.includes(row.id))
     .map((row) => row.id),
 )
 const allSelected = computed(
@@ -135,8 +136,9 @@ const lastVisibleItem = computed(() =>
 
 function statusLabel(value: string) {
   return ({
-    Pending: 'Pendiente',
-    Approved: 'Aprobada',
+    Pending: 'Pendiente manual',
+    PreAuthorized: 'Preautorizada',
+    Approved: 'Preaprobada',
     Rejected: 'Rechazada',
     Created: 'Utilizada',
   } as Record<string, string>)[value] ?? value
@@ -144,6 +146,7 @@ function statusLabel(value: string) {
 
 function statusVariant(value: string): 'success' | 'warning' | 'danger' | 'neutral' {
   if (value === 'Approved' || value === 'Created') return 'success'
+  if (value === 'PreAuthorized') return 'warning'
   if (value === 'Pending') return 'warning'
   if (value === 'Rejected') return 'danger'
   return 'neutral'
@@ -202,7 +205,7 @@ function applyFilters() {
 function clearFilters() {
   filters.search = ''
   filters.sourceType = ''
-  filters.status = 'Pending'
+  filters.status = 'PreAuthorized'
   filters.carrierId = ''
   filters.agentId = ''
   filters.containerTypeId = ''
@@ -238,26 +241,26 @@ function toggle(id: string) {
 }
 
 async function approve(ids: string[]) {
-  const pending = ids.filter((id) => rows.value.some((row) => row.id === id && row.status === 'Pending'))
+  const pending = ids.filter((id) => rows.value.some((row) => row.id === id && ['Pending', 'PreAuthorized'].includes(row.status)))
   if (!pending.length || processing.value) return
   try {
     processing.value = true
     await PricingService.approveImportRates(pending)
-    toastStore.success(`${pending.length} tarifa${pending.length === 1 ? '' : 's'} aprobada${pending.length === 1 ? '' : 's'}`)
+    toastStore.success(`${pending.length} tarifa${pending.length === 1 ? '' : 's'} preaprobada${pending.length === 1 ? '' : 's'}`)
     selectedIds.value = []
     await load()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron aprobar las tarifas.')
+    toastStore.backendError(error, 'No se pudieron preaprobar las tarifas.')
   } finally {
     processing.value = false
   }
 }
 
 function reject(ids: string[]) {
-  const pending = ids.filter((id) => rows.value.some((row) => row.id === id && row.status === 'Pending'))
+  const pending = ids.filter((id) => rows.value.some((row) => row.id === id && ['Pending', 'PreAuthorized'].includes(row.status)))
   if (!pending.length) return
   modalStore.open({
-    title: 'Rechazar tarifas',
+    title: 'Rechazar tarifas preautorizadas',
     component: PricingReasonModal,
     props: {
       target: 'import',
@@ -278,7 +281,7 @@ function openManualUpload() {
     props: {
       onSaved: async () => {
         pageNumber.value = 1
-        filters.status = 'Pending'
+        filters.status = 'PreAuthorized'
         await load()
       },
     },
@@ -294,7 +297,7 @@ async function openReview(row: ReviewQueueItem) {
       size: 'full',
       props: {
         importRate: detail,
-        canApprove: row.status === 'Pending',
+        canApprove: ['Pending', 'PreAuthorized'].includes(row.status),
         onSaved: load,
         onApproved: load,
       },
@@ -417,7 +420,7 @@ onMounted(() => {
                   <DhButton size="sm" variant="secondary" @click="openReview(row)">
                     <MessageSquareText class="h-4 w-4" /> Revisar
                   </DhButton>
-                  <DhButton v-if="row.status === 'Pending'" size="sm" :disabled="processing" @click="approve([row.id])">
+                  <DhButton v-if="['Pending', 'PreAuthorized'].includes(row.status)" size="sm" :disabled="processing" @click="approve([row.id])">
                     <Check class="h-4 w-4" /> Aprobar
                   </DhButton>
                 </div>
