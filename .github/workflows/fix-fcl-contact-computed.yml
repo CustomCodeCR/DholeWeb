@@ -1,0 +1,28 @@
+name: Fix FCL contact computed closure
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/fix-fcl-contact-computed.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Fix computed closure
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('build/pricingWizardSep02Requirements.ts')
+          text = path.read_text()
+          old = ".sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))\n}`,”
+          PY
