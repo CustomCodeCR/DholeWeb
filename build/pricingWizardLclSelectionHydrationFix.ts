@@ -52,25 +52,9 @@ function patchWizard(source: string) {
   const carrierReplacement = `  const sourceCarrierCode = normalizeCatalogValue(selection.carrierCode ?? '')\n  const sourceCarrierName = normalizeCatalogValue(selection.carrierName ?? '')\n  const sourceCarrier = selection.carrierId\n    ? catalogs.carriers.find((item) => item.id === selection.carrierId)\n      ?? catalogs.carriers.find((item) => {\n        const candidateCode = normalizeCatalogValue(item.code ?? '')\n        const candidateName = normalizeCatalogValue(displayValue(item))\n        return (sourceCarrierCode && (candidateCode === sourceCarrierCode || candidateCode.includes(sourceCarrierCode) || sourceCarrierCode.includes(candidateCode)))\n          || (sourceCarrierName && (candidateName === sourceCarrierName || candidateName.includes(sourceCarrierName) || sourceCarrierName.includes(candidateName)))\n      })\n    : catalogs.carriers.find((item) => {\n        const candidateCode = normalizeCatalogValue(item.code ?? '')\n        const candidateName = normalizeCatalogValue(displayValue(item))\n        return (sourceCarrierCode && (candidateCode === sourceCarrierCode || candidateCode.includes(sourceCarrierCode) || sourceCarrierCode.includes(candidateCode)))\n          || (sourceCarrierName && (candidateName === sourceCarrierName || candidateName.includes(sourceCarrierName) || sourceCarrierName.includes(candidateName)))\n      })\n  form.carrierId = sourceCarrier?.id ?? ''`
   code = replaceOne(code, carrierAnchor, carrierReplacement, 'LCL source carrier resolution')
 
-  // LCL own pricing is defined by the selected consolidation matrix. The user must
-  // see that source in Pantalla 6 and must not accidentally overwrite its freight.
   const descriptionAnchor = `<p class="crystal-description">Los selects muestran el Value configurado en Config.</p>`
   const descriptionReplacement = `${descriptionAnchor}\n            <div v-if="shipmentModeForApi === 'Lcl' && lclSelectedSource" class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-sm">\n              <span class="text-[var(--dh-text-muted)]">Fuente seleccionada:</span>\n              <strong class="ml-1">{{ lclSelectedSource.kind === 'Own' ? 'Propio' : 'Coloader' }} · {{ lclSelectedSource.sourceTitle || lclSelectedSource.label }}</strong>\n              <span v-if="lclSelectedSource.carrierName || lclSelectedSource.carrierCode" class="ml-2 text-[var(--dh-text-muted)]">· {{ lclSelectedSource.carrierName || lclSelectedSource.carrierCode }}</span>\n            </div>`
   code = replaceOne(code, descriptionAnchor, descriptionReplacement, 'LCL source summary on provider step')
-
-  code = replaceOne(
-    code,
-    `<DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />`,
-    `<DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" :disabled="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Own'" />`,
-    'own LCL freight cost lock',
-  )
-
-  code = replaceOne(
-    code,
-    `<DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />`,
-    `<DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" :disabled="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Own'" />`,
-    'own LCL freight sale lock',
-  )
 
   return code
 }
