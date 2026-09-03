@@ -20,13 +20,9 @@ function patchWizard(source: string) {
     'own LCL line refresh helper',
   )
 
-  code = replaceOne(
-    code,
-    `  if (step.value === 6) {\n    await loadApplicableCosts()\n    rebuildRateLines()\n  }`,
-    `  if (step.value === 6) {\n    await loadApplicableCosts()\n    refreshRateLinesForCurrentSource()\n  }`,
-    'step 6 line refresh',
-  )
-
+  // pricingWizardEnhancements already preserves the full selected LCL matrix while
+  // advancing from provider to lines. The data was being lost afterwards by these
+  // reactive refreshes, which still rebuilt the array from the generic cost catalog.
   code = replaceOne(
     code,
     `    await loadApplicableCosts()\n    if (step.value >= 7) rebuildRateLines()`,
@@ -56,7 +52,7 @@ export function pricingWizardOwnLclLinePersistence(): Plugin {
     name: 'dhole-pricing-wizard-own-lcl-line-persistence',
     enforce: 'pre',
     transform(source, id) {
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replace(/\\/g, '/').split('?')[0]
       if (id.includes('?')) return null
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
       return { code: patchWizard(source), map: null }
