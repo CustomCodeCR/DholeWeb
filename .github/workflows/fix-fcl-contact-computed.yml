@@ -1,4 +1,4 @@
-name: Fix FCL contact computed closure
+name: Fix FCL WHS shipment mode bindings
 
 on:
   push:
@@ -18,30 +18,21 @@ jobs:
           ref: develop
           fetch-depth: 0
 
-      - name: Fix computed closure
+      - name: Fix shipment mode bindings
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('build/pricingWizardSep02Requirements.ts')
-          text = path.read_text()
-          old = """    .sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
-}`,
-    'FCL agent contact directory',
-"""
-          new = """    .sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
-})`,
-    'FCL agent contact directory',
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'Expected one FCL computed closure, found {text.count(old)}')
-          path.write_text(text.replace(old, new, 1))
-          PY
+          set -euo pipefail
+          FILE='src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+          before="$(grep -c \"shipmentMode !== 'FCL' && selectedWarehouseContact\" "$FILE" || true)"
+          test "$before" -eq 3
+          sed -i "s/shipmentMode !== 'FCL' && selectedWarehouseContact/form.shipmentMode !== 'FCL' \&\& selectedWarehouseContact/g" "$FILE"
+          after="$(grep -c \"form.shipmentMode !== 'FCL' && selectedWarehouseContact\" "$FILE" || true)"
+          test "$after" -eq 3
           git diff --check
 
       - name: Commit fix
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build/pricingWizardSep02Requirements.ts
-          git commit -m "fix(web): close FCL agent contact computed"
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git commit -m "fix(web): use form shipment mode for FCL WHS contacts"
           git push origin HEAD:develop
