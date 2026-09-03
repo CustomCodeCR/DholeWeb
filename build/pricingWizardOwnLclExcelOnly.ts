@@ -29,6 +29,15 @@ export function pricingWizardOwnLclExcelOnly(): Plugin {
         'own-LCL calculated line type',
       )
 
+      // Marcar TODAS las líneas del consolidado propio, incluso las bases por CBM, para que
+      // el backend pueda distinguir inequívocamente el Excel LCL de los cargos automáticos.
+      code = replaceOne(
+        code,
+        `      notes: sourceBasis.includes('cbm') ? null : \`Base del Excel: \${line.chargeBasis}; cantidad aplicada: 1.\`,`,
+        `      notes: sourceBasis.includes('cbm')\n        ? \`LCL PROPIO · Base del Excel: \${line.chargeBasis}.\`\n        : \`LCL PROPIO · Base del Excel: \${line.chargeBasis}; cantidad aplicada: 1.\`,`,
+        'own-LCL Excel marker',
+      )
+
       return { code, map: null }
     },
   }
