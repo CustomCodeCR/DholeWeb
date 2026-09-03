@@ -7,10 +7,12 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import {
   OwnLclConsolidationService,
+  createDefaultOwnLclPricingLines,
   type OwnLclAutomationSnapshotDto,
   type OwnLclConsolidationDto,
   type OwnLclDestinationProfileDto,
   type OwnLclFobScenarioMatrixDto,
+  type OwnLclPricingLineDto,
 } from '@/core/services/ownLclConsolidationService'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -30,6 +32,8 @@ const saving = ref(false)
 const previewLoading = ref(false)
 const scenarioLoading = ref(false)
 const scenarioSaving = ref(false)
+const pricingLineSaving = ref(false)
+const pricingLines = ref<OwnLclPricingLineDto[]>(createDefaultOwnLclPricingLines())
 const rows = ref<OwnLclTableRow[]>([])
 const carriers = ref<CatalogItemSelectDto[]>([])
 const containers = ref<CatalogItemSelectDto[]>([])
@@ -109,6 +113,12 @@ const poeLocationOptions = computed(() => poePorts.value.map((item) => ({
   label: item.label,
   searchText: [item.code, item.value, item.label].filter(Boolean).join(' '),
 })))
+const pricingLineGroups = computed(() => [
+  { scope: 'PA', label: 'Panamá', description: 'Cargos de destino Panamá.', rows: pricingLines.value.filter((line) => line.scope === 'PA') },
+  { scope: 'CR', label: 'Costa Rica', description: 'Cargos fijos de destino Costa Rica.', rows: pricingLines.value.filter((line) => line.scope === 'CR') },
+  { scope: 'CA', label: 'Centroamérica', description: 'Cargos fijos para Nicaragua, Honduras, El Salvador y Guatemala.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
+  { scope: 'ORIGIN', label: 'Origen FCA / EXW', description: 'Manejos en origen. La recolección EXW sigue siendo específica de cada carga.', rows: pricingLines.value.filter((line) => line.scope === 'ORIGIN') },
+])
 
 function destinationPerCbm(row: OwnLclConsolidationDto) {
   return row.maximumCbm > 0 ? row.carrierDestinationCostTotal / row.maximumCbm : 0
@@ -152,6 +162,7 @@ function resetForm() {
   selectedAutomation.value = null
   profilePreview.value = null
   scenarioMatrix.value = null
+  pricingLines.value = createDefaultOwnLclPricingLines()
   readOnly.value = false
   Object.assign(form, {
     booking: '', etd: '', carrierId: '', containerId: '', polId: '', panamaArrivalPortCode: '',
@@ -203,11 +214,13 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
     includeEmptyReturn: true,
   })
   try {
-    const [automation] = await Promise.all([
+    const [automation, storedPricingLines] = await Promise.all([
       OwnLclConsolidationService.getAutomation(row.id),
+      OwnLclConsolidationService.getPricingLines(row.id),
       loadScenarios(row.id),
     ])
     selectedAutomation.value = automation
+    pricingLines.value = storedPricingLines
     form.panamaArrivalPortCode = automation.panamaArrivalPortCode ?? ''
     form.includeEmptyReturn = automation.includeEmptyReturn
   } catch (error) {
@@ -298,6 +311,32 @@ function buildCostOverrides() {
   }
 }
 
+function buildPricingLinesPayload() {
+  return {
+    rows: pricingLines.value.map((line) => ({
+      lineKey: line.lineKey,
+      costUnit: line.lineKey === 'PA_DESTINATION_CHARGE'
+        ? Math.max(previewDestinationPerCbm.value, 0)
+        : Math.max(Number(line.costUnit || 0), 0),
+      saleUnit: Math.max(Number(line.saleUnit || 0), 0),
+    })),
+  }
+}
+
+async function savePricingLineRows(showToast = true) {
+  if (!selectedId.value) return
+  pricingLineSaving.value = true
+  try {
+    await OwnLclConsolidationService.savePricingLines(selectedId.value, buildPricingLinesPayload())
+    pricingLines.value = await OwnLclConsolidationService.getPricingLines(selectedId.value)
+    if (showToast) toastStore.success('Tarifario guardado', 'Los costos y ventas por línea quedaron asociados únicamente a este consolidado.')
+  } catch (error) {
+    toastStore.backendError(error, 'No fue posible guardar los costos y ventas del consolidado.')
+  } finally {
+    pricingLineSaving.value = false
+  }
+}
+
 async function saveScenarioRows(showToast = true) {
   if (!selectedId.value || !scenarioMatrix.value) return
   scenarioSaving.value = true
@@ -338,13 +377,14 @@ async function save() {
     }
 
     await OwnLclConsolidationService.saveCostOverrides(targetId, buildCostOverrides())
+    await OwnLclConsolidationService.savePricingLines(targetId, buildPricingLinesPayload())
     if (!wasNew && scenarioMatrix.value) await saveScenarioRows(false)
 
     toastStore.success(
       wasNew ? 'Consolidado creado' : 'Consolidado actualizado',
       wasNew
-        ? 'El consolidado fue creado. Ahora puede ajustar las ventas FOB por país y puerto de China.'
-        : 'Los costos y ventas quedaron guardados a nivel del consolidado.',
+        ? 'El consolidado fue creado con sus costos y ventas por línea. La matriz FOB queda disponible para ajustar la venta por país y puerto.'
+        : 'Los costos y ventas quedaron guardados a nivel del consolidado y se reutilizarán en las próximas cotizaciones.',
     )
 
     await load()
@@ -362,6 +402,7 @@ function closeEditor() {
   selectedAutomation.value = null
   profilePreview.value = null
   scenarioMatrix.value = null
+  pricingLines.value = createDefaultOwnLclPricingLines()
 }
 
 onMounted(load)
@@ -496,6 +537,43 @@ onMounted(load)
               </div>
             </div>
             <div v-else class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione naviera + POE para consultar la Matriz de costos.</div>
+          </section>
+
+          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifario del consolidado · costos y ventas</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Estos valores pertenecen solo a este consolidado. Las cotizaciones LCL propias los cargan automáticamente y ya no hay que corregirlos cotización por cotización.</p>
+              </div>
+              <DhButton v-if="selectedId && !readOnly" label="Guardar costos y ventas" :loading="pricingLineSaving" variant="secondary" @click="savePricingLineRows()" />
+            </div>
+
+            <div class="mt-4 space-y-3">
+              <details v-for="group in pricingLineGroups" :key="group.scope" class="group overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]" :open="group.scope === 'PA'">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                  <div><p class="font-black">{{ group.label }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ group.description }}</p></div>
+                  <span class="text-xs font-black text-[var(--dh-text-muted)]">{{ group.rows.length }} líneas ▾</span>
+                </summary>
+                <div class="overflow-x-auto border-t border-[var(--dh-border)]">
+                  <table class="w-full min-w-[610px] text-sm">
+                    <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]">
+                      <tr><th class="px-4 py-2 text-left">Concepto</th><th class="px-4 py-2 text-left">Base</th><th class="px-4 py-2 text-right">Costo USD</th><th class="px-4 py-2 text-right">Venta USD</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="line in group.rows" :key="line.lineKey" class="border-t border-[var(--dh-border)] first:border-t-0">
+                        <td class="px-4 py-2 font-black">{{ line.name }}<p v-if="line.lineKey === 'PA_DESTINATION_CHARGE'" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Costo derivado de “Costos destino USD” ÷ capacidad CBM.</p></td>
+                        <td class="px-4 py-2 text-xs font-bold text-[var(--dh-text-muted)]">{{ line.chargeBasis }}</td>
+                        <td class="px-4 py-2 text-right">
+                          <span v-if="line.lineKey === 'PA_DESTINATION_CHARGE'" class="inline-block min-w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black">{{ money(previewDestinationPerCbm) }}</span>
+                          <input v-else v-model.number="line.costUnit" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
+                        </td>
+                        <td class="px-4 py-2 text-right"><input v-model.number="line.saleUnit" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </div>
           </section>
 
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">

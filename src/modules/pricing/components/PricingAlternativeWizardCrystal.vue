@@ -3361,9 +3361,9 @@ onMounted(async () => {
                   <p class="text-sm font-black text-[var(--dh-text)]">{{ selectedWarehouse.label || displayValue(selectedWarehouse) }}</p>
                   <p class="mt-2"><strong>Dirección:</strong> {{ warehouseAddress(selectedWarehouse) || 'Sin dirección' }}</p>
                   <p v-if="metadata(selectedWarehouse)?.schedule" class="mt-1"><strong>Horario:</strong> {{ metadata(selectedWarehouse)?.schedule }}</p>
-                  <p v-if="selectedWarehouseContactNames" class="mt-1"><strong>Contactos:</strong> {{ selectedWarehouseContactNames }}</p>
-                  <p v-if="selectedWarehouseContactEmails" class="mt-1 break-words"><strong>Email:</strong> {{ selectedWarehouseContactEmails }}</p>
-                  <p v-if="selectedWarehouseContactPhones" class="mt-1"><strong>Teléfono:</strong> {{ selectedWarehouseContactPhones }}</p>
+                  <p v-if="shipmentMode !== 'FCL' && selectedWarehouseContactNames" class="mt-1"><strong>Contactos:</strong> {{ selectedWarehouseContactNames }}</p>
+                  <p v-if="shipmentMode !== 'FCL' && selectedWarehouseContactEmails" class="mt-1 break-words"><strong>Email:</strong> {{ selectedWarehouseContactEmails }}</p>
+                  <p v-if="shipmentMode !== 'FCL' && selectedWarehouseContactPhones" class="mt-1"><strong>Teléfono:</strong> {{ selectedWarehouseContactPhones }}</p>
                   <p v-if="metadataNumber(selectedWarehouse, 'latitude', 'lat') != null && metadataNumber(selectedWarehouse, 'longitude', 'lng') != null" class="mt-1">
                     <strong>Ubicación:</strong>
                     {{ metadataNumber(selectedWarehouse, 'latitude', 'lat')?.toFixed(6) }},

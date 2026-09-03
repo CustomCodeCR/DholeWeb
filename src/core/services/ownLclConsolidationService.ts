@@ -16,6 +16,8 @@ const endpoints = {
   fobScenarios: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}/fob-scenarios', headers: acceptJson },
   saveFobScenarios: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}/fob-scenarios', headers: jsonHeaders },
   saveCostOverrides: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}/cost-overrides', headers: jsonHeaders },
+  pricingLines: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}/pricing-lines', headers: acceptJson },
+  savePricingLines: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}/pricing-lines', headers: jsonHeaders },
   calculate: { method: 'POST', path: '/api/pricing/own-lcl-route-matrix/{{id}}/calculate', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 
@@ -124,6 +126,43 @@ export interface OwnLclFobScenarioMatrixDto {
   bunkerCost: number
   costaRicaTransferBaseCbm: number
   countries: OwnLclFobScenarioCountryDto[]
+}
+
+export interface OwnLclPricingLineDto {
+  lineKey: string
+  scope: 'PA' | 'CR' | 'CA' | 'ORIGIN' | string
+  name: string
+  chargeBasis: string
+  costUnit: number
+  saleUnit: number
+}
+
+export interface SaveOwnLclPricingLinesRequest {
+  rows: Array<{
+    lineKey: string
+    costUnit: number
+    saleUnit: number
+  }>
+}
+
+export function createDefaultOwnLclPricingLines(): OwnLclPricingLineDto[] {
+  return [
+    { lineKey: 'PA_DESTINATION_CHARGE', scope: 'PA', name: 'Destination Charge', chargeBasis: 'CBM', costUnit: 0, saleUnit: 20 },
+    { lineKey: 'PA_DMCE', scope: 'PA', name: 'DMCE', chargeBasis: 'HBL', costUnit: 65, saleUnit: 65 },
+    { lineKey: 'PA_HANDLING', scope: 'PA', name: 'Handling', chargeBasis: 'HBL', costUnit: 25, saleUnit: 25 },
+    { lineKey: 'PA_ZONE', scope: 'PA', name: 'Zone Charge', chargeBasis: 'HBL', costUnit: 30, saleUnit: 30 },
+    { lineKey: 'CR_HANDLING', scope: 'CR', name: 'Manejos', chargeBasis: 'HBL', costUnit: 65, saleUnit: 65 },
+    { lineKey: 'CR_ZONE', scope: 'CR', name: 'Zone Charge', chargeBasis: 'HBL', costUnit: 50, saleUnit: 50 },
+    { lineKey: 'CA_DOCUMENTATION', scope: 'CA', name: 'Documentación', chargeBasis: 'HBL', costUnit: 0, saleUnit: 65 },
+    { lineKey: 'CA_ZONE', scope: 'CA', name: 'Zone Charge', chargeBasis: 'HBL', costUnit: 0, saleUnit: 65 },
+    { lineKey: 'CA_HANDLING', scope: 'CA', name: 'Manejos destino', chargeBasis: 'HBL', costUnit: 0, saleUnit: 50 },
+    { lineKey: 'ORIGIN_CFS', scope: 'ORIGIN', name: 'CFS', chargeBasis: 'CBM', costUnit: 8, saleUnit: 8 },
+    { lineKey: 'ORIGIN_WHSE', scope: 'ORIGIN', name: 'WHSE FEE', chargeBasis: 'CBM', costUnit: 12, saleUnit: 12 },
+    { lineKey: 'ORIGIN_CUSTOMS', scope: 'ORIGIN', name: 'CUSTOMS', chargeBasis: 'SET', costUnit: 15, saleUnit: 25 },
+    { lineKey: 'ORIGIN_DOC', scope: 'ORIGIN', name: 'DOC FEE', chargeBasis: 'HBL', costUnit: 15, saleUnit: 65 },
+    { lineKey: 'ORIGIN_VGM', scope: 'ORIGIN', name: 'VGM', chargeBasis: 'HBL', costUnit: 0, saleUnit: 25 },
+    { lineKey: 'ORIGIN_MANIFEST', scope: 'ORIGIN', name: 'MANIFEST', chargeBasis: 'HBL', costUnit: 15, saleUnit: 25 },
+  ]
 }
 
 export interface OwnLclCargoLineRequest {
@@ -284,6 +323,13 @@ export const OwnLclConsolidationService = {
   },
   async saveCostOverrides(id: string, payload: SaveOwnLclCostOverridesRequest): Promise<void> {
     await callEndpoint<unknown, SaveOwnLclCostOverridesRequest>(endpoints.saveCostOverrides, { params: { id }, body: payload })
+  },
+  async getPricingLines(id: string): Promise<OwnLclPricingLineDto[]> {
+    const response = await callEndpoint<unknown>(endpoints.pricingLines, { params: { id } })
+    return unwrapListResponse<OwnLclPricingLineDto>(response)
+  },
+  async savePricingLines(id: string, payload: SaveOwnLclPricingLinesRequest): Promise<void> {
+    await callEndpoint<unknown, SaveOwnLclPricingLinesRequest>(endpoints.savePricingLines, { params: { id }, body: payload })
   },
   async create(payload: AutomaticOwnLclConsolidationRequest): Promise<CreatedOwnLcl> {
     const response = await callEndpoint<unknown, AutomaticOwnLclConsolidationRequest>(endpoints.createAutomatic, { body: payload })

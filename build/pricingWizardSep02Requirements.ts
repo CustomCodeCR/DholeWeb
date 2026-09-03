@@ -162,6 +162,22 @@ function selectDefaultService() {
 
   code = replaceOne(
     code,
+    `const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))`,
+    `const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))
+const fclAgentContacts = computed(() => {
+  if (!selectedAgent.value) return [] as WarehouseContactDirectoryEntry[]
+  const meta = metadata(selectedAgent.value)
+  const directory = Array.isArray(meta?.contactDirectory) ? meta.contactDirectory : []
+  return directory
+    .filter((contact) => contact.isActive !== false)
+    .filter((contact) => !contact.shipmentModes?.length || contact.shipmentModes.some((mode) => String(mode).trim().toUpperCase() === 'FCL'))
+    .sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
+}`,
+    'FCL agent contact directory',
+  )
+
+  code = replaceOne(
+    code,
     `              <p class="mt-3 text-sm font-bold">Proveedor: {{ displayValue(selectedCarrier) || 'Sin proveedor' }}</p>
               <p class="mt-1 text-sm font-bold">Agente: {{ displayValue(selectedAgent) || 'Sin agente' }}</p>
               <div class="mt-4 grid grid-cols-2 gap-2 text-sm">`,
@@ -170,8 +186,18 @@ function selectDefaultService() {
               <div v-if="shipmentMode === 'FCL' && selectedAgent" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-xs">
                 <p class="font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Contacto del agente</p>
                 <p class="mt-2 font-black text-[var(--dh-text)]">{{ displayValue(selectedAgent) }}</p>
-                <p v-if="metadata(selectedAgent)?.email" class="mt-1 font-semibold">Correo: {{ metadata(selectedAgent)?.email }}</p>
-                <p v-if="metadata(selectedAgent)?.phone" class="mt-1 font-semibold">Teléfono: {{ metadata(selectedAgent)?.phone }}</p>
+                <div v-if="fclAgentContacts.length" class="mt-2 space-y-2">
+                  <div v-for="(contact, index) in fclAgentContacts" :key="`${contact.email || contact.phone || contact.name || index}`" class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
+                    <p v-if="contact.name" class="font-black">{{ contact.name }}<span v-if="contact.role" class="font-semibold text-[var(--dh-text-muted)]"> · {{ contact.role }}</span></p>
+                    <p v-if="contact.email" class="mt-1 break-words font-semibold">Correo: {{ contact.email }}</p>
+                    <p v-if="contact.phone" class="mt-1 font-semibold">Teléfono: {{ contact.phone }}</p>
+                  </div>
+                </div>
+                <template v-else>
+                  <p v-if="metadata(selectedAgent)?.contacts" class="mt-1 font-semibold">Contacto: {{ metadata(selectedAgent)?.contacts }}</p>
+                  <p v-if="metadata(selectedAgent)?.email" class="mt-1 break-words font-semibold">Correo: {{ metadata(selectedAgent)?.email }}</p>
+                  <p v-if="metadata(selectedAgent)?.phone" class="mt-1 font-semibold">Teléfono: {{ metadata(selectedAgent)?.phone }}</p>
+                </template>
               </div>
               <div class="mt-4 grid grid-cols-2 gap-2 text-sm">`,
     'FCL agent contact summary',
