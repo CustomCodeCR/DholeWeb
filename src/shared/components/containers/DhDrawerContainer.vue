@@ -15,7 +15,7 @@ const drawerStore = useDrawerStore()
       >
         <Transition name="drawer-panel" appear>
           <aside
-            class="dh-glass-strong h-full overflow-hidden border-l border-[var(--dh-border)]"
+            class="dh-glass-strong h-[100dvh] max-h-[100dvh] min-w-0 overflow-hidden border-l border-[var(--dh-border)] max-sm:border-l-0"
             :class="[
               drawerStore.size === 'sm' && 'w-full max-w-sm',
               drawerStore.size === 'md' && 'w-full max-w-xl',
@@ -25,22 +25,22 @@ const drawerStore = useDrawerStore()
             ]"
           >
             <header
-              class="flex items-center justify-between border-b border-[var(--dh-border)] px-5 py-4"
+              class="flex min-h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--dh-border)] px-3 py-3 sm:px-5 sm:py-4"
             >
-              <h2 class="text-base font-bold text-[var(--dh-text)]">
+              <h2 class="min-w-0 flex-1 break-words text-sm font-bold text-[var(--dh-text)] sm:text-base">
                 {{ drawerStore.title }}
               </h2>
 
               <button
                 type="button"
-                class="rounded-2xl p-2 text-[var(--dh-text-muted)] hover:bg-black/5 dark:hover:bg-white/10"
+                class="inline-flex min-h-11 min-w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl p-2 text-[var(--dh-text-muted)] hover:bg-black/5 dark:hover:bg-white/10"
                 @click="drawerStore.close()"
               >
                 <X class="h-4 w-4" />
               </button>
             </header>
 
-            <main class="h-[calc(100vh-65px)] overflow-y-auto p-5 dh-scrollbar">
+            <main class="dh-scrollbar h-[calc(100dvh-4rem)] min-w-0 overflow-x-hidden overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:h-[calc(100dvh-65px)] sm:p-5">
               <component
                 :is="drawerStore.component"
                 v-if="drawerStore.component"
