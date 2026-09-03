@@ -14,11 +14,22 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
-  // One owner for the transition: the resolved selection is fully copied into the
-  // wizard first; only then Pantalla 5 advances to Pantalla 6.
+  // There is one owner for the transition. The selector calls applyLclRateSource
+  // directly with the complete calculated payload. Hydration finishes first and
+  // only then Pantalla 5 advances to Pantalla 6.
   const hydrationEnd = `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n}`
   const hydrationEndReplacement = `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n  step.value = 6\n}`
   code = replaceOne(code, hydrationEnd, hydrationEndReplacement, 'LCL hydration completion')
+
+  // pricingWizardLclAtomicSelection previously depended on Vue's custom select
+  // event. Replace that listener with a direct function prop so unmounting Pantalla
+  // 5 cannot interrupt delivery of the calculated consolidation object.
+  code = replaceOne(
+    code,
+    `            @select="(selection) => { applyLclRateSource(selection); step = 6 }"`,
+    `            :on-resolved-selection="applyLclRateSource"`,
+    'direct LCL resolved selection binding',
+  )
 
   // Mobile: the 8-step bar must scroll instead of squeezing every step into tiny boxes.
   code = replaceOne(
@@ -52,19 +63,27 @@ function patchWizard(source: string) {
 function patchSelector(source: string) {
   let code = source
 
-  // The source component itself must emit the complete object first. modelValue is
-  // visual state only and must never unmount Pantalla 5 before hydration finishes.
+  // Direct callback supplied by the Wizard. It is intentionally independent of
+  // emit('select') and v-model, which remain only for backwards compatibility and
+  // visual selected-state updates.
   code = replaceOne(
     code,
-    "    emit('update:modelValue', `Own:${row.id}`)\n    emit('select', selection)",
-    "    emit('select', selection)\n    emit('update:modelValue', `Own:${row.id}`)",
-    'own selection event order',
+    `  cargoLines?: OwnLclCargoLineRequest[]\n}>(), {`,
+    `  cargoLines?: OwnLclCargoLineRequest[]\n  onResolvedSelection?: (selection: LclRateSourceSelection) => void\n}>(), {`,
+    'selector direct callback prop',
+  )
+
+  code = replaceOne(
+    code,
+    `    emit('update:modelValue', \`Own:\${row.id}\`)\n    emit('select', selection)`,
+    `    props.onResolvedSelection?.(selection)\n    emit('update:modelValue', \`Own:\${row.id}\`)\n    emit('select', selection)`,
+    'own direct selection callback',
   )
   code = replaceOne(
     code,
-    "  emit('update:modelValue', `Coloader:${rate.id}`)\n  emit('select', selection)",
-    "  emit('select', selection)\n  emit('update:modelValue', `Coloader:${rate.id}`)",
-    'coloader selection event order',
+    `  emit('update:modelValue', \`Coloader:\${rate.id}\`)\n  emit('select', selection)`,
+    `  props.onResolvedSelection?.(selection)\n  emit('update:modelValue', \`Coloader:\${rate.id}\`)\n  emit('select', selection)`,
+    'coloader direct selection callback',
   )
 
   code = replaceOne(
@@ -87,7 +106,7 @@ function patchSelector(source: string) {
   )
 
   const ownClose = `      </DhDataTable>\n    </div>\n\n    <div v-else>`
-  const ownCards = `      </DhDataTable>\n      <div class="grid gap-3 md:hidden">\n        <article v-for="row in filteredOwn" :key="row.id" class="min-w-0 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)]">\n          <div class="flex min-w-0 items-start justify-between gap-3">\n            <div class="min-w-0">\n              <p class="break-words text-base font-black">{{ row.name }}</p>\n              <p class="mt-1 break-all text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.matrixVersion }} · {{ row.booking || 'Sin booking' }}</p>\n            </div>\n            <Ship class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />\n          </div>\n          <div class="mt-4 space-y-2 text-sm">\n            <p class="break-words font-bold">{{ row.polName || row.polCode }} → {{ row.poeName || row.poeCode || 'Panamá' }}</p>\n            <p class="break-words text-xs font-semibold text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · ETD {{ row.etd || '—' }}</p>\n            <div class="grid grid-cols-2 gap-2 pt-1">\n              <div class="rounded-xl bg-[var(--dh-input)] p-3">\n                <span class="block text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Capacidad</span>\n                <strong class="mt-1 block">{{ n(row.maximumCbm).toFixed(2) }} CBM</strong>\n              </div>\n              <div class="rounded-xl bg-[var(--dh-input)] p-3">\n                <span class="block text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo base</span>\n                <strong class="mt-1 block break-words">USD {{ money((n(row.oceanFreight) + n(row.carrierDestinationCostTotal)) / Math.max(n(row.maximumCbm), 1)) }}</strong>\n              </div>\n            </div>\n          </div>\n          <DhButton class="mt-4 w-full" :label="modelValue === \`Own:\${row.id}\` ? 'Seleccionado' : 'Seleccionar'" :icon="modelValue === \`Own:\${row.id}\` ? Check : undefined" :loading="selecting === \`Own:\${row.id}\`" @click="chooseOwn(row)" />\n        </article>\n        <div v-if="!loading && !filteredOwn.length" class="rounded-2xl border border-[var(--dh-border)] p-5 text-center text-sm font-bold text-[var(--dh-text-muted)]">No hay consolidados propios disponibles para este POL.</div>\n      </div>\n    </div>\n\n    <div v-else>`
+  const ownCards = `      </DhDataTable>\n      <div class="grid gap-3 md:hidden">\n        <article v-for="row in filteredOwn" :key="row.id" class="min-w-0 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)]">\n          <div class="flex min-w-0 items-start justify-between gap-3">\n            <div class="min-w-0">\n              <p class="break-words text-base font-black">{{ row.name }}</p>\n              <p class="mt-1 break-all text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.matrixVersion }} · {{ row.booking || 'Sin booking' }}</p>\n            </div>\n            <Ship class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />\n          </div>\n          <div class="mt-4 space-y-2 text-sm">\n            <p class="break-words font-bold">{{ selectedPolDisplay(ownPreview(row)) }} → {{ destinationDisplay(ownPreview(row)?.destinationCode) }}</p>\n            <p class="break-words text-xs font-semibold text-[var(--dh-text-muted)]">Base física Shanghai → Balboa · {{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · ETD {{ row.etd || '—' }}</p>\n            <div class="grid grid-cols-2 gap-2 pt-1">\n              <div class="rounded-xl bg-[var(--dh-input)] p-3">\n                <span class="block text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Capacidad</span>\n                <strong class="mt-1 block">{{ n(row.maximumCbm).toFixed(2) }} CBM</strong>\n              </div>\n              <div class="rounded-xl bg-[var(--dh-input)] p-3">\n                <span class="block text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo ruta / CBM</span>\n                <strong v-if="ownPreview(row)" class="mt-1 block break-words">USD {{ money(ownPreview(row)?.routeCostPerCbm) }}</strong>\n                <strong v-else class="mt-1 block text-xs text-[var(--dh-text-muted)]">Calculando…</strong>\n              </div>\n            </div>\n            <p v-if="ownPreview(row)" class="text-xs font-black text-[var(--dh-primary)]">Venta sugerida USD {{ money(ownPreview(row)?.recommendedSalePerCbm) }} / CBM</p>\n          </div>\n          <DhButton class="mt-4 w-full" :label="modelValue === \`Own:\${row.id}\` ? 'Seleccionado' : 'Seleccionar'" :icon="modelValue === \`Own:\${row.id}\` ? Check : undefined" :loading="selecting === \`Own:\${row.id}\`" @click="chooseOwn(row)" />\n        </article>\n        <div v-if="!loading && !filteredOwn.length" class="rounded-2xl border border-[var(--dh-border)] p-5 text-center text-sm font-bold text-[var(--dh-text-muted)]">No hay consolidados propios disponibles para este POL.</div>\n      </div>\n    </div>\n\n    <div v-else>`
   code = replaceOne(code, ownClose, ownCards, 'own mobile cards')
   code = replaceOne(
     code,
@@ -95,7 +114,6 @@ function patchSelector(source: string) {
     `<div v-if="tab === 'Own'">\n      <div class="hidden md:block">\n      <DhDataTable`,
     'own desktop table wrapper',
   )
-  // close the desktop wrapper directly before the injected mobile cards.
   code = replaceOne(
     code,
     `      </DhDataTable>\n      <div class="grid gap-3 md:hidden">`,
