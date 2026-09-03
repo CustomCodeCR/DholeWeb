@@ -868,6 +868,66 @@ const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: i
 const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
 const incotermOptions = computed(() => catalogs.incoterms.map((item) => ({ value: item.id, label: displayValue(item) })))
 const agentOptions = computed(() => catalogs.agents.map((item) => ({ value: item.id, label: displayValue(item) })))
+
+function countryTokens(item: CatalogItemSelectDto | null | undefined) {
+  const tokens = new Set<string>()
+  if (!item) return tokens
+
+  const meta = (metadata(item) ?? {}) as unknown as Record<string, unknown>
+  const add = (raw: unknown) => {
+    if (Array.isArray(raw)) {
+      raw.forEach(add)
+      return
+    }
+    if (raw == null || typeof raw === 'object') return
+    const value = normalizeCatalogValue(String(raw))
+    if (value.length >= 2) tokens.add(value)
+  }
+
+  for (const key of [
+    'countryCode', 'country', 'countryName', 'countryIso2', 'countryIso3',
+    'originCountryCode', 'originCountry', 'iso2', 'iso3', 'countries', 'countryCodes',
+  ]) add(meta[key])
+
+  for (const raw of [item.value, item.label]) {
+    const text = String(raw ?? '').trim()
+    if (!text.includes(',')) continue
+    add(text.split(',').at(-1))
+  }
+
+  return tokens
+}
+
+function resolveAgentForOrigin() {
+  const origin = selectedOrigin.value
+  const originTokens = countryTokens(origin)
+  if (!origin || !originTokens.size) return null
+
+  let best: CatalogItemSelectDto | null = null
+  let bestScore = 0
+  for (const agent of catalogs.agents) {
+    const agentTokens = countryTokens(agent)
+    const searchText = normalizeCatalogValue(
+      [agent.code, agent.value, agent.label, agent.metadataJson].filter(Boolean).join(' '),
+    )
+    let score = 0
+    for (const token of originTokens) {
+      if (agentTokens.has(token)) score = Math.max(score, token.length <= 3 ? 100 : 90)
+      else if (token.length >= 4 && searchText.includes(token)) score = Math.max(score, 60)
+    }
+    if (score > bestScore) {
+      best = agent
+      bestScore = score
+    }
+  }
+  return best
+}
+
+function assignAgentForOrigin() {
+  if (hydratingExistingRate.value || !form.originId) return
+  const agent = resolveAgentForOrigin()
+  if (agent && form.agentId !== agent.id) form.agentId = agent.id
+}
 const carrierOptions = computed(() => catalogs.carriers.map((item) => ({ value: item.id, label: displayValue(item) })))
 const currencyOptions = computed(() => catalogs.currencies.map((item) => ({ value: item.id, label: displayValue(item) })))
 const serviceOptions = computed(() => catalogs.services.map((item) => ({ value: item.id, label: displayValue(item) })))
@@ -1077,20 +1137,26 @@ const selectedOptionalChargeKeys = computed<string[]>({
     })
   },
 })
+function persistedLineInFullView(line: RateLine) {
+  return props.viewOnly && step.value === 9 && Boolean(line.detailId)
+}
+
 function standardSectionLines(section: RateSection) {
   return rateLines.value.filter(
     (line) =>
       line.section === section &&
       line.included &&
-      !line.optional &&
-      !line.manual &&
+      ((!line.optional && !line.manual) || persistedLineInFullView(line)) &&
       line.costDetailType !== 'AgentCharge',
   )
 }
 
 const agentLines = computed(() =>
   rateLines.value.filter(
-    (line) => line.included && !line.optional && !line.manual && line.costDetailType === 'AgentCharge',
+    (line) =>
+      line.included &&
+      line.costDetailType === 'AgentCharge' &&
+      ((!line.optional && !line.manual) || persistedLineInFullView(line)),
   ),
 )
 
@@ -3058,6 +3124,11 @@ watch(
     const executive = findById(catalogs.salesExecutives, executiveId)
     if (executive) form.executiveName = displayValue(executive) || executive.label
   },
+)
+
+watch(
+  () => form.originId,
+  () => assignAgentForOrigin(),
 )
 
 watch(
