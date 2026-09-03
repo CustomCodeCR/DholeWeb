@@ -57,11 +57,9 @@ text = replace_once(
     "  if (value === 'Approved' || value === 'Created') return 'success'\n  if (value === 'PreAuthorized') return 'warning'\n  if (value === 'Pending') return 'warning'",
     'status variants',
 )
-text = replace_once(
-    text,
+text = text.replace(
     "  filters.status = 'Pending'",
     "  filters.status = 'PreAuthorized'",
-    'clear filters status',
 )
 text = text.replace(
     "row.status === 'Pending'",
@@ -78,10 +76,6 @@ text = text.replace(
 text = text.replace(
     "title: 'Rechazar tarifas',",
     "title: 'Rechazar tarifas preautorizadas',",
-)
-text = text.replace(
-    "filters.status = 'Pending'",
-    "filters.status = 'PreAuthorized'",
 )
 p.write_text(text, encoding='utf-8')
 
