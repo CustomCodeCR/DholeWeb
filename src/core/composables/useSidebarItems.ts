@@ -3,8 +3,8 @@ import { useI18n } from 'vue-i18n'
 import type { Component } from 'vue'
 
 import {
-  BadgeDollarSign,
   BookOpen,
+  CircleDollarSign,
   ClipboardList,
   KeyRound,
   LayoutDashboard,
@@ -137,7 +137,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
           },
           {
             labelKey: 'sidebar.costs',
-            icon: BadgeDollarSign,
+            icon: CircleDollarSign,
             to: '/pricing/costs',
             name: 'pricing-costs',
             requiredScope: VIEW_SCOPES.pricingCosts,
