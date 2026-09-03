@@ -172,7 +172,7 @@ const fclAgentContacts = computed(() => {
     .filter((contact) => contact.isActive !== false)
     .filter((contact) => !contact.shipmentModes?.length || contact.shipmentModes.some((mode) => String(mode).trim().toUpperCase() === 'FCL'))
     .sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
-}`,
+})`,
     'FCL agent contact directory',
   )
 
