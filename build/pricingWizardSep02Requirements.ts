@@ -187,7 +187,7 @@ const fclAgentContacts = computed(() => {
                 <p class="font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Contacto del agente</p>
                 <p class="mt-2 font-black text-[var(--dh-text)]">{{ displayValue(selectedAgent) }}</p>
                 <div v-if="fclAgentContacts.length" class="mt-2 space-y-2">
-                  <div v-for="(contact, index) in fclAgentContacts" :key="`${contact.email || contact.phone || contact.name || index}`" class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
+                  <div v-for="(contact, index) in fclAgentContacts" :key="contact.email || contact.phone || contact.name || index" class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
                     <p v-if="contact.name" class="font-black">{{ contact.name }}<span v-if="contact.role" class="font-semibold text-[var(--dh-text-muted)]"> · {{ contact.role }}</span></p>
                     <p v-if="contact.email" class="mt-1 break-words font-semibold">Correo: {{ contact.email }}</p>
                     <p v-if="contact.phone" class="mt-1 font-semibold">Teléfono: {{ contact.phone }}</p>
