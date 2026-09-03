@@ -115,6 +115,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         name: 'pricing',
         children: [
           {
+            labelKey: 'Solicitar tarifa',
+            icon: FileText,
+            to: '/pricing/request-rate',
+            name: 'pricing-seller-rate-request',
+            requiredScope: 'pricing.rate-request.create',
+          },
+          {
             labelKey: 'sidebar.pricingPanel',
             icon: TrendingUp,
             to: '/pricing',
