@@ -504,7 +504,7 @@ onMounted(load)
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Escenarios FOB por país</p>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Abra un país para ver los puertos de China, el costo calculado y la venta asociada a este consolidado.</p>
               </div>
-              <DhButton v-if="selectedId && !readOnly" label="Guardar ventas FOB" :loading="scenarioSaving" variant="secondary" @click="saveScenarioRows" />
+              <DhButton v-if="selectedId && !readOnly" label="Guardar ventas FOB" :loading="scenarioSaving" variant="secondary" @click="saveScenarioRows()" />
             </div>
             <div v-if="!selectedId" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-4 text-xs font-semibold text-[var(--dh-text-muted)]">Guarde primero los datos base del consolidado para habilitar la matriz de ventas por país.</div>
             <div v-else-if="scenarioLoading" class="mt-4 text-sm font-bold text-[var(--dh-text-muted)]">Cargando escenarios...</div>
