@@ -15,7 +15,7 @@ const modalStore = useModalStore()
       >
         <Transition name="modal-panel" appear>
           <section
-            class="dh-glass-strong dh-liquid max-h-[calc(100dvh-1rem)] min-w-0 overflow-hidden rounded-[22px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
+            class="dh-glass-strong dh-liquid flex max-h-[calc(100dvh-1rem)] min-w-0 flex-col overflow-hidden rounded-[22px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
             :class="[
               modalStore.size === 'sm' && 'w-full max-w-sm',
               modalStore.size === 'md' && 'w-full max-w-lg',
@@ -24,7 +24,7 @@ const modalStore = useModalStore()
             ]"
           >
             <header
-              class="flex min-h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--dh-border)] px-3 py-3 sm:px-5 sm:py-4"
+              class="flex min-h-16 min-w-0 shrink-0 items-center justify-between gap-3 border-b border-[var(--dh-border)] px-3 py-3 sm:px-5 sm:py-4"
             >
               <h2 class="min-w-0 flex-1 break-words text-sm font-bold text-[var(--dh-text)] sm:text-base">
                 {{ modalStore.title }}
@@ -39,7 +39,7 @@ const modalStore = useModalStore()
               </button>
             </header>
 
-            <main class="dh-scrollbar max-h-[calc(100dvh-5rem)] min-w-0 overflow-x-hidden overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:max-h-[calc(90vh-65px)] sm:p-5">
+            <main class="dh-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
               <component
                 :is="modalStore.component"
                 v-if="modalStore.component"
