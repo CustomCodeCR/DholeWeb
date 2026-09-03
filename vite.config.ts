@@ -20,13 +20,14 @@ import { pricingWizardOwnLclExcelOnly } from './build/pricingWizardOwnLclExcelOn
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 import { pricingWizardToastErrors } from './build/pricingWizardToastErrors'
+import { pricingWizardLclSourceSummary } from './build/pricingWizardLclSourceSummary'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@': fileURLToPath(new URL('./src', import.meta.url),
     },
   },
 
