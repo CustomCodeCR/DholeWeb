@@ -26,9 +26,10 @@ body {
   overflow-x: clip;
 }
 
+/* Do not set max-width here. Utility/component constraints such as max-w-md
+   must remain authoritative (the auth card depends on them). */
 #app :where(main, section, article, nav, form) {
   min-width: 0;
-  max-width: 100%;
 }
 
 #app :where(.grid, .flex) > * {
