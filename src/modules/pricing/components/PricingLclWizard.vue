@@ -33,6 +33,8 @@ interface QuoteLine extends CreateRateDetailRequest {
   source: 'LCL' | 'Ruta' | 'Costo'
 }
 
+type CatalogMetadata = Record<string, unknown>
+
 const router = useRouter()
 const toast = useToastStore()
 const activeView = ref<'quote' | 'own'>('quote')
@@ -43,6 +45,7 @@ const calculating = ref(false)
 const sourceLoading = ref(false)
 
 const carriers = ref<CatalogItemDto[]>([])
+const agents = ref<CatalogItemDto[]>([])
 const pols = ref<CatalogItemDto[]>([])
 const poes = ref<CatalogItemDto[]>([])
 const pods = ref<CatalogItemDto[]>([])
@@ -65,6 +68,7 @@ const quote = reactive({
   podId: '',
   incotermId: '',
   containerTypeId: '',
+  agentId: '',
   serviceIds: [] as string[],
   sourceType: 'Own' as 'Own' | 'Coloader',
   sourceId: '',
@@ -101,6 +105,7 @@ const selectedPoe = computed(() => findItem(poes.value, quote.poeId))
 const selectedPod = computed(() => findItem(pods.value, quote.podId))
 const selectedIncoterm = computed(() => findItem(incoterms.value, quote.incotermId))
 const selectedContainer = computed(() => findItem(containerTypes.value, quote.containerTypeId))
+const selectedAgent = computed(() => findItem(agents.value, quote.agentId))
 const selectedSource = computed(() => {
   const rows = quote.sourceType === 'Own' ? ownSources.value : coloaderSources.value
   return rows.find((row) => row.id === quote.sourceId) ?? null
@@ -130,6 +135,7 @@ watch(() => quote.sourceId, () => {
   if (selectedSource.value) quote.bunkerAmount = selectedSource.value.defaultBunkerAmount || 280
 })
 watch(() => quote.podId, () => inferDestinationRule())
+watch(() => quote.polId, () => assignAgentForOrigin())
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -159,7 +165,82 @@ function findItem(rows: CatalogItemDto[], id: string) {
 }
 
 function normalized(value?: string | null) {
-  return (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  return (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+function metadata(item: CatalogItemDto | null | undefined): CatalogMetadata {
+  if (!item?.metadataJson) return {}
+  try {
+    const value = JSON.parse(item.metadataJson) as unknown
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as CatalogMetadata : {}
+  } catch {
+    return {}
+  }
+}
+
+function addCountryToken(tokens: Set<string>, value: unknown) {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => addCountryToken(tokens, entry))
+    return
+  }
+  if (value == null || typeof value === 'object') return
+  const token = normalized(String(value))
+  if (token.length >= 2) tokens.add(token)
+}
+
+function countryTokens(item: CatalogItemDto | null | undefined) {
+  const tokens = new Set<string>()
+  if (!item) return tokens
+  const meta = metadata(item)
+  for (const key of [
+    'country', 'countryName', 'countryCode', 'countryIso2', 'countryIso3', 'iso2', 'iso3',
+    'originCountry', 'originCountryName', 'originCountryCode', 'countries', 'countryCodes',
+  ]) addCountryToken(tokens, meta[key])
+
+  const labels = [item.name, item.value, item.description].filter(Boolean) as string[]
+  for (const label of labels) {
+    const parts = label.split(',').map((part) => normalized(part)).filter(Boolean)
+    if (parts.length > 1) tokens.add(parts.at(-1)!)
+  }
+  return tokens
+}
+
+function agentSearchText(agent: CatalogItemDto) {
+  return normalized([
+    agent.code,
+    agent.slug,
+    agent.name,
+    agent.value,
+    agent.description,
+    agent.metadataJson,
+  ].filter(Boolean).join(' '))
+}
+
+function resolveAgentForOrigin() {
+  const originTokens = countryTokens(selectedPol.value)
+  if (!originTokens.size) return null
+
+  let best: CatalogItemDto | null = null
+  let bestScore = 0
+  for (const agent of agents.value) {
+    const agentTokens = countryTokens(agent)
+    const text = agentSearchText(agent)
+    let score = 0
+    for (const token of originTokens) {
+      if (agentTokens.has(token)) score = Math.max(score, token.length <= 3 ? 100 : 90)
+      else if (token.length >= 4 && text.includes(token)) score = Math.max(score, 60)
+      else if (token.length === 2 && new RegExp(`(^|[^a-z0-9])${token}([^a-z0-9]|$)`, 'i').test(text)) score = Math.max(score, 70)
+    }
+    if (score > bestScore) {
+      best = agent
+      bestScore = score
+    }
+  }
+  return best
+}
+
+function assignAgentForOrigin() {
+  quote.agentId = resolveAgentForOrigin()?.id ?? ''
 }
 
 function addCargoLine() {
@@ -182,8 +263,9 @@ async function loadCatalog(slug: string) {
 async function loadAll() {
   loading.value = true
   try {
-    const [carrierRows, polRows, poeRows, podRows, containerRows, currencyRows, incotermRows, serviceRows, rules] = await Promise.all([
+    const [carrierRows, agentRows, polRows, poeRows, podRows, containerRows, currencyRows, incotermRows, serviceRows, rules] = await Promise.all([
       loadCatalog('carriers'),
+      loadCatalog('agents'),
       loadCatalog('pol'),
       loadCatalog('poe'),
       loadCatalog('pod'),
@@ -194,6 +276,7 @@ async function loadAll() {
       LclService.getRouteRules(),
     ])
     carriers.value = carrierRows
+    agents.value = agentRows
     pols.value = polRows
     poes.value = poeRows
     pods.value = podRows
@@ -266,6 +349,10 @@ async function calculateCargo() {
 function validateStep(target: number) {
   if (target === 1 && (!quote.clientName.trim() || !quote.executiveName.trim() || !quote.polId || !quote.poeId || !quote.podId || !quote.incotermId || !quote.containerTypeId)) {
     toast.error('LCL', 'Complete Cliente, Ejecutivo, POL, POE, POD, Incoterm y tipo de contenedor.')
+    return false
+  }
+  if (target === 1 && !quote.agentId) {
+    toast.error('LCL', 'No se encontró un agente para el país de origen. Seleccione el agente antes de continuar.')
     return false
   }
   if (target === 2 && !cargoLines.value.some((line) => number(line.weightKg) > 0 || (number(line.lengthCm) > 0 && number(line.widthCm) > 0 && number(line.heightCm) > 0))) {
@@ -405,42 +492,49 @@ async function buildQuoteLines() {
     }
   }
 
-  try {
-    operationalCosts.value = await PricingService.selectCosts({
-      carrierId: source.carrierId,
-      polId: quote.polId,
-      poeId: quote.poeId,
-      podId: quote.podId,
-      incotermId: quote.incotermId,
-      shipmentMode: 'Lcl',
-      applicableToContext: true,
-      serviceIds: quote.serviceIds.length ? quote.serviceIds.join(',') : undefined,
-      isActive: true,
-    })
-  } catch {
-    operationalCosts.value = []
-  }
+  // En LCL propio la matriz de costos ya fue prorrateada dentro de BaseRatePerCbm al crear
+  // el consolidado. Volver a agregar esos CostId en la tarifa duplica el costo y el precio.
+  // Las únicas líneas externas al flete que se muestran son las reglas del Excel de la ruta.
+  if (source.sourceType === 'Coloader') {
+    try {
+      operationalCosts.value = await PricingService.selectCosts({
+        carrierId: source.carrierId,
+        agentId: quote.agentId || undefined,
+        polId: quote.polId,
+        poeId: quote.poeId,
+        podId: quote.podId,
+        incotermId: quote.incotermId,
+        shipmentMode: 'Lcl',
+        applicableToContext: true,
+        serviceIds: quote.serviceIds.length ? quote.serviceIds.join(',') : undefined,
+        isActive: true,
+      })
+    } catch {
+      operationalCosts.value = []
+    }
 
-  for (const cost of operationalCosts.value) {
-    if (source.sourceType === 'Own' && cost.costDetailType === 'DestinationCharge' && (cost.poeId === source.poeId || cost.portId === source.poeId)) continue
-    const quantity = quantityForCost(cost)
-    const totalCostAmount = number(cost.costAmount) * quantity
-    const totalSaleAmount = number(cost.saleAmount) * quantity
-    lines.push({
-      costId: cost.id,
-      name: cost.name,
-      costDetailType: cost.costDetailType,
-      costType: cost.costType,
-      chargeBasis: cost.chargeBasis,
-      currencyId: cost.currencyId,
-      currencyName: cost.currencyName,
-      currencyCode: cost.currencyCode,
-      costAmount: Number(totalCostAmount.toFixed(2)),
-      saleAmount: Number(totalSaleAmount.toFixed(2)),
-      quantity: 1,
-      notes: cost.notes,
-      source: 'Costo',
-    })
+    for (const cost of operationalCosts.value) {
+      const quantity = quantityForCost(cost)
+      const totalCostAmount = number(cost.costAmount) * quantity
+      const totalSaleAmount = number(cost.saleAmount) * quantity
+      lines.push({
+        costId: cost.id,
+        name: cost.name,
+        costDetailType: cost.costDetailType,
+        costType: cost.costType,
+        chargeBasis: cost.chargeBasis,
+        currencyId: cost.currencyId,
+        currencyName: cost.currencyName,
+        currencyCode: cost.currencyCode,
+        costAmount: Number(totalCostAmount.toFixed(2)),
+        saleAmount: Number(totalSaleAmount.toFixed(2)),
+        quantity: 1,
+        notes: cost.notes,
+        source: 'Costo',
+      })
+    }
+  } else {
+    operationalCosts.value = []
   }
 
   quoteLines.value = lines
@@ -509,16 +603,17 @@ async function saveDraft() {
   const pod = selectedPod.value
   const container = selectedContainer.value
   const incoterm = selectedIncoterm.value
+  const agent = selectedAgent.value
   const calc = cargoCalculation.value
-  if (!source || !pol || !poe || !pod || !container || !incoterm || !calc || !quoteLines.value.length) return
+  if (!source || !pol || !poe || !pod || !container || !incoterm || !agent || !calc || !quoteLines.value.length) return
 
   saving.value = true
   try {
     const payload: CreateRateRequest = {
       sourceImportFclRateId: null,
-      agentId: null,
-      agentName: source.sourceType === 'Coloader' ? source.providerName ?? null : null,
-      agentCode: null,
+      agentId: agent.id,
+      agentName: agent.name,
+      agentCode: agent.code,
       carrierId: source.carrierId,
       carrierName: source.carrierName,
       carrierCode: source.carrierCode,
@@ -571,7 +666,7 @@ async function saveDraft() {
 
     const rateId = await PricingService.createRate(payload)
     toast.success('LCL', 'Borrador LCL creado correctamente.')
-    await router.push({ name: 'pricing-rate-wizard', params: { rateId } })
+    await router.push({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
   } catch (error) {
     console.error(error)
     toast.error('LCL', 'No se pudo crear el borrador LCL.')
@@ -651,6 +746,7 @@ onMounted(loadAll)
           <label>Ejecutivo<input v-model="quote.executiveName" placeholder="Ejecutivo" /></label>
           <label>Incoterm<select v-model="quote.incotermId"><option value="">Seleccione</option><option v-for="item in incoterms" :key="item.id" :value="item.id">{{ item.code }} · {{ item.name }}</option></select></label>
           <label>POL<select v-model="quote.polId"><option value="">Seleccione</option><option v-for="item in pols" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
+          <label>Agente origen · automático por país<select v-model="quote.agentId"><option value="">Seleccione</option><option v-for="item in agents" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
           <label>POE<select v-model="quote.poeId"><option value="">Seleccione</option><option v-for="item in poes" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
           <label>POD<select v-model="quote.podId"><option value="">Seleccione</option><option v-for="item in pods" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
           <label>Equipo asociado<select v-model="quote.containerTypeId"><option value="">Seleccione</option><option v-for="item in containerTypes" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
@@ -679,7 +775,7 @@ onMounted(loadAll)
           </button>
           <div v-if="!sourceOptions.length" class="empty-card">No hay {{ quote.sourceType === 'Own' ? 'consolidados propios' : 'tarifas coloader aprobadas' }} disponibles.</div>
         </div>
-        <div v-if="selectedSource" class="sub-panel"><strong>Tarifa seleccionada:</strong> {{ selectedSource.sourceType }} · {{ money(selectedSource.baseRatePerCbm, selectedSource.currencyCode) }}/CBM. <span v-if="selectedSource.sourceType === 'Own'">Los costos de destino ya vienen prorrateados en esta base.</span></div>
+        <div v-if="selectedSource" class="sub-panel"><strong>Tarifa seleccionada:</strong> {{ selectedSource.sourceType }} · {{ money(selectedSource.baseRatePerCbm, selectedSource.currencyCode) }}/CBM. <span v-if="selectedSource.sourceType === 'Own'">Los costos de la matriz LCL propio ya vienen prorrateados en esta base y no se vuelven a agregar a la tarifa.</span></div>
         <div class="form-grid three compact">
           <label>SET<input v-model.number="quote.sets" type="number" min="1" /></label><label>HBL<input v-model.number="quote.hbl" type="number" min="1" /></label><label v-if="incotermCode === 'EXW'">Pick up EXW<input v-model.number="quote.pickupAmount" type="number" min="0" step="0.01" /></label><label v-if="quote.destinationRule === 'San José, Costa Rica'">Bunker<input v-model.number="quote.bunkerAmount" type="number" min="0" step="0.01" /></label>
         </div>
@@ -690,12 +786,12 @@ onMounted(loadAll)
         <div class="table-wrap"><table><thead><tr><th>Fuente</th><th>Rubro</th><th>Base</th><th>Costo</th><th>Venta editable</th></tr></thead><tbody>
           <tr v-for="(line, index) in quoteLines" :key="`${line.name}-${index}`"><td><span class="pill">{{ line.source }}</span></td><td><strong>{{ line.name }}</strong><small v-if="line.notes">{{ line.notes }}</small></td><td>{{ line.chargeBasis }}</td><td>{{ money(line.costAmount, line.currencyCode) }}</td><td><input v-model.number="line.saleAmount" class="money-input" type="number" min="0" step="0.01" /></td></tr>
         </tbody><tfoot><tr><th colspan="3">Totales</th><th>{{ money(totalCost, selectedSource?.currencyCode || 'USD') }}</th><th>{{ money(totalSale, selectedSource?.currencyCode || 'USD') }}</th></tr></tfoot></table></div>
-        <div class="metrics"><div><small>Utilidad</small><strong>{{ money(utility, selectedSource?.currencyCode || 'USD') }}</strong></div><div><small>Margen</small><strong>{{ margin.toFixed(2) }}%</strong></div><div><small>Costos asociados cargados</small><strong>{{ operationalCosts.length }}</strong></div></div>
+        <div class="metrics"><div><small>Utilidad</small><strong>{{ money(utility, selectedSource?.currencyCode || 'USD') }}</strong></div><div><small>Margen</small><strong>{{ margin.toFixed(2) }}%</strong></div><div><small>Costos de matriz agregados</small><strong>{{ operationalCosts.length }}</strong></div></div>
       </div>
 
       <div v-else class="panel draft">
         <h2>5. Borrador LCL</h2>
-        <div class="summary-grid"><div><small>Cliente</small><strong>{{ quote.clientName }}</strong></div><div><small>Ejecutivo</small><strong>{{ quote.executiveName }}</strong></div><div><small>Incoterm</small><strong>{{ selectedIncoterm?.code }}</strong></div><div><small>Ruta</small><strong>{{ selectedPol?.name }} → {{ selectedPoe?.name }} → {{ selectedPod?.name }}</strong></div><div><small>Fuente</small><strong>{{ selectedSource?.sourceType }} · {{ selectedSource?.bookingNumber || selectedSource?.providerName }}</strong></div><div><small>CBM cobrable</small><strong>{{ cargoCalculation?.chargeableCbm.toFixed(3) }}</strong></div></div>
+        <div class="summary-grid"><div><small>Cliente</small><strong>{{ quote.clientName }}</strong></div><div><small>Ejecutivo</small><strong>{{ quote.executiveName }}</strong></div><div><small>Agente origen</small><strong>{{ selectedAgent?.name || '—' }}</strong></div><div><small>Incoterm</small><strong>{{ selectedIncoterm?.code }}</strong></div><div><small>Ruta</small><strong>{{ selectedPol?.name }} → {{ selectedPoe?.name }} → {{ selectedPod?.name }}</strong></div><div><small>Fuente</small><strong>{{ selectedSource?.sourceType }} · {{ selectedSource?.bookingNumber || selectedSource?.providerName }}</strong></div><div><small>CBM cobrable</small><strong>{{ cargoCalculation?.chargeableCbm.toFixed(3) }}</strong></div></div>
         <div class="table-wrap"><table><thead><tr><th>Rubro</th><th>Costo</th><th>Venta</th></tr></thead><tbody><tr v-for="(line, index) in quoteLines" :key="index"><td>{{ line.name }}</td><td>{{ money(line.costAmount, line.currencyCode) }}</td><td>{{ money(line.saleAmount, line.currencyCode) }}</td></tr></tbody></table></div>
         <div class="form-grid two"><label>Válida desde<input v-model="quote.validFrom" type="date" /></label><label>Válida hasta<input v-model="quote.validTo" type="date" /></label></div>
         <div class="draft-total"><span>Total venta</span><strong>{{ money(totalSale, selectedSource?.currencyCode || 'USD') }}</strong><small>Margen {{ margin.toFixed(2) }}%</small></div>
