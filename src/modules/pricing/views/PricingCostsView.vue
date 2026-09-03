@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { BadgeDollarSign, Pencil, Power, PowerOff, Trash2 } from 'lucide-vue-next'
+import { CircleDollarSign, Pencil, Power, PowerOff, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
 import {
   DhCrudToolbar,
@@ -69,7 +69,7 @@ const columns: DhTableColumn<CostDto>[] = [
   { key: 'utilityAmount', label: 'Utilidad', align: 'right' },
   { key: 'chargeBasis', label: 'Base de cobro', align: 'center' },
   { key: 'isActive', label: 'Estado', align: 'center' },
-  { key: 'actions', label: '', align: 'right', width: '120px' },
+  { key: 'actions', label: '', align: 'right', width: '144px' },
 ]
 
 const typeOptions = [
@@ -274,7 +274,7 @@ onMounted(async () => {
     <DhPageHeader
       title="Costos"
       subtitle="Matriz maestra de costos fijos, opcionales y variables por naviera, agente y puerto."
-      :icon="BadgeDollarSign"
+      :icon="CircleDollarSign"
     >
       <template v-if="canCreate" #actions
         ><DhButton label="Nuevo costo" @click="openForm()"
@@ -444,37 +444,41 @@ onMounted(async () => {
               :label="value ? 'Activo' : 'Inactivo'"
               :variant="value ? 'success' : 'neutral'"
           /></template>
-          <template #cell-actions="{ row }"
-            ><div class="flex justify-end gap-1">
+          <template #cell-actions="{ row }">
+            <div class="flex items-center justify-end gap-2">
               <button
                 v-if="canUpdate"
                 type="button"
-                class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-black/[0.025] text-[var(--dh-text-soft)] transition hover:bg-black/[0.07] hover:text-[var(--dh-text)] dark:bg-white/[0.05] dark:hover:bg-white/[0.12]"
+                aria-label="Editar costo"
                 title="Editar"
                 @click.stop="openForm(row)"
               >
-                <Pencil class="h-4 w-4" /></button
-              ><button
+                <Pencil class="h-[18px] w-[18px] shrink-0" />
+              </button>
+              <button
                 v-if="canSetActive"
                 type="button"
-                class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-black/[0.025] transition hover:bg-black/[0.07] dark:bg-white/[0.05] dark:hover:bg-white/[0.12]"
+                :aria-label="row.isActive ? 'Inactivar costo' : 'Activar costo'"
                 :title="row.isActive ? 'Inactivar' : 'Activar'"
                 @click.stop="toggleActive(row)"
               >
-                <PowerOff v-if="row.isActive" class="h-4 w-4 text-amber-600" /><Power
-                  v-else
-                  class="h-4 w-4 text-emerald-600"
-                /></button
-              ><button
+                <PowerOff v-if="row.isActive" class="h-[18px] w-[18px] shrink-0 text-amber-500" />
+                <Power v-else class="h-[18px] w-[18px] shrink-0 text-emerald-500" />
+              </button>
+              <button
                 v-if="canDelete"
                 type="button"
-                class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/[0.06] text-red-500 transition hover:bg-red-500/[0.14]"
+                aria-label="Eliminar costo"
                 title="Eliminar"
                 @click.stop="confirmDelete(row)"
               >
-                <Trash2 class="h-4 w-4" />
-              </button></div
-          ></template>
+                <Trash2 class="h-[18px] w-[18px] shrink-0" />
+              </button>
+            </div>
+          </template>
         </DhDataTable>
       </div>
       <div class="mt-5">
