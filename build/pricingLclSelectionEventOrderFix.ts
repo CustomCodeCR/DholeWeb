@@ -20,21 +20,28 @@ export function pricingLclSelectionEventOrderFix(): Plugin {
 
       let code = source
 
-      // The parent wizard must receive and hydrate the complete source before the
-      // v-model changes to "Seleccionado". Emitting modelValue first was the cause
-      // of Pantalla 5 staying selected without reliably reaching Pantalla 6.
+      // `select` is also a native DOM event name. Keep it for backwards compatibility,
+      // but expose a dedicated component event that unambiguously carries the complete
+      // calculated source to the wizard before modelValue triggers Pantalla 5 -> 6.
+      code = replaceOne(
+        code,
+        `const emit = defineEmits<{\n  select: [selection: LclRateSourceSelection]\n  'update:modelValue': [value: string]\n  'update:requestedCbm': [value: number]\n}>()`,
+        `const emit = defineEmits<{\n  select: [selection: LclRateSourceSelection]\n  'source-selected': [selection: LclRateSourceSelection]\n  'update:modelValue': [value: string]\n  'update:requestedCbm': [value: number]\n}>()`,
+        'dedicated LCL source event declaration',
+      )
+
       code = replaceOne(
         code,
         "    emit('update:modelValue', `Own:${row.id}`)\n    emit('select', selection)",
-        "    emit('select', selection)\n    emit('update:modelValue', `Own:${row.id}`)",
-        'own LCL event order',
+        "    emit('source-selected', selection)\n    emit('select', selection)\n    emit('update:modelValue', `Own:${row.id}`)",
+        'own LCL resolved source order',
       )
 
       code = replaceOne(
         code,
         "  emit('update:modelValue', `Coloader:${rate.id}`)\n  emit('select', selection)",
-        "  emit('select', selection)\n  emit('update:modelValue', `Coloader:${rate.id}`)",
-        'coloader LCL event order',
+        "  emit('source-selected', selection)\n  emit('select', selection)\n  emit('update:modelValue', `Coloader:${rate.id}`)",
+        'coloader LCL resolved source order',
       )
 
       return { code, map: null }
