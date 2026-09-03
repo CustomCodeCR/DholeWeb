@@ -20,28 +20,22 @@ export function pricingLclSelectionEventOrderFix(): Plugin {
 
       let code = source
 
-      // `select` is also a native DOM event name. Keep it for backwards compatibility,
-      // but expose a dedicated component event that unambiguously carries the complete
-      // calculated source to the wizard before modelValue triggers Pantalla 5 -> 6.
-      code = replaceOne(
-        code,
-        `const emit = defineEmits<{\n  select: [selection: LclRateSourceSelection]\n  'update:modelValue': [value: string]\n  'update:requestedCbm': [value: number]\n}>()`,
-        `const emit = defineEmits<{\n  select: [selection: LclRateSourceSelection]\n  'source-selected': [selection: LclRateSourceSelection]\n  'update:modelValue': [value: string]\n  'update:requestedCbm': [value: number]\n}>()`,
-        'dedicated LCL source event declaration',
-      )
-
+      // Keep the original component contract. The complete source must reach the
+      // parent wizard BEFORE update:modelValue advances Pantalla 5 -> Pantalla 6.
+      // Emitting modelValue first unmounted Pantalla 5 before applyLclRateSource ran,
+      // leaving stale RS / empty carrier / 0 freight values in Pantalla 6.
       code = replaceOne(
         code,
         "    emit('update:modelValue', `Own:${row.id}`)\n    emit('select', selection)",
-        "    emit('source-selected', selection)\n    emit('select', selection)\n    emit('update:modelValue', `Own:${row.id}`)",
-        'own LCL resolved source order',
+        "    emit('select', selection)\n    emit('update:modelValue', `Own:${row.id}`)",
+        'own LCL selection order',
       )
 
       code = replaceOne(
         code,
         "  emit('update:modelValue', `Coloader:${rate.id}`)\n  emit('select', selection)",
-        "  emit('source-selected', selection)\n  emit('select', selection)\n  emit('update:modelValue', `Coloader:${rate.id}`)",
-        'coloader LCL resolved source order',
+        "  emit('select', selection)\n  emit('update:modelValue', `Coloader:${rate.id}`)",
+        'coloader LCL selection order',
       )
 
       return { code, map: null }
