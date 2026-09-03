@@ -1,0 +1,99 @@
+name: Apply LCL persistence and preauthorization fixes
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/apply-lcl-persistence-preauth-fixes.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Patch Web
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          wizard = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = wizard.read_text()
+
+          def replace_one(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 anchor, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_one(
+              '<DhBadge variant="success">Pre-aprobada</DhBadge>',
+              '<DhBadge :variant="rate.status === \'PreAuthorized\' ? \'warning\' : \'success\'">{{ rate.status === \'PreAuthorized\' ? \'Preautorizada\' : \'Preaprobada\' }}</DhBadge>',
+              'preauthorized badge',
+          )
+
+          replace_one(
+              '<DhInput v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />',
+              '<DhInput v-if="shipmentModeForApi !== \'Lcl\'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />\n            <div v-else class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>',
+              'LCL free days field',
+          )
+
+          replace_one(
+              '      freeDays: number(form.freeDays),',
+              "      freeDays: shipmentModeForApi.value === 'Lcl' ? 0 : number(form.freeDays),",
+              'create free days persistence',
+          )
+
+          count = text.count('      containerQuantity: form.equipmentQuantity,')
+          if count < 1:
+              raise SystemExit('container quantity persistence anchor missing')
+          text = text.replace(
+              '      containerQuantity: form.equipmentQuantity,',
+              "      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,",
+          )
+
+          replace_one(
+              '      containers: [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],',
+              "      containers: shipmentModeForApi.value === 'Lcl' ? [] : [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],",
+              'open-request LCL container allocations',
+          )
+
+          replace_one(
+              '''      containers: [\n        {\n          containerTypeId: equipment!.id,\n          containerTypeName: equipmentName,\n          containerTypeCode: equipment!.code,\n          quantity: form.equipmentQuantity,\n        },\n      ],''',
+              '''      containers: shipmentModeForApi.value === 'Lcl'\n        ? []\n        : [\n            {\n              containerTypeId: equipment!.id,\n              containerTypeName: equipmentName,\n              containerTypeCode: equipment!.code,\n              quantity: form.equipmentQuantity,\n            },\n          ],''',
+              'main LCL container allocations',
+          )
+
+          replace_one(
+              '<p class="mt-1 text-sm font-bold">Días libres: {{ editingRate.freeDays }}</p>',
+              '<p v-if="editingRate.shipmentMode !== \'Lcl\'" class="mt-1 text-sm font-bold">Días libres: {{ editingRate.freeDays }}</p>',
+              'screen 09 LCL free days',
+          )
+
+          wizard.write_text(text)
+
+          service = Path('src/core/services/ownLclConsolidationService.ts')
+          service_text = service.read_text()
+          anchor = "    { lineKey: 'ORIGIN_MANIFEST', scope: 'ORIGIN', name: 'MANIFEST', chargeBasis: 'HBL', costUnit: 15, saleUnit: 25 },"
+          replacement = anchor + "\n    { lineKey: 'ORIGIN_PICK_UP', scope: 'ORIGIN', name: 'PICK UP', chargeBasis: 'Flat', costUnit: 0, saleUnit: 0 },"
+          if service_text.count(anchor) != 1:
+              raise SystemExit(f'PICK UP Web catalog anchor count={service_text.count(anchor)}')
+          service.write_text(service_text.replace(anchor, replacement, 1))
+          PY
+          git diff --check
+
+      - name: Commit Web fixes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue src/core/services/ownLclConsolidationService.ts
+          git commit -m "fix(web): persist LCL lines and show preauthorized rates"
+          git push origin HEAD:develop
