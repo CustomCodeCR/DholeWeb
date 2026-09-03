@@ -30,13 +30,14 @@ jobs:
           start = text.find(marker)
           if start < 0:
               raise SystemExit('WHS patch-loop start was not found')
-          replacement = '''wizard = 'src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
-rep(wizard, '<p v-if="selectedWarehouseContactNames"', "<p v-if=\"shipmentMode !== 'FCL' && selectedWarehouseContactNames\"", 'hide WHS contact names for FCL')
-rep(wizard, '<p v-if="selectedWarehouseContactEmails"', "<p v-if=\"shipmentMode !== 'FCL' && selectedWarehouseContactEmails\"", 'hide WHS contact emails for FCL')
-rep(wizard, '<p v-if="selectedWarehouseContactPhones"', "<p v-if=\"shipmentMode !== 'FCL' && selectedWarehouseContactPhones\"", 'hide WHS contact phones for FCL')
-'''
-          text = text[:start] + replacement
-          path.write_text(text)
+          replacement = "\n".join([
+              "wizard = 'src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'",
+              "rep(wizard, '<p v-if=\"selectedWarehouseContactNames\"', \"<p v-if=\\\"shipmentMode !== 'FCL' && selectedWarehouseContactNames\\\"\", 'hide WHS contact names for FCL')",
+              "rep(wizard, '<p v-if=\"selectedWarehouseContactEmails\"', \"<p v-if=\\\"shipmentMode !== 'FCL' && selectedWarehouseContactEmails\\\"\", 'hide WHS contact emails for FCL')",
+              "rep(wizard, '<p v-if=\"selectedWarehouseContactPhones\"', \"<p v-if=\\\"shipmentMode !== 'FCL' && selectedWarehouseContactPhones\\\"\", 'hide WHS contact phones for FCL')",
+              "",
+          ])
+          path.write_text(text[:start] + replacement)
           PY
 
       - name: Apply Web changes
