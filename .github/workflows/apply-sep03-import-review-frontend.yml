@@ -1,0 +1,32 @@
+name: Apply Sep 03 import review frontend
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/scripts/complete_sep03_import_review_frontend.py'
+      - '.github/workflows/apply-sep03-import-review-frontend.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Patch import review frontend
+        run: python .github/scripts/complete_sep03_import_review_frontend.py
+      - name: Commit frontend changes
+        run: |
+          if git diff --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/core/interfaces/pricing.ts src/modules/pricing/views/PricingImportsView.vue src/modules/pricing/components/PricingImportReviewDrawer.vue
+          git commit -m 'feat(web): support imported-rate preauthorization and preapproval'
+          git push origin develop
