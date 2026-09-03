@@ -26,7 +26,18 @@ jobs:
           path = Path('.github/scripts/apply-sep03-web-fixes.py')
           text = path.read_text()
           text = text.replace("} from '@/core/services/ownLclConsolidationService' '''", "} from '@/core/services/ownLclConsolidationService'\n'''")
-          path.write_text(text)
+          old = '''wizard = 'src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+          for field in ('contacts', 'email', 'phone'):
+              old = f\'''<p v-if="metadata(selectedWarehouse)?.{field}"\'''
+              new = f\'''<p v-if="shipmentMode !== 'FCL' && metadata(selectedWarehouse)?.{field}"\'''
+              rep(wizard, old, new, f'hide WHS {field} for FCL')'''
+          new = '''wizard = 'src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+          rep(wizard, '<p v-if="selectedWarehouseContactNames"', '<p v-if="shipmentMode !== \'FCL\' && selectedWarehouseContactNames"', 'hide WHS contact names for FCL')
+          rep(wizard, '<p v-if="selectedWarehouseContactEmails"', '<p v-if="shipmentMode !== \'FCL\' && selectedWarehouseContactEmails"', 'hide WHS contact emails for FCL')
+          rep(wizard, '<p v-if="selectedWarehouseContactPhones"', '<p v-if="shipmentMode !== \'FCL\' && selectedWarehouseContactPhones"', 'hide WHS contact phones for FCL')'''
+          if old not in text:
+              raise SystemExit('WHS patch-loop anchor was not found')
+          path.write_text(text.replace(old, new, 1))
           PY
 
       - name: Apply Web changes
