@@ -7,6 +7,7 @@ import { pricingLclSourceVisibilityFix } from './build/pricingLclSourceVisibilit
 import { pricingLclCostBreakdownUi } from './build/pricingLclCostBreakdownUi'
 import { pricingWizardFixedAutomaticCostEditFix } from './build/pricingWizardFixedAutomaticCostEditFix'
 import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
+import { pricingWizardOwnLclLinePersistence } from './build/pricingWizardOwnLclLinePersistence'
 import { pricingWizardLclRouteContextFix } from './build/pricingWizardLclRouteContextFix'
 import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 import { pricingWizardLclFclParityFix } from './build/pricingWizardLclFclParityFix'
@@ -21,7 +22,7 @@ import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 import { pricingWizardToastErrors } from './build/pricingWizardToastErrors'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
