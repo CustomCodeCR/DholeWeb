@@ -1,0 +1,41 @@
+name: Fix Sep 03 Web build
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/fix-sep03-web-build.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Fix nested Vue key template literal
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('build/pricingWizardSep02Requirements.ts')
+          text = path.read_text()
+          old = ':key="`${contact.email || contact.phone || contact.name || index}`"'
+          new = ':key="contact.email || contact.phone || contact.name || index"'
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected one nested key literal, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build/pricingWizardSep02Requirements.ts
+          git commit -m "fix(web): correct FCL contact transform syntax"
+          git push origin HEAD:develop
