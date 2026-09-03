@@ -45,7 +45,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Seleccionar alternativa')\nconst pageDescription = computed(() => isEditing.value\n  ? 'Toda la tarifa se revisa en el mismo wizard. Las tarifas aceptadas crean una nueva revisión al guardar.'\n  : 'Construya la alternativa paso a paso con catálogos filtrados por modalidad.')`,
-    `const pageTitle = computed(() =>\n  props.sellerRequestMode\n    ? 'Solicitar tarifa a Pricing'\n    : props.rateRequestId\n      ? 'Completar solicitud de tarifa'\n      : isEditing.value\n        ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa')\n        : 'Seleccionar alternativa',\n)\nconst pageDescription = computed(() =>\n  props.sellerRequestMode\n    ? 'Complete las pantallas 0 a 3. Pricing continuará desde la pantalla 4 y recibirá la solicitud según su prioridad.'\n    : props.rateRequestId\n      ? 'La información capturada por Ventas está bloqueada como punto de partida; continúe con tarifa, proveedor, líneas y borrador.'\n      : isEditing.value\n        ? 'Toda la tarifa se revisa en el mismo wizard. Las tarifas aceptadas crean una nueva revisión al guardar.'\n        : 'Construya la alternativa paso a paso con catálogos filtrados por modalidad.',\n)`,
+    `const pageTitle = computed(() =>\n  props.sellerRequestMode\n    ? 'Solicitar tarifa a Pricing'\n    : props.rateRequestId\n      ? 'Completar solicitud de tarifa'\n      : isEditing.value\n        ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa')\n        : 'Seleccionar alternativa',\n)\nconst pageDescription = computed(() =>\n  props.sellerRequestMode\n    ? 'Complete las pantallas 0 a 3. Pricing continuará la solicitud desde la pantalla 4.'\n    : props.rateRequestId\n      ? 'Continúe desde donde Ventas dejó la solicitud y complete tarifa, proveedor, líneas y borrador.'\n      : isEditing.value\n        ? 'Toda la tarifa se revisa en el mismo wizard. Las tarifas aceptadas crean una nueva revisión al guardar.'\n        : 'Construya la alternativa paso a paso con catálogos filtrados por modalidad.',\n)`,
     'page title',
   )
 
@@ -53,7 +53,7 @@ function patchWizard(source: string) {
     code,
     `async function saveOpenRequest() {`,
     `\n\nasync function saveRate() {`,
-    `async function saveOpenRequest() {\n  const origin = selectedOrigin.value\n  const destination = selectedDestination.value\n  const equipment = selectedEquipment.value\n  const incoterm = selectedIncoterm.value\n\n  if (!origin || !destination || !equipment || !incoterm) {\n    toastStore.error('Complete modalidad, embarque, ruta, equipo, Incoterm y carga antes de enviar la solicitud.')\n    return\n  }\n\n  try {\n    saving.value = true\n    const response = await callEndpoint<unknown, Record<string, unknown>>(\n      { method: 'POST', path: '/api/pricing/rate-requests', headers: { Accept: 'application/json' } },\n      {\n        body: {\n          priority: rateRequestPriority.value,\n          clientName: form.clientName.trim() || null,\n          executiveName: form.executiveName.trim() || null,\n          shipmentMode: shipmentModeForApi.value,\n          originName: displayValue(origin),\n          destinationName: displayValue(destination),\n          payload: {\n            form: JSON.parse(JSON.stringify(form)),\n            supportEntityId: supportEntityId.value,\n            supportDocuments: supportDocuments.value,\n          },\n        },\n      },\n    )\n    const requestId = unwrapApiResponse<string>(response as never)\n    const sla = rateRequestPriority.value === 'Green' ? '24 horas' : rateRequestPriority.value === 'Yellow' ? '48 horas' : '72 horas'\n    toastStore.success('Solicitud enviada a Pricing', \\`Solicitud \\${requestId} · tiempo máximo \\${sla}.\\`)\n    resetWizard()\n    rateRequestPriority.value = 'Green'\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo enviar la solicitud abierta a Pricing.')\n  } finally {\n    saving.value = false\n  }\n}\n\nasync function saveRate() {`,
+    `async function saveOpenRequest() {\n  const origin = selectedOrigin.value\n  const destination = selectedDestination.value\n  const equipment = selectedEquipment.value\n  const incoterm = selectedIncoterm.value\n\n  if (!origin || !destination || !equipment || !incoterm) {\n    toastStore.error('Complete modalidad, embarque, ruta, equipo, Incoterm y carga antes de enviar la solicitud.')\n    return\n  }\n\n  try {\n    saving.value = true\n    const response = await callEndpoint<unknown, Record<string, unknown>>(\n      { method: 'POST', path: '/api/pricing/rate-requests', headers: { Accept: 'application/json' } },\n      {\n        body: {\n          priority: rateRequestPriority.value,\n          clientName: form.clientName.trim() || null,\n          executiveName: form.executiveName.trim() || null,\n          shipmentMode: shipmentModeForApi.value,\n          originName: displayValue(origin),\n          destinationName: displayValue(destination),\n          payload: {\n            form: JSON.parse(JSON.stringify(form)),\n            supportEntityId: supportEntityId.value,\n            supportDocuments: supportDocuments.value,\n          },\n        },\n      },\n    )\n    const requestId = unwrapApiResponse<string>(response as never)\n    const sla = rateRequestPriority.value === 'Green' ? '24 horas' : rateRequestPriority.value === 'Yellow' ? '48 horas' : '72 horas'\n    toastStore.success('Solicitud enviada a Pricing', 'Solicitud ' + requestId + ' · tiempo máximo ' + sla + '.')\n    resetWizard()\n    rateRequestPriority.value = 'Green'\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo enviar la solicitud abierta a Pricing.')\n  } finally {\n    saving.value = false\n  }\n}\n\nasync function saveRate() {`,
     'save open request',
   )
 
@@ -67,14 +67,14 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `    createdRateId.value = rateId\n    await router.push({ name: 'pricing-rates' })`,
-    `    if (props.rateRequestId && !editingRate.value) {\n      await callEndpoint<unknown, { rateId: string }>(\n        { method: 'POST', path: \\`/api/pricing/rate-requests/\\${props.rateRequestId}/attach-rate\\`, headers: { Accept: 'application/json' } },\n        { body: { rateId } },\n      )\n    }\n    createdRateId.value = rateId\n    await router.push({ name: 'pricing-rates' })`,
+    `    if (props.rateRequestId && !editingRate.value) {\n      await callEndpoint<unknown, { rateId: string }>(\n        { method: 'POST', path: '/api/pricing/rate-requests/' + props.rateRequestId + '/attach-rate', headers: { Accept: 'application/json' } },\n        { body: { rateId } },\n      )\n    }\n    createdRateId.value = rateId\n    await router.push({ name: 'pricing-rates' })`,
     'attach created rate',
   )
 
   code = replaceOne(
     code,
     `function modalityForRate(rate: RateDto): Modality {`,
-    `async function hydrateRateRequest() {\n  if (!props.rateRequestId) return\n  try {\n    loadingExistingRate.value = true\n    const response = await callEndpoint<unknown>({\n      method: 'GET',\n      path: \\`/api/pricing/rate-requests/\\${props.rateRequestId}\\`,\n      headers: { Accept: 'application/json' },\n    })\n    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)\n    if (request.rateId) {\n      await router.replace({ name: 'pricing-rate-wizard', params: { rateId: request.rateId }, query: { mode: 'edit' } })\n      return\n    }\n    if (request.payload?.form) Object.assign(form, request.payload.form)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId\n    supportDocuments.value = Array.isArray(request.payload?.supportDocuments) ? request.payload!.supportDocuments! : []\n    rateRequestPriority.value = request.priority\n    step.value = 5\n    await searchApprovedRates()\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo recuperar la solicitud enviada por Ventas.')\n    await router.push({ name: 'pricing-rates' })\n  } finally {\n    loadingExistingRate.value = false\n  }\n}\n\nfunction modalityForRate(rate: RateDto): Modality {`,
+    `async function hydrateRateRequest() {\n  if (!props.rateRequestId) return\n  try {\n    loadingExistingRate.value = true\n    const response = await callEndpoint<unknown>({\n      method: 'GET',\n      path: '/api/pricing/rate-requests/' + props.rateRequestId,\n      headers: { Accept: 'application/json' },\n    })\n    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)\n    if (request.rateId) {\n      await router.replace({ name: 'pricing-rate-wizard', params: { rateId: request.rateId }, query: { mode: 'edit' } })\n      return\n    }\n    if (request.payload?.form) Object.assign(form, request.payload.form)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId\n    supportDocuments.value = Array.isArray(request.payload?.supportDocuments) ? request.payload.supportDocuments : []\n    rateRequestPriority.value = request.priority\n    step.value = 5\n    await searchApprovedRates()\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo recuperar la solicitud enviada por Ventas.')\n    await router.push({ name: 'pricing-rates' })\n  } finally {\n    loadingExistingRate.value = false\n  }\n}\n\nfunction modalityForRate(rate: RateDto): Modality {`,
     'request hydration',
   )
 
@@ -102,24 +102,31 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `<span class="text-[10px] font-black uppercase tracking-[0.16em]">{{ String(index + 1).padStart(2, '0') }}</span>`,
-    `<span class="text-[10px] font-black uppercase tracking-[0.16em]">{{ String(sellerRequestMode ? index : index + 1).padStart(2, '0') }}</span>`,
+    `<span class="text-[10px] font-black uppercase tracking-[0.16em]">{{ String((sellerRequestMode || rateRequestId) ? index : index + 1).padStart(2, '0') }}</span>`,
     'seller step number',
   )
 
-  ;[1, 2, 3, 4].forEach((screen) => {
+  ;[1, 2, 3, 4, 5, 6, 7, 8].forEach((screen) => {
     code = replaceOne(
       code,
       `<p class="crystal-kicker">Pantalla ${screen}</p>`,
-      `<p class="crystal-kicker">{{ sellerRequestMode ? 'Pantalla ${screen - 1}' : 'Pantalla ${screen}' }}</p>`,
+      `<p class="crystal-kicker">{{ (sellerRequestMode || rateRequestId) ? 'Pantalla ${screen - 1}' : 'Pantalla ${screen}' }}</p>`,
       `screen ${screen} label`,
     )
   })
 
   code = replaceOne(
     code,
-    `<div v-else-if="step === 4" class="space-y-6">\n          <div>\n            <p class="crystal-kicker">{{ sellerRequestMode ? 'Pantalla 3' : 'Pantalla 4' }}</p>\n            <h2 class="crystal-title">Descripción de carga y CABYS</h2>\n          </div>`,
-    `<div v-else-if="step === 4" class="space-y-6">\n          <div>\n            <p class="crystal-kicker">{{ sellerRequestMode ? 'Pantalla 3' : 'Pantalla 4' }}</p>\n            <h2 class="crystal-title">Descripción de carga y CABYS</h2>\n          </div>\n\n          <div v-if="sellerRequestMode" class="crystal-soft border border-[rgb(var(--dh-primary-rgb)/0.24)] p-4 md:p-5">\n            <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(260px,420px)] md:items-end">\n              <div>\n                <p class="text-sm font-black">Tipo de tarifa</p>\n                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Define el tiempo máximo de Pricing: Verde 24 h, Amarillo 48 h y Rojo 72 h.</p>\n              </div>\n              <DhSelect v-model="rateRequestPriority" label="Prioridad / tiempo máximo" :options="rateRequestPriorityOptions" />\n            </div>\n          </div>`,
+    `<h2 class="crystal-title">Descripción de carga y CABYS</h2>\n          </div>`,
+    `<h2 class="crystal-title">Descripción de carga y CABYS</h2>\n          </div>\n\n          <div v-if="sellerRequestMode" class="crystal-soft border border-[rgb(var(--dh-primary-rgb)/0.24)] p-4 md:p-5">\n            <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(260px,420px)] md:items-end">\n              <div>\n                <p class="text-sm font-black">Tipo de tarifa</p>\n                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Verde: 24 horas · Amarillo: 48 horas · Rojo: 72 horas.</p>\n              </div>\n              <DhSelect v-model="rateRequestPriority" label="Tipo de tarifa" :options="rateRequestPriorityOptions" />\n            </div>\n          </div>`,
     'seller priority selector',
+  )
+
+  code = replaceOne(
+    code,
+    `<div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>`,
+    `<div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ (sellerRequestMode || rateRequestId) ? step - 1 : step }} / {{ (sellerRequestMode || rateRequestId) ? maxStep - 1 : maxStep }}</div>`,
+    'seller footer step',
   )
 
   code = replaceOne(
@@ -160,7 +167,7 @@ export function pricingSellerRateRequests(): Plugin {
     name: 'dhole-pricing-seller-rate-requests',
     enforce: 'pre',
     transform(source, id) {
-      const normalizedId = id.replace(/\\\\/g, '/').split('?')[0]
+      const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (id.includes('?')) return null
       if (normalizedId.endsWith(WIZARD_PATH)) return { code: patchWizard(source), map: null }
       if (normalizedId.endsWith(RATES_PATH)) return { code: patchRates(source), map: null }
