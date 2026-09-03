@@ -21,13 +21,13 @@ function patchWizard(source: string) {
   const hydrationEndReplacement = `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n  step.value = 6\n}`
   code = replaceOne(code, hydrationEnd, hydrationEndReplacement, 'LCL hydration completion')
 
-  // pricingWizardLclAtomicSelection previously depended on Vue's custom select
-  // event. Replace that listener with a direct function prop so unmounting Pantalla
-  // 5 cannot interrupt delivery of the calculated consolidation object.
+  // Use a plain function prop. Vue treats props beginning with "on" as event
+  // listeners in several compiler/runtime paths, which left the previous callback
+  // undefined even though modelValue was still updating visually.
   code = replaceOne(
     code,
     `            @select="(selection) => { applyLclRateSource(selection); step = 6 }"`,
-    `            :on-resolved-selection="applyLclRateSource"`,
+    `            :resolve-selection="applyLclRateSource"`,
     'direct LCL resolved selection binding',
   )
 
@@ -63,26 +63,25 @@ function patchWizard(source: string) {
 function patchSelector(source: string) {
   let code = source
 
-  // Direct callback supplied by the Wizard. It is intentionally independent of
-  // emit('select') and v-model, which remain only for backwards compatibility and
-  // visual selected-state updates.
+  // Direct function supplied by the Wizard. Keep select/modelValue only for
+  // backwards compatibility and visual selected-state updates.
   code = replaceOne(
     code,
     `  cargoLines?: OwnLclCargoLineRequest[]\n}>(), {`,
-    `  cargoLines?: OwnLclCargoLineRequest[]\n  onResolvedSelection?: (selection: LclRateSourceSelection) => void\n}>(), {`,
+    `  cargoLines?: OwnLclCargoLineRequest[]\n  resolveSelection?: (selection: LclRateSourceSelection) => void\n}>(), {`,
     'selector direct callback prop',
   )
 
   code = replaceOne(
     code,
     `    emit('update:modelValue', \`Own:\${row.id}\`)\n    emit('select', selection)`,
-    `    props.onResolvedSelection?.(selection)\n    emit('update:modelValue', \`Own:\${row.id}\`)\n    emit('select', selection)`,
+    `    props.resolveSelection?.(selection)\n    emit('update:modelValue', \`Own:\${row.id}\`)\n    emit('select', selection)`,
     'own direct selection callback',
   )
   code = replaceOne(
     code,
     `  emit('update:modelValue', \`Coloader:\${rate.id}\`)\n  emit('select', selection)`,
-    `  props.onResolvedSelection?.(selection)\n  emit('update:modelValue', \`Coloader:\${rate.id}\`)\n  emit('select', selection)`,
+    `  props.resolveSelection?.(selection)\n  emit('update:modelValue', \`Coloader:\${rate.id}\`)\n  emit('select', selection)`,
     'coloader direct selection callback',
   )
 
