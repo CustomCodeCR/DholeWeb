@@ -19,7 +19,7 @@ import { pricingWizardOwnLclExcelOnly } from './build/pricingWizardOwnLclExcelOn
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 
 export default defineConfig({
-  plugins: [pricingSellerRateRequests(), pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
