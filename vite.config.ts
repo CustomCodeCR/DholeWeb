@@ -14,9 +14,10 @@ import { pricingWizardSep02Requirements } from './build/pricingWizardSep02Requir
 import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptionalWeight'
 import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
+import { pricingWizardAgentCountryFilter } from './build/pricingWizardAgentCountryFilter'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
