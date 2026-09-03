@@ -2641,12 +2641,12 @@ async function saveOpenRequest() {
       freeDays: 0,
       validFrom: form.loadDate,
       validTo: addDaysIso(form.loadDate, 30),
-      containerQuantity: form.equipmentQuantity,
+      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
       rateType: 'Spot',
       operationType: operationType.value,
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
-      containers: [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
+      containers: shipmentModeForApi.value === 'Lcl' ? [] : [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
       totalPackages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
       totalPallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
       totalWeightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
@@ -2867,22 +2867,24 @@ async function saveRate() {
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
       idtraNumber: form.idtraNumber.trim() || null,
-      freeDays: number(form.freeDays),
+      freeDays: shipmentModeForApi.value === 'Lcl' ? 0 : number(form.freeDays),
       validFrom: form.loadDate,
       validTo: form.validTo || selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
-      containerQuantity: form.equipmentQuantity,
+      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
       rateType: 'Spot',
       operationType: operationType.value,
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
-      containers: [
-        {
-          containerTypeId: equipment!.id,
-          containerTypeName: equipmentName,
-          containerTypeCode: equipment!.code,
-          quantity: form.equipmentQuantity,
-        },
-      ],
+      containers: shipmentModeForApi.value === 'Lcl'
+        ? []
+        : [
+            {
+              containerTypeId: equipment!.id,
+              containerTypeName: equipmentName,
+              containerTypeCode: equipment!.code,
+              quantity: form.equipmentQuantity,
+            },
+          ],
       transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
       includes: includeTerms.join('\n') || null,
       subjectTo: subjectTerms.join('\n') || null,
@@ -3533,7 +3535,7 @@ onMounted(async () => {
                       {{ rate.pol }} → {{ rate.poe || rate.pod }} · {{ rate.containerType }}
                     </p>
                   </div>
-                  <DhBadge variant="success">Pre-aprobada</DhBadge>
+                  <DhBadge :variant="rate.status === 'PreAuthorized' ? 'warning' : 'success'">{{ rate.status === 'PreAuthorized' ? 'Preautorizada' : 'Preaprobada' }}</DhBadge>
                 </div>
                 <p class="mt-5 text-2xl font-black">{{ formatMoney(rate.freight, displayValue(findById(catalogs.currencies, rate.currencyId)) || rate.currency || 'USD') }}</p>
                 <div class="crystal-validity">
@@ -3592,7 +3594,8 @@ onMounted(async () => {
             <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
             <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
             <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
-            <DhInput v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
+            <DhInput v-if="shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
+            <div v-else class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
             <DhInput v-model.number="form.transitDays" type="number" min="0" label="Días de tránsito" />
           </div>
 
@@ -4056,7 +4059,7 @@ onMounted(async () => {
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Vigencia y cambio</p>
               <p class="mt-3 text-sm font-bold">{{ formatDate(editingRate.validFrom) }} → {{ formatDate(editingRate.validTo) }}</p>
-              <p class="mt-1 text-sm font-bold">Días libres: {{ editingRate.freeDays }}</p>
+              <p v-if="editingRate.shipmentMode !== 'Lcl'" class="mt-1 text-sm font-bold">Días libres: {{ editingRate.freeDays }}</p>
               <p class="mt-1 text-sm font-bold">Tránsito: {{ editingRate.transitTime || 'Por confirmar' }}</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">TC venta: {{ Number(editingRate.exchangeRateSale || editingRate.exchangeRateApplied || 0).toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</p>
             </div>

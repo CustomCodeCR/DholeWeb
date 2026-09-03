@@ -162,6 +162,7 @@ export function createDefaultOwnLclPricingLines(): OwnLclPricingLineDto[] {
     { lineKey: 'ORIGIN_DOC', scope: 'ORIGIN', name: 'DOC FEE', chargeBasis: 'HBL', costUnit: 15, saleUnit: 65 },
     { lineKey: 'ORIGIN_VGM', scope: 'ORIGIN', name: 'VGM', chargeBasis: 'HBL', costUnit: 0, saleUnit: 25 },
     { lineKey: 'ORIGIN_MANIFEST', scope: 'ORIGIN', name: 'MANIFEST', chargeBasis: 'HBL', costUnit: 15, saleUnit: 25 },
+    { lineKey: 'ORIGIN_PICK_UP', scope: 'ORIGIN', name: 'PICK UP', chargeBasis: 'Flat', costUnit: 0, saleUnit: 0 },
   ]
 }
 
