@@ -43,13 +43,6 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    "  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {\n    form.manualRate = true\n    return\n  }",
-    "  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {\n    loadingRates.value = false\n    form.manualRate = true\n    return\n  }",
-    'non-FCL rate lookup early return',
-  )
-
-  code = replaceOne(
-    code,
     '<button type="button" class="crystal-flag" :class="form.overweight ? \'crystal-flag--active\' : \'\'" @click="form.overweight = !form.overweight">',
     '<button v-if="shipmentModeForApi !== \'Lcl\'" type="button" class="crystal-flag" :class="form.overweight ? \'crystal-flag--active\' : \'\'" @click="form.overweight = !form.overweight">',
     'LCL overweight visibility',
