@@ -11,6 +11,14 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
   return source.replace(anchor, replacement)
 }
 
+function replaceLast(source: string, anchor: string, replacement: string, label: string) {
+  const index = source.lastIndexOf(anchor)
+  if (index < 0) {
+    throw new Error(`[pricingWizardOwnLclExcelOnly] Could not find ${label} anchor.`)
+  }
+  return source.slice(0, index) + replacement + source.slice(index + anchor.length)
+}
+
 function patchSelector(source: string) {
   let code = source
 
@@ -56,14 +64,16 @@ function patchWizard(source: string) {
     'own-LCL commercial totals',
   )
 
-  code = replaceOne(
+  // Otros transforms del wizard pueden duplicar bloques intermedios. Pantalla 09 es el
+  // último bloque de vista completa en el template, por eso se modifica la última ocurrencia.
+  code = replaceLast(
     code,
     `<p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>`,
     `<p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas comerciales de la tarifa</p>\n              <p v-if="isOwnLclExcelRate" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">Para LCL propio se muestran únicamente los conceptos calculados por la matriz Excel del Incoterm seleccionado (EXW, FCA o FOB).</p>`,
     'screen 09 commercial lines title',
   )
 
-  code = replaceOne(
+  code = replaceLast(
     code,
     `<tr v-for="line in includedLines" :key="line.key" class="border-t border-[var(--dh-border)]">`,
     `<tr v-for="line in commercialOutputLines" :key="line.key" class="border-t border-[var(--dh-border)]">`,
@@ -74,7 +84,7 @@ function patchWizard(source: string) {
 
   const screen09CommercialTotals = `<div class="crystal-soft p-5">\n            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Totales de la oferta</p>\n            <p v-if="isOwnLclExcelRate" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">Estos totales corresponden únicamente a las líneas comerciales de la matriz Excel mostradas arriba.</p>\n            <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">\n              <div class="min-w-[520px]">\n                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-[10px] font-black uppercase text-[var(--dh-text-muted)]"><span>Concepto</span><span>USD</span><span>CRC</span></div>\n                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm"><strong>Subtotal</strong><strong>{{ formatMoney(commercialSaleBeforeTaxUsd, 'USD') }}</strong><strong>{{ formatMoney(commercialSaleBeforeTaxCrc, 'CRC') }}</strong></div>\n                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm"><strong>IVA</strong><strong>{{ formatMoney(commercialTaxUsd, 'USD') }}</strong><strong>{{ formatMoney(commercialTaxCrc, 'CRC') }}</strong></div>\n                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-4 text-base"><strong>Total</strong><strong class="text-[var(--dh-primary)]">{{ formatMoney(commercialSaleUsd, 'USD') }}</strong><strong class="text-[var(--dh-primary)]">{{ formatMoney(commercialSaleCrc, 'CRC') }}</strong></div>\n              </div>\n            </div>\n            <div class="mt-4 grid gap-3 md:grid-cols-3 text-sm">\n              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Costo interno</span><p class="mt-1 font-black">{{ formatMoney(totalCostUsd, 'USD') }} / {{ formatMoney(totalCostCrc, 'CRC') }}</p></div>\n              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Utilidad interna</span><p class="mt-1 font-black">{{ formatMoney(totalUtilityUsd, 'USD') }} / {{ formatMoney(totalUtilityCrc, 'CRC') }}</p></div>\n              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Margen interno</span><p class="mt-1 font-black">{{ totalMarginPercentage.toFixed(2) }}%</p></div>\n            </div>\n          </div>`
 
-  code = replaceOne(code, screen09Totals, screen09CommercialTotals, 'screen 09 commercial totals')
+  code = replaceLast(code, screen09Totals, screen09CommercialTotals, 'screen 09 commercial totals')
 
   return code
 }
