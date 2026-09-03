@@ -13,6 +13,9 @@ const endpoints = {
   updateAutomatic: { method: 'PUT', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: jsonHeaders },
   getAutomation: { method: 'GET', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: acceptJson },
   destinationPreview: { method: 'GET', path: '/api/pricing/own-lcl-automation/destination-preview', headers: acceptJson },
+  fobScenarios: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}/fob-scenarios', headers: acceptJson },
+  saveFobScenarios: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}/fob-scenarios', headers: jsonHeaders },
+  saveCostOverrides: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}/cost-overrides', headers: jsonHeaders },
   calculate: { method: 'POST', path: '/api/pricing/own-lcl-route-matrix/{{id}}/calculate', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 
@@ -93,6 +96,34 @@ export interface OwnLclAutomationSnapshotDto {
   destinationProfileVersion: string | null
   destinationProfile: OwnLclDestinationProfileDto | null
   includeEmptyReturn: boolean
+}
+
+export interface OwnLclFobScenarioPortDto {
+  polCode: string
+  costPerCbm: number
+  salePerCbm: number
+  recommendedSalePerCbm: number
+  originSurchargePerCbm: number
+}
+
+export interface OwnLclFobScenarioCountryDto {
+  destinationCode: string
+  destinationName: string
+  ports: OwnLclFobScenarioPortDto[]
+}
+
+export interface OwnLclFobScenarioMatrixDto {
+  consolidationId: string
+  consolidationNumber: number
+  matrixVersion: string
+  validTo: string | null
+  oceanFreight: number
+  maximumCbm: number
+  carrierDestinationCostTotal: number
+  panamaToCostaRicaCost: number
+  bunkerCost: number
+  costaRicaTransferBaseCbm: number
+  countries: OwnLclFobScenarioCountryDto[]
 }
 
 export interface OwnLclCargoLineRequest {
@@ -181,6 +212,23 @@ export interface AutomaticOwnLclConsolidationRequest {
   bunkerCost: number
 }
 
+export interface SaveOwnLclCostOverridesRequest {
+  oceanFreight: number
+  maximumCbm: number
+  carrierDestinationCostTotal: number
+  panamaToCostaRicaCost: number
+  bunkerCost: number
+  costaRicaTransferBaseCbm: number
+}
+
+export interface SaveOwnLclFobScenariosRequest {
+  rows: Array<{
+    destinationCode: string
+    polCode: string
+    salePerCbm: number
+  }>
+}
+
 export interface CalculateOwnLclQuoteRequest {
   destinationCode: string
   incoterm: string
@@ -226,6 +274,16 @@ export const OwnLclConsolidationService = {
   }): Promise<OwnLclDestinationProfileDto> {
     const response = await callEndpointWithQuery<unknown>(endpoints.destinationPreview, { query })
     return unwrapApiResponse<OwnLclDestinationProfileDto>(response as never)
+  },
+  async getFobScenarios(id: string): Promise<OwnLclFobScenarioMatrixDto> {
+    const response = await callEndpoint<unknown>(endpoints.fobScenarios, { params: { id } })
+    return unwrapApiResponse<OwnLclFobScenarioMatrixDto>(response as never)
+  },
+  async saveFobScenarios(id: string, payload: SaveOwnLclFobScenariosRequest): Promise<void> {
+    await callEndpoint<unknown, SaveOwnLclFobScenariosRequest>(endpoints.saveFobScenarios, { params: { id }, body: payload })
+  },
+  async saveCostOverrides(id: string, payload: SaveOwnLclCostOverridesRequest): Promise<void> {
+    await callEndpoint<unknown, SaveOwnLclCostOverridesRequest>(endpoints.saveCostOverrides, { params: { id }, body: payload })
   },
   async create(payload: AutomaticOwnLclConsolidationRequest): Promise<CreatedOwnLcl> {
     const response = await callEndpoint<unknown, AutomaticOwnLclConsolidationRequest>(endpoints.createAutomatic, { body: payload })
