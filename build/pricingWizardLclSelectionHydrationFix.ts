@@ -13,11 +13,15 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
-  // pricingWizardLclFclParityFix keeps the original automatic Pantalla 5 -> 6
-  // navigation on update:modelValue. PricingLclRateSourceSelector now emits the full
-  // source selection BEFORE update:modelValue, so when that navigation fires the
-  // wizard is already completely hydrated. Do not replace that proven navigation
-  // mechanism with another handler here.
+  // Use a dedicated component event for the resolved LCL source. The selector emits
+  // this complete object synchronously before update:modelValue; only after hydration
+  // does the proven Pantalla 5 -> 6 navigation fire.
+  code = replaceOne(
+    code,
+    `            @select="applyLclRateSource"`,
+    `            @source-selected="applyLclRateSource"`,
+    'dedicated LCL source hydration event',
+  )
 
   code = replaceOne(
     code,
