@@ -94,8 +94,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `      <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>\n      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>`,
-    `      <DhButton v-if="sellerRequestMode && step === 3" :disabled="saving || !canNext" @click="saveOpenRequest"><Check class="h-4 w-4" /> {{ saving ? 'Enviando…' : 'Enviar solicitud a Pricing' }}</DhButton>\n      <DhButton v-else-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>\n      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>`,
+    `      <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>\n      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || (loadingRates && shipmentModeForApi === 'Fcl')" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>`,
+    `      <DhButton v-if="sellerRequestMode && step === 3" :disabled="saving || !canNext" @click="saveOpenRequest"><Check class="h-4 w-4" /> {{ saving ? 'Enviando…' : 'Enviar solicitud a Pricing' }}</DhButton>\n      <DhButton v-else-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>\n      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || (loadingRates && shipmentModeForApi === 'Fcl')" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>`,
     'seller final action',
   )
 
