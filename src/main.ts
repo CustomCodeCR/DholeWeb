@@ -1,4 +1,5 @@
 import './assets/main.css'
+import './assets/responsive.css'
 import './assets/pricing-rate-navigation.css'
 import './assets/pricing-metric-colors.css'
 
