@@ -13,15 +13,11 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
-  // Pantalla 5 must not advance from update:modelValue. That event is emitted before
-  // the selector emits the complete source payload, which left Pantalla 6 with stale
-  // agent/carrier/freight values. Keep v-model normal.
-  code = replaceOne(
-    code,
-    `            :model-value="lclSelectedSourceKey"\n            @update:model-value="(value) => { lclSelectedSourceKey = String(value || ''); if (value) step = 6 }"`,
-    `            v-model="lclSelectedSourceKey"`,
-    'premature LCL source advance',
-  )
+  // pricingWizardLclFclParityFix keeps the original automatic Pantalla 5 -> 6
+  // navigation on update:modelValue. PricingLclRateSourceSelector now emits the full
+  // source selection BEFORE update:modelValue, so when that navigation fires the
+  // wizard is already completely hydrated. Do not replace that proven navigation
+  // mechanism with another handler here.
 
   code = replaceOne(
     code,
@@ -43,17 +39,6 @@ function patchWizard(source: string) {
   const carrierAnchor = `  const sourceCarrier = selection.carrierId\n    ? catalogs.carriers.find((item) => item.id === selection.carrierId)\n    : catalogs.carriers.find((item) => {\n        const sourceCode = normalizeCatalogValue(selection.carrierCode ?? '')\n        const sourceName = normalizeCatalogValue(selection.carrierName ?? '')\n        return (sourceCode && normalizeCatalogValue(item.code ?? '') === sourceCode)\n          || (sourceName && normalizeCatalogValue(displayValue(item)) === sourceName)\n      })\n  if (sourceCarrier) form.carrierId = sourceCarrier.id`
   const carrierReplacement = `  const sourceCarrierCode = normalizeCatalogValue(selection.carrierCode ?? '')\n  const sourceCarrierName = normalizeCatalogValue(selection.carrierName ?? '')\n  const sourceCarrier = selection.carrierId\n    ? catalogs.carriers.find((item) => item.id === selection.carrierId)\n      ?? catalogs.carriers.find((item) => {\n        const candidateCode = normalizeCatalogValue(item.code ?? '')\n        const candidateName = normalizeCatalogValue(displayValue(item))\n        return (sourceCarrierCode && (candidateCode === sourceCarrierCode || candidateCode.includes(sourceCarrierCode) || sourceCarrierCode.includes(candidateCode)))\n          || (sourceCarrierName && (candidateName === sourceCarrierName || candidateName.includes(sourceCarrierName) || sourceCarrierName.includes(candidateName)))\n      })\n    : catalogs.carriers.find((item) => {\n        const candidateCode = normalizeCatalogValue(item.code ?? '')\n        const candidateName = normalizeCatalogValue(displayValue(item))\n        return (sourceCarrierCode && (candidateCode === sourceCarrierCode || candidateCode.includes(sourceCarrierCode) || sourceCarrierCode.includes(candidateCode)))\n          || (sourceCarrierName && (candidateName === sourceCarrierName || candidateName.includes(sourceCarrierName) || sourceCarrierName.includes(candidateName)))\n      })\n  form.carrierId = sourceCarrier?.id ?? ''`
   code = replaceOne(code, carrierAnchor, carrierReplacement, 'LCL source carrier resolution')
-
-  // Advance only from inside applyLclRateSource and only after the entire source has
-  // been copied into the wizard. This keeps the old automatic navigation while
-  // guaranteeing Pantalla 6 never opens with stale values.
-  const hydratedSourceEnd = `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n}`
-  code = replaceOne(
-    code,
-    hydratedSourceEnd,
-    `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n  step.value = 6\n}`,
-    'LCL source advance after complete hydration',
-  )
 
   const descriptionAnchor = `<p class="crystal-description">Los selects muestran el Value configurado en Config.</p>`
   const descriptionReplacement = `${descriptionAnchor}\n            <div v-if="shipmentModeForApi === 'Lcl' && lclSelectedSource" class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-sm">\n              <span class="text-[var(--dh-text-muted)]">Fuente seleccionada:</span>\n              <strong class="ml-1">{{ lclSelectedSource.kind === 'Own' ? 'Propio' : 'Coloader' }} · {{ lclSelectedSource.sourceTitle || lclSelectedSource.label }}</strong>\n              <span v-if="lclSelectedSource.carrierName || lclSelectedSource.carrierCode" class="ml-2 text-[var(--dh-text-muted)]">· {{ lclSelectedSource.carrierName || lclSelectedSource.carrierCode }}</span>\n            </div>`
