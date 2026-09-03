@@ -13,15 +13,10 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
-  // Use a dedicated component event for the resolved LCL source. The selector emits
-  // this complete object synchronously before update:modelValue; only after hydration
-  // does the proven Pantalla 5 -> 6 navigation fire.
-  code = replaceOne(
-    code,
-    `            @select="applyLclRateSource"`,
-    `            @source-selected="applyLclRateSource"`,
-    'dedicated LCL source hydration event',
-  )
+  // PricingLclRateSourceSelector now emits the original `select` event BEFORE
+  // update:modelValue. pricingWizardEnhancements already wires
+  // @select="applyLclRateSource", so the full consolidation is copied into the
+  // wizard before pricingWizardLclFclParityFix advances Pantalla 5 -> 6.
 
   code = replaceOne(
     code,
@@ -32,7 +27,7 @@ function patchWizard(source: string) {
 
   // Never retain an agent from the route (for example RS) after selecting an LCL
   // source. Resolve the source provider itself; own consolidations use GCF when that
-  // catalog entry exists, otherwise the source metadata remains the authoritative label.
+  // catalog entry exists, otherwise clear the stale route agent.
   code = replaceOne(
     code,
     `  form.agentId = selection.providerId ?? ''`,
