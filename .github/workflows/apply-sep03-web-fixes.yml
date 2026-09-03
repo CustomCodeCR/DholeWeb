@@ -19,6 +19,16 @@ jobs:
           ref: develop
           fetch-depth: 0
 
+      - name: Normalize patch anchors
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/apply-sep03-web-fixes.py')
+          text = path.read_text()
+          text = text.replace("} from '@/core/services/ownLclConsolidationService' '''", "} from '@/core/services/ownLclConsolidationService'\n'''")
+          path.write_text(text)
+          PY
+
       - name: Apply Web changes
         run: python3 .github/scripts/apply-sep03-web-fixes.py
 
