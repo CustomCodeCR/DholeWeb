@@ -128,7 +128,7 @@ async function load() {
   if (!comparisonId.value) return
   try {
     loading.value = true
-    const response = await callEndpoint<unknown>({
+    const response = await callEndpoint<RateComparisonDto>({
       method: 'GET',
       path: `/api/pricing/rate-comparisons/${comparisonId.value}`,
     })
@@ -146,7 +146,7 @@ async function createRate() {
 
   try {
     processing.value = true
-    const response = await callEndpoint<unknown>({
+    const response = await callEndpoint<string>({
       method: 'POST',
       path: `/api/pricing/rate-comparisons/${comparison.value.id}/create-rate`,
     })
