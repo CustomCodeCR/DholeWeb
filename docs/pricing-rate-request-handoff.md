@@ -10,3 +10,4 @@
 - Al retomar la solicitud, Pricing no puede regresar a las pantallas 0 a 4.
 - En pantalla 5 Pricing recibe un resumen con contenedor, Incoterm, carga lista y Anticipado/Redestino; allí define vigencia y Merchant/Naviera antes de continuar.
 - La información capturada por Ventas, incluida la carga de la pantalla 4 y sus soportes, viaja en el payload de la solicitud.
+- El handoff se valida mediante el build y despliegue de staging antes de promoverse a producción.
