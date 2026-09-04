@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore, type ToastType } from '@/core/stores/toastStore'
 
 export interface SystemNotificationPush {
@@ -37,6 +38,8 @@ interface PricingVariationPayload {
   poeName?: string
   containerTypeName?: string
 }
+
+class SignalRAuthenticationError extends Error {}
 
 const recordSeparator = '\u001e'
 const reconnectDelays = [0, 2_000, 5_000, 10_000, 30_000]
@@ -88,7 +91,11 @@ async function negotiate(base: URL, accessToken: string) {
     })
 
     if (!response.ok) {
-      lastError = new Error(`SignalR negotiate failed (${response.status}) at ${url.toString()}.`)
+      const error = new Error(`SignalR negotiate failed (${response.status}) at ${url.toString()}.`)
+      if (response.status === 401) {
+        throw new SignalRAuthenticationError(error.message)
+      }
+      lastError = error
       continue
     }
 
@@ -260,11 +267,24 @@ async function connect() {
   if (connecting) return connecting
 
   connecting = (async () => {
-    const accessToken = localStorage.getItem('auth.accessToken')
+    const authStore = useAuthStore()
+    let accessToken = await authStore.ensureValidAccessToken()
     if (!accessToken || stopped) return
 
     try {
-      const ws = await openSignalRSocket(accessToken)
+      let ws: WebSocket
+      try {
+        ws = await openSignalRSocket(accessToken)
+      } catch (error) {
+        if (!(error instanceof SignalRAuthenticationError)) throw error
+
+        const refreshed = await authStore.refreshSession()
+        accessToken = refreshed ? authStore.accessToken : null
+        if (!accessToken || stopped) throw error
+
+        ws = await openSignalRSocket(accessToken)
+      }
+
       if (stopped) {
         ws.close(1000, 'Application stopped realtime notifications.')
         return
