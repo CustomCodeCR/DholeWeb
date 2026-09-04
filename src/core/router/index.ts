@@ -36,6 +36,13 @@ export const router = createRouter({
     },
 
     {
+      path: '/origin',
+      name: 'public-origin-office',
+      component: () => import('@/modules/pricing/views/PublicOriginOfficeView.vue'),
+      meta: { public: true },
+    },
+
+    {
       path: '/',
       redirect: () => {
         const authStore = useAuthStore()
@@ -233,6 +240,16 @@ export const router = createRouter({
           component: () => import('@/modules/pricing/views/PricingRatesView.vue'),
           meta: {
             tabTitle: 'Tarifas oficiales',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+        },
+        {
+          path: 'pricing/rate-comparisons/:comparisonId',
+          name: 'pricing-rate-comparison',
+          component: () => import('@/modules/pricing/views/PricingRateComparisonView.vue'),
+          meta: {
+            tabTitle: 'Comparación de tarifa',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRates,
           },

@@ -16,11 +16,13 @@ const props = withDefaults(defineProps<{
   options: LocationOption[]
   terminalType?: 'CY' | 'SD' | 'WHS'
   optional?: boolean
+  disabled?: boolean
 }>(), {
   placeholder: 'Seleccione una ubicación',
   searchPlaceholder: 'Buscar ciudad, puerto o país…',
   terminalType: 'CY',
   optional: false,
+  disabled: false,
 })
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
@@ -64,6 +66,7 @@ function selectedText() {
 }
 
 function openSearch() {
+  if (props.disabled) return
   open.value = true
   typing.value = false
   query.value = selectedText()
@@ -71,12 +74,14 @@ function openSearch() {
 }
 
 function handleInput(event: Event) {
+  if (props.disabled) return
   typing.value = true
   query.value = (event.target as HTMLInputElement).value
   open.value = true
 }
 
 function choose(option: LocationOption) {
+  if (props.disabled) return
   emit('update:modelValue', option.value)
   query.value = option.label
   typing.value = false
@@ -84,6 +89,7 @@ function choose(option: LocationOption) {
 }
 
 function clearSelection() {
+  if (props.disabled) return
   emit('update:modelValue', '')
   query.value = ''
   typing.value = true
@@ -108,6 +114,10 @@ watch(selected, () => {
 
 watch(() => props.options, () => {
   if (!typing.value) query.value = selectedText()
+})
+
+watch(() => props.disabled, (disabled) => {
+  if (disabled) closeSearch()
 })
 
 onMounted(() => {
@@ -137,13 +147,14 @@ onBeforeUnmount(() => {
           :value="query"
           type="search"
           autocomplete="off"
-          class="h-11 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] pl-10 pr-24 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none transition dh-focus-primary"
+          :disabled="disabled"
+          class="h-11 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] pl-10 pr-24 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none transition dh-focus-primary disabled:cursor-not-allowed disabled:opacity-70"
           :placeholder="open ? searchPlaceholder : placeholder"
           @focus="openSearch"
           @click="openSearch"
           @input="handleInput"
           @keydown.escape.prevent="closeSearch"
-          @keydown.down.prevent="open = true"
+          @keydown.down.prevent="open = !disabled"
         />
         <span
           v-if="modelValue && selected"
@@ -152,7 +163,7 @@ onBeforeUnmount(() => {
           {{ terminalType }}
         </span>
         <button
-          v-if="modelValue"
+          v-if="modelValue && !disabled"
           type="button"
           class="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-[var(--dh-text-muted)] hover:bg-[rgb(var(--dh-primary-rgb)/0.08)]"
           aria-label="Limpiar selección"
@@ -162,14 +173,14 @@ onBeforeUnmount(() => {
           <X class="h-4 w-4" />
         </button>
         <ChevronDown
-          v-else
+          v-else-if="!disabled"
           class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]"
         />
       </span>
     </label>
 
     <div
-      v-if="open"
+      v-if="open && !disabled"
       class="pricing-location-menu absolute z-[120] mt-2 max-h-72 w-full min-w-[260px] overflow-auto rounded-[18px] border border-[var(--dh-border-strong)] p-1.5 shadow-2xl"
     >
       <div v-if="filteredOptions.length" class="space-y-1">

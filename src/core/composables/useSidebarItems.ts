@@ -3,8 +3,8 @@ import { useI18n } from 'vue-i18n'
 import type { Component } from 'vue'
 
 import {
-  BookOpen,
   CircleDollarSign,
+  BookOpen,
   ClipboardList,
   KeyRound,
   LayoutDashboard,
@@ -114,6 +114,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         icon: TrendingUp,
         name: 'pricing',
         children: [
+          {
+            labelKey: 'Solicitar tarifa',
+            icon: FileText,
+            to: '/pricing/request-rate',
+            name: 'pricing-seller-rate-request',
+            requiredScope: 'pricing.rate-request.create',
+          },
           {
             labelKey: 'sidebar.pricingPanel',
             icon: TrendingUp,

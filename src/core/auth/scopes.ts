@@ -106,6 +106,10 @@ export const PRICING_SCOPES = {
     createAsRate: 'pricing.import-fcl-rate.create-as-rate',
   },
 
+  ownLclConsolidations: {
+    create: 'pricing.own-lcl-consolidation.create',
+  },
+
   rates: {
     create: 'pricing.rate.create',
     view: 'pricing.rate.view',

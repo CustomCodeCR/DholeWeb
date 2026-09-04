@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Plus, Trash2 } from 'lucide-vue-next'
+import { Plus, Trash2, UsersRound } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { DhButton, DhInput } from '@/shared/components/atoms'
 import { createUuid } from '@/core/utils/id'
+import ContactDirectoryMetadataEditor from '@/modules/catalogs/components/ContactDirectoryMetadataEditor.vue'
 
 const props = defineProps<{
   modelValue?: string | null
@@ -25,6 +26,9 @@ const rows = ref<MetadataRow[]>([])
 const internalUpdate = ref(false)
 
 const hasRows = computed(() => rows.value.length > 0)
+const hasContactDirectory = computed(() =>
+  rows.value.some((row) => row.key.trim().toLowerCase() === 'contactdirectory'),
+)
 
 function createId() {
   return createUuid()
@@ -89,7 +93,7 @@ function syncFromModel(value?: string | null) {
       id: createId(),
       key,
       value: toInputValue(itemValue),
-      type: detectType(itemValue),
+      type: key.trim().toLowerCase() === 'contactdirectory' ? 'json' : detectType(itemValue),
     }))
   } catch {
     rows.value = []
@@ -126,9 +130,26 @@ function addRow() {
   emitJson()
 }
 
+function addContactDirectory() {
+  if (hasContactDirectory.value) return
+
+  rows.value.push({
+    id: createId(),
+    key: 'contactDirectory',
+    value: '[]',
+    type: 'json',
+  })
+
+  emitJson()
+}
+
 function removeRow(id: string) {
   rows.value = rows.value.filter((row) => row.id !== id)
   emitJson()
+}
+
+function isContactDirectory(row: MetadataRow) {
+  return row.key.trim().toLowerCase() === 'contactdirectory'
 }
 
 watch(
@@ -150,7 +171,7 @@ watch(
 
 <template>
   <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-    <div class="mb-3 flex items-center justify-between gap-3">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h3 class="text-sm font-black text-[var(--dh-text)]">Metadata</h3>
         <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
@@ -158,7 +179,17 @@ watch(
         </p>
       </div>
 
-      <DhButton :icon="Plus" label="Campo" size="sm" variant="secondary" @click="addRow" />
+      <div class="flex flex-wrap gap-2">
+        <DhButton
+          v-if="!hasContactDirectory"
+          :icon="UsersRound"
+          label="Directorio contactos"
+          size="sm"
+          variant="secondary"
+          @click="addContactDirectory"
+        />
+        <DhButton :icon="Plus" label="Campo" size="sm" variant="secondary" @click="addRow" />
+      </div>
     </div>
 
     <div
@@ -172,33 +203,50 @@ watch(
       <div
         v-for="row in rows"
         :key="row.id"
-        class="grid gap-2 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 md:grid-cols-[1fr_130px_1.4fr_auto]"
+        class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"
       >
-        <DhInput v-model="row.key" label="Campo" placeholder="category" />
-
-        <label class="block">
-          <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Tipo</span>
-          <select
-            v-model="row.type"
-            class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 text-sm font-bold text-[var(--dh-text)] outline-none"
-          >
-            <option value="string">Texto</option>
-            <option value="number">Número</option>
-            <option value="boolean">Sí / No</option>
-            <option value="json">JSON</option>
-          </select>
-        </label>
-
-        <DhInput v-model="row.value" label="Valor" placeholder="trade_terms" />
-
-        <button
-          type="button"
-          class="mt-6 rounded-2xl p-2 text-red-500 hover:bg-red-500/10"
-          title="Eliminar campo"
-          @click="removeRow(row.id)"
+        <div
+          class="grid gap-2"
+          :class="isContactDirectory(row) ? 'md:grid-cols-[1fr_130px_auto]' : 'md:grid-cols-[1fr_130px_1.4fr_auto]'"
         >
-          <Trash2 class="h-4 w-4" />
-        </button>
+          <DhInput v-model="row.key" label="Campo" placeholder="category" :disabled="isContactDirectory(row)" />
+
+          <label class="block">
+            <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Tipo</span>
+            <select
+              v-model="row.type"
+              :disabled="isContactDirectory(row)"
+              class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 text-sm font-bold text-[var(--dh-text)] outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="string">Texto</option>
+              <option value="number">Número</option>
+              <option value="boolean">Sí / No</option>
+              <option value="json">JSON</option>
+            </select>
+          </label>
+
+          <DhInput
+            v-if="!isContactDirectory(row)"
+            v-model="row.value"
+            label="Valor"
+            placeholder="trade_terms"
+          />
+
+          <button
+            type="button"
+            class="mt-6 rounded-2xl p-2 text-red-500 hover:bg-red-500/10"
+            title="Eliminar campo"
+            @click="removeRow(row.id)"
+          >
+            <Trash2 class="h-4 w-4" />
+          </button>
+        </div>
+
+        <ContactDirectoryMetadataEditor
+          v-if="isContactDirectory(row)"
+          v-model="row.value"
+          class="mt-3"
+        />
       </div>
     </div>
   </section>

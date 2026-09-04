@@ -19,6 +19,18 @@ type SelectCatalogConfig = {
 
 type SelectOption = { label: string; value: string }
 
+type WarehouseContact = {
+  name?: string
+  role?: string
+  email?: string
+  phone?: string
+  isPrimary?: boolean
+  isActive?: boolean
+  shipmentModes?: string[]
+  modalities?: string[]
+  routes?: string[]
+}
+
 type WarehouseMetadata = {
   address?: string
   countryCode?: string
@@ -28,6 +40,7 @@ type WarehouseMetadata = {
   phone?: string
   latitude?: number | string
   longitude?: number | string
+  contactDirectory?: WarehouseContact[]
 }
 
 const router = useRouter()
@@ -40,8 +53,8 @@ const catalogs: SelectCatalogConfig[] = [
   {
     slug: 'pricing-warehouses',
     name: 'WHS globales',
-    description: 'Warehouses FCA administrables desde Config. Incluyen dirección, horario, contactos, email, teléfono y coordenadas cuando estén disponibles.',
-    requiredIn: 'Wizard de Pricing / FCA / Recolección',
+    description: 'Oficinas y warehouses de origen administrables desde Config. Incluyen dirección, fotos, coordenadas y múltiples contactos por modalidad o ruta.',
+    requiredIn: 'Wizard de Pricing / FOB, FCA y EXW / QR de oficina en origen',
   },
   {
     slug: 'pricing-clients',
@@ -77,7 +90,7 @@ const columns = computed<DhTableColumn<CatalogItemDto>[]>(() => {
   ]
 
   if (selectedSlug.value === 'pricing-warehouses') {
-    base.push({ key: 'metadataJson', label: 'Datos del WHS', width: '430px' })
+    base.push({ key: 'metadataJson', label: 'Datos del WHS', width: '520px' })
   }
 
   base.push(
@@ -102,6 +115,28 @@ function warehouseCoordinates(row: CatalogItemDto) {
   const metadata = warehouseMetadata(row)
   if (metadata.latitude == null || metadata.longitude == null) return ''
   return `${metadata.latitude}, ${metadata.longitude}`
+}
+
+function warehouseContacts(row: CatalogItemDto): WarehouseContact[] {
+  const metadata = warehouseMetadata(row)
+  if (Array.isArray(metadata.contactDirectory) && metadata.contactDirectory.length) {
+    return metadata.contactDirectory.filter((contact) => contact.isActive !== false)
+  }
+
+  if (!metadata.contacts && !metadata.email && !metadata.phone) return []
+  return [{
+    name: metadata.contacts,
+    email: metadata.email,
+    phone: metadata.phone,
+    isPrimary: true,
+    isActive: true,
+  }]
+}
+
+function contactRules(contact: WarehouseContact) {
+  const modes = contact.shipmentModes?.length ? contact.shipmentModes : contact.modalities ?? []
+  const routeRules = contact.routes ?? []
+  return [...modes, ...routeRules].filter(Boolean).join(' · ')
 }
 
 async function loadItems() {
@@ -169,12 +204,20 @@ onMounted(loadItems)
         </template>
 
         <template #cell-metadataJson="{ row }">
-          <div v-if="selectedSlug === 'pricing-warehouses'" class="space-y-1 text-xs leading-5 text-[var(--dh-text)]">
+          <div v-if="selectedSlug === 'pricing-warehouses'" class="space-y-1.5 text-xs leading-5 text-[var(--dh-text)]">
             <p v-if="warehouseMetadata(row).address"><strong>Dirección:</strong> {{ warehouseMetadata(row).address }}</p>
             <p v-if="warehouseMetadata(row).schedule"><strong>Horario:</strong> {{ warehouseMetadata(row).schedule }}</p>
-            <p v-if="warehouseMetadata(row).contacts"><strong>Contactos:</strong> {{ warehouseMetadata(row).contacts }}</p>
-            <p v-if="warehouseMetadata(row).email"><strong>Email:</strong> {{ warehouseMetadata(row).email }}</p>
-            <p v-if="warehouseMetadata(row).phone"><strong>Teléfono:</strong> {{ warehouseMetadata(row).phone }}</p>
+            <div v-if="warehouseContacts(row).length" class="space-y-1">
+              <p class="font-black">Contactos:</p>
+              <p v-for="(contact, index) in warehouseContacts(row)" :key="`${row.id}-${index}`">
+                <strong>{{ contact.name || `Contacto ${index + 1}` }}</strong>
+                <span v-if="contact.role"> · {{ contact.role }}</span>
+                <span v-if="contact.email"> · {{ contact.email }}</span>
+                <span v-if="contact.phone"> · {{ contact.phone }}</span>
+                <span v-if="contactRules(contact)" class="text-[var(--dh-primary)]"> · {{ contactRules(contact) }}</span>
+                <span v-if="contact.isPrimary"> · principal</span>
+              </p>
+            </div>
             <p v-if="warehouseCoordinates(row)"><strong>Coordenadas:</strong> {{ warehouseCoordinates(row) }}</p>
           </div>
         </template>

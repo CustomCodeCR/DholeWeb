@@ -1,0 +1,32 @@
+name: Finalize Sep 03 frontend
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/scripts/finalize_sep03_frontend.py'
+      - '.github/workflows/finalize-sep03-frontend.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Patch frontend source
+        run: python .github/scripts/finalize_sep03_frontend.py
+      - name: Commit source fix
+        run: |
+          if git diff --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/modules/pricing/views/PricingOwnLclView.vue
+          git commit -m 'fix(web): finalize own LCL frontend typecheck'
+          git push origin develop

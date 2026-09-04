@@ -69,6 +69,18 @@ type RateSection =
   | 'destination_charges'
   | 'delivery_destination'
 
+interface WarehouseContactDirectoryEntry {
+  name?: string
+  email?: string
+  phone?: string
+  role?: string
+  shipmentModes?: string[]
+  modalities?: string[]
+  routes?: string[]
+  isPrimary?: boolean
+  isActive?: boolean
+}
+
 interface CatalogMetadata {
   modality?: string
   modalities?: string[]
@@ -96,6 +108,7 @@ interface CatalogMetadata {
   phone?: string
   imageStorageId?: string
   imageFileName?: string
+  contactDirectory?: WarehouseContactDirectoryEntry[]
   salesExecutiveId?: string
 }
 
@@ -280,6 +293,11 @@ const form = reactive({
   cargoDescription: '',
   cargoObservations: '',
   cargoValue: 0,
+  cargoWeightKg: 0,
+  cargoPallets: 1,
+  cargoLengthCm: 0,
+  cargoWidthCm: 0,
+  cargoHeightCm: 0,
   dangerousCargo: false,
   nonStackable: false,
   overweight: false,
@@ -656,6 +674,56 @@ const selectedIncotermCode = computed(() => {
 })
 const selectedWarehouse = computed(() => findById(catalogs.warehouses, form.warehouseId))
 
+function normalizedWarehouseContactModes(contact: WarehouseContactDirectoryEntry) {
+  return [...new Set([...(contact.shipmentModes ?? []), ...(contact.modalities ?? [])]
+    .map((value) => String(value ?? '').trim().toUpperCase())
+    .filter(Boolean))]
+}
+
+const selectedWarehouseContacts = computed<WarehouseContactDirectoryEntry[] | null>(() => {
+  const directory = metadata(selectedWarehouse.value)?.contactDirectory
+  if (!Array.isArray(directory)) return null
+
+  const active = directory.filter((contact) => contact && contact.isActive !== false)
+  const currentMode = form.shipmentMode.trim().toUpperCase()
+  if (!currentMode) {
+    return [...active].sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
+  }
+
+  const eligible = active.filter((contact) => {
+    const modes = normalizedWarehouseContactModes(contact)
+    return modes.length === 0 || modes.includes(currentMode)
+  })
+
+  // Cuando existen contactos específicos para la modalidad actual, no mezclar
+  // contactos genéricos ni registros legacy configurados simultáneamente FCL/LCL.
+  const specific = eligible.filter((contact) => {
+    const modes = normalizedWarehouseContactModes(contact)
+    return modes.length > 0 && modes.includes(currentMode) && modes.every((mode) => mode === currentMode)
+  })
+
+  const resolved = specific.length ? specific : eligible
+  return [...resolved].sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
+})
+
+function warehouseContactDisplay(
+  field: 'name' | 'email' | 'phone',
+  legacyField: 'contacts' | 'email' | 'phone',
+) {
+  const meta = metadata(selectedWarehouse.value)
+  const directory = selectedWarehouseContacts.value
+
+  if (directory === null) return String(meta?.[legacyField] ?? '').trim()
+
+  return [...new Set(directory
+    .map((contact) => String(contact[field] ?? '').trim())
+    .filter(Boolean))].join(' / ')
+}
+
+const selectedWarehouseContactNames = computed(() => warehouseContactDisplay('name', 'contacts'))
+const selectedWarehouseContactEmails = computed(() => warehouseContactDisplay('email', 'email'))
+const selectedWarehouseContactPhones = computed(() => warehouseContactDisplay('phone', 'phone'))
+
 function metadataNumber(item: CatalogItemSelectDto | null | undefined, ...keys: Array<keyof CatalogMetadata>) {
   const meta = metadata(item)
   for (const key of keys) {
@@ -800,6 +868,66 @@ const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: i
 const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
 const incotermOptions = computed(() => catalogs.incoterms.map((item) => ({ value: item.id, label: displayValue(item) })))
 const agentOptions = computed(() => catalogs.agents.map((item) => ({ value: item.id, label: displayValue(item) })))
+
+function countryTokens(item: CatalogItemSelectDto | null | undefined) {
+  const tokens = new Set<string>()
+  if (!item) return tokens
+
+  const meta = (metadata(item) ?? {}) as unknown as Record<string, unknown>
+  const add = (raw: unknown) => {
+    if (Array.isArray(raw)) {
+      raw.forEach(add)
+      return
+    }
+    if (raw == null || typeof raw === 'object') return
+    const value = normalizeCatalogValue(String(raw))
+    if (value.length >= 2) tokens.add(value)
+  }
+
+  for (const key of [
+    'countryCode', 'country', 'countryName', 'countryIso2', 'countryIso3',
+    'originCountryCode', 'originCountry', 'iso2', 'iso3', 'countries', 'countryCodes',
+  ]) add(meta[key])
+
+  for (const raw of [item.value, item.label]) {
+    const text = String(raw ?? '').trim()
+    if (!text.includes(',')) continue
+    add(text.split(',').at(-1))
+  }
+
+  return tokens
+}
+
+function resolveAgentForOrigin() {
+  const origin = selectedOrigin.value
+  const originTokens = countryTokens(origin)
+  if (!origin || !originTokens.size) return null
+
+  let best: CatalogItemSelectDto | null = null
+  let bestScore = 0
+  for (const agent of catalogs.agents) {
+    const agentTokens = countryTokens(agent)
+    const searchText = normalizeCatalogValue(
+      [agent.code, agent.value, agent.label, agent.metadataJson].filter(Boolean).join(' '),
+    )
+    let score = 0
+    for (const token of originTokens) {
+      if (agentTokens.has(token)) score = Math.max(score, token.length <= 3 ? 100 : 90)
+      else if (token.length >= 4 && searchText.includes(token)) score = Math.max(score, 60)
+    }
+    if (score > bestScore) {
+      best = agent
+      bestScore = score
+    }
+  }
+  return best
+}
+
+function assignAgentForOrigin() {
+  if (hydratingExistingRate.value || !form.originId) return
+  const agent = resolveAgentForOrigin()
+  if (agent && form.agentId !== agent.id) form.agentId = agent.id
+}
 const carrierOptions = computed(() => catalogs.carriers.map((item) => ({ value: item.id, label: displayValue(item) })))
 const currencyOptions = computed(() => catalogs.currencies.map((item) => ({ value: item.id, label: displayValue(item) })))
 const serviceOptions = computed(() => catalogs.services.map((item) => ({ value: item.id, label: displayValue(item) })))
@@ -829,6 +957,27 @@ const shipmentModeForApi = computed<ShipmentMode>(() => {
   if (value === 'LTL') return 'Ltl'
   return 'Fcl'
 })
+
+const lclDimensionalCbm = computed(() => {
+  const pallets = Math.max(0, number(form.cargoPallets))
+  const volume = number(form.cargoLengthCm) * number(form.cargoWidthCm) * number(form.cargoHeightCm) * pallets
+  return Math.max(0, volume / 1_000_000)
+})
+const lclWeightCbm = computed(() => Math.max(0, number(form.cargoWeightKg)) / 500)
+const lclChargeableCbm = computed(() => {
+  const calculated = Math.max(lclDimensionalCbm.value, lclWeightCbm.value)
+  return calculated > 0 ? Math.max(1, calculated) : 0
+})
+const lclCargoLines = computed(() => shipmentModeForApi.value === 'Lcl' && lclChargeableCbm.value > 0
+  ? [{
+      description: form.cargoDescription.trim() || 'Carga LCL',
+      units: Math.max(1, Math.trunc(number(form.cargoPallets))),
+      totalWeightKg: Math.max(0, number(form.cargoWeightKg)),
+      lengthCm: Math.max(0, number(form.cargoLengthCm)),
+      widthCm: Math.max(0, number(form.cargoWidthCm)),
+      heightCm: Math.max(0, number(form.cargoHeightCm)),
+    }]
+  : [])
 
 const direction = computed(() => {
   if (!selectedOrigin.value || !selectedDestination.value) return ''
@@ -988,20 +1137,26 @@ const selectedOptionalChargeKeys = computed<string[]>({
     })
   },
 })
+function persistedLineInFullView(line: RateLine) {
+  return props.viewOnly && step.value === 9 && Boolean(line.detailId)
+}
+
 function standardSectionLines(section: RateSection) {
   return rateLines.value.filter(
     (line) =>
       line.section === section &&
       line.included &&
-      !line.optional &&
-      !line.manual &&
+      ((!line.optional && !line.manual) || persistedLineInFullView(line)) &&
       line.costDetailType !== 'AgentCharge',
   )
 }
 
 const agentLines = computed(() =>
   rateLines.value.filter(
-    (line) => line.included && !line.optional && !line.manual && line.costDetailType === 'AgentCharge',
+    (line) =>
+      line.included &&
+      line.costDetailType === 'AgentCharge' &&
+      ((!line.optional && !line.manual) || persistedLineInFullView(line)),
   ),
 )
 
@@ -1574,8 +1729,30 @@ addVariableSectionFallback(
   if (form.merchantHaulage) addHaulageOption('haulage:merchant', 'Gate + Inland GAM Merchant')
   if (form.carrierHaulage) addHaulageOption('haulage:carrier', 'Inland GAM Naviera')
 
-  if (form.cargoValue > 0 && !lines.some((line) => line.costDetailType === 'Insurance') && visible.has('destination_charges')) {
-    const insurance = calculateCargoInsurance(form.cargoValue, form.freightCost)
+  const insuranceServiceSelected = Boolean(
+  cargoInsuranceService.value && form.serviceIds.includes(cargoInsuranceService.value.id),
+)
+const insuranceRequested = insuranceServiceSelected || form.cargoValue > 0
+const existingInsurance = lines.find((line) => line.costDetailType === 'Insurance')
+
+if (insuranceRequested && visible.has('destination_charges')) {
+  const insurance = form.cargoValue > 0
+    ? calculateCargoInsurance(form.cargoValue, form.freightCost)
+    : null
+
+  if (existingInsurance) {
+    // A configured Insurance cost must not suppress the cargo-insurance line.
+    // Selecting the service or entering cargo value means the user requested it.
+    existingInsurance.included = true
+    existingInsurance.optional = true
+    existingInsurance.costType = 'Optional'
+    existingInsurance.chargeBasis = 'PerShipment'
+    existingInsurance.section = 'destination_charges'
+    if (insurance) {
+      existingInsurance.costAmount = insurance.cost
+      existingInsurance.saleAmount = insurance.sale
+    }
+  } else {
     lines.push({
       key: 'cargo-insurance:auto',
       section: 'destination_charges',
@@ -1583,16 +1760,20 @@ addVariableSectionFallback(
       costDetailType: 'Insurance',
       costType: 'Optional',
       chargeBasis: 'PerShipment',
+      contextLabel: form.cargoValue > 0
+        ? 'Calculado automáticamente sobre el valor declarado de la carga.'
+        : 'Ingrese el valor de la carga para calcular costo y venta del seguro.',
       currencyId: currency.id,
       currencyName: displayValue(currency),
       currencyCode: currency.code,
-      costAmount: insurance.cost,
-      saleAmount: insurance.sale,
-      included: false,
+      costAmount: insurance?.cost ?? 0,
+      saleAmount: insurance?.sale ?? 0,
+      included: true,
       optional: true,
       manual: false,
     })
   }
+}
 
   lines.forEach((line) => {
     line.amountCurrencyCode = canonicalCurrencyCode(line)
@@ -1601,7 +1782,7 @@ addVariableSectionFallback(
   rateLines.value = lines
 }
 
-function mergeConfiguredOptionalCostsIntoRateLines() {
+function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
   const visible = new Set(visibleSections.value)
   const existingCostIds = new Set(
     rateLines.value.map((line) => line.costId).filter((value): value is string => Boolean(value)),
@@ -1611,7 +1792,7 @@ function mergeConfiguredOptionalCostsIntoRateLines() {
   )
 
   applicableConfiguredCosts()
-    .filter((cost) => cost.costType === 'Optional')
+    .filter((cost) => includeFixed ? cost.costDetailType !== 'Freight' : cost.costType === 'Optional')
     .forEach((cost) => {
       const section = sectionForCost(cost)
       const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`
@@ -1633,8 +1814,8 @@ function mergeConfiguredOptionalCostsIntoRateLines() {
         currencyCode: cost.currencyCode,
         costAmount: number(cost.costAmount),
         saleAmount: number(cost.saleAmount),
-        included: false,
-        optional: true,
+        included: includeFixed && cost.costType !== 'Optional',
+        optional: cost.costType === 'Optional',
         manual: false,
         applyDestinationTax: false,
         destinationTaxRate: 0,
@@ -2175,6 +2356,11 @@ async function hydrateExistingRate() {
     form.freightCost = Number(freight?.costAmount || 0)
     form.freightSale = Number(freight?.saleAmount || 0)
     form.cargoDescription = rate.cargoLines?.[0]?.description ?? ''
+    form.cargoWeightKg = Number(rate.cargoLines?.[0]?.weightKg ?? rate.totalWeightKg ?? 0)
+    form.cargoPallets = Math.max(1, Number(rate.cargoLines?.[0]?.pallets ?? rate.totalPallets ?? 1))
+    form.cargoLengthCm = Number(rate.cargoLines?.[0]?.lengthCm ?? 0)
+    form.cargoWidthCm = Number(rate.cargoLines?.[0]?.widthCm ?? 0)
+    form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
 
     rateLines.value = rate.rateDetails.map((detail) => {
       const configuredCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
@@ -2521,19 +2707,27 @@ async function saveOpenRequest() {
       freeDays: 0,
       validFrom: form.loadDate,
       validTo: addDaysIso(form.loadDate, 30),
-      containerQuantity: form.equipmentQuantity,
+      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
       rateType: 'Spot',
       operationType: operationType.value,
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
-      containers: [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
-      totalPackages: 0,
-      totalPallets: 0,
-      totalWeightKg: 0,
-      totalVolumeCbm: shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'Ltl' ? 0.001 : 0,
-      cargoLines: form.cargoDescription || supportText ? [{
+      containers: shipmentModeForApi.value === 'Lcl' ? [] : [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
+      totalPackages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+      totalPallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+      totalWeightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
+      totalVolumeCbm: shipmentModeForApi.value === 'Lcl'
+        ? lclDimensionalCbm.value
+        : shipmentModeForApi.value === 'Ltl' ? 0.001 : 0,
+      kgPerCbm: shipmentModeForApi.value === 'Lcl' ? 500 : undefined,
+      cargoLines: form.cargoDescription || supportText || shipmentModeForApi.value === 'Lcl' ? [{
         description: [form.cabysCode ? `CABYS ${form.cabysCode}` : '', form.cargoDescription, form.cargoObservations, supportText].filter(Boolean).join(' · '),
-        packages: 0, pallets: 0, weightKg: 0, lengthCm: 0, widthCm: 0, heightCm: 0,
+        packages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+        pallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+        weightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
+        lengthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoLengthCm)) : 0,
+        widthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWidthCm)) : 0,
+        heightCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoHeightCm)) : 0,
       }] : [],
       details: [{
         costId: null,
@@ -2739,22 +2933,24 @@ async function saveRate() {
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
       idtraNumber: form.idtraNumber.trim() || null,
-      freeDays: number(form.freeDays),
+      freeDays: shipmentModeForApi.value === 'Lcl' ? 0 : number(form.freeDays),
       validFrom: form.loadDate,
       validTo: form.validTo || selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
-      containerQuantity: form.equipmentQuantity,
+      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
       rateType: 'Spot',
       operationType: operationType.value,
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
-      containers: [
-        {
-          containerTypeId: equipment!.id,
-          containerTypeName: equipmentName,
-          containerTypeCode: equipment!.code,
-          quantity: form.equipmentQuantity,
-        },
-      ],
+      containers: shipmentModeForApi.value === 'Lcl'
+        ? []
+        : [
+            {
+              containerTypeId: equipment!.id,
+              containerTypeName: equipmentName,
+              containerTypeCode: equipment!.code,
+              quantity: form.equipmentQuantity,
+            },
+          ],
       transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
       includes: includeTerms.join('\n') || null,
       subjectTo: subjectTerms.join('\n') || null,
@@ -2874,6 +3070,11 @@ function resetWizard() {
     cargoDescription: '',
     cargoObservations: '',
     cargoValue: 0,
+    cargoWeightKg: 0,
+    cargoPallets: 1,
+    cargoLengthCm: 0,
+    cargoWidthCm: 0,
+    cargoHeightCm: 0,
     dangerousCargo: false,
     nonStackable: false,
     overweight: false,
@@ -2923,6 +3124,11 @@ watch(
     const executive = findById(catalogs.salesExecutives, executiveId)
     if (executive) form.executiveName = displayValue(executive) || executive.label
   },
+)
+
+watch(
+  () => form.originId,
+  () => assignAgentForOrigin(),
 )
 
 watch(
@@ -2980,6 +3186,14 @@ watch(() => form.currencyId, () => {
   if (hydratingExistingRate.value) return
   if (step.value === 7) rebuildRateLines()
 })
+
+watch(
+  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|')] as const,
+  () => {
+    if (hydratingExistingRate.value || step.value < 7) return
+    rebuildRateLines()
+  },
+)
 
 watch(step, (value) => {
   if (value === 7) void loadHaciendaExchangeRate(false)
@@ -3220,9 +3434,9 @@ onMounted(async () => {
                   <p class="text-sm font-black text-[var(--dh-text)]">{{ selectedWarehouse.label || displayValue(selectedWarehouse) }}</p>
                   <p class="mt-2"><strong>Dirección:</strong> {{ warehouseAddress(selectedWarehouse) || 'Sin dirección' }}</p>
                   <p v-if="metadata(selectedWarehouse)?.schedule" class="mt-1"><strong>Horario:</strong> {{ metadata(selectedWarehouse)?.schedule }}</p>
-                  <p v-if="metadata(selectedWarehouse)?.contacts" class="mt-1"><strong>Contactos:</strong> {{ metadata(selectedWarehouse)?.contacts }}</p>
-                  <p v-if="metadata(selectedWarehouse)?.email" class="mt-1 break-words"><strong>Email:</strong> {{ metadata(selectedWarehouse)?.email }}</p>
-                  <p v-if="metadata(selectedWarehouse)?.phone" class="mt-1"><strong>Teléfono:</strong> {{ metadata(selectedWarehouse)?.phone }}</p>
+                  <p v-if="form.shipmentMode !== 'FCL' && selectedWarehouseContactNames" class="mt-1"><strong>Contactos:</strong> {{ selectedWarehouseContactNames }}</p>
+                  <p v-if="form.shipmentMode !== 'FCL' && selectedWarehouseContactEmails" class="mt-1 break-words"><strong>Email:</strong> {{ selectedWarehouseContactEmails }}</p>
+                  <p v-if="form.shipmentMode !== 'FCL' && selectedWarehouseContactPhones" class="mt-1"><strong>Teléfono:</strong> {{ selectedWarehouseContactPhones }}</p>
                   <p v-if="metadataNumber(selectedWarehouse, 'latitude', 'lat') != null && metadataNumber(selectedWarehouse, 'longitude', 'lng') != null" class="mt-1">
                     <strong>Ubicación:</strong>
                     {{ metadataNumber(selectedWarehouse, 'latitude', 'lat')?.toFixed(6) }},
@@ -3392,7 +3606,7 @@ onMounted(async () => {
                       {{ rate.pol }} → {{ rate.poe || rate.pod }} · {{ rate.containerType }}
                     </p>
                   </div>
-                  <DhBadge variant="success">Pre-aprobada</DhBadge>
+                  <DhBadge :variant="rate.status === 'PreAuthorized' ? 'warning' : 'success'">{{ rate.status === 'PreAuthorized' ? 'Preautorizada' : 'Preaprobada' }}</DhBadge>
                 </div>
                 <p class="mt-5 text-2xl font-black">{{ formatMoney(rate.freight, displayValue(findById(catalogs.currencies, rate.currencyId)) || rate.currency || 'USD') }}</p>
                 <div class="crystal-validity">
@@ -3451,7 +3665,8 @@ onMounted(async () => {
             <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
             <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
             <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
-            <DhInput v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
+            <DhInput v-if="shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
+            <div v-else class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
             <DhInput v-model.number="form.transitDays" type="number" min="0" label="Días de tránsito" />
           </div>
 
@@ -3506,6 +3721,38 @@ onMounted(async () => {
             <div class="grid gap-4 md:grid-cols-2">
               <DhInput v-model="form.cargoDescription" label="Descripción de la carga (opcional)" />
               <DhInput v-model.number="form.cargoValue" type="number" min="0" step="0.01" label="Valor de la carga (si aplica)" />
+            </div>
+
+            <div v-if="shipmentModeForApi === 'Lcl'" class="space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
+              <div>
+                <p class="font-black">Medidas de la carga LCL</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Ingrese las medidas de cada tarima en centímetros. El sistema multiplica por la cantidad de tarimas y compara volumen contra peso/500.</p>
+              </div>
+              <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <DhInput v-model.number="form.cargoWeightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />
+                <DhInput v-model.number="form.cargoPallets" type="number" min="1" step="1" label="Tarimas" />
+                <DhInput v-model.number="form.cargoLengthCm" type="number" min="0" step="0.01" label="Largo (cm)" />
+                <DhInput v-model.number="form.cargoWidthCm" type="number" min="0" step="0.01" label="Ancho (cm)" />
+                <DhInput v-model.number="form.cargoHeightCm" type="number" min="0" step="0.01" label="Alto (cm)" />
+              </div>
+              <div class="grid gap-3 sm:grid-cols-3">
+                <div class="crystal-metric crystal-metric--neutral">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">CBM dimensional</span>
+                  <strong class="mt-1 block text-base">{{ lclDimensionalCbm.toFixed(3) }} CBM</strong>
+                </div>
+                <div class="crystal-metric crystal-metric--neutral">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">Equivalente por peso</span>
+                  <strong class="mt-1 block text-base">{{ lclWeightCbm.toFixed(3) }} CBM</strong>
+                </div>
+                <div class="crystal-metric crystal-metric--sale">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">CBM cobrable</span>
+                  <strong class="mt-1 block text-base">{{ lclChargeableCbm.toFixed(3) }} CBM</strong>
+                  <small>Mínimo facturable: 1 CBM</small>
+                </div>
+              </div>
+              <p v-if="form.cargoWeightKg <= 0 || form.cargoPallets <= 0 || form.cargoLengthCm <= 0 || form.cargoWidthCm <= 0 || form.cargoHeightCm <= 0" class="text-xs font-bold text-amber-600">
+                Complete peso, tarimas, largo, ancho y alto para continuar.
+              </p>
             </div>
             <DhTextarea v-model="form.cargoObservations" label="Observaciones de la carga" :rows="4" />
 
@@ -3794,6 +4041,12 @@ onMounted(async () => {
             <div class="crystal-soft p-5 lg:col-span-2">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Carga y respaldos</p>
               <p class="mt-3 text-sm font-semibold">{{ form.cargoDescription || 'Sin descripción adicional' }}</p>
+              <div v-if="shipmentModeForApi === 'Lcl'" class="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
+                <span>{{ form.cargoPallets }} tarima{{ Number(form.cargoPallets) === 1 ? '' : 's' }}</span>
+                <span>· {{ Number(form.cargoWeightKg).toLocaleString('es-CR') }} kg</span>
+                <span>· {{ lclDimensionalCbm.toFixed(3) }} CBM dimensional</span>
+                <span>· {{ lclChargeableCbm.toFixed(3) }} CBM cobrable</span>
+              </div>
               <p v-if="form.cabysCode" class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">CABYS {{ form.cabysCode }}</p>
               <p class="mt-2 text-xs font-bold text-[var(--dh-text-muted)]">{{ supportDocuments.length }} documento{{ supportDocuments.length === 1 ? '' : 's' }} de respaldo en Storage.</p>
             </div>
@@ -3877,7 +4130,7 @@ onMounted(async () => {
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Vigencia y cambio</p>
               <p class="mt-3 text-sm font-bold">{{ formatDate(editingRate.validFrom) }} → {{ formatDate(editingRate.validTo) }}</p>
-              <p class="mt-1 text-sm font-bold">Días libres: {{ editingRate.freeDays }}</p>
+              <p v-if="editingRate.shipmentMode !== 'Lcl'" class="mt-1 text-sm font-bold">Días libres: {{ editingRate.freeDays }}</p>
               <p class="mt-1 text-sm font-bold">Tránsito: {{ editingRate.transitTime || 'Por confirmar' }}</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">TC venta: {{ Number(editingRate.exchangeRateSale || editingRate.exchangeRateApplied || 0).toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</p>
             </div>

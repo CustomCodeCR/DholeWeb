@@ -1,0 +1,32 @@
+name: Apply Sep 03 preapproval permissions
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/scripts/finalize_sep03_preapproval_permissions.py'
+      - '.github/workflows/apply-sep03-preapproval-permissions.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Patch preapproval permissions UI
+        run: python .github/scripts/finalize_sep03_preapproval_permissions.py
+      - name: Commit frontend changes
+        run: |
+          if git diff --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/modules/pricing/views/PricingImportsView.vue
+          git commit -m 'fix(web): gate imported-rate preapproval by scope'
+          git push origin develop

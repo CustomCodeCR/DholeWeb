@@ -1,0 +1,42 @@
+name: Fix FCL WHS shipment mode bindings
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/fix-fcl-contact-computed.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Fix shipment mode bindings
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text()
+          old = "shipmentMode !== 'FCL' && selectedWarehouseContact"
+          new = "form.shipmentMode !== 'FCL' && selectedWarehouseContact"
+          if text.count(old) != 3:
+              raise SystemExit(f'Expected 3 WHS shipment mode bindings, found {text.count(old)}')
+          path.write_text(text.replace(old, new))
+          PY
+          git diff --check
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git commit -m "fix(web): use form shipment mode for FCL WHS contacts"
+          git push origin HEAD:develop

@@ -416,7 +416,11 @@ export const useAuthStore = defineStore('auth', () => {
 
     applyClaimsFromAccessToken(accessToken.value)
 
-    if (isAccessTokenExpired(accessToken.value)) {
+    const pricingRoleNeedsScopeRefresh =
+      hasRole('Pricing') &&
+      !scopes.value.some((scope) => scope.trim().toLowerCase() === 'pricing.workspace.access')
+
+    if (isAccessTokenExpired(accessToken.value) || pricingRoleNeedsScopeRefresh) {
       await refreshSession()
       return
     }
@@ -432,6 +436,11 @@ export const useAuthStore = defineStore('auth', () => {
     if (hasRole('SuperUsuario') || hasRole('SuperUser')) return true
 
     const normalizedScope = scope.trim().toLowerCase()
+
+    // Pricing is only the base operational role. Additional Pricing views/actions
+    // remain controlled by their explicit scopes.
+    if (hasRole('Pricing') && normalizedScope === 'pricing.workspace.access') return true
+
     const compatibleScopes =
       normalizedScope === 'config.catalog-selects.view'
         ? new Set([normalizedScope, 'config.select'])

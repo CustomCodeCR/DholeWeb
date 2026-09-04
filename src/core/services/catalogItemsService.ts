@@ -73,6 +73,8 @@ export const CatalogItemsService = {
       path: endpointWithQuery,
     })
 
+    // Keep catalog metadata intact. Consumers such as Pricing resolve
+    // contactDirectory according to the active shipment mode (FCL/LCL) and route.
     return unwrapListResponse<CatalogItemSelectDto>(response)
   },
 

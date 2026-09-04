@@ -1,0 +1,37 @@
+name: Apply Sep 03 requested pricing fixes
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/scripts/apply_sep03_requested_pricing_fixes.py'
+      - '.github/workflows/apply-sep03-requested-pricing-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Apply requested pricing fixes
+        run: python .github/scripts/apply_sep03_requested_pricing_fixes.py
+      - name: Validate frontend
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - name: Commit frontend changes to develop
+        run: |
+          if git diff --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/core/composables/useSidebarItems.ts src/modules/pricing/views/PricingCostsView.vue src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          git commit -m 'fix(pricing): correct LCL view, agent and cost icons'
+          git push origin develop
