@@ -5,6 +5,7 @@ import { Clock3, PlayCircle, RefreshCcw } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
+import type { SystemNotificationPush } from '@/core/realtime/notificationRealtime'
 import { useToastStore } from '@/core/stores/toastStore'
 
 type Priority = 'Green' | 'Yellow' | 'Red'
@@ -20,6 +21,7 @@ interface RateRequestDto {
   clientName?: string | null
   executiveName?: string | null
   shipmentMode?: string | null
+  equipmentType?: string | null
   originName?: string | null
   destinationName?: string | null
 }
@@ -72,6 +74,11 @@ function isOverdue(request: RateRequestDto) {
   return new Date(request.dueAtUtc).getTime() <= now.value
 }
 
+function equipmentLabel(request: RateRequestDto) {
+  return request.equipmentType?.trim()
+    || (request.shipmentMode?.toUpperCase() === 'LCL' ? 'LCL' : 'Sin definir')
+}
+
 async function load() {
   try {
     loading.value = true
@@ -92,12 +99,22 @@ function continueRequest(request: RateRequestDto) {
   router.push({ name: 'pricing-rate-request-resume', params: { requestId: request.id } })
 }
 
+function handleRealtimeNotification(event: Event) {
+  const notification = (event as CustomEvent<SystemNotificationPush>).detail
+  if (notification?.notificationType !== 'pricing.rate-request.created') return
+
+  now.value = Date.now()
+  void load()
+}
+
 onMounted(() => {
   void load()
+  window.addEventListener('dhole:notification:received', handleRealtimeNotification)
   timer = window.setInterval(() => { now.value = Date.now() }, 30000)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('dhole:notification:received', handleRealtimeNotification)
   if (timer) window.clearInterval(timer)
 })
 </script>
@@ -111,7 +128,7 @@ onBeforeUnmount(() => {
           <h2 class="text-lg font-black">Solicitudes abiertas de vendedores</h2>
         </div>
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-          Ordenadas por urgencia: Verde, Amarillo y Rojo. El reloj corre hasta que la tarifa sea enviada.
+          Ordenadas por urgencia: Verde, Amarillo y Rojo. Las nuevas solicitudes llegan en tiempo real a Pricing.
         </p>
       </div>
       <DhButton variant="secondary" :disabled="loading" @click="load">
@@ -126,11 +143,12 @@ onBeforeUnmount(() => {
       No hay solicitudes abiertas pendientes de enviar.
     </div>
     <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-      <table class="min-w-[980px] w-full text-left text-sm">
+      <table class="min-w-[1120px] w-full text-left text-sm">
         <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
           <tr>
             <th class="px-4 py-3">Tipo</th>
             <th class="px-4 py-3">Solicitud</th>
+            <th class="px-4 py-3">Contenedor</th>
             <th class="px-4 py-3">Ruta</th>
             <th class="px-4 py-3">Abierta</th>
             <th class="px-4 py-3">Límite</th>
@@ -143,6 +161,10 @@ onBeforeUnmount(() => {
             <td class="px-4 py-3">
               <strong>{{ request.clientName || 'Cliente sin definir' }}</strong>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ request.sellerName || request.executiveName || 'Vendedor' }} · {{ request.shipmentMode || 'Modalidad pendiente' }}</p>
+            </td>
+            <td class="px-4 py-3">
+              <strong>{{ equipmentLabel(request) }}</strong>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ request.shipmentMode || 'Embarque' }}</p>
             </td>
             <td class="px-4 py-3 font-bold">{{ request.originName || 'Origen' }} → {{ request.destinationName || 'Destino' }}</td>
             <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong></td>
