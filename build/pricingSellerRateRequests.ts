@@ -49,10 +49,15 @@ function patchWizard(source: string) {
     'page title',
   )
 
+  // pricingWizardEnhancements injects the LCL helpers between saveOpenRequest and
+  // saveRate. The old end anchor at saveRate removed applyLclRateSource and the
+  // commercial-term helpers, leaving Pantalla 6 without the selected LCL payload.
+  // Stop at the first injected helper so the seller-request patch only replaces
+  // saveOpenRequest and preserves the working LCL pipeline from d0fc105/253b47e.
   code = replaceBetween(
     code,
     `async function saveOpenRequest() {`,
-    `\n\nasync function saveRate() {`,
+    `\n\nfunction uniqueCommercialTerms`,
     `async function saveOpenRequest() {\n  const origin = selectedOrigin.value\n  const destination = selectedDestination.value\n  const equipment = selectedEquipment.value\n  const incoterm = selectedIncoterm.value\n\n  if (!origin || !destination || !equipment || !incoterm) {\n    toastStore.error('Complete las pantallas 0 a 3 antes de enviar la solicitud a Pricing.')\n    return\n  }\n\n  try {\n    saving.value = true\n    const response = await callEndpoint<unknown, Record<string, unknown>>(\n      { method: 'POST', path: '/api/pricing/rate-requests', headers: { Accept: 'application/json' } },\n      {\n        body: {\n          priority: rateRequestPriority.value,\n          clientName: form.clientName.trim() || null,\n          executiveName: form.executiveName.trim() || null,\n          shipmentMode: shipmentModeForApi.value,\n          originName: displayValue(origin),\n          destinationName: displayValue(destination),\n          payload: {\n            form: JSON.parse(JSON.stringify(form)),\n            supportEntityId: supportEntityId.value,\n            supportDocuments: supportDocuments.value,\n          },\n        },\n      },\n    )\n    const requestId = unwrapApiResponse<string>(response as never)\n    const sla = rateRequestPriority.value === 'Green' ? '24 horas' : rateRequestPriority.value === 'Yellow' ? '48 horas' : '72 horas'\n    toastStore.success('Solicitud enviada a Pricing', 'Solicitud ' + requestId + ' · tiempo máximo ' + sla + '.')\n    resetWizard()\n    rateRequestPriority.value = 'Green'\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo enviar la solicitud abierta a Pricing.')\n  } finally {\n    saving.value = false\n  }\n}`,
     'save open request',
   )
