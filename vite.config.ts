@@ -16,6 +16,7 @@ import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptional
 import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
+import { pricingSellerRateRequestResponsibilities } from './build/pricingSellerRateRequestResponsibilities'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 
 export default defineConfig({
@@ -34,6 +35,7 @@ export default defineConfig({
     pricingWizardLclFinalGuard(),
     pricingWizardScreen09LclFix(),
     pricingSellerRateRequests(),
+    pricingSellerRateRequestResponsibilities(),
     pricingSellerScopeAccess(),
     vue(),
     tailwindcss(),
