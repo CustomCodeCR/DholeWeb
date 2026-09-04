@@ -24,6 +24,7 @@ const lclMode = computed(() =>
   !rateId.value && !ownLcl.value && route.query.pricingMode === 'lcl',
 )
 
+// Mantiene separados los tres espacios de cotización sin perder los flujos LCL ya existentes.
 function switchWorkspace(value: 'quote' | 'lcl' | 'own-lcl') {
   if (value === 'own-lcl') {
     if (!canCreateOwnLcl.value) return
