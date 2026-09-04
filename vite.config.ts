@@ -7,6 +7,7 @@ import { pricingLclSourceVisibilityFix } from './build/pricingLclSourceVisibilit
 import { pricingLclCostBreakdownUi } from './build/pricingLclCostBreakdownUi'
 import { pricingWizardFixedAutomaticCostEditFix } from './build/pricingWizardFixedAutomaticCostEditFix'
 import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
+import { pricingWizardOwnLclLinePersistence } from './build/pricingWizardOwnLclLinePersistence'
 import { pricingWizardLclRouteContextFix } from './build/pricingWizardLclRouteContextFix'
 import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 import { pricingWizardLclFclParityFix } from './build/pricingWizardLclFclParityFix'
@@ -14,9 +15,29 @@ import { pricingWizardSep02Requirements } from './build/pricingWizardSep02Requir
 import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptionalWeight'
 import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
+import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
+import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), vue(), tailwindcss()],
+  plugins: [
+    pricingWizardLclOptionalWeight(),
+    pricingWizardSep02Requirements(),
+    pricingWizardLclCorrections(),
+    pricingLclSourceVisibilityFix(),
+    pricingLclCostBreakdownUi(),
+    pricingWizardFixedAutomaticCostEditFix(),
+    pricingWizardEnhancementsScoped(),
+    pricingWizardOwnLclLinePersistence(),
+    pricingWizardLclRouteContextFix(),
+    pricingWizardUiParity(),
+    pricingWizardLclFclParityFix(),
+    pricingWizardLclFinalGuard(),
+    pricingWizardScreen09LclFix(),
+    pricingSellerRateRequests(),
+    pricingSellerScopeAccess(),
+    vue(),
+    tailwindcss(),
+  ],
 
   resolve: {
     alias: {
