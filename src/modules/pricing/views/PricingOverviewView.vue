@@ -6,6 +6,7 @@ import { DhButton } from '@/shared/components/atoms'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import PricingAlternativeWizardCrystal from '@/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+import PricingLclWizard from '@/modules/pricing/components/PricingLclWizard.vue'
 import PricingOwnLclView from '@/modules/pricing/views/PricingOwnLclView.vue'
 
 const route = useRoute()
@@ -17,15 +18,24 @@ const canCreateOwnLcl = computed(() =>
   authStore.hasScope(PRICING_SCOPES.ownLclConsolidations.create),
 )
 const ownLcl = computed(() =>
-  route.query.workspace === 'own-lcl' && canCreateOwnLcl.value,
+  !rateId.value && route.query.workspace === 'own-lcl' && canCreateOwnLcl.value,
+)
+const lclMode = computed(() =>
+  !rateId.value && !ownLcl.value && route.query.pricingMode === 'lcl',
 )
 
-function switchWorkspace(value: 'quote' | 'own-lcl') {
+function switchWorkspace(value: 'quote' | 'lcl' | 'own-lcl') {
   if (value === 'own-lcl') {
     if (!canCreateOwnLcl.value) return
     void router.replace({ path: '/pricing', query: { workspace: 'own-lcl' } })
     return
   }
+
+  if (value === 'lcl') {
+    void router.replace({ path: '/pricing', query: { pricingMode: 'lcl' } })
+    return
+  }
+
   void router.replace('/pricing')
 }
 </script>
@@ -33,10 +43,16 @@ function switchWorkspace(value: 'quote' | 'own-lcl') {
 <template>
   <div v-if="!rateId" class="mb-4 flex flex-wrap items-center gap-2">
     <DhButton
-      label="Cotización"
+      label="FCL / Estándar"
       :icon="Ship"
-      :variant="ownLcl ? 'secondary' : 'primary'"
+      :variant="!lclMode && !ownLcl ? 'primary' : 'secondary'"
       @click="switchWorkspace('quote')"
+    />
+    <DhButton
+      label="LCL"
+      :icon="Ship"
+      :variant="lclMode ? 'primary' : 'secondary'"
+      @click="switchWorkspace('lcl')"
     />
     <DhButton
       v-if="canCreateOwnLcl"
@@ -48,5 +64,6 @@ function switchWorkspace(value: 'quote' | 'own-lcl') {
   </div>
 
   <PricingOwnLclView v-if="ownLcl && !rateId" />
+  <PricingLclWizard v-else-if="lclMode" />
   <PricingAlternativeWizardCrystal v-else :rate-id="rateId" :view-only="viewOnly" />
 </template>
