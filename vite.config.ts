@@ -24,10 +24,10 @@ import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 import { pricingWizardToastErrors } from './build/pricingWizardToastErrors'
 import { pricingWizardLclSourceSummary } from './build/pricingWizardLclSourceSummary'
-import { pricingWizardLclNavigationBridge } from './build/pricingWizardLclNavigationBridge'
+import { pricingWizardLclFclSelectionFlow } from './build/pricingWizardLclFclSelectionFlow'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclAtomicSelection(), pricingWizardLclStableFlow(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), pricingWizardLclNavigationBridge(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclAtomicSelection(), pricingWizardLclStableFlow(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), pricingWizardLclFclSelectionFlow(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
