@@ -14,24 +14,9 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
-  // There is one owner for the transition. The selector calls applyLclRateSource
-  // directly with the complete calculated payload. Hydration finishes first and
-  // only then Pantalla 5 advances to Pantalla 6.
-  const hydrationEnd = `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n}`
-  const hydrationEndReplacement = `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n  step.value = 6\n}`
-  code = replaceOne(code, hydrationEnd, hydrationEndReplacement, 'LCL hydration completion')
-
-  // Use a plain function prop. Vue treats props beginning with "on" as event
-  // listeners in several compiler/runtime paths, which left the previous callback
-  // undefined even though modelValue was still updating visually.
-  code = replaceOne(
-    code,
-    `            @select="(selection) => { applyLclRateSource(selection); step = 6 }"`,
-    `            :resolve-selection="applyLclRateSource"`,
-    'direct LCL resolved selection binding',
-  )
-
-  // Mobile: the 8-step bar must scroll instead of squeezing every step into tiny boxes.
+  // UI-only patch. Selection/hydration/navigation intentionally remain owned by
+  // pricingWizardEnhancements + pricingWizardLclFclParityFix, matching the stable
+  // behavior from commit 5e187615.
   code = replaceOne(
     code,
     `    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
@@ -62,28 +47,6 @@ function patchWizard(source: string) {
 
 function patchSelector(source: string) {
   let code = source
-
-  // Direct function supplied by the Wizard. Keep select/modelValue only for
-  // backwards compatibility and visual selected-state updates.
-  code = replaceOne(
-    code,
-    `  cargoLines?: OwnLclCargoLineRequest[]\n}>(), {`,
-    `  cargoLines?: OwnLclCargoLineRequest[]\n  resolveSelection?: (selection: LclRateSourceSelection) => void\n}>(), {`,
-    'selector direct callback prop',
-  )
-
-  code = replaceOne(
-    code,
-    `    emit('update:modelValue', \`Own:\${row.id}\`)\n    emit('select', selection)`,
-    `    props.resolveSelection?.(selection)\n    emit('update:modelValue', \`Own:\${row.id}\`)\n    emit('select', selection)`,
-    'own direct selection callback',
-  )
-  code = replaceOne(
-    code,
-    `  emit('update:modelValue', \`Coloader:\${rate.id}\`)\n  emit('select', selection)`,
-    `  props.resolveSelection?.(selection)\n  emit('update:modelValue', \`Coloader:\${rate.id}\`)\n  emit('select', selection)`,
-    'coloader direct selection callback',
-  )
 
   code = replaceOne(
     code,
