@@ -245,6 +245,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/rate-comparisons/:comparisonId',
+          name: 'pricing-rate-comparison',
+          component: () => import('@/modules/pricing/views/PricingRateComparisonView.vue'),
+          meta: {
+            tabTitle: 'Comparación de tarifa',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+        },
+        {
           path: 'pricing/costs',
           name: 'pricing-costs',
           component: () => import('@/modules/pricing/views/PricingCostsView.vue'),
