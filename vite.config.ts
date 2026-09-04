@@ -11,8 +11,6 @@ import { pricingWizardOwnLclLinePersistence } from './build/pricingWizardOwnLclL
 import { pricingWizardLclRouteContextFix } from './build/pricingWizardLclRouteContextFix'
 import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 import { pricingWizardLclFclParityFix } from './build/pricingWizardLclFclParityFix'
-import { pricingWizardLclSelectionHydrationFix } from './build/pricingWizardLclSelectionHydrationFix'
-import { pricingWizardLclAtomicSelection } from './build/pricingWizardLclAtomicSelection'
 import { pricingWizardLclStableFlow } from './build/pricingWizardLclStableFlow'
 import { pricingWizardSep02Requirements } from './build/pricingWizardSep02Requirements'
 import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptionalWeight'
@@ -24,10 +22,9 @@ import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 import { pricingWizardToastErrors } from './build/pricingWizardToastErrors'
 import { pricingWizardLclSourceSummary } from './build/pricingWizardLclSourceSummary'
-import { pricingWizardLclFclSelectionFlow } from './build/pricingWizardLclFclSelectionFlow'
 
 export default defineConfig({
-  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclSelectionHydrationFix(), pricingWizardLclAtomicSelection(), pricingWizardLclStableFlow(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), pricingWizardLclFclSelectionFlow(), vue(), tailwindcss()],
+  plugins: [pricingWizardLclOptionalWeight(), pricingWizardSep02Requirements(), pricingWizardLclCorrections(), pricingLclSourceVisibilityFix(), pricingLclCostBreakdownUi(), pricingWizardFixedAutomaticCostEditFix(), pricingWizardEnhancementsScoped(), pricingWizardOwnLclLinePersistence(), pricingWizardLclRouteContextFix(), pricingWizardUiParity(), pricingWizardLclFclParityFix(), pricingWizardLclStableFlow(), pricingWizardLclFinalGuard(), pricingWizardScreen09LclFix(), pricingWizardAgentCountryFilter(), pricingWizardOwnLclExcelOnly(), pricingSellerRateRequests(), pricingSellerScopeAccess(), pricingWizardToastErrors(), pricingWizardLclSourceSummary(), vue(), tailwindcss()],
 
   resolve: {
     alias: {
