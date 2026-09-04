@@ -14,27 +14,40 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
-  // Match the FCL interaction model: the click delivers the complete selected rate
-  // to one parent handler, that handler hydrates the form, and only then advances.
-  // We intentionally use update:modelValue because this exact channel is already
-  // proven to update the selected card correctly on mobile Safari.
+  // Restore the exact interaction that was stable in 5e187615:
+  // 1) @select hydrates the complete LCL source.
+  // 2) update:modelValue only persists the selected key and advances 5 -> 6.
+  // Keeping those responsibilities separate prevents the visual selected state from
+  // becoming detached from the wizard navigation on mobile Safari.
   code = replaceOne(
     code,
     `            v-model="lclSelectedSourceKey"`,
-    `            :model-value="lclSelectedSourceKey"`,
-    'LCL model binding',
+    `            :model-value="lclSelectedSourceKey"\n            @update:model-value="(value) => { lclSelectedSourceKey = String(value || ''); if (value) step = 6 }"`,
+    'LCL model-value navigation binding',
   )
 
   code = replaceOne(
     code,
     `            :resolve-selection="applyLclRateSource"`,
-    `            @update:model-value="chooseLclRateSource"`,
-    'LCL FCL-style selection handler',
+    `            @select="applyLclRateSource"`,
+    'LCL source hydration binding',
   )
 
-  const saveAnchor = 'async function saveRate() {'
-  const handler = `function chooseLclRateSource(selection: LclRateSourceSelection) {\n  if (!selection?.id || !selection.kind) return\n\n  lclSelectedSourceKey.value = \`${'${selection.kind}:${selection.id}'}\`\n  applyLclRateSource(selection)\n  step.value = 6\n}\n\n`
-  code = replaceOne(code, saveAnchor, handler + saveAnchor, 'saveRate handler anchor')
+  // pricingWizardLclStableFlow previously made applyLclRateSource navigate too.
+  // Remove that duplicate transition so only update:modelValue owns navigation.
+  code = replaceOne(
+    code,
+    `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n  step.value = 6\n}`,
+    `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n}`,
+    'duplicate LCL navigation inside hydration',
+  )
+
+  if (!code.includes(`@select="applyLclRateSource"`)) {
+    throw new Error('[pricingWizardLclFclSelectionFlow] LCL hydration handler was not restored.')
+  }
+  if (!code.includes(`@update:model-value="(value) => { lclSelectedSourceKey = String(value || ''); if (value) step = 6 }"`)) {
+    throw new Error('[pricingWizardLclFclSelectionFlow] LCL 5 -> 6 navigation handler was not restored.')
+  }
 
   return code
 }
@@ -42,29 +55,27 @@ function patchWizard(source: string) {
 function patchSelector(source: string) {
   let code = source
 
-  // update:modelValue now carries the full resolved source, just like chooseRate(rate)
-  // receives the full FCL rate object. The parent keeps modelValue itself as the
-  // string key used only to paint the selected state.
-  code = replaceOne(
-    code,
-    `  'update:modelValue': [value: string]`,
-    `  'update:modelValue': [selection: LclRateSourceSelection]`,
-    'LCL model emit payload type',
-  )
-
+  // The full source must reach the parent BEFORE the selected key advances the
+  // wizard. The base selector emitted these in the opposite order, and later
+  // plugins tried to solve it with direct callbacks / object modelValue payloads.
+  // Keep modelValue as the original string contract and make event ordering explicit.
   code = replaceOne(
     code,
     `    props.resolveSelection?.(selection)\n    emit('update:modelValue', \`Own:\${row.id}\`)\n    emit('select', selection)`,
-    `    emit('update:modelValue', selection)\n    emit('select', selection)`,
-    'own LCL FCL-style emit',
+    `    emit('select', selection)\n    emit('update:modelValue', \`Own:\${row.id}\`)`,
+    'own LCL event order',
   )
 
   code = replaceOne(
     code,
     `  props.resolveSelection?.(selection)\n  emit('update:modelValue', \`Coloader:\${rate.id}\`)\n  emit('select', selection)`,
-    `  emit('update:modelValue', selection)\n  emit('select', selection)`,
-    'coloader LCL FCL-style emit',
+    `  emit('select', selection)\n  emit('update:modelValue', \`Coloader:\${rate.id}\`)`,
+    'coloader LCL event order',
   )
+
+  if (!code.includes(`'update:modelValue': [value: string]`)) {
+    throw new Error('[pricingWizardLclFclSelectionFlow] LCL modelValue must remain a string key.')
+  }
 
   return code
 }
