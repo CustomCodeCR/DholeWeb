@@ -33,14 +33,14 @@ function patchWizard(source: string) {
     'LCL source hydration binding',
   )
 
-  // pricingWizardLclStableFlow previously made applyLclRateSource navigate too.
-  // Remove that duplicate transition so only update:modelValue owns navigation.
-  code = replaceOne(
-    code,
-    `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n  step.value = 6\n}`,
-    `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n}`,
-    'duplicate LCL navigation inside hydration',
-  )
+  // Some earlier transforms may already have removed the navigation that StableFlow
+  // injects into applyLclRateSource. Remove it only when it is still present instead
+  // of failing the complete production build when the transformed shape differs.
+  const duplicateHydrationNavigation = `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n  step.value = 6\n}`
+  const hydrationOnly = `  rateLines.value = selection.lines.map((line) => ({ ...line })) as RateLine[]\n  draftCommercialTermsInitialized.value = false\n}`
+  if (code.includes(duplicateHydrationNavigation)) {
+    code = code.replace(duplicateHydrationNavigation, hydrationOnly)
+  }
 
   if (!code.includes(`@select="applyLclRateSource"`)) {
     throw new Error('[pricingWizardLclFclSelectionFlow] LCL hydration handler was not restored.')
