@@ -41,13 +41,6 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `<p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>`,
-    `<p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona. Las tarifas se ordenan por días de vigencia restantes, de mayor a menor.</p>`,
-    'screen 5 description',
-  )
-
-  code = replaceOne(
-    code,
     `          <template v-else-if="availableRates.length">\n            <div class="grid gap-4 lg:grid-cols-2">`,
     `          <template v-else-if="availableRates.length">\n            <div class="crystal-soft flex flex-col gap-3 p-4 md:flex-row md:items-end md:justify-between">\n              <div>\n                <p class="text-sm font-black">Orden y filtro de tarifas</p>\n                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Mayor vigencia primero · {{ sortedAvailableRates.length }} de {{ availableRates.length }} tarifa{{ availableRates.length === 1 ? '' : 's' }}</p>\n              </div>\n              <div class="w-full md:max-w-xs">\n                <DhSelect v-model="rateCarrierFilter" label="Naviera" :options="rateCarrierFilterOptions" />\n              </div>\n            </div>\n\n            <div v-if="!sortedAvailableRates.length" class="crystal-empty p-7 text-center">\n              <p class="font-black">No hay tarifas para la naviera seleccionada</p>\n              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione “Todas las navieras” para volver a mostrar todas las opciones.</p>\n            </div>\n\n            <div v-else class="grid gap-4 lg:grid-cols-2">`,
     'screen 5 carrier filter',
