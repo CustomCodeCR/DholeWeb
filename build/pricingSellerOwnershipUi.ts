@@ -70,7 +70,7 @@ function patchRates(source: string) {
   code = replaceOne(
     code,
     `const canCreate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))`,
-    `const isSellerUser = computed(() => {\n  const sellerRole = authStore.roles.some((role) => {\n    const value = role.trim().toLowerCase()\n    return value === 'vendedor' || value === 'seller' || value === 'ventas' || value.includes('vendedor') || value.includes('seller')\n  })\n  return sellerRole || (authStore.hasScope('pricing.rate-requests.create') && !authStore.hasScope(PRICING_SCOPES.rates.update))\n})\n\nconst canCreate = computed(() => !isSellerUser.value && authStore.hasScope(PRICING_SCOPES.rates.create))`,
+    `const isSellerUser = computed(() => {\n  const sellerRole = authStore.roles.some((role) => {\n    const value = role.trim().toLowerCase()\n    return value === 'vendedor' || value === 'seller' || value === 'ventas' || value.includes('vendedor') || value.includes('seller')\n  })\n  return sellerRole || (authStore.hasScope('pricing.rate-request.create') && !authStore.hasScope(PRICING_SCOPES.rates.update))\n})\n\nconst canCreate = computed(() => !isSellerUser.value && authStore.hasScope(PRICING_SCOPES.rates.create))`,
     'seller rates role state',
   )
 
