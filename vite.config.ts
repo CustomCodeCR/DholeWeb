@@ -18,6 +18,7 @@ import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerRateRequestResponsibilities } from './build/pricingSellerRateRequestResponsibilities'
 import { pricingWizardStep5RateFilter } from './build/pricingWizardStep5RateFilter'
+import { pricingSellerOwnershipUi } from './build/pricingSellerOwnershipUi'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 
 export default defineConfig({
@@ -38,6 +39,7 @@ export default defineConfig({
     pricingSellerRateRequests(),
     pricingSellerRateRequestResponsibilities(),
     pricingWizardStep5RateFilter(),
+    pricingSellerOwnershipUi(),
     pricingSellerScopeAccess(),
     vue(),
     tailwindcss(),
