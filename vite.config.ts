@@ -20,6 +20,7 @@ import { pricingSellerRateRequestResponsibilities } from './build/pricingSellerR
 import { pricingWizardStep5RateFilter } from './build/pricingWizardStep5RateFilter'
 import { pricingSellerOwnershipUi } from './build/pricingSellerOwnershipUi'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
+import { pricingCommercialAutomation20260906 } from './build/pricingCommercialAutomation20260906'
 
 export default defineConfig({
   plugins: [
@@ -41,6 +42,7 @@ export default defineConfig({
     pricingWizardStep5RateFilter(),
     pricingSellerOwnershipUi(),
     pricingSellerScopeAccess(),
+    pricingCommercialAutomation20260906(),
     vue(),
     tailwindcss(),
   ],
