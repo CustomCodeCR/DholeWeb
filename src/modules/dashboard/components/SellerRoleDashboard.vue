@@ -95,6 +95,21 @@ function canRespondToRate(rate: RateDto) {
 
 async function setCustomerDecision(rate: RateDto, status: 'AcceptedByClient' | 'RejectedByClient') {
   let reason: string | null = null
+  let idtraNumber: string | null = null
+
+  if (status === 'AcceptedByClient') {
+    const value = window.prompt(
+      'Ingrese el IDTRA para registrar la aceptación del cliente:',
+      rate.idtraNumber?.trim() ?? '',
+    )
+    if (value === null) return
+    idtraNumber = value.trim()
+    if (!idtraNumber) {
+      toast.warning('IDTRA requerido', 'Debe registrar el IDTRA para marcar la tarifa como aceptada.')
+      return
+    }
+  }
+
   if (status === 'RejectedByClient') {
     const value = window.prompt('Indique el motivo por el que el cliente rechazó la tarifa:')
     if (value === null) return
@@ -117,14 +132,14 @@ async function setCustomerDecision(rate: RateDto, status: 'AcceptedByClient' | '
         body: {
           status,
           reason,
-          idtraNumber: null,
+          idtraNumber,
         },
       },
     )
     toast.success(
       status === 'AcceptedByClient' ? 'Tarifa aceptada' : 'Tarifa rechazada',
       status === 'AcceptedByClient'
-        ? 'Se registró la aceptación del cliente.'
+        ? `Se registró la aceptación del cliente${idtraNumber ? ` con IDTRA ${idtraNumber}` : ''}.`
         : 'Se registró el rechazo del cliente.',
     )
     await load()
