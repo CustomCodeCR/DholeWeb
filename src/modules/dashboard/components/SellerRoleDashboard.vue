@@ -28,6 +28,7 @@ interface SellerRateRequestDto {
 
 const toast = useToastStore()
 const loading = ref(false)
+const updatingRateId = ref('')
 const requests = ref<SellerRateRequestDto[]>([])
 const rates = ref<RateDto[]>([])
 
@@ -68,6 +69,7 @@ function requestStateVariant(request: SellerRateRequestDto): 'success' | 'warnin
 function customerProgress(rate: RateDto) {
   switch (rate.status) {
     case 'Sent': return 'Esperando respuesta del cliente'
+    case 'RequestedByClient': return 'Esperando respuesta del cliente'
     case 'AcceptedByClient': return 'Aceptada por el cliente'
     case 'RejectedByClient':
     case 'Closed': return 'No aceptada por el cliente'
@@ -79,12 +81,58 @@ function customerProgress(rate: RateDto) {
 function progressVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutral' {
   if (rate.status === 'AcceptedByClient') return 'success'
   if (['RejectedByClient', 'Closed', 'Expired'].includes(rate.status)) return 'danger'
-  if (rate.status === 'Sent') return 'warning'
+  if (['Sent', 'RequestedByClient'].includes(rate.status)) return 'warning'
   return 'neutral'
 }
 
 function routeLabel(rate: RateDto) {
   return [rate.polName, rate.poeName, rate.podName].filter(Boolean).join(' → ')
+}
+
+function canRespondToRate(rate: RateDto) {
+  return ['Sent', 'RequestedByClient'].includes(rate.status)
+}
+
+async function setCustomerDecision(rate: RateDto, status: 'AcceptedByClient' | 'RejectedByClient') {
+  let reason: string | null = null
+  if (status === 'RejectedByClient') {
+    const value = window.prompt('Indique el motivo por el que el cliente rechazó la tarifa:')
+    if (value === null) return
+    reason = value.trim()
+    if (!reason) {
+      toast.warning('Motivo requerido', 'Debe indicar por qué el cliente rechazó la tarifa.')
+      return
+    }
+  }
+
+  try {
+    updatingRateId.value = rate.id
+    await callEndpoint<unknown>(
+      {
+        method: 'PATCH',
+        path: `/api/pricing/seller-rates/${rate.id}/status`,
+        headers: { Accept: 'application/json' },
+      },
+      {
+        body: {
+          status,
+          reason,
+          idtraNumber: null,
+        },
+      },
+    )
+    toast.success(
+      status === 'AcceptedByClient' ? 'Tarifa aceptada' : 'Tarifa rechazada',
+      status === 'AcceptedByClient'
+        ? 'Se registró la aceptación del cliente.'
+        : 'Se registró el rechazo del cliente.',
+    )
+    await load()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo actualizar la respuesta del cliente.')
+  } finally {
+    updatingRateId.value = ''
+  }
 }
 
 async function load() {
@@ -149,11 +197,11 @@ onMounted(load)
 
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
       <h3 class="text-lg font-black">Mis tarifas y seguimiento de clientes</h3>
-      <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Permite ver rápidamente cuáles siguen en preparación, cuáles esperan al cliente y cuáles ya fueron aceptadas, rechazadas o vencieron.</p>
+      <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Permite ver rápidamente cuáles esperan al cliente y registrar directamente si fueron aceptadas o rechazadas.</p>
       <div v-if="!latestRates.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Aún no hay tarifas creadas a partir de sus solicitudes.</div>
       <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-        <table class="min-w-[980px] w-full text-left text-sm">
-          <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"><tr><th class="px-4 py-3">Tarifa</th><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Ruta</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Vigencia</th><th class="px-4 py-3">Seguimiento cliente</th></tr></thead>
+        <table class="min-w-[1160px] w-full text-left text-sm">
+          <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"><tr><th class="px-4 py-3">Tarifa</th><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Ruta</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Vigencia</th><th class="px-4 py-3">Seguimiento cliente</th><th class="px-4 py-3">Acción</th></tr></thead>
           <tbody>
             <tr v-for="rate in latestRates" :key="rate.id" class="border-t border-[var(--dh-border)]">
               <td class="px-4 py-3 font-black">{{ rate.quoNumber || rate.rateCode }}</td>
@@ -162,6 +210,22 @@ onMounted(load)
               <td class="px-4 py-3">{{ rate.containerQuantity }} × {{ rate.containerTypeName || rate.shipmentMode }}</td>
               <td class="px-4 py-3">{{ new Date(rate.validTo).toLocaleDateString('es-CR') }}</td>
               <td class="px-4 py-3"><DhBadge :label="customerProgress(rate)" :variant="progressVariant(rate)" /></td>
+              <td class="px-4 py-3">
+                <div v-if="canRespondToRate(rate)" class="flex min-w-[210px] gap-2">
+                  <DhButton
+                    size="sm"
+                    :disabled="updatingRateId === rate.id"
+                    @click="setCustomerDecision(rate, 'AcceptedByClient')"
+                  >Aceptar</DhButton>
+                  <DhButton
+                    size="sm"
+                    variant="danger"
+                    :disabled="updatingRateId === rate.id"
+                    @click="setCustomerDecision(rate, 'RejectedByClient')"
+                  >Rechazar</DhButton>
+                </div>
+                <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Sin acción pendiente</span>
+              </td>
             </tr>
           </tbody>
         </table>
