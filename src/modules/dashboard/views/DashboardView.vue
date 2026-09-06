@@ -25,7 +25,7 @@ const isSellerUser = computed(() => {
   })
 
   return roleSeller || (
-    authStore.hasScope('pricing.rate-requests.create') &&
+    authStore.hasScope('pricing.rate-request.create') &&
     !authStore.hasScope(PRICING_SCOPES.rates.update)
   )
 })
