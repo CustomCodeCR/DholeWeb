@@ -43,7 +43,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `            supportDocuments: supportDocuments.value,\n            sellerContext: {`,
-    `            supportDocuments: supportDocuments.value,\n            requestContext: {\n              executiveName: form.executiveName || null,\n              equipmentType: shipmentModeForApi === 'Lcl' ? 'LCL' : displayValue(equipment) || form.equipmentType || form.equipmentSize || null,\n              equipmentQuantity: Math.max(1, Number(form.equipmentQuantity || 1)),\n              modality: form.modality || shipmentModeForApi || null,\n              incotermName: displayValue(incoterm) || null,\n            },\n            sellerContext: {`,
+    `            supportDocuments: supportDocuments.value,\n            requestContext: {\n              executiveName: form.executiveName || null,\n              equipmentType: shipmentModeForApi.value === 'Lcl' ? 'LCL' : displayValue(equipment) || form.equipmentType || form.equipmentSize || null,\n              equipmentQuantity: Math.max(1, Number(form.equipmentQuantity || 1)),\n              modality: form.modality || shipmentModeForApi.value || null,\n              incotermName: displayValue(incoterm) || null,\n            },\n            sellerContext: {`,
     'seller request context',
   )
 
