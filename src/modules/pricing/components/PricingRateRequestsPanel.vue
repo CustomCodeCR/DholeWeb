@@ -10,6 +10,11 @@ import { useToastStore } from '@/core/stores/toastStore'
 
 type Priority = 'Green' | 'Yellow' | 'Red'
 
+type RequestPayload = {
+  form?: Record<string, unknown>
+  requestContext?: Record<string, unknown>
+}
+
 interface RateRequestDto {
   id: string
   priority: Priority
@@ -24,6 +29,7 @@ interface RateRequestDto {
   equipmentType?: string | null
   originName?: string | null
   destinationName?: string | null
+  payload?: RequestPayload | null
 }
 
 const router = useRouter()
@@ -74,9 +80,40 @@ function isOverdue(request: RateRequestDto) {
   return new Date(request.dueAtUtc).getTime() <= now.value
 }
 
+function objectValue(request: RateRequestDto, key: string): unknown {
+  const context = request.payload?.requestContext
+  if (context && context[key] != null && String(context[key]).trim()) return context[key]
+  const form = request.payload?.form
+  return form?.[key]
+}
+
+function stringValue(request: RateRequestDto, ...keys: string[]) {
+  for (const key of keys) {
+    const raw = objectValue(request, key)
+    const value = String(raw ?? '').trim()
+    if (value) return value
+  }
+  return ''
+}
+
 function equipmentLabel(request: RateRequestDto) {
   return request.equipmentType?.trim()
+    || stringValue(request, 'equipmentType', 'equipmentSize')
     || (request.shipmentMode?.toUpperCase() === 'LCL' ? 'LCL' : 'Sin definir')
+}
+
+function equipmentQuantity(request: RateRequestDto) {
+  const raw = objectValue(request, 'equipmentQuantity')
+  const value = Number(raw)
+  return Number.isFinite(value) && value > 0 ? value : 1
+}
+
+function modalityLabel(request: RateRequestDto) {
+  return stringValue(request, 'modality') || request.shipmentMode || 'Sin definir'
+}
+
+function incotermLabel(request: RateRequestDto) {
+  return stringValue(request, 'incotermName', 'incotermCode') || 'Sin definir'
 }
 
 async function load() {
@@ -101,7 +138,7 @@ function continueRequest(request: RateRequestDto) {
 
 function handleRealtimeNotification(event: Event) {
   const notification = (event as CustomEvent<SystemNotificationPush>).detail
-  if (notification?.notificationType !== 'pricing.rate-request.created') return
+  if (!['pricing.rate-request.created', 'pricing.rate-request.sla-overdue'].includes(notification?.notificationType ?? '')) return
 
   now.value = Date.now()
   void load()
@@ -125,10 +162,10 @@ onBeforeUnmount(() => {
       <div>
         <div class="flex items-center gap-2">
           <Clock3 class="h-5 w-5 text-[var(--dh-primary)]" />
-          <h2 class="text-lg font-black">Solicitudes abiertas de vendedores</h2>
+          <h2 class="text-lg font-black">Solicitudes de tarifas de vendedores</h2>
         </div>
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-          Ordenadas por urgencia: Verde, Amarillo y Rojo. Las nuevas solicitudes llegan en tiempo real a Pricing.
+          Pricing ve todas las solicitudes con los datos operativos necesarios y su límite de atención.
         </p>
       </div>
       <DhButton variant="secondary" :disabled="loading" @click="load">
@@ -140,33 +177,35 @@ onBeforeUnmount(() => {
       Cargando solicitudes…
     </div>
     <div v-else-if="!sortedRequests.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
-      No hay solicitudes abiertas pendientes de enviar.
+      No hay solicitudes abiertas pendientes de atender.
     </div>
     <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-      <table class="min-w-[1120px] w-full text-left text-sm">
+      <table class="min-w-[1780px] w-full text-left text-sm">
         <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
           <tr>
-            <th class="px-4 py-3">Tipo</th>
-            <th class="px-4 py-3">Solicitud</th>
+            <th class="px-4 py-3">Vendedor</th>
+            <th class="px-4 py-3">Cliente</th>
             <th class="px-4 py-3">Contenedor</th>
+            <th class="px-4 py-3">Cantidad</th>
+            <th class="px-4 py-3">Modalidad</th>
             <th class="px-4 py-3">Ruta</th>
-            <th class="px-4 py-3">Abierta</th>
+            <th class="px-4 py-3">Tipo</th>
+            <th class="px-4 py-3">Incoterm</th>
+            <th class="px-4 py-3">Tiempo</th>
             <th class="px-4 py-3">Límite</th>
             <th class="px-4 py-3 text-right">Acción</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="request in sortedRequests" :key="request.id" class="border-t border-[var(--dh-border)]">
-            <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
-            <td class="px-4 py-3">
-              <strong>{{ request.clientName || 'Cliente sin definir' }}</strong>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ request.sellerName || request.executiveName || 'Vendedor' }} · {{ request.shipmentMode || 'Modalidad pendiente' }}</p>
-            </td>
-            <td class="px-4 py-3">
-              <strong>{{ equipmentLabel(request) }}</strong>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ request.shipmentMode || 'Embarque' }}</p>
-            </td>
+            <td class="px-4 py-3"><strong>{{ request.executiveName || request.sellerName || 'Vendedor' }}</strong></td>
+            <td class="px-4 py-3"><strong>{{ request.clientName || 'Cliente sin definir' }}</strong></td>
+            <td class="px-4 py-3"><strong>{{ equipmentLabel(request) }}</strong></td>
+            <td class="px-4 py-3 font-black">{{ equipmentQuantity(request) }}</td>
+            <td class="px-4 py-3 font-bold">{{ modalityLabel(request) }}</td>
             <td class="px-4 py-3 font-bold">{{ request.originName || 'Origen' }} → {{ request.destinationName || 'Destino' }}</td>
+            <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
+            <td class="px-4 py-3 font-bold">{{ incotermLabel(request) }}</td>
             <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong></td>
             <td class="px-4 py-3">
               <strong :class="isOverdue(request) ? 'text-red-600 dark:text-red-300' : 'text-[var(--dh-text)]'">{{ remaining(request) }}</strong>
