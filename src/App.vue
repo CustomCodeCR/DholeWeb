@@ -93,8 +93,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <!-- Toasts are global feedback and must also be available on public auth screens such as /login. -->
+  <DhToastContainer />
+
   <template v-if="!isPublicRoute">
-    <DhToastContainer />
     <DhModalContainer />
     <DhDrawerContainer />
   </template>
