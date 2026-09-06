@@ -29,6 +29,10 @@ interface RateRequestDto {
   equipmentType?: string | null
   originName?: string | null
   destinationName?: string | null
+  poeId?: string | null
+  poeName?: string | null
+  podId?: string | null
+  podName?: string | null
   payload?: RequestPayload | null
 }
 
@@ -116,6 +120,25 @@ function incotermLabel(request: RateRequestDto) {
   return stringValue(request, 'incotermName', 'incotermCode') || 'Sin definir'
 }
 
+function poeLabel(request: RateRequestDto) {
+  return request.poeName?.trim()
+    || stringValue(request, 'poeName')
+    || request.destinationName?.trim()
+    || 'POE no indicado'
+}
+
+function podLabel(request: RateRequestDto) {
+  return request.podName?.trim()
+    || stringValue(request, 'podName')
+    || request.podId?.trim()
+    || stringValue(request, 'podId')
+    || 'No indicado'
+}
+
+function podMissing(request: RateRequestDto) {
+  return request.shipmentMode?.toUpperCase() === 'LCL' && podLabel(request) === 'No indicado'
+}
+
 async function load() {
   try {
     loading.value = true
@@ -165,7 +188,7 @@ onBeforeUnmount(() => {
           <h2 class="text-lg font-black">Solicitudes de tarifas de vendedores</h2>
         </div>
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-          Pricing ve todas las solicitudes con los datos operativos necesarios y su límite de atención.
+          Pricing ve POL, POE y POD definidos por Ventas antes de continuar la tarifa.
         </p>
       </div>
       <DhButton variant="secondary" :disabled="loading" @click="load">
@@ -180,7 +203,7 @@ onBeforeUnmount(() => {
       No hay solicitudes abiertas pendientes de atender.
     </div>
     <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-      <table class="min-w-[1780px] w-full text-left text-sm">
+      <table class="min-w-[2050px] w-full text-left text-sm">
         <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
           <tr>
             <th class="px-4 py-3">Vendedor</th>
@@ -188,7 +211,9 @@ onBeforeUnmount(() => {
             <th class="px-4 py-3">Contenedor</th>
             <th class="px-4 py-3">Cantidad</th>
             <th class="px-4 py-3">Modalidad</th>
-            <th class="px-4 py-3">Ruta</th>
+            <th class="px-4 py-3">POL</th>
+            <th class="px-4 py-3">POE</th>
+            <th class="px-4 py-3">POD</th>
             <th class="px-4 py-3">Tipo</th>
             <th class="px-4 py-3">Incoterm</th>
             <th class="px-4 py-3">Tiempo</th>
@@ -203,7 +228,12 @@ onBeforeUnmount(() => {
             <td class="px-4 py-3"><strong>{{ equipmentLabel(request) }}</strong></td>
             <td class="px-4 py-3 font-black">{{ equipmentQuantity(request) }}</td>
             <td class="px-4 py-3 font-bold">{{ modalityLabel(request) }}</td>
-            <td class="px-4 py-3 font-bold">{{ request.originName || 'Origen' }} → {{ request.destinationName || 'Destino' }}</td>
+            <td class="px-4 py-3 font-bold">{{ request.originName || 'Origen no indicado' }}</td>
+            <td class="px-4 py-3 font-bold">{{ poeLabel(request) }}</td>
+            <td class="px-4 py-3">
+              <DhBadge v-if="!podMissing(request)" variant="primary">{{ podLabel(request) }}</DhBadge>
+              <DhBadge v-else variant="danger">POD no indicado</DhBadge>
+            </td>
             <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
             <td class="px-4 py-3 font-bold">{{ incotermLabel(request) }}</td>
             <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong></td>
