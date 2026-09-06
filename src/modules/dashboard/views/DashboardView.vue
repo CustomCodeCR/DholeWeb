@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
-import { VIEW_SCOPES } from '@/core/auth/scopes'
+import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import PricingRoleDashboard from '@/modules/dashboard/components/PricingRoleDashboard.vue'
+import SellerRoleDashboard from '@/modules/dashboard/components/SellerRoleDashboard.vue'
+import PricingRateRequestsPanel from '@/modules/pricing/components/PricingRateRequestsPanel.vue'
 
 const { t } = useI18n()
-const router = useRouter()
 const authStore = useAuthStore()
 
 function isSuperUser(): boolean {
@@ -18,23 +18,17 @@ function isSuperUser(): boolean {
   )
 }
 
-function isPrivilegedUser(): boolean {
-  return (
-    isSuperUser() ||
-    authStore.hasRole('SuperAdmin') ||
-    authStore.hasRole('Administrador') ||
-    authStore.hasRole('Administrator') ||
-    authStore.hasRole('Admin')
+const isSellerUser = computed(() => {
+  const roleSeller = authStore.roles.some((role) => {
+    const value = role.trim().toLowerCase()
+    return value === 'vendedor' || value === 'seller' || value === 'ventas' || value.includes('vendedor') || value.includes('seller')
+  })
+
+  return roleSeller || (
+    authStore.hasScope('pricing.rate-requests.create') &&
+    !authStore.hasScope(PRICING_SCOPES.rates.update)
   )
-}
-
-const isPricingUser = computed(
-  () =>
-    authStore.hasRole('Pricing') ||
-    authStore.roles.some((role) => role.trim().toLowerCase().includes('pricing')),
-)
-
-const redirectToPricing = computed(() => isPricingUser.value && !isPrivilegedUser())
+})
 
 const canUsePricing = computed(
   () =>
@@ -45,13 +39,13 @@ const canUsePricing = computed(
     authStore.hasScope(VIEW_SCOPES.pricingDecisions),
 )
 
-onMounted(async () => {
-  if (redirectToPricing.value) await router.replace('/pricing')
-})
+const canManageSellerRequests = computed(() =>
+  !isSellerUser.value && authStore.hasScope(PRICING_SCOPES.rates.update),
+)
 </script>
 
 <template>
-  <section v-if="!redirectToPricing" class="space-y-6">
+  <section class="space-y-6">
     <section class="dh-glass dh-liquid rounded-[36px] p-6">
       <div>
         <p class="text-sm font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">
@@ -63,6 +57,11 @@ onMounted(async () => {
       </div>
     </section>
 
-    <PricingRoleDashboard v-if="canUsePricing" />
+    <SellerRoleDashboard v-if="isSellerUser" />
+
+    <template v-else-if="canUsePricing">
+      <PricingRateRequestsPanel v-if="canManageSellerRequests" />
+      <PricingRoleDashboard />
+    </template>
   </section>
 </template>
