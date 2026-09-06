@@ -24,7 +24,6 @@ function replaceAfter(source: string, marker: string, anchor: string, replacemen
 function patchWizard(source: string) {
   let code = source
 
-  // Keep the human-readable route names even if a catalog lookup is temporarily unavailable.
   code = replaceRequired(
     code,
     `const requestedCargoReadyDate = ref('')\nconst requestedPortHandlingMode = ref<SellerPortHandlingMode | ''>('')`,
@@ -32,7 +31,6 @@ function patchWizard(source: string) {
     'request route display state',
   )
 
-  // For seller LCL requests the final destination is operationally mandatory.
   code = replaceRequired(
     code,
     `  const finalDestination = selectedPod.value\n  const equipment = selectedEquipment.value`,
@@ -40,7 +38,6 @@ function patchWizard(source: string) {
     'seller LCL POD guard',
   )
 
-  // Persist the raw selected id and its label, not only the resolved catalog object.
   code = replaceRequired(
     code,
     `          destinationName: finalDestination ? displayValue(finalDestination) : displayValue(destination),\n          poeId: destination.id,\n          poeName: displayValue(destination),\n          podId: finalDestination?.id ?? (form.podId || null),\n          podName: finalDestination ? displayValue(finalDestination) : null,`,
@@ -55,7 +52,6 @@ function patchWizard(source: string) {
     'seller requestContext POD payload',
   )
 
-  // Restore typed route names as well as ids when Pricing resumes the request.
   code = replaceRequired(
     code,
     `      const typedRoute = request as unknown as { poeId?: string | null; podId?: string | null }`,
@@ -70,7 +66,6 @@ function patchWizard(source: string) {
     'route name hydration',
   )
 
-  // Screen 5 must always surface exactly what Sales selected.
   const handoffMarker = 'Datos definidos por Ventas'
   code = replaceAfter(
     code,
@@ -94,7 +89,6 @@ function patchWizard(source: string) {
     'POD handoff display',
   )
 
-  // The LCL consolidated/coloader query must use the persisted ids even if the catalog object cannot resolve.
   code = replaceAllRequired(
     code,
     `:poe-id="selectedDestination?.id ?? null"`,
@@ -120,15 +114,17 @@ function patchWizard(source: string) {
     'LCL POD label binding',
   )
 
-  // Preserve the POD again when the official rate is finally created.
-  code = replaceRequired(
-    code,
-    `      podId: selectedPod.value?.id ?? null,\n      podName: selectedPod.value ? displayValue(selectedPod.value) : null,`,
-    `      podId: selectedPod.value?.id ?? (form.podId || null),\n      podName: selectedPod.value ? displayValue(selectedPod.value) : (requestedPodName.value || currentRequestPodName() || null),`,
-    'official rate POD persistence',
-  )
+  // Some earlier Dhole transforms already rewrite this rate payload. If the base form
+  // remains unchanged, add the raw-id fallback here; otherwise the request hydration
+  // above already guarantees selectedPod/form.podId is retained through the flow.
+  const officialPodAnchor = `      podId: selectedPod.value?.id ?? null,\n      podName: selectedPod.value ? displayValue(selectedPod.value) : null,`
+  if (code.includes(officialPodAnchor)) {
+    code = code.replace(
+      officialPodAnchor,
+      `      podId: selectedPod.value?.id ?? (form.podId || null),\n      podName: selectedPod.value ? displayValue(selectedPod.value) : (requestedPodName.value || currentRequestPodName() || null),`,
+    )
+  }
 
-  // Make the seller form explicit: POD is required for LCL and optional elsewhere.
   code = replaceRequired(
     code,
     `label="POD (opcional)"\n                placeholder="Buscar destino final"`,
