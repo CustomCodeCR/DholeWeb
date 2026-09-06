@@ -23,6 +23,7 @@ import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
 import { pricingCommercialAutomation20260906Fixed } from './build/pricingCommercialAutomation20260906Fixed'
 import { pricingRateRequestPoePodFix } from './build/pricingRateRequestPoePodFix'
 import { pricingWizardStep3VisualRefresh } from './build/pricingWizardStep3VisualRefresh'
+import { pricingWizardFclSplitSelector } from './build/pricingWizardFclSplitSelector'
 
 export default defineConfig({
   plugins: [
@@ -47,6 +48,7 @@ export default defineConfig({
     pricingCommercialAutomation20260906Fixed(),
     pricingRateRequestPoePodFix(),
     pricingWizardStep3VisualRefresh(),
+    pricingWizardFclSplitSelector(),
     vue(),
     tailwindcss(),
   ],
