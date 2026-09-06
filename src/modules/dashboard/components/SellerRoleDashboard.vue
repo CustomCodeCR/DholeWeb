@@ -5,7 +5,9 @@ import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto } from '@/core/interfaces/pricing'
+import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 
 interface SellerRateRequestDto {
   id: string
@@ -26,9 +28,9 @@ interface SellerRateRequestDto {
   destinationName?: string | null
 }
 
+const modalStore = useModalStore()
 const toast = useToastStore()
 const loading = ref(false)
-const updatingRateId = ref('')
 const requests = ref<SellerRateRequestDto[]>([])
 const rates = ref<RateDto[]>([])
 
@@ -93,61 +95,19 @@ function canRespondToRate(rate: RateDto) {
   return ['Sent', 'RequestedByClient'].includes(rate.status)
 }
 
-async function setCustomerDecision(rate: RateDto, status: 'AcceptedByClient' | 'RejectedByClient') {
-  let reason: string | null = null
-  let idtraNumber: string | null = null
-
-  if (status === 'AcceptedByClient') {
-    const value = window.prompt(
-      'Ingrese el IDTRA para registrar la aceptación del cliente:',
-      rate.idtraNumber?.trim() ?? '',
-    )
-    if (value === null) return
-    idtraNumber = value.trim()
-    if (!idtraNumber) {
-      toast.warning('IDTRA requerido', 'Debe registrar el IDTRA para marcar la tarifa como aceptada.')
-      return
-    }
-  }
-
-  if (status === 'RejectedByClient') {
-    const value = window.prompt('Indique el motivo por el que el cliente rechazó la tarifa:')
-    if (value === null) return
-    reason = value.trim()
-    if (!reason) {
-      toast.warning('Motivo requerido', 'Debe indicar por qué el cliente rechazó la tarifa.')
-      return
-    }
-  }
-
-  try {
-    updatingRateId.value = rate.id
-    await callEndpoint<unknown>(
-      {
-        method: 'PATCH',
-        path: `/api/pricing/seller-rates/${rate.id}/status`,
-        headers: { Accept: 'application/json' },
-      },
-      {
-        body: {
-          status,
-          reason,
-          idtraNumber,
-        },
-      },
-    )
-    toast.success(
-      status === 'AcceptedByClient' ? 'Tarifa aceptada' : 'Tarifa rechazada',
-      status === 'AcceptedByClient'
-        ? `Se registró la aceptación del cliente${idtraNumber ? ` con IDTRA ${idtraNumber}` : ''}.`
-        : 'Se registró el rechazo del cliente.',
-    )
-    await load()
-  } catch (error) {
-    toast.backendError(error, 'No se pudo actualizar la respuesta del cliente.')
-  } finally {
-    updatingRateId.value = ''
-  }
+function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
+  modalStore.open({
+    title: decision === 'AcceptedByClient'
+      ? 'Registrar aceptación del cliente'
+      : 'Registrar rechazo del cliente',
+    component: SellerRateDecisionModal,
+    size: 'md',
+    props: {
+      rate,
+      decision,
+      onSaved: load,
+    },
+  })
 }
 
 async function load() {
@@ -229,14 +189,12 @@ onMounted(load)
                 <div v-if="canRespondToRate(rate)" class="flex min-w-[210px] gap-2">
                   <DhButton
                     size="sm"
-                    :disabled="updatingRateId === rate.id"
-                    @click="setCustomerDecision(rate, 'AcceptedByClient')"
+                    @click="openCustomerDecision(rate, 'AcceptedByClient')"
                   >Aceptar</DhButton>
                   <DhButton
                     size="sm"
                     variant="danger"
-                    :disabled="updatingRateId === rate.id"
-                    @click="setCustomerDecision(rate, 'RejectedByClient')"
+                    @click="openCustomerDecision(rate, 'RejectedByClient')"
                   >Rechazar</DhButton>
                 </div>
                 <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Sin acción pendiente</span>
