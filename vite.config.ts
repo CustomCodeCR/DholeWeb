@@ -31,6 +31,7 @@ import {
   pricingWizardFclRateBundlesPreCompat,
   pricingWizardFclRateBundlesPostCompat,
 } from './build/pricingWizardFclRateBundlesCompat'
+import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 
 export default defineConfig({
   plugins: [
@@ -61,6 +62,7 @@ export default defineConfig({
     pricingWizardFclRateBundlesPreCompat(),
     pricingWizardFclRateBundles(),
     pricingWizardFclRateBundlesPostCompat(),
+    pricingWizardDraftAutosave(),
     vue(),
     tailwindcss(),
   ],
