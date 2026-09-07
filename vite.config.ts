@@ -26,6 +26,7 @@ import { pricingWizardStep3VisualRefresh } from './build/pricingWizardStep3Visua
 import { pricingWizardFclSplitSelector } from './build/pricingWizardFclSplitSelector'
 import { pricingWizardFclDistributionOnly } from './build/pricingWizardFclDistributionOnly'
 import { pricingSellerPodIntegrity } from './build/pricingSellerPodIntegrity'
+import { pricingWizardFclRateBundles } from './build/pricingWizardFclRateBundles'
 
 export default defineConfig({
   plugins: [
@@ -53,6 +54,7 @@ export default defineConfig({
     pricingWizardFclSplitSelector(),
     pricingWizardFclDistributionOnly(),
     pricingSellerPodIntegrity(),
+    pricingWizardFclRateBundles(),
     vue(),
     tailwindcss(),
   ],
