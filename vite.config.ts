@@ -20,6 +20,18 @@ import { pricingSellerRateRequestResponsibilities } from './build/pricingSellerR
 import { pricingWizardStep5RateFilter } from './build/pricingWizardStep5RateFilter'
 import { pricingSellerOwnershipUi } from './build/pricingSellerOwnershipUi'
 import { pricingSellerScopeAccess } from './build/pricingSellerScopeAccess'
+import { pricingCommercialAutomation20260906Fixed } from './build/pricingCommercialAutomation20260906Fixed'
+import { pricingRateRequestPoePodFix } from './build/pricingRateRequestPoePodFix'
+import { pricingWizardStep3VisualRefresh } from './build/pricingWizardStep3VisualRefresh'
+import { pricingWizardFclSplitSelector } from './build/pricingWizardFclSplitSelector'
+import { pricingWizardFclDistributionOnly } from './build/pricingWizardFclDistributionOnly'
+import { pricingSellerPodIntegrity } from './build/pricingSellerPodIntegrity'
+import { pricingWizardFclRateBundles } from './build/pricingWizardFclRateBundles'
+import {
+  pricingWizardFclRateBundlesPreCompat,
+  pricingWizardFclRateBundlesPostCompat,
+} from './build/pricingWizardFclRateBundlesCompat'
+import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 
 export default defineConfig({
   plugins: [
@@ -41,6 +53,16 @@ export default defineConfig({
     pricingWizardStep5RateFilter(),
     pricingSellerOwnershipUi(),
     pricingSellerScopeAccess(),
+    pricingCommercialAutomation20260906Fixed(),
+    pricingRateRequestPoePodFix(),
+    pricingWizardStep3VisualRefresh(),
+    pricingWizardFclSplitSelector(),
+    pricingWizardFclDistributionOnly(),
+    pricingSellerPodIntegrity(),
+    pricingWizardFclRateBundlesPreCompat(),
+    pricingWizardFclRateBundles(),
+    pricingWizardFclRateBundlesPostCompat(),
+    pricingWizardDraftAutosave(),
     vue(),
     tailwindcss(),
   ],

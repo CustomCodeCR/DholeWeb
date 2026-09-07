@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { DhSelect } from '@/shared/components/atoms'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 
@@ -10,12 +10,14 @@ const props = withDefaults(
     disabled?: boolean
     excludedEquipmentIds?: string[]
     error?: string
+    showResolvedLabel?: boolean
   }>(),
   {
     transport: 'maritime',
     disabled: false,
     excludedEquipmentIds: () => [],
     error: '',
+    showResolvedLabel: true,
   },
 )
 
@@ -137,6 +139,10 @@ watch([sizeId, kindId], () => {
 
   if (equipment.id !== props.modelValue) emit('update:modelValue', equipment.id)
 })
+
+onMounted(() => {
+  void catalogs.loadAll()
+})
 </script>
 
 <template>
@@ -155,7 +161,7 @@ watch([sizeId, kindId], () => {
       :placeholder="isLand ? 'Furgón seco, refrigerado...' : 'Dry Van, High Cube...'"
       :options="kindOptions"
     />
-    <p v-if="selectedEquipment" class="-mt-1 text-xs text-slate-500 sm:col-span-2">
+    <p v-if="selectedEquipment && props.showResolvedLabel" class="-mt-1 text-xs text-slate-500 sm:col-span-2">
       {{ isLand ? 'Equipo terrestre' : 'Equipo' }}:
       <strong>{{ selectedEquipment.name }}</strong>
       <span v-if="selectedEquipment.code"> ({{ selectedEquipment.code }})</span>

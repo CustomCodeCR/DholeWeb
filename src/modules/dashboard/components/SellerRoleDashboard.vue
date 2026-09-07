@@ -5,7 +5,9 @@ import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto } from '@/core/interfaces/pricing'
+import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 
 interface SellerRateRequestDto {
   id: string
@@ -26,6 +28,7 @@ interface SellerRateRequestDto {
   destinationName?: string | null
 }
 
+const modalStore = useModalStore()
 const toast = useToastStore()
 const loading = ref(false)
 const requests = ref<SellerRateRequestDto[]>([])
@@ -68,6 +71,7 @@ function requestStateVariant(request: SellerRateRequestDto): 'success' | 'warnin
 function customerProgress(rate: RateDto) {
   switch (rate.status) {
     case 'Sent': return 'Esperando respuesta del cliente'
+    case 'RequestedByClient': return 'Esperando respuesta del cliente'
     case 'AcceptedByClient': return 'Aceptada por el cliente'
     case 'RejectedByClient':
     case 'Closed': return 'No aceptada por el cliente'
@@ -79,12 +83,31 @@ function customerProgress(rate: RateDto) {
 function progressVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutral' {
   if (rate.status === 'AcceptedByClient') return 'success'
   if (['RejectedByClient', 'Closed', 'Expired'].includes(rate.status)) return 'danger'
-  if (rate.status === 'Sent') return 'warning'
+  if (['Sent', 'RequestedByClient'].includes(rate.status)) return 'warning'
   return 'neutral'
 }
 
 function routeLabel(rate: RateDto) {
   return [rate.polName, rate.poeName, rate.podName].filter(Boolean).join(' → ')
+}
+
+function canRespondToRate(rate: RateDto) {
+  return ['Sent', 'RequestedByClient'].includes(rate.status)
+}
+
+function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
+  modalStore.open({
+    title: decision === 'AcceptedByClient'
+      ? 'Registrar aceptación del cliente'
+      : 'Registrar rechazo del cliente',
+    component: SellerRateDecisionModal,
+    size: 'md',
+    props: {
+      rate,
+      decision,
+      onSaved: load,
+    },
+  })
 }
 
 async function load() {
@@ -149,11 +172,11 @@ onMounted(load)
 
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
       <h3 class="text-lg font-black">Mis tarifas y seguimiento de clientes</h3>
-      <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Permite ver rápidamente cuáles siguen en preparación, cuáles esperan al cliente y cuáles ya fueron aceptadas, rechazadas o vencieron.</p>
+      <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Permite ver rápidamente cuáles esperan al cliente y registrar directamente si fueron aceptadas o rechazadas.</p>
       <div v-if="!latestRates.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Aún no hay tarifas creadas a partir de sus solicitudes.</div>
       <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-        <table class="min-w-[980px] w-full text-left text-sm">
-          <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"><tr><th class="px-4 py-3">Tarifa</th><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Ruta</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Vigencia</th><th class="px-4 py-3">Seguimiento cliente</th></tr></thead>
+        <table class="min-w-[1160px] w-full text-left text-sm">
+          <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"><tr><th class="px-4 py-3">Tarifa</th><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Ruta</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Vigencia</th><th class="px-4 py-3">Seguimiento cliente</th><th class="px-4 py-3">Acción</th></tr></thead>
           <tbody>
             <tr v-for="rate in latestRates" :key="rate.id" class="border-t border-[var(--dh-border)]">
               <td class="px-4 py-3 font-black">{{ rate.quoNumber || rate.rateCode }}</td>
@@ -162,6 +185,20 @@ onMounted(load)
               <td class="px-4 py-3">{{ rate.containerQuantity }} × {{ rate.containerTypeName || rate.shipmentMode }}</td>
               <td class="px-4 py-3">{{ new Date(rate.validTo).toLocaleDateString('es-CR') }}</td>
               <td class="px-4 py-3"><DhBadge :label="customerProgress(rate)" :variant="progressVariant(rate)" /></td>
+              <td class="px-4 py-3">
+                <div v-if="canRespondToRate(rate)" class="flex min-w-[210px] gap-2">
+                  <DhButton
+                    size="sm"
+                    @click="openCustomerDecision(rate, 'AcceptedByClient')"
+                  >Aceptar</DhButton>
+                  <DhButton
+                    size="sm"
+                    variant="danger"
+                    @click="openCustomerDecision(rate, 'RejectedByClient')"
+                  >Rechazar</DhButton>
+                </div>
+                <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Sin acción pendiente</span>
+              </td>
             </tr>
           </tbody>
         </table>
