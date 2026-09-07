@@ -7,6 +7,7 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { SystemNotificationPush } from '@/core/realtime/notificationRealtime'
 import { useToastStore } from '@/core/stores/toastStore'
+import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 
 type Priority = 'Green' | 'Yellow' | 'Red'
 
@@ -38,6 +39,7 @@ interface RateRequestDto {
 
 const router = useRouter()
 const toast = useToastStore()
+const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
 const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
@@ -127,12 +129,26 @@ function poeLabel(request: RateRequestDto) {
     || 'POE no indicado'
 }
 
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim())
+}
+
 function podLabel(request: RateRequestDto) {
-  return request.podName?.trim()
-    || stringValue(request, 'podName')
-    || request.podId?.trim()
-    || stringValue(request, 'podId')
-    || 'No indicado'
+  const directName = request.podName?.trim() || stringValue(request, 'podName')
+  if (directName && !isUuidLike(directName)) return directName
+
+  const candidateIds = [
+    request.podId?.trim(),
+    stringValue(request, 'podId'),
+    directName && isUuidLike(directName) ? directName : '',
+  ].filter((value): value is string => Boolean(value))
+
+  for (const id of candidateIds) {
+    const catalogPod = pricingCatalogs.findById(pricingCatalogs.podPorts.value, id)
+    if (catalogPod?.name?.trim()) return catalogPod.name.trim()
+  }
+
+  return 'No indicado'
 }
 
 function podMissing(request: RateRequestDto) {
@@ -167,8 +183,11 @@ function handleRealtimeNotification(event: Event) {
   void load()
 }
 
-onMounted(() => {
-  void load()
+onMounted(async () => {
+  await Promise.all([
+    pricingCatalogs.loadAll().catch(() => undefined),
+    load(),
+  ])
   window.addEventListener('dhole:notification:received', handleRealtimeNotification)
   timer = window.setInterval(() => { now.value = Date.now() }, 30000)
 })
@@ -231,8 +250,8 @@ onBeforeUnmount(() => {
             <td class="px-4 py-3 font-bold">{{ request.originName || 'Origen no indicado' }}</td>
             <td class="px-4 py-3 font-bold">{{ poeLabel(request) }}</td>
             <td class="px-4 py-3">
-              <DhBadge v-if="!podMissing(request)" variant="primary">{{ podLabel(request) }}</DhBadge>
-              <DhBadge v-else variant="danger">POD no indicado</DhBadge>
+              <DhBadge v-if="!podMissing(request)" :label="podLabel(request)" variant="primary" />
+              <DhBadge v-else label="POD no indicado" variant="danger" />
             </td>
             <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
             <td class="px-4 py-3 font-bold">{{ incotermLabel(request) }}</td>
