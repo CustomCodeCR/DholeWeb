@@ -27,6 +27,10 @@ import { pricingWizardFclSplitSelector } from './build/pricingWizardFclSplitSele
 import { pricingWizardFclDistributionOnly } from './build/pricingWizardFclDistributionOnly'
 import { pricingSellerPodIntegrity } from './build/pricingSellerPodIntegrity'
 import { pricingWizardFclRateBundles } from './build/pricingWizardFclRateBundles'
+import {
+  pricingWizardFclRateBundlesPreCompat,
+  pricingWizardFclRateBundlesPostCompat,
+} from './build/pricingWizardFclRateBundlesCompat'
 
 export default defineConfig({
   plugins: [
@@ -54,7 +58,9 @@ export default defineConfig({
     pricingWizardFclSplitSelector(),
     pricingWizardFclDistributionOnly(),
     pricingSellerPodIntegrity(),
+    pricingWizardFclRateBundlesPreCompat(),
     pricingWizardFclRateBundles(),
+    pricingWizardFclRateBundlesPostCompat(),
     vue(),
     tailwindcss(),
   ],
