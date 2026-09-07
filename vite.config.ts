@@ -24,6 +24,7 @@ import { pricingCommercialAutomation20260906Fixed } from './build/pricingCommerc
 import { pricingRateRequestPoePodFix } from './build/pricingRateRequestPoePodFix'
 import { pricingWizardStep3VisualRefresh } from './build/pricingWizardStep3VisualRefresh'
 import { pricingWizardFclSplitSelector } from './build/pricingWizardFclSplitSelector'
+import { pricingWizardFclDistributionOnly } from './build/pricingWizardFclDistributionOnly'
 import { pricingSellerPodIntegrity } from './build/pricingSellerPodIntegrity'
 
 export default defineConfig({
@@ -50,6 +51,7 @@ export default defineConfig({
     pricingRateRequestPoePodFix(),
     pricingWizardStep3VisualRefresh(),
     pricingWizardFclSplitSelector(),
+    pricingWizardFclDistributionOnly(),
     pricingSellerPodIntegrity(),
     vue(),
     tailwindcss(),
