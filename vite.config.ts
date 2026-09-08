@@ -32,6 +32,7 @@ import {
   pricingWizardFclRateBundlesPostCompat,
 } from './build/pricingWizardFclRateBundlesCompat'
 import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
+import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
 
 export default defineConfig({
   plugins: [
@@ -63,6 +64,7 @@ export default defineConfig({
     pricingWizardFclRateBundles(),
     pricingWizardFclRateBundlesPostCompat(),
     pricingWizardDraftAutosave(),
+    pricingCargoHaulageKeywordFix(),
     vue(),
     tailwindcss(),
   ],
