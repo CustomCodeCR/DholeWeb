@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
-import { Plus, Save, Trash2 } from 'lucide-vue-next'
+import { Save } from 'lucide-vue-next'
 import { CONTENT_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -11,16 +11,48 @@ const props = defineProps<{ siteKey: string }>()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 const loading = ref(false)
-const items = ref<SiteSettingDto[]>([])
-const editingId = ref<string | null>(null)
-const form = reactive({ key: '', valueJson: '{}', isPublic: false })
+const saving = ref(false)
+
+const form = reactive({
+  siteName: '',
+  tagline: '',
+  contactEmail: '',
+  contactPhone: '',
+  facebook: '',
+  instagram: '',
+  linkedin: '',
+})
 
 const canEdit = () => authStore.hasScope(CONTENT_SCOPES.settings.edit)
+
+function parseObject(item?: SiteSettingDto) {
+  if (!item?.valueJson) return {} as Record<string, string>
+  try {
+    const value = JSON.parse(item.valueJson)
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, string>
+      : {}
+  } catch {
+    return {}
+  }
+}
 
 async function load() {
   loading.value = true
   try {
-    items.value = await ContentService.getSettings(props.siteKey || 'main')
+    const items = await ContentService.getSettings(props.siteKey || 'main')
+    const general = parseObject(items.find((item) => item.key === 'site.general'))
+    const social = parseObject(items.find((item) => item.key === 'site.social'))
+
+    Object.assign(form, {
+      siteName: general.siteName ?? '',
+      tagline: general.tagline ?? '',
+      contactEmail: general.contactEmail ?? '',
+      contactPhone: general.contactPhone ?? '',
+      facebook: social.facebook ?? '',
+      instagram: social.instagram ?? '',
+      linkedin: social.linkedin ?? '',
+    })
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar los ajustes del sitio.')
   } finally {
@@ -28,49 +60,38 @@ async function load() {
   }
 }
 
-function edit(item?: SiteSettingDto) {
-  editingId.value = item?.id ?? null
-  form.key = item?.key ?? ''
-  form.valueJson = item?.valueJson ?? '{}'
-  form.isPublic = item?.isPublic ?? false
-}
-
-function validJson() {
-  try {
-    JSON.parse(form.valueJson)
-    return true
-  } catch {
-    toastStore.warning('JSON inválido', 'El valor del ajuste debe ser JSON válido.')
-    return false
-  }
-}
-
 async function save() {
-  if (!canEdit() || !form.key.trim() || !validJson()) return
+  if (!canEdit() || saving.value) return
+  saving.value = true
   try {
-    await ContentService.upsertSetting(form.key.trim(), {
-      key: form.key.trim(),
-      valueJson: form.valueJson.trim(),
-      isPublic: form.isPublic,
-      siteKey: props.siteKey || 'main',
-    })
-    toastStore.success('Ajuste guardado')
-    edit()
-    await load()
+    await Promise.all([
+      ContentService.upsertSetting('site.general', {
+        key: 'site.general',
+        valueJson: JSON.stringify({
+          siteName: form.siteName.trim(),
+          tagline: form.tagline.trim(),
+          contactEmail: form.contactEmail.trim(),
+          contactPhone: form.contactPhone.trim(),
+        }),
+        isPublic: true,
+        siteKey: props.siteKey || 'main',
+      }),
+      ContentService.upsertSetting('site.social', {
+        key: 'site.social',
+        valueJson: JSON.stringify({
+          facebook: form.facebook.trim(),
+          instagram: form.instagram.trim(),
+          linkedin: form.linkedin.trim(),
+        }),
+        isPublic: true,
+        siteKey: props.siteKey || 'main',
+      }),
+    ])
+    toastStore.success('Ajustes guardados')
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo guardar el ajuste.')
-  }
-}
-
-async function remove(item: SiteSettingDto) {
-  if (!canEdit() || !window.confirm(`¿Eliminar el ajuste “${item.key}”?`)) return
-  try {
-    await ContentService.deleteSetting(item.id)
-    toastStore.success('Ajuste eliminado')
-    if (editingId.value === item.id) edit()
-    await load()
-  } catch (error) {
-    toastStore.backendError(error, 'No se pudo eliminar el ajuste.')
+    toastStore.backendError(error, 'No se pudieron guardar los ajustes.')
+  } finally {
+    saving.value = false
   }
 }
 
@@ -79,31 +100,62 @@ onMounted(() => void load())
 </script>
 
 <template>
-  <div class="grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
-    <section class="dh-glass dh-liquid rounded-[32px] p-5">
-      <div><h2 class="text-xl font-black">Ajustes del sitio</h2><p class="text-sm opacity-60">Valores JSON públicos o internos para {{ siteKey || 'main' }}.</p></div>
-      <div class="mt-4 space-y-2">
-        <div v-if="loading" class="p-8 text-center text-sm opacity-60">Cargando ajustes…</div>
-        <div v-for="item in items" v-else :key="item.id" class="flex items-start justify-between gap-3 rounded-2xl border border-[var(--dh-border)] p-3">
-          <button class="min-w-0 flex-1 text-left" @click="edit(item)"><div class="flex flex-wrap items-center gap-2"><strong>{{ item.key }}</strong><span class="rounded-full px-2 py-1 text-[10px] font-black" :class="item.isPublic ? 'bg-emerald-500/10 text-emerald-600' : 'bg-black/5 dark:bg-white/10'">{{ item.isPublic ? 'PÚBLICO' : 'INTERNO' }}</span></div><pre class="mt-2 max-h-20 overflow-hidden whitespace-pre-wrap text-xs opacity-60">{{ item.valueJson }}</pre></button>
-          <button v-if="canEdit()" class="rounded-xl p-2 text-red-500 hover:bg-red-500/10" @click="remove(item)"><Trash2 class="h-4 w-4" /></button>
-        </div>
-        <div v-if="!loading && !items.length" class="p-10 text-center text-sm opacity-60">No hay ajustes registrados.</div>
+  <section class="dh-glass dh-liquid rounded-[30px] p-5">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <h2 class="text-2xl font-black">Ajustes del sitio</h2>
+        <p class="mt-1 text-sm opacity-60">Información general que Mercadeo puede actualizar sin configuraciones técnicas.</p>
       </div>
-    </section>
+      <button v-if="canEdit()" class="primary-action" :disabled="saving || loading" @click="save">
+        <Save class="h-4 w-4" /> Guardar cambios
+      </button>
+    </div>
 
-    <section class="dh-glass dh-liquid rounded-[32px] p-5">
-      <div class="flex items-center justify-between"><div><h2 class="text-xl font-black">{{ editingId ? 'Editar ajuste' : 'Nuevo ajuste' }}</h2><p class="text-sm opacity-60">El backend conserva el valor como JSON.</p></div><button v-if="editingId" class="action" @click="edit()"><Plus class="h-4 w-4" /> Nuevo</button></div>
-      <div class="mt-5 space-y-3">
-        <label class="label">Clave<input v-model="form.key" class="field w-full" :disabled="Boolean(editingId)" /></label>
-        <label class="label">Valor JSON<textarea v-model="form.valueJson" class="field min-h-56 w-full font-mono text-xs" spellcheck="false" /></label>
-        <label class="flex items-center gap-2 text-sm font-bold"><input v-model="form.isPublic" type="checkbox" /> Exponer como ajuste público</label>
-        <button v-if="canEdit()" class="primary-action" @click="save"><Save class="h-4 w-4" /> Guardar ajuste</button>
+    <div v-if="loading" class="p-12 text-center text-sm opacity-60">Cargando ajustes…</div>
+    <div v-else class="mt-6 grid gap-5 xl:grid-cols-2">
+      <div class="settings-card">
+        <h3 class="text-lg font-black">Identidad del sitio</h3>
+        <p class="mt-1 text-sm opacity-55">Nombre y descripción general.</p>
+        <div class="mt-5 space-y-4">
+          <label class="label">
+            Nombre del sitio
+            <input v-model="form.siteName" class="field mt-2 w-full" placeholder="Grupo Castro Fallas" />
+          </label>
+          <label class="label">
+            Descripción corta
+            <textarea v-model="form.tagline" class="field mt-2 min-h-24 w-full" placeholder="Una frase corta que describa el sitio." />
+          </label>
+        </div>
       </div>
-    </section>
-  </div>
+
+      <div class="settings-card">
+        <h3 class="text-lg font-black">Contacto</h3>
+        <p class="mt-1 text-sm opacity-55">Datos que pueden mostrarse a los visitantes.</p>
+        <div class="mt-5 space-y-4">
+          <label class="label">
+            Correo electrónico
+            <input v-model="form.contactEmail" class="field mt-2 w-full" type="email" placeholder="contacto@empresa.com" />
+          </label>
+          <label class="label">
+            Teléfono
+            <input v-model="form.contactPhone" class="field mt-2 w-full" placeholder="+506 0000-0000" />
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-card xl:col-span-2">
+        <h3 class="text-lg font-black">Redes sociales</h3>
+        <p class="mt-1 text-sm opacity-55">Pegue el enlace completo de cada perfil.</p>
+        <div class="mt-5 grid gap-4 lg:grid-cols-3">
+          <label class="label">Facebook<input v-model="form.facebook" class="field mt-2 w-full" placeholder="https://facebook.com/..." /></label>
+          <label class="label">Instagram<input v-model="form.instagram" class="field mt-2 w-full" placeholder="https://instagram.com/..." /></label>
+          <label class="label">LinkedIn<input v-model="form.linkedin" class="field mt-2 w-full" placeholder="https://linkedin.com/company/..." /></label>
+        </div>
+      </div>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-.field{border:1px solid var(--dh-border);border-radius:14px;background:color-mix(in srgb,var(--dh-surface) 86%,transparent);padding:.7rem .85rem;color:inherit;outline:none}.field:focus{border-color:var(--dh-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dh-primary) 14%,transparent)}.field:disabled{opacity:.55}.label{display:block;font-size:.8rem;font-weight:800}.action,.primary-action{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;border-radius:14px;padding:.65rem .85rem;font-size:.8rem;font-weight:800;transition:160ms}.action:hover{background:color-mix(in srgb,var(--dh-primary) 9%,transparent)}.primary-action{background:var(--dh-primary);color:#fff}
+.field{border:1px solid var(--dh-border);border-radius:12px;background:color-mix(in srgb,var(--dh-surface) 88%,transparent);padding:.7rem .8rem;color:inherit;outline:none}.field:focus{border-color:var(--dh-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dh-primary) 12%,transparent)}.label{display:block;font-size:.8rem;font-weight:800}.primary-action{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;border-radius:12px;background:var(--dh-primary);padding:.68rem .9rem;color:#fff;font-size:.8rem;font-weight:800;transition:160ms}.primary-action:disabled{opacity:.45}.settings-card{border:1px solid var(--dh-border);border-radius:18px;padding:1.1rem;background:color-mix(in srgb,var(--dh-surface) 82%,transparent)}
 </style>
