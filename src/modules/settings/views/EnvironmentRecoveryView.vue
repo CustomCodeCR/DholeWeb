@@ -30,6 +30,7 @@ const lastRestored = ref<string[]>([])
 const expectedConfirmation = 'REGENERAR DATOS ENV'
 const isSuperUser = computed(() => authStore.hasRole('SuperUsuario'))
 const isProduction = computed(() => environment.value.toLowerCase() === 'production')
+const currentEnvFile = computed(() => isProduction.value ? '/opt/dhole/.env' : '/opt/dhole/.env.staging')
 const confirmationMatches = computed(() => confirmation.value === expectedConfirmation)
 
 async function loadEnvironment() {
@@ -88,7 +89,7 @@ onMounted(loadEnvironment)
   <section class="space-y-6">
     <DhPageHeader
       title="Regenerar datos del ambiente"
-      subtitle="Vuelve a crear los datos iniciales que Dhole Auth obtiene de la configuración del .env del ambiente actual."
+      :subtitle="`Vuelve a crear los datos iniciales que Dhole Auth obtiene de ${currentEnvFile}.`"
       :icon="RefreshCcw"
     >
       <template #actions>
@@ -121,9 +122,10 @@ onMounted(loadEnvironment)
               :class="isProduction ? 'text-red-500' : 'text-amber-500'"
             />
             <div>
-              <p class="font-black text-[var(--dh-text)]">Se utilizará únicamente el .env del ambiente actual</p>
+              <p class="font-black text-[var(--dh-text)]">Archivo de configuración utilizado</p>
               <p class="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[var(--dh-text-muted)]">
-                En producción se usan los valores de producción y en staging los valores de staging. No se copian datos entre ambientes y nunca se muestran secretos del .env en pantalla.
+                Producción usa únicamente <code>/opt/dhole/.env</code> y staging usa únicamente <code>/opt/dhole/.env.staging</code>.
+                Este ambiente está utilizando <code>{{ currentEnvFile }}</code>. No se copian valores de producción a staging y nunca se muestran secretos en pantalla.
               </p>
             </div>
           </div>
@@ -139,7 +141,7 @@ onMounted(loadEnvironment)
           <div>
             <h2 class="text-xl font-black text-[var(--dh-text)]">Regenerar datos iniciales</h2>
             <p class="mt-1 text-sm font-semibold leading-6 text-[var(--dh-text-muted)]">
-              Esta acción vuelve a ejecutar el seeding de Auth y recrea, si faltan, los roles del sistema, scopes/permisos, asignaciones de SuperUsuario y el SuperUsuario definido en <code>Seed:SuperAdmin</code> del .env actual.
+              Esta acción vuelve a ejecutar el seeding de Auth y recrea, si faltan, los roles del sistema, scopes/permisos, asignaciones de SuperUsuario y el SuperUsuario definido en <code>Seed:SuperAdmin</code> usando <code>{{ currentEnvFile }}</code>.
             </p>
           </div>
         </div>
@@ -159,7 +161,7 @@ onMounted(loadEnvironment)
 
         <DhButton
           class="w-full"
-          label="Regenerar datos desde .env"
+          :label="`Regenerar datos desde ${currentEnvFile}`"
           variant="primary"
           :icon="RefreshCcw"
           :loading="executing"
