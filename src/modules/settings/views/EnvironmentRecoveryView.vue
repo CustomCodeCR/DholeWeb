@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AlertTriangle, RefreshCcw, RotateCcwKey, ShieldCheck } from 'lucide-vue-next'
+import { AlertTriangle, RefreshCcw, ShieldCheck } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -89,7 +89,7 @@ onMounted(loadEnvironment)
     <DhPageHeader
       title="Regenerar datos del ambiente"
       subtitle="Vuelve a crear los datos iniciales que Dhole Auth obtiene de la configuración del .env del ambiente actual."
-      :icon="RotateCcwKey"
+      :icon="RefreshCcw"
     >
       <template #actions>
         <DhButton
@@ -161,7 +161,7 @@ onMounted(loadEnvironment)
           class="w-full"
           label="Regenerar datos desde .env"
           variant="primary"
-          :icon="RotateCcwKey"
+          :icon="RefreshCcw"
           :loading="executing"
           :disabled="!confirmationMatches || executing"
           @click="reseedEnvironment"
