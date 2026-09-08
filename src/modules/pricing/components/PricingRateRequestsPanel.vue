@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Clock3, PlayCircle, RefreshCcw } from 'lucide-vue-next'
+import { Clock3, FileDown, PlayCircle, RefreshCcw } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { fetchBlobClient } from '@/core/api/fetchBlobClient'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { SystemNotificationPush } from '@/core/realtime/notificationRealtime'
+import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 
 type Priority = 'Green' | 'Yellow' | 'Red'
+type RequestStatus = 'Open' | 'Completed' | 'Cancelled'
 
 type RequestPayload = {
   form?: Record<string, unknown>
@@ -19,11 +22,13 @@ type RequestPayload = {
 interface RateRequestDto {
   id: string
   priority: Priority
-  status: 'Open' | 'Completed' | 'Cancelled'
+  status: RequestStatus
   requestedAtUtc: string
   dueAtUtc: string
+  completedAtUtc?: string | null
   rateId?: string | null
   sellerName?: string | null
+  sellerEmail?: string | null
   clientName?: string | null
   executiveName?: string | null
   shipmentMode?: string | null
@@ -38,17 +43,22 @@ interface RateRequestDto {
 }
 
 const router = useRouter()
+const authStore = useAuthStore()
 const toast = useToastStore()
 const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
+const exporting = ref(false)
 const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
 let timer: number | undefined
 
+const canViewAll = computed(() => authStore.hasScope('pricing.rate-request.view-all'))
+
 const sortedRequests = computed(() => {
   const order: Record<Priority, number> = { Green: 0, Yellow: 1, Red: 2 }
   return [...requests.value].sort((left, right) =>
-    order[left.priority] - order[right.priority]
+    (left.status === 'Open' ? 0 : 1) - (right.status === 'Open' ? 0 : 1)
+    || order[left.priority] - order[right.priority]
     || new Date(left.dueAtUtc).getTime() - new Date(right.dueAtUtc).getTime()
   )
 })
@@ -59,6 +69,18 @@ function priorityLabel(priority: Priority) {
 
 function priorityVariant(priority: Priority): 'success' | 'warning' | 'danger' {
   return priority === 'Green' ? 'success' : priority === 'Yellow' ? 'warning' : 'danger'
+}
+
+function statusLabel(status: RequestStatus) {
+  if (status === 'Open') return 'Pendiente'
+  if (status === 'Completed') return 'Completada'
+  return 'Cancelada'
+}
+
+function statusVariant(status: RequestStatus): 'primary' | 'success' | 'danger' {
+  if (status === 'Completed') return 'success'
+  if (status === 'Cancelled') return 'danger'
+  return 'primary'
 }
 
 function formatDuration(milliseconds: number) {
@@ -76,6 +98,7 @@ function elapsed(request: RateRequestDto) {
 }
 
 function remaining(request: RateRequestDto) {
+  if (request.status !== 'Open') return request.completedAtUtc ? `Completada ${new Date(request.completedAtUtc).toLocaleString('es-CR')}` : statusLabel(request.status)
   const difference = new Date(request.dueAtUtc).getTime() - now.value
   return difference >= 0
     ? `Restan ${formatDuration(difference)}`
@@ -83,7 +106,7 @@ function remaining(request: RateRequestDto) {
 }
 
 function isOverdue(request: RateRequestDto) {
-  return new Date(request.dueAtUtc).getTime() <= now.value
+  return request.status === 'Open' && new Date(request.dueAtUtc).getTime() <= now.value
 }
 
 function objectValue(request: RateRequestDto, key: string): unknown {
@@ -160,18 +183,41 @@ async function load() {
     loading.value = true
     const response = await callEndpoint<unknown>({
       method: 'GET',
-      path: '/api/pricing/rate-requests/open',
+      path: canViewAll.value ? '/api/pricing/rate-requests/all' : '/api/pricing/rate-requests/open',
       headers: { Accept: 'application/json' },
     })
     requests.value = unwrapListResponse<RateRequestDto>(response)
   } catch (error) {
-    toast.backendError(error, 'No se pudieron cargar las solicitudes abiertas de vendedores.')
+    toast.backendError(error, canViewAll.value
+      ? 'No se pudieron cargar todas las solicitudes de vendedores.'
+      : 'No se pudieron cargar las solicitudes abiertas de vendedores.')
   } finally {
     loading.value = false
   }
 }
 
+async function exportRequestedRates() {
+  if (!canViewAll.value || exporting.value) return
+  try {
+    exporting.value = true
+    const blob = await fetchBlobClient('/api/pricing/rate-requests/export.xlsx', { method: 'GET' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `tarifas-solicitadas-${new Date().toISOString().slice(0, 10)}.xlsx`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (error) {
+    toast.backendError(error, 'No se pudo descargar el reporte Excel de tarifas solicitadas.')
+  } finally {
+    exporting.value = false
+  }
+}
+
 function continueRequest(request: RateRequestDto) {
+  if (request.status !== 'Open') return
   router.push({ name: 'pricing-rate-request-resume', params: { requestId: request.id } })
 }
 
@@ -204,27 +250,35 @@ onBeforeUnmount(() => {
       <div>
         <div class="flex items-center gap-2">
           <Clock3 class="h-5 w-5 text-[var(--dh-primary)]" />
-          <h2 class="text-lg font-black">Solicitudes de tarifas de vendedores</h2>
+          <h2 class="text-lg font-black">{{ canViewAll ? 'Todas las tarifas solicitadas' : 'Solicitudes de tarifas de vendedores' }}</h2>
         </div>
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-          Pricing ve POL, POE y POD definidos por Ventas antes de continuar la tarifa.
+          {{ canViewAll
+            ? 'Vista global habilitada por el scope pricing.rate-request.view-all.'
+            : 'Pricing ve POL, POE y POD definidos por Ventas antes de continuar la tarifa.' }}
         </p>
       </div>
-      <DhButton variant="secondary" :disabled="loading" @click="load">
-        <RefreshCcw class="h-4 w-4" /> Actualizar
-      </DhButton>
+      <div class="flex flex-wrap gap-2">
+        <DhButton v-if="canViewAll" variant="secondary" :disabled="exporting" @click="exportRequestedRates">
+          <FileDown class="h-4 w-4" /> {{ exporting ? 'Generando…' : 'Exportar Excel' }}
+        </DhButton>
+        <DhButton variant="secondary" :disabled="loading" @click="load">
+          <RefreshCcw class="h-4 w-4" /> Actualizar
+        </DhButton>
+      </div>
     </div>
 
     <div v-if="loading && !requests.length" class="py-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
       Cargando solicitudes…
     </div>
     <div v-else-if="!sortedRequests.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
-      No hay solicitudes abiertas pendientes de atender.
+      No hay solicitudes para mostrar.
     </div>
     <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-      <table class="min-w-[2050px] w-full text-left text-sm">
+      <table class="min-w-[2150px] w-full text-left text-sm">
         <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
           <tr>
+            <th class="px-4 py-3">Estado</th>
             <th class="px-4 py-3">Vendedor</th>
             <th class="px-4 py-3">Cliente</th>
             <th class="px-4 py-3">Contenedor</th>
@@ -242,6 +296,7 @@ onBeforeUnmount(() => {
         </thead>
         <tbody>
           <tr v-for="request in sortedRequests" :key="request.id" class="border-t border-[var(--dh-border)]">
+            <td class="px-4 py-3"><DhBadge :label="statusLabel(request.status)" :variant="statusVariant(request.status)" /></td>
             <td class="px-4 py-3"><strong>{{ request.executiveName || request.sellerName || 'Vendedor' }}</strong></td>
             <td class="px-4 py-3"><strong>{{ request.clientName || 'Cliente sin definir' }}</strong></td>
             <td class="px-4 py-3"><strong>{{ equipmentLabel(request) }}</strong></td>
@@ -258,10 +313,11 @@ onBeforeUnmount(() => {
             <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong></td>
             <td class="px-4 py-3">
               <strong :class="isOverdue(request) ? 'text-red-600 dark:text-red-300' : 'text-[var(--dh-text)]'">{{ remaining(request) }}</strong>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ new Date(request.dueAtUtc).toLocaleString('es-CR') }}</p>
+              <p v-if="request.status === 'Open'" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ new Date(request.dueAtUtc).toLocaleString('es-CR') }}</p>
             </td>
             <td class="px-4 py-3 text-right">
-              <DhButton @click="continueRequest(request)"><PlayCircle class="h-4 w-4" /> Continuar tarifa</DhButton>
+              <DhButton v-if="request.status === 'Open'" @click="continueRequest(request)"><PlayCircle class="h-4 w-4" /> Continuar tarifa</DhButton>
+              <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Sin acción pendiente</span>
             </td>
           </tr>
         </tbody>
