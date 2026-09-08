@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ContactRound, DatabaseZap, Keyboard, Palette, Settings } from 'lucide-vue-next'
+import { ArrowLeft, ContactRound, DatabaseZap, Keyboard, Palette, RefreshCcw, Settings } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -8,6 +8,7 @@ import { DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import DatabaseMaintenanceView from './DatabaseMaintenanceView.vue'
 import EmployeeDirectorySettingsView from './EmployeeDirectorySettingsView.vue'
+import EnvironmentRecoveryView from './EnvironmentRecoveryView.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,6 +17,9 @@ const { t } = useI18n()
 const showDirectory = computed(() => route.query.section === 'extensions')
 const showDatabaseMaintenance = computed(
   () => route.query.section === 'database-maintenance' && authStore.hasRole('SuperUsuario'),
+)
+const showEnvironmentRecovery = computed(
+  () => route.query.section === 'environment-recovery' && authStore.hasRole('SuperUsuario'),
 )
 const isSuperUser = computed(() => authStore.hasRole('SuperUsuario'))
 
@@ -42,12 +46,20 @@ const cards = computed(() => {
   ]
 
   if (isSuperUser.value) {
-    items.push({
-      title: 'Mantenimiento de bases de datos',
-      description: 'Vaciar tablas o bases de datos de forma controlada en el ambiente actual.',
-      icon: DatabaseZap,
-      path: '/settings?section=database-maintenance',
-    })
+    items.push(
+      {
+        title: 'Mantenimiento de bases de datos',
+        description: 'Vaciar tablas o bases de datos de forma controlada en el ambiente actual.',
+        icon: DatabaseZap,
+        path: '/settings?section=database-maintenance',
+      },
+      {
+        title: 'Regenerar datos del ambiente',
+        description: 'Volver a crear datos iniciales desde el .env actual de producción o staging.',
+        icon: RefreshCcw,
+        path: '/settings?section=environment-recovery',
+      },
+    )
   }
 
   return items
@@ -73,6 +85,16 @@ const cards = computed(() => {
       @click="router.push('/settings')"
     />
     <DatabaseMaintenanceView />
+  </section>
+
+  <section v-else-if="showEnvironmentRecovery" class="space-y-4">
+    <DhButton
+      label="Volver a Configuración"
+      variant="secondary"
+      :icon="ArrowLeft"
+      @click="router.push('/settings')"
+    />
+    <EnvironmentRecoveryView />
   </section>
 
   <section v-else class="space-y-6">
