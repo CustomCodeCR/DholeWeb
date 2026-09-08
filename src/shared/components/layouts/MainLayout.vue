@@ -13,6 +13,7 @@ import {
   ListTree,
   ListChecks,
   LockKeyhole,
+  Megaphone,
   MonitorCheck,
   Palette,
   PanelRightClose,
@@ -182,6 +183,11 @@ const reportsChildren = computed<SidebarItem[]>(() => {
   return children
 })
 
+const marketingChildren = computed<SidebarItem[]>(() => {
+  if (!canView(VIEW_SCOPES.marketing)) return []
+  return [{ label: 'Mercadeo y contenido', path: '/marketing', icon: Megaphone }]
+})
+
 const monitoringChildren = computed<SidebarItem[]>(() => {
   const children: SidebarItem[] = []
 
@@ -243,6 +249,10 @@ const sidebarItems = computed<SidebarItem[]>(() => {
 
   if (configChildren.value.length > 0) {
     items.push({ label: t('sidebar.config'), icon: BookOpen, children: configChildren.value })
+  }
+
+  if (marketingChildren.value.length > 0) {
+    items.push({ label: 'Mercadeo', icon: Megaphone, children: marketingChildren.value })
   }
 
   if (reportsChildren.value.length > 0) {

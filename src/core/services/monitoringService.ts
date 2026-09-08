@@ -92,6 +92,13 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     url: buildGatewayHealthUrl('storage'),
     critical: true,
   },
+  {
+    key: 'content',
+    name: 'Content Service',
+    description: 'Mercadeo, CMS, medios, SEO, menús y publicación de contenido.',
+    url: buildGatewayHealthUrl('content'),
+    critical: true,
+  },
 ]
 
 export const MonitoringService = {

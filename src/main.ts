@@ -11,6 +11,7 @@ import es from './core/i18n/es.json'
 import en from './core/i18n/en.json'
 import App from './App.vue'
 import router from './core/router'
+import { VIEW_SCOPES } from '@/core/auth/scopes'
 import { useLocale } from '@/core/stores/locale'
 import { useThemeStore } from '@/core/stores/themeStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
@@ -105,6 +106,26 @@ router.addRoute({
     query: { ...to.query, pol: String(to.params.polCode ?? '') },
   }),
   meta: { public: true },
+})
+
+// Marketing is registered additively so the validated pricing/auth router remains identical
+// to the known-good baseline. This keeps the CMS isolated from the operational route tree.
+router.addRoute({
+  path: '/marketing',
+  component: () => import('@/shared/components/layouts/MainLayout.vue'),
+  meta: { requiresAuth: true },
+  children: [
+    {
+      path: '',
+      name: 'marketing',
+      component: () => import('@/modules/marketing/views/MarketingView.vue'),
+      meta: {
+        tabTitle: 'Mercadeo y contenido',
+        closable: true,
+        requiredScope: VIEW_SCOPES.marketing,
+      },
+    },
+  ],
 })
 
 const app = createApp(App)

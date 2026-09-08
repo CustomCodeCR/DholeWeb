@@ -254,6 +254,33 @@ export const MONITORING_SCOPES = {
   },
 } as const
 
+export const CONTENT_SCOPES = {
+  view: 'cms.view',
+  create: 'cms.create',
+  edit: 'cms.edit',
+  delete: 'cms.delete',
+  publish: 'cms.publish',
+  media: {
+    upload: 'cms.media.upload',
+    delete: 'cms.media.delete',
+  },
+  pages: {
+    edit: 'cms.pages.edit',
+  },
+  news: {
+    edit: 'cms.news.edit',
+  },
+  banners: {
+    edit: 'cms.banners.edit',
+  },
+  seo: {
+    edit: 'cms.seo.edit',
+  },
+  settings: {
+    edit: 'cms.settings.edit',
+  },
+} as const
+
 export const VIEW_SCOPES = {
   users: AUTH_SCOPES.users.view,
   roles: AUTH_SCOPES.roles.view,
@@ -284,4 +311,5 @@ export const VIEW_SCOPES = {
   reportsTemplates: REPORTS_SCOPES.templates.view,
   notifications: NOTIFICATIONS_SCOPES.messages.view,
   notificationTemplates: NOTIFICATIONS_SCOPES.templates.manage,
+  marketing: CONTENT_SCOPES.view,
 } as const
