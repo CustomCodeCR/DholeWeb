@@ -1,37 +1,53 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ContactRound, Keyboard, Palette, Settings } from 'lucide-vue-next'
+import { ArrowLeft, ContactRound, DatabaseZap, Keyboard, Palette, Settings } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useAuthStore } from '@/core/stores/authStore'
 import { DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import EmployeeDirectorySettingsView from './EmployeeDirectorySettingsView.vue'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const { t } = useI18n()
 const showDirectory = computed(() => route.query.section === 'extensions')
+const isSuperUser = computed(() => authStore.hasRole('SuperUsuario'))
 
-const cards = [
-  {
-    title: t('settings.appearance'),
-    description: 'Tema, idioma y branding por cliente.',
-    icon: Palette,
-    path: '/settings/appearance',
-  },
-  {
-    title: 'Directorio de extensiones',
-    description: 'Empleados, departamentos, extensiones, correos y celulares.',
-    icon: ContactRound,
-    path: '/settings?section=extensions',
-  },
-  {
-    title: t('settings.shortcuts'),
-    description: 'Atajos configurables en el navegador.',
-    icon: Keyboard,
-    path: '/settings/shortcuts',
-  },
-]
+const cards = computed(() => {
+  const items = [
+    {
+      title: t('settings.appearance'),
+      description: 'Tema, idioma y branding por cliente.',
+      icon: Palette,
+      path: '/settings/appearance',
+    },
+    {
+      title: 'Directorio de extensiones',
+      description: 'Empleados, departamentos, extensiones, correos y celulares.',
+      icon: ContactRound,
+      path: '/settings?section=extensions',
+    },
+    {
+      title: t('settings.shortcuts'),
+      description: 'Atajos configurables en el navegador.',
+      icon: Keyboard,
+      path: '/settings/shortcuts',
+    },
+  ]
+
+  if (isSuperUser.value) {
+    items.push({
+      title: 'Mantenimiento de bases de datos',
+      description: 'Vaciar tablas o bases de datos de forma controlada en el ambiente actual.',
+      icon: DatabaseZap,
+      path: '/settings/database-maintenance',
+    })
+  }
+
+  return items
+})
 </script>
 
 <template>
