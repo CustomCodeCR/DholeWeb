@@ -83,6 +83,52 @@ export interface ContentBrowseQuery {
   locale?: string
 }
 
+export interface EditorSeoRequest {
+  title?: string | null
+  description?: string | null
+  keywords?: string | null
+  canonicalUrl?: string | null
+  openGraphMediaId?: string | null
+}
+
+export interface EditorContentRequest {
+  type: ContentType | string
+  title: string
+  contentHtml?: string | null
+  slug?: string | null
+  excerpt?: string | null
+  featuredMediaId?: string | null
+  locale?: string | null
+  sortOrder?: number | null
+  isFeatured?: boolean | null
+  categoryIds?: string[] | null
+  seo?: EditorSeoRequest | null
+  siteKey?: string | null
+}
+
+export interface EditorDashboardDto {
+  pages: number
+  news: number
+  banners: number
+  media: number
+  drafts: number
+  pendingReview: number
+  scheduled: number
+  published: number
+}
+
+export interface EditorOptionDto {
+  value: string
+  label: string
+}
+
+export interface EditorOptionsDto {
+  contentTypes: EditorOptionDto[]
+  statuses: EditorOptionDto[]
+  defaultLocale: string
+  defaultSiteKey: string
+}
+
 export interface MediaDto {
   id: string
   storageFileId: string
