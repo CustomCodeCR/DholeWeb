@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
 import { CheckCircle2, FileCheck2, XCircle } from 'lucide-vue-next'
-import { DhButton, DhInput, DhTextarea } from '@/shared/components/atoms'
+import { DhButton, DhTextarea } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import type { RateDto } from '@/core/interfaces/pricing'
 import { useModalStore } from '@/core/stores/modalStore'
@@ -16,7 +16,6 @@ const props = defineProps<{
 const modalStore = useModalStore()
 const toastStore = useToastStore()
 const form = reactive({
-  idtraNumber: props.rate.idtraNumber?.trim() ?? '',
   reason: '',
   submitted: false,
   saving: false,
@@ -28,10 +27,7 @@ const reference = computed(() => props.rate.quoNumber || props.rate.rateCode || 
 async function submit() {
   form.submitted = true
 
-  const idtraNumber = form.idtraNumber.trim()
   const reason = form.reason.trim()
-
-  if (isAccept.value && !idtraNumber) return
   if (!isAccept.value && !reason) return
 
   try {
@@ -46,7 +42,7 @@ async function submit() {
       {
         body: {
           status: props.decision,
-          idtraNumber: isAccept.value ? idtraNumber : null,
+          idtraNumber: null,
           reason: isAccept.value ? null : reason,
         },
       },
@@ -55,7 +51,7 @@ async function submit() {
     toastStore.success(
       isAccept.value ? 'Tarifa aceptada por el cliente' : 'Tarifa no aceptada por el cliente',
       isAccept.value
-        ? `Se registró el IDTRA ${idtraNumber}.`
+        ? 'La aceptación quedó registrada. El IDTRA podrá incorporarse posteriormente cuando esté disponible.'
         : 'El motivo de rechazo quedó registrado para seguimiento.',
     )
 
@@ -99,7 +95,7 @@ async function submit() {
           </p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
             {{ isAccept
-              ? 'La tarifa pasará a Aceptadas y el IDTRA quedará ligado al seguimiento comercial.'
+              ? 'La tarifa pasará a Aceptadas. No necesita tener el IDTRA para registrar la aceptación; podrá agregarse posteriormente.'
               : 'La tarifa pasará a No aceptadas y el motivo quedará disponible para seguimiento y auditoría.' }}
           </p>
         </div>
@@ -107,19 +103,17 @@ async function submit() {
     </div>
 
     <div class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-      <div class="mb-4 flex items-center gap-2 text-xs font-black text-[var(--dh-primary)]">
+      <div class="flex items-center gap-2 text-xs font-black text-[var(--dh-primary)]" :class="{ 'mb-4': !isAccept }">
         <FileCheck2 class="h-4 w-4" />
         {{ reference }}
       </div>
 
-      <DhInput
+      <p
         v-if="isAccept"
-        v-model="form.idtraNumber"
-        label="IDTRA"
-        placeholder="Ingrese el IDTRA obligatorio"
-        autocomplete="off"
-        :error="form.submitted && !form.idtraNumber.trim() ? 'El IDTRA es obligatorio para aceptar la tarifa.' : undefined"
-      />
+        class="mt-3 text-sm font-semibold leading-6 text-[var(--dh-text-muted)]"
+      >
+        Confirme que el cliente aceptó esta tarifa. No se solicitará información adicional al vendedor.
+      </p>
 
       <DhTextarea
         v-else
