@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ContactRound, DatabaseZap, Keyboard, Palette, RotateCcwKey, Settings } from 'lucide-vue-next'
+import { ArrowLeft, ContactRound, DatabaseZap, Keyboard, Palette, RefreshCcw, Settings } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -56,7 +56,7 @@ const cards = computed(() => {
       {
         title: 'Regenerar datos del ambiente',
         description: 'Volver a crear datos iniciales desde el .env actual de producción o staging.',
-        icon: RotateCcwKey,
+        icon: RefreshCcw,
         path: '/settings?section=environment-recovery',
       },
     )
