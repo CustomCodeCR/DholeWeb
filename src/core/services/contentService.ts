@@ -8,6 +8,9 @@ import type {
   ContentItemListDto,
   ContentRevisionDto,
   ContentWriteRequest,
+  EditorContentRequest,
+  EditorDashboardDto,
+  EditorOptionsDto,
   MediaBrowseQuery,
   MediaDto,
   NavigationMenuDto,
@@ -47,6 +50,60 @@ function remove<T>(path: string) {
 }
 
 export const ContentService = {
+  async getEditorDashboard(siteKey = 'main'): Promise<EditorDashboardDto> {
+    return unwrapApiResponse<EditorDashboardDto>(
+      await get<unknown>(query('/api/content/editor/dashboard', { siteKey })) as any,
+    )
+  },
+
+  async getEditorOptions(): Promise<EditorOptionsDto> {
+    return unwrapApiResponse<EditorOptionsDto>(await get<unknown>('/api/content/editor/options') as any)
+  },
+
+  async browseEditor(values?: ContentBrowseQuery): Promise<PagedResponse<ContentItemListDto>> {
+    return unwrapPagedResponse<ContentItemListDto>(
+      await get<unknown>(query('/api/content/editor', values as Record<string, unknown>)),
+    )
+  },
+
+  async getEditorContent(id: string): Promise<ContentItemDto> {
+    return unwrapApiResponse<ContentItemDto>(await get<unknown>(`/api/content/editor/${id}`) as any)
+  },
+
+  async createEditorContent(payload: EditorContentRequest): Promise<string> {
+    return unwrapApiResponse<string>(await post<unknown, EditorContentRequest>('/api/content/editor', payload) as any)
+  },
+
+  updateEditorContent(id: string, payload: EditorContentRequest) {
+    return put<EmptyResponse, EditorContentRequest>(`/api/content/editor/${id}`, payload)
+  },
+
+  submitEditor(id: string) {
+    return post<EmptyResponse>(`/api/content/editor/${id}/submit`)
+  },
+
+  publishEditor(id: string) {
+    return post<EmptyResponse>(`/api/content/editor/${id}/publish`)
+  },
+
+  scheduleEditor(id: string, scheduledAtUtc: string) {
+    return post<EmptyResponse, { scheduledAtUtc: string }>(`/api/content/editor/${id}/schedule`, {
+      scheduledAtUtc,
+    })
+  },
+
+  unpublishEditor(id: string) {
+    return post<EmptyResponse>(`/api/content/editor/${id}/unpublish`)
+  },
+
+  archiveEditor(id: string) {
+    return post<EmptyResponse>(`/api/content/editor/${id}/archive`)
+  },
+
+  deleteEditorContent(id: string) {
+    return remove<EmptyResponse>(`/api/content/editor/${id}`)
+  },
+
   async browseContent(values?: ContentBrowseQuery): Promise<PagedResponse<ContentItemListDto>> {
     const response = await get<unknown>(query('/api/content/items', values as Record<string, unknown>))
     return unwrapPagedResponse<ContentItemListDto>(response)
