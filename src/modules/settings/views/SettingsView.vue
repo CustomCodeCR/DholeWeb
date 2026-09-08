@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import { DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
+import DatabaseMaintenanceView from './DatabaseMaintenanceView.vue'
 import EmployeeDirectorySettingsView from './EmployeeDirectorySettingsView.vue'
 
 const route = useRoute()
@@ -13,6 +14,9 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const showDirectory = computed(() => route.query.section === 'extensions')
+const showDatabaseMaintenance = computed(
+  () => route.query.section === 'database-maintenance' && authStore.hasRole('SuperUsuario'),
+)
 const isSuperUser = computed(() => authStore.hasRole('SuperUsuario'))
 
 const cards = computed(() => {
@@ -42,7 +46,7 @@ const cards = computed(() => {
       title: 'Mantenimiento de bases de datos',
       description: 'Vaciar tablas o bases de datos de forma controlada en el ambiente actual.',
       icon: DatabaseZap,
-      path: '/settings/database-maintenance',
+      path: '/settings?section=database-maintenance',
     })
   }
 
@@ -59,6 +63,16 @@ const cards = computed(() => {
       @click="router.push('/settings')"
     />
     <EmployeeDirectorySettingsView />
+  </section>
+
+  <section v-else-if="showDatabaseMaintenance" class="space-y-4">
+    <DhButton
+      label="Volver a Configuración"
+      variant="secondary"
+      :icon="ArrowLeft"
+      @click="router.push('/settings')"
+    />
+    <DatabaseMaintenanceView />
   </section>
 
   <section v-else class="space-y-6">
