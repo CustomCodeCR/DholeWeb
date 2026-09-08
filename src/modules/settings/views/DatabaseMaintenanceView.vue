@@ -301,8 +301,8 @@ onMounted(loadCatalog)
           <div v-if="authDatabaseWarning && mode === 'database'" class="rounded-[22px] border border-red-500/30 bg-red-500/10 p-4">
             <p class="text-sm font-black text-red-600 dark:text-red-300">Advertencia especial de Auth</p>
             <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-              Vaciar esta base puede eliminar usuarios, roles, permisos y sesiones. El SuperUsuario se vuelve a sembrar cuando Auth reinicie,
-              pero la operación sigue siendo destructiva.
+              Vaciar esta base puede eliminar usuarios, roles, permisos y sesiones. Al terminar, Auth vuelve a sembrar automáticamente
+              los roles, permisos y el SuperUsuario configurado para evitar perder el acceso administrativo.
             </p>
           </div>
 
