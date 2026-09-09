@@ -11,6 +11,7 @@ import es from './core/i18n/es.json'
 import en from './core/i18n/en.json'
 import App from './App.vue'
 import router from './core/router'
+import { VIEW_SCOPES } from '@/core/auth/scopes'
 import { useLocale } from '@/core/stores/locale'
 import { useThemeStore } from '@/core/stores/themeStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
@@ -105,6 +106,24 @@ router.addRoute({
     query: { ...to.query, pol: String(to.params.polCode ?? '') },
   }),
   meta: { public: true },
+})
+
+router.addRoute({
+  path: '/ai/operations',
+  component: () => import('@/shared/components/layouts/MainLayout.vue'),
+  meta: { requiresAuth: true },
+  children: [
+    {
+      path: '',
+      name: 'ai-operations',
+      component: () => import('@/modules/ai/views/AiOperationsView.vue'),
+      meta: {
+        tabTitle: 'Cola de IA',
+        closable: true,
+        requiredScope: VIEW_SCOPES.aiExecutions,
+      },
+    },
+  ],
 })
 
 const app = createApp(App)
