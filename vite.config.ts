@@ -37,6 +37,7 @@ import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywor
 import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
 import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
 import { pricingWizardFclExpiryChip } from './build/pricingWizardFclExpiryChip'
+import { pricingWizardMaritimePanamaFix } from './build/pricingWizardMaritimePanamaFix'
 
 export default defineConfig({
   plugins: [
@@ -73,6 +74,7 @@ export default defineConfig({
     pricingCostMultiPortSelection(),
     pricingWizardMixedCarrierExpiry(),
     pricingWizardFclExpiryChip(),
+    pricingWizardMaritimePanamaFix(),
     vue(),
     tailwindcss(),
   ],
