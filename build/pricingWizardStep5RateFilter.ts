@@ -17,26 +17,13 @@ function replaceMany(source: string, anchor: string, replacement: string, expect
 function patchWizard(source: string) {
   let code = source
 
+  // Nueva tarifa/solicitud: vigencia estándar desde hoy hasta mañana.
   code = replaceMany(
     code,
     `validTo: addDaysIso(todayIso(), 30),`,
     `validTo: addDaysIso(todayIso(), 1),`,
     2,
     'default validity values',
-  )
-
-  code = replaceOne(
-    code,
-    `function remainingValidityDays(validTo: string) {\n  const end = new Date(\`${'${String(validTo).slice(0, 10)}'}T12:00:00\`)\n  const today = new Date(\`${'${todayIso()}'}T12:00:00\`)\n  return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86_400_000))\n}`,
-    `function remainingValidityDays(validTo: string) {\n  const end = new Date(\`${'${String(validTo).slice(0, 10)}'}T12:00:00\`)\n  const loadDate = new Date(\`${'${String(form.loadDate || todayIso()).slice(0, 10)}'}T12:00:00\`)\n  return Math.max(0, Math.ceil((end.getTime() - loadDate.getTime()) / 86_400_000))\n}`,
-    'validity calculation from load date',
-  )
-
-  code = replaceOne(
-    code,
-    `<span>días restantes</span>`,
-    `<span>días desde carga</span>`,
-    'validity label',
   )
 
   code = replaceOne(
