@@ -110,6 +110,13 @@ export const PRICING_SCOPES = {
     create: 'pricing.own-lcl-consolidation.create',
   },
 
+  rateRequests: {
+    create: 'pricing.rate-request.create',
+    viewSelected: 'pricing.rate-request.view-selected',
+    viewAll: 'pricing.rate-request.view-all',
+    manageVisibility: 'pricing.rate-request.visibility.manage',
+  },
+
   rates: {
     create: 'pricing.rate.create',
     view: 'pricing.rate.view',
@@ -298,6 +305,9 @@ export const VIEW_SCOPES = {
   pricingCompetition: PRICING_SCOPES.workspace.access,
   pricingCosts: PRICING_SCOPES.costs.view,
   pricingRateTerms: PRICING_SCOPES.rateTerms.view,
+  pricingRateRequests: PRICING_SCOPES.rateRequests.viewAll,
+  pricingRateRequestsSelected: PRICING_SCOPES.rateRequests.viewSelected,
+  pricingRateRequestVisibility: PRICING_SCOPES.rateRequests.manageVisibility,
 
   aiConnections: AI_SCOPES.connections.view,
   aiModels: AI_SCOPES.models.view,
