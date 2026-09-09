@@ -1,1 +1,0 @@
-Deploy trigger for direct FTL tariffs and seller assignment UI integration - 2026-09-09.
