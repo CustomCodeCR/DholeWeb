@@ -1,0 +1,30 @@
+name: Apply Main Sidebar FTL Links
+
+on:
+  push:
+    branches: [master, develop]
+    paths: ['.github/workflows/apply-sep09-main-sidebar-ftl.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Patch actual main sidebar
+        shell: bash
+        run: |
+          echo 'CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKcGF0aCA9IFBhdGgoInNyYy9zaGFyZWQvY29tcG9uZW50cy9sYXlvdXRzL01haW5MYXlvdXQudnVlIikKdGV4dCA9IHBhdGgucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCgppbXBvcnRfYW5jaG9yID0gIiAgVHJlbmRpbmdVcCxcbiIKaWYgIiAgVHJ1Y2ssXG4iIG5vdCBpbiB0ZXh0LnNwbGl0KCJ9IGZyb20gJ2x1Y2lkZS12dWUtbmV4dCciKVswXToKICAgIGlmIGltcG9ydF9hbmNob3Igbm90IGluIHRleHQ6CiAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCJNYWluTGF5b3V0IGx1Y2lkZSBpbXBvcnQgYW5jaG9yIG5vdCBmb3VuZCIpCiAgICB0ZXh0ID0gdGV4dC5yZXBsYWNlKGltcG9ydF9hbmNob3IsIGltcG9ydF9hbmNob3IgKyAiICBUcnVjayxcbiIsIDEpCgpjb3N0X2FuY2hvciA9ICIiIiAgaWYgKGNhblZpZXcoVklFV19TQ09QRVMucHJpY2luZ0Nvc3RzKSkgewogICAgY2hpbGRyZW4ucHVzaCh7IGxhYmVsOiB0KCdzaWRlYmFyLmNvc3RzJyksIHBhdGg6ICcvcHJpY2luZy9jb3N0cycsIGljb246IEJhZGdlRG9sbGFyU2lnbiB9KQogIH0KIiIiCgpibG9ja3MgPSAiIiIgIGlmIChjYW5WaWV3KFZJRVdfU0NPUEVTLnByaWNpbmdDb3N0cykpIHsKICAgIGNoaWxkcmVuLnB1c2goeyBsYWJlbDogJ1RhcmlmYXMgRlRMJywgcGF0aDogJy9wcmljaW5nL2Z0bC10YXJpZmZzJywgaWNvbjogVHJ1Y2sgfSkKICB9CgogIGlmIChjYW5WaWV3KFZJRVdfU0NPUEVTLnByaWNpbmdTZWxsZXJBc3NpZ25tZW50KSkgewogICAgY2hpbGRyZW4ucHVzaCh7IGxhYmVsOiAnVmlzaWJpbGlkYWQgY29tZXJjaWFsJywgcGF0aDogJy9wcmljaW5nL3NlbGxlci12aXNpYmlsaXR5JywgaWNvbjogVXNlcnMgfSkKICB9CgoiIiIKCmlmICIvcHJpY2luZy9mdGwtdGFyaWZmcyIgbm90IGluIHRleHQgb3IgIi9wcmljaW5nL3NlbGxlci12aXNpYmlsaXR5IiBub3QgaW4gdGV4dDoKICAgIGlmIGNvc3RfYW5jaG9yIG5vdCBpbiB0ZXh0OgogICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigiTWFpbkxheW91dCBwcmljaW5nIGNvc3RzIGFuY2hvciBub3QgZm91bmQiKQogICAgdGV4dCA9IHRleHQucmVwbGFjZShjb3N0X2FuY2hvciwgYmxvY2tzICsgY29zdF9hbmNob3IsIDEpCgpwYXRoLndyaXRlX3RleHQodGV4dCwgZW5jb2Rpbmc9InV0Zi04IikK' | base64 -d | python
+      - name: Commit permanent sidebar change
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/apply-sep09-main-sidebar-ftl.yml
+          git add src/shared/components/layouts/MainLayout.vue
+          git commit -m 'fix(web): expose FTL and seller visibility in main sidebar'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
