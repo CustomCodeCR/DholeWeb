@@ -59,7 +59,7 @@ export const FtlTariffService = {
   },
 
   async resolve(query: ResolveFtlTariffQuery): Promise<FtlTariffDto | null> {
-    const response = await callEndpoint<unknown>({
+    const response = await callEndpoint<FtlTariffDto | null>({
       method: 'GET',
       path: withQuery('/api/pricing/ftl-tariffs/resolve', {
         originId: query.originId,
