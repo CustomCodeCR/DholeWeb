@@ -33,12 +33,15 @@ import {
 } from './build/pricingWizardFclRateBundlesCompat'
 import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 import { pricingWizardDraftEquipmentRestoreFix } from './build/pricingWizardDraftEquipmentRestoreFix'
+import { pricingRequirements20260908PreCompat } from './build/pricingRequirements20260908PreCompat'
+import { pricingRequirements20260908 } from './build/pricingRequirements20260908'
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
 import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
 import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
 import { pricingWizardFclExpiryChip } from './build/pricingWizardFclExpiryChip'
 import { pricingWizardMaritimePanamaFix } from './build/pricingWizardMaritimePanamaFix'
 import { pricingWizardRouteTerminalTypes } from './build/pricingWizardRouteTerminalTypes'
+import { pricingWizardLandPolish } from './build/pricingWizardLandPolish'
 
 export default defineConfig({
   plugins: [
@@ -71,12 +74,15 @@ export default defineConfig({
     pricingWizardFclRateBundlesPostCompat(),
     pricingWizardDraftAutosave(),
     pricingWizardDraftEquipmentRestoreFix(),
+    pricingRequirements20260908PreCompat(),
+    pricingRequirements20260908(),
     pricingCargoHaulageKeywordFix(),
     pricingCostMultiPortSelection(),
     pricingWizardMixedCarrierExpiry(),
     pricingWizardFclExpiryChip(),
     pricingWizardMaritimePanamaFix(),
     pricingWizardRouteTerminalTypes(),
+    pricingWizardLandPolish(),
     vue(),
     tailwindcss(),
   ],
