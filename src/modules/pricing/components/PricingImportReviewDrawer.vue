@@ -132,7 +132,6 @@ const requiredFieldStatus = computed(() => [
   { label: 'Contenedor', ready: Boolean(form.containerTypeId) },
   { label: 'POL', ready: Boolean(form.polId) },
   { label: 'POE', ready: Boolean(form.poeId) },
-  { label: 'POD', ready: Boolean(form.podId) },
   { label: 'Moneda', ready: Boolean(form.currencyId) },
   { label: 'Flete', ready: form.oceanFreight !== '' && Number(form.oceanFreight) >= 0 },
   { label: 'Vigencia', ready: Boolean(form.validFrom && form.validTo) },
@@ -146,7 +145,6 @@ function validate() {
     ['importProfileId', 'Seleccione el perfil.'],
     ['polId', 'Seleccione el POL.'],
     ['poeId', 'Seleccione el POE.'],
-    ['podId', 'Seleccione el POD.'],
     ['carrierId', 'Seleccione la naviera.'],
     ['agentId', 'Seleccione el agente.'],
     ['containerTypeId', 'Seleccione el tamaño y tipo de contenedor.'],
@@ -186,7 +184,7 @@ function payload(): ReviewImportRateRequest {
     importProfileId: form.importProfileId,
     polId: form.polId,
     poeId: form.poeId,
-    podId: form.podId,
+    podId: form.podId || (null as unknown as string),
     carrierId: form.carrierId,
     agentId: form.agentId,
     containerTypeId: form.containerTypeId,
@@ -295,12 +293,12 @@ onMounted(async () => {
       <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
         <div class="mb-4">
           <p class="text-xs font-black uppercase tracking-[0.13em] text-[var(--dh-primary)]">2. Ruta</p>
-          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Confirme la secuencia POL → POE → POD. El POE debe existir en Config para aprobar.</p>
+          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Confirme POL → POE. El POD es opcional y el POE debe existir en Config para aprobar.</p>
         </div>
         <div class="grid gap-4 md:grid-cols-3">
           <DhSelect v-model="form.polId" label="POL · Puerto de origen *" :options="catalogs.polOptions.value" :error="errors.polId" />
           <DhSelect v-model="form.poeId" label="POE · Puerto de entrada *" :options="catalogs.poeOptions.value" :error="errors.poeId" />
-          <DhSelect v-model="form.podId" label="POD · Destino final *" :options="catalogs.podOptions.value" :error="errors.podId" />
+          <DhSelect v-model="form.podId" label="POD · Destino final (opcional)" :options="catalogs.podOptions.value" />
         </div>
       </section>
 
