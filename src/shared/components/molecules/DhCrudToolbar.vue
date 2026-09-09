@@ -20,16 +20,28 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-    <div>
-      <h2 v-if="title" class="text-xl font-black tracking-tight text-[var(--dh-text)]">{{ title }}</h2>
+  <div class="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+    <div class="min-w-0">
+      <h2 v-if="title" class="break-words text-xl font-black tracking-tight text-[var(--dh-text)]">{{ title }}</h2>
       <slot name="description" />
     </div>
-    <div class="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:justify-end">
-      <DhSearchInput class="w-full sm:min-w-64 sm:flex-1 md:w-80 md:flex-none" :model-value="search" @update:model-value="emit('update:search', $event)" @search="emit('search')" />
-      <DhIconButton :icon="Filter" :label="t('common.filters')" variant="secondary" @click="emit('filter')" />
-      <DhIconButton :icon="RefreshCcw" :label="t('common.refresh')" variant="secondary" @click="emit('refresh')" />
-      <DhButton v-if="showCreate" :icon="Plus" :label="createLabel ?? t('common.create')" @click="emit('create')" />
+
+    <div class="grid w-full min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap xl:w-auto xl:justify-end">
+      <DhSearchInput
+        class="col-span-2 w-full sm:min-w-64 sm:flex-1 md:w-80 md:flex-none"
+        :model-value="search"
+        @update:model-value="emit('update:search', $event)"
+        @search="emit('search')"
+      />
+      <DhIconButton class="w-full sm:w-auto" :icon="Filter" :label="t('common.filters')" variant="secondary" @click="emit('filter')" />
+      <DhIconButton class="w-full sm:w-auto" :icon="RefreshCcw" :label="t('common.refresh')" variant="secondary" @click="emit('refresh')" />
+      <DhButton
+        v-if="showCreate"
+        class="col-span-2 w-full sm:w-auto"
+        :icon="Plus"
+        :label="createLabel ?? t('common.create')"
+        @click="emit('create')"
+      />
     </div>
   </div>
 </template>
