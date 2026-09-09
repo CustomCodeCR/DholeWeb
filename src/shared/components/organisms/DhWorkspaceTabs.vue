@@ -39,13 +39,16 @@ function onDragStart(event: DragEvent, key: string) {
 <template>
   <div
     v-if="tabsStore.tabs.length"
-    class="mx-2 mt-2 flex gap-2 overflow-x-auto rounded-[22px] border sm:mx-4 sm:mt-4 sm:rounded-[26px] border-[var(--dh-border)] bg-[var(--dh-shell)] p-2 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl dh-scrollbar"
+    role="tablist"
+    class="dh-responsive-tabs dh-scrollbar mx-2 mt-2 flex max-w-[calc(100vw-1rem)] min-w-0 snap-x snap-proximity gap-2 overflow-x-auto rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-shell)] p-2 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl sm:mx-4 sm:mt-4 sm:max-w-[calc(100vw-2rem)] sm:rounded-[26px]"
   >
     <button
       v-for="tab in tabsStore.tabs"
       :key="tab.key"
+      role="tab"
+      :aria-selected="tabsStore.activeKey === tab.key"
       draggable="true"
-      class="group flex min-h-11 shrink-0 touch-manipulation items-center gap-2 rounded-[18px] px-3 py-2 text-xs sm:text-sm font-black transition"
+      class="group flex min-h-11 max-w-[min(78vw,24rem)] shrink-0 touch-manipulation snap-start items-center gap-2 rounded-[18px] px-3 py-2 text-xs font-black transition sm:max-w-[28rem] sm:text-sm"
       :class="
         tabsStore.activeKey === tab.key
           ? 'bg-[var(--dh-primary)] text-white shadow-[var(--dh-glow)]'
@@ -54,11 +57,11 @@ function onDragStart(event: DragEvent, key: string) {
       @click="activate(tab.path, tab.key)"
       @dragstart="onDragStart($event, tab.key)"
     >
-      {{ tab.title }}
+      <span class="min-w-0 truncate">{{ tab.title }}</span>
 
       <span
         v-if="tab.path !== '/home'"
-        class="inline-flex min-h-9 min-w-9 touch-manipulation items-center justify-center rounded-lg opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10 sm:min-h-0 sm:min-w-0 sm:p-0.5"
+        class="hidden shrink-0 touch-manipulation items-center justify-center rounded-lg opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10 lg:inline-flex lg:p-0.5"
         :title="t('tabs.openSplit')"
         @click.stop="split(tab.key)"
       >
@@ -67,7 +70,7 @@ function onDragStart(event: DragEvent, key: string) {
 
       <span
         v-if="tab.closable"
-        class="inline-flex min-h-9 min-w-9 touch-manipulation items-center justify-center rounded-lg opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10 sm:min-h-0 sm:min-w-0 sm:p-0.5"
+        class="inline-flex min-h-9 min-w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10 sm:min-h-0 sm:min-w-0 sm:p-0.5"
         :title="t('tabs.close')"
         @click.stop="close(tab.key)"
       >
