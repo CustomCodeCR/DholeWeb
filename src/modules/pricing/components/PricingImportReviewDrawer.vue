@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Check, Save } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
+import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { ImportRateDto, ReviewImportRateRequest } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -18,6 +19,7 @@ const props = withDefaults(
   { canApprove: false },
 )
 
+const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
 const current = ref<ImportRateDto>(props.importRate)
@@ -224,6 +226,8 @@ async function save(approveAfter: boolean) {
     } else {
       toastStore.success('Revisión guardada', 'Los cambios quedaron aplicados a la tarifa importada.')
     }
+
+    drawerStore.close()
   } catch (error) {
     toastStore.backendError(error, 'No se pudo aplicar la revisión de la tarifa.')
   } finally {
