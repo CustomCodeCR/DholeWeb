@@ -21,9 +21,15 @@ function patchWizard(source: string) {
 
   code = replaceRequired(
     code,
-    `const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))\nconst selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))`,
-    `const landAgentPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c42',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-agent',\n} as CatalogItemSelectDto\nconst landCarrierPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c43',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-carrier',\n} as CatalogItemSelectDto\nconst selectedAgent = computed(() => form.modality === 'Land' ? landAgentPlaceholder : findById(catalogs.agents, form.agentId))\nconst selectedCarrier = computed(() => form.modality === 'Land' ? landCarrierPlaceholder : findById(catalogs.carriers, form.carrierId))`,
-    'selected land provider placeholders',
+    `const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))`,
+    `const landAgentPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c42',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-agent',\n} as CatalogItemSelectDto\nconst landCarrierPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c43',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-carrier',\n} as CatalogItemSelectDto\nconst selectedAgent = computed(() => form.modality === 'Land' ? landAgentPlaceholder : findById(catalogs.agents, form.agentId))`,
+    'selected agent',
+  )
+  code = replaceRequired(
+    code,
+    `const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))`,
+    `const selectedCarrier = computed(() => form.modality === 'Land' ? landCarrierPlaceholder : findById(catalogs.carriers, form.carrierId))`,
+    'selected carrier',
   )
 
   // Terrestrial rates do not have an external agent/carrier selector and do not include agent charges.
