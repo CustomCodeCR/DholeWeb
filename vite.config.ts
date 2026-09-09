@@ -36,6 +36,7 @@ import { pricingWizardDraftEquipmentRestoreFix } from './build/pricingWizardDraf
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
 import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
 import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
+import { pricingWizardFclExpiryChip } from './build/pricingWizardFclExpiryChip'
 
 export default defineConfig({
   plugins: [
@@ -71,6 +72,7 @@ export default defineConfig({
     pricingCargoHaulageKeywordFix(),
     pricingCostMultiPortSelection(),
     pricingWizardMixedCarrierExpiry(),
+    pricingWizardFclExpiryChip(),
     vue(),
     tailwindcss(),
   ],
