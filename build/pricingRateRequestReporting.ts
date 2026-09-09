@@ -17,7 +17,7 @@ function patchScopes(source: string) {
     code = replaceRequired(
       code,
       `  ownLclConsolidations: {\n    create: 'pricing.own-lcl-consolidation.create',\n  },\n\n  rates: {`,
-      `  ownLclConsolidations: {\n    create: 'pricing.own-lcl-consolidation.create',\n  },\n\n  rateRequests: {\n    create: 'pricing.rate-request.create',\n    viewAll: 'pricing.rate-request.view-all',\n  },\n\n  rates: {`,
+      `  ownLclConsolidations: {\n    create: 'pricing.own-lcl-consolidation.create',\n  },\n\n  rateRequests: {\n    create: 'pricing.rate-request.create',\n    viewSelected: 'pricing.rate-request.view-selected',\n    viewAll: 'pricing.rate-request.view-all',\n    manageVisibility: 'pricing.rate-request.visibility.manage',\n  },\n\n  rates: {`,
       'rate request scope constants',
     )
   }
@@ -26,8 +26,8 @@ function patchScopes(source: string) {
     code = replaceRequired(
       code,
       `  pricingRateTerms: PRICING_SCOPES.rateTerms.view,`,
-      `  pricingRateTerms: PRICING_SCOPES.rateTerms.view,\n  pricingRateRequests: PRICING_SCOPES.rateRequests.viewAll,`,
-      'requested-rate view scope alias',
+      `  pricingRateTerms: PRICING_SCOPES.rateTerms.view,\n  pricingRateRequests: PRICING_SCOPES.rateRequests.viewAll,\n  pricingRateRequestsSelected: PRICING_SCOPES.rateRequests.viewSelected,\n  pricingRateRequestVisibility: PRICING_SCOPES.rateRequests.manageVisibility,`,
+      'requested-rate view scope aliases',
     )
   }
   return code
@@ -38,7 +38,7 @@ function patchRouter(source: string) {
   return replaceRequired(
     source,
     `        {\n          path: 'pricing/costs',`,
-    `        {\n          path: 'pricing/requested-rates',\n          name: 'pricing-requested-rates',\n          component: () => import('@/modules/pricing/views/PricingRequestedRatesReportView.vue'),\n          meta: {\n            tabTitle: 'Tarifas solicitadas',\n            closable: true,\n            requiredScope: VIEW_SCOPES.pricingRateRequests,\n          },\n        },\n        {\n          path: 'pricing/costs',`,
+    `        {\n          path: 'pricing/requested-rates',\n          name: 'pricing-requested-rates',\n          component: () => import('@/modules/pricing/views/PricingRequestedRatesReportView.vue'),\n          meta: {\n            tabTitle: 'Tarifas solicitadas',\n            closable: true,\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n        },\n        {\n          path: 'pricing/costs',`,
     'requested-rate report route',
   )
 }
@@ -48,7 +48,7 @@ function patchSidebar(source: string) {
   return replaceRequired(
     source,
     `          {\n            labelKey: 'sidebar.costs',`,
-    `          {\n            labelKey: 'Tarifas solicitadas',\n            icon: ClipboardList,\n            to: '/pricing/requested-rates',\n            name: 'pricing-requested-rates',\n            requiredScope: VIEW_SCOPES.pricingRateRequests,\n          },\n          {\n            labelKey: 'sidebar.costs',`,
+    `          {\n            labelKey: 'Tarifas solicitadas',\n            icon: ClipboardList,\n            to: '/pricing/requested-rates',\n            name: 'pricing-requested-rates',\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n          {\n            labelKey: 'sidebar.costs',`,
     'requested-rate report navigation',
   )
 }
