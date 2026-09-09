@@ -241,8 +241,9 @@ onMounted(load)
                 :key="`${origin}:${destination}`"
                 class="border-b border-r border-[var(--dh-border)] p-2 align-top last:border-r-0"
               >
-                <template v-if="findRate(origin, destination) as rate">
+                <template v-for="rate in [findRate(origin, destination)]" :key="rate?.id || `${origin}:${destination}:empty`">
                   <div
+                    v-if="rate"
                     class="rounded-xl border p-2 transition"
                     :class="isDirty(rate) ? 'border-amber-400/60 bg-amber-500/10' : 'border-transparent bg-black/[0.025] dark:bg-white/[0.035]'"
                   >
@@ -266,8 +267,8 @@ onMounted(load)
                       class="mt-1 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] px-2 py-1.5 text-right font-bold text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)] disabled:opacity-70"
                     />
                   </div>
+                  <div v-else class="flex min-h-[104px] items-center justify-center text-lg font-black text-[var(--dh-text-muted)]/40">—</div>
                 </template>
-                <div v-else class="flex min-h-[104px] items-center justify-center text-lg font-black text-[var(--dh-text-muted)]/40">—</div>
               </td>
             </tr>
           </tbody>
