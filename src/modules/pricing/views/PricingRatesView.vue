@@ -221,6 +221,26 @@ const canCreate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create)
 const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))
 
+const requestedRateUpdateStatuses = new Set<RateStatus>([
+  'PendingApproval',
+  'ApprovedByManagement',
+  'RejectedByManagement',
+  'Open',
+  'Sent',
+  'RequestedByClient',
+])
+
+function canUpdateRate(rate: RateDto) {
+  return canUpdate.value && requestedRateUpdateStatuses.has(rate.status)
+}
+
+function rateUpdateWindowMessage(rate: RateDto) {
+  if (rate.status === 'Sent' || rate.status === 'RequestedByClient') {
+    return 'La tarifa está enviada y todavía está pendiente de aceptación o rechazo del vendedor.'
+  }
+  return 'La tarifa todavía se encuentra dentro de la solicitud antes del envío de Pricing.'
+}
+
 const columns: DhTableColumn<RateDto>[] = [
   { key: 'selected', label: '', width: '48px', align: 'center' },
   { key: 'rate', label: 'Tarifa' },
@@ -228,7 +248,7 @@ const columns: DhTableColumn<RateDto>[] = [
   { key: 'commercial', label: 'Resumen comercial', align: 'right' },
   { key: 'validity', label: 'Vigencia' },
   { key: 'status', label: 'Estado', align: 'center' },
-  { key: 'actions', label: '', align: 'right', width: '130px' },
+  { key: 'actions', label: '', align: 'right', width: '190px' },
 ]
 
 const statusOptions: Array<{ label: string; value: CommercialRateStatus }> = [
@@ -337,6 +357,14 @@ function openDetail(rate: RateDto) {
 }
 
 function openEdit(rate: RateDto) {
+  if (!canUpdateRate(rate)) {
+    toastStore.warning(
+      'Actualización no disponible',
+      'Solo se puede actualizar una tarifa antes de que Pricing la envíe o mientras está enviada y pendiente de aceptación/rechazo del vendedor.',
+    )
+    return
+  }
+  toastStore.info('Actualización de tarifa', `${rateUpdateWindowMessage(rate)} Debe indicar el motivo del cambio antes de guardar.`)
   router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
 }
 
@@ -645,13 +673,14 @@ onMounted(async () => {
               >
                 <Eye class="h-4 w-4" /></button
               ><button
-                v-if="canUpdate"
+                v-if="canUpdateRate(row)"
                 type="button"
-                class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
-                title="Editar en wizard"
+                class="inline-flex items-center gap-1.5 rounded-2xl px-2.5 py-2 text-xs font-black text-[var(--dh-primary)] transition hover:bg-black/5 dark:hover:bg-white/10"
+                title="Actualizar tarifa · motivo obligatorio"
                 @click.stop="openEdit(row)"
               >
-                <Edit3 class="h-4 w-4" /></button
+                <Edit3 class="h-4 w-4" />
+                <span class="hidden 2xl:inline">Actualizar</span></button
               ><button
                 v-if="canCreate"
                 type="button"
