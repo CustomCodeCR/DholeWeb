@@ -127,14 +127,13 @@ function patchPricingCatalogs(source: string) {
   // CatalogOption.name is what common selects render. Currency Code remains in `code` for calculations/API payloads.
   return source.replace(
     `  const isoCode = resolveCurrencyCode(item)\n  return {\n    id: item.id,\n    name: isoCode,`,
-    `  const isoCode = resolveCurrencyCode(item)\n  return {\n    id: item.id,\n    name: catalogDisplayValue(item),`,
+    `  return {\n    id: item.id,\n    name: catalogDisplayValue(item),`,
   )
 }
 
 export function pricingLandProviderCurrencyValue(): Plugin {
   return {
     name: 'dhole-pricing-land-provider-currency-value',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
