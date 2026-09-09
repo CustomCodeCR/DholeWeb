@@ -79,6 +79,7 @@ function patchSidebar(source: string) {
 export function pricingFtlTariffMaster(): Plugin {
   return {
     name: 'dhole-pricing-ftl-tariff-master',
+    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
