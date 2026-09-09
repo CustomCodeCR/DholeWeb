@@ -2,11 +2,8 @@ name: Apply Sep09 Requested Rate Update Option
 
 on:
   push:
-    branches:
-      - master
-      - develop
-    paths:
-      - '.github/workflows/apply-sep09-rate-update-option.yml'
+    branches: [master, develop]
+    paths: ['.github/workflows/apply-sep09-rate-update-option.yml']
 
 permissions:
   contents: write
@@ -17,100 +14,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Expose safe rate update action
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('src/modules/pricing/views/PricingRatesView.vue')
-          text = path.read_text(encoding='utf-8')
-
-          anchor = "const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))\n"
-          addition = """const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))
-
-const requestedRateUpdateStatuses = new Set<RateStatus>([
-  'PendingApproval',
-  'ApprovedByManagement',
-  'RejectedByManagement',
-  'Open',
-  'Sent',
-  'RequestedByClient',
-])
-
-function canUpdateRate(rate: RateDto) {
-  return canUpdate.value && requestedRateUpdateStatuses.has(rate.status)
-}
-
-function rateUpdateWindowMessage(rate: RateDto) {
-  if (rate.status === 'Sent' || rate.status === 'RequestedByClient') {
-    return 'La tarifa está enviada y todavía está pendiente de aceptación o rechazo del vendedor.'
-  }
-  return 'La tarifa todavía se encuentra dentro de la solicitud antes del envío de Pricing.'
-}
-"""
-          if 'const requestedRateUpdateStatuses' not in text:
-              if anchor not in text:
-                  raise RuntimeError('permissions anchor not found')
-              text = text.replace(anchor, addition, 1)
-
-          old_open = """function openEdit(rate: RateDto) {
-  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
-}
-"""
-          new_open = """function openEdit(rate: RateDto) {
-  if (!canUpdateRate(rate)) {
-    toastStore.warning(
-      'Actualización no disponible',
-      'Solo se puede actualizar una tarifa antes de que Pricing la envíe o mientras está enviada y pendiente de aceptación/rechazo del vendedor.',
-    )
-    return
-  }
-  toastStore.info('Actualización de tarifa', `${rateUpdateWindowMessage(rate)} Debe indicar el motivo del cambio antes de guardar.`)
-  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
-}
-"""
-          if old_open in text:
-              text = text.replace(old_open, new_open, 1)
-          elif 'Actualización no disponible' not in text:
-              raise RuntimeError('openEdit anchor not found')
-
-          text = text.replace("{ key: 'actions', label: '', align: 'right', width: '130px' },", "{ key: 'actions', label: '', align: 'right', width: '190px' },", 1)
-
-          old_button = """<button
-                v-if="canUpdate"
-                type="button"
-                class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
-                title="Editar en wizard"
-                @click.stop="openEdit(row)"
-              >
-                <Edit3 class="h-4 w-4" /></button"""
-          new_button = """<button
-                v-if="canUpdateRate(row)"
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-2xl px-2.5 py-2 text-xs font-black text-[var(--dh-primary)] transition hover:bg-black/5 dark:hover:bg-white/10"
-                title="Actualizar tarifa · motivo obligatorio"
-                @click.stop="openEdit(row)"
-              >
-                <Edit3 class="h-4 w-4" />
-                <span class="hidden 2xl:inline">Actualizar</span></button"""
-          if old_button in text:
-              text = text.replace(old_button, new_button, 1)
-          elif 'v-if="canUpdateRate(row)"' not in text:
-              raise RuntimeError('update button anchor not found')
-
-          path.write_text(text, encoding='utf-8')
-          PY
-
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgpwYXRoID0gUGF0aCgic3JjL21vZHVsZXMvcHJpY2luZy92aWV3cy9QcmljaW5nUmF0ZXNWaWV3LnZ1ZSIpCnRleHQgPSBwYXRoLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQoKYW5jaG9yID0gImNvbnN0IGNhbkRlbGV0ZSA9IGNvbXB1dGVkKCgpID0+IGF1dGhTdG9yZS5oYXNTY29wZShQUklDSU5HX1NDT1BFUy5yYXRlcy5kZWxldGUpKVxuIgphZGRpdGlvbiA9ICIiImNvbnN0IGNhbkRlbGV0ZSA9IGNvbXB1dGVkKCgpID0+IGF1dGhTdG9yZS5oYXNTY29wZShQUklDSU5HX1NDT1BFUy5yYXRlcy5kZWxldGUpKQoKY29uc3QgcmVxdWVzdGVkUmF0ZVVwZGF0ZVN0YXR1c2VzID0gbmV3IFNldDxSYXRlU3RhdHVzPihbCiAgJ1BlbmRpbmdBcHByb3ZhbCcsCiAgJ0FwcHJvdmVkQnlNYW5hZ2VtZW50JywKICAnUmVqZWN0ZWRCeU1hbmFnZW1lbnQnLAogICdPcGVuJywKICAnU2VudCcsCiAgJ1JlcXVlc3RlZEJ5Q2xpZW50JywKXSkKCmZ1bmN0aW9uIGNhblVwZGF0ZVJhdGUocmF0ZTogUmF0ZUR0bykgewogIHJldHVybiBjYW5VcGRhdGUudmFsdWUgJiYgcmVxdWVzdGVkUmF0ZVVwZGF0ZVN0YXR1c2VzLmhhcyhyYXRlLnN0YXR1cykKfQoKZnVuY3Rpb24gcmF0ZVVwZGF0ZVdpbmRvd01lc3NhZ2UocmF0ZTogUmF0ZUR0bykgewogIGlmIChyYXRlLnN0YXR1cyA9PT0gJ1NlbnQnIHx8IHJhdGUuc3RhdHVzID09PSAnUmVxdWVzdGVkQnlDbGllbnQnKSB7CiAgICByZXR1cm4gJ0xhIHRhcmlmYSBlc3TDoSBlbnZpYWRhIHkgdG9kYXbDrWEgZXN0w6EgcGVuZGllbnRlIGRlIGFjZXB0YWNpw7NuIG8gcmVjaGF6byBkZWwgdmVuZGVkb3IuJwogIH0KICByZXR1cm4gJ0xhIHRhcmlmYSB0b2RhdsOtYSBzZSBlbmN1ZW50cmEgZGVudHJvIGRlIGxhIHNvbGljaXR1ZCBhbnRlcyBkZWwgZW52w61vIGRlIFByaWNpbmcuJwp9CiIiIgppZiAiY29uc3QgcmVxdWVzdGVkUmF0ZVVwZGF0ZVN0YXR1c2VzIiBub3QgaW4gdGV4dDoKICAgIGlmIGFuY2hvciBub3QgaW4gdGV4dDoKICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoInBlcm1pc3Npb25zIGFuY2hvciBub3QgZm91bmQiKQogICAgdGV4dCA9IHRleHQucmVwbGFjZShhbmNob3IsIGFkZGl0aW9uLCAxKQoKb2xkX29wZW4gPSAiIiJmdW5jdGlvbiBvcGVuRWRpdChyYXRlOiBSYXRlRHRvKSB7CiAgcm91dGVyLnB1c2goeyBuYW1lOiAncHJpY2luZy1yYXRlLXdpemFyZCcsIHBhcmFtczogeyByYXRlSWQ6IHJhdGUuaWQgfSwgcXVlcnk6IHsgbW9kZTogJ2VkaXQnIH0gfSkKfQoiIiIKbmV3X29wZW4gPSAiIiJmdW5jdGlvbiBvcGVuRWRpdChyYXRlOiBSYXRlRHRvKSB7CiAgaWYgKCFjYW5VcGRhdGVSYXRlKHJhdGUpKSB7CiAgICB0b2FzdFN0b3JlLndhcm5pbmcoCiAgICAgICdBY3R1YWxpemFjacOzbiBubyBkaXNwb25pYmxlJywKICAgICAgJ1NvbG8gc2UgcHVlZGUgYWN0dWFsaXphciB1bmEgdGFyaWZhIGFudGVzIGRlIHF1ZSBQcmljaW5nIGxhIGVudsOtZSBvIG1pZW50cmFzIGVzdMOhIGVudmlhZGEgeSBwZW5kaWVudGUgZGUgYWNlcHRhY2nDs24vcmVjaGF6byBkZWwgdmVuZGVkb3IuJywKICAgICkKICAgIHJldHVybgogIH0KICB0b2FzdFN0b3JlLmluZm8oJ0FjdHVhbGl6YWNpw7NuIGRlIHRhcmlmYScsIGAke3JhdGVVcGRhdGVXaW5kb3dNZXNzYWdlKHJhdGUpfSBEZWJlIGluZGljYXIgZWwgbW90aXZvIGRlbCBjYW1iaW8gYW50ZXMgZGUgZ3VhcmRhci5gKQogIHJvdXRlci5wdXNoKHsgbmFtZTogJ3ByaWNpbmctcmF0ZS13aXphcmQnLCBwYXJhbXM6IHsgcmF0ZUlkOiByYXRlLmlkIH0sIHF1ZXJ5OiB7IG1vZGU6ICdlZGl0JyB9IH0pCn0KIiIiCmlmIG9sZF9vcGVuIGluIHRleHQ6CiAgICB0ZXh0ID0gdGV4dC5yZXBsYWNlKG9sZF9vcGVuLCBuZXdfb3BlbiwgMSkKZWxpZiAiQWN0dWFsaXphY2nDs24gbm8gZGlzcG9uaWJsZSIgbm90IGluIHRleHQ6CiAgICByYWlzZSBSdW50aW1lRXJyb3IoIm9wZW5FZGl0IGFuY2hvciBub3QgZm91bmQiKQoKdGV4dCA9IHRleHQucmVwbGFjZSgKICAgICJ7IGtleTogJ2FjdGlvbnMnLCBsYWJlbDogJycsIGFsaWduOiAncmlnaHQnLCB3aWR0aDogJzEzMHB4JyB9LCIsCiAgICAieyBrZXk6ICdhY3Rpb25zJywgbGFiZWw6ICcnLCBhbGlnbjogJ3JpZ2h0Jywgd2lkdGg6ICcxOTBweCcgfSwiLAogICAgMSwKKQoKb2xkX2J1dHRvbiA9ICIiIjxidXR0b24KICAgICAgICAgICAgICAgIHYtaWY9ImNhblVwZGF0ZSIKICAgICAgICAgICAgICAgIHR5cGU9ImJ1dHRvbiIKICAgICAgICAgICAgICAgIGNsYXNzPSJyb3VuZGVkLTJ4bCBwLTIgaG92ZXI6YmctYmxhY2svNSBkYXJrOmhvdmVyOmJnLXdoaXRlLzEwIgogICAgICAgICAgICAgICAgdGl0bGU9IkVkaXRhciBlbiB3aXphcmQiCiAgICAgICAgICAgICAgICBAY2xpY2suc3RvcD0ib3BlbkVkaXQocm93KSIKICAgICAgICAgICAgICA+CiAgICAgICAgICAgICAgICA8RWRpdDMgY2xhc3M9ImgtNCB3LTQiIC8+PC9idXR0b24iIiIKbmV3X2J1dHRvbiA9ICIiIjxidXR0b24KICAgICAgICAgICAgICAgIHYtaWY9ImNhblVwZGF0ZVJhdGUocm93KSIKICAgICAgICAgICAgICAgIHR5cGU9ImJ1dHRvbiIKICAgICAgICAgICAgICAgIGNsYXNzPSJpbmxpbmUtZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTEuNSByb3VuZGVkLTJ4bCBweC0yLjUgcHktMiB0ZXh0LXhzIGZvbnQtYmxhY2sgdGV4dC1bdmFyKC0tZGgtcHJpbWFyeSldIHRyYW5zaXRpb24gaG92ZXI6YmctYmxhY2svNSBkYXJrOmhvdmVyOmJnLXdoaXRlLzEwIgogICAgICAgICAgICAgICAgdGl0bGU9IkFjdHVhbGl6YXIgdGFyaWZhIMK3IG1vdGl2byBvYmxpZ2F0b3JpbyIKICAgICAgICAgICAgICAgIEBjbGljay5zdG9wPSJvcGVuRWRpdChyb3cpIgogICAgICAgICAgICAgID4KICAgICAgICAgICAgICAgIDxFZGl0MyBjbGFzcz0iaC00IHctNCIgLz4KICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzPSJoaWRkZW4gMnhsOmlubGluZSI+QWN0dWFsaXphcjwvc3Bhbj48L2J1dHRvbiIiIgppZiBvbGRfYnV0dG9uIGluIHRleHQ6CiAgICB0ZXh0ID0gdGV4dC5yZXBsYWNlKG9sZF9idXR0b24sIG5ld19idXR0b24sIDEpCmVsaWYgJ3YtaWY9ImNhblVwZGF0ZVJhdGUocm93KSInIG5vdCBpbiB0ZXh0OgogICAgcmFpc2UgUnVudGltZUVycm9yKCJ1cGRhdGUgYnV0dG9uIGFuY2hvciBub3QgZm91bmQiKQoKcGF0aC53cml0ZV90ZXh0KHRleHQsIGVuY29kaW5nPSJ1dGYtOCIpCg==' | base64 -d | python
       - name: Commit source change
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet; then
-            echo 'No changes required.'
-            exit 0
-          fi
+          if git diff --quiet; then exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/modules/pricing/views/PricingRatesView.vue
