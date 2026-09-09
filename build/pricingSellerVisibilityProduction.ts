@@ -2,6 +2,7 @@ import type { Plugin } from 'vite'
 
 const ROUTER_PATH = '/src/core/router/index.ts'
 const SIDEBAR_PATH = '/src/core/composables/useSidebarItems.ts'
+const SELLER_ASSIGNMENT_SCOPE = 'pricing.seller.assignment.manage'
 
 function patchRouter(source: string) {
   if (source.includes(`path: 'pricing/seller-visibility'`)) return source
@@ -11,7 +12,7 @@ function patchRouter(source: string) {
   const blockStart = source.lastIndexOf('{', pathIndex)
   if (blockStart < 0) throw new Error('[pricingSellerVisibilityProduction] pricing costs route block not found.')
 
-  const route = `        {\n          path: 'pricing/seller-visibility',\n          name: 'pricing-seller-visibility',\n          component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),\n          meta: {\n            tabTitle: 'Visibilidad comercial',\n            closable: true,\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n        },\n`
+  const route = `        {\n          path: 'pricing/seller-visibility',\n          name: 'pricing-seller-visibility',\n          component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),\n          meta: {\n            tabTitle: 'Visibilidad comercial',\n            closable: true,\n            requiredScope: '${SELLER_ASSIGNMENT_SCOPE}',\n          },\n        },\n`
 
   return source.slice(0, blockStart) + route + source.slice(blockStart)
 }
@@ -24,7 +25,7 @@ function patchSidebar(source: string) {
   const blockStart = source.lastIndexOf('{', pathIndex)
   if (blockStart < 0) throw new Error('[pricingSellerVisibilityProduction] pricing costs sidebar block not found.')
 
-  const item = `          {\n            labelKey: 'Visibilidad comercial',\n            icon: Users,\n            to: '/pricing/seller-visibility',\n            name: 'pricing-seller-visibility',\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n`
+  const item = `          {\n            labelKey: 'Visibilidad comercial',\n            icon: Users,\n            to: '/pricing/seller-visibility',\n            name: 'pricing-seller-visibility',\n            requiredScope: '${SELLER_ASSIGNMENT_SCOPE}',\n          },\n`
 
   return source.slice(0, blockStart) + item + source.slice(blockStart)
 }
