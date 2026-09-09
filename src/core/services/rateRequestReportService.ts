@@ -1,5 +1,5 @@
 import { callEndpoint } from '@/core/api/callEndpoint'
-import { downloadFile } from '@/core/api/fetchConfig'
+import { fetchBlobClient } from '@/core/api/fetchBlobClient'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 
 export interface RequestedRateReportRow {
@@ -37,10 +37,17 @@ export const RateRequestReportService = {
     return unwrapListResponse<RequestedRateReportRow>(response)
   },
 
-  async downloadExcel() {
-    return downloadFile(
-      '/api/pricing/rate-requests/export.xlsx',
-      'tarifas-solicitadas.xlsx',
-    )
+  async downloadExcel(): Promise<{ blob: Blob; fileName: string }> {
+    const blob = await fetchBlobClient('/api/pricing/rate-requests/export.xlsx', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
+    })
+
+    return {
+      blob,
+      fileName: 'tarifas-solicitadas.xlsx',
+    }
   },
 }
