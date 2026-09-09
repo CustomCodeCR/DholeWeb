@@ -8,8 +8,36 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
   return source.replace(anchor, replacement)
 }
 
+function replaceMany(source: string, anchor: string, replacement: string, expected: number, label: string) {
+  const count = source.split(anchor).length - 1
+  if (count !== expected) throw new Error(`[pricingWizardStep5RateFilter] Expected ${expected} ${label}, found ${count}.`)
+  return source.split(anchor).join(replacement)
+}
+
 function patchWizard(source: string) {
   let code = source
+
+  code = replaceMany(
+    code,
+    `validTo: addDaysIso(todayIso(), 30),`,
+    `validTo: addDaysIso(todayIso(), 1),`,
+    2,
+    'default validity values',
+  )
+
+  code = replaceOne(
+    code,
+    `function remainingValidityDays(validTo: string) {\n  const end = new Date(\`${'${String(validTo).slice(0, 10)}'}T12:00:00\`)\n  const today = new Date(\`${'${todayIso()}'}T12:00:00\`)\n  return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86_400_000))\n}`,
+    `function remainingValidityDays(validTo: string) {\n  const end = new Date(\`${'${String(validTo).slice(0, 10)}'}T12:00:00\`)\n  const loadDate = new Date(\`${'${String(form.loadDate || todayIso()).slice(0, 10)}'}T12:00:00\`)\n  return Math.max(0, Math.ceil((end.getTime() - loadDate.getTime()) / 86_400_000))\n}`,
+    'validity calculation from load date',
+  )
+
+  code = replaceOne(
+    code,
+    `<span>días restantes</span>`,
+    `<span>días desde carga</span>`,
+    'validity label',
+  )
 
   code = replaceOne(
     code,
@@ -42,7 +70,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `          <template v-else-if="availableRates.length">\n            <div class="grid gap-4 lg:grid-cols-2">`,
-    `          <template v-else-if="availableRates.length">\n            <div class="crystal-soft flex flex-col gap-3 p-4 md:flex-row md:items-end md:justify-between">\n              <div>\n                <p class="text-sm font-black">Orden y filtro de tarifas</p>\n                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Mayor vigencia primero · {{ sortedAvailableRates.length }} de {{ availableRates.length }} tarifa{{ availableRates.length === 1 ? '' : 's' }}</p>\n              </div>\n              <div class="w-full md:max-w-xs">\n                <DhSelect v-model="rateCarrierFilter" label="Naviera" :options="rateCarrierFilterOptions" />\n              </div>\n            </div>\n\n            <div v-if="!sortedAvailableRates.length" class="crystal-empty p-7 text-center">\n              <p class="font-black">No hay tarifas para la naviera seleccionada</p>\n              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione “Todas las navieras” para volver a mostrar todas las opciones.</p>\n            </div>\n\n            <div v-else class="grid gap-4 lg:grid-cols-2">`,
+    `          <template v-else-if="availableRates.length">\n            <div class="crystal-soft flex flex-col gap-3 p-4 md:flex-row md:items-end md:justify-between">\n              <div>\n                <p class="text-sm font-black">Orden y filtro de tarifas</p>\n                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Mayor vigencia desde la fecha de carga · {{ sortedAvailableRates.length }} de {{ availableRates.length }} tarifa{{ availableRates.length === 1 ? '' : 's' }}</p>\n              </div>\n              <div class="w-full md:max-w-xs">\n                <DhSelect v-model="rateCarrierFilter" label="Naviera" :options="rateCarrierFilterOptions" />\n              </div>\n            </div>\n\n            <div v-if="!sortedAvailableRates.length" class="crystal-empty p-7 text-center">\n              <p class="font-black">No hay tarifas para la naviera seleccionada</p>\n              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione “Todas las navieras” para volver a mostrar todas las opciones.</p>\n            </div>\n\n            <div v-else class="grid gap-4 lg:grid-cols-2">`,
     'screen 5 carrier filter',
   )
 
