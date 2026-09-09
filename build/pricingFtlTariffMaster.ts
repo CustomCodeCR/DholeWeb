@@ -45,39 +45,35 @@ function patchWizard(source: string) {
 function patchRouter(source: string) {
   if (source.includes(`path: 'pricing/ftl-tariffs'`)) return source
 
-  const costsRouteStart = `        {\n          path: 'pricing/costs',`
+  const pathIndex = source.indexOf(`path: 'pricing/costs'`)
+  if (pathIndex < 0) throw new Error('[pricingFtlTariffMaster] pricing costs route not found.')
+  const blockStart = source.lastIndexOf('{', pathIndex)
+  if (blockStart < 0) throw new Error('[pricingFtlTariffMaster] pricing costs route block not found.')
+
   const ftlRoute = `        {\n          path: 'pricing/ftl-tariffs',\n          name: 'pricing-ftl-tariffs',\n          component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),\n          meta: {\n            tabTitle: 'Tarifas FTL',\n            closable: true,\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },\n        },\n`
 
-  return replaceRequired(
-    source,
-    costsRouteStart,
-    `${ftlRoute}${costsRouteStart}`,
-    'FTL tariff route',
-  )
+  return source.slice(0, blockStart) + ftlRoute + source.slice(blockStart)
 }
 
 function patchSidebar(source: string) {
   let code = source
-  if (!code.includes(`  Truck,\n} from 'lucide-vue-next'`)) {
-    code = replaceRequired(
-      code,
-      `  BellRing,\n} from 'lucide-vue-next'`,
-      `  BellRing,\n  Truck,\n} from 'lucide-vue-next'`,
-      'Truck sidebar icon',
-    )
+
+  if (!/\bTruck\b/.test(code.slice(0, code.indexOf(`} from 'lucide-vue-next'`)))) {
+    const importEnd = code.indexOf(`} from 'lucide-vue-next'`)
+    if (importEnd < 0) throw new Error('[pricingFtlTariffMaster] lucide import end not found.')
+    code = code.slice(0, importEnd) + `  Truck,\n` + code.slice(importEnd)
   }
 
   if (code.includes(`to: '/pricing/ftl-tariffs'`)) return code
 
-  const costsItemStart = `          {\n            labelKey: 'sidebar.costs',`
+  const pathIndex = code.indexOf(`to: '/pricing/costs'`)
+  if (pathIndex < 0) throw new Error('[pricingFtlTariffMaster] pricing costs sidebar item not found.')
+  const blockStart = code.lastIndexOf('{', pathIndex)
+  if (blockStart < 0) throw new Error('[pricingFtlTariffMaster] pricing costs sidebar block not found.')
+
   const ftlItem = `          {\n            labelKey: 'Tarifas FTL',\n            icon: Truck,\n            to: '/pricing/ftl-tariffs',\n            name: 'pricing-ftl-tariffs',\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },\n`
 
-  return replaceRequired(
-    code,
-    costsItemStart,
-    `${ftlItem}${costsItemStart}`,
-    'FTL tariff sidebar item',
-  )
+  return code.slice(0, blockStart) + ftlItem + code.slice(blockStart)
 }
 
 export function pricingFtlTariffMaster(): Plugin {
