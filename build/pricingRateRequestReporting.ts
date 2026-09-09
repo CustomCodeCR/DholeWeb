@@ -35,22 +35,38 @@ function patchScopes(source: string) {
 
 function patchRouter(source: string) {
   if (source.includes(`path: 'pricing/requested-rates'`)) return source
-  return replaceRequired(
-    source,
-    `        {\n          path: 'pricing/costs',`,
-    `        {\n          path: 'pricing/requested-rates',\n          name: 'pricing-requested-rates',\n          component: () => import('@/modules/pricing/views/PricingRequestedRatesReportView.vue'),\n          meta: {\n            tabTitle: 'Tarifas solicitadas',\n            closable: true,\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n        },\n        {\n          path: 'pricing/seller-visibility',\n          name: 'pricing-seller-visibility',\n          component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),\n          meta: {\n            tabTitle: 'Visibilidad comercial',\n            closable: true,\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n        },\n        {\n          path: 'pricing/costs',`,
-    'requested-rate report routes',
-  )
+
+  const pathIndex = source.indexOf(`path: 'pricing/costs'`)
+  if (pathIndex < 0) {
+    throw new Error('[pricingRateRequestReporting] pricing costs route not found.')
+  }
+
+  const blockStart = source.lastIndexOf('        {', pathIndex)
+  if (blockStart < 0) {
+    throw new Error('[pricingRateRequestReporting] pricing costs route block not found.')
+  }
+
+  const route = `        {\n          path: 'pricing/requested-rates',\n          name: 'pricing-requested-rates',\n          component: () => import('@/modules/pricing/views/PricingRequestedRatesReportView.vue'),\n          meta: {\n            tabTitle: 'Tarifas solicitadas',\n            closable: true,\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n        },\n`
+
+  return source.slice(0, blockStart) + route + source.slice(blockStart)
 }
 
 function patchSidebar(source: string) {
   if (source.includes(`to: '/pricing/requested-rates'`)) return source
-  return replaceRequired(
-    source,
-    `          {\n            labelKey: 'sidebar.costs',`,
-    `          {\n            labelKey: 'Tarifas solicitadas',\n            icon: ClipboardList,\n            to: '/pricing/requested-rates',\n            name: 'pricing-requested-rates',\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n          {\n            labelKey: 'Visibilidad comercial',\n            icon: Users,\n            to: '/pricing/seller-visibility',\n            name: 'pricing-seller-visibility',\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n          {\n            labelKey: 'sidebar.costs',`,
-    'requested-rate report navigation',
-  )
+
+  const pathIndex = source.indexOf(`to: '/pricing/costs'`)
+  if (pathIndex < 0) {
+    throw new Error('[pricingRateRequestReporting] pricing costs sidebar item not found.')
+  }
+
+  const blockStart = source.lastIndexOf('          {', pathIndex)
+  if (blockStart < 0) {
+    throw new Error('[pricingRateRequestReporting] pricing costs sidebar block not found.')
+  }
+
+  const item = `          {\n            labelKey: 'Tarifas solicitadas',\n            icon: ClipboardList,\n            to: '/pricing/requested-rates',\n            name: 'pricing-requested-rates',\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n`
+
+  return source.slice(0, blockStart) + item + source.slice(blockStart)
 }
 
 export function pricingRateRequestReporting(): Plugin {
@@ -58,6 +74,7 @@ export function pricingRateRequestReporting(): Plugin {
     name: 'dhole-pricing-rate-request-reporting',
     enforce: 'pre',
     transform(source, id) {
+      if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
       if (normalizedId.endsWith(SCOPES_PATH)) return { code: patchScopes(source), map: null }
       if (normalizedId.endsWith(ROUTER_PATH)) return { code: patchRouter(source), map: null }
