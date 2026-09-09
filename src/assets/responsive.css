@@ -1,10 +1,9 @@
 /* --------------------------------------------------------------------------
  * Dhole system-wide responsive foundation
  *
- * This file is intentionally feature-agnostic. Shared layout, CRUD, Pricing,
- * Monitoring, Auth, Storage, Reports, AI and CMS screens inherit these rules.
- * Feature-specific mobile cards may still provide a richer experience, but no
- * screen should force the application wider than the viewport.
+ * Shared layout, CRUD, Pricing, Monitoring, Auth, Storage, Reports, AI and CMS
+ * screens inherit these rules. The goal is consistent behavior from 320px phones
+ * through tablets, laptops, ultrawide displays and landscape devices.
  * -------------------------------------------------------------------------- */
 
 html,
@@ -31,8 +30,12 @@ body {
   overflow-x: clip;
 }
 
-/* All layout primitives must be allowed to shrink. Without min-width:0 a long
-   UUID, email, route, table slot or translated label can widen an entire grid. */
+#app *,
+#app *::before,
+#app *::after {
+  box-sizing: border-box;
+}
+
 #app :where(main, section, article, nav, form, header, footer, aside, fieldset, dl) {
   min-width: 0;
 }
@@ -53,6 +56,10 @@ body {
   max-width: 100%;
 }
 
+#app :where(input, select, textarea) {
+  min-width: 0;
+}
+
 #app :where(textarea) {
   resize: vertical;
 }
@@ -62,6 +69,10 @@ body {
   overscroll-behavior-inline: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
+}
+
+#app :where(.dh-scrollbar) {
+  scrollbar-width: thin;
 }
 
 #app :where(pre) {
@@ -74,21 +85,58 @@ body {
   overflow-wrap: anywhere;
 }
 
-/* Long identifiers, email addresses, filenames, URLs and API values are common
-   in Dhole. They must wrap instead of increasing the width of a card/table cell. */
 #app :where(p, span, dd, td, th, a, label, legend) {
   overflow-wrap: anywhere;
 }
 
-/* Sticky content must remain bounded by its scrolling/layout container. */
 #app :where(.sticky) {
   max-width: 100%;
 }
 
-/* Touch targets stay usable on phones while desktop density is unchanged. */
+/* Overlays share a predictable viewport contract. */
+#app :where([role='dialog']) {
+  max-width: min(calc(100vw - 2rem), 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* Common action groups should wrap before labels become unreadable. */
+#app :where(.dh-page-header-actions, .dh-responsive-actions) {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+/* Charts/maps/media must never establish a desktop minimum width. */
+#app :where(.leaflet-container, [class*='map'], [class*='chart']) {
+  max-width: 100%;
+}
+
 @media (pointer: coarse) {
   #app :where(button, [role='button'], a) {
     touch-action: manipulation;
+  }
+
+  #app :where(button, [role='button']) {
+    min-height: 42px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Large tablets / compact laptops
+ * -------------------------------------------------------------------------- */
+@media (max-width: 1279px) {
+  #app :where(.grid) > * {
+    max-width: 100%;
+  }
+
+  #app :where([class*='max-w-']) {
+    min-width: 0;
+  }
+
+  /* Dense four/six-column utility grids receive breathing room on compact screens. */
+  #app :where(.dh-glass, .dh-glass-strong, .dh-liquid) {
+    background-clip: padding-box;
   }
 }
 
@@ -96,8 +144,6 @@ body {
  * Tablet and below
  * -------------------------------------------------------------------------- */
 @media (max-width: 1023px) {
-  /* Desktop split grids and dense dashboards should always have shrinkable
-     children. Tailwind responsive columns still decide the actual column count. */
   #app :where(.grid) > * {
     max-width: 100%;
   }
@@ -105,14 +151,22 @@ body {
   #app :where([class*='max-w-']) {
     margin-inline: auto;
   }
+
+  /* Keep headers/toolbars aesthetically balanced when controls wrap. */
+  #app :where(header, .dh-page-header-actions, .dh-responsive-actions) {
+    row-gap: 0.75rem;
+  }
+
+  /* Split panes and side-by-side workspaces may scroll, but cannot widen the app. */
+  #app :where([class*='grid-cols-'], [class*='flex-row']) {
+    min-width: 0;
+  }
 }
 
 /* --------------------------------------------------------------------------
  * Phone / compact tablet
  * -------------------------------------------------------------------------- */
 @media (max-width: 767px) {
-  /* Native tables not using DhDataTable remain usable with contained horizontal
-     scrolling. DhDataTable itself renders record cards below sm. */
   #app :where(section, article, div):has(> table) {
     max-width: 100%;
     overflow-x: auto;
@@ -124,25 +178,30 @@ body {
     max-width: none;
   }
 
-  /* Arbitrary desktop min-widths on wrappers/cards are a common source of mobile
-     overflow. Tables are excluded so their own scroll containers keep working. */
+  /* Shared data tables stay horizontally usable while preserving the sticky action column. */
+  #app .dh-scrollbar > table {
+    min-width: 620px !important;
+  }
+
   #app :where(div, section, article, aside, form)[class*='min-w-['] {
     min-width: 0 !important;
   }
 
-  /* Avoid iOS Safari zooming the page when a form control receives focus. */
   #app :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
     font-size: 16px;
   }
 
-  /* Legacy forms occasionally hard-code desktop column counts. Responsive forms
-     should become a single readable column before the viewport becomes cramped. */
   #app form :where(.grid) {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
   #app form :where(.flex):has(> button) {
     flex-wrap: wrap;
+  }
+
+  /* CRUD/filter action rows become comfortable two-column or wrapping controls. */
+  #app :where(.dh-responsive-actions, .dh-page-header-actions) > :where(button, a) {
+    flex: 1 1 auto;
   }
 
   #app :where(h1) {
@@ -159,26 +218,50 @@ body {
     overflow-wrap: anywhere;
   }
 
-  /* Horizontal tab/navigation strips remain intentionally scrollable rather than
-     wrapping into irregular multi-row controls. */
   #app :where([role='tablist'], .dh-responsive-tabs) {
     max-width: 100%;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
 
   #app :where([role='tab'], .dh-responsive-tabs > *) {
+    flex: 0 0 auto;
     scroll-snap-align: start;
   }
 
-  /* Fixed overlays respect notches, home indicators and dynamic browser chrome. */
   #app :where(.fixed) {
     max-width: 100vw;
   }
 
-  /* Floating assistant respects dynamic mobile browser chrome and safe area. */
+  /* Modals use nearly the full phone width, keep their header/footer visible and scroll content. */
+  #app :where([role='dialog']) {
+    width: min(100%, calc(100vw - 1rem));
+    max-width: calc(100vw - 1rem) !important;
+    max-height: calc(100dvh - 1rem) !important;
+    margin: 0.5rem;
+    border-radius: 1.35rem;
+  }
+
+  /* Cards retain the visual language without wasting the narrow viewport. */
+  #app :where(.dh-glass, .dh-glass-strong, .dh-liquid)[class*='p-6'],
+  #app :where(.dh-glass, .dh-glass-strong, .dh-liquid)[class*='p-8'] {
+    padding: 1rem !important;
+  }
+
+  /* Pricing wizard/footer actions and generic multi-button bars wrap cleanly. */
+  #app :where(.crystal-actions, .wizard-actions, .dh-responsive-actions) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+
+  #app :where(.crystal-actions, .wizard-actions) > :where(button, a) {
+    flex: 1 1 10rem;
+  }
+
   section[aria-label='Asistente IA'] {
     width: calc(100vw - 1rem) !important;
     max-width: calc(100vw - 1rem) !important;
@@ -195,11 +278,16 @@ body {
  * -------------------------------------------------------------------------- */
 @media (max-width: 479px) {
   #app :where(main) {
+    width: 100%;
     max-width: 100vw;
   }
 
   #app :where(.dh-liquid, .dh-glass, .dh-glass-strong) {
     max-width: 100%;
+  }
+
+  #app .dh-scrollbar > table {
+    min-width: 560px !important;
   }
 
   #app :where(table) th,
@@ -211,36 +299,81 @@ body {
     min-width: 0;
   }
 
-  /* Page-header and fullscreen-form actions become a predictable vertical action
-     area instead of shrinking labels until they are unreadable. */
+  .dh-page-header-actions,
+  .dh-responsive-actions {
+    width: 100%;
+  }
+
   .dh-page-header-actions > :where(button, a),
   .dh-responsive-actions > :where(button, a) {
     flex: 1 1 100%;
     width: 100%;
   }
 
-  /* Topbar: keep navigation/search/notifications/logout available at 320 px.
-     Language and theme are secondary controls and can be hidden on tiny screens. */
+  /* Dense filter/action rows become a vertical rhythm instead of tiny controls. */
+  #app :where(form, section, article) > .flex:has(> button):not(.justify-center) {
+    flex-wrap: wrap;
+  }
+
+  #app :where(form, section, article) > .flex:has(> button):not(.justify-center) > button:not([aria-label]) {
+    flex: 1 1 100%;
+  }
+
   #app header.sticky > .ml-auto > button:nth-of-type(-n + 2) {
     display: none;
   }
 
-  /* Large decorative radius/padding is reduced only on very small screens so
-     content gets priority while maintaining the Dhole visual language. */
   #app :where(.dh-glass, .dh-glass-strong, .dh-liquid)[class*='rounded-[3'] {
-    border-radius: 1.35rem;
+    border-radius: 1.25rem;
+  }
+
+  #app :where(.dh-glass, .dh-glass-strong, .dh-liquid)[class*='p-5'] {
+    padding: 0.875rem !important;
+  }
+
+  /* Keep primary navigation/action icons comfortably tappable. */
+  #app :where(button.rounded-2xl, a.rounded-2xl) {
+    min-width: 42px;
+    min-height: 42px;
   }
 }
 
-/* Landscape phones have little vertical space. Overlays and sticky shells should
-   use the available dynamic viewport instead of assuming desktop proportions. */
+/* Very narrow devices: prioritize content over decoration. */
+@media (max-width: 359px) {
+  #app :where(h1) {
+    font-size: 1.3rem;
+  }
+
+  #app :where(.dh-glass, .dh-glass-strong, .dh-liquid) {
+    border-radius: 1rem;
+  }
+
+  #app .dh-scrollbar > table {
+    min-width: 520px !important;
+  }
+}
+
+/* Landscape phones have little vertical space. */
 @media (max-height: 520px) and (orientation: landscape) {
   #app :where([role='dialog']) {
     max-height: calc(100dvh - 0.5rem) !important;
   }
 
+  #app :where(.sticky) {
+    position: relative;
+    top: auto !important;
+  }
+
   section[aria-label='Asistente IA'] {
     max-height: calc(100dvh - 1rem) !important;
     bottom: 0.5rem !important;
+  }
+}
+
+/* Larger monitors: keep readable content measures while allowing data-heavy screens
+   such as Pricing and Monitoring to use the available width. */
+@media (min-width: 1536px) {
+  #app :where(main) {
+    min-width: 0;
   }
 }
