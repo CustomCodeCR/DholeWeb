@@ -11,8 +11,8 @@ function clear() {
 </script>
 
 <template>
-  <div class="flex h-11 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl transition dh-focus-primary">
-    <Search class="h-4 w-4 text-[var(--dh-primary)]" />
+  <div class="flex h-11 min-w-0 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl transition dh-focus-primary">
+    <Search class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
     <input
       :value="modelValue"
       type="search"
@@ -21,7 +21,13 @@ function clear() {
       @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
       @keydown.enter="emit('search', modelValue)"
     />
-    <button v-if="modelValue" type="button" class="rounded-xl p-1.5 text-[var(--dh-text-muted)] hover:bg-black/5 dark:hover:bg-white/10" @click="clear">
+    <button
+      v-if="modelValue"
+      type="button"
+      aria-label="Limpiar búsqueda"
+      class="inline-flex min-h-9 min-w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl p-1.5 text-[var(--dh-text-muted)] hover:bg-black/5 dark:hover:bg-white/10 max-sm:min-h-11 max-sm:min-w-11"
+      @click="clear"
+    >
       <X class="h-4 w-4" />
     </button>
   </div>
