@@ -128,6 +128,16 @@ function toggle(value: string) {
 </template>
 
 <style scoped>
+:global(.crystal-soft:has(details[data-dh-dropdown="true"][open])) {
+  position: relative;
+  z-index: 1200;
+  overflow: visible;
+}
+
+:global(.crystal-panel:has(details[data-dh-dropdown="true"][open])) {
+  overflow: visible;
+}
+
 .crystal-multi {
   position: relative;
   z-index: 0;
