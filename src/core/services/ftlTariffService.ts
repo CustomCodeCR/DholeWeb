@@ -26,6 +26,8 @@ export interface ResolveFtlTariffQuery {
   destinationId?: string | null
   originName?: string | null
   destinationName?: string | null
+  originCode?: string | null
+  destinationCode?: string | null
   equipmentClass: string
 }
 
@@ -66,6 +68,8 @@ export const FtlTariffService = {
         destinationId: query.destinationId,
         originName: query.originName,
         destinationName: query.destinationName,
+        originCode: query.originCode,
+        destinationCode: query.destinationCode,
         equipmentClass: query.equipmentClass,
       }),
       headers: acceptJson,
