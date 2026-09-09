@@ -14,12 +14,15 @@ function replaceRequired(source: string, anchor: string, replacement: string, la
 
 function patchScopes(source: string) {
   let code = source
+
   if (!code.includes(`viewAll: 'pricing.rate-request.view-all'`)) {
+    const ratesAnchor = `  rates: {`
+    const rateRequestBlock = `  rateRequests: {\n    create: 'pricing.rate-request.create',\n    viewSelected: 'pricing.rate-request.view-selected',\n    viewAll: 'pricing.rate-request.view-all',\n    reportViewAll: '${REPORT_VIEW_ALL_SCOPE}',\n    manageVisibility: 'pricing.rate-request.visibility.manage',\n  },\n\n`
     code = replaceRequired(
       code,
-      `  ownLclConsolidations: {\n    create: 'pricing.own-lcl-consolidation.create',\n  },\n\n  rates: {`,
-      `  ownLclConsolidations: {\n    create: 'pricing.own-lcl-consolidation.create',\n  },\n\n  rateRequests: {\n    create: 'pricing.rate-request.create',\n    viewSelected: 'pricing.rate-request.view-selected',\n    viewAll: 'pricing.rate-request.view-all',\n    reportViewAll: '${REPORT_VIEW_ALL_SCOPE}',\n    manageVisibility: 'pricing.rate-request.visibility.manage',\n  },\n\n  rates: {`,
-      'rate request scope constants',
+      ratesAnchor,
+      `${rateRequestBlock}${ratesAnchor}`,
+      'rates scope block',
     )
   } else if (!code.includes(`reportViewAll: '${REPORT_VIEW_ALL_SCOPE}'`)) {
     code = replaceRequired(
