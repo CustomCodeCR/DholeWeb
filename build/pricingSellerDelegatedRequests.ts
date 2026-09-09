@@ -67,7 +67,11 @@ async function loadSellerRequestOwnerOptions() {
   } finally {
     sellerRequestOwnersLoading.value = false
   }
-}`,
+}
+
+onMounted(async () => {
+  if (props.sellerRequestMode) await loadSellerRequestOwnerOptions()
+})`,
     'seller request priority state',
   )
 
@@ -89,16 +93,6 @@ async function loadSellerRequestOwnerOptions() {
     rateRequestPriority.value = 'Green'
     sellerRequestOwnerId.value = sellerRequestCurrentUserId.value || sellerRequestOwnerId.value`,
     'delegated seller reset',
-  )
-
-  code = replaceOne(
-    code,
-    `  await loadCatalogs()
-  if (props.rateId) await hydrateExistingRate()`,
-    `  await loadCatalogs()
-  if (props.sellerRequestMode) await loadSellerRequestOwnerOptions()
-  if (props.rateId) await hydrateExistingRate()`,
-    'delegated seller options load',
   )
 
   code = replaceOne(
