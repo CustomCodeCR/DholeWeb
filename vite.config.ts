@@ -38,6 +38,7 @@ import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelec
 import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
 import { pricingWizardFclExpiryChip } from './build/pricingWizardFclExpiryChip'
 import { pricingWizardMaritimePanamaFix } from './build/pricingWizardMaritimePanamaFix'
+import { pricingWizardRouteTerminalTypes } from './build/pricingWizardRouteTerminalTypes'
 
 export default defineConfig({
   plugins: [
@@ -75,6 +76,7 @@ export default defineConfig({
     pricingWizardMixedCarrierExpiry(),
     pricingWizardFclExpiryChip(),
     pricingWizardMaritimePanamaFix(),
+    pricingWizardRouteTerminalTypes(),
     vue(),
     tailwindcss(),
   ],
