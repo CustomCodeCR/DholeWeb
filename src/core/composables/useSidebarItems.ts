@@ -21,6 +21,7 @@ import {
   HardDrive,
   Bell,
   BellRing,
+  Truck,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { VIEW_SCOPES } from '@/core/auth/scopes'
@@ -141,6 +142,20 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             to: '/pricing/email-imports',
             name: 'pricing-email-imports',
             requiredScope: VIEW_SCOPES.pricingImports,
+          },
+          {
+            labelKey: 'Tarifas FTL',
+            icon: Truck,
+            to: '/pricing/ftl-tariffs',
+            name: 'pricing-ftl-tariffs',
+            requiredScope: VIEW_SCOPES.pricingCosts,
+          },
+          {
+            labelKey: 'Visibilidad comercial',
+            icon: Users,
+            to: '/pricing/seller-visibility',
+            name: 'pricing-seller-visibility',
+            requiredScope: VIEW_SCOPES.pricingSellerAssignment,
           },
           {
             labelKey: 'sidebar.costs',

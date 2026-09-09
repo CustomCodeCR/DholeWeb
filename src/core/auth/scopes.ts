@@ -110,6 +110,10 @@ export const PRICING_SCOPES = {
     create: 'pricing.own-lcl-consolidation.create',
   },
 
+  sellerAssignments: {
+    manage: 'pricing.seller.assignment.manage',
+  },
+
   rates: {
     create: 'pricing.rate.create',
     view: 'pricing.rate.view',
@@ -271,6 +275,7 @@ export const VIEW_SCOPES = {
   pricingCompetition: PRICING_SCOPES.workspace.access,
   pricingCosts: PRICING_SCOPES.costs.view,
   pricingRateTerms: PRICING_SCOPES.rateTerms.view,
+  pricingSellerAssignment: PRICING_SCOPES.sellerAssignments.manage,
 
   aiConnections: AI_SCOPES.connections.view,
   aiModels: AI_SCOPES.models.view,

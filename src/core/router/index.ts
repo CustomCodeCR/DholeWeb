@@ -255,6 +255,26 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/ftl-tariffs',
+          name: 'pricing-ftl-tariffs',
+          component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),
+          meta: {
+            tabTitle: 'Tarifas FTL',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingCosts,
+          },
+        },
+        {
+          path: 'pricing/seller-visibility',
+          name: 'pricing-seller-visibility',
+          component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),
+          meta: {
+            tabTitle: 'Visibilidad comercial',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingSellerAssignment,
+          },
+        },
+        {
           path: 'pricing/costs',
           name: 'pricing-costs',
           component: () => import('@/modules/pricing/views/PricingCostsView.vue'),
