@@ -17,7 +17,6 @@ import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerDelegatedRequests } from './build/pricingSellerDelegatedRequests'
-import { pricingSellerVisibilityProduction } from './build/pricingSellerVisibilityProduction'
 import { pricingSellerRateRequestResponsibilities } from './build/pricingSellerRateRequestResponsibilities'
 import { pricingWizardStep5RateFilter } from './build/pricingWizardStep5RateFilter'
 import { pricingSellerOwnershipUi } from './build/pricingSellerOwnershipUi'
@@ -47,6 +46,8 @@ import { pricingWizardLandPolish } from './build/pricingWizardLandPolish'
 import { pricingWizardShipmentStyleParity } from './build/pricingWizardShipmentStyleParity'
 import { pricingWizardLandScreen4Cleanup } from './build/pricingWizardLandScreen4Cleanup'
 import { pricingFtlTariffMaster } from './build/pricingFtlTariffMaster'
+import { pricingSellerVisibilityProduction } from './build/pricingSellerVisibilityProduction'
+import { pricingRateRequestReporting } from './build/pricingRateRequestReporting'
 
 export default defineConfig({
   plugins: [
@@ -93,6 +94,7 @@ export default defineConfig({
     pricingWizardLandScreen4Cleanup(),
     pricingFtlTariffMaster(),
     pricingSellerVisibilityProduction(),
+    pricingRateRequestReporting(),
     vue(),
     tailwindcss(),
   ],
