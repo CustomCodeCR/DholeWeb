@@ -1,0 +1,118 @@
+name: Apply Sep09 Requested Rate Update Option
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths:
+      - '.github/workflows/apply-sep09-rate-update-option.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Expose safe rate update action
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/modules/pricing/views/PricingRatesView.vue')
+          text = path.read_text(encoding='utf-8')
+
+          anchor = "const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))\n"
+          addition = """const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))
+
+const requestedRateUpdateStatuses = new Set<RateStatus>([
+  'PendingApproval',
+  'ApprovedByManagement',
+  'RejectedByManagement',
+  'Open',
+  'Sent',
+  'RequestedByClient',
+])
+
+function canUpdateRate(rate: RateDto) {
+  return canUpdate.value && requestedRateUpdateStatuses.has(rate.status)
+}
+
+function rateUpdateWindowMessage(rate: RateDto) {
+  if (rate.status === 'Sent' || rate.status === 'RequestedByClient') {
+    return 'La tarifa está enviada y todavía está pendiente de aceptación o rechazo del vendedor.'
+  }
+  return 'La tarifa todavía se encuentra dentro de la solicitud antes del envío de Pricing.'
+}
+"""
+          if 'const requestedRateUpdateStatuses' not in text:
+              if anchor not in text:
+                  raise RuntimeError('permissions anchor not found')
+              text = text.replace(anchor, addition, 1)
+
+          old_open = """function openEdit(rate: RateDto) {
+  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
+}
+"""
+          new_open = """function openEdit(rate: RateDto) {
+  if (!canUpdateRate(rate)) {
+    toastStore.warning(
+      'Actualización no disponible',
+      'Solo se puede actualizar una tarifa antes de que Pricing la envíe o mientras está enviada y pendiente de aceptación/rechazo del vendedor.',
+    )
+    return
+  }
+  toastStore.info('Actualización de tarifa', `${rateUpdateWindowMessage(rate)} Debe indicar el motivo del cambio antes de guardar.`)
+  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
+}
+"""
+          if old_open in text:
+              text = text.replace(old_open, new_open, 1)
+          elif 'Actualización no disponible' not in text:
+              raise RuntimeError('openEdit anchor not found')
+
+          text = text.replace("{ key: 'actions', label: '', align: 'right', width: '130px' },", "{ key: 'actions', label: '', align: 'right', width: '190px' },", 1)
+
+          old_button = """<button
+                v-if="canUpdate"
+                type="button"
+                class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
+                title="Editar en wizard"
+                @click.stop="openEdit(row)"
+              >
+                <Edit3 class="h-4 w-4" /></button"""
+          new_button = """<button
+                v-if="canUpdateRate(row)"
+                type="button"
+                class="inline-flex items-center gap-1.5 rounded-2xl px-2.5 py-2 text-xs font-black text-[var(--dh-primary)] transition hover:bg-black/5 dark:hover:bg-white/10"
+                title="Actualizar tarifa · motivo obligatorio"
+                @click.stop="openEdit(row)"
+              >
+                <Edit3 class="h-4 w-4" />
+                <span class="hidden 2xl:inline">Actualizar</span></button"""
+          if old_button in text:
+              text = text.replace(old_button, new_button, 1)
+          elif 'v-if="canUpdateRate(row)"' not in text:
+              raise RuntimeError('update button anchor not found')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit source change
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/modules/pricing/views/PricingRatesView.vue
+          git commit -m 'feat(pricing): expose controlled rate update action'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
