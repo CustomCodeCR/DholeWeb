@@ -38,6 +38,7 @@ import { pricingRequirements20260908 } from './build/pricingRequirements20260908
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
 import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
 import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
+import { pricingWizardFclExpiryChip } from './build/pricingWizardFclExpiryChip'
 
 export default defineConfig({
   plugins: [
@@ -75,6 +76,7 @@ export default defineConfig({
     pricingCargoHaulageKeywordFix(),
     pricingCostMultiPortSelection(),
     pricingWizardMixedCarrierExpiry(),
+    pricingWizardFclExpiryChip(),
     vue(),
     tailwindcss(),
   ],
@@ -93,7 +95,7 @@ export default defineConfig({
 
   preview: {
     host: '0.0.0.0',
-    port: 5173,
+    port: 4173,
     strictPort: true,
   },
 })
