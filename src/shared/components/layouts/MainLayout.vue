@@ -18,6 +18,7 @@ import {
   PanelRightClose,
   ServerCog,
   TrendingUp,
+  Truck,
   Settings,
   Shield,
   Users,
@@ -155,6 +156,14 @@ const pricingChildren = computed<SidebarItem[]>(() => {
 
   if (canView(VIEW_SCOPES.pricingRates)) {
     children.push({ label: t('sidebar.rates'), path: '/pricing/rates', icon: ReceiptText })
+  }
+
+  if (canView(VIEW_SCOPES.pricingCosts)) {
+    children.push({ label: 'Tarifas FTL', path: '/pricing/ftl-tariffs', icon: Truck })
+  }
+
+  if (canView(VIEW_SCOPES.pricingSellerAssignment)) {
+    children.push({ label: 'Visibilidad comercial', path: '/pricing/seller-visibility', icon: Users })
   }
 
   if (canView(VIEW_SCOPES.pricingCosts)) {
