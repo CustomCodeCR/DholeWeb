@@ -42,6 +42,7 @@ import { pricingWizardFclExpiryChip } from './build/pricingWizardFclExpiryChip'
 import { pricingWizardMaritimePanamaFix } from './build/pricingWizardMaritimePanamaFix'
 import { pricingWizardRouteTerminalTypes } from './build/pricingWizardRouteTerminalTypes'
 import { pricingWizardLandPolish } from './build/pricingWizardLandPolish'
+import { pricingWizardShipmentStyleParity } from './build/pricingWizardShipmentStyleParity'
 
 export default defineConfig({
   plugins: [
@@ -83,6 +84,7 @@ export default defineConfig({
     pricingWizardMaritimePanamaFix(),
     pricingWizardRouteTerminalTypes(),
     pricingWizardLandPolish(),
+    pricingWizardShipmentStyleParity(),
     vue(),
     tailwindcss(),
   ],
