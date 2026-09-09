@@ -32,6 +32,7 @@ import {
   pricingWizardFclRateBundlesPostCompat,
 } from './build/pricingWizardFclRateBundlesCompat'
 import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
+import { pricingWizardDraftEquipmentRestoreFix } from './build/pricingWizardDraftEquipmentRestoreFix'
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
 import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
 import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
@@ -66,6 +67,7 @@ export default defineConfig({
     pricingWizardFclRateBundles(),
     pricingWizardFclRateBundlesPostCompat(),
     pricingWizardDraftAutosave(),
+    pricingWizardDraftEquipmentRestoreFix(),
     pricingCargoHaulageKeywordFix(),
     pricingCostMultiPortSelection(),
     pricingWizardMixedCarrierExpiry(),
