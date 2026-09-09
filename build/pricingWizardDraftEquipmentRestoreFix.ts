@@ -10,17 +10,42 @@ function replaceExactlyOnce(source: string, anchor: string, replacement: string,
   return source.replace(anchor, replacement)
 }
 
+function restoreRateRequestEquipmentAfterHydration(source: string) {
+  const functionAnchor = 'async function hydrateRateRequest() {'
+  const functionStart = source.indexOf(functionAnchor)
+  if (functionStart < 0) {
+    throw new Error('[pricingWizardDraftEquipmentRestoreFix] Missing rate request hydration function.')
+  }
+
+  const functionEnd = source.indexOf('\n}\n\nfunction modalityForRate', functionStart)
+  if (functionEnd < 0) {
+    throw new Error('[pricingWizardDraftEquipmentRestoreFix] Could not locate the end of rate request hydration.')
+  }
+
+  const assignmentAnchor = 'Object.assign(form, request.payload.form)'
+  const assignmentIndex = source.indexOf(assignmentAnchor, functionStart)
+  if (assignmentIndex < 0 || assignmentIndex >= functionEnd) {
+    throw new Error('[pricingWizardDraftEquipmentRestoreFix] Missing rate request form hydration assignment.')
+  }
+
+  const stepAnchor = '    step.value = 5'
+  const stepIndex = source.indexOf(stepAnchor, assignmentIndex)
+  if (stepIndex < 0 || stepIndex >= functionEnd) {
+    throw new Error('[pricingWizardDraftEquipmentRestoreFix] Missing rate request step restore anchor.')
+  }
+
+  const restoreBlock = `    // The seller request persists the resolved container ID in payload.form.\n    // Several legacy size/type watchers are queued by Object.assign and can clear\n    // equipmentId after hydration. Wait for those watchers and restore the ID before\n    // Pricing searches the approved rates for Pantalla 5.\n    await Promise.resolve()\n    const persistedRequestEquipmentId =\n      request.payload?.form &&\n      typeof request.payload.form === 'object' &&\n      typeof request.payload.form.equipmentId === 'string'\n        ? request.payload.form.equipmentId\n        : ''\n    if (persistedRequestEquipmentId) {\n      form.equipmentId = persistedRequestEquipmentId\n    }\n\n`
+
+  return source.slice(0, stepIndex) + restoreBlock + source.slice(stepIndex)
+}
+
 function patchWizard(source: string) {
   const draftAnchor = `    if (availableRates.value.length) {\n      await loadImportSources(availableRates.value)\n    }\n\n    pricingDraftLastSnapshot = raw`
 
   const draftReplacement = `    if (availableRates.value.length) {\n      await loadImportSources(availableRates.value)\n    }\n\n    // The split container selector persists the resolved equipment ID directly.\n    // Legacy wizard watchers still observe equipmentSize/equipmentType and may clear\n    // equipmentId while a draft is being restored. Let those queued watchers finish\n    // and then re-apply the persisted equipment selection.\n    await Promise.resolve()\n    if (draft.form && typeof draft.form === 'object' && typeof draft.form.equipmentId === 'string') {\n      form.equipmentId = draft.form.equipmentId\n    }\n\n    pricingDraftLastSnapshot = raw`
 
   let code = replaceExactlyOnce(source, draftAnchor, draftReplacement, 'draft restore')
-
-  const requestAnchor = `    if (request.payload?.form) Object.assign(form, request.payload.form)`
-  const requestReplacement = `    const persistedRequestEquipmentId =\n      request.payload?.form &&\n      typeof request.payload.form === 'object' &&\n      typeof request.payload.form.equipmentId === 'string'\n        ? request.payload.form.equipmentId\n        : ''\n\n    if (request.payload?.form) Object.assign(form, request.payload.form)\n\n    // The request payload already contains the container selected by Ventas.\n    // Other build-time patches may inject seller/route context immediately after this\n    // assignment, so this fix anchors only on Object.assign instead of neighboring lines.\n    await Promise.resolve()\n    if (persistedRequestEquipmentId) {\n      form.equipmentId = persistedRequestEquipmentId\n    }`
-
-  code = replaceExactlyOnce(code, requestAnchor, requestReplacement, 'rate request equipment restore')
+  code = restoreRateRequestEquipmentAfterHydration(code)
   return code
 }
 
