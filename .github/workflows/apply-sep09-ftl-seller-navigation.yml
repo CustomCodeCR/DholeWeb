@@ -1,0 +1,39 @@
+name: Apply Sep09 FTL Seller Navigation
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths:
+      - '.github/scripts/apply_sep09_ftl_seller_navigation.py'
+      - '.github/workflows/apply-sep09-ftl-seller-navigation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply direct navigation and scopes
+        run: python .github/scripts/apply_sep09_ftl_seller_navigation.py
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/core/router/index.ts src/core/composables/useSidebarItems.ts src/core/auth/scopes.ts
+          git commit -m 'fix(pricing): expose FTL tariffs and seller assignments'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
