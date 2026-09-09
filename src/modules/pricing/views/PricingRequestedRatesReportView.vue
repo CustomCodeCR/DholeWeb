@@ -144,7 +144,7 @@ onMounted(load)
   <section class="space-y-6">
     <DhPageHeader
       title="Tarifas solicitadas"
-      subtitle="Consulta global de solicitudes enviadas por Ventas a Pricing. El acceso está controlado por el permiso de ver todas las solicitudes."
+      subtitle="Consulte las solicitudes y tarifas incluidas en su alcance comercial: sus propias solicitudes, vendedores asignados o todos los vendedores, según su permiso."
       :icon="ClipboardList"
     >
       <template #actions>
@@ -171,7 +171,7 @@ onMounted(load)
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">Reporte operativo</p>
-          <h2 class="mt-1 text-xl font-black text-[var(--dh-text)]">Todas las solicitudes</h2>
+          <h2 class="mt-1 text-xl font-black text-[var(--dh-text)]">Solicitudes visibles</h2>
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
             {{ filteredRows.length }} de {{ rows.length }} solicitudes visibles.
           </p>
