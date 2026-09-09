@@ -44,6 +44,7 @@ import { pricingWizardRouteTerminalTypes } from './build/pricingWizardRouteTermi
 import { pricingWizardLandPolish } from './build/pricingWizardLandPolish'
 import { pricingWizardShipmentStyleParity } from './build/pricingWizardShipmentStyleParity'
 import { pricingWizardLandScreen4Cleanup } from './build/pricingWizardLandScreen4Cleanup'
+import { pricingFtlTariffMaster } from './build/pricingFtlTariffMaster'
 
 export default defineConfig({
   plugins: [
@@ -87,6 +88,7 @@ export default defineConfig({
     pricingWizardLandPolish(),
     pricingWizardShipmentStyleParity(),
     pricingWizardLandScreen4Cleanup(),
+    pricingFtlTariffMaster(),
     vue(),
     tailwindcss(),
   ],
