@@ -34,6 +34,7 @@ import {
 import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
 import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
+import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
 
 export default defineConfig({
   plugins: [
@@ -67,6 +68,7 @@ export default defineConfig({
     pricingWizardDraftAutosave(),
     pricingCargoHaulageKeywordFix(),
     pricingCostMultiPortSelection(),
+    pricingWizardMixedCarrierExpiry(),
     vue(),
     tailwindcss(),
   ],
