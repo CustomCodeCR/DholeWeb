@@ -216,9 +216,11 @@ function discardPricingDraft() {
 `
   code = replaceOne(code, stateAnchor, draftState, 'draft state')
 
-  const mountedAnchor = `onMounted(async () => {\n  await loadCatalogs()\n  if (props.rateId) await hydrateExistingRate()\n  else if (props.rateRequestId) {\n    await hydrateRateRequest()\n    await loadHaciendaExchangeRate(true)\n  } else await loadHaciendaExchangeRate(true)\n})`
-  const mountedReplacement = `onMounted(async () => {\n  await loadCatalogs()\n  if (props.rateId) await hydrateExistingRate()\n  else if (props.rateRequestId) {\n    await hydrateRateRequest()\n    await loadHaciendaExchangeRate(true)\n  } else await loadHaciendaExchangeRate(true)\n\n  if (!props.viewOnly) {\n    await restorePricingDraft()\n    pricingDraftReady.value = true\n  }\n})`
-  code = replaceOne(code, mountedAnchor, mountedReplacement, 'mounted draft restore')
+  // Seller delegation adds its own line inside onMounted. Anchor only the stable
+  // Hacienda tail so draft restore remains compatible with both normal and delegated requests.
+  const mountedTailAnchor = `  } else await loadHaciendaExchangeRate(true)\n})`
+  const mountedTailReplacement = `  } else await loadHaciendaExchangeRate(true)\n\n  if (!props.viewOnly) {\n    await restorePricingDraft()\n    pricingDraftReady.value = true\n  }\n})`
+  code = replaceOne(code, mountedTailAnchor, mountedTailReplacement, 'mounted draft restore')
 
   const scriptCloseAnchor = `\n</script>`
   const watchers = `
