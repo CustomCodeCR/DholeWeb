@@ -17,8 +17,15 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `import { PricingService } from '@/core/services/pricingService'`,
-    `import { PricingService } from '@/core/services/pricingService'\nimport { FtlTariffService } from '@/core/services/ftlTariffService'`,
+    `import { PricingService } from '@/core/services/pricingService'\nimport { FtlTariffService, type FtlTariffDto } from '@/core/services/ftlTariffService'`,
     'FTL tariff service import',
+  )
+
+  code = replaceRequired(
+    code,
+    `const rateCarrierFilter = ref('')`,
+    `const rateCarrierFilter = ref('')\nconst resolvedFtlTariff = ref<FtlTariffDto | null>(null)`,
+    'FTL tariff selection state',
   )
 
   const applicableAnchor = `function applicableCost(cost: CostSelectDto) {`
@@ -35,9 +42,21 @@ function patchWizard(source: string) {
   const firstGuardIndex = code.indexOf(`\n  if (`, searchIndex + searchStart.length)
   if (firstGuardIndex < 0) throw new Error('[pricingFtlTariffMaster] searchApprovedRates first guard not found.')
 
-  const ftlSearchBranch = `\n  if (shipmentModeForApi.value === 'Ftl') {\n    form.manualRate = true\n    const equipmentClass = selectedFtlEquipmentClass()\n\n    if (!equipmentClass) {\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      toastStore.warning('Equipo FTL sin equivalencia', 'No se pudo determinar si el equipo corresponde a 48/53 pies o 5–7 toneladas.')\n      return\n    }\n\n    try {\n      const configured = await FtlTariffService.resolve({\n        originId: form.originId || null,\n        destinationId: form.destinationId || null,\n        originName: selectedOrigin.value ? displayValue(selectedOrigin.value) : null,\n        destinationName: selectedDestination.value ? displayValue(selectedDestination.value) : null,\n        equipmentClass,\n      })\n\n      if (configured) {\n        form.freightCost = number(configured.priceAmount)\n        form.freightSale = number(configured.priceAmount)\n        form.transitDays = configured.transitDays ?? 0\n        if (configured.currencyId) form.currencyId = configured.currencyId\n      } else {\n        form.freightCost = 0\n        form.freightSale = 0\n        form.transitDays = 0\n        toastStore.warning('Tarifa FTL no configurada', 'No existe una tarifa maestra para la ruta y el equipo seleccionados.')\n      }\n    } catch (error) {\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      toastStore.backendError(error, 'No se pudo consultar la matriz maestra de tarifas FTL.')\n    }\n    return\n  }\n`
+  const ftlSearchBranch = `\n  if (shipmentModeForApi.value === 'Ftl') {\n    resolvedFtlTariff.value = null\n    form.manualRate = false\n    const equipmentClass = selectedFtlEquipmentClass()\n\n    if (!equipmentClass) {\n      form.manualRate = true\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      toastStore.warning('Equipo FTL sin equivalencia', 'No se pudo determinar si el equipo corresponde a 48/53 pies o 5–7 toneladas.')\n      return\n    }\n\n    try {\n      loadingRates.value = true\n      const configured = await FtlTariffService.resolve({\n        originId: form.originId || null,\n        destinationId: form.destinationId || null,\n        originName: selectedOrigin.value ? displayValue(selectedOrigin.value) : null,\n        destinationName: selectedDestination.value ? displayValue(selectedDestination.value) : null,\n        originCode: selectedOrigin.value?.code ?? null,\n        destinationCode: selectedDestination.value?.code ?? null,\n        equipmentClass,\n      })\n\n      if (configured) {\n        resolvedFtlTariff.value = configured\n        form.manualRate = false\n        form.freightCost = number(configured.priceAmount)\n        form.freightSale = number(configured.priceAmount)\n        form.transitDays = configured.transitDays ?? 0\n        if (configured.currencyId) form.currencyId = configured.currencyId\n      } else {\n        form.manualRate = true\n        form.freightCost = 0\n        form.freightSale = 0\n        form.transitDays = 0\n        toastStore.warning('Tarifa FTL no configurada', 'No existe una tarifa maestra activa para la ruta y el equipo seleccionados.')\n      }\n    } catch (error) {\n      form.manualRate = true\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      toastStore.backendError(error, 'No se pudo consultar la matriz maestra de tarifas FTL.')\n    } finally {\n      loadingRates.value = false\n    }\n    return\n  }\n`
 
   code = code.slice(0, firstGuardIndex) + ftlSearchBranch + code.slice(firstGuardIndex)
+
+  const ratesTemplateAnchor = `          <template v-else-if="availableRates.length">`
+  const ftlTemplate = `          <template v-else-if="shipmentModeForApi === 'Ftl' && resolvedFtlTariff">\n            <div class="grid gap-4 lg:grid-cols-2">\n              <button\n                type="button"\n                class="crystal-rate-card crystal-rate-card--active text-left"\n                @click="form.manualRate = false"\n              >\n                <div class="flex flex-wrap items-start justify-between gap-3">\n                  <div>\n                    <p class="font-black">Tarifa terrestre FTL</p>\n                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">\n                      {{ resolvedFtlTariff.originName }} → {{ resolvedFtlTariff.destinationName }} · {{ resolvedFtlTariff.equipmentLabel }}\n                    </p>\n                  </div>\n                  <DhBadge variant="success">Matriz maestra</DhBadge>\n                </div>\n                <p class="mt-5 text-2xl font-black">\n                  {{ formatMoney(resolvedFtlTariff.priceAmount, resolvedFtlTariff.currencyCode || resolvedFtlTariff.currencyName || 'USD') }}\n                </p>\n                <div class="mt-4 grid gap-2 sm:grid-cols-2">\n                  <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">\n                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Tránsito</span>\n                    <strong class="mt-1 block text-sm">{{ resolvedFtlTariff.transitDays != null ? resolvedFtlTariff.transitDays + ' días' : 'Por confirmar' }}</strong>\n                  </div>\n                  <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">\n                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Fuente</span>\n                    <strong class="mt-1 block text-sm">{{ resolvedFtlTariff.source || 'Pricing FTL' }}</strong>\n                  </div>\n                </div>\n                <p v-if="resolvedFtlTariff.notes" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold text-[var(--dh-text-muted)]">\n                  {{ resolvedFtlTariff.notes }}\n                </p>\n              </button>\n            </div>\n            <div class="flex flex-wrap justify-end gap-2">\n              <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>\n              <DhButton @click="next">Usar tarifa FTL</DhButton>\n            </div>\n          </template>\n\n${ratesTemplateAnchor}`
+  code = replaceRequired(code, ratesTemplateAnchor, ftlTemplate, 'FTL screen 5 tariff card')
+
+  const titleAnchor = `<h2 class="crystal-title">Tarifas pre-aprobadas disponibles</h2>`
+  if (code.includes(titleAnchor)) {
+    code = code.replace(
+      titleAnchor,
+      `<h2 class="crystal-title">{{ shipmentModeForApi === 'Ftl' ? 'Tarifa terrestre disponible' : 'Tarifas pre-aprobadas disponibles' }}</h2>`,
+    )
+  }
 
   return code
 }
