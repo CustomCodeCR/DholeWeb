@@ -17,9 +17,8 @@ function patchWizard(source: string) {
 
   let code = replaceExactlyOnce(source, draftAnchor, draftReplacement, 'draft restore')
 
-  const requestAnchor = `    if (request.payload?.form) Object.assign(form, request.payload.form)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`
-
-  const requestReplacement = `    const persistedRequestEquipmentId =\n      request.payload?.form &&\n      typeof request.payload.form === 'object' &&\n      typeof request.payload.form.equipmentId === 'string'\n        ? request.payload.form.equipmentId\n        : ''\n\n    if (request.payload?.form) Object.assign(form, request.payload.form)\n\n    // The request payload already contains the container selected by Ventas.\n    // The legacy size/type watchers run after Object.assign and can temporarily clear\n    // equipmentId, which made Pantalla 5 show \"Por definir\" even though the dashboard\n    // still had the container label. Re-apply the persisted ID after queued watchers run.\n    await Promise.resolve()\n    if (persistedRequestEquipmentId) {\n      form.equipmentId = persistedRequestEquipmentId\n    }\n\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`
+  const requestAnchor = `    if (request.payload?.form) Object.assign(form, request.payload.form)`
+  const requestReplacement = `    const persistedRequestEquipmentId =\n      request.payload?.form &&\n      typeof request.payload.form === 'object' &&\n      typeof request.payload.form.equipmentId === 'string'\n        ? request.payload.form.equipmentId\n        : ''\n\n    if (request.payload?.form) Object.assign(form, request.payload.form)\n\n    // The request payload already contains the container selected by Ventas.\n    // Other build-time patches may inject seller/route context immediately after this\n    // assignment, so this fix anchors only on Object.assign instead of neighboring lines.\n    await Promise.resolve()\n    if (persistedRequestEquipmentId) {\n      form.equipmentId = persistedRequestEquipmentId\n    }`
 
   code = replaceExactlyOnce(code, requestAnchor, requestReplacement, 'rate request equipment restore')
   return code
