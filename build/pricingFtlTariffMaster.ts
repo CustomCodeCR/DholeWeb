@@ -43,34 +43,41 @@ function patchWizard(source: string) {
 }
 
 function patchRouter(source: string) {
-  const costsRoute = `        {\n          path: 'pricing/costs',\n          name: 'pricing-costs',\n          component: () => import('@/modules/pricing/views/PricingCostsView.vue'),\n          meta: {\n            tabTitle: 'Costos pricing',\n            closable: true,\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },\n        },`
+  if (source.includes(`path: 'pricing/ftl-tariffs'`)) return source
+
+  const costsRouteStart = `        {\n          path: 'pricing/costs',`
+  const ftlRoute = `        {\n          path: 'pricing/ftl-tariffs',\n          name: 'pricing-ftl-tariffs',\n          component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),\n          meta: {\n            tabTitle: 'Tarifas FTL',\n            closable: true,\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },\n        },\n`
 
   return replaceRequired(
     source,
-    costsRoute,
-    `${costsRoute}\n        {\n          path: 'pricing/ftl-tariffs',\n          name: 'pricing-ftl-tariffs',\n          component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),\n          meta: {\n            tabTitle: 'Tarifas FTL',\n            closable: true,\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },\n        },`,
+    costsRouteStart,
+    `${ftlRoute}${costsRouteStart}`,
     'FTL tariff route',
   )
 }
 
 function patchSidebar(source: string) {
-  let code = replaceRequired(
-    source,
-    `  BellRing,\n} from 'lucide-vue-next'`,
-    `  BellRing,\n  Truck,\n} from 'lucide-vue-next'`,
-    'Truck sidebar icon',
-  )
+  let code = source
+  if (!code.includes(`  Truck,\n} from 'lucide-vue-next'`)) {
+    code = replaceRequired(
+      code,
+      `  BellRing,\n} from 'lucide-vue-next'`,
+      `  BellRing,\n  Truck,\n} from 'lucide-vue-next'`,
+      'Truck sidebar icon',
+    )
+  }
 
-  const costsItem = `          {\n            labelKey: 'sidebar.costs',\n            icon: CircleDollarSign,\n            to: '/pricing/costs',\n            name: 'pricing-costs',\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },`
+  if (code.includes(`to: '/pricing/ftl-tariffs'`)) return code
 
-  code = replaceRequired(
+  const costsItemStart = `          {\n            labelKey: 'sidebar.costs',`
+  const ftlItem = `          {\n            labelKey: 'Tarifas FTL',\n            icon: Truck,\n            to: '/pricing/ftl-tariffs',\n            name: 'pricing-ftl-tariffs',\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },\n`
+
+  return replaceRequired(
     code,
-    costsItem,
-    `${costsItem}\n          {\n            labelKey: 'Tarifas FTL',\n            icon: Truck,\n            to: '/pricing/ftl-tariffs',\n            name: 'pricing-ftl-tariffs',\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },`,
+    costsItemStart,
+    `${ftlItem}${costsItemStart}`,
     'FTL tariff sidebar item',
   )
-
-  return code
 }
 
 export function pricingFtlTariffMaster(): Plugin {
