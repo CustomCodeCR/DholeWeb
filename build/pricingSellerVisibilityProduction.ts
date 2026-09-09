@@ -3,32 +3,30 @@ import type { Plugin } from 'vite'
 const ROUTER_PATH = '/src/core/router/index.ts'
 const SIDEBAR_PATH = '/src/core/composables/useSidebarItems.ts'
 
-function replaceRequired(source: string, anchor: string, replacement: string, label: string) {
-  const count = source.split(anchor).length - 1
-  if (count !== 1) {
-    throw new Error(`[pricingSellerVisibilityProduction] Expected one ${label}, found ${count}.`)
-  }
-  return source.replace(anchor, replacement)
-}
-
 function patchRouter(source: string) {
   if (source.includes(`path: 'pricing/seller-visibility'`)) return source
-  return replaceRequired(
-    source,
-    `        {\n          path: 'pricing/costs',`,
-    `        {\n          path: 'pricing/seller-visibility',\n          name: 'pricing-seller-visibility',\n          component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),\n          meta: {\n            tabTitle: 'Visibilidad comercial',\n            closable: true,\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n        },\n        {\n          path: 'pricing/costs',`,
-    'seller visibility route',
-  )
+
+  const pathIndex = source.indexOf(`path: 'pricing/costs'`)
+  if (pathIndex < 0) throw new Error('[pricingSellerVisibilityProduction] pricing costs route not found.')
+  const blockStart = source.lastIndexOf('{', pathIndex)
+  if (blockStart < 0) throw new Error('[pricingSellerVisibilityProduction] pricing costs route block not found.')
+
+  const route = `        {\n          path: 'pricing/seller-visibility',\n          name: 'pricing-seller-visibility',\n          component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),\n          meta: {\n            tabTitle: 'Visibilidad comercial',\n            closable: true,\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n        },\n`
+
+  return source.slice(0, blockStart) + route + source.slice(blockStart)
 }
 
 function patchSidebar(source: string) {
   if (source.includes(`to: '/pricing/seller-visibility'`)) return source
-  return replaceRequired(
-    source,
-    `          {\n            labelKey: 'sidebar.costs',`,
-    `          {\n            labelKey: 'Visibilidad comercial',\n            icon: Users,\n            to: '/pricing/seller-visibility',\n            name: 'pricing-seller-visibility',\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n          {\n            labelKey: 'sidebar.costs',`,
-    'seller visibility navigation',
-  )
+
+  const pathIndex = source.indexOf(`to: '/pricing/costs'`)
+  if (pathIndex < 0) throw new Error('[pricingSellerVisibilityProduction] pricing costs sidebar item not found.')
+  const blockStart = source.lastIndexOf('{', pathIndex)
+  if (blockStart < 0) throw new Error('[pricingSellerVisibilityProduction] pricing costs sidebar block not found.')
+
+  const item = `          {\n            labelKey: 'Visibilidad comercial',\n            icon: Users,\n            to: '/pricing/seller-visibility',\n            name: 'pricing-seller-visibility',\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n`
+
+  return source.slice(0, blockStart) + item + source.slice(blockStart)
 }
 
 export function pricingSellerVisibilityProduction(): Plugin {
