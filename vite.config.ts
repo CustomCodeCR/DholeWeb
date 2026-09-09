@@ -35,6 +35,7 @@ import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 import { pricingRequirements20260908PreCompat } from './build/pricingRequirements20260908PreCompat'
 import { pricingRequirements20260908 } from './build/pricingRequirements20260908'
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
+import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
 
 export default defineConfig({
   plugins: [
@@ -69,6 +70,7 @@ export default defineConfig({
     pricingRequirements20260908PreCompat(),
     pricingRequirements20260908(),
     pricingCargoHaulageKeywordFix(),
+    pricingCostMultiPortSelection(),
     vue(),
     tailwindcss(),
   ],
