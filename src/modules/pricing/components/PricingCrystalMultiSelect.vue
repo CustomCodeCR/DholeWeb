@@ -27,6 +27,7 @@ const props = withDefaults(
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const search = ref('')
 const detailsRef = ref<HTMLDetailsElement | null>(null)
+const inlineMenu = computed(() => props.searchPlaceholder.trim().toLocaleLowerCase() === 'buscar servicio...')
 
 function handleToggle() {
   const current = detailsRef.value
@@ -67,7 +68,13 @@ function toggle(value: string) {
       {{ label }}
     </span>
 
-    <details ref="detailsRef" data-dh-dropdown="true" class="crystal-multi group relative" @toggle="handleToggle">
+    <details
+      ref="detailsRef"
+      data-dh-dropdown="true"
+      class="crystal-multi group relative"
+      :class="{ 'crystal-multi--inline': inlineMenu }"
+      @toggle="handleToggle"
+    >
       <summary class="crystal-multi__trigger">
         <span class="min-w-0 flex-1 truncate" :class="selected.length ? 'text-[var(--dh-text)]' : 'text-[var(--dh-text-muted)]'">
           {{ selected.length ? selected.map((item) => item.label).join(', ') : placeholder }}
@@ -149,6 +156,10 @@ function toggle(value: string) {
   z-index: 1000;
 }
 
+.crystal-multi--inline[open] {
+  z-index: 0;
+}
+
 .crystal-multi__trigger {
   display: flex;
   min-height: 44px;
@@ -200,6 +211,17 @@ function toggle(value: string) {
   box-shadow: 0 26px 70px rgb(15 23 42 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.34);
   backdrop-filter: blur(32px) saturate(155%);
   -webkit-backdrop-filter: blur(32px) saturate(155%);
+}
+
+.crystal-multi--inline .crystal-multi__menu {
+  position: relative;
+  z-index: auto;
+  top: auto;
+  inset-inline-start: auto;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin-top: 0.55rem;
 }
 
 :global(.dark) .crystal-multi__menu {
