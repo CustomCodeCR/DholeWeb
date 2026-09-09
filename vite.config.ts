@@ -16,6 +16,7 @@ import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptional
 import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
+import { pricingSellerDelegatedRequests } from './build/pricingSellerDelegatedRequests'
 import { pricingSellerRateRequestResponsibilities } from './build/pricingSellerRateRequestResponsibilities'
 import { pricingWizardStep5RateFilter } from './build/pricingWizardStep5RateFilter'
 import { pricingSellerOwnershipUi } from './build/pricingSellerOwnershipUi'
@@ -63,6 +64,7 @@ export default defineConfig({
     pricingWizardLclFinalGuard(),
     pricingWizardScreen09LclFix(),
     pricingSellerRateRequests(),
+    pricingSellerDelegatedRequests(),
     pricingSellerRateRequestResponsibilities(),
     pricingWizardStep5RateFilter(),
     pricingSellerOwnershipUi(),
