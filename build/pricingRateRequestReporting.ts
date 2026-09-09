@@ -38,8 +38,8 @@ function patchRouter(source: string) {
   return replaceRequired(
     source,
     `        {\n          path: 'pricing/costs',`,
-    `        {\n          path: 'pricing/requested-rates',\n          name: 'pricing-requested-rates',\n          component: () => import('@/modules/pricing/views/PricingRequestedRatesReportView.vue'),\n          meta: {\n            tabTitle: 'Tarifas solicitadas',\n            closable: true,\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n        },\n        {\n          path: 'pricing/costs',`,
-    'requested-rate report route',
+    `        {\n          path: 'pricing/requested-rates',\n          name: 'pricing-requested-rates',\n          component: () => import('@/modules/pricing/views/PricingRequestedRatesReportView.vue'),\n          meta: {\n            tabTitle: 'Tarifas solicitadas',\n            closable: true,\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n        },\n        {\n          path: 'pricing/seller-visibility',\n          name: 'pricing-seller-visibility',\n          component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),\n          meta: {\n            tabTitle: 'Visibilidad comercial',\n            closable: true,\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n        },\n        {\n          path: 'pricing/costs',`,
+    'requested-rate report routes',
   )
 }
 
@@ -48,7 +48,7 @@ function patchSidebar(source: string) {
   return replaceRequired(
     source,
     `          {\n            labelKey: 'sidebar.costs',`,
-    `          {\n            labelKey: 'Tarifas solicitadas',\n            icon: ClipboardList,\n            to: '/pricing/requested-rates',\n            name: 'pricing-requested-rates',\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n          {\n            labelKey: 'sidebar.costs',`,
+    `          {\n            labelKey: 'Tarifas solicitadas',\n            icon: ClipboardList,\n            to: '/pricing/requested-rates',\n            name: 'pricing-requested-rates',\n            requiredAnyScopes: [\n              'pricing.rate-request.view-selected',\n              'pricing.rate-request.view-all',\n            ],\n          },\n          {\n            labelKey: 'Visibilidad comercial',\n            icon: Users,\n            to: '/pricing/seller-visibility',\n            name: 'pricing-seller-visibility',\n            requiredScope: 'pricing.rate-request.visibility.manage',\n          },\n          {\n            labelKey: 'sidebar.costs',`,
     'requested-rate report navigation',
   )
 }
