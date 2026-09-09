@@ -33,6 +33,7 @@ import {
 } from './build/pricingWizardFclRateBundlesCompat'
 import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
+import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
 
 export default defineConfig({
   plugins: [
@@ -65,6 +66,7 @@ export default defineConfig({
     pricingWizardFclRateBundlesPostCompat(),
     pricingWizardDraftAutosave(),
     pricingCargoHaulageKeywordFix(),
+    pricingCostMultiPortSelection(),
     vue(),
     tailwindcss(),
   ],
