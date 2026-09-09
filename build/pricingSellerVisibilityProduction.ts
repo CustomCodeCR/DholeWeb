@@ -34,6 +34,7 @@ function patchSidebar(source: string) {
 export function pricingSellerVisibilityProduction(): Plugin {
   return {
     name: 'dhole-pricing-seller-visibility-production',
+    enforce: 'pre',
     transform(source, id) {
       const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
       if (id.includes('?')) return null
