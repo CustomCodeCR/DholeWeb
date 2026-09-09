@@ -152,7 +152,6 @@ function emitDataChanged(endpoint: string, method: RequestOptions['method']) {
   )
 }
 
-
 function unwrapRefreshResponse(
   data: StoredRefreshResponse | { data?: StoredRefreshResponse },
 ): StoredRefreshResponse | null {
@@ -322,5 +321,58 @@ export async function fetchClient<T>(
   } catch (error) {
     if (error instanceof ApiError) throw error
     throw new NetworkError(endpoint, options.method, error as Error)
+  }
+}
+
+export async function downloadFile(
+  endpoint: string,
+  fallbackFileName: string,
+  baseUrl: string = BASE_URL,
+): Promise<{ blob: Blob; fileName: string }> {
+  let token = await getUsableAccessToken(endpoint)
+
+  const buildConfig = (): RequestInit => ({
+    method: 'GET',
+    headers: {
+      Accept: '*/*',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  try {
+    let response = await fetch(`${baseUrl}${endpoint}`, buildConfig())
+
+    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
+      const refreshed = await refreshStoredSession()
+      if (refreshed) {
+        token = getAccessToken()
+        response = await fetch(`${baseUrl}${endpoint}`, buildConfig())
+      }
+    }
+
+    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
+      clearStoredSession()
+      emitSessionExpired()
+    }
+
+    if (!response.ok) {
+      await handleApiResponse(response, endpoint, 'GET')
+    }
+
+    const disposition = response.headers.get('content-disposition') ?? ''
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+    const plainMatch = disposition.match(/filename="?([^";]+)"?/i)
+    const encodedName = utf8Match?.[1]
+    const fileName = encodedName
+      ? decodeURIComponent(encodedName)
+      : plainMatch?.[1] || fallbackFileName
+
+    return {
+      blob: await response.blob(),
+      fileName,
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error
+    throw new NetworkError(endpoint, 'GET', error as Error)
   }
 }
