@@ -128,6 +128,26 @@ router.addRoute({
   ],
 })
 
+// Operational AI queue/diagnostics route. It is kept additive so the existing Centro de IA
+// remains untouched while operators get a dedicated real-time view.
+router.addRoute({
+  path: '/ai/operations',
+  component: () => import('@/shared/components/layouts/MainLayout.vue'),
+  meta: { requiresAuth: true },
+  children: [
+    {
+      path: '',
+      name: 'ai-operations',
+      component: () => import('@/modules/ai/views/AiOperationsView.vue'),
+      meta: {
+        tabTitle: 'Cola de IA',
+        closable: true,
+        requiredScope: VIEW_SCOPES.aiExecutions,
+      },
+    },
+  ],
+})
+
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
