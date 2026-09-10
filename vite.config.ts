@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
+import { pricingRateUpdateWorkflow } from './build/pricingRateUpdateWorkflow'
 import { pricingWizardLclCorrections } from './build/pricingWizardLclCorrections'
 import { pricingLclSourceVisibilityFix } from './build/pricingLclSourceVisibilityFix'
 import { pricingLclCostBreakdownUi } from './build/pricingLclCostBreakdownUi'
@@ -28,10 +29,7 @@ import { pricingWizardFclSplitSelector } from './build/pricingWizardFclSplitSele
 import { pricingWizardFclDistributionOnly } from './build/pricingWizardFclDistributionOnly'
 import { pricingSellerPodIntegrity } from './build/pricingSellerPodIntegrity'
 import { pricingWizardFclRateBundles } from './build/pricingWizardFclRateBundles'
-import {
-  pricingWizardFclRateBundlesPreCompat,
-  pricingWizardFclRateBundlesPostCompat,
-} from './build/pricingWizardFclRateBundlesCompat'
+import { pricingWizardFclRateBundlesPreCompat, pricingWizardFclRateBundlesPostCompat } from './build/pricingWizardFclRateBundlesCompat'
 import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 import { pricingWizardDraftEquipmentRestoreFix } from './build/pricingWizardDraftEquipmentRestoreFix'
 import { pricingRequirements20260908PreCompat } from './build/pricingRequirements20260908PreCompat'
@@ -52,6 +50,7 @@ import { pricingLandProviderCurrencyValue } from './build/pricingLandProviderCur
 
 export default defineConfig({
   plugins: [
+    pricingRateUpdateWorkflow(),
     pricingWizardLclOptionalWeight(),
     pricingWizardSep02Requirements(),
     pricingWizardLclCorrections(),
@@ -100,22 +99,7 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
-
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-  },
-
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
-  },
-
-  preview: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
-  },
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  server: { host: '0.0.0.0', port: 5173, strictPort: true },
+  preview: { host: '0.0.0.0', port: 5173, strictPort: true },
 })
