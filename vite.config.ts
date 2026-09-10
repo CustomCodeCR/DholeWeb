@@ -50,7 +50,6 @@ import { pricingLandProviderCurrencyValue } from './build/pricingLandProviderCur
 
 export default defineConfig({
   plugins: [
-    pricingRateUpdateWorkflow(),
     pricingWizardLclOptionalWeight(),
     pricingWizardSep02Requirements(),
     pricingWizardLclCorrections(),
@@ -59,6 +58,7 @@ export default defineConfig({
     pricingWizardFixedAutomaticCostEditFix(),
     pricingWizardEnhancementsScoped(),
     pricingWizardOwnLclLinePersistence(),
+    pricingRateUpdateWorkflow(),
     pricingWizardLclRouteContextFix(),
     pricingWizardUiParity(),
     pricingWizardLclFclParityFix(),
