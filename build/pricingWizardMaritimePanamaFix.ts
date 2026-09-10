@@ -99,6 +99,33 @@ async function selectImportRatesForSelectedPoe(query: BrowseImportRatesQuery) {
     code = code.replace(selectedDestinationAnchor, helper)
   }
 
+  // ALL IN is exclusive to the synthetic "Multimodal Via Panamá" POE. If the POE
+  // changes to any other destination, clear the state so it cannot leak into the PDF
+  // or the persisted rate after the button disappears.
+  const selectedDestinationAnchor = `const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))`
+  const allInResetGuard = `watch(selectedDestination, (destination) => {
+  if (!isMultimodalViaPanama(destination)) allInPresentation.value = false
+})`
+  if (!code.includes(allInResetGuard)) {
+    if (!code.includes(selectedDestinationAnchor)) {
+      throw new Error('[pricingWizardMaritimePanamaFix] ALL IN destination guard anchor not found.')
+    }
+    code = code.replace(selectedDestinationAnchor, `${selectedDestinationAnchor}\n\n${allInResetGuard}`)
+  }
+
+  const allInButtonAnchor = `<DhButton\n                variant="secondary"\n                type="button"\n                @click="allInPresentation = !allInPresentation"`
+  const allInButtonReplacement = `<DhButton\n                v-if="isMultimodalViaPanama(selectedDestination)"\n                variant="secondary"\n                type="button"\n                @click="allInPresentation = !allInPresentation"`
+  if (code.includes(allInButtonAnchor)) {
+    code = code.replace(allInButtonAnchor, allInButtonReplacement)
+  } else if (!code.includes('v-if="isMultimodalViaPanama(selectedDestination)"')) {
+    throw new Error('[pricingWizardMaritimePanamaFix] ALL IN button anchor not found.')
+  }
+
+  code = code.replace(
+    `useAllInPresentation: allInPresentation.value,`,
+    `useAllInPresentation: isMultimodalViaPanama(selectedDestination.value) && allInPresentation.value,`,
+  )
+
   return code
 }
 
