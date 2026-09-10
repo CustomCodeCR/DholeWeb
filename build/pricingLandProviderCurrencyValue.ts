@@ -111,19 +111,22 @@ function patchWizard(source: string) {
     `  if (hydratingExistingRate.value || !form.originId || form.modality === 'Land') return`,
   )
 
-  // Intl.NumberFormat still needs the technical ISO Code even though the select renders Value.
-  code = code.split(`displayValue(selectedCurrency) || 'USD'`).join(`selectedCurrency?.code || 'USD'`)
+  // Config.Value is authoritative for anything rendered to the user. Do not rewrite
+  // provider amount formatting to CatalogItem.code because Config codes can be generated
+  // identifiers such as CUR-2026-001 rather than ISO currency values.
 
-  // Resolve USD by technical code; Value is display-only and may be localized.
+  // Resolve the default USD item by Config.Value first. Code remains a legacy fallback
+  // only for catalogs where Code itself was configured as the ISO value.
   code = code.replace(
     `const usd = currencies.find((item) => normalizeCatalogValue(displayValue(item)) === 'usd') ?? currencies[0]`,
-    `const usd = currencies.find((item) => String(item.code ?? '').trim().toUpperCase() === 'USD')\n      ?? currencies.find((item) => normalizeCatalogValue(displayValue(item)).includes('dolar'))\n      ?? currencies[0]`,
+    `const usd = currencies.find((item) => {\n      const value = normalizeCatalogValue(displayValue(item))\n      return value === 'usd' || value.includes('dolar') || value.includes('dollar')\n    })\n      ?? currencies.find((item) => String(item.code ?? '').trim().toUpperCase() === 'USD')\n      ?? currencies[0]`,
   )
 
-  // Imported rates carry technical currency code, so resolve by Code first and display Value afterwards.
+  // Imported rates normally carry an ISO business value. Resolve against Config.Value
+  // first and keep CatalogItem.code only as a compatibility fallback.
   code = code.replace(
     `  const rateCurrency = normalizeCatalogValue(String(rate.currency ?? ''))\n  const currency = catalogs.currencies.find((item) =>\n    normalizeCatalogValue(displayValue(item)).includes(rateCurrency),\n  )`,
-    `  const rateCurrencyCode = String(rate.currency ?? '').trim().toUpperCase()\n  const rateCurrencyValue = normalizeCatalogValue(String(rate.currency ?? ''))\n  const currency = catalogs.currencies.find((item) => String(item.code ?? '').trim().toUpperCase() === rateCurrencyCode)\n    ?? catalogs.currencies.find((item) => normalizeCatalogValue(displayValue(item)).includes(rateCurrencyValue))`,
+    `  const rateCurrencyCode = String(rate.currency ?? '').trim().toUpperCase()\n  const rateCurrencyValue = normalizeCatalogValue(String(rate.currency ?? ''))\n  const currency = catalogs.currencies.find((item) => normalizeCatalogValue(displayValue(item)).includes(rateCurrencyValue))\n    ?? catalogs.currencies.find((item) => String(item.code ?? '').trim().toUpperCase() === rateCurrencyCode)`,
   )
 
   return code
