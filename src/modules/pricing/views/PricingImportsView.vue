@@ -19,7 +19,7 @@ import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawe
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
-type QueueStatus = '' | 'Pending' | 'PreAuthorized' | 'Approved' | 'Rejected' | 'Created'
+type QueueStatus = '' | 'Pending' | 'PreAuthorized' | 'Approved' | 'Rejected' | 'Created' | 'Inactive'
 type QueueSource = '' | 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
 
 interface ReviewQueueItem {
@@ -76,6 +76,7 @@ const statusOptions = [
   { label: 'Pendientes manuales', value: 'Pending' },
   { label: 'Preautorizadas', value: 'PreAuthorized' },
   { label: 'Preaprobadas', value: 'Approved' },
+  { label: 'Inactivas', value: 'Inactive' },
   { label: 'Rechazadas', value: 'Rejected' },
   { label: 'Utilizadas', value: 'Created' },
 ]
@@ -152,6 +153,7 @@ function statusLabel(value: string) {
     Pending: 'Pendiente manual',
     PreAuthorized: 'Preautorizada',
     Approved: 'Preaprobada',
+    Inactive: 'Inactiva',
     Rejected: 'Rechazada',
     Created: 'Utilizada',
   } as Record<string, string>)[value] ?? value
