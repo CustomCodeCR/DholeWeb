@@ -1,0 +1,103 @@
+name: Apply ALL IN tariff presentation
+
+on:
+  push:
+    paths:
+      - .github/workflows/chatgpt-all-in-implementation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [develop, master]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+          fetch-depth: 0
+
+      - name: Apply frontend changes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              if new in text:
+                  return
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one anchor in {path}, found {count}")
+              p.write_text(text.replace(old, new, 1))
+
+          # API types expose and persist the presentation preference.
+          path = 'src/core/interfaces/pricing.ts'
+          replace_once(
+              path,
+              '  transitTime?: string | null\n  rateType: RateType',
+              '  transitTime?: string | null\n  useAllInPresentation: boolean\n  rateType: RateType',
+              'RateDto ALL IN flag',
+          )
+          replace_once(
+              path,
+              '  transitTime?: string | null\n  rateType?: RateType',
+              '  transitTime?: string | null\n  useAllInPresentation?: boolean\n  rateType?: RateType',
+              'CreateRateRequest ALL IN flag',
+          )
+
+          path = 'src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+
+          replace_once(
+              path,
+              'const downloadingQuote = ref(false)\nconst isEditing = computed(() => Boolean(props.rateId))',
+              'const downloadingQuote = ref(false)\nconst allInPresentation = ref(false)\nconst isEditing = computed(() => Boolean(props.rateId))',
+              'Wizard ALL IN state',
+          )
+
+          replace_once(
+              path,
+              '    editingRate.value = rate\n    rateRevisions.value = revisions',
+              '    editingRate.value = rate\n    allInPresentation.value = Boolean(rate.useAllInPresentation)\n    rateRevisions.value = revisions',
+              'Hydrate ALL IN state',
+          )
+
+          replace_once(
+              path,
+              '      transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,\n      includes: includeTerms.join(\'\\n\') || null,',
+              '      transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,\n      useAllInPresentation: allInPresentation.value,\n      includes: includeTerms.join(\'\\n\') || null,',
+              'Save ALL IN preference',
+          )
+
+          replace_once(
+              path,
+              '  rateLines.value = []\n  supportEntityId.value = crypto.randomUUID()',
+              '  rateLines.value = []\n  allInPresentation.value = false\n  supportEntityId.value = crypto.randomUUID()',
+              'Reset ALL IN preference',
+          )
+
+          draft_anchor = '''          <div>\n            <p class="crystal-kicker">Pantalla 8</p>\n            <h2 class="crystal-title">Visualización borrador de la tarifa</h2>\n            <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>\n          </div>\n          <div class="grid gap-4 lg:grid-cols-2">'''
+
+          draft_replacement = '''          <div>\n            <p class="crystal-kicker">Pantalla 8</p>\n            <h2 class="crystal-title">Visualización borrador de la tarifa</h2>\n            <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>\n          </div>\n\n          <div class="crystal-soft p-5">\n            <div class="flex flex-wrap items-start justify-between gap-4">\n              <div>\n                <div class="flex flex-wrap items-center gap-2">\n                  <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Presentación comercial</p>\n                  <DhBadge :variant="allInPresentation ? 'success' : 'neutral'">\n                    {{ allInPresentation ? 'ALL IN activo' : 'Desglose activo' }}\n                  </DhBadge>\n                </div>\n                <p class="mt-2 max-w-3xl text-xs font-semibold text-[var(--dh-text-muted)]">\n                  La formulación de costo y venta conserva todas las líneas. ALL IN solo cambia cómo se presenta la venta al cliente en el borrador y en el PDF.\n                </p>\n              </div>\n              <DhButton\n                variant="secondary"\n                type="button"\n                @click="allInPresentation = !allInPresentation"\n              >\n                {{ allInPresentation ? 'Quitar ALL IN' : 'Convertir a ALL IN' }}\n              </DhButton>\n            </div>\n\n            <div v-if="allInPresentation" class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">\n              <div class="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">\n                <div>\n                  <p class="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Concepto comercial</p>\n                  <p class="mt-1 text-xl font-black text-[var(--dh-text)]">ALL IN</p>\n                </div>\n                <div class="sm:text-right">\n                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">USD</p>\n                  <strong class="text-base">{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong>\n                </div>\n                <div class="sm:text-right">\n                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">CRC</p>\n                  <strong class="text-base">{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong>\n                </div>\n              </div>\n\n              <details class="border-t border-[var(--dh-border)] bg-[var(--dh-card)]" open>\n                <summary class="cursor-pointer px-4 py-3 text-xs font-black">\n                  Ver líneas incluidas · {{ includedLines.length }}\n                </summary>\n                <div class="border-t border-[var(--dh-border)] px-4 py-2">\n                  <div\n                    v-for="line in includedLines"\n                    :key="`all-in:${line.key}`"\n                    class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2 text-xs last:border-b-0"\n                  >\n                    <div class="min-w-0">\n                      <strong class="block">{{ line.name }}</strong>\n                      <span class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}</span>\n                    </div>\n                    <strong>{{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), line.currencyCode || line.currencyName || 'USD') }}</strong>\n                  </div>\n                </div>\n              </details>\n            </div>\n\n            <div v-else class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">\n              El borrador y el PDF mostrarán las líneas comerciales individualmente. Active ALL IN para presentar una única línea con la suma de todas las ventas.\n            </div>\n          </div>\n\n          <div class="grid gap-4 lg:grid-cols-2">'''
+
+          replace_once(path, draft_anchor, draft_replacement, 'Draft ALL IN UI')
+          PY
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "OpenAI Codex"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src
+          if git diff --cached --quiet; then
+            echo "No source changes required on ${{ matrix.branch }}"
+            exit 0
+          fi
+          git commit -m "feat(pricing): add ALL IN tariff presentation"
+          git push origin HEAD:${{ matrix.branch }}
