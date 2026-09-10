@@ -49,6 +49,7 @@ import { pricingWizardLandScreen4Cleanup } from './build/pricingWizardLandScreen
 import { pricingFtlTariffMaster } from './build/pricingFtlTariffMaster'
 import { pricingSellerVisibilityProduction } from './build/pricingSellerVisibilityProduction'
 import { pricingRateRequestReporting } from './build/pricingRateRequestReporting'
+import { pricingFtlLandCostsFix } from './build/pricingFtlLandCostsFix'
 
 export default defineConfig({
   plugins: [
@@ -97,6 +98,7 @@ export default defineConfig({
     pricingFtlTariffMaster(),
     pricingSellerVisibilityProduction(),
     pricingRateRequestReporting(),
+    pricingFtlLandCostsFix(),
     vue(),
     tailwindcss(),
   ],
