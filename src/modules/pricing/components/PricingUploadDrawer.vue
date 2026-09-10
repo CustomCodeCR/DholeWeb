@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, UploadCloud } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
@@ -8,17 +8,48 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { createCorrelationId } from '@/modules/pricing/utils/pricingFormat'
 import type { ExtractImportRatesResultDto } from '@/core/interfaces/pricing'
 
+type CompatibleExtractionResult = ExtractImportRatesResultDto & {
+  persistedRows?: number
+}
+
 const props = defineProps<{ onSaved?: () => void | Promise<void> }>()
 const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const file = ref<File | null>(null)
-const result = ref<ExtractImportRatesResultDto | null>(null)
+const result = ref<CompatibleExtractionResult | null>(null)
 const form = reactive({ submitted: false, saving: false, dragging: false })
+
+const createdRows = computed(() =>
+  Number(result.value?.createdRows ?? result.value?.persistedRows ?? 0),
+)
+const skippedRows = computed(() => Number(result.value?.skippedRows ?? 0))
+const totalRows = computed(() =>
+  Number(result.value?.totalRows ?? createdRows.value + skippedRows.value),
+)
+const warningRows = computed(() =>
+  Number(
+    result.value?.warningRows ??
+      result.value?.issues?.filter((issue) => !issue.isBlocking).length ??
+      0,
+  ),
+)
+const invalidRows = computed(() =>
+  Number(
+    result.value?.invalidRows ??
+      result.value?.issues?.filter((issue) => issue.isBlocking).length ??
+      0,
+  ),
+)
+const hasIssues = computed(() =>
+  Boolean(result.value?.hasIssues ?? (result.value?.issues?.length ?? 0) > 0),
+)
+const extractionSucceeded = computed(() => result.value?.success === true && createdRows.value > 0)
 
 function chooseFile(files: FileList | null) {
   file.value = files?.[0] ?? null
   result.value = null
+  form.submitted = false
 }
 
 function drop(event: DragEvent) {
@@ -26,19 +57,43 @@ function drop(event: DragEvent) {
   chooseFile(event.dataTransfer?.files ?? null)
 }
 
+function extractionFailureMessage(response: CompatibleExtractionResult): string {
+  if (response.errorMessage?.trim()) return response.errorMessage.trim()
+
+  const blockingIssue = response.issues?.find((issue) => issue.isBlocking)
+  if (blockingIssue?.message?.trim()) return blockingIssue.message.trim()
+
+  return 'DataExtraction no produjo tarifas utilizables. Revise los detalles de la extracción.'
+}
+
 async function submit() {
   form.submitted = true
-  if (!file.value) return
+  if (!file.value || form.saving) return
 
   try {
     form.saving = true
-    result.value = await PricingService.extractImportRates(
+    const response = (await PricingService.extractImportRates(
       file.value,
       createCorrelationId(),
-    )
+    )) as CompatibleExtractionResult
+    result.value = response
+
+    if (!response.success) {
+      toastStore.warning('No se pudo importar el tarifario', extractionFailureMessage(response))
+      return
+    }
+
+    if (createdRows.value <= 0) {
+      toastStore.warning(
+        'No se crearon tarifas',
+        'El archivo fue procesado, pero ninguna fila pudo convertirse en una tarifa importada.',
+      )
+      return
+    }
+
     toastStore.success(
       'Archivo procesado',
-      `${result.value.createdRows} tarifas importadas fueron creadas.`,
+      `${createdRows.value} tarifa${createdRows.value === 1 ? '' : 's'} importada${createdRows.value === 1 ? '' : 's'} fueron creadas.`,
     )
     await props.onSaved?.()
   } catch (error) {
@@ -47,7 +102,6 @@ async function submit() {
     form.saving = false
   }
 }
-
 </script>
 
 <template>
@@ -101,36 +155,45 @@ async function submit() {
       v-if="result"
       class="rounded-[26px] border p-5"
       :class="
-        result.hasIssues
-          ? 'border-amber-500/20 bg-amber-500/10'
-          : 'border-emerald-500/20 bg-emerald-500/10'
+        !result.success
+          ? 'border-red-500/20 bg-red-500/10'
+          : hasIssues
+            ? 'border-amber-500/20 bg-amber-500/10'
+            : 'border-emerald-500/20 bg-emerald-500/10'
       "
     >
       <div class="flex items-start gap-3">
-        <AlertTriangle v-if="result.hasIssues" class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+        <AlertTriangle
+          v-if="!result.success || hasIssues"
+          class="mt-0.5 h-5 w-5 shrink-0"
+          :class="!result.success ? 'text-red-500' : 'text-amber-600'"
+        />
         <CheckCircle2 v-else class="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
         <div class="flex-1">
           <h3 class="font-black text-[var(--dh-text)]">Resultado de la extracción</h3>
+          <p v-if="!result.success" class="mt-2 text-sm font-semibold text-red-500">
+            {{ extractionFailureMessage(result) }}
+          </p>
           <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div>
               <p class="text-xs font-bold text-[var(--dh-text-muted)]">Filas</p>
-              <p class="text-lg font-black">{{ result.totalRows }}</p>
+              <p class="text-lg font-black">{{ totalRows }}</p>
             </div>
             <div>
               <p class="text-xs font-bold text-[var(--dh-text-muted)]">Creadas</p>
-              <p class="text-lg font-black text-emerald-600">{{ result.createdRows }}</p>
+              <p class="text-lg font-black text-emerald-600">{{ createdRows }}</p>
             </div>
             <div>
               <p class="text-xs font-bold text-[var(--dh-text-muted)]">Advertencias</p>
-              <p class="text-lg font-black text-amber-600">{{ result.warningRows }}</p>
+              <p class="text-lg font-black text-amber-600">{{ warningRows }}</p>
             </div>
             <div>
               <p class="text-xs font-bold text-[var(--dh-text-muted)]">Inválidas</p>
-              <p class="text-lg font-black text-red-500">{{ result.invalidRows }}</p>
+              <p class="text-lg font-black text-red-500">{{ invalidRows }}</p>
             </div>
           </div>
           <div
-            v-if="result.issues.length"
+            v-if="result.issues?.length"
             class="mt-4 max-h-48 space-y-2 overflow-y-auto dh-scrollbar"
           >
             <div
@@ -156,10 +219,11 @@ async function submit() {
         @click="drawerStore.close()"
       />
       <DhButton
-        v-if="!result"
-        label="Extraer tarifas"
+        v-if="!extractionSucceeded"
+        :label="result ? 'Reintentar extracción' : 'Extraer tarifas'"
         :icon="UploadCloud"
         :loading="form.saving"
+        :disabled="!file"
         @click="submit"
       />
     </div>

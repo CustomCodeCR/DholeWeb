@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Check, ChevronLeft, ChevronRight, MessageSquareText, RefreshCw, UploadCloud, X } from 'lucide-vue-next'
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquareText,
+  PowerOff,
+  RefreshCw,
+  UploadCloud,
+  X,
+} from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -19,7 +28,15 @@ import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawe
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
-type QueueStatus = '' | 'Pending' | 'PreAuthorized' | 'Approved' | 'Rejected' | 'Created' | 'Inactive'
+type QueueStatus =
+  | ''
+  | 'Pending'
+  | 'PreAuthorized'
+  | 'Approved'
+  | 'Rejected'
+  | 'Created'
+  | 'Expired'
+  | 'Inactive'
 type QueueSource = '' | 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
 
 interface ReviewQueueItem {
@@ -76,6 +93,7 @@ const statusOptions = [
   { label: 'Pendientes manuales', value: 'Pending' },
   { label: 'Preautorizadas', value: 'PreAuthorized' },
   { label: 'Preaprobadas', value: 'Approved' },
+  { label: 'Vencidas', value: 'Expired' },
   { label: 'Inactivas', value: 'Inactive' },
   { label: 'Rechazadas', value: 'Rejected' },
   { label: 'Utilizadas', value: 'Created' },
@@ -94,6 +112,8 @@ const pageSizeOptions = [
   { label: '50', value: '50' },
   { label: '100', value: '100' },
 ]
+const jsonHeaders = { Accept: 'application/json', 'Content-Type': 'application/json' }
+const inactivatableStatuses = ['Pending', 'PreAuthorized', 'Approved', 'Expired']
 
 const carrierFilterOptions = computed(() => [
   { label: 'Todas las navieras', value: '' },
@@ -125,11 +145,28 @@ const canPreApprove = computed(() =>
 const canRejectImported = computed(() =>
   isPricingAdmin.value || authStore.hasScope(PRICING_SCOPES.importFclRates.reject),
 )
+const canInactivateImported = computed(() =>
+  isPricingAdmin.value || authStore.hasScope(PRICING_SCOPES.importFclRates.review),
+)
 
 const selectedPendingIds = computed(() =>
   rows.value
-    .filter((row) => ['Pending', 'PreAuthorized'].includes(row.status) && selectedIds.value.includes(row.id))
+    .filter(
+      (row) =>
+        ['Pending', 'PreAuthorized'].includes(row.status) && selectedIds.value.includes(row.id),
+    )
     .map((row) => row.id),
+)
+const selectedInactivatableIds = computed(() =>
+  rows.value
+    .filter(
+      (row) =>
+        inactivatableStatuses.includes(row.status) && selectedIds.value.includes(row.id),
+    )
+    .map((row) => row.id),
+)
+const selectedBatchIds = computed(() =>
+  Array.from(new Set([...selectedPendingIds.value, ...selectedInactivatableIds.value])),
 )
 const allSelected = computed(
   () => rows.value.length > 0 && rows.value.every((row) => selectedIds.value.includes(row.id)),
@@ -153,6 +190,7 @@ function statusLabel(value: string) {
     Pending: 'Pendiente manual',
     PreAuthorized: 'Preautorizada',
     Approved: 'Preaprobada',
+    Expired: 'Vencida',
     Inactive: 'Inactiva',
     Rejected: 'Rechazada',
     Created: 'Utilizada',
@@ -163,7 +201,7 @@ function statusVariant(value: string): 'success' | 'warning' | 'danger' | 'neutr
   if (value === 'Approved' || value === 'Created') return 'success'
   if (value === 'PreAuthorized') return 'warning'
   if (value === 'Pending') return 'warning'
-  if (value === 'Rejected') return 'danger'
+  if (value === 'Rejected' || value === 'Expired') return 'danger'
   return 'neutral'
 }
 
@@ -296,6 +334,44 @@ function reject(ids: string[]) {
   })
 }
 
+async function inactivate(ids: string[]) {
+  if (!canInactivateImported.value) {
+    toastStore.warning('Permiso requerido', 'Necesita permiso para revisar tarifas importadas.')
+    return
+  }
+
+  const eligible = ids.filter((id) =>
+    rows.value.some((row) => row.id === id && inactivatableStatuses.includes(row.status)),
+  )
+  if (!eligible.length || processing.value) return
+
+  const confirmed = window.confirm(
+    `¿Desea inactivar ${eligible.length} tarifa${eligible.length === 1 ? '' : 's'} seleccionada${eligible.length === 1 ? '' : 's'}?`,
+  )
+  if (!confirmed) return
+
+  try {
+    processing.value = true
+    await callEndpoint<void, { ids: string[] }>(
+      {
+        method: 'POST',
+        path: '/api/pricing/import-rates/inactivate',
+        headers: jsonHeaders,
+      },
+      { body: { ids: eligible } },
+    )
+    toastStore.success(
+      `${eligible.length} tarifa${eligible.length === 1 ? '' : 's'} inactivada${eligible.length === 1 ? '' : 's'}`,
+    )
+    selectedIds.value = []
+    await load()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron inactivar las tarifas.')
+  } finally {
+    processing.value = false
+  }
+}
+
 function openManualUpload() {
   drawerStore.open({
     title: 'Subir tarifario manualmente',
@@ -374,18 +450,21 @@ onMounted(() => {
     </section>
 
     <section
-      v-if="selectedPendingIds.length && (canPreApprove || canRejectImported)"
+      v-if="selectedBatchIds.length && (canPreApprove || canRejectImported || canInactivateImported)"
       class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-3"
     >
       <div>
-        <p class="font-black text-[var(--dh-text)]">{{ selectedPendingIds.length }} tarifas preautorizadas seleccionadas</p>
-        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Preaprobación y rechazo por batch.</p>
+        <p class="font-black text-[var(--dh-text)]">{{ selectedBatchIds.length }} tarifas seleccionadas</p>
+        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Preaprobación, rechazo e inactivación por batch.</p>
       </div>
-      <div class="flex gap-2">
-        <DhButton v-if="canRejectImported" variant="danger" :disabled="processing" @click="reject(selectedPendingIds)">
+      <div class="flex flex-wrap gap-2">
+        <DhButton v-if="canRejectImported && selectedPendingIds.length" variant="danger" :disabled="processing" @click="reject(selectedPendingIds)">
           <X class="h-4 w-4" /> Rechazar
         </DhButton>
-        <DhButton v-if="canPreApprove" :disabled="processing" @click="approve(selectedPendingIds)">
+        <DhButton v-if="canInactivateImported && selectedInactivatableIds.length" variant="secondary" :disabled="processing" @click="inactivate(selectedInactivatableIds)">
+          <PowerOff class="h-4 w-4" /> Inactivar
+        </DhButton>
+        <DhButton v-if="canPreApprove && selectedPendingIds.length" :disabled="processing" @click="approve(selectedPendingIds)">
           <Check class="h-4 w-4" /> Preaprobar
         </DhButton>
       </div>
@@ -442,6 +521,15 @@ onMounted(() => {
                 <div class="flex justify-end gap-2">
                   <DhButton size="sm" variant="secondary" @click="openReview(row)">
                     <MessageSquareText class="h-4 w-4" /> Revisar
+                  </DhButton>
+                  <DhButton
+                    v-if="canInactivateImported && inactivatableStatuses.includes(row.status)"
+                    size="sm"
+                    variant="secondary"
+                    :disabled="processing"
+                    @click="inactivate([row.id])"
+                  >
+                    <PowerOff class="h-4 w-4" /> Inactivar
                   </DhButton>
                   <DhButton v-if="canPreApprove && ['Pending', 'PreAuthorized'].includes(row.status)" size="sm" :disabled="processing" @click="approve([row.id])">
                     <Check class="h-4 w-4" /> Preaprobar
