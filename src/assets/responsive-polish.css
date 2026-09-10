@@ -1,0 +1,216 @@
+/* Dhole device-wide responsive polish: phone, tablet, laptop, desktop and safe areas. */
+:root {
+  --dh-fluid-gutter: clamp(0.75rem, 1.8vw, 1.6rem);
+  --dh-fluid-gap: clamp(0.65rem, 1.4vw, 1.25rem);
+  --dh-fluid-radius: clamp(0.9rem, 1.8vw, 1.5rem);
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+* {
+  min-width: 0;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea,
+button {
+  max-width: 100%;
+}
+
+.pricing-crystal-shell,
+.pricing-crystal-shell > *,
+.crystal-panel,
+.crystal-soft,
+.crystal-lines-stage,
+.crystal-bottom-charges,
+.crystal-route-summary {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.pricing-crystal-shell {
+  width: 100%;
+  padding-inline: max(var(--dh-fluid-gutter), env(safe-area-inset-left));
+  padding-right: max(var(--dh-fluid-gutter), env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.crystal-panel {
+  border-radius: var(--dh-fluid-radius) !important;
+  padding: clamp(0.9rem, 2vw, 2rem) !important;
+}
+
+.crystal-soft,
+.crystal-bottom-charges,
+.crystal-lines-stage {
+  border-radius: var(--dh-fluid-radius) !important;
+}
+
+.crystal-route-summary {
+  gap: var(--dh-fluid-gap);
+}
+
+.overflow-x-auto,
+[role='table'],
+table {
+  scrollbar-width: thin;
+  overscroll-behavior-inline: contain;
+}
+
+@media (max-width: 767px) {
+  .pricing-crystal-shell {
+    padding-inline: max(0.65rem, env(safe-area-inset-left));
+    padding-right: max(0.65rem, env(safe-area-inset-right));
+  }
+
+  .pricing-crystal-shell .crystal-stepbar {
+    display: flex !important;
+    width: 100%;
+    gap: 0.5rem;
+    overflow-x: auto !important;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.4rem !important;
+    scrollbar-width: none;
+  }
+
+  .pricing-crystal-shell .crystal-stepbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pricing-crystal-shell .crystal-step {
+    flex: 0 0 clamp(8.25rem, 42vw, 10.5rem);
+    min-height: 3.25rem;
+    scroll-snap-align: start;
+    border-radius: 0.9rem;
+  }
+
+  .crystal-panel {
+    min-height: 0 !important;
+    padding: 0.85rem !important;
+  }
+
+  .crystal-soft,
+  .crystal-bottom-charges,
+  .crystal-lines-stage {
+    padding: 0.85rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .crystal-route-summary,
+  .crystal-group-header {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .crystal-group-header {
+    align-items: stretch !important;
+  }
+
+  .pricing-crystal-shell button,
+  .pricing-crystal-shell input,
+  .pricing-crystal-shell select,
+  .pricing-crystal-shell textarea {
+    min-height: 2.75rem;
+  }
+
+  .pricing-crystal-shell .grid[class*='grid-cols-'][class*='md:grid-cols'],
+  .pricing-crystal-shell .grid[class*='grid-cols-'][class*='lg:grid-cols'],
+  .pricing-crystal-shell .grid[class*='grid-cols-'][class*='xl:grid-cols'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pricing-crystal-shell .overflow-x-auto {
+    width: calc(100vw - 2.3rem);
+    max-width: 100%;
+    border-radius: 0.9rem;
+  }
+
+  .pricing-crystal-shell .crystal-lines-header {
+    top: 4.4rem;
+    border-radius: 1rem;
+  }
+
+  .pricing-crystal-shell .flex.flex-wrap.justify-end,
+  .pricing-crystal-shell .flex.flex-wrap.gap-2:has(> button) {
+    width: 100%;
+  }
+
+  .pricing-crystal-shell .flex.flex-wrap.justify-end > button {
+    flex: 1 1 10rem;
+  }
+}
+
+@media (max-width: 390px) {
+  :root { --dh-fluid-gutter: 0.55rem; }
+
+  .pricing-crystal-shell {
+    padding-inline: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+  }
+
+  .crystal-panel,
+  .crystal-soft,
+  .crystal-bottom-charges,
+  .crystal-lines-stage {
+    padding: 0.7rem !important;
+  }
+
+  .pricing-crystal-shell .crystal-step {
+    flex-basis: 7.6rem;
+  }
+
+  .pricing-crystal-shell h1,
+  .pricing-crystal-shell .crystal-title {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .pricing-crystal-shell {
+    padding-inline: clamp(1rem, 2vw, 1.5rem);
+  }
+
+  .crystal-panel {
+    padding: clamp(1.1rem, 2.2vw, 1.6rem) !important;
+  }
+
+  .pricing-crystal-shell .crystal-stepbar {
+    gap: 0.45rem !important;
+  }
+}
+
+@media (min-width: 1536px) {
+  .pricing-crystal-shell {
+    margin-inline: auto;
+    max-width: 1920px;
+  }
+
+  .crystal-panel {
+    padding: 2rem !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .pricing-crystal-shell .crystal-lines-header {
+    top: 3.8rem;
+  }
+
+  .pricing-crystal-shell .crystal-stepbar {
+    position: relative;
+  }
+}

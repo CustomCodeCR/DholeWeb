@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
+import { pricingRateUpdateWorkflow } from './build/pricingRateUpdateWorkflow'
 import { pricingWizardLclCorrections } from './build/pricingWizardLclCorrections'
 import { pricingLclSourceVisibilityFix } from './build/pricingLclSourceVisibilityFix'
 import { pricingLclCostBreakdownUi } from './build/pricingLclCostBreakdownUi'
@@ -51,6 +52,7 @@ import { pricingRateRequestReporting } from './build/pricingRateRequestReporting
 
 export default defineConfig({
   plugins: [
+    pricingRateUpdateWorkflow(),
     pricingWizardLclOptionalWeight(),
     pricingWizardSep02Requirements(),
     pricingWizardLclCorrections(),
