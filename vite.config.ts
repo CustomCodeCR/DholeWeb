@@ -36,6 +36,7 @@ import { pricingRequirements20260908PreCompat } from './build/pricingRequirement
 import { pricingRequirements20260908 } from './build/pricingRequirements20260908'
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
 import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelection'
+import { pricingCostSelectedPartyContext } from './build/pricingCostSelectedPartyContext'
 import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
 import { pricingWizardFclExpiryChip } from './build/pricingWizardFclExpiryChip'
 import { pricingWizardMaritimePanamaFix } from './build/pricingWizardMaritimePanamaFix'
@@ -86,6 +87,7 @@ export default defineConfig({
     pricingRequirements20260908(),
     pricingCargoHaulageKeywordFix(),
     pricingCostMultiPortSelection(),
+    pricingCostSelectedPartyContext(),
     pricingWizardMixedCarrierExpiry(),
     pricingWizardFclExpiryChip(),
     pricingWizardMaritimePanamaFix(),
