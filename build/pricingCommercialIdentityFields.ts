@@ -122,7 +122,6 @@ function patchWizard(source: string) {
 export function pricingCommercialIdentityFields(): Plugin {
   return {
     name: 'dhole-pricing-commercial-identity-fields',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
