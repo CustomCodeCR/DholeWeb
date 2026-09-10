@@ -1,19 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Activity, BrainCircuit } from 'lucide-vue-next'
-import { DhTabs } from '@/shared/components/molecules'
+import { DhTabs, type DhTabItem } from '@/shared/components/molecules'
 import { VIEW_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import AiConsoleView from '@/modules/ai/views/AiConsoleView.vue'
 import AiOperationsView from '@/modules/ai/views/AiOperationsView.vue'
 
 const authStore = useAuthStore()
-const activeSection = ref<'console' | 'operations'>('console')
+const activeSection = ref('console')
 
-const sections = computed(() => [
-  { key: 'console', label: 'Centro de IA', icon: BrainCircuit },
+const sections = computed<DhTabItem[]>(() => [
+  { key: 'console', label: 'Centro de IA' },
   ...(authStore.hasScope(VIEW_SCOPES.aiExecutions)
-    ? [{ key: 'operations', label: 'Cola y operaciones', icon: Activity }]
+    ? [{ key: 'operations', label: 'Cola y operaciones' }]
     : []),
 ])
 </script>
