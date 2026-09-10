@@ -2314,8 +2314,8 @@ async function hydrateExistingRate() {
       PricingService.getRateRevisions(props.rateId).catch(() => [] as RateRevisionDto[]),
     ])
     editingRate.value = rate
-    allInPresentation.value = Boolean(rate.useAllInPresentation)
     rateRevisions.value = revisions
+    allInPresentation.value = Boolean(rate.useAllInPresentation)
     const modality = modalityForRate(rate)
     const equipment = [...catalogs.containers, ...catalogs.landEquipmentTypes].find((item) => item.id === rate.containerTypeId) ?? null
     const equipmentMeta = metadata(equipment)
