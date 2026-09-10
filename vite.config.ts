@@ -51,6 +51,7 @@ import { pricingFtlTariffMaster } from './build/pricingFtlTariffMaster'
 import { pricingSellerVisibilityProduction } from './build/pricingSellerVisibilityProduction'
 import { pricingRateRequestReporting } from './build/pricingRateRequestReporting'
 import { pricingFtlLandCostsFix } from './build/pricingFtlLandCostsFix'
+import { pricingCommercialIdentityFields } from './build/pricingCommercialIdentityFields'
 
 export default defineConfig({
   plugins: [
@@ -101,6 +102,7 @@ export default defineConfig({
     pricingSellerVisibilityProduction(),
     pricingRateRequestReporting(),
     pricingFtlLandCostsFix(),
+    pricingCommercialIdentityFields(),
     vue(),
     tailwindcss(),
   ],
