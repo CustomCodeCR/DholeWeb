@@ -1022,7 +1022,7 @@ const crcCurrency = computed(() => catalogs.currencies.find((item) => String(ite
 const lineCurrencyOptions = computed(() => {
   const options = catalogs.currencies
     .filter((item) => ['USD', 'CRC'].includes(String(item.code || displayValue(item)).trim().toUpperCase()))
-    .map((item) => ({ value: item.id, label: String(item.code || displayValue(item)).trim().toUpperCase() }))
+    .map((item) => ({ value: item.id, label: displayValue(item) }))
   return options.length ? options : currencyOptions.value
 })
 
@@ -4242,21 +4242,21 @@ onMounted(async () => {
                     <td class="px-4 py-3">{{ chargeBasisLabel(line.chargeBasis) }}</td>
                     <td class="px-4 py-3">{{ quantityForChargeBasis(line.chargeBasis).toLocaleString('es-CR') }}</td>
                     <td class="px-4 py-3 font-black">{{ detailCurrencyValue(line) }}</td>
-                    <td class="px-4 py-3 text-right">{{ formatMoney(number(line.costAmount), detailCurrencyValue(line)) }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(number(line.costAmount), canonicalCurrencyCode(line)) }}</td>
                     <td class="px-4 py-3 text-right">
-                      {{ formatMoney(number(line.saleAmount), detailCurrencyValue(line)) }}
+                      {{ formatMoney(number(line.saleAmount), canonicalCurrencyCode(line)) }}
                     </td>
                     <td class="px-4 py-3 text-right font-semibold">
-                      {{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), detailCurrencyValue(line)) }}
+                      {{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), canonicalCurrencyCode(line)) }}
                     </td>
                     <td
                       class="px-4 py-3 text-right font-semibold"
                       :class="lineTaxTotalAmount(line) > 0 ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'"
                     >
-                      {{ formatMoney(lineTaxTotalAmount(line), detailCurrencyValue(line)) }}
+                      {{ formatMoney(lineTaxTotalAmount(line), canonicalCurrencyCode(line)) }}
                     </td>
                     <td class="px-4 py-3 text-right font-black">
-                      {{ formatMoney(lineSaleWithTax(line) * quantityForChargeBasis(line.chargeBasis), detailCurrencyValue(line)) }}
+                      {{ formatMoney(lineSaleWithTax(line) * quantityForChargeBasis(line.chargeBasis), canonicalCurrencyCode(line)) }}
                     </td>
                   </tr>
                 </tbody>
