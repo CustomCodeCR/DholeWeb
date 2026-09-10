@@ -108,6 +108,7 @@ router.addRoute({
   meta: { public: true },
 })
 
+// Dedicated operational route used by direct links and workspace tabs.
 router.addRoute({
   path: '/ai/operations',
   component: () => import('@/shared/components/layouts/MainLayout.vue'),
@@ -121,6 +122,33 @@ router.addRoute({
         tabTitle: 'Cola de IA',
         closable: true,
         requiredScope: VIEW_SCOPES.aiExecutions,
+      },
+    },
+  ],
+})
+
+// Replace the original /ai named route with a hub so the queue is visible from the
+// existing Inteligencia artificial menu instead of being hidden behind a direct URL.
+router.addRoute({
+  path: '/ai',
+  component: () => import('@/shared/components/layouts/MainLayout.vue'),
+  meta: { requiresAuth: true },
+  children: [
+    {
+      path: '',
+      name: 'ai-console',
+      component: () => import('@/modules/ai/views/AiHubView.vue'),
+      meta: {
+        tabTitle: 'Centro de IA',
+        closable: true,
+        requiredAnyScopes: [
+          VIEW_SCOPES.aiConnections,
+          VIEW_SCOPES.aiModels,
+          VIEW_SCOPES.aiProfiles,
+          VIEW_SCOPES.aiPromptTemplates,
+          VIEW_SCOPES.aiExecutions,
+          VIEW_SCOPES.aiAssistant,
+        ],
       },
     },
   ],
