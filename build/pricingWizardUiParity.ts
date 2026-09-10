@@ -20,6 +20,46 @@ export function pricingWizardUiParity(): Plugin {
 
       let code = source
 
+      // Pantalla 9 is a persisted snapshot. Never let reactive refreshes rebuild an
+      // already hydrated rate from Costos y recargos while the user is only viewing it.
+      const persistedSnapshotAnchor = `function refreshRateLinesForCurrentSource() {\n  // When an existing LCL rate is opened, hydrateExistingRate() already populated`
+      const persistedSnapshotReplacement = `function refreshRateLinesForCurrentSource() {\n  if (props.viewOnly && props.rateId && rateLines.value.some((line) => Boolean(line.detailId))) return\n\n  // When an existing LCL rate is opened, hydrateExistingRate() already populated`
+      code = replaceOne(
+        code,
+        persistedSnapshotAnchor,
+        persistedSnapshotReplacement,
+        'view-only persisted rate snapshot guard',
+      )
+
+      // The API detail currency is authoritative in Pantalla 9. Config is only a
+      // fallback for legacy rows whose persisted display currency is missing.
+      const detailCurrencyAnchor = `function detailCurrencyValue(detail: { currencyId: string; currencyName: string; currencyCode: string }) {\n  const configuredCurrency = findById(catalogs.currencies, detail.currencyId)\n  const configuredValue = displayValue(configuredCurrency)\n  if (configuredValue) return configuredValue\n\n  // Historical rates can predate the current catalog item. In that case prefer\n  // the persisted display value/name and use the internal CODE only as last fallback.\n  const persistedValue = String(detail.currencyName ?? '').trim()\n  if (persistedValue) return persistedValue\n  return String(detail.currencyCode ?? '').trim()\n}`
+      const detailCurrencyReplacement = `function detailCurrencyValue(detail: { currencyId: string; currencyName: string; currencyCode: string }) {\n  const persistedName = String(detail.currencyName ?? '').trim().toUpperCase()\n  if (persistedName === 'USD' || persistedName === 'CRC') return persistedName\n\n  const canonical = canonicalCurrencyCode(detail)\n  if (canonical === 'USD' || canonical === 'CRC') return canonical\n\n  const configuredCurrency = findById(catalogs.currencies, detail.currencyId)\n  const configuredValue = String(displayValue(configuredCurrency) ?? '').trim()\n  if (configuredValue) return configuredValue\n\n  return String(detail.currencyCode ?? '').trim()\n}`
+      code = replaceOne(
+        code,
+        detailCurrencyAnchor,
+        detailCurrencyReplacement,
+        'persisted detail currency precedence',
+      )
+
+      // Normalized USD/CRC totals remain useful while building/editing a rate. In
+      // Pantalla 9, however, commercial totals must stay in their original currency
+      // instead of converting every line into both currencies.
+      const totalsAnchor = `function sumLinesInCurrency(amount: (line: RateLine) => number, target: 'USD' | 'CRC') {\n  return includedLines.value.reduce((sum, line) => {\n    const quantity = Math.max(0, number(quantityForChargeBasis(line.chargeBasis)))\n    const lineTotal = number(amount(line)) * quantity\n    return sum + convertUsdCrc(lineTotal, canonicalCurrencyCode(line), target)\n  }, 0)\n}`
+      const totalsReplacement = `function sumLinesInCurrency(amount: (line: RateLine) => number, target: 'USD' | 'CRC') {\n  return includedLines.value.reduce((sum, line) => {\n    const quantity = Math.max(0, number(quantityForChargeBasis(line.chargeBasis)))\n    const lineTotal = number(amount(line)) * quantity\n    const sourceCode = canonicalCurrencyCode(line)\n\n    if (props.viewOnly && step.value === 9) {\n      return sourceCode === target ? sum + lineTotal : sum\n    }\n\n    return sum + convertUsdCrc(lineTotal, sourceCode, target)\n  }, 0)\n}`
+      code = replaceOne(code, totalsAnchor, totalsReplacement, 'Pantalla 9 native currency totals')
+
+      const marginAnchor = `const totalMarginPercentage = computed(() =>\n  totalSaleBeforeTaxUsd.value > 0 ? (totalUtilityUsd.value / totalSaleBeforeTaxUsd.value) * 100 : 0,\n)`
+      const marginReplacement = `const totalMarginPercentage = computed(() => {\n  if (props.viewOnly && step.value === 9 && editingRate.value) {\n    return number(editingRate.value.marginPercentage)\n  }\n  return totalSaleBeforeTaxUsd.value > 0 ? (totalUtilityUsd.value / totalSaleBeforeTaxUsd.value) * 100 : 0\n})`
+      code = replaceOne(code, marginAnchor, marginReplacement, 'Pantalla 9 persisted margin')
+
+      code = replaceOne(
+        code,
+        `        amountCurrencyCode: detail.currencyCode,`,
+        `        amountCurrencyCode: canonicalCurrencyCode({ currencyId: detail.currencyId, currencyName: detail.currencyName, currencyCode: detail.currencyCode }),`,
+        'hydrated amount currency code',
+      )
+
       // PricingAlternativeWizardCrystal owns insurance activation. This parity layer
       // only keeps the established pricing formula and presentation enhancements;
       // it must never reintroduce the removed "Aplicar póliza" toggle or gate the line.
