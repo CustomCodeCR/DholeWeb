@@ -15,13 +15,14 @@ const props = defineProps<{
 const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
 const loading = ref(false)
+const maximumTimeoutSeconds = 2_592_000
 
 const form = ref({
   name: props.connection?.name ?? '',
   providerType: (props.connection?.providerType ?? 'Ollama') as AiProviderType,
   baseUrl: props.connection?.baseUrl ?? 'http://localhost:11434',
   secretReference: props.connection?.secretReference ?? '',
-  timeoutSeconds: String(props.connection?.timeoutSeconds ?? 300),
+  timeoutSeconds: String(props.connection?.timeoutSeconds ?? 3600),
 })
 
 const isEdit = computed(() => Boolean(props.connection))
@@ -37,8 +38,8 @@ async function save() {
   }
 
   const timeoutSeconds = Number(form.value.timeoutSeconds)
-  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600) {
-    toastStore.warning('Timeout inválido', 'Debe estar entre 1 y 3600 segundos.')
+  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > maximumTimeoutSeconds) {
+    toastStore.warning('Timeout inválido', 'Debe estar entre 1 segundo y 30 días (2 592 000 segundos).')
     return
   }
 
@@ -97,9 +98,14 @@ async function save() {
       <DhInput
         v-model="form.timeoutSeconds"
         type="number"
-        label="Timeout (segundos)"
-        placeholder="300"
+        label="Timeout del proveedor (segundos)"
+        placeholder="3600"
       />
+      <div class="flex items-center rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
+        <p class="text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
+          Para Ollama/Qwen local puede usar valores largos. El límite admitido por backend es 30 días; el perfil de ejecución puede aplicar su propio presupuesto total.
+        </p>
+      </div>
     </div>
 
     <div class="flex justify-end gap-2">
