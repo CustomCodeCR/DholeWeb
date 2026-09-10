@@ -29,6 +29,16 @@ export const SellerVisibilityService = {
     return payload.sellers ?? []
   },
 
+  async rateOptions(): Promise<SellerAssignmentOptionDto[]> {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/pricing/seller-visibility/rate-options',
+      headers: { Accept: 'application/json' },
+    })
+    const payload = unwrapApiResponse<SellerAssignmentOptionsResponse>(response as never)
+    return payload.sellers ?? []
+  },
+
   async get(viewerUserId: string): Promise<SellerVisibilityDto> {
     const response = await callEndpoint<unknown>({
       method: 'GET',
