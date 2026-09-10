@@ -36,9 +36,16 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `              <DhSelect v-if="clientOptions.length" v-model="form.clientId" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />\n              <DhInput v-else v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />`,
-    `              <DhSelect v-if="clientOptions.length" v-model="form.clientId" label="Nombre del cliente *" placeholder="Seleccione cliente" :options="clientOptions" hint="Obligatorio" />\n              <DhInput v-else v-model="form.clientName" label="Nombre del cliente *" placeholder="Escriba el nombre del cliente" autocomplete="off" hint="Obligatorio" />`,
-    'required client field',
+    `              <DhSelect v-if="clientOptions.length" v-model="form.clientId" :label="props.sellerRequestMode ? 'Cliente *' : 'Cliente'" placeholder="Seleccione cliente" :options="clientOptions" />`,
+    `              <DhSelect v-if="clientOptions.length" v-model="form.clientId" label="Nombre del cliente *" placeholder="Seleccione cliente" :options="clientOptions" hint="Obligatorio" />`,
+    'required client select',
+  )
+
+  code = replaceOne(
+    code,
+    `              <DhInput v-else v-model="form.clientName" :label="props.sellerRequestMode ? 'Nombre del cliente *' : 'Nombre del cliente'" placeholder="Escriba el nombre del cliente" autocomplete="off" />`,
+    `              <DhInput v-else v-model="form.clientName" label="Nombre del cliente *" placeholder="Escriba el nombre del cliente" autocomplete="off" hint="Obligatorio" />`,
+    'required client input',
   )
 
   code = replaceOne(
@@ -104,7 +111,7 @@ export function pricingCommercialIdentityFields(): Plugin {
     enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
       return { code: patchWizard(source), map: null }
     },
