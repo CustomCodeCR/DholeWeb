@@ -53,8 +53,7 @@ async function loadSellerRequestOwnerOptions() {
     sellerRequestCurrentUserId.value = visibility.viewerUserId
     sellerRequestOwnerOptions.value = (visibility.sellers ?? []).map((seller) => ({
       value: seller.userId,
-      label: (seller.displayName || seller.userName || seller.email || seller.userId)
-        + (seller.isCurrent ? ' · Yo' : ''),
+      label: String(seller.displayName || seller.userName || seller.email || seller.userId).trim(),
     }))
     const current = visibility.sellers?.find((seller) => seller.isCurrent)
     sellerRequestOwnerId.value = current?.userId
@@ -93,22 +92,6 @@ onMounted(async () => {
     rateRequestPriority.value = 'Green'
     sellerRequestOwnerId.value = sellerRequestCurrentUserId.value || sellerRequestOwnerId.value`,
     'delegated seller reset',
-  )
-
-  code = replaceOne(
-    code,
-    `              <DhSelect v-model="rateRequestPriority" label="Tipo de tarifa" :options="rateRequestPriorityOptions" />`,
-    `              <div class="grid gap-3">
-                <DhSelect
-                  v-if="sellerRequestOwnerOptions.length > 1"
-                  v-model="sellerRequestOwnerId"
-                  label="Vendedor de la solicitud"
-                  :options="sellerRequestOwnerOptions"
-                  :disabled="sellerRequestOwnersLoading"
-                />
-                <DhSelect v-model="rateRequestPriority" label="Tipo de tarifa" :options="rateRequestPriorityOptions" />
-              </div>`,
-    'delegated seller selector',
   )
 
   return code
