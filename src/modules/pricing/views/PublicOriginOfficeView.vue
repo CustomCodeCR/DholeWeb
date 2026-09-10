@@ -35,6 +35,7 @@ interface OriginOffice {
   contacts: OfficeContact[]
   photos: OfficePhoto[]
   message: string
+  gcfOnly?: boolean
 }
 
 const route = useRoute()
@@ -55,16 +56,43 @@ function publicAssetUrl(path: string) {
   return gatewayUrl(path)
 }
 
+function compactAgent(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '')
+}
+
+function isRsLogistics(code: string, name: string) {
+  const values = [compactAgent(code), compactAgent(name)].filter(Boolean)
+  return values.some((value) => value === 'RS' || value.includes('RSLOGISTICS'))
+}
+
 const polValue = computed(() => String(route.query.pol ?? '').trim())
 const polCode = computed(() => String(route.query.polCode ?? route.params.polCode ?? '').trim().toUpperCase())
 const polLocator = computed(() => polValue.value || polCode.value)
 const polDisplay = computed(() => office.value?.polValue || polValue.value || office.value?.polCode || polCode.value)
+const agentCode = computed(() => String(route.query.agentCode ?? '').trim())
+const agentName = computed(() => String(route.query.agent ?? '').trim())
+const hasAgentContext = computed(() => Boolean(agentCode.value || agentName.value))
+const gcfOnlyFromAgent = computed(() => hasAgentContext.value && !isRsLogistics(agentCode.value, agentName.value))
 
 const coordinates = computed(() => {
+  if (office.value?.gcfOnly) return ''
   if (office.value?.latitude == null || office.value?.longitude == null) return ''
   return `${office.value.latitude}, ${office.value.longitude}`
 })
 const mapUrl = computed(() => coordinates.value ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates.value)}` : '')
+
+function gcfContact(): OfficeContact {
+  return {
+    name: 'Grupo Castro Fallas',
+    phone: '',
+    email: 'china@grupocastrofallas.com',
+    role: 'Contacto GCF',
+    isPrimary: true,
+    modalities: [],
+    shipmentModes: ['FCL'],
+    routes: [],
+  }
+}
 
 async function load() {
   loading.value = true
@@ -82,12 +110,13 @@ async function load() {
     const shipmentMode = String(route.query.shipmentMode ?? '').trim()
     const routeKey = String(route.query.route ?? '').trim()
 
-    // The public QR landing page resolves the WHS directly from the
-    // pricing-warehouses catalog. POL identifies the warehouse; mode/route
-    // only refine the applicable routing/contact information.
+    // POL resolves the configured origin office. Agent context is carried by
+    // newly generated quote links so a non-RS quote never exposes RS contacts/WHS data.
     query.set('pol', polLocator.value)
     if (shipmentMode) query.set('shipmentMode', shipmentMode)
     if (routeKey) query.set('route', routeKey)
+    if (agentCode.value) query.set('agentCode', agentCode.value)
+    if (agentName.value) query.set('agent', agentName.value)
 
     const endpoint = gatewayUrl(`/api/config/public/pricing-warehouses/resolve?${query.toString()}`)
     const response = await fetch(endpoint, {
@@ -96,7 +125,21 @@ async function load() {
     })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const payload = await response.json()
-    office.value = payload?.data ?? payload
+    const resolved = (payload?.data ?? payload) as OriginOffice
+
+    office.value = gcfOnlyFromAgent.value
+      ? {
+          ...resolved,
+          address: '',
+          city: '',
+          country: '',
+          latitude: null,
+          longitude: null,
+          contacts: [gcfContact()],
+          photos: [],
+          gcfOnly: true,
+        }
+      : { ...resolved, gcfOnly: false }
   } catch {
     failed.value = true
   } finally {
@@ -116,7 +159,8 @@ onMounted(load)
           <div>
             <p class="text-xs font-black uppercase tracking-[.2em] text-red-700">Grupo Castro Fallas</p>
             <h1 class="mt-2 text-2xl font-black sm:text-3xl">Estos son los datos de Castro Fallas en origen.</h1>
-            <p class="mt-2 text-sm font-semibold text-slate-500">Información pública de coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
+            <p v-if="office?.gcfOnly" class="mt-2 text-sm font-semibold text-slate-500">Contacto GCF para la coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
+            <p v-else class="mt-2 text-sm font-semibold text-slate-500">Información pública de coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
           </div>
           <Building2 class="h-12 w-12 text-red-700" />
         </div>
@@ -129,8 +173,8 @@ onMounted(load)
       </div>
 
       <template v-else>
-        <section class="grid gap-4 md:grid-cols-2">
-          <article class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section :class="office.gcfOnly ? 'mx-auto max-w-2xl' : 'grid gap-4 md:grid-cols-2'">
+          <article v-if="!office.gcfOnly" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Oficina de origen</p>
             <h2 class="mt-2 text-2xl font-black">{{ office.name }}</h2>
             <div class="mt-5 space-y-3 text-sm">
@@ -153,7 +197,7 @@ onMounted(load)
           </article>
         </section>
 
-        <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section v-if="!office.gcfOnly" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div class="mb-4"><p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Fotografías</p><h2 class="mt-1 text-xl font-black">Referencia de la oficina / WHS</h2></div>
           <div v-if="office.photos.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <figure v-for="photo in office.photos" :key="photo.storageId" class="overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
