@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Check, Save } from 'lucide-vue-next'
+import { Ban, Check, Save } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { callEndpoint } from '@/core/api/callEndpoint'
 import { PricingService } from '@/core/services/pricingService'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -26,6 +27,7 @@ const current = ref<ImportRateDto>(props.importRate)
 const loading = ref(false)
 const saving = ref(false)
 const savingAndApproving = ref(false)
+const inactivating = ref(false)
 const errors = reactive<Record<string, string>>({})
 const form = reactive({
   importProfileId: '',
@@ -127,6 +129,8 @@ const calculatedCost = computed(
     Number(form.surcharges || 0),
 )
 
+const canInactivate = computed(() => String(current.value.status) === 'Approved')
+
 const requiredFieldStatus = computed(() => [
   { label: 'Perfil', ready: Boolean(form.importProfileId) },
   { label: 'Agente', ready: Boolean(form.agentId) },
@@ -207,7 +211,7 @@ function payload(): ReviewImportRateRequest {
 }
 
 async function save(approveAfter: boolean) {
-  if (!validate() || saving.value || savingAndApproving.value) return
+  if (!validate() || saving.value || savingAndApproving.value || inactivating.value) return
   try {
     if (approveAfter) savingAndApproving.value = true
     else saving.value = true
@@ -233,6 +237,37 @@ async function save(approveAfter: boolean) {
   } finally {
     saving.value = false
     savingAndApproving.value = false
+  }
+}
+
+async function inactivate() {
+  if (!canInactivate.value || saving.value || savingAndApproving.value || inactivating.value) return
+
+  const usedCount = Number(current.value.usedAsRateCount ?? 0)
+  const historyMessage = usedCount > 0
+    ? ` Esta tarifa ya fue utilizada ${usedCount} vez${usedCount === 1 ? '' : 'es'}; ese historial se conservará.`
+    : ''
+
+  if (!window.confirm(`¿Inactivar esta tarifa preaprobada? Dejará de aparecer como alternativa para nuevas tarifas.${historyMessage}`)) return
+
+  try {
+    inactivating.value = true
+    await callEndpoint<Record<string, never>>({
+      method: 'POST',
+      path: `/api/pricing/import-rates/${current.value.id}/inactivate`,
+      headers: { Accept: 'application/json' },
+    })
+
+    toastStore.success(
+      'Tarifa inactivada',
+      'Ya no aparecerá como alternativa para nuevas tarifas. El historial de usos anteriores se conserva.',
+    )
+    await props.onSaved?.(current.value)
+    drawerStore.close()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo inactivar la tarifa importada.')
+  } finally {
+    inactivating.value = false
   }
 }
 
@@ -351,12 +386,22 @@ onMounted(async () => {
       <div class="sticky bottom-0 z-10 -mx-1 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]/95 p-4 shadow-xl backdrop-blur-xl">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
-            <span v-if="missingRequired.length">Puede guardar el avance, pero complete los campos marcados antes de preaprobar.</span>
+            <span v-if="canInactivate">Puede inactivar esta tarifa sin afectar las cotizaciones donde ya fue utilizada.</span>
+            <span v-else-if="missingRequired.length">Puede guardar el avance, pero complete los campos marcados antes de preaprobar.</span>
             <span v-else>La tarifa está lista para guardarse y preaprobarse.</span>
           </p>
           <div class="flex flex-col-reverse gap-2 sm:flex-row">
-            <DhButton label="Guardar cambios" :icon="Save" variant="secondary" :loading="saving" @click="save(false)" />
-            <DhButton v-if="canApprove" label="Guardar y preaprobar" :icon="Check" :loading="savingAndApproving" @click="save(true)" />
+            <DhButton
+              v-if="canInactivate"
+              label="Inactivar tarifa"
+              :icon="Ban"
+              variant="danger"
+              :loading="inactivating"
+              :disabled="saving || savingAndApproving"
+              @click="inactivate"
+            />
+            <DhButton label="Guardar cambios" :icon="Save" variant="secondary" :loading="saving" :disabled="inactivating" @click="save(false)" />
+            <DhButton v-if="canApprove" label="Guardar y preaprobar" :icon="Check" :loading="savingAndApproving" :disabled="inactivating" @click="save(true)" />
           </div>
         </div>
       </div>
