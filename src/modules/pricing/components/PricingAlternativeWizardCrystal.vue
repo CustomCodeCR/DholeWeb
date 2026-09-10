@@ -3035,8 +3035,8 @@ function resetWizard() {
   createdRateId.value = ''
   availableRates.value = []
   rateLines.value = []
-  allInPresentation.value = false
   supportEntityId.value = crypto.randomUUID()
+  allInPresentation.value = false
   supportDocuments.value = []
   Object.assign(form, {
     modality: '',
