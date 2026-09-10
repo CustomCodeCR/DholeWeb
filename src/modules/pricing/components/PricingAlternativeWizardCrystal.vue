@@ -200,6 +200,7 @@ const commercialRejectionReason = ref('')
 const commercialStatusSaving = ref(false)
 const commercialActionError = ref('')
 const downloadingQuote = ref(false)
+const allInPresentation = ref(false)
 const isEditing = computed(() => Boolean(props.rateId))
 const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Seleccionar alternativa')
 const pageDescription = computed(() => isEditing.value
@@ -2313,6 +2314,7 @@ async function hydrateExistingRate() {
       PricingService.getRateRevisions(props.rateId).catch(() => [] as RateRevisionDto[]),
     ])
     editingRate.value = rate
+    allInPresentation.value = Boolean(rate.useAllInPresentation)
     rateRevisions.value = revisions
     const modality = modalityForRate(rate)
     const equipment = [...catalogs.containers, ...catalogs.landEquipmentTypes].find((item) => item.id === rate.containerTypeId) ?? null
@@ -2952,6 +2954,7 @@ async function saveRate() {
             },
           ],
       transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
+      useAllInPresentation: allInPresentation.value,
       includes: includeTerms.join('\n') || null,
       subjectTo: subjectTerms.join('\n') || null,
       excludes: excludeTerms.join('\n') || null,
@@ -3032,6 +3035,7 @@ function resetWizard() {
   createdRateId.value = ''
   availableRates.value = []
   rateLines.value = []
+  allInPresentation.value = false
   supportEntityId.value = crypto.randomUUID()
   supportDocuments.value = []
   Object.assign(form, {
@@ -3977,6 +3981,70 @@ onMounted(async () => {
             <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
             <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
           </div>
+
+          <div class="crystal-soft p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Presentación comercial</p>
+                  <DhBadge :variant="allInPresentation ? 'success' : 'neutral'">
+                    {{ allInPresentation ? 'ALL IN activo' : 'Desglose activo' }}
+                  </DhBadge>
+                </div>
+                <p class="mt-2 max-w-3xl text-xs font-semibold text-[var(--dh-text-muted)]">
+                  La formulación de costo y venta conserva todas las líneas. ALL IN solo cambia cómo se presenta la venta al cliente en el borrador y en el PDF.
+                </p>
+              </div>
+              <DhButton
+                variant="secondary"
+                type="button"
+                @click="allInPresentation = !allInPresentation"
+              >
+                {{ allInPresentation ? 'Quitar ALL IN' : 'Convertir a ALL IN' }}
+              </DhButton>
+            </div>
+
+            <div v-if="allInPresentation" class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">
+              <div class="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Concepto comercial</p>
+                  <p class="mt-1 text-xl font-black text-[var(--dh-text)]">ALL IN</p>
+                </div>
+                <div class="sm:text-right">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">USD</p>
+                  <strong class="text-base">{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong>
+                </div>
+                <div class="sm:text-right">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">CRC</p>
+                  <strong class="text-base">{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong>
+                </div>
+              </div>
+
+              <details class="border-t border-[var(--dh-border)] bg-[var(--dh-card)]" open>
+                <summary class="cursor-pointer px-4 py-3 text-xs font-black">
+                  Ver líneas incluidas · {{ includedLines.length }}
+                </summary>
+                <div class="border-t border-[var(--dh-border)] px-4 py-2">
+                  <div
+                    v-for="line in includedLines"
+                    :key="`all-in:${line.key}`"
+                    class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2 text-xs last:border-b-0"
+                  >
+                    <div class="min-w-0">
+                      <strong class="block">{{ line.name }}</strong>
+                      <span class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}</span>
+                    </div>
+                    <strong>{{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), line.currencyCode || line.currencyName || 'USD') }}</strong>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div v-else class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              El borrador y el PDF mostrarán las líneas comerciales individualmente. Active ALL IN para presentar una única línea con la suma de todas las ventas.
+            </div>
+          </div>
+
           <div class="grid gap-4 lg:grid-cols-2">
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>

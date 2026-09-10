@@ -615,6 +615,7 @@ export interface RateDto extends Record<string, unknown> {
   subjectTo?: string | null
   excludes?: string | null
   transitTime?: string | null
+  useAllInPresentation: boolean
   rateType: RateType
   shipmentMode: ShipmentMode
   operationType: RateOperationType
@@ -743,6 +744,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   subjectTo?: string | null
   excludes?: string | null
   transitTime?: string | null
+  useAllInPresentation?: boolean
   rateType?: RateType
   operationType?: RateOperationType
   services?: RateServiceDto[]
