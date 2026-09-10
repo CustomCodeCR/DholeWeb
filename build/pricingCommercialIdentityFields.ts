@@ -79,9 +79,9 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `  if (step.value === 3) {\n    if (props.sellerRequestMode && !form.clientId && !form.clientName.trim()) return false\n    if (!landEquipmentSelectionValid.value) return false\n  }`,
-    `  if (step.value === 3) {\n    if (!form.clientName.trim()) return false\n    if (props.sellerRequestMode) {\n      if (!form.executiveName.trim()) return false\n    } else if (!form.executiveId || !form.executiveName.trim()) {\n      return false\n    }\n    if (!landEquipmentSelectionValid.value) return false\n  }`,
-    'commercial next-step validation',
+    `const canNext = computed(() => {`,
+    `const canNext = computed(() => {\n  if (step.value === 3) {\n    if (!form.clientName.trim()) return false\n    if (props.sellerRequestMode) {\n      if (!form.executiveName.trim()) return false\n    } else if (!form.executiveId || !form.executiveName.trim()) {\n      return false\n    }\n  }`,
+    'canNext commercial validation',
   )
 
   code = replaceOne(
