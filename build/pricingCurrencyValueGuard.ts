@@ -12,6 +12,13 @@ function patchWizard(source: string) {
     .split(`selectedCurrency?.code || 'USD'`)
     .join(`displayValue(selectedCurrency) || 'USD'`)
 
+  // Pantalla 8 / ALL IN: cada línea debe mostrar Config.Value (USD, CRC, etc.) y no
+  // CatalogItem.Code (por ejemplo CUR-2026-001). Se resuelve primero por CurrencyId
+  // contra el catálogo y se conservan name/code solamente como compatibilidad.
+  code = code
+    .split(`line.currencyCode || line.currencyName || 'USD'`)
+    .join(`displayValue(findById(catalogs.currencies, line.currencyId)) || line.currencyName || line.currencyCode || 'USD'`)
+
   // Resolve the ISO currency used for calculations from all catalog fields instead
   // of assuming CatalogItem.code itself is USD/CRC. In Config, Code may be a generated
   // identifier while Value contains the configured business value (USD/CRC).
