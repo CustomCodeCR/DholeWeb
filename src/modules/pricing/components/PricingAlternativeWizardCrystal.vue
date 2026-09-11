@@ -152,6 +152,7 @@ interface RateLine {
   costId?: string | null
   contextLabel?: string | null
   notes?: string | null
+  billToClient?: string | null
   currencyId: string
   currencyName: string
   currencyCode: string
@@ -211,6 +212,7 @@ const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailEx
 const costs = ref<CostSelectDto[]>([])
 const cabysResults = ref<CabysItem[]>([])
 const rateLines = ref<RateLine[]>([])
+const billToBatchByGroup = ref<Record<string, string>>({})
 const locatingPickup = ref(false)
 const recommendingPorts = ref(false)
 const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
@@ -499,6 +501,18 @@ function addDaysIso(value: string, days: number) {
 function number(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function normalizeBillToClient(value?: string | null) {
+  const normalized = String(value ?? '').trim()
+  return normalized || null
+}
+
+function applyBillToBatch(group: { key: string; lines: RateLine[] }) {
+  const billToClient = normalizeBillToClient(billToBatchByGroup.value[group.key])
+  group.lines.forEach((line) => {
+    line.billToClient = billToClient
+  })
 }
 
 function distanceKm(fromLatitude: number, fromLongitude: number, toLatitude: number, toLongitude: number) {
@@ -2376,6 +2390,7 @@ async function hydrateExistingRate() {
         chargeBasis: detail.chargeBasis,
         costId: detail.costId ?? null,
         notes: detail.notes ?? null,
+        billToClient: detail.billToClient ?? null,
         serviceIds: configuredCost?.services?.map((service) => service.id) ?? [],
         currencyId: detail.currencyId,
         currencyName: detail.currencyName,
@@ -2809,6 +2824,7 @@ async function saveRate() {
     currencyCode: line.currencyCode,
     costAmount: number(line.costAmount),
     saleAmount: number(line.saleAmount),
+    billToClient: normalizeBillToClient(line.billToClient),
     quantity: quantityForChargeBasis(line.chargeBasis),
     applyDestinationTax: Boolean(line.applyDestinationTax) && canApplyDestinationTax(line),
     destinationTaxRate:
@@ -3847,11 +3863,25 @@ onMounted(async () => {
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
+              <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+                <DhInput
+                  :model-value="billToBatchByGroup[group.key] ?? ''"
+                  class="min-w-[240px]"
+                  label="Facturar / cobrar a (bloque)"
+                  placeholder="Ej. Cliente A"
+                  maxlength="200"
+                  autocomplete="off"
+                  @update:model-value="(value) => { billToBatchByGroup[group.key] = String(value ?? '') }"
+                />
+                <DhButton type="button" variant="secondary" size="sm" @click="applyBillToBatch(group)">
+                  Aplicar al bloque
+                </DhButton>
+              </div>
             </div>
             <div
               v-for="line in group.lines"
               :key="line.key"
-              :class="['crystal-line grid items-end gap-3 p-3 lg:grid-cols-[minmax(200px,1fr)_120px_140px_140px_minmax(190px,230px)]', group.key === 'freight' ? 'crystal-line--freight' : '']"
+              :class="['crystal-line grid items-end gap-3 p-3 lg:grid-cols-[minmax(200px,1fr)_120px_140px_140px_minmax(200px,260px)_minmax(190px,230px)]', group.key === 'freight' ? 'crystal-line--freight' : '']"
             >
               <div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -3891,6 +3921,14 @@ onMounted(async () => {
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              <DhInput
+                :model-value="line.billToClient ?? ''"
+                maxlength="200"
+                label="Facturar / cobrar a"
+                placeholder="Cliente"
+                autocomplete="off"
+                @update:model-value="(value) => { line.billToClient = String(value ?? '') }"
+              />
               <div v-if="canApplyDestinationTax(line)" class="crystal-line-vat">
                 <DhCheckbox
                   :model-value="Boolean(line.applyDestinationTax)"
@@ -3920,7 +3958,7 @@ onMounted(async () => {
               <div
                 v-for="line in bottomRateLines"
                 :key="line.key"
-                class="crystal-line grid items-end gap-3 p-3 lg:grid-cols-[minmax(200px,1fr)_120px_140px_140px_minmax(190px,230px)_auto]"
+                class="crystal-line grid items-end gap-3 p-3 lg:grid-cols-[minmax(200px,1fr)_120px_140px_140px_minmax(200px,260px)_minmax(190px,230px)_auto]"
               >
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
@@ -3950,6 +3988,14 @@ onMounted(async () => {
                 </div>
                 <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              <DhInput
+                :model-value="line.billToClient ?? ''"
+                maxlength="200"
+                label="Facturar / cobrar a"
+                placeholder="Cliente"
+                autocomplete="off"
+                @update:model-value="(value) => { line.billToClient = String(value ?? '') }"
+              />
                 <div v-if="canApplyDestinationTax(line)" class="crystal-line-vat">
                   <DhCheckbox
                     :model-value="Boolean(line.applyDestinationTax)"
@@ -4231,7 +4277,7 @@ onMounted(async () => {
             <div class="overflow-x-auto">
               <table class="min-w-[1180px] w-full text-left text-xs">
                 <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
-                  <tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta subtotal</th><th class="px-4 py-3 text-right">IVA</th><th class="px-4 py-3 text-right">Venta total</th></tr>
+                  <tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3">Facturar / cobrar a</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta subtotal</th><th class="px-4 py-3 text-right">IVA</th><th class="px-4 py-3 text-right">Venta total</th></tr>
                 </thead>
                 <tbody>
                   <tr v-for="line in includedLines" :key="line.key" class="border-t border-[var(--dh-border)]">
@@ -4242,6 +4288,7 @@ onMounted(async () => {
                     <td class="px-4 py-3">{{ chargeBasisLabel(line.chargeBasis) }}</td>
                     <td class="px-4 py-3">{{ quantityForChargeBasis(line.chargeBasis).toLocaleString('es-CR') }}</td>
                     <td class="px-4 py-3 font-black">{{ detailCurrencyValue(line) }}</td>
+                    <td class="px-4 py-3 font-semibold">{{ line.billToClient || '—' }}</td>
                     <td class="px-4 py-3 text-right">{{ formatMoney(number(line.costAmount), canonicalCurrencyCode(line)) }}</td>
                     <td class="px-4 py-3 text-right">
                       {{ formatMoney(number(line.saleAmount), canonicalCurrencyCode(line)) }}
@@ -4716,7 +4763,7 @@ onMounted(async () => {
   .crystal-line--freight {
     width: 100%;
     max-width: none;
-    grid-template-columns: minmax(320px, 1fr) 120px 140px 140px !important;
+    grid-template-columns: minmax(320px, 1fr) 120px 140px 140px minmax(200px, 260px) !important;
     justify-content: stretch;
   }
 
