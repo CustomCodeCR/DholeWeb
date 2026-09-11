@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Building2, Mail, MapPin, Phone, Navigation } from 'lucide-vue-next'
 
@@ -42,6 +42,8 @@ const route = useRoute()
 const office = ref<OriginOffice | null>(null)
 const loading = ref(true)
 const failed = ref(false)
+const photoObjectUrls = ref<Record<string, string>>({})
+const photoFailures = ref<Record<string, boolean>>({})
 
 const apiBaseUrl = String(import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '')
 
@@ -94,10 +96,72 @@ function gcfContact(): OfficeContact {
   }
 }
 
+function revokePhotoObjectUrls() {
+  Object.values(photoObjectUrls.value).forEach((url) => URL.revokeObjectURL(url))
+  photoObjectUrls.value = {}
+  photoFailures.value = {}
+}
+
+function imageMimeType(fileName: string, responseContentType: string | null) {
+  const reported = String(responseContentType ?? '').split(';', 1)[0]?.trim().toLowerCase() ?? ''
+  if (reported.startsWith('image/')) return reported
+
+  const extension = fileName.trim().toLowerCase().split('.').pop() ?? ''
+  const byExtension: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+    svg: 'image/svg+xml',
+    tif: 'image/tiff',
+    tiff: 'image/tiff',
+  }
+
+  return byExtension[extension] ?? 'application/octet-stream'
+}
+
+async function loadPublicPhoto(photo: OfficePhoto) {
+  try {
+    const response = await fetch(publicAssetUrl(photo.publicContentPath), {
+      headers: { Accept: 'image/*' },
+      credentials: 'omit',
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+    const content = await response.arrayBuffer()
+    if (!content.byteLength) throw new Error('Empty image')
+
+    const blob = new Blob([content], {
+      type: imageMimeType(photo.fileName, response.headers.get('content-type')),
+    })
+    const objectUrl = URL.createObjectURL(blob)
+    const previousUrl = photoObjectUrls.value[photo.storageId]
+    if (previousUrl) URL.revokeObjectURL(previousUrl)
+
+    photoObjectUrls.value = {
+      ...photoObjectUrls.value,
+      [photo.storageId]: objectUrl,
+    }
+  } catch {
+    photoFailures.value = {
+      ...photoFailures.value,
+      [photo.storageId]: true,
+    }
+  }
+}
+
+function loadPublicPhotos(photos: OfficePhoto[]) {
+  revokePhotoObjectUrls()
+  for (const photo of photos) void loadPublicPhoto(photo)
+}
+
 async function load() {
   loading.value = true
   failed.value = false
   office.value = null
+  revokePhotoObjectUrls()
 
   if (!polLocator.value || !apiBaseUrl) {
     failed.value = true
@@ -140,6 +204,8 @@ async function load() {
           gcfOnly: true,
         }
       : { ...resolved, gcfOnly: false }
+
+    if (!office.value.gcfOnly && office.value.photos.length) loadPublicPhotos(office.value.photos)
   } catch {
     failed.value = true
   } finally {
@@ -148,6 +214,7 @@ async function load() {
 }
 
 onMounted(load)
+onBeforeUnmount(revokePhotoObjectUrls)
 </script>
 
 <template>
@@ -201,7 +268,11 @@ onMounted(load)
           <div class="mb-4"><p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Fotografías</p><h2 class="mt-1 text-xl font-black">Referencia de la oficina / WHS</h2></div>
           <div v-if="office.photos.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <figure v-for="photo in office.photos" :key="photo.storageId" class="overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
-              <img :src="publicAssetUrl(photo.publicContentPath)" :alt="photo.fileName || office.name" class="aspect-[4/3] h-full w-full object-cover" loading="lazy" referrerpolicy="no-referrer" />
+              <img v-if="photoObjectUrls[photo.storageId]" :src="photoObjectUrls[photo.storageId]" :alt="photo.fileName || office.name" class="aspect-[4/3] w-full object-cover" />
+              <div v-else class="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 px-4 text-center text-sm text-slate-500">
+                <span class="font-semibold">{{ photoFailures[photo.storageId] ? 'Imagen no disponible' : 'Cargando imagen…' }}</span>
+                <span v-if="photo.fileName" class="break-all text-xs">{{ photo.fileName }}</span>
+              </div>
             </figure>
           </div>
           <p v-else class="text-sm text-slate-500">No hay fotografías publicadas para esta oficina.</p>
