@@ -3827,6 +3827,7 @@ onMounted(async () => {
               <p class="crystal-kicker">Pantalla 7</p>
               <h2 class="crystal-title">Líneas de tarifa</h2>
               <p class="crystal-description">Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.</p>
+              <p class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] px-3 py-2 text-xs font-semibold text-[var(--dh-text)]">Facturación por cliente: puede escribir el cliente en cada ítem o asignarlo de una vez a todo un bloque.</p>
             </div>
             <div class="crystal-total-card" aria-label="Resumen financiero de la tarifa">
               <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo USD <strong>{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
@@ -3863,18 +3864,18 @@ onMounted(async () => {
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
-              <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+              <div class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
                 <DhInput
                   :model-value="billToBatchByGroup[group.key] ?? ''"
                   class="min-w-[240px]"
-                  label="Facturar / cobrar a (bloque)"
-                  placeholder="Ej. Cliente A"
+                  label="Facturar / cobrar todo el bloque a"
+                  placeholder="Escriba el cliente"
                   maxlength="200"
                   autocomplete="off"
                   @update:model-value="(value) => { billToBatchByGroup[group.key] = String(value ?? '') }"
                 />
                 <DhButton type="button" variant="secondary" size="sm" @click="applyBillToBatch(group)">
-                  Aplicar al bloque
+                  Aplicar cliente al bloque
                 </DhButton>
               </div>
             </div>
@@ -3923,9 +3924,10 @@ onMounted(async () => {
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
               <DhInput
                 :model-value="line.billToClient ?? ''"
+                class="min-w-[220px]"
                 maxlength="200"
-                label="Facturar / cobrar a"
-                placeholder="Cliente"
+                label="Cliente a facturar"
+                placeholder="Escriba cliente"
                 autocomplete="off"
                 @update:model-value="(value) => { line.billToClient = String(value ?? '') }"
               />
@@ -3990,9 +3992,10 @@ onMounted(async () => {
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
               <DhInput
                 :model-value="line.billToClient ?? ''"
+                class="min-w-[220px]"
                 maxlength="200"
-                label="Facturar / cobrar a"
-                placeholder="Cliente"
+                label="Cliente a facturar"
+                placeholder="Escriba cliente"
                 autocomplete="off"
                 @update:model-value="(value) => { line.billToClient = String(value ?? '') }"
               />
