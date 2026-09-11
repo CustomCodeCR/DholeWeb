@@ -5,6 +5,7 @@ on:
     branches: [codex/bill-to-client-web-develop-20260910]
     paths:
       - '.github/workflows/apply-bill-to-client-web-develop-20260910.yml'
+      - '.github/scripts/patch_bill_to_client_20260910.py'
 
 permissions:
   contents: write
@@ -46,6 +47,7 @@ jobs:
         run: exit 1
 
       - name: Commit validated changes
+        if: steps.validate.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
