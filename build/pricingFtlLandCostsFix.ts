@@ -35,23 +35,33 @@ const includedLines = computed`,
     'visible sections block',
   )
 
-  // The contextual /costs/select endpoint understands multi-POL/POE/POD selections.
-  // CostSelectDto still exposes the legacy single POL/POE/POD fields, so re-filtering a
-  // contextual result with those legacy fields can incorrectly remove a valid land cost
-  // when the current SD terminal is not the first configured selection. Tag the response
-  // with the exact context that Pricing evaluated and trust it while that context is current.
+  // El POE "Multimodal Via Panamá" es solamente una opción visual del wizard. Para
+  // Pantalla 7 el contexto real debe ser el POE de la tarifa importada seleccionada.
+  // Además enviamos importRateId para que Pricing vuelva a resolver el POE de forma
+  // autoritativa y no dependa exclusivamente del estado local del frontend.
   code = replaceRegexOne(
     code,
     /function applicableCost\(cost: CostSelectDto\) \{[\s\S]*?\n\}\n\nfunction costSpecificity/,
-    `function currentCostContextKey() {
+    `function costContextImportRateId() {
+  if (!isMultimodalViaPanama(selectedDestination.value)) return ''
+  return String(form.selectedImportRateId ?? '').trim()
+}
+
+function costContextPoeId() {
+  if (!isMultimodalViaPanama(selectedDestination.value)) return form.destinationId
+  return String(selectedImportRate.value?.poeId ?? '').trim() || form.destinationId
+}
+
+function currentCostContextKey() {
   return [
     shipmentModeForApi.value,
     form.originId,
-    form.destinationId,
+    costContextPoeId(),
     form.podId,
     form.incotermId,
     form.carrierId,
     form.agentId,
+    costContextImportRateId(),
     [...form.serviceIds].sort().join(','),
   ].join('|')
 }
@@ -62,6 +72,7 @@ function costResolvedByBackendContext(cost: CostSelectDto) {
 
 function applicableCost(cost: CostSelectDto) {
   const backendContextMatched = costResolvedByBackendContext(cost)
+  const contextPoeId = costContextPoeId()
 
   if (!backendContextMatched) {
     if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
@@ -70,17 +81,17 @@ function applicableCost(cost: CostSelectDto) {
     if (cost.carrierId && cost.carrierId !== form.carrierId) return false
     if (cost.agentId && cost.agentId !== form.agentId) return false
     if (cost.polId && cost.polId !== form.originId) return false
-    if (cost.poeId && cost.poeId !== form.destinationId) return false
+    if (cost.poeId && cost.poeId !== contextPoeId) return false
     if (cost.podId && cost.podId !== form.podId) return false
 
     if (cost.portId) {
       const matchesLegacyPort = cost.portRole === 'Pol'
         ? cost.portId === form.originId
         : cost.portRole === 'Poe'
-          ? cost.portId === form.destinationId
+          ? cost.portId === contextPoeId
           : cost.portRole === 'Pod'
             ? cost.portId === form.podId
-            : [form.originId, form.destinationId, form.podId].includes(cost.portId)
+            : [form.originId, contextPoeId, form.podId].includes(cost.portId)
       if (!matchesLegacyPort) return false
     }
   }
@@ -105,17 +116,19 @@ function costSpecificity`,
     `async function loadApplicableCosts() {
   try {
     const contextKey = currentCostContextKey()
+    const importRateId = costContextImportRateId()
     const selectedCosts = await PricingService.selectCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
       polId: form.originId || undefined,
-      poeId: form.destinationId || undefined,
+      poeId: costContextPoeId() || undefined,
       podId: form.podId || undefined,
       incotermId: form.incotermId || undefined,
       shipmentMode: shipmentModeForApi.value,
       isActive: true,
       applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
+      importRateId: importRateId || undefined,
     })
 
     costs.value = selectedCosts.map((cost) => ({
@@ -133,6 +146,16 @@ function costSpecificity`,
 
 function rebuildRateLines`,
     'contextual cost loader',
+  )
+
+  // Pantalla 7 no debe inventar una fila "Recolecta". Si existe Recolecta en Cargos y
+  // recargos llegará desde /costs/select y se mostrará en su sección real; si no existe,
+  // no se agrega una línea variable con costo/venta en cero.
+  code = replaceRegexOne(
+    code,
+    /\naddVariableSectionFallback\(\n\s*'pickup_origin',\n\s*'Recolecta',\n\s*'InlandTransport',\n\s*'Variable: complete costo y venta según la recolección aplicable\.',\n\)\n/,
+    '\n',
+    'synthetic pickup fallback',
   )
 
   // Every Optional cost returned for the active Pricing context must be visible in the
