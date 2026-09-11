@@ -94,7 +94,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `async function saveRate() {`,
-    `async function saveRate() {\n  if (!form.clientName.trim()) {\n    step.value = 3\n    toastStore.error('El nombre del cliente es obligatorio para crear o guardar una tarifa.')\n    return\n  }\n  if (!hasSalesExecutiveSelection(form.executiveId, form.executiveName)) {\n    step.value = 3\n    toastStore.error('Seleccione un ejecutivo comercial de la lista de usuarios con rol Vendedor.')\n    return\n  }`,
+    `async function verifyCreatedRatePersistence(rateId: string, payload: CreateRateRequest) {\n  const persisted = await PricingService.getRate(rateId)\n  const persistedDetails = persisted.rateDetails ?? []\n  const persistedCostIds = new Set(\n    persistedDetails\n      .map((detail) => detail.costId)\n      .filter((costId): costId is string => Boolean(costId)),\n  )\n\n  const missingLinkedDetails = payload.details.filter(\n    (detail) => detail.costId && !persistedCostIds.has(detail.costId),\n  )\n  const hasSubmittedFreight = payload.details.some(\n    (detail) => !detail.costId && detail.costDetailType === 'Freight',\n  )\n  const hasPersistedFreight = persistedDetails.some(\n    (detail) => detail.costDetailType === 'Freight',\n  )\n\n  if (missingLinkedDetails.length || (hasSubmittedFreight && !hasPersistedFreight)) {\n    const missingNames = missingLinkedDetails.map((detail) => detail.name).filter(Boolean)\n    if (hasSubmittedFreight && !hasPersistedFreight) missingNames.unshift('Flete internacional')\n    throw new Error(\n      'Pricing devolvió una tarifa incompleta. No se guardaron: ' + missingNames.join(', '),\n    )\n  }\n\n  if (payload.incotermId && persisted.incotermId && payload.incotermId !== persisted.incotermId) {\n    throw new Error(\n      'Pricing guardó un Incoterm distinto al seleccionado. Recargue los catálogos e intente nuevamente.',\n    )\n  }\n}\n\nasync function saveRate() {\n  if (!form.clientName.trim()) {\n    step.value = 3\n    toastStore.error('El nombre del cliente es obligatorio para crear o guardar una tarifa.')\n    return\n  }\n  if (!hasSalesExecutiveSelection(form.executiveId, form.executiveName)) {\n    step.value = 3\n    toastStore.error('Seleccione un ejecutivo comercial de la lista de usuarios con rol Vendedor.')\n    return\n  }`,
     'save commercial validation',
   )
 
@@ -113,6 +113,13 @@ function patchWizard(source: string) {
   code = code.replaceAll(
     executiveNamePayload,
     `${executiveNamePayload}\n      executiveUserId: isDefaultSalesExecutive(form.executiveId, form.executiveName) ? null : (form.executiveId || null),`,
+  )
+
+  code = replaceOne(
+    code,
+    `      rateId = await PricingService.createRate(createPayload)\n      toastStore.success('Tarifa creada correctamente.')`,
+    `      rateId = await PricingService.createRate(createPayload)\n      await verifyCreatedRatePersistence(rateId, createPayload)\n      toastStore.success('Tarifa creada correctamente.')`,
+    'created rate persistence verification',
   )
 
   code = replaceOne(
