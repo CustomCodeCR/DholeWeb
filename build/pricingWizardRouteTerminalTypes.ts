@@ -71,7 +71,9 @@ const originCatalog = computed(() =>
 const destinationCatalog = computed(() => {
   if (form.modality === 'Land') return terrestrialPoeCatalog.value
   if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl') {
-    return maritimePoeCatalog.value.filter((item) => isMultimodalViaPanama(item) || !isRealPanamaPoe(item))
+    // En FCL se muestran tanto los POE reales de Panamá como el POE sintético.
+    // La combinación con POD define después si permanece Panamá o pasa a multimodal.
+    return maritimePoeCatalog.value
   }
   return maritimePoeCatalog.value.filter((item) => !isMultimodalViaPanama(item))
 })
@@ -130,7 +132,7 @@ const podOptions = computed(() => form.modality === 'Land'
   if (code.includes(destinationWatcher)) {
     code = code.replace(
       destinationWatcher,
-      `watch(\n  () => form.destinationId,\n  () => {\n    if (form.modality === 'Land') {\n      form.podId = ''\n      return\n    }\n    const equivalent = findEquivalent(maritimePodCatalog.value, selectedDestination.value)\n    form.podId = equivalent?.id ?? ''\n  },\n)`,
+      `watch(\n  () => form.destinationId,\n  () => {\n    if (form.modality === 'Land') {\n      form.podId = ''\n      return\n    }\n    // Cuando Pantalla 3 cambia automáticamente a Multimodal Via Panamá, conservar\n    // el POD externo que provocó la conversión.\n    if (isMultimodalViaPanama(selectedDestination.value)) return\n    const equivalent = findEquivalent(maritimePodCatalog.value, selectedDestination.value)\n    form.podId = equivalent?.id ?? ''\n  },\n)`,
     )
   }
 
