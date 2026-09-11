@@ -16,16 +16,30 @@ function patchWizard(source: string) {
     `<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">\n            <button\n              v-for="option in modalityOptions"`,
   )
 
-  const robustPanamaDetector = `function isRealPanamaPoe(item: CatalogItemSelectDto | null | undefined) {
-  if (!item || isMultimodalViaPanama(item)) return false
+  const panamaCatalogDetector = `function isPanamaCatalogItem(item: CatalogItemSelectDto | null | undefined) {
+  if (!item) return false
   const meta = metadata(item)
   const countryCode = String(meta?.countryCode ?? '').trim().toUpperCase()
   const code = String(item.code ?? '').trim().toUpperCase()
   const descriptor = normalizeCatalogValue([item.code, item.label, displayValue(item)].filter(Boolean).join(' '))
-  return countryCode === 'PA' || code.startsWith('PA-') || descriptor.includes('panama')
+  return countryCode === 'PA'
+    || code === 'PA'
+    || code.startsWith('PA-')
+    || /^PA[A-Z0-9]{3,}$/.test(code)
+    || descriptor.includes('panama')
+}`
+
+  const robustPanamaDetector = `function isRealPanamaPoe(item: CatalogItemSelectDto | null | undefined) {
+  return Boolean(item && !isMultimodalViaPanama(item) && isPanamaCatalogItem(item))
 }`
 
   if (code.includes('function isRealPanamaPoe(')) {
+    if (!code.includes('function isPanamaCatalogItem(')) {
+      code = code.replace(
+        `function isRealPanamaPoe(item: CatalogItemSelectDto | null | undefined) {`,
+        `${panamaCatalogDetector}\n\nfunction isRealPanamaPoe(item: CatalogItemSelectDto | null | undefined) {`,
+      )
+    }
     code = code.replace(
       /function isRealPanamaPoe\(item: CatalogItemSelectDto \| null \| undefined\) \{[\s\S]*?\n\}/,
       robustPanamaDetector,
@@ -45,15 +59,43 @@ function patchWizard(source: string) {
     || descriptor.includes('multimodal via panama')
 }
 
+${panamaCatalogDetector}
+
 ${robustPanamaDetector}
 
 const panamaPoeItems = computed(() => catalogs.poe.filter(isRealPanamaPoe))
+const multimodalViaPanamaPoe = computed(() => catalogs.poe.find(isMultimodalViaPanama) ?? null)
+
+// Pantalla 3: un POE real de Panamá solamente se convierte al POE sintético cuando
+// el POD elegido está fuera de Panamá. El POD se conserva para mantener el flujo
+// multimodal actual y resolver la última milla con ese destino.
+watch(
+  () => [form.destinationId, form.podId] as const,
+  () => {
+    if (hydratingExistingRate.value) return
+    const poe = selectedDestination.value
+    const pod = selectedPod.value
+    if (!isRealPanamaPoe(poe) || !pod || isPanamaCatalogItem(pod)) return
+
+    const multimodal = multimodalViaPanamaPoe.value
+    if (!multimodal || form.destinationId === multimodal.id) return
+
+    form.destinationId = multimodal.id
+    form.selectedImportRateId = ''
+    availableRates.value = []
+  },
+  { flush: 'sync' },
+)
+
+function shouldBrowseAllPanamaRates() {
+  return isMultimodalViaPanama(selectedDestination.value)
+    || (isRealPanamaPoe(selectedDestination.value) && isPanamaCatalogItem(selectedPod.value))
+}
+
 const originOptions = computed(() => catalogs.pol.map((item) => ({ value: item.id, label: displayValue(item) })))
 const destinationOptions = computed(() => {
   if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl') {
-    return catalogs.poe
-      .filter((item) => isMultimodalViaPanama(item) || !isRealPanamaPoe(item))
-      .map((item) => ({ value: item.id, label: displayValue(item) }))
+    return catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) }))
   }
   return catalogs.poe
     .filter((item) => !isMultimodalViaPanama(item))
@@ -64,16 +106,16 @@ const destinationOptions = computed(() => {
   }
 
   const panamaSelectHelper = `async function selectImportRatesForSelectedPoe(query: BrowseImportRatesQuery) {
-  if (!isMultimodalViaPanama(selectedDestination.value)) {
+  if (!shouldBrowseAllPanamaRates()) {
     return PricingService.selectImportRates(query)
   }
 
-  // El POE sintético "Multimodal Via Panamá" representa todas las tarifas cuyo
-  // POE real contiene Panamá/Panama. El backend interpreta el prefijo contains:
-  // sin alterar el comportamiento exacto de los POE normales.
+  // Tanto el POE sintético "Multimodal Via Panamá" como una ruta Panamá -> Panamá
+  // deben consultar todas las tarifas importadas cuyo POE real pertenece a Panamá.
+  // Pricing resuelve country:PA sin alterar el comportamiento exacto de los POE normales.
   return PricingService.selectImportRates({
     ...query,
-    poe: 'contains:Panama|Panamá',
+    poe: 'country:PA',
   })
 }`
 
