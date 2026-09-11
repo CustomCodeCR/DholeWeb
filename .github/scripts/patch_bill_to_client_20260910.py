@@ -71,7 +71,7 @@ def patch_wizard() -> None:
     )
 
     old_group_header = """          <div v-for=\"group in orderedRateGroups\" :key=\"group.key\" class=\"space-y-2\">\n            <div class=\"crystal-group-header\">\n              <h3 class=\"text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]\">{{ group.label }}</h3>\n            </div>\n"""
-    new_group_header = """          <div v-for=\"group in orderedRateGroups\" :key=\"group.key\" class=\"space-y-2\">\n            <div class=\"crystal-group-header\">\n              <h3 class=\"text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]\">{{ group.label }}</h3>\n              <div class=\"flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end\">\n                <DhInput\n                  v-model=\"billToBatchByGroup[group.key]\"\n                  class=\"min-w-[240px]\"\n                  label=\"Facturar / cobrar a (bloque)\"\n                  placeholder=\"Ej. Cliente A\"\n                  maxlength=\"200\"\n                  autocomplete=\"off\"\n                />\n                <DhButton type=\"button\" variant=\"secondary\" size=\"sm\" @click=\"applyBillToBatch(group)\">\n                  Aplicar al bloque\n                </DhButton>\n              </div>\n            </div>\n"""
+    new_group_header = """          <div v-for=\"group in orderedRateGroups\" :key=\"group.key\" class=\"space-y-2\">\n            <div class=\"crystal-group-header\">\n              <h3 class=\"text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]\">{{ group.label }}</h3>\n              <div class=\"flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end\">\n                <DhInput\n                  :model-value=\"billToBatchByGroup[group.key] ?? ''\"\n                  class=\"min-w-[240px]\"\n                  label=\"Facturar / cobrar a (bloque)\"\n                  placeholder=\"Ej. Cliente A\"\n                  maxlength=\"200\"\n                  autocomplete=\"off\"\n                  @update:model-value=\"(value) => { billToBatchByGroup[group.key] = String(value ?? '') }\"\n                />\n                <DhButton type=\"button\" variant=\"secondary\" size=\"sm\" @click=\"applyBillToBatch(group)\">\n                  Aplicar al bloque\n                </DhButton>\n              </div>\n            </div>\n"""
     text = replace_once(text, old_group_header, new_group_header, "block billing header")
 
     text = replace_once(
@@ -88,7 +88,7 @@ def patch_wizard() -> None:
     )
 
     sale_input = '              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === \'AgentCharge\'" />\n'
-    sale_with_billing = sale_input + """              <DhInput\n                v-model=\"line.billToClient\"\n                maxlength=\"200\"\n                label=\"Facturar / cobrar a\"\n                placeholder=\"Cliente\"\n                autocomplete=\"off\"\n              />\n"""
+    sale_with_billing = sale_input + """              <DhInput\n                :model-value=\"line.billToClient ?? ''\"\n                maxlength=\"200\"\n                label=\"Facturar / cobrar a\"\n                placeholder=\"Cliente\"\n                autocomplete=\"off\"\n                @update:model-value=\"(value) => { line.billToClient = String(value ?? '') }\"\n              />\n"""
     text = replace_exact_count(text, sale_input, sale_with_billing, 2, "per-line billing inputs")
 
     text = replace_once(
@@ -125,7 +125,7 @@ def validate() -> None:
         "billToClient: detail.billToClient ?? null",
         "Facturar / cobrar a (bloque)",
         "Aplicar al bloque",
-        "v-model=\"line.billToClient\"",
+        ":model-value=\"line.billToClient ?? ''\"",
         "applyBillToBatch(group)",
     ]
     for needle in required:
