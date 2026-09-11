@@ -30,7 +30,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `async function loadCatalogs() {`,
-    `async function loadSalesExecutivesFromAuth(): Promise<CatalogItemSelectDto[]> {\n  try {\n    const sellers = await SellerVisibilityService.rateOptions()\n    return sellers\n      .map((seller) => {\n        const label = String(seller.displayName || seller.userName || seller.email || seller.userId).trim()\n        return {\n          id: seller.userId,\n          value: label,\n          label,\n          code: String(seller.userName || seller.email || seller.userId).trim(),\n          slug: seller.userId,\n          metadataJson: JSON.stringify({ source: 'AuthService', role: 'Vendedor' }),\n          isActive: true,\n        } satisfies CatalogItemSelectDto\n      })\n      .filter((seller) => seller.id && seller.label)\n  } catch (error) {\n    console.error('[Pricing] No se pudieron cargar los usuarios con rol Vendedor desde Auth.', error)\n    return []\n  }\n}\n\nfunction findSalesExecutiveByName(value?: string | null) {\n  const target = normalizeCatalogValue(String(value ?? ''))\n  if (!target) return null\n  return catalogs.salesExecutives.find((executive) => {\n    const label = normalizeCatalogValue(displayValue(executive) || executive.label)\n    const code = normalizeCatalogValue(executive.code || '')\n    return label === target\n      || code === target\n      || (label.length > 2 && target.startsWith(label + ' '))\n      || (code.length > 2 && target.includes(code))\n  }) ?? null\n}\n\nasync function loadCatalogs() {`,
+    `const DEFAULT_SALES_EXECUTIVE_ID = '__castro_fallas__'\nconst DEFAULT_SALES_EXECUTIVE_NAME = 'Castro Fallas'\n\nfunction defaultSalesExecutive(): CatalogItemSelectDto {\n  return {\n    id: DEFAULT_SALES_EXECUTIVE_ID,\n    value: DEFAULT_SALES_EXECUTIVE_NAME,\n    label: DEFAULT_SALES_EXECUTIVE_NAME,\n    code: 'CASTRO_FALLAS',\n    slug: 'castro-fallas',\n    metadataJson: JSON.stringify({ source: 'DholeWeb', role: 'Vendedor', isDefault: true }),\n    isActive: true,\n  } satisfies CatalogItemSelectDto\n}\n\nasync function loadSalesExecutivesFromAuth(): Promise<CatalogItemSelectDto[]> {\n  try {\n    const sellers = await SellerVisibilityService.rateOptions()\n    const authSellers = sellers\n      .map((seller) => {\n        const label = String(seller.displayName || seller.userName || seller.email || seller.userId).trim()\n        return {\n          id: seller.userId,\n          value: label,\n          label,\n          code: String(seller.userName || seller.email || seller.userId).trim(),\n          slug: seller.userId,\n          metadataJson: JSON.stringify({ source: 'AuthService', role: 'Vendedor' }),\n          isActive: true,\n        } satisfies CatalogItemSelectDto\n      })\n      .filter((seller) => seller.id && seller.label)\n      .filter((seller) => normalizeCatalogValue(displayValue(seller) || seller.label) !== normalizeCatalogValue(DEFAULT_SALES_EXECUTIVE_NAME))\n\n    return [defaultSalesExecutive(), ...authSellers]\n  } catch (error) {\n    console.error('[Pricing] No se pudieron cargar los usuarios con rol Vendedor desde Auth.', error)\n    return [defaultSalesExecutive()]\n  }\n}\n\nfunction findSalesExecutiveByName(value?: string | null) {\n  const target = normalizeCatalogValue(String(value ?? ''))\n  if (!target) return null\n  return catalogs.salesExecutives.find((executive) => {\n    const label = normalizeCatalogValue(displayValue(executive) || executive.label)\n    const code = normalizeCatalogValue(executive.code || '')\n    return label === target\n      || code === target\n      || (label.length > 2 && target.startsWith(label + ' '))\n      || (code.length > 2 && target.includes(code))\n  }) ?? null\n}\n\nasync function loadCatalogs() {`,
     'Auth Vendedor loader',
   )
 
@@ -39,6 +39,13 @@ function patchWizard(source: string) {
     `      selectOptional('pricing-sales-executives'),`,
     `      loadSalesExecutivesFromAuth(),`,
     'sales executive source',
+  )
+
+  code = replaceOne(
+    code,
+    `  executiveId: '',\n  executiveName: '',`,
+    `  executiveId: '__castro_fallas__',\n  executiveName: 'Castro Fallas',`,
+    'default Castro Fallas executive',
   )
 
   code = replacePattern(
@@ -105,7 +112,7 @@ function patchWizard(source: string) {
   }
   code = code.replaceAll(
     executiveNamePayload,
-    `${executiveNamePayload}\n      executiveUserId: form.executiveId || null,`,
+    `${executiveNamePayload}\n      executiveUserId: form.executiveId === DEFAULT_SALES_EXECUTIVE_ID ? null : (form.executiveId || null),`,
   )
 
   code = replaceOne(
