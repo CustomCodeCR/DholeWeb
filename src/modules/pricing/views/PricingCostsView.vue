@@ -404,7 +404,7 @@ onMounted(async () => {
                 <DhBadge
                   v-for="incoterm in displayCost(row).incoterms"
                   :key="incoterm.id"
-                  :label="incoterm.code || incoterm.name"
+                  :label="incoterm.name || incoterm.code"
                   variant="primary"
                 />
               </template>
