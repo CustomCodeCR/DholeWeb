@@ -63,19 +63,7 @@ const destinationOptions = computed(() => {
     code = code.replace(routeAnchor, routeReplacement)
   }
 
-  if (!code.includes('async function selectImportRatesForSelectedPoe(')) {
-    // Redirect every normal rate lookup through the Panama-aware helper. The helper
-    // falls through unchanged for every normal POE and every non-FCL flow.
-    code = code.split('PricingService.selectImportRates(query)').join('selectImportRatesForSelectedPoe(query)')
-
-    const selectedDestinationAnchor = `const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))`
-    if (!code.includes(selectedDestinationAnchor)) {
-      throw new Error('[pricingWizardMaritimePanamaFix] Selected destination anchor not found.')
-    }
-
-    const helper = `${selectedDestinationAnchor}
-
-async function selectImportRatesForSelectedPoe(query: BrowseImportRatesQuery) {
+  const panamaSelectHelper = `async function selectImportRatesForSelectedPoe(query: BrowseImportRatesQuery) {
   if (!isMultimodalViaPanama(selectedDestination.value)) {
     return PricingService.selectImportRates(query)
   }
@@ -89,7 +77,25 @@ async function selectImportRatesForSelectedPoe(query: BrowseImportRatesQuery) {
   })
 }`
 
-    code = code.replace(selectedDestinationAnchor, helper)
+  if (code.includes('async function selectImportRatesForSelectedPoe(')) {
+    code = code.replace(
+      /async function selectImportRatesForSelectedPoe\(query: BrowseImportRatesQuery\) \{[\s\S]*?\n\}/,
+      panamaSelectHelper,
+    )
+  } else {
+    // Redirect every normal rate lookup through the Panama-aware helper. The helper
+    // falls through unchanged for every normal POE and every non-FCL flow.
+    code = code.split('PricingService.selectImportRates(query)').join('selectImportRatesForSelectedPoe(query)')
+
+    const selectedDestinationAnchor = `const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))`
+    if (!code.includes(selectedDestinationAnchor)) {
+      throw new Error('[pricingWizardMaritimePanamaFix] Selected destination anchor not found.')
+    }
+
+    code = code.replace(
+      selectedDestinationAnchor,
+      `${selectedDestinationAnchor}\n\n${panamaSelectHelper}`,
+    )
   }
 
   // ALL IN is a commercial presentation option exclusive to the synthetic
