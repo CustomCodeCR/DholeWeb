@@ -28,6 +28,27 @@ function patchWizard(source: string) {
 
   code = replaceRequired(
     code,
+    `<div class="crystal-validity-range">\n          <span>Vigencia</span>\n          <strong>{{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}</strong>\n        </div>`,
+    `<div class="crystal-validity-range">\n          <span>Vigencia de la tarifa</span>\n          <strong>{{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}</strong>\n        </div>`,
+    'single-rate validity label',
+  )
+
+  code = replaceRequired(
+    code,
+    `<p v-if="rate.spaceComment" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-left text-xs font-semibold text-[var(--dh-text-muted)]">\n                  Comentario: {{ rate.spaceComment }}\n                </p>`,
+    `<div class="mt-3 rounded-xl border border-[var(--dh-border)] bg-black/[0.025] px-3 py-2 text-left text-xs text-[var(--dh-text-muted)] dark:bg-white/[0.04]">\n                  <strong class="block font-black text-[var(--dh-text)]">Comentarios de la tarifa</strong>\n                  <span class="mt-1 block whitespace-pre-line font-semibold">{{ rate.spaceComment || 'Sin comentarios registrados' }}</span>\n                </div>`,
+    'single-rate comments',
+  )
+
+  code = replaceRequired(
+    code,
+    `<strong class="block font-black">Condiciones / observaciones</strong>`,
+    `<strong class="block font-black">Comentarios de la tarifa</strong>`,
+    'FCL line comments label',
+  )
+
+  code = replaceRequired(
+    code,
     `<strong class="text-sm text-[var(--dh-primary)]">{{ formatMoney(line.totalCost, bundle.currency) }}</strong>`,
     `<div class="flex shrink-0 flex-col items-end gap-2">\n                        <DhBadge :variant="fclDaysUntilExpiry(line.rate.validTo) <= 3 ? 'danger' : fclDaysUntilExpiry(line.rate.validTo) <= 7 ? 'warning' : 'success'">{{ fclExpiryLabel(line.rate.validTo) }}</DhBadge>\n                        <strong class="text-sm text-[var(--dh-primary)]">{{ formatMoney(line.totalCost, bundle.currency) }}</strong>\n                      </div>`,
     'per-line FCL expiry chip',
@@ -42,9 +63,16 @@ function patchWizard(source: string) {
 
   code = replaceRequired(
     code,
+    `<span class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Vencimiento más próximo</span>`,
+    `<span class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Vigencia de la tarifa</span>`,
+    'bundle validity label',
+  )
+
+  code = replaceRequired(
+    code,
     `<strong class="mt-1 block text-sm">{{ formatDate(bundle.validTo) }} · {{ fclExpiryLabel(bundle.validTo) }}</strong>`,
-    `<strong class="mt-1 block text-sm">{{ formatDate(bundle.validTo) }}</strong>`,
-    'remove duplicated bundle expiry text',
+    `<strong class="mt-1 block text-sm">{{ formatDate(bundle.validFrom) }} – {{ formatDate(bundle.validTo) }}</strong>`,
+    'bundle validity range',
   )
 
   code = replaceRequired(
