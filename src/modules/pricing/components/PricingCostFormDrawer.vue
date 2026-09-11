@@ -95,6 +95,9 @@ const form = reactive({
 })
 
 const isAgentCost = computed(() => form.associationType === 'Agent')
+const isAgentSaleDisabled = computed(
+  () => isAgentCost.value && form.costDetailType !== 'OriginCharge',
+)
 const isCarrierCost = computed(() => form.associationType === 'Carrier')
 const isEquipmentBasis = computed(
   () => form.chargeBasis === 'PerContainer' || form.chargeBasis === 'PerTruck',
@@ -199,8 +202,10 @@ watch(
   (associationType) => {
     if (associationType === 'Agent') {
       form.carrierId = ''
-      form.costDetailType = 'AgentCharge'
-      form.saleAmount = '0'
+      if (form.costDetailType !== 'OriginCharge') {
+        form.costDetailType = 'AgentCharge'
+        form.saleAmount = '0'
+      }
       return
     }
 
@@ -209,6 +214,10 @@ watch(
     if (form.costDetailType === 'AgentCharge') form.costDetailType = 'DestinationCharge'
   },
 )
+
+watch(isAgentSaleDisabled, (disabled) => {
+  if (disabled) form.saleAmount = '0'
+})
 
 watch(
   () => [form.costDetailType, form.shipmentMode] as const,
@@ -333,7 +342,7 @@ async function submit() {
     currencyName: currency.name,
     currencyCode: currency.code,
     costAmount: Number(form.costAmount),
-    saleAmount: isAgentCost.value ? 0 : Number(form.saleAmount),
+    saleAmount: isAgentSaleDisabled.value ? 0 : Number(form.saleAmount),
     notes: form.notes.trim() || null,
     isAccountant: isEquipmentBasis.value,
     incoterms,
@@ -547,7 +556,7 @@ onMounted(catalogs.loadAll)
           type="number"
           label="Venta por unidad"
           placeholder="0.00"
-          :disabled="isAgentCost"
+          :disabled="isAgentSaleDisabled"
           :error="
             form.submitted && Number(form.saleAmount) < 0
               ? 'La venta no puede ser negativa.'
@@ -608,8 +617,8 @@ onMounted(catalogs.loadAll)
           Los mínimos se aplican al total del rubro después de calcular su cantidad cobrable.
         </p>
       </div>
-      <p v-if="isAgentCost" class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-        Los costos asociados a un agente no generan venta; el sistema fija la venta en cero.
+      <p v-if="isAgentSaleDisabled" class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+        Los costos asociados a un agente no generan venta, excepto los cargos en origen.
       </p>
       <div class="mt-4">
         <DhTextarea
