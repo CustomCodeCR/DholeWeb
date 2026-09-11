@@ -367,11 +367,11 @@ body,
   }
 }
 
-/* Touch-first devices, including tablets. */
+/* Touch-first devices, including tablets. Keep compact form controls compact. */
 @media (pointer: coarse) {
   #app button,
   #app [role='button'],
-  #app input,
+  #app input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='hidden']),
   #app select {
     min-height: var(--dh-touch-target);
   }
