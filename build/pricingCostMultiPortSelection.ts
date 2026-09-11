@@ -106,32 +106,22 @@ function patchCostForm(source: string) {
   if (scopeIncludes('Pod') && form.podIds.length === 0) return false`
   code = replaceOne(code, validationAnchor, validationReplacement, 'route validation')
 
-  const partyWatchAnchor = `    if (associationType === 'Agent') {
-      form.carrierId = ''
-      form.costDetailType = 'AgentCharge'
-      form.saleAmount = '0'
-      return
-    }
-
-    form.agentId = ''
-    if (associationType === 'None') form.carrierId = ''
-    if (form.costDetailType === 'AgentCharge') form.costDetailType = 'DestinationCharge'`
-  const partyWatchReplacement = `    if (associationType === 'Agent') {
-      form.carrierId = ''
+  const agentWatchAnchor = `      form.carrierId = ''
+      if (form.costDetailType !== 'OriginCharge') {`
+  const agentWatchReplacement = `      form.carrierId = ''
       form.carrierIds = []
-      form.costDetailType = 'AgentCharge'
-      form.saleAmount = '0'
-      return
-    }
+      if (form.costDetailType !== 'OriginCharge') {`
+  code = replaceOne(code, agentWatchAnchor, agentWatchReplacement, 'agent party watcher')
 
-    form.agentId = ''
+  const partyClearAnchor = `    form.agentId = ''
+    if (associationType === 'None') form.carrierId = ''`
+  const partyClearReplacement = `    form.agentId = ''
     form.agentIds = []
     if (associationType === 'None') {
       form.carrierId = ''
       form.carrierIds = []
-    }
-    if (form.costDetailType === 'AgentCharge') form.costDetailType = 'DestinationCharge'`
-  code = replaceOne(code, partyWatchAnchor, partyWatchReplacement, 'party type watcher')
+    }`
+  code = replaceOne(code, partyClearAnchor, partyClearReplacement, 'party type watcher cleanup')
 
   const watchAnchor = `    if (scope !== 'Any') form.portId = ''
     if (!scope.includes('Pol')) form.polId = ''
