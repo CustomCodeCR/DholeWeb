@@ -1,0 +1,91 @@
+name: Fix visible billing UI master
+on:
+  push:
+    branches: [codex/fix-billing-ui-visible-master-20260911]
+permissions:
+  contents: write
+jobs:
+  patch-and-validate:
+    runs-on: [self-hosted, linux, x64, dhole]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/fix-billing-ui-visible-master-20260911
+          fetch-depth: 0
+      - name: Make billing assignment unmistakably visible
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+          text = path.read_text()
+
+          description = '<p class="crystal-description">Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.</p>'
+          notice = description + '\n              <p class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] px-3 py-2 text-xs font-semibold text-[var(--dh-text)]">Facturación por cliente: puede escribir el cliente en cada ítem o asignarlo de una vez a todo un bloque.</p>'
+          if description not in text:
+              raise SystemExit('No se encontró la descripción de Pantalla 7')
+          text = text.replace(description, notice, 1)
+
+          header_old = '<div class="crystal-group-header">\n              <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>\n              <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">'
+          header_new = '<div class="crystal-group-header">\n              <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>\n              <div class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">'
+          if header_old not in text:
+              raise SystemExit('No se encontró el encabezado de bloque de Pantalla 7')
+          text = text.replace(header_old, header_new, 1)
+
+          if 'label="Facturar / cobrar a (bloque)"' not in text:
+              raise SystemExit('No se encontró el campo batch de facturación')
+          text = text.replace('label="Facturar / cobrar a (bloque)"', 'label="Facturar / cobrar todo el bloque a"', 1)
+          text = text.replace('placeholder="Ej. Cliente A"', 'placeholder="Escriba el cliente"', 1)
+          text = text.replace('Aplicar al bloque', 'Aplicar cliente al bloque', 1)
+
+          line_label_count = text.count('label="Facturar / cobrar a"')
+          if line_label_count < 2:
+              raise SystemExit(f'Se esperaban al menos 2 campos por ítem y se encontraron {line_label_count}')
+          text = text.replace('label="Facturar / cobrar a"', 'label="Cliente a facturar"')
+          text = text.replace('placeholder="Cliente"', 'placeholder="Escriba cliente"')
+
+          text, class_count = re.subn(
+              r'(:model-value="line\.billToClient \?\? \'\'"\n)(\s*)(maxlength="200")',
+              r'\1\2class="min-w-[220px]"\n\2\3',
+              text,
+          )
+          if class_count < 2:
+              raise SystemExit(f'No se pudieron resaltar los campos por ítem: {class_count}')
+
+          path.write_text(text)
+          PY
+
+          grep -n -F 'Facturación por cliente:' src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          grep -n -F 'Facturar / cobrar todo el bloque a' src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          grep -n -F 'Aplicar cliente al bloque' src/modules/pricing/components/PricingAlternativeWizardCrystal.vue
+          test "$(grep -c -F 'label="Cliente a facturar"' src/modules/pricing/components/PricingAlternativeWizardCrystal.vue)" -ge 2
+      - name: Build production image
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="dhole/web:billing-ui-fix-${GITHUB_RUN_ID}"
+          docker build --pull -f Dockerfile \
+            --build-arg VITE_API_URL='https://api.logisticacastrofallas.com' \
+            --build-arg VITE_APP_NAME='Dhole System' \
+            --build-arg VITE_FRONTEND_DOMAIN='sistema.logisticacastrofallas.com' \
+            -t "$IMAGE" .
+          docker run --rm --entrypoint sh "$IMAGE" -ec '
+            grep -R -q "Facturación por cliente" /usr/share/nginx/html/assets/*.js
+            grep -R -q "Facturar / cobrar todo el bloque a" /usr/share/nginx/html/assets/*.js
+            grep -R -q "Aplicar cliente al bloque" /usr/share/nginx/html/assets/*.js
+            grep -R -q "Cliente a facturar" /usr/share/nginx/html/assets/*.js
+          '
+          docker image rm "$IMAGE" >/dev/null || true
+      - name: Commit validated UI fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fix-billing-ui-visible-master-20260911.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(pricing): make billing client controls visible'
+          git push origin HEAD:codex/fix-billing-ui-visible-master-20260911
