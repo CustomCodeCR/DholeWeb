@@ -404,7 +404,31 @@ export const PricingService = {
 
   async getRate(rateId: string): Promise<RateDto> {
     const response = await callEndpoint<unknown>(Endpoints.getRateById, { params: { rateId } })
-    return unwrapApiResponse<RateDto>(response as never)
+    const rate = unwrapApiResponse<RateDto>(response as never)
+    const applied = Number(rate.exchangeRateApplied ?? 0)
+    const purchase = Number(rate.exchangeRatePurchase ?? applied)
+    const sale = Number(rate.exchangeRateSale ?? applied)
+
+    if (purchase > 0 && sale > 0) return rate
+
+    try {
+      const snapshot = await this.getUsdCrcExchangeRate()
+      const fallbackPurchase = purchase > 0 ? purchase : Number(snapshot.purchase ?? 0)
+      const fallbackSale = sale > 0 ? sale : Number(snapshot.sale ?? 0)
+
+      if (fallbackPurchase <= 0 || fallbackSale <= 0) return rate
+
+      return {
+        ...rate,
+        exchangeRatePurchase: fallbackPurchase,
+        exchangeRateSale: fallbackSale,
+        exchangeRateApplied: applied > 0 ? applied : fallbackSale,
+        exchangeRateDate: rate.exchangeRateDate || snapshot.rateDate || null,
+        exchangeRateSource: rate.exchangeRateSource || snapshot.source || null,
+      }
+    } catch {
+      return rate
+    }
   },
 
   async generateRateDocument(
