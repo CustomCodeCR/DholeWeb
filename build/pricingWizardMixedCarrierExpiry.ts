@@ -220,8 +220,8 @@ const visibleFclRateBundles = computed(() =>
   code = replaceRequired(
     code,
     `<strong class="block text-sm">{{ line.quantity }} × {{ line.containerTypeName }}</strong>\n                        <span class="mt-0.5 block text-[11px] font-semibold text-[var(--dh-text-muted)]">\n                          Unitario: {{ formatMoney(line.unitCost, bundle.currency) }} / contenedor\n                        </span>`,
-    `<strong class="block text-sm">{{ line.quantity }} × {{ line.containerTypeName }}</strong>\n                        <span class="mt-0.5 block text-[11px] font-black text-[var(--dh-text-muted)]">{{ line.rate.carrier || 'Naviera' }}</span>\n                        <span class="mt-0.5 block text-[11px] font-semibold text-[var(--dh-text-muted)]">\n                          Unitario: {{ formatMoney(line.unitCost, bundle.currency) }} / contenedor\n                        </span>`,
-    'carrier per FCL line',
+    `<strong class="block text-sm">{{ line.quantity }} × {{ line.containerTypeName }}</strong>\n                        <span class="mt-0.5 block text-[11px] font-black text-[var(--dh-text-muted)]">{{ line.rate.carrier || 'Naviera' }}</span>\n                        <span class="mt-0.5 block text-[11px] font-semibold text-[var(--dh-text-muted)]">POE tarifa: {{ line.rate.poe || '—' }}</span>\n                        <p class="mt-1.5 rounded-lg border border-[var(--dh-border)] bg-black/[0.025] px-2.5 py-1.5 text-[11px] font-semibold leading-relaxed text-[var(--dh-text-soft)] dark:bg-white/[0.04]"><strong>Comentario:</strong> {{ line.rate.spaceComment || 'Sin comentarios' }}</p>\n                        <span class="mt-0.5 block text-[11px] font-semibold text-[var(--dh-text-muted)]">\n                          Unitario: {{ formatMoney(line.unitCost, bundle.currency) }} / contenedor\n                        </span>`,
+    'carrier, POE and comment per FCL line',
   )
 
   code = replaceRequired(
