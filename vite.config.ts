@@ -42,6 +42,7 @@ import { pricingCostMultiPortSelection } from './build/pricingCostMultiPortSelec
 import { pricingCostSelectedPartyContext } from './build/pricingCostSelectedPartyContext'
 import { pricingWizardMixedCarrierExpiry } from './build/pricingWizardMixedCarrierExpiry'
 import { pricingWizardFclExpiryChip } from './build/pricingWizardFclExpiryChip'
+import { pricingWizardManualOceanFreight } from './build/pricingWizardManualOceanFreight'
 import { pricingWizardMaritimePanamaFix } from './build/pricingWizardMaritimePanamaFix'
 import { pricingWizardRouteTerminalTypes } from './build/pricingWizardRouteTerminalTypes'
 import { pricingWizardLandPolish } from './build/pricingWizardLandPolish'
@@ -95,6 +96,7 @@ export default defineConfig({
     pricingCostSelectedPartyContext(),
     pricingWizardMixedCarrierExpiry(),
     pricingWizardFclExpiryChip(),
+    pricingWizardManualOceanFreight(),
     pricingWizardMaritimePanamaFix(),
     pricingWizardRouteTerminalTypes(),
     pricingWizardLandPolish(),
