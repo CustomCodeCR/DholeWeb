@@ -61,20 +61,6 @@ function patchWizard(source: string) {
     'screen 5 carrier filter',
   )
 
-  code = replaceOne(
-    code,
-    `<span>Vigencia</span>`,
-    `<span>Vigencia de la tarifa</span>`,
-    'screen 5 tariff validity label',
-  )
-
-  code = replaceOne(
-    code,
-    `                <p v-if="rate.spaceComment" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-left text-xs font-semibold text-[var(--dh-text-muted)]">\n                  Comentario: {{ rate.spaceComment }}\n                </p>`,
-    `                <div class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 text-left">\n                  <span class="block text-[10px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Comentarios de la tarifa</span>\n                  <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">\n                    {{ rate.spaceComment || 'Sin comentarios registrados.' }}\n                  </p>\n                </div>`,
-    'screen 5 tariff comments',
-  )
-
   return code
 }
 
