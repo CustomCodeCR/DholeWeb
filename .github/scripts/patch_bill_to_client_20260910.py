@@ -98,12 +98,8 @@ def patch_wizard() -> None:
         "freight billing grid",
     )
 
-    text = replace_once(
-        text,
-        '<table class="min-w-[1180px] w-full text-left text-xs">',
-        '<table class="min-w-[1320px] w-full text-left text-xs">',
-        "summary table width",
-    )
+    # Keep the existing 1180px table anchor intact because a Vite pre-transform
+    # uses that exact anchor to add the responsive Screen 9 mobile cards.
     text = replace_once(
         text,
         '<tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta subtotal</th><th class="px-4 py-3 text-right">IVA</th><th class="px-4 py-3 text-right">Venta total</th></tr>',
