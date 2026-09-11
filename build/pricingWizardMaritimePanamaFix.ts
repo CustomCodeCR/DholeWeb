@@ -80,20 +80,13 @@ async function selectImportRatesForSelectedPoe(query: BrowseImportRatesQuery) {
     return PricingService.selectImportRates(query)
   }
 
-  if (!panamaPoeItems.value.length) {
-    toastStore.warning('POE Panamá no configurados', 'Multimodal Via Panamá requiere al menos un POE real de Panamá en Config.')
-    return [] as ImportRateSelectDto[]
-  }
-
-  const results = await Promise.all(
-    panamaPoeItems.value.map((poe) => PricingService.selectImportRates({
-      ...query,
-      poe: catalogSearchText(poe),
-    })),
-  )
-  const unique = new Map<string, ImportRateSelectDto>()
-  results.flat().forEach((rate) => unique.set(rate.id, rate))
-  return [...unique.values()]
+  // El POE sintético "Multimodal Via Panamá" representa todas las tarifas cuyo
+  // POE real contiene Panamá/Panama. El backend interpreta el prefijo contains:
+  // sin alterar el comportamiento exacto de los POE normales.
+  return PricingService.selectImportRates({
+    ...query,
+    poe: 'contains:Panama|Panamá',
+  })
 }`
 
     code = code.replace(selectedDestinationAnchor, helper)
