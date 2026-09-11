@@ -111,11 +111,10 @@ const destinationOptions = computed(() => {
   }
 
   // Tanto el POE sintético "Multimodal Via Panamá" como una ruta Panamá -> Panamá
-  // deben consultar todas las tarifas importadas cuyo POE real pertenece a Panamá.
-  // Pricing resuelve country:PA sin alterar el comportamiento exacto de los POE normales.
+  // reutilizan el selector histórico de Panamá para no alterar el resto del flujo FCL.
   return PricingService.selectImportRates({
     ...query,
-    poe: 'country:PA',
+    poe: 'contains:Panama|Panamá',
   })
 }`
 
