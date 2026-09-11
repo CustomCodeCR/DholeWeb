@@ -1,8 +1,10 @@
-/* Dhole device-wide responsive polish: phone, tablet, laptop, desktop and safe areas. */
+/* Dhole device-wide responsive polish: phones, tablets, laptops, desktops and large displays. */
 :root {
-  --dh-fluid-gutter: clamp(0.75rem, 1.8vw, 1.6rem);
-  --dh-fluid-gap: clamp(0.65rem, 1.4vw, 1.25rem);
-  --dh-fluid-radius: clamp(0.9rem, 1.8vw, 1.5rem);
+  --dh-fluid-gutter: clamp(0.75rem, 1.5vw, 1.75rem);
+  --dh-fluid-gap: clamp(0.65rem, 1.25vw, 1.25rem);
+  --dh-fluid-radius: clamp(0.9rem, 1.4vw, 1.5rem);
+  --dh-touch-target: 2.75rem;
+  --dh-wide-content: 2200px;
 }
 
 html,
@@ -14,24 +16,57 @@ body,
   overflow-x: clip;
 }
 
-* {
+#app,
+#app * {
   min-width: 0;
 }
 
-img,
-video,
-canvas,
-svg {
+#app img,
+#app video,
+#app canvas,
+#app svg,
+#app iframe {
   max-width: 100%;
 }
 
-input,
-select,
-textarea,
-button {
+#app input,
+#app select,
+#app textarea,
+#app button {
   max-width: 100%;
 }
 
+#app main,
+#app [role='main'],
+#app section,
+#app article,
+#app form {
+  min-inline-size: 0;
+}
+
+#app [role='dialog'] {
+  max-width: min(calc(100vw - 1rem), 96rem);
+  max-height: min(calc(100dvh - 1rem), 96dvh);
+}
+
+#app .dh-responsive-tabs,
+#app [role='tablist'] {
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+#app .overflow-x-auto,
+#app [role='table'],
+#app table {
+  scrollbar-width: thin;
+  overscroll-behavior-inline: contain;
+}
+
+#app table {
+  max-width: 100%;
+}
+
+/* Pricing wizard: preserve the operational layout while allowing every panel to shrink safely. */
 .pricing-crystal-shell,
 .pricing-crystal-shell > *,
 .crystal-panel,
@@ -45,7 +80,7 @@ button {
 
 .pricing-crystal-shell {
   width: 100%;
-  padding-inline: max(var(--dh-fluid-gutter), env(safe-area-inset-left));
+  padding-left: max(var(--dh-fluid-gutter), env(safe-area-inset-left));
   padding-right: max(var(--dh-fluid-gutter), env(safe-area-inset-right));
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
@@ -65,16 +100,55 @@ button {
   gap: var(--dh-fluid-gap);
 }
 
-.overflow-x-auto,
-[role='table'],
-table {
-  scrollbar-width: thin;
-  overscroll-behavior-inline: contain;
-}
+/* Phones: keep controls touchable, prevent toolbar overflow and use safe-area gutters. */
+@media (max-width: 639px) {
+  :root {
+    --dh-fluid-gutter: 0.65rem;
+    --dh-fluid-gap: 0.65rem;
+  }
 
-@media (max-width: 767px) {
+  #app > * {
+    max-width: 100vw;
+  }
+
+  #app header.sticky {
+    margin-left: max(0.5rem, env(safe-area-inset-left)) !important;
+    margin-right: max(0.5rem, env(safe-area-inset-right)) !important;
+    gap: 0.375rem;
+  }
+
+  #app header.sticky > button,
+  #app header.sticky .ml-auto > * {
+    flex-shrink: 0;
+  }
+
+  #app header.sticky > button.group {
+    flex: 1 1 auto;
+    min-width: 2.75rem;
+    padding-inline: 0.625rem;
+  }
+
+  #app .dh-page-header-actions,
+  #app .dh-page-header-actions > * {
+    min-width: 0;
+  }
+
+  #app .dh-page-header-actions > button,
+  #app .dh-page-header-actions > a {
+    flex: 1 1 9rem;
+    justify-content: center;
+  }
+
+  #app [role='tablist'] {
+    scroll-padding-inline: 0.5rem;
+  }
+
+  #app table {
+    font-size: 0.8125rem;
+  }
+
   .pricing-crystal-shell {
-    padding-inline: max(0.65rem, env(safe-area-inset-left));
+    padding-left: max(0.65rem, env(safe-area-inset-left));
     padding-right: max(0.65rem, env(safe-area-inset-right));
   }
 
@@ -125,7 +199,7 @@ table {
   .pricing-crystal-shell input,
   .pricing-crystal-shell select,
   .pricing-crystal-shell textarea {
-    min-height: 2.75rem;
+    min-height: var(--dh-touch-target);
   }
 
   .pricing-crystal-shell .grid[class*='grid-cols-'][class*='md:grid-cols'],
@@ -135,7 +209,7 @@ table {
   }
 
   .pricing-crystal-shell .overflow-x-auto {
-    width: calc(100vw - 2.3rem);
+    width: 100%;
     max-width: 100%;
     border-radius: 0.9rem;
   }
@@ -155,11 +229,23 @@ table {
   }
 }
 
+/* Very small phones. */
 @media (max-width: 390px) {
-  :root { --dh-fluid-gutter: 0.55rem; }
+  :root {
+    --dh-fluid-gutter: 0.5rem;
+  }
+
+  #app header.sticky {
+    border-radius: 1.25rem;
+    padding-inline: 0.375rem;
+  }
+
+  #app header.sticky > button.group {
+    padding-inline: 0.5rem;
+  }
 
   .pricing-crystal-shell {
-    padding-inline: max(0.5rem, env(safe-area-inset-left));
+    padding-left: max(0.5rem, env(safe-area-inset-left));
     padding-right: max(0.5rem, env(safe-area-inset-right));
   }
 
@@ -180,24 +266,100 @@ table {
   }
 }
 
-@media (min-width: 768px) and (max-width: 1199px) {
+/* Tablets: sidebar remains a drawer; content gets enough breathing room in portrait/landscape. */
+@media (min-width: 640px) and (max-width: 1023px) {
+  :root {
+    --dh-fluid-gutter: clamp(0.9rem, 2vw, 1.25rem);
+  }
+
+  #app main {
+    padding-inline: var(--dh-fluid-gutter);
+  }
+
+  #app [role='dialog'] {
+    max-width: min(calc(100vw - 2rem), 56rem);
+  }
+
   .pricing-crystal-shell {
-    padding-inline: clamp(1rem, 2vw, 1.5rem);
+    padding-inline: clamp(0.9rem, 2vw, 1.35rem);
   }
 
   .crystal-panel {
-    padding: clamp(1.1rem, 2.2vw, 1.6rem) !important;
-  }
-
-  .pricing-crystal-shell .crystal-stepbar {
-    gap: 0.45rem !important;
+    padding: clamp(1rem, 2vw, 1.4rem) !important;
   }
 }
 
-@media (min-width: 1536px) {
+/* Compact laptops: reduce the persistent sidebar footprint instead of squeezing business screens. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  #app aside.fixed.lg\:w-72 {
+    width: 15rem !important;
+  }
+
+  #app aside.fixed.lg\:w-20 {
+    width: 5rem !important;
+  }
+
+  #app aside.fixed.lg\:w-72 ~ div.lg\:pl-80 {
+    padding-left: 16.5rem !important;
+  }
+
+  #app aside.fixed.lg\:w-20 ~ div.lg\:pl-28 {
+    padding-left: 6.5rem !important;
+  }
+
+  #app header.sticky {
+    gap: 0.5rem;
+  }
+
+  #app header.sticky button.group {
+    max-width: 22rem;
+  }
+
+  #app main {
+    padding: 0.875rem;
+  }
+
+  .pricing-crystal-shell {
+    padding-inline: 1rem;
+  }
+
+  .crystal-panel {
+    padding: 1.15rem !important;
+  }
+
+  .pricing-crystal-shell .crystal-stepbar {
+    gap: 0.4rem !important;
+  }
+}
+
+/* Standard laptops and desktop monitors. */
+@media (min-width: 1280px) and (max-width: 1919px) {
+  #app main {
+    padding-inline: clamp(1rem, 1.4vw, 1.5rem);
+  }
+
+  .pricing-crystal-shell {
+    padding-inline: clamp(1rem, 1.5vw, 1.6rem);
+  }
+}
+
+/* Flat panels / ultrawide / 2K-4K: stop operational screens from stretching endlessly. */
+@media (min-width: 1920px) {
+  #app aside.fixed ~ div > header.sticky,
+  #app aside.fixed ~ div > [role='tablist'],
+  #app aside.fixed ~ div > main {
+    width: min(calc(100% - 2rem), var(--dh-wide-content));
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  #app aside.fixed ~ div > main {
+    padding-inline: clamp(1.25rem, 1.5vw, 2rem);
+  }
+
   .pricing-crystal-shell {
     margin-inline: auto;
-    max-width: 1920px;
+    max-width: var(--dh-wide-content);
   }
 
   .crystal-panel {
@@ -205,12 +367,39 @@ table {
   }
 }
 
+/* Touch-first devices, including tablets. */
+@media (pointer: coarse) {
+  #app button,
+  #app [role='button'],
+  #app input,
+  #app select {
+    min-height: var(--dh-touch-target);
+  }
+}
+
+/* Short landscape screens (phones/tablets mounted horizontally). */
 @media (orientation: landscape) and (max-height: 560px) {
+  #app header.sticky {
+    position: relative;
+    top: 0;
+  }
+
   .pricing-crystal-shell .crystal-lines-header {
     top: 3.8rem;
   }
 
   .pricing-crystal-shell .crystal-stepbar {
     position: relative;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app *,
+  #app *::before,
+  #app *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
