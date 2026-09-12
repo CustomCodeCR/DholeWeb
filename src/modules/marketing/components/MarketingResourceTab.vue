@@ -4,23 +4,7 @@ import { RefreshCw, Search } from 'lucide-vue-next'
 import { ContentService } from '@/core/services/contentService'
 import { MarketingService } from '@/core/services/marketingService'
 import { useToastStore } from '@/core/stores/toastStore'
-
-export type MarketingResourceKind =
-  | 'placements'
-  | 'collections'
-  | 'redirects'
-  | 'forms'
-  | 'submissions'
-  | 'leads'
-  | 'meeting-types'
-  | 'meeting-requests'
-  | 'meeting-agenda'
-  | 'campaigns'
-  | 'sites'
-  | 'content-calendar'
-  | 'content-pending'
-  | 'content-scheduled'
-  | 'content-history'
+import type { MarketingResourceKind } from '@/core/interfaces/marketing'
 
 interface ResourceRow {
   id: string

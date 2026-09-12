@@ -1,3 +1,20 @@
+export type MarketingResourceKind =
+  | 'placements'
+  | 'collections'
+  | 'redirects'
+  | 'forms'
+  | 'submissions'
+  | 'leads'
+  | 'meeting-types'
+  | 'meeting-requests'
+  | 'meeting-agenda'
+  | 'campaigns'
+  | 'sites'
+  | 'content-calendar'
+  | 'content-pending'
+  | 'content-scheduled'
+  | 'content-history'
+
 export interface MarketingFormDto {
   id: string
   siteKey: string
