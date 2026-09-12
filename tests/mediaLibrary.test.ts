@@ -14,11 +14,11 @@ test('classifies supported marketing media', () => {
   assert.equal(mediaKind('application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'brief.docx'), 'document')
 })
 
-test('builds server filters for image video and pdf', () => {
+test('builds server filters for marketing media kinds', () => {
   assert.equal(mediaContentTypeFilter('image'), 'image/')
   assert.equal(mediaContentTypeFilter('video'), 'video/')
   assert.equal(mediaContentTypeFilter('pdf'), 'application/pdf')
-  assert.equal(mediaContentTypeFilter('document'), undefined)
+  assert.equal(mediaContentTypeFilter('document'), 'document')
   assert.equal(mediaContentTypeFilter('all'), undefined)
 })
 
