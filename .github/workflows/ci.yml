@@ -21,5 +21,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: SEO tests
         run: pnpm run test:seo
+      - name: Redirect tests
+        run: pnpm run test:redirects
       - name: Type-check and build
         run: pnpm run build
