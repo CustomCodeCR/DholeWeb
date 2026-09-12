@@ -91,7 +91,7 @@ async function loadStoredPreview(item: MediaDto) {
   previewLoading.value = true
   try {
     const response = await downloadFile(
-      `/api/v1/storage/files/${item.storageFileId}/content`,
+      `/api/content/media/${item.id}/content`,
       item.fileName,
     )
     previewUrl.value = URL.createObjectURL(response.blob)
