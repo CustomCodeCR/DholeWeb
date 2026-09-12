@@ -22,13 +22,16 @@ import { CONTENT_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { ContentService } from '@/core/services/contentService'
+import { buildSeoPreview, validateSeoInput } from '@/core/seo/seoPreview'
 import type {
   ContentItemDto,
   ContentItemListDto,
   ContentType,
   EditorContentRequest,
   MediaDto,
+  SeoPreviewDto,
   TaxonomyTermDto,
+  UpdateSeoRequest,
 } from '@/core/interfaces/content'
 
 const props = withDefaults(defineProps<{
@@ -59,6 +62,7 @@ const media = ref<MediaDto[]>([])
 const taxonomies = ref<TaxonomyTermDto[]>([])
 const selectedCategoryIds = ref<string[]>([])
 const scheduleAt = ref('')
+const serverSeoPreview = ref<SeoPreviewDto | null>(null)
 
 const statuses = [
   { value: '', label: 'Todos los estados' },
@@ -80,7 +84,9 @@ const form = reactive({
   seoDescription: '',
   seoKeywords: '',
   seoCanonicalUrl: '',
+  seoRobots: 'index,follow',
   seoOpenGraphMediaId: '',
+  seoStructuredDataJson: '',
 })
 
 const canCreate = computed(() => authStore.hasScope(CONTENT_SCOPES.create))
@@ -100,6 +106,20 @@ const canEditThisType = computed(() => {
 const canSave = computed(() => selected.value ? canEditThisType.value : canCreate.value)
 const categories = computed(() => taxonomies.value.filter((item) => item.kind.toLowerCase() === 'category'))
 const tags = computed(() => taxonomies.value.filter((item) => item.kind.toLowerCase() === 'tag'))
+const seoPreview = computed(() => buildSeoPreview({
+  title: form.title,
+  slug: form.slug,
+  excerpt: form.excerpt,
+  seoTitle: form.seoTitle,
+  seoDescription: form.seoDescription,
+  canonicalUrl: form.seoCanonicalUrl,
+  fallbackUrl: serverSeoPreview.value?.google.url,
+}))
+const socialImageName = computed(() => {
+  const id = form.seoOpenGraphMediaId || form.featuredMediaId
+  if (!id) return 'Sin imagen social'
+  return media.value.find((entry) => entry.id === id)?.fileName ?? 'Imagen seleccionada'
+})
 
 function statusLabel(status: string) {
   return statuses.find((item) => item.value === status)?.label ?? status
@@ -122,6 +142,7 @@ function formatDate(value?: string | null) {
 
 function resetForm() {
   selected.value = null
+  serverSeoPreview.value = null
   selectedCategoryIds.value = []
   scheduleAt.value = ''
   Object.assign(form, {
@@ -135,7 +156,9 @@ function resetForm() {
     seoDescription: '',
     seoKeywords: '',
     seoCanonicalUrl: '',
+    seoRobots: 'index,follow',
     seoOpenGraphMediaId: '',
+    seoStructuredDataJson: '',
   })
 }
 
@@ -204,12 +227,19 @@ async function openItem(item: ContentItemListDto) {
       seoDescription: detail.seo?.description ?? '',
       seoKeywords: detail.seo?.keywords ?? '',
       seoCanonicalUrl: detail.seo?.canonicalUrl ?? '',
+      seoRobots: detail.seo?.robots ?? 'index,follow',
       seoOpenGraphMediaId: detail.seo?.openGraphMediaId ?? '',
+      seoStructuredDataJson: detail.seo?.structuredDataJson ?? '',
     })
     selectedCategoryIds.value = (detail as ContentItemDto & { taxonomyTermIds?: string[] }).taxonomyTermIds ?? []
     scheduleAt.value = detail.scheduledAtUtc
       ? new Date(detail.scheduledAtUtc).toISOString().slice(0, 16)
       : ''
+    try {
+      serverSeoPreview.value = await ContentService.getSeoPreview(item.id)
+    } catch {
+      serverSeoPreview.value = null
+    }
     editorOpen.value = true
     await placeEditorHtml()
   } catch (error) {
@@ -233,14 +263,15 @@ function addLink() {
   editorCommand('createLink', url)
 }
 
-function seoPayload() {
-  if (selected.value && !canEditSeo.value) return null
+function seoPayload(): UpdateSeoRequest {
   return {
     title: form.seoTitle.trim() || null,
     description: form.seoDescription.trim() || null,
     keywords: form.seoKeywords.trim() || null,
     canonicalUrl: form.seoCanonicalUrl.trim() || null,
+    robots: form.seoRobots.trim() || 'index,follow',
     openGraphMediaId: form.seoOpenGraphMediaId || null,
+    structuredDataJson: form.seoStructuredDataJson.trim() || null,
   }
 }
 
@@ -257,7 +288,7 @@ function buildPayload(): EditorContentRequest {
     sortOrder: 0,
     isFeatured: form.isFeatured,
     categoryIds: selectedCategoryIds.value,
-    seo: seoPayload(),
+    seo: selected.value?.seo ?? null,
     siteKey: props.siteKey || 'main',
   }
 }
@@ -268,12 +299,25 @@ async function persist(): Promise<string | null> {
     return null
   }
 
-  const payload = buildPayload()
-  if (selected.value) {
-    await ContentService.updateEditorContent(selected.value.id, payload)
-    return selected.value.id
+  if (canEditSeo.value) {
+    const seoError = validateSeoInput({
+      canonicalUrl: form.seoCanonicalUrl,
+      robots: form.seoRobots,
+      structuredDataJson: form.seoStructuredDataJson,
+    })
+    if (seoError) {
+      toastStore.warning('SEO inválido', seoError)
+      return null
+    }
   }
-  return await ContentService.createEditorContent(payload)
+
+  const payload = buildPayload()
+  const id = selected.value
+    ? (await ContentService.updateEditorContent(selected.value.id, payload), selected.value.id)
+    : await ContentService.createEditorContent(payload)
+
+  if (canEditSeo.value) await ContentService.updateSeo(id, seoPayload())
+  return id
 }
 
 async function saveDraft() {
@@ -497,17 +541,63 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
             />
           </label>
 
-          <details class="rounded-2xl border border-[var(--dh-border)] p-4">
+          <details class="rounded-2xl border border-[var(--dh-border)] p-4" open>
             <summary class="cursor-pointer font-black">SEO avanzado</summary>
-            <div class="mt-4 grid gap-3" :class="{ 'pointer-events-none opacity-50': selected && !canEditSeo }">
-              <input v-model="form.seoTitle" class="field" placeholder="Título para Google" />
-              <textarea v-model="form.seoDescription" class="field min-h-24" placeholder="Descripción para buscadores" />
-              <input v-model="form.seoKeywords" class="field" placeholder="Palabras clave" />
-              <input v-model="form.seoCanonicalUrl" class="field" placeholder="URL canónica (opcional)" />
-              <select v-model="form.seoOpenGraphMediaId" class="field">
-                <option value="">Usar imagen destacada al compartir</option>
-                <option v-for="entry in media" :key="entry.id" :value="entry.id">{{ entry.fileName }}</option>
-              </select>
+            <div class="mt-4 grid gap-4" :class="{ 'pointer-events-none opacity-50': selected && !canEditSeo }">
+              <label class="label">
+                Meta title <span class="float-right font-normal opacity-45">{{ form.seoTitle.length }}/300</span>
+                <input v-model="form.seoTitle" maxlength="300" class="field mt-2 w-full" placeholder="Título para Google" />
+              </label>
+              <label class="label">
+                Meta description <span class="float-right font-normal opacity-45">{{ form.seoDescription.length }}/600</span>
+                <textarea v-model="form.seoDescription" maxlength="600" class="field mt-2 min-h-24 w-full" placeholder="Descripción para buscadores" />
+              </label>
+              <label class="label">Keywords<input v-model="form.seoKeywords" class="field mt-2 w-full" placeholder="Palabras clave separadas por coma" /></label>
+              <label class="label">URL canónica<input v-model="form.seoCanonicalUrl" class="field mt-2 w-full" placeholder="https://logisticacastrofallas.com/ruta" /></label>
+              <label class="label">
+                Robots
+                <select v-model="form.seoRobots" class="field mt-2 w-full">
+                  <option value="index,follow">index,follow</option>
+                  <option value="noindex,follow">noindex,follow</option>
+                  <option value="index,nofollow">index,nofollow</option>
+                  <option value="noindex,nofollow">noindex,nofollow</option>
+                </select>
+              </label>
+              <label class="label">
+                Imagen OpenGraph
+                <select v-model="form.seoOpenGraphMediaId" class="field mt-2 w-full">
+                  <option value="">Usar imagen destacada al compartir</option>
+                  <option v-for="entry in media" :key="entry.id" :value="entry.id">{{ entry.fileName }}</option>
+                </select>
+              </label>
+              <label class="label">
+                JSON-LD
+                <textarea v-model="form.seoStructuredDataJson" class="field mt-2 min-h-36 w-full font-mono text-xs" placeholder='{"@context":"https://schema.org","@type":"WebPage"}' />
+              </label>
+
+              <div class="grid gap-4 lg:grid-cols-3">
+                <div class="seo-preview">
+                  <p class="preview-label">Google</p>
+                  <p class="google-url">{{ seoPreview.url }}</p>
+                  <p class="google-title">{{ seoPreview.title }}</p>
+                  <p class="preview-description">{{ seoPreview.description }}</p>
+                </div>
+                <div class="seo-preview">
+                  <p class="preview-label">Facebook</p>
+                  <div class="social-image">{{ socialImageName }}</div>
+                  <p class="social-domain">{{ seoPreview.url }}</p>
+                  <p class="social-title">{{ seoPreview.title }}</p>
+                  <p class="preview-description">{{ seoPreview.description }}</p>
+                </div>
+                <div class="seo-preview">
+                  <p class="preview-label">LinkedIn</p>
+                  <div class="social-image">{{ socialImageName }}</div>
+                  <p class="social-title">{{ seoPreview.title }}</p>
+                  <p class="social-domain">{{ seoPreview.url }}</p>
+                  <p class="preview-description">{{ seoPreview.description }}</p>
+                </div>
+              </div>
+              <p class="text-xs opacity-50">OpenGraph alimenta Facebook y LinkedIn. Twitter Cards usa los mismos valores y selecciona summary_large_image cuando existe imagen social.</p>
             </div>
           </details>
         </div>
@@ -606,5 +696,5 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
 </template>
 
 <style scoped>
-.field{border:1px solid var(--dh-border);border-radius:12px;background:color-mix(in srgb,var(--dh-surface) 88%,transparent);padding:.7rem .8rem;color:inherit;outline:none}.field:focus,.title-field:focus{border-color:var(--dh-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dh-primary) 12%,transparent)}.field:disabled{opacity:.5}.title-field{border:1px solid var(--dh-border);border-radius:16px;background:color-mix(in srgb,var(--dh-surface) 90%,transparent);padding:1rem 1.1rem;font-size:1.45rem;font-weight:800;color:inherit;outline:none}.label{display:block;font-size:.8rem;font-weight:800}.primary-action,.secondary-action,.danger-action,.icon-action{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;border-radius:12px;padding:.68rem .9rem;font-size:.8rem;font-weight:800;transition:160ms}.primary-action{background:var(--dh-primary);color:#fff}.secondary-action:hover:not(:disabled),.icon-action:hover:not(:disabled){background:color-mix(in srgb,var(--dh-primary) 9%,transparent)}.danger-action{color:#dc2626}.danger-action:hover:not(:disabled){background:rgb(239 68 68 / .1)}.primary-action:disabled,.secondary-action:disabled,.danger-action:disabled,.icon-action:disabled{opacity:.4}.editor-toolbar{display:flex;flex-wrap:wrap;gap:.35rem;border:1px solid var(--dh-border);border-bottom:0;border-radius:16px 16px 0 0;padding:.55rem;background:color-mix(in srgb,var(--dh-surface) 94%,transparent)}.editor-toolbar button{display:grid;height:34px;width:34px;place-items:center;border-radius:9px;transition:160ms}.editor-toolbar button:hover{background:color-mix(in srgb,var(--dh-primary) 10%,transparent);color:var(--dh-primary)}.rich-editor{min-height:330px;border:1px solid var(--dh-border);border-radius:0 0 16px 16px;padding:1.1rem;background:color-mix(in srgb,var(--dh-surface) 90%,transparent);outline:none;line-height:1.7}.rich-editor:focus{border-color:var(--dh-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dh-primary) 12%,transparent)}.rich-editor:empty:before{content:attr(data-placeholder);opacity:.4;pointer-events:none}.editor-card{border:1px solid var(--dh-border);border-radius:16px;padding:1rem;background:color-mix(in srgb,var(--dh-surface) 82%,transparent)}.taxonomy-pill{cursor:pointer;border:1px solid var(--dh-border);border-radius:999px;padding:.4rem .65rem;font-size:.75rem;font-weight:700;transition:160ms}.taxonomy-pill-active{border-color:var(--dh-primary);background:color-mix(in srgb,var(--dh-primary) 10%,transparent);color:var(--dh-primary)}
+.field{border:1px solid var(--dh-border);border-radius:12px;background:color-mix(in srgb,var(--dh-surface) 88%,transparent);padding:.7rem .8rem;color:inherit;outline:none}.field:focus,.title-field:focus{border-color:var(--dh-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dh-primary) 12%,transparent)}.field:disabled{opacity:.5}.title-field{border:1px solid var(--dh-border);border-radius:16px;background:color-mix(in srgb,var(--dh-surface) 90%,transparent);padding:1rem 1.1rem;font-size:1.45rem;font-weight:800;color:inherit;outline:none}.label{display:block;font-size:.8rem;font-weight:800}.primary-action,.secondary-action,.danger-action,.icon-action{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;border-radius:12px;padding:.68rem .9rem;font-size:.8rem;font-weight:800;transition:160ms}.primary-action{background:var(--dh-primary);color:#fff}.secondary-action:hover:not(:disabled),.icon-action:hover:not(:disabled){background:color-mix(in srgb,var(--dh-primary) 9%,transparent)}.danger-action{color:#dc2626}.danger-action:hover:not(:disabled){background:rgb(239 68 68 / .1)}.primary-action:disabled,.secondary-action:disabled,.danger-action:disabled,.icon-action:disabled{opacity:.4}.editor-toolbar{display:flex;flex-wrap:wrap;gap:.35rem;border:1px solid var(--dh-border);border-bottom:0;border-radius:16px 16px 0 0;padding:.55rem;background:color-mix(in srgb,var(--dh-surface) 94%,transparent)}.editor-toolbar button{display:grid;height:34px;width:34px;place-items:center;border-radius:9px;transition:160ms}.editor-toolbar button:hover{background:color-mix(in srgb,var(--dh-primary) 10%,transparent);color:var(--dh-primary)}.rich-editor{min-height:330px;border:1px solid var(--dh-border);border-radius:0 0 16px 16px;padding:1.1rem;background:color-mix(in srgb,var(--dh-surface) 90%,transparent);outline:none;line-height:1.7}.rich-editor:focus{border-color:var(--dh-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dh-primary) 12%,transparent)}.rich-editor:empty:before{content:attr(data-placeholder);opacity:.4;pointer-events:none}.editor-card,.seo-preview{border:1px solid var(--dh-border);border-radius:16px;padding:1rem;background:color-mix(in srgb,var(--dh-surface) 82%,transparent)}.taxonomy-pill{cursor:pointer;border:1px solid var(--dh-border);border-radius:999px;padding:.4rem .65rem;font-size:.75rem;font-weight:700;transition:160ms}.taxonomy-pill-active{border-color:var(--dh-primary);background:color-mix(in srgb,var(--dh-primary) 10%,transparent);color:var(--dh-primary)}.preview-label{font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.12em;opacity:.5}.google-url,.social-domain{margin-top:.65rem;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.65}.google-title{margin-top:.2rem;color:#1a0dab;font-size:1.05rem;font-weight:600}.social-title{margin-top:.35rem;font-size:.92rem;font-weight:800}.preview-description{margin-top:.3rem;font-size:.76rem;line-height:1.45;opacity:.7}.social-image{margin-top:.65rem;display:flex;min-height:64px;align-items:center;justify-content:center;border-radius:10px;background:color-mix(in srgb,var(--dh-primary) 8%,var(--dh-surface));padding:.5rem;text-align:center;font-size:.72rem;font-weight:700;opacity:.75}
 </style>

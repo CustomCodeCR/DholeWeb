@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
+    "test:seo": "node --test tests/seoPreview.test.ts",
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {

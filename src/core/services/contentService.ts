@@ -14,11 +14,13 @@ import type {
   MediaBrowseQuery,
   MediaDto,
   NavigationMenuDto,
+  SeoPreviewDto,
   SiteSettingDto,
   TaxonomyBrowseQuery,
   TaxonomyTermDto,
   TaxonomyWriteRequest,
   UpdateMediaMetadataRequest,
+  UpdateSeoRequest,
   UpsertNavigationMenuRequest,
   UpsertSiteSettingRequest,
 } from '@/core/interfaces/content'
@@ -102,6 +104,14 @@ export const ContentService = {
 
   deleteEditorContent(id: string) {
     return remove<EmptyResponse>(`/api/content/editor/${id}`)
+  },
+
+  async getSeoPreview(id: string): Promise<SeoPreviewDto> {
+    return unwrapApiResponse<SeoPreviewDto>(await get<unknown>(`/api/content/seo/${id}/preview`) as any)
+  },
+
+  updateSeo(id: string, payload: UpdateSeoRequest) {
+    return put<EmptyResponse, UpdateSeoRequest>(`/api/content/seo/${id}`, payload)
   },
 
   async browseContent(values?: ContentBrowseQuery): Promise<PagedResponse<ContentItemListDto>> {

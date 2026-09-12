@@ -20,6 +20,26 @@ export interface SeoDto {
 }
 
 export type SeoWriteRequest = SeoDto
+export type UpdateSeoRequest = SeoDto
+
+export interface SeoPlatformPreviewDto {
+  title: string
+  description?: string | null
+  url: string
+  imageMediaId?: string | null
+  cardType: string
+}
+
+export interface SeoPreviewDto {
+  contentId: string
+  robots: string
+  keywords?: string | null
+  structuredDataJson?: string | null
+  google: SeoPlatformPreviewDto
+  facebook: SeoPlatformPreviewDto
+  linkedIn: SeoPlatformPreviewDto
+  twitter: SeoPlatformPreviewDto
+}
 
 export interface ContentItemListDto {
   id: string
@@ -88,7 +108,9 @@ export interface EditorSeoRequest {
   description?: string | null
   keywords?: string | null
   canonicalUrl?: string | null
+  robots?: string | null
   openGraphMediaId?: string | null
+  structuredDataJson?: string | null
 }
 
 export interface EditorContentRequest {
