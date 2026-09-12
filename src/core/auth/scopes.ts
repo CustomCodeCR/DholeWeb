@@ -290,6 +290,38 @@ export const CONTENT_SCOPES = {
   settings: {
     edit: 'cms.settings.edit',
   },
+  navigation: {
+    edit: 'cms.navigation.edit',
+  },
+  collections: {
+    edit: 'cms.collections.edit',
+  },
+  forms: {
+    view: 'cms.forms.view',
+    edit: 'cms.forms.edit',
+  },
+  submissions: {
+    view: 'cms.submissions.view',
+  },
+  leads: {
+    view: 'cms.leads.view',
+    edit: 'cms.leads.edit',
+  },
+  meetings: {
+    view: 'cms.meetings.view',
+    edit: 'cms.meetings.edit',
+  },
+  campaigns: {
+    view: 'cms.campaigns.view',
+    edit: 'cms.campaigns.edit',
+  },
+  redirects: {
+    edit: 'cms.redirects.edit',
+  },
+  reviews: {
+    submit: 'cms.reviews.submit',
+    approve: 'cms.reviews.approve',
+  },
 } as const
 
 export const VIEW_SCOPES = {
