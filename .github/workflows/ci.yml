@@ -23,5 +23,7 @@ jobs:
         run: pnpm run test:seo
       - name: Redirect tests
         run: pnpm run test:redirects
+      - name: Media library tests
+        run: pnpm run test:media
       - name: Type-check and build
         run: pnpm run build
