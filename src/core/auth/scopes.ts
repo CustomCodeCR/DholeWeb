@@ -43,7 +43,6 @@ export const CONFIG_SCOPES = {
     delete: 'config.catalog-groups.delete',
     setActive: 'config.catalog-groups.set-active',
   },
-
   catalogItems: {
     create: 'config.catalog-items.create',
     view: 'config.catalog-items.view',
@@ -53,7 +52,6 @@ export const CONFIG_SCOPES = {
     changeSortOrder: 'config.catalog-items.change-sort-order',
     validate: 'config.catalog-items.validate',
   },
-
   catalogSelects: {
     view: 'config.catalog-selects.view',
     select: 'config.select',
@@ -61,235 +59,111 @@ export const CONFIG_SCOPES = {
 } as const
 
 export const AUDITLOGS_SCOPES = {
-  events: {
-    view: 'auditlogs.events.view',
-    export: 'auditlogs.events.export',
-  },
-  entityHistory: {
-    view: 'auditlogs.entity-history.view',
-  },
-  userHistory: {
-    view: 'auditlogs.user-history.view',
-  },
+  events: { view: 'auditlogs.events.view', export: 'auditlogs.events.export' },
+  entityHistory: { view: 'auditlogs.entity-history.view' },
+  userHistory: { view: 'auditlogs.user-history.view' },
 } as const
 
 export const PRICING_SCOPES = {
-  workspace: {
-    access: 'pricing.workspace.access',
-  },
-
+  workspace: { access: 'pricing.workspace.access' },
   costs: {
-    create: 'pricing.cost.create',
-    view: 'pricing.cost.view',
-    update: 'pricing.cost.update',
-    delete: 'pricing.cost.delete',
-    setActive: 'pricing.cost.set-active',
-    select: 'pricing.cost.select',
+    create: 'pricing.cost.create', view: 'pricing.cost.view', update: 'pricing.cost.update', delete: 'pricing.cost.delete',
+    setActive: 'pricing.cost.set-active', select: 'pricing.cost.select',
   },
-
   rateTerms: {
-    create: 'pricing.rate-term.create',
-    view: 'pricing.rate-term.view',
-    update: 'pricing.rate-term.update',
-    delete: 'pricing.rate-term.delete',
-    setActive: 'pricing.rate-term.set-active',
-    select: 'pricing.rate-term.select',
+    create: 'pricing.rate-term.create', view: 'pricing.rate-term.view', update: 'pricing.rate-term.update', delete: 'pricing.rate-term.delete',
+    setActive: 'pricing.rate-term.set-active', select: 'pricing.rate-term.select',
   },
-
   importFclRates: {
-    review: 'pricing.import-fcl-rate.review',
-    create: 'pricing.import-fcl-rate.create',
-    view: 'pricing.import-fcl-rate.view',
-    approve: 'pricing.import-fcl-rate.approve',
-    reject: 'pricing.import-fcl-rate.reject',
-    delete: 'pricing.import-fcl-rate.delete',
+    review: 'pricing.import-fcl-rate.review', create: 'pricing.import-fcl-rate.create', view: 'pricing.import-fcl-rate.view',
+    approve: 'pricing.import-fcl-rate.approve', reject: 'pricing.import-fcl-rate.reject', delete: 'pricing.import-fcl-rate.delete',
     createAsRate: 'pricing.import-fcl-rate.create-as-rate',
   },
-
-  ownLclConsolidations: {
-    create: 'pricing.own-lcl-consolidation.create',
-  },
-
+  ownLclConsolidations: { create: 'pricing.own-lcl-consolidation.create' },
   rateRequests: {
-    create: 'pricing.rate-request.create',
-    viewSelected: 'pricing.rate-request.view-selected',
-    viewAll: 'pricing.rate-request.view-all',
+    create: 'pricing.rate-request.create', viewSelected: 'pricing.rate-request.view-selected', viewAll: 'pricing.rate-request.view-all',
     manageVisibility: 'pricing.rate-request.visibility.manage',
   },
-
-  sellerAssignments: {
-    manage: 'pricing.seller.assignment.manage',
-  },
-
+  sellerAssignments: { manage: 'pricing.seller.assignment.manage' },
   rates: {
-    create: 'pricing.rate.create',
-    view: 'pricing.rate.view',
-    update: 'pricing.rate.update',
-    delete: 'pricing.rate.delete',
-    setActive: 'pricing.rate.set-active',
-    select: 'pricing.rate.select',
-    approveLowMargin: 'pricing.rate.approve-low-margin',
-    approveFreight: 'pricing.rate.approve-freight',
-    generateReport: 'pricing.rate.report.generate',
+    create: 'pricing.rate.create', view: 'pricing.rate.view', update: 'pricing.rate.update', delete: 'pricing.rate.delete',
+    setActive: 'pricing.rate.set-active', select: 'pricing.rate.select', approveLowMargin: 'pricing.rate.approve-low-margin',
+    approveFreight: 'pricing.rate.approve-freight', generateReport: 'pricing.rate.report.generate',
   },
-
-  fclRateDetails: {
-    create: 'pricing.fcl-rate-detail.create',
-    update: 'pricing.fcl-rate-detail.update',
-    delete: 'pricing.fcl-rate-detail.delete',
-  },
-
-  rateCostDetails: {
-    create: 'pricing.rate-cost-detail.create',
-    update: 'pricing.rate-cost-detail.update',
-    delete: 'pricing.rate-cost-detail.delete',
-  },
-
-  fclDecisions: {
-    create: 'pricing.fcl-decisions.create',
-    view: 'pricing.fcl-decisions.view',
-    delete: 'pricing.fcl-decisions.delete',
-  },
-
-  // Backward-compatible aliases for older UI code.
+  fclRateDetails: { create: 'pricing.fcl-rate-detail.create', update: 'pricing.fcl-rate-detail.update', delete: 'pricing.fcl-rate-detail.delete' },
+  rateCostDetails: { create: 'pricing.rate-cost-detail.create', update: 'pricing.rate-cost-detail.update', delete: 'pricing.rate-cost-detail.delete' },
+  fclDecisions: { create: 'pricing.fcl-decisions.create', view: 'pricing.fcl-decisions.view', delete: 'pricing.fcl-decisions.delete' },
   fclRateImports: {
-    create: 'pricing.import-fcl-rate.create',
-    view: 'pricing.import-fcl-rate.view',
-    approve: 'pricing.import-fcl-rate.approve',
-    reject: 'pricing.import-fcl-rate.reject',
-    delete: 'pricing.import-fcl-rate.delete',
+    create: 'pricing.import-fcl-rate.create', view: 'pricing.import-fcl-rate.view', approve: 'pricing.import-fcl-rate.approve',
+    reject: 'pricing.import-fcl-rate.reject', delete: 'pricing.import-fcl-rate.delete',
   },
-
   fclRates: {
-    create: 'pricing.rate.create',
-    view: 'pricing.rate.view',
-    update: 'pricing.rate.update',
-    delete: 'pricing.rate.delete',
-    setActive: 'pricing.rate.set-active',
-    expire: 'pricing.rate.update',
-    validate: 'pricing.rate.view',
+    create: 'pricing.rate.create', view: 'pricing.rate.view', update: 'pricing.rate.update', delete: 'pricing.rate.delete',
+    setActive: 'pricing.rate.set-active', expire: 'pricing.rate.update', validate: 'pricing.rate.view',
   },
-
-  dashboard: {
-    view: 'pricing.workspace.access',
-  },
-
-  selects: {
-    view: 'pricing.rate.select',
-  },
+  dashboard: { view: 'pricing.workspace.access' },
+  selects: { view: 'pricing.rate.select' },
 } as const
 
 export const AI_SCOPES = {
   connections: {
-    create: 'ai.connection.create',
-    view: 'ai.connection.view',
-    update: 'ai.connection.update',
-    delete: 'ai.connection.delete',
-    setActive: 'ai.connection.set-active',
-    test: 'ai.connection.test',
-    discoverModels: 'ai.connection.discover-models',
+    create: 'ai.connection.create', view: 'ai.connection.view', update: 'ai.connection.update', delete: 'ai.connection.delete',
+    setActive: 'ai.connection.set-active', test: 'ai.connection.test', discoverModels: 'ai.connection.discover-models',
   },
-  models: {
-    create: 'ai.model.create',
-    view: 'ai.model.view',
-    update: 'ai.model.update',
-    delete: 'ai.model.delete',
-    setActive: 'ai.model.set-active',
-  },
+  models: { create: 'ai.model.create', view: 'ai.model.view', update: 'ai.model.update', delete: 'ai.model.delete', setActive: 'ai.model.set-active' },
   profiles: {
-    create: 'ai.profile.create',
-    view: 'ai.profile.view',
-    update: 'ai.profile.update',
-    delete: 'ai.profile.delete',
-    setActive: 'ai.profile.set-active',
-    configureModels: 'ai.profile.configure-models',
+    create: 'ai.profile.create', view: 'ai.profile.view', update: 'ai.profile.update', delete: 'ai.profile.delete',
+    setActive: 'ai.profile.set-active', configureModels: 'ai.profile.configure-models',
   },
   promptTemplates: {
-    create: 'ai.prompt-template.create',
-    view: 'ai.prompt-template.view',
-    update: 'ai.prompt-template.update',
-    delete: 'ai.prompt-template.delete',
-    setActive: 'ai.prompt-template.set-active',
+    create: 'ai.prompt-template.create', view: 'ai.prompt-template.view', update: 'ai.prompt-template.update',
+    delete: 'ai.prompt-template.delete', setActive: 'ai.prompt-template.set-active',
   },
-  executions: {
-    view: 'ai.execution.view',
-    execute: 'ai.execution.execute',
-    cancel: 'ai.execution.cancel',
-  },
+  executions: { view: 'ai.execution.view', execute: 'ai.execution.execute', cancel: 'ai.execution.cancel' },
 } as const
 
 export const STORAGE_SCOPES = {
-  files: {
-    create: 'storage.files.create',
-    view: 'storage.files.view',
-    download: 'storage.files.download',
-    delete: 'storage.files.delete',
-    version: 'storage.files.version',
-  },
-  providers: {
-    view: 'storage.providers.view',
-    create: 'storage.providers.create',
-    update: 'storage.providers.update',
-    setActive: 'storage.providers.set-active',
-  },
+  files: { create: 'storage.files.create', view: 'storage.files.view', download: 'storage.files.download', delete: 'storage.files.delete', version: 'storage.files.version' },
+  providers: { view: 'storage.providers.view', create: 'storage.providers.create', update: 'storage.providers.update', setActive: 'storage.providers.set-active' },
 } as const
 
 export const REPORTS_SCOPES = {
-  templates: {
-    create: 'reports.templates.create',
-    view: 'reports.templates.view',
-    update: 'reports.templates.update',
-    delete: 'reports.templates.delete',
-  },
-  reports: {
-    generate: 'reports.reports.generate',
-  },
+  templates: { create: 'reports.templates.create', view: 'reports.templates.view', update: 'reports.templates.update', delete: 'reports.templates.delete' },
+  reports: { generate: 'reports.reports.generate' },
 } as const
 
 export const NOTIFICATIONS_SCOPES = {
-  messages: {
-    create: 'notifications.messages.create',
-    view: 'notifications.messages.view',
-  },
-  templates: {
-    manage: 'notifications.templates.manage',
-  },
-  history: {
-    view: 'notifications.history.view',
-  },
+  messages: { create: 'notifications.messages.create', view: 'notifications.messages.view' },
+  templates: { manage: 'notifications.templates.manage' },
+  history: { view: 'notifications.history.view' },
 } as const
 
-export const MONITORING_SCOPES = {
-  services: {
-    view: 'monitoring.services.view',
-  },
-} as const
+export const MONITORING_SCOPES = { services: { view: 'monitoring.services.view' } } as const
 
 export const CONTENT_SCOPES = {
+  // Legacy CMS scopes remain part of the contract.
   view: 'cms.view',
   create: 'cms.create',
   edit: 'cms.edit',
   delete: 'cms.delete',
   publish: 'cms.publish',
-  media: {
-    upload: 'cms.media.upload',
-    delete: 'cms.media.delete',
-  },
-  pages: {
-    edit: 'cms.pages.edit',
-  },
-  news: {
-    edit: 'cms.news.edit',
-  },
-  banners: {
-    edit: 'cms.banners.edit',
-  },
-  seo: {
-    edit: 'cms.seo.edit',
-  },
-  settings: {
-    edit: 'cms.settings.edit',
-  },
+  media: { upload: 'cms.media.upload', delete: 'cms.media.delete' },
+  pages: { edit: 'cms.pages.edit' },
+  news: { edit: 'cms.news.edit' },
+  banners: { edit: 'cms.banners.edit' },
+  seo: { edit: 'cms.seo.edit' },
+  settings: { edit: 'cms.settings.edit' },
+
+  // FASE 23 — granular Marketing permissions.
+  navigation: { edit: 'cms.navigation.edit' },
+  collections: { edit: 'cms.collections.edit' },
+  forms: { view: 'cms.forms.view', edit: 'cms.forms.edit' },
+  submissions: { view: 'cms.submissions.view' },
+  leads: { view: 'cms.leads.view', edit: 'cms.leads.edit' },
+  meetings: { view: 'cms.meetings.view', edit: 'cms.meetings.edit' },
+  campaigns: { view: 'cms.campaigns.view', edit: 'cms.campaigns.edit' },
+  redirects: { edit: 'cms.redirects.edit' },
+  reviews: { submit: 'cms.reviews.submit', approve: 'cms.reviews.approve' },
 } as const
 
 export const VIEW_SCOPES = {
@@ -297,11 +171,8 @@ export const VIEW_SCOPES = {
   roles: AUTH_SCOPES.roles.view,
   scopes: AUTH_SCOPES.scopes.view,
   sessions: AUTH_SCOPES.sessions.view,
-
   catalogs: CONFIG_SCOPES.catalogGroups.view,
-
   auditLogs: AUDITLOGS_SCOPES.events.view,
-
   pricing: PRICING_SCOPES.workspace.access,
   pricingRates: PRICING_SCOPES.rates.view,
   pricingImports: PRICING_SCOPES.importFclRates.review,
@@ -313,14 +184,12 @@ export const VIEW_SCOPES = {
   pricingRateRequests: PRICING_SCOPES.rateRequests.viewAll,
   pricingRateRequestsSelected: PRICING_SCOPES.rateRequests.viewSelected,
   pricingRateRequestVisibility: PRICING_SCOPES.rateRequests.manageVisibility,
-
   aiConnections: AI_SCOPES.connections.view,
   aiModels: AI_SCOPES.models.view,
   aiProfiles: AI_SCOPES.profiles.view,
   aiPromptTemplates: AI_SCOPES.promptTemplates.view,
   aiExecutions: AI_SCOPES.executions.view,
   aiAssistant: AI_SCOPES.executions.execute,
-
   storage: STORAGE_SCOPES.files.view,
   monitoring: MONITORING_SCOPES.services.view,
   reportsTemplates: REPORTS_SCOPES.templates.view,
