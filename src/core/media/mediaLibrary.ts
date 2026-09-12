@@ -42,6 +42,7 @@ export function mediaContentTypeFilter(kind: MarketingMediaKind): string | undef
   if (kind === 'image') return 'image/'
   if (kind === 'video') return 'video/'
   if (kind === 'pdf') return 'application/pdf'
+  if (kind === 'document') return 'document'
   return undefined
 }
 
