@@ -22,6 +22,8 @@ import { CONTENT_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { ContentService } from '@/core/services/contentService'
+import { ContentRouteService } from '@/core/services/contentRouteService'
+import { normalizePublicPath, shouldCreatePermanentRedirect } from '@/core/redirects/redirectFlow'
 import { buildSeoPreview, validateSeoInput } from '@/core/seo/seoPreview'
 import type {
   ContentItemDto,
@@ -33,6 +35,7 @@ import type {
   TaxonomyTermDto,
   UpdateSeoRequest,
 } from '@/core/interfaces/content'
+import type { ContentRouteDto } from '@/core/interfaces/contentRoutes'
 
 const props = withDefaults(defineProps<{
   siteKey: string
@@ -63,6 +66,9 @@ const taxonomies = ref<TaxonomyTermDto[]>([])
 const selectedCategoryIds = ref<string[]>([])
 const scheduleAt = ref('')
 const serverSeoPreview = ref<SeoPreviewDto | null>(null)
+const primaryRoute = ref<ContentRouteDto | null>(null)
+const originalPublicPath = ref('')
+const createPermanentRedirect = ref(true)
 
 const statuses = [
   { value: '', label: 'Todos los estados' },
@@ -76,6 +82,7 @@ const statuses = [
 const form = reactive({
   title: '',
   slug: '',
+  publicPath: '',
   excerpt: '',
   contentHtml: '',
   featuredMediaId: '',
@@ -106,9 +113,12 @@ const canEditThisType = computed(() => {
 const canSave = computed(() => selected.value ? canEditThisType.value : canCreate.value)
 const categories = computed(() => taxonomies.value.filter((item) => item.kind.toLowerCase() === 'category'))
 const tags = computed(() => taxonomies.value.filter((item) => item.kind.toLowerCase() === 'tag'))
+const publicPathChanged = computed(() => Boolean(
+  primaryRoute.value && shouldCreatePermanentRedirect(originalPublicPath.value, form.publicPath),
+))
 const seoPreview = computed(() => buildSeoPreview({
   title: form.title,
-  slug: form.slug,
+  slug: form.publicPath || form.slug,
   excerpt: form.excerpt,
   seoTitle: form.seoTitle,
   seoDescription: form.seoDescription,
@@ -140,14 +150,23 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
+function slugFromPath(path: string) {
+  const parts = normalizePublicPath(path).split('/').filter(Boolean)
+  return parts.at(-1) ?? null
+}
+
 function resetForm() {
   selected.value = null
   serverSeoPreview.value = null
+  primaryRoute.value = null
+  originalPublicPath.value = ''
+  createPermanentRedirect.value = true
   selectedCategoryIds.value = []
   scheduleAt.value = ''
   Object.assign(form, {
     title: '',
     slug: '',
+    publicPath: '',
     excerpt: '',
     contentHtml: '',
     featuredMediaId: '',
@@ -215,10 +234,22 @@ async function loadAuxiliary() {
 async function openItem(item: ContentItemListDto) {
   try {
     const detail = await ContentService.getEditorContent(item.id)
+    let route: ContentRouteDto | null = null
+    try {
+      const routes = await ContentRouteService.getByContent(item.id)
+      route = routes.find((entry) => entry.isPrimary) ?? routes.find((entry) => entry.isActive) ?? null
+    } catch {
+      route = null
+    }
+
     selected.value = detail
+    primaryRoute.value = route
+    originalPublicPath.value = route?.path ?? ''
+    createPermanentRedirect.value = true
     Object.assign(form, {
       title: detail.title,
       slug: detail.slug ?? '',
+      publicPath: route?.path ?? `/${detail.slug ?? ''}`,
       excerpt: detail.excerpt ?? '',
       contentHtml: detail.renderedHtml ?? '',
       featuredMediaId: detail.featuredMediaId ?? '',
@@ -281,7 +312,7 @@ function buildPayload(): EditorContentRequest {
     type: props.contentType,
     title: form.title.trim(),
     contentHtml: form.contentHtml.trim() || null,
-    slug: form.slug.trim() || null,
+    slug: form.slug.trim() || (form.publicPath.trim() ? slugFromPath(form.publicPath) : null),
     excerpt: form.excerpt.trim() || null,
     featuredMediaId: form.featuredMediaId || null,
     locale: 'es-CR',
@@ -291,6 +322,35 @@ function buildPayload(): EditorContentRequest {
     seo: selected.value?.seo ?? null,
     siteKey: props.siteKey || 'main',
   }
+}
+
+async function syncPublicRoute(contentId: string) {
+  if (!form.publicPath.trim()) return
+  const path = normalizePublicPath(form.publicPath)
+  const siteKey = selected.value?.siteKey || props.siteKey || 'main'
+  const locale = selected.value?.locale || 'es-CR'
+
+  if (primaryRoute.value) {
+    const changed = shouldCreatePermanentRedirect(originalPublicPath.value, path)
+    await ContentRouteService.update(primaryRoute.value.id, {
+      siteKey,
+      locale,
+      path,
+      isPrimary: true,
+      isActive: true,
+      createPermanentRedirect: changed && createPermanentRedirect.value,
+    })
+    return
+  }
+
+  await ContentRouteService.create({
+    siteKey,
+    contentId,
+    locale,
+    path,
+    isPrimary: true,
+    isActive: true,
+  })
 }
 
 async function persist(): Promise<string | null> {
@@ -316,6 +376,7 @@ async function persist(): Promise<string | null> {
     ? (await ContentService.updateEditorContent(selected.value.id, payload), selected.value.id)
     : await ContentService.createEditorContent(payload)
 
+  await syncPublicRoute(id)
   if (canEditSeo.value) await ContentService.updateSeo(id, seoPayload())
   return id
 }
@@ -609,11 +670,25 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
               Estado: <strong>{{ statusLabel(selected?.status || 'Draft') }}</strong>
             </p>
             <label class="label mt-4">
-              Dirección
-              <div class="mt-2 flex items-center rounded-xl border border-[var(--dh-border)] px-3">
-                <span class="text-sm opacity-40">/</span>
-                <input v-model="form.slug" class="min-w-0 flex-1 bg-transparent px-1 py-2.5 text-sm outline-none" placeholder="se-genera-del-titulo" />
-              </div>
+              Dirección pública
+              <input
+                v-model="form.publicPath"
+                class="field mt-2 w-full"
+                placeholder="/servicios/transporte-maritimo"
+              />
+            </label>
+            <p v-if="selected && !primaryRoute" class="mt-2 text-xs opacity-55">
+              Este contenido no tiene una ruta primaria registrada. Se creará al guardar.
+            </p>
+            <label
+              v-if="publicPathChanged"
+              class="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--dh-border)] p-3 text-xs"
+            >
+              <input v-model="createPermanentRedirect" class="mt-0.5" type="checkbox" />
+              <span>
+                Crear redirect <strong>301</strong> desde <code>{{ originalPublicPath }}</code> hacia
+                <code>{{ normalizePublicPath(form.publicPath) }}</code>.
+              </span>
             </label>
             <label v-if="canPublish" class="label mt-4">
               Programar
