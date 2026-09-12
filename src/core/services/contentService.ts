@@ -3,243 +3,65 @@ import { toQueryString } from '@/core/api/queryString'
 import { unwrapApiResponse, unwrapListResponse, unwrapPagedResponse } from '@/core/api/apiResponse'
 import type { PagedResponse } from '@/core/api/apiResponse'
 import type {
-  ContentBrowseQuery,
-  ContentItemDto,
-  ContentItemListDto,
-  ContentRevisionDto,
-  ContentWriteRequest,
-  EditorContentRequest,
-  EditorDashboardDto,
-  EditorOptionsDto,
-  MediaBrowseQuery,
-  MediaDto,
-  NavigationMenuDto,
-  SiteSettingDto,
-  TaxonomyBrowseQuery,
-  TaxonomyTermDto,
-  TaxonomyWriteRequest,
-  UpdateMediaMetadataRequest,
-  UpsertNavigationMenuRequest,
+  ContentBrowseQuery, ContentItemDto, ContentItemListDto, ContentRevisionDto, ContentWriteRequest,
+  EditorContentRequest, EditorDashboardDto, EditorOptionsDto, MediaBrowseQuery, MediaDto,
+  NavigationMenuDto, SeoPreviewDto, SiteSettingDto, TaxonomyBrowseQuery, TaxonomyTermDto,
+  TaxonomyWriteRequest, UpdateMediaMetadataRequest, UpdateSeoRequest, UpsertNavigationMenuRequest,
   UpsertSiteSettingRequest,
 } from '@/core/interfaces/content'
 
 type EmptyResponse = Record<string, never>
-
-function query(path: string, values?: Record<string, unknown>) {
-  return path + (values ? toQueryString(values) : '')
-}
-
-function get<T>(path: string) {
-  return fetchClient<T>(path, { method: 'GET' })
-}
-
-function post<T, TBody = unknown>(path: string, body?: TBody) {
-  return fetchClient<T>(path, { method: 'POST', ...(body !== undefined ? { body } : {}) })
-}
-
-function put<T, TBody = unknown>(path: string, body?: TBody) {
-  return fetchClient<T>(path, { method: 'PUT', ...(body !== undefined ? { body } : {}) })
-}
-
-function patch<T, TBody = unknown>(path: string, body?: TBody) {
-  return fetchClient<T>(path, { method: 'PATCH', ...(body !== undefined ? { body } : {}) })
-}
-
-function remove<T>(path: string) {
-  return fetchClient<T>(path, { method: 'DELETE' })
-}
+function query(path:string, values?:Record<string,unknown>){return path+(values?toQueryString(values):'')}
+function get<T>(path:string){return fetchClient<T>(path,{method:'GET'})}
+function post<T,TBody=unknown>(path:string,body?:TBody){return fetchClient<T>(path,{method:'POST',...(body!==undefined?{body}:{})})}
+function put<T,TBody=unknown>(path:string,body?:TBody){return fetchClient<T>(path,{method:'PUT',...(body!==undefined?{body}:{})})}
+function patch<T,TBody=unknown>(path:string,body?:TBody){return fetchClient<T>(path,{method:'PATCH',...(body!==undefined?{body}:{})})}
+function remove<T>(path:string){return fetchClient<T>(path,{method:'DELETE'})}
 
 export const ContentService = {
-  async getEditorDashboard(siteKey = 'main'): Promise<EditorDashboardDto> {
-    return unwrapApiResponse<EditorDashboardDto>(
-      await get<unknown>(query('/api/content/editor/dashboard', { siteKey })) as any,
-    )
-  },
+  async getEditorDashboard(siteKey='main'):Promise<EditorDashboardDto>{return unwrapApiResponse<EditorDashboardDto>(await get<unknown>(query('/api/content/editor/dashboard',{siteKey})) as any)},
+  async getEditorOptions():Promise<EditorOptionsDto>{return unwrapApiResponse<EditorOptionsDto>(await get<unknown>('/api/content/editor/options') as any)},
+  async browseEditor(values?:ContentBrowseQuery):Promise<PagedResponse<ContentItemListDto>>{return unwrapPagedResponse<ContentItemListDto>(await get<unknown>(query('/api/content/editor',values as Record<string,unknown>)))},
+  async getEditorContent(id:string):Promise<ContentItemDto>{return unwrapApiResponse<ContentItemDto>(await get<unknown>(`/api/content/editor/${id}`) as any)},
+  async createEditorContent(payload:EditorContentRequest):Promise<string>{return unwrapApiResponse<string>(await post<unknown,EditorContentRequest>('/api/content/editor',payload) as any)},
+  updateEditorContent(id:string,payload:EditorContentRequest){return put<EmptyResponse,EditorContentRequest>(`/api/content/editor/${id}`,payload)},
+  submitEditor(id:string){return post<EmptyResponse>(`/api/content/editor/${id}/submit`)},
+  publishEditor(id:string){return post<EmptyResponse>(`/api/content/editor/${id}/publish`)},
+  scheduleEditor(id:string,scheduledAtUtc:string){return post<EmptyResponse,{scheduledAtUtc:string}>(`/api/content/editor/${id}/schedule`,{scheduledAtUtc})},
+  unpublishEditor(id:string){return post<EmptyResponse>(`/api/content/editor/${id}/unpublish`)},
+  archiveEditor(id:string){return post<EmptyResponse>(`/api/content/editor/${id}/archive`)},
+  deleteEditorContent(id:string){return remove<EmptyResponse>(`/api/content/editor/${id}`)},
 
-  async getEditorOptions(): Promise<EditorOptionsDto> {
-    return unwrapApiResponse<EditorOptionsDto>(await get<unknown>('/api/content/editor/options') as any)
-  },
+  async getSeoPreview(id:string):Promise<SeoPreviewDto>{return unwrapApiResponse<SeoPreviewDto>(await get<unknown>(`/api/content/seo/${id}/preview`) as any)},
+  updateSeo(id:string,payload:UpdateSeoRequest){return put<EmptyResponse,UpdateSeoRequest>(`/api/content/seo/${id}`,payload)},
 
-  async browseEditor(values?: ContentBrowseQuery): Promise<PagedResponse<ContentItemListDto>> {
-    return unwrapPagedResponse<ContentItemListDto>(
-      await get<unknown>(query('/api/content/editor', values as Record<string, unknown>)),
-    )
-  },
+  async browseContent(values?:ContentBrowseQuery):Promise<PagedResponse<ContentItemListDto>>{return unwrapPagedResponse<ContentItemListDto>(await get<unknown>(query('/api/content/items',values as Record<string,unknown>)))},
+  async getContent(id:string):Promise<ContentItemDto>{return unwrapApiResponse<ContentItemDto>(await get<unknown>(`/api/content/items/${id}`) as any)},
+  async createContent(payload:ContentWriteRequest):Promise<string>{return unwrapApiResponse<string>(await post<unknown,ContentWriteRequest>('/api/content/items',payload) as any)},
+  updateContent(id:string,payload:Omit<ContentWriteRequest,'type'|'authorUserId'|'siteKey'>){return put<EmptyResponse,typeof payload>(`/api/content/items/${id}`,payload)},
+  submitForReview(id:string){return post<EmptyResponse>(`/api/content/items/${id}/review`)},
+  publish(id:string){return post<EmptyResponse>(`/api/content/items/${id}/publish`)},
+  schedule(id:string,scheduledAtUtc:string){return post<EmptyResponse,{scheduledAtUtc:string}>(`/api/content/items/${id}/schedule`,{scheduledAtUtc})},
+  unpublish(id:string){return post<EmptyResponse>(`/api/content/items/${id}/unpublish`)},
+  archive(id:string){return post<EmptyResponse>(`/api/content/items/${id}/archive`)},
+  deleteContent(id:string){return remove<EmptyResponse>(`/api/content/items/${id}`)},
+  async getRevisions(id:string):Promise<ContentRevisionDto[]>{return unwrapListResponse<ContentRevisionDto>(await get<unknown>(`/api/content/items/${id}/revisions`))},
+  restoreRevision(id:string,revisionId:string,reason?:string|null){return post<EmptyResponse,{reason?:string|null}>(`/api/content/items/${id}/revisions/${revisionId}/restore`,{reason:reason||null})},
 
-  async getEditorContent(id: string): Promise<ContentItemDto> {
-    return unwrapApiResponse<ContentItemDto>(await get<unknown>(`/api/content/editor/${id}`) as any)
-  },
+  async browseMedia(values?:MediaBrowseQuery):Promise<PagedResponse<MediaDto>>{return unwrapPagedResponse<MediaDto>(await get<unknown>(query('/api/content/media',values as Record<string,unknown>)))},
+  async uploadMedia(file:File,altText?:string,caption?:string,metadataJson?:string):Promise<MediaDto>{const form=new FormData();form.append('file',file);if(altText?.trim())form.append('altText',altText.trim());if(caption?.trim())form.append('caption',caption.trim());if(metadataJson?.trim())form.append('metadataJson',metadataJson.trim());return unwrapApiResponse<MediaDto>(await fetchClient<unknown>('/api/content/media/upload',{method:'POST',body:form,isFormData:true}) as any)},
+  updateMedia(id:string,payload:UpdateMediaMetadataRequest){return patch<EmptyResponse,UpdateMediaMetadataRequest>(`/api/content/media/${id}`,payload)},
+  deleteMedia(id:string){return remove<EmptyResponse>(`/api/content/media/${id}`)},
 
-  async createEditorContent(payload: EditorContentRequest): Promise<string> {
-    return unwrapApiResponse<string>(await post<unknown, EditorContentRequest>('/api/content/editor', payload) as any)
-  },
+  async browseTaxonomies(values?:TaxonomyBrowseQuery):Promise<PagedResponse<TaxonomyTermDto>>{return unwrapPagedResponse<TaxonomyTermDto>(await get<unknown>(query('/api/content/taxonomies',values as Record<string,unknown>)))},
+  async createTaxonomy(payload:TaxonomyWriteRequest):Promise<string>{return unwrapApiResponse<string>(await post<unknown,TaxonomyWriteRequest>('/api/content/taxonomies',payload) as any)},
+  updateTaxonomy(id:string,payload:TaxonomyWriteRequest){return put<EmptyResponse,TaxonomyWriteRequest>(`/api/content/taxonomies/${id}`,payload)},
+  deleteTaxonomy(id:string){return remove<EmptyResponse>(`/api/content/taxonomies/${id}`)},
 
-  updateEditorContent(id: string, payload: EditorContentRequest) {
-    return put<EmptyResponse, EditorContentRequest>(`/api/content/editor/${id}`, payload)
-  },
-
-  submitEditor(id: string) {
-    return post<EmptyResponse>(`/api/content/editor/${id}/submit`)
-  },
-
-  publishEditor(id: string) {
-    return post<EmptyResponse>(`/api/content/editor/${id}/publish`)
-  },
-
-  scheduleEditor(id: string, scheduledAtUtc: string) {
-    return post<EmptyResponse, { scheduledAtUtc: string }>(`/api/content/editor/${id}/schedule`, {
-      scheduledAtUtc,
-    })
-  },
-
-  unpublishEditor(id: string) {
-    return post<EmptyResponse>(`/api/content/editor/${id}/unpublish`)
-  },
-
-  archiveEditor(id: string) {
-    return post<EmptyResponse>(`/api/content/editor/${id}/archive`)
-  },
-
-  deleteEditorContent(id: string) {
-    return remove<EmptyResponse>(`/api/content/editor/${id}`)
-  },
-
-  async browseContent(values?: ContentBrowseQuery): Promise<PagedResponse<ContentItemListDto>> {
-    const response = await get<unknown>(query('/api/content/items', values as Record<string, unknown>))
-    return unwrapPagedResponse<ContentItemListDto>(response)
-  },
-
-  async getContent(id: string): Promise<ContentItemDto> {
-    return unwrapApiResponse<ContentItemDto>(await get<unknown>(`/api/content/items/${id}`) as any)
-  },
-
-  async createContent(payload: ContentWriteRequest): Promise<string> {
-    const response = await post<unknown, ContentWriteRequest>('/api/content/items', payload)
-    return unwrapApiResponse<string>(response as any)
-  },
-
-  updateContent(id: string, payload: Omit<ContentWriteRequest, 'type' | 'authorUserId' | 'siteKey'>) {
-    return put<EmptyResponse, typeof payload>(`/api/content/items/${id}`, payload)
-  },
-
-  submitForReview(id: string) {
-    return post<EmptyResponse>(`/api/content/items/${id}/review`)
-  },
-
-  publish(id: string) {
-    return post<EmptyResponse>(`/api/content/items/${id}/publish`)
-  },
-
-  schedule(id: string, scheduledAtUtc: string) {
-    return post<EmptyResponse, { scheduledAtUtc: string }>(`/api/content/items/${id}/schedule`, {
-      scheduledAtUtc,
-    })
-  },
-
-  unpublish(id: string) {
-    return post<EmptyResponse>(`/api/content/items/${id}/unpublish`)
-  },
-
-  archive(id: string) {
-    return post<EmptyResponse>(`/api/content/items/${id}/archive`)
-  },
-
-  deleteContent(id: string) {
-    return remove<EmptyResponse>(`/api/content/items/${id}`)
-  },
-
-  async getRevisions(id: string): Promise<ContentRevisionDto[]> {
-    return unwrapListResponse<ContentRevisionDto>(await get<unknown>(`/api/content/items/${id}/revisions`))
-  },
-
-  restoreRevision(id: string, revisionId: string, reason?: string | null) {
-    return post<EmptyResponse, { reason?: string | null }>(
-      `/api/content/items/${id}/revisions/${revisionId}/restore`,
-      { reason: reason || null },
-    )
-  },
-
-  async browseMedia(values?: MediaBrowseQuery): Promise<PagedResponse<MediaDto>> {
-    return unwrapPagedResponse<MediaDto>(
-      await get<unknown>(query('/api/content/media', values as Record<string, unknown>)),
-    )
-  },
-
-  async uploadMedia(file: File, altText?: string, caption?: string, metadataJson?: string): Promise<MediaDto> {
-    const form = new FormData()
-    form.append('file', file)
-    if (altText?.trim()) form.append('altText', altText.trim())
-    if (caption?.trim()) form.append('caption', caption.trim())
-    if (metadataJson?.trim()) form.append('metadataJson', metadataJson.trim())
-
-    const response = await fetchClient<unknown>('/api/content/media/upload', {
-      method: 'POST',
-      body: form,
-      isFormData: true,
-    })
-    return unwrapApiResponse<MediaDto>(response as any)
-  },
-
-  updateMedia(id: string, payload: UpdateMediaMetadataRequest) {
-    return patch<EmptyResponse, UpdateMediaMetadataRequest>(`/api/content/media/${id}`, payload)
-  },
-
-  deleteMedia(id: string) {
-    return remove<EmptyResponse>(`/api/content/media/${id}`)
-  },
-
-  async browseTaxonomies(values?: TaxonomyBrowseQuery): Promise<PagedResponse<TaxonomyTermDto>> {
-    return unwrapPagedResponse<TaxonomyTermDto>(
-      await get<unknown>(query('/api/content/taxonomies', values as Record<string, unknown>)),
-    )
-  },
-
-  async createTaxonomy(payload: TaxonomyWriteRequest): Promise<string> {
-    return unwrapApiResponse<string>(await post<unknown, TaxonomyWriteRequest>('/api/content/taxonomies', payload) as any)
-  },
-
-  updateTaxonomy(id: string, payload: TaxonomyWriteRequest) {
-    return put<EmptyResponse, TaxonomyWriteRequest>(`/api/content/taxonomies/${id}`, payload)
-  },
-
-  deleteTaxonomy(id: string) {
-    return remove<EmptyResponse>(`/api/content/taxonomies/${id}`)
-  },
-
-  async getMenu(location: string, siteKey = 'main'): Promise<NavigationMenuDto | null> {
-    const response = await get<unknown>(
-      query(`/api/content/menus/${encodeURIComponent(location)}`, { siteKey }),
-    )
-    return unwrapApiResponse<NavigationMenuDto | null>(response as any)
-  },
-
-  async upsertMenu(location: string, payload: UpsertNavigationMenuRequest): Promise<string> {
-    return unwrapApiResponse<string>(
-      await put<unknown, UpsertNavigationMenuRequest>(
-        `/api/content/menus/${encodeURIComponent(location)}`,
-        payload,
-      ) as any,
-    )
-  },
-
-  setMenuActive(id: string, isActive: boolean) {
-    return patch<EmptyResponse>(`/api/content/menus/${id}/active?isActive=${isActive}`)
-  },
-
-  async getSettings(siteKey = 'main'): Promise<SiteSettingDto[]> {
-    return unwrapListResponse<SiteSettingDto>(
-      await get<unknown>(query('/api/content/settings', { siteKey })),
-    )
-  },
-
-  upsertSetting(key: string, payload: UpsertSiteSettingRequest) {
-    return put<EmptyResponse, UpsertSiteSettingRequest>(
-      `/api/content/settings/${encodeURIComponent(key)}`,
-      payload,
-    )
-  },
-
-  deleteSetting(id: string) {
-    return remove<EmptyResponse>(`/api/content/settings/${id}`)
-  },
+  async getMenu(location:string,siteKey='main'):Promise<NavigationMenuDto|null>{return unwrapApiResponse<NavigationMenuDto|null>(await get<unknown>(query(`/api/content/menus/${encodeURIComponent(location)}`,{siteKey})) as any)},
+  async upsertMenu(location:string,payload:UpsertNavigationMenuRequest):Promise<string>{return unwrapApiResponse<string>(await put<unknown,UpsertNavigationMenuRequest>(`/api/content/menus/${encodeURIComponent(location)}`,payload) as any)},
+  setMenuActive(id:string,isActive:boolean){return patch<EmptyResponse>(`/api/content/menus/${id}/active?isActive=${isActive}`)},
+  async getSettings(siteKey='main'):Promise<SiteSettingDto[]>{return unwrapListResponse<SiteSettingDto>(await get<unknown>(query('/api/content/settings',{siteKey})))},
+  upsertSetting(key:string,payload:UpsertSiteSettingRequest){return put<EmptyResponse,UpsertSiteSettingRequest>(`/api/content/settings/${encodeURIComponent(key)}`,payload)},
+  deleteSetting(id:string){return remove<EmptyResponse>(`/api/content/settings/${id}`)},
 }
