@@ -5,11 +5,12 @@ import { CONTENT_SCOPES } from '../src/core/auth/scopes.ts'
 import { MARKETING_GROUPS, MARKETING_SECTION_KEYS, isMarketingSection } from '../src/modules/marketing/config/marketingNavigation.ts'
 
 test('phase 22 exposes every requested Marketing menu group', () => {
+  const phase22Groups = MARKETING_GROUPS.map((group) => group.label).filter((label) => label && label !== 'IA')
   assert.deepEqual(
-    MARKETING_GROUPS.map((group) => group.label).filter(Boolean),
+    phase22Groups,
     ['Contenido', 'Multimedia', 'Diseño', 'SEO', 'Captación', 'Reuniones', 'Campañas', 'Publicación', 'Configuración'],
   )
-  assert.equal(MARKETING_SECTION_KEYS.length, 33)
+  assert.equal(MARKETING_SECTION_KEYS.length, 34)
   assert.equal(MARKETING_GROUPS[0]?.items[0]?.label, 'Dashboard')
 })
 
@@ -26,6 +27,7 @@ test('phase 22 contains all requested Marketing menu entries', () => {
 test('Marketing section query guard only accepts registered sections', () => {
   assert.equal(isMarketingSection('capture-leads'), true)
   assert.equal(isMarketingSection('campaigns-campaigns'), true)
+  assert.equal(isMarketingSection('ai-assistant'), true)
   assert.equal(isMarketingSection('unknown-section'), false)
   assert.equal(isMarketingSection(null), false)
 })
@@ -73,4 +75,19 @@ test('phase 23 exposes every granular Marketing scope while preserving legacy sc
   assert.equal(CONTENT_SCOPES.view, 'cms.view')
   assert.equal(CONTENT_SCOPES.edit, 'cms.edit')
   assert.equal(CONTENT_SCOPES.publish, 'cms.publish')
+})
+
+test('phase 25 exposes the AI assistant inside Marketing without adding a publishing path', async () => {
+  const view = await readFile(new URL('../src/modules/marketing/views/MarketingView.vue', import.meta.url), 'utf8')
+  const assistant = await readFile(new URL('../src/modules/marketing/components/MarketingAiTab.vue', import.meta.url), 'utf8')
+  const labels = MARKETING_GROUPS.flatMap((group) => group.items.map((item) => item.label))
+
+  assert.ok(labels.includes('Asistente IA'))
+  assert.ok(view.includes("activeSection === 'ai-assistant'"))
+  assert.ok(assistant.includes('AiService.executeChat'))
+  assert.ok(assistant.includes('Aprobar resultado'))
+  assert.equal(assistant.includes('.publish('), false)
+  assert.equal(assistant.includes('publishEditor('), false)
+  assert.equal(assistant.includes('scheduleEditor('), false)
+  assert.equal(assistant.includes('submitEditor('), false)
 })

@@ -75,6 +75,12 @@ export const MARKETING_GROUPS = [
     ],
   },
   {
+    label: 'IA',
+    items: [
+      { key: 'ai-assistant', label: 'Asistente IA', icon: 'sparkles' },
+    ],
+  },
+  {
     label: 'Configuración',
     items: [
       { key: 'settings-site', label: 'Información del sitio', icon: 'settings' },

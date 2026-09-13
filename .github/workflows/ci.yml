@@ -27,5 +27,7 @@ jobs:
         run: pnpm run test:media
       - name: Marketing module tests
         run: pnpm run test:marketing
+      - name: Marketing AI tests
+        run: pnpm run test:marketing-ai
       - name: Type-check and build
         run: pnpm run build
