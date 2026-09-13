@@ -13,6 +13,7 @@ import {
   Plus,
   Search,
   Settings2,
+  Sparkles,
   Users,
   X,
 } from 'lucide-vue-next'
@@ -23,6 +24,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import type { ContentType, EditorDashboardDto } from '@/core/interfaces/content'
 import type { MarketingResourceKind } from '@/core/interfaces/marketing'
 import { MARKETING_GROUPS, isMarketingSection, type MarketingSectionKey } from '@/modules/marketing/config/marketingNavigation'
+import MarketingAiTab from '@/modules/marketing/components/MarketingAiTab.vue'
 import MarketingContentTab from '@/modules/marketing/components/MarketingContentTab.vue'
 import MarketingMediaTab from '@/modules/marketing/components/MarketingMediaTab.vue'
 import MarketingMenusTab from '@/modules/marketing/components/MarketingMenusTab.vue'
@@ -50,6 +52,7 @@ const iconMap: Record<string, Component> = {
   users: Users,
   calendar: CalendarClock,
   campaign: Megaphone,
+  sparkles: Sparkles,
 }
 
 const activeSection = ref<MarketingSectionKey>('dashboard')
@@ -282,6 +285,7 @@ onMounted(() => void loadDashboard())
           :create-nonce="createNonce"
         />
 
+        <MarketingAiTab v-else-if="activeSection === 'ai-assistant'" :site-key="siteKey" />
         <MarketingMediaTab v-else-if="isMediaSection" :key="activeSection" />
         <MarketingMenusTab v-else-if="activeSection === 'design-menus'" :site-key="siteKey" />
         <MarketingSettingsTab v-else-if="isSettingsSection" :key="activeSection" :site-key="siteKey" />
