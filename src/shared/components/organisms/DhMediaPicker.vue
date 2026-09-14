@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { FileImage } from 'lucide-vue-next'
+import { FileImage, Upload } from 'lucide-vue-next'
 import DhModal from '@/shared/components/organisms/DhModal.vue'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
+import DhSelect, { type DhSelectOption } from '@/shared/components/atoms/DhSelect.vue'
 import DhEmptyState from '@/shared/components/atoms/DhEmptyState.vue'
 import DhSkeleton from '@/shared/components/atoms/DhSkeleton.vue'
 
@@ -31,16 +32,30 @@ const props = withDefaults(
     cancelLabel?: string
     loading?: boolean
     selectOnClick?: boolean
+    filterValue?: string | number | null
+    filterOptions?: DhSelectOption[]
+    filterPlaceholder?: string
+    uploadLabel?: string
+    uploadDisabled?: boolean
+    uploading?: boolean
+    autoClose?: boolean
   }>(),
   {
     loading: false,
     selectOnClick: false,
+    filterValue: null,
+    filterOptions: () => [],
+    uploadDisabled: false,
+    uploading: false,
+    autoClose: true,
   },
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | null]
+  'update:filterValue': [value: string | number]
   select: [item: DhMediaPickerItem]
+  upload: []
   close: []
 }>()
 
@@ -56,32 +71,50 @@ function choose(item: DhMediaPickerItem) {
   emit('update:modelValue', item.id)
   if (props.selectOnClick) {
     emit('select', item)
-    emit('close')
+    if (props.autoClose) emit('close')
   }
 }
 
 function confirm() {
   if (!selected.value) return
   emit('select', selected.value)
-  emit('close')
+  if (props.autoClose) emit('close')
 }
 </script>
 
 <template>
   <DhModal :open="open" :title="title" size="xl" @close="emit('close')">
     <div class="flex min-h-0 min-w-0 flex-col gap-4">
-      <DhInput
-        v-if="searchPlaceholder"
-        v-model="search"
-        type="search"
-        :placeholder="searchPlaceholder"
-      />
+      <div class="grid min-w-0 gap-2" :class="filterOptions.length || uploadLabel ? 'md:grid-cols-[minmax(0,1fr)_180px_auto]' : ''">
+        <DhInput
+          v-if="searchPlaceholder"
+          v-model="search"
+          type="search"
+          :placeholder="searchPlaceholder"
+        />
+        <DhSelect
+          v-if="filterOptions.length"
+          :model-value="filterValue"
+          :options="filterOptions"
+          :placeholder="filterPlaceholder ?? ''"
+          @update:model-value="emit('update:filterValue', $event)"
+        />
+        <DhButton
+          v-if="uploadLabel"
+          :label="uploadLabel"
+          :icon="Upload"
+          variant="secondary"
+          :loading="uploading"
+          :disabled="uploadDisabled"
+          @click="emit('upload')"
+        />
+      </div>
 
       <div v-if="loading" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <DhSkeleton v-for="index in 8" :key="index" height="9rem" rounded="lg" />
       </div>
 
-      <div v-else-if="filtered.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div v-else-if="filtered.length" class="grid max-h-[44vh] grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4">
         <button
           v-for="item in filtered"
           :key="item.id"
@@ -115,6 +148,8 @@ function confirm() {
         :title="emptyTitle"
         :description="emptyDescription"
       />
+
+      <slot name="details" :item="selected" />
 
       <footer v-if="cancelLabel || confirmLabel" class="flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] pt-4">
         <DhButton v-if="cancelLabel" :label="cancelLabel" variant="ghost" @click="emit('close')" />
