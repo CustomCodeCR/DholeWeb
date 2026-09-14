@@ -8,6 +8,7 @@ import { ContentRouteService } from '@/core/services/contentRouteService'
 import { useLocale } from '@/core/stores/locale'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { ContentItemDto, ContentItemListDto } from '@/core/interfaces/content'
+import MarketingBlockLibrary from '@/modules/marketing/components/MarketingBlockLibrary.vue'
 
 const props = withDefaults(defineProps<{ siteKey?: string }>(), { siteKey: 'main' })
 const emit = defineEmits<{ close: [] }>()
@@ -153,13 +154,7 @@ onMounted(() => void loadPages())
           <Blocks class="h-4 w-4" />
           <span>{{ tr('Bloques', 'Blocks') }}</span>
         </div>
-        <div class="flex min-h-0 flex-1 items-center p-4">
-          <DhEmptyState
-            :icon="PanelsTopLeft"
-            :title="tr('Panel preparado', 'Panel ready')"
-            :description="tr('Las secciones disponibles aparecerán aquí en la siguiente fase del editor.', 'Available sections will appear here in the next editor phase.')"
-          />
-        </div>
+        <MarketingBlockLibrary />
       </aside>
 
       <main class="visual-editor-canvas-wrap">
@@ -214,11 +209,7 @@ onMounted(() => void loadPages())
     </div>
 
     <DhDrawer :open="blocksDrawerOpen" :title="tr('Bloques', 'Blocks')" size="sm" @close="blocksDrawerOpen = false">
-      <DhEmptyState
-        :icon="PanelsTopLeft"
-        :title="tr('Panel preparado', 'Panel ready')"
-        :description="tr('Las secciones disponibles aparecerán aquí en la siguiente fase del editor.', 'Available sections will appear here in the next editor phase.')"
-      />
+      <MarketingBlockLibrary />
     </DhDrawer>
 
     <DhDrawer :open="propertiesDrawerOpen" :title="tr('Propiedades', 'Properties')" size="md" @close="propertiesDrawerOpen = false">
@@ -245,6 +236,6 @@ onMounted(() => void loadPages())
 .visual-editor-side-header{display:flex;align-items:center;gap:.5rem;border-bottom:1px solid var(--dh-border);padding:1rem;font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.13em;color:var(--dh-text-muted)}
 .visual-editor-canvas-wrap{min-height:0;min-width:0;overflow:auto;background:color-mix(in srgb,var(--dh-bg) 86%,var(--dh-surface));padding:1rem}
 .visual-editor-canvas{display:flex;min-height:680px;min-width:0;overflow:hidden;border:1px solid var(--dh-border);border-radius:24px;background:#fff;box-shadow:var(--dh-shadow-lg)}
-@media (min-width:1280px){.visual-editor-grid{grid-template-columns:240px minmax(0,1fr) 300px}.visual-editor-canvas-wrap{padding:1.25rem}.visual-editor-grid>aside:last-child{border-left:1px solid var(--dh-border);background:var(--dh-input);padding:.75rem}}
+@media (min-width:1280px){.visual-editor-grid{grid-template-columns:280px minmax(0,1fr) 300px}.visual-editor-canvas-wrap{padding:1.25rem}.visual-editor-grid>aside:last-child{border-left:1px solid var(--dh-border);background:var(--dh-input);padding:.75rem}}
 @media (max-width:640px){.visual-editor-shell{min-height:calc(100dvh - 5rem);border-radius:22px}.visual-editor-toolbar{align-items:stretch}.visual-editor-toolbar>div:first-child{width:100%}.visual-editor-canvas-wrap{padding:.65rem}.visual-editor-canvas{min-height:560px;border-radius:18px}}
 </style>
