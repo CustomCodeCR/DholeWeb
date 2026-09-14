@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { CircleDollarSign, Pencil, Power, PowerOff, Trash2 } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
+import { DhBadge, DhButton } from '@/shared/components/atoms'
 import {
   DhCrudToolbar,
   DhDataTable,
@@ -9,6 +9,8 @@ import {
   type DhTableColumn,
 } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapPagedResponse } from '@/core/api/apiResponse'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useModalStore } from '@/core/stores/modalStore'
@@ -20,10 +22,10 @@ import type {
   ChargeBasis,
   CostDetailType,
   CostDto,
-  CostPortRole,
   CostType,
 } from '@/core/interfaces/pricing'
 import PricingCostFormDrawer from '@/modules/pricing/components/PricingCostFormDrawer.vue'
+import PricingMultiSelect from '@/modules/pricing/components/PricingMultiSelect.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
@@ -43,13 +45,13 @@ const pageSize = ref(10)
 const total = ref(0)
 const filters = reactive({
   search: '',
-  costType: '' as CostType | '',
-  costDetailType: '' as CostDetailType | '',
-  carrierId: '',
-  agentId: '',
-  portRole: '' as CostPortRole | '',
-  currencyId: '',
-  active: '',
+  costType: [] as string[],
+  costDetailType: [] as string[],
+  carrierId: [] as string[],
+  agentId: [] as string[],
+  portRole: [] as string[],
+  currencyId: [] as string[],
+  active: [] as string[],
 })
 
 const canCreate = computed(() => authStore.hasScope(PRICING_SCOPES.costs.create))
@@ -73,13 +75,11 @@ const columns: DhTableColumn<CostDto>[] = [
 ]
 
 const typeOptions = [
-  { label: 'Todos', value: '' },
   { label: 'Fijo automático', value: 'Fixed' },
   { label: 'Opcional', value: 'Optional' },
   { label: 'Variable', value: 'Variable' },
 ]
 const detailOptions = [
-  { label: 'Todos', value: '' },
   { label: 'Flete internacional', value: 'Freight' },
   { label: 'Costo de agente', value: 'AgentCharge' },
   { label: 'Origen', value: 'OriginCharge' },
@@ -92,14 +92,12 @@ const detailOptions = [
   { label: 'Otro', value: 'Other' },
 ]
 const portRoleOptions = [
-  { label: 'Todos', value: '' },
   { label: 'POL', value: 'Pol' },
   { label: 'POE', value: 'Poe' },
   { label: 'POD', value: 'Pod' },
   { label: 'Cualquier punto', value: 'Any' },
 ]
 const activeOptions = [
-  { label: 'Todos', value: '' },
   { label: 'Activos', value: 'true' },
   { label: 'Inactivos', value: 'false' },
 ]
@@ -172,21 +170,38 @@ function routeSummary(cost: CostDto) {
   return ['Sin condición de ruta']
 }
 
+function buildCostsQueryString() {
+  const params = new URLSearchParams()
+  const appendMany = (key: string, values: readonly string[]) => {
+    values.forEach((value) => {
+      const normalized = value.trim()
+      if (normalized) params.append(key, normalized)
+    })
+  }
+
+  params.set('pageNumber', String(page.value))
+  params.set('pageSize', String(pageSize.value))
+  if (filters.search.trim()) params.set('search', filters.search.trim())
+  appendMany('costType', filters.costType)
+  appendMany('costDetailType', filters.costDetailType)
+  appendMany('carrierId', filters.carrierId)
+  appendMany('agentId', filters.agentId)
+  appendMany('portRole', filters.portRole)
+  appendMany('currencyId', filters.currencyId)
+  appendMany('isActive', filters.active)
+
+  return `?${params.toString()}`
+}
+
 async function load() {
   try {
     loading.value = true
-    const result = await PricingService.browseCosts({
-      pageNumber: page.value,
-      pageSize: pageSize.value,
-      search: filters.search || undefined,
-      costType: filters.costType || undefined,
-      costDetailType: filters.costDetailType || undefined,
-      carrierId: filters.carrierId || undefined,
-      agentId: filters.agentId || undefined,
-      portRole: filters.portRole || undefined,
-      currencyId: filters.currencyId || undefined,
-      isActive: filters.active === '' ? undefined : filters.active === 'true',
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/pricing/costs' + buildCostsQueryString(),
+      headers: { Accept: 'application/json' },
     })
+    const result = unwrapPagedResponse<CostDto>(response)
     rows.value = result.items
     total.value = result.totalCount ?? result.items.length
   } catch (error) {
@@ -204,13 +219,13 @@ function applyFilters() {
 function clearFilters() {
   Object.assign(filters, {
     search: '',
-    costType: '',
-    costDetailType: '',
-    carrierId: '',
-    agentId: '',
-    portRole: '',
-    currencyId: '',
-    active: '',
+    costType: [],
+    costDetailType: [],
+    carrierId: [],
+    agentId: [],
+    portRole: [],
+    currencyId: [],
+    active: [],
   })
   applyFilters()
 }
@@ -304,47 +319,54 @@ onMounted(async () => {
         class="mt-5 rounded-[26px] border border-[var(--dh-border)] bg-black/[0.025] p-4 dark:bg-white/[0.04]"
       >
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <DhSelect
+          <PricingMultiSelect
             v-model="filters.costType"
             label="Aplicación"
             :options="typeOptions"
-            placeholder=""
+            placeholder="Todas"
+            search-placeholder="Buscar aplicación..."
           />
-          <DhSelect
+          <PricingMultiSelect
             v-model="filters.costDetailType"
             label="Rubro"
             :options="detailOptions"
-            placeholder=""
+            placeholder="Todos"
+            search-placeholder="Buscar rubro..."
           />
-          <DhSelect
+          <PricingMultiSelect
             v-model="filters.carrierId"
             label="Naviera"
-            :options="[{ label: 'Todas', value: '' }, ...catalogs.carrierOptions.value]"
-            placeholder=""
+            :options="catalogs.carrierOptions.value"
+            placeholder="Todas"
+            search-placeholder="Buscar naviera..."
           />
-          <DhSelect
+          <PricingMultiSelect
             v-model="filters.agentId"
             label="Agente"
-            :options="[{ label: 'Todos', value: '' }, ...catalogs.agentOptions.value]"
-            placeholder=""
+            :options="catalogs.agentOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar agente..."
           />
-          <DhSelect
+          <PricingMultiSelect
             v-model="filters.portRole"
             label="Punto"
             :options="portRoleOptions"
-            placeholder=""
+            placeholder="Todos"
+            search-placeholder="Buscar punto..."
           />
-          <DhSelect
+          <PricingMultiSelect
             v-model="filters.currencyId"
             label="Moneda"
-            :options="[{ label: 'Todas', value: '' }, ...catalogs.currencyOptions.value]"
-            placeholder=""
+            :options="catalogs.currencyOptions.value"
+            placeholder="Todas"
+            search-placeholder="Buscar moneda..."
           />
-          <DhSelect
+          <PricingMultiSelect
             v-model="filters.active"
             label="Estado"
             :options="activeOptions"
-            placeholder=""
+            placeholder="Todos"
+            search-placeholder="Buscar estado..."
           />
         </div>
         <div class="mt-4 flex justify-end gap-2">
