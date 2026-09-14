@@ -5,7 +5,7 @@ import { MARKETING_BLOCK_GROUPS, localizeMarketingBlock } from '../src/modules/m
 
 test('FASE 36 creates the main visual editor shell with the requested three-area layout', async () => {
   const source = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
-  for (const expected of ['Bloques', 'Página visual', 'Propiedades', 'Contenido', 'Diseño', 'Animación', 'Espaciado', 'Vista previa']) assert.ok(source.includes(expected), `Missing FASE 36 editor label: ${expected}`)
+  for (const expected of ['Bloques', 'Página visual', 'Propiedades', 'Contenido', 'Diseño', 'Animación', 'Vista previa']) assert.ok(source.includes(expected), `Missing FASE 36 editor label: ${expected}`)
   assert.match(source, /grid-template-columns:280px minmax\(0,1fr\) 300px/)
   assert.match(source, /DhPropertyPanel/)
   assert.match(source, /ContentService\.browseEditor/)
@@ -146,9 +146,45 @@ test('FASE 41 persists inline changes with the official Page Builder edit operat
   assert.doesNotMatch(editor, /\bwindow\.(alert|confirm|prompt)\b/)
 })
 
-test('FASE 41 does not force inline fields onto media-only blocks or advance the FASE 42 property panel', async () => {
+test('FASE 41 keeps media-only blocks free of forced inline text fields', async () => {
   const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
   for (const id of ['image', 'video', 'divider', 'gallery', 'slider']) assert.ok(editor.includes(`'${id}'`))
   assert.match(editor, /Este bloque no tiene texto editable directamente/)
   assert.doesNotMatch(editor, /DhColorPicker|DhMediaPicker|DhIconPicker/)
+})
+
+test('FASE 42 creates the selected-block properties panel with the four requested tabs', async () => {
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
+
+  for (const expected of ['Contenido', 'Diseño', 'Animación', 'Avanzado']) assert.ok(editor.includes(expected), `Missing FASE 42 property tab: ${expected}`)
+  assert.match(editor, /MarketingBlockPropertiesContent/)
+  assert.match(editor, /:block="selectedBuilderBlock"/)
+  assert.match(editor, /selectPageBlock/)
+  assert.match(properties, /activeSection === 'content'/)
+  assert.match(properties, /activeSection === 'design'/)
+  assert.match(properties, /activeSection === 'animation'/)
+  assert.match(properties, /activeSection === 'advanced'/)
+})
+
+test('FASE 42 keeps property actions human and useful without technical configuration', async () => {
+  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
+
+  assert.match(properties, /DhInput/)
+  assert.match(properties, /DhTextarea/)
+  assert.match(properties, /Guardar contenido/)
+  assert.match(properties, /DhSwitch/)
+  assert.match(properties, /Mostrar sección/)
+  assert.match(properties, /Duplicar sección/)
+  assert.match(properties, /Eliminar sección/)
+  assert.doesNotMatch(properties, /\b(?:CSS|HTML|JS|JSON)\b/)
+})
+
+test('FASE 42 opens responsive properties when selecting a section and does not advance FASE 43 presets', async () => {
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
+
+  assert.match(editor, /propertiesDrawerOpen\.value = true/)
+  assert.match(editor, /matchMedia\('\(max-width: 1279px\)'\)/)
+  assert.doesNotMatch(properties, /Alineación|Espaciado|Corporativo|Gradiente/)
 })

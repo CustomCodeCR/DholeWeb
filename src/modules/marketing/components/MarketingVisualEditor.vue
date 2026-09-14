@@ -13,6 +13,7 @@ import type { ContentItemDto, ContentItemListDto } from '@/core/interfaces/conte
 import type { PageBuilderBlock, PageBuilderOperationRequest } from '@/core/interfaces/pageBuilder'
 import MarketingBlockLibrary from '@/modules/marketing/components/MarketingBlockLibrary.vue'
 import MarketingBlockPicker from '@/modules/marketing/components/MarketingBlockPicker.vue'
+import MarketingBlockPropertiesContent from '@/modules/marketing/components/MarketingBlockPropertiesContent.vue'
 import MarketingInlineEditableText from '@/modules/marketing/components/MarketingInlineEditableText.vue'
 import { localizeMarketingBlock } from '@/modules/marketing/config/marketingBlockCatalog'
 import {
@@ -59,7 +60,7 @@ const propertySections = computed(() => [
   { key: 'content', label: tr('Contenido', 'Content') },
   { key: 'design', label: tr('Diseño', 'Design') },
   { key: 'animation', label: tr('Animación', 'Animation') },
-  { key: 'spacing', label: tr('Espaciado', 'Spacing') },
+  { key: 'advanced', label: tr('Avanzado', 'Advanced') },
 ])
 
 const statusLabel = computed(() => {
@@ -104,14 +105,13 @@ const selectedLibraryBlock = computed(() => getMarketingBlockDefinition(selected
 const selectedDefinition = computed(() => selectedBuilderBlock.value
   ? getMarketingBlockDefinitionForBuilderBlock(selectedBuilderBlock.value)
   : selectedLibraryBlock.value)
+const selectedTextField = computed(() => selectedBuilderBlock.value ? inlineTextField(selectedBuilderBlock.value) : null)
 const propertyTitle = computed(() => selectedDefinition.value
   ? localizeMarketingBlock(selectedDefinition.value.title, localeStore.locale)
-  : tr('Sin sección seleccionada', 'No section selected'))
-const propertyDescription = computed(() => {
-  if (selectedBuilderBlock.value) return tr('La sección está seleccionada. Sus propiedades avanzadas se habilitarán en la siguiente fase.', 'The section is selected. Advanced properties will be enabled in the next phase.')
-  if (selectedLibraryBlock.value) return tr('Arrastre este bloque hacia la página para agregarlo.', 'Drag this block into the page to add it.')
-  return tr('Seleccione una sección de la página o un bloque del panel izquierdo.', 'Select a page section or a block from the left panel.')
-})
+  : tr('Propiedades', 'Properties'))
+const propertyDescription = computed(() => selectedBuilderBlock.value
+  ? tr('Edite el contenido y las opciones comprensibles de esta sección.', 'Edit this section’s content and understandable options.')
+  : tr('Seleccione una sección de la página para ver sus propiedades.', 'Select a page section to view its properties.'))
 
 function escapeHtml(value: string) {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;')
@@ -141,9 +141,7 @@ function inlineTextField(block: PageBuilderBlock): InlineTextField | null {
 
   for (const key of candidates) {
     const value = block.data[key]
-    if (typeof value === 'string') {
-      return { key, value, placeholder: tr('Haga clic para editar', 'Click to edit') }
-    }
+    if (typeof value === 'string') return { key, value, placeholder: tr('Haga clic para editar', 'Click to edit') }
   }
 
   if (['image', 'video', 'divider', 'gallery', 'slider'].includes(editorKey ?? '')) return null
@@ -178,6 +176,7 @@ async function loadSelectedPage(id: string | null) {
   deleteCandidate.value = null
   libraryDragActive.value = false
   blockPickerOpen.value = false
+  propertiesDrawerOpen.value = false
   if (!id) {
     page.value = null
     publicPath.value = null
@@ -228,9 +227,13 @@ function selectLibraryBlock(blockId: string) {
   selectedBuilderBlockId.value = null
 }
 
-function selectPageBlock(block: PageBuilderBlock) {
+function selectPageBlock(block: PageBuilderBlock, openResponsivePanel = true) {
   selectedBuilderBlockId.value = block.id
   selectedLibraryBlockId.value = null
+  propertySection.value = 'content'
+  if (openResponsivePanel && typeof window !== 'undefined' && window.matchMedia('(max-width: 1279px)').matches) {
+    propertiesDrawerOpen.value = true
+  }
 }
 
 function handleLibraryDragStart(_event: DragEvent, blockId: string) {
@@ -266,17 +269,21 @@ async function addBlockFromPicker(blockId: string) {
   if (await insertLibraryBlockAt(blockId, targetIndex)) blockPickerOpen.value = false
 }
 
-async function saveInlineText(block: PageBuilderBlock, field: InlineTextField, value: string) {
-  selectPageBlock(block)
-  const current = typeof block.data[field.key] === 'string' ? String(block.data[field.key]) : ''
+async function saveBlockTextProperty(block: PageBuilderBlock, key: string, value: string) {
+  selectPageBlock(block, false)
+  const current = typeof block.data[key] === 'string' ? String(block.data[key]) : ''
   if (current === value) return
-  const nextData = { ...block.data, [field.key]: value }
+  const nextData = { ...block.data, [key]: value }
   const next = await applyBuilderOperation({
     operation: 'edit',
     blockId: block.id,
     dataJson: JSON.stringify(nextData),
   }, tr('Contenido actualizado', 'Content updated'))
   if (next) selectedBuilderBlockId.value = block.id
+}
+
+async function saveInlineText(block: PageBuilderBlock, field: InlineTextField, value: string) {
+  await saveBlockTextProperty(block, field.key, value)
 }
 
 async function handleReorder(_items: DhSortableItem[], from: number, to: number) {
@@ -293,14 +300,19 @@ async function duplicateBlock(block: PageBuilderBlock) {
   if (next) selectedBuilderBlockId.value = next[sourceIndex + 1]?.id ?? block.id
 }
 
-async function toggleVisibility(block: PageBuilderBlock) {
-  const next = await applyBuilderOperation({ operation: block.isVisible ? 'hide' : 'show', blockId: block.id }, block.isVisible ? tr('Sección oculta', 'Section hidden') : tr('Sección visible', 'Section visible'))
+async function setVisibility(block: PageBuilderBlock, visible: boolean) {
+  if (block.isVisible === visible) return
+  const next = await applyBuilderOperation({ operation: visible ? 'show' : 'hide', blockId: block.id }, visible ? tr('Sección visible', 'Section visible') : tr('Sección oculta', 'Section hidden'))
   if (next) selectedBuilderBlockId.value = block.id
+}
+
+async function toggleVisibility(block: PageBuilderBlock) {
+  await setVisibility(block, !block.isVisible)
 }
 
 function requestDelete(block: PageBuilderBlock) {
   deleteCandidate.value = block
-  selectPageBlock(block)
+  selectPageBlock(block, false)
 }
 
 async function confirmDeleteBlock() {
@@ -365,7 +377,7 @@ onMounted(() => void loadPages())
               <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p class="text-xs font-black text-[var(--dh-text)]">{{ tr('Secciones de la página', 'Page sections') }}</p>
-                  <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Haga clic sobre el texto para editarlo directamente, o arrastre bloques para ordenar la página.', 'Click text to edit it directly, or drag blocks to arrange the page.') }}</p>
+                  <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Haga clic sobre el texto para editarlo directamente, o seleccione una sección para abrir sus propiedades.', 'Click text to edit it directly, or select a section to open its properties.') }}</p>
                 </div>
                 <div class="flex items-center gap-2">
                   <DhBadge :label="String(builderBlocks.length)" variant="neutral" />
@@ -377,7 +389,11 @@ onMounted(() => void loadPages())
 
               <DhSortable v-if="sortableBlocks.length" :model-value="sortableBlocks" :item-label="(item) => sortableText(item, 'title')" @reorder="handleReorder">
                 <template #item="{ item }">
-                  <div class="flex min-w-0 items-start gap-2" @click="selectPageBlock(sortableBlock(item))">
+                  <div
+                    class="flex min-w-0 items-start gap-2 rounded-2xl transition"
+                    :class="selectedBuilderBlockId === sortableBlock(item).id ? 'bg-[var(--dh-card-hover)] ring-1 ring-[var(--dh-primary)]' : ''"
+                    @click="selectPageBlock(sortableBlock(item))"
+                  >
                     <div class="min-w-0 flex-1 rounded-xl p-1">
                       <div class="flex items-center gap-2">
                         <span class="truncate text-xs font-black uppercase tracking-[.08em] text-[var(--dh-text-muted)]">{{ sortableText(item, 'title') }}</span>
@@ -389,13 +405,13 @@ onMounted(() => void loadPages())
                         :model-value="inlineTextField(sortableBlock(item))!.value"
                         :placeholder="inlineTextField(sortableBlock(item))!.placeholder"
                         :disabled="builderBusy"
-                        @activate="selectPageBlock(sortableBlock(item))"
+                        @activate="selectPageBlock(sortableBlock(item), false)"
                         @save="saveInlineText(sortableBlock(item), inlineTextField(sortableBlock(item))!, $event)"
                       />
                       <p v-else class="mt-2 px-2 text-[11px] text-[var(--dh-text-muted)]">{{ tr('Este bloque no tiene texto editable directamente.', 'This block has no directly editable text.') }}</p>
                     </div>
 
-                    <div class="flex shrink-0 items-center gap-1">
+                    <div class="flex shrink-0 items-center gap-1 p-1">
                       <DhIconButton :icon="Copy" :label="tr('Duplicar sección', 'Duplicate section')" size="sm" :disabled="builderBusy" @click.stop="duplicateBlock(sortableBlock(item))" />
                       <DhIconButton :icon="sortableBlock(item).isVisible ? EyeOff : Eye" :label="sortableBlock(item).isVisible ? tr('Ocultar sección', 'Hide section') : tr('Mostrar sección', 'Show section')" size="sm" :disabled="builderBusy" @click.stop="toggleVisibility(sortableBlock(item))" />
                       <DhIconButton :icon="Trash2" :label="tr('Eliminar sección', 'Delete section')" variant="danger" size="sm" :disabled="builderBusy" @click.stop="requestDelete(sortableBlock(item))" />
@@ -421,8 +437,19 @@ onMounted(() => void loadPages())
       </main>
 
       <aside class="hidden min-h-0 xl:block">
-        <DhPropertyPanel v-model="propertySection" :sections="propertySections" :title="tr('Propiedades', 'Properties')" :description="tr('Configuración de la sección seleccionada.', 'Settings for the selected section.')" class="h-full">
-          <DhEmptyState :icon="PanelRight" :title="propertyTitle" :description="propertyDescription" />
+        <DhPropertyPanel v-model="propertySection" :sections="propertySections" :title="propertyTitle" :description="propertyDescription" class="h-full">
+          <template #default="{ activeKey }">
+            <MarketingBlockPropertiesContent
+              :block="selectedBuilderBlock"
+              :text-field="selectedTextField"
+              :active-section="activeKey"
+              :disabled="builderBusy"
+              @save-text="selectedBuilderBlock && saveBlockTextProperty(selectedBuilderBlock, $event.key, $event.value)"
+              @set-visibility="selectedBuilderBlock && setVisibility(selectedBuilderBlock, $event)"
+              @duplicate="selectedBuilderBlock && duplicateBlock(selectedBuilderBlock)"
+              @delete="selectedBuilderBlock && requestDelete(selectedBuilderBlock)"
+            />
+          </template>
         </DhPropertyPanel>
       </aside>
     </div>
@@ -432,8 +459,19 @@ onMounted(() => void loadPages())
     </DhDrawer>
 
     <DhDrawer :open="propertiesDrawerOpen" :title="tr('Propiedades', 'Properties')" size="md" @close="propertiesDrawerOpen = false">
-      <DhPropertyPanel v-model="propertySection" :sections="propertySections" :description="tr('Configuración de la sección seleccionada.', 'Settings for the selected section.')">
-        <DhEmptyState :icon="PanelRight" :title="propertyTitle" :description="propertyDescription" />
+      <DhPropertyPanel v-model="propertySection" :sections="propertySections" :description="propertyDescription">
+        <template #default="{ activeKey }">
+          <MarketingBlockPropertiesContent
+            :block="selectedBuilderBlock"
+            :text-field="selectedTextField"
+            :active-section="activeKey"
+            :disabled="builderBusy"
+            @save-text="selectedBuilderBlock && saveBlockTextProperty(selectedBuilderBlock, $event.key, $event.value)"
+            @set-visibility="selectedBuilderBlock && setVisibility(selectedBuilderBlock, $event)"
+            @duplicate="selectedBuilderBlock && duplicateBlock(selectedBuilderBlock)"
+            @delete="selectedBuilderBlock && requestDelete(selectedBuilderBlock)"
+          />
+        </template>
       </DhPropertyPanel>
     </DhDrawer>
 
