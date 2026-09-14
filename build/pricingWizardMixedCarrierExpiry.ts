@@ -71,15 +71,15 @@ function compareFclCandidateRates(left: ImportRateSelectDto, right: ImportRateSe
     `const fclCarrierFilterOptions = computed(() => {`,
     `function fclDaysUntilExpiry(validTo: string) {
   if (!validTo) return 0
-  const end = new Date(\`${String(validTo).slice(0, 10)}T12:00:00\`)
-  const today = new Date(\`${todayIso()}T12:00:00\`)
+  const end = new Date(\`${'${String(validTo).slice(0, 10)}'}T12:00:00\`)
+  const today = new Date(\`${'${todayIso()}'}T12:00:00\`)
   return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86_400_000))
 }
 
 function fclExpiryLabel(validTo: string) {
   const days = fclDaysUntilExpiry(validTo)
   if (days === 0) return 'Vence hoy'
-  return \`Vence en ${days} día${days === 1 ? '' : 's'}\`
+  return \`Vence en ${'${days}'} día${'${days === 1 ? \'\' : \'s\'}'}\`
 }
 
 function compareFclCombinations(left: ImportRateSelectDto[], right: ImportRateSelectDto[]) {
@@ -162,7 +162,7 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
       const carriers = [...carrierEntries.values()]
 
       return {
-        key: \`${groupKey}:${combinationIndex}:${lines.map((line) => line.rate.id).join(':')}\`,
+        key: \`${'${groupKey}'}:${'${combinationIndex}'}:${'${lines.map((line) => line.rate.id).join(\':\')}'}\`,
         carrierFilterKey: [...carrierEntries.keys()].join('|'),
         carrierId: String(first.carrierId ?? ''),
         carrier: carriers.join(' + ') || String(first.carrier ?? 'Naviera'),
