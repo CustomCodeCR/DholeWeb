@@ -9,6 +9,7 @@ import DhSwitch from '@/shared/components/atoms/DhSwitch.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
 import type { CmsMotionPreset, PageBuilderBlock } from '@/core/interfaces/pageBuilder'
 import { useLocale } from '@/core/stores/locale'
+import MarketingAnimationLevelControls from '@/modules/marketing/components/MarketingAnimationLevelControls.vue'
 import MarketingAnimationPicker from '@/modules/marketing/components/MarketingAnimationPicker.vue'
 import MarketingBlockPresetPicker from '@/modules/marketing/components/MarketingBlockPresetPicker.vue'
 import MarketingLayoutPresetPicker from '@/modules/marketing/components/MarketingLayoutPresetPicker.vue'
@@ -20,6 +21,11 @@ export interface MarketingPropertyTextField {
   key: string
   value: string
   placeholder: string
+}
+
+export interface MarketingAnimationSettingsPatch {
+  distance?: number
+  duration?: number
 }
 
 type DesignPropertyKey = 'editorDesignAlignment' | 'editorDesignSpacing' | 'editorDesignBackground' | 'editorLayoutPreset' | 'editorBlockPreset'
@@ -37,6 +43,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'save-text': [payload: { key: string; value: string }]
   'save-animation': [preset: CmsMotionPreset]
+  'save-animation-settings': [payload: MarketingAnimationSettingsPatch]
   'set-visibility': [value: boolean]
   duplicate: []
   delete: []
@@ -72,6 +79,8 @@ const contentLabel = computed(() => {
 })
 const animationPreset = computed<CmsMotionPreset>(() => props.block?.animation?.preset ?? 'none')
 const animationConfigured = computed(() => animationPreset.value !== 'none')
+const animationDistance = computed(() => props.block?.animation?.distance ?? 32)
+const animationDuration = computed(() => props.block?.animation?.duration ?? 600)
 
 const editorBlockKey = computed(() => typeof props.block?.data.editorBlockKey === 'string'
   ? props.block.data.editorBlockKey
@@ -147,6 +156,16 @@ function saveMediaSelection(value: MarketingMediaSelection) {
 function saveAnimation(preset: CmsMotionPreset) {
   if (props.disabled || preset === animationPreset.value) return
   emit('save-animation', preset)
+}
+
+function saveAnimationDistance(distance: number) {
+  if (props.disabled || distance === animationDistance.value) return
+  emit('save-animation-settings', { distance })
+}
+
+function saveAnimationDuration(duration: number) {
+  if (props.disabled || duration === animationDuration.value) return
+  emit('save-animation-settings', { duration })
 }
 </script>
 
@@ -327,6 +346,14 @@ function saveAnimation(preset: CmsMotionPreset) {
           :model-value="animationPreset"
           :disabled="disabled"
           @select="saveAnimation"
+        />
+
+        <MarketingAnimationLevelControls
+          :distance="animationDistance"
+          :duration="animationDuration"
+          :disabled="disabled"
+          @update-distance="saveAnimationDistance"
+          @update-duration="saveAnimationDuration"
         />
       </div>
     </template>

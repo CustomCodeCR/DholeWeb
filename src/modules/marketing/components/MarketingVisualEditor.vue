@@ -31,6 +31,11 @@ interface InlineTextField {
   placeholder: string
 }
 
+interface AnimationSettingsPatch {
+  distance?: number
+  duration?: number
+}
+
 const props = withDefaults(defineProps<{ siteKey?: string }>(), { siteKey: 'main' })
 const emit = defineEmits<{ close: [] }>()
 
@@ -298,6 +303,23 @@ async function saveBlockAnimation(block: PageBuilderBlock, preset: CmsMotionPres
   if (next) selectedBuilderBlockId.value = block.id
 }
 
+async function saveBlockAnimationSettings(block: PageBuilderBlock, patch: AnimationSettingsPatch) {
+  selectPageBlock(block, false)
+  const currentDistance = block.animation?.distance ?? 32
+  const currentDuration = block.animation?.duration ?? 600
+  if ((patch.distance === undefined || patch.distance === currentDistance)
+    && (patch.duration === undefined || patch.duration === currentDuration)) return
+  const animation = block.animation
+    ? { ...block.animation, ...patch }
+    : { preset: 'none' as CmsMotionPreset, ...patch }
+  const next = await applyBuilderOperation({
+    operation: 'edit',
+    blockId: block.id,
+    animationJson: JSON.stringify(animation),
+  }, tr('Animación actualizada', 'Animation updated'))
+  if (next) selectedBuilderBlockId.value = block.id
+}
+
 async function handleReorder(_items: DhSortableItem[], from: number, to: number) {
   if (from === to) return
   const block = builderBlocks.value[from]
@@ -458,6 +480,7 @@ onMounted(() => void loadPages())
               :disabled="builderBusy"
               @save-text="selectedBuilderBlock && saveBlockTextProperty(selectedBuilderBlock, $event.key, $event.value)"
               @save-animation="selectedBuilderBlock && saveBlockAnimation(selectedBuilderBlock, $event)"
+              @save-animation-settings="selectedBuilderBlock && saveBlockAnimationSettings(selectedBuilderBlock, $event)"
               @set-visibility="selectedBuilderBlock && setVisibility(selectedBuilderBlock, $event)"
               @duplicate="selectedBuilderBlock && duplicateBlock(selectedBuilderBlock)"
               @delete="selectedBuilderBlock && requestDelete(selectedBuilderBlock)"
@@ -481,6 +504,7 @@ onMounted(() => void loadPages())
             :disabled="builderBusy"
             @save-text="selectedBuilderBlock && saveBlockTextProperty(selectedBuilderBlock, $event.key, $event.value)"
             @save-animation="selectedBuilderBlock && saveBlockAnimation(selectedBuilderBlock, $event)"
+            @save-animation-settings="selectedBuilderBlock && saveBlockAnimationSettings(selectedBuilderBlock, $event)"
             @set-visibility="selectedBuilderBlock && setVisibility(selectedBuilderBlock, $event)"
             @duplicate="selectedBuilderBlock && duplicateBlock(selectedBuilderBlock)"
             @delete="selectedBuilderBlock && requestDelete(selectedBuilderBlock)"
