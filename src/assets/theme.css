@@ -161,6 +161,17 @@ body.dh-has-client-background {
   z-index: 1;
 }
 
+/* Raise the containing stacking context, not only the dropdown menu.
+   Later siblings (such as tables) otherwise paint over an open filter. */
+.dh-liquid > :has(details[data-dh-dropdown="true"][open]) {
+  z-index: 2;
+}
+
+/* Let open menus extend beyond the card; restore clipping when they close. */
+.dh-liquid:has(details[data-dh-dropdown="true"][open]) {
+  overflow: visible;
+}
+
 .dh-card-hover {
   transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
