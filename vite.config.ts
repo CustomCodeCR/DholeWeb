@@ -32,6 +32,7 @@ import { pricingWizardFclRateBundles } from './build/pricingWizardFclRateBundles
 import { pricingWizardFclRateBundlesPreCompat, pricingWizardFclRateBundlesPostCompat } from './build/pricingWizardFclRateBundlesCompat'
 import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 import { pricingWizardDraftEquipmentRestoreFix } from './build/pricingWizardDraftEquipmentRestoreFix'
+import { pricingWizardDraftRestoreGuard } from './build/pricingWizardDraftRestoreGuard'
 import { pricingRequirements20260908PreCompat } from './build/pricingRequirements20260908PreCompat'
 import { pricingRequirements20260908 } from './build/pricingRequirements20260908'
 import { pricingCargoHaulageKeywordFix } from './build/pricingCargoHaulageKeywordFix'
@@ -90,6 +91,7 @@ export default defineConfig({
     pricingWizardFclRateBundlesPostCompat(),
     pricingWizardDraftAutosave(),
     pricingWizardDraftEquipmentRestoreFix(),
+    pricingWizardDraftRestoreGuard(),
     pricingRequirements20260908PreCompat(),
     pricingRequirements20260908(),
     pricingCargoHaulageKeywordFix(),
