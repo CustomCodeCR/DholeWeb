@@ -230,7 +230,11 @@ ${chooseRateAnchor}`
 
   const stepFiveIndex = code.indexOf(`<div v-else-if="step === 5"`)
   if (stepFiveIndex < 0) throw new Error('[pricingWizardSavedManualRates] screen 5 not found.')
-  const loadingIndex = code.indexOf(`<div v-if="loadingRates"`, stepFiveIndex)
+  const loadingIfIndex = code.indexOf(`<div v-if="loadingRates`, stepFiveIndex)
+  const loadingElseIfIndex = code.indexOf(`<div v-else-if="loadingRates`, stepFiveIndex)
+  const loadingIndex = [loadingIfIndex, loadingElseIfIndex]
+    .filter((index) => index >= 0)
+    .sort((left, right) => left - right)[0] ?? -1
   if (loadingIndex < 0) throw new Error('[pricingWizardSavedManualRates] screen 5 loading block not found.')
 
   const manualCards = `          <div v-if="!loadingRates && availableSavedManualRates.length" class="space-y-3">
@@ -282,7 +286,13 @@ ${chooseRateAnchor}`
           </div>
 
 `
-  code = code.slice(0, loadingIndex) + manualCards + code.slice(loadingIndex)
+
+  // Some earlier transforms turn the loading block into v-else-if as part of the
+  // LCL selector chain. Insert the manual-rate cards before the chain starts so
+  // Vue's v-if / v-else-if adjacency remains valid.
+  const lclSelectorIndex = code.lastIndexOf(`<PricingLclRateSourceSelector`, loadingIndex)
+  const insertionIndex = lclSelectorIndex >= stepFiveIndex ? lclSelectorIndex : loadingIndex
+  code = code.slice(0, insertionIndex) + manualCards + code.slice(insertionIndex)
 
   // When the imported-rate engine has no candidates but a saved manual tariff was
   // found, do not render the contradictory empty-state panels underneath it.
