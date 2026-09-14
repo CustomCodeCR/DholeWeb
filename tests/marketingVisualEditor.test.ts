@@ -130,3 +130,33 @@ test('FASE 39 uses the Dhole Design System and does not introduce a visual drag 
   assert.match(editor, /MARKETING_BLOCK_DRAG_MIME/)
   assert.doesNotMatch(packageJson, /sortablejs|dnd-kit|vue-draggable|interactjs/i)
 })
+
+test('FASE 40 adds the Add section action and opens the DhBlockPicker flow', async () => {
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+  const picker = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPicker.vue', import.meta.url), 'utf8')
+
+  assert.match(editor, /Agregar sección/)
+  assert.match(editor, /blockPickerOpen/)
+  assert.match(editor, /MarketingBlockPicker/)
+  assert.match(picker, /DhBlockPicker/)
+  assert.match(picker, /Buscar sección\.\.\./)
+})
+
+test('FASE 40 visually exposes all 25 human blocks with icons and search metadata', async () => {
+  const picker = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPicker.vue', import.meta.url), 'utf8')
+
+  assert.match(picker, /MARKETING_BLOCK_GROUPS\.flatMap/)
+  assert.match(picker, /iconMap\[block\.icon\]/)
+  assert.match(picker, /description:/)
+  assert.equal(MARKETING_BLOCK_GROUPS.flatMap((group) => group.blocks).length, 25)
+  assert.doesNotMatch(picker, /ServicesGrid|MeetingForm|NewsGrid|Cms[A-Z]/)
+})
+
+test('FASE 40 inserts the selected picker block through Page Builder without advancing inline editing', async () => {
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+
+  assert.match(editor, /addBlockFromPicker/)
+  assert.match(editor, /insertLibraryBlockAt\(blockId, targetIndex\)/)
+  assert.match(editor, /const targetIndex = builderBlocks\.value\.length/)
+  assert.doesNotMatch(editor, /contenteditable|inline-edit|InlineEditor/i)
+})
