@@ -65,7 +65,7 @@ onBeforeUnmount(() => {
     ref="rootRef"
     class="relative grid aspect-[4/3] w-full place-items-center overflow-hidden bg-black/[0.04] text-[var(--dh-text-muted)] dark:bg-white/[0.05]"
   >
-    <DhSkeleton v-if="loading" class="absolute inset-0 h-full w-full" height="100%" rounded="none" />
+    <DhSkeleton v-if="loading" class="absolute inset-0 h-full w-full" height="100%" />
     <img
       v-else-if="previewUrl"
       :src="previewUrl"
