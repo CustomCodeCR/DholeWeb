@@ -37,9 +37,11 @@ function patchWizard(source: string) {
     'edit next shortcut',
   )
 
-  code = replaceOne(
+  // Several earlier compatibility plugins may adjust the comment/body around this helper.
+  // Replace the complete function rather than depending on its historical exact text.
+  code = replaceRegexOne(
     code,
-    `function goToStep(target: number) {\n  if (target < 1 || target > maxStep.value) return\n  // Crear mantiene el flujo guiado; Ver y Editar pueden recorrer libremente toda la tarifa.\n  if (props.rateId || target <= step.value) step.value = target\n}`,
+    /function goToStep\(target: number\) \{[\s\S]*?\n\}/,
     `function goToStep(target: number) {\n  if (target < 1 || target > maxStep.value) return\n  // Visualizar puede recorrer libremente. Crear y Editar usan el mismo flujo guiado.\n  if (props.viewOnly && props.rateId) {\n    step.value = target\n    return\n  }\n  if (target <= step.value) step.value = target\n}`,
     'guided edit step navigation',
   )
