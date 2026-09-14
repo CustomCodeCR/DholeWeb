@@ -10,7 +10,7 @@ import { PageBuilderService } from '@/core/services/pageBuilderService'
 import { useLocale } from '@/core/stores/locale'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { ContentItemDto, ContentItemListDto } from '@/core/interfaces/content'
-import type { PageBuilderBlock, PageBuilderOperationRequest } from '@/core/interfaces/pageBuilder'
+import type { CmsMotionPreset, PageBuilderBlock, PageBuilderOperationRequest } from '@/core/interfaces/pageBuilder'
 import MarketingBlockLibrary from '@/modules/marketing/components/MarketingBlockLibrary.vue'
 import MarketingBlockPicker from '@/modules/marketing/components/MarketingBlockPicker.vue'
 import MarketingBlockPropertiesContent from '@/modules/marketing/components/MarketingBlockPropertiesContent.vue'
@@ -286,6 +286,18 @@ async function saveInlineText(block: PageBuilderBlock, field: InlineTextField, v
   await saveBlockTextProperty(block, field.key, value)
 }
 
+async function saveBlockAnimation(block: PageBuilderBlock, preset: CmsMotionPreset) {
+  selectPageBlock(block, false)
+  if ((block.animation?.preset ?? 'none') === preset) return
+  const animation = block.animation ? { ...block.animation, preset } : { preset }
+  const next = await applyBuilderOperation({
+    operation: 'edit',
+    blockId: block.id,
+    animationJson: JSON.stringify(animation),
+  }, preset === 'none' ? tr('Animación desactivada', 'Animation disabled') : tr('Animación actualizada', 'Animation updated'))
+  if (next) selectedBuilderBlockId.value = block.id
+}
+
 async function handleReorder(_items: DhSortableItem[], from: number, to: number) {
   if (from === to) return
   const block = builderBlocks.value[from]
@@ -445,6 +457,7 @@ onMounted(() => void loadPages())
               :active-section="activeKey"
               :disabled="builderBusy"
               @save-text="selectedBuilderBlock && saveBlockTextProperty(selectedBuilderBlock, $event.key, $event.value)"
+              @save-animation="selectedBuilderBlock && saveBlockAnimation(selectedBuilderBlock, $event)"
               @set-visibility="selectedBuilderBlock && setVisibility(selectedBuilderBlock, $event)"
               @duplicate="selectedBuilderBlock && duplicateBlock(selectedBuilderBlock)"
               @delete="selectedBuilderBlock && requestDelete(selectedBuilderBlock)"
@@ -467,6 +480,7 @@ onMounted(() => void loadPages())
             :active-section="activeKey"
             :disabled="builderBusy"
             @save-text="selectedBuilderBlock && saveBlockTextProperty(selectedBuilderBlock, $event.key, $event.value)"
+            @save-animation="selectedBuilderBlock && saveBlockAnimation(selectedBuilderBlock, $event)"
             @set-visibility="selectedBuilderBlock && setVisibility(selectedBuilderBlock, $event)"
             @duplicate="selectedBuilderBlock && duplicateBlock(selectedBuilderBlock)"
             @delete="selectedBuilderBlock && requestDelete(selectedBuilderBlock)"

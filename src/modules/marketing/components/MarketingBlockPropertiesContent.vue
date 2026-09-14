@@ -7,8 +7,9 @@ import DhEmptyState from '@/shared/components/atoms/DhEmptyState.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
 import DhSwitch from '@/shared/components/atoms/DhSwitch.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
-import type { PageBuilderBlock } from '@/core/interfaces/pageBuilder'
+import type { CmsMotionPreset, PageBuilderBlock } from '@/core/interfaces/pageBuilder'
 import { useLocale } from '@/core/stores/locale'
+import MarketingAnimationPicker from '@/modules/marketing/components/MarketingAnimationPicker.vue'
 import MarketingBlockPresetPicker from '@/modules/marketing/components/MarketingBlockPresetPicker.vue'
 import MarketingLayoutPresetPicker from '@/modules/marketing/components/MarketingLayoutPresetPicker.vue'
 import MarketingMediaPicker, { type MarketingMediaSelection } from '@/modules/marketing/components/MarketingMediaPicker.vue'
@@ -35,6 +36,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'save-text': [payload: { key: string; value: string }]
+  'save-animation': [preset: CmsMotionPreset]
   'set-visibility': [value: boolean]
   duplicate: []
   delete: []
@@ -68,7 +70,8 @@ const contentLabel = computed(() => {
   if (isLongText.value) return tr('Texto', 'Text')
   return tr('Título', 'Title')
 })
-const animationConfigured = computed(() => Boolean(props.block?.animation && props.block.animation.preset !== 'none'))
+const animationPreset = computed<CmsMotionPreset>(() => props.block?.animation?.preset ?? 'none')
+const animationConfigured = computed(() => animationPreset.value !== 'none')
 
 const editorBlockKey = computed(() => typeof props.block?.data.editorBlockKey === 'string'
   ? props.block.data.editorBlockKey
@@ -139,6 +142,11 @@ function saveMediaSelection(value: MarketingMediaSelection) {
   mediaPickerOpen.value = false
   if (props.disabled || value.id === selectedMediaId.value) return
   emit('save-text', { key: 'editorMediaId', value: value.id })
+}
+
+function saveAnimation(preset: CmsMotionPreset) {
+  if (props.disabled || preset === animationPreset.value) return
+  emit('save-animation', preset)
 }
 </script>
 
@@ -231,11 +239,7 @@ function saveMediaSelection(value: MarketingMediaSelection) {
             <p class="text-xs font-black uppercase tracking-[.1em] text-[var(--dh-text)]">{{ tr('Diseño del Hero', 'Hero layout') }}</p>
             <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Elija un diseño visual. No necesita configurar columnas manualmente.', 'Choose a visual layout. You do not need to configure columns manually.') }}</p>
           </div>
-          <MarketingLayoutPresetPicker
-            :model-value="layoutPreset"
-            :disabled="disabled"
-            @select="saveLayoutPreset"
-          />
+          <MarketingLayoutPresetPicker :model-value="layoutPreset" :disabled="disabled" @select="saveLayoutPreset" />
         </section>
 
         <section v-if="isServicesPresetBlock" class="space-y-2">
@@ -243,11 +247,7 @@ function saveMediaSelection(value: MarketingMediaSelection) {
             <p class="text-xs font-black uppercase tracking-[.1em] text-[var(--dh-text)]">{{ tr('Diseño de Servicios', 'Services design') }}</p>
             <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Elija un diseño preparado para presentar sus servicios.', 'Choose a prepared design for presenting your services.') }}</p>
           </div>
-          <MarketingBlockPresetPicker
-            :model-value="blockPreset"
-            :disabled="disabled"
-            @select="saveBlockPreset"
-          />
+          <MarketingBlockPresetPicker :model-value="blockPreset" :disabled="disabled" @select="saveBlockPreset" />
         </section>
 
         <section class="space-y-2">
@@ -309,17 +309,25 @@ function saveMediaSelection(value: MarketingMediaSelection) {
     </template>
 
     <template v-else-if="activeSection === 'animation'">
-      <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <Sparkles class="h-4 w-4 text-[var(--dh-primary)]" />
-            <span class="text-sm font-black text-[var(--dh-text)]">{{ tr('Animación', 'Animation') }}</span>
+      <div class="space-y-4">
+        <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <Sparkles class="h-4 w-4 text-[var(--dh-primary)]" />
+              <span class="text-sm font-black text-[var(--dh-text)]">{{ tr('Animación', 'Animation') }}</span>
+            </div>
+            <DhBadge :label="animationConfigured ? tr('Configurada', 'Configured') : tr('Sin animación', 'No animation')" :variant="animationConfigured ? 'primary' : 'neutral'" />
           </div>
-          <DhBadge :label="animationConfigured ? tr('Configurada', 'Configured') : tr('Sin animación', 'No animation')" :variant="animationConfigured ? 'primary' : 'neutral'" />
+          <p class="mt-3 text-xs leading-5 text-[var(--dh-text-muted)]">
+            {{ tr('Pase el cursor sobre cada opción para ver una vista previa y haga clic para aplicarla.', 'Hover over each option to preview it, then click to apply it.') }}
+          </p>
         </div>
-        <p class="mt-3 text-xs leading-5 text-[var(--dh-text-muted)]">
-          {{ tr('La animación se administrará mediante opciones visuales comprensibles.', 'Animation is managed through understandable visual options.') }}
-        </p>
+
+        <MarketingAnimationPicker
+          :model-value="animationPreset"
+          :disabled="disabled"
+          @select="saveAnimation"
+        />
       </div>
     </template>
 
