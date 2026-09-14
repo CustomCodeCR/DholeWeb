@@ -110,6 +110,39 @@ function costSpecificity`,
     'applicable cost function',
   )
 
+  // Cargos Optional que ya pasaron el filtro contextual del backend se incluyen de forma
+  // automática. Se conservan las condiciones explícitas de carga peligrosa, sobrepeso,
+  // muellaje y haulage. Si Pricing retira un cargo con la X, se recuerda mientras no cambie
+  // el contexto de la cotización para que un rebuild no lo agregue nuevamente.
+  code = replaceRegexOne(
+    code,
+    /function shouldIncludeOptionalCost\(line: \{ name: string; notes\?: string \| null \}\) \{[\s\S]*?\n\}/,
+    `function automaticOptionalCostId(line: { id?: string | null; costId?: string | null }) {
+  return String(line.costId ?? line.id ?? '').trim()
+}
+
+function shouldIncludeOptionalCost(line: { id?: string | null; costId?: string | null; name: string; notes?: string | null }) {
+  const automaticCostId = automaticOptionalCostId(line)
+  if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
+
+  const cargoSelected = cargoConditionSelection(line)
+  if (cargoSelected === false) return false
+  const portHandlingSelected = portHandlingConditionSelection(line)
+  if (portHandlingSelected === false) return false
+  const association = haulageAssociation(line)
+  if (association === 'merchant' && !form.merchantHaulage) return false
+  if (association === 'carrier' && !form.carrierHaulage) return false
+  if (cargoSelected === true || portHandlingSelected === true) return true
+  if (association === 'merchant') return form.merchantHaulage
+  if (association === 'carrier') return form.carrierHaulage
+
+  // Un Optional sin una condición especial adicional ya fue validado contra POE/POD,
+  // naviera/agente, Incoterm, modalidad y servicios por DholePricing.
+  return true
+}`,
+    'automatic optional inclusion',
+  )
+
   code = replaceRegexOne(
     code,
     /async function loadApplicableCosts\(\) \{[\s\S]*?\n\}\n\nfunction rebuildRateLines/,
@@ -117,6 +150,12 @@ function costSpecificity`,
   try {
     const contextKey = currentCostContextKey()
     const importRateId = costContextImportRateId()
+
+    if (automaticOptionalContextKey.value !== contextKey) {
+      dismissedAutomaticOptionalCostIds.value.clear()
+      automaticOptionalContextKey.value = contextKey
+    }
+
     const selectedCosts = await PricingService.selectCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
@@ -169,6 +208,45 @@ function rebuildRateLines`,
 )
 const optionalChargeOptions = computed`,
     'optional cost selector',
+  )
+
+  // Solo el flujo operativo de Pricing puede quitar/reagregar cargos Optional. El flujo
+  // de vendedor y la vista de solo lectura reciben los cargos aplicables ya seleccionados.
+  code = replaceRegexOne(
+    code,
+    /\nconst selectedOptionalChargeKeys = computed<string\[]>\(\{/,
+    `
+const dismissedAutomaticOptionalCostIds = ref(new Set<string>())
+const automaticOptionalContextKey = ref('')
+const canManageAutomaticOptionalCosts = computed(() => !props.sellerRequestMode && !props.viewOnly)
+const selectedOptionalChargeKeys = computed<string[]>({`,
+    'automatic optional state and permission',
+  )
+
+  code = replaceRegexOne(
+    code,
+    /  set: \(keys\) => \{\n    const selected = new Set\(keys\)\n/,
+    `  set: (keys) => {
+    if (!canManageAutomaticOptionalCosts.value) return
+
+    const selected = new Set(keys)
+    selectableOptionalLines.value.forEach((line) => {
+      const automaticCostId = automaticOptionalCostId(line)
+      if (!automaticCostId) return
+      if (selected.has(line.key)) dismissedAutomaticOptionalCostIds.value.delete(automaticCostId)
+      else dismissedAutomaticOptionalCostIds.value.add(automaticCostId)
+    })
+`,
+    'optional selector permission and dismissal tracking',
+  )
+
+  code = replaceRegexOne(
+    code,
+    /<PricingCrystalMultiSelect\n\s+v-model="selectedOptionalChargeKeys"/,
+    `<PricingCrystalMultiSelect
+                v-if="canManageAutomaticOptionalCosts"
+                v-model="selectedOptionalChargeKeys"`,
+    'pricing-only optional selector',
   )
 
   return code
