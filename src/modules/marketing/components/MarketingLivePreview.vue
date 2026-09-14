@@ -5,6 +5,7 @@ import { downloadFile } from '@/core/api/fetchConfig'
 import type { PageBuilderBlock } from '@/core/interfaces/pageBuilder'
 import { useLocale } from '@/core/stores/locale'
 import DhEmptyState from '@/shared/components/atoms/DhEmptyState.vue'
+import DhDevicePreview, { type DhDeviceKind } from '@/shared/components/molecules/DhDevicePreview.vue'
 import { localizeMarketingBlock } from '@/modules/marketing/config/marketingBlockCatalog'
 import { getMarketingBlockDefinitionForBuilderBlock } from '@/modules/marketing/config/marketingPageBuilder'
 
@@ -27,6 +28,19 @@ const localeStore = useLocale()
 const tr = (es: string, en: string) => localeStore.locale === 'en' ? en : es
 const mediaUrls = ref<Record<string, string>>({})
 const failedMedia = ref<Record<string, boolean>>({})
+const previewDevice = ref<DhDeviceKind>('desktop')
+
+const deviceLabels = computed<Record<DhDeviceKind, string>>(() => ({
+  desktop: tr('Desktop', 'Desktop'),
+  tablet: tr('Tablet', 'Tablet'),
+  mobile: tr('Mobile', 'Mobile'),
+}))
+
+const deviceWidths: Record<DhDeviceKind, number> = {
+  desktop: 1280,
+  tablet: 768,
+  mobile: 390,
+}
 
 const visibleBlocks = computed(() => props.blocks.filter((block) => block.isVisible))
 const mediaIds = computed(() => Array.from(new Set(visibleBlocks.value.flatMap((block) => {
@@ -208,115 +222,125 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="marketing-live-preview">
-    <template v-if="visibleBlocks.length">
-      <section
-        v-for="block in visibleBlocks"
-        :key="animationKey(block)"
-        class="live-preview-section"
-        :class="[
-          alignmentClass(block),
-          spacingClass(block),
-          backgroundClass(block),
-          animationClass(block),
-          { 'preview-selected': selectedBlockId === block.id },
-        ]"
-        :style="sectionStyle(block)"
-        @click="emit('select', block)"
-      >
-        <template v-if="blockKey(block) === 'divider'">
-          <hr class="preview-divider" />
-        </template>
+  <DhDevicePreview
+    v-model="previewDevice"
+    :labels="deviceLabels"
+    :widths="deviceWidths"
+    :framed="false"
+    class="marketing-device-preview"
+  >
+    <template #default="{ device }">
+      <div class="marketing-live-preview" :class="`preview-device-${device}`">
+        <template v-if="visibleBlocks.length">
+          <section
+            v-for="block in visibleBlocks"
+            :key="animationKey(block)"
+            class="live-preview-section"
+            :class="[
+              alignmentClass(block),
+              spacingClass(block),
+              backgroundClass(block),
+              animationClass(block),
+              { 'preview-selected': selectedBlockId === block.id },
+            ]"
+            :style="sectionStyle(block)"
+            @click="emit('select', block)"
+          >
+            <template v-if="blockKey(block) === 'divider'">
+              <hr class="preview-divider" />
+            </template>
 
-        <template v-else-if="blockKey(block) === 'image'">
-          <img
-            v-if="mediaUrl(block)"
-            :src="mediaUrl(block)"
-            :alt="previewText(block)"
-            class="preview-image"
-          />
-          <div v-else class="preview-media-placeholder">
-            <ImageIcon class="h-7 w-7" />
-            <span>{{ tr('Imagen', 'Image') }}</span>
-          </div>
-        </template>
-
-        <template v-else-if="blockKey(block) === 'video' || (blockKey(block) === 'hero' && heroLayout(block) === 'hero-full-video')">
-          <div class="preview-video-placeholder">
-            <span class="preview-play"><Play class="h-5 w-5 fill-current" /></span>
-            <div>
-              <p class="preview-eyebrow">{{ blockTitle(block) }}</p>
-              <p class="preview-copy-text">{{ previewText(block) }}</p>
-            </div>
-          </div>
-        </template>
-
-        <template v-else-if="blockKey(block) === 'gallery' || blockKey(block) === 'slider' || (blockKey(block) === 'hero' && heroLayout(block) === 'hero-slider')">
-          <div class="preview-gallery">
-            <div v-for="n in 3" :key="n" class="preview-gallery-card">
-              <ImageIcon class="h-5 w-5" />
-            </div>
-          </div>
-        </template>
-
-        <template v-else-if="blockKey(block) === 'services'">
-          <div>
-            <p class="preview-eyebrow">{{ blockTitle(block) }}</p>
-            <h2 class="preview-heading">{{ previewText(block) }}</h2>
-            <div class="preview-services" :class="{ 'preview-services-four': servicesCount(block) === 4 }">
-              <div v-for="n in servicesCount(block)" :key="n" class="preview-service-card">
-                <Sparkles class="h-5 w-5" />
-                <span>{{ tr('Servicio', 'Service') }} {{ n }}</span>
+            <template v-else-if="blockKey(block) === 'image'">
+              <img
+                v-if="mediaUrl(block)"
+                :src="mediaUrl(block)"
+                :alt="previewText(block)"
+                class="preview-image"
+              />
+              <div v-else class="preview-media-placeholder">
+                <ImageIcon class="h-7 w-7" />
+                <span>{{ tr('Imagen', 'Image') }}</span>
               </div>
-            </div>
-          </div>
-        </template>
+            </template>
 
-        <template v-else-if="blockKey(block) === 'hero'">
-          <div class="preview-hero" :class="heroLayoutClass(block)">
-            <div class="preview-hero-copy">
+            <template v-else-if="blockKey(block) === 'video' || (blockKey(block) === 'hero' && heroLayout(block) === 'hero-full-video')">
+              <div class="preview-video-placeholder">
+                <span class="preview-play"><Play class="h-5 w-5 fill-current" /></span>
+                <div>
+                  <p class="preview-eyebrow">{{ blockTitle(block) }}</p>
+                  <p class="preview-copy-text">{{ previewText(block) }}</p>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="blockKey(block) === 'gallery' || blockKey(block) === 'slider' || (blockKey(block) === 'hero' && heroLayout(block) === 'hero-slider')">
+              <div class="preview-gallery">
+                <div v-for="n in 3" :key="n" class="preview-gallery-card">
+                  <ImageIcon class="h-5 w-5" />
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="blockKey(block) === 'services'">
+              <div>
+                <p class="preview-eyebrow">{{ blockTitle(block) }}</p>
+                <h2 class="preview-heading">{{ previewText(block) }}</h2>
+                <div class="preview-services" :class="{ 'preview-services-four': servicesCount(block) === 4 }">
+                  <div v-for="n in servicesCount(block)" :key="n" class="preview-service-card">
+                    <Sparkles class="h-5 w-5" />
+                    <span>{{ tr('Servicio', 'Service') }} {{ n }}</span>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="blockKey(block) === 'hero'">
+              <div class="preview-hero" :class="heroLayoutClass(block)">
+                <div class="preview-hero-copy">
+                  <p class="preview-eyebrow">{{ blockTitle(block) }}</p>
+                  <h2 class="preview-heading preview-heading-hero">{{ previewText(block) }}</h2>
+                  <p class="preview-description">{{ blockDescription(block) }}</p>
+                </div>
+                <div v-if="heroLayout(block) !== 'hero-centered-text'" class="preview-hero-media">
+                  <img v-if="mediaUrl(block)" :src="mediaUrl(block)" :alt="previewText(block)" class="preview-image" />
+                  <ImageIcon v-else class="h-8 w-8" />
+                </div>
+              </div>
+            </template>
+
+            <template v-else>
               <p class="preview-eyebrow">{{ blockTitle(block) }}</p>
-              <h2 class="preview-heading preview-heading-hero">{{ previewText(block) }}</h2>
-              <p class="preview-description">{{ blockDescription(block) }}</p>
-            </div>
-            <div v-if="heroLayout(block) !== 'hero-centered-text'" class="preview-hero-media">
-              <img v-if="mediaUrl(block)" :src="mediaUrl(block)" :alt="previewText(block)" class="preview-image" />
-              <ImageIcon v-else class="h-8 w-8" />
-            </div>
-          </div>
+              <button v-if="['button', 'cta', 'campaign'].includes(blockKey(block))" type="button" class="preview-button">
+                {{ previewText(block) }}
+              </button>
+              <h2 v-else-if="blockKey(block) === 'heading'" class="preview-heading">{{ previewText(block) }}</h2>
+              <p v-else class="preview-copy-text">{{ previewText(block) }}</p>
+            </template>
+          </section>
         </template>
 
-        <template v-else>
-          <p class="preview-eyebrow">{{ blockTitle(block) }}</p>
-          <button v-if="['button', 'cta', 'campaign'].includes(blockKey(block))" type="button" class="preview-button">
-            {{ previewText(block) }}
-          </button>
-          <h2 v-else-if="blockKey(block) === 'heading'" class="preview-heading">{{ previewText(block) }}</h2>
-          <p v-else class="preview-copy-text">{{ previewText(block) }}</p>
-        </template>
-      </section>
+        <iframe
+          v-else-if="fallbackHtml"
+          :title="tr('Vista publicada de respaldo', 'Published fallback preview')"
+          :srcdoc="fallbackHtml"
+          sandbox=""
+          class="h-[440px] w-full border-0 bg-white"
+        />
+
+        <DhEmptyState
+          v-else
+          class="min-h-[320px]"
+          :icon="Sparkles"
+          :title="pageTitle || tr('Vista previa de la página', 'Page preview')"
+          :description="tr('Agregue una sección para comenzar a ver los cambios aquí.', 'Add a section to start seeing changes here.')"
+        />
+      </div>
     </template>
-
-    <iframe
-      v-else-if="fallbackHtml"
-      :title="tr('Vista publicada de respaldo', 'Published fallback preview')"
-      :srcdoc="fallbackHtml"
-      sandbox=""
-      class="h-[440px] w-full border-0 bg-white"
-    />
-
-    <DhEmptyState
-      v-else
-      class="min-h-[320px]"
-      :icon="Sparkles"
-      :title="pageTitle || tr('Vista previa de la página', 'Page preview')"
-      :description="tr('Agregue una sección para comenzar a ver los cambios aquí.', 'Add a section to start seeing changes here.')"
-    />
-  </div>
+  </DhDevicePreview>
 </template>
 
 <style scoped>
-.marketing-live-preview{min-height:440px;background:#fff;color:#111827}
+.marketing-device-preview{padding:1rem}.marketing-live-preview{min-height:440px;background:#fff;color:#111827}
 .live-preview-section{position:relative;overflow:hidden;border-bottom:1px solid #e5e7eb;transition:box-shadow .2s ease,outline-color .2s ease;animation-duration:var(--preview-duration);animation-fill-mode:both;animation-timing-function:ease-out}
 .live-preview-section:last-child{border-bottom:0}.preview-selected{z-index:1;outline:2px solid var(--dh-primary);outline-offset:-2px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--dh-primary) 28%,transparent)}
 .preview-align-left{text-align:left}.preview-align-center{text-align:center}.preview-align-right{text-align:right}
@@ -328,6 +352,8 @@ onBeforeUnmount(() => {
 .preview-services{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-top:1rem}.preview-services-four{grid-template-columns:repeat(4,minmax(0,1fr))}.preview-service-card{display:flex;min-height:100px;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;border:1px solid rgba(148,163,184,.3);border-radius:1rem;background:rgba(255,255,255,.62);padding:.8rem;font-size:.8rem;font-weight:800;color:#334155}
 .preview-motion-fade{animation-name:preview-fade}.preview-motion-fade-up,.preview-motion-slide-up{animation-name:preview-up}.preview-motion-fade-down{animation-name:preview-down}.preview-motion-fade-left,.preview-motion-slide-left{animation-name:preview-left}.preview-motion-fade-right,.preview-motion-slide-right{animation-name:preview-right}.preview-motion-zoom-in,.preview-motion-scale{animation-name:preview-zoom-in}.preview-motion-zoom-out{animation-name:preview-zoom-out}.preview-motion-blur-in{animation-name:preview-blur}
 @keyframes preview-fade{from{opacity:0}to{opacity:1}}@keyframes preview-up{from{opacity:0;transform:translateY(var(--preview-distance))}to{opacity:1;transform:none}}@keyframes preview-down{from{opacity:0;transform:translateY(calc(var(--preview-distance) * -1))}to{opacity:1;transform:none}}@keyframes preview-left{from{opacity:0;transform:translateX(calc(var(--preview-distance) * -1))}to{opacity:1;transform:none}}@keyframes preview-right{from{opacity:0;transform:translateX(var(--preview-distance))}to{opacity:1;transform:none}}@keyframes preview-zoom-in{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes preview-zoom-out{from{opacity:0;transform:scale(1.06)}to{opacity:1;transform:none}}@keyframes preview-blur{from{opacity:0;filter:blur(8px)}to{opacity:1;filter:none}}
+.preview-device-tablet .preview-services,.preview-device-tablet .preview-services-four{grid-template-columns:repeat(2,minmax(0,1fr))}
+.preview-device-mobile .preview-hero-text-image,.preview-device-mobile .preview-hero-image-text{grid-template-columns:1fr}.preview-device-mobile .preview-hero-image-text .preview-hero-media{order:0}.preview-device-mobile .preview-services,.preview-device-mobile .preview-services-four{grid-template-columns:1fr}.preview-device-mobile .preview-gallery{grid-template-columns:1fr}.preview-device-mobile .preview-spacing-large{padding:2rem 1.25rem}.preview-device-mobile .preview-spacing-xlarge{padding:3rem 1.25rem}.preview-device-mobile .preview-heading-hero{font-size:2rem}
 @media (max-width:720px){.preview-hero-text-image,.preview-hero-image-text{grid-template-columns:1fr}.preview-hero-image-text .preview-hero-media{order:0}.preview-services,.preview-services-four{grid-template-columns:repeat(2,minmax(0,1fr))}.preview-gallery{grid-template-columns:1fr}.preview-spacing-xlarge{padding:3rem 1.25rem}}
 @media (prefers-reduced-motion:reduce){.live-preview-section{animation:none!important}}
 </style>
