@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   isAllowedMarketingFile,
+  marketingImageFocalPoint,
   mediaContentTypeFilter,
   mediaKind,
   parseMarketingMediaMetadata,
+  withMarketingImageFocalPoint,
 } from '../src/core/media/mediaLibrary.ts'
 
 test('classifies supported marketing media', () => {
@@ -44,4 +46,26 @@ test('reads metadata returned by marketing storage', () => {
   assert.equal(parsed?.width, 1920)
   assert.equal(parsed?.height, 1080)
   assert.equal(parsed?.variants?.[0]?.key, 'thumbnail')
+})
+
+test('FASE 49 stores focal point without losing existing storage metadata', () => {
+  const original = JSON.stringify({
+    file: {
+      sizeInBytes: 2048,
+      metadataJson: JSON.stringify({ width: 1600, height: 900 }),
+    },
+  })
+
+  const updated = withMarketingImageFocalPoint(original, { x: 27.5, y: 61.2 })
+  const parsedRoot = JSON.parse(updated) as { file?: { sizeInBytes?: number } }
+
+  assert.equal(parsedRoot.file?.sizeInBytes, 2048)
+  assert.deepEqual(marketingImageFocalPoint(updated), { x: 27.5, y: 61.2 })
+  assert.equal(parseMarketingMediaMetadata(updated)?.width, 1600)
+  assert.equal(parseMarketingMediaMetadata(updated)?.height, 900)
+})
+
+test('FASE 49 clamps focal point to the visual image bounds', () => {
+  const updated = withMarketingImageFocalPoint(null, { x: -20, y: 150 })
+  assert.deepEqual(marketingImageFocalPoint(updated), { x: 0, y: 100 })
 })
