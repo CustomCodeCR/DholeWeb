@@ -6,16 +6,16 @@ Permitir que Mercadeo elija la animación de una sección mediante opciones visu
 
 ## Opciones disponibles
 
-El panel **Animación** ofrece exactamente seis opciones:
+El panel **Animación** ofrece exactamente las seis opciones humanas definidas por el roadmap:
 
-- Ninguna;
-- Fade;
-- Slide Up;
-- Slide Left;
-- Slide Right;
-- Zoom.
+- Sin animación;
+- Aparecer suavemente;
+- Subir suavemente;
+- Entrar desde izquierda;
+- Entrar desde derecha;
+- Zoom suave.
 
-Internamente se usan los presets compatibles con el contrato existente de Page Builder. La opción visual **Zoom** corresponde al preset `zoom-in`, pero ese nombre técnico no se presenta al usuario.
+Internamente se usan los presets compatibles con el contrato existente de Page Builder (`none`, `fade`, `slide-up`, `slide-right`, `slide-left` y `zoom-in`), pero esos nombres técnicos no se presentan a Mercadeo.
 
 ## Vista previa
 
