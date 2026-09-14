@@ -24,13 +24,6 @@ test('FASE 36 is reachable from Marketing and from the Pages workspace', async (
   assert.match(view, /activeSection === 'content-pages'/)
 })
 
-test('visual editor still leaves dedicated FASE 39 drop zones out of scope', async () => {
-  const source = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
-
-  assert.doesNotMatch(source, /Soltar sección aquí/)
-  assert.doesNotMatch(source, /drop-zone/)
-})
-
 test('FASE 37 exposes every requested block grouped by human category', () => {
   assert.deepEqual(MARKETING_BLOCK_GROUPS.map((group) => localizeMarketingBlock(group.title, 'es')), [
     'Básicos',
@@ -74,8 +67,7 @@ test('FASE 38 enables block selection and drag from the library into the page', 
   assert.match(library, /:draggable="true"/)
   assert.match(library, /MARKETING_BLOCK_DRAG_MIME/)
   assert.match(library, /@dragstart="startBlockDrag"/)
-  assert.match(editor, /@dragover="handleCanvasDragOver"/)
-  assert.match(editor, /@drop="handleCanvasDrop"/)
+  assert.match(editor, /dropLibraryBlockAt/)
   assert.match(editor, /operation: 'add'/)
   assert.match(editor, /PageBuilderService\.apply/)
 })
@@ -102,4 +94,39 @@ test('FASE 38 maps all 25 human blocks to Page Builder types without exposing JS
   }
   assert.doesNotMatch(catalog, /ServicesGrid|MeetingForm|NewsGrid/)
   assert.doesNotMatch(mapping, /textarea|contenteditable/i)
+})
+
+test('FASE 39 shows Dhole visual drop zones only while a library block is being dragged', async () => {
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+  const library = await readFile(new URL('../src/modules/marketing/components/MarketingBlockLibrary.vue', import.meta.url), 'utf8')
+  const dropZone = await readFile(new URL('../src/shared/components/molecules/DhBlockDropZone.vue', import.meta.url), 'utf8')
+
+  assert.match(editor, /DhBlockDropZone/)
+  assert.match(editor, /libraryDragActive/)
+  assert.match(editor, /Soltar sección aquí/)
+  assert.match(library, /@dragend="endBlockDrag"/)
+  assert.match(dropZone, /dh-block-drop-zone/)
+  assert.match(dropZone, /border-2 border-dashed/)
+  assert.doesNotMatch(editor, /class="[^"]*drop-zone/)
+})
+
+test('FASE 39 inserts at the exact visible drop position, including before and between sections', async () => {
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+  const sortable = await readFile(new URL('../src/shared/components/organisms/DhSortable.vue', import.meta.url), 'utf8')
+
+  assert.match(editor, /dropLibraryBlockAt\(\$event, 0\)/)
+  assert.match(editor, /dropLibraryBlockAt\(\$event, index \+ 1\)/)
+  assert.match(editor, /targetIndex,/)
+  assert.match(sortable, /slot name="after"/)
+  assert.match(sortable, /draggingIndex\.value === null/)
+})
+
+test('FASE 39 uses the Dhole Design System and does not introduce a visual drag library', async () => {
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+  const packageJson = await readFile(new URL('../package.json', import.meta.url), 'utf8')
+  const molecules = await readFile(new URL('../src/shared/components/molecules/index.ts', import.meta.url), 'utf8')
+
+  assert.match(molecules, /DhBlockDropZone/)
+  assert.match(editor, /MARKETING_BLOCK_DRAG_MIME/)
+  assert.doesNotMatch(packageJson, /sortablejs|dnd-kit|vue-draggable|interactjs/i)
 })

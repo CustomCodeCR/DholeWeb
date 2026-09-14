@@ -40,6 +40,7 @@ const props = withDefaults(defineProps<{ selectedId?: string | null }>(), { sele
 const emit = defineEmits<{
   select: [blockId: string]
   dragstart: [event: DragEvent, blockId: string]
+  dragend: [event: DragEvent, blockId: string]
 }>()
 
 const localeStore = useLocale()
@@ -113,6 +114,10 @@ function startBlockDrag(event: DragEvent, block: DhBlockCardItem) {
   emit('select', block.id)
   emit('dragstart', event, block.id)
 }
+
+function endBlockDrag(event: DragEvent, block: DhBlockCardItem) {
+  emit('dragend', event, block.id)
+}
 </script>
 
 <template>
@@ -139,6 +144,7 @@ function startBlockDrag(event: DragEvent, block: DhBlockCardItem) {
               :draggable="true"
               @select="selectBlock"
               @dragstart="startBlockDrag"
+              @dragend="endBlockDrag"
             />
           </div>
         </section>

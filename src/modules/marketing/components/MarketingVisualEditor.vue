@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ArrowLeft, Blocks, Copy, Eye, EyeOff, PanelRight, PanelsTopLeft, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhEmptyState, DhIconButton, DhSelect, DhSkeleton } from '@/shared/components/atoms'
-import { DhConfirmDialog } from '@/shared/components/molecules'
+import { DhBlockDropZone, DhConfirmDialog } from '@/shared/components/molecules'
 import { DhDrawer, DhModal, DhPropertyPanel, DhSortable, type DhSortableItem } from '@/shared/components/organisms'
 import { ContentService } from '@/core/services/contentService'
 import { ContentRouteService } from '@/core/services/contentRouteService'
@@ -32,6 +32,7 @@ const tr = (es: string, en: string) => localeStore.locale === 'en' ? en : es
 const loadingPages = ref(false)
 const loadingPage = ref(false)
 const builderBusy = ref(false)
+const libraryDragActive = ref(false)
 const pages = ref<ContentItemListDto[]>([])
 const selectedPageId = ref<string | null>(null)
 const page = ref<ContentItemDto | null>(null)
@@ -159,6 +160,7 @@ async function loadSelectedPage(id: string | null) {
   selectedBuilderBlockId.value = null
   selectedLibraryBlockId.value = null
   deleteCandidate.value = null
+  libraryDragActive.value = false
 
   if (!id) {
     page.value = null
@@ -219,19 +221,17 @@ function selectPageBlock(block: PageBuilderBlock) {
 
 function handleLibraryDragStart(_event: DragEvent, blockId: string) {
   selectLibraryBlock(blockId)
+  libraryDragActive.value = true
 }
 
-function handleCanvasDragOver(event: DragEvent) {
-  const types = Array.from(event.dataTransfer?.types ?? [])
-  if (!types.includes(MARKETING_BLOCK_DRAG_MIME)) return
-  event.preventDefault()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+function handleLibraryDragEnd() {
+  libraryDragActive.value = false
 }
 
-async function handleCanvasDrop(event: DragEvent) {
+async function dropLibraryBlockAt(event: DragEvent, targetIndex: number) {
   const blockId = event.dataTransfer?.getData(MARKETING_BLOCK_DRAG_MIME)
+  libraryDragActive.value = false
   if (!blockId) return
-  event.preventDefault()
 
   const blockType = getMarketingBuilderType(blockId)
   if (!blockType) return
@@ -239,13 +239,14 @@ async function handleCanvasDrop(event: DragEvent) {
   const next = await applyBuilderOperation({
     operation: 'add',
     blockType,
-    targetIndex: builderBlocks.value.length,
+    targetIndex,
     isVisible: true,
     dataJson: createMarketingBlockData(blockId),
   }, tr('Sección agregada', 'Section added'))
 
   if (!next?.length) return
-  selectedBuilderBlockId.value = next.at(-1)?.id ?? null
+  const insertedIndex = Math.min(Math.max(targetIndex, 0), next.length - 1)
+  selectedBuilderBlockId.value = next[insertedIndex]?.id ?? null
   selectedLibraryBlockId.value = null
   blocksDrawerOpen.value = false
 }
@@ -348,6 +349,7 @@ onMounted(() => void loadPages())
           :selected-id="selectedLibraryBlockId"
           @select="selectLibraryBlock"
           @dragstart="handleLibraryDragStart"
+          @dragend="handleLibraryDragEnd"
         />
       </aside>
 
@@ -360,7 +362,7 @@ onMounted(() => void loadPages())
           <DhBadge v-if="page" class="sm:hidden" :label="statusLabel" :variant="statusVariant" />
         </div>
 
-        <div class="visual-editor-canvas" @dragover="handleCanvasDragOver" @drop="handleCanvasDrop">
+        <div class="visual-editor-canvas">
           <template v-if="loadingPage">
             <div class="space-y-4 p-6">
               <DhSkeleton height="4rem" rounded="lg" />
@@ -375,11 +377,19 @@ onMounted(() => void loadPages())
                 <div>
                   <p class="text-xs font-black text-[var(--dh-text)]">{{ tr('Secciones de la página', 'Page sections') }}</p>
                   <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">
-                    {{ tr('Arrastre bloques aquí y reordene las secciones directamente.', 'Drag blocks here and reorder sections directly.') }}
+                    {{ tr('Arrastre un bloque y elija visualmente dónde insertarlo.', 'Drag a block and choose visually where to insert it.') }}
                   </p>
                 </div>
                 <DhBadge :label="String(builderBlocks.length)" variant="neutral" />
               </div>
+
+              <DhBlockDropZone
+                :visible="libraryDragActive"
+                :disabled="builderBusy"
+                :accept-mime-type="MARKETING_BLOCK_DRAG_MIME"
+                :label="tr('Soltar sección aquí', 'Drop section here')"
+                @drop="dropLibraryBlockAt($event, 0)"
+              />
 
               <DhSortable
                 v-if="sortableBlocks.length"
@@ -431,13 +441,23 @@ onMounted(() => void loadPages())
                     </div>
                   </div>
                 </template>
+
+                <template #after="{ index }">
+                  <DhBlockDropZone
+                    :visible="libraryDragActive"
+                    :disabled="builderBusy"
+                    :accept-mime-type="MARKETING_BLOCK_DRAG_MIME"
+                    :label="tr('Soltar sección aquí', 'Drop section here')"
+                    @drop="dropLibraryBlockAt($event, index + 1)"
+                  />
+                </template>
               </DhSortable>
 
               <DhEmptyState
-                v-else
+                v-else-if="!libraryDragActive"
                 :icon="PanelsTopLeft"
                 :title="tr('La página todavía no tiene secciones', 'The page has no sections yet')"
-                :description="tr('Arrastre un bloque desde el panel izquierdo y suéltelo dentro de la página para comenzar.', 'Drag a block from the left panel and drop it into the page to get started.')"
+                :description="tr('Arrastre un bloque desde el panel izquierdo para comenzar.', 'Drag a block from the left panel to get started.')"
               />
             </section>
 
@@ -482,6 +502,7 @@ onMounted(() => void loadPages())
         :selected-id="selectedLibraryBlockId"
         @select="selectLibraryBlock"
         @dragstart="handleLibraryDragStart"
+        @dragend="handleLibraryDragEnd"
       />
     </DhDrawer>
 
