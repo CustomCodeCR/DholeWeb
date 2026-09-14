@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ArrowLeft, Blocks, Copy, Eye, EyeOff, PanelRight, PanelsTopLeft, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Blocks, Copy, Eye, EyeOff, PanelRight, PanelsTopLeft, Plus, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhEmptyState, DhIconButton, DhSelect, DhSkeleton } from '@/shared/components/atoms'
 import { DhBlockDropZone, DhConfirmDialog } from '@/shared/components/molecules'
 import { DhDrawer, DhModal, DhPropertyPanel, DhSortable, type DhSortableItem } from '@/shared/components/organisms'
@@ -12,6 +12,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import type { ContentItemDto, ContentItemListDto } from '@/core/interfaces/content'
 import type { PageBuilderBlock, PageBuilderOperationRequest } from '@/core/interfaces/pageBuilder'
 import MarketingBlockLibrary from '@/modules/marketing/components/MarketingBlockLibrary.vue'
+import MarketingBlockPicker from '@/modules/marketing/components/MarketingBlockPicker.vue'
 import { localizeMarketingBlock } from '@/modules/marketing/config/marketingBlockCatalog'
 import {
   MARKETING_BLOCK_DRAG_MIME,
@@ -44,6 +45,7 @@ const deleteCandidate = ref<PageBuilderBlock | null>(null)
 const propertySection = ref('content')
 const blocksDrawerOpen = ref(false)
 const propertiesDrawerOpen = ref(false)
+const blockPickerOpen = ref(false)
 
 const pageOptions = computed(() => pages.value.map((item) => ({ label: item.title, value: item.id })))
 const propertySections = computed(() => [
@@ -161,6 +163,7 @@ async function loadSelectedPage(id: string | null) {
   selectedLibraryBlockId.value = null
   deleteCandidate.value = null
   libraryDragActive.value = false
+  blockPickerOpen.value = false
 
   if (!id) {
     page.value = null
@@ -228,13 +231,9 @@ function handleLibraryDragEnd() {
   libraryDragActive.value = false
 }
 
-async function dropLibraryBlockAt(event: DragEvent, targetIndex: number) {
-  const blockId = event.dataTransfer?.getData(MARKETING_BLOCK_DRAG_MIME)
-  libraryDragActive.value = false
-  if (!blockId) return
-
+async function insertLibraryBlockAt(blockId: string, targetIndex: number) {
   const blockType = getMarketingBuilderType(blockId)
-  if (!blockType) return
+  if (!blockType) return false
 
   const next = await applyBuilderOperation({
     operation: 'add',
@@ -244,11 +243,25 @@ async function dropLibraryBlockAt(event: DragEvent, targetIndex: number) {
     dataJson: createMarketingBlockData(blockId),
   }, tr('Sección agregada', 'Section added'))
 
-  if (!next?.length) return
+  if (!next?.length) return false
   const insertedIndex = Math.min(Math.max(targetIndex, 0), next.length - 1)
   selectedBuilderBlockId.value = next[insertedIndex]?.id ?? null
   selectedLibraryBlockId.value = null
-  blocksDrawerOpen.value = false
+  return true
+}
+
+async function dropLibraryBlockAt(event: DragEvent, targetIndex: number) {
+  const blockId = event.dataTransfer?.getData(MARKETING_BLOCK_DRAG_MIME)
+  libraryDragActive.value = false
+  if (!blockId) return
+
+  if (await insertLibraryBlockAt(blockId, targetIndex)) blocksDrawerOpen.value = false
+}
+
+async function addBlockFromPicker(blockId: string) {
+  selectLibraryBlock(blockId)
+  const targetIndex = builderBlocks.value.length
+  if (await insertLibraryBlockAt(blockId, targetIndex)) blockPickerOpen.value = false
 }
 
 async function handleReorder(_items: DhSortableItem[], from: number, to: number) {
@@ -373,14 +386,23 @@ onMounted(() => void loadPages())
 
           <template v-else-if="page">
             <section class="visual-editor-structure">
-              <div class="mb-3 flex items-start justify-between gap-3">
+              <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p class="text-xs font-black text-[var(--dh-text)]">{{ tr('Secciones de la página', 'Page sections') }}</p>
                   <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">
                     {{ tr('Arrastre un bloque y elija visualmente dónde insertarlo.', 'Drag a block and choose visually where to insert it.') }}
                   </p>
                 </div>
-                <DhBadge :label="String(builderBlocks.length)" variant="neutral" />
+                <div class="flex items-center gap-2">
+                  <DhBadge :label="String(builderBlocks.length)" variant="neutral" />
+                  <DhButton
+                    :label="tr('Agregar sección', 'Add section')"
+                    :icon="Plus"
+                    size="sm"
+                    :disabled="builderBusy"
+                    @click="blockPickerOpen = true"
+                  />
+                </div>
               </div>
 
               <DhBlockDropZone
@@ -457,7 +479,7 @@ onMounted(() => void loadPages())
                 v-else-if="!libraryDragActive"
                 :icon="PanelsTopLeft"
                 :title="tr('La página todavía no tiene secciones', 'The page has no sections yet')"
-                :description="tr('Arrastre un bloque desde el panel izquierdo para comenzar.', 'Drag a block from the left panel to get started.')"
+                :description="tr('Arrastre un bloque desde el panel izquierdo o use Agregar sección para comenzar.', 'Drag a block from the left panel or use Add section to get started.')"
               />
             </section>
 
@@ -515,6 +537,18 @@ onMounted(() => void loadPages())
         <DhEmptyState :icon="PanelRight" :title="propertyTitle" :description="propertyDescription" />
       </DhPropertyPanel>
     </DhDrawer>
+
+    <DhModal
+      :open="blockPickerOpen"
+      :title="tr('Agregar sección', 'Add section')"
+      size="lg"
+      @close="blockPickerOpen = false"
+    >
+      <MarketingBlockPicker
+        v-model="selectedLibraryBlockId"
+        @select="addBlockFromPicker"
+      />
+    </DhModal>
 
     <DhModal
       :open="Boolean(deleteCandidate)"
