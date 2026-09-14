@@ -130,9 +130,10 @@ onMounted(() => void loadPages())
         <div class="min-w-0 flex-1 sm:max-w-sm">
           <DhSelect
             v-if="!loadingPages && pageOptions.length"
-            v-model="selectedPageId"
+            :model-value="selectedPageId"
             :options="pageOptions"
             placeholder=""
+            @update:model-value="selectedPageId = String($event)"
           />
           <DhSkeleton v-else height="2.75rem" rounded="md" />
         </div>
@@ -182,7 +183,7 @@ onMounted(() => void loadPages())
             v-else-if="page"
             :title="tr('Vista visual de la página', 'Visual page preview')"
             :srcdoc="visualHtml"
-            sandbox
+            sandbox=""
             class="h-full min-h-[620px] w-full border-0 bg-white"
           />
           <DhEmptyState
