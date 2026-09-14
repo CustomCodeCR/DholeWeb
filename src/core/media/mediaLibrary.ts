@@ -54,6 +54,14 @@ export function isAllowedMarketingFile(file: { name: string; type?: string | nul
     || documentExtensions.has(ext)
 }
 
+export interface MarketingMediaVariant {
+  key?: string
+  fileName?: string
+  contentType?: string
+  path?: string
+  sizeInBytes?: number
+}
+
 export interface MarketingMediaMetadata {
   category?: string
   format?: string | null
@@ -61,13 +69,7 @@ export interface MarketingMediaMetadata {
   height?: number | null
   durationSeconds?: number | null
   sizeInBytes?: number | null
-  variants?: Array<{
-    key?: string
-    fileName?: string
-    contentType?: string
-    path?: string
-    sizeInBytes?: number
-  }>
+  variants?: MarketingMediaVariant[]
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -130,11 +132,19 @@ function readFirstString(candidates: Record<string, unknown>[], keys: string[]) 
   return null
 }
 
-function readVariants(candidates: Record<string, unknown>[]) {
+function readVariants(candidates: Record<string, unknown>[]): MarketingMediaVariant[] | undefined {
   for (const candidate of candidates) {
     if (Array.isArray(candidate.variants)) {
-      return candidate.variants.filter((variant): variant is MarketingMediaMetadata['variants'][number] => Boolean(asRecord(variant)))
-        .map((variant) => variant as MarketingMediaMetadata['variants'][number])
+      return candidate.variants
+        .map((variant) => asRecord(variant))
+        .filter((variant): variant is Record<string, unknown> => Boolean(variant))
+        .map((variant) => ({
+          ...(typeof variant.key === 'string' ? { key: variant.key } : {}),
+          ...(typeof variant.fileName === 'string' ? { fileName: variant.fileName } : {}),
+          ...(typeof variant.contentType === 'string' ? { contentType: variant.contentType } : {}),
+          ...(typeof variant.path === 'string' ? { path: variant.path } : {}),
+          ...(finiteNumber(variant.sizeInBytes) != null ? { sizeInBytes: finiteNumber(variant.sizeInBytes)! } : {}),
+        }))
     }
   }
   return undefined
