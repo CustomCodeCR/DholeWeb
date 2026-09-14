@@ -58,6 +58,7 @@ import { pricingWizardPanamaContextFix } from './build/pricingWizardPanamaContex
 import { pricingRateEditCreateParity } from './build/pricingRateEditCreateParity'
 import { pricingRateUpdateSourceParity } from './build/pricingRateUpdateSourceParity'
 import { pricingWizardSavedManualRates } from './build/pricingWizardSavedManualRates'
+import { pricingWizardScreen5Stability } from './build/pricingWizardScreen5Stability'
 
 export default defineConfig({
   plugins: [
@@ -115,6 +116,7 @@ export default defineConfig({
     pricingRateEditCreateParity(),
     pricingRateUpdateSourceParity(),
     pricingWizardSavedManualRates(),
+    pricingWizardScreen5Stability(),
     vue(),
     tailwindcss(),
   ],
