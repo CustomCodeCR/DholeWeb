@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { Image as ImageIcon, Save } from 'lucide-vue-next'
+import { Crosshair, Image as ImageIcon, RefreshCw, Save } from 'lucide-vue-next'
 import { CONTENT_SCOPES } from '@/core/auth/scopes'
 import { downloadFile } from '@/core/api/fetchConfig'
-import { isAllowedMarketingFile, mediaKind } from '@/core/media/mediaLibrary'
+import {
+  formatMediaFileSize,
+  isAllowedMarketingFile,
+  marketingImageFocalPoint,
+  mediaKind,
+  mediaSizeInBytes,
+  withMarketingImageFocalPoint,
+  type MarketingImageFocalPoint,
+} from '@/core/media/mediaLibrary'
 import { ContentService } from '@/core/services/contentService'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useLocale } from '@/core/stores/locale'
@@ -24,6 +32,8 @@ export interface MarketingMediaSelection {
 }
 
 type ImageFilter = 'all' | 'jpeg' | 'png' | 'webp' | 'avif'
+
+const DEFAULT_FOCAL_POINT: MarketingImageFocalPoint = { x: 50, y: 50 }
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -46,6 +56,7 @@ const tr = (es: string, en: string) => localeStore.locale === 'en' ? en : es
 
 const loading = ref(false)
 const uploading = ref(false)
+const replacing = ref(false)
 const saving = ref(false)
 const previewLoading = ref(false)
 const media = ref<MediaDto[]>([])
@@ -53,14 +64,18 @@ const selectedId = ref<string | null>(props.modelValue ?? null)
 const imageFilter = ref<ImageFilter>('all')
 const altText = ref('')
 const caption = ref('')
+const focalPoint = ref<MarketingImageFocalPoint>({ ...DEFAULT_FOCAL_POINT })
+const focalPointDirty = ref(false)
 const previewUrl = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const replaceInput = ref<HTMLInputElement | null>(null)
 const internalOpen = ref(false)
 
 const canUpload = computed(() => authStore.hasScope(CONTENT_SCOPES.media.upload))
 const canEdit = computed(() => authStore.hasScope(CONTENT_SCOPES.edit))
 const pickerOpen = computed(() => props.open || internalOpen.value)
 const selectedMedia = computed(() => media.value.find((item) => item.id === selectedId.value) ?? null)
+const selectedFileSize = computed(() => formatMediaFileSize(mediaSizeInBytes(selectedMedia.value?.metadataJson)))
 
 const filterOptions = computed(() => [
   { value: 'all', label: tr('Todas', 'All') },
@@ -83,11 +98,16 @@ const visibleMedia = computed(() => {
   })
 })
 
+function fileSizeLabel(item: MediaDto) {
+  const size = formatMediaFileSize(mediaSizeInBytes(item.metadataJson))
+  return size === '—' ? '' : size
+}
+
 const pickerItems = computed<DhMediaPickerItem[]>(() => visibleMedia.value.map((item) => ({
   id: item.id,
   name: item.fileName,
   kind: 'image',
-  meta: item.contentType,
+  ...(fileSizeLabel(item) ? { meta: fileSizeLabel(item) } : {}),
   ...(item.id === selectedId.value && previewUrl.value ? { thumbnailUrl: previewUrl.value } : {}),
 })))
 
@@ -126,6 +146,8 @@ function syncSelectedDetails() {
   const item = selectedMedia.value
   altText.value = item?.altText ?? ''
   caption.value = item?.caption ?? ''
+  focalPoint.value = marketingImageFocalPoint(item?.metadataJson) ?? { ...DEFAULT_FOCAL_POINT }
+  focalPointDirty.value = false
   void loadPreview(item)
 }
 
@@ -220,23 +242,57 @@ function closeLibrary() {
   emit('close')
 }
 
+function setFocalPoint(event: MouseEvent) {
+  if (props.disabled || !canEdit.value) return
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+
+  focalPoint.value = {
+    x: Number(Math.min(100, Math.max(0, ((event.clientX - rect.left) / rect.width) * 100)).toFixed(1)),
+    y: Number(Math.min(100, Math.max(0, ((event.clientY - rect.top) / rect.height) * 100)).toFixed(1)),
+  }
+  focalPointDirty.value = true
+}
+
+function centerFocalPoint() {
+  if (props.disabled || !canEdit.value) return
+  focalPoint.value = { ...DEFAULT_FOCAL_POINT }
+  focalPointDirty.value = true
+}
+
 async function saveDetails(showToast = true) {
   const item = selectedMedia.value
   if (!item || !canEdit.value || saving.value) return true
   const nextAlt = altText.value.trim()
   const nextCaption = caption.value.trim()
-  if ((item.altText ?? '') === nextAlt && (item.caption ?? '') === nextCaption) return true
+  const nextMetadata = focalPointDirty.value
+    ? withMarketingImageFocalPoint(item.metadataJson, focalPoint.value)
+    : item.metadataJson ?? null
+  const metadataChanged = (item.metadataJson ?? null) !== nextMetadata
+
+  if (
+    (item.altText ?? '') === nextAlt
+    && (item.caption ?? '') === nextCaption
+    && !metadataChanged
+  ) return true
 
   saving.value = true
   try {
     await ContentService.updateMedia(item.id, {
       altText: nextAlt || null,
       caption: nextCaption || null,
-      metadataJson: item.metadataJson ?? null,
+      metadataJson: nextMetadata,
     })
     media.value = media.value.map((candidate) => candidate.id === item.id
-      ? { ...candidate, altText: nextAlt || null, caption: nextCaption || null }
+      ? {
+          ...candidate,
+          altText: nextAlt || null,
+          caption: nextCaption || null,
+          metadataJson: nextMetadata,
+        }
       : candidate)
+    focalPointDirty.value = false
     if (showToast) toastStore.success(tr('Detalles de imagen actualizados', 'Image details updated'))
     return true
   } catch (error) {
@@ -245,6 +301,66 @@ async function saveDetails(showToast = true) {
   } finally {
     saving.value = false
   }
+}
+
+function chooseReplacement() {
+  if (!props.disabled && canUpload.value && selectedMedia.value) replaceInput.value?.click()
+}
+
+async function replaceSelectedImage(file: File) {
+  const current = selectedMedia.value
+  if (!current || props.disabled || !canUpload.value || replacing.value) return
+  if (!isSupportedImage(file)) {
+    toastStore.warning(
+      tr('Formato no permitido', 'Unsupported format'),
+      tr('Seleccione una imagen JPG, PNG, WebP o AVIF.', 'Choose a JPG, PNG, WebP or AVIF image.'),
+    )
+    return
+  }
+
+  replacing.value = true
+  try {
+    if (canEdit.value && !(await saveDetails(false))) return
+
+    const nextAlt = altText.value.trim() || generatedAltText(file)
+    const nextCaption = caption.value.trim()
+    const seededMetadata = withMarketingImageFocalPoint(undefined, focalPoint.value)
+    const uploaded = await ContentService.uploadMedia(file, nextAlt, nextCaption, seededMetadata)
+    let replacementMetadata = withMarketingImageFocalPoint(uploaded.metadataJson, focalPoint.value)
+
+    if (canEdit.value) {
+      await ContentService.updateMedia(uploaded.id, {
+        altText: nextAlt || null,
+        caption: nextCaption || null,
+        metadataJson: replacementMetadata,
+      })
+    } else {
+      replacementMetadata = uploaded.metadataJson ?? seededMetadata
+    }
+
+    const replacement: MediaDto = {
+      ...uploaded,
+      altText: nextAlt || null,
+      caption: nextCaption || null,
+      metadataJson: replacementMetadata,
+    }
+
+    media.value = [replacement, ...media.value.filter((item) => item.id !== replacement.id)]
+    selectedId.value = replacement.id
+    focalPointDirty.value = false
+    toastStore.success(tr('Archivo reemplazado en esta selección', 'File replaced in this selection'))
+  } catch (error) {
+    toastStore.backendError(error, tr('No se pudo reemplazar la imagen.', 'The image could not be replaced.'))
+  } finally {
+    replacing.value = false
+  }
+}
+
+async function handleReplacement(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (file) await replaceSelectedImage(file)
 }
 
 async function confirmSelection(item: DhMediaPickerItem) {
@@ -309,6 +425,7 @@ onBeforeUnmount(releasePreview)
     </div>
 
     <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/avif" class="hidden" @change="handleUpload" />
+    <input ref="replaceInput" type="file" accept="image/jpeg,image/png,image/webp,image/avif" class="hidden" @change="handleReplacement" />
 
     <DhMediaPicker
       v-model="selectedId"
@@ -333,17 +450,50 @@ onBeforeUnmount(releasePreview)
       @close="closeLibrary"
     >
       <template #details="{ item }">
-        <div v-if="item && selectedMedia" class="grid gap-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]">
-          <div class="grid min-h-48 place-items-center overflow-hidden rounded-2xl bg-black/[0.04] dark:bg-white/[0.05]">
-            <DhSkeleton v-if="previewLoading" class="h-full w-full" height="12rem" rounded="lg" />
-            <img v-else-if="previewUrl" :src="previewUrl" :alt="altText || selectedMedia.fileName" class="max-h-72 w-full object-contain" />
-            <div v-else class="flex flex-col items-center gap-2 p-8 text-center text-[var(--dh-text-muted)]">
-              <ImageIcon class="h-10 w-10" />
-              <span class="text-xs font-bold">{{ tr('Vista previa no disponible', 'Preview unavailable') }}</span>
+        <div v-if="item && selectedMedia" class="grid gap-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,.8fr)]">
+          <div class="space-y-3">
+            <div class="overflow-hidden rounded-2xl bg-black/[0.04] dark:bg-white/[0.05]">
+              <DhSkeleton v-if="previewLoading" class="h-full w-full" height="12rem" rounded="lg" />
+              <button
+                v-else-if="previewUrl"
+                type="button"
+                class="relative grid min-h-52 w-full place-items-center overflow-hidden disabled:cursor-default"
+                :class="canEdit && !disabled ? 'cursor-crosshair' : ''"
+                :disabled="disabled || !canEdit"
+                :aria-label="tr('Seleccionar punto focal de la imagen', 'Choose image focal point')"
+                @click="setFocalPoint"
+              >
+                <img :src="previewUrl" :alt="altText || selectedMedia.fileName" class="max-h-72 w-full object-contain" />
+                <span
+                  class="pointer-events-none absolute grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-black/60 text-white shadow-lg"
+                  :style="{ left: `${focalPoint.x}%`, top: `${focalPoint.y}%` }"
+                >
+                  <Crosshair class="h-4 w-4" />
+                </span>
+              </button>
+              <div v-else class="flex min-h-52 flex-col items-center justify-center gap-2 p-8 text-center text-[var(--dh-text-muted)]">
+                <ImageIcon class="h-10 w-10" />
+                <span class="text-xs font-bold">{{ tr('Vista previa no disponible', 'Preview unavailable') }}</span>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-3">
+              <Crosshair class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+              <div class="min-w-0">
+                <strong class="text-xs text-[var(--dh-text)]">{{ tr('Punto focal', 'Focal point') }}</strong>
+                <p class="mt-1 text-xs leading-5 text-[var(--dh-text-muted)]">
+                  {{ tr('Haga clic sobre la parte más importante de la imagen. Ese punto se conservará al recortarla en distintos tamaños.', 'Click the most important part of the image. That point will be preserved when the image is cropped at different sizes.') }}
+                </p>
+              </div>
             </div>
           </div>
 
           <div class="space-y-3">
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-4 py-3">
+              <span class="text-xs font-bold text-[var(--dh-text-muted)]">{{ tr('Tamaño', 'Size') }}</span>
+              <strong class="text-sm text-[var(--dh-text)]">{{ selectedFileSize }}</strong>
+            </div>
+
             <DhInput
               v-model="altText"
               label="ALT Text"
@@ -357,16 +507,42 @@ onBeforeUnmount(releasePreview)
               :disabled="disabled || !canEdit"
               :rows="3"
             />
-            <DhButton
-              v-if="canEdit"
-              :label="tr('Guardar detalles', 'Save details')"
-              :icon="Save"
-              variant="secondary"
-              size="sm"
-              :loading="saving"
-              :disabled="disabled"
-              @click="saveDetails()"
-            />
+
+            <div class="flex flex-wrap gap-2">
+              <DhButton
+                v-if="canEdit"
+                :label="tr('Guardar cambios', 'Save changes')"
+                :icon="Save"
+                variant="secondary"
+                size="sm"
+                :loading="saving"
+                :disabled="disabled"
+                @click="saveDetails()"
+              />
+              <DhButton
+                v-if="canEdit"
+                :label="tr('Centrar punto focal', 'Center focal point')"
+                :icon="Crosshair"
+                variant="ghost"
+                size="sm"
+                :disabled="disabled"
+                @click="centerFocalPoint"
+              />
+              <DhButton
+                v-if="canUpload"
+                :label="tr('Reemplazar archivo', 'Replace file')"
+                :icon="RefreshCw"
+                variant="secondary"
+                size="sm"
+                :loading="replacing"
+                :disabled="disabled"
+                @click="chooseReplacement"
+              />
+            </div>
+
+            <p v-if="canUpload" class="text-xs leading-5 text-[var(--dh-text-muted)]">
+              {{ tr('Al reemplazar, la imagen anterior se conserva donde ya esté en uso y la nueva queda seleccionada aquí.', 'When replacing, the previous image remains wherever it is already in use and the new image becomes selected here.') }}
+            </p>
           </div>
         </div>
       </template>
