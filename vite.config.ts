@@ -56,6 +56,7 @@ import { pricingCommercialIdentityFields } from './build/pricingCommercialIdenti
 import { pricingCurrencyValueGuard } from './build/pricingCurrencyValueGuard'
 import { pricingWizardPanamaContextFix } from './build/pricingWizardPanamaContextFix'
 import { pricingRateEditCreateParity } from './build/pricingRateEditCreateParity'
+import { pricingRateUpdateSourceParity } from './build/pricingRateUpdateSourceParity'
 
 export default defineConfig({
   plugins: [
@@ -111,6 +112,7 @@ export default defineConfig({
     pricingCurrencyValueGuard(),
     pricingWizardPanamaContextFix(),
     pricingRateEditCreateParity(),
+    pricingRateUpdateSourceParity(),
     vue(),
     tailwindcss(),
   ],
