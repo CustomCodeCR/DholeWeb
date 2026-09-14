@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/ensure-pricing-screen09-comments.mjs",
     "dev": "vite --host 0.0.0.0",
+    "prebuild": "node scripts/ensure-pricing-screen09-comments.mjs",
     "build": "node scripts/check-pricing-origin-sale.mjs && run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
