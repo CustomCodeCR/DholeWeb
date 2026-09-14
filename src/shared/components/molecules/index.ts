@@ -10,6 +10,7 @@ export { default as DhDropZone } from './DhDropZone.vue'
 export { default as DhIconPicker } from './DhIconPicker.vue'
 export { default as DhDevicePreview } from './DhDevicePreview.vue'
 export { default as DhBlockCard } from './DhBlockCard.vue'
+export { default as DhBlockDropZone } from './DhBlockDropZone.vue'
 
 export type { DhTableColumn } from './DhDataTable.vue'
 export type { DhDropdownItem } from './DhDropdownMenu.vue'

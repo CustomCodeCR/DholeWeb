@@ -25,6 +25,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   select: [item: DhBlockCardItem]
   dragstart: [event: DragEvent, item: DhBlockCardItem]
+  dragend: [event: DragEvent, item: DhBlockCardItem]
 }>()
 
 function select() {
@@ -45,6 +46,7 @@ function select() {
     :draggable="draggable && !item.disabled"
     @click="select"
     @dragstart="emit('dragstart', $event, item)"
+    @dragend="emit('dragend', $event, item)"
   >
     <div
       class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-black/[0.05] text-[var(--dh-text-soft)] dark:bg-white/[0.08]"

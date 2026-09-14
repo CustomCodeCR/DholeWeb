@@ -43,8 +43,23 @@ function onDragStart(index: number, event: DragEvent) {
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
 
-function onDrop(index: number) {
-  if (draggingIndex.value !== null) reorder(draggingIndex.value, index)
+function onDragOver(index: number, event: DragEvent) {
+  if (draggingIndex.value === null) return
+  event.preventDefault()
+  overIndex.value = index
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+}
+
+function onDrop(index: number, event: DragEvent) {
+  if (draggingIndex.value === null) return
+  event.preventDefault()
+  event.stopPropagation()
+  reorder(draggingIndex.value, index)
+  draggingIndex.value = null
+  overIndex.value = null
+}
+
+function onDragEnd() {
   draggingIndex.value = null
   overIndex.value = null
 }
@@ -64,33 +79,37 @@ function onKeydown(index: number, event: KeyboardEvent) {
 
 <template>
   <div class="min-w-0 space-y-2">
-    <div
-      v-for="(item, index) in modelValue"
-      :key="item.id"
-      tabindex="0"
-      :draggable="!item.disabled"
-      :aria-label="itemLabel?.(item, index)"
-      class="flex min-w-0 items-stretch rounded-[var(--dh-radius-xl)] border bg-[var(--dh-input)] transition focus:outline-none focus:ring-2 focus:ring-[var(--dh-primary)]/40"
-      :class="[
-        overIndex === index ? 'border-[var(--dh-primary)] dh-bg-primary-soft' : 'border-[var(--dh-border)]',
-        draggingIndex === index && 'opacity-50',
-        item.disabled && 'opacity-50',
-      ]"
-      @dragstart="onDragStart(index, $event)"
-      @dragend="draggingIndex = null; overIndex = null"
-      @dragover.prevent="overIndex = index"
-      @dragleave="overIndex === index && (overIndex = null)"
-      @drop.prevent="onDrop(index)"
-      @keydown="onKeydown(index, $event)"
-    >
-      <div class="flex w-10 shrink-0 items-center justify-center text-[var(--dh-text-muted)]">
-        <GripVertical class="h-4 w-4" />
+    <slot name="before" :items="modelValue" />
+
+    <template v-for="(item, index) in modelValue" :key="item.id">
+      <div
+        tabindex="0"
+        :draggable="!item.disabled"
+        :aria-label="itemLabel?.(item, index)"
+        class="flex min-w-0 items-stretch rounded-[var(--dh-radius-xl)] border bg-[var(--dh-input)] transition focus:outline-none focus:ring-2 focus:ring-[var(--dh-primary)]/40"
+        :class="[
+          overIndex === index ? 'border-[var(--dh-primary)] dh-bg-primary-soft' : 'border-[var(--dh-border)]',
+          draggingIndex === index && 'opacity-50',
+          item.disabled && 'opacity-50',
+        ]"
+        @dragstart="onDragStart(index, $event)"
+        @dragend="onDragEnd"
+        @dragover="onDragOver(index, $event)"
+        @dragleave="overIndex === index && (overIndex = null)"
+        @drop="onDrop(index, $event)"
+        @keydown="onKeydown(index, $event)"
+      >
+        <div class="flex w-10 shrink-0 items-center justify-center text-[var(--dh-text-muted)]">
+          <GripVertical class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 flex-1 p-2">
+          <slot name="item" :item="item" :index="index" :dragging="draggingIndex === index">
+            <span class="text-sm font-semibold text-[var(--dh-text)]">{{ item.id }}</span>
+          </slot>
+        </div>
       </div>
-      <div class="min-w-0 flex-1 p-2">
-        <slot name="item" :item="item" :index="index" :dragging="draggingIndex === index">
-          <span class="text-sm font-semibold text-[var(--dh-text)]">{{ item.id }}</span>
-        </slot>
-      </div>
-    </div>
+
+      <slot name="after" :item="item" :index="index" />
+    </template>
   </div>
 </template>
