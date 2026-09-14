@@ -62,6 +62,11 @@ export interface MarketingMediaVariant {
   sizeInBytes?: number
 }
 
+export interface MarketingImageFocalPoint {
+  x: number
+  y: number
+}
+
 export interface MarketingMediaMetadata {
   category?: string
   format?: string | null
@@ -69,6 +74,7 @@ export interface MarketingMediaMetadata {
   height?: number | null
   durationSeconds?: number | null
   sizeInBytes?: number | null
+  focalPoint?: MarketingImageFocalPoint | null
   variants?: MarketingMediaVariant[]
 }
 
@@ -96,10 +102,15 @@ function parseNestedJson(value: unknown): Record<string, unknown> | null {
   }
 }
 
+function clampPercent(value: number) {
+  return Math.min(100, Math.max(0, value))
+}
+
 function metadataCandidates(root: Record<string, unknown>) {
   const file = asRecord(root.file)
   const data = asRecord(root.data)
   const marketingMedia = asRecord(root.marketingMedia)
+  const dholeEditor = asRecord(root.dholeEditor)
   const fileMarketingMedia = file ? asRecord(file.marketingMedia) : null
   const fileMetadata = file
     ? asRecord(file.metadata) ?? parseNestedJson(file.metadataJson)
@@ -108,7 +119,7 @@ function metadataCandidates(root: Record<string, unknown>) {
     ? asRecord(data.metadata) ?? parseNestedJson(data.metadataJson)
     : null
 
-  return [fileMarketingMedia, marketingMedia, fileMetadata, dataMetadata, file, data, root]
+  return [dholeEditor, fileMarketingMedia, marketingMedia, fileMetadata, dataMetadata, file, data, root]
     .filter((candidate): candidate is Record<string, unknown> => Boolean(candidate))
 }
 
@@ -128,6 +139,18 @@ function readFirstString(candidates: Record<string, unknown>[], keys: string[]) 
       const value = candidate[key]
       if (typeof value === 'string' && value.trim()) return value
     }
+  }
+  return null
+}
+
+function readFocalPoint(candidates: Record<string, unknown>[]): MarketingImageFocalPoint | null {
+  for (const candidate of candidates) {
+    const point = asRecord(candidate.focalPoint)
+    if (!point) continue
+    const x = finiteNumber(point.x)
+    const y = finiteNumber(point.y)
+    if (x == null || y == null) continue
+    return { x: clampPercent(x), y: clampPercent(y) }
   }
   return null
 }
@@ -158,6 +181,7 @@ export function parseMarketingMediaMetadata(metadataJson?: string | null): Marke
     if (!root) return null
     const candidates = metadataCandidates(root)
     const variants = readVariants(candidates)
+    const focalPoint = readFocalPoint(candidates)
     const metadata: MarketingMediaMetadata = {
       category: readFirstString(candidates, ['category']) ?? undefined,
       format: readFirstString(candidates, ['format', 'extension']) ?? undefined,
@@ -165,6 +189,7 @@ export function parseMarketingMediaMetadata(metadataJson?: string | null): Marke
       height: readFirstNumber(candidates, ['height']) ?? undefined,
       durationSeconds: readFirstNumber(candidates, ['durationSeconds', 'duration']) ?? undefined,
       sizeInBytes: readFirstNumber(candidates, ['sizeInBytes', 'fileSizeInBytes', 'fileSize', 'size', 'length']) ?? undefined,
+      ...(focalPoint ? { focalPoint } : {}),
       ...(variants ? { variants } : {}),
     }
 
@@ -175,6 +200,7 @@ export function parseMarketingMediaMetadata(metadataJson?: string | null): Marke
       && metadata.height === undefined
       && metadata.durationSeconds === undefined
       && metadata.sizeInBytes === undefined
+      && metadata.focalPoint === undefined
       && metadata.variants === undefined
     ) return null
 
@@ -193,6 +219,36 @@ export function mediaSizeInBytes(metadataJson?: string | null) {
     .filter((value): value is number => value != null) ?? []
 
   return variantSizes.length ? Math.max(...variantSizes) : null
+}
+
+export function marketingImageFocalPoint(metadataJson?: string | null) {
+  return parseMarketingMediaMetadata(metadataJson)?.focalPoint ?? null
+}
+
+export function withMarketingImageFocalPoint(
+  metadataJson: string | null | undefined,
+  focalPoint: MarketingImageFocalPoint,
+) {
+  let root: Record<string, unknown> = {}
+  if (metadataJson?.trim()) {
+    try {
+      root = asRecord(JSON.parse(metadataJson)) ?? {}
+    } catch {
+      root = {}
+    }
+  }
+
+  const editor = asRecord(root.dholeEditor) ?? {}
+  return JSON.stringify({
+    ...root,
+    dholeEditor: {
+      ...editor,
+      focalPoint: {
+        x: clampPercent(focalPoint.x),
+        y: clampPercent(focalPoint.y),
+      },
+    },
+  })
 }
 
 export function formatMediaFileSize(sizeInBytes?: number | null) {
