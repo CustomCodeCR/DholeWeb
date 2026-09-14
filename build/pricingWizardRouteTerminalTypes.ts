@@ -127,12 +127,16 @@ const podOptions = computed(() => form.modality === 'Land'
     `Seleccione POL y POE del catálogo terrestre. Para terrestre no se utiliza POD.`,
     `Seleccione POL y POE de tipo SD. Para terrestre no se utiliza POD.`,
   )
+  code = code.replace(
+    `Seleccione el POE. El POD es opcional; si existe una equivalencia clara, se sugiere automáticamente.`,
+    `Seleccione el POE. El POD es opcional y debe seleccionarse manualmente.`,
+  )
 
   const destinationWatcher = `watch(\n  () => form.destinationId,\n  () => {\n    const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)\n    form.podId = equivalent?.id ?? ''\n  },\n)`
   if (code.includes(destinationWatcher)) {
     code = code.replace(
       destinationWatcher,
-      `watch(\n  () => form.destinationId,\n  () => {\n    if (form.modality === 'Land') {\n      form.podId = ''\n      return\n    }\n    // Cuando Pantalla 3 cambia automáticamente a Multimodal Via Panamá, conservar\n    // el POD externo que provocó la conversión.\n    if (isMultimodalViaPanama(selectedDestination.value)) return\n    const equivalent = findEquivalent(maritimePodCatalog.value, selectedDestination.value)\n    form.podId = equivalent?.id ?? ''\n  },\n)`,
+      `watch(\n  () => form.destinationId,\n  () => {\n    // POD is always user-selected. Only clear it for land routes, where POD is not used.\n    if (form.modality === 'Land') form.podId = ''\n  },\n)`,
     )
   }
 
