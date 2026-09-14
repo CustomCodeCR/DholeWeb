@@ -13,6 +13,7 @@ import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
 import DhSkeleton from '@/shared/components/atoms/DhSkeleton.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
+import DhDropZone, { type DhDropZoneRejection } from '@/shared/components/molecules/DhDropZone.vue'
 import DhMediaPicker, { type DhMediaPickerItem } from '@/shared/components/organisms/DhMediaPicker.vue'
 
 export interface MarketingMediaSelection {
@@ -54,9 +55,11 @@ const altText = ref('')
 const caption = ref('')
 const previewUrl = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const internalOpen = ref(false)
 
 const canUpload = computed(() => authStore.hasScope(CONTENT_SCOPES.media.upload))
 const canEdit = computed(() => authStore.hasScope(CONTENT_SCOPES.edit))
+const pickerOpen = computed(() => props.open || internalOpen.value)
 const selectedMedia = computed(() => media.value.find((item) => item.id === selectedId.value) ?? null)
 
 const filterOptions = computed(() => [
@@ -126,6 +129,57 @@ function syncSelectedDetails() {
   void loadPreview(item)
 }
 
+function isSupportedImage(file: File) {
+  return isAllowedMarketingFile(file) && mediaKind(file.type, file.name) === 'image'
+}
+
+function generatedAltText(file: File) {
+  return file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ')
+}
+
+function selectionFromMedia(item: MediaDto, fallbackAlt = ''): MarketingMediaSelection {
+  return {
+    id: item.id,
+    fileName: item.fileName,
+    altText: item.altText ?? fallbackAlt,
+    caption: item.caption ?? '',
+  }
+}
+
+async function uploadImage(file: File, autoSelect: boolean) {
+  if (props.disabled || !canUpload.value || uploading.value) return null
+  if (!isSupportedImage(file)) {
+    toastStore.warning(
+      tr('Formato no permitido', 'Unsupported format'),
+      tr('Seleccione una imagen JPG, PNG, WebP o AVIF.', 'Choose a JPG, PNG, WebP or AVIF image.'),
+    )
+    return null
+  }
+
+  uploading.value = true
+  const generatedAlt = generatedAltText(file)
+  releasePreview()
+  previewUrl.value = URL.createObjectURL(file)
+
+  try {
+    const uploaded = await ContentService.uploadMedia(file, generatedAlt)
+    media.value = [uploaded, ...media.value.filter((item) => item.id !== uploaded.id)]
+    selectedId.value = uploaded.id
+    altText.value = uploaded.altText ?? generatedAlt
+    caption.value = uploaded.caption ?? ''
+    toastStore.success(tr('Imagen subida', 'Image uploaded'))
+
+    if (autoSelect) emit('select', selectionFromMedia(uploaded, generatedAlt))
+    return uploaded
+  } catch (error) {
+    releasePreview()
+    toastStore.backendError(error, tr('No se pudo subir la imagen.', 'The image could not be uploaded.'))
+    return null
+  } finally {
+    uploading.value = false
+  }
+}
+
 function chooseUpload() {
   if (!props.disabled && canUpload.value) fileInput.value?.click()
 }
@@ -134,24 +188,36 @@ async function handleUpload(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file || props.disabled || !canUpload.value || uploading.value) return
-  if (!isAllowedMarketingFile(file) || mediaKind(file.type, file.name) !== 'image') {
-    toastStore.warning(tr('Formato no permitido', 'Unsupported format'), tr('Seleccione una imagen JPG, PNG, WebP o AVIF.', 'Choose a JPG, PNG, WebP or AVIF image.'))
+  if (file) await uploadImage(file, false)
+}
+
+function handleDroppedFiles(files: File[]) {
+  const file = files[0]
+  if (file) void uploadImage(file, true)
+}
+
+function handleRejected(rejections: DhDropZoneRejection[]) {
+  if (rejections.some((item) => item.reason === 'multiple')) {
+    toastStore.warning(
+      tr('Solo una imagen', 'One image only'),
+      tr('Suelte una sola imagen a la vez.', 'Drop one image at a time.'),
+    )
     return
   }
 
-  uploading.value = true
-  try {
-    const generatedAlt = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ')
-    const uploaded = await ContentService.uploadMedia(file, generatedAlt)
-    media.value = [uploaded, ...media.value.filter((item) => item.id !== uploaded.id)]
-    selectedId.value = uploaded.id
-    toastStore.success(tr('Imagen subida', 'Image uploaded'))
-  } catch (error) {
-    toastStore.backendError(error, tr('No se pudo subir la imagen.', 'The image could not be uploaded.'))
-  } finally {
-    uploading.value = false
-  }
+  toastStore.warning(
+    tr('Formato no permitido', 'Unsupported format'),
+    tr('Use una imagen JPG, PNG, WebP o AVIF.', 'Use a JPG, PNG, WebP or AVIF image.'),
+  )
+}
+
+function openLibrary() {
+  if (!props.disabled) internalOpen.value = true
+}
+
+function closeLibrary() {
+  internalOpen.value = false
+  emit('close')
 }
 
 async function saveDetails(showToast = true) {
@@ -191,20 +257,17 @@ async function confirmSelection(item: DhMediaPickerItem) {
     altText: altText.value.trim(),
     caption: caption.value.trim(),
   })
-  emit('close')
+  closeLibrary()
 }
 
 watch(() => props.modelValue, (value) => {
-  if (!props.open) selectedId.value = value ?? null
+  if (!pickerOpen.value) selectedId.value = value ?? null
 })
 
 watch(selectedId, () => syncSelectedDetails())
-watch(() => props.open, async (open) => {
-  if (!open) {
-    releasePreview()
-    return
-  }
-  selectedId.value = props.modelValue ?? null
+watch(pickerOpen, async (open) => {
+  if (!open) return
+  selectedId.value = props.modelValue ?? selectedId.value
   await loadLibrary()
   syncSelectedDetails()
 }, { immediate: true })
@@ -213,12 +276,43 @@ onBeforeUnmount(releasePreview)
 </script>
 
 <template>
-  <div>
+  <div class="space-y-3">
+    <DhDropZone
+      :title="uploading ? tr('Subiendo imagen...', 'Uploading image...') : tr('Arrastre una imagen aquí', 'Drag an image here')"
+      :description="tr('La imagen se subirá a Storage, se creará su referencia y quedará seleccionada automáticamente.', 'The image will be uploaded to Storage, referenced, and selected automatically.')"
+      :browse-label="canUpload ? tr('Seleccionar desde equipo', 'Choose from computer') : undefined"
+      accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif"
+      :disabled="disabled || !canUpload || uploading"
+      @files="handleDroppedFiles"
+      @rejected="handleRejected"
+    />
+
+    <div class="flex justify-center">
+      <DhButton
+        :label="tr('Seleccionar desde biblioteca', 'Choose from library')"
+        :icon="ImageIcon"
+        variant="secondary"
+        size="sm"
+        :disabled="disabled"
+        @click="openLibrary"
+      />
+    </div>
+
+    <div v-if="previewLoading || previewUrl" class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+      <DhSkeleton v-if="previewLoading" height="10rem" rounded="lg" />
+      <img
+        v-else-if="previewUrl"
+        :src="previewUrl"
+        :alt="altText || selectedMedia?.fileName || tr('Vista previa de imagen', 'Image preview')"
+        class="max-h-64 w-full rounded-xl object-contain"
+      />
+    </div>
+
     <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/avif" class="hidden" @change="handleUpload" />
 
     <DhMediaPicker
       v-model="selectedId"
-      :open="open"
+      :open="pickerOpen"
       :items="pickerItems"
       :title="tr('Biblioteca de imágenes', 'Image library')"
       :search-placeholder="tr('Buscar imagen...', 'Search image...')"
@@ -236,7 +330,7 @@ onBeforeUnmount(releasePreview)
       @update:filter-value="imageFilter = String($event) as ImageFilter"
       @upload="chooseUpload"
       @select="confirmSelection"
-      @close="emit('close')"
+      @close="closeLibrary"
     >
       <template #details="{ item }">
         <div v-if="item && selectedMedia" class="grid gap-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.8fr)]">
