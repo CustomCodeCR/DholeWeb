@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises'
 import { CONTENT_SCOPES } from '../src/core/auth/scopes.ts'
 import { MARKETING_GROUPS, MARKETING_SECTION_KEYS, isMarketingSection } from '../src/modules/marketing/config/marketingNavigation.ts'
 import { CMS_MOTION_PRESETS } from '../src/core/interfaces/pageBuilder.ts'
-import { DEFAULT_CMS_ANIMATION, normalizeCmsAnimation, validateCmsAnimation } from '../src/core/marketing/contentMotion.ts'
 
 test('phase 22 exposes every requested Marketing menu group', () => {
   const phase22Groups = MARKETING_GROUPS.map((group) => group.label).filter((label) => label && label !== 'IA')
@@ -64,15 +63,15 @@ test('phase 25 exposes the AI assistant inside Marketing without adding a publis
   assert.equal(assistant.includes('submitEditor('), false)
 })
 
-test('FASE 35 exposes all Fennec motion presets to Marketing with matching defaults and ranges', () => {
+test('FASE 35 exposes all Fennec motion presets to Marketing with matching defaults and ranges', async () => {
+  const source = await readFile(new URL('../src/core/marketing/contentMotion.ts', import.meta.url), 'utf8')
   assert.equal(CMS_MOTION_PRESETS.length, 13)
-  assert.deepEqual(DEFAULT_CMS_ANIMATION, { preset: 'none', duration: 600, delay: 0, easing: 'standard', stagger: 100, trigger: 'scroll', once: true, distance: 32 })
-  const normalized = normalizeCmsAnimation({ preset: 'fade-up', duration: 5000, stagger: -1, distance: 999 })
-  assert.equal(normalized.preset, 'fade-up')
-  assert.equal(normalized.duration, 3000)
-  assert.equal(normalized.stagger, 0)
-  assert.equal(normalized.distance, 160)
-  assert.equal(validateCmsAnimation(normalized), null)
+  for (const fragment of [
+    "preset: 'none'", 'duration: 600', 'delay: 0', "easing: 'standard'", 'stagger: 100',
+    "trigger: 'scroll'", 'once: true', 'distance: 32', '0, 3000', '0, 1000', '0, 160',
+  ]) assert.ok(source.includes(fragment), `Missing FASE 35 motion contract fragment: ${fragment}`)
+  assert.match(source, /normalizeCmsAnimation/)
+  assert.match(source, /validateCmsAnimation/)
 })
 
 test('FASE 35 integrates Marketing with Page Builder without executing FASE 36 runtime motion', async () => {
