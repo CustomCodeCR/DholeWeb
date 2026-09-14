@@ -71,13 +71,18 @@ function toggle(value: string) {
 </script>
 
 <template>
-  <label class="block">
+  <label class="pricing-multi-root relative block">
     <span
       v-if="label"
       class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
       >{{ label }}</span
     >
-    <details ref="detailsRef" data-dh-dropdown="true" class="group relative" @toggle="handleToggle">
+    <details
+      ref="detailsRef"
+      data-dh-dropdown="true"
+      class="pricing-multi group relative"
+      @toggle="handleToggle"
+    >
       <summary
         class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] dh-focus-primary"
       >
@@ -94,7 +99,7 @@ function toggle(value: string) {
       </summary>
 
       <div
-        class="absolute z-40 mt-2 w-full min-w-0 sm:min-w-[320px] rounded-[22px] border border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)] p-3 shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl"
+        class="pricing-multi__menu absolute mt-2 w-full min-w-0 sm:min-w-[320px] rounded-[22px] border border-[var(--dh-border-strong)] bg-[var(--dh-shell-strong)] p-3 shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl"
       >
         <div
           class="mb-2 flex h-10 items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3"
@@ -164,3 +169,22 @@ function toggle(value: string) {
     </div>
   </label>
 </template>
+
+<style scoped>
+.pricing-multi-root {
+  z-index: 0;
+}
+
+.pricing-multi-root:has(.pricing-multi[open]) {
+  z-index: 60;
+}
+
+.pricing-multi[open] {
+  z-index: 61;
+}
+
+.pricing-multi__menu {
+  z-index: 62;
+  isolation: isolate;
+}
+</style>
