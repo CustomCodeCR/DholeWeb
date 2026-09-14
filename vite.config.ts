@@ -52,6 +52,7 @@ import { pricingLandProviderCurrencyValue } from './build/pricingLandProviderCur
 import { pricingFtlLandCostsFix } from './build/pricingFtlLandCostsFix'
 import { pricingCommercialIdentityFields } from './build/pricingCommercialIdentityFields'
 import { pricingCurrencyValueGuard } from './build/pricingCurrencyValueGuard'
+import { pricingRateEditCreateParity } from './build/pricingRateEditCreateParity'
 
 export default defineConfig({
   plugins: [
@@ -106,6 +107,7 @@ export default defineConfig({
     pricingFtlLandCostsFix(),
     pricingCommercialIdentityFields(),
     pricingCurrencyValueGuard(),
+    pricingRateEditCreateParity(),
     vue(),
     tailwindcss(),
   ],
