@@ -49,6 +49,20 @@ function patchWizard(source: string) {
     'page title',
   )
 
+  code = replaceOne(
+    code,
+    `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))`,
+    `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient', 'Expired'].includes(currentCommercialStatus.value))`,
+    'expired rate commercial decision',
+  )
+
+  code = replaceOne(
+    code,
+    `Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.`,
+    `Una tarifa Abierta puede marcarse Enviada. Después de Enviada, incluso si ya venció, puede registrarse como Aceptada o Rechazada.`,
+    'expired rate commercial help',
+  )
+
   // pricingWizardEnhancements injects the LCL helpers between saveOpenRequest and
   // saveRate. The old end anchor at saveRate removed applyLclRateSource and the
   // commercial-term helpers, leaving Pantalla 6 without the selected LCL payload.
