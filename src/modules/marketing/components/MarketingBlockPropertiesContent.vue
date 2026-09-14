@@ -9,6 +9,7 @@ import DhSwitch from '@/shared/components/atoms/DhSwitch.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
 import type { PageBuilderBlock } from '@/core/interfaces/pageBuilder'
 import { useLocale } from '@/core/stores/locale'
+import MarketingLayoutPresetPicker from '@/modules/marketing/components/MarketingLayoutPresetPicker.vue'
 import { localizeMarketingBlock } from '@/modules/marketing/config/marketingBlockCatalog'
 import { getMarketingBlockDefinitionForBuilderBlock } from '@/modules/marketing/config/marketingPageBuilder'
 
@@ -18,7 +19,7 @@ export interface MarketingPropertyTextField {
   placeholder: string
 }
 
-type DesignPropertyKey = 'editorDesignAlignment' | 'editorDesignSpacing' | 'editorDesignBackground'
+type DesignPropertyKey = 'editorDesignAlignment' | 'editorDesignSpacing' | 'editorDesignBackground' | 'editorLayoutPreset'
 
 const props = withDefaults(defineProps<{
   block: PageBuilderBlock | null
@@ -63,6 +64,13 @@ const contentLabel = computed(() => {
 })
 const animationConfigured = computed(() => Boolean(props.block?.animation && props.block.animation.preset !== 'none'))
 
+const isHeroLayoutBlock = computed(() => {
+  const editorBlockKey = props.block?.data.editorBlockKey
+  return editorBlockKey === 'hero' || props.block?.type.toLocaleLowerCase('en-US') === 'hero'
+})
+const layoutPreset = computed(() => typeof props.block?.data.editorLayoutPreset === 'string'
+  ? props.block.data.editorLayoutPreset
+  : 'hero-centered-text')
 const designAlignment = computed(() => typeof props.block?.data.editorDesignAlignment === 'string'
   ? props.block.data.editorDesignAlignment
   : 'left')
@@ -105,6 +113,10 @@ function saveText() {
 function saveDesignPreference(key: DesignPropertyKey, value: string, current: string) {
   if (props.disabled || value === current) return
   emit('save-text', { key, value })
+}
+
+function saveLayoutPreset(value: string) {
+  saveDesignPreference('editorLayoutPreset', value, layoutPreset.value)
 }
 </script>
 
@@ -157,6 +169,18 @@ function saveDesignPreference(key: DesignPropertyKey, value: string, current: st
 
     <template v-else-if="activeSection === 'design'">
       <div class="space-y-5">
+        <section v-if="isHeroLayoutBlock" class="space-y-2">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[.1em] text-[var(--dh-text)]">{{ tr('Diseño del Hero', 'Hero layout') }}</p>
+            <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Elija un diseño visual. No necesita configurar columnas manualmente.', 'Choose a visual layout. You do not need to configure columns manually.') }}</p>
+          </div>
+          <MarketingLayoutPresetPicker
+            :model-value="layoutPreset"
+            :disabled="disabled"
+            @select="saveLayoutPreset"
+          />
+        </section>
+
         <section class="space-y-2">
           <div>
             <p class="text-xs font-black uppercase tracking-[.1em] text-[var(--dh-text)]">{{ tr('Alineación', 'Alignment') }}</p>
