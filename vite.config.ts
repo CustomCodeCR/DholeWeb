@@ -55,6 +55,7 @@ import { pricingFtlLandCostsFix } from './build/pricingFtlLandCostsFix'
 import { pricingCommercialIdentityFields } from './build/pricingCommercialIdentityFields'
 import { pricingCurrencyValueGuard } from './build/pricingCurrencyValueGuard'
 import { pricingWizardPanamaContextFix } from './build/pricingWizardPanamaContextFix'
+import { pricingRateEditCreateParity } from './build/pricingRateEditCreateParity'
 
 export default defineConfig({
   plugins: [
@@ -109,6 +110,7 @@ export default defineConfig({
     pricingCommercialIdentityFields(),
     pricingCurrencyValueGuard(),
     pricingWizardPanamaContextFix(),
+    pricingRateEditCreateParity(),
     vue(),
     tailwindcss(),
   ],
