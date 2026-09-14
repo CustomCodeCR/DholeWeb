@@ -34,6 +34,13 @@ import {
   localizeMarketingBlock,
   type MarketingBlockIcon,
 } from '@/modules/marketing/config/marketingBlockCatalog'
+import { MARKETING_BLOCK_DRAG_MIME } from '@/modules/marketing/config/marketingPageBuilder'
+
+const props = withDefaults(defineProps<{ selectedId?: string | null }>(), { selectedId: null })
+const emit = defineEmits<{
+  select: [blockId: string]
+  dragstart: [event: DragEvent, blockId: string]
+}>()
 
 const localeStore = useLocale()
 const search = ref('')
@@ -93,6 +100,19 @@ const groups = computed(() => {
     })
     .filter((group) => group.blocks.length > 0)
 })
+
+function selectBlock(block: DhBlockCardItem) {
+  emit('select', block.id)
+}
+
+function startBlockDrag(event: DragEvent, block: DhBlockCardItem) {
+  if (event.dataTransfer) {
+    event.dataTransfer.setData(MARKETING_BLOCK_DRAG_MIME, block.id)
+    event.dataTransfer.effectAllowed = 'copy'
+  }
+  emit('select', block.id)
+  emit('dragstart', event, block.id)
+}
 </script>
 
 <template>
@@ -100,7 +120,7 @@ const groups = computed(() => {
     <div class="border-b border-[var(--dh-border)] p-3">
       <DhSearchInput v-model="search" :placeholder="localeStore.locale === 'en' ? 'Find a block…' : 'Buscar un bloque…'" />
       <p class="mt-2 text-[11px] leading-5 text-[var(--dh-text-muted)]">
-        {{ localeStore.locale === 'en' ? 'Choose the kind of section you want to use on the page.' : 'Elija el tipo de sección que desea utilizar en la página.' }}
+        {{ localeStore.locale === 'en' ? 'Select a block or drag it into the page.' : 'Seleccione un bloque o arrástrelo dentro de la página.' }}
       </p>
     </div>
 
@@ -111,7 +131,15 @@ const groups = computed(() => {
             {{ group.title }}
           </h3>
           <div class="space-y-2">
-            <DhBlockCard v-for="block in group.blocks" :key="block.id" :item="block" />
+            <DhBlockCard
+              v-for="block in group.blocks"
+              :key="block.id"
+              :item="block"
+              :selected="block.id === props.selectedId"
+              :draggable="true"
+              @select="selectBlock"
+              @dragstart="startBlockDrag"
+            />
           </div>
         </section>
       </div>
