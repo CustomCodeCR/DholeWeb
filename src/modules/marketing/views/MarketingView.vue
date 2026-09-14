@@ -39,6 +39,7 @@ import MarketingMediaTab from '@/modules/marketing/components/MarketingMediaTab.
 import MarketingMenusTab from '@/modules/marketing/components/MarketingMenusTab.vue'
 import MarketingResourceTab from '@/modules/marketing/components/MarketingResourceTab.vue'
 import MarketingSettingsTab from '@/modules/marketing/components/MarketingSettingsTab.vue'
+import MarketingVisualEditor from '@/modules/marketing/components/MarketingVisualEditor.vue'
 
 const siteKey = 'main'
 const route = useRoute()
@@ -68,6 +69,7 @@ const iconMap: Record<string, Component> = {
 const activeSection = ref<MarketingSectionKey>('dashboard')
 const navigationSearch = ref('')
 const createNonce = ref(0)
+const visualEditorOpen = ref(false)
 const dashboardLoading = ref(false)
 const dashboard = ref<EditorDashboardDto>({ pages: 0, news: 0, banners: 0, media: 0, drafts: 0, pendingReview: 0, scheduled: 0, published: 0 })
 const marketingCounts = ref({ leads: 0, forms: 0, meetings: 0, campaigns: 0 })
@@ -206,18 +208,30 @@ async function handleQuickAction(key: string) {
   return handleCreate(key)
 }
 
+function openVisualEditor() {
+  visualEditorOpen.value = true
+}
+
+async function closeVisualEditor() {
+  visualEditorOpen.value = false
+  await openSection('content-pages')
+}
+
 watch(activeSection, (section) => { if (section === 'dashboard') void loadDashboard() })
 onMounted(() => void loadDashboard())
 </script>
 
 <template>
-  <section class="space-y-5">
+  <MarketingVisualEditor v-if="visualEditorOpen" :site-key="siteKey" @close="closeVisualEditor" />
+
+  <section v-else class="space-y-5">
     <DhPageHeader
       :title="tr('Mercadeo', 'Marketing')"
       :subtitle="currentDescription"
       :icon="Megaphone"
     >
       <template #actions>
+        <DhButton :label="tr('Editor visual', 'Visual editor')" :icon="LayoutDashboard" variant="secondary" size="sm" @click="openVisualEditor" />
         <DhDropdownMenu :items="createItems" @select="handleCreate">
           <DhButton :label="tr('Crear', 'Create')" :icon="Plus" size="sm" />
         </DhDropdownMenu>
@@ -314,7 +328,10 @@ onMounted(() => void loadDashboard())
               <h2 class="mt-1 text-2xl font-black">{{ currentLabel }}</h2>
               <p class="mt-1 max-w-3xl text-sm leading-6 text-[var(--dh-text-muted)]">{{ currentDescription }}</p>
             </div>
-            <DhButton :label="tr('Volver al inicio', 'Back home')" variant="ghost" size="sm" @click="openSection('dashboard')" />
+            <div class="flex flex-wrap gap-2">
+              <DhButton v-if="activeSection === 'content-pages'" :label="tr('Abrir editor visual', 'Open visual editor')" :icon="LayoutDashboard" variant="secondary" size="sm" @click="openVisualEditor" />
+              <DhButton :label="tr('Volver al inicio', 'Back home')" variant="ghost" size="sm" @click="openSection('dashboard')" />
+            </div>
           </section>
 
           <MarketingAnimationTab v-if="activeSection === 'design-animations'" :site-key="siteKey" />
