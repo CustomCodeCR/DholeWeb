@@ -54,18 +54,27 @@ function savedManualRateTransitDays(rate: RateDto) {
   return match ? Number(match[0]) : 0
 }
 
+function savedManualRateComment(rate: RateDto) {
+  const comments = rate.rateDetails
+    .map((detail) => String(detail.notes ?? '').trim())
+    .filter(Boolean)
+  return [...new Set(comments)].join(' | ')
+}
+
 function savedManualRateMatchesContext(rate: RateDto) {
+  // Pantalla 5 trata estas tarifas como alternativas oficiales guardadas. Las que
+  // nacieron de una importación ya están cubiertas por selectImportRates y se
+  // excluyen aquí para no duplicarlas.
   if (rate.sourceImportFclRateId) return false
   if (!['Open', 'ApprovedByManagement'].includes(rate.status)) return false
   if (rate.shipmentMode !== shipmentModeForApi.value) return false
-  if (rate.operationType !== operationType.value) return false
   if (rate.polId !== form.originId || rate.poeId !== form.destinationId) return false
-  if (rate.incotermId && form.incotermId && rate.incotermId !== form.incotermId) return false
 
-  // POD remains explicitly user-selected. A saved tariff tied to a POD is only
-  // offered after the user selected that same POD on Pantalla 3.
-  if (rate.podId && !form.podId) return false
-  if (rate.podId && form.podId && rate.podId !== form.podId) return false
+  // Igual que la búsqueda de tarifas importadas, POD solo restringe cuando el
+  // usuario realmente seleccionó uno. No se filtra por Incoterm ni operationType
+  // porque Pantalla 5 debe presentar todas las alternativas tarifarias vigentes
+  // para la ruta/equipo y dejar la composición comercial para las pantallas siguientes.
+  if (form.podId && rate.podId && rate.podId !== form.podId) return false
 
   const quoteDate = new Date(\`${'${form.loadDate}'}T12:00:00\`).getTime()
   const validFrom = new Date(rate.validFrom).getTime()
@@ -79,9 +88,6 @@ function savedManualRateMatchesContext(rate: RateDto) {
   if (!rate.rateDetails.some((detail) => number(detail.costAmount) > 0 || number(detail.saleAmount) > 0)) return false
 
   if (shipmentModeForApi.value === 'Fcl') {
-    // The existing FCL bundle engine supports mixed equipment with imported unit
-    // rates. Saved manual quotes are reused only for a single equipment type so
-    // their stored detail quantities cannot be accidentally duplicated.
     if (fclContainerAllocations.value.length !== 1) return false
     const requirement = fclContainerAllocations.value[0]
     const containers = rate.containers?.length
@@ -105,7 +111,7 @@ async function searchSavedManualRates() {
   try {
     const result = await PricingService.browseRates({
       pageNumber: 1,
-      pageSize: 200,
+      pageSize: 500,
       polId: form.originId,
       poeId: form.destinationId,
       quoteDate: form.loadDate,
@@ -113,9 +119,15 @@ async function searchSavedManualRates() {
     availableSavedManualRates.value = result.items
       .filter(savedManualRateMatchesContext)
       .sort((left, right) => {
+        const validityDays = remainingValidityDays(right.validTo) - remainingValidityDays(left.validTo)
+        if (validityDays !== 0) return validityDays
         const validity = new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
         if (validity !== 0) return validity
-        return number(savedManualRateFreight(left)?.costAmount) - number(savedManualRateFreight(right)?.costAmount)
+        const comment = rateCommentRank(savedManualRateComment(right)) - rateCommentRank(savedManualRateComment(left))
+        if (comment !== 0) return comment
+        const price = number(savedManualRateFreight(left)?.costAmount) - number(savedManualRateFreight(right)?.costAmount)
+        if (price !== 0) return price
+        return String(left.rateCode ?? left.id).localeCompare(String(right.rateCode ?? right.id), 'es')
       })
   } catch (error) {
     availableSavedManualRates.value = []
@@ -241,9 +253,9 @@ ${chooseRateAnchor}`
             <div class="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p class="text-sm font-black">Tarifas manuales guardadas</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Tarifas oficiales creadas manualmente que coinciden con la ruta, equipo, Incoterm y vigencia seleccionados.</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se muestran todas las tarifas oficiales manuales vigentes que coinciden con POL, POE y equipo. Se ordenan por días disponibles, comentarios y precio.</p>
               </div>
-              <DhBadge variant="primary">{{ availableSavedManualRates.length }} disponible{{ availableSavedManualRates.length === 1 ? '' : 's' }}</DhBadge>
+              <DhBadge variant="primary">{{ availableSavedManualRates.length }} tarifa{{ availableSavedManualRates.length === 1 ? '' : 's' }}</DhBadge>
             </div>
 
             <div class="grid gap-4 xl:grid-cols-2">
@@ -263,24 +275,25 @@ ${chooseRateAnchor}`
                     </p>
                     <p class="mt-1 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ rate.rateCode }} · {{ rate.rateName }}</p>
                   </div>
-                  <DhBadge variant="success">Manual guardada</DhBadge>
+                  <DhBadge variant="success">{{ rate.status === 'ApprovedByManagement' ? 'Preaprobada manual' : 'Manual vigente' }}</DhBadge>
                 </div>
 
                 <div class="mt-4 flex flex-wrap items-end justify-between gap-3">
                   <div>
-                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Flete</span>
+                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Precio / flete</span>
                     <strong class="mt-1 block text-2xl">{{ formatMoney(savedManualRateFreight(rate)?.costAmount || 0, savedManualRateCurrency(rate)) }}</strong>
                   </div>
-                  <div class="text-right">
-                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Vigencia</span>
-                    <strong class="mt-1 block text-sm">{{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}</strong>
-                    <span class="mt-1 block text-[11px] font-bold text-[var(--dh-text-muted)]">{{ remainingValidityDays(rate.validTo) }} días restantes</span>
+                  <div class="flex flex-col items-end gap-1 text-right">
+                    <DhBadge :variant="validityTone(rate.validTo)">{{ remainingValidityDays(rate.validTo) }} días disponibles</DhBadge>
+                    <span class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Vigencia</span>
+                    <strong class="block text-sm">{{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}</strong>
                   </div>
                 </div>
 
-                <p v-if="savedManualRateFreight(rate)?.notes" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-                  {{ savedManualRateFreight(rate)?.notes }}
-                </p>
+                <div class="mt-3 rounded-xl border border-[var(--dh-border)] bg-black/[0.025] px-3 py-2 text-left text-xs text-[var(--dh-text-muted)] dark:bg-white/[0.04]">
+                  <strong class="block font-black text-[var(--dh-text)]">Comentarios de la tarifa</strong>
+                  <span class="mt-1 block whitespace-pre-line font-semibold">{{ savedManualRateComment(rate) || 'Sin comentarios registrados' }}</span>
+                </div>
               </button>
             </div>
           </div>
