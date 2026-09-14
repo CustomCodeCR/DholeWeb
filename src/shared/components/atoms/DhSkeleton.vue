@@ -3,7 +3,7 @@ withDefaults(
   defineProps<{
     width?: string
     height?: string
-    rounded?: 'sm' | 'md' | 'lg' | 'full'
+    rounded?: 'none' | 'sm' | 'md' | 'lg' | 'full'
     animated?: boolean
   }>(),
   {
