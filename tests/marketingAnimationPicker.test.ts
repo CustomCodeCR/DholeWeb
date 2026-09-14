@@ -9,18 +9,19 @@ const editorUrl = new URL('../src/modules/marketing/components/MarketingVisualEd
 test('FASE 50 exposes exactly the six human animation choices requested by the roadmap', async () => {
   const source = await readFile(animationPickerUrl, 'utf8')
 
-  assert.match(source, /title: tr\('Ninguna', 'None'\)/)
-  assert.match(source, /title: 'Fade'/)
-  assert.match(source, /title: 'Slide Up'/)
-  assert.match(source, /title: 'Slide Left'/)
-  assert.match(source, /title: 'Slide Right'/)
-  assert.match(source, /title: 'Zoom'/)
+  assert.match(source, /title: tr\('Sin animación', 'No animation'\)/)
+  assert.match(source, /title: tr\('Aparecer suavemente', 'Fade in softly'\)/)
+  assert.match(source, /title: tr\('Subir suavemente', 'Slide up softly'\)/)
+  assert.match(source, /title: tr\('Entrar desde izquierda', 'Enter from left'\)/)
+  assert.match(source, /title: tr\('Entrar desde derecha', 'Enter from right'\)/)
+  assert.match(source, /title: tr\('Zoom suave', 'Soft zoom'\)/)
   assert.match(source, /preset: 'none'/)
   assert.match(source, /preset: 'fade'/)
   assert.match(source, /preset: 'slide-up'/)
   assert.match(source, /preset: 'slide-left'/)
   assert.match(source, /preset: 'slide-right'/)
   assert.match(source, /preset: 'zoom-in'/)
+  assert.doesNotMatch(source, /title: 'Fade'|title: 'Slide Up'|title: 'Slide Left'|title: 'Slide Right'|title: 'Zoom'/)
 })
 
 test('FASE 50 previews each visual option on hover without exposing technical controls', async () => {

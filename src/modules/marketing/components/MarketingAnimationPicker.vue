@@ -31,8 +31,8 @@ const options = computed<MarketingAnimationOption[]>(() => [
   {
     id: 'none',
     preset: 'none',
-    title: tr('Ninguna', 'None'),
-    description: tr('Sin movimiento al aparecer.', 'No movement when appearing.'),
+    title: tr('Sin animación', 'No animation'),
+    description: tr('La sección aparece sin movimiento.', 'The section appears without movement.'),
     icon: Ban,
     previewClass: 'preview-none',
     disabled: props.disabled,
@@ -40,8 +40,8 @@ const options = computed<MarketingAnimationOption[]>(() => [
   {
     id: 'fade',
     preset: 'fade',
-    title: 'Fade',
-    description: tr('Aparece suavemente.', 'Appears softly.'),
+    title: tr('Aparecer suavemente', 'Fade in softly'),
+    description: tr('La sección aparece de forma gradual.', 'The section appears gradually.'),
     icon: Sparkles,
     previewClass: 'preview-fade',
     disabled: props.disabled,
@@ -49,35 +49,35 @@ const options = computed<MarketingAnimationOption[]>(() => [
   {
     id: 'slide-up',
     preset: 'slide-up',
-    title: 'Slide Up',
-    description: tr('Entra suavemente desde abajo.', 'Slides softly upward.'),
+    title: tr('Subir suavemente', 'Slide up softly'),
+    description: tr('La sección entra suavemente desde abajo.', 'The section slides softly upward.'),
     icon: MoveUp,
     previewClass: 'preview-slide-up',
     disabled: props.disabled,
   },
   {
-    id: 'slide-left',
-    preset: 'slide-left',
-    title: 'Slide Left',
-    description: tr('Entra suavemente desde la derecha.', 'Slides softly from the right.'),
-    icon: MoveLeft,
-    previewClass: 'preview-slide-left',
-    disabled: props.disabled,
-  },
-  {
     id: 'slide-right',
     preset: 'slide-right',
-    title: 'Slide Right',
-    description: tr('Entra suavemente desde la izquierda.', 'Slides softly from the left.'),
+    title: tr('Entrar desde izquierda', 'Enter from left'),
+    description: tr('La sección entra suavemente desde la izquierda.', 'The section enters softly from the left.'),
     icon: MoveRight,
     previewClass: 'preview-slide-right',
     disabled: props.disabled,
   },
   {
+    id: 'slide-left',
+    preset: 'slide-left',
+    title: tr('Entrar desde derecha', 'Enter from right'),
+    description: tr('La sección entra suavemente desde la derecha.', 'The section enters softly from the right.'),
+    icon: MoveLeft,
+    previewClass: 'preview-slide-left',
+    disabled: props.disabled,
+  },
+  {
     id: 'zoom-in',
     preset: 'zoom-in',
-    title: 'Zoom',
-    description: tr('Aparece con un acercamiento suave.', 'Appears with a soft zoom.'),
+    title: tr('Zoom suave', 'Soft zoom'),
+    description: tr('La sección aparece con un acercamiento suave.', 'The section appears with a soft zoom.'),
     icon: ZoomIn,
     previewClass: 'preview-zoom',
     disabled: props.disabled,
@@ -100,7 +100,7 @@ function selectOption(option: MarketingAnimationOption) {
     >
       <DhBlockCard
         :item="option"
-        :selected="modelValue === option.preset || (modelValue === 'zoom-in' && option.preset === 'zoom-in')"
+        :selected="modelValue === option.preset"
         @select="selectOption(option)"
       >
         <template #end>
