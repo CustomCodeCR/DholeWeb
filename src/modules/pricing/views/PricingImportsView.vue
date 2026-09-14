@@ -76,7 +76,7 @@ const totalPages = ref(1)
 const filters = reactive({
   search: '',
   sourceType: [] as QueueSource[],
-  status: ['PreAuthorized'] as QueueStatus[],
+  status: ['Pending', 'PreAuthorized', 'Approved'] as QueueStatus[],
   carrierId: [] as string[],
   agentId: [] as string[],
   containerTypeId: [] as string[],
@@ -250,7 +250,7 @@ function applyFilters() {
 function clearFilters() {
   filters.search = ''
   filters.sourceType = []
-  filters.status = ['PreAuthorized']
+  filters.status = ['Pending', 'PreAuthorized', 'Approved']
   filters.carrierId = []
   filters.agentId = []
   filters.containerTypeId = []
@@ -372,7 +372,7 @@ function openManualUpload() {
     props: {
       onSaved: async () => {
         pageNumber.value = 1
-        filters.status = ['PreAuthorized']
+        filters.status = ['Pending', 'PreAuthorized', 'Approved']
         await load()
       },
     },
