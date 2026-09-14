@@ -1,10 +1,5 @@
 export const MARKETING_GROUPS = [
-  {
-    label: null,
-    items: [
-      { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-    ],
-  },
+  { label: null, items: [{ key: 'dashboard', label: 'Dashboard', icon: 'dashboard' }] },
   {
     label: 'Contenido',
     items: [
@@ -28,6 +23,7 @@ export const MARKETING_GROUPS = [
     label: 'Diseño',
     items: [
       { key: 'design-banners', label: 'Banners', icon: 'image' },
+      { key: 'design-animations', label: 'Animaciones', icon: 'sparkles' },
       { key: 'design-placements', label: 'Placements', icon: 'blocks' },
       { key: 'design-menus', label: 'Menús', icon: 'menu' },
       { key: 'design-collections', label: 'Collections', icon: 'blocks' },
@@ -74,12 +70,7 @@ export const MARKETING_GROUPS = [
       { key: 'publishing-history', label: 'Historial', icon: 'file' },
     ],
   },
-  {
-    label: 'IA',
-    items: [
-      { key: 'ai-assistant', label: 'Asistente IA', icon: 'sparkles' },
-    ],
-  },
+  { label: 'IA', items: [{ key: 'ai-assistant', label: 'Asistente IA', icon: 'sparkles' }] },
   {
     label: 'Configuración',
     items: [
@@ -91,9 +82,7 @@ export const MARKETING_GROUPS = [
 ] as const
 
 export type MarketingSectionKey = (typeof MARKETING_GROUPS)[number]['items'][number]['key']
-
 export const MARKETING_SECTION_KEYS = MARKETING_GROUPS.flatMap((group) => group.items.map((item) => item.key))
-
 export function isMarketingSection(value: unknown): value is MarketingSectionKey {
   return typeof value === 'string' && (MARKETING_SECTION_KEYS as readonly string[]).includes(value)
 }
