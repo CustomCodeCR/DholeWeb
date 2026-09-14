@@ -41,6 +41,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
+  'preview-text': [payload: { key: string; value: string }]
   'save-text': [payload: { key: string; value: string }]
   'save-animation': [preset: CmsMotionPreset]
   'save-animation-settings': [payload: MarketingAnimationSettingsPatch]
@@ -127,6 +128,11 @@ const backgroundOptions = computed(() => [
   { value: 'gradient', label: tr('Gradiente', 'Gradient') },
 ])
 
+function previewText(value: unknown) {
+  if (!props.textField) return
+  emit('preview-text', { key: props.textField.key, value: String(value ?? '') })
+}
+
 function saveText() {
   if (!props.textField) return
   const value = draft.value.trim()
@@ -193,6 +199,7 @@ function saveAnimationDuration(duration: number) {
             :placeholder="textField.placeholder"
             :disabled="disabled"
             :rows="5"
+            @update:model-value="previewText"
           />
           <DhInput
             v-else
@@ -200,6 +207,7 @@ function saveAnimationDuration(duration: number) {
             :label="contentLabel"
             :placeholder="textField.placeholder"
             :disabled="disabled"
+            @update:model-value="previewText"
           />
           <DhButton
             :label="tr('Guardar contenido', 'Save content')"

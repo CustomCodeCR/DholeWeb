@@ -10,11 +10,12 @@ import { PageBuilderService } from '@/core/services/pageBuilderService'
 import { useLocale } from '@/core/stores/locale'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { ContentItemDto, ContentItemListDto } from '@/core/interfaces/content'
-import type { CmsMotionPreset, PageBuilderBlock, PageBuilderOperationRequest } from '@/core/interfaces/pageBuilder'
+import type { CmsAnimationConfig, CmsMotionPreset, PageBuilderBlock, PageBuilderOperationRequest } from '@/core/interfaces/pageBuilder'
 import MarketingBlockLibrary from '@/modules/marketing/components/MarketingBlockLibrary.vue'
 import MarketingBlockPicker from '@/modules/marketing/components/MarketingBlockPicker.vue'
 import MarketingBlockPropertiesContent from '@/modules/marketing/components/MarketingBlockPropertiesContent.vue'
 import MarketingInlineEditableText from '@/modules/marketing/components/MarketingInlineEditableText.vue'
+import MarketingLivePreview from '@/modules/marketing/components/MarketingLivePreview.vue'
 import { localizeMarketingBlock } from '@/modules/marketing/config/marketingBlockCatalog'
 import {
   MARKETING_BLOCK_DRAG_MIME,
@@ -52,6 +53,7 @@ const selectedPageId = ref<string | null>(null)
 const page = ref<ContentItemDto | null>(null)
 const publicPath = ref<string | null>(null)
 const builderBlocks = ref<PageBuilderBlock[]>([])
+const previewTextDrafts = ref<Record<string, Record<string, string>>>({})
 const selectedLibraryBlockId = ref<string | null>(null)
 const selectedBuilderBlockId = ref<string | null>(null)
 const deleteCandidate = ref<PageBuilderBlock | null>(null)
@@ -85,12 +87,12 @@ const statusVariant = computed<'primary' | 'success' | 'warning' | 'neutral'>(()
   return 'primary'
 })
 
-const visualHtml = computed(() => {
-  const body = page.value?.renderedHtml?.trim()
-    ? page.value.renderedHtml
-    : `<main style="padding:64px 32px;text-align:center"><h1 style="font-size:32px;margin:0 0 12px">${escapeHtml(page.value?.title || tr('Página sin seleccionar', 'No page selected'))}</h1><p style="color:#64748b;margin:0">${escapeHtml(tr('Esta página todavía no tiene contenido visual.', 'This page does not have visual content yet.'))}</p></main>`
-  return `<!doctype html><html lang="${localeStore.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fff;color:#111827}img,video{max-width:100%;height:auto}*{box-sizing:border-box}</style></head><body>${body}</body></html>`
-})
+const livePreviewBlocks = computed(() => builderBlocks.value.map((block) => {
+  const draft = previewTextDrafts.value[block.id]
+  return draft
+    ? { ...block, data: { ...block.data, ...draft } }
+    : block
+}))
 
 const sortableBlocks = computed<DhSortableItem[]>(() => builderBlocks.value.map((block) => {
   const definition = getMarketingBlockDefinitionForBuilderBlock(block)
@@ -117,10 +119,6 @@ const propertyTitle = computed(() => selectedDefinition.value
 const propertyDescription = computed(() => selectedBuilderBlock.value
   ? tr('Edite el contenido y las opciones comprensibles de esta sección.', 'Edit this section’s content and understandable options.')
   : tr('Seleccione una sección de la página para ver sus propiedades.', 'Select a page section to view its properties.'))
-
-function escapeHtml(value: string) {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;')
-}
 
 function sortableBlock(item: DhSortableItem) {
   return item.block as PageBuilderBlock
@@ -162,6 +160,52 @@ function inlineTextField(block: PageBuilderBlock): InlineTextField | null {
   }
 }
 
+function replaceBuilderBlockLocal(blockId: string, replacement: PageBuilderBlock) {
+  builderBlocks.value = builderBlocks.value.map((candidate) => candidate.id === blockId ? replacement : candidate)
+}
+
+function completeAnimation(block: PageBuilderBlock, patch: Partial<CmsAnimationConfig>): CmsAnimationConfig {
+  return {
+    preset: 'none',
+    duration: 600,
+    delay: 0,
+    easing: 'standard',
+    stagger: 100,
+    trigger: 'scroll',
+    once: true,
+    distance: 32,
+    ...block.animation,
+    ...patch,
+  }
+}
+
+function previewBlockText(block: PageBuilderBlock, key: string, value: string) {
+  const persisted = typeof block.data[key] === 'string' ? String(block.data[key]) : ''
+  const allDrafts = { ...previewTextDrafts.value }
+  const blockDraft = { ...(allDrafts[block.id] ?? {}) }
+
+  if (value === persisted) delete blockDraft[key]
+  else blockDraft[key] = value
+
+  if (Object.keys(blockDraft).length) allDrafts[block.id] = blockDraft
+  else delete allDrafts[block.id]
+  previewTextDrafts.value = allDrafts
+}
+
+function clearPreviewTextDraft(blockId: string, key?: string) {
+  const allDrafts = { ...previewTextDrafts.value }
+  if (!key) {
+    delete allDrafts[blockId]
+    previewTextDrafts.value = allDrafts
+    return
+  }
+  const blockDraft = { ...(allDrafts[blockId] ?? {}) }
+  delete blockDraft[key]
+  if (Object.keys(blockDraft).length) allDrafts[blockId] = blockDraft
+  else delete allDrafts[blockId]
+  previewTextDrafts.value = allDrafts
+}
+
 async function loadPages() {
   loadingPages.value = true
   try {
@@ -182,6 +226,7 @@ async function loadSelectedPage(id: string | null) {
   libraryDragActive.value = false
   blockPickerOpen.value = false
   propertiesDrawerOpen.value = false
+  previewTextDrafts.value = {}
   if (!id) {
     page.value = null
     publicPath.value = null
@@ -279,12 +324,21 @@ async function saveBlockTextProperty(block: PageBuilderBlock, key: string, value
   const current = typeof block.data[key] === 'string' ? String(block.data[key]) : ''
   if (current === value) return
   const nextData = { ...block.data, [key]: value }
+  const previousBlocks = builderBlocks.value
+  const previousDrafts = previewTextDrafts.value
+  replaceBuilderBlockLocal(block.id, { ...block, data: nextData })
+  clearPreviewTextDraft(block.id, key)
   const next = await applyBuilderOperation({
     operation: 'edit',
     blockId: block.id,
     dataJson: JSON.stringify(nextData),
   }, tr('Contenido actualizado', 'Content updated'))
-  if (next) selectedBuilderBlockId.value = block.id
+  if (!next) {
+    builderBlocks.value = previousBlocks
+    previewTextDrafts.value = previousDrafts
+    return
+  }
+  selectedBuilderBlockId.value = block.id
 }
 
 async function saveInlineText(block: PageBuilderBlock, field: InlineTextField, value: string) {
@@ -295,12 +349,18 @@ async function saveBlockAnimation(block: PageBuilderBlock, preset: CmsMotionPres
   selectPageBlock(block, false)
   if ((block.animation?.preset ?? 'none') === preset) return
   const animation = block.animation ? { ...block.animation, preset } : { preset }
+  const previousBlocks = builderBlocks.value
+  replaceBuilderBlockLocal(block.id, { ...block, animation: completeAnimation(block, { preset }) })
   const next = await applyBuilderOperation({
     operation: 'edit',
     blockId: block.id,
     animationJson: JSON.stringify(animation),
   }, preset === 'none' ? tr('Animación desactivada', 'Animation disabled') : tr('Animación actualizada', 'Animation updated'))
-  if (next) selectedBuilderBlockId.value = block.id
+  if (!next) {
+    builderBlocks.value = previousBlocks
+    return
+  }
+  selectedBuilderBlockId.value = block.id
 }
 
 async function saveBlockAnimationSettings(block: PageBuilderBlock, patch: AnimationSettingsPatch) {
@@ -312,12 +372,18 @@ async function saveBlockAnimationSettings(block: PageBuilderBlock, patch: Animat
   const animation = block.animation
     ? { ...block.animation, ...patch }
     : { preset: 'none' as CmsMotionPreset, ...patch }
+  const previousBlocks = builderBlocks.value
+  replaceBuilderBlockLocal(block.id, { ...block, animation: completeAnimation(block, patch) })
   const next = await applyBuilderOperation({
     operation: 'edit',
     blockId: block.id,
     animationJson: JSON.stringify(animation),
   }, tr('Animación actualizada', 'Animation updated'))
-  if (next) selectedBuilderBlockId.value = block.id
+  if (!next) {
+    builderBlocks.value = previousBlocks
+    return
+  }
+  selectedBuilderBlockId.value = block.id
 }
 
 async function handleReorder(_items: DhSortableItem[], from: number, to: number) {
@@ -336,8 +402,14 @@ async function duplicateBlock(block: PageBuilderBlock) {
 
 async function setVisibility(block: PageBuilderBlock, visible: boolean) {
   if (block.isVisible === visible) return
+  const previousBlocks = builderBlocks.value
+  replaceBuilderBlockLocal(block.id, { ...block, isVisible: visible })
   const next = await applyBuilderOperation({ operation: visible ? 'show' : 'hide', blockId: block.id }, visible ? tr('Sección visible', 'Section visible') : tr('Sección oculta', 'Section hidden'))
-  if (next) selectedBuilderBlockId.value = block.id
+  if (!next) {
+    builderBlocks.value = previousBlocks
+    return
+  }
+  selectedBuilderBlockId.value = block.id
 }
 
 async function toggleVisibility(block: PageBuilderBlock) {
@@ -354,6 +426,7 @@ async function confirmDeleteBlock() {
   if (!block) return
   const next = await applyBuilderOperation({ operation: 'delete', blockId: block.id }, tr('Sección eliminada', 'Section deleted'))
   if (!next) return
+  clearPreviewTextDraft(block.id)
   if (selectedBuilderBlockId.value === block.id) selectedBuilderBlockId.value = null
   deleteCandidate.value = null
 }
@@ -461,8 +534,17 @@ onMounted(() => void loadPages())
             </section>
 
             <section class="visual-editor-preview">
-              <div class="border-b border-[var(--dh-border)] px-4 py-3"><p class="text-xs font-black text-[var(--dh-text)]">{{ tr('Vista actual', 'Current view') }}</p></div>
-              <iframe :title="tr('Vista visual de la página', 'Visual page preview')" :srcdoc="visualHtml" sandbox="" class="h-[440px] w-full border-0 bg-white" />
+              <div class="flex items-center justify-between gap-2 border-b border-[var(--dh-border)] px-4 py-3">
+                <p class="text-xs font-black text-[var(--dh-text)]">{{ tr('Vista actual', 'Current view') }}</p>
+                <DhBadge :label="tr('Cambios en vivo', 'Live changes')" variant="success" />
+              </div>
+              <MarketingLivePreview
+                :blocks="livePreviewBlocks"
+                :page-title="page.title"
+                :fallback-html="page.renderedHtml"
+                :selected-block-id="selectedBuilderBlockId"
+                @select="selectPageBlock"
+              />
             </section>
           </template>
 
@@ -478,6 +560,7 @@ onMounted(() => void loadPages())
               :text-field="selectedTextField"
               :active-section="activeKey"
               :disabled="builderBusy"
+              @preview-text="selectedBuilderBlock && previewBlockText(selectedBuilderBlock, $event.key, $event.value)"
               @save-text="selectedBuilderBlock && saveBlockTextProperty(selectedBuilderBlock, $event.key, $event.value)"
               @save-animation="selectedBuilderBlock && saveBlockAnimation(selectedBuilderBlock, $event)"
               @save-animation-settings="selectedBuilderBlock && saveBlockAnimationSettings(selectedBuilderBlock, $event)"
@@ -502,6 +585,7 @@ onMounted(() => void loadPages())
             :text-field="selectedTextField"
             :active-section="activeKey"
             :disabled="builderBusy"
+            @preview-text="selectedBuilderBlock && previewBlockText(selectedBuilderBlock, $event.key, $event.value)"
             @save-text="selectedBuilderBlock && saveBlockTextProperty(selectedBuilderBlock, $event.key, $event.value)"
             @save-animation="selectedBuilderBlock && saveBlockAnimation(selectedBuilderBlock, $event)"
             @save-animation-settings="selectedBuilderBlock && saveBlockAnimationSettings(selectedBuilderBlock, $event)"
