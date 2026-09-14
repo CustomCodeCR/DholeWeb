@@ -36,7 +36,7 @@ test('FASE 46 edits ALT and caption through the existing media service', async (
   assert.match(picker, /ALT Text/)
   assert.match(picker, /Caption/)
   assert.match(picker, /ContentService\.updateMedia/)
-  assert.match(picker, /Guardar detalles/)
+  assert.match(picker, /Guardar cambios/)
 })
 
 test('FASE 47 adds the requested image drop zone and keeps library selection available', async () => {
@@ -68,4 +68,37 @@ test('FASE 47 does not advance the FASE 48 multimedia gallery redesign', async (
   assert.doesNotMatch(picker, /Buscar por fecha|Search by date/)
   assert.doesNotMatch(picker, />\s*Videos\s*</)
   assert.doesNotMatch(picker, />\s*Documentos\s*</)
+})
+
+test('FASE 49 exposes easy ALT, caption, focal point, size and replace controls inside the Media Picker', async () => {
+  const picker = await readFile(new URL('../src/modules/marketing/components/MarketingMediaPicker.vue', import.meta.url), 'utf8')
+
+  assert.match(picker, /ALT Text/)
+  assert.match(picker, /Caption/)
+  assert.match(picker, /Punto focal/)
+  assert.match(picker, /setFocalPoint/)
+  assert.match(picker, /selectedFileSize/)
+  assert.match(picker, /Reemplazar archivo/)
+  assert.match(picker, /Centrar punto focal/)
+})
+
+test('FASE 49 stores the focal point through media metadata without exposing technical metadata in the picker', async () => {
+  const picker = await readFile(new URL('../src/modules/marketing/components/MarketingMediaPicker.vue', import.meta.url), 'utf8')
+
+  assert.match(picker, /withMarketingImageFocalPoint/)
+  assert.match(picker, /ContentService\.updateMedia/)
+  assert.match(picker, /meta: fileSizeLabel\(item\)/)
+  assert.doesNotMatch(picker, /meta: item\.contentType/)
+  assert.doesNotMatch(picker, /Información técnica|Technical information/)
+  assert.doesNotMatch(picker, /StorageFileId/i)
+})
+
+test('FASE 49 replaces the picker selection safely without deleting an image that may still be in use', async () => {
+  const picker = await readFile(new URL('../src/modules/marketing/components/MarketingMediaPicker.vue', import.meta.url), 'utf8')
+
+  assert.match(picker, /async function replaceSelectedImage\(file: File\)/)
+  assert.match(picker, /ContentService\.uploadMedia\(file, nextAlt, nextCaption, seededMetadata\)/)
+  assert.match(picker, /selectedId\.value = replacement\.id/)
+  assert.match(picker, /la imagen anterior se conserva donde ya esté en uso/)
+  assert.doesNotMatch(picker, /ContentService\.deleteMedia/)
 })
