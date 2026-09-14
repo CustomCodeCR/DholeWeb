@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Copy, FileText, PanelRight, Palette, Sparkles, Trash2 } from 'lucide-vue-next'
+import { AlignCenter, AlignLeft, AlignRight, Copy, FileText, PanelRight, Palette, Sparkles, Trash2 } from 'lucide-vue-next'
 import DhBadge from '@/shared/components/atoms/DhBadge.vue'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhEmptyState from '@/shared/components/atoms/DhEmptyState.vue'
@@ -17,6 +17,8 @@ export interface MarketingPropertyTextField {
   value: string
   placeholder: string
 }
+
+type DesignPropertyKey = 'editorDesignAlignment' | 'editorDesignSpacing' | 'editorDesignBackground'
 
 const props = withDefaults(defineProps<{
   block: PageBuilderBlock | null
@@ -61,11 +63,48 @@ const contentLabel = computed(() => {
 })
 const animationConfigured = computed(() => Boolean(props.block?.animation && props.block.animation.preset !== 'none'))
 
+const designAlignment = computed(() => typeof props.block?.data.editorDesignAlignment === 'string'
+  ? props.block.data.editorDesignAlignment
+  : 'left')
+const designSpacing = computed(() => typeof props.block?.data.editorDesignSpacing === 'string'
+  ? props.block.data.editorDesignSpacing
+  : 'normal')
+const designBackground = computed(() => typeof props.block?.data.editorDesignBackground === 'string'
+  ? props.block.data.editorDesignBackground
+  : 'white')
+
+const alignmentOptions = computed(() => [
+  { value: 'left', label: tr('Izquierda', 'Left'), icon: AlignLeft },
+  { value: 'center', label: tr('Centro', 'Center'), icon: AlignCenter },
+  { value: 'right', label: tr('Derecha', 'Right'), icon: AlignRight },
+])
+
+const spacingOptions = computed(() => [
+  { value: 'small', label: tr('Pequeño', 'Small') },
+  { value: 'normal', label: tr('Normal', 'Normal') },
+  { value: 'large', label: tr('Grande', 'Large') },
+  { value: 'xlarge', label: tr('Muy grande', 'Extra large') },
+])
+
+const backgroundOptions = computed(() => [
+  { value: 'white', label: tr('Blanco', 'White') },
+  { value: 'light', label: tr('Claro', 'Light') },
+  { value: 'corporate', label: tr('Corporativo', 'Corporate') },
+  { value: 'dark', label: tr('Oscuro', 'Dark') },
+  { value: 'image', label: tr('Imagen', 'Image') },
+  { value: 'gradient', label: tr('Gradiente', 'Gradient') },
+])
+
 function saveText() {
   if (!props.textField) return
   const value = draft.value.trim()
   if (value === props.textField.value) return
   emit('save-text', { key: props.textField.key, value })
+}
+
+function saveDesignPreference(key: DesignPropertyKey, value: string, current: string) {
+  if (props.disabled || value === current) return
+  emit('save-text', { key, value })
 }
 </script>
 
@@ -117,11 +156,63 @@ function saveText() {
     </template>
 
     <template v-else-if="activeSection === 'design'">
-      <DhEmptyState
-        :icon="Palette"
-        :title="tr('Diseño visual', 'Visual design')"
-        :description="tr('Las opciones de diseño se presentarán como controles visuales claros, sin configuraciones técnicas.', 'Design options are presented as clear visual controls without technical settings.')"
-      />
+      <div class="space-y-5">
+        <section class="space-y-2">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[.1em] text-[var(--dh-text)]">{{ tr('Alineación', 'Alignment') }}</p>
+            <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Elija cómo se acomoda el contenido principal.', 'Choose how the main content is aligned.') }}</p>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <DhButton
+              v-for="option in alignmentOptions"
+              :key="option.value"
+              :label="option.label"
+              :icon="option.icon"
+              :variant="designAlignment === option.value ? 'primary' : 'secondary'"
+              size="sm"
+              :disabled="disabled"
+              @click="saveDesignPreference('editorDesignAlignment', option.value, designAlignment)"
+            />
+          </div>
+        </section>
+
+        <section class="space-y-2">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[.1em] text-[var(--dh-text)]">{{ tr('Espaciado', 'Spacing') }}</p>
+            <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Controle cuánto aire tiene la sección sin usar medidas técnicas.', 'Control how much breathing room the section has without technical measurements.') }}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <DhButton
+              v-for="option in spacingOptions"
+              :key="option.value"
+              :label="option.label"
+              :variant="designSpacing === option.value ? 'primary' : 'secondary'"
+              size="sm"
+              :disabled="disabled"
+              @click="saveDesignPreference('editorDesignSpacing', option.value, designSpacing)"
+            />
+          </div>
+        </section>
+
+        <section class="space-y-2">
+          <div class="flex items-center gap-2">
+            <Palette class="h-4 w-4 text-[var(--dh-primary)]" />
+            <p class="text-xs font-black uppercase tracking-[.1em] text-[var(--dh-text)]">{{ tr('Fondo', 'Background') }}</p>
+          </div>
+          <p class="text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Seleccione el estilo general del fondo de la sección.', 'Choose the section’s overall background style.') }}</p>
+          <div class="grid grid-cols-2 gap-2">
+            <DhButton
+              v-for="option in backgroundOptions"
+              :key="option.value"
+              :label="option.label"
+              :variant="designBackground === option.value ? 'primary' : 'secondary'"
+              size="sm"
+              :disabled="disabled"
+              @click="saveDesignPreference('editorDesignBackground', option.value, designBackground)"
+            />
+          </div>
+        </section>
+      </div>
     </template>
 
     <template v-else-if="activeSection === 'animation'">
