@@ -73,12 +73,13 @@ function patchWizard(source: string) {
     'screen 4 selection hydration',
   )
 
-  // Once the normal create flow builds Screen 7, reconnect equivalent rows to persisted
-  // detail IDs. This updates/replaces existing rows instead of duplicating them.
+  // The commercial-terms plugin expands the original step watcher. Insert a dedicated
+  // edit watcher before it so the rebuilt create-flow lines retain their persisted IDs.
+  const stepWatchAnchor = `watch(step, (value) => {`
   code = replaceOne(
     code,
-    `watch(step, (value) => {\n  if (value === 7) void loadHaciendaExchangeRate(false)\n})`,
-    `watch(step, (value) => {\n  if (value === 7) {\n    void loadHaciendaExchangeRate(false)\n    if (props.rateId && !props.viewOnly) relinkExistingDetailIdsForEdit()\n  }\n})`,
+    stepWatchAnchor,
+    `watch(step, (value) => {\n  if (value === 7 && props.rateId && !props.viewOnly) {\n    relinkExistingDetailIdsForEdit()\n  }\n})\n\n${stepWatchAnchor}`,
     'screen 7 detail relinking',
   )
 
