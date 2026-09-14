@@ -57,6 +57,7 @@ import { pricingCurrencyValueGuard } from './build/pricingCurrencyValueGuard'
 import { pricingWizardPanamaContextFix } from './build/pricingWizardPanamaContextFix'
 import { pricingRateEditCreateParity } from './build/pricingRateEditCreateParity'
 import { pricingRateUpdateSourceParity } from './build/pricingRateUpdateSourceParity'
+import { pricingWizardSavedManualRates } from './build/pricingWizardSavedManualRates'
 
 export default defineConfig({
   plugins: [
@@ -113,6 +114,7 @@ export default defineConfig({
     pricingWizardPanamaContextFix(),
     pricingRateEditCreateParity(),
     pricingRateUpdateSourceParity(),
+    pricingWizardSavedManualRates(),
     vue(),
     tailwindcss(),
   ],
