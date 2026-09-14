@@ -61,10 +61,14 @@ test('FASE 52 keeps published HTML only as a safe fallback when there are no bui
   assert.doesNotMatch(preview, /v-html/)
 })
 
-test('FASE 52 does not advance FASE 53 device preview controls', async () => {
+test('FASE 52 remains the live content engine when FASE 53 adds the device wrapper', async () => {
   const editor = await readFile(editorUrl, 'utf8')
   const preview = await readFile(previewUrl, 'utf8')
 
-  assert.doesNotMatch(editor, /DhDevicePreview/)
-  assert.doesNotMatch(preview, /DhDevicePreview/)
+  assert.match(editor, /MarketingLivePreview/)
+  assert.match(editor, /:blocks="livePreviewBlocks"/)
+  assert.match(preview, /DhDevicePreview/)
+  assert.match(preview, /visibleBlocks/)
+  assert.match(preview, /mediaUrl\(block\)/)
+  assert.match(preview, /animationClass\(block\)/)
 })
