@@ -21,8 +21,8 @@ function patchWizard(source: string) {
 
   code = replaceRequired(
     code,
-    `Si hay varios contenedores del mismo tipo, se usa una tarifa unitaria y se multiplica por la cantidad. Si hay tipos diferentes, cada tipo puede usar una naviera distinta; Dhole mantiene agente y moneda compatibles para construir una sola cotización.`,
-    `Si hay varios contenedores del mismo tipo, se usa una tarifa unitaria y se multiplica por la cantidad. Si hay tipos diferentes, cada tipo puede usar una naviera distinta; Dhole mantiene agente y moneda compatibles para construir una sola cotización. La vigencia y los días restantes se muestran por cada tarifa de contenedor.`,
+    `Si hay varios contenedores del mismo tipo, se usa una tarifa unitaria y se multiplica por la cantidad. Dhole muestra todas las tarifas coincidentes; las preaprobadas tienen prioridad sobre las preautorizadas y dentro de cada estado se ordenan por días disponibles, comentarios y precio. Si hay tipos diferentes, cada tipo puede usar una naviera distinta manteniendo agente y moneda compatibles.`,
+    `Si hay varios contenedores del mismo tipo, se usa una tarifa unitaria y se multiplica por la cantidad. Dhole muestra todas las tarifas coincidentes; las preaprobadas tienen prioridad sobre las preautorizadas y dentro de cada estado se ordenan por días disponibles, comentarios y precio. Si hay tipos diferentes, cada tipo puede usar una naviera distinta manteniendo agente y moneda compatibles. La vigencia y los días restantes se muestran por cada tarifa de contenedor.`,
     'FCL coverage explanation',
   )
 
