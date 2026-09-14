@@ -54,6 +54,7 @@ import { pricingCommercialIdentityFields } from './build/pricingCommercialIdenti
 import { pricingCurrencyValueGuard } from './build/pricingCurrencyValueGuard'
 import { pricingRateEditCreateParity } from './build/pricingRateEditCreateParity'
 import { pricingRateUpdateSourceParity } from './build/pricingRateUpdateSourceParity'
+import { pricingWizardSavedManualRates } from './build/pricingWizardSavedManualRates'
 
 export default defineConfig({
   plugins: [
@@ -110,6 +111,7 @@ export default defineConfig({
     pricingCurrencyValueGuard(),
     pricingRateEditCreateParity(),
     pricingRateUpdateSourceParity(),
+    pricingWizardSavedManualRates(),
     vue(),
     tailwindcss(),
   ],
