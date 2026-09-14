@@ -177,14 +177,43 @@ test('FASE 42 keeps property actions human and useful without technical configur
   assert.match(properties, /Mostrar sección/)
   assert.match(properties, /Duplicar sección/)
   assert.match(properties, /Eliminar sección/)
-  assert.doesNotMatch(properties, /\b(?:CSS|HTML|JS|JSON)\b/)
+  assert.doesNotMatch(properties, />\s*(CSS|HTML|JS|JSON)\s*</i)
 })
 
-test('FASE 42 opens responsive properties when selecting a section and does not advance FASE 43 presets', async () => {
+test('FASE 42 opens responsive properties when selecting a section', async () => {
   const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
-  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
 
   assert.match(editor, /propertiesDrawerOpen\.value = true/)
   assert.match(editor, /matchMedia\('\(max-width: 1279px\)'\)/)
-  assert.doesNotMatch(properties, /Alineación|Espaciado|Corporativo|Gradiente/)
+})
+
+test('FASE 43 replaces technical design configuration with alignment, spacing and background choices', async () => {
+  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
+
+  for (const label of ['Alineación', 'Izquierda', 'Centro', 'Derecha', 'Espaciado', 'Pequeño', 'Normal', 'Grande', 'Muy grande', 'Fondo', 'Blanco', 'Claro', 'Corporativo', 'Oscuro', 'Imagen', 'Gradiente']) {
+    assert.ok(properties.includes(label), `Missing FASE 43 design option: ${label}`)
+  }
+  assert.match(properties, /alignmentOptions/)
+  assert.match(properties, /spacingOptions/)
+  assert.match(properties, /backgroundOptions/)
+  assert.match(properties, /DhButton/)
+})
+
+test('FASE 43 persists simple design choices through the existing Page Builder edit flow', async () => {
+  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+
+  for (const key of ['editorDesignAlignment', 'editorDesignSpacing', 'editorDesignBackground']) assert.ok(properties.includes(key), `Missing FASE 43 persisted preference: ${key}`)
+  assert.match(properties, /saveDesignPreference/)
+  assert.match(properties, /emit\('save-text'/)
+  assert.match(editor, /saveBlockTextProperty/)
+  assert.match(editor, /operation: 'edit'/)
+})
+
+test('FASE 43 keeps technical configuration and FASE 44 layout presets out of the design UI', async () => {
+  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(properties, />\s*(CSS|HTML|JS|JSON)\s*</i)
+  assert.doesNotMatch(properties, /Texto \| Imagen|Imagen \| Texto|Video completo/)
+  assert.doesNotMatch(properties, /DhMediaPicker|DhColorPicker/)
 })
