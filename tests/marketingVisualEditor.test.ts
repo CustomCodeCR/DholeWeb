@@ -210,10 +210,36 @@ test('FASE 43 persists simple design choices through the existing Page Builder e
   assert.match(editor, /operation: 'edit'/)
 })
 
-test('FASE 43 keeps technical configuration and FASE 44 layout presets out of the design UI', async () => {
+test('FASE 43 keeps technical configuration out of the design UI', async () => {
   const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
 
   assert.doesNotMatch(properties, />\s*(CSS|HTML|JS|JSON)\s*</i)
-  assert.doesNotMatch(properties, /Texto \| Imagen|Imagen \| Texto|Video completo/)
   assert.doesNotMatch(properties, /DhMediaPicker|DhColorPicker/)
+})
+
+test('FASE 44 offers the five requested visual Hero layouts without manual column configuration', async () => {
+  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
+  const picker = await readFile(new URL('../src/modules/marketing/components/MarketingLayoutPresetPicker.vue', import.meta.url), 'utf8')
+
+  assert.match(properties, /MarketingLayoutPresetPicker/)
+  assert.match(properties, /isHeroLayoutBlock/)
+  assert.match(properties, /No necesita configurar columnas manualmente/)
+  for (const label of ['Texto centrado', 'Texto | Imagen', 'Imagen | Texto', 'Video completo', 'Slider']) {
+    assert.ok(picker.includes(label), `Missing FASE 44 Hero layout: ${label}`)
+  }
+  assert.match(picker, /DhBlockCard/)
+  assert.match(picker, /modelValue === preset\.id/)
+})
+
+test('FASE 44 persists the clicked layout through Page Builder edit and does not advance FASE 45 block presets', async () => {
+  const properties = await readFile(new URL('../src/modules/marketing/components/MarketingBlockPropertiesContent.vue', import.meta.url), 'utf8')
+  const picker = await readFile(new URL('../src/modules/marketing/components/MarketingLayoutPresetPicker.vue', import.meta.url), 'utf8')
+  const editor = await readFile(new URL('../src/modules/marketing/components/MarketingVisualEditor.vue', import.meta.url), 'utf8')
+
+  assert.match(properties, /editorLayoutPreset/)
+  assert.match(properties, /saveLayoutPreset/)
+  assert.match(properties, /saveDesignPreference\('editorLayoutPreset'/)
+  assert.match(editor, /saveBlockTextProperty/)
+  assert.match(editor, /operation: 'edit'/)
+  assert.doesNotMatch(picker, /3 Cards|4 Cards|Cards con imagen|Cards con iconos|Lista alternada/)
 })
