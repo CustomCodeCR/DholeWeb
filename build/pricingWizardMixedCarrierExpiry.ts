@@ -36,25 +36,65 @@ function patchWizard(source: string) {
 
   code = replaceBetween(
     code,
+    `function compareFclCandidateRates(left: ImportRateSelectDto, right: ImportRateSelectDto) {`,
+    `const fclRateRequirements = computed(() =>`,
+    `function fclRateApprovalRank(rate: ImportRateSelectDto) {
+  if (rate.status === 'Approved') return 0
+  if (rate.status === 'PreAuthorized') return 1
+  return 2
+}
+
+function compareFclCandidateRates(left: ImportRateSelectDto, right: ImportRateSelectDto) {
+  // Estado manda: siempre se ofrecen primero las preaprobadas y después las preautorizadas.
+  const status = fclRateApprovalRank(left) - fclRateApprovalRank(right)
+  if (status !== 0) return status
+
+  // Dentro del mismo estado: más días disponibles, mejor comentario y menor precio.
+  const validityDays = remainingValidityDays(right.validTo) - remainingValidityDays(left.validTo)
+  if (validityDays !== 0) return validityDays
+  const validityDate = new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
+  if (validityDate !== 0) return validityDate
+  const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)
+  if (comment !== 0) return comment
+  const price = number(left.freight) - number(right.freight)
+  if (price !== 0) return price
+  return String(left.id).localeCompare(String(right.id))
+}
+
+`,
+    'FCL candidate priority',
+  )
+
+  code = replaceBetween(
+    code,
     `const fclRateBundles = computed<FclRateBundle[]>(() => {`,
     `const fclCarrierFilterOptions = computed(() => {`,
     `function fclDaysUntilExpiry(validTo: string) {
   if (!validTo) return 0
-  const end = new Date(\`${'${String(validTo).slice(0, 10)}'}T12:00:00\`)
-  const today = new Date(\`${'${todayIso()}'}T12:00:00\`)
+  const end = new Date(\`${String(validTo).slice(0, 10)}T12:00:00\`)
+  const today = new Date(\`${todayIso()}T12:00:00\`)
   return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86_400_000))
 }
 
 function fclExpiryLabel(validTo: string) {
   const days = fclDaysUntilExpiry(validTo)
   if (days === 0) return 'Vence hoy'
-  return \`Vence en ${'${days}'} día${'${days === 1 ? \'\' : \'s\'}'}\`
+  return \`Vence en ${days} día${days === 1 ? '' : 's'}\`
 }
 
 function compareFclCombinations(left: ImportRateSelectDto[], right: ImportRateSelectDto[]) {
-  const leftExpiry = Math.min(...left.map((rate) => new Date(rate.validTo).getTime()))
-  const rightExpiry = Math.min(...right.map((rate) => new Date(rate.validTo).getTime()))
-  if (leftExpiry !== rightExpiry) return rightExpiry - leftExpiry
+  const leftStatus = left.some((rate) => rate.status === 'PreAuthorized') ? 1 : 0
+  const rightStatus = right.some((rate) => rate.status === 'PreAuthorized') ? 1 : 0
+  if (leftStatus !== rightStatus) return leftStatus - rightStatus
+
+  const leftDays = Math.min(...left.map((rate) => remainingValidityDays(rate.validTo)))
+  const rightDays = Math.min(...right.map((rate) => remainingValidityDays(rate.validTo)))
+  if (leftDays !== rightDays) return rightDays - leftDays
+
+  const leftComment = left.reduce((sum, rate) => sum + rateCommentRank(rate.spaceComment), 0)
+  const rightComment = right.reduce((sum, rate) => sum + rateCommentRank(rate.spaceComment), 0)
+  if (leftComment !== rightComment) return rightComment - leftComment
+
   return left.reduce((sum, rate) => sum + number(rate.freight), 0)
     - right.reduce((sum, rate) => sum + number(rate.freight), 0)
 }
@@ -74,8 +114,7 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
     const candidateGroups = requirements.map((requirement) =>
       [...requirement.rates]
         .filter((candidate) => fclRateBundleGroupKey(candidate) === groupKey)
-        .sort(compareFclCandidateRates)
-        .slice(0, 8),
+        .sort(compareFclCandidateRates),
     )
 
     let combinations: ImportRateSelectDto[][] = [[]]
@@ -83,7 +122,6 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
       combinations = combinations
         .flatMap((prefix) => candidates.map((candidate) => [...prefix, candidate]))
         .sort(compareFclCombinations)
-        .slice(0, 80)
     })
 
     return combinations.map((rates, combinationIndex) => {
@@ -124,7 +162,7 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
       const carriers = [...carrierEntries.values()]
 
       return {
-        key: \`${'${groupKey}'}:${'${combinationIndex}'}:${'${lines.map((line) => line.rate.id).join(\':\')}'}\`,
+        key: \`${groupKey}:${combinationIndex}:${lines.map((line) => line.rate.id).join(':')}\`,
         carrierFilterKey: [...carrierEntries.keys()].join('|'),
         carrierId: String(first.carrierId ?? ''),
         carrier: carriers.join(' + ') || String(first.carrier ?? 'Naviera'),
@@ -151,13 +189,22 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
     if (!unique.has(key)) unique.set(key, bundle)
   })
 
-  return [...unique.values()]
-    .sort((left, right) => {
-      const validity = new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
-      if (validity !== 0) return validity
-      return left.totalCost - right.totalCost
-    })
-    .slice(0, 80)
+  return [...unique.values()].sort((left, right) => {
+    const leftStatus = left.preAuthorized ? 1 : 0
+    const rightStatus = right.preAuthorized ? 1 : 0
+    if (leftStatus !== rightStatus) return leftStatus - rightStatus
+
+    const validityDays = fclDaysUntilExpiry(right.validTo) - fclDaysUntilExpiry(left.validTo)
+    if (validityDays !== 0) return validityDays
+
+    const leftComment = left.lines.reduce((sum, line) => sum + rateCommentRank(line.rate.spaceComment), 0)
+    const rightComment = right.lines.reduce((sum, line) => sum + rateCommentRank(line.rate.spaceComment), 0)
+    if (leftComment !== rightComment) return rightComment - leftComment
+
+    const price = left.totalCost - right.totalCost
+    if (price !== 0) return price
+    return left.key.localeCompare(right.key)
+  })
 })
 
 `,
@@ -199,7 +246,7 @@ const visibleFclRateBundles = computed(() =>
   code = replaceRequired(
     code,
     `Si hay varios contenedores del mismo tipo, se usa una tarifa unitaria y se multiplica por la cantidad. Si hay tipos diferentes, Dhole exige una tarifa compatible para cada tipo dentro de la misma naviera, agente y moneda.`,
-    `Si hay varios contenedores del mismo tipo, se usa una tarifa unitaria y se multiplica por la cantidad. Si hay tipos diferentes, cada tipo puede usar una naviera distinta; Dhole mantiene agente y moneda compatibles para construir una sola cotización.`,
+    `Si hay varios contenedores del mismo tipo, se usa una tarifa unitaria y se multiplica por la cantidad. Dhole muestra todas las tarifas coincidentes; las preaprobadas tienen prioridad sobre las preautorizadas y dentro de cada estado se ordenan por días disponibles, comentarios y precio. Si hay tipos diferentes, cada tipo puede usar una naviera distinta manteniendo agente y moneda compatibles.`,
     'FCL combination explanation',
   )
 
