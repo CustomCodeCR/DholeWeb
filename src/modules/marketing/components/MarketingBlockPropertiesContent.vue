@@ -9,6 +9,7 @@ import DhSwitch from '@/shared/components/atoms/DhSwitch.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
 import type { PageBuilderBlock } from '@/core/interfaces/pageBuilder'
 import { useLocale } from '@/core/stores/locale'
+import MarketingBlockPresetPicker from '@/modules/marketing/components/MarketingBlockPresetPicker.vue'
 import MarketingLayoutPresetPicker from '@/modules/marketing/components/MarketingLayoutPresetPicker.vue'
 import { localizeMarketingBlock } from '@/modules/marketing/config/marketingBlockCatalog'
 import { getMarketingBlockDefinitionForBuilderBlock } from '@/modules/marketing/config/marketingPageBuilder'
@@ -19,7 +20,7 @@ export interface MarketingPropertyTextField {
   placeholder: string
 }
 
-type DesignPropertyKey = 'editorDesignAlignment' | 'editorDesignSpacing' | 'editorDesignBackground' | 'editorLayoutPreset'
+type DesignPropertyKey = 'editorDesignAlignment' | 'editorDesignSpacing' | 'editorDesignBackground' | 'editorLayoutPreset' | 'editorBlockPreset'
 
 const props = withDefaults(defineProps<{
   block: PageBuilderBlock | null
@@ -64,13 +65,17 @@ const contentLabel = computed(() => {
 })
 const animationConfigured = computed(() => Boolean(props.block?.animation && props.block.animation.preset !== 'none'))
 
-const isHeroLayoutBlock = computed(() => {
-  const editorBlockKey = props.block?.data.editorBlockKey
-  return editorBlockKey === 'hero' || props.block?.type.toLocaleLowerCase('en-US') === 'hero'
-})
+const editorBlockKey = computed(() => typeof props.block?.data.editorBlockKey === 'string'
+  ? props.block.data.editorBlockKey
+  : null)
+const isHeroLayoutBlock = computed(() => editorBlockKey.value === 'hero' || props.block?.type.toLocaleLowerCase('en-US') === 'hero')
+const isServicesPresetBlock = computed(() => editorBlockKey.value === 'services' || props.block?.type.toLocaleLowerCase('en-US') === 'servicesgrid')
 const layoutPreset = computed(() => typeof props.block?.data.editorLayoutPreset === 'string'
   ? props.block.data.editorLayoutPreset
   : 'hero-centered-text')
+const blockPreset = computed(() => typeof props.block?.data.editorBlockPreset === 'string'
+  ? props.block.data.editorBlockPreset
+  : 'services-3-cards')
 const designAlignment = computed(() => typeof props.block?.data.editorDesignAlignment === 'string'
   ? props.block.data.editorDesignAlignment
   : 'left')
@@ -117,6 +122,10 @@ function saveDesignPreference(key: DesignPropertyKey, value: string, current: st
 
 function saveLayoutPreset(value: string) {
   saveDesignPreference('editorLayoutPreset', value, layoutPreset.value)
+}
+
+function saveBlockPreset(value: string) {
+  saveDesignPreference('editorBlockPreset', value, blockPreset.value)
 }
 </script>
 
@@ -178,6 +187,18 @@ function saveLayoutPreset(value: string) {
             :model-value="layoutPreset"
             :disabled="disabled"
             @select="saveLayoutPreset"
+          />
+        </section>
+
+        <section v-if="isServicesPresetBlock" class="space-y-2">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[.1em] text-[var(--dh-text)]">{{ tr('Diseño de Servicios', 'Services design') }}</p>
+            <p class="mt-1 text-[11px] leading-5 text-[var(--dh-text-muted)]">{{ tr('Elija un diseño preparado para presentar sus servicios.', 'Choose a prepared design for presenting your services.') }}</p>
+          </div>
+          <MarketingBlockPresetPicker
+            :model-value="blockPreset"
+            :disabled="disabled"
+            @select="saveBlockPreset"
           />
         </section>
 
