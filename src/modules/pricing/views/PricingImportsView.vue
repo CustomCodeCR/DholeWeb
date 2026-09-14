@@ -15,7 +15,6 @@ import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapPagedResponse } from '@/core/api/apiResponse'
-import { toQueryString } from '@/core/api/queryString'
 import { PricingService } from '@/core/services/pricingService'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -23,13 +22,13 @@ import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingImportReviewDrawer from '@/modules/pricing/components/PricingImportReviewDrawer.vue'
+import PricingMultiSelect from '@/modules/pricing/components/PricingMultiSelect.vue'
 import PricingReasonModal from '@/modules/pricing/components/PricingReasonModal.vue'
 import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawer.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
 type QueueStatus =
-  | ''
   | 'Pending'
   | 'PreAuthorized'
   | 'Approved'
@@ -37,7 +36,7 @@ type QueueStatus =
   | 'Created'
   | 'Expired'
   | 'Inactive'
-type QueueSource = '' | 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
+type QueueSource = 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
 
 interface ReviewQueueItem {
   id: string
@@ -76,20 +75,19 @@ const totalPages = ref(1)
 
 const filters = reactive({
   search: '',
-  sourceType: '' as QueueSource,
-  status: 'PreAuthorized' as QueueStatus,
-  carrierId: '',
-  agentId: '',
-  containerTypeId: '',
+  sourceType: [] as QueueSource[],
+  status: ['PreAuthorized'] as QueueStatus[],
+  carrierId: [] as string[],
+  agentId: [] as string[],
+  containerTypeId: [] as string[],
   importBatchId: typeof route.query.importBatchId === 'string' ? route.query.importBatchId : '',
-  polId: '',
-  poeId: '',
+  polId: [] as string[],
+  poeId: [] as string[],
   createdFrom: '',
   createdTo: '',
 })
 
 const statusOptions = [
-  { label: 'Todos', value: '' },
   { label: 'Pendientes manuales', value: 'Pending' },
   { label: 'Preautorizadas', value: 'PreAuthorized' },
   { label: 'Preaprobadas', value: 'Approved' },
@@ -99,7 +97,6 @@ const statusOptions = [
   { label: 'Utilizadas', value: 'Created' },
 ]
 const sourceOptions = [
-  { label: 'Todos los orígenes', value: '' },
   { label: 'Correo', value: 'Email' },
   { label: 'PDF', value: 'Pdf' },
   { label: 'Excel', value: 'Excel' },
@@ -115,26 +112,11 @@ const pageSizeOptions = [
 const jsonHeaders = { Accept: 'application/json', 'Content-Type': 'application/json' }
 const inactivatableStatuses = ['Pending', 'PreAuthorized', 'Approved', 'Expired']
 
-const carrierFilterOptions = computed(() => [
-  { label: 'Todas las navieras', value: '' },
-  ...catalogs.carrierOptions.value,
-])
-const polFilterOptions = computed(() => [
-  { label: 'Todos los POL', value: '' },
-  ...catalogs.polOptions.value,
-])
-const poeFilterOptions = computed(() => [
-  { label: 'Todos los POE', value: '' },
-  ...catalogs.poeOptions.value,
-])
-const agentFilterOptions = computed(() => [
-  { label: 'Todos los agentes', value: '' },
-  ...catalogs.agentOptions.value,
-])
-const containerFilterOptions = computed(() => [
-  { label: 'Todos los contenedores', value: '' },
-  ...catalogs.containerOptions.value,
-])
+const carrierFilterOptions = computed(() => catalogs.carrierOptions.value)
+const polFilterOptions = computed(() => catalogs.polOptions.value)
+const poeFilterOptions = computed(() => catalogs.poeOptions.value)
+const agentFilterOptions = computed(() => catalogs.agentOptions.value)
+const containerFilterOptions = computed(() => catalogs.containerOptions.value)
 
 const isPricingAdmin = computed(() =>
   authStore.hasRole('Administrador') || authStore.hasRole('Admin') || authStore.hasRole('Administrator'),
@@ -209,28 +191,38 @@ function sourceLabel(value: string) {
   return ({ Email: 'Correo', Pdf: 'PDF', Excel: 'Excel', Csv: 'CSV', Image: 'Imagen' } as Record<string, string>)[value] ?? value
 }
 
+function buildReviewQueueQueryString() {
+  const params = new URLSearchParams()
+  const appendMany = (key: string, values: readonly string[]) => {
+    values.forEach((value) => {
+      if (value) params.append(key, value)
+    })
+  }
+
+  if (filters.search.trim()) params.set('search', filters.search.trim())
+  appendMany('sourceType', filters.sourceType)
+  appendMany('status', filters.status)
+  appendMany('carrierId', filters.carrierId)
+  appendMany('agentId', filters.agentId)
+  appendMany('containerTypeId', filters.containerTypeId)
+  appendMany('polId', filters.polId)
+  appendMany('poeId', filters.poeId)
+  if (filters.importBatchId) params.set('importBatchId', filters.importBatchId)
+  if (filters.createdFrom) params.set('createdFrom', filters.createdFrom)
+  if (filters.createdTo) params.set('createdTo', filters.createdTo)
+  params.set('pageNumber', String(pageNumber.value))
+  params.set('pageSize', String(Number(pageSize.value)))
+
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
 async function load() {
   try {
     loading.value = true
     const response = await callEndpoint<unknown>({
       method: 'GET',
-      path:
-        '/api/pricing/import-rates/review-queue' +
-        toQueryString({
-          search: filters.search || undefined,
-          sourceType: filters.sourceType || undefined,
-          status: filters.status || undefined,
-          carrierId: filters.carrierId || undefined,
-          agentId: filters.agentId || undefined,
-          containerTypeId: filters.containerTypeId || undefined,
-          importBatchId: filters.importBatchId || undefined,
-          polId: filters.polId || undefined,
-          poeId: filters.poeId || undefined,
-          createdFrom: filters.createdFrom || undefined,
-          createdTo: filters.createdTo || undefined,
-          pageNumber: pageNumber.value,
-          pageSize: Number(pageSize.value),
-        }),
+      path: '/api/pricing/import-rates/review-queue' + buildReviewQueueQueryString(),
       headers: { Accept: 'application/json' },
     })
 
@@ -257,14 +249,14 @@ function applyFilters() {
 
 function clearFilters() {
   filters.search = ''
-  filters.sourceType = ''
-  filters.status = 'PreAuthorized'
-  filters.carrierId = ''
-  filters.agentId = ''
-  filters.containerTypeId = ''
+  filters.sourceType = []
+  filters.status = ['PreAuthorized']
+  filters.carrierId = []
+  filters.agentId = []
+  filters.containerTypeId = []
   filters.importBatchId = ''
-  filters.polId = ''
-  filters.poeId = ''
+  filters.polId = []
+  filters.poeId = []
   filters.createdFrom = ''
   filters.createdTo = ''
   applyFilters()
@@ -380,7 +372,7 @@ function openManualUpload() {
     props: {
       onSaved: async () => {
         pageNumber.value = 1
-        filters.status = 'PreAuthorized'
+        filters.status = ['PreAuthorized']
         await load()
       },
     },
@@ -433,13 +425,55 @@ onMounted(() => {
     <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <DhInput v-model="filters.search" label="Buscar" placeholder="Naviera, ruta, equipo..." @keyup.enter="applyFilters" />
-        <DhSelect v-model="filters.sourceType" label="Origen" :options="sourceOptions" />
-        <DhSelect v-model="filters.status" label="Estado" :options="statusOptions" />
-        <DhSelect v-model="filters.carrierId" label="Naviera" :options="carrierFilterOptions" />
-        <DhSelect v-model="filters.agentId" label="Agente" :options="agentFilterOptions" />
-        <DhSelect v-model="filters.containerTypeId" label="Contenedor" :options="containerFilterOptions" />
-        <DhSelect v-model="filters.polId" label="POL" :options="polFilterOptions" />
-        <DhSelect v-model="filters.poeId" label="POE" :options="poeFilterOptions" />
+        <PricingMultiSelect
+          v-model="filters.sourceType"
+          label="Origen"
+          placeholder="Todos los orígenes"
+          search-placeholder="Buscar origen..."
+          :options="sourceOptions"
+        />
+        <PricingMultiSelect
+          v-model="filters.status"
+          label="Estado"
+          placeholder="Todos los estados"
+          search-placeholder="Buscar estado..."
+          :options="statusOptions"
+        />
+        <PricingMultiSelect
+          v-model="filters.carrierId"
+          label="Naviera"
+          placeholder="Todas las navieras"
+          search-placeholder="Buscar naviera..."
+          :options="carrierFilterOptions"
+        />
+        <PricingMultiSelect
+          v-model="filters.agentId"
+          label="Agente"
+          placeholder="Todos los agentes"
+          search-placeholder="Buscar agente..."
+          :options="agentFilterOptions"
+        />
+        <PricingMultiSelect
+          v-model="filters.containerTypeId"
+          label="Contenedor"
+          placeholder="Todos los contenedores"
+          search-placeholder="Buscar contenedor..."
+          :options="containerFilterOptions"
+        />
+        <PricingMultiSelect
+          v-model="filters.polId"
+          label="POL"
+          placeholder="Todos los POL"
+          search-placeholder="Buscar POL..."
+          :options="polFilterOptions"
+        />
+        <PricingMultiSelect
+          v-model="filters.poeId"
+          label="POE"
+          placeholder="Todos los POE"
+          search-placeholder="Buscar POE..."
+          :options="poeFilterOptions"
+        />
         <DhInput v-model="filters.createdFrom" type="date" label="Cargada desde" />
         <DhInput v-model="filters.createdTo" type="date" label="Cargada hasta" />
       </div>
