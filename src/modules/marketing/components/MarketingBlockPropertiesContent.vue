@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { AlignCenter, AlignLeft, AlignRight, Copy, FileText, PanelRight, Palette, Sparkles, Trash2 } from 'lucide-vue-next'
+import { AlignCenter, AlignLeft, AlignRight, Copy, FileText, Image as ImageIcon, PanelRight, Palette, Sparkles, Trash2 } from 'lucide-vue-next'
 import DhBadge from '@/shared/components/atoms/DhBadge.vue'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhEmptyState from '@/shared/components/atoms/DhEmptyState.vue'
@@ -11,6 +11,7 @@ import type { PageBuilderBlock } from '@/core/interfaces/pageBuilder'
 import { useLocale } from '@/core/stores/locale'
 import MarketingBlockPresetPicker from '@/modules/marketing/components/MarketingBlockPresetPicker.vue'
 import MarketingLayoutPresetPicker from '@/modules/marketing/components/MarketingLayoutPresetPicker.vue'
+import MarketingMediaPicker, { type MarketingMediaSelection } from '@/modules/marketing/components/MarketingMediaPicker.vue'
 import { localizeMarketingBlock } from '@/modules/marketing/config/marketingBlockCatalog'
 import { getMarketingBlockDefinitionForBuilderBlock } from '@/modules/marketing/config/marketingPageBuilder'
 
@@ -42,10 +43,14 @@ const emit = defineEmits<{
 const localeStore = useLocale()
 const tr = (es: string, en: string) => localeStore.locale === 'en' ? en : es
 const draft = ref('')
+const mediaPickerOpen = ref(false)
 
 watch(
   [() => props.block?.id, () => props.textField?.value],
-  () => { draft.value = props.textField?.value ?? '' },
+  ([blockId], [previousBlockId]) => {
+    draft.value = props.textField?.value ?? ''
+    if (blockId !== previousBlockId) mediaPickerOpen.value = false
+  },
   { immediate: true },
 )
 
@@ -70,6 +75,8 @@ const editorBlockKey = computed(() => typeof props.block?.data.editorBlockKey ==
   : null)
 const isHeroLayoutBlock = computed(() => editorBlockKey.value === 'hero' || props.block?.type.toLocaleLowerCase('en-US') === 'hero')
 const isServicesPresetBlock = computed(() => editorBlockKey.value === 'services' || props.block?.type.toLocaleLowerCase('en-US') === 'servicesgrid')
+const isImageMediaBlock = computed(() => editorBlockKey.value === 'image' || props.block?.type.toLocaleLowerCase('en-US') === 'image')
+const selectedMediaId = computed(() => typeof props.block?.data.editorMediaId === 'string' ? props.block.data.editorMediaId : null)
 const layoutPreset = computed(() => typeof props.block?.data.editorLayoutPreset === 'string'
   ? props.block.data.editorLayoutPreset
   : 'hero-centered-text')
@@ -127,6 +134,12 @@ function saveLayoutPreset(value: string) {
 function saveBlockPreset(value: string) {
   saveDesignPreference('editorBlockPreset', value, blockPreset.value)
 }
+
+function saveMediaSelection(value: MarketingMediaSelection) {
+  mediaPickerOpen.value = false
+  if (props.disabled || value.id === selectedMediaId.value) return
+  emit('save-text', { key: 'editorMediaId', value: value.id })
+}
 </script>
 
 <template>
@@ -144,35 +157,70 @@ function saveBlockPreset(value: string) {
     </div>
 
     <template v-if="activeSection === 'content'">
-      <div v-if="textField" class="space-y-3">
-        <DhTextarea
-          v-if="isLongText"
-          v-model="draft"
-          :label="contentLabel"
-          :placeholder="textField.placeholder"
-          :disabled="disabled"
-          :rows="5"
-        />
-        <DhInput
-          v-else
-          v-model="draft"
-          :label="contentLabel"
-          :placeholder="textField.placeholder"
-          :disabled="disabled"
-        />
-        <DhButton
-          :label="tr('Guardar contenido', 'Save content')"
+      <div class="space-y-4">
+        <div v-if="textField" class="space-y-3">
+          <DhTextarea
+            v-if="isLongText"
+            v-model="draft"
+            :label="contentLabel"
+            :placeholder="textField.placeholder"
+            :disabled="disabled"
+            :rows="5"
+          />
+          <DhInput
+            v-else
+            v-model="draft"
+            :label="contentLabel"
+            :placeholder="textField.placeholder"
+            :disabled="disabled"
+          />
+          <DhButton
+            :label="tr('Guardar contenido', 'Save content')"
+            :icon="FileText"
+            size="sm"
+            :disabled="disabled || draft.trim() === textField.value"
+            @click="saveText"
+          />
+        </div>
+
+        <section v-if="isImageMediaBlock" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+          <div class="flex items-start gap-3">
+            <div class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-black/[0.05] text-[var(--dh-primary)] dark:bg-white/[0.08]">
+              <ImageIcon class="h-5 w-5" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-black text-[var(--dh-text)]">{{ tr('Imagen', 'Image') }}</p>
+              <p class="mt-1 text-xs leading-5 text-[var(--dh-text-muted)]">
+                {{ selectedMediaId ? tr('Hay una imagen seleccionada para esta sección.', 'An image is selected for this section.') : tr('Seleccione una imagen desde la biblioteca multimedia.', 'Choose an image from the media library.') }}
+              </p>
+              <DhButton
+                class="mt-3"
+                :label="selectedMediaId ? tr('Cambiar imagen', 'Change image') : tr('Seleccionar imagen', 'Select image')"
+                :icon="ImageIcon"
+                variant="secondary"
+                size="sm"
+                :disabled="disabled"
+                @click="mediaPickerOpen = true"
+              />
+            </div>
+          </div>
+        </section>
+
+        <DhEmptyState
+          v-if="!textField && !isImageMediaBlock"
           :icon="FileText"
-          size="sm"
-          :disabled="disabled || draft.trim() === textField.value"
-          @click="saveText"
+          :title="tr('Sin texto directo', 'No direct text')"
+          :description="tr('Este tipo de sección no tiene un campo de texto principal para editar desde aquí.', 'This section type does not have a primary text field to edit here.')"
         />
       </div>
-      <DhEmptyState
-        v-else
-        :icon="FileText"
-        :title="tr('Sin texto directo', 'No direct text')"
-        :description="tr('Este tipo de sección no tiene un campo de texto principal para editar desde aquí.', 'This section type does not have a primary text field to edit here.')"
+
+      <MarketingMediaPicker
+        v-if="isImageMediaBlock"
+        :open="mediaPickerOpen"
+        :model-value="selectedMediaId"
+        :disabled="disabled"
+        @select="saveMediaSelection"
+        @close="mediaPickerOpen = false"
       />
     </template>
 
