@@ -192,6 +192,57 @@ body.dh-has-client-background {
 .dh-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .dh-scrollbar::-webkit-scrollbar-thumb { background: rgb(var(--dh-primary-rgb) / 0.42); border-radius: 999px; }
 
+/* FASE 54 — The visual editor owns its viewport. Blocks, Canvas and
+   Properties scroll independently instead of growing the application page. */
+.visual-editor-shell {
+  height: calc(100dvh - 7rem);
+  max-height: calc(100dvh - 7rem);
+  min-height: 0 !important;
+  overscroll-behavior: none;
+}
+
+.visual-editor-shell > .visual-editor-toolbar {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.visual-editor-shell > .visual-editor-grid {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.visual-editor-shell .visual-editor-side {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.visual-editor-shell .visual-editor-side .dh-scrollbar,
+.visual-editor-shell .visual-editor-grid > aside:last-child .dh-scrollbar {
+  scrollbar-gutter: stable;
+}
+
+.visual-editor-shell .visual-editor-canvas-wrap {
+  min-height: 0;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* The Canvas wrapper is the only vertical scroller in the center zone. */
+.visual-editor-shell .visual-editor-canvas {
+  overflow: visible !important;
+}
+
+.visual-editor-shell .visual-editor-grid > aside:last-child {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.visual-editor-shell .visual-editor-grid > aside:last-child > .h-full {
+  height: 100%;
+  min-height: 0;
+}
 
 .dh-bg-primary-soft {
   background-color: rgb(var(--dh-primary-rgb) / 0.10);
@@ -256,6 +307,13 @@ textarea {
 
   .dh-card-hover:hover {
     transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .visual-editor-shell {
+    height: calc(100dvh - 5rem);
+    max-height: calc(100dvh - 5rem);
   }
 }
 
