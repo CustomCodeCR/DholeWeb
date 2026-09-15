@@ -28,22 +28,22 @@ function select(item: DhDropdownItem) {
 </script>
 
 <template>
-  <div class="relative inline-flex">
-    <div @click="open = !open">
+  <div class="relative inline-flex min-w-0">
+    <div class="min-w-0" @click="open = !open">
       <slot />
     </div>
 
     <Transition name="dropdown">
       <div
         v-if="open"
-        class="dh-glass-strong absolute right-0 top-full z-40 mt-2 w-56 rounded-2xl p-2"
+        class="dh-glass-strong dh-scrollbar absolute right-0 top-full z-40 mt-2 max-h-[min(70dvh,24rem)] w-56 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-2xl p-2"
       >
         <button
           v-for="item in items"
           :key="item.action"
           type="button"
           :disabled="item.disabled"
-          class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition disabled:opacity-40"
+          class="flex w-full min-w-0 items-start gap-2 rounded-xl px-3 py-2 text-left text-sm transition disabled:opacity-40"
           :class="[
             item.danger
               ? 'text-red-500 hover:bg-red-500/10'
@@ -51,8 +51,8 @@ function select(item: DhDropdownItem) {
           ]"
           @click="select(item)"
         >
-          <component :is="item.icon" v-if="item.icon" class="h-4 w-4" />
-          {{ item.label }}
+          <component :is="item.icon" v-if="item.icon" class="mt-0.5 h-4 w-4 shrink-0" />
+          <span class="min-w-0 break-words">{{ item.label }}</span>
         </button>
       </div>
     </Transition>

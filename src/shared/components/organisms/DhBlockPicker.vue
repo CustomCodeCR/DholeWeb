@@ -57,13 +57,14 @@ function choose(item: DhBlockPickerItem) {
 </script>
 
 <template>
-  <section class="flex min-h-0 min-w-0 flex-col">
-    <DhInput
-      v-if="searchPlaceholder"
-      v-model="search"
-      type="search"
-      :placeholder="searchPlaceholder"
-    />
+  <section class="flex max-h-[min(64dvh,36rem)] min-h-0 min-w-0 flex-col overflow-hidden">
+    <div v-if="searchPlaceholder" class="shrink-0">
+      <DhInput
+        v-model="search"
+        type="search"
+        :placeholder="searchPlaceholder"
+      />
+    </div>
 
     <div v-if="groups.length" class="dh-scrollbar mt-3 min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pr-1">
       <section v-for="group in groups" :key="group.key" class="min-w-0">
@@ -86,7 +87,7 @@ function choose(item: DhBlockPickerItem) {
 
     <DhEmptyState
       v-else-if="emptyTitle"
-      class="mt-3"
+      class="mt-3 min-h-0 overflow-y-auto"
       :title="emptyTitle"
       :description="emptyDescription"
     />
