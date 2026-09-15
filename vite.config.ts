@@ -62,6 +62,7 @@ import { pricingWizardSavedManualRates } from './build/pricingWizardSavedManualR
 import { pricingWizardScreen5Stability } from './build/pricingWizardScreen5Stability'
 import { pricingWizardManualRatesVisibilityFix } from './build/pricingWizardManualRatesVisibilityFix'
 import { pricingWizardStep4NavigationHardFix } from './build/pricingWizardStep4NavigationHardFix'
+import { pricingWizardManualFreightFinalUx } from './build/pricingWizardManualFreightFinalUx'
 
 export default defineConfig({
   plugins: [
@@ -123,6 +124,7 @@ export default defineConfig({
     pricingWizardScreen5Stability(),
     pricingWizardManualRatesVisibilityFix(),
     pricingWizardStep4NavigationHardFix(),
+    pricingWizardManualFreightFinalUx(),
     vue(),
     tailwindcss(),
   ],
