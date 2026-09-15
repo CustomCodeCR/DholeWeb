@@ -58,6 +58,7 @@ import { pricingRateUpdateSourceParity } from './build/pricingRateUpdateSourcePa
 import { pricingWizardSavedManualRates } from './build/pricingWizardSavedManualRates'
 import { pricingWizardScreen5Stability } from './build/pricingWizardScreen5Stability'
 import { pricingWizardManualRatesVisibilityFix } from './build/pricingWizardManualRatesVisibilityFix'
+import { pricingWizardStep4NavigationHardFix } from './build/pricingWizardStep4NavigationHardFix'
 
 export default defineConfig({
   plugins: [
@@ -118,6 +119,7 @@ export default defineConfig({
     pricingWizardSavedManualRates(),
     pricingWizardScreen5Stability(),
     pricingWizardManualRatesVisibilityFix(),
+    pricingWizardStep4NavigationHardFix(),
     vue(),
     tailwindcss(),
   ],
