@@ -47,6 +47,34 @@ ${savedManualStep}    await loadApplicableCosts()
 `
 
   code = code.slice(0, startIndex) + replacement + code.slice(endIndex)
+
+  // Algunos transforms anteriores pueden conservar compareFclCandidateRates pero
+  // eliminar accidentalmente su helper fclRateApprovalRank. Eso compila porque la
+  // referencia se resuelve en runtime, pero rompe Pantalla 5 con un ReferenceError.
+  // Como este plugin es el último transform del wizard antes de Vue, restauramos el
+  // helper únicamente cuando realmente falta.
+  const hasApprovalRankDefinition = code.includes('function fclRateApprovalRank(')
+    || code.includes('const fclRateApprovalRank')
+    || code.includes('let fclRateApprovalRank')
+  const usesApprovalRank = code.includes('fclRateApprovalRank(')
+
+  if (usesApprovalRank && !hasApprovalRankDefinition) {
+    const comparatorAnchor = 'function compareFclCandidateRates('
+    const comparatorIndex = code.indexOf(comparatorAnchor)
+    if (comparatorIndex < 0) {
+      throw new Error('[pricingWizardStep4NavigationHardFix] FCL comparator anchor not found.')
+    }
+
+    const helper = `function fclRateApprovalRank(rate: ImportRateSelectDto) {
+  if (rate.status === 'Approved') return 0
+  if (rate.status === 'PreAuthorized') return 1
+  return 2
+}
+
+`
+    code = code.slice(0, comparatorIndex) + helper + code.slice(comparatorIndex)
+  }
+
   return code
 }
 
