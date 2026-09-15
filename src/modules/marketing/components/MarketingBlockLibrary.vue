@@ -122,14 +122,14 @@ function endBlockDrag(event: DragEvent, block: DhBlockCardItem) {
 
 <template>
   <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-    <div class="border-b border-[var(--dh-border)] p-3">
+    <div class="shrink-0 border-b border-[var(--dh-border)] p-3">
       <DhSearchInput v-model="search" :placeholder="localeStore.locale === 'en' ? 'Find a block…' : 'Buscar un bloque…'" />
       <p class="mt-2 text-[11px] leading-5 text-[var(--dh-text-muted)]">
         {{ localeStore.locale === 'en' ? 'Select a block or drag it into the page.' : 'Seleccione un bloque o arrástrelo dentro de la página.' }}
       </p>
     </div>
 
-    <div class="dh-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
+    <div class="dh-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
       <div v-if="groups.length" class="space-y-5">
         <section v-for="group in groups" :key="group.id" class="space-y-2">
           <h3 class="px-1 text-[10px] font-black uppercase tracking-[.14em] text-[var(--dh-text-muted)]">
