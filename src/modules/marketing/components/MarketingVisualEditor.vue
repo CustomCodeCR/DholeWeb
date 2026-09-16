@@ -274,7 +274,7 @@ function clearPreviewTextDraft(blockId: string, key?: string) {
   }
   const blockDraft = { ...(allDrafts[blockId] ?? {}) }
   delete blockDraft[key]
-  if (Object.keys(blockDraft).length) allDrafts[block.id] = blockDraft
+  if (Object.keys(blockDraft).length) allDrafts[blockId] = blockDraft
   else delete allDrafts[blockId]
   previewTextDrafts.value = allDrafts
 }
