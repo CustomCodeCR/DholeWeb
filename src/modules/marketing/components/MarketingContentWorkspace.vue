@@ -132,7 +132,7 @@ const canEditThisType = computed(() => {
 })
 
 const canSave = computed(() => selected.value ? canEditThisType.value : canCreate.value)
-const categories = computed(() => taxonomies.value.filter((item) => item.kind.toLowerCase() === 'category'))
+const taxonomyOptions = computed(() => taxonomies.value.filter((item) => ['category', 'tag'].includes(item.kind.toLowerCase())))
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const publicPathChanged = computed(() => Boolean(primaryRoute.value && shouldCreatePermanentRedirect(originalPublicPath.value, form.publicPath)))
 const selectedMediaName = computed(() => media.value.find((entry) => entry.id === form.featuredMediaId)?.fileName ?? '')
@@ -174,6 +174,10 @@ function statusVariant(status: string): 'primary' | 'success' | 'warning' | 'neu
   if (status === 'PendingReview' || status === 'Scheduled') return 'warning'
   if (status === 'Rejected' || status === 'Archived') return 'neutral'
   return 'primary'
+}
+
+function taxonomyKindLabel(kind: string) {
+  return kind.toLowerCase() === 'tag' ? tr('Etiqueta', 'Tag') : tr('Categoría', 'Category')
 }
 
 function formatDate(value?: string | null) {
@@ -280,7 +284,7 @@ async function loadAuxiliary() {
     media.value = mediaResponse.items
     taxonomies.value = taxonomyResponse.items
   } catch (error) {
-    toastStore.backendWarning(error, tr('No se pudieron cargar imágenes y categorías.', 'Images and categories could not be loaded.'))
+    toastStore.backendWarning(error, tr('No se pudieron cargar imágenes y taxonomías.', 'Images and taxonomies could not be loaded.'))
   }
 }
 
@@ -608,7 +612,7 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
           {{ item.excerpt || tr('Sin resumen todavía.', 'No summary yet.') }}
         </p>
         <div class="mt-4 flex items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-3">
-          <span class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ formatDate(item.updatedAtUtc || item.createdAtUtc) }}</span>
+          <span class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ formatDate(item.publishedAtUtc || item.updatedAtUtc || item.createdAtUtc) }}</span>
           <DhButton :label="tr('Editar', 'Edit')" variant="ghost" size="sm" @click="openItem(item)" />
         </div>
       </article>
@@ -705,17 +709,18 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
         </div>
       </section>
 
-      <section v-if="categories.length" class="editor-section">
-        <h4 class="font-black">{{ tr('Categorías', 'Categories') }}</h4>
-        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ tr('Seleccione dónde corresponde este contenido.', 'Choose where this content belongs.') }}</p>
+      <section v-if="taxonomyOptions.length" class="editor-section">
+        <h4 class="font-black">{{ tr('Categorías y etiquetas', 'Categories and tags') }}</h4>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ tr('Clasifique artículos y noticias usando las taxonomías disponibles.', 'Classify articles and news using the available taxonomies.') }}</p>
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
-          <DhCheckbox
-            v-for="term in categories"
-            :key="term.id"
-            :model-value="selectedCategoryIds.includes(term.id)"
-            :label="term.name"
-            @update:model-value="toggleCategory(term.id, $event)"
-          />
+          <div v-for="term in taxonomyOptions" :key="term.id" class="taxonomy-option">
+            <DhCheckbox
+              :model-value="selectedCategoryIds.includes(term.id)"
+              :label="term.name"
+              @update:model-value="toggleCategory(term.id, $event)"
+            />
+            <span class="text-[10px] font-black uppercase tracking-[.12em] text-[var(--dh-text-muted)]">{{ taxonomyKindLabel(term.kind) }}</span>
+          </div>
         </div>
       </section>
 
@@ -837,6 +842,7 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
 .rich-editor:empty:before{content:attr(data-placeholder);color:var(--dh-text-muted);pointer-events:none}
 .media-selection{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:1rem;border:1px dashed var(--dh-border);border-radius:18px;padding:1rem;background:var(--dh-surface)}
 .search-preview{border:1px solid var(--dh-border);border-radius:18px;padding:1rem;background:var(--dh-surface)}
+.taxonomy-option{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:.75rem;border:1px solid var(--dh-border);border-radius:16px;padding:.75rem;background:var(--dh-surface)}
 .revision-card{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:1rem;border:1px solid var(--dh-border);border-radius:18px;padding:1rem;background:var(--dh-input)}
 @media (max-width:640px){.media-selection,.revision-card{align-items:flex-start;flex-direction:column}}
 </style>
