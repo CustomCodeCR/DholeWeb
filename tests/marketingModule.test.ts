@@ -15,7 +15,7 @@ test('phase 22 exposes every requested Marketing menu group', () => {
 test('phase 22 contains all requested Marketing menu entries plus FASE 35 animations', () => {
   const labels = MARKETING_GROUPS.flatMap((group) => group.items.map((item) => item.label))
   for (const expected of [
-    'Páginas', 'Noticias', 'Posts', 'Videos', 'Bloques reutilizables', 'Biblioteca', 'Imágenes', 'Documentos',
+    'Páginas', 'Noticias', 'Artículos', 'Videos', 'Bloques reutilizables', 'Biblioteca', 'Imágenes', 'Documentos',
     'Banners', 'Animaciones', 'Placements', 'Menús', 'Collections', 'SEO de páginas', 'Redirects', 'Sitemap', 'Configuración global',
     'Formularios', 'Submissions', 'Leads', 'Tipos de reunión', 'Solicitudes', 'Agenda', 'Campañas', 'Landing Pages',
     'Calendario', 'Pendientes de aprobación', 'Programados', 'Historial', 'Información del sitio', 'Redes sociales', 'Datos de contacto',
@@ -61,6 +61,34 @@ test('phase 25 exposes the AI assistant inside Marketing without adding a publis
   assert.equal(assistant.includes('publishEditor('), false)
   assert.equal(assistant.includes('scheduleEditor('), false)
   assert.equal(assistant.includes('submitEditor('), false)
+})
+
+test('master phase 3 exposes Article as the existing Post content type and quick-create flow', async () => {
+  const view = await readFile(new URL('../src/modules/marketing/views/MarketingView.vue', import.meta.url), 'utf8')
+  assert.match(view, /'content-posts': \{ type: 'Post', title: tr\('Artículos', 'Articles'\), singular: tr\('Artículo', 'Article'\) \}/)
+  assert.ok(view.includes("action: 'article'"))
+  assert.ok(view.includes("createContent('content-posts')"))
+  assert.ok(MARKETING_GROUPS.flatMap((group) => group.items.map((item) => item.label)).includes('Artículos'))
+})
+
+test('master phase 3 reuses preview and revision services in the content workspace', async () => {
+  const workspace = await readFile(new URL('../src/modules/marketing/components/MarketingContentWorkspace.vue', import.meta.url), 'utf8')
+  for (const fragment of [
+    'MarketingLivePreview',
+    'ContentService.getRevisions',
+    'ContentService.restoreRevision',
+    "value: 'Rejected'",
+    'ContentService.scheduleEditor',
+    "tr('Vista previa del borrador', 'Draft preview')",
+    "tr('Historial de revisiones', 'Revision history')",
+  ]) assert.ok(workspace.includes(fragment), `Missing master phase 3 workspace integration: ${fragment}`)
+})
+
+test('master phase 3 keeps the frontend content DTO aligned with revision, taxonomy and CMS metadata fields', async () => {
+  const contracts = await readFile(new URL('../src/core/interfaces/content.ts', import.meta.url), 'utf8')
+  for (const fragment of ['taxonomyTermIds: string[]', "'Rejected'", 'parentContentId?: string | null', 'templateKey?: string | null', 'sitemapPriority?: number | null']) {
+    assert.ok(contracts.includes(fragment), `Missing content contract field: ${fragment}`)
+  }
 })
 
 test('FASE 35 exposes all Fennec motion presets to Marketing with matching defaults and ranges', async () => {
