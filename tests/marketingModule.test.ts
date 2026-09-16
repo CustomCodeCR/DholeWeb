@@ -84,6 +84,16 @@ test('master phase 3 reuses preview and revision services in the content workspa
   ]) assert.ok(workspace.includes(fragment), `Missing master phase 3 workspace integration: ${fragment}`)
 })
 
+test('master phase 3 allows assigning both categories and tags through the shared taxonomy ids', async () => {
+  const workspace = await readFile(new URL('../src/modules/marketing/components/MarketingContentWorkspace.vue', import.meta.url), 'utf8')
+  for (const fragment of [
+    "['category', 'tag'].includes(item.kind.toLowerCase())",
+    "tr('Categorías y etiquetas', 'Categories and tags')",
+    'categoryIds: selectedCategoryIds.value',
+    "kind.toLowerCase() === 'tag'",
+  ]) assert.ok(workspace.includes(fragment), `Missing editorial taxonomy integration: ${fragment}`)
+})
+
 test('master phase 3 keeps the frontend content DTO aligned with revision, taxonomy and CMS metadata fields', async () => {
   const contracts = await readFile(new URL('../src/core/interfaces/content.ts', import.meta.url), 'utf8')
   for (const fragment of ['taxonomyTermIds: string[]', "'Rejected'", 'parentContentId?: string | null', 'templateKey?: string | null', 'sitemapPriority?: number | null']) {
