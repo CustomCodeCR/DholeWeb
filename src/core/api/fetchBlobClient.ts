@@ -57,7 +57,12 @@ async function ensurePricingQuoteApproved(
   if (!response.ok) return
 
   const snapshot = findPricingRateApprovalSnapshot(await response.json())
-  if (snapshot?.requiredApproval !== true && snapshot?.status !== 'PendingApproval') return
+  const isBlockedByMarginApproval =
+    snapshot?.requiredApproval === true ||
+    snapshot?.status === 'PendingApproval' ||
+    snapshot?.status === 'RejectedByManagement'
+
+  if (!isBlockedByMarginApproval) return
 
   const message =
     'La cotización no puede generarse hasta que un administrador apruebe el margen mínimo del 12%.'
