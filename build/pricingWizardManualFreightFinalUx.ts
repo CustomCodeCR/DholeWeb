@@ -10,16 +10,16 @@ function patchWizard(source: string) {
   if (code.includes(readinessAnchor) && !code.includes('const manualOceanFreightReady = computed')) {
     code = code.replace(
       readinessAnchor,
-      `${readinessAnchor}\nconst manualOceanFreightReady = computed(() => {\n  if (shipmentModeForApi.value !== 'Fcl') return false\n  if (!['Maritime', 'Multimodal'].includes(String(form.modality))) return false\n  if (!(form.manualRate || !form.selectedImportRateId)) return false\n\n  return Boolean(\n    form.agentId\n    && form.carrierId\n    && form.currencyId\n    && number(form.freightCost) > 0\n    && number(form.freightSale) > 0\n    && form.loadDate\n    && form.validTo\n    && form.validTo >= form.loadDate\n    && manualOceanFreightComment.value.trim()\n    && number(form.freeDays) >= 0\n    && number(form.transitDays) >= 0\n  )\n})`,
+      `${readinessAnchor}\nconst manualOceanFreightReady = computed(() => {\n  if (shipmentModeForApi.value !== 'Fcl') return false\n  if (!['Maritime', 'Multimodal'].includes(String(form.modality))) return false\n  if (!(form.manualRate || !form.selectedImportRateId)) return false\n\n  return Boolean(\n    form.agentId\n    && form.carrierId\n    && manualOceanFreightPoeId.value\n    && form.currencyId\n    && number(form.freightCost) > 0\n    && number(form.freightSale) > 0\n    && form.loadDate\n    && form.validTo\n    && form.validTo >= form.loadDate\n    && manualOceanFreightComment.value.trim()\n    && number(form.freeDays) >= 0\n    && number(form.transitDays) >= 0\n  )\n})`,
     )
   }
 
   // Evita que se pueda disparar el guardado por una llamada directa con datos incompletos.
-  const saveDataAnchor = `  const origin = selectedOrigin.value\n  const destination = selectedDestination.value\n  const pod = resolvePodForDestination() ?? destination`
+  const saveDataAnchor = `  const origin = selectedOrigin.value\n  const destination = selectedDestination.value\n  const poe = selectedManualOceanFreightPoe.value\n  const pod = resolvePodForDestination() ?? destination`
   if (code.includes(saveDataAnchor) && !code.includes("Complete todos los datos de Pantalla 6 antes de crear el flete.")) {
     code = code.replace(
       saveDataAnchor,
-      `  if (!manualOceanFreightReady.value) {\n    toastStore.warning('Complete Pantalla 6', 'Complete agente, naviera, moneda, costo, venta, vigencia, comentarios, días libres y días de tránsito antes de crear el flete.')\n    return\n  }\n\n${saveDataAnchor}`,
+      `  if (!manualOceanFreightReady.value) {\n    toastStore.warning('Complete Pantalla 6', 'Complete agente, naviera, POE, moneda, costo, venta, vigencia, comentarios, días libres y días de tránsito antes de crear el flete.')\n    return\n  }\n\n${saveDataAnchor}`,
     )
   }
 
@@ -36,7 +36,7 @@ function patchWizard(source: string) {
   code = code.replace('Guardar flete marítimo manual', 'Crear flete marítimo manual')
   code = code.replace(
     'Guarda este costo/venta como una tarifa marítima pre-aprobada para reutilizarla después en Pantalla 5.',
-    'Complete todos los datos del flete. La tarifa creada manualmente quedará Preaprobada y disponible en Pantalla 5.',
+    'Complete todos los datos del flete, incluido el POE real. La tarifa creada manualmente quedará Preaprobada y disponible en Pantalla 5.',
   )
   code = code.replace(
     'Flete guardado correctamente como tarifa pre-aprobada.',
@@ -53,7 +53,7 @@ function patchWizard(source: string) {
   if (code.includes(screenSixEnd) && !code.includes('data-manual-ocean-freight-final-action')) {
     code = code.replace(
       screenSixEnd,
-      `</div>\n\n          <div\n            v-if="shipmentModeForApi === 'Fcl' && (form.modality === 'Maritime' || form.modality === 'Multimodal') && (form.manualRate || !form.selectedImportRateId)"\n            data-manual-ocean-freight-final-action\n            class="crystal-soft flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-5"\n          >\n            <div>\n              <p class="font-black">Crear flete marítimo</p>\n              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">\n                El botón se habilita únicamente cuando agente, naviera, moneda, costo, venta, vigencia, comentarios, días libres y tránsito estén completos.\n              </p>\n              <p v-if="manualOceanFreightSavedId" class="mt-2 text-xs font-black text-emerald-600">\n                Tarifa creada correctamente · Preaprobada · Creada manualmente.\n              </p>\n            </div>\n            <DhButton\n              type="button"\n              variant="primary"\n              class="w-full md:w-auto"\n              :loading="savingManualOceanFreight"\n              :disabled="savingManualOceanFreight || !manualOceanFreightReady"\n              @click="saveManualOceanFreight"\n            >\n              Crear flete marítimo\n            </DhButton>\n          </div>\n        </div>\n\n        <div v-else-if="step === 4" class="space-y-6">`,
+      `</div>\n\n          <div\n            v-if="shipmentModeForApi === 'Fcl' && (form.modality === 'Maritime' || form.modality === 'Multimodal') && (form.manualRate || !form.selectedImportRateId)"\n            data-manual-ocean-freight-final-action\n            class="crystal-soft flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-5"\n          >\n            <div>\n              <p class="font-black">Crear flete marítimo</p>\n              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">\n                El botón se habilita únicamente cuando agente, naviera, POE, moneda, costo, venta, vigencia, comentarios, días libres y tránsito estén completos.\n              </p>\n              <p v-if="manualOceanFreightSavedId" class="mt-2 text-xs font-black text-emerald-600">\n                Tarifa creada correctamente · Preaprobada · Creada manualmente.\n              </p>\n            </div>\n            <DhButton\n              type="button"\n              variant="primary"\n              class="w-full md:w-auto"\n              :loading="savingManualOceanFreight"\n              :disabled="savingManualOceanFreight || !manualOceanFreightReady"\n              @click="saveManualOceanFreight"\n            >\n              Crear flete marítimo\n            </DhButton>\n          </div>\n        </div>\n\n        <div v-else-if="step === 4" class="space-y-6">`,
     )
   }
 
