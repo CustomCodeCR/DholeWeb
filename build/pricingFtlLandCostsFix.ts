@@ -36,18 +36,22 @@ const includedLines = computed`,
   )
 
   // El POE "Multimodal Via Panamá" es solamente una opción visual del wizard. Para
-  // Pantalla 7 el contexto real debe ser el POE de la tarifa importada seleccionada.
-  // Además enviamos importRateId para que Pricing vuelva a resolver el POE de forma
-  // autoritativa y no dependa exclusivamente del estado local del frontend.
+  // tarifas importadas usamos el POE real de la tarifa. Cuando Pantalla 6 crea el flete
+  // manualmente, el POE elegido allí pasa a ser el contexto autoritativo de cargos y
+  // recargos, junto con la naviera seleccionada.
   code = replaceRegexOne(
     code,
     /function applicableCost\(cost: CostSelectDto\) \{[\s\S]*?\n\}\n\nfunction costSpecificity/,
     `function costContextImportRateId() {
+  const selectedRateId = String(form.selectedImportRateId ?? '').trim()
+  if (!selectedRateId) return String(manualOceanFreightSavedId.value ?? '').trim()
   if (!isMultimodalViaPanama(selectedDestination.value)) return ''
-  return String(form.selectedImportRateId ?? '').trim()
+  return selectedRateId
 }
 
 function costContextPoeId() {
+  const manualPoeId = String(manualOceanFreightPoeId.value ?? '').trim()
+  if (!form.selectedImportRateId && manualPoeId) return manualPoeId
   if (!isMultimodalViaPanama(selectedDestination.value)) return form.destinationId
   return String(selectedImportRate.value?.poeId ?? '').trim() || form.destinationId
 }
