@@ -97,7 +97,7 @@ test('FASE 55 verifies cards menus forms calendar and meetings remain readable w
   assert.match(workspace, /DhDrawer/)
 })
 
-test('FASE 55 uses the existing Dhole scrollbar utility and does not implement the FASE 56 visual redesign', async () => {
+test('FASE 55 functional scroll audit remains compatible with the FASE 56 visual standard', async () => {
   const [theme, dropdown, blockPicker, mediaPicker, table] = await Promise.all([
     source('src/assets/theme.css'),
     source('src/shared/components/molecules/DhDropdownMenu.vue'),
@@ -106,7 +106,7 @@ test('FASE 55 uses the existing Dhole scrollbar utility and does not implement t
     source('src/shared/components/molecules/DhDataTable.vue'),
   ])
 
-  assert.match(theme, /\.dh-scrollbar\s*\{/)
   for (const audited of [dropdown, blockPicker, mediaPicker, table]) assert.match(audited, /dh-scrollbar/)
-  assert.doesNotMatch(theme, /FASE 56/)
+  assert.match(theme, /FASE 56 — One Dhole scrollbar contract/)
+  assert.match(theme, /:where\(html, body, body \*, \.dh-scrollbar\)/)
 })
