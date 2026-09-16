@@ -109,7 +109,7 @@ const contentSection = computed(() => {
   const definitions: Partial<Record<MarketingSectionKey, { type: ContentType; title: string; singular: string }>> = {
     'content-pages': { type: 'Page', title: tr('Páginas', 'Pages'), singular: tr('Página', 'Page') },
     'content-news': { type: 'News', title: tr('Noticias', 'News'), singular: tr('Noticia', 'News item') },
-    'content-posts': { type: 'Post', title: tr('Publicaciones', 'Posts'), singular: tr('Publicación', 'Post') },
+    'content-posts': { type: 'Post', title: tr('Artículos', 'Articles'), singular: tr('Artículo', 'Article') },
     'content-videos': { type: 'Video', title: tr('Videos', 'Videos'), singular: tr('Video', 'Video') },
     'content-reusable': { type: 'ReusableBlock', title: tr('Secciones reutilizables', 'Reusable sections'), singular: tr('Sección', 'Section') },
     'design-banners': { type: 'Banner', title: tr('Banners', 'Banners'), singular: tr('Banner', 'Banner') },
@@ -156,14 +156,15 @@ const dashboardCards = computed(() => [
 
 const createItems = computed<DhDropdownItem[]>(() => [
   { action: 'page', label: tr('Página', 'Page'), icon: FileText },
+  { action: 'article', label: tr('Artículo', 'Article'), icon: FileText },
   { action: 'news', label: tr('Noticia', 'News item'), icon: Newspaper },
   { action: 'banner', label: tr('Banner', 'Banner'), icon: Image },
 ])
 
 const quickActions = computed(() => [
   { key: 'page', title: tr('Crear una página', 'Create a page'), description: tr('Prepare una nueva página del sitio.', 'Prepare a new website page.'), icon: FileText },
+  { key: 'article', title: tr('Crear un artículo', 'Create an article'), description: tr('Prepare contenido editorial con imagen, taxonomías y SEO.', 'Prepare editorial content with image, taxonomies and SEO.'), icon: FileText },
   { key: 'news', title: tr('Publicar una noticia', 'Publish news'), description: tr('Comparta una novedad con sus visitantes.', 'Share an update with visitors.'), icon: Newspaper },
-  { key: 'banner', title: tr('Crear un banner', 'Create a banner'), description: tr('Prepare un mensaje visual destacado.', 'Prepare a highlighted visual message.'), icon: Image },
   { key: 'review', title: tr('Revisar pendientes', 'Review pending items'), description: tr('Continúe con contenido que espera aprobación.', 'Continue with content waiting for approval.'), icon: CalendarClock },
 ])
 
@@ -191,7 +192,7 @@ async function openSection(section: MarketingSectionKey) {
   await router.replace({ query: { ...route.query, section } })
 }
 
-async function createContent(section: 'content-pages' | 'content-news' | 'design-banners') {
+async function createContent(section: 'content-pages' | 'content-posts' | 'content-news' | 'design-banners') {
   await openSection(section)
   await nextTick()
   createNonce.value += 1
@@ -199,6 +200,7 @@ async function createContent(section: 'content-pages' | 'content-news' | 'design
 
 async function handleCreate(action: string) {
   if (action === 'page') await createContent('content-pages')
+  if (action === 'article') await createContent('content-posts')
   if (action === 'news') await createContent('content-news')
   if (action === 'banner') await createContent('design-banners')
 }
