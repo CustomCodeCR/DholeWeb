@@ -7,7 +7,7 @@ export type ContentType =
   | 'Video'
   | 'ReusableBlock'
 
-export type ContentStatus = 'Draft' | 'PendingReview' | 'Scheduled' | 'Published' | 'Archived'
+export type ContentStatus = 'Draft' | 'PendingReview' | 'Scheduled' | 'Published' | 'Rejected' | 'Archived'
 
 export interface SeoDto {
   title?: string | null
@@ -61,7 +61,14 @@ export interface ContentItemDto extends ContentItemListDto {
   blocksJson: string
   renderedHtml?: string | null
   authorUserId?: string | null
+  parentContentId?: string | null
+  translationGroupId?: string | null
+  templateKey?: string | null
+  unpublishAtUtc?: string | null
+  sitemapPriority?: number | null
+  sitemapChangeFrequency?: string | null
   sortOrder: number
+  taxonomyTermIds: string[]
   seo: SeoDto
   scheduledAtUtc?: string | null
 }
@@ -126,6 +133,12 @@ export interface EditorContentRequest {
   categoryIds?: string[] | null
   seo?: EditorSeoRequest | null
   siteKey?: string | null
+  parentContentId?: string | null
+  translationGroupId?: string | null
+  templateKey?: string | null
+  unpublishAtUtc?: string | null
+  sitemapPriority?: number | null
+  sitemapChangeFrequency?: string | null
 }
 
 export interface EditorDashboardDto {
