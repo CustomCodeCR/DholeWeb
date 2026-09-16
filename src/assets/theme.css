@@ -38,6 +38,13 @@
   --dh-glow: 0 18px 55px rgb(var(--dh-primary-rgb) / 0.22);
 
   --dh-blur: 26px;
+
+  --dh-scrollbar-size: 10px;
+  --dh-scrollbar-radius: 999px;
+  --dh-scrollbar-track: rgb(3 2 2 / 0.055);
+  --dh-scrollbar-thumb: rgb(var(--dh-primary-rgb) / 0.50);
+  --dh-scrollbar-thumb-hover: rgb(var(--dh-primary-rgb) / 0.68);
+  --dh-scrollbar-thumb-active: rgb(var(--dh-primary-rgb) / 0.84);
 }
 
 .dark {
@@ -62,6 +69,11 @@
   --dh-shadow-sm: 0 10px 25px rgb(0 0 0 / 0.28);
   --dh-shadow-md: 0 20px 55px rgb(0 0 0 / 0.44);
   --dh-shadow-lg: 0 34px 100px rgb(0 0 0 / 0.62);
+
+  --dh-scrollbar-track: rgb(255 255 255 / 0.07);
+  --dh-scrollbar-thumb: rgb(var(--dh-primary-rgb) / 0.60);
+  --dh-scrollbar-thumb-hover: rgb(var(--dh-primary-rgb) / 0.76);
+  --dh-scrollbar-thumb-active: rgb(var(--dh-primary-rgb) / 0.90);
 }
 
 body {
@@ -183,14 +195,48 @@ body.dh-has-client-background {
   box-shadow: var(--dh-shadow-lg);
 }
 
-.dh-scrollbar {
+/* FASE 56 — One Dhole scrollbar contract for every scrollable surface.
+   The 10px hit area stays easy to drag while the transparent inset keeps
+   the visible thumb compact. Low-specificity selectors allow functional
+   exceptions (for example a deliberately hidden mobile stepbar) without
+   creating a different visual scrollbar per screen. */
+:where(html, body, body *, .dh-scrollbar) {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--dh-primary-rgb) / 0.42) transparent;
+  scrollbar-color: var(--dh-scrollbar-thumb) var(--dh-scrollbar-track);
 }
 
-.dh-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-.dh-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.dh-scrollbar::-webkit-scrollbar-thumb { background: rgb(var(--dh-primary-rgb) / 0.42); border-radius: 999px; }
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar {
+  width: var(--dh-scrollbar-size);
+  height: var(--dh-scrollbar-size);
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-track {
+  background: var(--dh-scrollbar-track);
+  border-radius: var(--dh-scrollbar-radius);
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-thumb {
+  min-width: 36px;
+  min-height: 36px;
+  border: 2px solid transparent;
+  border-radius: var(--dh-scrollbar-radius);
+  background: var(--dh-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-thumb:hover {
+  background: var(--dh-scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-thumb:active {
+  background: var(--dh-scrollbar-thumb-active);
+  background-clip: padding-box;
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 /* FASE 54 — The visual editor owns its viewport. Blocks, Canvas and
    Properties scroll independently instead of growing the application page. */
