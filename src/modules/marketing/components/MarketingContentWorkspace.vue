@@ -4,8 +4,10 @@ import {
   Archive,
   Bold,
   CalendarClock,
+  Eye,
   FileText,
   Heading2,
+  History,
   Image,
   Italic,
   Link,
@@ -13,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   Rocket,
+  RotateCcw,
   Save,
   Send,
   Trash2,
@@ -41,12 +44,14 @@ import { buildSeoPreview } from '@/core/seo/seoPreview'
 import type {
   ContentItemDto,
   ContentItemListDto,
+  ContentRevisionDto,
   ContentType,
   EditorContentRequest,
   MediaDto,
   TaxonomyTermDto,
 } from '@/core/interfaces/content'
 import type { ContentRouteDto } from '@/core/interfaces/contentRoutes'
+import MarketingLivePreview from '@/modules/marketing/components/MarketingLivePreview.vue'
 
 const props = withDefaults(defineProps<{
   siteKey: string
@@ -72,7 +77,11 @@ const pageSize = 12
 const search = ref('')
 const statusFilter = ref('')
 const editorOpen = ref(false)
+const previewOpen = ref(false)
+const historyOpen = ref(false)
 const selected = ref<ContentItemDto | null>(null)
+const revisions = ref<ContentRevisionDto[]>([])
+const restoringRevisionId = ref<string | null>(null)
 const editorRef = ref<HTMLElement | null>(null)
 const media = ref<MediaDto[]>([])
 const taxonomies = ref<TaxonomyTermDto[]>([])
@@ -104,6 +113,7 @@ const statusOptions = computed(() => [
   { value: 'PendingReview', label: tr('Pendiente de aprobación', 'Pending approval') },
   { value: 'Scheduled', label: tr('Programado', 'Scheduled') },
   { value: 'Published', label: tr('Publicado', 'Published') },
+  { value: 'Rejected', label: tr('Rechazado', 'Rejected') },
   { value: 'Archived', label: tr('Archivado', 'Archived') },
 ])
 
@@ -162,7 +172,7 @@ function statusLabel(status: string) {
 function statusVariant(status: string): 'primary' | 'success' | 'warning' | 'neutral' {
   if (status === 'Published') return 'success'
   if (status === 'PendingReview' || status === 'Scheduled') return 'warning'
-  if (status === 'Archived') return 'neutral'
+  if (status === 'Rejected' || status === 'Archived') return 'neutral'
   return 'primary'
 }
 
@@ -171,6 +181,13 @@ function formatDate(value?: string | null) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat(localeStore.locale === 'en' ? 'en-US' : 'es-CR', { dateStyle: 'medium' }).format(date)
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(localeStore.locale === 'en' ? 'en-US' : 'es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
 function slugFromPath(path: string) {
@@ -196,6 +213,10 @@ function ensurePublicPath() {
 
 function resetForm() {
   selected.value = null
+  revisions.value = []
+  restoringRevisionId.value = null
+  previewOpen.value = false
+  historyOpen.value = false
   primaryRoute.value = null
   originalPublicPath.value = ''
   keepOldAddress.value = true
@@ -263,9 +284,31 @@ async function loadAuxiliary() {
   }
 }
 
+function applyDetail(detail: ContentItemDto, route: ContentRouteDto | null) {
+  selected.value = detail
+  primaryRoute.value = route
+  originalPublicPath.value = route?.path ?? ''
+  keepOldAddress.value = true
+  Object.assign(form, {
+    title: detail.title,
+    publicPath: route?.path ?? `/${detail.slug ?? ''}`,
+    excerpt: detail.excerpt ?? '',
+    contentHtml: detail.renderedHtml ?? '',
+    featuredMediaId: detail.featuredMediaId ?? '',
+    isFeatured: detail.isFeatured,
+    seoTitle: detail.seo?.title ?? '',
+    seoDescription: detail.seo?.description ?? '',
+  })
+  selectedCategoryIds.value = detail.taxonomyTermIds ?? []
+  scheduleAt.value = detail.scheduledAtUtc ? new Date(detail.scheduledAtUtc).toISOString().slice(0, 16) : ''
+}
+
 async function openItem(item: ContentItemListDto) {
   try {
-    const detail = await ContentService.getEditorContent(item.id)
+    const [detail, history] = await Promise.all([
+      ContentService.getEditorContent(item.id),
+      ContentService.getRevisions(item.id),
+    ])
     let route: ContentRouteDto | null = null
     try {
       const routes = await ContentRouteService.getByContent(item.id)
@@ -274,22 +317,8 @@ async function openItem(item: ContentItemListDto) {
       route = null
     }
 
-    selected.value = detail
-    primaryRoute.value = route
-    originalPublicPath.value = route?.path ?? ''
-    keepOldAddress.value = true
-    Object.assign(form, {
-      title: detail.title,
-      publicPath: route?.path ?? `/${detail.slug ?? ''}`,
-      excerpt: detail.excerpt ?? '',
-      contentHtml: detail.renderedHtml ?? '',
-      featuredMediaId: detail.featuredMediaId ?? '',
-      isFeatured: detail.isFeatured,
-      seoTitle: detail.seo?.title ?? '',
-      seoDescription: detail.seo?.description ?? '',
-    })
-    selectedCategoryIds.value = (detail as ContentItemDto & { taxonomyTermIds?: string[] }).taxonomyTermIds ?? []
-    scheduleAt.value = detail.scheduledAtUtc ? new Date(detail.scheduledAtUtc).toISOString().slice(0, 16) : ''
+    revisions.value = history
+    applyDetail(detail, route)
     editorOpen.value = true
     await placeEditorHtml()
   } catch (error) {
@@ -299,6 +328,11 @@ async function openItem(item: ContentItemListDto) {
 
 function syncEditor() {
   form.contentHtml = editorRef.value?.innerHTML ?? ''
+}
+
+function openPreview() {
+  syncEditor()
+  previewOpen.value = true
 }
 
 function editorCommand(command: string, value?: string) {
@@ -349,6 +383,12 @@ function buildPayload(): EditorContentRequest {
     categoryIds: selectedCategoryIds.value,
     seo: selected.value?.seo ?? null,
     siteKey: selected.value?.siteKey || props.siteKey || 'main',
+    parentContentId: selected.value?.parentContentId ?? null,
+    translationGroupId: selected.value?.translationGroupId ?? null,
+    templateKey: selected.value?.templateKey ?? null,
+    unpublishAtUtc: selected.value?.unpublishAtUtc ?? null,
+    sitemapPriority: selected.value?.sitemapPriority ?? null,
+    sitemapChangeFrequency: selected.value?.sitemapChangeFrequency ?? null,
   }
 }
 
@@ -453,6 +493,27 @@ async function schedule() {
     toastStore.backendError(error, tr('No se pudo programar la publicación.', 'The publication could not be scheduled.'))
   } finally {
     saving.value = false
+  }
+}
+
+async function restoreRevision(revision: ContentRevisionDto) {
+  if (!selected.value || !canEditThisType.value || restoringRevisionId.value) return
+  restoringRevisionId.value = revision.id
+  try {
+    await ContentService.restoreRevision(selected.value.id, revision.id, 'restored-from-marketing')
+    const [detail, history] = await Promise.all([
+      ContentService.getEditorContent(selected.value.id),
+      ContentService.getRevisions(selected.value.id),
+    ])
+    revisions.value = history
+    applyDetail(detail, primaryRoute.value)
+    historyOpen.value = false
+    await placeEditorHtml()
+    toastStore.success(tr('Revisión restaurada como borrador', 'Revision restored as draft'))
+  } catch (error) {
+    toastStore.backendError(error, tr('No se pudo restaurar la revisión.', 'The revision could not be restored.'))
+  } finally {
+    restoringRevisionId.value = null
   }
 }
 
@@ -570,7 +631,11 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
             <p class="text-xs font-black uppercase tracking-[.15em] text-[var(--dh-primary)]">{{ selected ? tr('Edición', 'Editing') : tr('Nuevo contenido', 'New content') }}</p>
             <h3 class="mt-1 text-xl font-black">{{ form.title || singular }}</h3>
           </div>
-          <DhBadge :label="statusLabel(selected?.status || 'Draft')" :variant="statusVariant(selected?.status || 'Draft')" />
+          <div class="flex flex-wrap items-center gap-2">
+            <DhButton :label="tr('Vista previa', 'Preview')" :icon="Eye" variant="secondary" size="sm" @click="openPreview" />
+            <DhButton v-if="selected" :label="tr(`Historial (${revisions.length})`, `History (${revisions.length})`)" :icon="History" variant="secondary" size="sm" @click="historyOpen = true" />
+            <DhBadge :label="statusLabel(selected?.status || 'Draft')" :variant="statusVariant(selected?.status || 'Draft')" />
+          </div>
         </div>
       </section>
 
@@ -676,6 +741,7 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
 
       <footer class="sticky bottom-0 z-10 flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-surface)]/95 py-3 backdrop-blur-xl">
         <DhButton :label="tr('Cancelar', 'Cancel')" variant="ghost" :disabled="saving" @click="closeEditor" />
+        <DhButton :label="tr('Vista previa', 'Preview')" :icon="Eye" variant="secondary" :disabled="saving" @click="openPreview" />
         <DhButton v-if="canSave" :label="tr('Guardar borrador', 'Save draft')" :icon="Save" variant="secondary" :loading="saving" @click="saveDraft" />
         <DhButton
           v-if="canSave && selected?.status !== 'Published'"
@@ -700,6 +766,43 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
     :cancel-label="tr('Cancelar', 'Cancel')"
     @close="mediaPickerOpen = false"
   />
+
+  <DhModal :open="previewOpen" :title="tr('Vista previa del borrador', 'Draft preview')" size="xl" @close="previewOpen = false">
+    <div class="space-y-3">
+      <p class="text-xs leading-5 text-[var(--dh-text-muted)]">
+        {{ tr('Esta vista previa pertenece al editor y no publica cambios en el sitio.', 'This preview belongs to the editor and does not publish changes to the website.') }}
+      </p>
+      <MarketingLivePreview :blocks="[]" :page-title="form.title" :fallback-html="form.contentHtml" />
+    </div>
+  </DhModal>
+
+  <DhModal :open="historyOpen" :title="tr('Historial de revisiones', 'Revision history')" size="lg" @close="historyOpen = false">
+    <div v-if="!revisions.length" class="rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">
+      {{ tr('Todavía no hay revisiones guardadas.', 'There are no saved revisions yet.') }}
+    </div>
+    <div v-else class="space-y-3">
+      <article v-for="revision in revisions" :key="revision.id" class="revision-card">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <strong>{{ tr('Revisión', 'Revision') }} #{{ revision.revisionNumber }}</strong>
+            <DhBadge :label="revision.reason || tr('Cambio editorial', 'Editorial change')" variant="neutral" />
+          </div>
+          <p class="mt-1 truncate text-sm font-semibold">{{ revision.title }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">/{{ revision.slug }} · {{ formatDateTime(revision.createdAtUtc) }}</p>
+        </div>
+        <DhButton
+          v-if="canEditThisType"
+          :label="tr('Restaurar', 'Restore')"
+          :icon="RotateCcw"
+          variant="secondary"
+          size="sm"
+          :loading="restoringRevisionId === revision.id"
+          :disabled="Boolean(restoringRevisionId)"
+          @click="restoreRevision(revision)"
+        />
+      </article>
+    </div>
+  </DhModal>
 
   <DhModal :open="linkModalOpen" :title="tr('Agregar enlace', 'Add link')" size="sm" @close="linkModalOpen = false">
     <div class="space-y-4">
@@ -734,5 +837,6 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
 .rich-editor:empty:before{content:attr(data-placeholder);color:var(--dh-text-muted);pointer-events:none}
 .media-selection{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:1rem;border:1px dashed var(--dh-border);border-radius:18px;padding:1rem;background:var(--dh-surface)}
 .search-preview{border:1px solid var(--dh-border);border-radius:18px;padding:1rem;background:var(--dh-surface)}
-@media (max-width:640px){.media-selection{align-items:flex-start;flex-direction:column}}
+.revision-card{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:1rem;border:1px solid var(--dh-border);border-radius:18px;padding:1rem;background:var(--dh-input)}
+@media (max-width:640px){.media-selection,.revision-card{align-items:flex-start;flex-direction:column}}
 </style>
