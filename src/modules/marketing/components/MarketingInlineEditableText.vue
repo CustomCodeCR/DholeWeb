@@ -9,6 +9,7 @@ const props = withDefaults(defineProps<{
 }>(), { disabled: false })
 
 const emit = defineEmits<{
+  preview: [value: string]
   save: [value: string]
   activate: []
 }>()
@@ -39,12 +40,14 @@ async function startEdit() {
 
 function syncDraft(event: Event) {
   draft.value = (event.currentTarget as HTMLElement).textContent ?? ''
+  emit('preview', draft.value)
 }
 
 function commit() {
   if (!editing.value) return
   const value = draft.value.trim()
   editing.value = false
+  emit('preview', value)
   emit('save', value)
 }
 
@@ -52,6 +55,7 @@ function cancel() {
   if (!editing.value) return
   draft.value = props.modelValue
   editing.value = false
+  emit('preview', props.modelValue)
 }
 
 function handleKeydown(event: KeyboardEvent) {
