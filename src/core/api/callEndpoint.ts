@@ -10,6 +10,37 @@ type PathParams = Record<string, string>
 
 const RATE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+function todayIso(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function normalizePricingRateEditBody<TBody>(
+  endpoint: Endpoint,
+  finalPath: string,
+  body: TBody,
+): TBody {
+  if (!body || typeof body !== 'object') return body
+  if (typeof FormData !== 'undefined' && body instanceof FormData) return body
+
+  const method = String(endpoint.method).toUpperCase()
+  if (method !== 'PUT') return body
+
+  const cleanPath = finalPath.split('?', 1)[0]?.replace(/\/$/, '') ?? finalPath
+  const match = cleanPath.match(/^\/api\/pricing\/rates\/([0-9a-f-]{36})$/i)
+  if (!match?.[1] || !RATE_ID_PATTERN.test(match[1])) return body
+
+  // Al editar una tarifa la vigencia vuelve a iniciar hoy. No reenviamos una
+  // fecha histórica aunque el formulario haya sido hidratado con la tarifa anterior.
+  return {
+    ...(body as Record<string, unknown>),
+    validFrom: todayIso(),
+  } as TBody
+}
+
 function extractRateId(value: unknown): string | null {
   if (typeof value === 'string') {
     const candidate = value.trim()
@@ -73,6 +104,10 @@ export async function callEndpoint<TResponse, TBody = unknown>(
   },
 ): Promise<TResponse> {
   const finalPath = args?.params ? replaceEndpointParams(endpoint.path, args.params) : endpoint.path
+  const normalizedBody =
+    args?.body === undefined
+      ? undefined
+      : normalizePricingRateEditBody(endpoint, finalPath, args.body)
 
   const options: RequestOptions = {
     method: endpoint.method,
@@ -80,7 +115,7 @@ export async function callEndpoint<TResponse, TBody = unknown>(
       ...(endpoint.headers ?? {}),
       ...(args?.extraHeaders ?? {}),
     },
-    ...(args?.body !== undefined ? { body: args.body } : {}),
+    ...(normalizedBody !== undefined ? { body: normalizedBody } : {}),
     ...(args?.isFormData ? { isFormData: true } : {}),
   }
 
