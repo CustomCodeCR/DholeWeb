@@ -251,7 +251,7 @@ function scheduleTextAutosave(block: PageBuilderBlock, key: string, value: strin
   armAutosaveTimer()
 }
 
-function previewBlockText(block: PageBuilderBlock, key: string, value: string) {
+function previewBlockText(block: PageBuilderBlock, key: string, value: string, autosave = true) {
   const persisted = typeof block.data[key] === 'string' ? String(block.data[key]) : ''
   const allDrafts = { ...previewTextDrafts.value }
   const blockDraft = { ...(allDrafts[block.id] ?? {}) }
@@ -262,7 +262,7 @@ function previewBlockText(block: PageBuilderBlock, key: string, value: string) {
   if (Object.keys(blockDraft).length) allDrafts[block.id] = blockDraft
   else delete allDrafts[block.id]
   previewTextDrafts.value = allDrafts
-  scheduleTextAutosave(block, key, value)
+  if (autosave) scheduleTextAutosave(block, key, value)
 }
 
 function clearPreviewTextDraft(blockId: string, key?: string) {
@@ -274,7 +274,7 @@ function clearPreviewTextDraft(blockId: string, key?: string) {
   }
   const blockDraft = { ...(allDrafts[blockId] ?? {}) }
   delete blockDraft[key]
-  if (Object.keys(blockDraft).length) allDrafts[blockId] = blockDraft
+  if (Object.keys(blockDraft).length) allDrafts[block.id] = blockDraft
   else delete allDrafts[blockId]
   previewTextDrafts.value = allDrafts
 }
@@ -673,6 +673,7 @@ onBeforeUnmount(() => {
                         :placeholder="inlineTextField(sortableBlock(item))!.placeholder"
                         :disabled="builderBusy"
                         @activate="selectPageBlock(sortableBlock(item), false)"
+                        @preview="previewBlockText(sortableBlock(item), inlineTextField(sortableBlock(item))!.key, $event, false)"
                         @save="saveInlineText(sortableBlock(item), inlineTextField(sortableBlock(item))!, $event)"
                       />
                       <p v-else class="mt-2 px-2 text-[11px] text-[var(--dh-text-muted)]">{{ tr('Este bloque no tiene texto editable directamente.', 'This block has no directly editable text.') }}</p>
