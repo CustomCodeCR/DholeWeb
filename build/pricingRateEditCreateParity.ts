@@ -22,11 +22,12 @@ function replaceRegexOne(source: string, pattern: RegExp, replacement: string, l
 function patchWizard(source: string) {
   let code = source
 
-  // Editing must enter the same guided flow as creation. Viewing remains freely navigable.
+  // Editing resumes at screen 3 so route/POE context can be reviewed before selecting rates.
+  // Viewing remains freely navigable.
   code = replaceOne(
     code,
     `    step.value = props.viewOnly ? 9 : 8`,
-    `    step.value = props.viewOnly ? 9 : 1`,
+    `    step.value = props.viewOnly ? 9 : 3`,
     'edit initial step',
   )
 
