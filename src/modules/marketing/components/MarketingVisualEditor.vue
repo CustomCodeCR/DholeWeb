@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { ArrowLeft, Blocks, Copy, Eye, EyeOff, PanelRight, PanelsTopLeft, Plus, Trash2 } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ArrowLeft, Blocks, Check, Copy, Eye, EyeOff, LoaderCircle, PanelRight, PanelsTopLeft, Plus, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhEmptyState, DhIconButton, DhSelect, DhSkeleton } from '@/shared/components/atoms'
 import { DhBlockDropZone, DhConfirmDialog } from '@/shared/components/molecules'
 import { DhDrawer, DhModal, DhPropertyPanel, DhSortable, type DhSortableItem } from '@/shared/components/organisms'
@@ -37,6 +37,23 @@ interface AnimationSettingsPatch {
   duration?: number
 }
 
+interface PendingTextAutosave {
+  contentId: string
+  blockId: string
+  key: string
+  value: string
+}
+
+interface ApplyBuilderOperationOptions {
+  contentId?: string
+  showSuccessToast?: boolean
+}
+
+type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+const AUTOSAVE_DELAY_MS = 800
+const AUTOSAVE_BUSY_RETRY_MS = 250
+
 const props = withDefaults(defineProps<{ siteKey?: string }>(), { siteKey: 'main' })
 const emit = defineEmits<{ close: [] }>()
 
@@ -47,6 +64,7 @@ const tr = (es: string, en: string) => localeStore.locale === 'en' ? en : es
 const loadingPages = ref(false)
 const loadingPage = ref(false)
 const builderBusy = ref(false)
+const saveFailed = ref(false)
 const libraryDragActive = ref(false)
 const pages = ref<ContentItemListDto[]>([])
 const selectedPageId = ref<string | null>(null)
@@ -54,6 +72,7 @@ const page = ref<ContentItemDto | null>(null)
 const publicPath = ref<string | null>(null)
 const builderBlocks = ref<PageBuilderBlock[]>([])
 const previewTextDrafts = ref<Record<string, Record<string, string>>>({})
+const pendingTextAutosave = ref<PendingTextAutosave | null>(null)
 const selectedLibraryBlockId = ref<string | null>(null)
 const selectedBuilderBlockId = ref<string | null>(null)
 const deleteCandidate = ref<PageBuilderBlock | null>(null)
@@ -61,6 +80,7 @@ const propertySection = ref('content')
 const blocksDrawerOpen = ref(false)
 const propertiesDrawerOpen = ref(false)
 const blockPickerOpen = ref(false)
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const pageOptions = computed(() => pages.value.map((item) => ({ label: item.title, value: item.id })))
 const propertySections = computed(() => [
@@ -85,6 +105,20 @@ const statusVariant = computed<'primary' | 'success' | 'warning' | 'neutral'>(()
   if (status === 'PendingReview' || status === 'Scheduled') return 'warning'
   if (status === 'Archived') return 'neutral'
   return 'primary'
+})
+
+const saveState = computed<SaveState>(() => {
+  if (!page.value) return 'idle'
+  if (saveFailed.value) return 'error'
+  if (builderBusy.value || pendingTextAutosave.value) return 'saving'
+  return 'saved'
+})
+
+const saveStateLabel = computed(() => {
+  if (saveState.value === 'saving') return tr('Guardando...', 'Saving...')
+  if (saveState.value === 'error') return tr('No guardado', 'Not saved')
+  if (saveState.value === 'saved') return tr('Guardado', 'Saved')
+  return ''
 })
 
 const livePreviewBlocks = computed(() => builderBlocks.value.map((block) => {
@@ -179,6 +213,44 @@ function completeAnimation(block: PageBuilderBlock, patch: Partial<CmsAnimationC
   }
 }
 
+function clearAutosaveTimer() {
+  if (!autosaveTimer) return
+  clearTimeout(autosaveTimer)
+  autosaveTimer = null
+}
+
+function armAutosaveTimer(delay = AUTOSAVE_DELAY_MS) {
+  clearAutosaveTimer()
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = null
+    void flushPendingTextAutosave(true)
+  }, delay)
+}
+
+function cancelPendingTextAutosave(blockId?: string, key?: string) {
+  const pending = pendingTextAutosave.value
+  if (!pending) return
+  if (blockId && pending.blockId !== blockId) return
+  if (key && pending.key !== key) return
+  clearAutosaveTimer()
+  pendingTextAutosave.value = null
+}
+
+function scheduleTextAutosave(block: PageBuilderBlock, key: string, value: string) {
+  const contentId = selectedPageId.value
+  if (!contentId) return
+  const persisted = typeof block.data[key] === 'string' ? String(block.data[key]) : ''
+  if (value === persisted) {
+    cancelPendingTextAutosave(block.id, key)
+    saveFailed.value = false
+    return
+  }
+
+  saveFailed.value = false
+  pendingTextAutosave.value = { contentId, blockId: block.id, key, value }
+  armAutosaveTimer()
+}
+
 function previewBlockText(block: PageBuilderBlock, key: string, value: string) {
   const persisted = typeof block.data[key] === 'string' ? String(block.data[key]) : ''
   const allDrafts = { ...previewTextDrafts.value }
@@ -190,6 +262,7 @@ function previewBlockText(block: PageBuilderBlock, key: string, value: string) {
   if (Object.keys(blockDraft).length) allDrafts[block.id] = blockDraft
   else delete allDrafts[block.id]
   previewTextDrafts.value = allDrafts
+  scheduleTextAutosave(block, key, value)
 }
 
 function clearPreviewTextDraft(blockId: string, key?: string) {
@@ -227,6 +300,9 @@ async function loadSelectedPage(id: string | null) {
   blockPickerOpen.value = false
   propertiesDrawerOpen.value = false
   previewTextDrafts.value = {}
+  pendingTextAutosave.value = null
+  clearAutosaveTimer()
+  saveFailed.value = false
   if (!id) {
     page.value = null
     publicPath.value = null
@@ -254,22 +330,86 @@ async function loadSelectedPage(id: string | null) {
   }
 }
 
-async function applyBuilderOperation(request: PageBuilderOperationRequest, successMessage: string) {
-  const contentId = selectedPageId.value
+async function applyBuilderOperation(
+  request: PageBuilderOperationRequest,
+  successMessage: string,
+  options: ApplyBuilderOperationOptions = {},
+) {
+  const contentId = options.contentId ?? selectedPageId.value
   if (!contentId || builderBusy.value) return null
   builderBusy.value = true
+  saveFailed.value = false
   try {
     const document = await PageBuilderService.apply(contentId, request)
     const next = parsePageBuilderBlocks(document.blocksJson)
-    builderBlocks.value = next
-    toastStore.success(successMessage)
+    if (selectedPageId.value === contentId) builderBlocks.value = next
+    if (options.showSuccessToast !== false && successMessage) toastStore.success(successMessage)
     return next
   } catch (error) {
+    saveFailed.value = true
     toastStore.backendError(error, tr('No se pudo actualizar la página.', 'The page could not be updated.'))
     return null
   } finally {
     builderBusy.value = false
   }
+}
+
+async function flushPendingTextAutosave(retryIfBusy = false) {
+  clearAutosaveTimer()
+  const pending = pendingTextAutosave.value
+  if (!pending) return true
+
+  if (builderBusy.value) {
+    if (retryIfBusy) armAutosaveTimer(AUTOSAVE_BUSY_RETRY_MS)
+    return false
+  }
+
+  if (selectedPageId.value !== pending.contentId) return false
+  const block = builderBlocks.value.find((candidate) => candidate.id === pending.blockId)
+  if (!block) {
+    pendingTextAutosave.value = null
+    return true
+  }
+
+  const current = typeof block.data[pending.key] === 'string' ? String(block.data[pending.key]) : ''
+  if (current === pending.value) {
+    pendingTextAutosave.value = null
+    clearPreviewTextDraft(block.id, pending.key)
+    return true
+  }
+
+  const nextData = { ...block.data, [pending.key]: pending.value }
+  const previousBlocks = builderBlocks.value
+  pendingTextAutosave.value = null
+  replaceBuilderBlockLocal(block.id, { ...block, data: nextData })
+  const next = await applyBuilderOperation({
+    operation: 'edit',
+    blockId: block.id,
+    dataJson: JSON.stringify(nextData),
+  }, '', { contentId: pending.contentId, showSuccessToast: false })
+
+  if (!next) {
+    builderBlocks.value = previousBlocks
+    pendingTextAutosave.value = pending
+    return false
+  }
+
+  clearPreviewTextDraft(block.id, pending.key)
+  selectedBuilderBlockId.value = block.id
+  return true
+}
+
+async function selectEditorPage(value: string | number) {
+  const nextPageId = String(value)
+  if (nextPageId === selectedPageId.value || builderBusy.value) return
+  if (!await flushPendingTextAutosave(false)) return
+  selectedPageId.value = nextPageId
+}
+
+async function closeEditor() {
+  if (builderBusy.value) return
+  if (!await flushPendingTextAutosave(false)) return
+  emit('close')
 }
 
 function selectLibraryBlock(blockId: string) {
@@ -322,7 +462,11 @@ async function addBlockFromPicker(blockId: string) {
 async function saveBlockTextProperty(block: PageBuilderBlock, key: string, value: string) {
   selectPageBlock(block, false)
   const current = typeof block.data[key] === 'string' ? String(block.data[key]) : ''
-  if (current === value) return
+  if (current === value) {
+    cancelPendingTextAutosave(block.id, key)
+    return
+  }
+  cancelPendingTextAutosave(block.id, key)
   const nextData = { ...block.data, [key]: value }
   const previousBlocks = builderBlocks.value
   const previousDrafts = previewTextDrafts.value
@@ -427,6 +571,7 @@ async function confirmDeleteBlock() {
   const next = await applyBuilderOperation({ operation: 'delete', blockId: block.id }, tr('Sección eliminada', 'Section deleted'))
   if (!next) return
   clearPreviewTextDraft(block.id)
+  if (pendingTextAutosave.value?.blockId === block.id) cancelPendingTextAutosave(block.id)
   if (selectedBuilderBlockId.value === block.id) selectedBuilderBlockId.value = null
   deleteCandidate.value = null
 }
@@ -438,19 +583,34 @@ function openPreview() {
 
 watch(selectedPageId, (id) => void loadSelectedPage(id))
 onMounted(() => void loadPages())
+onBeforeUnmount(() => {
+  clearAutosaveTimer()
+  if (pendingTextAutosave.value && !builderBusy.value) void flushPendingTextAutosave(false)
+})
 </script>
 
 <template>
   <section class="visual-editor-shell">
     <header class="visual-editor-toolbar">
       <div class="flex min-w-0 flex-1 items-center gap-2">
-        <DhButton :label="tr('Páginas', 'Pages')" :icon="ArrowLeft" variant="ghost" size="sm" @click="emit('close')" />
+        <DhButton :label="tr('Páginas', 'Pages')" :icon="ArrowLeft" variant="ghost" size="sm" @click="closeEditor" />
         <span class="hidden h-7 w-px bg-[var(--dh-border)] sm:block" />
         <div class="min-w-0 flex-1 sm:max-w-sm">
-          <DhSelect v-if="!loadingPages && pageOptions.length" :model-value="selectedPageId" :options="pageOptions" placeholder="" @update:model-value="selectedPageId = String($event)" />
+          <DhSelect v-if="!loadingPages && pageOptions.length" :model-value="selectedPageId" :options="pageOptions" placeholder="" @update:model-value="selectEditorPage" />
           <DhSkeleton v-else height="2.75rem" rounded="md" />
         </div>
         <DhBadge v-if="page" class="hidden sm:inline-flex" :label="statusLabel" :variant="statusVariant" />
+        <span
+          v-if="page && saveState !== 'idle'"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--dh-border)] bg-[var(--dh-surface)] px-2.5 py-1 text-[11px] font-bold text-[var(--dh-text-muted)]"
+          role="status"
+          aria-live="polite"
+        >
+          <LoaderCircle v-if="saveState === 'saving'" class="h-3.5 w-3.5 animate-spin text-[var(--dh-primary)]" />
+          <Check v-else-if="saveState === 'saved'" class="h-3.5 w-3.5 text-emerald-500" />
+          <TriangleAlert v-else class="h-3.5 w-3.5 text-amber-500" />
+          <span>{{ saveStateLabel }}</span>
+        </span>
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <DhButton class="xl:hidden" :label="tr('Bloques', 'Blocks')" :icon="Blocks" variant="secondary" size="sm" @click="blocksDrawerOpen = true" />
