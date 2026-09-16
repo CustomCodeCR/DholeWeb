@@ -25,7 +25,7 @@ export const MARKETING_GROUPS = [
     items: [
       { key: 'content-pages', label: 'Páginas', icon: 'file', title: text('Páginas', 'Pages'), description: text('Cree y mantenga las páginas principales del sitio.', 'Create and maintain the main pages of the website.') },
       { key: 'content-news', label: 'Noticias', icon: 'news', title: text('Noticias', 'News'), description: text('Publique novedades y comunicados para sus visitantes.', 'Publish updates and announcements for visitors.') },
-      { key: 'content-posts', label: 'Posts', icon: 'file', title: text('Publicaciones', 'Posts'), description: text('Administre artículos y contenido editorial.', 'Manage articles and editorial content.') },
+      { key: 'content-posts', label: 'Artículos', icon: 'file', title: text('Artículos', 'Articles'), description: text('Administre artículos y contenido editorial.', 'Manage articles and editorial content.') },
       { key: 'content-videos', label: 'Videos', icon: 'media', title: text('Videos', 'Videos'), description: text('Organice contenido audiovisual publicado como contenido.', 'Organize audiovisual content published as content.') },
       { key: 'content-reusable', label: 'Bloques reutilizables', icon: 'blocks', title: text('Secciones reutilizables', 'Reusable sections'), description: text('Mantenga contenido que puede utilizarse en varias páginas.', 'Maintain content that can be reused across pages.') },
     ],
