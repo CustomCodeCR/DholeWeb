@@ -69,19 +69,25 @@ function patchRatesView(source: string) {
 function patchWizard(source: string) {
   let code = source
 
-  code = replaceOne(
-    code,
-    "import { useToastStore } from '@/core/stores/toastStore'\nimport { useModalStore } from '@/core/stores/modalStore'",
-    "import { useToastStore } from '@/core/stores/toastStore'\nimport { useModalStore } from '@/core/stores/modalStore'\nimport { useAuthStore } from '@/core/stores/authStore'\nimport { PRICING_SCOPES } from '@/core/auth/scopes'",
-    'wizard auth imports',
-  )
+  // pricingSellerOwnershipUi normally injects the auth store before this plugin.
+  // Keep this transform self-contained as a fallback without declaring it twice.
+  if (!code.includes("import { useAuthStore } from '@/core/stores/authStore'")) {
+    code = replaceOne(
+      code,
+      "import { useModalStore } from '@/core/stores/modalStore'",
+      "import { useModalStore } from '@/core/stores/modalStore'\nimport { useAuthStore } from '@/core/stores/authStore'",
+      'wizard auth import fallback',
+    )
+  }
 
-  code = replaceOne(
-    code,
-    "const router = useRouter()\nconst toastStore = useToastStore()\nconst modalStore = useModalStore()",
-    "const router = useRouter()\nconst toastStore = useToastStore()\nconst modalStore = useModalStore()\nconst authStore = useAuthStore()",
-    'wizard auth store',
-  )
+  if (!code.includes('const authStore = useAuthStore()')) {
+    code = replaceOne(
+      code,
+      'const modalStore = useModalStore()',
+      'const modalStore = useModalStore()\nconst authStore = useAuthStore()',
+      'wizard auth store fallback',
+    )
+  }
 
   code = replaceOne(
     code,
@@ -93,7 +99,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')",
-    "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))\nconst canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))\nconst canApproveCurrentRate = computed(() =>\n  canApproveLowMargin.value &&\n  editingRate.value?.status === 'PendingApproval' &&\n  Boolean(editingRate.value?.requiredApproval),\n)\nconst canOpenApprovedRate = computed(() =>\n  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',\n)\nconst canDownloadCurrentQuote = computed(() => {\n  const rate = editingRate.value\n  return Boolean(\n    rate &&\n    !rate.requiredApproval &&\n    !['PendingApproval', 'RejectedByManagement'].includes(rate.status),\n  )\n})\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')",
+    "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canApproveLowMargin = computed(() => authStore.hasScope('pricing.rate.approve-low-margin'))\nconst canUpdateRateStatus = computed(() => authStore.hasScope('pricing.rate.update'))\nconst canApproveCurrentRate = computed(() =>\n  canApproveLowMargin.value &&\n  editingRate.value?.status === 'PendingApproval' &&\n  Boolean(editingRate.value?.requiredApproval),\n)\nconst canOpenApprovedRate = computed(() =>\n  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',\n)\nconst canDownloadCurrentQuote = computed(() => {\n  const rate = editingRate.value\n  return Boolean(\n    rate &&\n    !rate.requiredApproval &&\n    !['PendingApproval', 'RejectedByManagement'].includes(rate.status),\n  )\n})\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')",
     'wizard approval computed state',
   )
 
