@@ -49,6 +49,10 @@ function toggleReason(code: string, checked: boolean) {
   if (!checked) form.reasonCodes = form.reasonCodes.filter((item) => item !== code)
 }
 
+function onReasonChange(code: string, event: Event) {
+  toggleReason(code, (event.target as HTMLInputElement | null)?.checked ?? false)
+}
+
 function buildImportFeedbackReason() {
   return JSON.stringify({
     confirmedAgainstSource: form.confirmedAgainstSource,
@@ -146,7 +150,7 @@ async function submit() {
               type="checkbox"
               class="h-4 w-4 rounded border-slate-300"
               :checked="form.reasonCodes.includes(item.code)"
-              @change="toggleReason(item.code, ($event.target as HTMLInputElement).checked)"
+              @change="onReasonChange(item.code, $event)"
             />
             <span>{{ item.label }}</span>
           </label>
