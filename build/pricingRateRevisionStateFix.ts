@@ -28,7 +28,7 @@ function patchWizard(source: string) {
     .filter(Boolean)
   const optionalDetailLines = details
     .filter((detail) => normalizeCatalogValue(String(detail.costType ?? '')) === 'optional')
-    .map((detail) => normalizeCatalogValue(`${detail.name} ${detail.notes ?? ''}`))
+    .map((detail) => normalizeCatalogValue(\`\${detail.name} \${detail.notes ?? ''}\`))
     .filter(Boolean)
   const serviceLines = services
     .map((service) => normalizeCatalogValue(\`\${service.code ?? ''} \${service.name ?? ''}\`))
