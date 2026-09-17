@@ -22,8 +22,8 @@ function replaceRegexOne(source: string, pattern: RegExp, replacement: string, l
 function patchWizard(source: string) {
   let code = source
 
-  // Editing resumes at screen 3 so route/POE context can be reviewed before selecting rates.
-  // Viewing remains freely navigable.
+  // Editing always resumes at screen 3 so route/POE/equipment can be reviewed before
+  // selecting a tariff. View-only keeps the persisted full-view screen.
   code = replaceOne(
     code,
     `    step.value = props.viewOnly ? 9 : 8`,
@@ -38,6 +38,17 @@ function patchWizard(source: string) {
     'edit next shortcut',
   )
 
+  // Existing-rate drafts must never overwrite the persisted tariff after hydration.
+  // A previous browser draft can contain stale booleans and even an invalid step (9/8).
+  if (code.includes(`const pricingDraftEnabled = computed(() => !props.viewOnly)`)) {
+    code = replaceOne(
+      code,
+      `const pricingDraftEnabled = computed(() => !props.viewOnly)`,
+      `const pricingDraftEnabled = computed(() => !props.viewOnly && !props.rateId)`,
+      'edit draft disable',
+    )
+  }
+
   // Several earlier compatibility plugins may adjust the comment/body around this helper.
   // Replace the complete function rather than depending on its historical exact text.
   code = replaceRegexOne(
@@ -47,24 +58,11 @@ function patchWizard(source: string) {
     'guided edit step navigation',
   )
 
-  // Another historical patch still injected a mandatory update reason. It is update-only
-  // behavior, so remove both the save guard and its UI while keeping the API-compatible field.
-  code = replaceOne(
-    code,
-    `      if (!updateReason.value.trim()) {\n        toastStore.error('Indique el motivo de la actualización de la tarifa.')\n        return\n      }\n`,
-    '',
-    'update reason save guard',
-  )
-
-  code = replaceRegexOne(
-    code,
-    /      <div v-if="!viewOnly" class="mt-4">\n\s*<label[^>]*>Motivo de actualización \*<\/label>\n\s*<textarea v-model="updateReason"[\s\S]*?<\/div>\n(?=\s*<div v-if="editingRate\.status === 'AcceptedByClient' && !viewOnly")/,
-    '',
-    'update reason panel',
-  )
+  // pricingRequirements20260908 injects the mandatory update-reason field, guard and
+  // payload. Do not remove them here: an edit must always explain why the rate changed.
 
   const hydrateAnchor = `async function hydrateExistingRate() {`
-  const hydrateHelpers = `function hydrateEditSelectionsFromRate(rate: RateDto) {\n  const subjectText = normalizeCatalogValue(rate.subjectTo ?? '')\n  const includesText = normalizeCatalogValue(rate.includes ?? '')\n  const details = rate.rateDetails ?? []\n  const detailTexts = details.map((detail) => normalizeCatalogValue(\`${'${detail.name} ${detail.notes ?? \'\'}'}\`))\n\n  form.dangerousCargo = detailTexts.some((text) =>\n    text.includes('carga peligrosa') || text.includes('dangerous') || text.includes('hazmat'),\n  ) || subjectText.includes('carga peligrosa') || subjectText.includes('dangerous') || subjectText.includes('hazmat')\n\n  form.nonStackable = subjectText.includes('no estibable')\n    || subjectText.includes('non stackable')\n    || subjectText.includes('nonstackable')\n\n  form.overweight = detailTexts.some((text) =>\n    text.includes('sobrepeso') || text.includes('sobre peso') || text.includes('overweight') || text.includes('over weight'),\n  ) || subjectText.includes('sobrepeso') || subjectText.includes('sobre peso') || subjectText.includes('overweight')\n\n  form.merchantHaulage = details.some((detail) => haulageAssociation({ name: detail.name }) === 'merchant')\n    || includesText.includes('merchant haulage')\n    || includesText.includes('inland gam merchant')\n\n  form.carrierHaulage = details.some((detail) => haulageAssociation({ name: detail.name }) === 'carrier')\n    || includesText.includes('carrier haulage')\n    || includesText.includes('inland gam naviera')\n\n  const hasAnticipado = detailTexts.some((text) => text.includes('anticipado') && !text.includes('redestino'))\n  const hasRedestino = detailTexts.some((text) => text.includes('redestino') && !text.includes('anticipado'))\n  form.portHandlingMode = hasAnticipado ? 'Anticipado' : hasRedestino ? 'Redestino' : ''\n}\n\nfunction relinkExistingDetailIdsForEdit() {\n  if (!editingRate.value || props.viewOnly) return\n\n  const remaining = [...editingRate.value.rateDetails]\n  const takeMatch = (line: RateLine) => {\n    let index = -1\n    if (line.costId) {\n      index = remaining.findIndex((detail) => detail.costId === line.costId)\n    }\n    if (index < 0) {\n      index = remaining.findIndex((detail) =>\n        detail.costDetailType === line.costDetailType\n        && normalizeCatalogValue(detail.name) === normalizeCatalogValue(line.name),\n      )\n    }\n    if (index < 0 && line.costDetailType === 'Freight') {\n      index = remaining.findIndex((detail) => detail.costDetailType === 'Freight')\n    }\n    if (index < 0) return null\n    const [match] = remaining.splice(index, 1)\n    return match\n  }\n\n  rateLines.value.forEach((line) => {\n    if (line.detailId) return\n    const match = takeMatch(line)\n    if (match) line.detailId = match.id\n  })\n}\n\n${hydrateAnchor}`
+  const hydrateHelpers = `function persistedEditTermLines(value?: string | null) {\n  return String(value ?? '')\n    .split(/\\r?\\n/)\n    .map((line) => normalizeCatalogValue(line))\n    .filter(Boolean)\n}\n\nfunction persistedEditTermContains(lines: string[], ...terms: string[]) {\n  const normalizedTerms = terms.map((term) => normalizeCatalogValue(term)).filter(Boolean)\n  return lines.some((line) => normalizedTerms.some((term) => line.includes(term)))\n}\n\nfunction hydrateEditSelectionsFromRate(rate: RateDto) {\n  // Only persisted commercial selections are authoritative here. Never infer Screen 4\n  // toggles from every RateDetail: configured optional costs can exist in the snapshot\n  // without having been selected by the user.\n  const subjectLines = persistedEditTermLines(rate.subjectTo)\n  const includeLines = persistedEditTermLines(rate.includes)\n\n  form.dangerousCargo = persistedEditTermContains(subjectLines, 'carga peligrosa', 'dangerous cargo', 'hazmat')\n  form.nonStackable = persistedEditTermContains(subjectLines, 'carga no estibable', 'non stackable', 'nonstackable')\n  form.overweight = persistedEditTermContains(subjectLines, 'sobrepeso', 'sobre peso', 'overweight', 'over weight')\n\n  const merchantSelected = persistedEditTermContains(includeLines, 'merchant haulage', 'inland gam merchant')\n  const carrierSelected = persistedEditTermContains(includeLines, 'carrier haulage', 'inland gam naviera')\n\n  // These controls are mutually exclusive. If legacy data contains both labels, do not\n  // invent a selection; let Pricing choose explicitly during the edit.\n  form.merchantHaulage = merchantSelected && !carrierSelected\n  form.carrierHaulage = carrierSelected && !merchantSelected\n\n  const hasAnticipado = persistedEditTermContains(includeLines, 'anticipado')\n  const hasRedestino = persistedEditTermContains(includeLines, 'redestino')\n  form.portHandlingMode = hasAnticipado === hasRedestino\n    ? ''\n    : hasAnticipado\n      ? 'Anticipado'\n      : 'Redestino'\n}\n\nfunction relinkExistingDetailIdsForEdit() {\n  if (!editingRate.value || props.viewOnly) return\n\n  const remaining = [...editingRate.value.rateDetails]\n  const takeMatch = (line: RateLine) => {\n    let index = -1\n    if (line.costId) {\n      index = remaining.findIndex((detail) => detail.costId === line.costId)\n    }\n    if (index < 0) {\n      index = remaining.findIndex((detail) =>\n        detail.costDetailType === line.costDetailType\n        && normalizeCatalogValue(detail.name) === normalizeCatalogValue(line.name),\n      )\n    }\n    if (index < 0 && line.costDetailType === 'Freight') {\n      index = remaining.findIndex((detail) => detail.costDetailType === 'Freight')\n    }\n    if (index < 0) return null\n    const [match] = remaining.splice(index, 1)\n    return match\n  }\n\n  rateLines.value.forEach((line) => {\n    if (line.detailId) return\n    const match = takeMatch(line)\n    if (match) line.detailId = match.id\n  })\n}\n\n${hydrateAnchor}`
   code = replaceOne(code, hydrateAnchor, hydrateHelpers, 'edit hydration helpers')
 
   code = replaceOne(
@@ -74,14 +72,15 @@ function patchWizard(source: string) {
     'screen 4 selection hydration',
   )
 
-  // The commercial-terms plugin expands the original step watcher. Insert a dedicated
-  // edit watcher before it so the rebuilt create-flow lines retain their persisted IDs.
+  // The commercial-terms plugin expands the original step watcher. Insert dedicated edit
+  // guards before it: one keeps persisted detail IDs, the other guarantees that hydration
+  // finishes on Screen 3 even if older runtime/draft code attempted to restore another step.
   const stepWatchAnchor = `watch(step, (value) => {`
   code = replaceOne(
     code,
     stepWatchAnchor,
-    `watch(step, (value) => {\n  if (value === 7 && props.rateId && !props.viewOnly) {\n    relinkExistingDetailIdsForEdit()\n  }\n})\n\n${stepWatchAnchor}`,
-    'screen 7 detail relinking',
+    `watch(loadingExistingRate, (loading) => {\n  if (!loading && props.rateId && !props.viewOnly && editingRate.value) {\n    step.value = 3\n  }\n})\n\nwatch(step, (value) => {\n  if (value === 7 && props.rateId && !props.viewOnly) {\n    relinkExistingDetailIdsForEdit()\n  }\n})\n\n${stepWatchAnchor}`,
+    'edit hydration and screen 7 guards',
   )
 
   return code
@@ -107,7 +106,7 @@ function patchRatesView(source: string) {
   code = replaceRegexOne(
     code,
     /function openEdit\(rate: RateDto\) \{[\s\S]*?router\.push\(\{ name: 'pricing-rate-wizard', params: \{ rateId: rate\.id \}, query: \{ mode: 'edit' \} \}\)\n\}/,
-    `function openEdit(rate: RateDto) {\n  if (!canUpdateRate(rate)) {\n    toastStore.warning('Permiso requerido', 'Necesita permiso para actualizar tarifas.')\n    return\n  }\n  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })\n}`,
+    `function openEdit(rate: RateDto) {\n  if (!canUpdateRate(rate)) {\n    toastStore.warning('Permiso requerido', 'Necesita permiso para actualizar tarifas.')\n    return\n  }\n  toastStore.info('Actualización de tarifa', 'Debe indicar el motivo del cambio antes de guardar.')\n  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })\n}`,
     'rate edit action',
   )
 
@@ -117,8 +116,6 @@ function patchRatesView(source: string) {
 export function pricingRateEditCreateParity(): Plugin {
   return {
     name: 'dhole-pricing-rate-edit-create-parity',
-    // Intentionally normal (not pre): all historical Pricing patches run first, then this
-    // final compatibility layer removes edit-only behavior before Vue compiles the SFC.
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replace(/\\/g, '/').split('?')[0]
