@@ -65,6 +65,7 @@ import { pricingWizardStep4NavigationHardFix } from './build/pricingWizardStep4N
 import { pricingWizardManualFreightFinalUx } from './build/pricingWizardManualFreightFinalUx'
 import { pricingApprovalWorkflowStable } from './build/pricingApprovalWorkflowStable'
 import { pricingWizardPanamaContinuation } from './build/pricingWizardPanamaContinuation'
+import { pricingDuplicateRateRefreshWorkflow } from './build/pricingDuplicateRateRefreshWorkflow'
 
 export default defineConfig({
   plugins: [
@@ -129,6 +130,7 @@ export default defineConfig({
     pricingWizardManualFreightFinalUx(),
     pricingApprovalWorkflowStable(),
     pricingWizardPanamaContinuation(),
+    pricingDuplicateRateRefreshWorkflow(),
     vue(),
     tailwindcss(),
   ],
