@@ -37,7 +37,7 @@ async function submit() {
 
     toastStore.success(
       'Tarifa duplicada',
-      'Se creó una nueva tarifa y se abrirá para revisarla con el flujo actual antes de utilizarla.',
+      'La copia conserva la ruta y la vigencia seleccionada. Ahora debe escoger un flete marítimo vigente y Dhole recargará los cargos y recargos actuales.',
     )
     modalStore.close()
     await props.onDuplicated?.(duplicatedRateId)
@@ -59,7 +59,7 @@ async function submit() {
         <div class="min-w-0">
           <p class="text-base font-black text-[var(--dh-text)]">Duplicar y revisar</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            Se conserva la configuración, ruta y líneas de la tarifa actual. La copia se abrirá inmediatamente en el flujo de edición por pasos para revisar los datos antes de usarla.
+            Se conserva la configuración general y la ruta. Puede definir una nueva vigencia; para FCL deberá seleccionar nuevamente el flete marítimo y Dhole actualizará los cargos y recargos con la configuración vigente.
           </p>
         </div>
       </div>
