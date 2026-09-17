@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
-import { Copy, FileSearch2, Route } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Copy, FileSearch2, RefreshCw, Route, Ship } from 'lucide-vue-next'
 import { DhButton, DhInput } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
 import { useModalStore } from '@/core/stores/modalStore'
@@ -13,6 +14,7 @@ const props = defineProps<{
   onDuplicated?: (rateId: string) => void | Promise<void>
 }>()
 
+const router = useRouter()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
 const form = reactive({
@@ -23,6 +25,8 @@ const form = reactive({
 })
 
 const validRange = computed(() => Boolean(form.validFrom && form.validTo && form.validTo >= form.validFrom))
+const isFcl = computed(() => String(props.rate.shipmentMode ?? '').trim().toLowerCase() === 'fcl')
+const submitLabel = computed(() => isFcl.value ? 'Duplicar y escoger flete' : 'Duplicar y revisar')
 
 async function submit() {
   form.submitted = true
@@ -37,10 +41,23 @@ async function submit() {
 
     toastStore.success(
       'Tarifa duplicada',
-      'La copia conserva la ruta y la vigencia seleccionada. Ahora debe escoger un flete marítimo vigente y Dhole recargará los cargos y recargos actuales.',
+      isFcl.value
+        ? 'La nueva vigencia quedó guardada. Debe seleccionar un flete marítimo vigente; luego Dhole recargará cargos y recargos con la configuración actual.'
+        : 'La copia conserva la ruta y la nueva vigencia y se abrirá para revisión.',
     )
     modalStore.close()
+
+    // El modal garantiza la navegación aunque el listado/drawer no inyecte callback.
+    // Para FCL duplicateReview obliga al wizard a ir a Tarifa, descartar el flete anterior
+    // y reconstruir cargos/recargos después de seleccionar el nuevo flete.
     await props.onDuplicated?.(duplicatedRateId)
+    await router.push({
+      name: 'pricing-rate-wizard',
+      params: { rateId: duplicatedRateId },
+      query: isFcl.value
+        ? { mode: 'edit', duplicateReview: '1' }
+        : { mode: 'edit' },
+    })
   } catch (error) {
     toastStore.backendError(error, 'No se pudo duplicar la tarifa.')
   } finally {
@@ -59,7 +76,7 @@ async function submit() {
         <div class="min-w-0">
           <p class="text-base font-black text-[var(--dh-text)]">Duplicar y revisar</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            Se conserva la configuración general y la ruta. Puede definir una nueva vigencia; para FCL deberá seleccionar nuevamente el flete marítimo y Dhole actualizará los cargos y recargos con la configuración vigente.
+            Se conserva la configuración general y la ruta. Puede definir una nueva vigencia sin reutilizar datos comerciales que pueden haber cambiado.
           </p>
         </div>
       </div>
@@ -70,6 +87,21 @@ async function submit() {
         </div>
         <p class="mt-2 text-sm font-black text-[var(--dh-text)]">{{ rateDisplayName(rate) }}</p>
         <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ routeLabel(rate) }}</p>
+      </div>
+
+      <div v-if="isFcl" class="mt-4 grid gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+        <div class="flex items-start gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2.5">
+          <FileSearch2 class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+          <span>La vigencia de la copia será la que indique abajo.</span>
+        </div>
+        <div class="flex items-start gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2.5">
+          <Ship class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+          <span>El flete marítimo anterior no se reutiliza: deberá escoger uno vigente con disponibilidad.</span>
+        </div>
+        <div class="flex items-start gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2.5">
+          <RefreshCw class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+          <span>Al escoger el nuevo flete se vuelven a consultar los cargos y recargos vigentes.</span>
+        </div>
       </div>
     </section>
 
@@ -104,7 +136,7 @@ async function submit() {
       />
       <DhButton
         type="submit"
-        label="Duplicar y revisar"
+        :label="submitLabel"
         :icon="Copy"
         :loading="form.saving"
       />
