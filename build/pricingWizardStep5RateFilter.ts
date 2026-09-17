@@ -8,6 +8,21 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
   return source.replace(anchor, replacement)
 }
 
+function replaceOneOf(
+  source: string,
+  variants: Array<{ anchor: string; replacement: string }>,
+  label: string,
+) {
+  for (const variant of variants) {
+    const count = source.split(variant.anchor).length - 1
+    if (count === 1) return source.replace(variant.anchor, variant.replacement)
+    if (count > 1) {
+      throw new Error(`[pricingWizardStep5RateFilter] Expected one ${label}, found ${count}.`)
+    }
+  }
+  throw new Error(`[pricingWizardStep5RateFilter] Expected one ${label}, found 0.`)
+}
+
 function replaceMany(source: string, anchor: string, replacement: string, expected: number, label: string) {
   const count = source.split(anchor).length - 1
   if (count !== expected) throw new Error(`[pricingWizardStep5RateFilter] Expected ${expected} ${label}, found ${count}.`)
@@ -33,24 +48,50 @@ function patchWizard(source: string) {
     'rate carrier filter state',
   )
 
-  code = replaceOne(
+  const enhancedSorting = `const rateCarrierFilterOptions = computed(() => {\n  const carriers = new Map<string, string>()\n  availableRates.value.forEach((rate) => {\n    const value = String(rate.carrierId ?? '').trim()\n    const label = String(rate.carrier ?? '').trim()\n    if (value && label && !carriers.has(value)) carriers.set(value, label)\n  })\n\n  return [\n    { value: '', label: 'Todas las navieras' },\n    ...[...carriers.entries()]\n      .sort((left, right) => left[1].localeCompare(right[1], 'es'))\n      .map(([value, label]) => ({ value, label })),\n  ]\n})\n\nfunction screen5ImportStatusRank(status: ImportRateSelectDto['status']) {\n  if (status === 'Approved') return 0\n  if (status === 'PreAuthorized') return 1\n  return 2\n}\n\nconst sortedAvailableRates = computed(() =>\n  [...availableRates.value]\n    .filter((rate) => !rateCarrierFilter.value || rate.carrierId === rateCarrierFilter.value)\n    .sort((left, right) => {\n      const status = screen5ImportStatusRank(left.status) - screen5ImportStatusRank(right.status)\n      if (status !== 0) return status\n      const validityDays = remainingValidityDays(right.validTo) - remainingValidityDays(left.validTo)\n      if (validityDays !== 0) return validityDays\n      const validityDate = new Date(right.validTo).getTime() - new Date(left.validTo).getTime()\n      if (validityDate !== 0) return validityDate\n      const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)\n      if (comment !== 0) return comment\n      const price = number(left.freight) - number(right.freight)\n      if (price !== 0) return price\n      return String(left.carrier ?? '').localeCompare(String(right.carrier ?? ''), 'es')\n    }),\n)`
+
+  code = replaceOneOf(
     code,
-    `const sortedAvailableRates = computed(() =>\n  [...availableRates.value].sort((left, right) => {\n    const price = number(left.freight) - number(right.freight)\n    if (price !== 0) return price\n    const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)\n    if (comment !== 0) return comment\n    return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()\n  }),\n)`,
-    `const rateCarrierFilterOptions = computed(() => {\n  const carriers = new Map<string, string>()\n  availableRates.value.forEach((rate) => {\n    const value = String(rate.carrierId ?? '').trim()\n    const label = String(rate.carrier ?? '').trim()\n    if (value && label && !carriers.has(value)) carriers.set(value, label)\n  })\n\n  return [\n    { value: '', label: 'Todas las navieras' },\n    ...[...carriers.entries()]\n      .sort((left, right) => left[1].localeCompare(right[1], 'es'))\n      .map(([value, label]) => ({ value, label })),\n  ]\n})\n\nfunction screen5ImportStatusRank(status: ImportRateSelectDto['status']) {\n  if (status === 'Approved') return 0\n  if (status === 'PreAuthorized') return 1\n  return 2\n}\n\nconst sortedAvailableRates = computed(() =>\n  [...availableRates.value]\n    .filter((rate) => !rateCarrierFilter.value || rate.carrierId === rateCarrierFilter.value)\n    .sort((left, right) => {\n      const status = screen5ImportStatusRank(left.status) - screen5ImportStatusRank(right.status)\n      if (status !== 0) return status\n      const validityDays = remainingValidityDays(right.validTo) - remainingValidityDays(left.validTo)\n      if (validityDays !== 0) return validityDays\n      const validityDate = new Date(right.validTo).getTime() - new Date(left.validTo).getTime()\n      if (validityDate !== 0) return validityDate\n      const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)\n      if (comment !== 0) return comment\n      const price = number(left.freight) - number(right.freight)\n      if (price !== 0) return price\n      return String(left.carrier ?? '').localeCompare(String(right.carrier ?? ''), 'es')\n    }),\n)`,
+    [
+      {
+        anchor: `const sortedAvailableRates = computed(() =>\n  [...availableRates.value].sort((left, right) => {\n    const price = number(left.freight) - number(right.freight)\n    if (price !== 0) return price\n    const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)\n    if (comment !== 0) return comment\n    return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()\n  }),\n)`,
+        replacement: enhancedSorting,
+      },
+      {
+        anchor: `const sortedAvailableRates = computed(() => sortImportRates(availableRates.value))\nconst sortedContinuationRates = computed(() => sortImportRates(continuationRates.value))`,
+        replacement: `${enhancedSorting}\nconst sortedContinuationRates = computed(() => sortImportRates(continuationRates.value))`,
+      },
+    ],
     'available rate sorting',
   )
 
-  code = replaceOne(
+  code = replaceOneOf(
     code,
-    `async function searchApprovedRates() {\n  availableRates.value = []\n  form.selectedImportRateId = ''`,
-    `async function searchApprovedRates() {\n  availableRates.value = []\n  rateCarrierFilter.value = ''\n  form.selectedImportRateId = ''`,
+    [
+      {
+        anchor: `async function searchApprovedRates() {\n  availableRates.value = []\n  form.selectedImportRateId = ''`,
+        replacement: `async function searchApprovedRates() {\n  availableRates.value = []\n  rateCarrierFilter.value = ''\n  form.selectedImportRateId = ''`,
+      },
+      {
+        anchor: `async function searchApprovedRates() {\n  availableRates.value = []\n  continuationRates.value = []\n  form.selectedImportRateId = ''`,
+        replacement: `async function searchApprovedRates() {\n  availableRates.value = []\n  rateCarrierFilter.value = ''\n  continuationRates.value = []\n  form.selectedImportRateId = ''`,
+      },
+    ],
     'approved rate search reset',
   )
 
-  code = replaceOne(
+  code = replaceOneOf(
     code,
-    `  availableRates.value = []\n  rateLines.value = []`,
-    `  availableRates.value = []\n  rateCarrierFilter.value = ''\n  rateLines.value = []`,
+    [
+      {
+        anchor: `  availableRates.value = []\n  rateLines.value = []`,
+        replacement: `  availableRates.value = []\n  rateCarrierFilter.value = ''\n  rateLines.value = []`,
+      },
+      {
+        anchor: `  availableRates.value = []\n  continuationRates.value = []\n  panamaLandFreightAmount.value = 0\n  rateLines.value = []`,
+        replacement: `  availableRates.value = []\n  rateCarrierFilter.value = ''\n  continuationRates.value = []\n  panamaLandFreightAmount.value = 0\n  rateLines.value = []`,
+      },
+    ],
     'wizard reset',
   )
 
