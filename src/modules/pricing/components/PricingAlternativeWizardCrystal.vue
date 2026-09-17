@@ -754,6 +754,37 @@ function warehouseAddress(item: CatalogItemSelectDto | null | undefined) {
   return String(meta?.address ?? displayValue(item) ?? item?.label ?? '').trim()
 }
 
+function resolvePersistedWarehouseId(rate: RateDto) {
+  const persistedId = String(rate.warehouseId ?? '').trim()
+  if (persistedId && catalogs.warehouses.some((warehouse) => warehouse.id === persistedId)) {
+    return persistedId
+  }
+
+  const persistedAddress = normalizeCatalogValue(String(rate.pickupAddress ?? ''))
+  if (persistedAddress) {
+    const byAddress = catalogs.warehouses.find(
+      (warehouse) => normalizeCatalogValue(warehouseAddress(warehouse)) === persistedAddress,
+    )
+    if (byAddress) return byAddress.id
+  }
+
+  const latitude = Number(rate.pickupLatitude)
+  const longitude = Number(rate.pickupLongitude)
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    const byCoordinates = catalogs.warehouses.find((warehouse) => {
+      const warehouseLatitude = metadataNumber(warehouse, 'latitude', 'lat')
+      const warehouseLongitude = metadataNumber(warehouse, 'longitude', 'lng')
+      return warehouseLatitude != null
+        && warehouseLongitude != null
+        && Math.abs(warehouseLatitude - latitude) <= 0.0001
+        && Math.abs(warehouseLongitude - longitude) <= 0.0001
+    })
+    if (byCoordinates) return byCoordinates.id
+  }
+
+  return ''
+}
+
 const pickupCoordinates = computed(() => {
   if (form.pickupLatitude == null || form.pickupLongitude == null) return null
   return { latitude: form.pickupLatitude, longitude: form.pickupLongitude }
@@ -2358,6 +2389,9 @@ async function hydrateExistingRate() {
     form.pickupAddress = rate.pickupAddress ?? ''
     form.pickupLatitude = rate.pickupLatitude ?? null
     form.pickupLongitude = rate.pickupLongitude ?? null
+    // Tarifas nuevas persisten WarehouseId. Para tarifas históricas, resolver por
+    // dirección/coordenadas evita que una revisión FCA pierda el WHS seleccionado.
+    form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
     form.freeDays = Number(rate.freeDays || 0)
     form.transitDays = transitDaysFrom(rate.transitTime)
     form.agentId = rate.agentId ?? ''
@@ -2709,6 +2743,7 @@ async function saveOpenRequest() {
       incotermId: incoterm.id,
       incotermName: displayValue(incoterm),
       incotermCode: incoterm.code,
+      warehouseId: selectedIncotermCode.value === 'FCA' ? form.warehouseId || null : null,
       pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
       pickupLatitude: form.pickupLatitude,
       pickupLongitude: form.pickupLongitude,
@@ -2939,6 +2974,7 @@ async function saveRate() {
       incotermId: incoterm!.id,
       incotermName: displayValue(incoterm),
       incotermCode: incoterm!.code,
+      warehouseId: selectedIncotermCode.value === 'FCA' ? form.warehouseId || null : null,
       pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
       pickupLatitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLatitude : null,
       pickupLongitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLongitude : null,
