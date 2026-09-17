@@ -11,12 +11,26 @@ export function pricingRequirements20260908PreCompat(): Plugin {
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
 
+      let code = source
+
+      // The Panama prebuild script materializes a local helper before Vite starts,
+      // while pricingRequirements20260908 still owns the canonical route helper.
+      // Rename only the prebuilt declaration so the requirements transform can add
+      // its canonical function without producing a duplicate identifier in Vue SFC.
+      const prebuiltPanamaHelper = `function isMultimodalViaPanama(item?: CatalogItemSelectDto | null) {`
+      if (code.includes(prebuiltPanamaHelper)) {
+        code = code.replace(
+          prebuiltPanamaHelper,
+          `function isMultimodalViaPanamaPrebuild(item?: CatalogItemSelectDto | null) {`,
+        )
+      }
+
       const shipmentAnchor = `              <span class="block text-lg font-black">{{ option.label }}</span>\n              <Check v-if="form.shipmentMode === option.value"`
-      if (!source.includes(shipmentAnchor)) {
+      if (!code.includes(shipmentAnchor)) {
         throw new Error('[pricingRequirements20260908PreCompat] Shipment mode label anchor was not found after the September UI transformations.')
       }
 
-      let code = source.replace(
+      code = code.replace(
         shipmentAnchor,
         `              <span class="text-lg font-black">{{ option.label }}</span>\n              <Check v-if="form.shipmentMode === option.value"`,
       )
