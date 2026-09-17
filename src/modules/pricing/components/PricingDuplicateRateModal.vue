@@ -17,16 +17,24 @@ const props = defineProps<{
 const router = useRouter()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
+
+function todayInputDate() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 10)
+}
+
+const isFcl = computed(() => String(props.rate.shipmentMode ?? '').trim().toLowerCase() === 'fcl')
+const today = todayInputDate()
 const form = reactive({
-  validFrom: toDateInput(props.rate.validFrom),
-  validTo: toDateInput(props.rate.validTo),
+  validFrom: isFcl.value ? today : toDateInput(props.rate.validFrom),
+  validTo: isFcl.value ? today : toDateInput(props.rate.validTo),
   submitted: false,
   saving: false,
 })
 
 const validRange = computed(() => Boolean(form.validFrom && form.validTo && form.validTo >= form.validFrom))
-const isFcl = computed(() => String(props.rate.shipmentMode ?? '').trim().toLowerCase() === 'fcl')
-const submitLabel = computed(() => isFcl.value ? 'Duplicar y escoger flete' : 'Duplicar y revisar')
+const submitLabel = computed(() => isFcl.value ? 'Continuar a escoger flete' : 'Duplicar y revisar')
 
 async function submit() {
   form.submitted = true
@@ -34,6 +42,24 @@ async function submit() {
 
   try {
     form.saving = true
+
+    if (isFcl.value) {
+      // Una duplicación FCL aprobada funciona como una nueva cotización SPOT basada en la
+      // anterior. Todavía no se crea ningún RateHeader: el wizard rehidrata la pantalla 3 y 4
+      // desde la tarifa fuente, abre directamente la pantalla 5 y crea la nueva tarifa al final.
+      modalStore.close()
+      await router.push({
+        name: 'pricing',
+        query: {
+          duplicateReview: '1',
+          duplicateFrom: props.rate.id,
+          validFrom: form.validFrom,
+          validTo: form.validTo,
+        },
+      })
+      return
+    }
+
     const duplicatedRateId = await PricingService.duplicateRate(props.rate.id, {
       validFrom: form.validFrom,
       validTo: form.validTo,
@@ -41,25 +67,17 @@ async function submit() {
 
     toastStore.success(
       'Tarifa duplicada',
-      isFcl.value
-        ? 'La nueva vigencia quedó guardada. Debe seleccionar un flete marítimo vigente; luego Dhole recargará cargos y recargos con la configuración actual.'
-        : 'La copia conserva la ruta y la nueva vigencia y se abrirá para revisión.',
+      'La copia conserva la ruta y la nueva vigencia y se abrirá para revisión.',
     )
     modalStore.close()
-
-    // El modal garantiza la navegación aunque el listado/drawer no inyecte callback.
-    // Para FCL duplicateReview obliga al wizard a ir a Tarifa, descartar el flete anterior
-    // y reconstruir cargos/recargos después de seleccionar el nuevo flete.
     await props.onDuplicated?.(duplicatedRateId)
     await router.push({
       name: 'pricing-rate-wizard',
       params: { rateId: duplicatedRateId },
-      query: isFcl.value
-        ? { mode: 'edit', duplicateReview: '1' }
-        : { mode: 'edit' },
+      query: { mode: 'edit' },
     })
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo duplicar la tarifa.')
+    toastStore.backendError(error, 'No se pudo preparar la nueva tarifa.')
   } finally {
     form.saving = false
   }
@@ -76,7 +94,12 @@ async function submit() {
         <div class="min-w-0">
           <p class="text-base font-black text-[var(--dh-text)]">Duplicar y revisar</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            Se conserva la configuración general y la ruta. Puede definir una nueva vigencia sin reutilizar datos comerciales que pueden haber cambiado.
+            <template v-if="isFcl">
+              Se copiarán la ruta, el equipo y los datos de carga de la tarifa anterior. La nueva tarifa todavía no se crea: se abrirá directamente en pantalla 5 para escoger el flete vigente.
+            </template>
+            <template v-else>
+              Se conserva la configuración general y la ruta. Puede definir una nueva vigencia antes de revisar la copia.
+            </template>
           </p>
         </div>
       </div>
@@ -92,15 +115,15 @@ async function submit() {
       <div v-if="isFcl" class="mt-4 grid gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
         <div class="flex items-start gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2.5">
           <FileSearch2 class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
-          <span>La vigencia de la copia será la que indique abajo.</span>
+          <span>La vigencia inicia como SPOT: hoy a hoy. Puede cambiarla antes de continuar.</span>
         </div>
         <div class="flex items-start gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2.5">
           <Ship class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
-          <span>El flete marítimo anterior no se reutiliza: deberá escoger uno vigente con disponibilidad.</span>
+          <span>El flete marítimo anterior no se reutiliza: en pantalla 5 deberá escoger uno vigente con disponibilidad.</span>
         </div>
         <div class="flex items-start gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2.5">
           <RefreshCw class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
-          <span>Al escoger el nuevo flete se vuelven a consultar los cargos y recargos vigentes.</span>
+          <span>Al escoger el nuevo flete se vuelven a consultar los cargos y recargos vigentes antes de crear la tarifa.</span>
         </div>
       </div>
     </section>
