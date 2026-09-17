@@ -107,7 +107,7 @@ export function pricingRateRevisionStateFix(): Plugin {
     name: 'dhole-pricing-rate-revision-state-fix',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
       return { code: patchWizard(source), map: null }
     },
