@@ -92,8 +92,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')\nconst canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))",
-    "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))\nconst canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))\nconst canApproveCurrentRate = computed(() =>\n  canApproveLowMargin.value &&\n  editingRate.value?.status === 'PendingApproval' &&\n  Boolean(editingRate.value?.requiredApproval),\n)\nconst canOpenApprovedRate = computed(() =>\n  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',\n)\nconst canDownloadCurrentQuote = computed(() => {\n  const rate = editingRate.value\n  return Boolean(\n    rate &&\n    !rate.requiredApproval &&\n    !['PendingApproval', 'RejectedByManagement'].includes(rate.status),\n  )\n})\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')\nconst canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))",
+    "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')",
+    "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))\nconst canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))\nconst canApproveCurrentRate = computed(() =>\n  canApproveLowMargin.value &&\n  editingRate.value?.status === 'PendingApproval' &&\n  Boolean(editingRate.value?.requiredApproval),\n)\nconst canOpenApprovedRate = computed(() =>\n  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',\n)\nconst canDownloadCurrentQuote = computed(() => {\n  const rate = editingRate.value\n  return Boolean(\n    rate &&\n    !rate.requiredApproval &&\n    !['PendingApproval', 'RejectedByManagement'].includes(rate.status),\n  )\n})\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')",
     'wizard approval computed state',
   )
 
@@ -180,7 +180,8 @@ export function pricingApprovalWorkflowFix(): Plugin {
     name: 'dhole-pricing-approval-workflow-fix',
     enforce: 'pre',
     transform(source, id) {
-      const path = id.split('?')[0].replaceAll('\\', '/')
+      if (id.includes('?')) return null
+      const path = id.replaceAll('\\', '/').split('?')[0]
       if (path.endsWith(RATES_VIEW_PATH)) return patchRatesView(source)
       if (path.endsWith(WIZARD_PATH)) return patchWizard(source)
       if (path.endsWith(DETAIL_DRAWER_PATH)) return patchDetailDrawer(source)
