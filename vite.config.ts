@@ -61,6 +61,7 @@ import { pricingWizardManualRatesVisibilityFix } from './build/pricingWizardManu
 import { pricingWizardStep4NavigationHardFix } from './build/pricingWizardStep4NavigationHardFix'
 import { pricingWizardManualFreightFinalUx } from './build/pricingWizardManualFreightFinalUx'
 import { pricingApprovalWorkflowStable } from './build/pricingApprovalWorkflowStable'
+import { pricingWizardPanamaContinuationCompat } from './build/pricingWizardPanamaContinuationCompat'
 import { pricingWizardPanamaContinuation } from './build/pricingWizardPanamaContinuation'
 import { pricingDuplicateRateRefreshWorkflow } from './build/pricingDuplicateRateRefreshWorkflow'
 
@@ -126,6 +127,7 @@ export default defineConfig({
     pricingWizardStep4NavigationHardFix(),
     pricingWizardManualFreightFinalUx(),
     pricingApprovalWorkflowStable(),
+    pricingWizardPanamaContinuationCompat(),
     pricingWizardPanamaContinuation(),
     pricingDuplicateRateRefreshWorkflow(),
     vue(),
