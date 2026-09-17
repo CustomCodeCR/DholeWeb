@@ -54,8 +54,40 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `const router = useRouter()`,
-    `const route = useRoute()\nconst router = useRouter()\nconst refreshingDuplicatedRate = computed(() => route.query.duplicateReview === '1')`,
+    `const route = useRoute()\nconst router = useRouter()\nconst refreshingDuplicatedRate = computed(() => route.query.duplicateReview === '1')\nconst duplicateSourceRateId = computed(() => typeof route.query.duplicateFrom === 'string' ? route.query.duplicateFrom : '')\nconst duplicateValidFrom = computed(() => typeof route.query.validFrom === 'string' ? route.query.validFrom : '')\nconst duplicateValidTo = computed(() => typeof route.query.validTo === 'string' ? route.query.validTo : '')\nconst creatingFromDuplicate = computed(() =>\n  refreshingDuplicatedRate.value && Boolean(duplicateSourceRateId.value) && !props.rateId,\n)`,
     'wizard duplicate review state',
+  )
+
+  code = replaceOne(
+    code,
+    `async function hydrateExistingRate() {\n  if (!props.rateId) return`,
+    `async function hydrateExistingRate() {\n  const rateToHydrateId = duplicateSourceRateId.value || props.rateId\n  if (!rateToHydrateId) return`,
+    'duplicate source hydration entry',
+  )
+
+  code = replaceOne(
+    code,
+    `      PricingService.getRate(props.rateId),\n      PricingService.getRateRevisions(props.rateId).catch(() => [] as RateRevisionDto[]),`,
+    `      PricingService.getRate(rateToHydrateId),\n      PricingService.getRateRevisions(rateToHydrateId).catch(() => [] as RateRevisionDto[]),`,
+    'duplicate source fetch',
+  )
+
+  code = replaceOne(
+    code,
+    `    editingRate.value = rate\n    rateRevisions.value = revisions`,
+    `    editingRate.value = creatingFromDuplicate.value ? null : rate\n    rateRevisions.value = creatingFromDuplicate.value ? [] : revisions`,
+    'duplicate create hydration state',
+  )
+
+  if (code.includes(`    await loadRateComments(props.rateId)`)) {
+    code = code.replace(`    await loadRateComments(props.rateId)`, `    await loadRateComments(rateToHydrateId)`)
+  }
+
+  code = replaceOne(
+    code,
+    `    form.loadDate = String(rate.validFrom).slice(0,10)\n    form.validTo = String(rate.validTo).slice(0,10)\n    form.selectedImportRateId = rate.sourceImportFclRateId ?? ''\n    form.manualRate = !rate.sourceImportFclRateId`,
+    `    form.loadDate = creatingFromDuplicate.value\n      ? (duplicateValidFrom.value || todayIso())\n      : String(rate.validFrom).slice(0,10)\n    form.validTo = creatingFromDuplicate.value\n      ? (duplicateValidTo.value || form.loadDate)\n      : String(rate.validTo).slice(0,10)\n    form.selectedImportRateId = creatingFromDuplicate.value ? '' : (rate.sourceImportFclRateId ?? '')\n    form.manualRate = creatingFromDuplicate.value ? false : !rate.sourceImportFclRateId`,
+    'duplicate SPOT validity and freight reset',
   )
 
   const hydrationStepAnchor = code.includes(`    step.value = props.viewOnly ? 9 : 0`)
@@ -65,7 +97,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     hydrationStepAnchor,
-    `    if (refreshingDuplicatedRate.value && rate.shipmentMode === 'Fcl') {\n      // Una tarifa duplicada conserva la ruta y la vigencia solicitada, pero no reutiliza\n      // el flete anterior. Se consulta nuevamente el pool vigente para esa fecha/ruta/equipo.\n      form.selectedImportRateId = ''\n      form.manualRate = false\n      form.freightCost = 0\n      form.freightSale = 0\n      form.freeDays = 0\n      form.transitDays = 0\n      rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight')\n      await searchApprovedRates()\n      form.manualRate = false\n      step.value = 5\n      toastStore.info(\n        'Seleccione un flete marítimo actualizado',\n        'La vigencia se conserva, pero debe escoger nuevamente el flete. Los cargos y recargos se cargarán con la configuración vigente.',\n      )\n    } else {\n${hydrationStepAnchor}\n    }`,
+    `    if (refreshingDuplicatedRate.value && rate.shipmentMode === 'Fcl') {\n      // La tarifa fuente solo sirve para prellenar la configuración previa al flete.\n      // No se conserva ningún snapshot comercial de pantalla 5 en adelante.\n      form.selectedImportRateId = ''\n      form.manualRate = false\n      form.freightCost = 0\n      form.freightSale = 0\n      form.freeDays = 0\n      form.transitDays = 0\n      form.agentId = ''\n      form.carrierId = ''\n      rateLines.value = []\n      await searchApprovedRates()\n      form.manualRate = false\n      step.value = 5\n      toastStore.info(\n        'Seleccione el nuevo flete marítimo',\n        creatingFromDuplicate.value\n          ? 'Se copiaron la ruta, el equipo y los datos de carga. La nueva tarifa todavía no existe; seleccione el flete vigente para continuar y crearla al final.'\n          : 'Debe escoger nuevamente el flete vigente. Los cargos y recargos se reconstruirán con la configuración actual.',\n      )\n    } else {\n${hydrationStepAnchor}\n    }`,
     'wizard hydration navigation',
   )
 
@@ -85,7 +117,7 @@ function patchWizard(source: string) {
   chooseBlock = replaceOne(
     chooseBlock,
     `  if (currency) form.currencyId = currency.id`,
-    `  if (currency) form.currencyId = currency.id\n\n  if (refreshingDuplicatedRate.value) {\n    // Descartar snapshots automáticos de la copia y reconstruirlos contra Costs vigente.\n    // Los rubros manuales no relacionados al flete sí se conservan.\n    const preservedManualLines = rateLines.value.filter(\n      (line) => line.manual && line.costDetailType !== 'Freight',\n    )\n    await loadApplicableCosts()\n    rebuildRateLines()\n    for (const manualLine of preservedManualLines) {\n      const alreadyPresent = rateLines.value.some((line) =>\n        line.costDetailType === manualLine.costDetailType\n        && normalizeCatalogValue(line.name) === normalizeCatalogValue(manualLine.name),\n      )\n      if (!alreadyPresent) rateLines.value.push(manualLine)\n    }\n  }`,
+    `  if (currency) form.currencyId = currency.id\n\n  if (refreshingDuplicatedRate.value) {\n    // El nuevo flete define proveedor/moneda y obliga a consultar nuevamente Costs.\n    // No se arrastra ningún cargo o recargo del snapshot de la tarifa aprobada anterior.\n    await loadApplicableCosts()\n    rebuildRateLines()\n  }`,
     'fresh duplicate charges after freight selection',
   )
   code = code.slice(0, chooseStart) + chooseBlock + code.slice(chooseEnd)
@@ -93,22 +125,29 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `function continueManual() {`,
-    `function continueManual() {\n  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl') {\n    toastStore.warning(\n      'Flete marítimo requerido',\n      'Una tarifa FCL duplicada debe seleccionar nuevamente un flete marítimo vigente; no se permite reutilizar ni continuar manualmente con el flete anterior.',\n    )\n    step.value = 5\n    return\n  }`,
+    `function continueManual() {\n  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl') {\n    toastStore.warning(\n      'Flete marítimo requerido',\n      'Una tarifa FCL duplicada debe seleccionar un flete marítimo vigente en pantalla 5; no se permite continuar con flete manual ni reutilizar el anterior.',\n    )\n    step.value = 5\n    return\n  }`,
     'duplicate manual freight guard',
   )
 
   code = replaceOne(
     code,
     `async function saveRate() {`,
-    `async function saveRate() {\n  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl' && !form.selectedImportRateId) {\n    step.value = 5\n    toastStore.warning(\n      'Seleccione el nuevo flete marítimo',\n      'Antes de guardar la tarifa duplicada debe escoger un flete vigente para la nueva vigencia.',\n    )\n    return\n  }`,
+    `async function saveRate() {\n  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl' && !form.selectedImportRateId) {\n    step.value = 5\n    toastStore.warning(\n      'Seleccione el nuevo flete marítimo',\n      'Antes de crear la nueva tarifa debe escoger un flete vigente en pantalla 5.',\n    )\n    return\n  }`,
     'duplicate save freight guard',
   )
 
   code = replaceOne(
     code,
     `      await PricingService.updateRate(editingRate.value.id, updatePayload)`,
-    `      await PricingService.updateRate(editingRate.value.id, updatePayload)\n      if (refreshingDuplicatedRate.value) {\n        const { duplicateReview: _duplicateReview, ...remainingQuery } = route.query\n        await router.replace({\n          name: 'pricing-rate-wizard',\n          params: { rateId: editingRate.value.id },\n          query: remainingQuery,\n        })\n      }`,
+    `      await PricingService.updateRate(editingRate.value.id, updatePayload)\n      if (refreshingDuplicatedRate.value) {\n        const { duplicateReview: _duplicateReview, duplicateFrom: _duplicateFrom, validFrom: _validFrom, validTo: _validTo, ...remainingQuery } = route.query\n        await router.replace({\n          name: 'pricing-rate-wizard',\n          params: { rateId: editingRate.value.id },\n          query: remainingQuery,\n        })\n      }`,
     'duplicate review query cleanup',
+  )
+
+  code = replaceOne(
+    code,
+    `  if (props.rateId) await hydrateExistingRate()\n  else await loadHaciendaExchangeRate(true)`,
+    `  if (props.rateId || duplicateSourceRateId.value) await hydrateExistingRate()\n  else await loadHaciendaExchangeRate(true)`,
+    'duplicate source mount hydration',
   )
 
   return code
