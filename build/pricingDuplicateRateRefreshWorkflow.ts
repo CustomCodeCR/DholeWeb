@@ -145,8 +145,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `  if (props.rateId) await hydrateExistingRate()\n  else await loadHaciendaExchangeRate(true)`,
-    `  if (props.rateId || duplicateSourceRateId.value) await hydrateExistingRate()\n  else await loadHaciendaExchangeRate(true)`,
+    `  if (props.rateId) await hydrateExistingRate()`,
+    `  if (props.rateId || duplicateSourceRateId.value) await hydrateExistingRate()`,
     'duplicate source mount hydration',
   )
 
