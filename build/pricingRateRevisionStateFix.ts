@@ -31,6 +31,7 @@ function patchWizard(source: string) {
     .filter(Boolean)
 
   const hasDetail = (...terms: string[]) => persistedEditTermContains(detailLines, ...terms)
+  const hasOptionalDetail = (...terms: string[]) => persistedEditTermContains(optionalDetailLines, ...terms)
   const hasService = (...terms: string[]) => persistedEditTermContains(serviceLines, ...terms)
 
   // No inferir Carga peligrosa/Sobrepeso desde Subject To cuando la tarifa ya tiene
@@ -52,22 +53,32 @@ function patchWizard(source: string) {
     || hasDetail('carga no estibable', 'non stackable', 'nonstackable')
     || persistedEditTermContains(subjectLines, 'carga no estibable', 'non stackable', 'nonstackable')
 
-  const merchantFromDetails = hasDetail(
+  // Merchant/Naviera solo se infieren de detalles OPCIONALES persistidos.
+  // Un cargo fijo llamado "Cargos en Destino Naviera" no significa Carrier Haulage.
+  const merchantFromDetails = hasOptionalDetail(
     'merchant haulage',
     'inland gam merchant',
     'gate + inland gam merchant',
+    'merchant',
   )
-  const carrierFromDetails = hasDetail('carrier haulage', 'inland gam naviera')
+  const carrierFromDetails = hasOptionalDetail(
+    'carrier haulage',
+    'inland gam naviera',
+    'retiro vacio gam naviera',
+    'naviera',
+  )
   const merchantFromIncludes = persistedEditTermContains(
     includeLines,
     'merchant haulage',
     'inland gam merchant',
     'gate + inland gam merchant',
+    'merchant',
   )
   const carrierFromIncludes = persistedEditTermContains(
     includeLines,
     'carrier haulage',
     'inland gam naviera',
+    'retiro vacio gam naviera',
   )
 
   // Los detalles tienen prioridad. Así una tarifa histórica que realmente tenía
@@ -99,7 +110,21 @@ function patchWizard(source: string) {
 
 function relinkExistingDetailIdsForEdit() {`
 
-  return source.replace(hydrationPattern, replacement)
+  let code = source.replace(hydrationPattern, replacement)
+
+  // Los opcionales administrados por Pantalla 4 no deben agregarse a Subject To
+  // solo por estar desmarcados. Esa práctica hacía aparecer IMO/Carga Peligrosa,
+  // Merchant/Naviera y Anticipado/Redestino como si fueran selecciones de la tarifa.
+  const optionalSubjectAnchor =
+    "...rateLines.value.filter((line) => line.optional && !line.included).map((line) => line.name),"
+  if (code.includes(optionalSubjectAnchor)) {
+    code = code.replace(
+      optionalSubjectAnchor,
+      "...rateLines.value.filter((line) => line.optional && !line.included && cargoConditionSelection(line) === null && portHandlingConditionSelection(line) === null && haulageAssociation(line) === null).map((line) => line.name),",
+    )
+  }
+
+  return code
 }
 
 export function pricingRateRevisionStateFix(): Plugin {
