@@ -61,6 +61,7 @@ import { pricingWizardManualRatesVisibilityFix } from './build/pricingWizardManu
 import { pricingWizardStep4NavigationHardFix } from './build/pricingWizardStep4NavigationHardFix'
 import { pricingWizardManualFreightFinalUx } from './build/pricingWizardManualFreightFinalUx'
 import { pricingApprovalWorkflowStable } from './build/pricingApprovalWorkflowStable'
+import { pricingWizardPanamaContinuation } from './build/pricingWizardPanamaContinuation'
 
 export default defineConfig({
   plugins: [
@@ -124,6 +125,7 @@ export default defineConfig({
     pricingWizardStep4NavigationHardFix(),
     pricingWizardManualFreightFinalUx(),
     pricingApprovalWorkflowStable(),
+    pricingWizardPanamaContinuation(),
     vue(),
     tailwindcss(),
   ],
