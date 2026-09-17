@@ -19,7 +19,10 @@ function patchWizard(source: string) {
     : ''
 
   const replacement = `async function next() {
-  if (props.rateId) {
+  // Solo la vista de solo lectura puede saltarse la lógica del wizard. En edición
+  // debemos ejecutar exactamente el mismo flujo que creación para volver a consultar
+  // tarifas en Pantalla 5 y reconstruir costos/líneas antes de guardar.
+  if (props.rateId && props.viewOnly) {
     if (step.value < maxStep.value) step.value += 1
     return
   }
