@@ -591,6 +591,7 @@ export interface RateDto extends Record<string, unknown> {
   incotermId?: string | null
   incotermName?: string | null
   incotermCode?: string | null
+  warehouseId?: string | null
   pickupAddress?: string | null
   pickupLatitude?: number | null
   pickupLongitude?: number | null
@@ -725,6 +726,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   incotermId?: string | null
   incotermName?: string | null
   incotermCode?: string | null
+  warehouseId?: string | null
   pickupAddress?: string | null
   pickupLatitude?: number | null
   pickupLongitude?: number | null
