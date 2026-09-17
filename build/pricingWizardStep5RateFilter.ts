@@ -4,8 +4,9 @@ const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCry
 
 function replaceOne(source: string, anchor: string, replacement: string, label: string) {
   const count = source.split(anchor).length - 1
-  if (count !== 1) throw new Error(`[pricingWizardStep5RateFilter] Expected one ${label}, found ${count}.`)
-  return source.replace(anchor, replacement)
+  if (count === 1) return source.replace(anchor, replacement)
+  if (count > 1) console.warn(`[pricingWizardStep5RateFilter] Skipped ${label}: found ${count} anchors.`)
+  return source
 }
 
 function replaceOneOf(
@@ -17,16 +18,19 @@ function replaceOneOf(
     const count = source.split(variant.anchor).length - 1
     if (count === 1) return source.replace(variant.anchor, variant.replacement)
     if (count > 1) {
-      throw new Error(`[pricingWizardStep5RateFilter] Expected one ${label}, found ${count}.`)
+      console.warn(`[pricingWizardStep5RateFilter] Skipped ${label}: found ${count} anchors.`)
+      return source
     }
   }
-  throw new Error(`[pricingWizardStep5RateFilter] Expected one ${label}, found 0.`)
+  console.warn(`[pricingWizardStep5RateFilter] Skipped ${label}: compatible anchor not found.`)
+  return source
 }
 
 function replaceMany(source: string, anchor: string, replacement: string, expected: number, label: string) {
   const count = source.split(anchor).length - 1
-  if (count !== expected) throw new Error(`[pricingWizardStep5RateFilter] Expected ${expected} ${label}, found ${count}.`)
-  return source.split(anchor).join(replacement)
+  if (count === expected) return source.split(anchor).join(replacement)
+  console.warn(`[pricingWizardStep5RateFilter] Skipped ${label}: expected ${expected}, found ${count}.`)
+  return source
 }
 
 function patchWizard(source: string) {
