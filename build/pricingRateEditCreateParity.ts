@@ -84,12 +84,23 @@ function patchWizard(source: string) {
     'edit reason stepbar gate',
   )
 
-  code = replaceOne(
-    code,
-    `    <div class="crystal-footer flex items-center justify-between gap-3 p-3">`,
-    `    <div v-if="!isEditing || viewOnly || editReasonConfirmed" class="crystal-footer flex items-center justify-between gap-3 p-3">`,
-    'edit reason footer gate',
-  )
+  const rawFooterAnchor = `    <div class="crystal-footer flex items-center justify-between gap-3 p-3">`
+  const screenZeroFooterAnchor = `    <div v-if="isEditing || entryLogisticsService || step !== 1" class="crystal-footer flex items-center justify-between gap-3 p-3">`
+  if (code.includes(screenZeroFooterAnchor)) {
+    code = replaceOne(
+      code,
+      screenZeroFooterAnchor,
+      `    <div v-if="(isEditing || entryLogisticsService || step !== 1) && (!isEditing || viewOnly || editReasonConfirmed)" class="crystal-footer flex items-center justify-between gap-3 p-3">`,
+      'edit reason transformed footer gate',
+    )
+  } else {
+    code = replaceOne(
+      code,
+      rawFooterAnchor,
+      `    <div v-if="!isEditing || viewOnly || editReasonConfirmed" class="crystal-footer flex items-center justify-between gap-3 p-3">`,
+      'edit reason footer gate',
+    )
+  }
 
   const hydrateAnchor = `async function hydrateExistingRate() {`
   const hydrateHelpers = `function confirmEditReason() {\n  const reason = updateReason.value.trim()\n  if (!reason) {\n    toastStore.warning('Motivo requerido', 'Indique el motivo de la actualización antes de continuar.')\n    return\n  }\n  updateReason.value = reason\n  editReasonConfirmed.value = true\n  step.value = 3\n}\n\nfunction reopenEditReason() {\n  if (props.viewOnly) return\n  editReasonConfirmed.value = false\n  step.value = 0\n}\n\nfunction persistedEditTermLines(value?: string | null) {\n  return String(value ?? '')\n    .split(/\\r?\\n/)\n    .map((line) => normalizeCatalogValue(line))\n    .filter(Boolean)\n}\n\nfunction persistedEditTermContains(lines: string[], ...terms: string[]) {\n  const normalizedTerms = terms.map((term) => normalizeCatalogValue(term)).filter(Boolean)\n  return lines.some((line) => normalizedTerms.some((term) => line.includes(term)))\n}\n\nfunction hydrateEditSelectionsFromRate(rate: RateDto) {\n  // Only persisted commercial selections are authoritative here. Never infer Screen 4\n  // toggles from every RateDetail: configured optional costs can exist in the snapshot\n  // without having been selected by the user.\n  const subjectLines = persistedEditTermLines(rate.subjectTo)\n  const includeLines = persistedEditTermLines(rate.includes)\n\n  form.dangerousCargo = persistedEditTermContains(subjectLines, 'carga peligrosa', 'dangerous cargo', 'hazmat')\n  form.nonStackable = persistedEditTermContains(subjectLines, 'carga no estibable', 'non stackable', 'nonstackable')\n  form.overweight = persistedEditTermContains(subjectLines, 'sobrepeso', 'sobre peso', 'overweight', 'over weight')\n\n  const merchantSelected = persistedEditTermContains(includeLines, 'merchant haulage', 'inland gam merchant')\n  const carrierSelected = persistedEditTermContains(includeLines, 'carrier haulage', 'inland gam naviera')\n\n  // These controls are mutually exclusive. If legacy data contains both labels, do not\n  // invent a selection; let Pricing choose explicitly during the edit.\n  form.merchantHaulage = merchantSelected && !carrierSelected\n  form.carrierHaulage = carrierSelected && !merchantSelected\n\n  const hasAnticipado = persistedEditTermContains(includeLines, 'anticipado')\n  const hasRedestino = persistedEditTermContains(includeLines, 'redestino')\n  form.portHandlingMode = hasAnticipado === hasRedestino\n    ? ''\n    : hasAnticipado\n      ? 'Anticipado'\n      : 'Redestino'\n}\n\nfunction relinkExistingDetailIdsForEdit() {\n  if (!editingRate.value || props.viewOnly) return\n\n  const remaining = [...editingRate.value.rateDetails]\n  const takeMatch = (line: RateLine) => {\n    let index = -1\n    if (line.costId) {\n      index = remaining.findIndex((detail) => detail.costId === line.costId)\n    }\n    if (index < 0) {\n      index = remaining.findIndex((detail) =>\n        detail.costDetailType === line.costDetailType\n        && normalizeCatalogValue(detail.name) === normalizeCatalogValue(line.name),\n      )\n    }\n    if (index < 0 && line.costDetailType === 'Freight') {\n      index = remaining.findIndex((detail) => detail.costDetailType === 'Freight')\n    }\n    if (index < 0) return null\n    const [match] = remaining.splice(index, 1)\n    return match\n  }\n\n  rateLines.value.forEach((line) => {\n    if (line.detailId) return\n    const match = takeMatch(line)\n    if (match) line.detailId = match.id\n  })\n}\n\n${hydrateAnchor}`
