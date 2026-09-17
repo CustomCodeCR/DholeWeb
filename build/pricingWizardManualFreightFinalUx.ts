@@ -98,6 +98,49 @@ function patchWizard(source: string) {
     )
   }
 
+  // Edición: Pantalla 5 debe conservar como referencia el mismo flete marítimo que
+  // originó la tarifa mientras siga vigente. Si venció, no se reutiliza silenciosamente:
+  // se informa al usuario y se obliga a escoger otro flete vigente o continuar manual.
+  const editSourceStateAnchor = `const fclSelectedImportRateIds = ref<Record<string, string>>({})`
+  if (code.includes(editSourceStateAnchor) && !code.includes('editOriginalFreightExpired')) {
+    code = code.replace(
+      editSourceStateAnchor,
+      `${editSourceStateAnchor}\nconst editOriginalFreightExpired = ref(false)\nconst editOriginalFreightValidTo = ref('')\nconst editOriginalFreightExpiryNotified = ref(false)`,
+    )
+  }
+
+  const comparatorAnchor = `function compareFclCandidateRates(left: ImportRateSelectDto, right: ImportRateSelectDto) {`
+  if (code.includes(comparatorAnchor) && !code.includes('sourceImportFclRateId === left.id')) {
+    code = code.replace(
+      comparatorAnchor,
+      `${comparatorAnchor}\n  if (props.rateId && editingRate.value?.sourceImportFclRateId) {\n    const sourceId = editingRate.value.sourceImportFclRateId\n    if (sourceId === left.id && sourceId !== right.id) return -1\n    if (sourceId === right.id && sourceId !== left.id) return 1\n  }`,
+    )
+  }
+
+  const searchFunctionAnchor = `async function searchApprovedRates() {`
+  if (code.includes(searchFunctionAnchor) && !code.includes('async function restoreOriginalFreightForEdit()')) {
+    code = code.replace(
+      searchFunctionAnchor,
+      `async function restoreOriginalFreightForEdit() {\n  editOriginalFreightExpired.value = false\n  editOriginalFreightValidTo.value = ''\n\n  const sourceId = editingRate.value?.sourceImportFclRateId\n  if (!props.rateId || props.viewOnly || shipmentModeForApi.value !== 'Fcl' || !sourceId) return\n\n  try {\n    const sourceRate = await PricingService.getImportRate(sourceId)\n    const validTo = String(sourceRate.validTo ?? '').slice(0, 10)\n    editOriginalFreightValidTo.value = validTo\n\n    if (validTo && validTo < todayIso()) {\n      editOriginalFreightExpired.value = true\n      form.selectedImportRateId = ''\n      selectedFclBundleKey.value = ''\n      fclSelectedImportRateIds.value = {}\n\n      if (!editOriginalFreightExpiryNotified.value) {\n        editOriginalFreightExpiryNotified.value = true\n        toastStore.warning(\n          'El flete marítimo original venció',\n          'Venció el ' + formatDate(sourceRate.validTo) + '. Seleccione otro flete vigente o continúe de manera manual para seguir editando la tarifa.',\n        )\n      }\n      return\n    }\n\n    editOriginalFreightExpiryNotified.value = false\n    const containerTypeId = String(sourceRate.containerTypeId ?? '')\n    const requestedContainer = fclContainerAllocations.value.some((allocation) => allocation.containerTypeId === containerTypeId)\n    if (!containerTypeId || !requestedContainer) return\n\n    const containerRates = fclRatesByContainer.value[containerTypeId] ?? []\n    fclRatesByContainer.value = {\n      ...fclRatesByContainer.value,\n      [containerTypeId]: [sourceRate, ...containerRates.filter((rate) => rate.id !== sourceRate.id)],\n    }\n\n    if (!availableRates.value.some((rate) => rate.id === sourceRate.id)) {\n      availableRates.value = [sourceRate, ...availableRates.value]\n    }\n    void loadImportSources(availableRates.value)\n\n    form.selectedImportRateId = sourceRate.id\n    form.manualRate = false\n    fclSelectedImportRateIds.value = {\n      ...fclSelectedImportRateIds.value,\n      [containerTypeId]: sourceRate.id,\n    }\n\n    const originalBundle = fclRateBundles.value.find((bundle) =>\n      bundle.lines.some((line) => line.rate.id === sourceRate.id),\n    )\n    selectedFclBundleKey.value = originalBundle?.key ?? ''\n  } catch (error) {\n    console.warn('[pricing-edit] No se pudo recuperar el flete marítimo original.', error)\n  }\n}\n\n${searchFunctionAnchor}`,
+    )
+  }
+
+  const fclSearchReturnAnchor = `    if (!fclRateBundles.value.length) form.manualRate = true\n    return\n  }`
+  if (code.includes(fclSearchReturnAnchor) && !code.includes('await restoreOriginalFreightForEdit()\n    if (!fclRateBundles.value.length)')) {
+    code = code.replace(
+      fclSearchReturnAnchor,
+      `    await restoreOriginalFreightForEdit()\n    if (!fclRateBundles.value.length) form.manualRate = true\n    return\n  }`,
+    )
+  }
+
+  const screenFiveLoadingAnchor = `          <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>`
+  if (code.includes(screenFiveLoadingAnchor) && !code.includes('data-edit-original-freight-expired')) {
+    code = code.replace(
+      screenFiveLoadingAnchor,
+      `          <div\n            v-if="props.rateId && editOriginalFreightExpired"\n            data-edit-original-freight-expired\n            class="rounded-2xl border border-amber-400/35 bg-amber-400/10 px-4 py-4"\n          >\n            <p class="font-black text-amber-700 dark:text-amber-300">El flete marítimo original venció</p>\n            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-soft)]">\n              El flete utilizado originalmente{{ editOriginalFreightValidTo ? ' venció el ' + formatDate(editOriginalFreightValidTo) : ' ya no está vigente' }}.\n              Para continuar con la edición seleccione una tarifa vigente de esta pantalla o continúe de manera manual.\n            </p>\n          </div>\n\n${screenFiveLoadingAnchor}`,
+    )
+  }
+
   return code
 }
 
