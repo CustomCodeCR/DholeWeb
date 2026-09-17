@@ -64,6 +64,22 @@ export function pricingWizardFclRateBundlesPostCompat(): Plugin {
       code = code.replace(fclCompatibleSearchReset, panamaSearchReset)
     }
 
+    // scripts/ensure-pricing-panama-continuation.mjs already materializes the active
+    // Panama flow before Vite starts. The legacy Vite Panama plugin is registered later
+    // and uses this marker as its idempotency guard; add it only when that prebuilt flow
+    // is present so it does not attempt a second, incompatible set of exact-string edits.
+    if (
+      code.includes(`const continuationRates = ref<ImportRateSelectDto[]>([])`)
+      && code.includes(`selectedContinuationImportRateId`)
+      && code.includes(`panamaContinuationMode`)
+      && !code.includes('// dhole-panama-continuation-state')
+    ) {
+      code = code.replace(
+        `const continuationRates = ref<ImportRateSelectDto[]>([])`,
+        `// dhole-panama-continuation-state\nconst continuationRates = ref<ImportRateSelectDto[]>([])`,
+      )
+    }
+
     return code
   })
 }
