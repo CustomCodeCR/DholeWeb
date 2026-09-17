@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node scripts/ensure-pricing-panama-continuation.mjs && node scripts/ensure-pricing-screen09-comments.mjs",
+    "predev": "node scripts/ensure-pricing-panama-continuation.mjs && node scripts/ensure-pricing-panama-plugin-compat.mjs && node scripts/ensure-pricing-screen09-comments.mjs",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "node scripts/ensure-pricing-panama-continuation.mjs && node scripts/ensure-pricing-screen09-comments.mjs",
+    "prebuild": "node scripts/ensure-pricing-panama-continuation.mjs && node scripts/ensure-pricing-panama-plugin-compat.mjs && node scripts/ensure-pricing-screen09-comments.mjs",
     "build": "node scripts/check-pricing-origin-sale.mjs && run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
@@ -36,7 +36,7 @@
     "tailwindcss": "^4.3.1",
     "typescript": "~6.0.0",
     "vite": "^8.0.16",
-    "vite-plugin-vue-devtools": "^8.1.2",
+    "vite-plugin-vue-devtools": "^6.0.7",
     "vue-tsc": "^3.3.5"
   },
   "engines": {
