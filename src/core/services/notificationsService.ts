@@ -5,7 +5,7 @@ import { unwrapApiResponse, unwrapPagedResponse, type PagedResponse } from '@/co
 import type {
   BrowseNotificationInboxQuery, BrowseNotificationsQuery, BrowseNotificationTemplatesQuery, CreateNotificationMessageRequest,
   CreateNotificationTemplateRequest, NotificationInboxItemDto, NotificationMessageDto, NotificationTemplateDto,
-  NotificationUnreadCountDto, UpdateNotificationTemplateRequest,
+  NotificationUnreadCountDto, SendAccessCredentialsEmailRequest, UpdateNotificationTemplateRequest,
 } from '@/core/interfaces/notifications'
 
 type NoContent = Record<string, never>
@@ -53,6 +53,9 @@ export const NotificationsService = {
   async createMessage(payload: CreateNotificationMessageRequest): Promise<NotificationMessageDto> {
     const response = await callEndpoint<unknown, CreateNotificationMessageRequest>(Endpoints.createNotificationMessage, { body: payload })
     return unwrapApiResponse<NotificationMessageDto>(response as never)
+  },
+  sendAccessCredentialsEmail(payload: SendAccessCredentialsEmailRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, SendAccessCredentialsEmailRequest>(Endpoints.sendAccessCredentialsEmail, { body: payload })
   },
   cancelMessage(id: string): Promise<NoContent> {
     return callEndpoint<NoContent>(Endpoints.cancelNotificationMessage, { params: { notificationId: id } })
