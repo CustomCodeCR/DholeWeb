@@ -1,6 +1,9 @@
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse, unwrapListResponse } from '@/core/api/apiResponse'
 
+export type LandShipmentMode = 'Ftl' | 'Ltl'
+export type LandRateBasis = 'PerTruck' | 'PerCbm'
+
 export interface FtlTariffDto {
   id: string
   originId: string | null
@@ -19,6 +22,12 @@ export interface FtlTariffDto {
   source: string | null
   notes: string | null
   isActive: boolean
+  shipmentMode: LandShipmentMode
+  rateBasis: LandRateBasis
+  minimumAmount: number | null
+  warehouseName: string | null
+  validFrom: string | null
+  validTo: string | null
 }
 
 export interface ResolveFtlTariffQuery {
@@ -28,14 +37,53 @@ export interface ResolveFtlTariffQuery {
   destinationName?: string | null
   originCode?: string | null
   destinationCode?: string | null
+  equipmentClass?: string | null
+  shipmentMode?: LandShipmentMode | null
+  quoteDate?: string | null
+}
+
+export interface CreateLandTariffItem {
+  originId?: string | null
+  originName: string
+  originCode?: string | null
+  destinationId?: string | null
+  destinationName: string
+  destinationCode?: string | null
+  shipmentMode: LandShipmentMode
   equipmentClass: string
+  equipmentLabel: string
+  currencyId: string
+  currencyName: string
+  currencyCode: string
+  priceAmount: number
+  rateBasis?: LandRateBasis | null
+  minimumAmount?: number | null
+  transitDays?: number | null
+  warehouseName?: string | null
+  source?: string | null
+  notes?: string | null
+  validFrom?: string | null
+  validTo?: string | null
+  isActive?: boolean
 }
 
 export interface UpdateFtlTariffItem {
   id: string
   priceAmount: number
+  minimumAmount: number | null
   transitDays: number | null
+  warehouseName: string | null
+  source: string | null
+  notes: string | null
+  validFrom: string | null
+  validTo: string | null
   isActive: boolean
+}
+
+export interface ImportLandTariffResult {
+  created: number
+  updated: number
+  total: number
 }
 
 const acceptJson = { Accept: 'application/json' }
@@ -51,10 +99,10 @@ function withQuery(path: string, query: Record<string, string | null | undefined
 }
 
 export const FtlTariffService = {
-  async browse(): Promise<FtlTariffDto[]> {
+  async browse(shipmentMode?: LandShipmentMode | null): Promise<FtlTariffDto[]> {
     const response = await callEndpoint<unknown>({
       method: 'GET',
-      path: '/api/pricing/ftl-tariffs',
+      path: withQuery('/api/pricing/ftl-tariffs', { shipmentMode }),
       headers: acceptJson,
     })
     return unwrapListResponse<FtlTariffDto>(response)
@@ -71,10 +119,36 @@ export const FtlTariffService = {
         originCode: query.originCode,
         destinationCode: query.destinationCode,
         equipmentClass: query.equipmentClass,
+        shipmentMode: query.shipmentMode,
+        quoteDate: query.quoteDate,
       }),
       headers: acceptJson,
     })
     return unwrapApiResponse<FtlTariffDto | null>(response)
+  },
+
+  async create(item: CreateLandTariffItem): Promise<{ id: string; created: boolean; message: string }> {
+    const response = await callEndpoint<unknown, CreateLandTariffItem>(
+      {
+        method: 'POST',
+        path: '/api/pricing/ftl-tariffs',
+        headers: jsonHeaders,
+      },
+      { body: item },
+    )
+    return unwrapApiResponse<{ id: string; created: boolean; message: string }>(response)
+  },
+
+  async importBatch(items: CreateLandTariffItem[]): Promise<ImportLandTariffResult> {
+    const response = await callEndpoint<unknown, { items: CreateLandTariffItem[] }>(
+      {
+        method: 'POST',
+        path: '/api/pricing/ftl-tariffs/import',
+        headers: jsonHeaders,
+      },
+      { body: { items } },
+    )
+    return unwrapApiResponse<ImportLandTariffResult>(response)
   },
 
   async updateBatch(items: UpdateFtlTariffItem[]): Promise<void> {
