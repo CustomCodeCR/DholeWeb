@@ -13,21 +13,10 @@ function patchWizard(source: string) {
   let code = source
   if (code.includes('// dhole-panama-screen5-ab')) return code
 
-  // POD terminal type follows the continuation selected on Pantalla 3:
-  // MaritimeLand => SD, DoubleMaritime => CY.
-  code = replaceRequired(
-    code,
-    `const maritimePodCatalog = computed(() => routeItemsByTerminal(catalogs.pod, 'SD', 'SD'))`,
-    `const maritimeLandPodCatalog = computed(() => routeItemsByTerminal(catalogs.pod, 'SD', 'SD'))
-const doubleMaritimePodCatalog = computed(() => routeItemsByTerminal(catalogs.pod, 'CY', 'SD'))
-const maritimePodCatalog = computed(() =>
-  isPanamaMultimodal.value && form.panamaContinuationMode === 'DoubleMaritime'
-    ? doubleMaritimePodCatalog.value
-    : maritimeLandPodCatalog.value,
-)`,
-    'dynamic Panama POD catalog',
-  )
-
+  // dhole-panama-screen5-ab
+  // The POD remains the same destination record; only its route terminal semantics
+  // change in DoubleMaritime. Keeping the same option prevents a valid city/POD from
+  // being cleared when there is no duplicated CY catalog record for that destination.
   const podModelIndex = code.indexOf(`v-model="form.podId"`)
   if (podModelIndex < 0) {
     throw new Error('[pricingWizardPanamaContinuation] POD selector not found.')
@@ -49,29 +38,6 @@ const maritimePodCatalog = computed(() =>
     + terminalIndent
     + `:terminal-type="isPanamaMultimodal && form.panamaContinuationMode === 'DoubleMaritime' ? 'CY' : 'SD'"`
     + code.slice(terminalLineEnd)
-
-  // Remap an already selected POD when the user toggles SD <-> CY.
-  const resetAnchor = `function resetWizard() {`
-  const terminalWatcher = `// dhole-panama-screen5-ab
-watch(
-  () => form.panamaContinuationMode,
-  (mode) => {
-    if (!isPanamaMultimodal.value) return
-    if (mode !== 'DoubleMaritime' && mode !== 'MaritimeLand') return
-
-    const currentPod = findById(catalogs.pod, form.podId)
-    if (!currentPod) return
-
-    const targetCatalog = mode === 'DoubleMaritime'
-      ? doubleMaritimePodCatalog.value
-      : maritimeLandPodCatalog.value
-    const equivalentPod = findEquivalent(targetCatalog, currentPod)
-    form.podId = equivalentPod?.id ?? ''
-  },
-)
-
-${resetAnchor}`
-  code = replaceRequired(code, resetAnchor, terminalWatcher, 'Panama terminal mode watcher')
 
   // Pantalla 5 in double-maritime mode must be complete only after both legs are selected.
   const canNextStart = code.indexOf(`const canNext = computed(() => {`)
