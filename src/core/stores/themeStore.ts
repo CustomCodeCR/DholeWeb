@@ -20,6 +20,13 @@ function readLiquidBlur(): number {
   return normalizeLiquidBlur(localStorage.getItem(LIQUID_BLUR_STORAGE_KEY))
 }
 
+function applyLiquidBlur(value: number) {
+  const blur = normalizeLiquidBlur(value)
+  const strongBlur = Math.round(blur * 1.23)
+  document.documentElement.style.setProperty('--dh-blur', `${blur}px`)
+  document.documentElement.style.setProperty('--dh-blur-strong', `${strongBlur}px`)
+}
+
 function getSystemTheme(): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
@@ -40,7 +47,7 @@ export const useThemeStore = defineStore('theme', {
     applyTheme() {
       const theme = this.resolvedTheme
       document.documentElement.classList.toggle('dark', theme === 'dark')
-      document.documentElement.style.setProperty('--dh-blur', `${normalizeLiquidBlur(this.liquidBlur)}px`)
+      applyLiquidBlur(this.liquidBlur)
     },
 
     setTheme(mode: ThemeMode) {
@@ -56,7 +63,7 @@ export const useThemeStore = defineStore('theme', {
     setLiquidBlur(value: number) {
       this.liquidBlur = normalizeLiquidBlur(value)
       localStorage.setItem(LIQUID_BLUR_STORAGE_KEY, String(this.liquidBlur))
-      document.documentElement.style.setProperty('--dh-blur', `${this.liquidBlur}px`)
+      applyLiquidBlur(this.liquidBlur)
     },
 
     resetLiquidBlur() {
