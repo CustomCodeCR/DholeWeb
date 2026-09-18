@@ -39,9 +39,9 @@ async function login() {
   }
   try {
     loading.value = true
-    await authStore.login({ email: email.value, password: password.value })
+    const response = await authStore.login({ email: email.value, password: password.value })
     toastStore.success('Sesión iniciada', 'Bienvenido a Dhole.')
-    await router.push(resolveLandingRoute())
+    await router.push(response.mustChangePassword ? '/change-password' : resolveLandingRoute())
   } catch (error) {
     toastStore.backendError(error, t('auth.loginError'))
   } finally {
