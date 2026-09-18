@@ -420,7 +420,18 @@ export const useAuthStore = defineStore('auth', () => {
       hasRole('Pricing') &&
       !scopes.value.some((scope) => scope.trim().toLowerCase() === 'pricing.workspace.access')
 
-    if (isAccessTokenExpired(accessToken.value) || pricingRoleNeedsScopeRefresh) {
+    const administratorNeedsCredentialScopeRefresh =
+      hasRole('Administrador') &&
+      (
+        !scopes.value.some((scope) => scope.trim().toLowerCase() === 'auth.users.change-password') ||
+        !scopes.value.some((scope) => scope.trim().toLowerCase() === 'auth.users.send-credentials')
+      )
+
+    if (
+      isAccessTokenExpired(accessToken.value) ||
+      pricingRoleNeedsScopeRefresh ||
+      administratorNeedsCredentialScopeRefresh
+    ) {
       await refreshSession()
       return
     }
