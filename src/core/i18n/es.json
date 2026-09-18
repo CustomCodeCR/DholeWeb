@@ -174,6 +174,12 @@
     "assignScopes": "Asignar scopes",
     "revokeScopes": "Revocar scopes",
     "changePassword": "Cambiar contraseña",
+    "sendCredentials": "Enviar credenciales",
+    "sendCredentialsAction": "Generar y enviar",
+    "sendCredentialsConfirm": "Se generará una nueva contraseña temporal para este usuario y sus sesiones actuales dejarán de ser válidas. Las credenciales se enviarán automáticamente a su correo. ¿Desea continuar?",
+    "sendCredentialsSuccess": "Credenciales enviadas por correo.",
+    "sendCredentialsIssueError": "No se pudieron generar las credenciales del usuario.",
+    "sendCredentialsEmailError": "La contraseña temporal fue generada, pero el correo no pudo enviarse. Puede intentarlo nuevamente para generar y enviar nuevas credenciales.",
     "lastLogin": "Último login",
     "protectedUser": "Usuario protegido"
   },
