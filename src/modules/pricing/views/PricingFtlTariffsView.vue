@@ -154,7 +154,7 @@ const dirtyRows = computed(() => rows.value.filter(isDirty))
 
 function validateDirtyRows() {
   for (const row of dirtyRows.value) {
-    const price = parsedNumber(row.priceInput)
+    const price = parsedNumber(row.priceInput) ?? Number.NaN
     const minimum = parsedNumber(row.minimumInput, true)
     const transit = parsedNumber(row.transitInput, true)
     if (!Number.isFinite(price) || price < 0) {
@@ -476,7 +476,7 @@ function gcfLtlItemsFromHtml(text: string) {
 function parseCsv(text: string) {
   const lines = text.replace(/\r/g, '').split('\n').filter((line) => line.trim())
   if (lines.length < 2) return [] as CreateLandTariffItem[]
-  const rawHeaders = parseCsvRow(lines[0])
+  const rawHeaders = parseCsvRow(lines[0]!)
   const headers = rawHeaders.map((header) => headerAliases[normalizeHeader(header)] ?? normalizeHeader(header))
 
   return lines.slice(1).map((line) => {
