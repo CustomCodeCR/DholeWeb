@@ -135,7 +135,7 @@ export const FtlTariffService = {
   },
 
   async create(item: CreateLandTariffItem): Promise<{ id: string; created: boolean; message: string }> {
-    const response = await callEndpoint<unknown, CreateLandTariffItem>(
+    const response = await callEndpoint<{ id: string; created: boolean; message: string }, CreateLandTariffItem>(
       {
         method: 'POST',
         path: '/api/pricing/ftl-tariffs',
@@ -147,7 +147,7 @@ export const FtlTariffService = {
   },
 
   async importBatch(items: CreateLandTariffItem[]): Promise<ImportLandTariffResult> {
-    const response = await callEndpoint<unknown, { items: CreateLandTariffItem[] }>(
+    const response = await callEndpoint<ImportLandTariffResult, { items: CreateLandTariffItem[] }>(
       {
         method: 'POST',
         path: '/api/pricing/ftl-tariffs/import',
@@ -159,7 +159,7 @@ export const FtlTariffService = {
   },
 
   async seedDefaults(): Promise<SeedLandTariffDefaultsResult> {
-    const response = await callEndpoint<unknown>({
+    const response = await callEndpoint<SeedLandTariffDefaultsResult>({
       method: 'POST',
       path: '/api/pricing/ftl-tariffs/seed-defaults',
       headers: jsonHeaders,
