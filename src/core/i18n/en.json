@@ -63,7 +63,8 @@
     "view": "View",
     "notAvailable": "Not available",
     "confirm": "Confirm",
-    "actionError": "The action could not be completed."
+    "actionError": "The action could not be completed.",
+    "exportExcel": "Export Excel"
   },
   "topbar": {
     "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs, pricing, reports, monitoring or audit logs...",
