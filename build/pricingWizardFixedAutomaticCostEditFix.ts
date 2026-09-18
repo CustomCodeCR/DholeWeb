@@ -24,8 +24,8 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
       const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))`
 
-      const removalReplacement = `      const existingRateDetails = editingRate.value.rateDetails
-      const originalDetailIds = new Set(existingRateDetails.map((detail) => detail.id))
+      const removalReplacement = `      const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
+      const existingRateDetails = editingRate.value.rateDetails
       const currentDetailIds = new Set(
         includedLines.value
           .map((line) => line.detailId)
