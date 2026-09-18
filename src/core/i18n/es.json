@@ -320,7 +320,16 @@
     "glass": "Cristal líquido",
     "compact": "Compacto",
     "comfortable": "Cómodo",
-    "spacious": "Amplio"
+    "spacious": "Amplio",
+    "appearanceDescription": "Tema, idioma, Liquid Crystal y branding por cliente.",
+    "directory": "Directorio de extensiones",
+    "directoryDescription": "Empleados, departamentos, extensiones, correos y celulares.",
+    "shortcutsDescription": "Atajos configurables en el navegador.",
+    "databaseMaintenance": "Mantenimiento de bases de datos",
+    "databaseMaintenanceDescription": "Vaciar tablas o bases de datos de forma controlada en el ambiente actual.",
+    "environmentRecovery": "Regenerar datos del ambiente",
+    "environmentRecoveryDescription": "Volver a crear datos iniciales desde el .env actual de producción o staging.",
+    "backToSettings": "Volver a Configuración"
   },
   "appearance": {
     "title": "Apariencia",
