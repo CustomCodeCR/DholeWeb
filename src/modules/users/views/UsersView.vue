@@ -32,6 +32,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const users = ref<UserDto[]>([])
+const sendingCredentialUserIds = new Set<string>()
 
 const canCreate = computed(() => authStore.hasScope(AUTH_SCOPES.users.create))
 const canUpdate = computed(() => authStore.hasScope(AUTH_SCOPES.users.update))
@@ -120,6 +121,9 @@ function confirmSendCredentials(user: UserDto) {
       confirmLabel: t('users.sendCredentialsAction'),
       cancelLabel: t('common.cancel'),
       onConfirm: async () => {
+        if (sendingCredentialUserIds.has(user.id)) return
+
+        sendingCredentialUserIds.add(user.id)
         try {
           const credentials = await UsersService.issueCredentials(user.id)
 
@@ -141,6 +145,8 @@ function confirmSendCredentials(user: UserDto) {
           await loadUsers()
         } catch (error) {
           toastStore.backendError(error, t('users.sendCredentialsIssueError'))
+        } finally {
+          sendingCredentialUserIds.delete(user.id)
         }
       },
       onCancel: () => modalStore.close(),
