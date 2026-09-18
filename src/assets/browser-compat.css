@@ -1,0 +1,116 @@
+/*
+ * Cross-browser/device contract for Dhole Liquid Crystal.
+ * Covers Chromium (Chrome/Edge/Opera/Brave), Safari/WebKit, Firefox and
+ * privacy-focused/ESR browsers that may disable backdrop-filter.
+ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+button,
+[role='button'],
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+.dh-glass,
+.dh-glass-strong {
+  isolation: isolate;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dh-glass {
+    background: var(--dh-card-solid);
+  }
+
+  .dh-glass-strong {
+    background: var(--dh-card-solid);
+  }
+
+  .dark .dh-glass,
+  .dark .dh-glass-strong {
+    background: var(--dh-card-solid);
+  }
+}
+
+@supports not (overflow: clip) {
+  html,
+  body,
+  #app {
+    overflow-x: hidden;
+  }
+}
+
+@supports not (height: 100dvh) {
+  [class*='100dvh'],
+  [class*='calc(100dvh'] {
+    min-height: 100vh;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .dh-card-hover:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --dh-border: rgb(3 2 2 / 0.20);
+    --dh-border-strong: rgb(3 2 2 / 0.34);
+  }
+
+  .dark {
+    --dh-border: rgb(255 255 255 / 0.24);
+    --dh-border-strong: rgb(255 255 255 / 0.38);
+  }
+}
+
+@media (forced-colors: active) {
+  .dh-glass,
+  .dh-glass-strong,
+  .dh-liquid {
+    forced-color-adjust: auto;
+    border: 1px solid CanvasText;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media print {
+  .dh-glass,
+  .dh-glass-strong {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+}
