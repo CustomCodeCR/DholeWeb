@@ -38,6 +38,7 @@
   --dh-glow: 0 18px 55px rgb(var(--dh-primary-rgb) / 0.22);
 
   --dh-blur: 26px;
+  --dh-blur-strong: 32px;
 }
 
 .dark {
@@ -124,8 +125,8 @@ body.dh-has-client-background {
     var(--dh-shell-strong);
   border: 1px solid var(--dh-border-strong);
   box-shadow: var(--dh-shadow-lg);
-  backdrop-filter: blur(calc(var(--dh-blur) + 6px)) saturate(190%);
-  -webkit-backdrop-filter: blur(calc(var(--dh-blur) + 6px)) saturate(190%);
+  backdrop-filter: blur(var(--dh-blur-strong)) saturate(190%);
+  -webkit-backdrop-filter: blur(var(--dh-blur-strong)) saturate(190%);
 }
 
 .dark .dh-glass-strong {
