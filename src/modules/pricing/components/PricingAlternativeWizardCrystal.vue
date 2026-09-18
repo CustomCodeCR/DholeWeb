@@ -49,6 +49,7 @@ import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCryst
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
+import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
@@ -2634,6 +2635,15 @@ function openImportSource(rate: ImportRateSelectDto) {
   })
 }
 
+function openRateRevision(revision: RateRevisionDto) {
+  modalStore.open({
+    title: `Historial de tarifa · Revisión ${revision.revisionNumber}`,
+    component: PricingRateRevisionViewer,
+    size: 'xl',
+    props: { revision },
+  })
+}
+
 async function loadHaciendaExchangeRate(force = false) {
   if (exchangeRateLoading.value) return
   if (!force && exchangeRatePurchase.value && exchangeRateSale.value) return
@@ -3294,10 +3304,16 @@ onMounted(async () => {
         <summary class="cursor-pointer text-sm font-black">Historial de revisiones · {{ rateRevisions.length }} versión{{ rateRevisions.length === 1 ? '' : 'es' }} anterior{{ rateRevisions.length === 1 ? '' : 'es' }}</summary>
         <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           <div v-for="revision in rateRevisions" :key="revision.id" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs">
-            <div class="flex items-center justify-between gap-2"><strong>Revisión {{ revision.revisionNumber }}</strong><DhBadge :label="revision.status" variant="success" /></div>
-            <p class="mt-2 font-bold">{{ revision.idtraNumber || 'Sin IDTRA' }} · {{ revision.quoNumber || 'Sin QUO' }}</p>
+            <div class="flex items-center justify-between gap-2">
+              <strong>Revisión {{ revision.revisionNumber }}</strong>
+              <DhBadge :label="revision.status" :variant="revision.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
+            </div>
+            <p class="mt-2 truncate font-bold" :title="revision.rateName">{{ revision.idtraNumber || 'Sin IDTRA' }} · {{ revision.quoNumber || 'Sin QUO' }}</p>
             <p class="mt-1 text-[var(--dh-text-muted)]">USD {{ Number(revision.totalSaleUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) }} · CRC ₡{{ Number(revision.totalSaleCrc || 0).toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</p>
-            <p class="mt-1 text-[var(--dh-text-muted)]">Margen {{ Number(revision.marginPercentage || 0).toFixed(2) }}% · {{ new Date(revision.createdAtUtc).toLocaleString() }}</p>
+            <p class="mt-1 text-[var(--dh-text-muted)]">Margen {{ Number(revision.marginPercentage || 0).toFixed(2) }}% · {{ new Date(revision.createdAtUtc).toLocaleString('es-CR') }}</p>
+            <DhButton class="mt-3 w-full" variant="secondary" size="sm" @click="openRateRevision(revision)">
+              Ver revisión completa
+            </DhButton>
           </div>
         </div>
       </details>
