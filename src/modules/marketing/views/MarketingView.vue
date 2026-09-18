@@ -17,7 +17,7 @@ import {
   Users,
 } from 'lucide-vue-next'
 import { DhButton, DhSkeleton } from '@/shared/components/atoms'
-import { DhDropdownMenu, DhSearchInput, type DhDropdownItem } from '@/shared/components/molecules'
+import { DhCard, DhDropdownMenu, DhSearchInput, type DhDropdownItem } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { ContentService } from '@/core/services/contentService'
 import { MarketingService } from '@/core/services/marketingService'
@@ -239,7 +239,7 @@ onMounted(() => void loadDashboard())
     </DhPageHeader>
 
     <div class="grid min-w-0 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
-      <aside class="dh-glass dh-liquid min-w-0 rounded-[28px] p-3 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:self-start xl:overflow-hidden">
+      <DhCard as="aside" padding="sm" class="min-w-0 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:self-start xl:overflow-hidden">
         <div class="border-b border-[var(--dh-border)] px-1 pb-3">
           <p class="text-xs font-black uppercase tracking-[.16em] text-[var(--dh-primary)]">{{ tr('Espacio de trabajo', 'Workspace') }}</p>
           <p class="mt-1 text-xs leading-5 text-[var(--dh-text-muted)]">{{ tr('Elija lo que desea administrar.', 'Choose what you want to manage.') }}</p>
@@ -265,11 +265,11 @@ onMounted(() => void loadDashboard())
             </div>
           </section>
         </nav>
-      </aside>
+      </DhCard>
 
       <main class="min-w-0">
         <div v-if="activeSection === 'dashboard'" class="space-y-5">
-          <section class="marketing-hero">
+          <DhCard class="marketing-hero" padding="lg">
             <div class="min-w-0">
               <p class="text-xs font-black uppercase tracking-[.18em] text-[var(--dh-primary)]">{{ tr('Inicio', 'Home') }}</p>
               <h2 class="mt-2 max-w-3xl text-2xl font-black tracking-tight sm:text-3xl">
@@ -280,7 +280,7 @@ onMounted(() => void loadDashboard())
               </p>
             </div>
             <div class="hero-orb"><Megaphone class="h-8 w-8" /></div>
-          </section>
+          </DhCard>
 
           <section>
             <div class="mb-3 flex items-center justify-between gap-3">
@@ -294,32 +294,32 @@ onMounted(() => void loadDashboard())
               <template v-if="dashboardLoading">
                 <DhSkeleton v-for="index in 8" :key="index" height="7.5rem" rounded="lg" />
               </template>
-              <button v-for="card in dashboardCards" v-else :key="card.label" type="button" class="metric-card" @click="openSection(card.section)">
+              <DhCard v-for="card in dashboardCards" v-else :key="card.label" as="button" :interactive="true" padding="sm" class="metric-card" @click="openSection(card.section)">
                 <span class="metric-icon"><component :is="card.icon" class="h-5 w-5" /></span>
                 <strong class="mt-4 block text-3xl font-black">{{ card.value }}</strong>
                 <span class="mt-1 block text-sm font-semibold text-[var(--dh-text-muted)]">{{ card.displayLabel }}</span>
-              </button>
+              </DhCard>
             </div>
           </section>
 
-          <section class="dh-glass dh-liquid rounded-[28px] p-5 sm:p-6">
+          <DhCard padding="md">
             <div>
               <h3 class="text-lg font-black">{{ tr('¿Qué desea hacer?', 'What would you like to do?') }}</h3>
               <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ tr('Accesos directos a las tareas más frecuentes.', 'Shortcuts to the most common tasks.') }}</p>
             </div>
             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <article v-for="action in quickActions" :key="action.key" class="task-card">
+              <DhCard v-for="action in quickActions" :key="action.key" padding="sm" class="task-card">
                 <span class="task-icon"><component :is="action.icon" class="h-5 w-5" /></span>
                 <h4 class="mt-4 font-black">{{ action.title }}</h4>
                 <p class="mt-1 min-h-10 text-xs leading-5 text-[var(--dh-text-muted)]">{{ action.description }}</p>
                 <DhButton class="mt-4 w-full" :label="tr('Abrir', 'Open')" variant="secondary" size="sm" @click="handleQuickAction(action.key)" />
-              </article>
+              </DhCard>
             </div>
-          </section>
+          </DhCard>
         </div>
 
         <div v-else class="space-y-4">
-          <section class="section-intro">
+          <DhCard class="section-intro" padding="sm">
             <div class="section-intro-icon">
               <component :is="activeDefinition ? iconMap[activeDefinition.item.icon] : Megaphone" class="h-6 w-6" />
             </div>
@@ -332,7 +332,7 @@ onMounted(() => void loadDashboard())
               <DhButton v-if="activeSection === 'content-pages'" :label="tr('Abrir editor visual', 'Open visual editor')" :icon="LayoutDashboard" variant="secondary" size="sm" @click="openVisualEditor" />
               <DhButton :label="tr('Volver al inicio', 'Back home')" variant="ghost" size="sm" @click="openSection('dashboard')" />
             </div>
-          </section>
+          </DhCard>
 
           <MarketingAnimationTab v-if="activeSection === 'design-animations'" :site-key="siteKey" />
           <MarketingContentWorkspace
@@ -348,12 +348,12 @@ onMounted(() => void loadDashboard())
           <MarketingMediaTab v-else-if="isMediaSection" :key="activeSection" />
           <MarketingMenusTab v-else-if="activeSection === 'design-menus'" :site-key="siteKey" />
           <MarketingSettingsTab v-else-if="isSettingsSection" :key="activeSection" :site-key="siteKey" />
-          <section v-else-if="activeSection === 'seo-sitemap'" class="dh-glass dh-liquid rounded-[28px] p-6">
+          <DhCard v-else-if="activeSection === 'seo-sitemap'" padding="md">
             <h3 class="text-lg font-black">{{ tr('Mapa del sitio automático', 'Automatic site map') }}</h3>
             <p class="mt-2 max-w-3xl text-sm leading-6 text-[var(--dh-text-muted)]">
               {{ tr('Dhole mantiene este mapa a partir de las páginas publicadas. No necesita editar archivos ni configuraciones manuales.', 'Dhole keeps this map updated from published pages. You do not need to edit files or manual settings.') }}
             </p>
-          </section>
+          </DhCard>
           <MarketingResourceTab
             v-else-if="resourceSection"
             :key="activeSection"
