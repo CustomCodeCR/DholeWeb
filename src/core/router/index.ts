@@ -36,6 +36,19 @@ export const router = createRouter({
     },
 
     {
+      path: '/change-password',
+      component: AuthLayout,
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'change-temporary-password',
+          component: () => import('@/modules/auth/views/ChangeTemporaryPasswordView.vue'),
+        },
+      ],
+    },
+
+    {
       path: '/origin',
       name: 'public-origin-office',
       component: () => import('@/modules/pricing/views/PublicOriginOfficeView.vue'),
@@ -46,7 +59,8 @@ export const router = createRouter({
       path: '/',
       redirect: () => {
         const authStore = useAuthStore()
-        return authStore.hasValidSession() ? '/home' : '/login'
+        if (!authStore.hasValidSession()) return '/login'
+        return authStore.mustChangePassword ? '/change-password' : '/home'
       },
     },
 
@@ -474,8 +488,16 @@ router.beforeEach(async (to) => {
   const isPublic = to.meta.public === true
   const hasSession = authStore.hasValidSession()
 
+  if (!hasSession && to.path === '/change-password') {
+    return '/login'
+  }
+
+  if (hasSession && authStore.mustChangePassword && to.path !== '/change-password') {
+    return '/change-password'
+  }
+
   if (to.path === '/login' && hasSession) {
-    return '/home'
+    return authStore.mustChangePassword ? '/change-password' : '/home'
   }
 
   if (!isPublic && !hasSession) {
