@@ -25,6 +25,7 @@ const { t } = useI18n()
     <Transition name="modal-backdrop">
       <div
         v-if="open"
+        data-dh-overlay="modal"
         class="fixed inset-0 z-[90] flex items-end justify-center bg-black/25 p-2 backdrop-blur-sm sm:items-center sm:p-4"
         @click.self="emit('close')"
       >
