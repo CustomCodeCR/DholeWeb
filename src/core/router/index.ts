@@ -530,7 +530,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  if (to.meta.public === true || to.query.dhEmbed === '1') return
+  if (to.meta.public === true || to.path === '/change-password' || to.query.dhEmbed === '1') return
 
   const tabsStore = useWorkspaceTabsStore()
 
