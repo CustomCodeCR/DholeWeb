@@ -766,6 +766,26 @@
       "freightAmount": "Flete / costo marítimo",
       "applyAutomaticCosts": "Aplicar costos fijos automáticos",
       "helper": "Si escribe una venta, se usa como venta final. Si lo deja vacío, se calcula con el margen deseado y también ajusta la venta de los costos automáticos."
+    },
+    "confirmations": {
+      "createComparisonTitle": "Crear tarifa desde comparación",
+      "createComparisonMessage": "Dhole creará una nueva tarifa usando la tarifa automática de esta comparación. ¿Desea continuar?",
+      "createComparisonConfirm": "Crear tarifa",
+      "dismissComparisonTitle": "Descartar oportunidad",
+      "dismissComparisonMessage": "¿Descartar esta oportunidad? No se modificará ninguna tarifa existente.",
+      "dismissComparisonConfirm": "Descartar",
+      "deleteTermTitle": "Eliminar ítem de tarifa",
+      "deleteTermMessage": "¿Eliminar “{name}”?",
+      "deleteFreeDayTitle": "Eliminar mapeo de días libres",
+      "deleteFreeDayMessage": "¿Eliminar el mapeo de {carrier}?",
+      "deleteBlockTitle": "Eliminar bloque",
+      "deleteBlockMessage": "¿Eliminar el bloque “{name}”?",
+      "inactivateSelectedTitle": "Inactivar tarifas",
+      "inactivateSelectedMessage": "¿Desea inactivar {count} tarifa(s) seleccionada(s)?",
+      "inactivateConfirm": "Inactivar",
+      "inactivateImportTitle": "Inactivar tarifa preaprobada",
+      "inactivateImportMessage": "¿Inactivar esta tarifa preaprobada? Dejará de aparecer como alternativa para nuevas tarifas.{history}",
+      "usedHistory": " Esta tarifa ya fue utilizada {count} vez/veces; ese historial se conservará."
     }
   },
   "reports": {
