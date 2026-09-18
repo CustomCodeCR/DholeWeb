@@ -320,7 +320,16 @@
     "glass": "Liquid glass",
     "compact": "Compact",
     "comfortable": "Comfortable",
-    "spacious": "Spacious"
+    "spacious": "Spacious",
+    "appearanceDescription": "Theme, language, Liquid Crystal and per-client branding.",
+    "directory": "Extension directory",
+    "directoryDescription": "Employees, departments, extensions, emails and mobile numbers.",
+    "shortcutsDescription": "Browser-configurable shortcuts.",
+    "databaseMaintenance": "Database maintenance",
+    "databaseMaintenanceDescription": "Safely clear tables or databases in the current environment.",
+    "environmentRecovery": "Regenerate environment data",
+    "environmentRecoveryDescription": "Recreate initial data from the current production or staging .env.",
+    "backToSettings": "Back to Settings"
   },
   "appearance": {
     "title": "Appearance",
