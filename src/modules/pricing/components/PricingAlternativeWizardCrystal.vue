@@ -2351,6 +2351,25 @@ function transitDaysFrom(value?: string | null) {
   return match ? Number(match[0]) : 0
 }
 
+function sanitizeCargoDescriptionForField(rawDescription: string | null | undefined) {
+  return String(rawDescription ?? '')
+    .split(/\s+·\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .filter((segment) => !/^CABYS\s+\d+/i.test(segment))
+    .filter((segment) => !/^Observaciones\s*:/i.test(segment))
+    .filter((segment) => !/^Recolecci[oó]n\s*:/i.test(segment))
+    .filter((segment) => !/^WHS\s+(?:FCA|FOB)\s*:/i.test(segment))
+    .join(' · ')
+}
+
+const cargoDescriptionModel = computed({
+  get: () => sanitizeCargoDescriptionForField(form.cargoDescription),
+  set: (value: string) => {
+    form.cargoDescription = value
+  },
+})
+
 function hydratePersistedCargoDescription(rawDescription: string | null | undefined) {
   const raw = String(rawDescription ?? '').trim()
   if (!raw) {
@@ -2372,14 +2391,7 @@ function hydratePersistedCargoDescription(rawDescription: string | null | undefi
     form.cargoObservations = observationSegment.replace(/^Observaciones\s*:\s*/i, '').trim()
   }
 
-  // La descripción de carga no debe absorber datos operativos de ruta.
-  // EXW/FCA/FOB guardan dirección/WHS en sus campos dedicados.
-  form.cargoDescription = segments
-    .filter((segment) => !/^CABYS\s+\d+/i.test(segment))
-    .filter((segment) => !/^Observaciones\s*:/i.test(segment))
-    .filter((segment) => !/^Recolecci[oó]n\s*:/i.test(segment))
-    .filter((segment) => !/^WHS\s+(?:FCA|FOB)\s*:/i.test(segment))
-    .join(' · ')
+  form.cargoDescription = sanitizeCargoDescriptionForField(raw)
 }
 
 async function hydrateExistingRate() {
@@ -3187,6 +3199,15 @@ function resetWizard() {
 }
 
 watch(
+  () => form.cargoDescription,
+  (value) => {
+    const sanitized = sanitizeCargoDescriptionForField(value)
+    if (sanitized !== value) form.cargoDescription = sanitized
+  },
+  { flush: 'sync' },
+)
+
+watch(
   () => selectedIncotermCode.value,
   (code) => {
     nearestPortRecommendations.value = []
@@ -3837,7 +3858,7 @@ onMounted(async () => {
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
-              <DhInput v-model="form.cargoDescription" label="Descripción de la carga (opcional)" />
+              <DhInput v-model="cargoDescriptionModel" label="Descripción de la carga (opcional)" />
               <DhInput v-model.number="form.cargoValue" type="number" min="0" step="0.01" label="Valor de la carga (si aplica)" />
             </div>
 
