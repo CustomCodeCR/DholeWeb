@@ -115,7 +115,23 @@
     "password": "Password",
     "submit": "Sign in",
     "missingData": "Enter email and password.",
-    "loginError": "Invalid email or password."
+    "loginError": "Invalid email or password.",
+    "temporaryPassword": {
+      "title": "Change your password",
+      "subtitle": "You are using a temporary password. Create a personal password before continuing in Dhole.",
+      "newPassword": "New password",
+      "newPasswordPlaceholder": "Enter your new password",
+      "confirmPassword": "Confirm password",
+      "confirmPasswordPlaceholder": "Repeat your new password",
+      "submit": "Save new password",
+      "missingTitle": "Missing information",
+      "missingMessage": "Enter and confirm your new password.",
+      "mismatchTitle": "Passwords do not match",
+      "mismatchMessage": "Make sure both passwords are identical.",
+      "successTitle": "Password updated",
+      "successMessage": "Sign in again using your email and new password.",
+      "errorMessage": "The password could not be updated."
+    }
   },
   "dashboard": {
     "title": "Dashboard",
