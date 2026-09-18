@@ -72,6 +72,76 @@ const details = computed(() => {
   return Array.isArray(value) ? value.map(asRecord) : []
 })
 
+const historicalTotals = computed(() => {
+  const exchangeRate = numberValue(
+    pick(snapshot.value, 'ExchangeRateApplied', 'exchangeRateApplied')
+      ?? pick(snapshot.value, 'ExchangeRateSale', 'exchangeRateSale'),
+  )
+
+  let costUsd = 0
+  let saleUsd = 0
+  let costCrc = 0
+  let saleCrc = 0
+
+  details.value.forEach((detail) => {
+    const quantity = Math.max(0, numberValue(pick(detail, 'Quantity', 'quantity')) || 1)
+    const cost = numberValue(pick(detail, 'CostAmount', 'costAmount')) * quantity
+    const sale = numberValue(pick(detail, 'SaleAmount', 'saleAmount')) * quantity
+    const currency = normalizeCurrency(
+      pick(detail, 'CurrencyName', 'currencyName')
+        ?? pick(detail, 'CurrencyCode', 'currencyCode'),
+    )
+
+    if (currency === 'CRC') {
+      costCrc += cost
+      saleCrc += sale
+      if (exchangeRate > 0) {
+        costUsd += cost / exchangeRate
+        saleUsd += sale / exchangeRate
+      }
+      return
+    }
+
+    costUsd += cost
+    saleUsd += sale
+    if (exchangeRate > 0) {
+      costCrc += cost * exchangeRate
+      saleCrc += sale * exchangeRate
+    }
+  })
+
+  const persistedCostUsd = numberValue(pick(snapshot.value, 'TotalCostUsd', 'totalCostUsd'))
+  const persistedSaleUsd = numberValue(pick(snapshot.value, 'TotalSaleUsd', 'totalSaleUsd'))
+  const persistedCostCrc = numberValue(pick(snapshot.value, 'TotalCostCrc', 'totalCostCrc'))
+  const persistedSaleCrc = numberValue(pick(snapshot.value, 'TotalSaleCrc', 'totalSaleCrc'))
+
+  // Revisiones antiguas pueden tener los encabezados totales en cero aunque el snapshot
+  // sí conserve todas las líneas. En ese caso reconstruimos los totales desde Details.
+  const useDerived = details.value.length > 0 && (
+    (persistedCostUsd === 0 && persistedSaleUsd === 0)
+    || (persistedCostCrc === 0 && persistedSaleCrc === 0)
+  )
+
+  const finalCostUsd = useDerived ? costUsd : persistedCostUsd
+  const finalSaleUsd = useDerived ? saleUsd : persistedSaleUsd
+  const finalCostCrc = useDerived ? costCrc : persistedCostCrc
+  const finalSaleCrc = useDerived ? saleCrc : persistedSaleCrc
+  const utilityUsd = finalSaleUsd - finalCostUsd
+  const utilityCrc = finalSaleCrc - finalCostCrc
+  const margin = finalSaleUsd > 0 ? (utilityUsd / finalSaleUsd) * 100 : 0
+
+  return {
+    costUsd: finalCostUsd,
+    saleUsd: finalSaleUsd,
+    utilityUsd,
+    costCrc: finalCostCrc,
+    saleCrc: finalSaleCrc,
+    utilityCrc,
+    margin,
+    reconstructed: useDerived,
+  }
+})
+
 const containers = computed(() => {
   const value = pick(snapshot.value, 'Containers', 'containers')
   return Array.isArray(value) ? value.map(asRecord) : []
@@ -153,23 +223,24 @@ const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes
     <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <div class="rounded-2xl border border-[var(--dh-border)] p-4">
         <p class="text-[10px] font-black uppercase tracking-[0.13em] text-[var(--dh-text-muted)]">Venta</p>
-        <p class="mt-1 text-lg font-black">{{ money(pick(snapshot, 'TotalSaleUsd', 'totalSaleUsd'), 'USD') }}</p>
-        <p class="text-xs text-[var(--dh-text-muted)]">{{ money(pick(snapshot, 'TotalSaleCrc', 'totalSaleCrc'), 'CRC') }}</p>
+        <p class="mt-1 text-lg font-black">{{ money(historicalTotals.saleUsd, 'USD') }}</p>
+        <p class="text-xs text-[var(--dh-text-muted)]">{{ money(historicalTotals.saleCrc, 'CRC') }}</p>
       </div>
       <div class="rounded-2xl border border-[var(--dh-border)] p-4">
         <p class="text-[10px] font-black uppercase tracking-[0.13em] text-[var(--dh-text-muted)]">Costo</p>
-        <p class="mt-1 text-lg font-black">{{ money(pick(snapshot, 'TotalCostUsd', 'totalCostUsd'), 'USD') }}</p>
-        <p class="text-xs text-[var(--dh-text-muted)]">{{ money(pick(snapshot, 'TotalCostCrc', 'totalCostCrc'), 'CRC') }}</p>
+        <p class="mt-1 text-lg font-black">{{ money(historicalTotals.costUsd, 'USD') }}</p>
+        <p class="text-xs text-[var(--dh-text-muted)]">{{ money(historicalTotals.costCrc, 'CRC') }}</p>
       </div>
       <div class="rounded-2xl border border-[var(--dh-border)] p-4">
         <p class="text-[10px] font-black uppercase tracking-[0.13em] text-[var(--dh-text-muted)]">Utilidad</p>
-        <p class="mt-1 text-lg font-black">{{ money(pick(snapshot, 'TotalUtilityUsd', 'totalUtilityUsd'), 'USD') }}</p>
-        <p class="text-xs text-[var(--dh-text-muted)]">{{ money(pick(snapshot, 'TotalUtilityCrc', 'totalUtilityCrc'), 'CRC') }}</p>
+        <p class="mt-1 text-lg font-black">{{ money(historicalTotals.utilityUsd, 'USD') }}</p>
+        <p class="text-xs text-[var(--dh-text-muted)]">{{ money(historicalTotals.utilityCrc, 'CRC') }}</p>
       </div>
       <div class="rounded-2xl border border-[var(--dh-border)] p-4">
         <p class="text-[10px] font-black uppercase tracking-[0.13em] text-[var(--dh-text-muted)]">Margen</p>
-        <p class="mt-1 text-lg font-black">{{ numberValue(pick(snapshot, 'MarginPercentage', 'marginPercentage')).toFixed(2) }}%</p>
+        <p class="mt-1 text-lg font-black">{{ historicalTotals.margin.toFixed(2) }}%</p>
         <p class="text-xs text-[var(--dh-text-muted)]">Días libres: {{ numberValue(pick(snapshot, 'FreeDays', 'freeDays')) }}</p>
+        <p v-if="historicalTotals.reconstructed" class="mt-1 text-[10px] font-bold text-[var(--dh-text-muted)]">Totales reconstruidos desde las líneas guardadas de esta revisión.</p>
       </div>
     </section>
 
