@@ -38,12 +38,16 @@ import type {
   ScrapingSourceDto,
 } from '@/core/interfaces/scraping'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
+import { useDhConfirm } from '@/core/composables/useDhConfirm'
+import { useDhPrompt } from '@/core/composables/useDhPrompt'
 
 type ScrapingModule = 'sources' | 'credentials' | 'jobs' | 'runs' | 'rules' | 'evidences' | 'candidates'
 type SelectOption = { label: string; value: string | number; disabled?: boolean }
 type AnyRecord = Record<string, unknown>
 
 const { t } = useI18n()
+const { confirm } = useDhConfirm()
+const { prompt } = useDhPrompt()
 const toastStore = useToastStore()
 
 const loading = ref(false)
@@ -449,10 +453,6 @@ function dateTimeLocalToIso(value: string): string | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
-function confirmAction(message: string) {
-  return window.confirm(message)
-}
-
 function parseJson(value: string): unknown {
   if (!value.trim()) return null
   return JSON.parse(value)
@@ -674,7 +674,7 @@ async function saveSource() {
 }
 
 async function deleteSource(row: ScrapingSourceDto) {
-  if (!confirmAction(t('scraping.confirmDelete'))) return
+  if (!(await confirm({ title: t('common.confirm'), message: t('scraping.confirmDelete'), danger: true }))) return
   try {
     await ScrapingService.deleteSource(row.id)
     toastStore.success(t('scraping.deleted'))
@@ -744,7 +744,7 @@ async function saveCredential() {
 }
 
 async function deleteCredential(row: ScrapingCredentialDto) {
-  if (!confirmAction(t('scraping.confirmDelete'))) return
+  if (!(await confirm({ title: t('common.confirm'), message: t('scraping.confirmDelete'), danger: true }))) return
   try {
     await ScrapingService.deleteCredential(row.id)
     toastStore.success(t('scraping.deleted'))
@@ -755,7 +755,11 @@ async function deleteCredential(row: ScrapingCredentialDto) {
 }
 
 async function rotateCredential(row: ScrapingCredentialDto) {
-  const secretReference = window.prompt(t('scraping.newSecretReference'))
+  const secretReference = await prompt({
+    title: t('scraping.newSecretReference'),
+    label: t('scraping.newSecretReference'),
+    confirmLabel: t('common.save'),
+  })
   if (!secretReference) return
 
   try {
@@ -875,7 +879,7 @@ async function saveRule() {
   } catch (error) { toastStore.backendError(error, t('scraping.ruleCreateError')) }
   finally { saving.value = false }
 }
-async function deleteRule(row: ExtractionMappingRuleDto) { if (!confirmAction(t('scraping.confirmDelete'))) return; try { await ScrapingService.deleteExtractionRule(row.id); await load() } catch (error) { toastStore.backendError(error, t('scraping.deleteError')) } }
+async function deleteRule(row: ExtractionMappingRuleDto) { if (!(await confirm({ title: t('common.confirm'), message: t('scraping.confirmDelete'), danger: true }))) return; try { await ScrapingService.deleteExtractionRule(row.id); await load() } catch (error) { toastStore.backendError(error, t('scraping.deleteError')) } }
 async function toggleRule(row: ExtractionMappingRuleDto) { try { await ScrapingService.setExtractionRuleActive(row.id, !/active/i.test(row.statusName)); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
 async function approveRule(row: ExtractionMappingRuleDto) { try { await ScrapingService.approveExtractionRule(row.id, t('scraping.approvedFromWeb')); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
 async function rejectRule(row: ExtractionMappingRuleDto) { const reason = window.prompt(t('scraping.rejectionReason')); if (!reason) return; try { await ScrapingService.rejectExtractionRule(row.id, reason); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
@@ -889,7 +893,7 @@ async function createEvidence() {
   } catch (error) { toastStore.backendError(error, t('scraping.evidenceCreateError')) }
   finally { saving.value = false }
 }
-async function deleteEvidence(row: ScrapedEvidenceDto) { if (!confirmAction(t('scraping.confirmDelete'))) return; try { await ScrapingService.deleteEvidence(row.id); await load() } catch (error) { toastStore.backendError(error, t('scraping.deleteError')) } }
+async function deleteEvidence(row: ScrapedEvidenceDto) { if (!(await confirm({ title: t('common.confirm'), message: t('scraping.confirmDelete'), danger: true }))) return; try { await ScrapingService.deleteEvidence(row.id); await load() } catch (error) { toastStore.backendError(error, t('scraping.deleteError')) } }
 
 async function createCandidate() {
   if (!candidateForm.scrapingRunId || !candidateForm.scrapingSourceId || !candidateForm.rawJson.trim()) { toastStore.error(t('common.error'), t('scraping.requiredCandidateFields')); return }
