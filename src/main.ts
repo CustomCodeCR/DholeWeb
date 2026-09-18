@@ -11,6 +11,7 @@ import { createI18n } from 'vue-i18n'
 
 import es from './core/i18n/es.json'
 import en from './core/i18n/en.json'
+import { scrapingMessages } from '@/modules/scraping/i18n'
 import App from './App.vue'
 import router from './core/router'
 import { VIEW_SCOPES } from '@/core/auth/scopes'
@@ -188,7 +189,7 @@ const brandingStore = useBrandingStore()
 themeStore.applyTheme()
 brandingStore.applyCachedOrDefault()
 
-const i18n = createI18n({ legacy: false, locale: localeStore.getLocale(), fallbackLocale: 'en', messages: { en, es } })
+const i18n = createI18n({ legacy: false, locale: localeStore.getLocale(), fallbackLocale: 'en', messages: { en: { ...en, scraping: scrapingMessages.en }, es: { ...es, scraping: scrapingMessages.es } } })
 const uiTextBridge = createUiTextBridge(() => localeStore.getLocale())
 
 watch(() => localeStore.getLocale(), async (newLocale) => {
