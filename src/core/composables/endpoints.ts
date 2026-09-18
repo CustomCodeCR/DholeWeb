@@ -18,6 +18,7 @@ const acceptJson = {
 
 export const AuthEndpoints = {
   login: { method: 'POST', path: '/api/auth/login', headers: jsonHeaders },
+  changeOwnPassword: { method: 'POST', path: '/api/auth/change-password', headers: jsonHeaders },
   refreshToken: { method: 'POST', path: '/api/auth/refresh', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 
