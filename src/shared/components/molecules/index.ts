@@ -6,6 +6,7 @@ export { default as DhDropdownMenu } from './DhDropdownMenu.vue'
 export { default as DhTabs } from './DhTabs.vue'
 export { default as DhCrudToolbar } from './DhCrudToolbar.vue'
 export { default as DhConfirmDialog } from './DhConfirmDialog.vue'
+export { default as DhCard } from './DhCard.vue'
 
 export type { DhTableColumn } from './DhDataTable.vue'
 export type { DhDropdownItem } from './DhDropdownMenu.vue'
