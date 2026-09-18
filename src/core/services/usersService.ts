@@ -9,6 +9,7 @@ import type {
   BrowseUsersQuery,
   ChangeUserPasswordRequest,
   CreateUserRequest,
+  IssuedUserCredentialsDto,
   RevokeRolesFromUserRequest,
   RevokeScopesFromUserRequest,
   SetUserActiveRequest,
@@ -49,6 +50,11 @@ export const UsersService = {
 
   changePassword(userId: string, payload: ChangeUserPasswordRequest): Promise<NoContent> {
     return callEndpoint<NoContent, ChangeUserPasswordRequest>(Endpoints.changeUserPassword, { params: { userId }, body: payload })
+  },
+
+  async issueCredentials(userId: string): Promise<IssuedUserCredentialsDto> {
+    const response = await callEndpoint<unknown>(Endpoints.issueUserCredentials, { params: { userId } })
+    return unwrapApiResponse<IssuedUserCredentialsDto>(response)
   },
 
   setActive(userId: string, payload: SetUserActiveRequest): Promise<NoContent> {
