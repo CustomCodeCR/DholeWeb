@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
 import { FileSpreadsheet } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { DhButton } from '@/shared/components/atoms'
 import { downloadVisibleTablesAsExcel, hasVisibleExcelTables } from '@/core/utils/excel'
 
 const props = defineProps<{ title: string; subtitle?: string; icon?: Component }>()
+const { t } = useI18n()
 const hasExcelTables = ref(false)
 let observer: MutationObserver | null = null
 let refreshFrame = 0
@@ -44,16 +46,32 @@ onBeforeUnmount(() => {
 <template>
   <header class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
     <div class="flex min-w-0 items-center gap-3 sm:gap-4">
-      <div v-if="icon" class="dh-glass dh-liquid flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] text-[var(--dh-primary)] shadow-[var(--dh-glow)] sm:h-14 sm:w-14"><component :is="icon" class="h-6 w-6" /></div>
+      <div
+        v-if="icon"
+        class="dh-glass dh-liquid flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] text-[var(--dh-primary)] shadow-[var(--dh-glow)] sm:h-14 sm:w-14"
+      >
+        <component :is="icon" class="h-6 w-6" />
+      </div>
       <div class="min-w-0">
-        <h1 class="break-words text-2xl font-black tracking-tight text-[var(--dh-text)] sm:text-3xl">{{ title }}</h1>
-        <p v-if="subtitle" class="mt-1 max-w-3xl break-words text-sm font-semibold text-[var(--dh-text-muted)]">{{ subtitle }}</p>
+        <h1 class="break-words text-2xl font-black tracking-tight text-[var(--dh-text)] sm:text-3xl">
+          {{ title }}
+        </h1>
+        <p
+          v-if="subtitle"
+          class="mt-1 max-w-3xl break-words text-sm font-semibold leading-5 text-[var(--dh-text-muted)]"
+        >
+          {{ subtitle }}
+        </p>
       </div>
     </div>
-    <div v-if="$slots.actions || hasExcelTables" class="dh-page-header-actions flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+
+    <div
+      v-if="$slots.actions || hasExcelTables"
+      class="dh-page-header-actions flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end"
+    >
       <DhButton
         v-if="hasExcelTables"
-        label="Exportar Excel"
+        :label="t('common.exportExcel')"
         :icon="FileSpreadsheet"
         variant="secondary"
         size="sm"
