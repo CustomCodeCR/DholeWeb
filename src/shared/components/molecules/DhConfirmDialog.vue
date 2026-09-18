@@ -27,8 +27,10 @@ const resolvedConfirmLabel = computed(() => props.confirmLabel || t('common.conf
 const resolvedCancelLabel = computed(() => props.cancelLabel || t('common.cancel'))
 
 async function confirm() {
-  emit('confirm')
+  if (loading.value) return
+
   loading.value = true
+  emit('confirm')
 
   try {
     await props.onConfirm?.()
