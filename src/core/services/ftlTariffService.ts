@@ -86,6 +86,13 @@ export interface ImportLandTariffResult {
   total: number
 }
 
+export interface SeedLandTariffDefaultsResult {
+  total: number
+  ftl: number
+  ltl: number
+  message: string
+}
+
 const acceptJson = { Accept: 'application/json' }
 const jsonHeaders = { Accept: 'application/json', 'Content-Type': 'application/json' }
 
@@ -149,6 +156,15 @@ export const FtlTariffService = {
       { body: { items } },
     )
     return unwrapApiResponse<ImportLandTariffResult>(response)
+  },
+
+  async seedDefaults(): Promise<SeedLandTariffDefaultsResult> {
+    const response = await callEndpoint<unknown>({
+      method: 'POST',
+      path: '/api/pricing/ftl-tariffs/seed-defaults',
+      headers: jsonHeaders,
+    })
+    return unwrapApiResponse<SeedLandTariffDefaultsResult>(response)
   },
 
   async updateBatch(items: UpdateFtlTariffItem[]): Promise<void> {
