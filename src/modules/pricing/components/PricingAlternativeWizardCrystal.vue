@@ -2350,6 +2350,37 @@ function transitDaysFrom(value?: string | null) {
   return match ? Number(match[0]) : 0
 }
 
+function hydratePersistedCargoDescription(rawDescription: string | null | undefined) {
+  const raw = String(rawDescription ?? '').trim()
+  if (!raw) {
+    form.cargoDescription = ''
+    return
+  }
+
+  const segments = raw
+    .split(/\s+·\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  const cabysSegment = segments.find((segment) => /^CABYS\s+\d+/i.test(segment))
+  const cabysMatch = cabysSegment?.match(/^CABYS\s+(\d+)/i)
+  if (cabysMatch?.[1]) form.cabysCode = cabysMatch[1]
+
+  const observationSegment = segments.find((segment) => /^Observaciones\s*:/i.test(segment))
+  if (observationSegment) {
+    form.cargoObservations = observationSegment.replace(/^Observaciones\s*:\s*/i, '').trim()
+  }
+
+  // La descripción de carga no debe absorber datos operativos de ruta.
+  // EXW/FCA/FOB guardan dirección/WHS en sus campos dedicados.
+  form.cargoDescription = segments
+    .filter((segment) => !/^CABYS\s+\d+/i.test(segment))
+    .filter((segment) => !/^Observaciones\s*:/i.test(segment))
+    .filter((segment) => !/^Recolecci[oó]n\s*:/i.test(segment))
+    .filter((segment) => !/^WHS\s+(?:FCA|FOB)\s*:/i.test(segment))
+    .join(' · ')
+}
+
 async function hydrateExistingRate() {
   if (!props.rateId) return
   try {
@@ -2407,6 +2438,7 @@ async function hydrateExistingRate() {
     form.freightCost = Number(freight?.costAmount || 0)
     form.freightSale = Number(freight?.saleAmount || 0)
     form.cargoDescription = rate.cargoLines?.[0]?.description ?? ''
+    hydratePersistedCargoDescription(rate.cargoLines?.[0]?.description)
     form.cargoWeightKg = Number(rate.cargoLines?.[0]?.weightKg ?? rate.totalWeightKg ?? 0)
     form.cargoPallets = Math.max(1, Number(rate.cargoLines?.[0]?.pallets ?? rate.totalPallets ?? 1))
     form.cargoLengthCm = Number(rate.cargoLines?.[0]?.lengthCm ?? 0)
@@ -3029,8 +3061,6 @@ async function saveRate() {
             description: [
               `${form.cabysCode ? `CABYS ${form.cabysCode} · ` : ''}${form.cargoDescription}`,
               form.cargoObservations ? `Observaciones: ${form.cargoObservations}` : '',
-              form.pickupAddress ? `Recolección: ${form.pickupAddress}` : '',
-              selectedWarehouse.value ? `WHS FCA: ${selectedWarehouse.value.label || displayValue(selectedWarehouse.value)}` : '',
               supportSummaryText(),
             ].filter(Boolean).join(' · '),
             packages: 0,
@@ -4321,7 +4351,12 @@ onMounted(async () => {
               </div>
             </div>
             <div v-if="editingRate.pickupAddress" class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-sm font-semibold">
-              Recolección: {{ editingRate.pickupAddress }}
+              <span v-if="String(editingRate.incotermName || editingRate.incotermCode || '').toUpperCase().includes('EXW')">
+                Recolección EXW: {{ editingRate.pickupAddress }}
+              </span>
+              <span v-else>
+                WHS {{ String(editingRate.incotermName || '').toUpperCase().includes('FOB') ? 'FOB' : 'FCA' }}: {{ editingRate.pickupAddress }}
+              </span>
             </div>
           </div>
 
