@@ -17,6 +17,7 @@ export interface PanamaLandContinuationQuery {
   containerType?: string | null
   panamaPolCode?: string | null
   finalDestinationCode?: string | null
+  quoteDate?: string | null
 }
 
 export interface PanamaLandContinuationDto {
@@ -76,6 +77,7 @@ export const PanamaContinuationService = {
         containerType: query.containerType,
         panamaPolCode: query.panamaPolCode,
         finalDestinationCode: query.finalDestinationCode,
+        quoteDate: query.quoteDate,
       }),
       headers: { Accept: 'application/json' },
     })
