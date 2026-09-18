@@ -3,6 +3,7 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 
 import type {
+  ChangeOwnPasswordRequest,
   LoginRequest,
   LoginResponse,
   RefreshTokenRequest,
@@ -16,6 +17,12 @@ export const AuthService = {
     })
 
     return unwrapApiResponse(response)
+  },
+
+  async changeOwnPassword(payload: ChangeOwnPasswordRequest): Promise<void> {
+    await callEndpoint<void, ChangeOwnPasswordRequest>(Endpoints.changeOwnPassword, {
+      body: payload,
+    })
   },
 
   async refreshToken(payload: RefreshTokenRequest): Promise<RefreshTokenResponse> {
