@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Activity,
   AlertTriangle,
@@ -24,7 +25,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { DhBadge, DhButton, DhSpinner, DhSwitch, DhTooltip } from '@/shared/components/atoms'
-import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
+import { DhConfirmDialog } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 
 type JobStatus = 'Pending' | 'Processing' | 'RetryScheduled' | 'Failed' | 'Completed' | string
@@ -164,6 +165,7 @@ const unloadOllamaEndpoint = { method: 'POST', path: '/api/ai/operations/ollama/
 const authStore = useAuthStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
+const { t, te, locale } = useI18n()
 const state = ref<OperationsState | null>(null)
 const loading = ref(false)
 const actionKey = ref('')
@@ -194,21 +196,13 @@ function badgeVariant(status: string) {
 }
 
 function statusLabel(status: string) {
-  const labels: Record<string, string> = {
-    Pending: 'En cola',
-    Processing: 'Procesando',
-    RetryScheduled: 'Reintento programado',
-    Failed: 'Fallida',
-    Completed: 'Completada',
-    Running: 'Ejecutando',
-    Cancelled: 'Cancelada',
-  }
-  return labels[status] ?? status
+  const key = `ai.operations.statuses.${status}`
+  return te(key) ? t(key) : status
 }
 
 function formatDate(value?: string | null) {
   if (!value) return '—'
-  return new Intl.DateTimeFormat('es-CR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value))
+  return new Intl.DateTimeFormat(locale.value === 'es' ? 'es-CR' : 'en-US', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value))
 }
 
 function formatDuration(milliseconds?: number | null) {
@@ -239,7 +233,7 @@ async function refresh(showSpinner = true) {
     const response = await callEndpoint<unknown>(stateEndpoint)
     state.value = unwrapApiResponse<OperationsState>(response as never)
   } catch (error) {
-    if (showSpinner) toastStore.backendError(error, 'No se pudo consultar el estado de la cola de IA.')
+    if (showSpinner) toastStore.backendError(error, t('ai.operations.loadError'))
   } finally {
     loading.value = false
   }
@@ -259,7 +253,7 @@ async function runAction(
     await refresh(false)
     return true
   } catch (error) {
-    toastStore.backendError(error, 'La operación de IA no pudo completarse.')
+    toastStore.backendError(error, t('ai.operations.actionError'))
     return false
   } finally {
     actionKey.value = ''
@@ -275,7 +269,7 @@ function confirmAction(options: ConfirmActionOptions) {
       title: options.title,
       message: options.message,
       confirmLabel: options.confirmLabel,
-      cancelLabel: 'Cancelar',
+      cancelLabel: t('common.cancel'),
       danger: options.danger ?? false,
       onConfirm: async () => {
         if (await options.action()) modalStore.close()
@@ -287,15 +281,15 @@ function confirmAction(options: ConfirmActionOptions) {
 
 function cancelJob(item: QueueItem) {
   confirmAction({
-    title: 'Retirar trabajo de la cola',
-    message: `La solicitud ${item.requestId} quedará cancelada y no será enviada al modelo. El registro se conserva para trazabilidad.`,
-    confirmLabel: 'Retirar',
+    title: t('ai.operations.cancelJobTitle'),
+    message: t('ai.operations.cancelJobMessage', { requestId: item.requestId }),
+    confirmLabel: t('ai.operations.cancelJobConfirm'),
     danger: true,
     action: () => runAction(
       `cancel:${item.jobId}`,
       () => callEndpoint(cancelJobEndpoint, { params: { jobId: item.jobId }, body: {} }),
-      'Trabajo retirado',
-      'El trabajo ya no será enviado al modelo.',
+      t('ai.operations.cancelJobSuccess'),
+      t('ai.operations.cancelJobSuccessMessage'),
     ),
   })
 }
@@ -304,54 +298,54 @@ function retryJob(item: QueueItem) {
   return runAction(
     `retry:${item.jobId}`,
     () => callEndpoint(retryJobEndpoint, { params: { jobId: item.jobId }, body: {} }),
-    'Trabajo reencolado',
-    'El trabajo volverá a ser procesado por la IA.',
+    t('ai.operations.retrySuccess'),
+    t('ai.operations.retrySuccessMessage'),
   )
 }
 
 function clearRedisPending() {
   confirmAction({
-    title: 'Limpiar mensajes pending de Redis',
-    message: 'Reconoce y elimina de dhole.ai.events los mensajes que llevan más de una hora entregados al consumer group sin ACK. No elimina los trabajos durables de PostgreSQL.',
-    confirmLabel: 'Limpiar pending',
+    title: t('ai.operations.clearRedisTitle'),
+    message: t('ai.operations.clearRedisMessage'),
+    confirmLabel: t('ai.operations.clearRedisConfirm'),
     danger: true,
     action: () => runAction(
       'redis:pending',
       () => callEndpoint(clearRedisEndpoint, {
         body: { olderThanSeconds: 3600, maximumMessages: 10000, deleteMessages: true },
       }),
-      'Pending de Redis limpiados',
-      'Se eliminaron únicamente mensajes pending antiguos del consumer group.',
+      t('ai.operations.clearRedisSuccess'),
+      t('ai.operations.clearRedisSuccessMessage'),
     ),
   })
 }
 
 function trimRedis() {
   confirmAction({
-    title: 'Recortar historial del stream',
-    message: 'Reduce dhole.ai.events a una ventana aproximada de 10 000 eventos recientes. No elimina la cola durable de PostgreSQL.',
-    confirmLabel: 'Recortar stream',
+    title: t('ai.operations.trimRedisTitle'),
+    message: t('ai.operations.trimRedisMessage'),
+    confirmLabel: t('ai.operations.trimRedisConfirm'),
     danger: true,
     action: () => runAction(
       'redis:trim',
       () => callEndpoint(trimRedisEndpoint, { body: { maxLength: 10000 } }),
-      'Stream recortado',
-      'Redis conservó la ventana más reciente del stream.',
+      t('ai.operations.trimRedisSuccess'),
+      t('ai.operations.trimRedisSuccessMessage'),
     ),
   })
 }
 
 function purgeMongo() {
   confirmAction({
-    title: 'Purgar historial antiguo de MongoDB',
-    message: 'Elimina snapshots de ejecuciones de IA con más de 90 días. MongoDB se usa como historial; esta acción no borra trabajos de PostgreSQL ni mensajes nuevos de Redis.',
-    confirmLabel: 'Purgar historial',
+    title: t('ai.operations.purgeMongoTitle'),
+    message: t('ai.operations.purgeMongoMessage'),
+    confirmLabel: t('ai.operations.purgeMongoConfirm'),
     danger: true,
     action: () => runAction(
       'mongo:purge',
       () => callEndpoint(purgeMongoEndpoint, { body: { olderThanDays: 90, deleteAll: false } }),
-      'Historial depurado',
-      'Se eliminaron snapshots antiguos de MongoDB.',
+      t('ai.operations.purgeMongoSuccess'),
+      t('ai.operations.purgeMongoSuccessMessage'),
     ),
   })
 }
@@ -360,19 +354,19 @@ function unloadModel(model: OllamaLoadedModel) {
   const externalId = model.model ?? model.name
   const modelId = endpointModelId(externalId)
   if (!modelId) {
-    toastStore.warning('Modelo no identificado', 'No hay una ejecución visible que permita relacionar este modelo cargado con su ModelId de Dhole.')
+    toastStore.warning(t('ai.operations.unidentifiedModel'), t('ai.operations.unidentifiedModelMessage'))
     return
   }
 
   confirmAction({
-    title: `Descargar ${externalId ?? 'modelo'} de memoria`,
-    message: 'Libera el modelo de la RAM/VRAM de Ollama. No elimina el modelo del disco; volverá a cargarse automáticamente cuando una ejecución lo necesite.',
-    confirmLabel: 'Descargar de memoria',
+    title: t('ai.operations.unloadTitle', { model: externalId ?? 'model' }),
+    message: t('ai.operations.unloadMessage'),
+    confirmLabel: t('ai.operations.unloadConfirm'),
     action: () => runAction(
       `ollama:${modelId}`,
       () => callEndpoint(unloadOllamaEndpoint, { params: { modelId }, body: {} }),
-      'Modelo descargado',
-      `${externalId} fue solicitado para descarga de memoria en Ollama.`,
+      t('ai.operations.unloadSuccess'),
+      t('ai.operations.unloadSuccessMessage', { model: externalId ?? 'model' }),
     ),
   })
 }
@@ -396,21 +390,21 @@ onBeforeUnmount(() => {
 <template>
   <div class="space-y-6 p-1">
     <DhPageHeader
-      title="Cola y operaciones de IA"
-      description="Estado en tiempo real de PostgreSQL, Redis, Ollama y MongoDB. Cada trabajo conserva la trazabilidad hasta correo, ejecución, intento y modelo."
+      :title="t('ai.operations.title')"
+      :subtitle="t('ai.operations.subtitle')"
     >
       <template #actions>
         <div class="min-w-[210px] rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
           <DhSwitch
             v-model="autoRefresh"
-            label="Tiempo real · 3 s"
-            description="Actualiza la pantalla automáticamente."
+            :label="t('ai.operations.realtime')"
+            :description="t('ai.operations.realtimeHelp')"
           />
         </div>
-        <DhTooltip text="Consulta el estado ahora, sin esperar el próximo ciclo de 3 segundos." position="bottom">
+        <DhTooltip :text="t('ai.operations.refreshTooltip')" position="bottom">
           <DhButton variant="secondary" :disabled="loading" @click="refresh()">
             <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': loading }" />
-            Actualizar
+            {{ t('common.refresh') }}
           </DhButton>
         </DhTooltip>
       </template>
@@ -420,9 +414,9 @@ onBeforeUnmount(() => {
       <div class="flex gap-3">
         <HelpCircle class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
         <div>
-          <p class="text-sm font-black text-[var(--dh-text)]">Qué controlan estas acciones</p>
+          <p class="text-sm font-black text-[var(--dh-text)]">{{ t('ai.operations.helpTitle') }}</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            Redis transporta eventos, PostgreSQL mantiene la cola durable, MongoDB conserva historial y Ollama ejecuta el modelo. Las acciones de mantenimiento no eliminan la cola durable salvo “Retirar”, que cancela un trabajo concreto.
+            {{ t('ai.operations.helpText') }}
           </p>
         </div>
       </div>
@@ -435,23 +429,23 @@ onBeforeUnmount(() => {
     <template v-else-if="state">
       <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <div class="dh-glass dh-liquid rounded-[24px] p-5">
-          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>En cola</span><LoaderCircle class="h-4 w-4" /></div>
+          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.queued') }}</span><LoaderCircle class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.pending }}</div>
         </div>
         <div class="dh-glass dh-liquid rounded-[24px] border border-orange-500/30 p-5">
-          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>Procesando</span><Activity class="h-4 w-4 text-orange-400" /></div>
+          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.processing') }}</span><Activity class="h-4 w-4 text-orange-400" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.processing }}</div>
         </div>
         <div class="dh-glass dh-liquid rounded-[24px] p-5">
-          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>Reintentos</span><RotateCcw class="h-4 w-4" /></div>
+          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.retries') }}</span><RotateCcw class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.retryScheduled }}</div>
         </div>
         <div class="dh-glass dh-liquid rounded-[24px] border border-red-500/20 p-5">
-          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>Fallidos</span><AlertTriangle class="h-4 w-4" /></div>
+          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.failed') }}</span><AlertTriangle class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.failed }}</div>
         </div>
         <div class="dh-glass dh-liquid rounded-[24px] p-5">
-          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>Redis pending</span><Server class="h-4 w-4" /></div>
+          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.redisPending') }}</span><Server class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.redis.group?.pending ?? 0 }}</div>
           <div class="mt-1 text-xs text-[var(--dh-text-muted)]">Lag {{ state.redis.group?.lag ?? '—' }}</div>
         </div>
