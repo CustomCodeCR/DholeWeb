@@ -8,6 +8,7 @@ let changed = false
 const enhancedReset = `  availableRates.value = []
   continuationRates.value = []
   panamaLandFreightAmount.value = 0
+  panamaDoubleMaritimeStage.value = 'A'
   rateLines.value = []
   supportEntityId.value`
 const compatibleReset = `  availableRates.value = []
