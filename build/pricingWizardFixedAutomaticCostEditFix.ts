@@ -24,21 +24,54 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
       const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))`
 
-      const removalReplacement = `      const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
-      // Fixed costs linked to the Pricing cost master are automatic details. They are
-      // synchronized by Pricing and must never be interpreted as user deletions just
-      // because a rebuilt LCL/FCL source line no longer carries the persisted detailId.
-      const protectedAutomaticFixedDetailIds = new Set(
-        editingRate.value.rateDetails
-          .filter((detail) => Boolean(detail.costId) && detail.costType === 'Fixed')
-          .map((detail) => detail.id),
+      const removalReplacement = `      const existingRateDetails = editingRate.value.rateDetails
+      const originalDetailIds = new Set(existingRateDetails.map((detail) => detail.id))
+      const currentDetailIds = new Set(
+        includedLines.value
+          .map((line) => line.detailId)
+          .filter((id): id is string => Boolean(id)),
       )
-      const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
-      const removedExtraDetailIds = [...originalDetailIds].filter(
-        (id) => !currentDetailIds.has(id) && !protectedAutomaticFixedDetailIds.has(id),
-      )`
+      const includedCostIds = new Set(
+        includedLines.value
+          .map((line) => line.costId)
+          .filter((id): id is string => Boolean(id)),
+      )
+      // Pantalla 7 es autoritativa durante una edición. Si una línea persistida ya no está
+      // incluida, debe eliminarse incluso cuando provenga de un costo Fixed del maestro.
+      // Solo evitamos una falsa eliminación cuando la línea sigue incluida pero perdió
+      // temporalmente su detailId durante un rebuild y puede reconciliarse por CostId.
+      const removedExtraDetailIds = existingRateDetails
+        .filter((detail) =>
+          !currentDetailIds.has(detail.id)
+          && !(detail.costId && includedCostIds.has(detail.costId)),
+        )
+        .map((detail) => detail.id)`
 
-      code = replaceOne(code, removalAnchor, removalReplacement, 'automatic fixed-cost removal reconciliation')
+      code = replaceOne(code, removalAnchor, removalReplacement, 'persisted detail removal reconciliation')
+
+      const updateExtraDetailsAnchor = `      const extraDetails = createPayload.details.map((detail, index) => ({
+        ...detail,
+        id: includedLines.value[index]?.detailId ?? null,
+      }))`
+      const updateExtraDetailsReplacement = `      const persistedDetailIdForLine = (line: RateLine | undefined) => {
+        if (!line) return null
+        if (line.detailId) return line.detailId
+
+        const byCostId = line.costId
+          ? editingRate.value!.rateDetails.find((detail) => detail.costId === line.costId)
+          : null
+        if (byCostId) return byCostId.id
+
+        return editingRate.value!.rateDetails.find((detail) =>
+          detail.costDetailType === line.costDetailType
+          && normalizeCatalogValue(detail.name) === normalizeCatalogValue(line.name),
+        )?.id ?? null
+      }
+      const extraDetails = createPayload.details.map((detail, index) => ({
+        ...detail,
+        id: persistedDetailIdForLine(includedLines.value[index]),
+      }))`
+      code = replaceOne(code, updateExtraDetailsAnchor, updateExtraDetailsReplacement, 'persisted detail id reconciliation')
 
       const createDetailsAnchor = `  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({
     costId: line.costId ?? null,
