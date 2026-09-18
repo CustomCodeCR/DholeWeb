@@ -263,8 +263,10 @@ function makeCreateItem(input: {
 
   const originName = String(input.origin ?? '').trim()
   const destinationName = String(input.destination ?? '').trim()
-  const priceAmount = Number(input.price ?? '')
-  if (!originName || !destinationName || !Number.isFinite(priceAmount) || priceAmount < 0) return null
+  const priceRaw = String(input.price ?? '').trim()
+  if (!originName || !destinationName || !priceRaw) return null
+  const priceAmount = Number(priceRaw)
+  if (!Number.isFinite(priceAmount) || priceAmount < 0) return null
 
   const minimumRaw = String(input.minimum ?? '').trim()
   const transitRaw = String(input.transitDays ?? '').trim()
