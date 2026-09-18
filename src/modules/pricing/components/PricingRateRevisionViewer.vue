@@ -59,6 +59,17 @@ function lines(value: unknown) {
     .filter(Boolean)
 }
 
+function cleanHistoricalCargoDescription(value: unknown) {
+  return String(value ?? '')
+    .split(/\s+·\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .filter((segment) => !/^Recolecci[oó]n\s*:/i.test(segment))
+    .filter((segment) => !/^WHS\s+(?:FCA|FOB)\s*:/i.test(segment))
+    .join(' · ')
+    .trim()
+}
+
 const snapshot = computed<JsonRecord>(() => {
   try {
     return asRecord(JSON.parse(props.revision.snapshotJson || '{}'))
@@ -171,6 +182,15 @@ const route = computed(() => {
   return [pol, poe, pod].filter((value, index, list) => value !== '—' && list.indexOf(value) === index).join(' → ') || '—'
 })
 
+const pickupLabel = computed(() => {
+  const incoterm = textValue(pick(snapshot.value, 'IncotermName', 'incotermName', 'IncotermCode', 'incotermCode'), '')
+    .toUpperCase()
+  if (incoterm.includes('EXW')) return 'Recolección EXW'
+  if (incoterm.includes('FOB')) return 'WHS FOB'
+  if (incoterm.includes('FCA')) return 'WHS FCA'
+  return 'WHS / dirección'
+})
+
 const includes = computed(() => lines(pick(snapshot.value, 'Includes', 'includes')))
 const subjectTo = computed(() => lines(pick(snapshot.value, 'SubjectTo', 'subjectTo')))
 const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes')))
@@ -255,7 +275,7 @@ const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes
         </dl>
       </div>
       <div class="rounded-2xl border border-[var(--dh-border)] p-4">
-        <p class="text-xs font-black uppercase tracking-[0.12em]">WHS / recolección</p>
+        <p class="text-xs font-black uppercase tracking-[0.12em]">{{ pickupLabel }}</p>
         <p class="mt-3 font-bold">{{ textValue(pick(snapshot, 'PickupAddress', 'pickupAddress'), 'Sin WHS / dirección guardada') }}</p>
         <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
           {{ textValue(pick(snapshot, 'PickupLatitude', 'pickupLatitude')) }},
@@ -288,7 +308,7 @@ const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes
       <p class="text-xs font-black uppercase tracking-[0.12em]">Carga</p>
       <div class="mt-3 space-y-3">
         <div v-for="(cargo, index) in cargoLines" :key="index" class="rounded-xl bg-[var(--dh-card)] p-3">
-          <p class="font-bold">{{ textValue(pick(cargo, 'Description', 'description'), 'Carga sin descripción') }}</p>
+          <p class="font-bold">{{ cleanHistoricalCargoDescription(pick(cargo, 'Description', 'description')) || 'Carga sin descripción' }}</p>
           <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
             Peso {{ numberValue(pick(cargo, 'WeightKg', 'weightKg')) }} kg ·
             Pallets {{ numberValue(pick(cargo, 'Pallets', 'pallets')) }} ·
