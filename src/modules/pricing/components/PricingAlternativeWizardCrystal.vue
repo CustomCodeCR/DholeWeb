@@ -51,6 +51,7 @@ import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLoc
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
   calculateCargoInsurance,
@@ -2676,6 +2677,10 @@ function openRateRevision(revision: RateRevisionDto) {
   })
 }
 
+function revisionTotals(revision: RateRevisionDto) {
+  return computePricingRevisionTotals(revision)
+}
+
 async function loadHaciendaExchangeRate(force = false) {
   if (exchangeRateLoading.value) return
   if (!force && exchangeRatePurchase.value && exchangeRateSale.value) return
@@ -3339,8 +3344,19 @@ onMounted(async () => {
               <DhBadge :label="revision.status" :variant="revision.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
             </div>
             <p class="mt-2 truncate font-bold" :title="revision.rateName">{{ revision.idtraNumber || 'Sin IDTRA' }} · {{ revision.quoNumber || 'Sin QUO' }}</p>
-            <p class="mt-1 text-[var(--dh-text-muted)]">USD {{ Number(revision.totalSaleUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) }} · CRC ₡{{ Number(revision.totalSaleCrc || 0).toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</p>
-            <p class="mt-1 text-[var(--dh-text-muted)]">Margen {{ Number(revision.marginPercentage || 0).toFixed(2) }}% · {{ new Date(revision.createdAtUtc).toLocaleString('es-CR') }}</p>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <div class="rounded-lg bg-[var(--dh-card-hover)] px-2.5 py-2">
+                <span class="block text-[9px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo</span>
+                <strong class="mt-0.5 block">USD {{ revisionTotals(revision).costUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</strong>
+              </div>
+              <div class="rounded-lg bg-[var(--dh-card-hover)] px-2.5 py-2">
+                <span class="block text-[9px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Venta</span>
+                <strong class="mt-0.5 block">USD {{ revisionTotals(revision).saleUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</strong>
+              </div>
+            </div>
+            <p class="mt-2 font-bold">Margen {{ revisionTotals(revision).marginPercentage.toFixed(2) }}%</p>
+            <p class="mt-1 text-[var(--dh-text-muted)]">CRC costo ₡{{ revisionTotals(revision).costCrc.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} · venta ₡{{ revisionTotals(revision).saleCrc.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
+            <p class="mt-1 text-[var(--dh-text-muted)]">{{ new Date(revision.createdAtUtc).toLocaleString('es-CR') }}</p>
             <DhButton class="mt-3 w-full" variant="secondary" size="sm" @click="openRateRevision(revision)">
               Ver revisión completa
             </DhButton>
