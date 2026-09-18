@@ -1831,6 +1831,11 @@ if (insuranceRequested && visible.has('destination_charges')) {
 }
 
 function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
+  // Una tarifa persistida en modo vista es un snapshot autoritativo del response.
+  // No mezclar aquí costos/opcionales del catálogo porque pueden no formar parte
+  // de RateDetails y terminar apareciendo visualmente como si estuvieran guardados.
+  if (props.viewOnly && props.rateId) return
+
   const visible = new Set(visibleSections.value)
   const existingCostIds = new Set(
     rateLines.value.map((line) => line.costId).filter((value): value is string => Boolean(value)),
