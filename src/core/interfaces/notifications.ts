@@ -52,6 +52,14 @@ export interface CreateNotificationMessageRequest {
   subject?: string | null; body?: string | null; payloadJson?: string | null; scheduledForUtc?: string | null; maxAttempts: number
   recipients: Array<{ userId?: string | null; address: string; displayName?: string | null }>
 }
+export interface SendAccessCredentialsEmailRequest {
+  userId: string
+  userName: string
+  email: string
+  displayName: string
+  temporaryPassword: string
+}
+
 export interface BrowseNotificationsQuery { pageNumber?: number; pageSize?: number; search?: string; status?: string; channel?: string }
 export interface BrowseNotificationInboxQuery { pageNumber?: number; pageSize?: number; unreadOnly?: boolean }
 export interface BrowseNotificationTemplatesQuery { pageNumber?: number; pageSize?: number; search?: string; isActive?: boolean | null }
