@@ -61,7 +61,9 @@
     "select": "Seleccionar",
     "back": "Volver",
     "view": "Ver",
-    "notAvailable": "No disponible"
+    "notAvailable": "No disponible",
+    "confirm": "Confirmar",
+    "actionError": "No se pudo completar la acción."
   },
   "topbar": {
     "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos, pricing, reportes, monitoreo o auditoría...",
@@ -1143,5 +1145,44 @@
       "savedMessage": "La plantilla fue guardada correctamente.",
       "saveError": "No se pudo guardar la plantilla."
     }
+  },
+  "storage": {
+    "title": "Storage",
+    "subtitle": "Archivos importados, correos, adjuntos, versiones y proveedores de almacenamiento.",
+    "refresh": "Actualizar",
+    "files": "Archivos",
+    "stored": "{size} almacenados",
+    "images": "Imágenes",
+    "integratedPreview": "Vista previa integrada",
+    "pdf": "PDF",
+    "openInsideDhole": "Se abren dentro de Dhole",
+    "providers": "Proveedores",
+    "activeConfigured": "Activos / configurados",
+    "searchPlaceholder": "Nombre, checksum, servicio o entidad",
+    "allProviders": "Todos los proveedores",
+    "defaultProvider": "Predeterminado",
+    "allFormats": "Todos los formatos",
+    "textAndEmail": "Texto y correo",
+    "file": "Archivo",
+    "type": "Tipo",
+    "source": "Origen",
+    "provider": "Proveedor",
+    "size": "Tamaño",
+    "date": "Fecha",
+    "image": "Imagen",
+    "text": "Texto",
+    "download": "Descarga",
+    "view": "Ver",
+    "references": "v{version} · {count} referencia(s)",
+    "empty": "No hay archivos almacenados.",
+    "loadError": "No se pudo cargar el panel de Storage.",
+    "permissionTitle": "Permiso requerido",
+    "permissionMessage": "Necesita storage.files.download para abrir el contenido.",
+    "downloadError": "No se pudo descargar el archivo.",
+    "deleteTitle": "Eliminar archivo",
+    "deleteMessage": "¿Eliminar definitivamente “{name}”?",
+    "deleteConfirm": "Eliminar",
+    "deletedTitle": "Archivo eliminado",
+    "deleteError": "No se pudo eliminar el archivo."
   }
 }
