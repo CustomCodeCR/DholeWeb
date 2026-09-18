@@ -766,6 +766,26 @@
       "freightAmount": "Ocean freight / cost",
       "applyAutomaticCosts": "Apply automatic fixed costs",
       "helper": "If you enter sale amount, it is used as the final sale total. If empty, it is calculated from desired margin and automatic cost sales are adjusted too."
+    },
+    "confirmations": {
+      "createComparisonTitle": "Create rate from comparison",
+      "createComparisonMessage": "Dhole will create a new rate using the automatic rate from this comparison. Do you want to continue?",
+      "createComparisonConfirm": "Create rate",
+      "dismissComparisonTitle": "Dismiss opportunity",
+      "dismissComparisonMessage": "Dismiss this opportunity? No existing rate will be modified.",
+      "dismissComparisonConfirm": "Dismiss",
+      "deleteTermTitle": "Delete rate item",
+      "deleteTermMessage": "Delete “{name}”?",
+      "deleteFreeDayTitle": "Delete free-day mapping",
+      "deleteFreeDayMessage": "Delete the mapping for {carrier}?",
+      "deleteBlockTitle": "Delete block",
+      "deleteBlockMessage": "Delete the block “{name}”?",
+      "inactivateSelectedTitle": "Deactivate rates",
+      "inactivateSelectedMessage": "Deactivate {count} selected rate(s)?",
+      "inactivateConfirm": "Deactivate",
+      "inactivateImportTitle": "Deactivate pre-approved rate",
+      "inactivateImportMessage": "Deactivate this pre-approved rate? It will no longer appear as an alternative for new rates.{history}",
+      "usedHistory": " This rate has already been used {count} time(s); that history will be preserved."
     }
   },
   "reports": {
