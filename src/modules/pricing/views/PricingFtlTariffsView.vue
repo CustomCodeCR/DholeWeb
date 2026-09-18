@@ -32,6 +32,7 @@ const toastStore = useToastStore()
 const loading = ref(false)
 const saving = ref(false)
 const importing = ref(false)
+const seedingDefaults = ref(false)
 const creating = ref(false)
 const showNewRate = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -190,6 +191,23 @@ async function load() {
     toastStore.backendError(error, 'No se pudo cargar el tarifario maestro terrestre.')
   } finally {
     loading.value = false
+  }
+}
+
+async function seedDefaults() {
+  if (!canUpdate.value || seedingDefaults.value) return
+  seedingDefaults.value = true
+  try {
+    const result = await FtlTariffService.seedDefaults()
+    toastStore.success(
+      'Tarifario terrestre base verificado',
+      `Dhole tiene ${result.ftl} tarifas FTL y ${result.ltl} tarifas LTL (${result.total} en total). No se sobrescribieron cambios manuales.`,
+    )
+    await load()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron cargar las tarifas base TIGSA / GCF.')
+  } finally {
+    seedingDefaults.value = false
   }
 }
 
@@ -551,6 +569,7 @@ onMounted(load)
         <div class="flex flex-wrap gap-2">
           <DhButton label="Actualizar" :icon="RefreshCw" variant="secondary" :disabled="loading || saving || importing" @click="load" />
           <DhButton v-if="canUpdate" label="Plantilla CSV" :icon="Download" variant="secondary" @click="downloadTemplate" />
+          <DhButton v-if="canUpdate" label="Cargar base TIGSA / GCF" :icon="RefreshCw" variant="secondary" :loading="seedingDefaults" :disabled="loading || saving || importing" @click="seedDefaults" />
           <DhButton v-if="canUpdate" label="Importar CSV / JSON / HTML" :icon="Upload" variant="secondary" :loading="importing" @click="fileInput?.click()" />
           <DhButton v-if="canUpdate" label="Nueva tarifa" :icon="Plus" variant="secondary" @click="showNewRate = !showNewRate" />
           <DhButton
@@ -573,6 +592,7 @@ onMounted(load)
           <h2 class="mt-1 text-xl font-black text-[var(--dh-text)]">FTL completos y LTL consolidados</h2>
           <p class="mt-1 max-w-3xl text-sm font-semibold text-[var(--dh-text-muted)]">
             FTL se cobra por unidad completa. LTL se calcula por CBM con mínimo por ruta. Ambos pueden administrarse manualmente o cargarse en lote.
+            Esta misma matriz es la que usa Dhole para resolver el tramo terrestre de las rutas multimodales vía Panamá.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
