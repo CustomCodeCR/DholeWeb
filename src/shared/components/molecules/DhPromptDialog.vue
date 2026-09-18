@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DhButton, DhInput } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhTextarea } from '@/shared/components/atoms'
 
 const props = withDefaults(
   defineProps<{
@@ -10,6 +10,7 @@ const props = withDefaults(
     label?: string
     placeholder?: string
     initialValue?: string
+    multiline?: boolean
     confirmLabel?: string
     cancelLabel?: string
     onConfirm?: (value: string) => void | Promise<void>
@@ -49,7 +50,15 @@ function cancel() {
       </p>
     </div>
 
+    <DhTextarea
+      v-if="multiline"
+      v-model="value"
+      :label="label"
+      :placeholder="placeholder"
+      :rows="8"
+    />
     <DhInput
+      v-else
       v-model="value"
       :label="label"
       :placeholder="placeholder"
