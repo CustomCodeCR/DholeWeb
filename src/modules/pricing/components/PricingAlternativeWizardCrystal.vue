@@ -2993,12 +2993,21 @@ async function saveRate() {
     ...includedLines.value.map((line) => line.name),
   ])
   const includeKeys = new Set(includeTerms.map(commercialTermKey))
+  const excludedOptionalTermKeys = new Set(
+    rateLines.value
+      .filter((line) => line.optional && !line.included)
+      .map((line) => commercialTermKey(line.name))
+      .filter(Boolean),
+  )
   const subjectTerms = uniqueTermLines([
     ...commercialTerms.subjectTo.map((item) => item.text),
     form.dangerousCargo ? 'Carga peligrosa' : null,
     form.nonStackable ? 'Carga no estibable' : null,
     form.overweight ? 'Sobrepeso' : null,
-  ]).filter((text) => !includeKeys.has(commercialTermKey(text)))
+  ]).filter((text) => {
+    const key = commercialTermKey(text)
+    return !includeKeys.has(key) && !excludedOptionalTermKeys.has(key)
+  })
   const subjectKeys = new Set(subjectTerms.map(commercialTermKey))
   const excludeTerms = uniqueTermLines(
     commercialTerms.excludes.map((item) => item.text),
