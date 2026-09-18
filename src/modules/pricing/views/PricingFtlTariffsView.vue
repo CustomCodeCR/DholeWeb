@@ -52,6 +52,11 @@ const preferredLocationOrder = [
   'Ciudad Hidalgo',
 ]
 
+const modeOptions: Array<{ value: LandShipmentMode; label: string }> = [
+  { value: 'Ftl', label: 'FTL · Camión completo' },
+  { value: 'Ltl', label: 'LTL · Consolidado por CBM' },
+]
+
 const equipmentOptions = [
   { value: '48_53', label: 'Equipo 48/53 pies' },
   { value: '5_7_TON', label: 'Equipo 5 a 7 toneladas' },
@@ -519,14 +524,14 @@ onMounted(load)
         </div>
         <div class="flex flex-wrap gap-2">
           <button
-            v-for="mode in [{ value: 'Ftl', label: 'FTL · Camión completo' }, { value: 'Ltl', label: 'LTL · Consolidado por CBM' }]"
+            v-for="mode in modeOptions"
             :key="mode.value"
             type="button"
             class="rounded-2xl border px-4 py-3 text-sm font-black transition"
             :class="selectedMode === mode.value
               ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]'
               : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-soft)] hover:border-[rgb(var(--dh-primary-rgb)/0.4)]'"
-            @click="selectedMode = mode.value as LandShipmentMode"
+            @click="selectedMode = mode.value"
           >
             {{ mode.label }}
           </button>
