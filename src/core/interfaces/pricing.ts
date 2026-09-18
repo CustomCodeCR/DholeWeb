@@ -663,6 +663,8 @@ export interface RateRevisionDto extends Record<string, unknown> {
   rateName: string
   idtraNumber?: string | null
   quoNumber?: string | null
+  totalCostUsd?: number
+  totalCostCrc?: number
   totalSaleUsd: number
   totalSaleCrc: number
   marginPercentage: number
