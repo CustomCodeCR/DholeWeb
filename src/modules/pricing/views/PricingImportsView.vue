@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   Check,
   ChevronLeft,
@@ -21,6 +22,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useDhConfirm } from '@/core/composables/useDhConfirm'
 import PricingImportReviewDrawer from '@/modules/pricing/components/PricingImportReviewDrawer.vue'
 import PricingMultiSelect from '@/modules/pricing/components/PricingMultiSelect.vue'
 import PricingReasonModal from '@/modules/pricing/components/PricingReasonModal.vue'
@@ -60,6 +62,8 @@ interface ReviewQueueItem {
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
+const { t } = useI18n()
+const { confirm } = useDhConfirm()
 const authStore = useAuthStore()
 const catalogs = usePricingCatalogs()
 const route = useRoute()
@@ -337,9 +341,12 @@ async function inactivate(ids: string[]) {
   )
   if (!eligible.length || processing.value) return
 
-  const confirmed = window.confirm(
-    `¿Desea inactivar ${eligible.length} tarifa${eligible.length === 1 ? '' : 's'} seleccionada${eligible.length === 1 ? '' : 's'}?`,
-  )
+  const confirmed = await confirm({
+    title: t('pricing.confirmations.inactivateSelectedTitle'),
+    message: t('pricing.confirmations.inactivateSelectedMessage', { count: eligible.length }),
+    confirmLabel: t('pricing.confirmations.inactivateConfirm'),
+    danger: true,
+  })
   if (!confirmed) return
 
   try {
