@@ -52,6 +52,14 @@ export interface ChangeUserPasswordRequest {
   password: string
 }
 
+export interface IssuedUserCredentialsDto {
+  userId: string
+  userName: string
+  email: string
+  displayName: string
+  temporaryPassword: string
+}
+
 export interface SetUserActiveRequest {
   isActive: boolean
 }
