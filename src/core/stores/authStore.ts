@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   username: 'auth.username',
   displayName: 'auth.displayName',
   email: 'auth.email',
+  mustChangePassword: 'auth.mustChangePassword',
   clientId: 'auth.clientId',
   clientCode: 'auth.clientCode',
   clientName: 'auth.clientName',
@@ -50,6 +51,10 @@ function readStringFromStorage(key: string): string | null {
   }
 
   return value
+}
+
+function readBooleanFromStorage(key: string): boolean {
+  return readStringFromStorage(key) === 'true'
 }
 
 function readArrayFromStorage(key: string): string[] {
@@ -137,6 +142,7 @@ export const useAuthStore = defineStore('auth', () => {
   const username = ref<string | null>(readStringFromStorage(STORAGE_KEYS.username))
   const displayName = ref<string | null>(readStringFromStorage(STORAGE_KEYS.displayName))
   const email = ref<string | null>(readStringFromStorage(STORAGE_KEYS.email))
+  const mustChangePassword = ref<boolean>(readBooleanFromStorage(STORAGE_KEYS.mustChangePassword))
   const clientId = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientId))
   const clientCode = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientCode))
   const clientName = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientName))
@@ -170,6 +176,7 @@ export const useAuthStore = defineStore('auth', () => {
       username.value = null
       displayName.value = null
       email.value = null
+      mustChangePassword.value = false
       clientId.value = null
       clientCode.value = null
       clientName.value = null
@@ -272,6 +279,7 @@ export const useAuthStore = defineStore('auth', () => {
     persistString(STORAGE_KEYS.username, username.value)
     persistString(STORAGE_KEYS.displayName, displayName.value)
     persistString(STORAGE_KEYS.email, email.value)
+    persistString(STORAGE_KEYS.mustChangePassword, mustChangePassword.value ? 'true' : 'false')
     persistString(STORAGE_KEYS.clientId, clientId.value)
     persistString(STORAGE_KEYS.clientCode, clientCode.value)
     persistString(STORAGE_KEYS.clientName, clientName.value)
@@ -292,6 +300,7 @@ export const useAuthStore = defineStore('auth', () => {
     username.value = data.userName ?? username.value
     displayName.value = data.displayName ?? displayName.value
     email.value = data.email ?? email.value
+    mustChangePassword.value = Boolean(data.mustChangePassword)
     clientId.value = data.clientId ?? clientId.value
     clientCode.value = data.clientCode ?? clientCode.value
     clientName.value = data.clientName ?? clientName.value
@@ -312,6 +321,7 @@ export const useAuthStore = defineStore('auth', () => {
     username.value = null
     displayName.value = null
     email.value = null
+    mustChangePassword.value = false
     clientId.value = null
     clientCode.value = null
     clientName.value = null
@@ -484,6 +494,7 @@ export const useAuthStore = defineStore('auth', () => {
     displayName,
     userDisplayName,
     email,
+    mustChangePassword,
     clientId,
     clientCode,
     clientName,
