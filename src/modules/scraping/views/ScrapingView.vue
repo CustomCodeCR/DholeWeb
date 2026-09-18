@@ -827,7 +827,11 @@ async function startJob(jobId: string) { try { await ScrapingService.startJob(jo
 async function completeJob(jobId: string) { try { await ScrapingService.completeJob(jobId); toastStore.success(t('scraping.jobCompleted')); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
 async function cancelJob(jobId: string) { try { await ScrapingService.cancelJob(jobId, { reason: t('scraping.cancelledFromWeb') }); toastStore.success(t('scraping.jobCancelled')); await load() } catch (error) { toastStore.backendError(error, t('scraping.jobCancelError')) } }
 async function failJob(jobId: string) {
-  const failureMessage = window.prompt(t('scraping.failureMessage'))
+  const failureMessage = await prompt({
+    title: t('scraping.failureMessage'),
+    label: t('scraping.failureMessage'),
+    multiline: true,
+  })
   if (!failureMessage) return
   try { await ScrapingService.failJob(jobId, { failureReason: 'ManualFailure', failureMessage }); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) }
 }
@@ -860,9 +864,19 @@ async function startRun(runId: string) { try { await ScrapingService.startRun(ru
 async function completeRun(runId: string) { try { await ScrapingService.completeRun(runId, { extractedRateCount: 0, evidenceCount: 0, outputSummaryJson: null, metadataJson: null }); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
 async function retryRun(runId: string) { try { await ScrapingService.retryRun(runId, t('scraping.retryFromWeb')); toastStore.success(t('scraping.runRetried')); await load() } catch (error) { toastStore.backendError(error, t('scraping.runRetryError')) } }
 async function failRun(row: ScrapingRunDto) {
-  const reason = window.prompt(`${t('scraping.failureReason')} (${runFailureOptions.value.map(x => `${x.value}: ${x.label}`).join(', ')})`, '99')
-  const message = window.prompt(t('scraping.failureMessage'), 'Manual failure')
-  if (!reason || !message) return
+  const reason = await prompt({
+    title: t('scraping.failureReason'),
+    message: runFailureOptions.value.map((x) => `${x.value}: ${x.label}`).join(' · '),
+    label: t('scraping.failureReason'),
+    initialValue: '99',
+  })
+  if (!reason) return
+  const message = await prompt({
+    title: t('scraping.failureMessage'),
+    label: t('scraping.failureMessage'),
+    multiline: true,
+  })
+  if (!message) return
   try { await ScrapingService.failRun(row.id, { failureReason: Number(reason) || 99, failureMessage: message, metadataJson: null }); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) }
 }
 
@@ -882,7 +896,7 @@ async function saveRule() {
 async function deleteRule(row: ExtractionMappingRuleDto) { if (!(await confirm({ title: t('common.confirm'), message: t('scraping.confirmDelete'), danger: true }))) return; try { await ScrapingService.deleteExtractionRule(row.id); await load() } catch (error) { toastStore.backendError(error, t('scraping.deleteError')) } }
 async function toggleRule(row: ExtractionMappingRuleDto) { try { await ScrapingService.setExtractionRuleActive(row.id, !/active/i.test(row.statusName)); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
 async function approveRule(row: ExtractionMappingRuleDto) { try { await ScrapingService.approveExtractionRule(row.id, t('scraping.approvedFromWeb')); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
-async function rejectRule(row: ExtractionMappingRuleDto) { const reason = window.prompt(t('scraping.rejectionReason')); if (!reason) return; try { await ScrapingService.rejectExtractionRule(row.id, reason); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
+async function rejectRule(row: ExtractionMappingRuleDto) { const reason = await prompt({ title: t('scraping.rejectionReason'), label: t('scraping.rejectionReason'), multiline: true }); if (!reason) return; try { await ScrapingService.rejectExtractionRule(row.id, reason); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
 
 async function createEvidence() {
   if (!evidenceForm.scrapingRunId || !evidenceForm.scrapingSourceId || !evidenceForm.storageObjectKey.trim()) { toastStore.error(t('common.error'), t('scraping.requiredEvidenceFields')); return }
@@ -931,10 +945,10 @@ async function createCandidate() {
   } catch (error) { toastStore.backendError(error, t('scraping.candidateCreateError')) }
   finally { saving.value = false }
 }
-async function normalizeCandidate(row: ScrapedRateCandidateDto) { const normalizedJson = window.prompt(t('scraping.normalizedJson'), row.normalizedJson || row.rawJson || '{}'); if (!normalizedJson) return; try { await ScrapingService.normalizeRateCandidate(row.id, { normalizedJson, confidenceScore: row.confidenceScore ?? 80, validFrom: row.validFrom ?? null, validTo: row.validTo ?? null }); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
+async function normalizeCandidate(row: ScrapedRateCandidateDto) { const normalizedJson = await prompt({ title: t('scraping.normalizedJson'), label: t('scraping.normalizedJson'), initialValue: row.normalizedJson || row.rawJson || '{}', multiline: true }); if (!normalizedJson) return; try { await ScrapingService.normalizeRateCandidate(row.id, { normalizedJson, confidenceScore: row.confidenceScore ?? 80, validFrom: row.validFrom ?? null, validTo: row.validTo ?? null }); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
 async function approveCandidate(candidateId: string) { try { await ScrapingService.approveRateCandidate(candidateId, t('scraping.approvedFromWeb')); toastStore.success(t('scraping.candidateApproved')); await load() } catch (error) { toastStore.backendError(error, t('scraping.candidateApproveError')) } }
-async function rejectCandidate(candidateId: string) { const reason = window.prompt(t('scraping.rejectionReason'), t('scraping.rejectedFromWeb')); if (!reason) return; try { await ScrapingService.rejectRateCandidate(candidateId, reason); toastStore.success(t('scraping.candidateRejected')); await load() } catch (error) { toastStore.backendError(error, t('scraping.candidateRejectError')) } }
-async function sendCandidateToPricing(row: ScrapedRateCandidateDto) { const pricingRateId = window.prompt(t('scraping.pricingRateId')); if (!pricingRateId) return; try { await ScrapingService.sendRateCandidateToPricing(row.id, { pricingRateId }); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
+async function rejectCandidate(candidateId: string) { const reason = await prompt({ title: t('scraping.rejectionReason'), label: t('scraping.rejectionReason'), initialValue: t('scraping.rejectedFromWeb'), multiline: true }); if (!reason) return; try { await ScrapingService.rejectRateCandidate(candidateId, reason); toastStore.success(t('scraping.candidateRejected')); await load() } catch (error) { toastStore.backendError(error, t('scraping.candidateRejectError')) } }
+async function sendCandidateToPricing(row: ScrapedRateCandidateDto) { const pricingRateId = await prompt({ title: t('scraping.pricingRateId'), label: t('scraping.pricingRateId') }); if (!pricingRateId) return; try { await ScrapingService.sendRateCandidateToPricing(row.id, { pricingRateId }); await load() } catch (error) { toastStore.backendError(error, t('scraping.updateError')) } }
 
 function toggleAdvancedModules() {
   showAdvancedModules.value = !showAdvancedModules.value
