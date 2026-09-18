@@ -144,7 +144,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.pricingImports,
           },
           {
-            labelKey: 'Tarifas FTL',
+            labelKey: 'Tarifas terrestres',
             icon: Truck,
             to: '/pricing/ftl-tariffs',
             name: 'pricing-ftl-tariffs',
