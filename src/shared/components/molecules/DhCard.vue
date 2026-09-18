@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 
 withDefaults(
   defineProps<{
-    as?: 'div' | 'section' | 'article' | 'button'
+    as?: 'div' | 'section' | 'article' | 'button' | 'aside' | 'nav' | 'header'
     title?: string
     subtitle?: string
     icon?: Component
