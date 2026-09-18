@@ -21,6 +21,7 @@ const STORAGE_KEYS = {
   username: 'auth.username',
   displayName: 'auth.displayName',
   email: 'auth.email',
+  mustChangePassword: 'auth.mustChangePassword',
   clientId: 'auth.clientId',
   clientCode: 'auth.clientCode',
   clientName: 'auth.clientName',
@@ -37,6 +38,7 @@ interface StoredRefreshResponse {
   displayName?: string | null
   userName?: string | null
   email?: string | null
+  mustChangePassword?: boolean
   clientId?: string | null
   clientCode?: string | null
   clientName?: string | null
@@ -194,6 +196,7 @@ function persistRefreshResponse(data: StoredRefreshResponse) {
   persistString(STORAGE_KEYS.username, data.userName ?? tokenUserName)
   persistString(STORAGE_KEYS.displayName, data.displayName ?? tokenDisplayName)
   persistString(STORAGE_KEYS.email, data.email ?? tokenEmail)
+  persistString(STORAGE_KEYS.mustChangePassword, data.mustChangePassword ? 'true' : 'false')
   persistString(STORAGE_KEYS.clientId, data.clientId)
   persistString(STORAGE_KEYS.clientCode, data.clientCode)
   persistString(STORAGE_KEYS.clientName, data.clientName)
