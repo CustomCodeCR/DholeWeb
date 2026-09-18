@@ -14,8 +14,9 @@ import {
 } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { DhButton, DhColorPicker, DhRange } from '@/shared/components/atoms'
+import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
-import { DhButton } from '@/shared/components/atoms'
 import { useThemeStore, type ThemeMode } from '@/core/stores/themeStore'
 import { useLocale, type LocaleCode } from '@/core/stores/locale'
 import { useShortcutStore } from '@/core/stores/shortcutStore'
@@ -98,15 +99,15 @@ async function saveBranding() {
 
   if (result.synced) {
     toastStore.success(
-      'Branding guardado',
-      'El color quedó guardado para este cliente. La imagen de fondo permanece únicamente en este navegador.',
+      t('appearance.toasts.brandingSavedTitle'),
+      t('appearance.toasts.brandingSavedMessage'),
     )
     return
   }
 
   toastStore.warning(
-    'Color aplicado localmente',
-    'El backend todavía no respondió el endpoint de branding; el color quedó cacheado en este navegador.',
+    t('appearance.toasts.brandingLocalTitle'),
+    t('appearance.toasts.brandingLocalMessage'),
   )
 }
 
@@ -126,28 +127,34 @@ async function handleBackgroundSelected(event: Event) {
     )
     syncBrandingForm()
     toastStore.success(
-      'Fondo guardado en este navegador',
-      'La imagen se guardó localmente y no se envió al servidor ni al servicio de Storage.',
+      t('appearance.toasts.backgroundSavedTitle'),
+      t('appearance.toasts.backgroundSavedMessage'),
     )
   } catch (error) {
     toastStore.error(
-      'No se pudo usar la imagen',
-      error instanceof Error
-        ? error.message
-        : 'No fue posible guardar la imagen en este navegador.',
+      t('appearance.toasts.backgroundErrorTitle'),
+      error instanceof Error ? error.message : t('appearance.toasts.backgroundErrorMessage'),
     )
   } finally {
     input.value = ''
   }
 }
 
-function previewOverlay() {
+function previewOverlay(value?: number) {
+  if (typeof value === 'number') {
+    brandingForm.value.backgroundOverlayOpacity = value
+  }
+
   brandingStore.previewLocalBackgroundOverlay(
     Number(brandingForm.value.backgroundOverlayOpacity ?? 0.5),
   )
 }
 
-async function persistOverlay() {
+async function persistOverlay(value?: number) {
+  if (typeof value === 'number') {
+    brandingForm.value.backgroundOverlayOpacity = value
+  }
+
   if (!brandingStore.hasLocalBackground) return
 
   try {
@@ -156,8 +163,8 @@ async function persistOverlay() {
     )
   } catch {
     toastStore.error(
-      'No se pudo guardar la opacidad',
-      'El navegador no pudo persistir esta preferencia local.',
+      t('appearance.toasts.overlayErrorTitle'),
+      t('appearance.toasts.overlayErrorMessage'),
     )
   }
 }
@@ -166,9 +173,15 @@ async function removeBackground() {
   try {
     await brandingStore.removeLocalBackground()
     brandingForm.value.backgroundOverlayOpacity = brandingStore.localBackgroundOverlayOpacity
-    toastStore.success('Fondo eliminado', 'La imagen local se eliminó de este navegador.')
+    toastStore.success(
+      t('appearance.toasts.backgroundRemovedTitle'),
+      t('appearance.toasts.backgroundRemovedMessage'),
+    )
   } catch {
-    toastStore.error('No se pudo eliminar el fondo', 'El navegador no pudo borrar la imagen local.')
+    toastStore.error(
+      t('appearance.toasts.backgroundRemoveErrorTitle'),
+      t('appearance.toasts.backgroundRemoveErrorMessage'),
+    )
   }
 }
 
@@ -189,31 +202,24 @@ onMounted(refreshAppearanceSettings)
 </script>
 
 <template>
-  <section class="space-y-6">
+  <section class="space-y-4 sm:space-y-6">
     <DhPageHeader
       :title="t('appearance.title')"
       :subtitle="t('appearance.subtitle')"
       :icon="Palette"
     />
 
-    <section class="grid gap-5 xl:grid-cols-2">
-      <article class="dh-glass dh-liquid rounded-[32px] p-6">
-        <h2 class="text-lg font-black text-[var(--dh-text)]">{{ t('appearance.theme') }}</h2>
-        <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-          Cambie el modo visual general del sistema.
-        </p>
-
-        <div class="mt-5 grid gap-3 md:grid-cols-3">
-          <button
+    <section class="grid gap-4 xl:grid-cols-2">
+      <DhCard :title="t('appearance.theme')" :subtitle="t('appearance.themeHelp')">
+        <div class="grid gap-3 sm:grid-cols-3">
+          <DhCard
             v-for="option in themeOptions"
             :key="option.value"
-            type="button"
-            class="relative rounded-[26px] border p-4 text-left transition hover:bg-[var(--dh-card-hover)]"
-            :class="
-              themeStore.mode === option.value
-                ? 'dh-primary-selected'
-                : 'border-[var(--dh-border)] bg-[var(--dh-card)]'
-            "
+            as="button"
+            :interactive="true"
+            padding="sm"
+            class="relative"
+            :class="themeStore.mode === option.value && 'dh-primary-selected'"
             @click="themeStore.setTheme(option.value)"
           >
             <component :is="option.icon" class="h-5 w-5 text-[var(--dh-primary)]" />
@@ -222,27 +228,20 @@ onMounted(refreshAppearanceSettings)
               v-if="themeStore.mode === option.value"
               class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]"
             />
-          </button>
+          </DhCard>
         </div>
-      </article>
+      </DhCard>
 
-      <article class="dh-glass dh-liquid rounded-[32px] p-6">
-        <h2 class="text-lg font-black text-[var(--dh-text)]">{{ t('appearance.language') }}</h2>
-        <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-          Cambie el idioma de la interfaz.
-        </p>
-
-        <div class="mt-5 grid gap-3 md:grid-cols-2">
-          <button
+      <DhCard :title="t('appearance.language')" :subtitle="t('appearance.languageHelp')">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <DhCard
             v-for="option in localeOptions"
             :key="option.value"
-            type="button"
-            class="relative rounded-[26px] border p-4 text-left transition hover:bg-[var(--dh-card-hover)]"
-            :class="
-              localeStore.locale === option.value
-                ? 'dh-primary-selected'
-                : 'border-[var(--dh-border)] bg-[var(--dh-card)]'
-            "
+            as="button"
+            :interactive="true"
+            padding="sm"
+            class="relative"
+            :class="localeStore.locale === option.value && 'dh-primary-selected'"
             @click="localeStore.setLocale(option.value)"
           >
             <p class="text-sm font-black text-[var(--dh-text)]">{{ t(option.label) }}</p>
@@ -253,186 +252,163 @@ onMounted(refreshAppearanceSettings)
               v-if="localeStore.locale === option.value"
               class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]"
             />
-          </button>
+          </DhCard>
         </div>
-      </article>
+      </DhCard>
     </section>
 
-    <section class="dh-glass dh-liquid rounded-[32px] p-6">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 class="text-lg font-black text-[var(--dh-text)]">Branding y fondo del sistema</h2>
-          <p class="mt-1 max-w-3xl text-sm font-semibold text-[var(--dh-text-muted)]">
-            El color principal pertenece al branding del cliente. La imagen de fondo es una
-            preferencia privada del navegador actual.
-          </p>
-          <p
-            class="mt-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]"
-          >
-            Cliente activo: {{ brandingStore.clientLabel }}
-          </p>
-        </div>
-
-        <div class="flex flex-wrap gap-3">
-          <DhButton
-            label="Previsualizar color"
-            variant="secondary"
-            :icon="Image"
-            @click="previewBranding"
-          />
-          <DhButton
-            label="Restaurar color"
-            variant="secondary"
-            :icon="RotateCcw"
-            @click="resetBranding"
-          />
-          <DhButton
-            label="Guardar color"
-            :icon="Save"
-            :loading="brandingStore.saving"
-            @click="saveBranding"
-          />
-        </div>
+    <DhCard
+      :title="t('appearance.liquidCrystal')"
+      :subtitle="t('appearance.liquidCrystalHelp')"
+    >
+      <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <DhRange
+          :model-value="themeStore.liquidBlur"
+          :label="t('appearance.blur')"
+          :value-label="t('appearance.blurValue', { value: themeStore.liquidBlur })"
+          :help="t('appearance.blurHelp')"
+          :min="0"
+          :max="48"
+          :step="1"
+          @update:model-value="themeStore.setLiquidBlur"
+        />
+        <DhButton
+          :label="t('appearance.resetBlur')"
+          variant="secondary"
+          :icon="RotateCcw"
+          @click="themeStore.resetLiquidBlur()"
+        />
       </div>
+    </DhCard>
+
+    <DhCard
+      :title="t('appearance.brandingTitle')"
+      :subtitle="t('appearance.brandingSubtitle')"
+    >
+      <template #actions>
+        <span class="hidden text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)] md:block">
+          {{ t('appearance.activeClient', { client: brandingStore.clientLabel }) }}
+        </span>
+      </template>
+
+      <div class="flex flex-wrap gap-2 sm:gap-3">
+        <DhButton
+          :label="t('appearance.previewColor')"
+          variant="secondary"
+          :icon="Image"
+          @click="previewBranding"
+        />
+        <DhButton
+          :label="t('appearance.restoreColor')"
+          variant="secondary"
+          :icon="RotateCcw"
+          @click="resetBranding"
+        />
+        <DhButton
+          :label="t('appearance.saveColor')"
+          :icon="Save"
+          :loading="brandingStore.saving"
+          @click="saveBranding"
+        />
+      </div>
+
+      <p class="mt-3 text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)] md:hidden">
+        {{ t('appearance.activeClient', { client: brandingStore.clientLabel }) }}
+      </p>
 
       <div class="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <div class="space-y-5">
-          <label class="block">
-            <span
-              class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
-              >Color principal</span
-            >
-            <div
-              class="flex h-11 items-center gap-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl dh-focus-primary"
-            >
-              <input
-                v-model="brandingForm.primaryColor"
-                type="color"
-                class="h-7 w-10 cursor-pointer rounded-xl border-0 bg-transparent p-0"
-                @input="previewBranding"
-              />
-              <input
-                v-model="brandingForm.primaryColor"
-                type="text"
-                class="h-full min-w-0 flex-1 bg-transparent text-sm font-semibold text-[var(--dh-text)] outline-none placeholder:font-medium placeholder:text-[var(--dh-text-muted)]"
-                placeholder="#fc2800"
-                @input="previewBranding"
-              />
-            </div>
-          </label>
+          <DhColorPicker
+            v-model="brandingForm.primaryColor"
+            :label="t('appearance.primaryColor')"
+            @update:model-value="previewBranding"
+          />
 
-          <div
-            class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-[var(--dh-shadow-sm)]"
+          <DhCard
+            :title="t('appearance.localBackground')"
+            :subtitle="t('appearance.localBackgroundHelp')"
+            :icon="HardDrive"
+            padding="sm"
           >
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div class="min-w-0">
-                <div class="flex items-center gap-2 text-[var(--dh-text)]">
-                  <HardDrive class="h-5 w-5 text-[var(--dh-primary)]" />
-                  <h3 class="text-sm font-black">Imagen de fondo local</h3>
-                </div>
-                <p
-                  class="mt-2 max-w-2xl text-xs font-semibold leading-5 text-[var(--dh-text-muted)]"
-                >
-                  Seleccione JPG, PNG, WEBP u otra imagen compatible. Se guarda en IndexedDB de este
-                  navegador y nunca se sube a Config, Storage ni otra API.
-                </p>
-              </div>
-
-              <div class="flex shrink-0 flex-wrap gap-2">
-                <input
-                  ref="backgroundInput"
-                  type="file"
-                  accept="image/*"
-                  class="hidden"
-                  @change="handleBackgroundSelected"
-                />
-                <DhButton
-                  :label="
-                    brandingStore.hasLocalBackground ? 'Cambiar imagen' : 'Seleccionar imagen'
-                  "
-                  variant="secondary"
-                  :icon="Upload"
-                  :loading="brandingStore.localBackgroundLoading"
-                  @click="openBackgroundPicker"
-                />
-                <DhButton
-                  v-if="brandingStore.hasLocalBackground"
-                  label="Quitar fondo"
-                  variant="secondary"
-                  :icon="Trash2"
-                  @click="removeBackground"
-                />
-              </div>
+            <div class="flex flex-wrap gap-2">
+              <input
+                ref="backgroundInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="handleBackgroundSelected"
+              />
+              <DhButton
+                :label="brandingStore.hasLocalBackground ? t('appearance.changeImage') : t('appearance.selectImage')"
+                variant="secondary"
+                :icon="Upload"
+                :loading="brandingStore.localBackgroundLoading"
+                @click="openBackgroundPicker"
+              />
+              <DhButton
+                v-if="brandingStore.hasLocalBackground"
+                :label="t('appearance.removeBackground')"
+                variant="secondary"
+                :icon="Trash2"
+                @click="removeBackground"
+              />
             </div>
 
             <div
               v-if="brandingStore.localBackgroundInfo"
               class="mt-4 flex flex-wrap gap-x-5 gap-y-2 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]"
             >
-              <span class="max-w-full truncate font-black text-[var(--dh-text)]">{{
-                brandingStore.localBackgroundInfo.fileName
-              }}</span>
+              <span class="max-w-full truncate font-black text-[var(--dh-text)]">
+                {{ brandingStore.localBackgroundInfo.fileName }}
+              </span>
               <span>{{ formatBytes(brandingStore.localBackgroundInfo.size) }}</span>
               <span>{{ brandingStore.localBackgroundInfo.mimeType }}</span>
             </div>
-          </div>
+          </DhCard>
 
-          <label class="block">
-            <span
-              class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"
-            >
-              Oscurecer / aclarar imagen: {{ overlayPercent }}%
-            </span>
-            <input
-              v-model.number="brandingForm.backgroundOverlayOpacity"
-              type="range"
-              min="0"
-              max="0.95"
-              step="0.05"
-              :disabled="!brandingStore.hasLocalBackground"
-              class="w-full accent-[var(--dh-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-              @input="previewOverlay"
-              @change="persistOverlay"
-            />
-            <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-              La opacidad también se guarda únicamente junto a la imagen en este navegador.
-            </p>
-          </label>
+          <DhRange
+            :model-value="Number(brandingForm.backgroundOverlayOpacity ?? 0.5)"
+            :label="t('appearance.overlayLabel')"
+            :value-label="t('appearance.overlayValue', { value: overlayPercent })"
+            :help="t('appearance.overlayHelp')"
+            :min="0"
+            :max="0.95"
+            :step="0.05"
+            :disabled="!brandingStore.hasLocalBackground"
+            @update:model-value="previewOverlay"
+            @change="persistOverlay"
+          />
         </div>
 
         <aside
           class="min-h-64 rounded-[32px] border border-[var(--dh-border)] p-4 shadow-[var(--dh-shadow-sm)]"
           :style="brandingPreviewStyle"
         >
-          <div
-            class="rounded-[26px] border border-white/20 bg-black/30 p-5 text-white backdrop-blur-xl"
-          >
-            <div
-              class="mb-4 flex h-12 w-12 items-center justify-center rounded-[22px] bg-white/20 text-lg font-black"
-            >
+          <div class="rounded-[26px] border border-white/20 bg-black/30 p-5 text-white backdrop-blur-xl">
+            <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-[22px] bg-white/20 text-lg font-black">
               D
             </div>
-            <p class="text-sm font-black uppercase tracking-[0.16em] opacity-75">Preview</p>
+            <p class="text-sm font-black uppercase tracking-[0.16em] opacity-75">
+              {{ t('appearance.preview') }}
+            </p>
             <h3 class="mt-2 text-2xl font-black">{{ brandingStore.clientLabel }}</h3>
             <p class="mt-2 text-sm font-semibold opacity-80">
               {{
                 brandingStore.hasLocalBackground
-                  ? 'Esta imagen solo será visible en este navegador.'
-                  : 'Seleccione una imagen para previsualizar el fondo local.'
+                  ? t('appearance.previewWithBackground')
+                  : t('appearance.previewWithoutBackground')
               }}
             </p>
           </div>
         </aside>
       </div>
-    </section>
+    </DhCard>
 
-    <section class="dh-glass dh-liquid rounded-[32px] p-6">
-      <h2 class="text-lg font-black text-[var(--dh-text)]">Preferencias locales</h2>
-      <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-        Herramientas para limpiar el estado guardado en este navegador.
-      </p>
-
-      <div class="mt-5 flex flex-wrap gap-3">
+    <DhCard
+      :title="t('appearance.localPreferences')"
+      :subtitle="t('appearance.localPreferencesHelp')"
+    >
+      <div class="flex flex-wrap gap-3">
         <DhButton
           :label="t('appearance.resetWorkspace')"
           variant="secondary"
@@ -444,6 +420,6 @@ onMounted(refreshAppearanceSettings)
           @click="shortcutStore.reset()"
         />
       </div>
-    </section>
+    </DhCard>
   </section>
 </template>
