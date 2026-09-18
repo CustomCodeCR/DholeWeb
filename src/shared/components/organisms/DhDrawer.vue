@@ -25,6 +25,7 @@ const { t } = useI18n()
     <Transition name="drawer-backdrop">
       <div
         v-if="open"
+        data-dh-overlay="drawer"
         class="fixed inset-0 z-[80] flex min-w-0 items-end justify-end overflow-hidden bg-black/20 backdrop-blur-sm sm:items-stretch"
         @click.self="emit('close')"
       >
