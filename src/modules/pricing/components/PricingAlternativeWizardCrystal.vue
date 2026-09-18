@@ -3004,10 +3004,7 @@ async function saveRate() {
     form.dangerousCargo ? 'Carga peligrosa' : null,
     form.nonStackable ? 'Carga no estibable' : null,
     form.overweight ? 'Sobrepeso' : null,
-  ]).filter((text) => {
-    const key = commercialTermKey(text)
-    return !includeKeys.has(key) && !excludedOptionalTermKeys.has(key)
-  })
+  ]).filter((text) => !includeKeys.has(commercialTermKey(text)))
   const subjectKeys = new Set(subjectTerms.map(commercialTermKey))
   const excludeTerms = uniqueTermLines(
     commercialTerms.excludes.map((item) => item.text),
