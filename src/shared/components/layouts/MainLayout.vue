@@ -160,7 +160,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
   }
 
   if (canView(VIEW_SCOPES.pricingCosts)) {
-    children.push({ label: 'Tarifas FTL', path: '/pricing/ftl-tariffs', icon: Truck })
+    children.push({ label: 'Tarifas terrestres', path: '/pricing/ftl-tariffs', icon: Truck })
   }
 
   if (canView(VIEW_SCOPES.pricingSellerAssignment)) {
