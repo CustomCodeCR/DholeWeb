@@ -12,9 +12,14 @@ export interface LoginResponse {
   displayName?: string | null
   userName?: string | null
   email?: string | null
+  mustChangePassword?: boolean
   clientId?: string | null
   clientCode?: string | null
   clientName?: string | null
+}
+
+export interface ChangeOwnPasswordRequest {
+  password: string
 }
 
 export interface RefreshTokenRequest {
@@ -30,6 +35,7 @@ export interface RefreshTokenResponse {
   displayName?: string | null
   userName?: string | null
   email?: string | null
+  mustChangePassword?: boolean
   clientId?: string | null
   clientCode?: string | null
   clientName?: string | null
