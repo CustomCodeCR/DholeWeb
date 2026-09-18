@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Boxes,
   CalendarDays,
@@ -17,6 +18,7 @@ import { DhCrudToolbar, DhDataTable, type DhTableColumn } from '@/shared/compone
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useDhConfirm } from '@/core/composables/useDhConfirm'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
 import type {
@@ -34,6 +36,8 @@ import PricingTermDragBoard, {
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+const { t } = useI18n()
+const { confirm } = useDhConfirm()
 const catalogs = usePricingCatalogs()
 const rows = ref<RateTermItemDto[]>([])
 const blocks = ref<RateTermBlockDto[]>([])
@@ -374,7 +378,11 @@ async function toggleActive(item: RateTermItemDto) {
   }
 }
 async function remove(item: RateTermItemDto) {
-  if (!window.confirm(`¿Eliminar “${item.text}”?`)) return
+  if (!(await confirm({
+    title: t('pricing.confirmations.deleteTermTitle'),
+    message: t('pricing.confirmations.deleteTermMessage', { name: item.text }),
+    danger: true,
+  }))) return
   try {
     await PricingService.deleteRateTermItem(item.id)
     toastStore.success('Ítem eliminado')
@@ -388,7 +396,11 @@ async function remove(item: RateTermItemDto) {
   }
 }
 async function removeFreeDay(rule: CarrierFreeDayRuleDto) {
-  if (!window.confirm(`¿Eliminar el mapeo de ${rule.carrierName}?`)) return
+  if (!(await confirm({
+    title: t('pricing.confirmations.deleteFreeDayTitle'),
+    message: t('pricing.confirmations.deleteFreeDayMessage', { carrier: rule.carrierName }),
+    danger: true,
+  }))) return
   try {
     await PricingService.deleteCarrierFreeDayRule(rule.id)
     clearFreeDayForm()
@@ -399,7 +411,11 @@ async function removeFreeDay(rule: CarrierFreeDayRuleDto) {
   }
 }
 async function removeBlock(block: RateTermBlockDto) {
-  if (!window.confirm(`¿Eliminar el bloque “${block.name}”?`)) return
+  if (!(await confirm({
+    title: t('pricing.confirmations.deleteBlockTitle'),
+    message: t('pricing.confirmations.deleteBlockMessage', { name: block.name }),
+    danger: true,
+  }))) return
   try {
     await PricingService.deleteRateTermBlock(block.id)
     clearBlockForm()
