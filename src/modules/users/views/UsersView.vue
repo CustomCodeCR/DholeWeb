@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Pencil, Trash2, Users } from 'lucide-vue-next'
+import { KeyRound, Pencil, Send, Trash2, Users } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { DhCrudToolbar, DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
@@ -11,10 +11,12 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { AUTH_SCOPES } from '@/core/auth/scopes'
 import { UsersService } from '@/core/services/usersService'
+import { NotificationsService } from '@/core/services/notificationsService'
 import type { UserDto } from '@/core/interfaces/users'
 import { parseDate } from '@/core/utils/date'
 import UserFormDrawer from '@/modules/users/components/UserFormDrawer.vue'
 import UserDetailDrawer from '@/modules/users/components/UserDetailDrawer.vue'
+import UserPasswordModal from '@/modules/users/components/UserPasswordModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
@@ -34,7 +36,11 @@ const users = ref<UserDto[]>([])
 const canCreate = computed(() => authStore.hasScope(AUTH_SCOPES.users.create))
 const canUpdate = computed(() => authStore.hasScope(AUTH_SCOPES.users.update))
 const canDelete = computed(() => authStore.hasScope(AUTH_SCOPES.users.delete))
-const showRowActions = computed(() => canUpdate.value || canDelete.value)
+const canChangePassword = computed(() => authStore.hasScope(AUTH_SCOPES.users.changePassword))
+const canSendCredentials = computed(() => authStore.hasScope(AUTH_SCOPES.users.sendCredentials))
+const showRowActions = computed(
+  () => canUpdate.value || canDelete.value || canChangePassword.value || canSendCredentials.value,
+)
 
 const columns = computed<DhTableColumn<UserDto>[]>(() => {
   const base: DhTableColumn<UserDto>[] = [
@@ -87,6 +93,58 @@ function openDetailDrawer(user: UserDto) {
     component: UserDetailDrawer,
     size: 'xl',
     props: { user, onSaved: loadUsers },
+  })
+}
+
+function openPasswordModal(user: UserDto) {
+  if (!canChangePassword.value || user.isProtected) return
+
+  modalStore.open({
+    title: t('users.changePassword'),
+    component: UserPasswordModal,
+    size: 'md',
+    props: { userId: user.id, onSaved: loadUsers },
+  })
+}
+
+function confirmSendCredentials(user: UserDto) {
+  if (!canSendCredentials.value || user.isProtected) return
+
+  modalStore.open({
+    title: t('users.sendCredentials'),
+    component: DhConfirmDialog,
+    size: 'md',
+    props: {
+      title: t('users.sendCredentials'),
+      message: t('users.sendCredentialsConfirm'),
+      confirmLabel: t('users.sendCredentialsAction'),
+      cancelLabel: t('common.cancel'),
+      onConfirm: async () => {
+        try {
+          const credentials = await UsersService.issueCredentials(user.id)
+
+          try {
+            await NotificationsService.sendAccessCredentialsEmail({
+              userId: credentials.userId,
+              userName: credentials.userName,
+              email: credentials.email,
+              displayName: credentials.displayName,
+              temporaryPassword: credentials.temporaryPassword,
+            })
+          } catch (error) {
+            toastStore.backendError(error, t('users.sendCredentialsEmailError'))
+            return
+          }
+
+          modalStore.close()
+          toastStore.success(t('users.sendCredentialsSuccess'))
+          await loadUsers()
+        } catch (error) {
+          toastStore.backendError(error, t('users.sendCredentialsIssueError'))
+        }
+      },
+      onCancel: () => modalStore.close(),
+    },
   })
 }
 
@@ -154,6 +212,8 @@ onMounted(loadUsers)
           <template v-if="showRowActions" #cell-actions="{ row }">
             <div class="flex justify-end gap-1">
               <button v-if="canUpdate" :disabled="row.isProtected" :class="row.isProtected ? 'cursor-not-allowed opacity-40' : ''" class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10" title="Editar" @click.stop="openEditDrawer(row)"><Pencil class="h-4 w-4" /></button>
+              <button v-if="canChangePassword" :disabled="row.isProtected" :class="row.isProtected ? 'cursor-not-allowed opacity-40' : ''" class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10" :title="t('users.changePassword')" @click.stop="openPasswordModal(row)"><KeyRound class="h-4 w-4" /></button>
+              <button v-if="canSendCredentials" :disabled="row.isProtected" :class="row.isProtected ? 'cursor-not-allowed opacity-40' : ''" class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10" :title="t('users.sendCredentials')" @click.stop="confirmSendCredentials(row)"><Send class="h-4 w-4" /></button>
               <button v-if="canDelete" :disabled="row.isProtected" :class="row.isProtected ? 'cursor-not-allowed opacity-40' : ''" class="rounded-2xl p-2 text-red-500 hover:bg-red-500/10" title="Eliminar" @click.stop="confirmDelete(row)"><Trash2 class="h-4 w-4" /></button>
             </div>
           </template>
