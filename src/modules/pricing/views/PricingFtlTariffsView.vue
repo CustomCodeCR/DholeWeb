@@ -413,6 +413,48 @@ const headerAliases: Record<string, string> = {
   moneda: 'currency', currency: 'currency',
 }
 
+const gcfLtlEngineRoutes = [
+  { origin: 'San José, Costa Rica', destination: 'Managua, Nicaragua', rateId: 'sj_man_rate', minId: 'sj_man_min', transitDays: 3, warehouse: 'Almacén Fiscal Premier 6117' },
+  { origin: 'San José, Costa Rica', destination: 'San Pedro Sula, Honduras', rateId: 'sj_sps_rate', minId: 'sj_sps_min', transitDays: 6, warehouse: 'Sicarga' },
+  { origin: 'San José, Costa Rica', destination: 'San Salvador, El Salvador', rateId: 'sj_ss_rate', minId: 'sj_ss_min', transitDays: 5, warehouse: 'Central Logistics SA De C.V.' },
+  { origin: 'San José, Costa Rica', destination: 'Ciudad Guatemala, Guatemala', rateId: 'sj_gua_rate', minId: 'sj_gua_min', transitDays: 7, warehouse: 'Almacenadora Integrada' },
+  { origin: 'CFZ Panamá', destination: 'Managua, Nicaragua', rateId: 'cfz_man_rate', minId: 'cfz_man_min', transitDays: 4, warehouse: 'Almacén Fiscal Premier 6117' },
+  { origin: 'CFZ Panamá', destination: 'San Pedro Sula, Honduras', rateId: 'cfz_sps_rate', minId: 'cfz_sps_min', transitDays: 5, warehouse: 'Sicarga' },
+  { origin: 'CFZ Panamá', destination: 'San Salvador, El Salvador', rateId: 'cfz_ss_rate', minId: 'cfz_ss_min', transitDays: 5, warehouse: 'Central Logistics SA De C.V.' },
+  { origin: 'CFZ Panamá', destination: 'Ciudad Guatemala, Guatemala', rateId: 'cfz_gua_rate', minId: 'cfz_gua_min', transitDays: 6, warehouse: 'Almacenadora Integrada' },
+] as const
+
+function gcfLtlItemsFromTariffMap(tariffs: Record<string, unknown>, source: string) {
+  return gcfLtlEngineRoutes
+    .map((route) => makeCreateItem({
+      shipmentMode: 'Ltl',
+      origin: route.origin,
+      destination: route.destination,
+      equipmentClass: 'LTL_CBM',
+      equipmentLabel: 'LTL · USD/CBM',
+      price: String(tariffs[route.rateId] ?? ''),
+      minimum: String(tariffs[route.minId] ?? ''),
+      transitDays: route.transitDays,
+      warehouse: route.warehouse,
+      source,
+      notes: 'Importado desde GCF Centroamérica LTL Pricing Engine.',
+      currency: 'USD',
+    }))
+    .filter((item): item is CreateLandTariffItem => Boolean(item))
+}
+
+function gcfLtlItemsFromHtml(text: string) {
+  const document = new DOMParser().parseFromString(text, 'text/html')
+  const tariffs: Record<string, unknown> = {}
+  gcfLtlEngineRoutes.forEach((route) => {
+    const rate = document.getElementById(route.rateId) as HTMLInputElement | null
+    const minimum = document.getElementById(route.minId) as HTMLInputElement | null
+    if (rate?.value) tariffs[route.rateId] = rate.value
+    if (minimum?.value) tariffs[route.minId] = minimum.value
+  })
+  return gcfLtlItemsFromTariffMap(tariffs, 'GCF Centroamérica LTL Pricing Engine · HTML')
+}
+
 function parseCsv(text: string) {
   const lines = text.replace(/\r/g, '').split('\n').filter((line) => line.trim())
   if (lines.length < 2) return [] as CreateLandTariffItem[]
@@ -439,14 +481,23 @@ async function importFile(event: Event) {
     let items: CreateLandTariffItem[] = []
     if (file.name.toLowerCase().endsWith('.json')) {
       const parsed = JSON.parse(text) as unknown
-      const raw = Array.isArray(parsed)
-        ? parsed
-        : parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown[] }).items)
-          ? (parsed as { items: unknown[] }).items
-          : []
-      items = raw
-        .map((value) => makeCreateItem(value as Record<string, string | number | boolean | null>))
-        .filter((item): item is CreateLandTariffItem => Boolean(item))
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && (parsed as { tarifas?: unknown }).tarifas) {
+        items = gcfLtlItemsFromTariffMap(
+          (parsed as { tarifas: Record<string, unknown> }).tarifas,
+          'GCF Centroamérica LTL Pricing Engine · JSON',
+        )
+      } else {
+        const raw = Array.isArray(parsed)
+          ? parsed
+          : parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown[] }).items)
+            ? (parsed as { items: unknown[] }).items
+            : []
+        items = raw
+          .map((value) => makeCreateItem(value as Record<string, string | number | boolean | null>))
+          .filter((item): item is CreateLandTariffItem => Boolean(item))
+      }
+    } else if (file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm')) {
+      items = gcfLtlItemsFromHtml(text)
     } else {
       items = parseCsv(text)
     }
@@ -500,7 +551,7 @@ onMounted(load)
         <div class="flex flex-wrap gap-2">
           <DhButton label="Actualizar" :icon="RefreshCw" variant="secondary" :disabled="loading || saving || importing" @click="load" />
           <DhButton v-if="canUpdate" label="Plantilla CSV" :icon="Download" variant="secondary" @click="downloadTemplate" />
-          <DhButton v-if="canUpdate" label="Importar CSV / JSON" :icon="Upload" variant="secondary" :loading="importing" @click="fileInput?.click()" />
+          <DhButton v-if="canUpdate" label="Importar CSV / JSON / HTML" :icon="Upload" variant="secondary" :loading="importing" @click="fileInput?.click()" />
           <DhButton v-if="canUpdate" label="Nueva tarifa" :icon="Plus" variant="secondary" @click="showNewRate = !showNewRate" />
           <DhButton
             v-if="canUpdate"
@@ -510,7 +561,7 @@ onMounted(load)
             :disabled="!dirtyRows.length || loading"
             @click="save"
           />
-          <input ref="fileInput" type="file" accept=".csv,text/csv,.json,application/json" class="hidden" @change="importFile" />
+          <input ref="fileInput" type="file" accept=".csv,text/csv,.json,application/json,.html,.htm,text/html" class="hidden" @change="importFile" />
         </div>
       </template>
     </DhPageHeader>
