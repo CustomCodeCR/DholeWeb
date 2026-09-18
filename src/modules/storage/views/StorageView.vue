@@ -13,8 +13,15 @@ import {
   Server,
   Trash2,
 } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
-import { DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
+import {
+  DhCard,
+  DhConfirmDialog,
+  DhDataTable,
+  DhPagination,
+  type DhTableColumn,
+} from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useModalStore } from '@/core/stores/modalStore'
@@ -31,6 +38,7 @@ import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vu
 const authStore = useAuthStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const rows = ref<StorageFileListItemDto[]>([])
@@ -54,30 +62,30 @@ const providerId = ref('')
 const canDownload = computed(() => authStore.hasScope(STORAGE_SCOPES.files.download))
 const canDelete = computed(() => authStore.hasScope(STORAGE_SCOPES.files.delete))
 
-const columns: DhTableColumn<StorageFileListItemDto>[] = [
-  { key: 'originalFileName', label: 'Archivo' },
-  { key: 'contentType', label: 'Tipo' },
-  { key: 'sourceService', label: 'Origen' },
-  { key: 'providerName', label: 'Proveedor' },
-  { key: 'sizeInBytes', label: 'Tamaño', align: 'right' },
-  { key: 'createdAt', label: 'Fecha' },
+const columns = computed<DhTableColumn<StorageFileListItemDto>[]>(() => [
+  { key: 'originalFileName', label: t('storage.file') },
+  { key: 'contentType', label: t('storage.type') },
+  { key: 'sourceService', label: t('storage.source') },
+  { key: 'providerName', label: t('storage.provider') },
+  { key: 'sizeInBytes', label: t('storage.size'), align: 'right' },
+  { key: 'createdAt', label: t('storage.date') },
   { key: 'actions', label: '', align: 'right' },
-]
+])
 
 const providerOptions = computed(() => [
-  { label: 'Todos los proveedores', value: '' },
+  { label: t('storage.allProviders'), value: '' },
   ...providers.value.map((provider) => ({
-    label: `${provider.name}${provider.isDefault ? ' · Predeterminado' : ''}`,
+    label: `${provider.name}${provider.isDefault ? ` · ${t('storage.defaultProvider')}` : ''}`,
     value: provider.id,
   })),
 ])
 
-const contentOptions = [
-  { label: 'Todos los formatos', value: '' },
-  { label: 'Imágenes', value: 'image/' },
-  { label: 'PDF', value: 'application/pdf' },
-  { label: 'Texto y correo', value: 'text/' },
-]
+const contentOptions = computed(() => [
+  { label: t('storage.allFormats'), value: '' },
+  { label: t('storage.images'), value: 'image/' },
+  { label: t('storage.pdf'), value: 'application/pdf' },
+  { label: t('storage.textAndEmail'), value: 'text/' },
+])
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -90,7 +98,10 @@ function formatDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+    : new Intl.DateTimeFormat(locale.value === 'es' ? 'es-CR' : 'en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(date)
 }
 
 function typeLabel(row: StorageFileListItemDto) {
@@ -101,11 +112,11 @@ function typeLabel(row: StorageFileListItemDto) {
     extension: row.extension,
   })
 
-  if (kind === 'image') return 'Imagen'
-  if (kind === 'pdf') return 'PDF'
-  if (kind === 'text') return 'Texto'
-  if (kind === 'download') return 'Descarga'
-  return row.extension?.replace('.', '').toUpperCase() || 'Archivo'
+  if (kind === 'image') return t('storage.image')
+  if (kind === 'pdf') return t('storage.pdf')
+  if (kind === 'text') return t('storage.text')
+  if (kind === 'download') return t('storage.download')
+  return row.extension?.replace('.', '').toUpperCase() || t('storage.file')
 }
 
 function typeIcon(row: StorageFileListItemDto) {
@@ -140,7 +151,7 @@ async function load() {
     summary.value = summaryResult
     providers.value = providerResult
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo cargar el panel de Storage.')
+    toastStore.backendError(error, t('storage.loadError'))
   } finally {
     loading.value = false
   }
@@ -148,7 +159,7 @@ async function load() {
 
 async function openFile(row: StorageFileListItemDto) {
   if (!canDownload.value) {
-    toastStore.warning('Permiso requerido', 'Necesita storage.files.download para abrir el contenido.')
+    toastStore.warning(t('storage.permissionTitle'), t('storage.permissionMessage'))
     return
   }
 
@@ -164,7 +175,7 @@ async function openFile(row: StorageFileListItemDto) {
     try {
       await StorageService.downloadFile(descriptor)
     } catch (error) {
-      toastStore.backendError(error, 'No se pudo descargar el archivo.')
+      toastStore.backendError(error, t('storage.downloadError'))
     }
     return
   }
@@ -177,17 +188,34 @@ async function openFile(row: StorageFileListItemDto) {
   })
 }
 
-async function deleteFile(row: StorageFileListItemDto) {
-  if (!canDelete.value) return
-  if (!window.confirm(`¿Eliminar definitivamente “${row.originalFileName}”?`)) return
-
+async function performDelete(row: StorageFileListItemDto) {
   try {
     await StorageService.deleteFile(row.id)
-    toastStore.success('Archivo eliminado', row.originalFileName)
+    toastStore.success(t('storage.deletedTitle'), row.originalFileName)
+    modalStore.close()
     await load()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo eliminar el archivo.')
+    toastStore.backendError(error, t('storage.deleteError'))
   }
+}
+
+function deleteFile(row: StorageFileListItemDto) {
+  if (!canDelete.value) return
+
+  modalStore.open({
+    title: t('storage.deleteTitle'),
+    component: DhConfirmDialog,
+    props: {
+      title: t('storage.deleteTitle'),
+      message: t('storage.deleteMessage', { name: row.originalFileName }),
+      confirmLabel: t('storage.deleteConfirm'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+      onConfirm: () => performDelete(row),
+      onCancel: () => modalStore.close(),
+    },
+    size: 'sm',
+  })
 }
 
 function applyFilters() {
@@ -210,79 +238,135 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="space-y-6">
+  <section class="space-y-4 sm:space-y-6">
     <DhPageHeader
-      title="Storage"
-      subtitle="Archivos importados, correos, adjuntos, versiones y proveedores de almacenamiento."
+      :title="t('storage.title')"
+      :subtitle="t('storage.subtitle')"
       :icon="HardDrive"
     >
       <template #actions>
-        <DhButton label="Actualizar" :icon="RefreshCw" variant="secondary" :loading="loading" @click="load" />
+        <DhButton
+          :label="t('storage.refresh')"
+          :icon="RefreshCw"
+          variant="secondary"
+          :loading="loading"
+          @click="load"
+        />
       </template>
     </DhPageHeader>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <article class="dh-glass dh-liquid rounded-[28px] p-5">
-        <div class="flex items-center justify-between"><p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Archivos</p><Database class="h-5 w-5 text-[var(--dh-primary)]" /></div>
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <DhCard padding="sm">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('storage.files') }}</p>
+          <Database class="h-5 w-5 text-[var(--dh-primary)]" />
+        </div>
         <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ summary.totalFiles }}</p>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ formatSize(summary.totalSizeInBytes) }} almacenados</p>
-      </article>
-      <article class="dh-glass dh-liquid rounded-[28px] p-5">
-        <div class="flex items-center justify-between"><p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Imágenes</p><FileImage class="h-5 w-5 text-[var(--dh-primary)]" /></div>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+          {{ t('storage.stored', { size: formatSize(summary.totalSizeInBytes) }) }}
+        </p>
+      </DhCard>
+
+      <DhCard padding="sm">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('storage.images') }}</p>
+          <FileImage class="h-5 w-5 text-[var(--dh-primary)]" />
+        </div>
         <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ summary.imageFiles }}</p>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Vista previa integrada</p>
-      </article>
-      <article class="dh-glass dh-liquid rounded-[28px] p-5">
-        <div class="flex items-center justify-between"><p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">PDF</p><FileText class="h-5 w-5 text-[var(--dh-primary)]" /></div>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('storage.integratedPreview') }}</p>
+      </DhCard>
+
+      <DhCard padding="sm">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('storage.pdf') }}</p>
+          <FileText class="h-5 w-5 text-[var(--dh-primary)]" />
+        </div>
         <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ summary.pdfFiles }}</p>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se abren dentro de Dhole</p>
-      </article>
-      <article class="dh-glass dh-liquid rounded-[28px] p-5">
-        <div class="flex items-center justify-between"><p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Proveedores</p><Server class="h-5 w-5 text-[var(--dh-primary)]" /></div>
-        <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ summary.activeProviderCount }}/{{ summary.providerCount }}</p>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Activos / configurados</p>
-      </article>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('storage.openInsideDhole') }}</p>
+      </DhCard>
+
+      <DhCard padding="sm">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('storage.providers') }}</p>
+          <Server class="h-5 w-5 text-[var(--dh-primary)]" />
+        </div>
+        <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">
+          {{ summary.activeProviderCount }}/{{ summary.providerCount }}
+        </p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('storage.activeConfigured') }}</p>
+      </DhCard>
     </div>
 
-    <form class="grid gap-3 rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 md:grid-cols-[1fr_220px_260px_auto]" @submit.prevent="applyFilters">
-      <DhInput v-model="search" type="search" placeholder="Nombre, checksum, servicio o entidad" :icon="Search" />
-      <DhSelect v-model="contentType" :options="contentOptions" placeholder="" />
-      <DhSelect v-model="providerId" :options="providerOptions" placeholder="" />
-      <DhButton label="Buscar" :icon="Search" type="submit" />
-    </form>
+    <DhCard padding="sm">
+      <form class="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_260px_auto]" @submit.prevent="applyFilters">
+        <DhInput v-model="search" type="search" :placeholder="t('storage.searchPlaceholder')" :icon="Search" />
+        <DhSelect v-model="contentType" :options="contentOptions" placeholder="" />
+        <DhSelect v-model="providerId" :options="providerOptions" placeholder="" />
+        <DhButton :label="t('common.search')" :icon="Search" type="submit" />
+      </form>
+    </DhCard>
 
-    <DhDataTable :columns="columns" :rows="rows" :loading="loading" empty-text="No hay archivos almacenados." @row-click="openFile">
+    <DhDataTable
+      :columns="columns"
+      :rows="rows"
+      :loading="loading"
+      :empty-text="t('storage.empty')"
+      @row-click="openFile"
+    >
       <template #cell-originalFileName="{ row }">
         <div class="flex min-w-0 items-center gap-3">
           <component :is="typeIcon(row)" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
           <div class="min-w-0">
             <p class="max-w-[340px] truncate font-black text-[var(--dh-text)]">{{ row.originalFileName }}</p>
-            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">v{{ row.currentVersionNumber }} · {{ row.referenceCount }} referencia(s)</p>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ t('storage.references', { version: row.currentVersionNumber, count: row.referenceCount }) }}
+            </p>
           </div>
         </div>
       </template>
       <template #cell-contentType="{ row }"><DhBadge :label="typeLabel(row)" variant="neutral" /></template>
       <template #cell-sourceService="{ row }">
-        <div><p class="font-bold text-[var(--dh-text)]">{{ row.sourceService || '—' }}</p><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ row.entityType || '—' }}</p></div>
+        <div>
+          <p class="font-bold text-[var(--dh-text)]">{{ row.sourceService || '—' }}</p>
+          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ row.entityType || '—' }}</p>
+        </div>
       </template>
-      <template #cell-providerName="{ row }"><div><p class="font-bold text-[var(--dh-text)]">{{ row.providerName }}</p><p class="text-xs text-[var(--dh-text-muted)]">{{ row.providerType }}</p></div></template>
+      <template #cell-providerName="{ row }">
+        <div>
+          <p class="font-bold text-[var(--dh-text)]">{{ row.providerName }}</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ row.providerType }}</p>
+        </div>
+      </template>
       <template #cell-sizeInBytes="{ row }">{{ formatSize(row.sizeInBytes) }}</template>
       <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt) }}</template>
       <template #cell-actions="{ row }">
         <div class="flex justify-end gap-1" @click.stop>
           <DhButton
             v-if="canDownload"
-            :label="storagePreviewKind({ id: row.id, fileName: row.originalFileName, contentType: row.contentType, extension: row.extension }) === 'download' ? 'Descargar' : 'Ver'"
+            :label="storagePreviewKind({ id: row.id, fileName: row.originalFileName, contentType: row.contentType, extension: row.extension }) === 'download' ? t('storage.download') : t('storage.view')"
             :icon="storagePreviewKind({ id: row.id, fileName: row.originalFileName, contentType: row.contentType, extension: row.extension }) === 'download' ? Download : Eye"
             size="sm"
             variant="secondary"
             @click="openFile(row)"
           />
-          <DhButton v-if="canDelete" :icon="Trash2" size="sm" variant="danger" @click="deleteFile(row)" />
+          <DhButton
+            v-if="canDelete"
+            :icon="Trash2"
+            size="sm"
+            variant="danger"
+            :aria-label="t('storage.deleteTitle')"
+            @click="deleteFile(row)"
+          />
         </div>
       </template>
     </DhDataTable>
 
-    <DhPagination :page="page" :page-size="pageSize" :total="total" @update:page="updatePage" @update:page-size="updatePageSize" />
+    <DhPagination
+      :page="page"
+      :page-size="pageSize"
+      :total="total"
+      @update:page="updatePage"
+      @update:page-size="updatePageSize"
+    />
   </section>
 </template>
