@@ -259,7 +259,7 @@ export const router = createRouter({
           name: 'pricing-ftl-tariffs',
           component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),
           meta: {
-            tabTitle: 'Tarifas FTL',
+            tabTitle: 'Tarifas terrestres',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
