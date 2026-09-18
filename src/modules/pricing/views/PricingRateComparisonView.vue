@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ArrowLeft, CheckCircle2, GitCompareArrows, RefreshCw, XCircle } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -9,6 +10,7 @@ import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useDhConfirm } from '@/core/composables/useDhConfirm'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
 interface ComparisonDetail {
@@ -77,6 +79,8 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+const { t } = useI18n()
+const { confirm } = useDhConfirm()
 
 const comparison = ref<RateComparisonDto | null>(null)
 const loading = ref(true)
@@ -142,7 +146,11 @@ async function load() {
 
 async function createRate() {
   if (!comparison.value || !canCreate.value || processing.value) return
-  if (!window.confirm('Dhole creará una nueva tarifa usando la tarifa automática de esta comparación. ¿Desea continuar?')) return
+  if (!(await confirm({
+    title: t('pricing.confirmations.createComparisonTitle'),
+    message: t('pricing.confirmations.createComparisonMessage'),
+    confirmLabel: t('pricing.confirmations.createComparisonConfirm'),
+  }))) return
 
   try {
     processing.value = true
@@ -168,7 +176,12 @@ async function createRate() {
 
 async function dismissComparison() {
   if (!comparison.value || !canDismiss.value || processing.value) return
-  if (!window.confirm('¿Descartar esta oportunidad? No se modificará ninguna tarifa existente.')) return
+  if (!(await confirm({
+    title: t('pricing.confirmations.dismissComparisonTitle'),
+    message: t('pricing.confirmations.dismissComparisonMessage'),
+    confirmLabel: t('pricing.confirmations.dismissComparisonConfirm'),
+    danger: true,
+  }))) return
 
   try {
     processing.value = true
