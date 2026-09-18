@@ -115,7 +115,23 @@
     "password": "Contraseña",
     "submit": "Ingresar",
     "missingData": "Digite correo y contraseña.",
-    "loginError": "Correo o contraseña incorrectos."
+    "loginError": "Correo o contraseña incorrectos.",
+    "temporaryPassword": {
+      "title": "Cambie su contraseña",
+      "subtitle": "Está utilizando una contraseña temporal. Para continuar en Dhole debe crear una contraseña personal.",
+      "newPassword": "Nueva contraseña",
+      "newPasswordPlaceholder": "Digite su nueva contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "confirmPasswordPlaceholder": "Repita su nueva contraseña",
+      "submit": "Guardar nueva contraseña",
+      "missingTitle": "Datos incompletos",
+      "missingMessage": "Digite y confirme su nueva contraseña.",
+      "mismatchTitle": "Las contraseñas no coinciden",
+      "mismatchMessage": "Verifique que ambas contraseñas sean iguales.",
+      "successTitle": "Contraseña actualizada",
+      "successMessage": "Ingrese nuevamente con su correo y la nueva contraseña.",
+      "errorMessage": "No se pudo actualizar la contraseña."
+    }
   },
   "dashboard": {
     "title": "Dashboard",
