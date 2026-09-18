@@ -14,6 +14,7 @@ const panamaSearchReset = `async function searchApprovedRates() {
   form.selectedImportRateId = ''
   form.selectedContinuationImportRateId = ''
   panamaLandFreightAmount.value = 0
+  panamaDoubleMaritimeStage.value = 'A'
   form.manualRate = false`
 
 const fclCompatibleSearchReset = `async function searchApprovedRates() {
