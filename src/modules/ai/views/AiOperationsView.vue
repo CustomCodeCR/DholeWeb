@@ -25,7 +25,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { DhBadge, DhButton, DhSpinner, DhSwitch, DhTooltip } from '@/shared/components/atoms'
-import { DhConfirmDialog } from '@/shared/components/molecules'
+import { DhCard, DhConfirmDialog } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 
 type JobStatus = 'Pending' | 'Processing' | 'RetryScheduled' | 'Failed' | 'Completed' | string
@@ -427,28 +427,28 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else-if="state">
-      <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <div class="dh-glass dh-liquid rounded-[24px] p-5">
+      <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <DhCard padding="sm">
           <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.queued') }}</span><LoaderCircle class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.pending }}</div>
-        </div>
-        <div class="dh-glass dh-liquid rounded-[24px] border border-orange-500/30 p-5">
+        </DhCard>
+        <DhCard padding="sm" class="border-orange-500/30">
           <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.processing') }}</span><Activity class="h-4 w-4 text-orange-400" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.processing }}</div>
-        </div>
-        <div class="dh-glass dh-liquid rounded-[24px] p-5">
+        </DhCard>
+        <DhCard padding="sm">
           <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.retries') }}</span><RotateCcw class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.retryScheduled }}</div>
-        </div>
-        <div class="dh-glass dh-liquid rounded-[24px] border border-red-500/20 p-5">
+        </DhCard>
+        <DhCard padding="sm" class="border-red-500/20">
           <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.failed') }}</span><AlertTriangle class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.failed }}</div>
-        </div>
-        <div class="dh-glass dh-liquid rounded-[24px] p-5">
+        </DhCard>
+        <DhCard padding="sm">
           <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.redisPending') }}</span><Server class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.redis.group?.pending ?? 0 }}</div>
           <div class="mt-1 text-xs text-[var(--dh-text-muted)]">Lag {{ state.redis.group?.lag ?? '—' }}</div>
-        </div>
+        </DhCard>
       </section>
 
       <section class="grid gap-4 xl:grid-cols-3">
