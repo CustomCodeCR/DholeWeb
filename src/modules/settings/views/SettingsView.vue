@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import { DhButton } from '@/shared/components/atoms'
+import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import DatabaseMaintenanceView from './DatabaseMaintenanceView.vue'
 import EmployeeDirectorySettingsView from './EmployeeDirectorySettingsView.vue'
@@ -27,19 +28,19 @@ const cards = computed(() => {
   const items = [
     {
       title: t('settings.appearance'),
-      description: 'Tema, idioma y branding por cliente.',
+      description: t('settings.appearanceDescription'),
       icon: Palette,
       path: '/settings/appearance',
     },
     {
-      title: 'Directorio de extensiones',
-      description: 'Empleados, departamentos, extensiones, correos y celulares.',
+      title: t('settings.directory'),
+      description: t('settings.directoryDescription'),
       icon: ContactRound,
       path: '/settings?section=extensions',
     },
     {
       title: t('settings.shortcuts'),
-      description: 'Atajos configurables en el navegador.',
+      description: t('settings.shortcutsDescription'),
       icon: Keyboard,
       path: '/settings/shortcuts',
     },
@@ -48,14 +49,14 @@ const cards = computed(() => {
   if (isSuperUser.value) {
     items.push(
       {
-        title: 'Mantenimiento de bases de datos',
-        description: 'Vaciar tablas o bases de datos de forma controlada en el ambiente actual.',
+        title: t('settings.databaseMaintenance'),
+        description: t('settings.databaseMaintenanceDescription'),
         icon: DatabaseZap,
         path: '/settings?section=database-maintenance',
       },
       {
-        title: 'Regenerar datos del ambiente',
-        description: 'Volver a crear datos iniciales desde el .env actual de producción o staging.',
+        title: t('settings.environmentRecovery'),
+        description: t('settings.environmentRecoveryDescription'),
         icon: RefreshCcw,
         path: '/settings?section=environment-recovery',
       },
@@ -69,7 +70,7 @@ const cards = computed(() => {
 <template>
   <section v-if="showDirectory" class="space-y-4">
     <DhButton
-      label="Volver a Configuración"
+      :label="t('settings.backToSettings')"
       variant="secondary"
       :icon="ArrowLeft"
       @click="router.push('/settings')"
@@ -79,7 +80,7 @@ const cards = computed(() => {
 
   <section v-else-if="showDatabaseMaintenance" class="space-y-4">
     <DhButton
-      label="Volver a Configuración"
+      :label="t('settings.backToSettings')"
       variant="secondary"
       :icon="ArrowLeft"
       @click="router.push('/settings')"
@@ -89,7 +90,7 @@ const cards = computed(() => {
 
   <section v-else-if="showEnvironmentRecovery" class="space-y-4">
     <DhButton
-      label="Volver a Configuración"
+      :label="t('settings.backToSettings')"
       variant="secondary"
       :icon="ArrowLeft"
       @click="router.push('/settings')"
@@ -97,27 +98,20 @@ const cards = computed(() => {
     <EnvironmentRecoveryView />
   </section>
 
-  <section v-else class="space-y-6">
+  <section v-else class="space-y-4 sm:space-y-6">
     <DhPageHeader :title="t('settings.title')" :subtitle="t('settings.subtitle')" :icon="Settings" />
-    <div class="grid gap-4 md:grid-cols-2">
-      <button
+
+    <div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      <DhCard
         v-for="card in cards"
         :key="card.path"
-        class="dh-glass dh-liquid dh-card-hover rounded-[32px] p-6 text-left"
+        as="button"
+        :interactive="true"
+        :title="card.title"
+        :subtitle="card.description"
+        :icon="card.icon"
         @click="router.push(card.path)"
-      >
-        <div class="flex items-center gap-4">
-          <div
-            class="flex h-12 w-12 items-center justify-center rounded-[22px] dh-bg-primary-soft text-[var(--dh-primary)]"
-          >
-            <component :is="card.icon" class="h-6 w-6" />
-          </div>
-          <div>
-            <h3 class="text-lg font-black text-[var(--dh-text)]">{{ card.title }}</h3>
-            <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ card.description }}</p>
-          </div>
-        </div>
-      </button>
+      />
     </div>
   </section>
 </template>
