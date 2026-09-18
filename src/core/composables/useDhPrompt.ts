@@ -8,6 +8,7 @@ export interface DhPromptOptions {
   label?: string
   placeholder?: string
   initialValue?: string
+  multiline?: boolean
   confirmLabel?: string
   cancelLabel?: string
   size?: 'sm' | 'md' | 'lg' | 'xl'
