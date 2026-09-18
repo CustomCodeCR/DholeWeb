@@ -30,10 +30,18 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function money(value: unknown, currency = 'USD') {
-  return new Intl.NumberFormat(currency === 'CRC' ? 'es-CR' : 'en-US', {
+function normalizeCurrency(value: unknown) {
+  const raw = String(value ?? '').trim().toUpperCase()
+  if (raw.includes('CRC')) return 'CRC'
+  if (raw.includes('EUR')) return 'EUR'
+  return 'USD'
+}
+
+function money(value: unknown, currency: unknown = 'USD') {
+  const iso = normalizeCurrency(currency)
+  return new Intl.NumberFormat(iso === 'CRC' ? 'es-CR' : 'en-US', {
     style: 'currency',
-    currency,
+    currency: iso,
     minimumFractionDigits: 2,
   }).format(numberValue(value))
 }
