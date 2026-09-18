@@ -26,6 +26,7 @@ import {
 import { createUuid } from '@/core/utils/id'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useDhConfirm } from '@/core/composables/useDhConfirm'
 import { REPORTS_SCOPES } from '@/core/auth/scopes'
 import { ReportsService } from '@/core/services/reportsService'
 import type {
@@ -43,6 +44,7 @@ const router = useRouter()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+const { confirm } = useDhConfirm()
 
 const templateId = computed(() => String(route.params.id ?? '').trim())
 const isNew = computed(
@@ -209,7 +211,7 @@ function defaultBlock(type: ReportBlockType): ReportDesignerBlock {
   return base
 }
 
-function switchEditorMode(nextMode: ReportDesignerMode) {
+async function switchEditorMode(nextMode: ReportDesignerMode) {
   if (nextMode === editorMode.value) {
     previewMode.value = nextMode === 'html' ? 'html' : 'canvas'
     return
@@ -224,7 +226,7 @@ function switchEditorMode(nextMode: ReportDesignerMode) {
   }
 
   if (blocks.value.length === 0 && rawHtml.value.trim()) {
-    const shouldReplace = window.confirm(t('reports.designer.confirmReplaceHtmlWithVisual'))
+    const shouldReplace = await confirm({ title: t('common.confirm'), message: t('reports.designer.confirmReplaceHtmlWithVisual') })
     if (!shouldReplace) return
 
     seedTemplate()
@@ -232,7 +234,7 @@ function switchEditorMode(nextMode: ReportDesignerMode) {
   }
 
   if (htmlDirty.value) {
-    const shouldDiscard = window.confirm(t('reports.designer.confirmDiscardHtml'))
+    const shouldDiscard = await confirm({ title: t('common.confirm'), message: t('reports.designer.confirmDiscardHtml') })
     if (!shouldDiscard) return
   }
 
@@ -242,7 +244,7 @@ function switchEditorMode(nextMode: ReportDesignerMode) {
   previewMode.value = 'canvas'
 }
 
-function selectWorkspaceTab(mode: 'canvas' | 'html' | 'preview') {
+async function selectWorkspaceTab(mode: 'canvas' | 'html' | 'preview') {
   if (mode === 'preview') {
     previewMode.value = 'preview'
     return
@@ -265,7 +267,7 @@ function selectWorkspaceTab(mode: 'canvas' | 'html' | 'preview') {
     return
   }
 
-  switchEditorMode(mode === 'html' ? 'html' : 'visual')
+  await switchEditorMode(mode === 'html' ? 'html' : 'visual')
 }
 
 function markHtmlDirty() {
