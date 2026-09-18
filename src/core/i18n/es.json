@@ -63,7 +63,8 @@
     "view": "Ver",
     "notAvailable": "No disponible",
     "confirm": "Confirmar",
-    "actionError": "No se pudo completar la acción."
+    "actionError": "No se pudo completar la acción.",
+    "exportExcel": "Exportar Excel"
   },
   "topbar": {
     "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos, pricing, reportes, monitoreo o auditoría...",
