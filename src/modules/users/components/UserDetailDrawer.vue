@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Ban, CheckCircle2, KeyRound, Lock, MonitorCheck, RefreshCcw, Shield, ShieldMinus, ShieldPlus, Unlock, UserCog } from 'lucide-vue-next'
+import { Ban, CheckCircle2, KeyRound, Lock, MonitorCheck, RefreshCcw, Send, Shield, ShieldMinus, ShieldPlus, Unlock, UserCog } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { DhTabs, type DhTabItem } from '@/shared/components/molecules'
@@ -9,6 +9,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { AUTH_SCOPES } from '@/core/auth/scopes'
 import { UsersService } from '@/core/services/usersService'
+import { NotificationsService } from '@/core/services/notificationsService'
 import { RolesService } from '@/core/services/rolesService'
 import { ScopesService } from '@/core/services/scopesService'
 import { SessionsService } from '@/core/services/sessionsService'
@@ -20,6 +21,7 @@ import type { SessionDto } from '@/core/interfaces/sessions'
 import AuthMultiSelectModal from '@/modules/auth/components/AuthMultiSelectModal.vue'
 import AuthReasonModal from '@/modules/auth/components/AuthReasonModal.vue'
 import UserPasswordModal from '@/modules/users/components/UserPasswordModal.vue'
+import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 
 const props = defineProps<{
   user: UserDto
@@ -46,6 +48,7 @@ interface AuthMultiSelectItem { id: string; label: string; description?: string;
 const canSetActive = computed(() => authStore.hasScope(AUTH_SCOPES.users.setActive))
 const canSetLocked = computed(() => authStore.hasScope(AUTH_SCOPES.users.setLocked))
 const canChangePassword = computed(() => authStore.hasScope(AUTH_SCOPES.users.changePassword))
+const canSendCredentials = computed(() => authStore.hasScope(AUTH_SCOPES.users.sendCredentials))
 const canViewRoles = computed(() => authStore.hasScope(AUTH_SCOPES.roles.view))
 const canViewScopes = computed(() => authStore.hasScope(AUTH_SCOPES.scopes.view))
 const canAssignRoles = computed(() => authStore.hasScope(AUTH_SCOPES.users.rolesAssign) && canViewRoles.value)
@@ -57,7 +60,7 @@ const canRevokeSessions = computed(() => authStore.hasScope(AUTH_SCOPES.sessions
 const canRevokeAllSessions = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.revokeAll))
 const canRefreshCurrentToken = computed(() => localUser.value.id === authStore.userId)
 const isProtectedUser = computed(() => Boolean(localUser.value.isProtected))
-const showAccountActions = computed(() => !isProtectedUser.value && (canSetActive.value || canSetLocked.value || canChangePassword.value))
+const showAccountActions = computed(() => !isProtectedUser.value && (canSetActive.value || canSetLocked.value || canChangePassword.value || canSendCredentials.value))
 const showRoleActions = computed(() => canAssignRoles.value || canRevokeRoles.value)
 const showScopeActions = computed(() => canAssignScopes.value || canRevokeScopes.value)
 const showSessionActions = computed(() => canRefreshCurrentToken.value || canRevokeAllSessions.value)
@@ -166,6 +169,49 @@ function openPasswordModal() {
     size: 'md',
     props: { userId: localUser.value.id },
   })
+}
+
+function confirmSendCredentials() {
+  if (!canSendCredentials.value || isProtectedUser.value) return
+
+  modalStore.open({
+    title: t('users.sendCredentials'),
+    component: DhConfirmDialog,
+    size: 'md',
+    props: {
+      title: t('users.sendCredentials'),
+      message: t('users.sendCredentialsConfirm'),
+      confirmLabel: t('users.sendCredentialsAction'),
+      cancelLabel: t('common.cancel'),
+      onConfirm: sendCredentials,
+      onCancel: () => modalStore.close(),
+    },
+  })
+}
+
+async function sendCredentials() {
+  try {
+    const credentials = await UsersService.issueCredentials(localUser.value.id)
+
+    try {
+      await NotificationsService.sendAccessCredentialsEmail({
+        userId: credentials.userId,
+        userName: credentials.userName,
+        email: credentials.email,
+        displayName: credentials.displayName,
+        temporaryPassword: credentials.temporaryPassword,
+      })
+    } catch (error) {
+      toastStore.backendError(error, t('users.sendCredentialsEmailError'))
+      return
+    }
+
+    modalStore.close()
+    toastStore.success(t('users.sendCredentialsSuccess'))
+    await refreshParent()
+  } catch (error) {
+    toastStore.backendError(error, t('users.sendCredentialsIssueError'))
+  }
 }
 
 function roleItems(items: RoleSelectDto[]): AuthMultiSelectItem[] {
@@ -350,6 +396,7 @@ onMounted(loadRelated)
         <DhButton v-if="canSetLocked && localUser.isLocked" :icon="Unlock" label="Desbloquear" variant="secondary" @click="unblock" />
         <DhButton v-else-if="canSetLocked" :icon="Lock" label="Bloquear" variant="danger" @click="openBlockModal" />
         <DhButton v-if="canChangePassword" :icon="UserCog" label="Cambiar contraseña" variant="secondary" @click="openPasswordModal" />
+        <DhButton v-if="canSendCredentials" :icon="Send" :label="t('users.sendCredentials')" variant="secondary" @click="confirmSendCredentials" />
       </div>
     </div>
 
