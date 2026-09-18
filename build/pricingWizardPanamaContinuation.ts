@@ -28,16 +28,27 @@ const maritimePodCatalog = computed(() =>
     'dynamic Panama POD catalog',
   )
 
-  code = replaceRequired(
-    code,
-    `terminal-type="SD"
-                :optional="true"
-                :options="podOptions"`,
-    `:terminal-type="isPanamaMultimodal && form.panamaContinuationMode === 'DoubleMaritime' ? 'CY' : 'SD'"
-                :optional="true"
-                :options="podOptions"`,
-    'dynamic Panama POD terminal badge',
-  )
+  const podModelIndex = code.indexOf(`v-model="form.podId"`)
+  if (podModelIndex < 0) {
+    throw new Error('[pricingWizardPanamaContinuation] POD selector not found.')
+  }
+  const podSelectorEnd = code.indexOf('/>', podModelIndex)
+  if (podSelectorEnd < 0) {
+    throw new Error('[pricingWizardPanamaContinuation] POD selector closing tag not found.')
+  }
+  const terminalTypeIndex = code.indexOf('terminal-type=', podModelIndex)
+  if (terminalTypeIndex < 0 || terminalTypeIndex > podSelectorEnd) {
+    throw new Error('[pricingWizardPanamaContinuation] POD terminal-type attribute not found.')
+  }
+  const terminalLineStart = code.lastIndexOf('\n', terminalTypeIndex) + 1
+  const terminalLineEndCandidate = code.indexOf('\n', terminalTypeIndex)
+  const terminalLineEnd = terminalLineEndCandidate >= 0 ? terminalLineEndCandidate : podSelectorEnd
+  const terminalIndentMatch = code.slice(terminalLineStart, terminalTypeIndex).match(/^\\s*/)
+  const terminalIndent = terminalIndentMatch?.[0] ?? ''
+  code = code.slice(0, terminalLineStart)
+    + terminalIndent
+    + `:terminal-type="isPanamaMultimodal && form.panamaContinuationMode === 'DoubleMaritime' ? 'CY' : 'SD'"`
+    + code.slice(terminalLineEnd)
 
   // Remap an already selected POD when the user toggles SD <-> CY.
   const resetAnchor = `function resetWizard() {`
