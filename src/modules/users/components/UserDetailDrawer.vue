@@ -36,6 +36,7 @@ const authStore = useAuthStore()
 const localUser = ref<UserDto>({ ...props.user })
 const activeTab = ref('summary')
 const loading = ref(false)
+const sendingCredentials = ref(false)
 const roles = ref<UserRoleDto[]>([])
 const directScopes = ref<UserScopeDto[]>([])
 const permissions = ref<UserPermissionsDto | null>(null)
@@ -190,6 +191,9 @@ function confirmSendCredentials() {
 }
 
 async function sendCredentials() {
+  if (sendingCredentials.value) return
+
+  sendingCredentials.value = true
   try {
     const credentials = await UsersService.issueCredentials(localUser.value.id)
 
@@ -211,6 +215,8 @@ async function sendCredentials() {
     await refreshParent()
   } catch (error) {
     toastStore.backendError(error, t('users.sendCredentialsIssueError'))
+  } finally {
+    sendingCredentials.value = false
   }
 }
 
@@ -396,7 +402,7 @@ onMounted(loadRelated)
         <DhButton v-if="canSetLocked && localUser.isLocked" :icon="Unlock" label="Desbloquear" variant="secondary" @click="unblock" />
         <DhButton v-else-if="canSetLocked" :icon="Lock" label="Bloquear" variant="danger" @click="openBlockModal" />
         <DhButton v-if="canChangePassword" :icon="UserCog" label="Cambiar contraseña" variant="secondary" @click="openPasswordModal" />
-        <DhButton v-if="canSendCredentials" :icon="Send" :label="t('users.sendCredentials')" variant="secondary" @click="confirmSendCredentials" />
+        <DhButton v-if="canSendCredentials" :icon="Send" :label="t('users.sendCredentials')" variant="secondary" :disabled="sendingCredentials" @click="confirmSendCredentials" />
       </div>
     </div>
 
