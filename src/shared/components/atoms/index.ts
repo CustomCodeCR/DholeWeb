@@ -13,5 +13,6 @@ export { default as DhEmptyState } from './DhEmptyState.vue'
 export { default as DhPasswordInput } from './DhPasswordInput.vue'
 export { default as DhSkeleton } from './DhSkeleton.vue'
 export { default as DhColorPicker } from './DhColorPicker.vue'
+export { default as DhRange } from './DhRange.vue'
 
 export type { DhSelectOption } from './DhSelect.vue'
