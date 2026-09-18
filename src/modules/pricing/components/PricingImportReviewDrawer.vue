@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Ban, Check, Save } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { PricingService } from '@/core/services/pricingService'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useDhConfirm } from '@/core/composables/useDhConfirm'
 import type { ImportRateDto, ReviewImportRateRequest } from '@/core/interfaces/pricing'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import PricingContainerSelector from './PricingContainerSelector.vue'
@@ -22,6 +24,8 @@ const props = withDefaults(
 
 const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
+const { t } = useI18n()
+const { confirm } = useDhConfirm()
 const catalogs = usePricingCatalogs()
 const current = ref<ImportRateDto>(props.importRate)
 const loading = ref(false)
@@ -245,10 +249,15 @@ async function inactivate() {
 
   const usedCount = Number(current.value.usedAsRateCount ?? 0)
   const historyMessage = usedCount > 0
-    ? ` Esta tarifa ya fue utilizada ${usedCount} vez${usedCount === 1 ? '' : 'es'}; ese historial se conservará.`
+    ? t('pricing.confirmations.usedHistory', { count: usedCount })
     : ''
 
-  if (!window.confirm(`¿Inactivar esta tarifa preaprobada? Dejará de aparecer como alternativa para nuevas tarifas.${historyMessage}`)) return
+  if (!(await confirm({
+    title: t('pricing.confirmations.inactivateImportTitle'),
+    message: t('pricing.confirmations.inactivateImportMessage', { history: historyMessage }),
+    confirmLabel: t('pricing.confirmations.inactivateConfirm'),
+    danger: true,
+  }))) return
 
   try {
     inactivating.value = true
