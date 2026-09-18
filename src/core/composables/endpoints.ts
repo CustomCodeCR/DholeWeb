@@ -49,6 +49,11 @@ export const UserEndpoints = {
     path: '/api/auth/users/{{userId}}/password',
     headers: jsonHeaders,
   },
+  issueUserCredentials: {
+    method: 'POST',
+    path: '/api/auth/users/{{userId}}/access-credentials',
+    headers: acceptJson,
+  },
   setUserActive: {
     method: 'PATCH',
     path: '/api/auth/users/{{userId}}/active',
@@ -784,6 +789,11 @@ export const NotificationsEndpoints = {
   createNotificationMessage: {
     method: 'POST',
     path: '/api/notifications/messages',
+    headers: jsonHeaders,
+  },
+  sendAccessCredentialsEmail: {
+    method: 'POST',
+    path: '/api/notifications/messages/access-credentials',
     headers: jsonHeaders,
   },
   cancelNotificationMessage: {
