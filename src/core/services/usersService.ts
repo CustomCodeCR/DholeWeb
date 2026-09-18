@@ -53,7 +53,7 @@ export const UsersService = {
   },
 
   async issueCredentials(userId: string): Promise<IssuedUserCredentialsDto> {
-    const response = await callEndpoint<unknown>(Endpoints.issueUserCredentials, { params: { userId } })
+    const response = await callEndpoint<IssuedUserCredentialsDto>(Endpoints.issueUserCredentials, { params: { userId } })
     return unwrapApiResponse<IssuedUserCredentialsDto>(response)
   },
 
