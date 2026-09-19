@@ -13,6 +13,11 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 }
 
 function patchRatesView(source: string) {
+  // The current view owns the onDuplicated callback directly. Keep the legacy
+  // transform only for older source revisions so adding tariff actions does not
+  // make this build-time patch brittle.
+  if (source.includes(`onDuplicated: async (duplicatedRateId: string) => {`)) return source
+
   return replaceOne(
     source,
     `    props: { rate, onSaved: load },`,
