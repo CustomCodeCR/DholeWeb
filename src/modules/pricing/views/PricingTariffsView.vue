@@ -198,9 +198,9 @@ onMounted(loadMasters)
             No hay tarifarios maestros.
           </div>
 
+          <template v-else>
           <button
             v-for="rate in filteredMasters"
-            v-else
             :key="rate.id"
             type="button"
             class="w-full rounded-2xl border p-3 text-left transition"
@@ -226,6 +226,7 @@ onMounted(loadMasters)
               <DhBadge :label="statusLabel(rate.status)" :variant="statusTone(rate.status)" />
             </div>
           </button>
+          </template>
         </div>
       </section>
 
