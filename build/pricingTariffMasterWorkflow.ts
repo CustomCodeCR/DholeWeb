@@ -110,7 +110,7 @@ function chooseModality(value: Modality) {`,
         const appliedQuo = appliedRate.quoNumber || appliedRate.rateCode
         toastStore.success(
           'Tarifario aplicado al cliente',
-          \`${sourceQuo} permanece como tarifario maestro y se creó ${appliedQuo} conservando exactamente el flete, cargos, recargos, condiciones y vigencia.\`,
+          \`\${sourceQuo} permanece como tarifario maestro y se creó \${appliedQuo} conservando exactamente el flete, cargos, recargos, condiciones y vigencia.\`,
         )
         await router.push({
           name: 'pricing-rate-wizard',
@@ -124,7 +124,7 @@ function chooseModality(value: Modality) {`,
         status: 'AcceptedByClient',
         idtraNumber: commercialIdtra.value.trim(),
       })
-      toastStore.success('Tarifa aceptada', \`IDTRA ${commercialIdtra.value.trim()} registrado.\`)
+      toastStore.success('Tarifa aceptada', \`IDTRA \${commercialIdtra.value.trim()} registrado.\`)
     } else {
       await PricingService.setRateStatus(editingRate.value.id, {
         status: 'RejectedByClient',
