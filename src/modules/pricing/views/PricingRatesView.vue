@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Copy, Edit3, Eye, ReceiptText, Trash2 } from 'lucide-vue-next'
+import { Copy, Edit3, Eye, ReceiptText, Trash2, UserRoundPlus } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import {
   DhCrudToolbar,
@@ -18,6 +18,7 @@ import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
+import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import {
@@ -234,6 +235,16 @@ function canUpdateRate(rate: RateDto) {
   return canUpdate.value && requestedRateUpdateStatuses.has(rate.status)
 }
 
+function isMasterTariff(rate: RateDto) {
+  return rate.rateType === 'Tariff' && !rate.sourceTariffRateId
+}
+
+function canApplyTariffRate(rate: RateDto) {
+  return canCreate.value
+    && isMasterTariff(rate)
+    && ['ApprovedByManagement', 'Open', 'Sent', 'RequestedByClient', 'AcceptedByClient'].includes(rate.status)
+}
+
 function rateUpdateWindowMessage(rate: RateDto) {
   if (rate.status === 'Sent' || rate.status === 'RequestedByClient') {
     return 'La tarifa está enviada y todavía está pendiente de aceptación o rechazo del vendedor.'
@@ -368,11 +379,32 @@ function openEdit(rate: RateDto) {
   router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
 }
 
+function applyTariff(rate: RateDto) {
+  if (!canApplyTariffRate(rate)) return
+
+  modalStore.open({
+    title: 'Aplicar tarifario a cliente',
+    component: PricingApplyTariffModal,
+    size: 'md',
+    props: {
+      rate,
+      onApplied: async () => {
+        await load()
+      },
+    },
+  })
+}
+
 function duplicate(rate: RateDto) {
   modalStore.open({
-    title: 'Duplicar tarifa',
+    title: isMasterTariff(rate) ? 'Duplicar tarifario' : 'Duplicar tarifa',
     component: PricingDuplicateRateModal,
-    props: { rate, onSaved: load },
+    props: {
+      rate,
+      onDuplicated: async () => {
+        await load()
+      },
+    },
   })
 }
 
@@ -675,6 +707,15 @@ onMounted(async () => {
               >
                 <Eye class="h-4 w-4" /></button
               ><button
+                v-if="canApplyTariffRate(row)"
+                type="button"
+                class="rounded-2xl p-2 text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
+                title="Aplicar tarifario a cliente"
+                @click.stop="applyTariff(row)"
+              >
+                <UserRoundPlus class="h-4 w-4" />
+              </button
+              ><button
                 v-if="canUpdateRate(row)"
                 type="button"
                 class="inline-flex items-center gap-1.5 rounded-2xl px-2.5 py-2 text-xs font-black text-[var(--dh-primary)] transition hover:bg-black/5 dark:hover:bg-white/10"
@@ -687,7 +728,7 @@ onMounted(async () => {
                 v-if="canCreate"
                 type="button"
                 class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
-                title="Duplicar"
+                :title="isMasterTariff(row) ? 'Duplicar tarifario maestro' : 'Duplicar tarifa'"
                 @click.stop="duplicate(row)"
               >
                 <Copy class="h-4 w-4" />
