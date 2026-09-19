@@ -600,8 +600,8 @@ onMounted(async () => {
                 </span>
                 <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
                 <DhBadge
-                  :label="row.rateType === 'Spot' ? 'SPOT' : 'TARIFARIO'"
-                  :variant="row.rateType === 'Spot' ? 'warning' : 'neutral'"
+                  :label="row.sourceTariffRateId ? 'TARIFARIO · CLIENTE' : row.rateType === 'Spot' ? 'SPOT' : 'TARIFARIO · MAESTRO'"
+                  :variant="row.rateType === 'Spot' ? 'warning' : row.sourceTariffRateId ? 'success' : 'neutral'"
                 />
                 <span v-if="row.clientName" class="text-xs font-bold text-[var(--dh-text-soft)]">
                   {{ row.clientName }}
