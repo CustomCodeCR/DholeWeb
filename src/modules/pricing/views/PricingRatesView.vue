@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Copy, Edit3, Eye, ReceiptText, Trash2, UserRoundPlus } from 'lucide-vue-next'
+import { Copy, Edit3, Eye, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhCrudToolbar, DhPagination } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -625,9 +625,9 @@ onMounted(async () => {
                   No hay tarifas que coincidan con los filtros.
                 </td>
               </tr>
+              <template v-else>
               <tr
                 v-for="row in rows"
-                v-else
                 :key="row.id"
                 class="cursor-pointer border-t border-[var(--dh-border)] transition hover:bg-[var(--dh-card-hover)]"
                 @click="openDetail(row)"
@@ -717,6 +717,7 @@ onMounted(async () => {
                   </div>
                 </td>
               </tr>
+              </template>
             </tbody>
           </table>
         </div>
