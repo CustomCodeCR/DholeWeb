@@ -3,12 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Copy, Edit3, Eye, ReceiptText, Trash2, UserRoundPlus } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
-import {
-  DhCrudToolbar,
-  DhDataTable,
-  DhPagination,
-  type DhTableColumn,
-} from '@/shared/components/molecules'
+import { DhCrudToolbar, DhPagination } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useModalStore } from '@/core/stores/modalStore'
@@ -252,16 +247,6 @@ function rateUpdateWindowMessage(rate: RateDto) {
   return 'La tarifa todavía se encuentra dentro de la solicitud antes del envío de Pricing.'
 }
 
-const columns: DhTableColumn<RateDto>[] = [
-  { key: 'selected', label: '', width: '48px', align: 'center' },
-  { key: 'rate', label: 'Tarifa' },
-  { key: 'logistics', label: 'Operación' },
-  { key: 'commercial', label: 'Resumen comercial', align: 'right' },
-  { key: 'validity', label: 'Vigencia' },
-  { key: 'status', label: 'Estado', align: 'center' },
-  { key: 'actions', label: '', align: 'right', width: '190px' },
-]
-
 const statusOptions: Array<{ label: string; value: CommercialRateStatus }> = [
   { label: 'Abiertas', value: 'Open' },
   { label: 'Enviadas', value: 'Sent' },
@@ -322,6 +307,7 @@ async function load() {
       quoteDate: filters.quoteDate || undefined,
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
+      excludeTariffMasters: true,
     })
     rows.value = result.items
     total.value = result.totalCount ?? result.items.length
@@ -613,135 +599,127 @@ onMounted(async () => {
       </div>
 
       <div class="mt-5">
-        <DhDataTable
-          :columns="columns"
-          :rows="rows"
-          :loading="loading"
-          empty-text="No hay tarifas que coincidan con los filtros."
-          @row-click="openDetail"
+        <div
+          class="overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]"
         >
-          <template #cell-selected="{ row }"
-            ><div class="flex justify-center" @click.stop>
-              <DhCheckbox
-                :model-value="selectedIds.includes(row.id)"
-                @update:model-value="toggleSelection(row.id)"
-              /></div
-          ></template>
-          <template #cell-rate="{ row }">
-            <div class="min-w-[320px]">
-              <div class="flex flex-wrap items-center gap-2">
-                <span
-                  class="rounded-full dh-bg-primary-soft px-2.5 py-1 text-[11px] font-black text-[var(--dh-primary)]"
-                >
-                  {{ row.rateCode }}
-                </span>
-                <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
-                <DhBadge
-                  :label="row.sourceTariffRateId ? 'TARIFARIO · CLIENTE' : row.rateType === 'Spot' ? 'SPOT' : 'TARIFARIO · MAESTRO'"
-                  :variant="row.rateType === 'Spot' ? 'warning' : row.sourceTariffRateId ? 'success' : 'neutral'"
-                />
-                <span v-if="row.clientName" class="text-xs font-bold text-[var(--dh-text-soft)]">
-                  {{ row.clientName }}
-                </span>
-              </div>
-              <p class="mt-2 font-black text-[var(--dh-text)]">
-                {{ routeLabel(displayRate(row)) }}
-              </p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{
-                  displayRate(row).incotermName || displayRate(row).incotermCode || 'Sin Incoterm'
-                }}
-                <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
-                <span v-if="row.quoNumber"> · {{ row.quoNumber }}</span>
-              </p>
-            </div>
-          </template>
-          <template #cell-logistics="{ row }">
-            <div class="min-w-[210px]">
-              <p class="font-black text-[var(--dh-text)]">
-                {{ displayRate(row).carrierName || 'Sin naviera' }}
-              </p>
-              <p class="mt-1 text-sm font-bold text-[var(--dh-text-soft)]">
-                {{ containerSummary(displayRate(row)) }}
-              </p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Agente: {{ displayRate(row).agentName || '—' }}
-              </p>
-            </div>
-          </template>
-          <template #cell-commercial="{ row }">
-            <div class="min-w-[300px] text-right">
-              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo / Venta / Utilidad / Margen</p>
-              <div class="mt-1 grid grid-cols-[auto_auto] justify-end gap-x-2 gap-y-1 text-xs">
-                <span class="font-semibold text-[var(--dh-text-muted)]">Costo</span>
-                <strong>{{ formatMoney(rateFinancialSummary(row).costUsd, 'USD') }} / {{ formatMoney(rateFinancialSummary(row).costCrc, 'CRC') }}</strong>
-                <span class="font-semibold text-[var(--dh-text-muted)]">Venta</span>
-                <strong class="text-[var(--dh-primary)]">{{ formatMoney(rateFinancialSummary(row).saleUsd, 'USD') }} / {{ formatMoney(rateFinancialSummary(row).saleCrc, 'CRC') }}</strong>
-                <span class="font-semibold text-[var(--dh-text-muted)]">Utilidad</span>
-                <strong>{{ formatMoney(rateFinancialSummary(row).utilityUsd, 'USD') }} / {{ formatMoney(rateFinancialSummary(row).utilityCrc, 'CRC') }}</strong>
-                <span class="font-semibold text-[var(--dh-text-muted)]">Margen</span>
-                <span class="flex justify-end">
-                  <DhBadge :label="`${rateFinancialSummary(row).margin.toFixed(2)}%`" :variant="marginTone(rateFinancialSummary(row).margin)" />
-                </span>
-              </div>
-            </div>
-          </template>
-          <template #cell-validity="{ row }">
-            <div class="min-w-[155px]">
-              <p class="text-sm font-black text-[var(--dh-text)]">
-                {{ formatDate(row.validFrom) }}
-              </p>
-              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-                hasta {{ formatDate(row.validTo) }}
-              </p>
-              <p class="mt-1 text-xs font-bold text-[var(--dh-text-soft)]">
-                {{ row.freeDays }} días libres
-              </p>
-            </div>
-          </template>
-          <template #cell-status="{ row }"
-            ><DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)"
-          /></template>
-          <template #cell-actions="{ row }"
-            ><div class="flex justify-end gap-1">
-              <button
-                type="button"
-                class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
-                title="Ver en wizard"
-                @click.stop="openDetail(row)"
+          <table class="w-full min-w-[1100px] border-collapse text-left text-sm">
+            <thead class="bg-black/[0.035] text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
+              <tr>
+                <th class="w-12 px-4 py-3"></th>
+                <th class="px-4 py-3">Tarifa</th>
+                <th class="px-4 py-3">Operación</th>
+                <th class="px-4 py-3 text-right">Resumen comercial</th>
+                <th class="px-4 py-3">Vigencia</th>
+                <th class="px-4 py-3 text-center">Estado</th>
+                <th class="w-[190px] px-4 py-3 text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading">
+                <td colspan="7" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">
+                  Cargando...
+                </td>
+              </tr>
+              <tr v-else-if="rows.length === 0">
+                <td colspan="7" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">
+                  No hay tarifas que coincidan con los filtros.
+                </td>
+              </tr>
+              <tr
+                v-for="row in rows"
+                v-else
+                :key="row.id"
+                class="cursor-pointer border-t border-[var(--dh-border)] transition hover:bg-[var(--dh-card-hover)]"
+                @click="openDetail(row)"
               >
-                <Eye class="h-4 w-4" /></button
-              ><button
-                v-if="canApplyTariffRate(row)"
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.08)] px-2.5 py-1.5 text-[11px] font-black text-[var(--dh-primary)] transition hover:bg-[rgb(var(--dh-primary-rgb)/0.14)]"
-                title="Crear una nueva QUO para un cliente usando este tarifario"
-                @click.stop="applyTariff(row)"
-              >
-                <UserRoundPlus class="h-3.5 w-3.5" />
-                <span>Aplicar</span>
-              </button
-              ><button
-                v-if="canUpdateRate(row)"
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-black text-[var(--dh-primary)] transition hover:bg-black/5 dark:hover:bg-white/10"
-                title="Actualizar tarifa · motivo obligatorio"
-                @click.stop="openEdit(row)"
-              >
-                <Edit3 class="h-3.5 w-3.5" />
-                <span class="hidden 2xl:inline">Actualizar</span></button
-              ><button
-                v-if="canCreate"
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-black transition hover:bg-black/5 dark:hover:bg-white/10"
-                :title="isMasterTariff(row) ? 'Crear otro tarifario maestro basado en este' : 'Duplicar tarifa'"
-                @click.stop="duplicate(row)"
-              >
-                <Copy class="h-3.5 w-3.5" />
-                <span v-if="isMasterTariff(row)">Duplicar</span>
-              </button></div
-          ></template>
-        </DhDataTable>
+                <td class="px-4 py-4" @click.stop>
+                  <DhCheckbox
+                    :model-value="selectedIds.includes(row.id)"
+                    @update:model-value="toggleSelection(row.id)"
+                  />
+                </td>
+                <td class="px-4 py-4">
+                  <div class="min-w-[300px]">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="rounded-full dh-bg-primary-soft px-2.5 py-1 text-[11px] font-black text-[var(--dh-primary)]">
+                        {{ row.quoNumber || row.rateCode }}
+                      </span>
+                      <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
+                      <DhBadge
+                        :label="row.sourceTariffRateId ? 'TARIFARIO · CLIENTE' : 'SPOT'"
+                        :variant="row.sourceTariffRateId ? 'success' : 'warning'"
+                      />
+                    </div>
+                    <p class="mt-2 font-black text-[var(--dh-text)]">
+                      {{ [row.polName, row.poeName, row.podName].filter(Boolean).join(' → ') }}
+                    </p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                      {{ row.clientName || 'Sin cliente' }}
+                      <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
+                    </p>
+                  </div>
+                </td>
+                <td class="px-4 py-4">
+                  <div class="min-w-[190px]">
+                    <p class="font-black text-[var(--dh-text)]">{{ row.carrierName || 'Sin naviera' }}</p>
+                    <p class="mt-1 text-sm font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Agente: {{ row.agentName || '—' }}</p>
+                  </div>
+                </td>
+                <td class="px-4 py-4 text-right">
+                  <div class="min-w-[240px]">
+                    <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Costo</p>
+                    <p class="font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Venta / Utilidad</p>
+                    <p class="font-black text-[var(--dh-primary)]">
+                      {{ formatMoney(row.totalSaleUsd, 'USD') }}
+                      <span class="text-[var(--dh-text-soft)]"> / {{ formatMoney(row.totalUtilityUsd, 'USD') }}</span>
+                    </p>
+                    <div class="mt-2 flex justify-end">
+                      <DhBadge :label="`${Number(row.marginPercentage || 0).toFixed(2)}%`" :variant="marginTone(Number(row.marginPercentage || 0))" />
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-4">
+                  <div class="min-w-[150px]">
+                    <p class="font-black">{{ formatDate(row.validFrom) }}</p>
+                    <p class="text-xs font-semibold text-[var(--dh-text-muted)]">hasta {{ formatDate(row.validTo) }}</p>
+                    <p class="mt-1 text-xs font-bold text-[var(--dh-text-soft)]">{{ row.freeDays }} días libres</p>
+                  </div>
+                </td>
+                <td class="px-4 py-4 text-center">
+                  <DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)" />
+                </td>
+                <td class="px-4 py-4" @click.stop>
+                  <div class="flex justify-end gap-1">
+                    <button type="button" class="rounded-xl p-2 hover:bg-black/5 dark:hover:bg-white/10" title="Ver en wizard" @click="openDetail(row)">
+                      <Eye class="h-4 w-4" />
+                    </button>
+                    <button
+                      v-if="canUpdateRate(row)"
+                      type="button"
+                      class="inline-flex items-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-black text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
+                      title="Actualizar tarifa"
+                      @click="openEdit(row)"
+                    >
+                      <Edit3 class="h-3.5 w-3.5" />
+                      <span>Actualizar</span>
+                    </button>
+                    <button
+                      v-if="canCreate"
+                      type="button"
+                      class="rounded-xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
+                      title="Duplicar tarifa"
+                      @click="duplicate(row)"
+                    >
+                      <Copy class="h-4 w-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
       <div class="mt-5">
         <DhPagination v-model:page="page" v-model:page-size="pageSize" :total="total" />
