@@ -37,6 +37,7 @@ import type {
   RateRevisionDto,
   UpdateRateRequest,
   RateOperationType,
+  RateType,
   ShipmentMode,
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -264,6 +265,7 @@ const catalogs = reactive({
 })
 
 const form = reactive({
+  rateType: 'Spot' as RateType,
   modality: '' as Modality | '',
   shipmentMode: '',
   originId: '',
@@ -2439,6 +2441,7 @@ async function hydrateExistingRate() {
     const modality = modalityForRate(rate)
     const equipment = [...catalogs.containers, ...catalogs.landEquipmentTypes].find((item) => item.id === rate.containerTypeId) ?? null
     const equipmentMeta = metadata(equipment)
+    form.rateType = rate.rateType
     form.modality = modality
     form.shipmentMode = String(rate.shipmentMode).toUpperCase()
     form.originId = rate.polId
@@ -2849,7 +2852,7 @@ async function saveOpenRequest() {
       validFrom: form.loadDate,
       validTo: addDaysIso(form.loadDate, 30),
       containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
-      rateType: 'Spot',
+      rateType: form.rateType,
       operationType: operationType.value,
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
@@ -3086,7 +3089,7 @@ async function saveRate() {
       validFrom: form.loadDate,
       validTo: form.validTo || selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
       containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
-      rateType: 'Spot',
+      rateType: form.rateType,
       operationType: operationType.value,
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
@@ -3184,6 +3187,7 @@ function resetWizard() {
   allInPresentation.value = false
   supportDocuments.value = []
   Object.assign(form, {
+    rateType: 'Spot',
     modality: '',
     shipmentMode: '',
     originId: '',
@@ -3495,7 +3499,45 @@ onMounted(async () => {
           <div>
             <p class="crystal-kicker">Pantalla 3</p>
             <h2 class="crystal-title">{{ form.modality === 'Land' ? 'Ruta, furgón, Incoterm y servicios' : 'Ruta, equipo, Incoterm y servicios' }}</h2>
-            <p class="crystal-description">Seleccione el POE. El POD es opcional; si existe una equivalencia clara, se sugiere automáticamente.</p>
+            <p class="crystal-description">Seleccione el tipo comercial y luego complete la ruta. Un SPOT se vuelve a cotizar al duplicarse; un TARIFARIO conserva su snapshot cuando un cliente lo acepta.</p>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              class="crystal-choice min-h-[118px] text-left"
+              :class="form.rateType === 'Spot' ? 'crystal-choice--active' : ''"
+              @click="form.rateType = 'Spot'"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-base font-black">SPOT</p>
+                  <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">Cotización puntual. Al duplicarla se revisan los datos y se vuelve a escoger el flete vigente.</p>
+                </div>
+                <Check v-if="form.rateType === 'Spot'" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+              </div>
+            </button>
+            <button
+              type="button"
+              class="crystal-choice min-h-[118px] text-left"
+              :class="form.rateType === 'Tariff' ? 'crystal-choice--active' : ''"
+              @click="form.rateType = 'Tariff'"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-base font-black">TARIFARIO</p>
+                  <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">Tarifa de vigencia extendida. Cuando un cliente la acepta se crea otra QUO con el mismo flete, cargos y recargos.</p>
+                </div>
+                <Check v-if="form.rateType === 'Tariff'" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+              </div>
+            </button>
+          </div>
+
+          <div
+            v-if="form.rateType === 'Tariff'"
+            class="rounded-2xl border border-[var(--dh-primary)]/25 dh-bg-primary-soft px-4 py-3 text-xs font-semibold leading-5 text-[var(--dh-text-soft)]"
+          >
+            El tarifario maestro puede reutilizarse durante su vigencia. La aceptación de un cliente no modifica el maestro: genera una nueva QUO ligada a la revisión exacta del tarifario.
           </div>
 
           <div class="crystal-soft space-y-5 p-4 md:p-5">
@@ -3558,8 +3600,8 @@ onMounted(async () => {
             <!-- Fila 4: Incoterm y fecha de carga lista. -->
             <div class="grid gap-4 md:grid-cols-2">
               <DhSelect v-model="form.incotermId" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
-              <DhInput v-model="form.loadDate" type="date" label="Vigente desde / carga lista" />
-              <DhInput v-model="form.validTo" type="date" label="Vigente hasta" />
+              <DhInput v-model="form.loadDate" type="date" :label="form.rateType === 'Tariff' ? 'Vigente desde' : 'Vigente desde / carga lista'" />
+              <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />
             </div>
 
             <PricingCrystalMultiSelect
