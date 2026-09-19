@@ -125,7 +125,8 @@ async function loadDerived() {
   }
 }
 
-function openRate(rate: RateDto) {
+function openRate(rate: RateDto | null) {
+  if (!rate) return
   router.push({
     name: 'pricing-rate-wizard',
     params: { rateId: rate.id },
@@ -133,7 +134,8 @@ function openRate(rate: RateDto) {
   })
 }
 
-function applyTariff(rate: RateDto) {
+function applyTariff(rate: RateDto | null) {
+  if (!rate) return
   modalStore.open({
     title: 'Aplicar tarifario a cliente',
     component: PricingApplyTariffModal,
