@@ -614,6 +614,8 @@ export interface RateDto extends Record<string, unknown> {
   rateName: string
   revisionNumber: number
   sourceImportFclRateId?: string | null
+  sourceTariffRateId?: string | null
+  sourceTariffRevisionNumber?: number | null
   agentId?: string | null
   agentName?: string | null
   agentCode?: string | null
@@ -830,6 +832,10 @@ export interface UpdateRateRequest extends Omit<
 export interface DuplicateRateRequest extends Record<string, unknown> {
   validFrom: string
   validTo: string
+  applyTariff?: boolean
+  clientName?: string | null
+  executiveName?: string | null
+  idtraNumber?: string | null
 }
 
 export interface RejectRateMarginRequest extends Record<string, unknown> {
