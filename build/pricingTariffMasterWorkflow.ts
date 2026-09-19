@@ -13,30 +13,41 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
-  code = replaceOne(
-    code,
-    `const form = reactive({
+  if (!code.includes("rateType: 'Spot' as RateType") && !code.includes("rateType: 'Spot' as 'Spot' | 'Tariff'")) {
+    code = replaceOne(
+      code,
+      `const form = reactive({
   modality: '' as Modality | '',`,
-    `const form = reactive({
+      `const form = reactive({
   rateType: 'Spot' as 'Spot' | 'Tariff',
   modality: '' as Modality | '',`,
-    'rate type form state',
-  )
+      'rate type form state',
+    )
+  }
 
-  code = replaceOne(
-    code,
-    `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))`,
-    `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))
+  if (!code.includes('const isMasterTariff = computed(')) {
+    const commercialStateAnchor = code.includes(
+      `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient', 'Expired'].includes(currentCommercialStatus.value))`,
+    )
+      ? `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient', 'Expired'].includes(currentCommercialStatus.value))`
+      : `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))`
+
+    code = replaceOne(
+      code,
+      commercialStateAnchor,
+      `${commercialStateAnchor}
 const isMasterTariff = computed(() =>
   editingRate.value?.rateType === 'Tariff' && !editingRate.value?.sourceTariffRateId,
 )`,
-    'master tariff state',
-  )
+      'master tariff state',
+    )
+  }
 
-  code = replaceOne(
-    code,
-    `function chooseModality(value: Modality) {`,
-    `function chooseRateType(value: 'Spot' | 'Tariff') {
+  if (!code.includes('function chooseRateType(')) {
+    code = replaceOne(
+      code,
+      `function chooseModality(value: Modality) {`,
+      `function chooseRateType(value: 'Spot' | 'Tariff') {
   form.rateType = value
   if (value === 'Tariff' && form.validTo === addDaysIso(form.loadDate, 30)) {
     form.validTo = addDaysIso(form.loadDate, 90)
@@ -44,32 +55,34 @@ const isMasterTariff = computed(() =>
 }
 
 function chooseModality(value: Modality) {`,
-    'rate type selector action',
-  )
+      'rate type selector action',
+    )
+  }
 
-  code = replaceOne(
-    code,
-    `    form.modality = modality
+  if (!code.includes('    form.rateType = rate.rateType')) {
+    code = replaceOne(
+      code,
+      `    form.modality = modality
     form.shipmentMode = String(rate.shipmentMode).toUpperCase()`,
-    `    form.rateType = rate.rateType
+      `    form.rateType = rate.rateType
     form.modality = modality
     form.shipmentMode = String(rate.shipmentMode).toUpperCase()`,
-    'existing rate type hydration',
-  )
+      'existing rate type hydration',
+    )
+  }
 
   const spotPayload = `      rateType: 'Spot',`
   const spotPayloadCount = code.split(spotPayload).length - 1
-  if (spotPayloadCount !== 2) {
-    throw new Error(`[pricingTariffMasterWorkflow] Expected two SPOT payload anchors, found ${spotPayloadCount}.`)
+  if (spotPayloadCount > 0) {
+    code = code.replaceAll(spotPayload, `      rateType: form.rateType,`)
   }
-  code = code.replaceAll(spotPayload, `      rateType: form.rateType,`)
 
-  code = replaceOne(
-    code,
-    `      validTo: addDaysIso(form.loadDate, 30),`,
-    `      validTo: form.validTo || addDaysIso(form.loadDate, form.rateType === 'Tariff' ? 90 : 30),`,
-    'open request validity',
-  )
+  if (code.includes(`      validTo: addDaysIso(form.loadDate, 30),`)) {
+    code = code.replace(
+      `      validTo: addDaysIso(form.loadDate, 30),`,
+      `      validTo: form.validTo || addDaysIso(form.loadDate, form.rateType === 'Tariff' ? 90 : 30),`,
+    )
+  }
 
   const decisionStart = code.indexOf(`async function submitCommercialDecision() {`)
   const decisionEnd = code.indexOf(`async function downloadCurrentQuote() {`, decisionStart)
@@ -210,7 +223,9 @@ function chooseModality(value: Modality) {`,
             </div>
           </div>`
 
-  code = replaceOne(code, screenOneHeader, screenOneReplacement, 'screen one rate type selector')
+  if (!code.includes('TARIFARIO</p>') && !code.includes('>TARIFARIO</span>')) {
+    code = replaceOne(code, screenOneHeader, screenOneReplacement, 'screen one rate type selector')
+  }
 
   const acceptPanel = `            <div v-if="commercialAction === 'accept'" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
               <p class="text-sm font-black">Aceptar tarifa</p>
