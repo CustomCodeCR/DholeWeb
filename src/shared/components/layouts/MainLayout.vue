@@ -158,6 +158,10 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     children.push({ label: t('sidebar.rates'), path: '/pricing/rates', icon: ReceiptText })
   }
 
+  if (canView(VIEW_SCOPES.pricingCompetition)) {
+    children.push({ label: 'Tarifas competencia', path: '/pricing/competition', icon: FileText })
+  }
+
   if (canView(VIEW_SCOPES.pricingCosts)) {
     children.push({ label: 'Tarifas terrestres', path: '/pricing/ftl-tariffs', icon: Truck })
   }
