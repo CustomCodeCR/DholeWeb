@@ -25,16 +25,19 @@ function todayInputDate() {
 }
 
 const isFcl = computed(() => String(props.rate.shipmentMode ?? '').trim().toLowerCase() === 'fcl')
+const isMasterTariff = computed(() => props.rate.rateType === 'Tariff' && !props.rate.sourceTariffRateId)
 const today = todayInputDate()
 const form = reactive({
-  validFrom: isFcl.value ? today : toDateInput(props.rate.validFrom),
-  validTo: isFcl.value ? today : toDateInput(props.rate.validTo),
+  validFrom: isMasterTariff.value ? toDateInput(props.rate.validFrom) : isFcl.value ? today : toDateInput(props.rate.validFrom),
+  validTo: isMasterTariff.value ? toDateInput(props.rate.validTo) : isFcl.value ? today : toDateInput(props.rate.validTo),
   submitted: false,
   saving: false,
 })
 
 const validRange = computed(() => Boolean(form.validFrom && form.validTo && form.validTo >= form.validFrom))
-const submitLabel = computed(() => isFcl.value ? 'Continuar a revisar datos' : 'Duplicar y revisar')
+const submitLabel = computed(() =>
+  isMasterTariff.value ? 'Duplicar tarifario' : isFcl.value ? 'Continuar a revisar datos' : 'Duplicar y revisar',
+)
 
 async function submit() {
   form.submitted = true
@@ -92,9 +95,12 @@ async function submit() {
           <Copy class="h-5 w-5" />
         </span>
         <div class="min-w-0">
-          <p class="text-base font-black text-[var(--dh-text)]">Duplicar y revisar</p>
+          <p class="text-base font-black text-[var(--dh-text)]">{{ isMasterTariff ? 'Duplicar tarifario maestro' : 'Duplicar y revisar' }}</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            <template v-if="isFcl">
+            <template v-if="isMasterTariff">
+              Esta acción crea otro tarifario maestro para revisión. No aplica el tarifario a ningún cliente y no registra una aceptación. La vigencia parte de la del tarifario actual y puede ajustarse.
+            </template>
+            <template v-else-if="isFcl">
               Se copiarán la ruta, el equipo y los datos de carga de la tarifa anterior. La nueva tarifa todavía no se crea: se abrirá en pantalla 3 para revisar y ajustar los datos antes de continuar.
             </template>
             <template v-else>
@@ -113,9 +119,13 @@ async function submit() {
       </div>
 
       <div v-if="isFcl" class="mt-4 grid gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+        <div v-if="isMasterTariff" class="flex items-start gap-2 rounded-xl border border-[rgb(var(--dh-primary-rgb)/0.24)] bg-[rgb(var(--dh-primary-rgb)/0.05)] px-3 py-2.5">
+          <Copy class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+          <span>Duplicar tarifario crea otro maestro. Para generar una QUO de cliente use “Aplicar a cliente”.</span>
+        </div>
         <div class="flex items-start gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2.5">
           <FileSearch2 class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
-          <span>La vigencia inicia como SPOT: hoy a hoy. Puede cambiarla antes de continuar.</span>
+          <span>{{ isMasterTariff ? 'Se propone la misma vigencia del tarifario maestro; puede cambiarla antes de continuar.' : 'La vigencia inicia como SPOT: hoy a hoy. Puede cambiarla antes de continuar.' }}</span>
         </div>
         <div class="flex items-start gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2.5">
           <Ship class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
