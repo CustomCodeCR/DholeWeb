@@ -714,29 +714,31 @@ onMounted(async () => {
               ><button
                 v-if="canApplyTariffRate(row)"
                 type="button"
-                class="rounded-2xl p-2 text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
-                title="Aplicar tarifario a cliente"
+                class="inline-flex items-center gap-1.5 rounded-xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.08)] px-2.5 py-1.5 text-[11px] font-black text-[var(--dh-primary)] transition hover:bg-[rgb(var(--dh-primary-rgb)/0.14)]"
+                title="Crear una nueva QUO para un cliente usando este tarifario"
                 @click.stop="applyTariff(row)"
               >
-                <UserRoundPlus class="h-4 w-4" />
+                <UserRoundPlus class="h-3.5 w-3.5" />
+                <span>Aplicar</span>
               </button
               ><button
                 v-if="canUpdateRate(row)"
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-2xl px-2.5 py-2 text-xs font-black text-[var(--dh-primary)] transition hover:bg-black/5 dark:hover:bg-white/10"
+                class="inline-flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-black text-[var(--dh-primary)] transition hover:bg-black/5 dark:hover:bg-white/10"
                 title="Actualizar tarifa · motivo obligatorio"
                 @click.stop="openEdit(row)"
               >
-                <Edit3 class="h-4 w-4" />
+                <Edit3 class="h-3.5 w-3.5" />
                 <span class="hidden 2xl:inline">Actualizar</span></button
               ><button
                 v-if="canCreate"
                 type="button"
-                class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
-                :title="isMasterTariff(row) ? 'Duplicar tarifario maestro' : 'Duplicar tarifa'"
+                class="inline-flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-black transition hover:bg-black/5 dark:hover:bg-white/10"
+                :title="isMasterTariff(row) ? 'Crear otro tarifario maestro basado en este' : 'Duplicar tarifa'"
                 @click.stop="duplicate(row)"
               >
-                <Copy class="h-4 w-4" />
+                <Copy class="h-3.5 w-3.5" />
+                <span v-if="isMasterTariff(row)">Duplicar</span>
               </button></div
           ></template>
         </DhDataTable>
