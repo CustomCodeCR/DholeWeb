@@ -34,7 +34,7 @@ const form = reactive({
 })
 
 const validRange = computed(() => Boolean(form.validFrom && form.validTo && form.validTo >= form.validFrom))
-const submitLabel = computed(() => isFcl.value ? 'Continuar a escoger flete' : 'Duplicar y revisar')
+const submitLabel = computed(() => isFcl.value ? 'Continuar a revisar datos' : 'Duplicar y revisar')
 
 async function submit() {
   form.submitted = true
@@ -45,8 +45,8 @@ async function submit() {
 
     if (isFcl.value) {
       // Una duplicación FCL aprobada funciona como una nueva cotización SPOT basada en la
-      // anterior. Todavía no se crea ningún RateHeader: el wizard rehidrata la pantalla 3 y 4
-      // desde la tarifa fuente, abre directamente la pantalla 5 y crea la nueva tarifa al final.
+      // anterior. Todavía no se crea ningún RateHeader: el wizard rehidrata la tarifa fuente,
+      // inicia en pantalla 3 para revisar los datos y crea la nueva tarifa únicamente al final.
       modalStore.close()
       await router.push({
         name: 'pricing',
@@ -95,7 +95,7 @@ async function submit() {
           <p class="text-base font-black text-[var(--dh-text)]">Duplicar y revisar</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
             <template v-if="isFcl">
-              Se copiarán la ruta, el equipo y los datos de carga de la tarifa anterior. La nueva tarifa todavía no se crea: se abrirá directamente en pantalla 5 para escoger el flete vigente.
+              Se copiarán la ruta, el equipo y los datos de carga de la tarifa anterior. La nueva tarifa todavía no se crea: se abrirá en pantalla 3 para revisar y ajustar los datos antes de continuar.
             </template>
             <template v-else>
               Se conserva la configuración general y la ruta. Puede definir una nueva vigencia antes de revisar la copia.
