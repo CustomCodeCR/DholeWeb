@@ -106,8 +106,8 @@ function patchWizard(source: string) {
   )
   code = replaceRequired(
     code,
-    `<p class="crystal-description">Seleccione el POE. El POD es opcional; si existe una equivalencia clara, se sugiere automáticamente.</p>`,
-    `<p class="crystal-description">{{ form.modality === 'Land' ? 'Seleccione POL y POE del catálogo terrestre. Para terrestre no se utiliza POD.' : 'Seleccione el POE. El POD es opcional; si existe una equivalencia clara, se sugiere automáticamente.' }}</p>`,
+    `<p class="crystal-description">Seleccione el tipo comercial y luego complete la ruta. Un SPOT se vuelve a cotizar al duplicarse; un TARIFARIO conserva su snapshot cuando un cliente lo acepta.</p>`,
+    `<p class="crystal-description">{{ form.modality === 'Land' ? 'Seleccione SPOT o TARIFARIO y complete POL/POE terrestre; para terrestre no se utiliza POD.' : 'Seleccione SPOT o TARIFARIO y complete la ruta. El POD es opcional y el tarifario conserva su snapshot cuando un cliente lo acepta.' }}</p>`,
     'land route description',
   )
 
