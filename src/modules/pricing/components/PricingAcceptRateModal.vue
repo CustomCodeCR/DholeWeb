@@ -25,29 +25,21 @@ async function submit() {
   const idtraNumber = form.idtraNumber.trim()
   if (!idtraNumber) return
 
+  if (props.rate.rateType === 'Tariff' && !props.rate.sourceTariffRateId) {
+    toastStore.warning(
+      'El tarifario maestro no se acepta',
+      'Use “Aplicar a cliente” para crear una QUO del cliente. La aceptación se registra después sobre esa nueva QUO.',
+    )
+    return
+  }
+
   try {
     form.saving = true
-    if (props.rate.rateType === 'Tariff' && !props.rate.sourceTariffRateId) {
-      const appliedRateId = await PricingService.duplicateRate(props.rate.id, {
-        validFrom: props.rate.validFrom.slice(0, 10),
-        validTo: props.rate.validTo.slice(0, 10),
-        applyTariff: true,
-        clientName: props.rate.clientName ?? null,
-        executiveName: props.rate.executiveName ?? null,
-        idtraNumber,
-      })
-      const appliedRate = await PricingService.getRate(appliedRateId)
-      toastStore.success(
-        'Tarifario aplicado al cliente',
-        `Se creó ${appliedRate.quoNumber || appliedRate.rateCode} conservando exactamente el tarifario ${props.rate.quoNumber || props.rate.rateCode}.`,
-      )
-    } else {
-      await PricingService.setRateStatus(props.rate.id, {
-        status: 'AcceptedByClient',
-        idtraNumber,
-      })
-      toastStore.success('Tarifa aceptada por el cliente', `IDTRA ${idtraNumber} registrado.`)
-    }
+    await PricingService.setRateStatus(props.rate.id, {
+      status: 'AcceptedByClient',
+      idtraNumber,
+    })
+    toastStore.success('Tarifa aceptada por el cliente', `IDTRA ${idtraNumber} registrado.`)
     modalStore.close()
     await props.onSaved?.()
   } catch (error) {
@@ -66,14 +58,9 @@ async function submit() {
           <CircleCheck class="h-5 w-5" />
         </span>
         <div class="min-w-0">
-          <p class="text-sm font-black text-[var(--dh-text)]">{{ rate.rateType === 'Tariff' && !rate.sourceTariffRateId ? 'Aplicar tarifario al cliente' : 'Confirmar aceptación del cliente' }}</p>
+          <p class="text-sm font-black text-[var(--dh-text)]">Confirmar aceptación del cliente</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            <template v-if="rate.rateType === 'Tariff' && !rate.sourceTariffRateId">
-              Se generará una nueva QUO exclusiva para este cliente. Se copiarán exactamente el flete, cargos, recargos, vigencia y demás condiciones de esta revisión del tarifario; el tarifario maestro permanecerá disponible.
-            </template>
-            <template v-else>
-              La tarifa pasará a Aceptadas. El IDTRA queda ligado permanentemente a esta tarifa para seguimiento operativo.
-            </template>
+            Esta acción corresponde a una QUO específica del cliente. La tarifa pasará a Aceptada y el IDTRA quedará ligado a ella.
           </p>
         </div>
       </div>
@@ -103,7 +90,7 @@ async function submit() {
       />
       <DhButton
         type="submit"
-        :label="rate.rateType === 'Tariff' && !rate.sourceTariffRateId ? 'Crear QUO para cliente' : 'Aceptar tarifa'"
+        label="Aceptar tarifa"
         :loading="form.saving"
       />
     </div>
