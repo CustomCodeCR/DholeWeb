@@ -11,6 +11,7 @@ import {
   Route,
   Send as SendIcon,
   ShieldCheck,
+  UserRoundPlus,
   XCircle,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -24,6 +25,7 @@ import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import type { ImportRateDto, RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'
 import PricingRateFormDrawer from './PricingRateFormDrawer.vue'
 import PricingAcceptRateModal from './PricingAcceptRateModal.vue'
+import PricingApplyTariffModal from './PricingApplyTariffModal.vue'
 import PricingReasonModal from './PricingReasonModal.vue'
 import PricingDuplicateRateModal from './PricingDuplicateRateModal.vue'
 import PricingEmailSourceModal from './PricingEmailSourceModal.vue'
@@ -91,6 +93,14 @@ const sourceLabel = computed(() => sourceImportRate.value ? sourceTitle(sourceIm
 const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDuplicate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
 const canApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const isMasterTariff = computed(() =>
+  current.value.rateType === 'Tariff' && !current.value.sourceTariffRateId,
+)
+const canApplyTariff = computed(() =>
+  canDuplicate.value
+  && isMasterTariff.value
+  && ['ApprovedByManagement', 'Open', 'Sent', 'RequestedByClient', 'AcceptedByClient'].includes(current.value.status),
+)
 const groups = computed(() => {
   const byGroup = (key: ReturnType<typeof detailGroup>) =>
     current.value.rateDetails.filter((detail) => detailGroup(detail.costDetailType) === key)
@@ -221,7 +231,7 @@ function edit() {
 
 function duplicate() {
   modalStore.open({
-    title: 'Duplicar tarifa',
+    title: isMasterTariff.value ? 'Duplicar tarifario' : 'Duplicar tarifa',
     component: PricingDuplicateRateModal,
     size: 'lg',
     props: {
@@ -234,6 +244,34 @@ function duplicate() {
           size: 'full',
           props: {
             rate: duplicatedRate,
+            onSaved: async () => {
+              await props.onSaved?.()
+            },
+          },
+        })
+        await props.onSaved?.()
+      },
+    },
+  })
+}
+
+function applyTariffToClient() {
+  if (!canApplyTariff.value) return
+
+  modalStore.open({
+    title: 'Aplicar tarifario a cliente',
+    component: PricingApplyTariffModal,
+    size: 'md',
+    props: {
+      rate: current.value,
+      onApplied: async (appliedRateId: string) => {
+        const appliedRate = await PricingService.getRate(appliedRateId)
+        drawerStore.open({
+          title: 'QUO creada para cliente',
+          component: PricingRateFormDrawer,
+          size: 'full',
+          props: {
+            rate: appliedRate,
             onSaved: async () => {
               await props.onSaved?.()
             },
@@ -430,8 +468,15 @@ onMounted(async () => {
             @click="printRate"
           />
           <DhButton
+            v-if="canApplyTariff"
+            label="Aplicar a cliente"
+            :icon="UserRoundPlus"
+            size="sm"
+            @click="applyTariffToClient"
+          />
+          <DhButton
             v-if="canDuplicate"
-            label="Duplicar"
+            :label="isMasterTariff ? 'Duplicar tarifario' : 'Duplicar'"
             :icon="Copy"
             variant="secondary"
             size="sm"
@@ -445,14 +490,14 @@ onMounted(async () => {
             @click="edit"
           />
           <DhButton
-            v-if="canUpdate && current.status === 'ApprovedByManagement'"
+            v-if="canUpdate && current.status === 'ApprovedByManagement' && !isMasterTariff"
             label="Poner en abierta"
             :icon="FolderOpen"
             size="sm"
             @click="setCommercialStatus('Open')"
           />
           <DhButton
-            v-if="canUpdate && current.status === 'Open'"
+            v-if="canUpdate && current.status === 'Open' && !isMasterTariff"
             label="Marcar enviada"
             :icon="SendIcon"
             variant="secondary"
@@ -460,14 +505,14 @@ onMounted(async () => {
             @click="setCommercialStatus('Sent')"
           />
           <DhButton
-            v-if="canUpdate && ['Sent', 'RequestedByClient'].includes(current.status)"
-            :label="current.rateType === 'Tariff' && !current.sourceTariffRateId ? 'Aplicar tarifario al cliente' : 'Aceptada por cliente'"
+            v-if="canUpdate && !isMasterTariff && ['Sent', 'RequestedByClient'].includes(current.status)"
+            label="Aceptada por cliente"
             :icon="CheckCircle2"
             size="sm"
             @click="acceptByClient"
           />
           <DhButton
-            v-if="canUpdate && ['Sent', 'RequestedByClient'].includes(current.status)"
+            v-if="canUpdate && !isMasterTariff && ['Sent', 'RequestedByClient'].includes(current.status)"
             label="Rechazada por cliente"
             :icon="XCircle"
             variant="danger"
