@@ -830,6 +830,10 @@ export interface UpdateRateRequest extends Omit<
 export interface DuplicateRateRequest extends Record<string, unknown> {
   validFrom: string
   validTo: string
+  applyTariff?: boolean
+  clientName?: string | null
+  executiveName?: string | null
+  idtraNumber?: string | null
 }
 
 export interface RejectRateMarginRequest extends Record<string, unknown> {
