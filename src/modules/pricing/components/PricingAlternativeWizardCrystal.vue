@@ -4180,19 +4180,10 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 8" class="space-y-6">
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p class="crystal-kicker">Pantalla 8</p>
-              <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
-              <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
-            </div>
-            <DhButton
-              label="Mostrar tarifas competencia"
-              :icon="Search"
-              variant="secondary"
-              :disabled="!canShowCompetitorTariffs"
-              @click="competitorTariffsOpen = true"
-            />
+          <div>
+            <p class="crystal-kicker">Pantalla 8</p>
+            <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
+            <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
           </div>
 
           <div class="crystal-soft p-5">
@@ -4527,7 +4518,18 @@ onMounted(async () => {
       <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
-      <DhButton v-else-if="step === 8" :disabled="saving || !includedLines.length" @click="saveRate"><Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}</DhButton>
+      <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
+        <DhButton
+          variant="secondary"
+          :disabled="!canShowCompetitorTariffs"
+          @click="competitorTariffsOpen = true"
+        >
+          <Search class="h-4 w-4" /> Mostrar tarifas competencia
+        </DhButton>
+        <DhButton :disabled="saving || !includedLines.length" @click="saveRate">
+          <Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
+        </DhButton>
+      </div>
       <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Seleccione una alternativa para continuar</span>
     </div>
   </div>
