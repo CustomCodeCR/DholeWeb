@@ -94,12 +94,14 @@ function patchWizard(source: string) {
     'wizard approval state',
   )
 
-  code = replaceOne(
-    code,
-    "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')",
-    "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canApproveLowMargin = computed(() => authStore.hasScope('pricing.rate.approve-low-margin'))\nconst canUpdateRateStatus = computed(() => authStore.hasScope('pricing.rate.update'))\nconst canApproveCurrentRate = computed(() =>\n  canApproveLowMargin.value &&\n  editingRate.value?.status === 'PendingApproval' &&\n  Boolean(editingRate.value?.requiredApproval),\n)\nconst canOpenApprovedRate = computed(() =>\n  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',\n)\nconst canDownloadCurrentQuote = computed(() => {\n  const rate = editingRate.value\n  return Boolean(\n    rate &&\n    !rate.requiredApproval &&\n    !['PendingApproval', 'RejectedByManagement'].includes(rate.status),\n  )\n})\nconst canMarkSent = computed(() => currentCommercialStatus.value === 'Open')",
-    'wizard approval computed state',
-  )
+  if (!code.includes('const canApproveLowMargin = computed(')) {
+    code = replaceOne(
+      code,
+      "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')",
+      "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canApproveLowMargin = computed(() => authStore.hasScope('pricing.rate.approve-low-margin'))\nconst canUpdateRateStatus = computed(() => authStore.hasScope('pricing.rate.update'))\nconst canApproveCurrentRate = computed(() =>\n  canApproveLowMargin.value &&\n  editingRate.value?.status === 'PendingApproval' &&\n  Boolean(editingRate.value?.requiredApproval),\n)\nconst canOpenApprovedRate = computed(() =>\n  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',\n)\nconst canDownloadCurrentQuote = computed(() => {\n  const rate = editingRate.value\n  return Boolean(\n    rate &&\n    !rate.requiredApproval &&\n    !['PendingApproval', 'RejectedByManagement'].includes(rate.status),\n  )\n})",
+      'wizard approval computed state',
+    )
+  }
 
   code = replaceOne(
     code,
@@ -129,12 +131,26 @@ function patchWizard(source: string) {
     'wizard pdf button',
   )
 
-  code = replaceOne(
-    code,
-    "              <div class=\"flex flex-wrap gap-2\">\n                <DhButton variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>\n                <DhButton :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('accept')\">Aceptada</DhButton>\n                <DhButton variant=\"danger\" :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('reject')\">Rechazada</DhButton>\n              </div>",
-    "              <div class=\"flex flex-wrap gap-2\">\n                <DhButton\n                  v-if=\"editingRate.status === 'PendingApproval' && canApproveLowMargin\"\n                  :loading=\"approvalSaving\"\n                  :disabled=\"!canApproveCurrentRate || approvalSaving\"\n                  @click=\"approveCurrentRate\"\n                >Aprobar margen</DhButton>\n                <DhButton\n                  v-if=\"editingRate.status === 'ApprovedByManagement' && canUpdateRateStatus\"\n                  :disabled=\"!canOpenApprovedRate || commercialStatusSaving\"\n                  @click=\"openApprovedRate\"\n                >Poner en abierta</DhButton>\n                <DhButton variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>\n                <DhButton :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('accept')\">Aceptada</DhButton>\n                <DhButton variant=\"danger\" :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('reject')\">Rechazada</DhButton>\n              </div>",
-    'wizard commercial action buttons',
-  )
+  const masterAwareCommercialActions =
+    "              <div class=\"flex flex-wrap gap-2\">\n                <DhButton v-if=\"isMasterTariff\" @click=\"applyMasterTariff\">Aplicar a cliente</DhButton>\n                <template v-else>\n                  <DhButton variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>\n                  <DhButton :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('accept')\">Aceptada</DhButton>\n                  <DhButton variant=\"danger\" :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('reject')\">Rechazada</DhButton>\n                </template>\n              </div>"
+  const legacyCommercialActions =
+    "              <div class=\"flex flex-wrap gap-2\">\n                <DhButton variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>\n                <DhButton :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('accept')\">Aceptada</DhButton>\n                <DhButton variant=\"danger\" :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('reject')\">Rechazada</DhButton>\n              </div>"
+  const approvalCommercialActions =
+    "              <div class=\"flex flex-wrap gap-2\">\n                <DhButton v-if=\"isMasterTariff\" @click=\"applyMasterTariff\">Aplicar a cliente</DhButton>\n                <template v-else>\n                  <DhButton\n                    v-if=\"editingRate.status === 'PendingApproval' && canApproveLowMargin\"\n                    :loading=\"approvalSaving\"\n                    :disabled=\"!canApproveCurrentRate || approvalSaving\"\n                    @click=\"approveCurrentRate\"\n                  >Aprobar margen</DhButton>\n                  <DhButton\n                    v-if=\"editingRate.status === 'ApprovedByManagement' && canUpdateRateStatus\"\n                    :disabled=\"!canOpenApprovedRate || commercialStatusSaving\"\n                    @click=\"openApprovedRate\"\n                  >Poner en abierta</DhButton>\n                  <DhButton variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>\n                  <DhButton :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('accept')\">Aceptada</DhButton>\n                  <DhButton variant=\"danger\" :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('reject')\">Rechazada</DhButton>\n                </template>\n              </div>"
+
+  if (code.includes(masterAwareCommercialActions)) {
+    code = code.replace(masterAwareCommercialActions, approvalCommercialActions)
+  } else {
+    code = replaceOne(
+      code,
+      legacyCommercialActions,
+      approvalCommercialActions.replace(
+        '                <DhButton v-if=\"isMasterTariff\" @click=\"applyMasterTariff\">Aplicar a cliente</DhButton>\n                <template v-else>\n',
+        '',
+      ).replace('                </template>\n', ''),
+      'wizard commercial action buttons',
+    )
+  }
 
   return code
 }
