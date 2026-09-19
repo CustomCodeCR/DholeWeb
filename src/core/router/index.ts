@@ -259,6 +259,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/tariffs',
+          name: 'pricing-tariffs',
+          component: () => import('@/modules/pricing/views/PricingTariffsView.vue'),
+          meta: {
+            tabTitle: 'Tarifarios',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingRates,
+          },
+        },
+        {
           path: 'pricing/rate-comparisons/:comparisonId',
           name: 'pricing-rate-comparison',
           component: () => import('@/modules/pricing/views/PricingRateComparisonView.vue'),
