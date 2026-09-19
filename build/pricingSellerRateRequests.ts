@@ -49,19 +49,26 @@ function patchWizard(source: string) {
     'page title',
   )
 
-  code = replaceOne(
-    code,
-    `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))`,
-    `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient', 'Expired'].includes(currentCommercialStatus.value))`,
-    'expired rate commercial decision',
-  )
+  // Newer wizard versions already include Expired and protect TARIFARIO · MAESTRO
+  // from client decisions. Keep compatibility with older source without requiring
+  // the legacy anchor to exist.
+  const legacyCommercialDecision =
+    `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))`
+  if (code.includes(legacyCommercialDecision)) {
+    code = code.replace(
+      legacyCommercialDecision,
+      `const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient', 'Expired'].includes(currentCommercialStatus.value))`,
+    )
+  }
 
-  code = replaceOne(
-    code,
-    `Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.`,
-    `Una tarifa Abierta puede marcarse Enviada. Después de Enviada, incluso si ya venció, puede registrarse como Aceptada o Rechazada.`,
-    'expired rate commercial help',
-  )
+  const legacyCommercialHelp =
+    `Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.`
+  if (code.includes(legacyCommercialHelp) && !code.includes('incluso si ya venció')) {
+    code = code.replace(
+      legacyCommercialHelp,
+      `Una tarifa Abierta puede marcarse Enviada. Después de Enviada, incluso si ya venció, puede registrarse como Aceptada o Rechazada.`,
+    )
+  }
 
   // pricingWizardEnhancements injects the LCL helpers between saveOpenRequest and
   // saveRate. The old end anchor at saveRate removed applyLclRateSource and the
