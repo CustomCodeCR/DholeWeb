@@ -379,6 +379,10 @@ onMounted(async () => {
           <div class="flex flex-wrap items-center gap-2">
             <DhBadge :label="statusLabel(current.status)" :variant="statusTone(current.status)" />
             <DhBadge
+              :label="current.sourceTariffRateId ? 'TARIFARIO · CLIENTE' : current.rateType === 'Tariff' ? 'TARIFARIO · MAESTRO' : 'SPOT'"
+              :variant="current.rateType === 'Spot' ? 'warning' : current.sourceTariffRateId ? 'success' : 'neutral'"
+            />
+            <DhBadge
               v-if="current.sourceImportFclRateId"
               label="Desde importación"
               variant="primary"
@@ -408,6 +412,9 @@ onMounted(async () => {
                 {{ current.rateCode }}
                 <span v-if="current.idtraNumber"> · IDTRA {{ current.idtraNumber }}</span>
                 <span v-if="current.quoNumber"> · QUO {{ current.quoNumber }}</span>
+              </p>
+              <p v-if="current.sourceTariffRateId" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Derivada de tarifario · revisión {{ current.sourceTariffRevisionNumber || 1 }}
               </p>
             </div>
           </div>
@@ -454,7 +461,7 @@ onMounted(async () => {
           />
           <DhButton
             v-if="canUpdate && ['Sent', 'RequestedByClient'].includes(current.status)"
-            label="Aceptada por cliente"
+            :label="current.rateType === 'Tariff' && !current.sourceTariffRateId ? 'Aplicar tarifario al cliente' : 'Aceptada por cliente'"
             :icon="CheckCircle2"
             size="sm"
             @click="acceptByClient"
