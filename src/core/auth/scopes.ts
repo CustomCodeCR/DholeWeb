@@ -339,7 +339,7 @@ export const VIEW_SCOPES = {
   pricingRates: PRICING_SCOPES.rates.view,
   pricingImports: PRICING_SCOPES.importFclRates.review,
   pricingDecisions: PRICING_SCOPES.workspace.access,
-  pricingCompetition: PRICING_SCOPES.workspace.access,
+  pricingCompetition: PRICING_SCOPES.rates.view,
   pricingCosts: PRICING_SCOPES.costs.view,
   pricingRateTerms: PRICING_SCOPES.rateTerms.view,
   pricingSellerAssignment: PRICING_SCOPES.sellerAssignments.manage,

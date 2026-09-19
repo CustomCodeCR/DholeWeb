@@ -32,8 +32,8 @@ const endpoints = {
   providers: { method: 'GET', path: '/api/v1/storage/providers', baseUrl: STORAGE_BASE_URL },
 } satisfies Record<string, Endpoint>
 
-const downloadExtensions = new Set(['.csv', '.xls', '.xlsx', '.xlsm', '.xlsb', '.doc', '.docx'])
-const textExtensions = new Set(['.txt', '.json', '.xml', '.html', '.htm', '.eml', '.log', '.md'])
+const downloadExtensions = new Set(['.xls', '.xlsx', '.xlsm', '.xlsb', '.doc', '.docx'])
+const textExtensions = new Set(['.csv', '.txt', '.json', '.xml', '.html', '.htm', '.eml', '.log', '.md'])
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tif', '.tiff', '.svg'])
 
 function normalizedExtension(file: Pick<StorageFileDescriptor, 'fileName' | 'extension'>): string {
