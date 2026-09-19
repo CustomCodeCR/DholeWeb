@@ -157,6 +157,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
 
   if (canView(VIEW_SCOPES.pricingRates)) {
     children.push({ label: t('sidebar.rates'), path: '/pricing/rates', icon: ReceiptText })
+    children.push({ label: 'Tarifarios', path: '/pricing/tariffs', icon: BookOpen })
   }
 
   if (canView(VIEW_SCOPES.pricingCompetition)) {
