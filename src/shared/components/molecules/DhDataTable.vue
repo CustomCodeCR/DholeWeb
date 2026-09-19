@@ -52,40 +52,41 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
         {{ emptyText ?? t('common.noData') }}
       </div>
 
-      <article
-        v-for="row in rows"
-        v-else
-        :key="String(row.id ?? JSON.stringify(row))"
-        role="button"
-        tabindex="0"
-        class="min-w-0 touch-manipulation overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)] transition active:scale-[0.995]"
-        @click="emit('rowClick', row)"
-        @keydown="onCardKeydown($event, row)"
-      >
-        <dl class="grid min-w-0 gap-3">
-          <div
-            v-for="column in columns"
-            :key="String(column.key)"
-            class="grid min-w-0 gap-1 border-b border-[var(--dh-border)] pb-3 last:border-b-0 last:pb-0"
-            :class="isStickyActionColumn(column.key) && 'pt-1'"
-          >
-            <dt class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-              {{ column.label }}
-            </dt>
-            <dd
-              class="min-w-0 break-words text-sm font-semibold text-[var(--dh-text-soft)] [overflow-wrap:anywhere]"
-              :class="[
-                column.align === 'center' && 'text-center',
-                column.align === 'right' && 'text-right',
-              ]"
+      <template v-else>
+        <article
+          v-for="row in rows"
+          :key="String(row.id ?? JSON.stringify(row))"
+          role="button"
+          tabindex="0"
+          class="min-w-0 touch-manipulation overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)] transition active:scale-[0.995]"
+          @click="emit('rowClick', row)"
+          @keydown="onCardKeydown($event, row)"
+        >
+          <dl class="grid min-w-0 gap-3">
+            <div
+              v-for="column in columns"
+              :key="String(column.key)"
+              class="grid min-w-0 gap-1 border-b border-[var(--dh-border)] pb-3 last:border-b-0 last:pb-0"
+              :class="isStickyActionColumn(column.key) && 'pt-1'"
             >
-              <slot :name="`cell-${String(column.key)}`" :row="row" :value="valueOf(row, column.key)">
-                {{ valueOf(row, column.key) }}
-              </slot>
-            </dd>
-          </div>
-        </dl>
-      </article>
+              <dt class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                {{ column.label }}
+              </dt>
+              <dd
+                class="min-w-0 break-words text-sm font-semibold text-[var(--dh-text-soft)] [overflow-wrap:anywhere]"
+                :class="[
+                  column.align === 'center' && 'text-center',
+                  column.align === 'right' && 'text-right',
+                ]"
+              >
+                <slot :name="`cell-${String(column.key)}`" :row="row" :value="valueOf(row, column.key)">
+                  {{ valueOf(row, column.key) }}
+                </slot>
+              </dd>
+            </div>
+          </dl>
+        </article>
+      </template>
     </div>
 
     <div
@@ -121,29 +122,30 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
               {{ emptyText ?? t('common.noData') }}
             </td>
           </tr>
-          <tr
-            v-for="row in rows"
-            v-else
-            :key="String(row.id ?? JSON.stringify(row))"
-            class="cursor-pointer border-t border-[var(--dh-border)] transition hover:bg-[var(--dh-card-hover)]"
-            @click="emit('rowClick', row)"
-          >
-            <td
-              v-for="column in columns"
-              :key="String(column.key)"
-              class="px-4 py-3 text-[var(--dh-text-soft)] md:px-5 md:py-4"
-              :class="[
-                column.align === 'center' && 'text-center',
-                column.align === 'right' && 'text-right',
-                isStickyActionColumn(column.key) &&
-                  'sticky right-0 z-10 border-l border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[-10px_0_18px_-18px_rgba(0,0,0,0.45)]',
-              ]"
+          <template v-else>
+            <tr
+              v-for="row in rows"
+              :key="String(row.id ?? JSON.stringify(row))"
+              class="cursor-pointer border-t border-[var(--dh-border)] transition hover:bg-[var(--dh-card-hover)]"
+              @click="emit('rowClick', row)"
             >
-              <slot :name="`cell-${String(column.key)}`" :row="row" :value="valueOf(row, column.key)">
-                {{ valueOf(row, column.key) }}
-              </slot>
-            </td>
-          </tr>
+              <td
+                v-for="column in columns"
+                :key="String(column.key)"
+                class="px-4 py-3 text-[var(--dh-text-soft)] md:px-5 md:py-4"
+                :class="[
+                  column.align === 'center' && 'text-center',
+                  column.align === 'right' && 'text-right',
+                  isStickyActionColumn(column.key) &&
+                    'sticky right-0 z-10 border-l border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[-10px_0_18px_-18px_rgba(0,0,0,0.45)]',
+                ]"
+              >
+                <slot :name="`cell-${String(column.key)}`" :row="row" :value="valueOf(row, column.key)">
+                  {{ valueOf(row, column.key) }}
+                </slot>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
