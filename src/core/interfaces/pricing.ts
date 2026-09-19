@@ -905,6 +905,10 @@ export interface BrowseRatesQuery extends Record<string, unknown> {
   idtraNumber?: string | null
   quoNumber?: string | null
   sourceImportFclRateId?: string | null
+  sourceTariffRateId?: string | null
+  rateType?: RateType | null
+  tariffMasterOnly?: boolean | null
+  excludeTariffMasters?: boolean | null
   agentId?: string | null
   carrierId?: string | null
   polId?: string | null
