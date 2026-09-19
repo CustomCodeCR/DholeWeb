@@ -115,7 +115,7 @@ watch(
         <div>
           <p class="font-black">Comparación contextual</p>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Se muestran tarifarios vigentes que coinciden con POL, POE, POD, naviera y modalidad de esta tarifa.
+            Se muestran los tarifarios que coinciden con POL, POE, POD, naviera y modalidad de esta tarifa. Los vigentes para la fecha consultada aparecen primero.
           </p>
         </div>
       </div>
@@ -131,7 +131,7 @@ watch(
         :columns="columns"
         :rows="rows"
         :loading="loading"
-        empty-text="No hay tarifas de la competencia vigentes para esta ruta."
+        empty-text="No hay tarifas de la competencia para esta ruta, naviera y modalidad."
       >
         <template #cell-carrier="{ row }">
           <span class="font-bold">{{ carrierNames(row) }}</span>
