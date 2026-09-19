@@ -50,6 +50,7 @@ import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingIntera
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
+import PricingCompetitorTariffMatchModal from '@/modules/pricing/components/PricingCompetitorTariffMatchModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
@@ -204,6 +205,7 @@ const commercialStatusSaving = ref(false)
 const commercialActionError = ref('')
 const downloadingQuote = ref(false)
 const allInPresentation = ref(false)
+const competitorTariffsOpen = ref(false)
 const isEditing = computed(() => Boolean(props.rateId))
 const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Seleccionar alternativa')
 const pageDescription = computed(() => isEditing.value
@@ -1004,6 +1006,29 @@ const shipmentModeForApi = computed<ShipmentMode>(() => {
   if (value === 'FTL') return 'Ftl'
   if (value === 'LTL') return 'Ltl'
   return 'Fcl'
+})
+
+const competitorMatchContext = computed(() => {
+  const pod = resolvePodForDestination()
+  return {
+    polId: selectedOrigin.value?.id ?? null,
+    poeId: selectedDestination.value?.id ?? null,
+    podId: pod?.id ?? null,
+    carrierId: selectedCarrier.value?.id ?? null,
+    shipmentMode: shipmentModeForApi.value,
+    validOn: form.loadDate || null,
+  }
+})
+
+const canShowCompetitorTariffs = computed(() => {
+  const context = competitorMatchContext.value
+  return Boolean(
+    context.polId &&
+    context.poeId &&
+    context.podId &&
+    context.carrierId &&
+    context.shipmentMode,
+  )
 })
 
 const lclDimensionalCbm = computed(() => {
@@ -4155,10 +4180,19 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 8" class="space-y-6">
-          <div>
-            <p class="crystal-kicker">Pantalla 8</p>
-            <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
-            <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p class="crystal-kicker">Pantalla 8</p>
+              <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
+              <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
+            </div>
+            <DhButton
+              label="Mostrar tarifas competencia"
+              :icon="Search"
+              variant="secondary"
+              :disabled="!canShowCompetitorTariffs"
+              @click="competitorTariffsOpen = true"
+            />
           </div>
 
           <div class="crystal-soft p-5">
@@ -4474,6 +4508,17 @@ onMounted(async () => {
         </div>
       </template>
     </section>
+
+    <PricingCompetitorTariffMatchModal
+      :open="competitorTariffsOpen"
+      :pol-id="competitorMatchContext.polId"
+      :poe-id="competitorMatchContext.poeId"
+      :pod-id="competitorMatchContext.podId"
+      :carrier-id="competitorMatchContext.carrierId"
+      :shipment-mode="competitorMatchContext.shipmentMode"
+      :valid-on="competitorMatchContext.validOn"
+      @close="competitorTariffsOpen = false"
+    />
 
     <div class="crystal-footer flex items-center justify-between gap-3 p-3">
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>

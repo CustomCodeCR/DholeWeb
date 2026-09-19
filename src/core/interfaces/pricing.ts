@@ -63,6 +63,50 @@ export interface RateServiceDto {
 
 export type RateOperationType = 'Import' | 'Export' | 'TransitDomestic'
 
+export interface CompetitorTariffDto extends Record<string, unknown> {
+  id: string
+  polIds: string[]
+  poeIds: string[]
+  podIds: string[]
+  carrierIds: string[]
+  validFrom: string
+  validTo: string
+  shipmentMode: ShipmentMode
+  storageId: string
+}
+
+export interface UpsertCompetitorTariffRequest extends Record<string, unknown> {
+  id?: string
+  polIds: string[]
+  poeIds: string[]
+  podIds: string[]
+  carrierIds: string[]
+  validFrom: string
+  validTo: string
+  shipmentMode: ShipmentMode
+  storageId: string
+}
+
+export interface BrowseCompetitorTariffsQuery extends Record<string, unknown> {
+  pageNumber?: number
+  pageSize?: number
+  polId?: string[]
+  poeId?: string[]
+  podId?: string[]
+  carrierId?: string[]
+  shipmentMode?: ShipmentMode[]
+  validOn?: string
+}
+
+export interface MatchCompetitorTariffsQuery extends Record<string, unknown> {
+  polId: string
+  poeId: string
+  podId: string
+  carrierId: string
+  shipmentMode: ShipmentMode
+  validOn?: string
+}
+
 export interface CostDto extends Record<string, unknown> {
   id: string
   name: string

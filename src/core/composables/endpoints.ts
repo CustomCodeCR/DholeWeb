@@ -475,6 +475,37 @@ export const PricingEndpoints = {
   },
   deleteCost: { method: 'DELETE', path: '/api/pricing/costs/{{costId}}', headers: acceptJson },
 
+  browseCompetitorTariffs: {
+    method: 'GET',
+    path: '/api/pricing/competitor-tariffs',
+    headers: acceptJson,
+  },
+  matchCompetitorTariffs: {
+    method: 'GET',
+    path: '/api/pricing/competitor-tariffs/matching',
+    headers: acceptJson,
+  },
+  getCompetitorTariff: {
+    method: 'GET',
+    path: '/api/pricing/competitor-tariffs/{{competitorTariffId}}',
+    headers: acceptJson,
+  },
+  createCompetitorTariff: {
+    method: 'POST',
+    path: '/api/pricing/competitor-tariffs',
+    headers: jsonHeaders,
+  },
+  updateCompetitorTariff: {
+    method: 'PUT',
+    path: '/api/pricing/competitor-tariffs/{{competitorTariffId}}',
+    headers: jsonHeaders,
+  },
+  deleteCompetitorTariff: {
+    method: 'DELETE',
+    path: '/api/pricing/competitor-tariffs/{{competitorTariffId}}',
+    headers: acceptJson,
+  },
+
   browseImportRates: { method: 'GET', path: '/api/pricing/import-rates', headers: acceptJson },
   getPricingDecisionDashboard: {
     method: 'GET',

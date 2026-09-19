@@ -158,6 +158,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.pricingSellerAssignment,
           },
           {
+            labelKey: 'Tarifas competencia',
+            icon: FileText,
+            to: '/pricing/competition',
+            name: 'pricing-competition',
+            requiredScope: VIEW_SCOPES.pricingCompetition,
+          },
+          {
             labelKey: 'sidebar.costs',
             icon: CircleDollarSign,
             to: '/pricing/costs',

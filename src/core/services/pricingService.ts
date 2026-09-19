@@ -6,6 +6,10 @@ import { Endpoints } from '@/core/composables/endpoints'
 import { toQueryString } from '@/core/api/queryString'
 import type {
   BrowseCostsQuery,
+  BrowseCompetitorTariffsQuery,
+  MatchCompetitorTariffsQuery,
+  CompetitorTariffDto,
+  UpsertCompetitorTariffRequest,
   AssignImportRatePoeRequest,
   BrowseImportRatesQuery,
   BrowseRatesQuery,
@@ -139,6 +143,60 @@ export const PricingService = {
 
   deleteCost(costId: string): Promise<NoContent> {
     return callEndpoint<NoContent>(Endpoints.deleteCost, { params: { costId } })
+  },
+
+  async browseCompetitorTariffs(
+    query?: BrowseCompetitorTariffsQuery,
+  ): Promise<PagedResponse<CompetitorTariffDto>> {
+    const response = await callEndpoint<unknown>({
+      ...Endpoints.browseCompetitorTariffs,
+      path: withQuery(Endpoints.browseCompetitorTariffs.path, query),
+    })
+    return unwrapPagedResponse<CompetitorTariffDto>(response)
+  },
+
+  async matchCompetitorTariffs(
+    query: MatchCompetitorTariffsQuery,
+  ): Promise<CompetitorTariffDto[]> {
+    const response = await callEndpoint<unknown>({
+      ...Endpoints.matchCompetitorTariffs,
+      path: withQuery(Endpoints.matchCompetitorTariffs.path, query),
+    })
+    return unwrapListResponse<CompetitorTariffDto>(response)
+  },
+
+  async getCompetitorTariff(competitorTariffId: string): Promise<CompetitorTariffDto> {
+    const response = await callEndpoint<unknown>(Endpoints.getCompetitorTariff, {
+      params: { competitorTariffId },
+    })
+    return unwrapApiResponse<CompetitorTariffDto>(response as never)
+  },
+
+  async createCompetitorTariff(payload: UpsertCompetitorTariffRequest): Promise<string> {
+    const response = await callEndpoint<unknown, UpsertCompetitorTariffRequest>(
+      Endpoints.createCompetitorTariff,
+      { body: payload },
+    )
+    return unwrapApiResponse<string>(response as never)
+  },
+
+  updateCompetitorTariff(
+    competitorTariffId: string,
+    payload: UpsertCompetitorTariffRequest,
+  ): Promise<NoContent> {
+    return callEndpoint<NoContent, UpsertCompetitorTariffRequest>(
+      Endpoints.updateCompetitorTariff,
+      {
+        params: { competitorTariffId },
+        body: payload,
+      },
+    )
+  },
+
+  deleteCompetitorTariff(competitorTariffId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>(Endpoints.deleteCompetitorTariff, {
+      params: { competitorTariffId },
+    })
   },
 
   async browseRateTermItems(isActive?: boolean): Promise<RateTermItemDto[]> {

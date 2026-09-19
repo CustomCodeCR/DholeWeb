@@ -289,6 +289,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/competition',
+          name: 'pricing-competition',
+          component: () => import('@/modules/pricing/views/PricingCompetitorTariffsView.vue'),
+          meta: {
+            tabTitle: 'Tarifas competencia',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingCompetition,
+          },
+        },
+        {
           path: 'pricing/costs',
           name: 'pricing-costs',
           component: () => import('@/modules/pricing/views/PricingCostsView.vue'),

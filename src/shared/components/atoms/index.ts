@@ -1,6 +1,7 @@
 export { default as DhButton } from './DhButton.vue'
 export { default as DhInput } from './DhInput.vue'
 export { default as DhSelect } from './DhSelect.vue'
+export { default as DhMultiSelect } from './DhMultiSelect.vue'
 export { default as DhTextarea } from './DhTextarea.vue'
 export { default as DhCheckbox } from './DhCheckbox.vue'
 export { default as DhSwitch } from './DhSwitch.vue'
@@ -15,3 +16,5 @@ export { default as DhRange } from './DhRange.vue'
 export { default as DhColorPicker } from './DhColorPicker.vue'
 
 export type { DhSelectOption } from './DhSelect.vue'
+
+export type { DhMultiSelectOption } from './DhMultiSelect.vue'
