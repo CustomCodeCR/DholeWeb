@@ -37,7 +37,7 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
 
 <template>
   <div class="min-w-0">
-    <div class="grid gap-3 sm:hidden">
+    <div class="dh-data-table-mobile grid gap-3">
       <div
         v-if="loading"
         class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)] shadow-[var(--dh-shadow-sm)]"
@@ -90,7 +90,7 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
     </div>
 
     <div
-      class="dh-scrollbar hidden max-w-full overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl sm:block"
+      class="dh-data-table-desktop dh-scrollbar max-w-full overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl sm:block"
     >
       <table class="w-full min-w-[680px] border-collapse text-left text-sm md:min-w-[760px]">
         <thead class="bg-black/[0.035] text-xs text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
@@ -151,3 +151,24 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
     </div>
   </div>
 </template>
+
+
+<style scoped>
+.dh-data-table-mobile {
+  display: none;
+}
+
+.dh-data-table-desktop {
+  display: block;
+}
+
+@media (max-width: 639px) {
+  .dh-data-table-mobile {
+    display: grid;
+  }
+
+  .dh-data-table-desktop {
+    display: none;
+  }
+}
+</style>
