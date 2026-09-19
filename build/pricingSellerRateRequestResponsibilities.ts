@@ -47,8 +47,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `<DhInput v-model="form.loadDate" type="date" label="Vigente desde / carga lista" />\n              <DhInput v-model="form.validTo" type="date" label="Vigente hasta" />`,
-    `<DhInput v-model="form.loadDate" type="date" :label="sellerRequestMode ? 'Fecha de carga lista' : 'Vigente desde / carga lista'" />\n              <DhInput v-if="!sellerRequestMode" v-model="form.validTo" type="date" label="Vigente hasta" />`,
+    `<DhInput v-model="form.loadDate" type="date" :label="form.rateType === 'Tariff' ? 'Vigente desde' : 'Vigente desde / carga lista'" />\n              <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />`,
+    `<DhInput v-model="form.loadDate" type="date" :label="sellerRequestMode ? 'Fecha de carga lista' : form.rateType === 'Tariff' ? 'Vigente desde' : 'Vigente desde / carga lista'" />\n              <DhInput v-if="!sellerRequestMode" v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />`,
     'seller validity fields',
   )
 
