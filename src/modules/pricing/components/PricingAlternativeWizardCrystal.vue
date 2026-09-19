@@ -52,6 +52,7 @@ import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLoc
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import PricingCompetitorTariffMatchModal from '@/modules/pricing/components/PricingCompetitorTariffMatchModal.vue'
+import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
@@ -329,8 +330,13 @@ const stepTitles = [
 const visibleStepTitles = computed(() => props.viewOnly ? [...stepTitles, 'Vista completa'] : stepTitles)
 const maxStep = computed(() => visibleStepTitles.value.length)
 const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')
-const canMarkSent = computed(() => currentCommercialStatus.value === 'Open')
-const canAcceptOrReject = computed(() => ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value))
+const isMasterTariff = computed(() =>
+  editingRate.value?.rateType === 'Tariff' && !editingRate.value?.sourceTariffRateId,
+)
+const canMarkSent = computed(() => !isMasterTariff.value && currentCommercialStatus.value === 'Open')
+const canAcceptOrReject = computed(() =>
+  !isMasterTariff.value && ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value),
+)
 
 const modalityOptions: Array<{ value: Modality; label: string; caption: string }> = [
   { value: 'Maritime', label: 'Marítimo', caption: 'FCL y LCL' },
@@ -2572,6 +2578,26 @@ async function markCurrentRateSent() {
   }
 }
 
+function applyMasterTariff() {
+  if (!editingRate.value || !isMasterTariff.value) return
+
+  modalStore.open({
+    title: 'Aplicar tarifario a cliente',
+    component: PricingApplyTariffModal,
+    size: 'md',
+    props: {
+      rate: editingRate.value,
+      onApplied: async (appliedRateId: string) => {
+        await router.push({
+          name: 'pricing-rate-wizard',
+          params: { rateId: appliedRateId },
+          query: { mode: 'view' },
+        })
+      },
+    },
+  })
+}
+
 function startCommercialDecision(action: 'accept' | 'reject') {
   if (!canAcceptOrReject.value) return
   commercialAction.value = action
@@ -4413,13 +4439,18 @@ onMounted(async () => {
                 </div>
               </div>
               <div class="flex flex-wrap gap-2">
-                <DhButton variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
-                <DhButton :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
-                <DhButton variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
+                <DhButton v-if="isMasterTariff" @click="applyMasterTariff">Aplicar a cliente</DhButton>
+                <template v-else>
+                  <DhButton variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
+                  <DhButton :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
+                  <DhButton variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
+                </template>
               </div>
             </div>
             <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
-              Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.
+              {{ isMasterTariff
+                ? 'El tarifario maestro permanece reutilizable durante su vigencia. Aplicarlo crea una nueva QUO del cliente; la aceptación o rechazo se registra únicamente sobre esa QUO hija.'
+                : 'Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.' }}
             </p>
 
             <div v-if="commercialAction === 'accept'" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
