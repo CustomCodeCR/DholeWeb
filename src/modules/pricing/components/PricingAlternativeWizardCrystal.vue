@@ -335,7 +335,8 @@ const isMasterTariff = computed(() =>
 )
 const canMarkSent = computed(() => !isMasterTariff.value && currentCommercialStatus.value === 'Open')
 const canAcceptOrReject = computed(() =>
-  !isMasterTariff.value && ['Sent', 'RequestedByClient'].includes(currentCommercialStatus.value),
+  !isMasterTariff.value
+  && ['Sent', 'RequestedByClient', 'Expired'].includes(currentCommercialStatus.value),
 )
 
 const modalityOptions: Array<{ value: Modality; label: string; caption: string }> = [
