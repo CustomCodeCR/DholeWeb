@@ -401,8 +401,13 @@ function duplicate(rate: RateDto) {
     component: PricingDuplicateRateModal,
     props: {
       rate,
-      onDuplicated: async () => {
+      onDuplicated: async (duplicatedRateId: string) => {
         await load()
+        await router.push({
+          name: 'pricing-rate-wizard',
+          params: { rateId: duplicatedRateId },
+          query: { mode: 'edit', duplicateReview: '1' },
+        })
       },
     },
   })
