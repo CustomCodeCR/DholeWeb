@@ -779,6 +779,7 @@ export const AiEndpoints = {
 
 
 export const AgentEndpoints = {
+  agentHealth: { method: 'GET', path: '/api/health/agent', headers: acceptJson },
   browseProviders: { method: 'GET', path: '/api/agents/providers', headers: acceptJson },
   getProvider: { method: 'GET', path: '/api/agents/providers/{{providerId}}', headers: acceptJson },
   createProvider: { method: 'POST', path: '/api/agents/providers', headers: jsonHeaders },
