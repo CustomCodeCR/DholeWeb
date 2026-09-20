@@ -219,6 +219,37 @@ export const AI_SCOPES = {
   },
 } as const
 
+
+export const AGENT_SCOPES = {
+  providers: {
+    view: 'agent.providers.view',
+    manage: 'agent.providers.manage',
+  },
+  definitions: {
+    view: 'agent.definitions.view',
+    manage: 'agent.definitions.manage',
+  },
+  credentials: {
+    view: 'agent.credentials.view',
+    manage: 'agent.credentials.manage',
+  },
+  browserProfiles: {
+    view: 'agent.browser-profiles.view',
+    authenticate: 'agent.browser-profiles.authenticate',
+  },
+  schedules: {
+    view: 'agent.schedules.view',
+    create: 'agent.schedules.create',
+    update: 'agent.schedules.update',
+    execute: 'agent.schedules.execute',
+  },
+  executions: {
+    view: 'agent.executions.view',
+    create: 'agent.executions.create',
+    cancel: 'agent.executions.cancel',
+  },
+} as const
+
 export const STORAGE_SCOPES = {
   files: {
     create: 'storage.files.create',
@@ -353,6 +384,11 @@ export const VIEW_SCOPES = {
   aiPromptTemplates: AI_SCOPES.promptTemplates.view,
   aiExecutions: AI_SCOPES.executions.view,
   aiAssistant: AI_SCOPES.executions.execute,
+
+  agentProviders: AGENT_SCOPES.providers.view,
+  agentDefinitions: AGENT_SCOPES.definitions.view,
+  agentSchedules: AGENT_SCOPES.schedules.view,
+  agentExecutions: AGENT_SCOPES.executions.view,
 
   storage: STORAGE_SCOPES.files.view,
   monitoring: MONITORING_SCOPES.services.view,
