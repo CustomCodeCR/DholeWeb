@@ -432,6 +432,23 @@ export const router = createRouter({
           },
         },
 
+
+        {
+          path: 'agents',
+          name: 'agent-operations',
+          component: () => import('@/modules/agent/views/AgentOperationsView.vue'),
+          meta: {
+            tabTitle: 'Dhole Agent',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentDefinitions,
+              VIEW_SCOPES.agentSchedules,
+              VIEW_SCOPES.agentExecutions,
+            ],
+          },
+        },
+
         {
           path: 'ai',
           name: 'ai-console',
