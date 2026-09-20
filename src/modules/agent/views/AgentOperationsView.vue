@@ -303,6 +303,8 @@ async function loadAll(showError = true) {
   if (loading.value) return
   loading.value = true
 
+  const healthPromise = AgentService.checkHealth().catch(() => false)
+
   try {
     const [providerRows, definitionRows, credentialRows, scheduleRows, executionRows] =
       await Promise.all([
@@ -318,16 +320,17 @@ async function loadAll(showError = true) {
     credentials.value = credentialRows
     schedules.value = scheduleRows
     executions.value = executionRows
-    serviceOnline.value = true
+    serviceOnline.value = await healthPromise
     lastRefreshAt.value = new Date()
 
     if (!manualForm.providerId && providerRows[0]) manualForm.providerId = providerRows[0].id
     if (!scheduleForm.providerId && providerRows[0]) scheduleForm.providerId = providerRows[0].id
     if (!credentialForm.providerId && providerRows[0]) credentialForm.providerId = providerRows[0].id
   } catch (error) {
-    serviceOnline.value = false
+    serviceOnline.value = await healthPromise
+    lastRefreshAt.value = new Date()
     if (showError) {
-      toastStore.backendError(error, 'No se pudo conectar con DholeAgentService.')
+      toastStore.backendError(error, 'No se pudo cargar la información de DholeAgentService.')
     }
   } finally {
     loading.value = false
