@@ -4,6 +4,7 @@ import {
   BadgeDollarSign,
   Bell,
   BellRing,
+  Bot,
   BookOpen,
   BrainCircuit,
   ClipboardList,
@@ -277,6 +278,26 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     items.push({ label: t('sidebar.security'), icon: LockKeyhole, children: securityChildren.value })
   }
 
+
+  const canManageAgent =
+    canView(VIEW_SCOPES.agentProviders) ||
+    canView(VIEW_SCOPES.agentDefinitions) ||
+    canView(VIEW_SCOPES.agentSchedules) ||
+    canView(VIEW_SCOPES.agentExecutions)
+
+  if (canManageAgent) {
+    items.push({
+      label: 'Agentes',
+      icon: Bot,
+      children: [
+        {
+          label: 'Dhole Agent',
+          path: '/agents',
+          icon: Bot,
+        },
+      ],
+    })
+  }
 
   const canManageAi =
     canView(VIEW_SCOPES.aiConnections) ||
