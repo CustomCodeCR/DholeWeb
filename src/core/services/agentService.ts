@@ -35,6 +35,11 @@ async function browseList<T>(
 }
 
 export const AgentService = {
+  async checkHealth(): Promise<boolean> {
+    await callEndpoint<unknown>(AgentEndpoints.agentHealth)
+    return true
+  },
+
   browseProviders(): Promise<AgentProviderDto[]> {
     return browseList<AgentProviderDto>(AgentEndpoints.browseProviders)
   },
