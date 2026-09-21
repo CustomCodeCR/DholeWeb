@@ -130,7 +130,7 @@ onMounted(refresh)
         :options="statusOptions"
         placeholder=""
       />
-      <DhInput v-model="takeFilter" label="Take" type="number" />
+      <DhInput v-model="takeFilter" :label="t('agent.fields.take')" type="number" />
       <DhButton :label="t('agent.actions.applyFilters')" variant="secondary" :loading="store.loading" @click="refresh" />
     </section>
 
