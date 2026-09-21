@@ -334,16 +334,17 @@ const currentRateType = computed<RateType>(() =>
   editingRate.value?.rateType === 'Tariff' || form.rateType === 'Tariff' ? 'Tariff' : 'Spot',
 )
 const isMasterTariff = computed(() =>
-  currentRateType.value === 'Tariff' && !editingRate.value?.sourceTariffRateId,
+  currentRateType.value === 'Tariff'
+    && String(editingRate.value?.clientName ?? form.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO'),
 )
 const isClientTariff = computed(() =>
-  currentRateType.value === 'Tariff' && Boolean(editingRate.value?.sourceTariffRateId),
+  currentRateType.value === 'Tariff' && !isMasterTariff.value,
 )
 const commercialRateTypeLabel = computed(() =>
   isMasterTariff.value
     ? 'TARIFARIO · MAESTRO'
     : isClientTariff.value
-      ? 'TARIFARIO · CLIENTE'
+      ? 'TARIFA'
       : 'SPOT',
 )
 const canMarkSent = computed(() => !isMasterTariff.value && currentCommercialStatus.value === 'Open')
