@@ -704,12 +704,13 @@ onMounted(async () => {
         <div
           class="overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]"
         >
-          <table class="w-full min-w-[1100px] border-collapse text-left text-sm">
+          <table class="w-full min-w-[1280px] border-collapse text-left text-sm">
             <thead class="bg-black/[0.035] text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
               <tr>
                 <th class="w-12 px-4 py-3"></th>
                 <th class="px-4 py-3">Tarifa</th>
                 <th class="px-4 py-3">Operación</th>
+                <th class="px-4 py-3">Cotizado por</th>
                 <th class="px-4 py-3 text-right">Resumen comercial</th>
                 <th class="px-4 py-3">Vigencia</th>
                 <th class="px-4 py-3 text-center">Estado</th>
@@ -718,12 +719,12 @@ onMounted(async () => {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="7" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">
+                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">
                   Cargando...
                 </td>
               </tr>
               <tr v-else-if="rows.length === 0">
-                <td colspan="7" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">
+                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">
                   No hay tarifas que coincidan con los filtros.
                 </td>
               </tr>
@@ -766,6 +767,19 @@ onMounted(async () => {
                     <p class="font-black text-[var(--dh-text)]">{{ row.carrierName || 'Sin naviera' }}</p>
                     <p class="mt-1 text-sm font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
                     <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Agente: {{ row.agentName || '—' }}</p>
+                  </div>
+                </td>
+                <td class="px-4 py-4">
+                  <div class="min-w-[180px]">
+                    <p class="font-black text-[var(--dh-text)]">
+                      {{ row.createdByDisplayName || row.createdByUserName || row.createdByUserId || '—' }}
+                    </p>
+                    <p
+                      v-if="row.createdByUserName && row.createdByDisplayName && row.createdByUserName.toLowerCase() !== row.createdByDisplayName.toLowerCase()"
+                      class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]"
+                    >
+                      @{{ row.createdByUserName }}
+                    </p>
                   </div>
                 </td>
                 <td class="px-4 py-4 text-right">
