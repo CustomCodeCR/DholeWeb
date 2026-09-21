@@ -95,6 +95,8 @@ const setupSteps = computed(() => [
     description: t('agent.guide.providerDescription'),
     done: store.activeProviders.length > 0,
     path: '/agents/providers',
+    manual: false,
+    optional: false,
     canOpen: permissions.canViewProviders.value,
   },
   {
@@ -103,6 +105,8 @@ const setupSteps = computed(() => [
     description: t('agent.guide.credentialDescription'),
     done: store.credentials.some((item) => item.isActive),
     path: '/agents/credentials',
+    manual: false,
+    optional: false,
     canOpen: permissions.canViewCredentials.value,
   },
   {
@@ -113,6 +117,8 @@ const setupSteps = computed(() => [
       (item) => item.isActive && (item.status === 'Ready' || item.status === 'Authenticated'),
     ),
     path: '/agents/browser-profiles',
+    manual: false,
+    optional: false,
     canOpen: permissions.canViewBrowserProfiles.value,
   },
   {
@@ -121,6 +127,8 @@ const setupSteps = computed(() => [
     description: t('agent.guide.definitionDescription'),
     done: store.definitions.some((item) => item.isActive),
     path: '/agents/definitions',
+    manual: false,
+    optional: false,
     canOpen: permissions.canViewDefinitions.value,
   },
   {
@@ -128,7 +136,9 @@ const setupSteps = computed(() => [
     title: t('agent.guide.testTitle'),
     description: t('agent.guide.testDescription'),
     done: store.executions.length > 0,
+    path: '',
     manual: true,
+    optional: false,
     canOpen: permissions.canCreateExecutions.value,
   },
   {
@@ -137,8 +147,9 @@ const setupSteps = computed(() => [
     description: t('agent.guide.scheduleDescription'),
     done: store.activeSchedules.length > 0,
     path: '/agents/schedules',
-    canOpen: permissions.canCreateSchedules.value || permissions.canViewSchedules.value,
+    manual: false,
     optional: true,
+    canOpen: permissions.canCreateSchedules.value || permissions.canViewSchedules.value,
   },
 ])
 
