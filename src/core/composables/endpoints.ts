@@ -810,6 +810,7 @@ export const AgentEndpoints = {
   },
 
   browseBrowserProfiles: { method: 'GET', path: '/api/agents/browser-profiles', headers: acceptJson },
+  getBrowserProfile: { method: 'GET', path: '/api/agents/browser-profiles/{{profileId}}', headers: acceptJson },
   createBrowserProfile: { method: 'POST', path: '/api/agents/browser-profiles', headers: jsonHeaders },
   authenticateBrowserProfile: {
     method: 'POST',
