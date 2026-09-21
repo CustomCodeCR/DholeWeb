@@ -114,7 +114,9 @@
     "agentCredentials": "2. Access credentials",
     "agentBrowserProfiles": "3. Web sessions",
     "agentSchedules": "5. Schedules",
-    "agentExecutions": "6. History & results"
+    "agentExecutions": "Executions",
+    "agentProfiles": "Extraction profiles",
+    "agentAdvanced": "Advanced settings"
   },
   "auth": {
     "loginTitle": "Sign in",
