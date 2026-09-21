@@ -10,6 +10,7 @@ import {
 } from '@/core/interfaces/agent'
 import { AgentService } from '@/core/services/agentService'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
 
 const props = defineProps<{
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useAgentStore()
+const permissions = useAgentPermissions()
 const toastStore = useToastStore()
 const saving = ref(false)
 
@@ -161,12 +163,12 @@ async function save() {
 
 onMounted(async () => {
   try {
-    await Promise.all([
-      store.providers.length ? Promise.resolve(store.providers) : store.loadProviders(),
-      store.credentials.length ? Promise.resolve(store.credentials) : store.loadCredentials(),
-    ])
+    const tasks: Promise<unknown>[] = []
+    if (!store.providers.length) tasks.push(store.loadProviders())
+    if (permissions.canViewCredentials.value && !store.credentials.length) tasks.push(store.loadCredentials())
+    await Promise.all(tasks)
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron cargar navieras y credenciales.')
+    toastStore.backendError(error, 'No se pudieron cargar los datos necesarios para el perfil.')
   }
 })
 </script>
