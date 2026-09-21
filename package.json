@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
+    "test:agent": "node --test tests/agentModule.test.ts",
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {

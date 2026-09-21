@@ -433,6 +433,66 @@ export const router = createRouter({
         },
 
         {
+          path: 'agents',
+          name: 'agent-dashboard',
+          component: () => import('@/modules/agent/views/AgentDashboardView.vue'),
+          meta: {
+            tabTitle: 'Dhole Agent',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentDefinitions,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentBrowserProfiles,
+              VIEW_SCOPES.agentSchedules,
+              VIEW_SCOPES.agentExecutions,
+            ],
+          },
+        },
+        {
+          path: 'agents/providers',
+          name: 'agent-providers',
+          component: () => import('@/modules/agent/views/AgentProvidersView.vue'),
+          meta: { tabTitle: 'Agentes · Proveedores', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
+        },
+        {
+          path: 'agents/definitions',
+          name: 'agent-definitions',
+          component: () => import('@/modules/agent/views/AgentDefinitionsView.vue'),
+          meta: { tabTitle: 'Agentes · Definiciones', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
+        },
+        {
+          path: 'agents/credentials',
+          name: 'agent-credentials',
+          component: () => import('@/modules/agent/views/AgentCredentialsView.vue'),
+          meta: { tabTitle: 'Agentes · Credenciales', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
+        },
+        {
+          path: 'agents/browser-profiles',
+          name: 'agent-browser-profiles',
+          component: () => import('@/modules/agent/views/AgentBrowserProfilesView.vue'),
+          meta: { tabTitle: 'Agentes · Perfiles', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
+        },
+        {
+          path: 'agents/schedules',
+          name: 'agent-schedules',
+          component: () => import('@/modules/agent/views/AgentSchedulesView.vue'),
+          meta: { tabTitle: 'Agentes · Programaciones', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
+        },
+        {
+          path: 'agents/executions',
+          name: 'agent-executions',
+          component: () => import('@/modules/agent/views/AgentExecutionsView.vue'),
+          meta: { tabTitle: 'Agentes · Ejecuciones', closable: true, requiredScope: VIEW_SCOPES.agentExecutions },
+        },
+        {
+          path: 'agents/executions/:id',
+          name: 'agent-execution-detail',
+          component: () => import('@/modules/agent/views/AgentExecutionDetailView.vue'),
+          meta: { tabTitle: 'Agentes · Ejecución', closable: true, requiredScope: VIEW_SCOPES.agentExecutions },
+        },
+
+        {
           path: 'ai',
           name: 'ai-console',
           component: () => import('@/modules/ai/views/AiConsoleView.vue'),

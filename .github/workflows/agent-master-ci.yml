@@ -1,0 +1,41 @@
+name: Dhole Agent Master CI
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'src/core/interfaces/agent.ts'
+      - 'src/core/services/agentService.ts'
+      - 'src/core/auth/scopes.ts'
+      - 'src/core/composables/endpoints.ts'
+      - 'src/core/router/index.ts'
+      - 'src/core/i18n/en.json'
+      - 'src/core/i18n/es.json'
+      - 'src/modules/agent/**'
+      - 'src/shared/components/layouts/MainLayout.vue'
+      - 'tests/agentModule.test.ts'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/agent-master-ci.yml'
+
+jobs:
+  agent-build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Agent module tests
+        run: pnpm run test:agent
+      - name: Type-check
+        run: pnpm run type-check
+      - name: Build
+        run: pnpm run build-only
