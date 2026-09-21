@@ -9,6 +9,17 @@ export type AgentProviderType =
 export type AgentExecutionStrategy = 'Browser' | 'BrowserNetworkCapture' | 'Hermes' | 'Hybrid'
 export type AgentActionType = 'SearchOceanRates' | 'Authenticate' | 'GenericExtraction'
 export type AgentScheduleType = 'Once' | 'Interval' | 'Cron'
+export type AgentEndpointMatchType = 'Contains' | 'Exact' | 'Regex'
+export type AgentExtractionDataType =
+  | 'String'
+  | 'Number'
+  | 'Decimal'
+  | 'Date'
+  | 'DateTime'
+  | 'Boolean'
+  | 'Object'
+  | 'Array'
+export type AgentExtractionSourceType = 'Auto' | 'ProviderParser' | 'JsonPath' | 'Hermes'
 export type AgentExecutionStatus =
   | 'Pending'
   | 'Queued'
@@ -51,6 +62,8 @@ export interface AgentCredentialDto {
   id: string
   providerId: string
   name: string
+  usernameMasked: string
+  hasPassword: boolean
   isActive: boolean
   createdAtUtc: string
   updatedAtUtc: string | null
@@ -135,8 +148,8 @@ export interface CreateAgentDefinitionRequest {
 export interface CreateAgentCredentialRequest {
   providerId: string
   name: string
-  usernameSecretKey: string
-  passwordSecretKey: string
+  username: string
+  password: string
   additionalSecretsJson: string | null
 }
 
@@ -184,8 +197,8 @@ export interface UpdateAgentDefinitionRequest {
 
 export interface UpdateAgentCredentialRequest {
   name: string
-  usernameSecretKey: string
-  passwordSecretKey: string
+  username: string
+  password: string | null
   additionalSecretsJson: string | null
 }
 
@@ -211,10 +224,164 @@ export interface UpdateAgentScheduleRequest {
   nextExecutionAt: string | null
 }
 
+export interface AgentExtractionRouteDto {
+  id: string
+  profileId: string
+  name: string | null
+  polCode: string | null
+  polName: string
+  poeCode: string | null
+  poeName: string | null
+  podCode: string | null
+  podName: string
+  isActive: boolean
+  sortOrder: number
+}
+
+export interface SaveAgentExtractionRouteRequest {
+  name: string | null
+  polCode: string | null
+  polName: string
+  poeCode: string | null
+  poeName: string | null
+  podCode: string | null
+  podName: string
+  isActive: boolean
+  sortOrder: number
+}
+
+export interface AgentExtractionEquipmentDto {
+  id: string
+  profileId: string
+  code: string
+  name: string
+  quantity: number
+  defaultWeightKg: number
+  isActive: boolean
+  sortOrder: number
+}
+
+export interface SaveAgentExtractionEquipmentRequest {
+  code: string
+  name: string
+  quantity: number
+  defaultWeightKg: number
+  isActive: boolean
+  sortOrder: number
+}
+
+export interface AgentEndpointCaptureDto {
+  id: string
+  profileId: string
+  name: string
+  httpMethod: string
+  urlPattern: string
+  matchType: AgentEndpointMatchType
+  contentType: string | null
+  captureRequest: boolean
+  captureResponse: boolean
+  isRequired: boolean
+  timeoutSeconds: number
+  isActive: boolean
+  sortOrder: number
+}
+
+export interface SaveAgentEndpointCaptureRequest {
+  name: string
+  httpMethod: string
+  urlPattern: string
+  matchType: AgentEndpointMatchType
+  contentType: string | null
+  captureRequest: boolean
+  captureResponse: boolean
+  isRequired: boolean
+  timeoutSeconds: number
+  isActive: boolean
+  sortOrder: number
+}
+
+export interface TestAgentEndpointCaptureRequest {
+  httpMethod: string
+  url: string
+  contentType: string | null
+}
+
+export interface TestAgentEndpointCaptureResponse {
+  matches: boolean
+  ruleName: string
+  matchType: AgentEndpointMatchType
+  urlPattern: string
+}
+
+export interface AgentExtractionFieldDto {
+  id: string
+  profileId: string
+  key: string
+  label: string
+  description: string | null
+  dataType: AgentExtractionDataType
+  sourceType: AgentExtractionSourceType
+  jsonPath: string | null
+  required: boolean
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface SaveAgentExtractionFieldRequest {
+  key: string
+  label: string
+  description: string | null
+  dataType: AgentExtractionDataType
+  sourceType: AgentExtractionSourceType
+  jsonPath: string | null
+  required: boolean
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface AgentPromptPreviewRequest {
+  cargoReadyDate: string | null
+  executionId: string | null
+}
+
+export interface AgentPromptPreviewDto {
+  prompt: string
+  availableVariables: string[]
+}
+
+export interface AgentExecutionPromptSnapshotDto {
+  executionId: string
+  extractionProfileId: string | null
+  promptSnapshot: string | null
+  configurationSnapshotJson: string | null
+}
+
+export interface AgentResultDto {
+  id: string
+  executionId: string
+  providerId: string
+  resultType: string
+  schemaVersion: string
+  dataJson: string
+  createdAtUtc: string
+}
+
 export const AGENT_PROVIDER_TYPES = ['Maersk', 'Msc', 'Pil', 'CmaCgm', 'HapagLloyd', 'GenericWeb'] as const
 export const AGENT_EXECUTION_STRATEGIES = ['Browser', 'BrowserNetworkCapture', 'Hermes', 'Hybrid'] as const
 export const AGENT_ACTION_TYPES = ['SearchOceanRates', 'Authenticate', 'GenericExtraction'] as const
 export const AGENT_SCHEDULE_TYPES = ['Once', 'Interval', 'Cron'] as const
+export const AGENT_ENDPOINT_MATCH_TYPES = ['Contains', 'Exact', 'Regex'] as const
+export const AGENT_EXTRACTION_DATA_TYPES = [
+  'String',
+  'Number',
+  'Decimal',
+  'Date',
+  'DateTime',
+  'Boolean',
+  'Object',
+  'Array',
+] as const
+export const AGENT_EXTRACTION_SOURCE_TYPES = ['Auto', 'ProviderParser', 'JsonPath', 'Hermes'] as const
 export const AGENT_EXECUTION_STATUSES = [
   'Pending',
   'Queued',
