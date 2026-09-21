@@ -107,14 +107,14 @@
     "notificationTemplates": "Plantillas de notificación",
     "notificationAdministration": "Administrar notificaciones",
     "rateTerms": "Ítems de tarifa",
-    "agents": "Agentes",
-    "agentSummary": "Resumen",
-    "agentProviders": "Proveedores",
-    "agentDefinitions": "Definiciones",
-    "agentCredentials": "Credenciales",
-    "agentBrowserProfiles": "Perfiles de navegador",
-    "agentSchedules": "Programaciones",
-    "agentExecutions": "Ejecuciones"
+    "agents": "Automatización de navieras",
+    "agentSummary": "Inicio y guía",
+    "agentProviders": "1. Navieras y sitios",
+    "agentDefinitions": "4. Acciones automáticas",
+    "agentCredentials": "2. Accesos",
+    "agentBrowserProfiles": "3. Sesiones web",
+    "agentSchedules": "5. Programaciones",
+    "agentExecutions": "6. Historial y resultados"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -472,6 +472,14 @@
       "notifications": {
         "name": "Notifications Service",
         "description": "Notificaciones internas, correo, programación, reintentos y plantillas."
+      },
+      "agent": {
+        "name": "Dhole Agent Service",
+        "description": "Automatización de navieras, sesiones web, programaciones y ejecuciones."
+      },
+      "hermes": {
+        "name": "Hermes Agent",
+        "description": "Motor de automatización web utilizado por Dhole Agent."
       }
     }
   },
@@ -1297,8 +1305,8 @@
     }
   },
   "agent": {
-    "title": "Dhole Agent",
-    "subtitle": "Operación, automatización y extracciones de DholeAgentService.",
+    "title": "Automatización de navieras",
+    "subtitle": "Configure una naviera, sus accesos y sesión web; luego ejecute búsquedas de tarifas manuales o programadas.",
     "online": "Online",
     "offline": "Offline",
     "serviceOffline": "DholeAgentService Offline",
@@ -1348,14 +1356,14 @@
     "fields": {
       "name": "Nombre",
       "code": "Código",
-      "provider": "Provider",
-      "definition": "Definition",
-      "credential": "Credential",
-      "providerType": "Provider Type",
-      "baseUrl": "Base URL",
-      "strategy": "Estrategia",
-      "executionStrategy": "Execution Strategy",
-      "actionType": "Action Type",
+      "provider": "Naviera / sitio",
+      "definition": "Acción automática",
+      "credential": "Acceso",
+      "providerType": "Tipo de sitio",
+      "baseUrl": "Sitio web / URL",
+      "strategy": "Método de automatización",
+      "executionStrategy": "Motor de ejecución",
+      "actionType": "Acción",
       "status": "Estado",
       "system": "Sistema",
       "updated": "Actualizado",
@@ -1363,10 +1371,10 @@
       "createdAt": "Created",
       "updatedAt": "Actualizada",
       "description": "Description",
-      "metadataJson": "MetadataJson",
-      "configurationJson": "ConfigurationJson",
-      "usernameSecretKey": "UsernameSecretKey",
-      "passwordSecretKey": "PasswordSecretKey",
+      "metadataJson": "Configuración avanzada (JSON)",
+      "configurationJson": "Configuración de acción (JSON)",
+      "usernameSecretKey": "Clave del secreto de usuario",
+      "passwordSecretKey": "Clave del secreto de contraseña",
       "additionalSecretsJson": "AdditionalSecretsJson",
       "profileKey": "Profile Key",
       "storagePath": "Storage Path",
@@ -1423,45 +1431,45 @@
       "notUpdated": "Sin actualizar"
     },
     "providers": {
-      "title": "Proveedores",
-      "subtitle": "Providers genéricos para Maersk y futuras navieras.",
-      "empty": "No hay providers configurados.",
-      "createTitle": "Nuevo provider",
-      "editTitle": "Editar provider",
+      "title": "Navieras y sitios",
+      "subtitle": "Defina los portales que Dhole puede automatizar, por ejemplo Maersk, MSC, PIL, CMA CGM o Hapag-Lloyd.",
+      "empty": "No hay navieras o sitios configurados.",
+      "createTitle": "Nueva naviera o sitio",
+      "editTitle": "Editar naviera o sitio",
       "systemProvider": "Provider de sistema",
       "systemProviderDescription": "Solo se envía al crear el provider.",
       "confirmState": "Confirmar cambio de estado",
-      "definitions": "Definiciones",
+      "definitions": "Ver acciones",
       "genericWeb": "Web genérica"
     },
     "definitions": {
-      "title": "Definiciones",
-      "subtitle": "Acciones y configuración de cada provider.",
-      "empty": "No hay definiciones disponibles.",
-      "allProviders": "Todos los providers",
-      "createTitle": "Nueva definición",
-      "editTitle": "Editar definición"
+      "title": "Acciones automáticas",
+      "subtitle": "Indique qué debe hacer Dhole en cada naviera, por ejemplo buscar tarifas marítimas usando Hermes.",
+      "empty": "No hay acciones automáticas configuradas.",
+      "allProviders": "Todas las navieras",
+      "createTitle": "Nueva acción automática",
+      "editTitle": "Editar acción automática"
     },
     "credentials": {
-      "title": "Credenciales",
-      "subtitle": "Referencias de secretos utilizadas por DholeAgentService. Nunca se guardan contraseñas reales en el frontend.",
-      "empty": "No hay referencias de credenciales configuradas.",
-      "createTitle": "Nueva credencial",
-      "editTitle": "Editar credencial",
+      "title": "Accesos",
+      "subtitle": "Vincule cada naviera con las claves de secretos que contienen el usuario y la contraseña. DholeWeb nunca guarda la contraseña real.",
+      "empty": "No hay accesos configurados.",
+      "createTitle": "Nuevo acceso",
+      "editTitle": "Editar acceso",
       "secretNotice": "Ingrese únicamente nombres o rutas de secretos administrados por infraestructura. No ingrese usuarios, contraseñas, JWT, cookies ni Bearer tokens reales.",
       "editSecretNotice": "El backend no devuelve las referencias anteriores; para actualizar debe indicar nuevamente las keys."
     },
     "browserProfiles": {
-      "title": "Perfiles de navegador",
-      "subtitle": "Sesiones persistentes utilizadas por las automatizaciones web de DholeAgentService.",
-      "empty": "No hay perfiles de navegador configurados.",
-      "createTitle": "Crear perfil de navegador",
-      "detailTitle": "Detalle del perfil",
-      "createAction": "Crear perfil"
+      "title": "Sesiones web",
+      "subtitle": "Cree una sesión de navegador por naviera y autentíquela para que Hermes pueda reutilizar el login.",
+      "empty": "No hay sesiones web configuradas.",
+      "createTitle": "Nueva sesión web",
+      "detailTitle": "Detalle de la sesión",
+      "createAction": "Crear sesión"
     },
     "schedules": {
       "title": "Programaciones",
-      "subtitle": "Automatizaciones Once, Interval y Cron para DholeAgentService.",
+      "subtitle": "Ejecute una acción una vez, cada cierto intervalo o mediante una expresión Cron.",
       "empty": "No hay programaciones configuradas.",
       "createTitle": "Nueva programación",
       "editTitle": "Editar programación",
@@ -1476,8 +1484,8 @@
       "advancedMode": "Modo avanzado"
     },
     "executions": {
-      "title": "Ejecuciones",
-      "subtitle": "Historial, estado y control de AgentExecution.",
+      "title": "Historial y resultados",
+      "subtitle": "Revise cada búsqueda realizada, su estado, errores y tarifas extraídas.",
       "allStatuses": "Todos los estados",
       "empty": "No hay ejecuciones para los filtros seleccionados.",
       "cancelTitle": "Cancelar ejecución",
@@ -1574,6 +1582,30 @@
       "definition": "definición",
       "credential": "credencial",
       "schedule": "programación"
+    },
+    "guide": {
+      "title": "Cómo poner Dhole Agent a funcionar",
+      "subtitle": "Siga estos pasos en orden. Los indicadores se completan automáticamente según la configuración existente.",
+      "done": "Listo",
+      "pending": "Pendiente",
+      "open": "Abrir",
+      "optional": "Opcional",
+      "providerTitle": "1. Configure la naviera o sitio",
+      "providerDescription": "Cree Maersk, MSC, PIL u otro portal e indique su URL y método de automatización.",
+      "credentialTitle": "2. Vincule los accesos",
+      "credentialDescription": "Guarde únicamente las claves de los secretos del usuario y contraseña; no escriba credenciales reales en DholeWeb.",
+      "profileTitle": "3. Cree y autentique la sesión web",
+      "profileDescription": "Cree un perfil de navegador y autentíquelo. Debe quedar Ready o Authenticated.",
+      "definitionTitle": "4. Defina la acción automática",
+      "definitionDescription": "Para tarifas marítimas use SearchOceanRates y Hermes como motor de ejecución.",
+      "testTitle": "5. Haga una prueba manual",
+      "testDescription": "Ejecute una búsqueda desde este inicio y revise el resultado en Historial y resultados.",
+      "scheduleTitle": "6. Programe búsquedas automáticas",
+      "scheduleDescription": "Cuando la prueba manual funcione, programe la búsqueda por intervalo, fecha o Cron.",
+      "readyTitle": "Configuración lista para probar",
+      "readyDescription": "Ya existe naviera, acceso, sesión web y acción. Puede ejecutar una extracción manual.",
+      "incompleteTitle": "Complete la configuración",
+      "incompleteDescription": "Todavía faltan pasos antes de poder automatizar una búsqueda de tarifas."
     }
   }
 }
