@@ -13,57 +13,7 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 }
 
 function patchRatesView(source: string) {
-  let code = source
-
-  code = replaceOne(
-    code,
-    "type CommercialRateStatus = 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient'",
-    "type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient'",
-    'rates status type',
-  )
-
-  code = replaceOne(
-    code,
-    "const commercialStatuses = new Set<CommercialRateStatus>([\n  'Open',\n  'Sent',\n  'Expired',\n  'AcceptedByClient',\n  'RejectedByClient',\n])",
-    "const commercialStatuses = new Set<CommercialRateStatus>([\n  'PendingApproval',\n  'Open',\n  'Sent',\n  'Expired',\n  'AcceptedByClient',\n  'RejectedByClient',\n])",
-    'rates commercial statuses',
-  )
-
-  code = replaceOne(
-    code,
-    "const statusOptions: Array<{ label: string; value: CommercialRateStatus }> = [\n  { label: 'Abiertas', value: 'Open' },\n  { label: 'Enviadas', value: 'Sent' },\n  { label: 'Vencidas', value: 'Expired' },\n  { label: 'Aceptadas', value: 'AcceptedByClient' },\n  { label: 'No aceptadas', value: 'RejectedByClient' },\n]",
-    "const statusOptions: Array<{ label: string; value: CommercialRateStatus }> = [\n  { label: 'Pendientes de aprobación', value: 'PendingApproval' },\n  { label: 'Abiertas', value: 'Open' },\n  { label: 'Enviadas', value: 'Sent' },\n  { label: 'Vencidas', value: 'Expired' },\n  { label: 'Aceptadas', value: 'AcceptedByClient' },\n  { label: 'No aceptadas', value: 'RejectedByClient' },\n]",
-    'rates status options',
-  )
-
-  code = code
-    .replace("        PendingApproval: 'Abierta',", "        PendingApproval: 'Pendiente de aprobación',")
-    .replace("        ApprovedByManagement: 'Abierta',", "        ApprovedByManagement: 'Aprobada por gerencia',")
-    .replace("        RejectedByManagement: 'Abierta',", "        RejectedByManagement: 'Rechazada por gerencia',")
-    .replace("        RequestedByClient: 'Abierta',", "        RequestedByClient: 'Solicitada por cliente',")
-
-  code = replaceOne(
-    code,
-    '      pageSize: pageSize.value,',
-    "      pageSize: filters.status === 'Open' ? Math.max(pageSize.value, 100) : pageSize.value,",
-    'rates page size',
-  )
-
-  code = replaceOne(
-    code,
-    "    const safeItems = Array.isArray(result?.items)\n      ? result.items.filter((row): row is RateDto => Boolean(row && row.id))\n      : []\n    rows.value = safeItems\n    total.value = result?.totalCount ?? safeItems.length\n    selectedIds.value = selectedIds.value.filter((id) => safeItems.some((row) => row.id === id))",
-    "    // El backend conserva compatibilidad histórica agrupando varios estados bajo Open.\n    // En Tarifas oficiales la categoría Abiertas debe ser estricta.\n    const safeItems = Array.isArray(result?.items)\n      ? result.items.filter((row): row is RateDto => Boolean(row && row.id))\n      : []\n    const visibleItems = filters.status === 'Open'\n      ? safeItems.filter((item) => item.status === 'Open')\n      : safeItems\n    rows.value = visibleItems\n    total.value = filters.status === 'Open'\n      ? visibleItems.length\n      : result?.totalCount ?? visibleItems.length\n    selectedIds.value = selectedIds.value.filter((id) => visibleItems.some((row) => row.id === id))",
-    'rates result assignment',
-  )
-
-  code = replaceOne(
-    code,
-    '      subtitle="Seguimiento comercial únicamente por Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."',
-    '      subtitle="Seguimiento por Pendientes de aprobación, Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."',
-    'rates subtitle',
-  )
-
-  return code
+  return source
 }
 
 function patchWizard(source: string) {
