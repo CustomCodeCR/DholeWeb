@@ -51,8 +51,8 @@ function patchRatesView(source: string) {
 
   code = replaceOne(
     code,
-    "    rows.value = result.items\n    total.value = result.totalCount ?? result.items.length\n    selectedIds.value = selectedIds.value.filter((id) => result.items.some((row) => row.id === id))",
-    "    // El backend conserva compatibilidad histórica agrupando varios estados bajo Open.\n    // En Tarifas oficiales la categoría Abiertas debe ser estricta.\n    const visibleItems = filters.status === 'Open'\n      ? result.items.filter((item) => item.status === 'Open')\n      : result.items\n    rows.value = visibleItems\n    total.value = filters.status === 'Open'\n      ? visibleItems.length\n      : result.totalCount ?? visibleItems.length\n    selectedIds.value = selectedIds.value.filter((id) => visibleItems.some((row) => row.id === id))",
+    "    const safeItems = Array.isArray(result?.items)\n      ? result.items.filter((row): row is RateDto => Boolean(row && row.id))\n      : []\n    rows.value = safeItems\n    total.value = result?.totalCount ?? safeItems.length\n    selectedIds.value = selectedIds.value.filter((id) => safeItems.some((row) => row.id === id))",
+    "    // El backend conserva compatibilidad histórica agrupando varios estados bajo Open.\n    // En Tarifas oficiales la categoría Abiertas debe ser estricta.\n    const safeItems = Array.isArray(result?.items)\n      ? result.items.filter((row): row is RateDto => Boolean(row && row.id))\n      : []\n    const visibleItems = filters.status === 'Open'\n      ? safeItems.filter((item) => item.status === 'Open')\n      : safeItems\n    rows.value = visibleItems\n    total.value = filters.status === 'Open'\n      ? visibleItems.length\n      : result?.totalCount ?? visibleItems.length\n    selectedIds.value = selectedIds.value.filter((id) => visibleItems.some((row) => row.id === id))",
     'rates result assignment',
   )
 
