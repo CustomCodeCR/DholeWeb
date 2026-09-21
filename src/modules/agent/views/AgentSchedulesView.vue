@@ -235,7 +235,7 @@ async function openEdit(row: AgentScheduleDto) {
 function buildInputJson() {
   if (advancedJson.value || !isOceanRate.value) {
     const value = form.inputJson.trim()
-    if (!value) throw new Error('InputJson es obligatorio.')
+    if (!value) throw new Error(t('agent.validation.required', { field: t('agent.fields.inputJson') }))
     parseObjectJson(value)
     return value
   }
