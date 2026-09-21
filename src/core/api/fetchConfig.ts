@@ -297,13 +297,17 @@ export async function fetchClient<T>(
   options: RequestOptions,
   baseUrl: string = BASE_URL,
 ): Promise<T> {
+  const startedWithTransientToken = hasTransientAccessToken()
   let token = await getUsableAccessToken(endpoint)
   let config = buildRequestConfig(options, token)
 
   try {
     let response = await fetch(`${baseUrl}${endpoint}`, config)
 
-    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
+    if (response.status === 401 && !isAuthEndpoint(endpoint) && startedWithTransientToken) {
+      clearTransientAccessToken()
+      emitImpersonationExpired()
+    } else if (response.status === 401 && !isAuthEndpoint(endpoint)) {
       const refreshed = await refreshStoredSession()
 
       if (refreshed) {
@@ -313,7 +317,7 @@ export async function fetchClient<T>(
       }
     }
 
-    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
+    if (response.status === 401 && !isAuthEndpoint(endpoint) && !startedWithTransientToken) {
       clearStoredSession()
       emitSessionExpired()
     }
@@ -349,6 +353,7 @@ export async function downloadFile(
   fallbackFileName: string,
   baseUrl: string = BASE_URL,
 ): Promise<{ blob: Blob; fileName: string }> {
+  const startedWithTransientToken = hasTransientAccessToken()
   let token = await getUsableAccessToken(endpoint)
 
   const buildConfig = (): RequestInit => ({
@@ -362,7 +367,10 @@ export async function downloadFile(
   try {
     let response = await fetch(`${baseUrl}${endpoint}`, buildConfig())
 
-    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
+    if (response.status === 401 && !isAuthEndpoint(endpoint) && startedWithTransientToken) {
+      clearTransientAccessToken()
+      emitImpersonationExpired()
+    } else if (response.status === 401 && !isAuthEndpoint(endpoint)) {
       const refreshed = await refreshStoredSession()
       if (refreshed) {
         token = getAccessToken()
@@ -370,7 +378,7 @@ export async function downloadFile(
       }
     }
 
-    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
+    if (response.status === 401 && !isAuthEndpoint(endpoint) && !startedWithTransientToken) {
       clearStoredSession()
       emitSessionExpired()
     }
