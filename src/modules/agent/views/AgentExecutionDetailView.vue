@@ -123,10 +123,10 @@ const metadata = computed(() => {
     [t('agent.fields.schedule'), scheduleName(row.scheduleId)],
     [t('agent.fields.credential'), credentialName(row.credentialId)],
     [t('agent.fields.createdAt'), formatDate(row.createdAtUtc)],
-    ['Started', formatDate(row.startedAt)],
-    ['Completed', formatDate(row.completedAt)],
+    [t('agent.fields.started'), formatDate(row.startedAt)],
+    [t('agent.fields.completed'), formatDate(row.completedAt)],
     [t('agent.fields.duration'), formatDuration(row.durationMs)],
-    ['Attempt / MaxAttempts', `${row.attempt} / ${row.maxAttempts}`],
+    [`${t('agent.fields.attempt')} / ${t('agent.fields.maxAttempts')}`, `${row.attempt} / ${row.maxAttempts}`],
     [t('agent.fields.correlationId'), row.correlationId],
     [t('agent.fields.traceId'), row.traceId ?? '—'],
   ]
