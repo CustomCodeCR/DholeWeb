@@ -1463,7 +1463,10 @@
       "secretNotice": "Enter the carrier username and password. The password is sent only to the backend for encryption and is cleared from the form after saving.",
       "editSecretNotice": "For security the backend returns only the masked username. Re-enter the username; leave password empty to keep the current one.",
       "passwordOptional": "New password (optional)",
-      "usernameEditPlaceholder": "Re-enter the username"
+      "usernameEditPlaceholder": "Re-enter the username",
+      "verify": "Verify",
+      "verified": "Credential verified successfully.",
+      "verifyError": "The credential could not be verified."
     },
     "browserProfiles": {
       "title": "Web sessions",
