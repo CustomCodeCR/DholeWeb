@@ -185,6 +185,26 @@ onBeforeUnmount(() => {
     </button>
 
     <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+      <div
+        v-if="authStore.isImpersonating"
+        class="flex min-w-0 items-center gap-1.5 rounded-[18px] border border-amber-400/50 bg-amber-400/10 p-1 text-amber-700 dark:text-amber-300 sm:px-2"
+      >
+        <span class="hidden max-w-40 truncate text-xs font-black lg:block">
+          {{ t('topbar.impersonating', { name: displayName }) }}
+        </span>
+        <button
+          type="button"
+          class="inline-flex h-9 items-center gap-1.5 rounded-[14px] px-2 text-xs font-black transition hover:bg-amber-400/20"
+          :disabled="stoppingImpersonation"
+          :title="t('topbar.stopImpersonation')"
+          @click="stopImpersonation"
+        >
+          <LoaderCircle v-if="stoppingImpersonation" class="h-4 w-4 animate-spin" />
+          <UserRoundX v-else class="h-4 w-4" />
+          <span class="hidden md:inline">{{ t('topbar.stopImpersonation') }}</span>
+        </button>
+      </div>
+
       <DhIconButton :icon="Languages" :label="t('topbar.language')" variant="secondary" @click="localeStore.toggleLocale()" />
       <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" @click="themeStore.toggleTheme()" />
       <DhIconButton :icon="Settings" label="Configuración" variant="secondary" @click="openSettings" />
