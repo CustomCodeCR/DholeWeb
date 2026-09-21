@@ -1519,7 +1519,8 @@
       "scheduleUpdated": "Schedule updated",
       "executionStarted": "Execution started",
       "cancellationRequested": "Cancellation requested",
-      "executionRefreshed": "Execution refreshed"
+      "executionRefreshed": "Execution refreshed",
+      "stateUpdated": "Status updated"
     },
     "validation": {
       "required": "{field} is required.",
@@ -1553,6 +1554,24 @@
       "loadExecution": "The execution could not be loaded.",
       "createExecution": "The execution could not be created.",
       "cancelExecution": "The execution could not be cancelled."
+    },
+    "confirm": {
+      "activateTitle": "Activate {entity}",
+      "deactivateTitle": "Deactivate {entity}",
+      "activateQuestion": "Activate {name}?",
+      "deactivateQuestion": "Deactivate {name}?"
+    },
+    "review": {
+      "extraction": "Review the extraction",
+      "definition": "Review the definition",
+      "credential": "Review the credential",
+      "schedule": "Review the schedule"
+    },
+    "entities": {
+      "provider": "provider",
+      "definition": "definition",
+      "credential": "credential",
+      "schedule": "schedule"
     }
   }
 }
