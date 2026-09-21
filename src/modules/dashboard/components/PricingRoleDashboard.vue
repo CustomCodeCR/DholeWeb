@@ -15,6 +15,7 @@ import {
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { PricingService } from '@/core/services/pricingService'
+import { UsersService } from '@/core/services/usersService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type {
   PricingRateDashboardDto,
@@ -28,6 +29,36 @@ const router = useRouter()
 const toastStore = useToastStore()
 const loading = ref(false)
 const dashboard = ref<PricingRateDashboardDto | null>(null)
+const creatorDirectory = ref<Record<string, { displayName: string; userName: string }>>({})
+
+async function loadCreatorDirectory() {
+  try {
+    const users = await UsersService.browse({ pageNumber: 1, pageSize: 200 })
+    creatorDirectory.value = Object.fromEntries(
+      users.map((user) => [user.id, { displayName: user.displayName, userName: user.userName }]),
+    )
+  } catch {
+    // Algunos perfiles de Pricing no tienen permiso para consultar usuarios de Auth.
+    // En ese caso se conserva el identificador del creador devuelto por Pricing.
+    creatorDirectory.value = {}
+  }
+}
+
+function creatorDisplayName(rate: PricingRateDashboardDto['recentRates'][number]) {
+  if (rate.createdByDisplayName) return rate.createdByDisplayName
+  if (rate.createdByUserName) return rate.createdByUserName
+  if (rate.createdByUserId) {
+    const user = creatorDirectory.value[rate.createdByUserId]
+    return user?.displayName || user?.userName || rate.createdByUserId
+  }
+  return '—'
+}
+
+function creatorUserName(rate: PricingRateDashboardDto['recentRates'][number]) {
+  if (rate.createdByUserName) return rate.createdByUserName
+  if (!rate.createdByUserId) return ''
+  return creatorDirectory.value[rate.createdByUserId]?.userName || ''
+}
 
 const filters = reactive({
   createdFrom: '',
@@ -61,6 +92,7 @@ async function loadDashboard() {
   try {
     loading.value = true
     dashboard.value = await PricingService.getRateDashboard(buildQuery())
+    await loadCreatorDirectory()
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar el dashboard de Pricing.')
   } finally {
@@ -310,13 +342,13 @@ onMounted(loadDashboard)
                 </td>
                 <td class="px-5 py-4">
                   <p class="font-black text-[var(--dh-text)]">
-                    {{ rate.createdByDisplayName || rate.createdByUserName || rate.createdByUserId || '—' }}
+                    {{ creatorDisplayName(rate) }}
                   </p>
                   <p
-                    v-if="rate.createdByUserName && rate.createdByDisplayName && rate.createdByUserName.toLowerCase() !== rate.createdByDisplayName.toLowerCase()"
+                    v-if="creatorUserName(rate) && creatorUserName(rate).toLowerCase() !== creatorDisplayName(rate).toLowerCase()"
                     class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]"
                   >
-                    @{{ rate.createdByUserName }}
+                    @{{ creatorUserName(rate) }}
                   </p>
                 </td>
                 <td class="px-5 py-4">
