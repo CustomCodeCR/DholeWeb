@@ -42,6 +42,7 @@
     "slug": "Slug",
     "value": "Valor",
     "type": "Tipo",
+      "take": "Take",
     "order": "Orden",
     "metadata": "Metadata",
     "field": "Campo",
@@ -1563,6 +1564,8 @@
     },
     "review": {
       "extraction": "Revise la extracción",
+      "provider": "Revise el provider",
+      "profile": "Revise el perfil",
       "definition": "Revise la definición",
       "credential": "Revise la credencial",
       "schedule": "Revise la programación"
