@@ -13,17 +13,7 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 }
 
 function patchRatesView(source: string) {
-  // The current view owns the onDuplicated callback directly. Keep the legacy
-  // transform only for older source revisions so adding tariff actions does not
-  // make this build-time patch brittle.
-  if (source.includes(`onDuplicated: async (duplicatedRateId: string) => {`)) return source
-
-  return replaceOne(
-    source,
-    `    props: { rate, onSaved: load },`,
-    `    props: {\n      rate,\n      onDuplicated: async (duplicatedRateId: string) => {\n        await load()\n        await router.push({\n          name: 'pricing-rate-wizard',\n          params: { rateId: duplicatedRateId },\n          query: { mode: 'edit', duplicateReview: '1' },\n        })\n      },\n    },`,
-    'rates view duplicate callback',
-  )
+  return source
 }
 
 function patchDetailDrawer(source: string) {
