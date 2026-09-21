@@ -132,7 +132,7 @@ async function save() {
     await store.loadCredentials()
   } catch (error) {
     if (error instanceof Error && !('status' in error)) {
-      toastStore.warning('Revise la credencial', error.message)
+      toastStore.warning(t('agent.review.credential'), error.message)
     } else {
       toastStore.backendError(error, t('agent.errors.saveCredential'))
     }
@@ -151,7 +151,7 @@ async function confirmToggle() {
   if (!row) return
 
   await AgentService.setCredentialActive(row.id, !row.isActive)
-  toastStore.success(row.isActive ? 'Credencial desactivada' : 'Credencial activada')
+  toastStore.success(t('agent.messages.stateUpdated'))
   confirmOpen.value = false
   pendingToggle.value = null
   await store.loadCredentials()
@@ -277,8 +277,8 @@ onMounted(refresh)
     <DhModal :open="confirmOpen" :title="t('agent.providers.confirmState')" size="sm" @close="confirmOpen = false">
       <DhConfirmDialog
         v-if="pendingToggle"
-        :title="pendingToggle.isActive ? 'Desactivar credencial' : 'Activar credencial'"
-        :message="`¿Desea ${pendingToggle.isActive ? 'desactivar' : 'activar'} ${pendingToggle.name}?`"
+        :title="pendingToggle.isActive ? t('agent.confirm.deactivateTitle', { entity: t('agent.entities.credential') }) : t('agent.confirm.activateTitle', { entity: t('agent.entities.credential') })"
+        :message="pendingToggle.isActive ? t('agent.confirm.deactivateQuestion', { name: pendingToggle.name }) : t('agent.confirm.activateQuestion', { name: pendingToggle.name })"
         :danger="pendingToggle.isActive"
         :on-confirm="confirmToggle"
         @cancel="confirmOpen = false"
