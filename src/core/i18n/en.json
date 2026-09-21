@@ -107,14 +107,14 @@
     "notificationTemplates": "Notification templates",
     "notificationAdministration": "Manage notifications",
     "rateTerms": "Rate items",
-    "agents": "Agents",
-    "agentSummary": "Summary",
-    "agentProviders": "Providers",
-    "agentDefinitions": "Definitions",
-    "agentCredentials": "Credentials",
-    "agentBrowserProfiles": "Browser profiles",
-    "agentSchedules": "Schedules",
-    "agentExecutions": "Executions"
+    "agents": "Carrier automation",
+    "agentSummary": "Home & guide",
+    "agentProviders": "1. Carriers & sites",
+    "agentDefinitions": "4. Automated actions",
+    "agentCredentials": "2. Access credentials",
+    "agentBrowserProfiles": "3. Web sessions",
+    "agentSchedules": "5. Schedules",
+    "agentExecutions": "6. History & results"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -472,6 +472,14 @@
       "notifications": {
         "name": "Notifications Service",
         "description": "Internal notifications, email, scheduling, retries, and templates."
+      },
+      "agent": {
+        "name": "Dhole Agent Service",
+        "description": "Carrier automation, web sessions, schedules, and executions."
+      },
+      "hermes": {
+        "name": "Hermes Agent",
+        "description": "Web automation engine used by Dhole Agent."
       }
     }
   },
@@ -1297,8 +1305,8 @@
     }
   },
   "agent": {
-    "title": "Dhole Agent",
-    "subtitle": "Operations, automation and extraction for DholeAgentService.",
+    "title": "Carrier automation",
+    "subtitle": "Configure a carrier, its access credentials and web session, then run manual or scheduled rate searches.",
     "online": "Online",
     "offline": "Offline",
     "serviceOffline": "DholeAgentService Offline",
@@ -1348,14 +1356,14 @@
     "fields": {
       "name": "Name",
       "code": "Code",
-      "provider": "Provider",
-      "definition": "Definition",
-      "credential": "Credential",
-      "providerType": "Provider Type",
-      "baseUrl": "Base URL",
-      "strategy": "Strategy",
-      "executionStrategy": "Execution Strategy",
-      "actionType": "Action Type",
+      "provider": "Carrier / site",
+      "definition": "Automated action",
+      "credential": "Access credential",
+      "providerType": "Site type",
+      "baseUrl": "Website / URL",
+      "strategy": "Automation method",
+      "executionStrategy": "Execution engine",
+      "actionType": "Action",
       "status": "Status",
       "system": "System",
       "updated": "Updated",
@@ -1363,10 +1371,10 @@
       "createdAt": "Created",
       "updatedAt": "Updated",
       "description": "Description",
-      "metadataJson": "MetadataJson",
-      "configurationJson": "ConfigurationJson",
-      "usernameSecretKey": "UsernameSecretKey",
-      "passwordSecretKey": "PasswordSecretKey",
+      "metadataJson": "Advanced configuration (JSON)",
+      "configurationJson": "Action configuration (JSON)",
+      "usernameSecretKey": "Username secret key",
+      "passwordSecretKey": "Password secret key",
       "additionalSecretsJson": "AdditionalSecretsJson",
       "profileKey": "Profile Key",
       "storagePath": "Storage Path",
@@ -1423,45 +1431,45 @@
       "notUpdated": "Not updated"
     },
     "providers": {
-      "title": "Providers",
-      "subtitle": "Generic providers for Maersk and future carriers.",
-      "empty": "No providers configured.",
-      "createTitle": "New provider",
-      "editTitle": "Edit provider",
+      "title": "Carriers and sites",
+      "subtitle": "Define the portals Dhole can automate, such as Maersk, MSC, PIL, CMA CGM, or Hapag-Lloyd.",
+      "empty": "No carriers or sites configured.",
+      "createTitle": "New carrier or site",
+      "editTitle": "Edit carrier or site",
       "systemProvider": "System provider",
       "systemProviderDescription": "Only sent when creating the provider.",
       "confirmState": "Confirm status change",
-      "definitions": "Definitions",
+      "definitions": "View actions",
       "genericWeb": "Generic web"
     },
     "definitions": {
-      "title": "Definitions",
-      "subtitle": "Actions and configuration for each provider.",
-      "empty": "No definitions available.",
-      "allProviders": "All providers",
-      "createTitle": "New definition",
-      "editTitle": "Edit definition"
+      "title": "Automated actions",
+      "subtitle": "Define what Dhole must do on each carrier, for example search ocean rates using Hermes.",
+      "empty": "No automated actions configured.",
+      "allProviders": "All carriers",
+      "createTitle": "New automated action",
+      "editTitle": "Edit automated action"
     },
     "credentials": {
-      "title": "Credentials",
-      "subtitle": "Secret references used by DholeAgentService. Real passwords are never stored in the frontend.",
-      "empty": "No credential references configured.",
-      "createTitle": "New credential",
-      "editTitle": "Edit credential",
+      "title": "Access credentials",
+      "subtitle": "Link each carrier to secret keys containing the username and password. DholeWeb never stores the real password.",
+      "empty": "No access credentials configured.",
+      "createTitle": "New access credential",
+      "editTitle": "Edit access credential",
       "secretNotice": "Enter only secret names or paths managed by infrastructure. Do not enter real usernames, passwords, JWTs, cookies or Bearer tokens.",
       "editSecretNotice": "The backend does not return previous secret references; enter the keys again to update."
     },
     "browserProfiles": {
-      "title": "Browser profiles",
-      "subtitle": "Persistent browser sessions used by DholeAgentService web automations.",
-      "empty": "No browser profiles configured.",
-      "createTitle": "Create browser profile",
-      "detailTitle": "Profile details",
-      "createAction": "Create profile"
+      "title": "Web sessions",
+      "subtitle": "Create one browser session per carrier and authenticate it so Hermes can reuse the login.",
+      "empty": "No web sessions configured.",
+      "createTitle": "New web session",
+      "detailTitle": "Session details",
+      "createAction": "Create session"
     },
     "schedules": {
       "title": "Schedules",
-      "subtitle": "Once, Interval and Cron automations for DholeAgentService.",
+      "subtitle": "Run an action once, at an interval, or with a Cron expression.",
       "empty": "No schedules configured.",
       "createTitle": "New schedule",
       "editTitle": "Edit schedule",
@@ -1476,8 +1484,8 @@
       "advancedMode": "Advanced mode"
     },
     "executions": {
-      "title": "Executions",
-      "subtitle": "AgentExecution history, status and control.",
+      "title": "History and results",
+      "subtitle": "Review each search, its status, errors, and extracted rates.",
       "allStatuses": "All statuses",
       "empty": "No executions match the selected filters.",
       "cancelTitle": "Cancel execution",
@@ -1574,6 +1582,30 @@
       "definition": "definition",
       "credential": "credential",
       "schedule": "schedule"
+    },
+    "guide": {
+      "title": "How to get Dhole Agent working",
+      "subtitle": "Follow these steps in order. Indicators complete automatically based on existing configuration.",
+      "done": "Done",
+      "pending": "Pending",
+      "open": "Open",
+      "optional": "Optional",
+      "providerTitle": "1. Configure the carrier or site",
+      "providerDescription": "Create Maersk, MSC, PIL, or another portal and set its URL and automation method.",
+      "credentialTitle": "2. Link access credentials",
+      "credentialDescription": "Store only the secret keys for username and password; never enter real credentials in DholeWeb.",
+      "profileTitle": "3. Create and authenticate the web session",
+      "profileDescription": "Create a browser profile and authenticate it. It should become Ready or Authenticated.",
+      "definitionTitle": "4. Define the automated action",
+      "definitionDescription": "For ocean rates use SearchOceanRates with Hermes as the execution engine.",
+      "testTitle": "5. Run a manual test",
+      "testDescription": "Run a search from this home screen and review it in History and results.",
+      "scheduleTitle": "6. Schedule automated searches",
+      "scheduleDescription": "Once the manual test works, schedule searches by interval, date, or Cron.",
+      "readyTitle": "Configuration ready to test",
+      "readyDescription": "A carrier, access credential, web session, and action already exist. You can run a manual extraction.",
+      "incompleteTitle": "Complete the configuration",
+      "incompleteDescription": "Some steps are still missing before a rate search can be automated."
     }
   }
 }

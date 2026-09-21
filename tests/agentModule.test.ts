@@ -158,3 +158,41 @@ test('Agent service uses centralized endpoints and never performs direct fetch c
     assert.ok(endpoints.includes(placeholder), `Missing endpoint placeholder: ${placeholder}`)
   }
 })
+
+
+test('Agent monitoring exposes both DholeAgentService and Hermes through gateway health', async () => {
+  const monitoring = await source('../src/core/services/monitoringService.ts')
+  assert.match(monitoring, /key: 'agent'/)
+  assert.match(monitoring, /buildGatewayHealthUrl\('agent'\)/)
+  assert.match(monitoring, /key: 'hermes'/)
+  assert.match(monitoring, /buildGatewayHealthUrl\('hermes'\)/)
+})
+
+test('Agent navigation follows the guided setup workflow', async () => {
+  const layout = await source('../src/shared/components/layouts/MainLayout.vue')
+  const dashboard = await source('../src/modules/agent/views/AgentDashboardView.vue')
+
+  const orderedRoutes = [
+    '/agents/providers',
+    '/agents/credentials',
+    '/agents/browser-profiles',
+    '/agents/definitions',
+    '/agents/schedules',
+    '/agents/executions',
+  ]
+  let previous = -1
+  for (const route of orderedRoutes) {
+    const index = layout.indexOf(route)
+    assert.ok(index > previous, `Agent sidebar route out of order: ${route}`)
+    previous = index
+  }
+
+  for (const key of [
+    'agent.guide.providerTitle',
+    'agent.guide.credentialTitle',
+    'agent.guide.profileTitle',
+    'agent.guide.definitionTitle',
+    'agent.guide.testTitle',
+    'agent.guide.scheduleTitle',
+  ]) assert.ok(dashboard.includes(key), `Missing guided setup key: ${key}`)
+})

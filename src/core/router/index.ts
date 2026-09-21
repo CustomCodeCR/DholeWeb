@@ -437,7 +437,7 @@ export const router = createRouter({
           name: 'agent-dashboard',
           component: () => import('@/modules/agent/views/AgentDashboardView.vue'),
           meta: {
-            tabTitle: 'Dhole Agent',
+            tabTitle: 'Automatización de navieras',
             closable: true,
             requiredAnyScopes: [
               VIEW_SCOPES.agentProviders,
@@ -453,43 +453,43 @@ export const router = createRouter({
           path: 'agents/providers',
           name: 'agent-providers',
           component: () => import('@/modules/agent/views/AgentProvidersView.vue'),
-          meta: { tabTitle: 'Agentes · Proveedores', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
+          meta: { tabTitle: 'Automatización · Navieras y sitios', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
         },
         {
           path: 'agents/definitions',
           name: 'agent-definitions',
           component: () => import('@/modules/agent/views/AgentDefinitionsView.vue'),
-          meta: { tabTitle: 'Agentes · Definiciones', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
+          meta: { tabTitle: 'Automatización · Acciones automáticas', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
         },
         {
           path: 'agents/credentials',
           name: 'agent-credentials',
           component: () => import('@/modules/agent/views/AgentCredentialsView.vue'),
-          meta: { tabTitle: 'Agentes · Credenciales', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
+          meta: { tabTitle: 'Automatización · Accesos', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
         },
         {
           path: 'agents/browser-profiles',
           name: 'agent-browser-profiles',
           component: () => import('@/modules/agent/views/AgentBrowserProfilesView.vue'),
-          meta: { tabTitle: 'Agentes · Perfiles', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
+          meta: { tabTitle: 'Automatización · Sesiones web', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
         },
         {
           path: 'agents/schedules',
           name: 'agent-schedules',
           component: () => import('@/modules/agent/views/AgentSchedulesView.vue'),
-          meta: { tabTitle: 'Agentes · Programaciones', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
+          meta: { tabTitle: 'Automatización · Programaciones', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
         },
         {
           path: 'agents/executions',
           name: 'agent-executions',
           component: () => import('@/modules/agent/views/AgentExecutionsView.vue'),
-          meta: { tabTitle: 'Agentes · Ejecuciones', closable: true, requiredScope: VIEW_SCOPES.agentExecutions },
+          meta: { tabTitle: 'Automatización · Historial y resultados', closable: true, requiredScope: VIEW_SCOPES.agentExecutions },
         },
         {
           path: 'agents/executions/:id',
           name: 'agent-execution-detail',
           component: () => import('@/modules/agent/views/AgentExecutionDetailView.vue'),
-          meta: { tabTitle: 'Agentes · Ejecución', closable: true, requiredScope: VIEW_SCOPES.agentExecutions },
+          meta: { tabTitle: 'Automatización · Resultado', closable: true, requiredScope: VIEW_SCOPES.agentExecutions },
         },
 
         {
