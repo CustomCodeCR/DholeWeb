@@ -485,3 +485,20 @@ test('Hermes prompt UI previews only through the backend contract', async () => 
   assert.equal(preview.toLowerCase().includes('password'), false)
   assert.equal(/\.replace\([^\n]*\{\{/.test(preview), false)
 })
+
+test('Execution detail uses tabs, real prompt snapshot and explicit backend-contract blockers', async () => {
+  const detail = await source('../src/modules/agent/views/AgentExecutionDetailView.vue')
+
+  for (const tab of ['summary', 'tasks', 'result', 'activity', 'prompt', 'captures', 'errors']) {
+    assert.ok(detail.includes(`key: '${tab}'`), `Missing execution detail tab: ${tab}`)
+  }
+
+  assert.match(detail, /AgentService\.executions\.getPrompt\(executionId\.value\)/)
+  assert.match(detail, /promptSnapshot\.promptSnapshot/)
+  assert.match(detail, /configurationSnapshotJson/)
+  assert.match(detail, /Feature blocked by backend contract: falta GET \/api\/agents\/executions\/\{id\}\/steps/)
+  assert.match(detail, /Feature blocked by backend contract: falta GET \/api\/agents\/executions\/\{id\}\/network-captures/)
+  assert.match(detail, /Route × Equipment/)
+  assert.equal(detail.includes('/api/agents/executions/{id}/result'), false)
+  assert.equal(detail.includes('/api/agents/executions/{id}/hermes') && detail.includes('AgentService.executions.hermes'), false)
+})
