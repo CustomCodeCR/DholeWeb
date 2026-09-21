@@ -4,8 +4,11 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   Activity,
+  ArrowRight,
   Bot,
   CalendarClock,
+  CheckCircle2,
+  Circle,
   CircleAlert,
   Play,
   RefreshCw,
@@ -84,6 +87,88 @@ const credentialOptions = computed(() => [
 const selectedDefinition = computed(() =>
   store.definitions.find((definition) => definition.id === manualForm.definitionId),
 )
+
+const setupSteps = computed(() => [
+  {
+    key: 'provider',
+    title: t('agent.guide.providerTitle'),
+    description: t('agent.guide.providerDescription'),
+    done: store.activeProviders.length > 0,
+    path: '/agents/providers',
+    manual: false,
+    optional: false,
+    canOpen: permissions.canViewProviders.value,
+  },
+  {
+    key: 'credential',
+    title: t('agent.guide.credentialTitle'),
+    description: t('agent.guide.credentialDescription'),
+    done: store.credentials.some((item) => item.isActive),
+    path: '/agents/credentials',
+    manual: false,
+    optional: false,
+    canOpen: permissions.canViewCredentials.value,
+  },
+  {
+    key: 'profile',
+    title: t('agent.guide.profileTitle'),
+    description: t('agent.guide.profileDescription'),
+    done: store.browserProfiles.some(
+      (item) => item.isActive && (item.status === 'Ready' || item.status === 'Authenticated'),
+    ),
+    path: '/agents/browser-profiles',
+    manual: false,
+    optional: false,
+    canOpen: permissions.canViewBrowserProfiles.value,
+  },
+  {
+    key: 'definition',
+    title: t('agent.guide.definitionTitle'),
+    description: t('agent.guide.definitionDescription'),
+    done: store.definitions.some((item) => item.isActive),
+    path: '/agents/definitions',
+    manual: false,
+    optional: false,
+    canOpen: permissions.canViewDefinitions.value,
+  },
+  {
+    key: 'test',
+    title: t('agent.guide.testTitle'),
+    description: t('agent.guide.testDescription'),
+    done: store.executions.length > 0,
+    path: '',
+    manual: true,
+    optional: false,
+    canOpen: permissions.canCreateExecutions.value,
+  },
+  {
+    key: 'schedule',
+    title: t('agent.guide.scheduleTitle'),
+    description: t('agent.guide.scheduleDescription'),
+    done: store.activeSchedules.length > 0,
+    path: '/agents/schedules',
+    manual: false,
+    optional: true,
+    canOpen: permissions.canCreateSchedules.value || permissions.canViewSchedules.value,
+  },
+])
+
+const readyToTest = computed(() =>
+  setupSteps.value
+    .filter((step) => ['provider', 'credential', 'profile', 'definition'].includes(step.key))
+    .every((step) => step.done),
+)
+
+function openSetupStep(step: (typeof setupSteps.value)[number]) {
+  if (step.manual) {
+    openManual()
+    return
+  }
+
+  if (step.path) {
+    void router.push(step.path)
+  }
+}
 
 watch(
   () => manualForm.providerId,
@@ -235,6 +320,74 @@ onMounted(() => {
         </p>
       </div>
     </section>
+
+    <DhCard :title="t('agent.guide.title')" :subtitle="t('agent.guide.subtitle')">
+      <div
+        class="mb-4 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-4"
+      >
+        <div class="flex items-start gap-3">
+          <component
+            :is="readyToTest ? CheckCircle2 : CircleAlert"
+            class="mt-0.5 h-5 w-5 shrink-0"
+            :class="readyToTest ? 'text-green-500' : 'text-amber-500'"
+          />
+          <div class="min-w-0">
+            <p class="font-black text-[var(--dh-text)]">
+              {{ readyToTest ? t('agent.guide.readyTitle') : t('agent.guide.incompleteTitle') }}
+            </p>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+              {{
+                readyToTest
+                  ? t('agent.guide.readyDescription')
+                  : t('agent.guide.incompleteDescription')
+              }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-3 lg:grid-cols-2">
+        <article
+          v-for="step in setupSteps"
+          :key="step.key"
+          class="flex min-w-0 items-start gap-3 rounded-[20px] border border-[var(--dh-border)] p-4"
+        >
+          <component
+            :is="step.done ? CheckCircle2 : Circle"
+            class="mt-0.5 h-5 w-5 shrink-0"
+            :class="step.done ? 'text-green-500' : 'text-[var(--dh-text-muted)]'"
+          />
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <p class="font-black text-[var(--dh-text)]">{{ step.title }}</p>
+              <span
+                class="rounded-full border border-[var(--dh-border)] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]"
+              >
+                {{
+                  step.optional
+                    ? t('agent.guide.optional')
+                    : step.done
+                      ? t('agent.guide.done')
+                      : t('agent.guide.pending')
+                }}
+              </span>
+            </div>
+            <p class="mt-1 text-sm font-semibold leading-6 text-[var(--dh-text-muted)]">
+              {{ step.description }}
+            </p>
+            <DhButton
+              v-if="step.canOpen"
+              class="mt-3"
+              :label="t('agent.guide.open')"
+              :icon="ArrowRight"
+              variant="ghost"
+              size="sm"
+              @click="openSetupStep(step)"
+            />
+          </div>
+        </article>
+      </div>
+    </DhCard>
 
     <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <AgentMetricCard
