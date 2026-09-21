@@ -467,3 +467,21 @@ test('Extraction field UI maps the real field contract and CRUD service', async 
   assert.match(table, /overflow-x-auto/)
   assert.equal(form.includes('Cargar campos recomendados de Maersk'), false)
 })
+
+
+test('Hermes prompt UI previews only through the backend contract', async () => {
+  const editor = await source('../src/modules/agent/components/prompt/AgentPromptEditor.vue')
+  const preview = await source('../src/modules/agent/components/prompt/AgentPromptPreview.vue')
+
+  assert.match(editor, /Feature blocked by backend contract/)
+  assert.equal(editor.includes('AgentService.profiles.update'), false)
+  assert.equal(editor.toLowerCase().includes('password'), false)
+
+  assert.match(preview, /AgentService\.prompts\.preview\(props\.profileId/)
+  assert.match(preview, /cargoReadyDate/)
+  assert.match(preview, /executionId/)
+  assert.match(preview, /availableVariables/)
+  assert.equal(preview.includes('{{providerName}}'), false)
+  assert.equal(preview.toLowerCase().includes('password'), false)
+  assert.equal(/\.replace\([^\n]*\{\{/.test(preview), false)
+})
