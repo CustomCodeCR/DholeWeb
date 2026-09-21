@@ -173,7 +173,7 @@ async function createManualExecution() {
     await router.push(`/agents/executions/${id}`)
   } catch (error) {
     if (error instanceof Error && !('status' in error)) {
-      toastStore.warning('Revise la extracción', error.message)
+      toastStore.warning(t('agent.review.extraction'), error.message)
     } else {
       toastStore.backendError(error, t('agent.errors.createExecution'))
     }
