@@ -407,3 +407,32 @@ test('Extraction equipment UI maps the real equipment contract and CRUD service'
   assert.match(table, /overflow-x-auto/)
   assert.match(table, /DhDataTable/)
 })
+
+
+test('Capture rule UI maps the real capture contract and test endpoint', async () => {
+  const form = await source('../src/modules/agent/components/captures/AgentCaptureRuleForm.vue')
+  const table = await source('../src/modules/agent/components/captures/AgentCaptureRulesTable.vue')
+
+  for (const field of [
+    'httpMethod',
+    'urlPattern',
+    'matchType',
+    'contentType',
+    'captureRequest',
+    'captureResponse',
+    'isRequired',
+    'timeoutSeconds',
+    'isActive',
+    'sortOrder',
+  ]) {
+    assert.ok(form.includes(field), `Missing capture field: ${field}`)
+  }
+
+  assert.match(form, /AgentService\.captures\.create\(props\.profileId, payload\)/)
+  assert.match(form, /AgentService\.captures\.update\(props\.profileId, props\.capture\.id, payload\)/)
+  assert.match(form, /AgentService\.captures\.test\(props\.profileId, props\.capture\.id/)
+  assert.match(form, /Coincide ✓/)
+  assert.match(form, /No coincide/)
+  assert.match(table, /AgentEndpointCaptureDto/)
+  assert.match(table, /overflow-x-auto/)
+})
