@@ -1,5 +1,10 @@
 import type { RequestOptions } from '@/core/api/interfaces/requestOptions'
 import {
+  clearTransientAccessToken,
+  getTransientAccessToken,
+  hasTransientAccessToken,
+} from '@/core/auth/transientSession'
+import {
   ApiError,
   MissingParameterError,
   NetworkError,
@@ -61,7 +66,7 @@ function isJsonContentType(contentType: string): boolean {
 }
 
 function getAccessToken(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.accessToken)
+  return getTransientAccessToken() ?? localStorage.getItem(STORAGE_KEYS.accessToken)
 }
 
 function getRefreshToken(): string | null {
@@ -129,7 +134,9 @@ function isRefreshExpired(): boolean {
 }
 
 function isAuthEndpoint(endpoint: string): boolean {
-  return endpoint === '/api/auth/login' || endpoint === '/api/auth/refresh'
+  return endpoint === '/api/auth/login'
+    || endpoint === '/api/auth/refresh'
+    || endpoint.startsWith('/api/auth/impersonation')
 }
 
 function clearStoredSession() {
@@ -138,6 +145,10 @@ function clearStoredSession() {
 
 function emitSessionExpired() {
   window.dispatchEvent(new CustomEvent('dhole:auth:expired'))
+}
+
+function emitImpersonationExpired() {
+  window.dispatchEvent(new CustomEvent('dhole:auth:impersonation-expired'))
 }
 
 function isMutationMethod(method: RequestOptions['method']): boolean {
@@ -251,6 +262,12 @@ async function getUsableAccessToken(endpoint: string): Promise<string | null> {
   const token = getAccessToken()
 
   if (isAuthEndpoint(endpoint)) return token
+
+  // Impersonation tokens are intentionally non-refreshable. Never replace one
+  // silently with the administrator token because that could execute an action
+  // with broader privileges than the screen currently represents.
+  if (hasTransientAccessToken()) return token
+
   if (!isTokenExpiredOrClose(token)) return token
 
   const refreshed = await refreshStoredSession()
