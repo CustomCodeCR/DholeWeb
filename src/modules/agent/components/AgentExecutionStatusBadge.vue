@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { DhBadge } from '@/shared/components/atoms'
 import type { AgentExecutionStatus } from '@/core/interfaces/agent'
 
 const props = defineProps<{ status: AgentExecutionStatus | string }>()
+const { t } = useI18n()
 
 const variant = computed<'primary' | 'success' | 'warning' | 'danger' | 'neutral'>(() => {
   if (props.status === 'Completed') return 'success'
@@ -15,18 +17,9 @@ const variant = computed<'primary' | 'success' | 'warning' | 'danger' | 'neutral
 })
 
 const label = computed(() => {
-  const labels: Record<string, string> = {
-    Pending: 'Pendiente',
-    Queued: 'En cola',
-    Running: 'Ejecutando',
-    WaitingForAuthentication: 'Esperando autenticación',
-    Completed: 'Completada',
-    PartiallyCompleted: 'Parcial',
-    Failed: 'Fallida',
-    Cancelled: 'Cancelada',
-  }
-
-  return labels[props.status] ?? props.status
+  const key = `agent.status.${props.status}`
+  const translated = t(key)
+  return translated === key ? props.status : translated
 })
 </script>
 

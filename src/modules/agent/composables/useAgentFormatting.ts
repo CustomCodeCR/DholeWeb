@@ -1,10 +1,13 @@
+import { useI18n } from 'vue-i18n'
+
 export function useAgentFormatting() {
+  const { locale } = useI18n()
   function formatDate(value: string | null | undefined): string {
     if (!value) return '—'
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value
 
-    return new Intl.DateTimeFormat('es-CR', {
+    return new Intl.DateTimeFormat(locale.value.startsWith('en') ? 'en-US' : 'es-CR', {
       dateStyle: 'short',
       timeStyle: 'short',
     }).format(date)

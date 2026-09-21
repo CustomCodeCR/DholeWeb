@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { DhBadge } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import AgentJsonViewer from './AgentJsonViewer.vue'
+
+const { t } = useI18n()
 
 const props = defineProps<{ value: string | unknown | null | undefined }>()
 
@@ -48,13 +51,13 @@ function get(obj: Record<string, unknown> | null, ...keys: string[]) {
 const rows = computed(() => [
   ['ETD', get(rate.value, 'etd')],
   ['ETA', get(rate.value, 'eta')],
-  ['Transit Days', get(rate.value, 'transitDays', 'transitTime')],
+  [t('agent.rateResult.transitDays'), get(rate.value, 'transitDays', 'transitTime')],
   ['Vessel', get(rate.value, 'vessel')],
   ['Voyage', get(rate.value, 'voyage')],
-  ['Ocean Freight', get(rate.value, 'oceanFreight', 'price')],
-  ['All In', get(rate.value, 'allIn')],
+  [t('agent.rateResult.oceanFreight'), get(rate.value, 'oceanFreight', 'price')],
+  [t('agent.rateResult.allIn'), get(rate.value, 'allIn')],
   ['Currency', get(rate.value, 'currency')],
-  ['Availability', get(rate.value, 'availability')],
+  [t('agent.rateResult.availability'), get(rate.value, 'availability')],
 ])
 
 const legs = computed(() => {
@@ -70,7 +73,7 @@ const charges = computed(() => {
 
 <template>
   <div v-if="rate" class="grid gap-4">
-    <DhCard title="Resultado Ocean Freight">
+    <DhCard :title="t('agent.rateResult.title')">
       <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div v-for="[label, value] in rows" :key="String(label)" class="rounded-[18px] border border-[var(--dh-border)] p-3">
           <dt class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ label }}</dt>
@@ -79,7 +82,7 @@ const charges = computed(() => {
       </dl>
     </DhCard>
 
-    <DhCard v-if="legs.length" title="Legs">
+    <DhCard v-if="legs.length" :title="t('agent.rateResult.legs')">
       <div class="grid gap-3">
         <div v-for="(leg, index) in legs" :key="index" class="rounded-[18px] border border-[var(--dh-border)] p-3">
           <AgentJsonViewer :value="leg" />
@@ -87,11 +90,11 @@ const charges = computed(() => {
       </div>
     </DhCard>
 
-    <DhCard v-if="charges.length" title="Charges">
+    <DhCard v-if="charges.length" :title="t('agent.rateResult.charges')">
       <div class="grid gap-2">
         <div v-for="(charge, index) in charges" :key="index" class="flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-[var(--dh-border)] p-3">
           <span class="min-w-0 break-words text-sm font-semibold text-[var(--dh-text)]">
-            {{ get(readObject(charge), 'name', 'description', 'charge') ?? `Cargo ${index + 1}` }}
+            {{ get(readObject(charge), 'name', 'description', 'charge') ?? t('agent.rateResult.chargeFallback', { index: index + 1 }) }}
           </span>
           <DhBadge
             :label="String(get(readObject(charge), 'amount', 'value') ?? '—')"

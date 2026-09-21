@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   Activity,
@@ -22,6 +23,7 @@ import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermiss
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
 
 const router = useRouter()
+const { t } = useI18n()
 const toastStore = useToastStore()
 const store = useAgentStore()
 const permissions = useAgentPermissions()
@@ -73,7 +75,7 @@ const definitionOptions = computed(() =>
 )
 
 const credentialOptions = computed(() => [
-  { label: 'Sin credencial', value: '' },
+  { label: t('agent.schedules.noCredential'), value: '' },
   ...store.credentials
     .filter((credential) => credential.providerId === manualForm.providerId && credential.isActive)
     .map((credential) => ({ label: credential.name, value: credential.id })),
@@ -106,12 +108,12 @@ function buildManualInputJson() {
   const quantity = Number(manualForm.quantity)
   const weightKg = Number(manualForm.weightKg)
 
-  if (!manualForm.pol.trim()) throw new Error('POL es obligatorio.')
-  if (!manualForm.pod.trim()) throw new Error('POD es obligatorio.')
-  if (!manualForm.containerType.trim()) throw new Error('Container Type es obligatorio.')
-  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Quantity debe ser mayor que cero.')
-  if (!Number.isFinite(weightKg) || weightKg <= 0) throw new Error('Weight Kg debe ser mayor que cero.')
-  if (!manualForm.cargoReadyDate) throw new Error('Cargo Ready Date es obligatorio.')
+  if (!manualForm.pol.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.pol') }))
+  if (!manualForm.pod.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.pod') }))
+  if (!manualForm.containerType.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.containerType') }))
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error(t('agent.validation.positive', { field: t('agent.fields.quantity') }))
+  if (!Number.isFinite(weightKg) || weightKg <= 0) throw new Error(t('agent.validation.positive', { field: t('agent.fields.weightKg') }))
+  if (!manualForm.cargoReadyDate) throw new Error(t('agent.validation.required', { field: t('agent.fields.cargoReadyDate') }))
 
   return JSON.stringify({
     pol: manualForm.pol.trim(),
@@ -130,9 +132,9 @@ async function refresh(showToast = false) {
   if (showToast) {
     const rejected = results.filter((result) => result.status === 'rejected').length
     if (rejected) {
-      toastStore.warning('Actualización parcial', 'Algunas fuentes no pudieron actualizarse.')
+      toastStore.warning(t('agent.messages.partialRefresh'), t('agent.messages.partialRefreshDescription'))
     } else {
-      toastStore.success('Dhole Agent actualizado')
+      toastStore.success(t('agent.messages.refreshed'))
     }
   }
   if (!manualForm.providerId) resetManualDefaults()
@@ -142,14 +144,14 @@ async function createManualExecution() {
   if (submitting.value) return
 
   try {
-    if (!manualForm.providerId) throw new Error('Seleccione un provider.')
-    if (!manualForm.definitionId) throw new Error('Seleccione una definición.')
+    if (!manualForm.providerId) throw new Error(t('agent.validation.required', { field: t('agent.fields.provider') }))
+    if (!manualForm.definitionId) throw new Error(t('agent.validation.required', { field: t('agent.fields.definition') }))
 
     const priority = Number(manualForm.priority)
     const maxAttempts = Number(manualForm.maxAttempts)
-    if (!Number.isInteger(priority) || priority < 0) throw new Error('Priority debe ser 0 o mayor.')
+    if (!Number.isInteger(priority) || priority < 0) throw new Error(t('agent.validation.nonNegativeInteger', { field: t('agent.fields.priority') }))
     if (!Number.isInteger(maxAttempts) || maxAttempts <= 0) {
-      throw new Error('Max Attempts debe ser mayor que cero.')
+      throw new Error(t('agent.validation.positive', { field: t('agent.fields.maxAttempts') }))
     }
 
     const inputJson = buildManualInputJson()
@@ -167,13 +169,13 @@ async function createManualExecution() {
     })
 
     manualOpen.value = false
-    toastStore.success('Ejecución creada', 'La extracción fue enviada a DholeAgentService.')
+    toastStore.success(t('agent.messages.executionCreated'), t('agent.messages.executionCreatedDescription'))
     await router.push(`/agents/executions/${id}`)
   } catch (error) {
     if (error instanceof Error && !('status' in error)) {
-      toastStore.warning('Revise la extracción', error.message)
+      toastStore.warning(t('agent.review.extraction'), error.message)
     } else {
-      toastStore.backendError(error, 'No se pudo crear la ejecución.')
+      toastStore.backendError(error, t('agent.errors.createExecution'))
     }
   } finally {
     submitting.value = false
@@ -193,13 +195,13 @@ onMounted(() => {
 <template>
   <div class="grid min-w-0 gap-6">
     <DhPageHeader
-      title="Dhole Agent"
-      subtitle="Operación, automatización y extracciones de DholeAgentService."
+      :title="t('agent.title')"
+      :subtitle="t('agent.subtitle')"
       :icon="Bot"
     >
       <template #actions>
         <DhButton
-          label="Actualizar"
+          :label="t('agent.actions.refresh')"
           :icon="RefreshCw"
           variant="secondary"
           :loading="store.loading"
@@ -207,14 +209,14 @@ onMounted(() => {
         />
         <DhButton
           v-if="permissions.canCreateSchedules.value"
-          label="Nueva programación"
+          :label="t('agent.actions.newSchedule')"
           :icon="CalendarClock"
           variant="secondary"
           @click="router.push('/agents/schedules')"
         />
         <DhButton
           v-if="permissions.canCreateExecutions.value"
-          label="Nueva extracción"
+          :label="t('agent.actions.newExtraction')"
           :icon="Play"
           @click="openManual"
         />
@@ -227,49 +229,49 @@ onMounted(() => {
     >
       <CircleAlert class="mt-0.5 h-5 w-5 shrink-0" />
       <div class="min-w-0">
-        <p class="font-black">DholeAgentService Offline</p>
+        <p class="font-black">{{ t('agent.serviceOffline') }}</p>
         <p class="mt-1 text-sm font-semibold">
-          No fue posible confirmar el health del servicio. Los datos visibles pueden estar desactualizados.
+          {{ t('agent.serviceOfflineDescription') }}
         </p>
       </div>
     </section>
 
     <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <AgentMetricCard
-        label="Estado DholeAgentService"
-        :value="store.serviceOnline ? 'Online' : 'Offline'"
+        :label="t('agent.dashboard.serviceStatus')"
+        :value="store.serviceOnline ? t('agent.online') : t('agent.offline')"
         :icon="Activity"
-        :description="store.lastRefreshAt ? `Actualizado ${formatDate(store.lastRefreshAt.toISOString())}` : 'Sin actualizar'"
+        :description="store.lastRefreshAt ? t('agent.dashboard.updatedAt', { date: formatDate(store.lastRefreshAt.toISOString()) }) : t('agent.dashboard.notUpdated')"
       />
       <AgentMetricCard
-        label="Providers activos"
+        :label="t('agent.dashboard.activeProviders')"
         :value="store.activeProviders.length"
         :icon="Ship"
       />
       <AgentMetricCard
-        label="Programaciones activas"
+        :label="t('agent.dashboard.activeSchedules')"
         :value="store.activeSchedules.length"
         :icon="CalendarClock"
       />
       <AgentMetricCard
-        label="Ejecuciones en proceso"
+        :label="t('agent.dashboard.runningExecutions')"
         :value="store.runningExecutions.length"
         :icon="Activity"
       />
       <AgentMetricCard
-        label="Ejecuciones fallidas"
+        :label="t('agent.dashboard.failedExecutions')"
         :value="store.failedExecutions.length"
         :icon="CircleAlert"
       />
       <AgentMetricCard
-        label="Próxima ejecución"
+        :label="t('agent.dashboard.nextExecution')"
         :value="store.nextSchedule?.nextExecutionAt ? formatDate(store.nextSchedule.nextExecutionAt) : '—'"
         :icon="CalendarClock"
         :description="store.nextSchedule?.name"
       />
     </section>
 
-    <DhCard v-if="permissions.canViewExecutions.value" title="Ejecuciones recientes" subtitle="Últimas ejecuciones conocidas por el frontend.">
+    <DhCard v-if="permissions.canViewExecutions.value" :title="t('agent.dashboard.recentExecutions')" :subtitle="t('agent.dashboard.recentExecutionsDescription')">
       <div v-if="store.executions.length" class="grid gap-2">
         <button
           v-for="execution in store.executions.slice(0, 6)"
@@ -285,63 +287,63 @@ onMounted(() => {
           <AgentExecutionStatusBadge :status="execution.status" />
         </button>
       </div>
-      <p v-else class="py-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]">No hay ejecuciones disponibles.</p>
+      <p v-else class="py-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('agent.dashboard.noExecutions') }}</p>
     </DhCard>
 
-    <DhModal :open="manualOpen" title="Nueva extracción manual" size="lg" @close="manualOpen = false">
+    <DhModal :open="manualOpen" :title="t('agent.dashboard.manualTitle')" size="lg" @close="manualOpen = false">
       <form class="grid gap-4" @submit.prevent="createManualExecution">
         <div class="grid gap-4 md:grid-cols-2">
           <DhSelect
             v-model="manualForm.providerId"
-            label="Provider"
+            :label="t('agent.fields.provider')"
             :options="providerOptions"
             :disabled="submitting"
           />
           <DhSelect
             v-model="manualForm.definitionId"
-            label="Definition"
+            :label="t('agent.fields.definition')"
             :options="definitionOptions"
             :disabled="submitting || !manualForm.providerId"
           />
           <DhSelect
             v-model="manualForm.credentialId"
-            label="Credential opcional"
+            :label="t('agent.fields.credential')"
             :options="credentialOptions"
             placeholder=""
             :disabled="submitting || !manualForm.providerId"
           />
           <div class="rounded-[18px] border border-[var(--dh-border)] p-3">
-            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Action Type</p>
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('agent.fields.actionType') }}</p>
             <p class="mt-1 text-sm font-bold text-[var(--dh-text)]">{{ selectedDefinition?.actionType ?? '—' }}</p>
           </div>
-          <DhInput v-model="manualForm.pol" label="POL" :disabled="submitting" />
-          <DhInput v-model="manualForm.pod" label="POD" :disabled="submitting" />
-          <DhInput v-model="manualForm.containerType" label="Container Type" :disabled="submitting" />
-          <DhInput v-model="manualForm.quantity" label="Quantity" type="number" :disabled="submitting" />
-          <DhInput v-model="manualForm.weightKg" label="Weight Kg" type="number" :disabled="submitting" />
-          <DhInput v-model="manualForm.commodity" label="Commodity" :disabled="submitting" />
-          <DhInput v-model="manualForm.cargoReadyDate" label="Cargo Ready Date" type="date" :disabled="submitting" />
-          <DhInput v-model="manualForm.priority" label="Priority" type="number" :disabled="submitting" />
-          <DhInput v-model="manualForm.maxAttempts" label="Max Attempts" type="number" :disabled="submitting" />
+          <DhInput v-model="manualForm.pol" :label="t('agent.fields.pol')" :disabled="submitting" />
+          <DhInput v-model="manualForm.pod" :label="t('agent.fields.pod')" :disabled="submitting" />
+          <DhInput v-model="manualForm.containerType" :label="t('agent.fields.containerType')" :disabled="submitting" />
+          <DhInput v-model="manualForm.quantity" :label="t('agent.fields.quantity')" type="number" :disabled="submitting" />
+          <DhInput v-model="manualForm.weightKg" :label="t('agent.fields.weightKg')" type="number" :disabled="submitting" />
+          <DhInput v-model="manualForm.commodity" :label="t('agent.fields.commodity')" :disabled="submitting" />
+          <DhInput v-model="manualForm.cargoReadyDate" :label="t('agent.fields.cargoReadyDate')" type="date" :disabled="submitting" />
+          <DhInput v-model="manualForm.priority" :label="t('agent.fields.priority')" type="number" :disabled="submitting" />
+          <DhInput v-model="manualForm.maxAttempts" :label="t('agent.fields.maxAttempts')" type="number" :disabled="submitting" />
         </div>
 
         <DhTextarea
           v-model="manualForm.instruction"
-          label="Instruction opcional"
+          :label="t('agent.fields.instruction')"
           :rows="4"
           :disabled="submitting"
         />
 
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <DhButton
-            label="Cancelar"
+            :label="t('agent.actions.cancel')"
             variant="secondary"
             :disabled="submitting"
             @click="manualOpen = false"
           />
           <DhButton
             type="submit"
-            label="Crear ejecución"
+            :label="t('agent.dashboard.createExecution')"
             :icon="Play"
             :loading="submitting"
           />

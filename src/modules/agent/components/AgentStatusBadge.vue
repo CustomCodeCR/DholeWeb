@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { DhBadge } from '@/shared/components/atoms'
 
-const props = withDefaults(
-  defineProps<{
-    active: boolean
-    activeLabel?: string
-    inactiveLabel?: string
-  }>(),
-  {
-    activeLabel: 'Activo',
-    inactiveLabel: 'Inactivo',
-  },
-)
+const props = defineProps<{
+  active: boolean
+  activeLabel?: string
+  inactiveLabel?: string
+}>()
 
-const label = computed(() => (props.active ? props.activeLabel : props.inactiveLabel))
+const { t } = useI18n()
+const label = computed(() =>
+  props.active
+    ? props.activeLabel ?? t('agent.status.active')
+    : props.inactiveLabel ?? t('agent.status.inactive'),
+)
 </script>
 
 <template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Pencil, Plus, Power, RefreshCw, Ship } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
@@ -21,6 +22,7 @@ import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermiss
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
 
 const router = useRouter()
+const { t } = useI18n()
 const store = useAgentStore()
 const toastStore = useToastStore()
 const permissions = useAgentPermissions()
@@ -43,15 +45,15 @@ const form = reactive({
 })
 
 const columns: DhTableColumn<AgentProviderDto>[] = [
-  { key: 'name', label: 'Nombre' },
-  { key: 'code', label: 'Código' },
-  { key: 'providerType', label: 'Tipo' },
-  { key: 'baseUrl', label: 'Base URL' },
-  { key: 'defaultExecutionStrategy', label: 'Estrategia' },
-  { key: 'isActive', label: 'Estado', align: 'center' },
-  { key: 'isSystem', label: 'Sistema', align: 'center' },
-  { key: 'updatedAtUtc', label: 'Actualizado' },
-  { key: 'actions', label: 'Acciones', align: 'right' },
+  { key: 'name', label: t('agent.fields.name') },
+  { key: 'code', label: t('agent.fields.code') },
+  { key: 'providerType', label: t('agent.fields.providerType') },
+  { key: 'baseUrl', label: t('agent.fields.baseUrl') },
+  { key: 'defaultExecutionStrategy', label: t('agent.fields.strategy') },
+  { key: 'isActive', label: t('agent.fields.status'), align: 'center' },
+  { key: 'isSystem', label: t('agent.fields.system'), align: 'center' },
+  { key: 'updatedAtUtc', label: t('agent.fields.updated'), },
+  { key: 'actions', label: t('common.actions'), align: 'right' },
 ]
 
 const providerTypeOptions = AGENT_PROVIDER_TYPES.map((value) => ({
@@ -66,13 +68,13 @@ const providerTypeOptions = AGENT_PROVIDER_TYPES.map((value) => ({
           : value === 'HapagLloyd'
             ? 'Hapag-Lloyd'
             : value === 'GenericWeb'
-              ? 'Web genérica'
+              ? t('agent.providers.genericWeb')
               : value,
 }))
 
 const strategyOptions = AGENT_EXECUTION_STRATEGIES.map((value) => ({ value, label: value }))
 
-const title = computed(() => (editingId.value ? 'Editar provider' : 'Nuevo provider'))
+const title = computed(() => (editingId.value ? t('agent.providers.editTitle') : t('agent.providers.createTitle')))
 
 function resetForm() {
   editingId.value = null
@@ -92,7 +94,7 @@ function validateJson(value: string, label: string): string | null {
     JSON.parse(trimmed)
     return trimmed
   } catch {
-    throw new Error(`${label} debe contener JSON válido.`)
+    throw new Error(t('agent.validation.validJson', { field: label }))
   }
 }
 
@@ -114,7 +116,7 @@ async function openEdit(row: AgentProviderDto) {
     form.isSystem = provider.isSystem
     modalOpen.value = true
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo cargar el provider.')
+    toastStore.backendError(error, t('agent.errors.loadProvider'))
   }
 }
 
@@ -122,10 +124,10 @@ async function save() {
   if (saving.value) return
 
   try {
-    if (!form.code.trim()) throw new Error('Code es obligatorio.')
-    if (!form.name.trim()) throw new Error('Name es obligatorio.')
-    if (!form.providerType) throw new Error('Provider Type es obligatorio.')
-    if (!form.defaultExecutionStrategy) throw new Error('Execution Strategy es obligatorio.')
+    if (!form.code.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.code') }))
+    if (!form.name.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.name') }))
+    if (!form.providerType) throw new Error(t('agent.validation.required', { field: t('agent.fields.providerType') }))
+    if (!form.defaultExecutionStrategy) throw new Error(t('agent.validation.required', { field: t('agent.fields.executionStrategy') }))
 
     const metadataJson = validateJson(form.metadataJson, 'MetadataJson')
     saving.value = true
@@ -138,7 +140,7 @@ async function save() {
         defaultExecutionStrategy: form.defaultExecutionStrategy,
         metadataJson,
       })
-      toastStore.success('Provider actualizado')
+      toastStore.success(t('agent.messages.providerUpdated'))
     } else {
       await AgentService.createProvider({
         code: form.code.trim(),
@@ -149,16 +151,16 @@ async function save() {
         metadataJson,
         isSystem: form.isSystem,
       })
-      toastStore.success('Provider creado')
+      toastStore.success(t('agent.messages.providerCreated'))
     }
 
     modalOpen.value = false
     await store.loadProviders()
   } catch (error) {
     if (error instanceof Error && !('status' in error)) {
-      toastStore.warning('Revise el provider', error.message)
+      toastStore.warning(t('agent.review.provider'), error.message)
     } else {
-      toastStore.backendError(error, 'No se pudo guardar el provider.')
+      toastStore.backendError(error, t('agent.errors.saveProvider'))
     }
   } finally {
     saving.value = false
@@ -175,7 +177,7 @@ async function confirmToggle() {
   if (!row) return
 
   await AgentService.setProviderActive(row.id, !row.isActive)
-  toastStore.success(row.isActive ? 'Provider desactivado' : 'Provider activado')
+  toastStore.success(t('agent.messages.stateUpdated'))
   confirmOpen.value = false
   pendingToggle.value = null
   await store.loadProviders()
@@ -185,33 +187,33 @@ onMounted(async () => {
   try {
     await store.loadProviders()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron cargar los providers.')
+    toastStore.backendError(error, t('agent.errors.loadProviders'))
   }
 })
 </script>
 
 <template>
   <div class="grid min-w-0 gap-6">
-    <DhPageHeader title="Proveedores" subtitle="Providers genéricos para Maersk y futuras navieras." :icon="Ship">
+    <DhPageHeader :title="t('agent.providers.title')" :subtitle="t('agent.providers.subtitle')" :icon="Ship">
       <template #actions>
-        <DhButton label="Actualizar" :icon="RefreshCw" variant="secondary" :loading="store.loading" @click="store.loadProviders()" />
-        <DhButton v-if="permissions.canManageProviders.value" label="Crear" :icon="Plus" @click="openCreate" />
+        <DhButton :label="t('agent.actions.refresh')" :icon="RefreshCw" variant="secondary" :loading="store.loading" @click="store.loadProviders()" />
+        <DhButton v-if="permissions.canManageProviders.value" :label="t('agent.actions.create')" :icon="Plus" @click="openCreate" />
       </template>
     </DhPageHeader>
 
-    <DhDataTable :columns="columns" :rows="store.providers" :loading="store.loading" empty-text="No hay providers configurados.">
+    <DhDataTable :columns="columns" :rows="store.providers" :loading="store.loading" :empty-text="t('agent.providers.empty')">
       <template #cell-providerType="{ row }"><AgentProviderBadge :provider-type="row.providerType" /></template>
       <template #cell-baseUrl="{ row }"><span class="break-all">{{ row.baseUrl || '—' }}</span></template>
       <template #cell-isActive="{ row }"><AgentStatusBadge :active="row.isActive" /></template>
-      <template #cell-isSystem="{ row }">{{ row.isSystem ? 'Sí' : 'No' }}</template>
+      <template #cell-isSystem="{ row }">{{ row.isSystem ? t('common.yes') : t('common.no') }}</template>
       <template #cell-updatedAtUtc="{ row }">{{ formatDate(row.updatedAtUtc ?? row.createdAtUtc) }}</template>
       <template #cell-actions="{ row }">
         <div class="flex flex-wrap justify-end gap-2" @click.stop>
-          <DhButton label="Definiciones" variant="ghost" size="sm" @click="router.push({ path: '/agents/definitions', query: { providerId: row.id } })" />
-          <DhButton v-if="permissions.canManageProviders.value" label="Editar" :icon="Pencil" variant="secondary" size="sm" @click="openEdit(row)" />
+          <DhButton :label="t('agent.providers.definitions')" variant="ghost" size="sm" @click="router.push({ path: '/agents/definitions', query: { providerId: row.id } })" />
+          <DhButton v-if="permissions.canManageProviders.value" :label="t('agent.actions.edit')" :icon="Pencil" variant="secondary" size="sm" @click="openEdit(row)" />
           <DhButton
             v-if="permissions.canManageProviders.value"
-            :label="row.isActive ? 'Desactivar' : 'Activar'"
+            :label="row.isActive ? t('agent.actions.deactivate') : t('agent.actions.activate')"
             :icon="Power"
             :variant="row.isActive ? 'danger' : 'secondary'"
             size="sm"
@@ -224,30 +226,30 @@ onMounted(async () => {
     <DhModal :open="modalOpen" :title="title" size="lg" @close="modalOpen = false">
       <form class="grid gap-4" @submit.prevent="save">
         <div class="grid gap-4 md:grid-cols-2">
-          <DhInput v-model="form.code" label="Code" :disabled="saving || Boolean(editingId)" />
-          <DhInput v-model="form.name" label="Name" :disabled="saving" />
-          <DhSelect v-model="form.providerType" label="Provider Type" :options="providerTypeOptions" :disabled="saving" />
-          <DhSelect v-model="form.defaultExecutionStrategy" label="Execution Strategy" :options="strategyOptions" :disabled="saving" />
+          <DhInput v-model="form.code" :label="t('agent.fields.code')" :disabled="saving || Boolean(editingId)" />
+          <DhInput v-model="form.name" :label="t('agent.fields.name')" :disabled="saving" />
+          <DhSelect v-model="form.providerType" :label="t('agent.fields.providerType')" :options="providerTypeOptions" :disabled="saving" />
+          <DhSelect v-model="form.defaultExecutionStrategy" :label="t('agent.fields.executionStrategy')" :options="strategyOptions" :disabled="saving" />
           <div class="md:col-span-2">
-            <DhInput v-model="form.baseUrl" label="Base URL" placeholder="https://..." :disabled="saving" />
+            <DhInput v-model="form.baseUrl" :label="t('agent.fields.baseUrl')" placeholder="https://..." :disabled="saving" />
           </div>
         </div>
-        <DhTextarea v-model="form.metadataJson" label="MetadataJson" :rows="6" :disabled="saving" placeholder="{ }" />
-        <DhSwitch v-if="!editingId" v-model="form.isSystem" label="Provider de sistema" description="Solo se envía al crear el provider." :disabled="saving" />
+        <DhTextarea v-model="form.metadataJson" :label="t('agent.fields.metadataJson')" :rows="6" :disabled="saving" placeholder="{ }" />
+        <DhSwitch v-if="!editingId" v-model="form.isSystem" :label="t('agent.providers.systemProvider')" :description="t('agent.providers.systemProviderDescription')" :disabled="saving" />
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <DhButton label="Cancelar" variant="secondary" :disabled="saving" @click="modalOpen = false" />
-          <DhButton type="submit" :label="editingId ? 'Guardar cambios' : 'Crear provider'" :loading="saving" />
+          <DhButton :label="t('agent.actions.cancel')" variant="secondary" :disabled="saving" @click="modalOpen = false" />
+          <DhButton type="submit" :label="editingId ? t('agent.actions.saveChanges') : t('agent.providers.createTitle')" :loading="saving" />
         </div>
       </form>
     </DhModal>
 
-    <DhModal :open="confirmOpen" title="Confirmar cambio de estado" size="sm" @close="confirmOpen = false">
+    <DhModal :open="confirmOpen" :title="t('agent.providers.confirmState')" size="sm" @close="confirmOpen = false">
       <DhConfirmDialog
         v-if="pendingToggle"
-        :title="pendingToggle.isActive ? 'Desactivar provider' : 'Activar provider'"
-        :message="`¿Desea ${pendingToggle.isActive ? 'desactivar' : 'activar'} ${pendingToggle.name}?`"
+        :title="pendingToggle.isActive ? t('agent.confirm.deactivateTitle', { entity: t('agent.entities.provider') }) : t('agent.confirm.activateTitle', { entity: t('agent.entities.provider') })"
+        :message="pendingToggle.isActive ? t('agent.confirm.deactivateQuestion', { name: pendingToggle.name }) : t('agent.confirm.activateQuestion', { name: pendingToggle.name })"
         :danger="pendingToggle.isActive"
-        :confirm-label="pendingToggle.isActive ? 'Desactivar' : 'Activar'"
+        :confirm-label="pendingToggle.isActive ? t('agent.actions.deactivate') : t('agent.actions.activate')"
         :on-confirm="confirmToggle"
         @cancel="confirmOpen = false"
       />

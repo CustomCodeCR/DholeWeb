@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { CalendarClock, Pencil, Play, Plus, Power, RefreshCw } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
@@ -18,6 +19,7 @@ import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermiss
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
 
 const router = useRouter()
+const { t } = useI18n()
 const store = useAgentStore()
 const toastStore = useToastStore()
 const permissions = useAgentPermissions()
@@ -62,19 +64,19 @@ const form = reactive({
 })
 
 const columns: DhTableColumn<AgentScheduleDto>[] = [
-  { key: 'name', label: 'Nombre' },
-  { key: 'providerId', label: 'Provider' },
-  { key: 'agentDefinitionId', label: 'Definition' },
-  { key: 'scheduleType', label: 'Tipo' },
-  { key: 'lastExecutionAt', label: 'Última ejecución' },
-  { key: 'nextExecutionAt', label: 'Próxima ejecución' },
-  { key: 'isActive', label: 'Estado', align: 'center' },
-  { key: 'actions', label: 'Acciones', align: 'right' },
+  { key: 'name', label: t('agent.fields.name') },
+  { key: 'providerId', label: t('agent.fields.provider') },
+  { key: 'agentDefinitionId', label: t('agent.fields.definition') },
+  { key: 'scheduleType', label: t('agent.fields.scheduleType') },
+  { key: 'lastExecutionAt', label: t('agent.fields.lastExecution') },
+  { key: 'nextExecutionAt', label: t('agent.fields.nextExecution') },
+  { key: 'isActive', label: t('agent.fields.status'), align: 'center' },
+  { key: 'actions', label: t('common.actions'), align: 'right' },
 ]
 
 const scheduleTypeOptions = AGENT_SCHEDULE_TYPES.map((value) => ({
   value,
-  label: value === 'Once' ? 'Una vez' : value === 'Interval' ? 'Intervalo' : 'Cron',
+  label: value === 'Once' ? t('agent.schedules.once') : value === 'Interval' ? t('agent.schedules.interval') : t('agent.schedules.cron'),
 }))
 
 const providerOptions = computed(() =>
@@ -98,7 +100,7 @@ const definitionOptions = computed(() =>
 )
 
 const credentialOptions = computed(() => [
-  { value: '', label: 'Sin credencial' },
+  { value: '', label: t('agent.schedules.noCredential') },
   ...store.credentials
     .filter((credential) => credential.providerId === form.providerId && credential.isActive)
     .map((credential) => ({ value: credential.id, label: credential.name })),
@@ -146,7 +148,7 @@ function toDateTimeLocal(value: string | null | undefined) {
 function parseObjectJson(value: string) {
   const parsed = JSON.parse(value)
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('InputJson debe ser un objeto JSON.')
+    throw new Error(t('agent.validation.objectJson', { field: t('agent.fields.inputJson') }))
   }
   return parsed as Record<string, unknown>
 }
@@ -226,26 +228,26 @@ async function openEdit(row: AgentScheduleDto) {
     populateVisualInput(schedule.inputJson)
     modalOpen.value = true
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo cargar la programación.')
+    toastStore.backendError(error, t('agent.errors.loadSchedule'))
   }
 }
 
 function buildInputJson() {
   if (advancedJson.value || !isOceanRate.value) {
     const value = form.inputJson.trim()
-    if (!value) throw new Error('InputJson es obligatorio.')
+    if (!value) throw new Error(t('agent.validation.required', { field: t('agent.fields.inputJson') }))
     parseObjectJson(value)
     return value
   }
 
   const quantity = Number(form.quantity)
   const weightKg = Number(form.weightKg)
-  if (!form.pol.trim()) throw new Error('POL es obligatorio.')
-  if (!form.pod.trim()) throw new Error('POD es obligatorio.')
-  if (!form.containerType.trim()) throw new Error('Container Type es obligatorio.')
-  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Quantity debe ser mayor que cero.')
-  if (!Number.isFinite(weightKg) || weightKg <= 0) throw new Error('Weight Kg debe ser mayor que cero.')
-  if (!form.cargoReadyDate) throw new Error('Cargo Ready Date es obligatorio.')
+  if (!form.pol.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.pol') }))
+  if (!form.pod.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.pod') }))
+  if (!form.containerType.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.containerType') }))
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error(t('agent.validation.positive', { field: t('agent.fields.quantity') }))
+  if (!Number.isFinite(weightKg) || weightKg <= 0) throw new Error(t('agent.validation.positive', { field: t('agent.fields.weightKg') }))
+  if (!form.cargoReadyDate) throw new Error(t('agent.validation.required', { field: t('agent.fields.cargoReadyDate') }))
 
   return JSON.stringify({
     pol: form.pol.trim(),
@@ -260,37 +262,37 @@ function buildInputJson() {
 }
 
 function validateSchedule() {
-  if (!form.name.trim()) throw new Error('Name es obligatorio.')
-  if (!form.providerId) throw new Error('Provider es obligatorio.')
-  if (!form.agentDefinitionId) throw new Error('Definition es obligatoria.')
-  if (!form.timezone.trim()) throw new Error('Timezone es obligatorio.')
+  if (!form.name.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.name') }))
+  if (!form.providerId) throw new Error(t('agent.validation.required', { field: t('agent.fields.provider') }))
+  if (!form.agentDefinitionId) throw new Error(t('agent.validation.required', { field: t('agent.fields.definition') }))
+  if (!form.timezone.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.timezone') }))
 
   const maxRetries = Number(form.maxRetries)
   const timeoutSeconds = Number(form.timeoutSeconds)
-  if (!Number.isInteger(maxRetries) || maxRetries < 0) throw new Error('MaxRetries debe ser 0 o mayor.')
-  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) throw new Error('TimeoutSeconds debe ser mayor que cero.')
+  if (!Number.isInteger(maxRetries) || maxRetries < 0) throw new Error(t('agent.validation.nonNegativeInteger', { field: t('agent.fields.maxRetries') }))
+  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) throw new Error(t('agent.validation.positive', { field: t('agent.fields.timeoutSeconds') }))
 
   let executeAt: string | null = null
   let intervalMinutes: number | null = null
   let cronExpression: string | null = null
 
   if (form.scheduleType === 'Once') {
-    if (!form.executeAt) throw new Error('ExecuteAt es obligatorio para Once.')
+    if (!form.executeAt) throw new Error(t('agent.validation.onceExecuteAt'))
     const date = new Date(form.executeAt)
-    if (Number.isNaN(date.getTime())) throw new Error('ExecuteAt no es válido.')
+    if (Number.isNaN(date.getTime())) throw new Error(t('agent.validation.invalidExecuteAt'))
     executeAt = date.toISOString()
   }
 
   if (form.scheduleType === 'Interval') {
     intervalMinutes = Number(form.intervalMinutes)
     if (!Number.isInteger(intervalMinutes) || intervalMinutes <= 0) {
-      throw new Error('IntervalMinutes debe ser mayor que cero.')
+      throw new Error(t('agent.validation.intervalPositive'))
     }
   }
 
   if (form.scheduleType === 'Cron') {
     cronExpression = form.cronExpression.trim()
-    if (!cronExpression) throw new Error('CronExpression es obligatorio.')
+    if (!cronExpression) throw new Error(t('agent.validation.cronRequired'))
   }
 
   return {
@@ -324,7 +326,7 @@ async function save() {
         timeoutSeconds: validated.timeoutSeconds,
         nextExecutionAt: editingNextExecutionAt.value,
       })
-      toastStore.success('Programación actualizada')
+      toastStore.success(t('agent.messages.scheduleUpdated'))
     } else {
       await AgentService.createSchedule({
         name: form.name.trim(),
@@ -340,16 +342,16 @@ async function save() {
         maxRetries: validated.maxRetries,
         timeoutSeconds: validated.timeoutSeconds,
       })
-      toastStore.success('Programación creada')
+      toastStore.success(t('agent.messages.scheduleCreated'))
     }
 
     modalOpen.value = false
     await store.loadSchedules()
   } catch (error) {
     if (error instanceof Error && !('status' in error)) {
-      toastStore.warning('Revise la programación', error.message)
+      toastStore.warning(t('agent.review.schedule'), error.message)
     } else {
-      toastStore.backendError(error, 'No se pudo guardar la programación.')
+      toastStore.backendError(error, t('agent.errors.saveSchedule'))
     }
   } finally {
     saving.value = false
@@ -366,7 +368,7 @@ async function confirmToggle() {
   if (!row) return
 
   await AgentService.setScheduleActive(row.id, !row.isActive)
-  toastStore.success(row.isActive ? 'Programación desactivada' : 'Programación activada')
+  toastStore.success(t('agent.messages.stateUpdated'))
   confirmOpen.value = false
   pendingToggle.value = null
   await store.loadSchedules()
@@ -378,10 +380,10 @@ async function runNow(row: AgentScheduleDto) {
   try {
     runningId.value = row.id
     const executionId = await AgentService.runSchedule(row.id)
-    toastStore.success('Ejecución iniciada', `${row.name} fue enviada a DholeAgentService.`)
+    toastStore.success(t('agent.messages.executionStarted'), row.name)
     await router.push(`/agents/executions/${executionId}`)
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo ejecutar la programación.')
+    toastStore.backendError(error, t('agent.errors.runSchedule'))
   } finally {
     runningId.value = null
   }
@@ -396,7 +398,7 @@ async function refresh() {
       store.loadSchedules(),
     ])
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron cargar las programaciones.')
+    toastStore.backendError(error, t('agent.errors.loadSchedules'))
   }
 }
 
@@ -406,13 +408,13 @@ onMounted(refresh)
 <template>
   <div class="grid min-w-0 gap-6">
     <DhPageHeader
-      title="Programaciones"
-      subtitle="Automatizaciones Once, Interval y Cron para DholeAgentService."
+      :title="t('agent.schedules.title')"
+      :subtitle="t('agent.schedules.subtitle')"
       :icon="CalendarClock"
     >
       <template #actions>
         <DhButton
-          label="Actualizar"
+          :label="t('agent.actions.refresh')"
           :icon="RefreshCw"
           variant="secondary"
           :loading="store.loading"
@@ -420,7 +422,7 @@ onMounted(refresh)
         />
         <DhButton
           v-if="permissions.canCreateSchedules.value"
-          label="Crear"
+          :label="t('agent.actions.create')"
           :icon="Plus"
           @click="openCreate"
         />
@@ -431,7 +433,7 @@ onMounted(refresh)
       :columns="columns"
       :rows="store.schedules"
       :loading="store.loading"
-      empty-text="No hay programaciones configuradas."
+      :empty-text="t('agent.schedules.empty')"
     >
       <template #cell-providerId="{ row }">{{ providerName(row.providerId) }}</template>
       <template #cell-agentDefinitionId="{ row }">{{ definitionName(row.agentDefinitionId) }}</template>
@@ -442,7 +444,7 @@ onMounted(refresh)
         <div class="flex flex-wrap justify-end gap-2" @click.stop>
           <DhButton
             v-if="permissions.canExecuteSchedules.value"
-            label="Ejecutar ahora"
+            :label="t('agent.actions.runNow')"
             :icon="Play"
             variant="secondary"
             size="sm"
@@ -452,7 +454,7 @@ onMounted(refresh)
           />
           <DhButton
             v-if="permissions.canUpdateSchedules.value"
-            label="Editar"
+            :label="t('agent.actions.edit')"
             :icon="Pencil"
             variant="secondary"
             size="sm"
@@ -460,7 +462,7 @@ onMounted(refresh)
           />
           <DhButton
             v-if="permissions.canUpdateSchedules.value"
-            :label="row.isActive ? 'Desactivar' : 'Activar'"
+            :label="row.isActive ? t('agent.actions.deactivate') : t('agent.actions.activate')"
             :icon="Power"
             :variant="row.isActive ? 'danger' : 'secondary'"
             size="sm"
@@ -470,57 +472,57 @@ onMounted(refresh)
       </template>
     </DhDataTable>
 
-    <DhModal :open="modalOpen" :title="editingId ? 'Editar programación' : 'Nueva programación'" size="xl" @close="modalOpen = false">
+    <DhModal :open="modalOpen" :title="editingId ? t('agent.schedules.editTitle') : t('agent.schedules.createTitle')" size="xl" @close="modalOpen = false">
       <form class="grid gap-5" @submit.prevent="save">
         <div class="grid gap-4 md:grid-cols-2">
-          <DhInput v-model="form.name" label="Name" :disabled="saving" />
+          <DhInput v-model="form.name" :label="t('agent.fields.name')" :disabled="saving" />
           <DhSelect
             v-model="form.providerId"
-            label="Provider"
+            :label="t('agent.fields.provider')"
             :options="providerOptions"
             :disabled="saving || Boolean(editingId)"
           />
           <DhSelect
             v-model="form.agentDefinitionId"
-            label="Definition"
+            :label="t('agent.fields.definition')"
             :options="definitionOptions"
             :disabled="saving || Boolean(editingId) || !form.providerId"
           />
           <DhSelect
             v-model="form.credentialId"
-            label="Credential"
+            :label="t('agent.fields.credential')"
             :options="credentialOptions"
             placeholder=""
             :disabled="saving || !form.providerId"
           />
           <DhSelect
             v-model="form.scheduleType"
-            label="Schedule Type"
+            :label="t('agent.fields.scheduleType')"
             :options="scheduleTypeOptions"
             :disabled="saving"
           />
-          <DhInput v-model="form.timezone" label="Timezone" :disabled="saving" />
-          <DhInput v-model="form.maxRetries" label="MaxRetries" type="number" :disabled="saving" />
-          <DhInput v-model="form.timeoutSeconds" label="TimeoutSeconds" type="number" :disabled="saving" />
+          <DhInput v-model="form.timezone" :label="t('agent.fields.timezone')" :disabled="saving" />
+          <DhInput v-model="form.maxRetries" :label="t('agent.fields.maxRetries')" type="number" :disabled="saving" />
+          <DhInput v-model="form.timeoutSeconds" :label="t('agent.fields.timeoutSeconds')" type="number" :disabled="saving" />
 
           <DhInput
             v-if="form.scheduleType === 'Once'"
             v-model="form.executeAt"
-            label="ExecuteAt"
+            :label="t('agent.fields.executeAt')"
             type="datetime-local"
             :disabled="saving"
           />
           <DhInput
             v-if="form.scheduleType === 'Interval'"
             v-model="form.intervalMinutes"
-            label="IntervalMinutes"
+            :label="t('agent.fields.intervalMinutes')"
             type="number"
             :disabled="saving"
           />
           <DhInput
             v-if="form.scheduleType === 'Cron'"
             v-model="form.cronExpression"
-            label="CronExpression"
+            :label="t('agent.fields.cronExpression')"
             :disabled="saving"
           />
         </div>
@@ -528,37 +530,37 @@ onMounted(refresh)
         <section class="rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
           <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 class="font-black text-[var(--dh-text)]">Input de ejecución</h3>
+              <h3 class="font-black text-[var(--dh-text)]">{{ t('agent.schedules.inputTitle') }}</h3>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-                {{ isOceanRate ? 'Formulario marítimo detectado por ActionType SearchOceanRates.' : 'Esta definición utiliza InputJson genérico.' }}
+                {{ isOceanRate ? t('agent.schedules.oceanInput') : t('agent.schedules.genericInput') }}
               </p>
             </div>
             <DhSwitch
               v-if="isOceanRate"
               v-model="advancedJson"
-              label="Editar JSON"
-              description="Modo avanzado"
+              :label="t('agent.schedules.editJson')"
+              :description="t('agent.schedules.advancedMode')"
               :disabled="saving"
             />
           </div>
 
           <div v-if="isOceanRate && !advancedJson" class="grid gap-4 md:grid-cols-2">
-            <DhInput v-model="form.pol" label="POL" :disabled="saving" />
-            <DhInput v-model="form.pod" label="POD" :disabled="saving" />
-            <DhInput v-model="form.containerType" label="Container Type" :disabled="saving" />
-            <DhInput v-model="form.quantity" label="Quantity" type="number" :disabled="saving" />
-            <DhInput v-model="form.weightKg" label="Weight Kg" type="number" :disabled="saving" />
-            <DhInput v-model="form.commodity" label="Commodity" :disabled="saving" />
-            <DhInput v-model="form.cargoReadyDate" label="Cargo Ready Date" type="date" :disabled="saving" />
+            <DhInput v-model="form.pol" :label="t('agent.fields.pol')" :disabled="saving" />
+            <DhInput v-model="form.pod" :label="t('agent.fields.pod')" :disabled="saving" />
+            <DhInput v-model="form.containerType" :label="t('agent.fields.containerType')" :disabled="saving" />
+            <DhInput v-model="form.quantity" :label="t('agent.fields.quantity')" type="number" :disabled="saving" />
+            <DhInput v-model="form.weightKg" :label="t('agent.fields.weightKg')" type="number" :disabled="saving" />
+            <DhInput v-model="form.commodity" :label="t('agent.fields.commodity')" :disabled="saving" />
+            <DhInput v-model="form.cargoReadyDate" :label="t('agent.fields.cargoReadyDate')" type="date" :disabled="saving" />
             <div class="md:col-span-2">
-              <DhTextarea v-model="form.instruction" label="Instruction opcional" :rows="4" :disabled="saving" />
+              <DhTextarea v-model="form.instruction" :label="t('agent.fields.instruction')" :rows="4" :disabled="saving" />
             </div>
           </div>
 
           <DhTextarea
             v-else
             v-model="form.inputJson"
-            label="InputJson"
+            :label="t('agent.fields.inputJson')"
             :rows="12"
             :disabled="saving"
             placeholder="{ }"
@@ -566,21 +568,21 @@ onMounted(refresh)
         </section>
 
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <DhButton label="Cancelar" variant="secondary" :disabled="saving" @click="modalOpen = false" />
+          <DhButton :label="t('agent.actions.cancel')" variant="secondary" :disabled="saving" @click="modalOpen = false" />
           <DhButton
             type="submit"
-            :label="editingId ? 'Guardar cambios' : 'Crear programación'"
+            :label="editingId ? t('agent.actions.saveChanges') : t('agent.schedules.createTitle')"
             :loading="saving"
           />
         </div>
       </form>
     </DhModal>
 
-    <DhModal :open="confirmOpen" title="Confirmar cambio de estado" size="sm" @close="confirmOpen = false">
+    <DhModal :open="confirmOpen" :title="t('agent.providers.confirmState')" size="sm" @close="confirmOpen = false">
       <DhConfirmDialog
         v-if="pendingToggle"
-        :title="pendingToggle.isActive ? 'Desactivar programación' : 'Activar programación'"
-        :message="`¿Desea ${pendingToggle.isActive ? 'desactivar' : 'activar'} ${pendingToggle.name}?`"
+        :title="pendingToggle.isActive ? t('agent.confirm.deactivateTitle', { entity: t('agent.entities.schedule') }) : t('agent.confirm.activateTitle', { entity: t('agent.entities.schedule') })"
+        :message="pendingToggle.isActive ? t('agent.confirm.deactivateQuestion', { name: pendingToggle.name }) : t('agent.confirm.activateQuestion', { name: pendingToggle.name })"
         :danger="pendingToggle.isActive"
         :on-confirm="confirmToggle"
         @cancel="confirmOpen = false"

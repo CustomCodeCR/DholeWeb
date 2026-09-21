@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { FileCode2, Pencil, Plus, Power, RefreshCw } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
@@ -19,6 +20,7 @@ import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermiss
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
 
 const route = useRoute()
+const { t } = useI18n()
 const store = useAgentStore()
 const toastStore = useToastStore()
 const permissions = useAgentPermissions()
@@ -41,20 +43,20 @@ const form = reactive({
 })
 
 const columns: DhTableColumn<AgentDefinitionDto>[] = [
-  { key: 'name', label: 'Nombre' },
-  { key: 'code', label: 'Código' },
-  { key: 'providerId', label: 'Provider' },
-  { key: 'actionType', label: 'Action Type' },
-  { key: 'executionStrategy', label: 'Execution Strategy' },
-  { key: 'isActive', label: 'Estado', align: 'center' },
-  { key: 'actions', label: 'Acciones', align: 'right' },
+  { key: 'name', label: t('agent.fields.name') },
+  { key: 'code', label: t('agent.fields.code') },
+  { key: 'providerId', label: t('agent.fields.provider') },
+  { key: 'actionType', label: t('agent.fields.actionType') },
+  { key: 'executionStrategy', label: t('agent.fields.executionStrategy') },
+  { key: 'isActive', label: t('agent.fields.status'), align: 'center' },
+  { key: 'actions', label: t('common.actions'), align: 'right' },
 ]
 
 const providerOptions = computed(() => [
   ...store.providers.map((provider) => ({ value: provider.id, label: `${provider.name} · ${provider.code}` })),
 ])
 const providerFilterOptions = computed(() => [
-  { value: '', label: 'Todos los providers' },
+  { value: '', label: t('agent.definitions.allProviders') },
   ...providerOptions.value,
 ])
 const actionTypeOptions = AGENT_ACTION_TYPES.map((value) => ({ value, label: value }))
@@ -87,7 +89,7 @@ function validateConfiguration() {
     JSON.parse(value)
     return value
   } catch {
-    throw new Error('ConfigurationJson debe contener JSON válido.')
+    throw new Error(t('agent.validation.validJson', { field: t('agent.fields.configurationJson') }))
   }
 }
 
@@ -109,18 +111,18 @@ async function openEdit(row: AgentDefinitionDto) {
     form.configurationJson = definition.configurationJson ?? ''
     modalOpen.value = true
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo cargar la definición.')
+    toastStore.backendError(error, t('agent.errors.loadDefinition'))
   }
 }
 
 async function save() {
   if (saving.value) return
   try {
-    if (!form.providerId) throw new Error('Provider es obligatorio.')
-    if (!form.code.trim()) throw new Error('Code es obligatorio.')
-    if (!form.name.trim()) throw new Error('Name es obligatorio.')
-    if (!form.actionType) throw new Error('Action Type es obligatorio.')
-    if (!form.executionStrategy) throw new Error('Execution Strategy es obligatorio.')
+    if (!form.providerId) throw new Error(t('agent.validation.required', { field: t('agent.fields.provider') }))
+    if (!form.code.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.code') }))
+    if (!form.name.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.name') }))
+    if (!form.actionType) throw new Error(t('agent.validation.required', { field: t('agent.fields.actionType') }))
+    if (!form.executionStrategy) throw new Error(t('agent.validation.required', { field: t('agent.fields.executionStrategy') }))
 
     const configurationJson = validateConfiguration()
     saving.value = true
@@ -133,7 +135,7 @@ async function save() {
         executionStrategy: form.executionStrategy,
         configurationJson,
       })
-      toastStore.success('Definición actualizada')
+      toastStore.success(t('agent.messages.definitionUpdated'))
     } else {
       await AgentService.createDefinition({
         providerId: form.providerId,
@@ -144,14 +146,14 @@ async function save() {
         executionStrategy: form.executionStrategy,
         configurationJson,
       })
-      toastStore.success('Definición creada')
+      toastStore.success(t('agent.messages.definitionCreated'))
     }
 
     modalOpen.value = false
     await store.loadDefinitions()
   } catch (error) {
-    if (error instanceof Error && !('status' in error)) toastStore.warning('Revise la definición', error.message)
-    else toastStore.backendError(error, 'No se pudo guardar la definición.')
+    if (error instanceof Error && !('status' in error)) toastStore.warning(t('agent.review.definition'), error.message)
+    else toastStore.backendError(error, t('agent.errors.saveDefinition'))
   } finally {
     saving.value = false
   }
@@ -166,7 +168,7 @@ async function confirmToggle() {
   const row = pendingToggle.value
   if (!row) return
   await AgentService.setDefinitionActive(row.id, !row.isActive)
-  toastStore.success(row.isActive ? 'Definición desactivada' : 'Definición activada')
+  toastStore.success(t('agent.messages.stateUpdated'))
   confirmOpen.value = false
   pendingToggle.value = null
   await store.loadDefinitions()
@@ -176,7 +178,7 @@ async function refresh() {
   try {
     await Promise.all([store.loadProviders(), store.loadDefinitions()])
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron cargar las definiciones.')
+    toastStore.backendError(error, t('agent.errors.loadDefinitions'))
   }
 }
 
@@ -185,26 +187,26 @@ onMounted(refresh)
 
 <template>
   <div class="grid min-w-0 gap-6">
-    <DhPageHeader title="Definiciones" subtitle="Acciones y configuración de cada provider." :icon="FileCode2">
+    <DhPageHeader :title="t('agent.definitions.title')" :subtitle="t('agent.definitions.subtitle')" :icon="FileCode2">
       <template #actions>
-        <DhButton label="Actualizar" :icon="RefreshCw" variant="secondary" :loading="store.loading" @click="refresh" />
-        <DhButton v-if="permissions.canManageDefinitions.value" label="Crear" :icon="Plus" @click="openCreate" />
+        <DhButton :label="t('agent.actions.refresh')" :icon="RefreshCw" variant="secondary" :loading="store.loading" @click="refresh" />
+        <DhButton v-if="permissions.canManageDefinitions.value" :label="t('agent.actions.create')" :icon="Plus" @click="openCreate" />
       </template>
     </DhPageHeader>
 
     <div class="max-w-md">
-      <DhSelect v-model="providerFilter" label="Provider" :options="providerFilterOptions" placeholder="" />
+      <DhSelect v-model="providerFilter" :label="t('agent.fields.provider')" :options="providerFilterOptions" placeholder="" />
     </div>
 
-    <DhDataTable :columns="columns" :rows="filteredDefinitions" :loading="store.loading" empty-text="No hay definiciones disponibles.">
+    <DhDataTable :columns="columns" :rows="filteredDefinitions" :loading="store.loading" :empty-text="t('agent.definitions.empty')">
       <template #cell-providerId="{ row }">{{ providerName(row.providerId) }}</template>
       <template #cell-isActive="{ row }"><AgentStatusBadge :active="row.isActive" /></template>
       <template #cell-actions="{ row }">
         <div class="flex flex-wrap justify-end gap-2" @click.stop>
-          <DhButton v-if="permissions.canManageDefinitions.value" label="Editar" :icon="Pencil" variant="secondary" size="sm" @click="openEdit(row)" />
+          <DhButton v-if="permissions.canManageDefinitions.value" :label="t('agent.actions.edit')" :icon="Pencil" variant="secondary" size="sm" @click="openEdit(row)" />
           <DhButton
             v-if="permissions.canManageDefinitions.value"
-            :label="row.isActive ? 'Desactivar' : 'Activar'"
+            :label="row.isActive ? t('agent.actions.deactivate') : t('agent.actions.activate')"
             :icon="Power"
             :variant="row.isActive ? 'danger' : 'secondary'"
             size="sm"
@@ -214,29 +216,29 @@ onMounted(refresh)
       </template>
     </DhDataTable>
 
-    <DhModal :open="modalOpen" :title="editingId ? 'Editar definición' : 'Nueva definición'" size="lg" @close="modalOpen = false">
+    <DhModal :open="modalOpen" :title="editingId ? t('agent.definitions.editTitle') : t('agent.definitions.createTitle')" size="lg" @close="modalOpen = false">
       <form class="grid gap-4" @submit.prevent="save">
         <div class="grid gap-4 md:grid-cols-2">
-          <DhSelect v-model="form.providerId" label="Provider" :options="providerOptions" :disabled="saving || Boolean(editingId)" />
-          <DhInput v-model="form.code" label="Code" :disabled="saving || Boolean(editingId)" />
-          <DhInput v-model="form.name" label="Name" :disabled="saving" />
-          <DhSelect v-model="form.actionType" label="Action Type" :options="actionTypeOptions" :disabled="saving" />
-          <DhSelect v-model="form.executionStrategy" label="Execution Strategy" :options="strategyOptions" :disabled="saving" />
+          <DhSelect v-model="form.providerId" :label="t('agent.fields.provider')" :options="providerOptions" :disabled="saving || Boolean(editingId)" />
+          <DhInput v-model="form.code" :label="t('agent.fields.code')" :disabled="saving || Boolean(editingId)" />
+          <DhInput v-model="form.name" :label="t('agent.fields.name')" :disabled="saving" />
+          <DhSelect v-model="form.actionType" :label="t('agent.fields.actionType')" :options="actionTypeOptions" :disabled="saving" />
+          <DhSelect v-model="form.executionStrategy" :label="t('agent.fields.executionStrategy')" :options="strategyOptions" :disabled="saving" />
         </div>
-        <DhTextarea v-model="form.description" label="Description" :rows="3" :disabled="saving" />
-        <DhTextarea v-model="form.configurationJson" label="ConfigurationJson" :rows="8" :disabled="saving" placeholder="{ }" />
+        <DhTextarea v-model="form.description" :label="t('agent.fields.description')" :rows="3" :disabled="saving" />
+        <DhTextarea v-model="form.configurationJson" :label="t('agent.fields.configurationJson')" :rows="8" :disabled="saving" placeholder="{ }" />
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <DhButton label="Cancelar" variant="secondary" :disabled="saving" @click="modalOpen = false" />
-          <DhButton type="submit" :label="editingId ? 'Guardar cambios' : 'Crear definición'" :loading="saving" />
+          <DhButton :label="t('agent.actions.cancel')" variant="secondary" :disabled="saving" @click="modalOpen = false" />
+          <DhButton type="submit" :label="editingId ? t('agent.actions.saveChanges') : t('agent.definitions.createTitle')" :loading="saving" />
         </div>
       </form>
     </DhModal>
 
-    <DhModal :open="confirmOpen" title="Confirmar cambio de estado" size="sm" @close="confirmOpen = false">
+    <DhModal :open="confirmOpen" :title="t('agent.providers.confirmState')" size="sm" @close="confirmOpen = false">
       <DhConfirmDialog
         v-if="pendingToggle"
-        :title="pendingToggle.isActive ? 'Desactivar definición' : 'Activar definición'"
-        :message="`¿Desea ${pendingToggle.isActive ? 'desactivar' : 'activar'} ${pendingToggle.name}?`"
+        :title="pendingToggle.isActive ? t('agent.confirm.deactivateTitle', { entity: t('agent.entities.definition') }) : t('agent.confirm.activateTitle', { entity: t('agent.entities.definition') })"
+        :message="pendingToggle.isActive ? t('agent.confirm.deactivateQuestion', { name: pendingToggle.name }) : t('agent.confirm.activateQuestion', { name: pendingToggle.name })"
         :danger="pendingToggle.isActive"
         :on-confirm="confirmToggle"
         @cancel="confirmOpen = false"
