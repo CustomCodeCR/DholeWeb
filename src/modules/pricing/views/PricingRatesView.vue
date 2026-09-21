@@ -11,6 +11,8 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
@@ -25,9 +27,10 @@ import {
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
 
-type CommercialRateStatus = 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient'
+type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient'
 
 const commercialStatuses = new Set<CommercialRateStatus>([
+  'PendingApproval',
   'Open',
   'Sent',
   'Expired',
@@ -213,7 +216,24 @@ const filters = reactive({
   validTo: '',
 })
 
-const canCreate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
+const isSellerUser = computed(() => {
+  const sellerRole = authStore.roles.some((role) => {
+    const value = role.trim().toLowerCase()
+    return value === 'vendedor'
+      || value === 'seller'
+      || value === 'ventas'
+      || value.includes('vendedor')
+      || value.includes('seller')
+  })
+
+  return sellerRole
+    || (authStore.hasScope('pricing.rate-request.create')
+      && !authStore.hasScope(PRICING_SCOPES.rates.update))
+})
+
+const canCreate = computed(() =>
+  !isSellerUser.value && authStore.hasScope(PRICING_SCOPES.rates.create),
+)
 const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))
 
@@ -250,6 +270,7 @@ function rateUpdateWindowMessage(rate: RateDto) {
 }
 
 const statusOptions: Array<{ label: string; value: CommercialRateStatus }> = [
+  { label: 'Pendientes de aprobación', value: 'PendingApproval' },
   { label: 'Abiertas', value: 'Open' },
   { label: 'Enviadas', value: 'Sent' },
   { label: 'Vencidas', value: 'Expired' },
@@ -275,11 +296,11 @@ function statusLabel(status: string) {
     (
       {
         Open: 'Abierta',
-        PendingApproval: 'Abierta',
-        ApprovedByManagement: 'Abierta',
-        RejectedByManagement: 'Abierta',
+        PendingApproval: 'Pendiente de aprobación',
+        ApprovedByManagement: 'Aprobada por gerencia',
+        RejectedByManagement: 'Rechazada por gerencia',
         Sent: 'Enviada',
-        RequestedByClient: 'Abierta',
+        RequestedByClient: 'Solicitada por cliente',
         AcceptedByClient: 'Aceptada',
         RejectedByClient: 'No aceptada',
         Closed: 'No aceptada',
@@ -292,9 +313,57 @@ function statusLabel(status: string) {
 async function load() {
   try {
     loading.value = true
+
+    if (isSellerUser.value) {
+      const response = await callEndpoint<unknown>({
+        method: 'GET',
+        path: '/api/pricing/seller-rates',
+        headers: { Accept: 'application/json' },
+      })
+
+      let sellerRows = unwrapListResponse<RateDto>(response)
+        .filter((rate) => Boolean(rate?.id))
+        .filter((rate) => !isMasterTariff(rate))
+
+      const searchValue = filters.search.trim().toLowerCase()
+      sellerRows = sellerRows.filter((rate) => {
+        if (filters.status && normalizeCommercialStatus(rate.status) !== filters.status) return false
+        if (filters.agentId && rate.agentId !== filters.agentId) return false
+        if (filters.carrierId && rate.carrierId !== filters.carrierId) return false
+        if (filters.polId && rate.polId !== filters.polId) return false
+        if (filters.poeId && rate.poeId !== filters.poeId) return false
+        if (filters.podId && rate.podId !== filters.podId) return false
+        if (filters.containerTypeId && rate.containerTypeId !== filters.containerTypeId) return false
+        if (filters.currencyId && rate.currencyId !== filters.currencyId) return false
+        if (filters.idtraNumber && !String(rate.idtraNumber || '').toLowerCase().includes(filters.idtraNumber.toLowerCase())) return false
+        if (filters.quoNumber && !String(rate.quoNumber || '').toLowerCase().includes(filters.quoNumber.toLowerCase())) return false
+        if (filters.validFrom && String(rate.validFrom || '').slice(0, 10) < filters.validFrom) return false
+        if (filters.validTo && String(rate.validTo || '').slice(0, 10) > filters.validTo) return false
+
+        if (!searchValue) return true
+        return [
+          rate.rateCode,
+          rate.quoNumber,
+          rate.clientName,
+          rate.executiveName,
+          rate.carrierName,
+          rate.polName,
+          rate.poeName,
+          rate.podName,
+        ].some((value) => String(value || '').toLowerCase().includes(searchValue))
+      })
+
+      const start = (page.value - 1) * pageSize.value
+      const pageRows = sellerRows.slice(start, start + pageSize.value)
+      rows.value = pageRows
+      total.value = sellerRows.length
+      selectedIds.value = selectedIds.value.filter((id) => pageRows.some((row) => row.id === id))
+      return
+    }
+
     const result = await PricingService.browseRates({
       pageNumber: page.value,
-      pageSize: pageSize.value,
+      pageSize: filters.status === 'Open' ? Math.max(pageSize.value, 100) : pageSize.value,
       search: filters.search || undefined,
       status: filters.status || undefined,
       agentId: filters.agentId || undefined,
@@ -311,13 +380,23 @@ async function load() {
       validTo: filters.validTo || undefined,
       excludeTariffMasters: true,
     })
+
     const safeItems = Array.isArray(result?.items)
       ? result.items.filter((row): row is RateDto => Boolean(row && row.id))
       : []
-    rows.value = safeItems
-    total.value = result?.totalCount ?? safeItems.length
-    selectedIds.value = selectedIds.value.filter((id) => safeItems.some((row) => row.id === id))
+
+    const visibleItems = filters.status === 'Open'
+      ? safeItems.filter((item) => item.status === 'Open')
+      : safeItems
+
+    rows.value = visibleItems
+    total.value = filters.status === 'Open'
+      ? visibleItems.length
+      : result?.totalCount ?? visibleItems.length
+    selectedIds.value = selectedIds.value.filter((id) => visibleItems.some((row) => row.id === id))
   } catch (error) {
+    rows.value = []
+    total.value = 0
     toastStore.backendError(error, 'No se pudieron cargar las tarifas.')
   } finally {
     loading.value = false
@@ -470,7 +549,7 @@ onMounted(async () => {
   <section class="space-y-6">
     <DhPageHeader
       title="Tarifas oficiales"
-      subtitle="Seguimiento comercial únicamente por Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."
+      subtitle="Seguimiento por Pendientes de aprobación, Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."
       :icon="ReceiptText"
     />
 
