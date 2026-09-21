@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun } from 'lucide-vue-next'
+import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun, UserRoundX } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
@@ -35,6 +35,7 @@ const inboxPageSize = 20
 const inboxTotal = ref(0)
 const unreadCount = ref(0)
 const expandedRecipientId = ref<string | null>(null)
+const stoppingImpersonation = ref(false)
 
 const hasMoreNotifications = computed(() => inboxItems.value.length < inboxTotal.value)
 const unreadBadge = computed(() => unreadCount.value > 99 ? '99+' : String(unreadCount.value))
@@ -108,6 +109,18 @@ function toggleInbox() {
 function openSettings() {
   inboxOpen.value = false
   void router.push('/settings')
+}
+
+async function stopImpersonation() {
+  if (stoppingImpersonation.value || !authStore.isImpersonating) return
+
+  stoppingImpersonation.value = true
+  try {
+    await authStore.stopImpersonation()
+    await router.push('/')
+  } finally {
+    stoppingImpersonation.value = false
+  }
 }
 
 function formatNotificationDate(value: string) {
