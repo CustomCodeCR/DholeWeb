@@ -298,13 +298,17 @@ export async function fetchClient<T>(
   options: RequestOptions,
   baseUrl: string = BASE_URL,
 ): Promise<T> {
+  const startedWithTransientToken = hasTransientAccessToken()
   let token = await getUsableAccessToken(endpoint)
   let config = buildRequestConfig(options, token)
 
   try {
     let response = await fetch(`${baseUrl}${endpoint}`, config)
 
-    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
+    if (response.status === 401 && !isAuthEndpoint(endpoint) && startedWithTransientToken) {
+      clearTransientAccessToken()
+      emitImpersonationExpired()
+    } else if (response.status === 401 && !isAuthEndpoint(endpoint)) {
       const refreshed = await refreshStoredSession()
 
       if (refreshed) {
@@ -314,7 +318,7 @@ export async function fetchClient<T>(
       }
     }
 
-    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
+    if (response.status === 401 && !isAuthEndpoint(endpoint) && !startedWithTransientToken) {
       clearStoredSession()
       emitSessionExpired()
     }
