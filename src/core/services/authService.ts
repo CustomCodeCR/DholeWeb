@@ -4,6 +4,7 @@ import { unwrapApiResponse } from '@/core/api/apiResponse'
 
 import type {
   ChangeOwnPasswordRequest,
+  ImpersonationResponse,
   LoginRequest,
   LoginResponse,
   RefreshTokenRequest,
@@ -17,6 +18,18 @@ export const AuthService = {
     })
 
     return unwrapApiResponse(response)
+  },
+
+  async startImpersonation(userId: string): Promise<ImpersonationResponse> {
+    const response = await callEndpoint<ImpersonationResponse>(Endpoints.startImpersonation, {
+      params: { userId },
+    })
+
+    return unwrapApiResponse(response)
+  },
+
+  async stopImpersonation(): Promise<void> {
+    await callEndpoint<void>(Endpoints.stopImpersonation)
   },
 
   async changeOwnPassword(payload: ChangeOwnPasswordRequest): Promise<void> {
