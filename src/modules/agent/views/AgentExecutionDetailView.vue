@@ -13,6 +13,7 @@ import AgentJsonViewer from '@/modules/agent/components/AgentJsonViewer.vue'
 import AgentRateResult from '@/modules/agent/components/AgentRateResult.vue'
 import { useAgentFormatting } from '@/modules/agent/composables/useAgentFormatting'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
+import { useAgentPolling } from '@/modules/agent/composables/useAgentPolling'
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
 
 const route = useRoute()
@@ -28,6 +29,12 @@ const cancelOpen = ref(false)
 const cancelling = ref(false)
 
 const executionId = computed(() => String(route.params.id ?? ''))
+
+const polling = useAgentPolling({
+  getStatus: () => execution.value?.status,
+  refresh: () => refresh(false),
+  intervalMs: 5000,
+})
 const canCancel = computed(
   () =>
     permissions.canCancelExecutions.value &&
@@ -77,6 +84,7 @@ async function refresh(showToast = false) {
     ])
     execution.value = row
     store.upsertExecution(row)
+    polling.sync()
     if (showToast) toastStore.success('Ejecución actualizada')
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la ejecución.')
@@ -122,8 +130,9 @@ const metadata = computed(() => {
   ]
 })
 
-onMounted(() => {
-  void refresh()
+onMounted(async () => {
+  await refresh()
+  polling.sync()
 })
 </script>
 
