@@ -1563,6 +1563,8 @@
     },
     "review": {
       "extraction": "Review the extraction",
+      "provider": "Review the provider",
+      "profile": "Review the browser profile",
       "definition": "Review the definition",
       "credential": "Review the credential",
       "schedule": "Review the schedule"
