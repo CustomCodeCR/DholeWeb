@@ -1431,7 +1431,8 @@
       "systemProvider": "Provider de sistema",
       "systemProviderDescription": "Solo se envía al crear el provider.",
       "confirmState": "Confirmar cambio de estado",
-      "definitions": "Definiciones"
+      "definitions": "Definiciones",
+      "genericWeb": "Web genérica"
     },
     "definitions": {
       "title": "Definiciones",
