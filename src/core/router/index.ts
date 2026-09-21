@@ -435,11 +435,8 @@ export const router = createRouter({
 
         {
           path: 'agents',
-          name: 'agent-dashboard',
-          component: () => import('@/modules/agent/views/AgentDashboardView.vue'),
+          redirect: '/agents/profiles',
           meta: {
-            tabTitle: 'Automatización de navieras',
-            closable: true,
             requiredAnyScopes: [
               VIEW_SCOPES.agentProviders,
               VIEW_SCOPES.agentDefinitions,
@@ -451,46 +448,128 @@ export const router = createRouter({
           },
         },
         {
-          path: 'agents/providers',
-          name: 'agent-providers',
-          component: () => import('@/modules/agent/views/AgentProvidersView.vue'),
-          meta: { tabTitle: 'Automatización · Navieras y sitios', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
+          path: 'agents/profiles',
+          name: 'agent-profiles',
+          component: () => import('@/modules/agent/views/AgentProfilesView.vue'),
+          meta: {
+            tabTitle: 'Perfiles de extracción',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentSchedules,
+              VIEW_SCOPES.agentExecutions,
+            ],
+          },
         },
         {
-          path: 'agents/definitions',
-          name: 'agent-definitions',
-          component: () => import('@/modules/agent/views/AgentDefinitionsView.vue'),
-          meta: { tabTitle: 'Automatización · Acciones automáticas', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
+          path: 'agents/profiles/new',
+          name: 'agent-profile-new',
+          component: () => import('@/modules/agent/views/AgentProfileWizardView.vue'),
+          meta: {
+            tabTitle: 'Nuevo perfil de extracción',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentCredentials,
+            ],
+          },
         },
         {
-          path: 'agents/credentials',
-          name: 'agent-credentials',
-          component: () => import('@/modules/agent/views/AgentCredentialsView.vue'),
-          meta: { tabTitle: 'Automatización · Accesos', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
+          path: 'agents/profiles/:id',
+          name: 'agent-profile-detail',
+          component: () => import('@/modules/agent/views/AgentProfileDetailView.vue'),
+          meta: {
+            tabTitle: 'Perfil de extracción',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentSchedules,
+              VIEW_SCOPES.agentExecutions,
+            ],
+          },
         },
         {
-          path: 'agents/browser-profiles',
-          name: 'agent-browser-profiles',
-          component: () => import('@/modules/agent/views/AgentBrowserProfilesView.vue'),
-          meta: { tabTitle: 'Automatización · Sesiones web', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
-        },
-        {
-          path: 'agents/schedules',
-          name: 'agent-schedules',
-          component: () => import('@/modules/agent/views/AgentSchedulesView.vue'),
-          meta: { tabTitle: 'Automatización · Programaciones', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
+          path: 'agents/profiles/:id/edit',
+          name: 'agent-profile-edit',
+          component: () => import('@/modules/agent/views/AgentProfileWizardView.vue'),
+          meta: {
+            tabTitle: 'Editar perfil de extracción',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentCredentials,
+            ],
+          },
         },
         {
           path: 'agents/executions',
           name: 'agent-executions',
           component: () => import('@/modules/agent/views/AgentExecutionsView.vue'),
-          meta: { tabTitle: 'Automatización · Historial y resultados', closable: true, requiredScope: VIEW_SCOPES.agentExecutions },
+          meta: {
+            tabTitle: 'Ejecuciones',
+            closable: true,
+            requiredScope: VIEW_SCOPES.agentExecutions,
+          },
         },
         {
           path: 'agents/executions/:id',
           name: 'agent-execution-detail',
           component: () => import('@/modules/agent/views/AgentExecutionDetailView.vue'),
-          meta: { tabTitle: 'Automatización · Resultado', closable: true, requiredScope: VIEW_SCOPES.agentExecutions },
+          meta: {
+            tabTitle: 'Detalle de ejecución',
+            closable: true,
+            requiredScope: VIEW_SCOPES.agentExecutions,
+          },
+        },
+        {
+          path: 'agents/advanced',
+          name: 'agent-advanced-settings',
+          component: () => import('@/modules/agent/views/AgentAdvancedSettingsView.vue'),
+          meta: {
+            tabTitle: 'Configuración avanzada',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentDefinitions,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentBrowserProfiles,
+              VIEW_SCOPES.agentSchedules,
+            ],
+          },
+        },
+
+        // Legacy technical routes remain available for bookmarks and advanced configuration.
+        {
+          path: 'agents/providers',
+          name: 'agent-providers',
+          component: () => import('@/modules/agent/views/AgentProvidersView.vue'),
+          meta: { tabTitle: 'Agentes · Navieras y sitios', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
+        },
+        {
+          path: 'agents/definitions',
+          name: 'agent-definitions',
+          component: () => import('@/modules/agent/views/AgentDefinitionsView.vue'),
+          meta: { tabTitle: 'Agentes · Definiciones', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
+        },
+        {
+          path: 'agents/credentials',
+          name: 'agent-credentials',
+          component: () => import('@/modules/agent/views/AgentCredentialsView.vue'),
+          meta: { tabTitle: 'Agentes · Credenciales', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
+        },
+        {
+          path: 'agents/browser-profiles',
+          name: 'agent-browser-profiles',
+          component: () => import('@/modules/agent/views/AgentBrowserProfilesView.vue'),
+          meta: { tabTitle: 'Agentes · Sesiones web', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
+        },
+        {
+          path: 'agents/schedules',
+          name: 'agent-schedules',
+          component: () => import('@/modules/agent/views/AgentSchedulesView.vue'),
+          meta: { tabTitle: 'Agentes · Programaciones técnicas', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
         },
 
         {

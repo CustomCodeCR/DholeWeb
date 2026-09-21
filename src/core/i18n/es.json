@@ -115,7 +115,9 @@
     "agentCredentials": "2. Accesos",
     "agentBrowserProfiles": "3. Sesiones web",
     "agentSchedules": "5. Programaciones",
-    "agentExecutions": "6. Historial y resultados"
+    "agentExecutions": "Ejecuciones",
+    "agentProfiles": "Perfiles de extracción",
+    "agentAdvanced": "Configuración avanzada"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",

@@ -168,31 +168,40 @@ test('Agent monitoring exposes both DholeAgentService and Hermes through gateway
   assert.match(monitoring, /buildGatewayHealthUrl\('hermes'\)/)
 })
 
-test('Agent navigation follows the guided setup workflow', async () => {
+test('Agent navigation centers the UX on extraction profiles', async () => {
   const layout = await source('../src/shared/components/layouts/MainLayout.vue')
-  const dashboard = await source('../src/modules/agent/views/AgentDashboardView.vue')
+  const router = await source('../src/core/router/index.ts')
 
-  const orderedRoutes = [
-    '/agents/providers',
-    '/agents/credentials',
-    '/agents/browser-profiles',
-    '/agents/definitions',
-    '/agents/schedules',
+  const primaryRoutes = [
+    '/agents/profiles',
     '/agents/executions',
+    '/agents/advanced',
   ]
+
   let previous = -1
-  for (const route of orderedRoutes) {
+  for (const route of primaryRoutes) {
     const index = layout.indexOf(route)
     assert.ok(index > previous, `Agent sidebar route out of order: ${route}`)
     previous = index
   }
 
-  for (const key of [
-    'agent.guide.providerTitle',
-    'agent.guide.credentialTitle',
-    'agent.guide.profileTitle',
-    'agent.guide.definitionTitle',
-    'agent.guide.testTitle',
-    'agent.guide.scheduleTitle',
-  ]) assert.ok(dashboard.includes(key), `Missing guided setup key: ${key}`)
+  for (const technicalRoute of [
+    '/agents/providers',
+    '/agents/credentials',
+    '/agents/browser-profiles',
+    '/agents/definitions',
+    '/agents/schedules',
+  ]) {
+    assert.equal(layout.includes(technicalRoute), false, `Technical route leaked into primary sidebar: ${technicalRoute}`)
+  }
+
+  assert.match(router, /path: 'agents'[\s\S]*redirect: '\/agents\/profiles'/)
+  assert.match(router, /path: 'agents\/profiles'/)
+  assert.match(router, /AgentProfilesView\.vue/)
+  assert.match(router, /path: 'agents\/profiles\/new'/)
+  assert.match(router, /AgentProfileWizardView\.vue/)
+  assert.match(router, /path: 'agents\/profiles\/:id'/)
+  assert.match(router, /AgentProfileDetailView\.vue/)
+  assert.match(router, /path: 'agents\/advanced'/)
+  assert.match(router, /AgentAdvancedSettingsView\.vue/)
 })
