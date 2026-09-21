@@ -269,6 +269,33 @@ test('Agent service exposes profile-first grouped operations without inventing p
   assert.equal(/\bfetch\s*\(/.test(service), false)
 })
 
+
+test('Agent Pinia store keeps profile configuration state without inventing profile CRUD', async () => {
+  const store = await source('../src/modules/agent/stores/agentStore.ts')
+
+  for (const fragment of [
+    'const routes = ref<AgentExtractionRouteDto[]>([])',
+    'const equipment = ref<AgentExtractionEquipmentDto[]>([])',
+    'const captures = ref<AgentEndpointCaptureDto[]>([])',
+    'const fields = ref<AgentExtractionFieldDto[]>([])',
+    'const selectedExecution = ref<AgentExecutionDto | null>(null)',
+    'loadProfileConfiguration(profileId: string)',
+    'AgentService.routes.browse(profileId)',
+    'AgentService.equipment.browse(profileId)',
+    'AgentService.captures.browse(profileId)',
+    'AgentService.fields.browse(profileId)',
+    'refreshExecution(executionId?: string)',
+  ]) {
+    assert.ok(store.includes(fragment), `Missing profile store behavior: ${fragment}`)
+  }
+
+  assert.match(store, /plannedSearchCount = computed\(\(\) => activeRoutes\.value\.length \* activeEquipment\.value\.length\)/)
+  assert.match(store, /profileCrudAvailable = computed\(\(\) => AgentService\.profiles\.contractAvailable\)/)
+  assert.equal(store.includes('password'), false)
+  assert.equal(store.includes('loadProfiles('), false)
+  assert.equal(store.includes('loadProfile('), false)
+})
+
 test('Agent monitoring exposes both DholeAgentService and Hermes through gateway health', async () => {
   const monitoring = await source('../src/core/services/monitoringService.ts')
   assert.match(monitoring, /key: 'agent'/)
