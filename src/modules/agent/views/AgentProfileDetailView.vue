@@ -68,11 +68,14 @@ const credential = computed(() =>
 async function refresh() {
   if (!profileId.value) return
   try {
-    await Promise.all([
+    const tasks: Promise<unknown>[] = [
       store.loadProfile(profileId.value),
       store.providers.length ? Promise.resolve(store.providers) : store.loadProviders(),
-      store.credentials.length ? Promise.resolve(store.credentials) : store.loadCredentials(),
-    ])
+    ]
+    if (permissions.canViewCredentials.value) {
+      tasks.push(store.credentials.length ? Promise.resolve(store.credentials) : store.loadCredentials())
+    }
+    await Promise.all(tasks)
     await store.loadProfileConfiguration(profileId.value)
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar el perfil de extracción.')
@@ -214,7 +217,7 @@ onMounted(refresh)
             </div>
             <div>
               <dt class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Credencial</dt>
-              <dd class="mt-1 font-bold text-[var(--dh-text)]">{{ credential ? `${credential.name} · ${credential.usernameMasked}` : 'Sin credencial' }}</dd>
+              <dd class="mt-1 font-bold text-[var(--dh-text)]">{{ credential ? `${credential.name} · ${credential.usernameMasked}` : profile.credentialId ? 'Credencial vinculada' : 'Sin credencial' }}</dd>
             </div>
             <div>
               <dt class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Parser</dt>
