@@ -1377,8 +1377,6 @@
       "description": "Description",
       "metadataJson": "Advanced configuration (JSON)",
       "configurationJson": "Action configuration (JSON)",
-      "usernameSecretKey": "Username secret key",
-      "passwordSecretKey": "Password secret key",
       "additionalSecretsJson": "AdditionalSecretsJson",
       "profileKey": "Profile Key",
       "storagePath": "Storage Path",
@@ -1416,7 +1414,9 @@
       "executionId": "Execution ID",
       "input": "Input",
       "result": "Result",
-      "error": "Error"
+      "error": "Error",
+      "username": "Username",
+      "password": "Password"
     },
     "dashboard": {
       "serviceStatus": "DholeAgentService status",
@@ -1456,12 +1456,14 @@
     },
     "credentials": {
       "title": "Access credentials",
-      "subtitle": "Link each carrier to secret keys containing the username and password. DholeWeb never stores the real password.",
+      "subtitle": "Save each carrier login. DholeAgentService encrypts credentials; DholeWeb never retains the password.",
       "empty": "No access credentials configured.",
       "createTitle": "New access credential",
       "editTitle": "Edit access credential",
-      "secretNotice": "Enter only secret names or paths managed by infrastructure. Do not enter real usernames, passwords, JWTs, cookies or Bearer tokens.",
-      "editSecretNotice": "The backend does not return previous secret references; enter the keys again to update."
+      "secretNotice": "Enter the carrier username and password. The password is sent only to the backend for encryption and is cleared from the form after saving.",
+      "editSecretNotice": "For security the backend returns only the masked username. Re-enter the username; leave password empty to keep the current one.",
+      "passwordOptional": "New password (optional)",
+      "usernameEditPlaceholder": "Re-enter the username"
     },
     "browserProfiles": {
       "title": "Web sessions",

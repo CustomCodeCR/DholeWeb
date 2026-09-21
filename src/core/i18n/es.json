@@ -1378,8 +1378,6 @@
       "description": "Description",
       "metadataJson": "Configuración avanzada (JSON)",
       "configurationJson": "Configuración de acción (JSON)",
-      "usernameSecretKey": "Clave del secreto de usuario",
-      "passwordSecretKey": "Clave del secreto de contraseña",
       "additionalSecretsJson": "AdditionalSecretsJson",
       "profileKey": "Profile Key",
       "storagePath": "Storage Path",
@@ -1417,7 +1415,9 @@
       "executionId": "Execution ID",
       "input": "Input",
       "result": "Result",
-      "error": "Error"
+      "error": "Error",
+      "username": "Usuario",
+      "password": "Contraseña"
     },
     "dashboard": {
       "serviceStatus": "Estado DholeAgentService",
@@ -1457,12 +1457,14 @@
     },
     "credentials": {
       "title": "Accesos",
-      "subtitle": "Vincule cada naviera con las claves de secretos que contienen el usuario y la contraseña. DholeWeb nunca guarda la contraseña real.",
+      "subtitle": "Guarde el acceso de cada naviera. DholeAgentService cifra las credenciales; DholeWeb nunca conserva la contraseña.",
       "empty": "No hay accesos configurados.",
       "createTitle": "Nuevo acceso",
       "editTitle": "Editar acceso",
-      "secretNotice": "Ingrese únicamente nombres o rutas de secretos administrados por infraestructura. No ingrese usuarios, contraseñas, JWT, cookies ni Bearer tokens reales.",
-      "editSecretNotice": "El backend no devuelve las referencias anteriores; para actualizar debe indicar nuevamente las keys."
+      "secretNotice": "Ingrese el usuario y la contraseña de la naviera. La contraseña se envía únicamente al backend para cifrado y se limpia del formulario después de guardar.",
+      "editSecretNotice": "Por seguridad el backend solo devuelve el usuario enmascarado. Vuelva a escribir el usuario; deje la contraseña vacía para conservar la actual.",
+      "passwordOptional": "Nueva contraseña (opcional)",
+      "usernameEditPlaceholder": "Vuelva a escribir el usuario"
     },
     "browserProfiles": {
       "title": "Sesiones web",

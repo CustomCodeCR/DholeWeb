@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { KeyRound, Pencil, Plus, Power, RefreshCw } from 'lucide-vue-next'
-import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhPasswordInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhConfirmDialog, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
 import type { AgentCredentialDto } from '@/core/interfaces/agent'
@@ -28,14 +28,16 @@ const pendingToggle = ref<AgentCredentialDto | null>(null)
 const form = reactive({
   providerId: '',
   name: '',
-  usernameSecretKey: '',
-  passwordSecretKey: '',
+  username: '',
+  password: '',
   additionalSecretsJson: '',
 })
 
 const columns: DhTableColumn<AgentCredentialDto>[] = [
   { key: 'name', label: t('agent.fields.name') },
   { key: 'providerId', label: t('agent.fields.provider') },
+  { key: 'usernameMasked', label: t('agent.fields.username') },
+  { key: 'hasPassword', label: t('agent.fields.password'), align: 'center' },
   { key: 'isActive', label: t('agent.fields.status'), align: 'center' },
   { key: 'createdAtUtc', label: t('agent.fields.created') },
   { key: 'updatedAtUtc', label: t('agent.fields.updatedAt') },
@@ -57,8 +59,8 @@ function resetForm() {
   editingId.value = null
   form.providerId = store.activeProviders[0]?.id ?? ''
   form.name = ''
-  form.usernameSecretKey = ''
-  form.passwordSecretKey = ''
+  form.username = ''
+  form.password = ''
   form.additionalSecretsJson = ''
 }
 
@@ -71,10 +73,9 @@ function openEdit(row: AgentCredentialDto) {
   editingId.value = row.id
   form.providerId = row.providerId
   form.name = row.name
-  // El DTO deliberadamente no expone referencias de secretos previamente guardadas.
-  // Para actualizar se solicitan nuevamente las keys, nunca el valor real del secreto.
-  form.usernameSecretKey = ''
-  form.passwordSecretKey = ''
+  // El backend solo devuelve el usuario enmascarado y nunca devuelve la contraseña.
+  form.username = ''
+  form.password = ''
   form.additionalSecretsJson = ''
   modalOpen.value = true
 }
@@ -103,8 +104,10 @@ async function save() {
   try {
     if (!form.providerId) throw new Error(t('agent.validation.required', { field: t('agent.fields.provider') }))
     if (!form.name.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.name') }))
-    if (!form.usernameSecretKey.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.usernameSecretKey') }))
-    if (!form.passwordSecretKey.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.passwordSecretKey') }))
+    if (!form.username.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.username') }))
+    if (!editingId.value && !form.password.trim()) {
+      throw new Error(t('agent.validation.required', { field: t('agent.fields.password') }))
+    }
 
     const additionalSecretsJson = validateAdditionalSecrets()
     saving.value = true
@@ -112,8 +115,8 @@ async function save() {
     if (editingId.value) {
       await AgentService.updateCredential(editingId.value, {
         name: form.name.trim(),
-        usernameSecretKey: form.usernameSecretKey.trim(),
-        passwordSecretKey: form.passwordSecretKey.trim(),
+        username: form.username.trim(),
+        password: form.password.trim() || null,
         additionalSecretsJson,
       })
       toastStore.success(t('agent.messages.credentialUpdated'))
@@ -121,13 +124,14 @@ async function save() {
       await AgentService.createCredential({
         providerId: form.providerId,
         name: form.name.trim(),
-        usernameSecretKey: form.usernameSecretKey.trim(),
-        passwordSecretKey: form.passwordSecretKey.trim(),
+        username: form.username.trim(),
+        password: form.password.trim(),
         additionalSecretsJson,
       })
       toastStore.success(t('agent.messages.credentialCreated'))
     }
 
+    form.password = ''
     modalOpen.value = false
     await store.loadCredentials()
   } catch (error) {
@@ -199,6 +203,8 @@ onMounted(refresh)
       :empty-text="t('agent.credentials.empty')"
     >
       <template #cell-providerId="{ row }">{{ providerName(row.providerId) }}</template>
+      <template #cell-usernameMasked="{ row }">{{ row.usernameMasked || '—' }}</template>
+      <template #cell-hasPassword="{ row }">{{ row.hasPassword ? t('common.yes') : t('common.no') }}</template>
       <template #cell-isActive="{ row }"><AgentStatusBadge :active="row.isActive" /></template>
       <template #cell-createdAtUtc="{ row }">{{ formatDate(row.createdAtUtc) }}</template>
       <template #cell-updatedAtUtc="{ row }">{{ formatDate(row.updatedAtUtc) }}</template>
@@ -242,15 +248,16 @@ onMounted(refresh)
           />
           <DhInput v-model="form.name" :label="t('agent.fields.name')" :disabled="saving" />
           <DhInput
-            v-model="form.usernameSecretKey"
-            :label="t('agent.fields.usernameSecretKey')"
-            placeholder="secret/path/username"
+            v-model="form.username"
+            :label="t('agent.fields.username')"
+            :placeholder="editingId ? t('agent.credentials.usernameEditPlaceholder') : 'operaciones@empresa.com'"
+            autocomplete="username"
             :disabled="saving"
           />
-          <DhInput
-            v-model="form.passwordSecretKey"
-            :label="t('agent.fields.passwordSecretKey')"
-            placeholder="secret/path/password"
+          <DhPasswordInput
+            v-model="form.password"
+            :label="editingId ? t('agent.credentials.passwordOptional') : t('agent.fields.password')"
+            autocomplete="new-password"
             :disabled="saving"
           />
         </div>
@@ -260,7 +267,7 @@ onMounted(refresh)
           :label="t('agent.fields.additionalSecretsJson')"
           :rows="7"
           :disabled="saving"
-          placeholder='{"totpSecretKey":"secret/path/totp"}'
+          placeholder='{"totp":"valor-adicional-opcional"}'
         />
 
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
