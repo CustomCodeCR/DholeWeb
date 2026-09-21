@@ -124,7 +124,7 @@ async function createProfile() {
     await store.loadBrowserProfiles()
   } catch (error) {
     if (error instanceof Error && !('status' in error)) {
-      toastStore.warning('Revise el perfil', error.message)
+      toastStore.warning(t('agent.review.profile'), error.message)
     } else {
       toastStore.backendError(error, t('agent.errors.createProfile'))
     }
