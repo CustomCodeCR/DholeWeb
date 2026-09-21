@@ -11,6 +11,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
+import { UsersService } from '@/core/services/usersService'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
@@ -193,6 +194,34 @@ function rateFinancialSummary(rate: RateDto) {
 }
 
 const rows = ref<RateDto[]>([])
+const creatorDirectory = ref<Record<string, { displayName: string; userName: string }>>({})
+
+async function loadCreatorDirectory() {
+  try {
+    const users = await UsersService.browse({ pageNumber: 1, pageSize: 200 })
+    creatorDirectory.value = Object.fromEntries(
+      users.map((user) => [user.id, { displayName: user.displayName, userName: user.userName }]),
+    )
+  } catch {
+    creatorDirectory.value = {}
+  }
+}
+
+function creatorDisplayName(rate: RateDto) {
+  if (rate.createdByDisplayName) return rate.createdByDisplayName
+  if (rate.createdByUserName) return rate.createdByUserName
+  if (rate.createdByUserId) {
+    const user = creatorDirectory.value[rate.createdByUserId]
+    return user?.displayName || user?.userName || rate.createdByUserId
+  }
+  return '—'
+}
+
+function creatorUserName(rate: RateDto) {
+  if (rate.createdByUserName) return rate.createdByUserName
+  if (!rate.createdByUserId) return ''
+  return creatorDirectory.value[rate.createdByUserId]?.userName || ''
+}
 const selectedIds = ref<string[]>([])
 const loading = ref(false)
 const filtersOpen = ref(false)
@@ -367,6 +396,7 @@ async function load() {
       const start = (page.value - 1) * pageSize.value
       const pageRows = sellerRows.slice(start, start + pageSize.value)
       rows.value = pageRows
+      await loadCreatorDirectory()
       total.value = sellerRows.length
       selectedIds.value = selectedIds.value.filter((id) => pageRows.some((row) => row.id === id))
       return
@@ -401,6 +431,7 @@ async function load() {
       : safeItems
 
     rows.value = visibleItems
+    await loadCreatorDirectory()
     total.value = filters.status === 'Open'
       ? visibleItems.length
       : result?.totalCount ?? visibleItems.length
@@ -772,13 +803,13 @@ onMounted(async () => {
                 <td class="px-4 py-4">
                   <div class="min-w-[180px]">
                     <p class="font-black text-[var(--dh-text)]">
-                      {{ row.createdByDisplayName || row.createdByUserName || row.createdByUserId || '—' }}
+                      {{ creatorDisplayName(row) }}
                     </p>
                     <p
-                      v-if="row.createdByUserName && row.createdByDisplayName && row.createdByUserName.toLowerCase() !== row.createdByDisplayName.toLowerCase()"
+                      v-if="creatorUserName(row) && creatorUserName(row).toLowerCase() !== creatorDisplayName(row).toLowerCase()"
                       class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]"
                     >
-                      @{{ row.createdByUserName }}
+                      @{{ creatorUserName(row) }}
                     </p>
                   </div>
                 </td>
