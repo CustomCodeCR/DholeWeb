@@ -205,12 +205,22 @@ test('Agent service uses centralized endpoints and never performs direct fetch c
     '/api/agents/providers',
     '/api/agents/definitions',
     '/api/agents/credentials',
+    '/api/agents/credentials/{{credentialId}}/verify',
+    '/api/agents/extraction-profiles/{{profileId}}/routes',
+    '/api/agents/extraction-profiles/{{profileId}}/equipment',
+    '/api/agents/extraction-profiles/{{profileId}}/captures',
+    '/api/agents/extraction-profiles/{{profileId}}/fields',
+    '/api/agents/extraction-profiles/{{profileId}}/prompt-preview',
     '/api/agents/browser-profiles',
     '/api/agents/schedules',
     '/api/agents/executions',
+    '/api/agents/executions/{{executionId}}/prompt',
   ]) assert.ok(endpoints.includes(path), `Missing Agent endpoint: ${path}`)
 
-  for (const placeholder of ['{{providerId}}', '{{definitionId}}', '{{credentialId}}', '{{profileId}}', '{{scheduleId}}', '{{executionId}}']) {
+  assert.equal(endpoints.includes("path: '/api/agents/extraction-profiles'"), false)
+  assert.equal(endpoints.includes('/api/agents/extraction-profiles/{{profileId}}/run'), false)
+
+  for (const placeholder of ['{{providerId}}', '{{definitionId}}', '{{credentialId}}', '{{profileId}}', '{{routeId}}', '{{equipmentId}}', '{{captureId}}', '{{fieldId}}', '{{scheduleId}}', '{{executionId}}']) {
     assert.ok(endpoints.includes(placeholder), `Missing endpoint placeholder: ${placeholder}`)
   }
 })
