@@ -230,9 +230,10 @@ function canUpdateRate(rate: RateDto) {
   return canUpdate.value && requestedRateUpdateStatuses.has(rate.status)
 }
 
-function isMasterTariff(rate: RateDto) {
-  return rate.rateType === 'Tariff'
-    && String(rate.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO')
+function isMasterTariff(rate: RateDto | null | undefined) {
+  if (!rate || rate.rateType !== 'Tariff') return false
+  const clientName = typeof rate.clientName === 'string' ? rate.clientName : ''
+  return clientName.toUpperCase().includes('TARIFARIO')
 }
 
 function canApplyTariffRate(rate: RateDto) {
@@ -310,9 +311,12 @@ async function load() {
       validTo: filters.validTo || undefined,
       excludeTariffMasters: true,
     })
-    rows.value = result.items
-    total.value = result.totalCount ?? result.items.length
-    selectedIds.value = selectedIds.value.filter((id) => result.items.some((row) => row.id === id))
+    const safeItems = Array.isArray(result?.items)
+      ? result.items.filter((row): row is RateDto => Boolean(row && row.id))
+      : []
+    rows.value = safeItems
+    total.value = result?.totalCount ?? safeItems.length
+    selectedIds.value = selectedIds.value.filter((id) => safeItems.some((row) => row.id === id))
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar las tarifas.')
   } finally {
@@ -449,7 +453,14 @@ watch(
 )
 
 onMounted(async () => {
-  await catalogs.loadAll()
+  try {
+    await catalogs.loadAll()
+  } catch (error) {
+    // La tabla de tarifas debe seguir operativa aunque Config no pueda cargar
+    // temporalmente alguno de sus catálogos auxiliares.
+    console.error('[PricingRatesView] No se pudieron cargar todos los catálogos.', error)
+  }
+
   await load()
   await openRequestedRate()
 })
