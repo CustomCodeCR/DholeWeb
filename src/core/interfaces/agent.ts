@@ -165,3 +165,85 @@ export interface CreateAgentScheduleRequest {
   maxRetries: number
   timeoutSeconds: number
 }
+
+export interface UpdateAgentProviderRequest {
+  name: string
+  providerType: AgentProviderType
+  baseUrl: string | null
+  defaultExecutionStrategy: AgentExecutionStrategy
+  metadataJson: string | null
+}
+
+export interface UpdateAgentDefinitionRequest {
+  name: string
+  description: string | null
+  actionType: AgentActionType
+  executionStrategy: AgentExecutionStrategy
+  configurationJson: string | null
+}
+
+export interface UpdateAgentCredentialRequest {
+  name: string
+  usernameSecretKey: string
+  passwordSecretKey: string
+  additionalSecretsJson: string | null
+}
+
+export interface CreateBrowserProfileRequest {
+  providerId: string
+  credentialId: string
+  name: string
+  profileKey: string
+  storagePath: string
+}
+
+export interface UpdateAgentScheduleRequest {
+  name: string
+  credentialId: string | null
+  scheduleType: AgentScheduleType
+  cronExpression: string | null
+  intervalMinutes: number | null
+  executeAt: string | null
+  timezone: string
+  inputJson: string
+  maxRetries: number
+  timeoutSeconds: number
+  nextExecutionAt: string | null
+}
+
+export const AGENT_PROVIDER_TYPES = ['Maersk', 'Msc', 'Pil', 'CmaCgm', 'HapagLloyd', 'GenericWeb'] as const
+export const AGENT_EXECUTION_STRATEGIES = ['Browser', 'BrowserNetworkCapture', 'Hermes', 'Hybrid'] as const
+export const AGENT_ACTION_TYPES = ['SearchOceanRates', 'Authenticate', 'GenericExtraction'] as const
+export const AGENT_SCHEDULE_TYPES = ['Once', 'Interval', 'Cron'] as const
+export const AGENT_EXECUTION_STATUSES = [
+  'Pending',
+  'Queued',
+  'Running',
+  'WaitingForAuthentication',
+  'Completed',
+  'PartiallyCompleted',
+  'Failed',
+  'Cancelled',
+] as const
+
+export type AgentBrowserProfileStatus =
+  | 'Unknown'
+  | 'Ready'
+  | 'LoginRequired'
+  | 'Authenticating'
+  | 'Authenticated'
+  | 'Expired'
+  | 'Blocked'
+  | 'Error'
+
+export const AGENT_BROWSER_PROFILE_STATUSES = [
+  'Unknown',
+  'Ready',
+  'LoginRequired',
+  'Authenticating',
+  'Authenticated',
+  'Expired',
+  'Blocked',
+  'Error',
+] as const
+
