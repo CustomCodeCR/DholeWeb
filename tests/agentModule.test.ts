@@ -47,6 +47,12 @@ test('Agent scopes and route visibility use the granular backend permissions', a
   assert.equal(AGENT_SCOPES.providers.manage, 'agent.providers.manage')
   assert.equal(AGENT_SCOPES.definitions.view, 'agent.definitions.view')
   assert.equal(AGENT_SCOPES.credentials.manage, 'agent.credentials.manage')
+  assert.equal(AGENT_SCOPES.credentials.verify, 'agent.credentials.verify')
+  assert.equal(AGENT_SCOPES.routes.manage, 'agent.routes.manage')
+  assert.equal(AGENT_SCOPES.equipment.manage, 'agent.equipment.manage')
+  assert.equal(AGENT_SCOPES.captureRules.manage, 'agent.capture-rules.manage')
+  assert.equal(AGENT_SCOPES.extractionFields.manage, 'agent.extraction-fields.manage')
+  assert.equal(AGENT_SCOPES.prompts.manage, 'agent.prompts.manage')
   assert.equal(AGENT_SCOPES.browserProfiles.authenticate, 'agent.browser-profiles.authenticate')
   assert.equal(AGENT_SCOPES.schedules.execute, 'agent.schedules.execute')
   assert.equal(AGENT_SCOPES.schedules.delete, 'agent.schedules.delete')
@@ -59,6 +65,12 @@ test('Agent scopes and route visibility use the granular backend permissions', a
     'AGENT_SCOPES.providers.manage',
     'AGENT_SCOPES.definitions.manage',
     'AGENT_SCOPES.credentials.manage',
+    'AGENT_SCOPES.credentials.verify',
+    'AGENT_SCOPES.routes.manage',
+    'AGENT_SCOPES.equipment.manage',
+    'AGENT_SCOPES.captureRules.manage',
+    'AGENT_SCOPES.extractionFields.manage',
+    'AGENT_SCOPES.prompts.manage',
     'AGENT_SCOPES.browserProfiles.authenticate',
     'AGENT_SCOPES.schedules.create',
     'AGENT_SCOPES.schedules.update',
