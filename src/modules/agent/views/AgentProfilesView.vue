@@ -47,12 +47,14 @@ function providerName(providerId: string) {
 function credentialName(credentialId: string | null) {
   if (!credentialId) return 'Sin credencial'
   const credential = store.credentials.find((item) => item.id === credentialId)
-  return credential ? `${credential.name} · ${credential.usernameMasked}` : credentialId
+  return credential ? `${credential.name} · ${credential.usernameMasked}` : 'Credencial vinculada'
 }
 
 async function refresh() {
   try {
-    await Promise.all([store.loadProfiles(), store.loadProviders(), store.loadCredentials()])
+    const tasks: Promise<unknown>[] = [store.loadProfiles(), store.loadProviders()]
+    if (permissions.canViewCredentials.value) tasks.push(store.loadCredentials())
+    await Promise.all(tasks)
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar los perfiles de extracción.')
   }
@@ -166,13 +168,8 @@ onMounted(refresh)
       title="No hay perfiles de extracción"
       description="Cree el primer perfil para definir naviera, accesos, rutas, equipos, endpoints y campos de extracción."
       :icon="Bot"
-    >
-      <DhButton
-        v-if="permissions.canManageProviders.value"
-        label="Crear perfil"
-        :icon="Plus"
-        @click="router.push('/agents/profiles/new')"
-      />
-    </DhEmptyState>
+      :action-label="permissions.canManageProviders.value ? 'Crear perfil' : undefined"
+      @action="router.push('/agents/profiles/new')"
+    />
   </section>
 </template>
