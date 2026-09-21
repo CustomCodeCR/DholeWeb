@@ -333,6 +333,9 @@ export interface PricingRateDashboardItemDto extends Record<string, unknown> {
   rateCode: string
   rateName: string
   status: RateStatus
+  createdByUserId?: string | null
+  createdByUserName?: string | null
+  createdByDisplayName?: string | null
   clientName?: string | null
   executiveName?: string | null
   carrierName?: string | null
@@ -690,6 +693,9 @@ export interface RateDto extends Record<string, unknown> {
   marginPercentage: number
   requiredApproval: boolean
   status: RateStatus
+  createdByUserId?: string | null
+  createdByUserName?: string | null
+  createdByDisplayName?: string | null
   closedReason?: string | null
   closedAtUtc?: string | null
   closedBy?: string | null
