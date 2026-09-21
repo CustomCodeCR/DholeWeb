@@ -52,13 +52,13 @@ async function ensurePricingQuoteApproved(
     },
   })
 
-  // El backend mantiene la validación autoritativa. Si el preflight no puede
-  // resolverse dejamos que la solicitud real responda con el error correspondiente.
+  // requiredApproval indica que la tarifa nació con margen bajo; no significa que
+  // siga pendiente después de la aprobación. El estado comercial es la fuente de verdad.
+  // Si el preflight no puede resolverse, dejamos que la solicitud real responda.
   if (!response.ok) return
 
   const snapshot = findPricingRateApprovalSnapshot(await response.json())
   const isBlockedByMarginApproval =
-    snapshot?.requiredApproval === true ||
     snapshot?.status === 'PendingApproval' ||
     snapshot?.status === 'RejectedByManagement'
 
