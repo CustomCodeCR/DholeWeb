@@ -91,6 +91,14 @@ function openStatus(status: RateStatus | null) {
   router.push({ path: '/pricing/rates', query: { status: commercialStatus(status) } })
 }
 
+function openRate(rateId: string) {
+  router.push({
+    name: 'pricing-rate-wizard',
+    params: { rateId },
+    query: { mode: 'view' },
+  })
+}
+
 function statusLabel(status: RateStatus) {
   return (
     {
@@ -278,6 +286,7 @@ onMounted(loadDashboard)
               <tr>
                 <th class="px-5 py-3">Tarifa</th>
                 <th class="px-5 py-3">Ruta</th>
+                <th class="px-5 py-3">Cotizado por</th>
                 <th class="px-5 py-3">Estado</th>
                 <th class="px-5 py-3">Creación / modificación</th>
                 <th class="px-5 py-3">Vigencia</th>
@@ -289,7 +298,7 @@ onMounted(loadDashboard)
                 v-for="rate in dashboard.recentRates"
                 :key="rate.id"
                 class="cursor-pointer transition hover:bg-black/[0.025] dark:hover:bg-white/[0.035]"
-                @click="openStatus(rate.status)"
+                @click="openRate(rate.id)"
               >
                 <td class="px-5 py-4">
                   <p class="font-black text-[var(--dh-text)]">{{ rate.rateCode }}</p>
@@ -298,6 +307,17 @@ onMounted(loadDashboard)
                 <td class="px-5 py-4 font-semibold text-[var(--dh-text)]">
                   {{ rate.polName }} → {{ rate.poeName }} → {{ rate.podName }}
                   <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ rate.containerTypeName }}</p>
+                </td>
+                <td class="px-5 py-4">
+                  <p class="font-black text-[var(--dh-text)]">
+                    {{ rate.createdByDisplayName || rate.createdByUserName || rate.createdByUserId || '—' }}
+                  </p>
+                  <p
+                    v-if="rate.createdByUserName && rate.createdByDisplayName && rate.createdByUserName.toLowerCase() !== rate.createdByDisplayName.toLowerCase()"
+                    class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]"
+                  >
+                    @{{ rate.createdByUserName }}
+                  </p>
                 </td>
                 <td class="px-5 py-4">
                   <DhBadge :label="statusLabel(rate.status)" :variant="statusTone(rate.status)" />
@@ -314,7 +334,7 @@ onMounted(loadDashboard)
                 </td>
               </tr>
               <tr v-if="!dashboard.recentRates.length">
-                <td colspan="6" class="px-5 py-10 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas para mostrar.</td>
+                <td colspan="7" class="px-5 py-10 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas para mostrar.</td>
               </tr>
             </tbody>
           </table>
