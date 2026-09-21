@@ -436,3 +436,34 @@ test('Capture rule UI maps the real capture contract and test endpoint', async (
   assert.match(table, /AgentEndpointCaptureDto/)
   assert.match(table, /overflow-x-auto/)
 })
+
+
+test('Extraction field UI maps the real field contract and CRUD service', async () => {
+  const form = await source('../src/modules/agent/components/fields/AgentExtractionFieldForm.vue')
+  const table = await source('../src/modules/agent/components/fields/AgentExtractionFieldsTable.vue')
+
+  for (const field of [
+    'key',
+    'label',
+    'description',
+    'dataType',
+    'sourceType',
+    'jsonPath',
+    'required',
+    'sortOrder',
+    'isActive',
+  ]) {
+    assert.ok(form.includes(field), `Missing extraction field property: ${field}`)
+  }
+
+  for (const value of ['String', 'Number', 'Decimal', 'Date', 'DateTime', 'Boolean', 'Object', 'Array']) {
+    assert.ok(form.includes('AGENT_EXTRACTION_DATA_TYPES'), 'Data types must come from the shared backend mirror')
+    assert.ok((await source('../src/core/interfaces/agent.ts')).includes(`'${value}'`))
+  }
+
+  assert.match(form, /AgentService\.fields\.create\(props\.profileId, payload\)/)
+  assert.match(form, /AgentService\.fields\.update\(props\.profileId, props\.field\.id, payload\)/)
+  assert.match(table, /AgentExtractionFieldDto/)
+  assert.match(table, /overflow-x-auto/)
+  assert.equal(form.includes('Cargar campos recomendados de Maersk'), false)
+})
