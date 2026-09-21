@@ -777,6 +777,75 @@ export const AiEndpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+export const AgentEndpoints = {
+  agentHealth: { method: 'GET', path: '/api/health/agent', headers: acceptJson },
+  browseProviders: { method: 'GET', path: '/api/agents/providers', headers: acceptJson },
+  getProvider: { method: 'GET', path: '/api/agents/providers/{{providerId}}', headers: acceptJson },
+  createProvider: { method: 'POST', path: '/api/agents/providers', headers: jsonHeaders },
+  updateProvider: { method: 'PUT', path: '/api/agents/providers/{{providerId}}', headers: jsonHeaders },
+  setProviderActive: {
+    method: 'PATCH',
+    path: '/api/agents/providers/{{providerId}}/active',
+    headers: jsonHeaders,
+  },
+
+  browseDefinitions: { method: 'GET', path: '/api/agents/definitions', headers: acceptJson },
+  getDefinition: { method: 'GET', path: '/api/agents/definitions/{{definitionId}}', headers: acceptJson },
+  createDefinition: { method: 'POST', path: '/api/agents/definitions', headers: jsonHeaders },
+  updateDefinition: { method: 'PUT', path: '/api/agents/definitions/{{definitionId}}', headers: jsonHeaders },
+  setDefinitionActive: {
+    method: 'PATCH',
+    path: '/api/agents/definitions/{{definitionId}}/active',
+    headers: jsonHeaders,
+  },
+
+  browseCredentials: { method: 'GET', path: '/api/agents/credentials', headers: acceptJson },
+  createCredential: { method: 'POST', path: '/api/agents/credentials', headers: jsonHeaders },
+  updateCredential: { method: 'PUT', path: '/api/agents/credentials/{{credentialId}}', headers: jsonHeaders },
+  setCredentialActive: {
+    method: 'PATCH',
+    path: '/api/agents/credentials/{{credentialId}}/active',
+    headers: jsonHeaders,
+  },
+
+  browseBrowserProfiles: { method: 'GET', path: '/api/agents/browser-profiles', headers: acceptJson },
+  getBrowserProfile: { method: 'GET', path: '/api/agents/browser-profiles/{{profileId}}', headers: acceptJson },
+  createBrowserProfile: { method: 'POST', path: '/api/agents/browser-profiles', headers: jsonHeaders },
+  authenticateBrowserProfile: {
+    method: 'POST',
+    path: '/api/agents/browser-profiles/{{profileId}}/authenticate',
+    headers: acceptJson,
+  },
+
+  browseSchedules: { method: 'GET', path: '/api/agents/schedules', headers: acceptJson },
+  getSchedule: { method: 'GET', path: '/api/agents/schedules/{{scheduleId}}', headers: acceptJson },
+  createSchedule: { method: 'POST', path: '/api/agents/schedules', headers: jsonHeaders },
+  updateSchedule: { method: 'PUT', path: '/api/agents/schedules/{{scheduleId}}', headers: jsonHeaders },
+  setScheduleActive: {
+    method: 'PATCH',
+    path: '/api/agents/schedules/{{scheduleId}}/active',
+    headers: jsonHeaders,
+  },
+  runSchedule: {
+    method: 'POST',
+    path: '/api/agents/schedules/{{scheduleId}}/run',
+    headers: acceptJson,
+  },
+
+  browseAgentExecutions: { method: 'GET', path: '/api/agents/executions', headers: acceptJson },
+  getAgentExecution: {
+    method: 'GET',
+    path: '/api/agents/executions/{{executionId}}',
+    headers: acceptJson,
+  },
+  createAgentExecution: { method: 'POST', path: '/api/agents/executions', headers: jsonHeaders },
+  cancelAgentExecution: {
+    method: 'POST',
+    path: '/api/agents/executions/{{executionId}}/cancel',
+    headers: acceptJson,
+  },
+} satisfies Record<string, Endpoint>
+
 export const ReportsEndpoints = {
   browseTemplates: { method: 'GET', path: '/api/reports/templates', headers: acceptJson },
   getTemplate: {
@@ -889,6 +958,7 @@ export const Endpoints = {
   ...PricingEndpoints,
   ...DataExtractionEmailEndpoints,
   ...AiEndpoints,
+  ...AgentEndpoints,
   ...ReportsEndpoints,
   ...NotificationsEndpoints,
 } satisfies Record<string, Endpoint>
