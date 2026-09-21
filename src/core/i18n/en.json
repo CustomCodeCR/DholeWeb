@@ -1431,7 +1431,8 @@
       "systemProvider": "System provider",
       "systemProviderDescription": "Only sent when creating the provider.",
       "confirmState": "Confirm status change",
-      "definitions": "Definitions"
+      "definitions": "Definitions",
+      "genericWeb": "Generic web"
     },
     "definitions": {
       "title": "Definitions",
