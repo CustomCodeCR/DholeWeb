@@ -27,8 +27,7 @@ function todayInputDate() {
 const isFcl = computed(() => String(props.rate.shipmentMode ?? '').trim().toLowerCase() === 'fcl')
 const isMasterTariff = computed(() =>
   props.rate.rateType === 'Tariff'
-  && !props.rate.sourceTariffRateId
-  && !String(props.rate.clientName ?? '').trim(),
+  && String(props.rate.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO'),
 )
 const today = todayInputDate()
 const form = reactive({
