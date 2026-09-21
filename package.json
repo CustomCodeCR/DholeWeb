@@ -16,7 +16,7 @@
     "test:media": "node --test tests/mediaLibrary.test.ts",
     "test:marketing": "node --test tests/marketingModule.test.ts tests/marketingRedesign.test.ts tests/marketingVisualEditor.test.ts tests/marketingBlockPresets.test.ts tests/marketingMediaPicker.test.ts tests/marketingMediaLibrary.test.ts tests/marketingAnimationPicker.test.ts tests/marketingLivePreview.test.ts tests/marketingDevicePreview.test.ts tests/marketingEditorScroll.test.ts tests/marketingScrollbarAudit.test.ts tests/marketingScrollbarStyle.test.ts tests/marketingAutosave.test.ts",
     "test:marketing-ai": "node --test tests/marketingAi.test.ts",
-    "test:agent": "node --test tests/agentModule.test.ts",
+    "test:agent": "node --test tests/agentModule.test.ts tests/agentRouteForm.test.ts",
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {

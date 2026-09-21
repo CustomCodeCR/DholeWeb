@@ -275,7 +275,7 @@ export interface AgentExtractionRouteDto {
   poeCode: string | null
   poeName: string | null
   podCode: string | null
-  podName: string
+  podName: string | null
   isActive: boolean
   sortOrder: number
 }
@@ -285,9 +285,9 @@ export interface SaveAgentExtractionRouteRequest {
   polCode: string | null
   polName: string
   poeCode: string | null
-  poeName: string | null
+  poeName: string
   podCode: string | null
-  podName: string
+  podName: string | null
   isActive: boolean
   sortOrder: number
 }
