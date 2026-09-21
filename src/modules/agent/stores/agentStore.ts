@@ -100,8 +100,8 @@ export const useAgentStore = defineStore('agent', () => {
     return schedules.value
   }
 
-  async function loadExecutions(take = 100) {
-    executions.value = await withLoading(() => AgentService.browseExecutions(take))
+  async function loadExecutions(take = 100, status?: import('@/core/interfaces/agent').AgentExecutionStatus) {
+    executions.value = await withLoading(() => AgentService.browseExecutions(take, status))
     return executions.value
   }
 
