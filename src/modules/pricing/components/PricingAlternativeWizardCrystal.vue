@@ -334,10 +334,12 @@ const currentRateType = computed<RateType>(() =>
   editingRate.value?.rateType === 'Tariff' || form.rateType === 'Tariff' ? 'Tariff' : 'Spot',
 )
 const isMasterTariff = computed(() =>
-  currentRateType.value === 'Tariff' && !editingRate.value?.sourceTariffRateId,
+  currentRateType.value === 'Tariff'
+    && !editingRate.value?.sourceTariffRateId
+    && !String(editingRate.value?.clientName ?? form.clientName ?? '').trim(),
 )
 const isClientTariff = computed(() =>
-  currentRateType.value === 'Tariff' && Boolean(editingRate.value?.sourceTariffRateId),
+  currentRateType.value === 'Tariff' && !isMasterTariff.value,
 )
 const commercialRateTypeLabel = computed(() =>
   isMasterTariff.value
