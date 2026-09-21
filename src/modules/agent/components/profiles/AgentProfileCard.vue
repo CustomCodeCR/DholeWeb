@@ -21,6 +21,7 @@ defineProps<{
     </template>
 
     <AgentProfileSummary
+      v-if="routeCount !== undefined || equipmentCount !== undefined || captureCount !== undefined || fieldCount !== undefined"
       :routes="routeCount ?? 0"
       :equipment="equipmentCount ?? 0"
       :captures="captureCount ?? 0"

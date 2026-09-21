@@ -295,11 +295,13 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     canView(VIEW_SCOPES.agentExecutions)
 
   if (canManageAgent) {
-    agentChildren.push({
-      label: t('sidebar.agentProfiles'),
-      path: '/agents/profiles',
-      icon: Bot,
-    })
+    if (canView(VIEW_SCOPES.agentProviders)) {
+      agentChildren.push({
+        label: t('sidebar.agentProfiles'),
+        path: '/agents/profiles',
+        icon: Bot,
+      })
+    }
 
     if (canView(VIEW_SCOPES.agentExecutions)) {
       agentChildren.push({
