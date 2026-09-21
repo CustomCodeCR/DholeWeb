@@ -27,8 +27,7 @@ async function submit() {
 
   if (
     props.rate.rateType === 'Tariff'
-    && !props.rate.sourceTariffRateId
-    && !String(props.rate.clientName ?? '').trim()
+    && String(props.rate.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO')
   ) {
     toastStore.warning(
       'El tarifario maestro no se acepta',
