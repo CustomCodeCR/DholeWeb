@@ -287,9 +287,9 @@ const sidebarItems = computed<SidebarItem[]>(() => {
   if (canManageAgent) {
     agentChildren.push({ label: t('sidebar.agentSummary'), path: '/agents', icon: Gauge })
     if (canView(VIEW_SCOPES.agentProviders)) agentChildren.push({ label: t('sidebar.agentProviders'), path: '/agents/providers', icon: Ship })
-    if (canView(VIEW_SCOPES.agentDefinitions)) agentChildren.push({ label: t('sidebar.agentDefinitions'), path: '/agents/definitions', icon: FileCode2 })
     if (canView(VIEW_SCOPES.agentCredentials)) agentChildren.push({ label: t('sidebar.agentCredentials'), path: '/agents/credentials', icon: KeyRound })
     if (canView(VIEW_SCOPES.agentBrowserProfiles)) agentChildren.push({ label: t('sidebar.agentBrowserProfiles'), path: '/agents/browser-profiles', icon: Globe2 })
+    if (canView(VIEW_SCOPES.agentDefinitions)) agentChildren.push({ label: t('sidebar.agentDefinitions'), path: '/agents/definitions', icon: FileCode2 })
     if (canView(VIEW_SCOPES.agentSchedules)) agentChildren.push({ label: t('sidebar.agentSchedules'), path: '/agents/schedules', icon: CalendarClock })
     if (canView(VIEW_SCOPES.agentExecutions)) agentChildren.push({ label: t('sidebar.agentExecutions'), path: '/agents/executions', icon: History })
 
