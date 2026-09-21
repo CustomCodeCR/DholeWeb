@@ -307,7 +307,10 @@ async function load() {
       quoteDate: filters.quoteDate || undefined,
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
-      excludeTariffMasters: true,
+      // Los tarifarios abiertos también deben aparecer en la bandeja comercial "Abiertas".
+      // El dashboard de Pricing ya excluye los tarifarios maestros de sus métricas, por lo que
+      // aquí solo los ocultamos para los demás estados comerciales.
+      excludeTariffMasters: filters.status !== 'Open',
     })
     rows.value = result.items
     total.value = result.totalCount ?? result.items.length
