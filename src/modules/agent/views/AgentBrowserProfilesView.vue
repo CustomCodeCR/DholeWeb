@@ -272,15 +272,15 @@ onMounted(refresh)
       <dl v-if="selectedProfile" class="grid gap-3 sm:grid-cols-2">
         <div v-for="item in [
           ['ID', selectedProfile.id],
-          ['Nombre', selectedProfile.name],
-          ['Provider', providerName(selectedProfile.providerId)],
-          ['Credential', credentialName(selectedProfile.credentialId)],
-          ['Profile Key', selectedProfile.profileKey],
-          ['Storage Path', selectedProfile.storagePath],
-          ['Estado', selectedProfile.status],
-          ['Último login', formatDate(selectedProfile.lastLoginAt)],
-          ['Último uso', formatDate(selectedProfile.lastUsedAt)],
-          ['Expira', formatDate(selectedProfile.sessionExpiresAt)],
+          [t('agent.fields.name'), selectedProfile.name],
+          [t('agent.fields.provider'), providerName(selectedProfile.providerId)],
+          [t('agent.fields.credential'), credentialName(selectedProfile.credentialId)],
+          [t('agent.fields.profileKey'), selectedProfile.profileKey],
+          [t('agent.fields.storagePath'), selectedProfile.storagePath],
+          [t('agent.fields.status'), t(`agent.browserStatus.${selectedProfile.status}`)],
+          [t('agent.fields.lastLogin'), formatDate(selectedProfile.lastLoginAt)],
+          [t('agent.fields.lastUse'), formatDate(selectedProfile.lastUsedAt)],
+          [t('agent.fields.expires'), formatDate(selectedProfile.sessionExpiresAt)],
         ]" :key="String(item[0])" class="min-w-0 rounded-[18px] border border-[var(--dh-border)] p-3">
           <dt class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ item[0] }}</dt>
           <dd class="mt-1 break-all text-sm font-bold text-[var(--dh-text)]">{{ item[1] || '—' }}</dd>
