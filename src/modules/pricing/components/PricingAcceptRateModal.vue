@@ -25,7 +25,11 @@ async function submit() {
   const idtraNumber = form.idtraNumber.trim()
   if (!idtraNumber) return
 
-  if (props.rate.rateType === 'Tariff' && !props.rate.sourceTariffRateId) {
+  if (
+    props.rate.rateType === 'Tariff'
+    && !props.rate.sourceTariffRateId
+    && !String(props.rate.clientName ?? '').trim()
+  ) {
     toastStore.warning(
       'El tarifario maestro no se acepta',
       'Use “Aplicar a cliente” para crear una QUO del cliente. La aceptación se registra después sobre esa nueva QUO.',
