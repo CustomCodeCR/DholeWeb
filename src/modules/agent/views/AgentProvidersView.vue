@@ -177,7 +177,7 @@ async function confirmToggle() {
   if (!row) return
 
   await AgentService.setProviderActive(row.id, !row.isActive)
-  toastStore.success(row.isActive ? 'Provider desactivado' : 'Provider activado')
+  toastStore.success(t('agent.messages.stateUpdated'))
   confirmOpen.value = false
   pendingToggle.value = null
   await store.loadProviders()
@@ -246,10 +246,10 @@ onMounted(async () => {
     <DhModal :open="confirmOpen" :title="t('agent.providers.confirmState')" size="sm" @close="confirmOpen = false">
       <DhConfirmDialog
         v-if="pendingToggle"
-        :title="pendingToggle.isActive ? 'Desactivar provider' : 'Activar provider'"
-        :message="`¿Desea ${pendingToggle.isActive ? 'desactivar' : 'activar'} ${pendingToggle.name}?`"
+        :title="pendingToggle.isActive ? t('agent.confirm.deactivateTitle', { entity: t('agent.entities.provider') }) : t('agent.confirm.activateTitle', { entity: t('agent.entities.provider') })"
+        :message="pendingToggle.isActive ? t('agent.confirm.deactivateQuestion', { name: pendingToggle.name }) : t('agent.confirm.activateQuestion', { name: pendingToggle.name })"
         :danger="pendingToggle.isActive"
-        :confirm-label="pendingToggle.isActive ? 'Desactivar' : 'Activar'"
+        :confirm-label="pendingToggle.isActive ? t('agent.actions.deactivate') : t('agent.actions.activate')"
         :on-confirm="confirmToggle"
         @cancel="confirmOpen = false"
       />
