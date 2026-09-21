@@ -313,6 +313,31 @@ test('Credential UI never retains passwords and verifies through AgentService', 
   assert.match(view, /AgentCredentialForm/)
 })
 
+
+test('Extraction route UI maps the real route contract and CRUD service', async () => {
+  const form = await source('../src/modules/agent/components/routes/AgentRouteForm.vue')
+  const table = await source('../src/modules/agent/components/routes/AgentRoutesTable.vue')
+
+  for (const field of [
+    'polCode',
+    'polName',
+    'poeCode',
+    'poeName',
+    'podCode',
+    'podName',
+    'isActive',
+    'sortOrder',
+  ]) {
+    assert.ok(form.includes(field), `Missing route field: ${field}`)
+  }
+
+  assert.match(form, /AgentService\.routes\.create\(props\.profileId, payload\)/)
+  assert.match(form, /AgentService\.routes\.update\(props\.profileId, props\.route\.id, payload\)/)
+  assert.match(table, /AgentExtractionRouteDto/)
+  assert.match(table, /emit\('delete', row\)/)
+  assert.match(table, /DhDataTable/)
+})
+
 test('Agent monitoring exposes both DholeAgentService and Hermes through gateway health', async () => {
   const monitoring = await source('../src/core/services/monitoringService.ts')
   assert.match(monitoring, /key: 'agent'/)
