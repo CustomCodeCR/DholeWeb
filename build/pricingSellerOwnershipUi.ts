@@ -12,19 +12,23 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
-  code = replaceOne(
-    code,
-    `import { useModalStore } from '@/core/stores/modalStore'`,
-    `import { useModalStore } from '@/core/stores/modalStore'\nimport { useAuthStore } from '@/core/stores/authStore'`,
-    'wizard auth import',
-  )
+  if (!code.includes("import { useAuthStore } from '@/core/stores/authStore'")) {
+    code = replaceOne(
+      code,
+      `import { useModalStore } from '@/core/stores/modalStore'`,
+      `import { useModalStore } from '@/core/stores/modalStore'\nimport { useAuthStore } from '@/core/stores/authStore'`,
+      'wizard auth import',
+    )
+  }
 
-  code = replaceOne(
-    code,
-    `const modalStore = useModalStore()`,
-    `const modalStore = useModalStore()\nconst authStore = useAuthStore()`,
-    'wizard auth store',
-  )
+  if (!code.includes('const authStore = useAuthStore()')) {
+    code = replaceOne(
+      code,
+      `const modalStore = useModalStore()`,
+      `const modalStore = useModalStore()\nconst authStore = useAuthStore()`,
+      'wizard auth store',
+    )
+  }
 
   code = replaceOne(
     code,
