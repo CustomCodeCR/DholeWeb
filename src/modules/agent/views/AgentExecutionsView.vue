@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Ban, Eye, History, RefreshCw } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
@@ -18,6 +19,7 @@ import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermiss
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
 
 const router = useRouter()
+const { t } = useI18n()
 const store = useAgentStore()
 const toastStore = useToastStore()
 const permissions = useAgentPermissions()
@@ -30,19 +32,19 @@ const cancelling = ref(false)
 const pendingCancel = ref<AgentExecutionDto | null>(null)
 
 const columns: DhTableColumn<AgentExecutionDto>[] = [
-  { key: 'createdAtUtc', label: 'Fecha' },
-  { key: 'providerId', label: 'Provider' },
-  { key: 'agentDefinitionId', label: 'Definition' },
-  { key: 'executionType', label: 'Tipo' },
-  { key: 'status', label: 'Estado' },
-  { key: 'attempt', label: 'Intento' },
-  { key: 'durationMs', label: 'Duración' },
-  { key: 'correlationId', label: 'Correlation ID' },
-  { key: 'actions', label: 'Acciones', align: 'right' },
+  { key: 'createdAtUtc', label: t('agent.fields.date') },
+  { key: 'providerId', label: t('agent.fields.provider') },
+  { key: 'agentDefinitionId', label: t('agent.fields.definition') },
+  { key: 'executionType', label: t('agent.fields.type') },
+  { key: 'status', label: t('agent.fields.status') },
+  { key: 'attempt', label: t('agent.fields.attempt') },
+  { key: 'durationMs', label: t('agent.fields.duration') },
+  { key: 'correlationId', label: t('agent.fields.correlationId') },
+  { key: 'actions', label: t('common.actions'), align: 'right' },
 ]
 
 const statusOptions = [
-  { value: '', label: 'Todos los estados' },
+  { value: '', label: t('agent.executions.allStatuses') },
   ...AGENT_EXECUTION_STATUSES.map((value) => ({ value, label: value })),
 ]
 
@@ -73,7 +75,7 @@ async function refresh() {
       ),
     ])
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron cargar las ejecuciones.')
+    toastStore.backendError(error, t('agent.errors.loadExecutions'))
   }
 }
 
@@ -89,12 +91,12 @@ async function confirmCancel() {
   try {
     cancelling.value = true
     await AgentService.cancelExecution(execution.id)
-    toastStore.success('Cancelación solicitada')
+    toastStore.success(t('agent.messages.cancellationRequested'))
     cancelOpen.value = false
     pendingCancel.value = null
     await refresh()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo cancelar la ejecución.')
+    toastStore.backendError(error, t('agent.errors.cancelExecution'))
   } finally {
     cancelling.value = false
   }
@@ -106,13 +108,13 @@ onMounted(refresh)
 <template>
   <div class="grid min-w-0 gap-6">
     <DhPageHeader
-      title="Ejecuciones"
-      subtitle="Historial, estado y control de AgentExecution."
+      :title="t('agent.executions.title')"
+      :subtitle="t('agent.executions.subtitle')"
       :icon="History"
     >
       <template #actions>
         <DhButton
-          label="Actualizar"
+          :label="t('agent.actions.refresh')"
           :icon="RefreshCw"
           variant="secondary"
           :loading="store.loading"
@@ -124,19 +126,19 @@ onMounted(refresh)
     <section class="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-end">
       <DhSelect
         v-model="statusFilter"
-        label="Status"
+        :label="t('agent.fields.status')"
         :options="statusOptions"
         placeholder=""
       />
       <DhInput v-model="takeFilter" label="Take" type="number" />
-      <DhButton label="Aplicar filtros" variant="secondary" :loading="store.loading" @click="refresh" />
+      <DhButton :label="t('agent.actions.applyFilters')" variant="secondary" :loading="store.loading" @click="refresh" />
     </section>
 
     <DhDataTable
       :columns="columns"
       :rows="store.executions"
       :loading="store.loading"
-      empty-text="No hay ejecuciones para los filtros seleccionados."
+      :empty-text="t('agent.executions.empty')"
       @row-click="(row) => router.push(`/agents/executions/${row.id}`)"
     >
       <template #cell-createdAtUtc="{ row }">{{ formatDate(row.createdAtUtc) }}</template>
@@ -149,7 +151,7 @@ onMounted(refresh)
       <template #cell-actions="{ row }">
         <div class="flex flex-wrap justify-end gap-2" @click.stop>
           <DhButton
-            label="Ver"
+            :label="t('agent.actions.view')"
             :icon="Eye"
             variant="ghost"
             size="sm"
@@ -157,7 +159,7 @@ onMounted(refresh)
           />
           <DhButton
             v-if="permissions.canCancelExecutions.value && canCancelStatus(row.status)"
-            label="Cancelar"
+            :label="t('agent.actions.cancel')"
             :icon="Ban"
             variant="danger"
             size="sm"
@@ -167,12 +169,12 @@ onMounted(refresh)
       </template>
     </DhDataTable>
 
-    <DhModal :open="cancelOpen" title="Cancelar ejecución" size="sm" @close="cancelOpen = false">
+    <DhModal :open="cancelOpen" :title="t('agent.executions.cancelTitle')" size="sm" @close="cancelOpen = false">
       <DhConfirmDialog
         v-if="pendingCancel"
-        title="Cancelar ejecución"
-        :message="`¿Desea cancelar la ejecución ${pendingCancel.id}? Solo es válido mientras está pendiente o en proceso.`"
-        confirm-label="Cancelar ejecución"
+        :title="t('agent.executions.cancelTitle')"
+        :message="t('agent.executions.cancelQuestion', { id: pendingCancel.id })"
+        :confirm-label="t('agent.executions.cancelTitle')"
         danger
         :on-confirm="confirmCancel"
         @cancel="cancelOpen = false"
