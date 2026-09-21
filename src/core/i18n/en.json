@@ -71,6 +71,8 @@
     "theme": "Theme",
     "language": "Language",
     "notifications": "Notifications",
+    "impersonating": "Impersonating {name}",
+    "stopImpersonation": "Stop impersonating",
     "logout": "Logout"
   },
   "sidebar": {
@@ -206,6 +208,11 @@
     "sendCredentialsSuccess": "Credentials sent by email.",
     "sendCredentialsIssueError": "The user credentials could not be generated.",
     "sendCredentialsEmailError": "The temporary password was generated, but the email could not be sent. You can try again to generate and send new credentials.",
+    "impersonate": "Sign in as user",
+    "impersonateAction": "Start temporary session",
+    "impersonateConfirm": "You will temporarily act as {name} to review their experience and permissions. Their password will not be used or changed. The action will be fully audited. Continue?",
+    "impersonateSuccess": "Impersonation session started.",
+    "impersonateError": "The user impersonation session could not be started.",
     "lastLogin": "Last login",
     "protectedUser": "Protected user"
   },
