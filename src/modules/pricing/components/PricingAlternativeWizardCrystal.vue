@@ -335,8 +335,7 @@ const currentRateType = computed<RateType>(() =>
 )
 const isMasterTariff = computed(() =>
   currentRateType.value === 'Tariff'
-    && !editingRate.value?.sourceTariffRateId
-    && !String(editingRate.value?.clientName ?? form.clientName ?? '').trim(),
+    && String(editingRate.value?.clientName ?? form.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO'),
 )
 const isClientTariff = computed(() =>
   currentRateType.value === 'Tariff' && !isMasterTariff.value,
@@ -345,7 +344,7 @@ const commercialRateTypeLabel = computed(() =>
   isMasterTariff.value
     ? 'TARIFARIO · MAESTRO'
     : isClientTariff.value
-      ? 'TARIFARIO · CLIENTE'
+      ? 'TARIFA'
       : 'SPOT',
 )
 const canMarkSent = computed(() => !isMasterTariff.value && currentCommercialStatus.value === 'Open')
