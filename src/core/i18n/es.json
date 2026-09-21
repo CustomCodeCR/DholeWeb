@@ -1519,7 +1519,8 @@
       "scheduleUpdated": "Programación actualizada",
       "executionStarted": "Ejecución iniciada",
       "cancellationRequested": "Cancelación solicitada",
-      "executionRefreshed": "Ejecución actualizada"
+      "executionRefreshed": "Ejecución actualizada",
+      "stateUpdated": "Estado actualizado"
     },
     "validation": {
       "required": "{field} es obligatorio.",
@@ -1553,6 +1554,24 @@
       "loadExecution": "No se pudo cargar la ejecución.",
       "createExecution": "No se pudo crear la ejecución.",
       "cancelExecution": "No se pudo cancelar la ejecución."
+    },
+    "confirm": {
+      "activateTitle": "Activar {entity}",
+      "deactivateTitle": "Desactivar {entity}",
+      "activateQuestion": "¿Desea activar {name}?",
+      "deactivateQuestion": "¿Desea desactivar {name}?"
+    },
+    "review": {
+      "extraction": "Revise la extracción",
+      "definition": "Revise la definición",
+      "credential": "Revise la credencial",
+      "schedule": "Revise la programación"
+    },
+    "entities": {
+      "provider": "provider",
+      "definition": "definición",
+      "credential": "credencial",
+      "schedule": "programación"
     }
   }
 }
