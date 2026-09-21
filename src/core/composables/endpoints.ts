@@ -801,11 +801,112 @@ export const AgentEndpoints = {
   },
 
   browseCredentials: { method: 'GET', path: '/api/agents/credentials', headers: acceptJson },
+  getCredential: { method: 'GET', path: '/api/agents/credentials/{{credentialId}}', headers: acceptJson },
   createCredential: { method: 'POST', path: '/api/agents/credentials', headers: jsonHeaders },
   updateCredential: { method: 'PUT', path: '/api/agents/credentials/{{credentialId}}', headers: jsonHeaders },
   setCredentialActive: {
     method: 'PATCH',
     path: '/api/agents/credentials/{{credentialId}}/active',
+    headers: jsonHeaders,
+  },
+  verifyCredential: {
+    method: 'POST',
+    path: '/api/agents/credentials/{{credentialId}}/verify',
+    headers: acceptJson,
+  },
+
+  browseExtractionRoutes: {
+    method: 'GET',
+    path: '/api/agents/extraction-profiles/{{profileId}}/routes',
+    headers: acceptJson,
+  },
+  createExtractionRoute: {
+    method: 'POST',
+    path: '/api/agents/extraction-profiles/{{profileId}}/routes',
+    headers: jsonHeaders,
+  },
+  updateExtractionRoute: {
+    method: 'PUT',
+    path: '/api/agents/extraction-profiles/{{profileId}}/routes/{{routeId}}',
+    headers: jsonHeaders,
+  },
+  deleteExtractionRoute: {
+    method: 'DELETE',
+    path: '/api/agents/extraction-profiles/{{profileId}}/routes/{{routeId}}',
+    headers: acceptJson,
+  },
+
+  browseExtractionEquipment: {
+    method: 'GET',
+    path: '/api/agents/extraction-profiles/{{profileId}}/equipment',
+    headers: acceptJson,
+  },
+  createExtractionEquipment: {
+    method: 'POST',
+    path: '/api/agents/extraction-profiles/{{profileId}}/equipment',
+    headers: jsonHeaders,
+  },
+  updateExtractionEquipment: {
+    method: 'PUT',
+    path: '/api/agents/extraction-profiles/{{profileId}}/equipment/{{equipmentId}}',
+    headers: jsonHeaders,
+  },
+  deleteExtractionEquipment: {
+    method: 'DELETE',
+    path: '/api/agents/extraction-profiles/{{profileId}}/equipment/{{equipmentId}}',
+    headers: acceptJson,
+  },
+
+  browseEndpointCaptures: {
+    method: 'GET',
+    path: '/api/agents/extraction-profiles/{{profileId}}/captures',
+    headers: acceptJson,
+  },
+  createEndpointCapture: {
+    method: 'POST',
+    path: '/api/agents/extraction-profiles/{{profileId}}/captures',
+    headers: jsonHeaders,
+  },
+  updateEndpointCapture: {
+    method: 'PUT',
+    path: '/api/agents/extraction-profiles/{{profileId}}/captures/{{captureId}}',
+    headers: jsonHeaders,
+  },
+  deleteEndpointCapture: {
+    method: 'DELETE',
+    path: '/api/agents/extraction-profiles/{{profileId}}/captures/{{captureId}}',
+    headers: acceptJson,
+  },
+  testEndpointCapture: {
+    method: 'POST',
+    path: '/api/agents/extraction-profiles/{{profileId}}/captures/{{captureId}}/test',
+    headers: jsonHeaders,
+  },
+
+  browseExtractionFields: {
+    method: 'GET',
+    path: '/api/agents/extraction-profiles/{{profileId}}/fields',
+    headers: acceptJson,
+  },
+  createExtractionField: {
+    method: 'POST',
+    path: '/api/agents/extraction-profiles/{{profileId}}/fields',
+    headers: jsonHeaders,
+  },
+  updateExtractionField: {
+    method: 'PUT',
+    path: '/api/agents/extraction-profiles/{{profileId}}/fields/{{fieldId}}',
+    headers: jsonHeaders,
+  },
+  deleteExtractionField: {
+    method: 'DELETE',
+    path: '/api/agents/extraction-profiles/{{profileId}}/fields/{{fieldId}}',
+    headers: acceptJson,
+  },
+
+  previewExtractionPrompt: {
+    method: 'POST',
+    path: '/api/agents/extraction-profiles/{{profileId}}/prompt-preview',
     headers: jsonHeaders,
   },
 
@@ -837,6 +938,11 @@ export const AgentEndpoints = {
   getAgentExecution: {
     method: 'GET',
     path: '/api/agents/executions/{{executionId}}',
+    headers: acceptJson,
+  },
+  getAgentExecutionPrompt: {
+    method: 'GET',
+    path: '/api/agents/executions/{{executionId}}/prompt',
     headers: acceptJson,
   },
   createAgentExecution: { method: 'POST', path: '/api/agents/executions', headers: jsonHeaders },
