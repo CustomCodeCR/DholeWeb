@@ -569,7 +569,8 @@ export const useAuthStore = defineStore('auth', () => {
       hasRole('Administrador') &&
       (
         !scopes.value.some((scope) => scope.trim().toLowerCase() === 'auth.users.change-password') ||
-        !scopes.value.some((scope) => scope.trim().toLowerCase() === 'auth.users.send-credentials')
+        !scopes.value.some((scope) => scope.trim().toLowerCase() === 'auth.users.send-credentials') ||
+        !scopes.value.some((scope) => scope.trim().toLowerCase() === 'auth.users.impersonate')
       )
 
     if (
