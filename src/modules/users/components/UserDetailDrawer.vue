@@ -210,6 +210,37 @@ function confirmSendCredentials() {
   })
 }
 
+function confirmImpersonate() {
+  if (!canImpersonateUser.value) return
+
+  modalStore.open({
+    title: t('users.impersonate'),
+    component: DhConfirmDialog,
+    size: 'md',
+    props: {
+      title: t('users.impersonate'),
+      message: t('users.impersonateConfirm', {
+        name: localUser.value.displayName || localUser.value.userName,
+      }),
+      confirmLabel: t('users.impersonateAction'),
+      cancelLabel: t('common.cancel'),
+      onConfirm: startImpersonation,
+      onCancel: () => modalStore.close(),
+    },
+  })
+}
+
+async function startImpersonation() {
+  try {
+    await authStore.startImpersonation(localUser.value.id)
+    modalStore.close()
+    toastStore.success(t('users.impersonateSuccess'))
+    await router.push('/')
+  } catch (error) {
+    toastStore.backendError(error, t('users.impersonateError'))
+  }
+}
+
 async function sendCredentials() {
   if (sendingCredentials.value) return
 
