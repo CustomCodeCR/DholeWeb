@@ -27,7 +27,11 @@ async function submit() {
   const clientName = form.clientName.trim()
   if (!clientName) return
 
-  if (props.rate.rateType !== 'Tariff' || props.rate.sourceTariffRateId) {
+  if (
+    props.rate.rateType !== 'Tariff'
+    || props.rate.sourceTariffRateId
+    || String(props.rate.clientName ?? '').trim()
+  ) {
     toastStore.warning(
       'Acción no disponible',
       'Aplicar a cliente solo está disponible para tarifarios maestros.',
