@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
 import { DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import type { AgentExtractionRouteDto } from '@/core/interfaces/agent'
 import AgentStatusBadge from '@/modules/agent/components/AgentStatusBadge.vue'
 
-defineProps<{
+const props = defineProps<{
   rows: AgentExtractionRouteDto[]
   loading?: boolean
   canManage?: boolean
@@ -17,7 +18,11 @@ const emit = defineEmits<{
   delete: [route: AgentExtractionRouteDto]
 }>()
 
-const columns: DhTableColumn<AgentExtractionRouteDto>[] = [
+type RouteRow = AgentExtractionRouteDto & Record<string, unknown>
+
+const routeRows = computed<RouteRow[]>(() => props.rows.map((row) => ({ ...row })))
+
+const columns: DhTableColumn<RouteRow>[] = [
   { key: 'name', label: 'Nombre' },
   { key: 'polName', label: 'POL' },
   { key: 'poeName', label: 'POE' },
@@ -35,7 +40,7 @@ const columns: DhTableColumn<AgentExtractionRouteDto>[] = [
 
     <DhDataTable
       :columns="columns"
-      :rows="rows"
+      :rows="routeRows"
       :loading="loading"
       empty-text="No hay rutas configuradas."
     >
