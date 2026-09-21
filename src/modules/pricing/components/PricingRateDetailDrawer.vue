@@ -94,7 +94,9 @@ const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update)
 const canDuplicate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
 const canApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
 const isMasterTariff = computed(() =>
-  current.value.rateType === 'Tariff' && !current.value.sourceTariffRateId,
+  current.value.rateType === 'Tariff'
+    && !current.value.sourceTariffRateId
+    && !String(current.value.clientName ?? '').trim(),
 )
 const canApplyTariff = computed(() =>
   canDuplicate.value
@@ -417,8 +419,8 @@ onMounted(async () => {
           <div class="flex flex-wrap items-center gap-2">
             <DhBadge :label="statusLabel(current.status)" :variant="statusTone(current.status)" />
             <DhBadge
-              :label="current.sourceTariffRateId ? 'TARIFARIO · CLIENTE' : current.rateType === 'Tariff' ? 'TARIFARIO · MAESTRO' : 'SPOT'"
-              :variant="current.rateType === 'Spot' ? 'warning' : current.sourceTariffRateId ? 'success' : 'neutral'"
+              :label="isMasterTariff ? 'TARIFARIO · MAESTRO' : current.rateType === 'Tariff' ? 'TARIFARIO · CLIENTE' : 'SPOT'"
+              :variant="current.rateType === 'Spot' ? 'warning' : isMasterTariff ? 'neutral' : 'success'"
             />
             <DhBadge
               v-if="current.sourceImportFclRateId"
