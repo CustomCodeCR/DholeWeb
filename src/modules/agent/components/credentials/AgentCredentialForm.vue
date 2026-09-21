@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DhButton, DhInput, DhPasswordInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import type { AgentCredentialDto, AgentProviderDto } from '@/core/interfaces/agent'
@@ -27,7 +27,7 @@ const form = reactive({
   additionalSecretsJson: '',
 })
 
-let saving = false
+const saving = ref(false)
 
 const editing = computed(() => Boolean(props.credential))
 const providerOptions = computed(() =>
@@ -70,7 +70,7 @@ function validateAdditionalSecrets() {
 }
 
 async function save() {
-  if (saving) return
+  if (saving.value) return
 
   try {
     if (!form.providerId) {
@@ -87,7 +87,7 @@ async function save() {
     }
 
     const additionalSecretsJson = validateAdditionalSecrets()
-    saving = true
+    saving.value = true
 
     let credentialId: string
     if (props.credential) {
@@ -120,7 +120,7 @@ async function save() {
       toastStore.backendError(error, t('agent.errors.saveCredential'))
     }
   } finally {
-    saving = false
+    saving.value = false
   }
 }
 
