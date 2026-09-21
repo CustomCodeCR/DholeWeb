@@ -232,8 +232,7 @@ function canUpdateRate(rate: RateDto) {
 
 function isMasterTariff(rate: RateDto) {
   return rate.rateType === 'Tariff'
-    && !rate.sourceTariffRateId
-    && !String(rate.clientName ?? '').trim()
+    && String(rate.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO')
 }
 
 function canApplyTariffRate(rate: RateDto) {
@@ -309,9 +308,6 @@ async function load() {
       quoteDate: filters.quoteDate || undefined,
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
-      // Los tarifarios abiertos también deben aparecer en la bandeja comercial "Abiertas".
-      // El dashboard de Pricing ya excluye los tarifarios maestros de sus métricas, por lo que
-      // aquí solo los ocultamos para los demás estados comerciales.
       excludeTariffMasters: true,
     })
     rows.value = result.items
@@ -651,8 +647,8 @@ onMounted(async () => {
                       </span>
                       <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
                       <DhBadge
-                        :label="row.rateType === 'Tariff' ? 'TARIFARIO · CLIENTE' : 'SPOT'"
-                        :variant="row.rateType === 'Tariff' ? 'success' : 'warning'"
+                        :label="isMasterTariff(row) ? 'TARIFARIO · MAESTRO' : row.rateType === 'Tariff' ? 'TARIFA' : 'SPOT'"
+                        :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
                       />
                     </div>
                     <p class="mt-2 font-black text-[var(--dh-text)]">
