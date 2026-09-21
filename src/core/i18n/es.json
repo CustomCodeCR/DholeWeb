@@ -1026,6 +1026,8 @@
     "card": {
       "type": "Tipo",
       "created": "Creada",
+      "started": "Iniciada",
+      "completed": "Completada",
       "entity": "Entidad",
       "recipients": "{count} destinatario(s)",
       "attempts": "Intentos {current}/{max}"

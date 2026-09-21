@@ -92,7 +92,7 @@ const charges = computed(() => {
 
     <DhCard v-if="charges.length" :title="t('agent.rateResult.charges')">
       <div class="grid gap-2">
-        <div v-for="(charge, index) in charges" :key="index" class="flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-[var(--dh-border)] p-3">
+        <div v-for="(charge, index) in charges" :key="index" class="flex min-w-0 flex-col items-stretch gap-3 rounded-[18px] border border-[var(--dh-border)] p-3 sm:flex-row sm:items-center sm:justify-between">
           <span class="min-w-0 break-words text-sm font-semibold text-[var(--dh-text)]">
             {{ get(readObject(charge), 'name', 'description', 'charge') ?? t('agent.rateResult.chargeFallback', { index: index + 1 }) }}
           </span>

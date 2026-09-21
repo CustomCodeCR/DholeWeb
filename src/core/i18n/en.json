@@ -1025,6 +1025,8 @@
     "card": {
       "type": "Type",
       "created": "Created",
+      "started": "Started",
+      "completed": "Completed",
       "entity": "Entity",
       "recipients": "{count} recipient(s)",
       "attempts": "Attempts {current}/{max}"
