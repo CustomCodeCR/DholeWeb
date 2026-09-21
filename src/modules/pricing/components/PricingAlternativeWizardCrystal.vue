@@ -352,6 +352,21 @@ const commercialRateTypeLabel = computed(() =>
 )
 const canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canApproveCurrentRate = computed(() =>
+  canApproveLowMargin.value
+  && editingRate.value?.status === 'PendingApproval'
+  && Boolean(editingRate.value?.requiredApproval),
+)
+const canOpenApprovedRate = computed(() =>
+  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',
+)
+const canDownloadCurrentQuote = computed(() => {
+  const rate = editingRate.value
+  return Boolean(
+    rate
+    && !['PendingApproval', 'RejectedByManagement'].includes(rate.status),
+  )
+})
 const canMarkSent = computed(() =>
   canUpdateRateStatus.value
   && !isMasterTariff.value
