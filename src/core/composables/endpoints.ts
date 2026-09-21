@@ -815,6 +815,37 @@ export const AgentEndpoints = {
     headers: acceptJson,
   },
 
+  browseExtractionProfiles: {
+    method: 'GET',
+    path: '/api/agents/extraction-profiles',
+    headers: acceptJson,
+  },
+  getExtractionProfile: {
+    method: 'GET',
+    path: '/api/agents/extraction-profiles/{{profileId}}',
+    headers: acceptJson,
+  },
+  createExtractionProfile: {
+    method: 'POST',
+    path: '/api/agents/extraction-profiles',
+    headers: jsonHeaders,
+  },
+  updateExtractionProfile: {
+    method: 'PUT',
+    path: '/api/agents/extraction-profiles/{{profileId}}',
+    headers: jsonHeaders,
+  },
+  setExtractionProfileActive: {
+    method: 'PATCH',
+    path: '/api/agents/extraction-profiles/{{profileId}}/active',
+    headers: jsonHeaders,
+  },
+  deleteExtractionProfile: {
+    method: 'DELETE',
+    path: '/api/agents/extraction-profiles/{{profileId}}',
+    headers: acceptJson,
+  },
+
   browseExtractionRoutes: {
     method: 'GET',
     path: '/api/agents/extraction-profiles/{{profileId}}/routes',
