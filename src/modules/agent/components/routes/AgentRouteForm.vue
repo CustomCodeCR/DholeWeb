@@ -51,8 +51,8 @@ async function save() {
     toastStore.warning(t('agent.review.route'), t('agent.validation.required', { field: 'POL Name' }))
     return
   }
-  if (!form.podName.trim()) {
-    toastStore.warning(t('agent.review.route'), t('agent.validation.required', { field: 'POD Name' }))
+  if (!form.poeName.trim()) {
+    toastStore.warning(t('agent.review.route'), t('agent.validation.required', { field: 'POE Name' }))
     return
   }
 
@@ -67,9 +67,9 @@ async function save() {
     polCode: form.polCode.trim() || null,
     polName: form.polName.trim(),
     poeCode: form.poeCode.trim() || null,
-    poeName: form.poeName.trim() || null,
+    poeName: form.poeName.trim(),
     podCode: form.podCode.trim() || null,
-    podName: form.podName.trim(),
+    podName: form.podName.trim() || null,
     isActive: form.isActive,
     sortOrder,
   }
@@ -102,8 +102,8 @@ watch(() => props.route?.id, reset, { immediate: true })
       <DhInput v-model="form.polName" label="POL Name" :disabled="saving" />
       <DhInput v-model="form.poeCode" label="POE Code" :disabled="saving" />
       <DhInput v-model="form.poeName" label="POE Name" :disabled="saving" />
-      <DhInput v-model="form.podCode" label="POD Code" :disabled="saving" />
-      <DhInput v-model="form.podName" label="POD Name" :disabled="saving" />
+      <DhInput v-model="form.podCode" label="POD Code (opcional)" :disabled="saving" />
+      <DhInput v-model="form.podName" label="POD Name (opcional)" :disabled="saving" />
       <DhInput v-model="form.sortOrder" label="Orden" type="number" :disabled="saving" />
       <div class="flex items-end pb-2">
         <DhCheckbox v-model="form.isActive" label="Activo" :disabled="saving" />
