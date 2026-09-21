@@ -226,6 +226,49 @@ test('Agent service uses centralized endpoints and never performs direct fetch c
 })
 
 
+
+test('Agent service exposes profile-first grouped operations without inventing profile CRUD', async () => {
+  const service = await source('../src/core/services/agentService.ts')
+
+  for (const group of [
+    'providers',
+    'definitions',
+    'credentials',
+    'routes',
+    'equipment',
+    'captures',
+    'fields',
+    'prompts',
+    'browserProfiles',
+    'schedules',
+    'executions',
+  ]) {
+    assert.ok(service.includes(`${group},`), `Missing AgentService group: ${group}`)
+  }
+
+  for (const operation of [
+    'credentials.verify',
+    'routes.browse',
+    'routes.create',
+    'routes.update',
+    'routes.delete',
+    'equipment.browse',
+    'equipment.create',
+    'captures.test',
+    'fields.browse',
+    'prompts.preview',
+    'executions.getPrompt',
+  ]) {
+    const [group, method] = operation.split('.')
+    assert.match(service, new RegExp(`const ${group} = \\{[\\s\\S]*?\\n  (?:async )?${method}\\(`))
+  }
+
+  assert.match(service, /profiles:\s*\{\s*contractAvailable:\s*false as const/)
+  assert.equal(service.includes('browseProfiles()'), false)
+  assert.equal(service.includes('runProfile('), false)
+  assert.equal(/\bfetch\s*\(/.test(service), false)
+})
+
 test('Agent monitoring exposes both DholeAgentService and Hermes through gateway health', async () => {
   const monitoring = await source('../src/core/services/monitoringService.ts')
   assert.match(monitoring, /key: 'agent'/)
