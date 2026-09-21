@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { KeyRound, Pencil, Plus, Power, RefreshCw } from 'lucide-vue-next'
-import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { KeyRound, Pencil, Plus, Power, RefreshCw, ShieldCheck } from 'lucide-vue-next'
+import { DhButton } from '@/shared/components/atoms'
 import { DhConfirmDialog, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
 import type { AgentCredentialDto } from '@/core/interfaces/agent'
 import { AgentService } from '@/core/services/agentService'
 import { useToastStore } from '@/core/stores/toastStore'
 import AgentStatusBadge from '@/modules/agent/components/AgentStatusBadge.vue'
+import AgentCredentialForm from '@/modules/agent/components/credentials/AgentCredentialForm.vue'
 import { useAgentFormatting } from '@/modules/agent/composables/useAgentFormatting'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
@@ -21,124 +22,41 @@ const { formatDate } = useAgentFormatting()
 
 const modalOpen = ref(false)
 const confirmOpen = ref(false)
-const saving = ref(false)
-const editingId = ref<string | null>(null)
+const editingCredential = ref<AgentCredentialDto | null>(null)
 const pendingToggle = ref<AgentCredentialDto | null>(null)
-
-const form = reactive({
-  providerId: '',
-  name: '',
-  usernameSecretKey: '',
-  passwordSecretKey: '',
-  additionalSecretsJson: '',
-})
+const verifyingId = ref<string | null>(null)
 
 const columns: DhTableColumn<AgentCredentialDto>[] = [
   { key: 'name', label: t('agent.fields.name') },
   { key: 'providerId', label: t('agent.fields.provider') },
+  { key: 'usernameMasked', label: t('agent.fields.username') },
+  { key: 'hasPassword', label: t('agent.fields.password'), align: 'center' },
   { key: 'isActive', label: t('agent.fields.status'), align: 'center' },
   { key: 'createdAtUtc', label: t('agent.fields.created') },
   { key: 'updatedAtUtc', label: t('agent.fields.updatedAt') },
   { key: 'actions', label: t('common.actions'), align: 'right' },
 ]
 
-const providerOptions = computed(() =>
-  store.providers.map((provider) => ({
-    value: provider.id,
-    label: `${provider.name} · ${provider.code}`,
-  })),
-)
+const providersForForm = computed(() => store.providers)
 
 function providerName(id: string) {
   return store.providers.find((provider) => provider.id === id)?.name ?? id
 }
 
-function resetForm() {
-  editingId.value = null
-  form.providerId = store.activeProviders[0]?.id ?? ''
-  form.name = ''
-  form.usernameSecretKey = ''
-  form.passwordSecretKey = ''
-  form.additionalSecretsJson = ''
-}
-
 function openCreate() {
-  resetForm()
+  editingCredential.value = null
   modalOpen.value = true
 }
 
 function openEdit(row: AgentCredentialDto) {
-  editingId.value = row.id
-  form.providerId = row.providerId
-  form.name = row.name
-  // El DTO deliberadamente no expone referencias de secretos previamente guardadas.
-  // Para actualizar se solicitan nuevamente las keys, nunca el valor real del secreto.
-  form.usernameSecretKey = ''
-  form.passwordSecretKey = ''
-  form.additionalSecretsJson = ''
+  editingCredential.value = row
   modalOpen.value = true
 }
 
-function validateAdditionalSecrets() {
-  const value = form.additionalSecretsJson.trim()
-  if (!value) return null
-
-  try {
-    const parsed = JSON.parse(value)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error(t('agent.validation.objectJson', { field: t('agent.fields.additionalSecretsJson') }))
-    }
-    return value
-  } catch (error) {
-    if (error instanceof Error && error.message === t('agent.validation.objectJson', { field: t('agent.fields.additionalSecretsJson') })) {
-      throw error
-    }
-    throw new Error(t('agent.validation.validJson', { field: t('agent.fields.additionalSecretsJson') }))
-  }
-}
-
-async function save() {
-  if (saving.value) return
-
-  try {
-    if (!form.providerId) throw new Error(t('agent.validation.required', { field: t('agent.fields.provider') }))
-    if (!form.name.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.name') }))
-    if (!form.usernameSecretKey.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.usernameSecretKey') }))
-    if (!form.passwordSecretKey.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.passwordSecretKey') }))
-
-    const additionalSecretsJson = validateAdditionalSecrets()
-    saving.value = true
-
-    if (editingId.value) {
-      await AgentService.updateCredential(editingId.value, {
-        name: form.name.trim(),
-        usernameSecretKey: form.usernameSecretKey.trim(),
-        passwordSecretKey: form.passwordSecretKey.trim(),
-        additionalSecretsJson,
-      })
-      toastStore.success(t('agent.messages.credentialUpdated'))
-    } else {
-      await AgentService.createCredential({
-        providerId: form.providerId,
-        name: form.name.trim(),
-        usernameSecretKey: form.usernameSecretKey.trim(),
-        passwordSecretKey: form.passwordSecretKey.trim(),
-        additionalSecretsJson,
-      })
-      toastStore.success(t('agent.messages.credentialCreated'))
-    }
-
-    modalOpen.value = false
-    await store.loadCredentials()
-  } catch (error) {
-    if (error instanceof Error && !('status' in error)) {
-      toastStore.warning(t('agent.review.credential'), error.message)
-    } else {
-      toastStore.backendError(error, t('agent.errors.saveCredential'))
-    }
-  } finally {
-    saving.value = false
-  }
+async function handleSaved() {
+  modalOpen.value = false
+  editingCredential.value = null
+  await store.loadCredentials()
 }
 
 function askToggle(row: AgentCredentialDto) {
@@ -150,11 +68,29 @@ async function confirmToggle() {
   const row = pendingToggle.value
   if (!row) return
 
-  await AgentService.setCredentialActive(row.id, !row.isActive)
-  toastStore.success(t('agent.messages.stateUpdated'))
-  confirmOpen.value = false
-  pendingToggle.value = null
-  await store.loadCredentials()
+  try {
+    await AgentService.credentials.setActive(row.id, !row.isActive)
+    toastStore.success(t('agent.messages.stateUpdated'))
+    confirmOpen.value = false
+    pendingToggle.value = null
+    await store.loadCredentials()
+  } catch (error) {
+    toastStore.backendError(error, t('agent.errors.saveCredential'))
+  }
+}
+
+async function verifyCredential(row: AgentCredentialDto) {
+  if (verifyingId.value) return
+
+  try {
+    verifyingId.value = row.id
+    await AgentService.credentials.verify(row.id)
+    toastStore.success(t('agent.credentials.verified'))
+  } catch (error) {
+    toastStore.backendError(error, t('agent.credentials.verifyError'))
+  } finally {
+    verifyingId.value = null
+  }
 }
 
 async function refresh() {
@@ -199,11 +135,24 @@ onMounted(refresh)
       :empty-text="t('agent.credentials.empty')"
     >
       <template #cell-providerId="{ row }">{{ providerName(row.providerId) }}</template>
+      <template #cell-usernameMasked="{ row }">{{ row.usernameMasked || '—' }}</template>
+      <template #cell-hasPassword="{ row }">
+        {{ row.hasPassword ? t('common.yes') : t('common.no') }}
+      </template>
       <template #cell-isActive="{ row }"><AgentStatusBadge :active="row.isActive" /></template>
       <template #cell-createdAtUtc="{ row }">{{ formatDate(row.createdAtUtc) }}</template>
       <template #cell-updatedAtUtc="{ row }">{{ formatDate(row.updatedAtUtc) }}</template>
       <template #cell-actions="{ row }">
         <div class="flex flex-wrap justify-end gap-2" @click.stop>
+          <DhButton
+            v-if="permissions.canVerifyCredentials.value"
+            :label="t('agent.credentials.verify')"
+            :icon="ShieldCheck"
+            variant="ghost"
+            size="sm"
+            :loading="verifyingId === row.id"
+            @click="verifyCredential(row)"
+          />
           <DhButton
             v-if="permissions.canManageCredentials.value"
             :label="t('agent.actions.edit')"
@@ -224,57 +173,26 @@ onMounted(refresh)
       </template>
     </DhDataTable>
 
-    <DhModal :open="modalOpen" :title="editingId ? t('agent.credentials.editTitle') : t('agent.credentials.createTitle')" size="lg" @close="modalOpen = false">
-      <form class="grid gap-4" @submit.prevent="save">
-        <section class="rounded-[20px] border border-[var(--dh-border)] bg-black/[0.025] p-4 text-sm font-semibold leading-6 text-[var(--dh-text-muted)] dark:bg-white/[0.04]">
-          {{ t('agent.credentials.secretNotice') }}
-          <span v-if="editingId" class="mt-2 block">
-            {{ t('agent.credentials.editSecretNotice') }}
-          </span>
-        </section>
-
-        <div class="grid gap-4 md:grid-cols-2">
-          <DhSelect
-            v-model="form.providerId"
-            :label="t('agent.fields.provider')"
-            :options="providerOptions"
-            :disabled="saving || Boolean(editingId)"
-          />
-          <DhInput v-model="form.name" :label="t('agent.fields.name')" :disabled="saving" />
-          <DhInput
-            v-model="form.usernameSecretKey"
-            :label="t('agent.fields.usernameSecretKey')"
-            placeholder="secret/path/username"
-            :disabled="saving"
-          />
-          <DhInput
-            v-model="form.passwordSecretKey"
-            :label="t('agent.fields.passwordSecretKey')"
-            placeholder="secret/path/password"
-            :disabled="saving"
-          />
-        </div>
-
-        <DhTextarea
-          v-model="form.additionalSecretsJson"
-          :label="t('agent.fields.additionalSecretsJson')"
-          :rows="7"
-          :disabled="saving"
-          placeholder='{"totpSecretKey":"secret/path/totp"}'
-        />
-
-        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <DhButton :label="t('agent.actions.cancel')" variant="secondary" :disabled="saving" @click="modalOpen = false" />
-          <DhButton
-            type="submit"
-            :label="editingId ? t('agent.actions.saveChanges') : t('agent.credentials.createTitle')"
-            :loading="saving"
-          />
-        </div>
-      </form>
+    <DhModal
+      :open="modalOpen"
+      :title="editingCredential ? t('agent.credentials.editTitle') : t('agent.credentials.createTitle')"
+      size="lg"
+      @close="modalOpen = false"
+    >
+      <AgentCredentialForm
+        :providers="providersForForm"
+        :credential="editingCredential"
+        @saved="handleSaved"
+        @cancel="modalOpen = false"
+      />
     </DhModal>
 
-    <DhModal :open="confirmOpen" :title="t('agent.providers.confirmState')" size="sm" @close="confirmOpen = false">
+    <DhModal
+      :open="confirmOpen"
+      :title="t('agent.providers.confirmState')"
+      size="sm"
+      @close="confirmOpen = false"
+    >
       <DhConfirmDialog
         v-if="pendingToggle"
         :title="pendingToggle.isActive ? t('agent.confirm.deactivateTitle', { entity: t('agent.entities.credential') }) : t('agent.confirm.activateTitle', { entity: t('agent.entities.credential') })"
