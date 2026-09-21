@@ -214,7 +214,7 @@ onMounted(async () => {
       :disabled="saving"
     />
 
-    <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-sm text-[var(--dh-text-muted)]">
+    <div v-pre class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-sm text-[var(--dh-text-muted)]">
       Variables disponibles: <code>{{providerName}}</code>, <code>{{providerCode}}</code>,
       <code>{{baseUrl}}</code>, <code>{{loginUrl}}</code>, <code>{{searchUrl}}</code>,
       <code>{{routes}}</code>, <code>{{equipment}}</code>, <code>{{fields}}</code>,
