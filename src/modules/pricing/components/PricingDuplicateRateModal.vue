@@ -25,7 +25,10 @@ function todayInputDate() {
 }
 
 const isFcl = computed(() => String(props.rate.shipmentMode ?? '').trim().toLowerCase() === 'fcl')
-const isMasterTariff = computed(() => props.rate.rateType === 'Tariff' && !props.rate.sourceTariffRateId)
+const isMasterTariff = computed(() =>
+  props.rate.rateType === 'Tariff'
+  && String(props.rate.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO'),
+)
 const today = todayInputDate()
 const form = reactive({
   validFrom: isMasterTariff.value ? toDateInput(props.rate.validFrom) : isFcl.value ? today : toDateInput(props.rate.validFrom),
