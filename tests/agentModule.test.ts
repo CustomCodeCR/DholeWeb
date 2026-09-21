@@ -383,3 +383,27 @@ test('Agent navigation centers the UX on extraction profiles', async () => {
   assert.match(router, /path: 'agents\/advanced'/)
   assert.match(router, /AgentAdvancedSettingsView\.vue/)
 })
+
+
+test('Extraction equipment UI maps the real equipment contract and CRUD service', async () => {
+  const form = await source('../src/modules/agent/components/equipment/AgentEquipmentForm.vue')
+  const table = await source('../src/modules/agent/components/equipment/AgentEquipmentTable.vue')
+
+  for (const field of [
+    'code',
+    'name',
+    'quantity',
+    'defaultWeightKg',
+    'isActive',
+    'sortOrder',
+  ]) {
+    assert.ok(form.includes(field), `Missing equipment field: ${field}`)
+  }
+
+  assert.match(form, /AgentService\.equipment\.create\(props\.profileId, payload\)/)
+  assert.match(form, /AgentService\.equipment\.update\(props\.profileId, props\.equipment\.id, payload\)/)
+  assert.match(table, /AgentExtractionEquipmentDto/)
+  assert.match(table, /emit\('delete', row\)/)
+  assert.match(table, /overflow-x-auto/)
+  assert.match(table, /DhDataTable/)
+})
