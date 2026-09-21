@@ -158,7 +158,7 @@ async function save() {
     await store.loadProviders()
   } catch (error) {
     if (error instanceof Error && !('status' in error)) {
-      toastStore.warning('Revise el provider', error.message)
+      toastStore.warning(t('agent.review.provider'), error.message)
     } else {
       toastStore.backendError(error, t('agent.errors.saveProvider'))
     }
