@@ -313,7 +313,7 @@ onMounted(() => {
             :disabled="submitting || !manualForm.providerId"
           />
           <div class="rounded-[18px] border border-[var(--dh-border)] p-3">
-            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Action Type</p>
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ t('agent.fields.actionType') }}</p>
             <p class="mt-1 text-sm font-bold text-[var(--dh-text)]">{{ selectedDefinition?.actionType ?? '—' }}</p>
           </div>
           <DhInput v-model="manualForm.pol" :label="t('agent.fields.pol')" :disabled="submitting" />
