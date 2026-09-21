@@ -454,12 +454,7 @@ export const router = createRouter({
           meta: {
             tabTitle: 'Perfiles de extracción',
             closable: true,
-            requiredAnyScopes: [
-              VIEW_SCOPES.agentProviders,
-              VIEW_SCOPES.agentCredentials,
-              VIEW_SCOPES.agentSchedules,
-              VIEW_SCOPES.agentExecutions,
-            ],
+            requiredScope: VIEW_SCOPES.agentProviders,
           },
         },
         {
@@ -469,10 +464,7 @@ export const router = createRouter({
           meta: {
             tabTitle: 'Nuevo perfil de extracción',
             closable: true,
-            requiredAnyScopes: [
-              VIEW_SCOPES.agentProviders,
-              VIEW_SCOPES.agentCredentials,
-            ],
+            requiredScope: 'agent.providers.manage',
           },
         },
         {
@@ -482,12 +474,7 @@ export const router = createRouter({
           meta: {
             tabTitle: 'Perfil de extracción',
             closable: true,
-            requiredAnyScopes: [
-              VIEW_SCOPES.agentProviders,
-              VIEW_SCOPES.agentCredentials,
-              VIEW_SCOPES.agentSchedules,
-              VIEW_SCOPES.agentExecutions,
-            ],
+            requiredScope: VIEW_SCOPES.agentProviders,
           },
         },
         {
@@ -497,10 +484,7 @@ export const router = createRouter({
           meta: {
             tabTitle: 'Editar perfil de extracción',
             closable: true,
-            requiredAnyScopes: [
-              VIEW_SCOPES.agentProviders,
-              VIEW_SCOPES.agentCredentials,
-            ],
+            requiredScope: 'agent.providers.manage',
           },
         },
         {
