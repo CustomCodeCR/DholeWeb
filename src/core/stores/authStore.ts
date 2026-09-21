@@ -2,6 +2,10 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { AuthService } from '@/core/services/authService'
+import {
+  clearTransientAccessToken,
+  setTransientAccessToken,
+} from '@/core/auth/transientSession'
 
 import type {
   ImpersonationResponse,
@@ -314,6 +318,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function restorePersistedSession() {
+    clearTransientAccessToken()
+
     accessToken.value = readStringFromStorage(STORAGE_KEYS.accessToken)
     refreshToken.value = readStringFromStorage(STORAGE_KEYS.refreshToken)
     sessionId.value = readStringFromStorage(STORAGE_KEYS.sessionId)
@@ -376,6 +382,7 @@ export const useAuthStore = defineStore('auth', () => {
     roles.value = []
     scopes.value = []
 
+    clearTransientAccessToken()
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key))
   }
 
@@ -386,6 +393,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     const response = await AuthService.startImpersonation(userIdToImpersonate)
 
+    setTransientAccessToken(response.accessToken)
     accessToken.value = response.accessToken
     refreshToken.value = null
     sessionId.value = response.sessionId
@@ -400,6 +408,16 @@ export const useAuthStore = defineStore('auth', () => {
     mustChangePassword.value = false
 
     return response
+  }
+
+  function handleTransientSessionExpired() {
+    if (isImpersonating.value) {
+      restorePersistedSession()
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('dhole:auth:impersonation-expired', handleTransientSessionExpired)
   }
 
   async function stopImpersonation(): Promise<void> {
