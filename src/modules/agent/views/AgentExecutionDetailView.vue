@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Activity, ArrowLeft, Ban, RefreshCw } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
@@ -17,6 +18,7 @@ import { useAgentPolling } from '@/modules/agent/composables/useAgentPolling'
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
 
 const route = useRoute()
+const { t } = useI18n()
 const router = useRouter()
 const store = useAgentStore()
 const toastStore = useToastStore()
@@ -85,9 +87,9 @@ async function refresh(showToast = false) {
     execution.value = row
     store.upsertExecution(row)
     polling.sync()
-    if (showToast) toastStore.success('Ejecución actualizada')
+    if (showToast) toastStore.success(t('agent.messages.executionRefreshed'))
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo cargar la ejecución.')
+    toastStore.backendError(error, t('agent.errors.loadExecution'))
   } finally {
     loading.value = false
   }
@@ -99,11 +101,11 @@ async function cancelExecution() {
   try {
     cancelling.value = true
     await AgentService.cancelExecution(execution.value.id)
-    toastStore.success('Cancelación solicitada')
+    toastStore.success(t('agent.messages.cancellationRequested'))
     cancelOpen.value = false
     await refresh()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo cancelar la ejecución.')
+    toastStore.backendError(error, t('agent.errors.cancelExecution'))
   } finally {
     cancelling.value = false
   }
@@ -114,19 +116,19 @@ const metadata = computed(() => {
   if (!row) return []
 
   return [
-    ['Execution ID', row.id],
-    ['Status', row.status],
-    ['Provider', providerName(row.providerId)],
-    ['Definition', definitionName(row.agentDefinitionId)],
-    ['Schedule', scheduleName(row.scheduleId)],
-    ['Credential', credentialName(row.credentialId)],
-    ['Created', formatDate(row.createdAtUtc)],
+    [t('agent.fields.executionId'), row.id],
+    [t('agent.fields.status'), row.status],
+    [t('agent.fields.provider'), providerName(row.providerId)],
+    [t('agent.fields.definition'), definitionName(row.agentDefinitionId)],
+    [t('agent.fields.schedule'), scheduleName(row.scheduleId)],
+    [t('agent.fields.credential'), credentialName(row.credentialId)],
+    [t('agent.fields.createdAt'), formatDate(row.createdAtUtc)],
     ['Started', formatDate(row.startedAt)],
     ['Completed', formatDate(row.completedAt)],
-    ['Duration', formatDuration(row.durationMs)],
+    [t('agent.fields.duration'), formatDuration(row.durationMs)],
     ['Attempt / MaxAttempts', `${row.attempt} / ${row.maxAttempts}`],
-    ['CorrelationId', row.correlationId],
-    ['TraceId', row.traceId ?? '—'],
+    [t('agent.fields.correlationId'), row.correlationId],
+    [t('agent.fields.traceId'), row.traceId ?? '—'],
   ]
 })
 
@@ -139,14 +141,14 @@ onMounted(async () => {
 <template>
   <div class="grid min-w-0 gap-6">
     <DhPageHeader
-      :title="execution ? `Ejecución ${execution.id}` : 'Detalle de ejecución'"
-      subtitle="Estado, entrada y resultado de DholeAgentService."
+      :title="execution ? `${t('agent.executions.title')} ${execution.id}` : t('agent.detail.title')"
+      :subtitle="t('agent.detail.subtitle')"
       :icon="Activity"
     >
       <template #actions>
-        <DhButton label="Volver" :icon="ArrowLeft" variant="ghost" @click="router.push('/agents/executions')" />
+        <DhButton :label="t('agent.actions.back')" :icon="ArrowLeft" variant="ghost" @click="router.push('/agents/executions')" />
         <DhButton
-          label="Actualizar"
+          :label="t('agent.actions.refresh')"
           :icon="RefreshCw"
           variant="secondary"
           :loading="loading"
@@ -154,7 +156,7 @@ onMounted(async () => {
         />
         <DhButton
           v-if="canCancel"
-          label="Cancelar"
+          :label="t('agent.actions.cancel')"
           :icon="Ban"
           variant="danger"
           @click="cancelOpen = true"
@@ -163,7 +165,7 @@ onMounted(async () => {
     </DhPageHeader>
 
     <template v-if="execution">
-      <DhCard title="Resumen de ejecución">
+      <DhCard :title="t('agent.detail.summary')">
         <div class="mb-5">
           <AgentExecutionStatusBadge :status="execution.status" />
         </div>
@@ -184,18 +186,18 @@ onMounted(async () => {
         </dl>
       </DhCard>
 
-      <DhCard title="Input">
+      <DhCard :title="t('agent.fields.input')">
         <AgentJsonViewer :value="execution.inputJson" />
       </DhCard>
 
-      <DhCard title="Result">
+      <DhCard :title="t('agent.fields.result')">
         <AgentRateResult v-if="execution.outputJson" :value="execution.outputJson" />
         <p v-else class="py-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
-          La ejecución todavía no tiene output.
+          {{ t('agent.detail.outputPending') }}
         </p>
       </DhCard>
 
-      <DhCard v-if="execution.errorCode || execution.errorMessage" title="Error">
+      <DhCard v-if="execution.errorCode || execution.errorMessage" :title="t('agent.fields.error')">
         <div class="rounded-[20px] border border-red-500/20 bg-red-500/10 p-4">
           <p v-if="execution.errorCode" class="break-all text-sm font-black text-red-700 dark:text-red-300">
             {{ execution.errorCode }}
@@ -209,22 +211,22 @@ onMounted(async () => {
 
     <DhCard v-else-if="loading">
       <p class="py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
-        Cargando ejecución...
+        {{ t('agent.detail.loading') }}
       </p>
     </DhCard>
 
     <DhCard v-else>
       <p class="py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
-        No fue posible cargar la ejecución.
+        {{ t('agent.detail.unavailable') }}
       </p>
     </DhCard>
 
-    <DhModal :open="cancelOpen" title="Cancelar ejecución" size="sm" @close="cancelOpen = false">
+    <DhModal :open="cancelOpen" :title="t('agent.executions.cancelTitle')" size="sm" @close="cancelOpen = false">
       <DhConfirmDialog
         v-if="execution"
-        title="Cancelar ejecución"
-        :message="`¿Desea cancelar la ejecución ${execution.id}?`"
-        confirm-label="Cancelar ejecución"
+        :title="t('agent.executions.cancelTitle')"
+        :message="t('agent.executions.cancelQuestion', { id: execution.id })"
+        :confirm-label="t('agent.executions.cancelTitle')"
         danger
         :on-confirm="cancelExecution"
         @cancel="cancelOpen = false"
