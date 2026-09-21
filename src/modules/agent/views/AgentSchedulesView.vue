@@ -349,7 +349,7 @@ async function save() {
     await store.loadSchedules()
   } catch (error) {
     if (error instanceof Error && !('status' in error)) {
-      toastStore.warning('Revise la programación', error.message)
+      toastStore.warning(t('agent.review.schedule'), error.message)
     } else {
       toastStore.backendError(error, t('agent.errors.saveSchedule'))
     }
@@ -368,7 +368,7 @@ async function confirmToggle() {
   if (!row) return
 
   await AgentService.setScheduleActive(row.id, !row.isActive)
-  toastStore.success(row.isActive ? 'Programación desactivada' : 'Programación activada')
+  toastStore.success(t('agent.messages.stateUpdated'))
   confirmOpen.value = false
   pendingToggle.value = null
   await store.loadSchedules()
@@ -581,8 +581,8 @@ onMounted(refresh)
     <DhModal :open="confirmOpen" :title="t('agent.providers.confirmState')" size="sm" @close="confirmOpen = false">
       <DhConfirmDialog
         v-if="pendingToggle"
-        :title="pendingToggle.isActive ? 'Desactivar programación' : 'Activar programación'"
-        :message="`¿Desea ${pendingToggle.isActive ? 'desactivar' : 'activar'} ${pendingToggle.name}?`"
+        :title="pendingToggle.isActive ? t('agent.confirm.deactivateTitle', { entity: t('agent.entities.schedule') }) : t('agent.confirm.activateTitle', { entity: t('agent.entities.schedule') })"
+        :message="pendingToggle.isActive ? t('agent.confirm.deactivateQuestion', { name: pendingToggle.name }) : t('agent.confirm.activateQuestion', { name: pendingToggle.name })"
         :danger="pendingToggle.isActive"
         :on-confirm="confirmToggle"
         @cancel="confirmOpen = false"
