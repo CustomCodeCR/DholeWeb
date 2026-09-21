@@ -8,6 +8,7 @@ export const AUTH_SCOPES = {
     setLocked: 'auth.users.set-locked',
     changePassword: 'auth.users.change-password',
     sendCredentials: 'auth.users.send-credentials',
+    impersonate: 'auth.users.impersonate',
     rolesAssign: 'auth.users.roles.assign',
     rolesRevoke: 'auth.users.roles.revoke',
     scopesAssign: 'auth.users.scopes.assign',

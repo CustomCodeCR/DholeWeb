@@ -71,6 +71,8 @@
     "theme": "Tema",
     "language": "Idioma",
     "notifications": "Notificaciones",
+    "impersonating": "Impersonando a {name}",
+    "stopImpersonation": "Salir de impersonación",
     "logout": "Salir"
   },
   "sidebar": {
@@ -206,6 +208,11 @@
     "sendCredentialsSuccess": "Credenciales enviadas por correo.",
     "sendCredentialsIssueError": "No se pudieron generar las credenciales del usuario.",
     "sendCredentialsEmailError": "La contraseña temporal fue generada, pero el correo no pudo enviarse. Puede intentarlo nuevamente para generar y enviar nuevas credenciales.",
+    "impersonate": "Ingresar como usuario",
+    "impersonateAction": "Ingresar temporalmente",
+    "impersonateConfirm": "Ingresará temporalmente como {name} para revisar su experiencia y permisos. No se utilizará ni modificará su contraseña. Toda la acción quedará auditada. ¿Desea continuar?",
+    "impersonateSuccess": "Sesión de impersonación iniciada.",
+    "impersonateError": "No se pudo iniciar la impersonación del usuario.",
     "lastLogin": "Último login",
     "protectedUser": "Usuario protegido"
   },

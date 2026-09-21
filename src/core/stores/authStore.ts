@@ -3,7 +3,12 @@ import { defineStore } from 'pinia'
 
 import { AuthService } from '@/core/services/authService'
 
-import type { LoginRequest, LoginResponse, RefreshTokenResponse } from '@/core/interfaces/auth'
+import type {
+  ImpersonationResponse,
+  LoginRequest,
+  LoginResponse,
+  RefreshTokenResponse,
+} from '@/core/interfaces/auth'
 
 const STORAGE_KEYS = {
   accessToken: 'auth.accessToken',
@@ -151,6 +156,24 @@ export const useAuthStore = defineStore('auth', () => {
   const scopes = ref<string[]>(readArrayFromStorage(STORAGE_KEYS.scopes))
 
   const token = computed(() => accessToken.value)
+  const currentTokenPayload = computed(() =>
+    accessToken.value ? parseJwtPayload(accessToken.value) : null,
+  )
+  const isImpersonating = computed(() => {
+    const payload = currentTokenPayload.value
+    if (!payload) return false
+
+    const flag = payload.impersonation
+    return flag === true || flag === 'true' || Boolean(readClaimString(payload, ['impersonator_user_id']))
+  })
+  const impersonatorUserId = computed(() => {
+    const payload = currentTokenPayload.value
+    return payload ? readClaimString(payload, ['impersonator_user_id']) : null
+  })
+  const impersonatorUserName = computed(() => {
+    const payload = currentTokenPayload.value
+    return payload ? readClaimString(payload, ['impersonator_user_name']) : null
+  })
 
   const isAuthenticated = computed(() => hasValidSession())
   const userDisplayName = computed(() => displayName.value || username.value || email.value)
@@ -267,6 +290,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function persistSession() {
+    if (isImpersonating.value) return
+
     persistString(STORAGE_KEYS.accessToken, accessToken.value)
     persistString(STORAGE_KEYS.refreshToken, refreshToken.value)
     persistString(STORAGE_KEYS.sessionId, sessionId.value)
@@ -286,6 +311,29 @@ export const useAuthStore = defineStore('auth', () => {
 
     persistArray(STORAGE_KEYS.roles, roles.value)
     persistArray(STORAGE_KEYS.scopes, scopes.value)
+  }
+
+  function restorePersistedSession() {
+    accessToken.value = readStringFromStorage(STORAGE_KEYS.accessToken)
+    refreshToken.value = readStringFromStorage(STORAGE_KEYS.refreshToken)
+    sessionId.value = readStringFromStorage(STORAGE_KEYS.sessionId)
+    accessTokenExpiresAt.value = readStringFromStorage(STORAGE_KEYS.accessTokenExpiresAt)
+    refreshTokenExpiresAt.value = readStringFromStorage(STORAGE_KEYS.refreshTokenExpiresAt)
+
+    userId.value = readStringFromStorage(STORAGE_KEYS.userId)
+    sessionUserId.value = readStringFromStorage(STORAGE_KEYS.sessionUserId)
+    userType.value = readStringFromStorage(STORAGE_KEYS.userType)
+    username.value = readStringFromStorage(STORAGE_KEYS.username)
+    displayName.value = readStringFromStorage(STORAGE_KEYS.displayName)
+    email.value = readStringFromStorage(STORAGE_KEYS.email)
+    mustChangePassword.value = readBooleanFromStorage(STORAGE_KEYS.mustChangePassword)
+    clientId.value = readStringFromStorage(STORAGE_KEYS.clientId)
+    clientCode.value = readStringFromStorage(STORAGE_KEYS.clientCode)
+    clientName.value = readStringFromStorage(STORAGE_KEYS.clientName)
+    roles.value = readArrayFromStorage(STORAGE_KEYS.roles)
+    scopes.value = readArrayFromStorage(STORAGE_KEYS.scopes)
+
+    applyClaimsFromAccessToken(accessToken.value)
   }
 
   function setSession(data: LoginResponse | RefreshTokenResponse) {
@@ -331,6 +379,45 @@ export const useAuthStore = defineStore('auth', () => {
     Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key))
   }
 
+  async function startImpersonation(userIdToImpersonate: string): Promise<ImpersonationResponse> {
+    if (isImpersonating.value) {
+      throw new Error('Nested impersonation is not allowed')
+    }
+
+    const response = await AuthService.startImpersonation(userIdToImpersonate)
+
+    accessToken.value = response.accessToken
+    refreshToken.value = null
+    sessionId.value = response.sessionId
+    accessTokenExpiresAt.value = response.accessTokenExpiresAt
+    refreshTokenExpiresAt.value = null
+
+    applyClaimsFromAccessToken(response.accessToken)
+
+    username.value = response.userName
+    displayName.value = response.displayName
+    email.value = response.email
+    mustChangePassword.value = false
+
+    return response
+  }
+
+  async function stopImpersonation(): Promise<void> {
+    if (!isImpersonating.value) {
+      restorePersistedSession()
+      return
+    }
+
+    try {
+      await AuthService.stopImpersonation()
+    } catch {
+      // Always restore the administrator session locally. The temporary
+      // impersonation session is short-lived and cannot be refreshed.
+    } finally {
+      restorePersistedSession()
+    }
+  }
+
   function isAccessTokenExpired(currentToken?: string | null): boolean {
     if (!currentToken) return true
 
@@ -360,7 +447,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function hasValidSession(): boolean {
-    if (!accessToken.value || !refreshToken.value || !sessionId.value) return false
+    if (!accessToken.value || !sessionId.value) return false
+
+    if (isImpersonating.value) {
+      return !isAccessTokenExpired(accessToken.value)
+    }
+
+    if (!refreshToken.value) return false
 
     if (isAccessTokenExpired(accessToken.value)) {
       return !isRefreshTokenExpired()
@@ -370,6 +463,18 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function refreshSession(): Promise<boolean> {
+    if (isImpersonating.value) {
+      await stopImpersonation()
+
+      if (!accessToken.value) {
+        return false
+      }
+
+      if (!isAccessTokenExpired(accessToken.value)) {
+        return true
+      }
+    }
+
     if (!refreshToken.value || isRefreshTokenExpired()) {
       clearSession()
       return false
@@ -396,6 +501,18 @@ export const useAuthStore = defineStore('auth', () => {
 
     if (!isAccessTokenExpired(accessToken.value)) {
       return accessToken.value
+    }
+
+    if (isImpersonating.value) {
+      await stopImpersonation()
+
+      if (!accessToken.value) {
+        return null
+      }
+
+      if (!isAccessTokenExpired(accessToken.value)) {
+        return accessToken.value
+      }
     }
 
     const refreshed = await refreshSession()
@@ -502,9 +619,14 @@ export const useAuthStore = defineStore('auth', () => {
     scopes,
 
     isAuthenticated,
+    isImpersonating,
+    impersonatorUserId,
+    impersonatorUserName,
 
     login,
     logout,
+    startImpersonation,
+    stopImpersonation,
     clearSession,
     initialize,
     refreshSession,

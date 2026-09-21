@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Ban, CheckCircle2, KeyRound, Lock, MonitorCheck, RefreshCcw, Send, Shield, ShieldMinus, ShieldPlus, Unlock, UserCog } from 'lucide-vue-next'
+import { Ban, CheckCircle2, KeyRound, Lock, MonitorCheck, RefreshCcw, Send, Shield, ShieldMinus, ShieldPlus, Unlock, UserCog, UserRoundCheck } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { DhTabs, type DhTabItem } from '@/shared/components/molecules'
 import { useModalStore } from '@/core/stores/modalStore'
@@ -29,6 +30,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
 const authStore = useAuthStore()
@@ -50,6 +52,7 @@ const canSetActive = computed(() => authStore.hasScope(AUTH_SCOPES.users.setActi
 const canSetLocked = computed(() => authStore.hasScope(AUTH_SCOPES.users.setLocked))
 const canChangePassword = computed(() => authStore.hasScope(AUTH_SCOPES.users.changePassword))
 const canSendCredentials = computed(() => authStore.hasScope(AUTH_SCOPES.users.sendCredentials))
+const canImpersonate = computed(() => authStore.hasScope(AUTH_SCOPES.users.impersonate))
 const canViewRoles = computed(() => authStore.hasScope(AUTH_SCOPES.roles.view))
 const canViewScopes = computed(() => authStore.hasScope(AUTH_SCOPES.scopes.view))
 const canAssignRoles = computed(() => authStore.hasScope(AUTH_SCOPES.users.rolesAssign) && canViewRoles.value)
@@ -59,9 +62,26 @@ const canRevokeScopes = computed(() => authStore.hasScope(AUTH_SCOPES.users.scop
 const canViewSessions = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.view))
 const canRevokeSessions = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.revoke))
 const canRevokeAllSessions = computed(() => authStore.hasScope(AUTH_SCOPES.sessions.revokeAll))
-const canRefreshCurrentToken = computed(() => localUser.value.id === authStore.userId)
+const canRefreshCurrentToken = computed(() => localUser.value.id === authStore.userId && !authStore.isImpersonating)
 const isProtectedUser = computed(() => Boolean(localUser.value.isProtected))
-const showAccountActions = computed(() => !isProtectedUser.value && (canSetActive.value || canSetLocked.value || canChangePassword.value || canSendCredentials.value))
+const canImpersonateUser = computed(() =>
+  canImpersonate.value
+  && !isProtectedUser.value
+  && !authStore.isImpersonating
+  && localUser.value.id !== authStore.userId
+  && localUser.value.isActive
+  && !localUser.value.isLocked,
+)
+const showAccountActions = computed(() =>
+  !isProtectedUser.value
+  && (
+    canSetActive.value
+    || canSetLocked.value
+    || canChangePassword.value
+    || canSendCredentials.value
+    || canImpersonateUser.value
+  ),
+)
 const showRoleActions = computed(() => canAssignRoles.value || canRevokeRoles.value)
 const showScopeActions = computed(() => canAssignScopes.value || canRevokeScopes.value)
 const showSessionActions = computed(() => canRefreshCurrentToken.value || canRevokeAllSessions.value)
@@ -188,6 +208,37 @@ function confirmSendCredentials() {
       onCancel: () => modalStore.close(),
     },
   })
+}
+
+function confirmImpersonate() {
+  if (!canImpersonateUser.value) return
+
+  modalStore.open({
+    title: t('users.impersonate'),
+    component: DhConfirmDialog,
+    size: 'md',
+    props: {
+      title: t('users.impersonate'),
+      message: t('users.impersonateConfirm', {
+        name: localUser.value.displayName || localUser.value.userName,
+      }),
+      confirmLabel: t('users.impersonateAction'),
+      cancelLabel: t('common.cancel'),
+      onConfirm: startImpersonation,
+      onCancel: () => modalStore.close(),
+    },
+  })
+}
+
+async function startImpersonation() {
+  try {
+    await authStore.startImpersonation(localUser.value.id)
+    modalStore.close()
+    toastStore.success(t('users.impersonateSuccess'))
+    await router.push('/')
+  } catch (error) {
+    toastStore.backendError(error, t('users.impersonateError'))
+  }
 }
 
 async function sendCredentials() {
@@ -403,6 +454,7 @@ onMounted(loadRelated)
         <DhButton v-else-if="canSetLocked" :icon="Lock" label="Bloquear" variant="danger" @click="openBlockModal" />
         <DhButton v-if="canChangePassword" :icon="UserCog" label="Cambiar contraseña" variant="secondary" @click="openPasswordModal" />
         <DhButton v-if="canSendCredentials" :icon="Send" :label="t('users.sendCredentials')" variant="secondary" :disabled="sendingCredentials" @click="confirmSendCredentials" />
+        <DhButton v-if="canImpersonateUser" :icon="UserRoundCheck" :label="t('users.impersonate')" variant="secondary" @click="confirmImpersonate" />
       </div>
     </div>
 

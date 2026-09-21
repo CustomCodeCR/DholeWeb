@@ -18,6 +18,17 @@ export interface LoginResponse {
   clientName?: string | null
 }
 
+export interface ImpersonationResponse {
+  accessToken: string
+  sessionId: string
+  accessTokenExpiresAt: string
+  displayName: string
+  userName: string
+  email: string
+  impersonatorUserId: string
+  impersonatorUserName: string
+}
+
 export interface ChangeOwnPasswordRequest {
   password: string
 }

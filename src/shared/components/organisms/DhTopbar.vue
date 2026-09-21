@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun } from 'lucide-vue-next'
+import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun, UserRoundX } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
@@ -35,6 +35,7 @@ const inboxPageSize = 20
 const inboxTotal = ref(0)
 const unreadCount = ref(0)
 const expandedRecipientId = ref<string | null>(null)
+const stoppingImpersonation = ref(false)
 
 const hasMoreNotifications = computed(() => inboxItems.value.length < inboxTotal.value)
 const unreadBadge = computed(() => unreadCount.value > 99 ? '99+' : String(unreadCount.value))
@@ -110,6 +111,18 @@ function openSettings() {
   void router.push('/settings')
 }
 
+async function stopImpersonation() {
+  if (stoppingImpersonation.value || !authStore.isImpersonating) return
+
+  stoppingImpersonation.value = true
+  try {
+    await authStore.stopImpersonation()
+    await router.push('/')
+  } finally {
+    stoppingImpersonation.value = false
+  }
+}
+
 function formatNotificationDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
@@ -172,6 +185,26 @@ onBeforeUnmount(() => {
     </button>
 
     <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+      <div
+        v-if="authStore.isImpersonating"
+        class="flex min-w-0 items-center gap-1.5 rounded-[18px] border border-amber-400/50 bg-amber-400/10 p-1 text-amber-700 dark:text-amber-300 sm:px-2"
+      >
+        <span class="hidden max-w-40 truncate text-xs font-black lg:block">
+          {{ t('topbar.impersonating', { name: displayName }) }}
+        </span>
+        <button
+          type="button"
+          class="inline-flex h-9 items-center gap-1.5 rounded-[14px] px-2 text-xs font-black transition hover:bg-amber-400/20"
+          :disabled="stoppingImpersonation"
+          :title="t('topbar.stopImpersonation')"
+          @click="stopImpersonation"
+        >
+          <LoaderCircle v-if="stoppingImpersonation" class="h-4 w-4 animate-spin" />
+          <UserRoundX v-else class="h-4 w-4" />
+          <span class="hidden md:inline">{{ t('topbar.stopImpersonation') }}</span>
+        </button>
+      </div>
+
       <DhIconButton :icon="Languages" :label="t('topbar.language')" variant="secondary" @click="localeStore.toggleLocale()" />
       <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" @click="themeStore.toggleTheme()" />
       <DhIconButton :icon="Settings" label="Configuración" variant="secondary" @click="openSettings" />
