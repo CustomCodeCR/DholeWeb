@@ -20,6 +20,16 @@ export const AuthEndpoints = {
   login: { method: 'POST', path: '/api/auth/login', headers: jsonHeaders },
   changeOwnPassword: { method: 'POST', path: '/api/auth/change-password', headers: jsonHeaders },
   refreshToken: { method: 'POST', path: '/api/auth/refresh', headers: jsonHeaders },
+  startImpersonation: {
+    method: 'POST',
+    path: '/api/auth/impersonation/{{userId}}',
+    headers: acceptJson,
+  },
+  stopImpersonation: {
+    method: 'POST',
+    path: '/api/auth/impersonation/stop',
+    headers: acceptJson,
+  },
 } satisfies Record<string, Endpoint>
 
 export const ClientBrandingEndpoints = {
