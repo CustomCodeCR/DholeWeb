@@ -64,6 +64,7 @@ import { pricingApprovalWorkflowStable } from './build/pricingApprovalWorkflowSt
 import { pricingWizardPanamaContinuationCompat } from './build/pricingWizardPanamaContinuationCompat'
 import { pricingWizardPanamaContinuation } from './build/pricingWizardPanamaContinuation'
 import { pricingDuplicateRateRefreshWorkflow } from './build/pricingDuplicateRateRefreshWorkflow'
+import { pricingWizardMixedFclFreightFix } from './build/pricingWizardMixedFclFreightFix'
 
 export default defineConfig({
   plugins: [
@@ -130,6 +131,7 @@ export default defineConfig({
     pricingWizardPanamaContinuationCompat(),
     pricingWizardPanamaContinuation(),
     pricingDuplicateRateRefreshWorkflow(),
+    pricingWizardMixedFclFreightFix(),
     vue(),
     tailwindcss(),
   ],
