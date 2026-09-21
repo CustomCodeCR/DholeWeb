@@ -22,6 +22,8 @@ import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
+import { PRICING_SCOPES } from '@/core/auth/scopes'
+import { useAuthStore } from '@/core/stores/authStore'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import type {
   BrowseImportRatesQuery,
@@ -184,6 +186,7 @@ const props = withDefaults(defineProps<{ rateId?: string | null; viewOnly?: bool
 const router = useRouter()
 const toastStore = useToastStore()
 const modalStore = useModalStore()
+const authStore = useAuthStore()
 const step = ref(1)
 const loadingCatalogs = ref(false)
 const loadingRates = ref(false)
@@ -347,11 +350,24 @@ const commercialRateTypeLabel = computed(() =>
       ? 'TARIFA'
       : 'SPOT',
 )
-const canMarkSent = computed(() => !isMasterTariff.value && currentCommercialStatus.value === 'Open')
-const canAcceptOrReject = computed(() =>
-  !isMasterTariff.value
-  && ['Sent', 'RequestedByClient', 'Expired'].includes(currentCommercialStatus.value),
+const canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
+const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canMarkSent = computed(() =>
+  canUpdateRateStatus.value
+  && !isMasterTariff.value
+  && currentCommercialStatus.value === 'Open',
 )
+const canAcceptOrReject = computed(() => {
+  if (isMasterTariff.value) return false
+
+  const status = currentCommercialStatus.value
+  const regularDecision =
+    canUpdateRateStatus.value && ['Sent', 'RequestedByClient', 'Expired'].includes(status)
+  const privilegedDecision =
+    canApproveLowMargin.value && ['Open', 'Sent', 'RequestedByClient', 'Expired'].includes(status)
+
+  return regularDecision || privilegedDecision
+})
 
 const modalityOptions: Array<{ value: Modality; label: string; caption: string }> = [
   { value: 'Maritime', label: 'Marítimo', caption: 'FCL y LCL' },
@@ -4478,7 +4494,9 @@ onMounted(async () => {
             <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
               {{ isMasterTariff
                 ? 'El tarifario maestro permanece reutilizable durante su vigencia. Aplicarlo crea una nueva QUO del cliente; la aceptación o rechazo se registra únicamente sobre esa QUO hija.'
-                : 'Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.' }}
+                : canApproveLowMargin && currentCommercialStatus === 'Open'
+                  ? 'Con el permiso Aprobar margen bajo puede registrar la tarifa como Aceptada o Rechazada directamente desde Abierta, sin marcarla primero como Enviada.'
+                  : 'Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.' }}
             </p>
 
             <div v-if="commercialAction === 'accept'" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
