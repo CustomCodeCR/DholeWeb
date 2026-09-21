@@ -447,13 +447,14 @@ onMounted(loadRelated)
         </div>
       </div>
 
-      <div v-if="showAccountActions" class="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div v-if="showAccountActions" class="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         <DhButton v-if="canSetActive && localUser.isActive" :icon="Ban" label="Inactivar" variant="secondary" @click="inactivate" />
         <DhButton v-else-if="canSetActive" :icon="CheckCircle2" label="Activar" @click="activate" />
         <DhButton v-if="canSetLocked && localUser.isLocked" :icon="Unlock" label="Desbloquear" variant="secondary" @click="unblock" />
         <DhButton v-else-if="canSetLocked" :icon="Lock" label="Bloquear" variant="danger" @click="openBlockModal" />
         <DhButton v-if="canChangePassword" :icon="UserCog" label="Cambiar contraseña" variant="secondary" @click="openPasswordModal" />
         <DhButton v-if="canSendCredentials" :icon="Send" :label="t('users.sendCredentials')" variant="secondary" :disabled="sendingCredentials" @click="confirmSendCredentials" />
+        <DhButton v-if="canImpersonateUser" :icon="UserRoundCheck" :label="t('users.impersonate')" variant="secondary" @click="confirmImpersonate" />
       </div>
     </div>
 
