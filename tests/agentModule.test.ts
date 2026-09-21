@@ -134,7 +134,7 @@ test('Execution polling stops on terminal states, page hiding and unmount', asyn
   }
   assert.match(polling, /5_000|5000/)
   assert.match(polling, /document\.hidden/)
-  assert.match(polling, /onUnmounted/)
+  assert.match(polling, /on(?:Before)?Unmount/)
   assert.match(polling, /visibilitychange/)
 })
 
