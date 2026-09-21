@@ -485,3 +485,20 @@ test('Hermes prompt UI previews only through the backend contract', async () => 
   assert.equal(preview.toLowerCase().includes('password'), false)
   assert.equal(/\.replace\([^\n]*\{\{/.test(preview), false)
 })
+
+
+test('Profile schedule builder supports friendly modes without inventing persistence', async () => {
+  const form = await source('../src/modules/agent/components/schedules/AgentScheduleForm.vue')
+
+  for (const mode of ['Manual', 'Once', 'Interval', 'Daily', 'Weekly', 'Cron']) {
+    assert.ok(form.includes(`'${mode}'`), `Missing schedule mode: ${mode}`)
+  }
+
+  assert.match(form, /America\/Costa_Rica/)
+  assert.match(form, /value \* 60/)
+  assert.match(form, /scheduleType: 'Cron'/)
+  assert.match(form, /generatedCron/)
+  assert.match(form, /Feature blocked by backend contract/)
+  assert.equal(form.includes('AgentService.schedules.create'), false)
+  assert.equal(form.includes('AgentService.createSchedule'), false)
+})
