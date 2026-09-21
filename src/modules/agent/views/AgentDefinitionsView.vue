@@ -152,7 +152,7 @@ async function save() {
     modalOpen.value = false
     await store.loadDefinitions()
   } catch (error) {
-    if (error instanceof Error && !('status' in error)) toastStore.warning('Revise la definición', error.message)
+    if (error instanceof Error && !('status' in error)) toastStore.warning(t('agent.review.definition'), error.message)
     else toastStore.backendError(error, t('agent.errors.saveDefinition'))
   } finally {
     saving.value = false
@@ -168,7 +168,7 @@ async function confirmToggle() {
   const row = pendingToggle.value
   if (!row) return
   await AgentService.setDefinitionActive(row.id, !row.isActive)
-  toastStore.success(row.isActive ? 'Definición desactivada' : 'Definición activada')
+  toastStore.success(t('agent.messages.stateUpdated'))
   confirmOpen.value = false
   pendingToggle.value = null
   await store.loadDefinitions()
@@ -237,8 +237,8 @@ onMounted(refresh)
     <DhModal :open="confirmOpen" :title="t('agent.providers.confirmState')" size="sm" @close="confirmOpen = false">
       <DhConfirmDialog
         v-if="pendingToggle"
-        :title="pendingToggle.isActive ? 'Desactivar definición' : 'Activar definición'"
-        :message="`¿Desea ${pendingToggle.isActive ? 'desactivar' : 'activar'} ${pendingToggle.name}?`"
+        :title="pendingToggle.isActive ? t('agent.confirm.deactivateTitle', { entity: t('agent.entities.definition') }) : t('agent.confirm.activateTitle', { entity: t('agent.entities.definition') })"
+        :message="pendingToggle.isActive ? t('agent.confirm.deactivateQuestion', { name: pendingToggle.name }) : t('agent.confirm.activateQuestion', { name: pendingToggle.name })"
         :danger="pendingToggle.isActive"
         :on-confirm="confirmToggle"
         @cancel="confirmOpen = false"
