@@ -241,6 +241,7 @@ export const AGENT_SCOPES = {
     view: 'agent.schedules.view',
     create: 'agent.schedules.create',
     update: 'agent.schedules.update',
+    delete: 'agent.schedules.delete',
     execute: 'agent.schedules.execute',
   },
   executions: {
@@ -387,6 +388,8 @@ export const VIEW_SCOPES = {
 
   agentProviders: AGENT_SCOPES.providers.view,
   agentDefinitions: AGENT_SCOPES.definitions.view,
+  agentCredentials: AGENT_SCOPES.credentials.view,
+  agentBrowserProfiles: AGENT_SCOPES.browserProfiles.view,
   agentSchedules: AGENT_SCOPES.schedules.view,
   agentExecutions: AGENT_SCOPES.executions.view,
 

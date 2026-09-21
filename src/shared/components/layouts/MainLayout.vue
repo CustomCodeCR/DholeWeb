@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import {
   Activity,
+  Ship,
+  History,
+  Globe2,
+  Gauge,
+  FileCode2,
+  CalendarClock,
   BadgeDollarSign,
   Bell,
   BellRing,
@@ -279,23 +285,28 @@ const sidebarItems = computed<SidebarItem[]>(() => {
   }
 
 
+  const agentChildren: SidebarItem[] = []
   const canManageAgent =
     canView(VIEW_SCOPES.agentProviders) ||
     canView(VIEW_SCOPES.agentDefinitions) ||
+    canView(VIEW_SCOPES.agentCredentials) ||
+    canView(VIEW_SCOPES.agentBrowserProfiles) ||
     canView(VIEW_SCOPES.agentSchedules) ||
     canView(VIEW_SCOPES.agentExecutions)
 
   if (canManageAgent) {
+    agentChildren.push({ label: 'Resumen', path: '/agents', icon: Gauge })
+    if (canView(VIEW_SCOPES.agentProviders)) agentChildren.push({ label: 'Proveedores', path: '/agents/providers', icon: Ship })
+    if (canView(VIEW_SCOPES.agentDefinitions)) agentChildren.push({ label: 'Definiciones', path: '/agents/definitions', icon: FileCode2 })
+    if (canView(VIEW_SCOPES.agentCredentials)) agentChildren.push({ label: 'Credenciales', path: '/agents/credentials', icon: KeyRound })
+    if (canView(VIEW_SCOPES.agentBrowserProfiles)) agentChildren.push({ label: 'Perfiles de navegador', path: '/agents/browser-profiles', icon: Globe2 })
+    if (canView(VIEW_SCOPES.agentSchedules)) agentChildren.push({ label: 'Programaciones', path: '/agents/schedules', icon: CalendarClock })
+    if (canView(VIEW_SCOPES.agentExecutions)) agentChildren.push({ label: 'Ejecuciones', path: '/agents/executions', icon: History })
+
     items.push({
       label: 'Agentes',
       icon: Bot,
-      children: [
-        {
-          label: 'Dhole Agent',
-          path: '/agents',
-          icon: Bot,
-        },
-      ],
+      children: agentChildren,
     })
   }
 
