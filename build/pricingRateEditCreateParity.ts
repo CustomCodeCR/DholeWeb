@@ -128,30 +128,7 @@ function patchWizard(source: string) {
 }
 
 function patchRatesView(source: string) {
-  let code = source
-
-  code = replaceOne(
-    code,
-    `import type { RateDto, RateStatus } from '@/core/interfaces/pricing'`,
-    `import type { RateDto } from '@/core/interfaces/pricing'`,
-    'rate view type import',
-  )
-
-  code = replaceRegexOne(
-    code,
-    /const requestedRateUpdateStatuses = new Set<RateStatus>\(\[[\s\S]*?\]\)\n\nfunction canUpdateRate\(rate: RateDto\) \{[\s\S]*?\n\}\n\nfunction rateUpdateWindowMessage\(rate: RateDto\) \{[\s\S]*?\n\}\n/,
-    `function canUpdateRate(_rate: RateDto) {\n  return canUpdate.value\n}\n`,
-    'rate update status window',
-  )
-
-  code = replaceRegexOne(
-    code,
-    /function openEdit\(rate: RateDto\) \{[\s\S]*?router\.push\(\{ name: 'pricing-rate-wizard', params: \{ rateId: rate\.id \}, query: \{ mode: 'edit' \} \}\)\n\}/,
-    `function openEdit(rate: RateDto) {\n  if (!canUpdateRate(rate)) {\n    toastStore.warning('Permiso requerido', 'Necesita permiso para actualizar tarifas.')\n    return\n  }\n  toastStore.info('Actualización de tarifa', 'Indique el motivo del cambio para continuar a la Pantalla 3.')\n  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })\n}`,
-    'rate edit action',
-  )
-
-  return code
+  return source
 }
 
 export function pricingRateEditCreateParity(): Plugin {
