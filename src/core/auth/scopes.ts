@@ -232,6 +232,22 @@ export const AGENT_SCOPES = {
   credentials: {
     view: 'agent.credentials.view',
     manage: 'agent.credentials.manage',
+    verify: 'agent.credentials.verify',
+  },
+  routes: {
+    manage: 'agent.routes.manage',
+  },
+  equipment: {
+    manage: 'agent.equipment.manage',
+  },
+  captureRules: {
+    manage: 'agent.capture-rules.manage',
+  },
+  extractionFields: {
+    manage: 'agent.extraction-fields.manage',
+  },
+  prompts: {
+    manage: 'agent.prompts.manage',
   },
   browserProfiles: {
     view: 'agent.browser-profiles.view',
