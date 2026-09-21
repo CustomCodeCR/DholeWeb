@@ -143,20 +143,7 @@ function patchWizard(source: string) {
 }
 
 function patchRates(source: string) {
-  let code = source
-  code = replaceOne(
-    code,
-    `import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'`,
-    `import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'\nimport PricingRateRequestsPanel from '@/modules/pricing/components/PricingRateRequestsPanel.vue'`,
-    'request panel import',
-  )
-  code = replaceOne(
-    code,
-    `    <DhPageHeader\n      title="Tarifas oficiales"\n      subtitle="Seguimiento comercial únicamente por Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."\n      :icon="ReceiptText"\n    />`,
-    `    <DhPageHeader\n      title="Tarifas oficiales"\n      subtitle="Seguimiento comercial únicamente por Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."\n      :icon="ReceiptText"\n    />\n\n    <PricingRateRequestsPanel />`,
-    'request panel placement',
-  )
-  return code
+  return source
 }
 
 function patchRouter(source: string) {
