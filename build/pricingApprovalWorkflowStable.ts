@@ -48,7 +48,7 @@ function patchWizard(source: string) {
     code = replaceOne(
       code,
       "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')",
-      "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canApproveLowMargin = computed(() => authStore.hasScope('pricing.rate.approve-low-margin'))\nconst canUpdateRateStatus = computed(() => authStore.hasScope('pricing.rate.update'))\nconst canApproveCurrentRate = computed(() =>\n  canApproveLowMargin.value &&\n  editingRate.value?.status === 'PendingApproval' &&\n  Boolean(editingRate.value?.requiredApproval),\n)\nconst canOpenApprovedRate = computed(() =>\n  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',\n)\nconst canDownloadCurrentQuote = computed(() => {\n  const rate = editingRate.value\n  return Boolean(\n    rate &&\n    !rate.requiredApproval &&\n    !['PendingApproval', 'RejectedByManagement'].includes(rate.status),\n  )\n})",
+      "const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')\nconst canApproveLowMargin = computed(() => authStore.hasScope('pricing.rate.approve-low-margin'))\nconst canUpdateRateStatus = computed(() => authStore.hasScope('pricing.rate.update'))\nconst canApproveCurrentRate = computed(() =>\n  canApproveLowMargin.value &&\n  editingRate.value?.status === 'PendingApproval' &&\n  Boolean(editingRate.value?.requiredApproval),\n)\nconst canOpenApprovedRate = computed(() =>\n  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',\n)\nconst canDownloadCurrentQuote = computed(() => {\n  const rate = editingRate.value\n  return Boolean(\n    rate &&\n    !['PendingApproval', 'RejectedByManagement'].includes(rate.status),\n  )\n})",
       'wizard approval computed state',
     )
   }
@@ -124,7 +124,7 @@ function patchDetailDrawer(source: string) {
   code = replaceOne(
     code,
     "const canApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))",
-    "const canApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))\nconst canPrintRate = computed(() =>\n  !current.value.requiredApproval &&\n  !['PendingApproval', 'RejectedByManagement'].includes(current.value.status),\n)",
+    "const canApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))\nconst canPrintRate = computed(() =>\n  !['PendingApproval', 'RejectedByManagement'].includes(current.value.status),\n)",
     'drawer pdf computed guard',
   )
 
