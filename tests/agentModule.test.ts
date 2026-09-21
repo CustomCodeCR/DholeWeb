@@ -260,7 +260,7 @@ test('Agent service exposes profile-first grouped operations without inventing p
     'executions.getPrompt',
   ]) {
     const [group, method] = operation.split('.')
-    assert.match(service, new RegExp(`const ${group} = \\{[\\s\\S]*?\\n  ${method}\\(`))
+    assert.match(service, new RegExp(`const ${group} = \\{[\\s\\S]*?\\n  (?:async )?${method}\\(`))
   }
 
   assert.match(service, /profiles:\s*\{\s*contractAvailable:\s*false as const/)
