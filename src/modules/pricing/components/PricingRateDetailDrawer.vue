@@ -97,6 +97,17 @@ const isMasterTariff = computed(() =>
   current.value.rateType === 'Tariff'
     && String(current.value.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO'),
 )
+const canRegisterClientDecision = computed(() => {
+  if (isMasterTariff.value) return false
+
+  const status = current.value.status
+  const regularDecision =
+    canUpdate.value && ['Sent', 'RequestedByClient', 'Expired'].includes(status)
+  const privilegedDecision =
+    canApprove.value && ['Open', 'Sent', 'RequestedByClient', 'Expired'].includes(status)
+
+  return regularDecision || privilegedDecision
+})
 const canApplyTariff = computed(() =>
   canDuplicate.value
   && isMasterTariff.value
@@ -506,14 +517,14 @@ onMounted(async () => {
             @click="setCommercialStatus('Sent')"
           />
           <DhButton
-            v-if="canUpdate && !isMasterTariff && ['Sent', 'RequestedByClient'].includes(current.status)"
+            v-if="canRegisterClientDecision"
             label="Aceptada por cliente"
             :icon="CheckCircle2"
             size="sm"
             @click="acceptByClient"
           />
           <DhButton
-            v-if="canUpdate && !isMasterTariff && ['Sent', 'RequestedByClient'].includes(current.status)"
+            v-if="canRegisterClientDecision"
             label="Rechazada por cliente"
             :icon="XCircle"
             variant="danger"
