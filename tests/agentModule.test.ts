@@ -4,8 +4,11 @@ import { readFile } from 'node:fs/promises'
 import {
   AGENT_ACTION_TYPES,
   AGENT_BROWSER_PROFILE_STATUSES,
+  AGENT_ENDPOINT_MATCH_TYPES,
   AGENT_EXECUTION_STATUSES,
   AGENT_EXECUTION_STRATEGIES,
+  AGENT_EXTRACTION_DATA_TYPES,
+  AGENT_EXTRACTION_SOURCE_TYPES,
   AGENT_PROVIDER_TYPES,
   AGENT_SCHEDULE_TYPES,
 } from '../src/core/interfaces/agent.ts'
@@ -20,6 +23,9 @@ test('Agent contracts expose the backend enum values without duplicated variants
   assert.deepEqual(AGENT_EXECUTION_STRATEGIES, ['Browser', 'BrowserNetworkCapture', 'Hermes', 'Hybrid'])
   assert.deepEqual(AGENT_ACTION_TYPES, ['SearchOceanRates', 'Authenticate', 'GenericExtraction'])
   assert.deepEqual(AGENT_SCHEDULE_TYPES, ['Once', 'Interval', 'Cron'])
+  assert.deepEqual(AGENT_ENDPOINT_MATCH_TYPES, ['Contains', 'Exact', 'Regex'])
+  assert.deepEqual(AGENT_EXTRACTION_DATA_TYPES, ['String', 'Number', 'Decimal', 'Date', 'DateTime', 'Boolean', 'Object', 'Array'])
+  assert.deepEqual(AGENT_EXTRACTION_SOURCE_TYPES, ['Auto', 'ProviderParser', 'JsonPath', 'Hermes'])
   assert.deepEqual(AGENT_EXECUTION_STATUSES, [
     'Pending',
     'Queued',
@@ -40,6 +46,44 @@ test('Agent contracts expose the backend enum values without duplicated variants
     'Blocked',
     'Error',
   ])
+})
+
+
+test('Extraction profile contracts mirror the contracts currently exposed by AgentService', async () => {
+  const contracts = await source('../src/core/interfaces/agent.ts')
+
+  for (const name of [
+    'AgentExtractionRouteDto',
+    'SaveAgentExtractionRouteRequest',
+    'AgentExtractionEquipmentDto',
+    'SaveAgentExtractionEquipmentRequest',
+    'AgentEndpointCaptureDto',
+    'SaveAgentEndpointCaptureRequest',
+    'TestAgentEndpointCaptureRequest',
+    'TestAgentEndpointCaptureResponse',
+    'AgentExtractionFieldDto',
+    'SaveAgentExtractionFieldRequest',
+    'AgentPromptPreviewRequest',
+    'AgentPromptPreviewDto',
+    'AgentExecutionPromptSnapshotDto',
+    'AgentResultDto',
+  ]) {
+    assert.ok(contracts.includes(`interface ${name}`), `Missing backend contract: ${name}`)
+  }
+
+  assert.match(contracts, /usernameMasked: string/)
+  assert.match(contracts, /hasPassword: boolean/)
+  assert.match(contracts, /username: string/)
+  assert.match(contracts, /password: string \| null/)
+  assert.equal(contracts.includes('usernameSecretKey'), false)
+  assert.equal(contracts.includes('passwordSecretKey'), false)
+
+  // The backend still does not publish these contracts; frontend must not invent them.
+  assert.equal(contracts.includes('interface AgentExtractionProfileDto'), false)
+  assert.equal(contracts.includes('interface AgentExecutionTaskDto'), false)
+  assert.equal(contracts.includes('interface AgentExecutionStepDto'), false)
+  assert.equal(contracts.includes('interface AgentNetworkCaptureDto'), false)
+  assert.equal(contracts.includes('interface AgentHermesInteractionDto'), false)
 })
 
 test('Agent scopes and route visibility use the granular backend permissions', async () => {
