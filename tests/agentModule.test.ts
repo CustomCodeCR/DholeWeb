@@ -296,6 +296,23 @@ test('Agent Pinia store keeps profile configuration state without inventing prof
   assert.equal(store.includes('loadProfile('), false)
 })
 
+
+test('Credential UI never retains passwords and verifies through AgentService', async () => {
+  const form = await source('../src/modules/agent/components/credentials/AgentCredentialForm.vue')
+  const view = await source('../src/modules/agent/views/AgentCredentialsView.vue')
+
+  assert.match(form, /form\.password = ''/)
+  assert.match(form, /AgentService\.credentials\.create/)
+  assert.match(form, /AgentService\.credentials\.update/)
+  assert.equal(form.includes('localStorage'), false)
+  assert.equal(form.includes('sessionStorage'), false)
+  assert.equal(form.includes('console.log'), false)
+
+  assert.match(view, /AgentService\.credentials\.verify\(row\.id\)/)
+  assert.match(view, /permissions\.canVerifyCredentials\.value/)
+  assert.match(view, /AgentCredentialForm/)
+})
+
 test('Agent monitoring exposes both DholeAgentService and Hermes through gateway health', async () => {
   const monitoring = await source('../src/core/services/monitoringService.ts')
   assert.match(monitoring, /key: 'agent'/)
