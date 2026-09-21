@@ -251,13 +251,11 @@ onMounted(refresh)
             v-model="form.username"
             :label="t('agent.fields.username')"
             :placeholder="editingId ? t('agent.credentials.usernameEditPlaceholder') : 'operaciones@empresa.com'"
-            autocomplete="username"
             :disabled="saving"
           />
           <DhPasswordInput
             v-model="form.password"
             :label="editingId ? t('agent.credentials.passwordOptional') : t('agent.fields.password')"
-            autocomplete="new-password"
             :disabled="saving"
           />
         </div>
