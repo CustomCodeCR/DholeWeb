@@ -216,6 +216,18 @@ const filters = reactive({
   validTo: '',
 })
 
+const hasPricingOperatorAccess = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.rates.create)
+  || authStore.hasScope(PRICING_SCOPES.rates.update)
+  || authStore.hasScope(PRICING_SCOPES.rates.delete)
+  || authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin)
+  || authStore.hasScope(PRICING_SCOPES.rates.approveFreight)
+  || authStore.hasScope(PRICING_SCOPES.importFclRates.review)
+  || authStore.hasScope(PRICING_SCOPES.importFclRates.approve)
+  || authStore.hasScope(PRICING_SCOPES.importFclRates.reject)
+  || authStore.hasScope(PRICING_SCOPES.importFclRates.createAsRate),
+)
+
 const isSellerUser = computed(() => {
   const sellerRole = authStore.roles.some((role) => {
     const value = role.trim().toLowerCase()
@@ -226,9 +238,8 @@ const isSellerUser = computed(() => {
       || value.includes('seller')
   })
 
-  return sellerRole
-    || (authStore.hasScope('pricing.rate-request.create')
-      && !authStore.hasScope(PRICING_SCOPES.rates.update))
+  const sellerCapability = sellerRole || authStore.hasScope('pricing.rate-request.create')
+  return sellerCapability && !hasPricingOperatorAccess.value
 })
 
 const canCreate = computed(() =>
