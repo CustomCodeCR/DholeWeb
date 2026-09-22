@@ -147,7 +147,7 @@ function splitTerms(value: string | null | undefined) {
 }
 function destinationCode() {
   const value = normalize(props.destinationLabel)
-  if (value.includes('costa rica') || value.includes('san jose') || value.includes('san josé')) return 'CR'
+  if (value.includes('costa rica') || value.includes('san jose') || value.includes('san josé') || value.includes('gam') || value.includes('caldera') || value.includes('limon') || value.includes('limón') || value.includes('moin') || value.includes('moín')) return 'CR'
   if (value.includes('panama') || value.includes('panamá') || value.includes('colon') || value.includes('colón') || value.includes('cfz') || value.includes('czf')) return 'PA'
   if (value.includes('nicaragua') || value.includes('managua')) return 'NI'
   if (value.includes('honduras') || value.includes('san pedro sula')) return 'HN'
@@ -211,9 +211,66 @@ const chinaOwnLclOrigins = new Set([
   'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',
 ])
 
+const ownLclOriginAliases: Record<string, string> = {
+  shanghai: 'shanghai',
+  cnsha: 'shanghai',
+  ningbo: 'ningbo',
+  cnngb: 'ningbo',
+  qingdao: 'qingdao',
+  cntao: 'qingdao',
+  cnqng: 'qingdao',
+  xiamen: 'xiamen',
+  cnxmn: 'xiamen',
+  shantou: 'shantou',
+  cnswa: 'shantou',
+  dalian: 'dalian',
+  cndlc: 'dalian',
+  chongqing: 'chongqing',
+  cnckg: 'chongqing',
+  fuzhou: 'fuzhou',
+  cnfoc: 'fuzhou',
+  shenzhen: 'shenzhen',
+  cnszx: 'shenzhen',
+  xingang: 'xingang',
+  tianjin: 'xingang',
+  cntsn: 'xingang',
+  cntxg: 'xingang',
+  shekou: 'shekou',
+  cnshk: 'shekou',
+  guangzhou: 'guangzhou',
+  cncan: 'guangzhou',
+  miami: 'miami',
+  usmia: 'miami',
+  mia: 'miami',
+}
+
+function canonicalOwnLclOrigin(value: unknown) {
+  const key = normalize(value).replace(/[^a-z0-9]/g, '')
+  if (ownLclOriginAliases[key]) return ownLclOriginAliases[key]
+
+  const aliases = Object.entries(ownLclOriginAliases)
+    .sort(([left], [right]) => right.length - left.length)
+  for (const [alias, canonical] of aliases) {
+    if (key.includes(alias)) return canonical
+  }
+  return key
+}
+
 function ownConsolidationSupportsPol(row: OwnLclConsolidationDto, pol: string) {
-  if (!pol || normalize(row.polCode) === pol) return true
-  return normalize(row.polCode) === 'shanghai' && chinaOwnLclOrigins.has(pol)
+  if (!pol) return true
+
+  const requestedOrigin = canonicalOwnLclOrigin(pol)
+  const consolidationOrigins = [row.polCode, row.polName]
+    .map(canonicalOwnLclOrigin)
+    .filter(Boolean)
+
+  if (consolidationOrigins.includes(requestedOrigin)) return true
+
+  // China usa Shanghai como base física y aplica el diferencial del POL comercial.
+  // Miami es una matriz aparte y nunca debe caer en esta regla.
+  return requestedOrigin !== 'miami'
+    && consolidationOrigins.includes('shanghai')
+    && chinaOwnLclOrigins.has(requestedOrigin)
 }
 
 const filteredOwn = computed(() => {
@@ -309,7 +366,7 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       destinationCode: destination,
       incoterm: props.incotermCode || 'FOB',
       cargoLines: props.cargoLines.length ? props.cargoLines : cargoForCbm(cbm),
-      polCode: props.polCode || row.polCode,
+      polCode: canonicalOwnLclOrigin(props.polCode || row.polName || row.polCode).toUpperCase(),
       salePerCbm: null,
       sets: 1,
       hbl: 1,
