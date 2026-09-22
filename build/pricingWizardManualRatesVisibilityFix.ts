@@ -85,6 +85,7 @@ function savedManualRatePrice(rate: RateDto) {
 }
 
 function savedManualRateHeaderMatchesContext(rate: RateDto) {
+  if (shipmentModeForApi.value === 'Lcl') return false
   if (rate.sourceImportFclRateId) return false
   if (!['Open', 'ApprovedByManagement'].includes(rate.status)) return false
   if (rate.shipmentMode !== shipmentModeForApi.value) return false
@@ -140,6 +141,7 @@ async function resolveSavedManualRate(rate: RateDto) {
   availableSavedManualRates.value = []
   selectedSavedManualRateId.value = ''
 
+  if (shipmentModeForApi.value === 'Lcl') return
   if (!form.originId || !form.destinationId || !shipmentModeForApi.value) return
 
   try {
