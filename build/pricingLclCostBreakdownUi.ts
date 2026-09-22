@@ -22,8 +22,8 @@ export function pricingLclCostBreakdownUi(): Plugin {
 
       code = replaceOne(
         code,
+        "  { key: 'cost', label: 'Costo base/CBM', align: 'right', width: '150px' },",
         "  { key: 'cost', label: 'Flete / CBM', align: 'right', width: '300px' },",
-        "  { key: 'cost', label: 'Costo ruta / CBM', align: 'right', width: '280px' },",
         'own-LCL route cost column',
       )
 
