@@ -44,6 +44,9 @@ export interface OwnLclConsolidationDto {
   podCode: string | null
   oceanFreight: number
   maximumCbm: number
+  approvedCbm: number
+  remainingCbm: number
+  capacityReached: boolean
   carrierDestinationCostTotal: number
   panamaToCostaRicaCost: number
   bunkerCost: number
