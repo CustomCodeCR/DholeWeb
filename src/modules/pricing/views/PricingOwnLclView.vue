@@ -75,7 +75,7 @@ const columns: DhTableColumn<OwnLclTableRow>[] = [
   { key: 'consolidation', label: 'Consolidado', width: '180px' },
   { key: 'route', label: 'Ruta / logística' },
   { key: 'etd', label: 'ETD', width: '120px' },
-  { key: 'capacity', label: 'Capacidad', align: 'right', width: '120px' },
+  { key: 'capacity', label: 'Capacidad', align: 'right', width: '190px' },
   { key: 'ocean', label: 'Ocean Freight', align: 'right', width: '150px' },
   { key: 'destination', label: 'Destino', align: 'right', width: '165px' },
   { key: 'costPerCbm', label: 'Costo base/CBM', align: 'right', width: '150px' },
@@ -457,7 +457,13 @@ onMounted(load)
             </div>
           </template>
           <template #cell-etd="{ row }"><span class="font-bold">{{ row.etd || '—' }}</span></template>
-          <template #cell-capacity="{ row }"><span class="font-black">{{ decimal(row.maximumCbm) }} CBM</span></template>
+          <template #cell-capacity="{ row }">
+            <div class="text-right">
+              <p class="font-black">{{ decimal(row.remainingCbm) }} CBM disponibles</p>
+              <p class="text-[11px] text-[var(--dh-text-muted)]">{{ decimal(row.approvedCbm) }} aprobados / {{ decimal(row.maximumCbm) }} totales</p>
+              <DhBadge v-if="row.capacityReached" class="mt-1" label="Capacidad agotada" variant="warning" />
+            </div>
+          </template>
           <template #cell-ocean="{ row }"><span class="font-black">USD {{ money(row.oceanFreight) }}</span></template>
           <template #cell-destination="{ row }">
             <div class="text-right">
