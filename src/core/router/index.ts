@@ -3,7 +3,7 @@ import MainLayout from '@/shared/components/layouts/MainLayout.vue'
 import AuthLayout from '@/shared/components/layouts/AuthLayout.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
-import { VIEW_SCOPES } from '@/core/auth/scopes'
+import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { i18n } from '@/core/i18n'
 
 declare module 'vue-router' {
@@ -186,6 +186,16 @@ export const router = createRouter({
             tabTitle: 'Seleccionar alternativa',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingDecisions,
+          },
+        },
+        {
+          path: 'pricing/own-lcl',
+          name: 'pricing-own-lcl',
+          component: () => import('@/modules/pricing/views/PricingOwnLclView.vue'),
+          meta: {
+            tabTitle: 'Consolidados propios LCL',
+            closable: true,
+            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
         },
         {
