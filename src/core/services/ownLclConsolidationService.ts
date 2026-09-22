@@ -151,7 +151,19 @@ export interface SaveOwnLclPricingLinesRequest {
   }>
 }
 
-export function createDefaultOwnLclPricingLines(): OwnLclPricingLineDto[] {
+export type OwnLclMatrixType = 'China' | 'Miami'
+
+export function createDefaultOwnLclPricingLines(matrixType: OwnLclMatrixType = 'China'): OwnLclPricingLineDto[] {
+  if (matrixType === 'Miami') {
+    return [
+      { lineKey: 'MIA_HANDLING', scope: 'MIA', name: 'Manejos', chargeBasis: 'HBL', costUnit: 0, saleUnit: 45, calculationBaseCbm: null },
+      { lineKey: 'MIA_FORWARDING', scope: 'MIA', name: 'Forwarding', chargeBasis: 'HBL', costUnit: 0, saleUnit: 50, calculationBaseCbm: null },
+      { lineKey: 'MIA_HBL', scope: 'MIA', name: 'HBL', chargeBasis: 'HBL', costUnit: 0, saleUnit: 40, calculationBaseCbm: null },
+      { lineKey: 'MIA_BUNKER', scope: 'MIA', name: 'Bunker', chargeBasis: 'CBM', costUnit: 0, saleUnit: 0, calculationBaseCbm: null },
+      { lineKey: 'MIA_THCD', scope: 'MIA', name: 'THC/D', chargeBasis: 'CBM', costUnit: 0, saleUnit: 0, calculationBaseCbm: null },
+    ]
+  }
+
   return [
     { lineKey: 'PA_DESTINATION_CHARGE', scope: 'PA', name: 'Destination Charge', chargeBasis: 'CBM', costUnit: 0, saleUnit: 20, calculationBaseCbm: null },
     { lineKey: 'PA_DMCE', scope: 'PA', name: 'DMCE', chargeBasis: 'HBL', costUnit: 65, saleUnit: 65, calculationBaseCbm: null },
@@ -244,6 +256,8 @@ export interface OwnLclQuoteCalculationDto {
 }
 
 export interface AutomaticOwnLclConsolidationRequest {
+  name?: string | null
+  consolidationNumber?: number | null
   booking: string | null
   etd: string | null
   carrierId: string | null
