@@ -240,6 +240,9 @@ const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.fl
 const supportEntityId = ref(crypto.randomUUID())
 const supportDocuments = ref<SupportDocument[]>([])
 const uploadingSupportKey = ref('')
+const finalBackupEntityId = ref(crypto.randomUUID())
+const finalBackupDocuments = ref<SupportDocument[]>([])
+const uploadingFinalBackups = ref(false)
 const supportCategories = [
   { key: 'purchase-order', label: 'OC / Detalle de la carga' },
   { key: 'packing-list', label: 'Packing List (PL)' },
@@ -2489,6 +2492,7 @@ async function hydrateExistingRate() {
     ])
     editingRate.value = rate
     rateRevisions.value = revisions
+    await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = Boolean(rate.useAllInPresentation)
     const modality = modalityForRate(rate)
     const equipment = [...catalogs.containers, ...catalogs.landEquipmentTypes].find((item) => item.id === rate.containerTypeId) ?? null
@@ -2864,6 +2868,101 @@ async function removeSupportDocument(document: SupportDocument) {
   }
 }
 
+async function uploadFinalBackups(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!files.length) return
+
+  uploadingFinalBackups.value = true
+  let uploadedCount = 0
+
+  try {
+    for (const file of files) {
+      try {
+        const uploaded = await StorageService.uploadFile({
+          file,
+          sourceService: 'DholeWeb',
+          entityType: 'PricingRateFinalBackup',
+          entityId: editingRate.value?.id ?? finalBackupEntityId.value,
+          metadataJson: JSON.stringify({
+            category: 'final-backup',
+            categoryLabel: 'Respaldo final',
+            rateId: editingRate.value?.id ?? null,
+            clientName: form.clientName || null,
+          }),
+        })
+
+        finalBackupDocuments.value.push({
+          id: uploaded.id,
+          category: 'final-backup',
+          categoryLabel: 'Respaldo final',
+          fileName: uploaded.originalFileName,
+          sizeInBytes: uploaded.sizeInBytes,
+        })
+        uploadedCount += 1
+      } catch (error) {
+        toastStore.backendError(error, `No se pudo subir ${file.name}.`)
+      }
+    }
+
+    if (uploadedCount > 0) {
+      toastStore.success(
+        uploadedCount === 1
+          ? 'Respaldo final agregado.'
+          : `${uploadedCount} respaldos finales agregados.`,
+      )
+    }
+  } finally {
+    uploadingFinalBackups.value = false
+  }
+}
+
+function removeFinalBackup(document: SupportDocument) {
+  // Solo se quita la relación de Pricing al guardar. No borramos el objeto de
+  // Storage aquí porque una edición cancelada no debe romper una tarifa existente.
+  finalBackupDocuments.value = finalBackupDocuments.value.filter((item) => item.id !== document.id)
+}
+
+async function downloadFinalBackup(document: SupportDocument) {
+  try {
+    await StorageService.downloadFile({
+      id: document.id,
+      fileName: document.fileName,
+      sizeInBytes: document.sizeInBytes,
+    })
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo descargar el respaldo final.')
+  }
+}
+
+async function hydrateFinalBackupDocuments(storageIds: string[] | null | undefined) {
+  const ids = [...new Set((storageIds ?? []).filter(Boolean))]
+  const loaded = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const file = await StorageService.getFile(id)
+        return {
+          id: file.id,
+          category: 'final-backup',
+          categoryLabel: 'Respaldo final',
+          fileName: file.originalFileName,
+          sizeInBytes: file.sizeInBytes,
+        } as SupportDocument
+      } catch {
+        return {
+          id,
+          category: 'final-backup',
+          categoryLabel: 'Respaldo final',
+          fileName: 'Archivo no disponible en Storage',
+          sizeInBytes: 0,
+        } as SupportDocument
+      }
+    }),
+  )
+  finalBackupDocuments.value = loaded
+}
+
 function supportSummaryText() {
   if (!supportDocuments.value.length) return ''
   return `Soportes Pricing ${supportEntityId.value}: ${supportDocuments.value.map((item) => `${item.categoryLabel}=${item.fileName}`).join(' | ')}`
@@ -3177,6 +3276,7 @@ async function saveRate() {
           ],
       transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
       useAllInPresentation: allInPresentation.value,
+      finalBackupStorageIds: finalBackupDocuments.value.map((document) => document.id),
       includes: includeTerms.join('\n') || null,
       subjectTo: subjectTerms.join('\n') || null,
       excludes: excludeTerms.join('\n') || null,
@@ -3256,8 +3356,10 @@ function resetWizard() {
   availableRates.value = []
   rateLines.value = []
   supportEntityId.value = crypto.randomUUID()
+  finalBackupEntityId.value = crypto.randomUUID()
   allInPresentation.value = false
   supportDocuments.value = []
+  finalBackupDocuments.value = []
   Object.assign(form, {
     rateType: 'Spot',
     modality: '',
@@ -4459,6 +4561,49 @@ onMounted(async () => {
               <p v-if="form.cabysCode" class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">CABYS {{ form.cabysCode }}</p>
               <p class="mt-2 text-xs font-bold text-[var(--dh-text-muted)]">{{ supportDocuments.length }} documento{{ supportDocuments.length === 1 ? '' : 's' }} de respaldo en Storage.</p>
             </div>
+          </div>
+
+          <div class="crystal-soft space-y-4 p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Respaldo final</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Adjunte uno o varios archivos que queden asociados a la tarifa final. Puede seleccionar varios archivos en una sola carga.
+                </p>
+              </div>
+              <label v-if="!viewOnly" class="crystal-flag cursor-pointer" :class="uploadingFinalBackups ? 'pointer-events-none opacity-60' : ''">
+                <FileUp class="h-4 w-4" />
+                <span>{{ uploadingFinalBackups ? 'Subiendo respaldos…' : 'Añadir adjuntos' }}</span>
+                <input
+                  class="hidden"
+                  type="file"
+                  multiple
+                  :accept="supportAccept"
+                  :disabled="uploadingFinalBackups"
+                  @change="uploadFinalBackups"
+                />
+              </label>
+            </div>
+
+            <div v-if="finalBackupDocuments.length" class="grid gap-2 md:grid-cols-2">
+              <div
+                v-for="document in finalBackupDocuments"
+                :key="`final-backup:${document.id}`"
+                class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 text-xs"
+              >
+                <div class="min-w-0">
+                  <p class="font-black">Respaldo final</p>
+                  <p class="truncate text-[var(--dh-text-muted)]">{{ document.fileName }}</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-3">
+                  <button type="button" class="font-black text-[var(--dh-primary)]" @click="downloadFinalBackup(document)">Descargar</button>
+                  <button v-if="!viewOnly" type="button" class="font-black text-red-500" @click="removeFinalBackup(document)">Quitar</button>
+                </div>
+              </div>
+            </div>
+            <p v-else class="rounded-2xl border border-dashed border-[var(--dh-border)] px-4 py-4 text-xs font-semibold text-[var(--dh-text-muted)]">
+              No hay respaldos finales adjuntos.
+            </p>
           </div>
         </div>
 
