@@ -12,6 +12,7 @@ import {
   type OwnLclConsolidationDto,
   type OwnLclDestinationProfileDto,
   type OwnLclFobScenarioMatrixDto,
+  type OwnLclMatrixType,
   type OwnLclPricingLineDto,
 } from '@/core/services/ownLclConsolidationService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -57,6 +58,8 @@ const canCreateConsolidation = computed(() =>
 )
 
 const form = reactive({
+  name: '',
+  consolidationNumber: null as number | null,
   booking: '',
   etd: '',
   carrierId: '',
@@ -105,6 +108,24 @@ const filteredRows = computed(() => {
   })
 })
 const selected = computed(() => rows.value.find((row) => row.id === selectedId.value) ?? null)
+
+function isMiamiOriginValue(value: unknown) {
+  const compact = normalize(value).replace(/[^a-z0-9]/g, '')
+  return compact === 'mia' || compact === 'usmia' || compact.includes('miami')
+}
+
+function matrixTypeForRow(row: OwnLclConsolidationDto | null | undefined): OwnLclMatrixType {
+  if (!row) return 'China'
+  return isMiamiOriginValue([row.polCode, row.polName].filter(Boolean).join(' ')) ? 'Miami' : 'China'
+}
+
+const formMatrixType = computed<OwnLclMatrixType>(() => {
+  const pol = option(pols.value, form.polId)
+  if (pol && isMiamiOriginValue([pol.code, pol.value, pol.label].filter(Boolean).join(' '))) return 'Miami'
+  return matrixTypeForRow(selected.value)
+})
+const isMiamiMatrix = computed(() => formMatrixType.value === 'Miami')
+
 const polLocationOptions = computed(() => pols.value.map((item) => ({
   value: item.id,
   label: item.label,
@@ -115,12 +136,26 @@ const poeLocationOptions = computed(() => poePorts.value.map((item) => ({
   label: item.label,
   searchText: [item.code, item.value, item.label].filter(Boolean).join(' '),
 })))
-const pricingLineGroups = computed(() => [
-  { scope: 'PA', label: 'Panamá', description: 'Cargos de destino Panamá.', rows: pricingLines.value.filter((line) => line.scope === 'PA') },
-  { scope: 'CR', label: 'Costa Rica', description: 'Cargos fijos de destino Costa Rica.', rows: pricingLines.value.filter((line) => line.scope === 'CR') },
-  { scope: 'CA', label: 'Centroamérica', description: 'Valores editables por consolidado. Flete terrestre: costo total ÷ CBM base; Transbordo inicia en destino Panamá + 9; Stuffing inicia en 550 ÷ 60; Documentación inicia en USD 185.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
-  { scope: 'ORIGIN', label: 'Origen FCA / EXW', description: 'Manejos en origen. La recolección EXW sigue siendo específica de cada carga.', rows: pricingLines.value.filter((line) => line.scope === 'ORIGIN') },
-])
+const pricingLineGroups = computed(() => {
+  if (isMiamiMatrix.value) {
+    return [
+      {
+        scope: 'MIA',
+        label: 'Miami',
+        description: 'Matriz independiente por consolidado: Manejos, Forwarding, HBL, Bunker y THC/D. Los costos y ventas quedan guardados únicamente en este proyecto.',
+        rows: pricingLines.value.filter((line) => line.scope === 'MIA'),
+      },
+    ]
+  }
+
+  return [
+    { scope: 'PA', label: 'Panamá', description: 'Cargos de destino Panamá.', rows: pricingLines.value.filter((line) => line.scope === 'PA') },
+    { scope: 'CR', label: 'Costa Rica', description: 'Cargos fijos de destino Costa Rica.', rows: pricingLines.value.filter((line) => line.scope === 'CR') },
+    { scope: 'CA', label: 'Centroamérica', description: 'Valores editables por consolidado. Flete terrestre: costo total ÷ CBM base; Transbordo inicia en destino Panamá + 9; Stuffing inicia en 550 ÷ 60; Documentación inicia en USD 185.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
+    { scope: 'ORIGIN', label: 'Origen FCA / EXW', description: 'Manejos en origen. La recolección EXW sigue siendo específica de cada carga.', rows: pricingLines.value.filter((line) => line.scope === 'ORIGIN') },
+  ]
+})
+
 
 function isCentralAmericaDestination(code: string | null | undefined) {
   return ['NI', 'HN', 'GT', 'SV'].includes(String(code ?? '').trim().toUpperCase())
@@ -186,9 +221,10 @@ function resetForm() {
   selectedAutomation.value = null
   profilePreview.value = null
   scenarioMatrix.value = null
-  pricingLines.value = createDefaultOwnLclPricingLines()
+  pricingLines.value = createDefaultOwnLclPricingLines('China')
   readOnly.value = false
   Object.assign(form, {
+    name: '', consolidationNumber: null,
     booking: '', etd: '', carrierId: '', containerId: '', polId: '', panamaArrivalPortCode: '',
     oceanFreight: 0, maximumCbm: 50, carrierDestinationCostTotal: 0,
     panamaToCostaRicaCost: 2140, bunkerCost: 280, costaRicaTransferBaseCbm: 95,
@@ -225,6 +261,8 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
   profilePreview.value = null
   scenarioMatrix.value = null
   Object.assign(form, {
+    name: row.name ?? '',
+    consolidationNumber: row.consolidationNumber,
     booking: row.booking ?? '',
     etd: row.etd ?? '',
     carrierId: row.carrierId ?? '',
@@ -241,10 +279,13 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
     includeEmptyReturn: true,
   })
   try {
+    const scenarioTask = matrixTypeForRow(row) === 'Miami'
+      ? Promise.resolve()
+      : loadScenarios(row.id)
     const [automation, storedPricingLines] = await Promise.all([
       OwnLclConsolidationService.getAutomation(row.id),
       OwnLclConsolidationService.getPricingLines(row.id),
-      loadScenarios(row.id),
+      scenarioTask,
     ])
     selectedAutomation.value = automation
     pricingLines.value = storedPricingLines
@@ -262,6 +303,10 @@ function handleRowClick(row: OwnLclTableRow) {
 }
 
 async function previewProfile() {
+  if (isMiamiMatrix.value) {
+    profilePreview.value = null
+    return
+  }
   const carrier = option(carriers.value, form.carrierId)
   if (!carrier || !form.panamaArrivalPortCode) {
     profilePreview.value = null
@@ -289,8 +334,28 @@ async function previewProfile() {
   }
 }
 
-watch(() => [form.carrierId, form.containerId, form.panamaArrivalPortCode, form.maximumCbm, form.bunkerCost, form.includeEmptyReturn], () => {
+watch(() => [form.carrierId, form.containerId, form.panamaArrivalPortCode, form.maximumCbm, form.bunkerCost, form.includeEmptyReturn, form.polId], () => {
   if (!readOnly.value) void previewProfile()
+})
+
+watch(formMatrixType, (matrix, previous) => {
+  if (hydratingPricingEditor.value || matrix === previous) return
+  pricingLines.value = createDefaultOwnLclPricingLines(matrix)
+  scenarioMatrix.value = null
+  profilePreview.value = null
+
+  if (matrix === 'Miami') {
+    form.carrierDestinationCostTotal = 0
+    form.panamaToCostaRicaCost = 0
+    form.bunkerCost = 0
+    form.costaRicaTransferBaseCbm = Math.max(Number(form.maximumCbm || 50), 0.01)
+    form.includeEmptyReturn = false
+  } else {
+    form.panamaToCostaRicaCost = 2140
+    form.bunkerCost = 280
+    form.costaRicaTransferBaseCbm = 95
+    form.includeEmptyReturn = true
+  }
 })
 
 const effectiveProfile = computed(() => profilePreview.value ?? selectedAutomation.value?.destinationProfile ?? null)
@@ -301,6 +366,18 @@ const previewTransfer = computed(() => Number(form.panamaToCostaRicaCost ?? sele
 const previewBunker = computed(() => Number(form.bunkerCost ?? effectiveProfile.value?.costaRicaTransfer.bunker ?? selected.value?.bunkerCost ?? 280))
 const previewTransferBase = computed(() => Number(form.costaRicaTransferBaseCbm || selected.value?.costaRicaTransferBaseCbm || 95))
 const previewCrTransferPerCbm = computed(() => (previewTransfer.value + previewBunker.value) / Math.max(previewTransferBase.value, 0.01))
+const previewMiamiCbmCost = computed(() => pricingLines.value
+  .filter((line) => line.scope === 'MIA' && normalize(line.chargeBasis).includes('cbm'))
+  .reduce((total, line) => total + Math.max(Number(line.costUnit || 0), 0), 0))
+const previewMiamiCbmSale = computed(() => pricingLines.value
+  .filter((line) => line.scope === 'MIA' && normalize(line.chargeBasis).includes('cbm'))
+  .reduce((total, line) => total + Math.max(Number(line.saleUnit || 0), 0), 0))
+const previewMiamiHblCost = computed(() => pricingLines.value
+  .filter((line) => line.scope === 'MIA' && !normalize(line.chargeBasis).includes('cbm'))
+  .reduce((total, line) => total + Math.max(Number(line.costUnit || 0), 0), 0))
+const previewMiamiHblSale = computed(() => pricingLines.value
+  .filter((line) => line.scope === 'MIA' && !normalize(line.chargeBasis).includes('cbm'))
+  .reduce((total, line) => total + Math.max(Number(line.saleUnit || 0), 0), 0))
 
 watch(previewDestinationPerCbm, (value) => {
   if (hydratingPricingEditor.value || readOnly.value) return
@@ -315,6 +392,8 @@ function buildPayload() {
   const pol = option(pols.value, form.polId)
   const arrivalPoe = poePorts.value.find((item) => (item.code || item.value) === form.panamaArrivalPortCode) ?? null
   return {
+    name: form.name.trim() || null,
+    consolidationNumber: form.consolidationNumber && form.consolidationNumber > 0 ? Math.trunc(form.consolidationNumber) : null,
     booking: form.booking.trim() || null,
     etd: form.etd || null,
     carrierId: carrier?.id ?? null,
@@ -338,9 +417,21 @@ function buildPayload() {
 }
 
 function buildCostOverrides() {
+  const maximumCbm = Math.max(Number(form.maximumCbm || 50), 0.01)
+  if (isMiamiMatrix.value) {
+    return {
+      oceanFreight: Math.max(Number(form.oceanFreight || 0), 0),
+      maximumCbm,
+      carrierDestinationCostTotal: 0,
+      panamaToCostaRicaCost: 0,
+      bunkerCost: 0,
+      costaRicaTransferBaseCbm: maximumCbm,
+    }
+  }
+
   return {
     oceanFreight: Math.max(Number(form.oceanFreight || 0), 0),
-    maximumCbm: Math.max(Number(form.maximumCbm || 50), 0.01),
+    maximumCbm,
     carrierDestinationCostTotal: Math.max(Number(form.carrierDestinationCostTotal || 0), 0),
     panamaToCostaRicaCost: Math.max(Number(form.panamaToCostaRicaCost || 0), 0),
     bunkerCost: Math.max(Number(form.bunkerCost || 0), 0),
@@ -378,7 +469,7 @@ async function savePricingLineRows(showToast = true) {
 }
 
 async function saveScenarioRows(showToast = true) {
-  if (!selectedId.value || !scenarioMatrix.value) return
+  if (isMiamiMatrix.value || !selectedId.value || !scenarioMatrix.value) return
   scenarioSaving.value = true
   try {
     await OwnLclConsolidationService.saveFobScenarios(selectedId.value, {
@@ -425,8 +516,10 @@ async function save() {
     toastStore.success(
       wasNew ? 'Consolidado creado' : 'Consolidado actualizado',
       wasNew
-        ? 'El consolidado fue creado con sus costos y ventas por línea. La matriz FOB queda disponible para ajustar la venta por país y puerto.'
-        : 'Los costos y ventas quedaron guardados a nivel del consolidado y se reutilizarán en las próximas cotizaciones.',
+        ? (isMiamiMatrix.value
+            ? 'El consolidado fue creado con su matriz Miami independiente y sus costos/ventas por proyecto.'
+            : 'El consolidado fue creado con sus costos y ventas por línea. La matriz FOB queda disponible para ajustar la venta por país y puerto.')
+        : 'Los costos, ventas, nombre y número quedaron guardados a nivel del consolidado y se reutilizarán en las próximas cotizaciones.',
     )
 
     await load()
@@ -444,7 +537,7 @@ function closeEditor() {
   selectedAutomation.value = null
   profilePreview.value = null
   scenarioMatrix.value = null
-  pricingLines.value = createDefaultOwnLclPricingLines()
+  pricingLines.value = createDefaultOwnLclPricingLines('China')
 }
 
 onMounted(load)
@@ -489,7 +582,7 @@ onMounted(load)
           <template #cell-consolidation="{ row }">
             <div class="min-w-0">
               <p class="font-black text-[var(--dh-text)]">{{ row.name }}</p>
-              <p class="mt-0.5 truncate text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.matrixVersion }}</p>
+              <p class="mt-0.5 truncate text-[11px] font-semibold text-[var(--dh-text-muted)]">#{{ row.consolidationNumber }} · {{ row.matrixVersion }} · Matriz {{ matrixTypeForRow(row) }}</p>
             </div>
           </template>
           <template #cell-route="{ row }">
@@ -508,15 +601,19 @@ onMounted(load)
           </template>
           <template #cell-ocean="{ row }"><span class="font-black">USD {{ money(row.oceanFreight) }}</span></template>
           <template #cell-destination="{ row }">
-            <div class="text-right">
+            <div v-if="matrixTypeForRow(row) === 'Miami'" class="text-right">
+              <p class="font-black">Matriz Miami</p>
+              <p class="text-[11px] text-[var(--dh-text-muted)]">Cargos por proyecto</p>
+            </div>
+            <div v-else class="text-right">
               <p class="font-black">USD {{ money(row.carrierDestinationCostTotal) }}</p>
               <p class="text-[11px] text-[var(--dh-text-muted)]">{{ money(destinationPerCbm(row)) }}/CBM</p>
             </div>
           </template>
           <template #cell-costPerCbm="{ row }">
             <div class="text-right">
-              <p class="font-black text-[var(--dh-primary)]">USD {{ money(baseCostPerCbm(row)) }}</p>
-              <p class="text-[11px] text-[var(--dh-text-muted)]">CR +{{ money(crTransferPerCbm(row)) }}/CBM</p>
+              <p class="font-black text-[var(--dh-primary)]">USD {{ money(matrixTypeForRow(row) === 'Miami' ? oceanPerCbm(row) : baseCostPerCbm(row)) }}</p>
+              <p class="text-[11px] text-[var(--dh-text-muted)]">{{ matrixTypeForRow(row) === 'Miami' ? 'Ocean / CBM' : `CR +${money(crTransferPerCbm(row))}/CBM` }}</p>
             </div>
           </template>
           <template #cell-status="{ row }"><DhBadge :label="row.status" :variant="row.status === 'Open' ? 'success' : 'neutral'" /></template>
@@ -535,7 +632,8 @@ onMounted(load)
         <div>
           <div class="flex items-center gap-2">
             <Ship class="h-5 w-5 text-[var(--dh-primary)]" />
-            <h2 class="text-lg font-black">{{ selected ? selected.name : 'Nuevo consolidado propio' }}</h2>
+            <h2 class="text-lg font-black">{{ form.name || selected?.name || 'Nuevo consolidado propio' }}</h2>
+            <DhBadge :label="`Matriz ${formMatrixType}`" :variant="isMiamiMatrix ? 'warning' : 'neutral'" />
             <DhBadge v-if="readOnly" label="Solo lectura" variant="neutral" />
           </div>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Los cambios de costo y venta quedan ligados únicamente a este consolidado.</p>
@@ -548,6 +646,8 @@ onMounted(load)
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <p class="mb-4 text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Datos del proyecto y costos</p>
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <DhInput v-model="form.name" label="Nombre del consolidado" placeholder="Ej. Consolidado China 1 / Miami 1" :disabled="readOnly" />
+              <DhInput v-model.number="form.consolidationNumber" type="number" min="1" step="1" label="Número del consolidado" placeholder="Automático si se deja vacío" :disabled="readOnly" />
               <DhInput v-model="form.booking" label="Booking" placeholder="Booking de naviera" :disabled="readOnly" />
               <DhInput v-model="form.etd" type="date" label="ETD" :disabled="readOnly" />
               <DhSelect v-model="form.carrierId" label="Naviera" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...carriers.map((x) => ({ label: x.label, value: x.id }))]" />
@@ -556,16 +656,16 @@ onMounted(load)
               <div class="md:col-span-2 xl:col-span-2"><PricingContainerSelector v-model="form.containerId" transport="maritime" :disabled="readOnly" /></div>
               <DhInput v-model.number="form.oceanFreight" type="number" min="0" step="0.01" label="Ocean Freight USD" :disabled="readOnly" />
               <DhInput v-model.number="form.maximumCbm" type="number" min="0.01" step="0.01" label="Capacidad máxima CBM" :disabled="readOnly" />
-              <DhInput v-model.number="form.carrierDestinationCostTotal" type="number" min="0" step="0.01" label="Costos destino USD" :disabled="readOnly" />
-              <DhInput v-model.number="form.bunkerCost" type="number" min="0" step="0.01" label="Bunker Panamá → Costa Rica USD" :disabled="readOnly" />
-              <DhInput v-model.number="form.panamaToCostaRicaCost" type="number" min="0" step="0.01" label="Flete Terrestre Panamá → Costa Rica USD" :disabled="readOnly" />
-              <DhInput v-model.number="form.costaRicaTransferBaseCbm" type="number" min="0.01" step="0.01" label="Base CBM flete terrestre" :disabled="readOnly" />
-              <DhInput v-model.number="form.freightProfitPerCbm" type="number" min="0" step="0.01" label="Utilidad flete Centroamérica / CBM USD" :disabled="readOnly" />
-              <div class="flex items-end pb-1"><DhCheckbox v-model="form.includeEmptyReturn" label="Incluir retiro de vacío" :disabled="readOnly" /></div>
+              <DhInput v-if="!isMiamiMatrix" v-model.number="form.carrierDestinationCostTotal" type="number" min="0" step="0.01" label="Costos destino USD" :disabled="readOnly" />
+              <DhInput v-if="!isMiamiMatrix" v-model.number="form.bunkerCost" type="number" min="0" step="0.01" label="Bunker Panamá → Costa Rica USD" :disabled="readOnly" />
+              <DhInput v-if="!isMiamiMatrix" v-model.number="form.panamaToCostaRicaCost" type="number" min="0" step="0.01" label="Flete Terrestre Panamá → Costa Rica USD" :disabled="readOnly" />
+              <DhInput v-if="!isMiamiMatrix" v-model.number="form.costaRicaTransferBaseCbm" type="number" min="0.01" step="0.01" label="Base CBM flete terrestre" :disabled="readOnly" />
+              <DhInput v-model.number="form.freightProfitPerCbm" type="number" min="0" step="0.01" :label="isMiamiMatrix ? 'Utilidad mínima flete / CBM USD' : 'Utilidad flete Centroamérica / CBM USD'" :disabled="readOnly" />
+              <div v-if="!isMiamiMatrix" class="flex items-end pb-1"><DhCheckbox v-model="form.includeEmptyReturn" label="Incluir retiro de vacío" :disabled="readOnly" /></div>
             </div>
           </section>
 
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
+          <section v-if="!isMiamiMatrix" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div class="flex items-center justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Referencia automática de destino</p>
@@ -591,14 +691,14 @@ onMounted(load)
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifario del consolidado · costos y ventas</p>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifario del consolidado · Matriz {{ formMatrixType }} · costos y ventas</p>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Estos valores pertenecen solo a este consolidado. Las cotizaciones LCL propias los cargan automáticamente y ya no hay que corregirlos cotización por cotización.</p>
               </div>
               <DhButton v-if="selectedId && !readOnly" label="Guardar costos y ventas" :loading="pricingLineSaving" variant="secondary" @click="savePricingLineRows()" />
             </div>
 
             <div class="mt-4 space-y-3">
-              <details v-for="group in pricingLineGroups" :key="group.scope" class="group overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]" :open="group.scope === 'PA'">
+              <details v-for="group in pricingLineGroups" :key="group.scope" class="group overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]" :open="group.scope === 'PA' || group.scope === 'MIA'">
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
                   <div><p class="font-black">{{ group.label }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ group.description }}</p></div>
                   <span class="text-xs font-black text-[var(--dh-text-muted)]">{{ group.rows.length }} líneas ▾</span>
@@ -637,7 +737,7 @@ onMounted(load)
             </div>
           </section>
 
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
+          <section v-if="!isMiamiMatrix" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Escenarios FOB por país</p>
@@ -676,16 +776,22 @@ onMounted(load)
         <aside class="space-y-4">
           <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl">
             <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Costo del consolidado</p>
-            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <div v-if="isMiamiMatrix" class="mt-4 grid gap-3 sm:grid-cols-2">
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Cargos Miami / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewMiamiCbmCost) }}</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Venta USD {{ money(previewMiamiCbmSale) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Cargos por HBL / embarque</p><p class="mt-1 text-xl font-black">Costo USD {{ money(previewMiamiHblCost) }}</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Venta USD {{ money(previewMiamiHblSale) }}</p></div>
+            </div>
+            <div v-else class="mt-4 grid gap-3 sm:grid-cols-2">
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }}</p></div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Destino / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewDestinationPerCbm) }}</p></div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Base Panamá / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm) }}</p></div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Flete terrestre + Bunker / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewCrTransferPerCbm) }}</p></div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Utilidad flete Centroamérica / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(form.freightProfitPerCbm) }}</p></div>
             </div>
-            <div class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</p></div>
+            <div v-if="isMiamiMatrix" class="mt-3 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Matriz independiente Miami</p><p class="mt-1 text-sm font-black">Ocean + cargos Miami configurados por proyecto</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">No utiliza la base Panamá/China ni sus diferenciales por puerto.</p></div>
+            <div v-else class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</p></div>
           </section>
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación</p><p class="mt-2">Centroamérica guarda sus cargos por consolidado y permite modificarlos. Transbordo parte de costo/venta destino Panamá + USD 9; Stuffing parte de USD 550 ÷ 60 CBM; Documentación parte de USD 185. Cada flete terrestre guarda costo total, CBM base y venta/CBM. El Flete Internacional Marítimo usa venta = costo + la utilidad/CBM configurada en este consolidado (USD {{ money(form.freightProfitPerCbm) }} actualmente).</p></section>
+          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación · Matriz {{ formMatrixType }}</p><p v-if="isMiamiMatrix" class="mt-2">Miami mantiene su propia matriz por consolidado. Manejos, Forwarding, HBL, Bunker y THC/D se guardan aquí y no heredan cargos, escenarios FOB ni diferenciales de la matriz China.</p><p v-else class="mt-2">Centroamérica guarda sus cargos por consolidado y permite modificarlos. Transbordo parte de costo/venta destino Panamá + USD 9; Stuffing parte de USD 550 ÷ 60 CBM; Documentación parte de USD 185. Cada flete terrestre guarda costo total, CBM base y venta/CBM. El Flete Internacional Marítimo usa venta = costo + la utilidad/CBM configurada en este consolidado (USD {{ money(form.freightProfitPerCbm) }} actualmente).</p></section>
           <div v-if="!readOnly" class="flex justify-end gap-2"><DhButton label="Cancelar" variant="secondary" @click="closeEditor" /><DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="previewLoading" @click="save" /></div>
           <div v-else class="flex justify-end"><DhButton label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false; previewProfile()" /></div>
         </aside>
