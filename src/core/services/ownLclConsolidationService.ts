@@ -51,6 +51,7 @@ export interface OwnLclConsolidationDto {
   panamaToCostaRicaCost: number
   bunkerCost: number
   costaRicaTransferBaseCbm: number
+  freightProfitPerCbm: number
   oceanCostPerCbm: number
   destinationCostPerCbm: number
   panamaBaseCostPerCbm: number
@@ -261,6 +262,7 @@ export interface AutomaticOwnLclConsolidationRequest {
   panamaArrivalPortCode: string
   includeEmptyReturn: boolean
   bunkerCost: number
+  freightProfitPerCbm: number
 }
 
 export interface SaveOwnLclCostOverridesRequest {
