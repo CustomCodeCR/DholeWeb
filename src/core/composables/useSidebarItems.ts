@@ -133,7 +133,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
           {
             labelKey: 'Consolidados propios',
             icon: PackagePlus,
-            to: '/pricing?workspace=own-lcl',
+            to: '/pricing/own-lcl',
             name: 'pricing-own-lcl',
             requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
