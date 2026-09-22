@@ -62,6 +62,11 @@ function savedManualRateComment(rate: RateDto) {
 }
 
 function savedManualRateMatchesContext(rate: RateDto) {
+  // LCL usa exclusivamente el selector de Consolidado propio / Coloader.
+  // Las tarifas manuales guardadas pertenecen al flujo general/FCL y no deben
+  // competir visualmente con las fuentes tarifarias LCL.
+  if (shipmentModeForApi.value === 'Lcl') return false
+
   // Pantalla 5 trata estas tarifas como alternativas oficiales guardadas. Las que
   // nacieron de una importación ya están cubiertas por selectImportRates y se
   // excluyen aquí para no duplicarlas.
@@ -106,6 +111,7 @@ async function searchSavedManualRates() {
   availableSavedManualRates.value = []
   selectedSavedManualRateId.value = ''
 
+  if (shipmentModeForApi.value === 'Lcl') return
   if (!form.originId || !form.destinationId || !shipmentModeForApi.value) return
 
   try {
@@ -249,7 +255,7 @@ ${chooseRateAnchor}`
     .sort((left, right) => left - right)[0] ?? -1
   if (loadingIndex < 0) throw new Error('[pricingWizardSavedManualRates] screen 5 loading block not found.')
 
-  const manualCards = `          <div v-if="!loadingRates && availableSavedManualRates.length" class="space-y-3">
+  const manualCards = `          <div v-if="shipmentModeForApi !== 'Lcl' && !loadingRates && availableSavedManualRates.length" class="space-y-3">
             <div class="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p class="text-sm font-black">Tarifas manuales guardadas</p>
