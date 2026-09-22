@@ -51,6 +51,13 @@ function patchWizard(source: string) {
     'cargo/service line refresh',
   )
 
+  code = replaceOne(
+    code,
+    `          <div class="crystal-bottom-charges space-y-4 p-4">`,
+    `          <div v-if="!isOwnLclMatrixContext()" class="crystal-bottom-charges space-y-4 p-4">`,
+    'hide global optional/manual charges for own LCL',
+  )
+
   // Last line of defense: an own-LCL quote may only persist the snapshots
   // returned by the selected consolidation matrix. Global catalog CostId rows
   // must never enter the rate payload.
