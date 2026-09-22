@@ -22,14 +22,18 @@ export function pricingWizardUiParity(): Plugin {
 
       // Pantalla 9 is a persisted snapshot. Never let reactive refreshes rebuild an
       // already hydrated rate from Costos y recargos while the user is only viewing it.
-      const persistedSnapshotAnchor = `function refreshRateLinesForCurrentSource() {\n  // When an existing LCL rate is opened, hydrateExistingRate() already populated`
-      const persistedSnapshotReplacement = `function refreshRateLinesForCurrentSource() {\n  if (props.viewOnly && props.rateId && rateLines.value.some((line) => Boolean(line.detailId))) return\n\n  // When an existing LCL rate is opened, hydrateExistingRate() already populated`
-      code = replaceOne(
-        code,
-        persistedSnapshotAnchor,
-        persistedSnapshotReplacement,
-        'view-only persisted rate snapshot guard',
-      )
+      // Own-LCL persistence may already install the same guard, so keep this transform
+      // idempotent instead of depending on a comment/implementation-specific anchor.
+      const persistedSnapshotGuard =
+        '  if (props.viewOnly && props.rateId && rateLines.value.some((line) => Boolean(line.detailId))) return'
+      if (!code.includes(persistedSnapshotGuard)) {
+        code = replaceOne(
+          code,
+          `function refreshRateLinesForCurrentSource() {`,
+          `function refreshRateLinesForCurrentSource() {\n${persistedSnapshotGuard}`,
+          'view-only persisted rate snapshot guard',
+        )
+      }
 
       // Config VALUE is authoritative for currency presentation. Technical CODE is
       // reserved for calculations and Intl currency formatting.
