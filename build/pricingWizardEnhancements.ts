@@ -175,7 +175,7 @@ export function pricingWizardEnhancements(): Plugin {
       code = replaceOne(code, providerAgentAnchor, providerAgentReplacement, 'LCL provider field')
 
       const freightCostAnchor = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />'
-      const freightCostReplacement = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" :disabled="shipmentModeForApi === \'Lcl\' && Boolean(lclSelectedSource)" />'
+      const freightCostReplacement = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" :disabled="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Coloader\'" />'
       code = replaceOne(code, freightCostAnchor, freightCostReplacement, 'LCL source cost locking')
 
       const step8CloseAnchor = `          </div>\n        </div>\n\n        <div v-else-if="step === 9 && viewOnly && editingRate" class="space-y-6">`
