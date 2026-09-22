@@ -69,6 +69,7 @@ const form = reactive({
   panamaToCostaRicaCost: 2140,
   bunkerCost: 280,
   costaRicaTransferBaseCbm: 95,
+  freightProfitPerCbm: 5.69,
   includeEmptyReturn: true,
 })
 
@@ -120,8 +121,6 @@ const pricingLineGroups = computed(() => [
   { scope: 'CA', label: 'Centroamérica', description: 'Valores editables por consolidado. Flete terrestre: costo total ÷ CBM base; Transbordo inicia en destino Panamá + 9; Stuffing inicia en 550 ÷ 60; Documentación inicia en USD 185.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
   { scope: 'ORIGIN', label: 'Origen FCA / EXW', description: 'Manejos en origen. La recolección EXW sigue siendo específica de cada carga.', rows: pricingLines.value.filter((line) => line.scope === 'ORIGIN') },
 ])
-
-const CENTRAL_AMERICA_FREIGHT_MARGIN = 5.69
 
 function isCentralAmericaDestination(code: string | null | undefined) {
   return ['NI', 'HN', 'GT', 'SV'].includes(String(code ?? '').trim().toUpperCase())
@@ -193,6 +192,7 @@ function resetForm() {
     booking: '', etd: '', carrierId: '', containerId: '', polId: '', panamaArrivalPortCode: '',
     oceanFreight: 0, maximumCbm: 50, carrierDestinationCostTotal: 0,
     panamaToCostaRicaCost: 2140, bunkerCost: 280, costaRicaTransferBaseCbm: 95,
+    freightProfitPerCbm: 5.69,
     includeEmptyReturn: true,
   })
 }
@@ -237,6 +237,7 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
     panamaToCostaRicaCost: row.panamaToCostaRicaCost,
     bunkerCost: row.bunkerCost,
     costaRicaTransferBaseCbm: row.costaRicaTransferBaseCbm || 95,
+    freightProfitPerCbm: Number(row.freightProfitPerCbm ?? 5.69),
     includeEmptyReturn: true,
   })
   try {
@@ -332,6 +333,7 @@ function buildPayload() {
     panamaArrivalPortCode: form.panamaArrivalPortCode,
     includeEmptyReturn: form.includeEmptyReturn,
     bunkerCost: Math.max(Number(form.bunkerCost || 0), 0),
+    freightProfitPerCbm: Math.max(Number(form.freightProfitPerCbm ?? 5.69), 0),
   }
 }
 
@@ -384,7 +386,7 @@ async function saveScenarioRows(showToast = true) {
         destinationCode: country.destinationCode,
         polCode: port.polCode,
         salePerCbm: isCentralAmericaDestination(country.destinationCode)
-          ? Math.max(Number(port.costPerCbm || 0), 0) + CENTRAL_AMERICA_FREIGHT_MARGIN
+          ? Math.max(Number(port.costPerCbm || 0), 0) + Math.max(Number(form.freightProfitPerCbm || 0), 0)
           : Math.max(Number(port.salePerCbm || 0), 0),
       }))),
     })
@@ -558,6 +560,7 @@ onMounted(load)
               <DhInput v-model.number="form.bunkerCost" type="number" min="0" step="0.01" label="Bunker Panamá → Costa Rica USD" :disabled="readOnly" />
               <DhInput v-model.number="form.panamaToCostaRicaCost" type="number" min="0" step="0.01" label="Flete Terrestre Panamá → Costa Rica USD" :disabled="readOnly" />
               <DhInput v-model.number="form.costaRicaTransferBaseCbm" type="number" min="0.01" step="0.01" label="Base CBM flete terrestre" :disabled="readOnly" />
+              <DhInput v-model.number="form.freightProfitPerCbm" type="number" min="0" step="0.01" label="Utilidad flete Centroamérica / CBM USD" :disabled="readOnly" />
               <div class="flex items-end pb-1"><DhCheckbox v-model="form.includeEmptyReturn" label="Incluir retiro de vacío" :disabled="readOnly" /></div>
             </div>
           </section>
@@ -656,7 +659,7 @@ onMounted(load)
                         <td class="px-4 py-2 text-right font-bold">USD {{ money(port.costPerCbm) }}</td>
                         <td class="px-4 py-2 text-right">
                           <span v-if="isCentralAmericaDestination(country.destinationCode)" class="inline-block min-w-28 rounded-xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 px-3 py-2 text-right font-black text-[var(--dh-primary)]">
-                            USD {{ money(Number(port.costPerCbm || 0) + CENTRAL_AMERICA_FREIGHT_MARGIN) }}
+                            USD {{ money(Number(port.costPerCbm || 0) + Math.max(Number(form.freightProfitPerCbm || 0), 0)) }}
                           </span>
                           <input v-else v-model.number="port.salePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
                         </td>
@@ -678,10 +681,11 @@ onMounted(load)
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Destino / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewDestinationPerCbm) }}</p></div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Base Panamá / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm) }}</p></div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Flete terrestre + Bunker / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewCrTransferPerCbm) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Utilidad flete Centroamérica / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(form.freightProfitPerCbm) }}</p></div>
             </div>
             <div class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</p></div>
           </section>
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación</p><p class="mt-2">Centroamérica guarda sus cargos por consolidado y permite modificarlos. Transbordo parte de costo/venta destino Panamá + USD 9; Stuffing parte de USD 550 ÷ 60 CBM; Documentación parte de USD 185. Cada flete terrestre guarda costo total, CBM base y venta/CBM. El Flete Internacional Marítimo mantiene venta = costo + USD 5.69/CBM exactamente.</p></section>
+          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación</p><p class="mt-2">Centroamérica guarda sus cargos por consolidado y permite modificarlos. Transbordo parte de costo/venta destino Panamá + USD 9; Stuffing parte de USD 550 ÷ 60 CBM; Documentación parte de USD 185. Cada flete terrestre guarda costo total, CBM base y venta/CBM. El Flete Internacional Marítimo usa venta = costo + la utilidad/CBM configurada en este consolidado (USD {{ money(form.freightProfitPerCbm) }} actualmente).</p></section>
           <div v-if="!readOnly" class="flex justify-end gap-2"><DhButton label="Cancelar" variant="secondary" @click="closeEditor" /><DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="previewLoading" @click="save" /></div>
           <div v-else class="flex justify-end"><DhButton label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false; previewProfile()" /></div>
         </aside>
