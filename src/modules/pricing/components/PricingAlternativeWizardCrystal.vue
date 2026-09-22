@@ -4840,7 +4840,7 @@ onMounted(async () => {
         >
           <Search class="h-4 w-4" /> Mostrar tarifas competencia
         </DhButton>
-        <DhButton :disabled="saving || !includedLines.length" @click="saveRate">
+        <DhButton :disabled="saving || uploadingFinalBackups || !includedLines.length" @click="saveRate">
           <Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
         </DhButton>
       </div>
