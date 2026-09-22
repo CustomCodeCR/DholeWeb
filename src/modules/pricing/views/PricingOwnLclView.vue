@@ -116,7 +116,7 @@ const poeLocationOptions = computed(() => poePorts.value.map((item) => ({
 const pricingLineGroups = computed(() => [
   { scope: 'PA', label: 'Panamá', description: 'Cargos de destino Panamá.', rows: pricingLines.value.filter((line) => line.scope === 'PA') },
   { scope: 'CR', label: 'Costa Rica', description: 'Cargos fijos de destino Costa Rica.', rows: pricingLines.value.filter((line) => line.scope === 'CR') },
-  { scope: 'CA', label: 'Centroamérica', description: 'Cargos fijos para Nicaragua, Honduras, El Salvador y Guatemala.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
+  { scope: 'CA', label: 'Centroamérica', description: 'Cargos de destino para Nicaragua, Honduras, El Salvador y Guatemala. El flete terrestre se configura por país.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
   { scope: 'ORIGIN', label: 'Origen FCA / EXW', description: 'Manejos en origen. La recolección EXW sigue siendo específica de cada carga.', rows: pricingLines.value.filter((line) => line.scope === 'ORIGIN') },
 ])
 
