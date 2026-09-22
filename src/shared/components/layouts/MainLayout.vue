@@ -34,6 +34,7 @@ import {
   Mail,
   Newspaper,
   ReceiptText,
+  PackagePlus,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -44,7 +45,7 @@ import DhWorkspaceTabs from '@/shared/components/organisms/DhWorkspaceTabs.vue'
 import DhCommandPalette, {
   type CommandItem,
 } from '@/shared/components/organisms/DhCommandPalette.vue'
-import { VIEW_SCOPES } from '@/core/auth/scopes'
+import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useShortcutStore, eventToShortcut } from '@/core/stores/shortcutStore'
 import { useThemeStore } from '@/core/stores/themeStore'
@@ -145,7 +146,8 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     canView(VIEW_SCOPES.pricingImports) ||
     canView(VIEW_SCOPES.pricingDecisions) ||
     canView(VIEW_SCOPES.pricingCosts) ||
-    canView(VIEW_SCOPES.pricingRateTerms)
+    canView(VIEW_SCOPES.pricingRateTerms) ||
+    canView(PRICING_SCOPES.ownLclConsolidations.create)
 
   if (canView(VIEW_SCOPES.pricingImports)) {
     children.push({
@@ -159,6 +161,14 @@ const pricingChildren = computed<SidebarItem[]>(() => {
 
   if (canOpenPricing) {
     children.push({ label: t('sidebar.pricingPanel'), path: '/pricing', icon: TrendingUp })
+  }
+
+  if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
+    children.push({
+      label: 'Consolidados propios',
+      path: '/pricing/own-lcl',
+      icon: PackagePlus,
+    })
   }
 
   if (canView(VIEW_SCOPES.pricingRates)) {
