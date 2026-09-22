@@ -1,7 +1,6 @@
 import type { Plugin } from 'vite'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
-const LCL_SELECTOR_PATH = '/src/modules/pricing/components/PricingLclRateSourceSelector.vue'
 
 function replaceOne(source: string, anchor: string, replacement: string, label: string) {
   const occurrences = source.split(anchor).length - 1
@@ -45,24 +44,6 @@ function patchWizard(source: string) {
   return code
 }
 
-function patchLclSelector(source: string) {
-  let code = source
-
-  const crDestinationAnchor = `  if (value.includes('costa rica') || value.includes('san jose') || value.includes('san josé')) return 'CR'`
-  const crDestinationReplacement = `  if (value.includes('costa rica') || value.includes('san jose') || value.includes('san josé') || value.includes('gam') || value.includes('caldera') || value.includes('limon') || value.includes('limón') || value.includes('moin') || value.includes('moín')) return 'CR'`
-  code = replaceOne(code, crDestinationAnchor, crDestinationReplacement, 'Costa Rica LCL destination aliases')
-
-  const chinaOriginAnchor = `const chinaOwnLclOrigins = new Set([\n  'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',\n  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',\n])\n\nfunction ownConsolidationSupportsPol(row: OwnLclConsolidationDto, pol: string) {\n  if (!pol || normalize(row.polCode) === pol) return true\n  return normalize(row.polCode) === 'shanghai' && chinaOwnLclOrigins.has(pol)\n}`
-  const chinaOriginReplacement = `const chinaOwnLclOrigins = new Set([\n  'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',\n  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',\n])\n\nconst chinaOwnLclOriginAliases: Record<string, string> = {\n  shanghai: 'shanghai',\n  cnsha: 'shanghai',\n  ningbo: 'ningbo',\n  cnngb: 'ningbo',\n  qingdao: 'qingdao',\n  cntao: 'qingdao',\n  cnqng: 'qingdao',\n  xiamen: 'xiamen',\n  cnxmn: 'xiamen',\n  shantou: 'shantou',\n  cnswa: 'shantou',\n  dalian: 'dalian',\n  cndlc: 'dalian',\n  chongqing: 'chongqing',\n  cnckg: 'chongqing',\n  fuzhou: 'fuzhou',\n  cnfoc: 'fuzhou',\n  shenzhen: 'shenzhen',\n  cnszx: 'shenzhen',\n  xingang: 'xingang',\n  tianjin: 'xingang',\n  cntsn: 'xingang',\n  cntxg: 'xingang',\n  shekou: 'shekou',\n  cnshk: 'shekou',\n  guangzhou: 'guangzhou',\n  cncan: 'guangzhou',\n}\n\nfunction canonicalChinaOwnLclOrigin(value: unknown) {\n  const key = normalize(value).replace(/[^a-z0-9]/g, '')\n  if (chinaOwnLclOriginAliases[key]) return chinaOwnLclOriginAliases[key]\n\n  // Catálogos reales pueden traer \"Ningbo, China - CNNGB\", \"CNNGB / Ningbo\"\n  // u otras combinaciones. Resolver por alias contenido evita ocultar Shanghai.\n  const aliases = Object.entries(chinaOwnLclOriginAliases)\n    .sort(([left], [right]) => right.length - left.length)\n  for (const [alias, canonical] of aliases) {\n    if (key.includes(alias)) return canonical\n  }\n  return key\n}\n\nfunction ownConsolidationSupportsPol(row: OwnLclConsolidationDto, pol: string) {\n  if (!pol) return true\n\n  const requestedOrigin = canonicalChinaOwnLclOrigin(pol)\n  const consolidationOrigins = [row.polCode, row.polName]\n    .map(canonicalChinaOwnLclOrigin)\n    .filter(Boolean)\n\n  if (consolidationOrigins.includes(requestedOrigin)) return true\n\n  // Consolidado propio China: la base marítima siempre es Shanghai → Balboa.\n  // Ningbo/Qingdao/etc. NO requieren otro consolidado: usan Shanghai y la\n  // matriz agrega el diferencial por CBM del POL elegido.\n  return consolidationOrigins.includes('shanghai') && chinaOwnLclOrigins.has(requestedOrigin)\n}`
-  code = replaceOne(code, chinaOriginAnchor, chinaOriginReplacement, 'China own LCL POL aliases')
-
-  const calculatePolAnchor = `      polCode: props.polCode || row.polCode,`
-  const calculatePolReplacement = `      // El backend de la matriz trabaja con nombres canónicos (NINGBO, QINGDAO, etc.).\n      // Nunca enviar CNNGB/CNTAO aquí porque perdería el diferencial del Excel.\n      polCode: canonicalChinaOwnLclOrigin(props.polCode || row.polCode).toUpperCase(),`
-  code = replaceOne(code, calculatePolAnchor, calculatePolReplacement, 'canonical China POL for own LCL calculation')
-
-  return code
-}
-
 export function pricingWizardLclCorrections(): Plugin {
   return {
     name: 'dhole-pricing-wizard-lcl-corrections',
@@ -71,7 +52,6 @@ export function pricingWizardLclCorrections(): Plugin {
       const normalizedId = id.replace(/\\/g, '/').split('?')[0]
       if (id.includes('?')) return null
       if (normalizedId.endsWith(WIZARD_PATH)) return { code: patchWizard(source), map: null }
-      if (normalizedId.endsWith(LCL_SELECTOR_PATH)) return { code: patchLclSelector(source), map: null }
       return null
     },
   }
