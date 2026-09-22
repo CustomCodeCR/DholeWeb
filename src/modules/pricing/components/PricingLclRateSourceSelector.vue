@@ -183,6 +183,29 @@ function requested() {
   return Math.max(1, n(props.requestedCbm || 1))
 }
 
+function costaRicaTodayIso() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Costa_Rica',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ''
+  return `${value('year')}-${value('month')}-${value('day')}`
+}
+
+function remainingCbm(row: OwnLclConsolidationDto) {
+  return Math.max(0, n(row.remainingCbm ?? row.maximumCbm))
+}
+
+function approvedCbm(row: OwnLclConsolidationDto) {
+  return Math.max(0, n(row.approvedCbm))
+}
+
+function exceedsApprovalCapacity(row: OwnLclConsolidationDto) {
+  return requested() > remainingCbm(row)
+}
+
 const chinaOwnLclOrigins = new Set([
   'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',
   'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',
@@ -198,6 +221,7 @@ const filteredOwn = computed(() => {
   const pol = normalize(props.polCode)
   return ownRows.value.filter((row) => {
     if (!row.isActive || normalize(row.status) === 'closed') return false
+    if (row.etd && row.etd.slice(0, 10) <= costaRicaTodayIso()) return false
     if (!ownConsolidationSupportsPol(row, pol)) return false
     if (!q) return true
     return [row.name, row.booking, row.carrierName, row.carrierCode, row.polName, row.polCode, row.containerName, row.containerCode, row.etd]
@@ -241,6 +265,7 @@ function cargoForCbm(cbm: number) {
 }
 
 function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateLine[] {
+  const sourceMarker = `LCL PROPIO · ConsolidadoId: ${calculation.consolidationId} · Consolidado: #${calculation.consolidationNumber}`
   return calculation.lines.map((line, index) => {
     const type = ownLineType(line.name)
     const normalizedName = normalize(line.name)
@@ -254,7 +279,9 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateL
       costType: variable ? 'Variable' : 'Fixed',
       chargeBasis: ownBasis(line.chargeBasis),
       contextLabel: `Consolidado ${calculation.consolidationNumber} · ${calculation.matrixVersion}`,
-      notes: sourceBasis.includes('cbm') ? null : `Base del Excel: ${line.chargeBasis}; cantidad aplicada: 1.`,
+      notes: sourceBasis.includes('cbm')
+        ? sourceMarker
+        : `${sourceMarker} · Base del Excel: ${line.chargeBasis}; cantidad aplicada: 1.`,
       currencyId: props.currencyId,
       currencyName: props.currencyName,
       currencyCode: props.currencyCode,
@@ -426,7 +453,13 @@ onMounted(load)
         <template #cell-route="{ row }">
           <div><p class="font-bold">{{ row.polName || row.polCode }} → {{ row.poeName || row.poeCode || 'Panamá' }} / Centroamérica</p><p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · ETD {{ row.etd || '—' }}</p></div>
         </template>
-        <template #cell-capacity="{ row }"><span class="font-black">{{ n(row.maximumCbm).toFixed(2) }} CBM</span></template>
+        <template #cell-capacity="{ row }">
+          <div class="space-y-0.5 text-right">
+            <p class="font-black">{{ remainingCbm(row).toFixed(2) }} CBM disp.</p>
+            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ approvedCbm(row).toFixed(2) }} aprobados / {{ n(row.maximumCbm).toFixed(2) }} totales</p>
+            <p v-if="exceedsApprovalCapacity(row)" class="text-[10px] font-black text-amber-600 dark:text-amber-300">Se puede cotizar; excede el cupo para aprobación</p>
+          </div>
+        </template>
         <template #cell-cost="{ row }"><span class="font-black">USD {{ money((n(row.oceanFreight) + n(row.carrierDestinationCostTotal)) / Math.max(n(row.maximumCbm), 1)) }}</span></template>
         <template #cell-action="{ row }">
           <div class="flex justify-end" @click.stop>
