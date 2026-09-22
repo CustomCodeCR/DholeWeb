@@ -16,17 +16,38 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `function addManualCharge() {`,
-    `function isOwnLclMatrixSourceActive() {\n  return shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Own'\n}\n\nfunction isPersistedOwnLclMatrixSnapshot() {\n  if (shipmentModeForApi.value !== 'Lcl') return false\n  return rateLines.value.some((line) => {\n    if (line.costId) return false\n    const marker = String(line.notes ?? '')\n    return /LCL\\s*PROPIO|Fuente LCL:\\s*Propio|Consolidado(Id)?:/i.test(marker)\n  })\n}\n\nfunction isOwnLclMatrixContext() {\n  return isOwnLclMatrixSourceActive() || isPersistedOwnLclMatrixSnapshot()\n}\n\nfunction hasPersistedLclDetailSnapshot() {\n  return shipmentModeForApi.value === 'Lcl'\n    && Boolean(props.rateId)\n    && rateLines.value.some((line) => Boolean(line.detailId))\n}\n\nfunction refreshRateLinesForCurrentSource() {\n  if (props.viewOnly && props.rateId && rateLines.value.some((line) => Boolean(line.detailId))) return\n\n  // LCL propio tiene una única fuente de cargos: la matriz guardada en el consolidado.\n  // Nunca mezclar Costos y recargos del catálogo general.\n  if (isOwnLclMatrixContext()) {\n    rateLines.value = rateLines.value.filter((line) => !line.costId)\n    return\n  }\n\n  // Para otras fuentes LCL (p. ej. coloader), conservar el comportamiento existente.\n  if (hasPersistedLclDetailSnapshot()) {\n    if (props.viewOnly) return\n    rateLines.value = rateLines.value.filter((line) => Boolean(line.detailId) || !line.costId)\n    mergeConfiguredOptionalCostsIntoRateLines(true)\n    return\n  }\n\n  rebuildRateLines()\n}\n\nfunction addManualCharge() {`,
+    `function isOwnLclMatrixSourceActive() {\n  if (shipmentModeForApi.value !== 'Lcl') return false\n  if (lclSelectedSource.value?.kind === 'Own') return true\n  return String(lclSelectedSourceKey.value ?? '').startsWith('Own:')\n}\n\nfunction isPersistedOwnLclMatrixSnapshot() {\n  if (shipmentModeForApi.value !== 'Lcl') return false\n  return rateLines.value.some((line) => {\n    if (line.costId) return false\n    const marker = String(line.notes ?? '')\n    return /LCL\\s*PROPIO|Fuente LCL:\\s*Propio|Consolidado(Id)?:/i.test(marker)\n  })\n}\n\nfunction isOwnLclMatrixContext() {\n  return isOwnLclMatrixSourceActive() || isPersistedOwnLclMatrixSnapshot()\n}\n\nfunction restoreOwnLclMatrixLines() {\n  const source = lclSelectedSource.value\n  if (source?.kind === 'Own' && Array.isArray(source.lines) && source.lines.length) {\n    rateLines.value = source.lines.map((line) => ({\n      ...line,\n      costId: null,\n      included: true,\n      optional: false,\n    })) as RateLine[]\n  } else {\n    rateLines.value = rateLines.value.filter((line) => !line.costId)\n  }\n  costs.value = []\n}\n\nfunction hasPersistedLclDetailSnapshot() {\n  return shipmentModeForApi.value === 'Lcl'\n    && Boolean(props.rateId)\n    && rateLines.value.some((line) => Boolean(line.detailId))\n}\n\nfunction refreshRateLinesForCurrentSource() {\n  if (props.viewOnly && props.rateId && rateLines.value.some((line) => Boolean(line.detailId))) return\n\n  // Consolidado propio: la única fuente de líneas es la matriz guardada en el consolidado.\n  if (isOwnLclMatrixContext()) {\n    restoreOwnLclMatrixLines()\n    return\n  }\n\n  if (hasPersistedLclDetailSnapshot()) {\n    if (props.viewOnly) return\n    rateLines.value = rateLines.value.filter((line) => Boolean(line.detailId) || !line.costId)\n    mergeConfiguredOptionalCostsIntoRateLines(true)\n    return\n  }\n\n  rebuildRateLines()\n}\n\nfunction addManualCharge() {`,
     'own LCL line refresh helper',
   )
 
-  // pricingWizardEnhancements already preserves the selected LCL matrix while
-  // advancing from provider to lines. Do not contaminate an own consolidation
-  // with fixed/optional rows from the global Costs catalog.
+  // Never query the global Costs catalog for an own consolidation.
+  code = replaceOne(
+    code,
+    `async function loadApplicableCosts() {\n  try {`,
+    `async function loadApplicableCosts() {\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return\n  }\n\n  try {`,
+    'own LCL applicable costs guard',
+  )
+
+  // Any watcher that tries to rebuild lines while Own is selected must restore
+  // the consolidation calculation instead of rebuilding from Costs y recargos.
+  code = replaceOne(
+    code,
+    `function rebuildRateLines() {\n  const currency = selectedCurrency.value ?? catalogs.currencies[0]`,
+    `function rebuildRateLines() {\n  if (isOwnLclMatrixContext()) {\n    restoreOwnLclMatrixLines()\n    return\n  }\n\n  const currency = selectedCurrency.value ?? catalogs.currencies[0]`,
+    'own LCL rebuild guard',
+  )
+
+  code = replaceOne(
+    code,
+    `function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {\n  // Una tarifa persistida en modo vista es un snapshot autoritativo del response.`,
+    `function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {\n  if (isOwnLclMatrixContext()) {\n    restoreOwnLclMatrixLines()\n    return\n  }\n\n  // Una tarifa persistida en modo vista es un snapshot autoritativo del response.`,
+    'own LCL merge guard',
+  )
+
   code = replaceOne(
     code,
     `    if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value) {\n      const freight = rateLines.value.find((line) => line.costDetailType === 'Freight')\n      if (freight) {\n        freight.costAmount = number(form.freightCost)\n        freight.saleAmount = number(form.freightSale)\n      }\n      mergeConfiguredOptionalCostsIntoRateLines(true)\n    } else {\n      rebuildRateLines()\n    }`,
-    `    if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value) {\n      const freight = rateLines.value.find((line) => line.costDetailType === 'Freight')\n      if (freight) {\n        freight.costAmount = number(form.freightCost)\n        freight.saleAmount = number(form.freightSale)\n      }\n\n      if (lclSelectedSource.value.kind === 'Own') {\n        rateLines.value = rateLines.value.filter((line) => !line.costId)\n      } else {\n        mergeConfiguredOptionalCostsIntoRateLines(true)\n      }\n    } else {\n      rebuildRateLines()\n    }`,
+    `    if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value) {\n      const freight = rateLines.value.find((line) => line.costDetailType === 'Freight')\n      if (freight) {\n        freight.costAmount = number(form.freightCost)\n        freight.saleAmount = number(form.freightSale)\n      }\n\n      if (lclSelectedSource.value.kind === 'Own') {\n        restoreOwnLclMatrixLines()\n      } else {\n        mergeConfiguredOptionalCostsIntoRateLines(true)\n      }\n    } else {\n      rebuildRateLines()\n    }`,
     'provider-to-lines own LCL guard',
   )
 
@@ -58,9 +79,7 @@ function patchWizard(source: string) {
     'hide global optional/manual charges for own LCL',
   )
 
-  // Last line of defense: an own-LCL quote may only persist the snapshots
-  // returned by the selected consolidation matrix. Global catalog CostId rows
-  // must never enter the rate payload.
+  // Last line of defense: Own may only persist matrix snapshots (costId=null).
   code = replaceOne(
     code,
     `  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({`,
