@@ -336,6 +336,8 @@ ${chooseRateAnchor}`
   return code
 }
 
+const ENABLE_FULL_RATE_AS_FREIGHT_SOURCE = false
+
 export function pricingWizardSavedManualRates(): Plugin {
   return {
     name: 'dhole-pricing-wizard-saved-manual-rates',
@@ -343,6 +345,12 @@ export function pricingWizardSavedManualRates(): Plugin {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
+
+      // Rate/QUO representa una cotización completa. No debe reutilizarse como si fuera
+      // un flete marítimo. Pantalla 5 toma sus fuentes únicamente de ImportFclRate,
+      // incluyendo los fletes creados manualmente mediante manual-ocean-freight.
+      if (!ENABLE_FULL_RATE_AS_FREIGHT_SOURCE) return { code: source, map: null }
+
       return { code: patchWizard(source), map: null }
     },
   }
