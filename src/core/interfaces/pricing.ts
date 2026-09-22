@@ -703,6 +703,7 @@ export interface RateDto extends Record<string, unknown> {
   containers?: RateContainerDto[]
   rateDetails: RateDetailDto[]
   services?: RateServiceDto[]
+  finalBackupStorageIds?: string[]
 }
 
 export interface RateRevisionDto extends Record<string, unknown> {
@@ -812,6 +813,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   totalVolumeCbm?: number
   kgPerCbm?: number
   cargoLines?: RateCargoLineRequest[]
+  finalBackupStorageIds?: string[]
   details: CreateRateDetailRequest[]
 }
 
