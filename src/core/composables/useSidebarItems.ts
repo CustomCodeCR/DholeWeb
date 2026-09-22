@@ -22,9 +22,10 @@ import {
   Bell,
   BellRing,
   Truck,
+  PackagePlus,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
-import { VIEW_SCOPES } from '@/core/auth/scopes'
+import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 
 export interface SidebarItem {
   labelKey: string
@@ -128,6 +129,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             to: '/pricing',
             name: 'pricing',
             requiredScope: VIEW_SCOPES.pricing,
+          },
+          {
+            labelKey: 'Consolidados propios',
+            icon: PackagePlus,
+            to: '/pricing?workspace=own-lcl',
+            name: 'pricing-own-lcl',
+            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
           {
             labelKey: 'sidebar.importedRates',
