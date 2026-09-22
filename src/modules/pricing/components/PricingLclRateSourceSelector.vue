@@ -256,6 +256,12 @@ function canonicalOwnLclOrigin(value: unknown) {
   return key
 }
 
+function ownCalculationPolCode(row: OwnLclConsolidationDto) {
+  const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
+  if (consolidationOrigin === 'miami') return 'MIAMI'
+  return canonicalOwnLclOrigin(props.polCode || row.polName || row.polCode).toUpperCase()
+}
+
 function ownConsolidationSupportsPol(row: OwnLclConsolidationDto, pol: string) {
   if (!pol) return true
 
@@ -366,7 +372,7 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       destinationCode: destination,
       incoterm: props.incotermCode || 'FOB',
       cargoLines: props.cargoLines.length ? props.cargoLines : cargoForCbm(cbm),
-      polCode: canonicalOwnLclOrigin(props.polCode || row.polName || row.polCode).toUpperCase(),
+      polCode: ownCalculationPolCode(row),
       salePerCbm: null,
       sets: 1,
       hbl: 1,
