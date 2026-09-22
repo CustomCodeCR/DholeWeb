@@ -116,9 +116,32 @@ const poeLocationOptions = computed(() => poePorts.value.map((item) => ({
 const pricingLineGroups = computed(() => [
   { scope: 'PA', label: 'Panamá', description: 'Cargos de destino Panamá.', rows: pricingLines.value.filter((line) => line.scope === 'PA') },
   { scope: 'CR', label: 'Costa Rica', description: 'Cargos fijos de destino Costa Rica.', rows: pricingLines.value.filter((line) => line.scope === 'CR') },
-  { scope: 'CA', label: 'Centroamérica', description: 'Cargos de destino para Nicaragua, Honduras, El Salvador y Guatemala. El flete terrestre se configura por país.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
+  { scope: 'CA', label: 'Centroamérica', description: 'Transbordo = Destination Charge Panamá + USD 9 · Stuffing = USD 550 / 60 CBM · Documentación = USD 185.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
   { scope: 'ORIGIN', label: 'Origen FCA / EXW', description: 'Manejos en origen. La recolección EXW sigue siendo específica de cada carga.', rows: pricingLines.value.filter((line) => line.scope === 'ORIGIN') },
 ])
+
+const CENTRAL_AMERICA_FREIGHT_MARGIN = 5.69
+const CENTRAL_AMERICA_STUFFING_SALE = 550 / 60
+const CENTRAL_AMERICA_DOCUMENTATION_SALE = 185
+
+function isCentralAmericaDestination(code: string | null | undefined) {
+  return ['NI', 'HN', 'GT', 'SV'].includes(String(code ?? '').trim().toUpperCase())
+}
+
+function formulaManagedPricingSale(lineKey: string) {
+  const key = String(lineKey ?? '').trim().toUpperCase()
+  if (key === 'CA_TRANSSHIPMENT') {
+    const panamaDestination = pricingLines.value.find((line) => line.lineKey === 'PA_DESTINATION_CHARGE')
+    return Math.max(Number(panamaDestination?.saleUnit ?? 20), 0) + 9
+  }
+  if (key === 'CA_STUFFING') return CENTRAL_AMERICA_STUFFING_SALE
+  if (key === 'CA_DOCUMENTATION') return CENTRAL_AMERICA_DOCUMENTATION_SALE
+  return null
+}
+
+function isFormulaManagedPricingLine(lineKey: string) {
+  return formulaManagedPricingSale(lineKey) !== null
+}
 
 function destinationPerCbm(row: OwnLclConsolidationDto) {
   return row.maximumCbm > 0 ? row.carrierDestinationCostTotal / row.maximumCbm : 0
@@ -313,13 +336,16 @@ function buildCostOverrides() {
 
 function buildPricingLinesPayload() {
   return {
-    rows: pricingLines.value.map((line) => ({
-      lineKey: line.lineKey,
-      costUnit: line.lineKey === 'PA_DESTINATION_CHARGE'
-        ? Math.max(previewDestinationPerCbm.value, 0)
-        : Math.max(Number(line.costUnit || 0), 0),
-      saleUnit: Math.max(Number(line.saleUnit || 0), 0),
-    })),
+    rows: pricingLines.value.map((line) => {
+      const formulaSale = formulaManagedPricingSale(line.lineKey)
+      return {
+        lineKey: line.lineKey,
+        costUnit: line.lineKey === 'PA_DESTINATION_CHARGE'
+          ? Math.max(previewDestinationPerCbm.value, 0)
+          : Math.max(Number(line.costUnit || 0), 0),
+        saleUnit: formulaSale ?? Math.max(Number(line.saleUnit || 0), 0),
+      }
+    }),
   }
 }
 
@@ -345,7 +371,9 @@ async function saveScenarioRows(showToast = true) {
       rows: scenarioMatrix.value.countries.flatMap((country) => country.ports.map((port) => ({
         destinationCode: country.destinationCode,
         polCode: port.polCode,
-        salePerCbm: Math.max(Number(port.salePerCbm || 0), 0),
+        salePerCbm: isCentralAmericaDestination(country.destinationCode)
+          ? Math.max(Number(port.costPerCbm || 0), 0) + CENTRAL_AMERICA_FREIGHT_MARGIN
+          : Math.max(Number(port.salePerCbm || 0), 0),
       }))),
     })
     if (showToast) toastStore.success('Escenarios guardados', 'Las ventas FOB por país y puerto quedaron asociadas a este consolidado.')
@@ -573,7 +601,12 @@ onMounted(load)
                           <span v-if="line.lineKey === 'PA_DESTINATION_CHARGE'" class="inline-block min-w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black">{{ money(previewDestinationPerCbm) }}</span>
                           <input v-else v-model.number="line.costUnit" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
                         </td>
-                        <td class="px-4 py-2 text-right"><input v-model.number="line.saleUnit" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
+                        <td class="px-4 py-2 text-right">
+                          <span v-if="isFormulaManagedPricingLine(line.lineKey)" class="inline-block min-w-28 rounded-xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 px-3 py-2 text-right font-black text-[var(--dh-primary)]">
+                            {{ money(formulaManagedPricingSale(line.lineKey) ?? 0) }}
+                          </span>
+                          <input v-else v-model.number="line.saleUnit" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -602,7 +635,12 @@ onMounted(load)
                       <tr v-for="port in country.ports" :key="`${country.destinationCode}-${port.polCode}`" class="border-t border-[var(--dh-border)] first:border-t-0">
                         <td class="px-4 py-2 font-black">{{ port.polCode }}</td>
                         <td class="px-4 py-2 text-right font-bold">USD {{ money(port.costPerCbm) }}</td>
-                        <td class="px-4 py-2 text-right"><input v-model.number="port.salePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
+                        <td class="px-4 py-2 text-right">
+                          <span v-if="isCentralAmericaDestination(country.destinationCode)" class="inline-block min-w-28 rounded-xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 px-3 py-2 text-right font-black text-[var(--dh-primary)]">
+                            USD {{ money(Number(port.costPerCbm || 0) + CENTRAL_AMERICA_FREIGHT_MARGIN) }}
+                          </span>
+                          <input v-else v-model.number="port.salePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
+                        </td>
                         <td class="px-4 py-2 text-right text-[var(--dh-text-muted)]">USD {{ money(port.recommendedSalePerCbm) }}</td>
                       </tr>
                     </tbody>
@@ -624,7 +662,7 @@ onMounted(load)
             </div>
             <div class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</p></div>
           </section>
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación</p><p class="mt-2">Costos y ventas se guardan en el consolidado. Las cotizaciones posteriores toman esta matriz como fuente y ya no requieren cambiar los mismos valores una por una.</p></section>
+          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación</p><p class="mt-2">Costos y ventas se guardan en el consolidado. Para Centroamérica se fuerzan las fórmulas comerciales: Transbordo = Destination Charge + 9; Stuffing = 550 / 60 CBM; Documentación = USD 185; y la venta del flete es exactamente costo + USD 5.69 por CBM.</p></section>
           <div v-if="!readOnly" class="flex justify-end gap-2"><DhButton label="Cancelar" variant="secondary" @click="closeEditor" /><DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="previewLoading" @click="save" /></div>
           <div v-else class="flex justify-end"><DhButton label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false; previewProfile()" /></div>
         </aside>
