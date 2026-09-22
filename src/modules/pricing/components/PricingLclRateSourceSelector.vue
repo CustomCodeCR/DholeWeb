@@ -118,11 +118,11 @@ const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
-  { key: 'source', label: 'Consolidado', width: '190px' },
+  { key: 'source', label: 'Consolidado', width: '220px' },
   { key: 'route', label: 'Ruta / salida' },
-  { key: 'capacity', label: 'Capacidad', align: 'right', width: '120px' },
+  { key: 'capacity', label: 'Capacidad', align: 'right', width: '190px' },
   { key: 'cost', label: 'Costo base/CBM', align: 'right', width: '150px' },
-  { key: 'action', label: '', align: 'right', width: '120px' },
+  { key: 'action', label: '', align: 'right', width: '130px' },
 ]
 
 const coloaderColumns: DhTableColumn<LclColoaderRateDto & TableRow>[] = [
@@ -455,15 +455,15 @@ onMounted(load)
         </template>
         <template #cell-capacity="{ row }">
           <div class="space-y-0.5 text-right">
-            <p class="font-black">{{ remainingCbm(row).toFixed(2) }} CBM disp.</p>
-            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ approvedCbm(row).toFixed(2) }} aprobados / {{ n(row.maximumCbm).toFixed(2) }} totales</p>
+            <p class="whitespace-nowrap font-black">{{ remainingCbm(row).toFixed(2) }} CBM disponibles</p>
+            <p class="whitespace-nowrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ approvedCbm(row).toFixed(2) }} aprobados / {{ n(row.maximumCbm).toFixed(2) }} totales</p>
             <p v-if="exceedsApprovalCapacity(row)" class="text-[10px] font-black text-amber-600 dark:text-amber-300">Se puede cotizar; excede el cupo para aprobación</p>
           </div>
         </template>
         <template #cell-cost="{ row }"><span class="font-black">USD {{ money((n(row.oceanFreight) + n(row.carrierDestinationCostTotal)) / Math.max(n(row.maximumCbm), 1)) }}</span></template>
         <template #cell-action="{ row }">
           <div class="flex justify-end" @click.stop>
-            <DhButton :label="modelValue === `Own:${row.id}` ? 'Seleccionado' : 'Seleccionar'" :icon="modelValue === `Own:${row.id}` ? Check : undefined" size="sm" :loading="selecting === `Own:${row.id}`" @click="chooseOwn(row)" />
+            <DhButton class="min-w-[108px]" :label="modelValue === `Own:${row.id}` ? 'Seleccionado' : 'Seleccionar'" :icon="modelValue === `Own:${row.id}` ? Check : undefined" size="sm" :loading="selecting === `Own:${row.id}`" @click="chooseOwn(row)" />
           </div>
         </template>
       </DhDataTable>
