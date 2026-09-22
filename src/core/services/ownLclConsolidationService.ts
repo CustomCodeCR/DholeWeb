@@ -138,6 +138,7 @@ export interface OwnLclPricingLineDto {
   chargeBasis: string
   costUnit: number
   saleUnit: number
+  calculationBaseCbm: number | null
 }
 
 export interface SaveOwnLclPricingLinesRequest {
@@ -145,33 +146,34 @@ export interface SaveOwnLclPricingLinesRequest {
     lineKey: string
     costUnit: number
     saleUnit: number
+    calculationBaseCbm: number | null
   }>
 }
 
 export function createDefaultOwnLclPricingLines(): OwnLclPricingLineDto[] {
   return [
-    { lineKey: 'PA_DESTINATION_CHARGE', scope: 'PA', name: 'Destination Charge', chargeBasis: 'CBM', costUnit: 0, saleUnit: 20 },
-    { lineKey: 'PA_DMCE', scope: 'PA', name: 'DMCE', chargeBasis: 'HBL', costUnit: 65, saleUnit: 65 },
-    { lineKey: 'PA_HANDLING', scope: 'PA', name: 'Handling', chargeBasis: 'HBL', costUnit: 25, saleUnit: 25 },
-    { lineKey: 'PA_ZONE', scope: 'PA', name: 'Zone Charge', chargeBasis: 'HBL', costUnit: 30, saleUnit: 30 },
-    { lineKey: 'CR_HANDLING', scope: 'CR', name: 'Manejos', chargeBasis: 'HBL', costUnit: 65, saleUnit: 65 },
-    { lineKey: 'CR_ZONE', scope: 'CR', name: 'Zone Charge', chargeBasis: 'HBL', costUnit: 50, saleUnit: 50 },
-    { lineKey: 'CA_TRANSSHIPMENT', scope: 'CA', name: 'Transbordo', chargeBasis: 'CBM', costUnit: 39.719736842105264, saleUnit: 29 },
-    { lineKey: 'CA_INLAND_NI', scope: 'CA', name: 'Flete Terrestre · Nicaragua', chargeBasis: 'CBM', costUnit: 16.42857142857143, saleUnit: 40 },
-    { lineKey: 'CA_INLAND_HN', scope: 'CA', name: 'Flete Terrestre · Honduras', chargeBasis: 'CBM', costUnit: 26.071428571428573, saleUnit: 50 },
-    { lineKey: 'CA_INLAND_GT', scope: 'CA', name: 'Flete Terrestre · Guatemala', chargeBasis: 'CBM', costUnit: 35, saleUnit: 48 },
-    { lineKey: 'CA_INLAND_SV', scope: 'CA', name: 'Flete Terrestre · El Salvador', chargeBasis: 'CBM', costUnit: 31.42857142857143, saleUnit: 40 },
-    { lineKey: 'CA_STUFFING', scope: 'CA', name: 'Stuffing', chargeBasis: 'CBM', costUnit: 5.928571428571429, saleUnit: 550 / 60 },
-    { lineKey: 'CA_DOCUMENTATION', scope: 'CA', name: 'Documentación', chargeBasis: 'HBL', costUnit: 0, saleUnit: 185 },
-    { lineKey: 'CA_HANDLING', scope: 'CA', name: 'Manejos', chargeBasis: 'HBL', costUnit: 0, saleUnit: 45 },
-    { lineKey: 'CA_DESTINATION_HANDLING', scope: 'CA', name: 'Manejos en Destino', chargeBasis: 'HBL', costUnit: 0, saleUnit: 70 },
-    { lineKey: 'ORIGIN_CFS', scope: 'ORIGIN', name: 'CFS', chargeBasis: 'CBM', costUnit: 8, saleUnit: 8 },
-    { lineKey: 'ORIGIN_WHSE', scope: 'ORIGIN', name: 'WHSE FEE', chargeBasis: 'CBM', costUnit: 12, saleUnit: 12 },
-    { lineKey: 'ORIGIN_CUSTOMS', scope: 'ORIGIN', name: 'CUSTOMS', chargeBasis: 'SET', costUnit: 15, saleUnit: 25 },
-    { lineKey: 'ORIGIN_DOC', scope: 'ORIGIN', name: 'DOC FEE', chargeBasis: 'HBL', costUnit: 15, saleUnit: 65 },
-    { lineKey: 'ORIGIN_VGM', scope: 'ORIGIN', name: 'VGM', chargeBasis: 'HBL', costUnit: 0, saleUnit: 25 },
-    { lineKey: 'ORIGIN_MANIFEST', scope: 'ORIGIN', name: 'MANIFEST', chargeBasis: 'HBL', costUnit: 15, saleUnit: 25 },
-    { lineKey: 'ORIGIN_PICK_UP', scope: 'ORIGIN', name: 'PICK UP', chargeBasis: 'Flat', costUnit: 0, saleUnit: 0 },
+    { lineKey: 'PA_DESTINATION_CHARGE', scope: 'PA', name: 'Destination Charge', chargeBasis: 'CBM', costUnit: 0, saleUnit: 20, calculationBaseCbm: null },
+    { lineKey: 'PA_DMCE', scope: 'PA', name: 'DMCE', chargeBasis: 'HBL', costUnit: 65, saleUnit: 65, calculationBaseCbm: null },
+    { lineKey: 'PA_HANDLING', scope: 'PA', name: 'Handling', chargeBasis: 'HBL', costUnit: 25, saleUnit: 25, calculationBaseCbm: null },
+    { lineKey: 'PA_ZONE', scope: 'PA', name: 'Zone Charge', chargeBasis: 'HBL', costUnit: 30, saleUnit: 30, calculationBaseCbm: null },
+    { lineKey: 'CR_HANDLING', scope: 'CR', name: 'Manejos', chargeBasis: 'HBL', costUnit: 65, saleUnit: 65, calculationBaseCbm: null },
+    { lineKey: 'CR_ZONE', scope: 'CR', name: 'Zone Charge', chargeBasis: 'HBL', costUnit: 50, saleUnit: 50, calculationBaseCbm: null },
+    { lineKey: 'CA_TRANSSHIPMENT', scope: 'CA', name: 'Transbordo', chargeBasis: 'CBM', costUnit: 9, saleUnit: 29, calculationBaseCbm: null },
+    { lineKey: 'CA_INLAND_NI', scope: 'CA', name: 'Flete Terrestre · Nicaragua', chargeBasis: 'CBM', costUnit: 1150, saleUnit: 40, calculationBaseCbm: 70 },
+    { lineKey: 'CA_INLAND_HN', scope: 'CA', name: 'Flete Terrestre · Honduras', chargeBasis: 'CBM', costUnit: 1825, saleUnit: 50, calculationBaseCbm: 70 },
+    { lineKey: 'CA_INLAND_GT', scope: 'CA', name: 'Flete Terrestre · Guatemala', chargeBasis: 'CBM', costUnit: 2450, saleUnit: 48, calculationBaseCbm: 70 },
+    { lineKey: 'CA_INLAND_SV', scope: 'CA', name: 'Flete Terrestre · El Salvador', chargeBasis: 'CBM', costUnit: 2200, saleUnit: 40, calculationBaseCbm: 70 },
+    { lineKey: 'CA_STUFFING', scope: 'CA', name: 'Stuffing', chargeBasis: 'CBM', costUnit: 550 / 60, saleUnit: 10, calculationBaseCbm: null },
+    { lineKey: 'CA_DOCUMENTATION', scope: 'CA', name: 'Documentación', chargeBasis: 'HBL', costUnit: 0, saleUnit: 185, calculationBaseCbm: null },
+    { lineKey: 'CA_HANDLING', scope: 'CA', name: 'Manejos', chargeBasis: 'HBL', costUnit: 0, saleUnit: 45, calculationBaseCbm: null },
+    { lineKey: 'CA_DESTINATION_HANDLING', scope: 'CA', name: 'Manejos en Destino', chargeBasis: 'HBL', costUnit: 0, saleUnit: 70, calculationBaseCbm: null },
+    { lineKey: 'ORIGIN_CFS', scope: 'ORIGIN', name: 'CFS', chargeBasis: 'CBM', costUnit: 8, saleUnit: 8, calculationBaseCbm: null },
+    { lineKey: 'ORIGIN_WHSE', scope: 'ORIGIN', name: 'WHSE FEE', chargeBasis: 'CBM', costUnit: 12, saleUnit: 12, calculationBaseCbm: null },
+    { lineKey: 'ORIGIN_CUSTOMS', scope: 'ORIGIN', name: 'CUSTOMS', chargeBasis: 'SET', costUnit: 15, saleUnit: 25, calculationBaseCbm: null },
+    { lineKey: 'ORIGIN_DOC', scope: 'ORIGIN', name: 'DOC FEE', chargeBasis: 'HBL', costUnit: 15, saleUnit: 65, calculationBaseCbm: null },
+    { lineKey: 'ORIGIN_VGM', scope: 'ORIGIN', name: 'VGM', chargeBasis: 'HBL', costUnit: 0, saleUnit: 25, calculationBaseCbm: null },
+    { lineKey: 'ORIGIN_MANIFEST', scope: 'ORIGIN', name: 'MANIFEST', chargeBasis: 'HBL', costUnit: 15, saleUnit: 25, calculationBaseCbm: null },
+    { lineKey: 'ORIGIN_PICK_UP', scope: 'ORIGIN', name: 'PICK UP', chargeBasis: 'Flat', costUnit: 0, saleUnit: 0, calculationBaseCbm: null },
   ]
 }
 
