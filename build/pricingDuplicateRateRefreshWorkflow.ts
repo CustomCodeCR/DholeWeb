@@ -96,19 +96,24 @@ function patchWizard(source: string) {
     'wizard hydration navigation',
   )
 
-  const chooseStart = code.indexOf(`function chooseRate(rate: ImportRateSelectDto) {`)
+  const plainChooseSignature = `function chooseRate(rate: ImportRateSelectDto) {`
+  const asyncChooseSignature = `async function chooseRate(rate: ImportRateSelectDto) {`
+  const asyncChooseStart = code.indexOf(asyncChooseSignature)
+  const chooseStart = asyncChooseStart >= 0 ? asyncChooseStart : code.indexOf(plainChooseSignature)
   const chooseEnd = code.indexOf(`function continueManual() {`, chooseStart)
   if (chooseStart < 0 || chooseEnd < 0) {
     throw new Error('[pricingDuplicateRateRefreshWorkflow] Imported freight selection block not found.')
   }
 
   let chooseBlock = code.slice(chooseStart, chooseEnd)
-  chooseBlock = replaceOne(
-    chooseBlock,
-    `function chooseRate(rate: ImportRateSelectDto) {`,
-    `async function chooseRate(rate: ImportRateSelectDto) {`,
-    'choose rate async signature',
-  )
+  if (chooseBlock.startsWith(plainChooseSignature)) {
+    chooseBlock = replaceOne(
+      chooseBlock,
+      plainChooseSignature,
+      asyncChooseSignature,
+      'choose rate async signature',
+    )
+  }
   chooseBlock = replaceOne(
     chooseBlock,
     `  if (currency) form.currencyId = currency.id`,
