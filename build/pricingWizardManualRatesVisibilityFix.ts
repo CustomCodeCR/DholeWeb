@@ -32,6 +32,27 @@ function patchWizard(source: string) {
   // is valid. Previously that made every manual tariff fail the Screen 5 filter.
   if (!code.includes('const availableSavedManualRates = ref<RateDto[]>([])')) return code
 
+  // Pantalla 5 debe tomar el detalle Freight que realmente contiene el monto.
+  // Algunas tarifas históricas/proyectadas pueden traer primero un Freight en cero
+  // y luego el detalle persistido con el costo/venta correcto.
+  const freightAnchor = `function savedManualRateFreight(rate: RateDto) {
+  return (rate.rateDetails ?? []).find((detail) => detail.costDetailType === 'Freight') ?? null
+}`
+  code = replaceRequired(
+    code,
+    freightAnchor,
+    `function savedManualRateFreight(rate: RateDto) {
+  const freightDetails = (rate.rateDetails ?? []).filter(
+    (detail) => detail.costDetailType === 'Freight',
+  )
+  return freightDetails.find((detail) => number(detail.costAmount) > 0)
+    ?? freightDetails.find((detail) => number(detail.saleAmount) > 0)
+    ?? freightDetails[0]
+    ?? null
+}`,
+    'manual freight detail selection',
+  )
+
   const commentAnchor = `function savedManualRateComment(rate: RateDto) {
   const comments = (rate.rateDetails ?? [])
     .map((detail) => String(detail.notes ?? '').trim())
@@ -53,7 +74,13 @@ function savedManualRateCommentText(rate: RateDto) {
 
 function savedManualRatePrice(rate: RateDto) {
   const freight = savedManualRateFreight(rate)
-  if (freight) return number(freight.costAmount)
+  if (freight) {
+    const cost = number(freight.costAmount)
+    if (cost > 0) return cost
+    const sale = number(freight.saleAmount)
+    if (sale > 0) return sale
+    return 0
+  }
   return number(rate.totalCostAmount ?? rate.totalSaleAmount ?? 0)
 }
 
@@ -87,7 +114,14 @@ function savedManualRateHeaderMatchesContext(rate: RateDto) {
 }
 
 async function resolveSavedManualRate(rate: RateDto) {
-  if ((rate.rateDetails ?? []).length) return rate
+  const freight = savedManualRateFreight(rate)
+  const hasPersistedFreightAmount =
+    number(freight?.costAmount) > 0 || number(freight?.saleAmount) > 0
+
+  // browseRates puede devolver una proyección parcial o cacheada. Si el flete viene
+  // vacío/cero, leer el detalle autoritativo antes de pintar USD 0,00.
+  if ((rate.rateDetails ?? []).length && hasPersistedFreightAmount) return rate
+
   try {
     return await PricingService.getRate(rate.id)
   } catch {
@@ -170,8 +204,19 @@ async function resolveSavedManualRate(rate: RateDto) {
   selectedFclBundleKey.value = ''
   fclSelectedImportRateIds.value = {}
 
-  form.freightCost = number(freight?.costAmount ?? resolvedRate.totalCostAmount ?? 0)
-  form.freightSale = number(freight?.saleAmount ?? resolvedRate.totalSaleAmount ?? freight?.costAmount ?? 0)
+  const savedFreightCost = number(freight?.costAmount)
+  const savedFreightSale = number(freight?.saleAmount)
+  const savedFreightFallback = savedManualRatePrice(resolvedRate)
+  form.freightCost = savedFreightCost > 0
+    ? savedFreightCost
+    : savedFreightSale > 0
+      ? savedFreightSale
+      : savedFreightFallback
+  form.freightSale = savedFreightSale > 0
+    ? savedFreightSale
+    : savedFreightCost > 0
+      ? savedFreightCost
+      : savedFreightFallback
   form.freeDays = number(resolvedRate.freeDays)
   form.transitDays = savedManualRateTransitDays(resolvedRate)
   if (resolvedRate.validTo) form.validTo = resolvedRate.validTo.slice(0, 10)
