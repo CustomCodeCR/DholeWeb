@@ -33,6 +33,7 @@ const previewLoading = ref(false)
 const scenarioLoading = ref(false)
 const scenarioSaving = ref(false)
 const pricingLineSaving = ref(false)
+const hydratingPricingEditor = ref(false)
 const pricingLines = ref<OwnLclPricingLineDto[]>(createDefaultOwnLclPricingLines())
 const rows = ref<OwnLclTableRow[]>([])
 const carriers = ref<CatalogItemSelectDto[]>([])
@@ -116,31 +117,32 @@ const poeLocationOptions = computed(() => poePorts.value.map((item) => ({
 const pricingLineGroups = computed(() => [
   { scope: 'PA', label: 'Panamá', description: 'Cargos de destino Panamá.', rows: pricingLines.value.filter((line) => line.scope === 'PA') },
   { scope: 'CR', label: 'Costa Rica', description: 'Cargos fijos de destino Costa Rica.', rows: pricingLines.value.filter((line) => line.scope === 'CR') },
-  { scope: 'CA', label: 'Centroamérica', description: 'Transbordo = Destination Charge Panamá + USD 9 · Stuffing = USD 550 / 60 CBM · Documentación = USD 185.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
+  { scope: 'CA', label: 'Centroamérica', description: 'Valores editables por consolidado. Flete terrestre: costo total ÷ CBM base; Transbordo inicia en destino Panamá + 9; Stuffing inicia en 550 ÷ 60; Documentación inicia en USD 185.', rows: pricingLines.value.filter((line) => line.scope === 'CA') },
   { scope: 'ORIGIN', label: 'Origen FCA / EXW', description: 'Manejos en origen. La recolección EXW sigue siendo específica de cada carga.', rows: pricingLines.value.filter((line) => line.scope === 'ORIGIN') },
 ])
 
 const CENTRAL_AMERICA_FREIGHT_MARGIN = 5.69
-const CENTRAL_AMERICA_STUFFING_SALE = 550 / 60
-const CENTRAL_AMERICA_DOCUMENTATION_SALE = 185
 
 function isCentralAmericaDestination(code: string | null | undefined) {
   return ['NI', 'HN', 'GT', 'SV'].includes(String(code ?? '').trim().toUpperCase())
 }
 
-function formulaManagedPricingSale(lineKey: string) {
-  const key = String(lineKey ?? '').trim().toUpperCase()
-  if (key === 'CA_TRANSSHIPMENT') {
-    const panamaDestination = pricingLines.value.find((line) => line.lineKey === 'PA_DESTINATION_CHARGE')
-    return Math.max(Number(panamaDestination?.saleUnit ?? 20), 0) + 9
-  }
-  if (key === 'CA_STUFFING') return CENTRAL_AMERICA_STUFFING_SALE
-  if (key === 'CA_DOCUMENTATION') return CENTRAL_AMERICA_DOCUMENTATION_SALE
-  return null
+function isCentralAmericaInlandLine(lineKey: string | null | undefined) {
+  return ['CA_INLAND_NI', 'CA_INLAND_HN', 'CA_INLAND_GT', 'CA_INLAND_SV']
+    .includes(String(lineKey ?? '').trim().toUpperCase())
 }
 
-function isFormulaManagedPricingLine(lineKey: string) {
-  return formulaManagedPricingSale(lineKey) !== null
+function inlandCostPerCbm(line: OwnLclPricingLineDto) {
+  if (!isCentralAmericaInlandLine(line.lineKey)) return Number(line.costUnit || 0)
+  const base = Math.max(Number(line.calculationBaseCbm || 0), 0.01)
+  return Math.max(Number(line.costUnit || 0), 0) / base
+}
+
+function syncTransshipmentSaleFromPanama() {
+  const panama = pricingLines.value.find((line) => line.lineKey === 'PA_DESTINATION_CHARGE')
+  const transshipment = pricingLines.value.find((line) => line.lineKey === 'CA_TRANSSHIPMENT')
+  if (!panama || !transshipment) return
+  transshipment.saleUnit = Math.max(Number(panama.saleUnit || 0), 0) + 9
 }
 
 function destinationPerCbm(row: OwnLclConsolidationDto) {
@@ -216,6 +218,7 @@ async function loadScenarios(id: string) {
 }
 
 async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
+  hydratingPricingEditor.value = true
   selectedId.value = row.id
   readOnly.value = mode === 'view'
   editorOpen.value = true
@@ -249,6 +252,8 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
   } catch (error) {
     selectedAutomation.value = null
     toastStore.backendError(error, 'No fue posible cargar el detalle automático del consolidado.')
+  } finally {
+    hydratingPricingEditor.value = false
   }
 }
 function handleRowClick(row: OwnLclTableRow) {
@@ -296,6 +301,13 @@ const previewBunker = computed(() => Number(form.bunkerCost ?? effectiveProfile.
 const previewTransferBase = computed(() => Number(form.costaRicaTransferBaseCbm || selected.value?.costaRicaTransferBaseCbm || 95))
 const previewCrTransferPerCbm = computed(() => (previewTransfer.value + previewBunker.value) / Math.max(previewTransferBase.value, 0.01))
 
+watch(previewDestinationPerCbm, (value) => {
+  if (hydratingPricingEditor.value || readOnly.value) return
+  const transshipment = pricingLines.value.find((line) => line.lineKey === 'CA_TRANSSHIPMENT')
+  if (!transshipment) return
+  transshipment.costUnit = Math.max(Number(value || 0), 0) + 9
+}, { flush: 'sync' })
+
 function buildPayload() {
   const carrier = option(carriers.value, form.carrierId)
   const container = option(containers.value, form.containerId)
@@ -336,16 +348,16 @@ function buildCostOverrides() {
 
 function buildPricingLinesPayload() {
   return {
-    rows: pricingLines.value.map((line) => {
-      const formulaSale = formulaManagedPricingSale(line.lineKey)
-      return {
-        lineKey: line.lineKey,
-        costUnit: line.lineKey === 'PA_DESTINATION_CHARGE'
-          ? Math.max(previewDestinationPerCbm.value, 0)
-          : Math.max(Number(line.costUnit || 0), 0),
-        saleUnit: formulaSale ?? Math.max(Number(line.saleUnit || 0), 0),
-      }
-    }),
+    rows: pricingLines.value.map((line) => ({
+      lineKey: line.lineKey,
+      costUnit: line.lineKey === 'PA_DESTINATION_CHARGE'
+        ? Math.max(previewDestinationPerCbm.value, 0)
+        : Math.max(Number(line.costUnit || 0), 0),
+      saleUnit: Math.max(Number(line.saleUnit || 0), 0),
+      calculationBaseCbm: isCentralAmericaInlandLine(line.lineKey)
+        ? Math.max(Number(line.calculationBaseCbm || 0), 0.01)
+        : null,
+    })),
   }
 }
 
@@ -589,23 +601,30 @@ onMounted(load)
                   <span class="text-xs font-black text-[var(--dh-text-muted)]">{{ group.rows.length }} líneas ▾</span>
                 </summary>
                 <div class="overflow-x-auto border-t border-[var(--dh-border)]">
-                  <table class="w-full min-w-[610px] text-sm">
+                  <table class="w-full min-w-[790px] text-sm">
                     <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]">
-                      <tr><th class="px-4 py-2 text-left">Concepto</th><th class="px-4 py-2 text-left">Base</th><th class="px-4 py-2 text-right">Costo USD</th><th class="px-4 py-2 text-right">Venta USD</th></tr>
+                      <tr><th class="px-4 py-2 text-left">Concepto</th><th class="px-4 py-2 text-left">Base cobro</th><th class="px-4 py-2 text-right">Costo USD</th><th class="px-4 py-2 text-right">CBM cálculo</th><th class="px-4 py-2 text-right">Venta USD</th></tr>
                     </thead>
                     <tbody>
                       <tr v-for="line in group.rows" :key="line.lineKey" class="border-t border-[var(--dh-border)] first:border-t-0">
-                        <td class="px-4 py-2 font-black">{{ line.name }}<p v-if="line.lineKey === 'PA_DESTINATION_CHARGE'" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Costo derivado de “Costos destino USD” ÷ capacidad CBM.</p></td>
+                        <td class="px-4 py-2 font-black">
+                          {{ line.name }}
+                          <p v-if="line.lineKey === 'PA_DESTINATION_CHARGE'" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Costo derivado de “Costos destino USD” ÷ capacidad CBM.</p>
+                          <p v-else-if="line.lineKey === 'CA_TRANSSHIPMENT'" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Inicial: costo destino Panamá/CBM + 9; venta destino Panamá/CBM + 9. Puede modificarse.</p>
+                          <p v-else-if="line.lineKey === 'CA_STUFFING'" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Costo inicial: USD 550 ÷ 60 CBM = USD {{ money(550 / 60) }}/CBM. Puede modificarse.</p>
+                          <p v-else-if="isCentralAmericaInlandLine(line.lineKey)" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Costo total ÷ CBM cálculo = USD {{ money(inlandCostPerCbm(line)) }}/CBM.</p>
+                        </td>
                         <td class="px-4 py-2 text-xs font-bold text-[var(--dh-text-muted)]">{{ line.chargeBasis }}</td>
                         <td class="px-4 py-2 text-right">
                           <span v-if="line.lineKey === 'PA_DESTINATION_CHARGE'" class="inline-block min-w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black">{{ money(previewDestinationPerCbm) }}</span>
-                          <input v-else v-model.number="line.costUnit" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
+                          <input v-else v-model.number="line.costUnit" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
                         </td>
                         <td class="px-4 py-2 text-right">
-                          <span v-if="isFormulaManagedPricingLine(line.lineKey)" class="inline-block min-w-28 rounded-xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 px-3 py-2 text-right font-black text-[var(--dh-primary)]">
-                            {{ money(formulaManagedPricingSale(line.lineKey) ?? 0) }}
-                          </span>
-                          <input v-else v-model.number="line.saleUnit" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
+                          <input v-if="isCentralAmericaInlandLine(line.lineKey)" v-model.number="line.calculationBaseCbm" type="number" min="0.01" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
+                          <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">—</span>
+                        </td>
+                        <td class="px-4 py-2 text-right">
+                          <input v-model.number="line.saleUnit" type="number" min="0" step="0.01" :disabled="readOnly" @change="line.lineKey === 'PA_DESTINATION_CHARGE' && syncTransshipmentSaleFromPanama()" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
                         </td>
                       </tr>
                     </tbody>
@@ -662,7 +681,7 @@ onMounted(load)
             </div>
             <div class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</p></div>
           </section>
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación</p><p class="mt-2">Costos y ventas se guardan en el consolidado. Para Centroamérica se fuerzan las fórmulas comerciales: Transbordo = Destination Charge + 9; Stuffing = 550 / 60 CBM; Documentación = USD 185; y la venta del flete es exactamente costo + USD 5.69 por CBM.</p></section>
+          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación</p><p class="mt-2">Centroamérica guarda sus cargos por consolidado y permite modificarlos. Transbordo parte de costo/venta destino Panamá + USD 9; Stuffing parte de USD 550 ÷ 60 CBM; Documentación parte de USD 185. Cada flete terrestre guarda costo total, CBM base y venta/CBM. El Flete Internacional Marítimo mantiene venta = costo + USD 5.69/CBM exactamente.</p></section>
           <div v-if="!readOnly" class="flex justify-end gap-2"><DhButton label="Cancelar" variant="secondary" @click="closeEditor" /><DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="previewLoading" @click="save" /></div>
           <div v-else class="flex justify-end"><DhButton label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false; previewProfile()" /></div>
         </aside>
