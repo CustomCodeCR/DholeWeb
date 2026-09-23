@@ -3,6 +3,7 @@ import { unwrapApiResponse, unwrapListResponse } from '@/core/api/apiResponse'
 
 export type LandShipmentMode = 'Ftl' | 'Ltl'
 export type LandRateBasis = 'PerTruck' | 'PerCbm'
+export type LandCommercialProfile = 'General' | 'FinalClient' | 'Nvocc'
 
 export interface FtlTariffDto {
   id: string
@@ -28,6 +29,7 @@ export interface FtlTariffDto {
   warehouseName: string | null
   validFrom: string | null
   validTo: string | null
+  commercialProfile: LandCommercialProfile
 }
 
 export interface ResolveFtlTariffQuery {
@@ -39,6 +41,7 @@ export interface ResolveFtlTariffQuery {
   destinationCode?: string | null
   equipmentClass?: string | null
   shipmentMode?: LandShipmentMode | null
+  commercialProfile?: LandCommercialProfile | null
   quoteDate?: string | null
 }
 
@@ -50,6 +53,7 @@ export interface CreateLandTariffItem {
   destinationName: string
   destinationCode?: string | null
   shipmentMode: LandShipmentMode
+  commercialProfile?: LandCommercialProfile | null
   equipmentClass: string
   equipmentLabel: string
   currencyId: string
@@ -90,6 +94,8 @@ export interface SeedLandTariffDefaultsResult {
   total: number
   ftl: number
   ltl: number
+  ltlFinalClient: number
+  ltlNvocc: number
   message: string
 }
 
@@ -106,10 +112,10 @@ function withQuery(path: string, query: Record<string, string | null | undefined
 }
 
 export const FtlTariffService = {
-  async browse(shipmentMode?: LandShipmentMode | null): Promise<FtlTariffDto[]> {
+  async browse(shipmentMode?: LandShipmentMode | null, commercialProfile?: LandCommercialProfile | null): Promise<FtlTariffDto[]> {
     const response = await callEndpoint<unknown>({
       method: 'GET',
-      path: withQuery('/api/pricing/ftl-tariffs', { shipmentMode }),
+      path: withQuery('/api/pricing/ftl-tariffs', { shipmentMode, commercialProfile }),
       headers: acceptJson,
     })
     return unwrapListResponse<FtlTariffDto>(response)
@@ -127,6 +133,7 @@ export const FtlTariffService = {
         destinationCode: query.destinationCode,
         equipmentClass: query.equipmentClass,
         shipmentMode: query.shipmentMode,
+        commercialProfile: query.commercialProfile,
         quoteDate: query.quoteDate,
       }),
       headers: acceptJson,
