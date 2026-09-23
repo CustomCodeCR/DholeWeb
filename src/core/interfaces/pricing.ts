@@ -203,6 +203,7 @@ export interface ImportRateDto extends Record<string, unknown> {
   importBatchId: string
   extractionRecordId: string
   sourceType: ImportSourceType
+  shipmentMode?: ShipmentMode | 'Air'
   importProfileId: string
   importProfileName: string
   importProfileCode: string
@@ -419,9 +420,9 @@ export interface ReviewImportRateRequest extends Record<string, unknown> {
   polId: string
   poeId: string
   podId: string
-  carrierId: string
+  carrierId: string | null
   agentId: string
-  containerTypeId: string
+  containerTypeId: string | null
   currencyId: string
   commodity?: string | null
   spaceComment?: string | null
