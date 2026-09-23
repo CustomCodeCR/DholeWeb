@@ -195,15 +195,7 @@ export const router = createRouter({
           meta: {
             tabTitle: 'Consolidados propios LCL',
             closable: true,
-            requiredAnyScopes: [
-              PRICING_SCOPES.ownLclConsolidations.create,
-              VIEW_SCOPES.pricing,
-              VIEW_SCOPES.pricingRates,
-              VIEW_SCOPES.pricingImports,
-              VIEW_SCOPES.pricingDecisions,
-              VIEW_SCOPES.pricingCosts,
-              VIEW_SCOPES.pricingRateTerms,
-            ],
+            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
         },
         {
