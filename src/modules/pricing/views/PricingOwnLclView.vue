@@ -31,6 +31,7 @@ const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
 const saving = ref(false)
 const renameSaving = ref(false)
+let renameTimer: ReturnType<typeof setTimeout> | null = null
 const previewLoading = ref(false)
 const scenarioLoading = ref(false)
 const scenarioSaving = ref(false)
@@ -304,7 +305,7 @@ function handleRowClick(row: OwnLclTableRow) {
 }
 
 async function saveConsolidationName() {
-  if (!selectedId.value) return
+  if (!selectedId.value || renameSaving.value) return
 
   const name = form.name.trim()
   if (!name) {
@@ -329,6 +330,17 @@ async function saveConsolidationName() {
     renameSaving.value = false
   }
 }
+
+watch(() => form.name, () => {
+  if (hydratingPricingEditor.value || !selectedId.value) return
+  if (form.name.trim() === selected.value?.name) return
+
+  if (renameTimer) clearTimeout(renameTimer)
+  renameTimer = setTimeout(() => {
+    renameTimer = null
+    void saveConsolidationName()
+  }, 650)
+})
 
 async function previewProfile() {
   if (isMiamiMatrix.value) {
@@ -561,6 +573,10 @@ async function save() {
 }
 
 function closeEditor() {
+  if (renameTimer) {
+    clearTimeout(renameTimer)
+    renameTimer = null
+  }
   editorOpen.value = false
   selectedAutomation.value = null
   profilePreview.value = null
@@ -674,19 +690,7 @@ onMounted(load)
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <p class="mb-4 text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Datos del proyecto y costos</p>
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <div class="space-y-2">
-                <DhInput v-model="form.name" maxlength="200" label="Nombre del consolidado · editable siempre" placeholder="Ej. Consolidado China 1 / Miami 1" />
-                <DhButton
-                  v-if="selectedId"
-                  class="w-full"
-                  label="Guardar nombre"
-                  variant="secondary"
-                  size="sm"
-                  :loading="renameSaving"
-                  :disabled="!form.name.trim() || form.name.trim() === selected?.name"
-                  @click="saveConsolidationName"
-                />
-              </div>
+              <DhInput v-model="form.name" label="Nombre del consolidado" placeholder="Ej. Consolidado China 1 / Miami 1" />
               <DhInput v-model.number="form.consolidationNumber" type="number" min="1" step="1" label="Número del consolidado" placeholder="Automático si se deja vacío" :disabled="readOnly" />
               <DhInput v-model="form.booking" label="Booking" placeholder="Booking de naviera" :disabled="readOnly" />
               <DhInput v-model="form.etd" type="date" label="ETD" :disabled="readOnly" />
