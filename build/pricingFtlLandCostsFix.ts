@@ -102,10 +102,12 @@ function costMatchesHardRouteContext(cost: CostSelectDto) {
 function applicableCost(cost: CostSelectDto) {
   const backendContextMatched = costResolvedByBackendContext(cost)
 
-  // Never trust a broad backend match over explicit route identity.
-  if (!costMatchesHardRouteContext(cost)) return false
-
+  // /costs/select is authoritative when it resolved the complete pricing context.
+  // A cost can be linked to several POD/POL/POE values; its legacy podId/polId/poeId only
+  // keeps the first selected value for backwards compatibility. Re-checking that legacy
+  // field here would incorrectly discard matches for the second and following selections.
   if (!backendContextMatched) {
+    if (!costMatchesHardRouteContext(cost)) return false
     if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
     if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
     if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
@@ -187,8 +189,9 @@ function shouldIncludeOptionalCost(line: { id?: string | null; costId?: string |
       importRateId: importRateId || undefined,
     })
 
+    // Pricing already evaluated the full multi-port selection table. Do not filter the
+    // response again with the legacy single POD/POL/POE fields kept on CostSelectDto.
     costs.value = selectedCosts
-      .filter(costMatchesHardRouteContext)
       .map((cost) => ({
         ...cost,
         __dholePricingContextKey: contextKey,
