@@ -60,12 +60,20 @@ function patchWizard(source: string) {
     )
   }
 
-  code = replaceRequired(
-    code,
-    `<DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
-    `<DhSelect v-if="form.modality !== 'Land'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
-    'carrier selector',
-  )
+  const lclHiddenCarrier = `<DhSelect v-if="shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`
+  if (code.includes(lclHiddenCarrier)) {
+    code = code.replace(
+      lclHiddenCarrier,
+      `<DhSelect v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
+    )
+  } else {
+    code = replaceRequired(
+      code,
+      `<DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
+      `<DhSelect v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
+      'carrier selector',
+    )
+  }
 
   code = code.replace(
     `<h2 class="crystal-title">Proveedor y flete internacional</h2>`,
@@ -77,8 +85,14 @@ function patchWizard(source: string) {
   )
 
   // Earlier LCL transforms own this block. Add Land as an explicit no-provider path.
+  const lclNoCarrierCanNext = `  if (step.value === 6) {\n    if (shipmentModeForApi.value === 'Lcl') {\n      return Boolean(lclSelectedSource.value && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n    }\n    return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  }`
   const enhancedCanNext = `  if (step.value === 6) {\n    const providerReady = shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value ? true : Boolean(form.agentId)\n    return Boolean(providerReady && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  }`
-  if (code.includes(enhancedCanNext)) {
+  if (code.includes(lclNoCarrierCanNext)) {
+    code = code.replace(
+      lclNoCarrierCanNext,
+      `  if (step.value === 6) {\n    if (form.modality === 'Land') {\n      return Boolean(form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n    }\n    if (shipmentModeForApi.value === 'Lcl') {\n      return Boolean(lclSelectedSource.value && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n    }\n    return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  }`,
+    )
+  } else if (code.includes(enhancedCanNext)) {
     code = code.replace(
       enhancedCanNext,
       `  if (step.value === 6) {\n    if (form.modality === 'Land') {\n      return Boolean(form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n    }\n    const providerReady = shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value ? true : Boolean(form.agentId)\n    return Boolean(providerReady && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  }`,
@@ -99,6 +113,10 @@ function patchWizard(source: string) {
   code = code.replace(
     `  if (!agent) missing.push('agente')`,
     `  if (form.modality !== 'Land' && !agent) missing.push('agente')`,
+  )
+  code = code.replace(
+    `  if (!carrier && shipmentModeForApi.value !== 'Lcl') missing.push('proveedor')`,
+    `  if (form.modality !== 'Land' && !carrier && shipmentModeForApi.value !== 'Lcl') missing.push('proveedor')`,
   )
   code = code.replace(
     `  if (!carrier) missing.push('proveedor')`,
