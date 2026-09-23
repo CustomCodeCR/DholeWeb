@@ -20,38 +20,24 @@ function patchWizard(source: string) {
 
   const replacement = `function shouldPreservePersistedEditLines() {
   const rate = editingRate.value
-  if (!rate || props.viewOnly) return false
+  if (!props.rateId || !rate || props.viewOnly) return false
 
-  const sameFreightSource = rate.sourceImportFclRateId
+  // En edición, la identidad comercial del flete es la fuente marítima seleccionada
+  // y la naviera de la tarifa. El import puede venir con Agent/POD "Por asignar";
+  // esos placeholders NO invalidan el snapshot ya cotizado.
+  const sameCarrier = String(rate.carrierId ?? "") === String(form.carrierId ?? "")
+  const sameShipmentMode =
+    String(rate.shipmentMode ?? "").toUpperCase() === String(form.shipmentMode ?? "").toUpperCase()
+  if (!sameCarrier || !sameShipmentMode) return false
+
+  return rate.sourceImportFclRateId
     ? form.selectedImportRateId === rate.sourceImportFclRateId
     : form.manualRate && !form.selectedImportRateId
-  if (!sameFreightSource) return false
-
-  const persistedServiceIds = (rate.services ?? [])
-    .map((service) => service.id)
-    .filter(Boolean)
-    .sort()
-    .join("|")
-  const selectedServiceIds = [...form.serviceIds].filter(Boolean).sort().join("|")
-
-  return String(rate.shipmentMode ?? "").toUpperCase() === String(form.shipmentMode ?? "").toUpperCase()
-    && String(rate.polId ?? "") === String(form.originId ?? "")
-    && String(rate.poeId ?? "") === String(form.destinationId ?? "")
-    && String(rate.podId ?? "") === String(form.podId ?? "")
-    && String(rate.containerTypeId ?? "") === String(form.equipmentId ?? "")
-    && String(rate.incotermId ?? "") === String(form.incotermId ?? "")
-    && String(rate.agentId ?? "") === String(form.agentId ?? "")
-    && String(rate.carrierId ?? "") === String(form.carrierId ?? "")
-    && String(rate.currencyId ?? "") === String(form.currencyId ?? "")
-    && persistedServiceIds === selectedServiceIds
 }
 
 function syncPersistedFreightLineForEdit() {
-  const freight = rateLines.value.find((line) => line.costDetailType === "Freight")
-  if (freight) {
-    freight.costAmount = number(form.freightCost)
-    freight.saleAmount = number(form.freightSale)
-  }
+  // Los valores persistidos de RateDetails son autoritativos. Esta función solo
+  // conserva/revincula sus IDs; nunca vuelve a escribir costo/venta desde el import.
   relinkExistingDetailIdsForEdit()
 }
 
@@ -94,6 +80,72 @@ ${savedManualStep}    // Editar con el mismo flete/origen de tarifa es una revis
 `
 
   code = code.slice(0, startIndex) + replacement + code.slice(endIndex)
+
+  // El response de getRate es el snapshot autoritativo de Pantalla 7 mientras
+  // el usuario mantenga el mismo flete importado y la misma naviera.
+  const rebuildAnchor = `function rebuildRateLines() {\n`
+  if (!code.includes(`function rebuildRateLines() {\n  if (shouldPreservePersistedEditLines())`)) {
+    if (!code.includes(rebuildAnchor)) {
+      throw new Error('[pricingWizardStep4NavigationHardFix] rebuildRateLines anchor not found.')
+    }
+    code = code.replace(
+      rebuildAnchor,
+      `function rebuildRateLines() {\n  if (shouldPreservePersistedEditLines()) {\n    syncPersistedFreightLineForEdit()\n    return\n  }\n`,
+    )
+  }
+
+  // No agregar opcionales del catálogo al hidratar una tarifa existente. Ese merge
+  // era el responsable de que aparecieran Marchamo/Retiro Vacío y otros rubros que
+  // nunca estuvieron guardados en rateDetails.
+  const optionalMergeGuard = `  if (props.viewOnly && props.rateId) return`
+  if (code.includes(optionalMergeGuard)) {
+    code = code.replace(
+      optionalMergeGuard,
+      `  if (props.rateId && (props.viewOnly || shouldPreservePersistedEditLines())) return`,
+    )
+  }
+
+  // Al seleccionar otra vez el MISMO flete original en Pantalla 5, el import solo
+  // identifica la fuente. No debe pisar la venta cotizada, POD, agente, moneda ni
+  // demás datos que ya quedaron persistidos en el RateHeader/RateDetails.
+  const chooseRateStart =
+    code.indexOf('async function chooseRate(rate: ImportRateSelectDto) {') >= 0
+      ? code.indexOf('async function chooseRate(rate: ImportRateSelectDto) {')
+      : code.indexOf('function chooseRate(rate: ImportRateSelectDto) {')
+  const chooseRateEnd = code.indexOf('function continueManual() {', chooseRateStart)
+  if (chooseRateStart < 0 || chooseRateEnd < 0) {
+    throw new Error('[pricingWizardStep4NavigationHardFix] chooseRate anchors not found.')
+  }
+
+  let chooseRateBlock = code.slice(chooseRateStart, chooseRateEnd)
+  const chooseRateStepAnchor = `  step.value = 6`
+  if (!chooseRateBlock.includes('const persistedEditFreight = editingRate.value?.rateDetails.find')) {
+    if (!chooseRateBlock.includes(chooseRateStepAnchor)) {
+      throw new Error('[pricingWizardStep4NavigationHardFix] chooseRate step anchor not found.')
+    }
+    chooseRateBlock = chooseRateBlock.replace(
+      chooseRateStepAnchor,
+      `  if (shouldPreservePersistedEditLines()) {\n    const persistedEditFreight = editingRate.value?.rateDetails.find((detail) => detail.costDetailType === 'Freight')\n    if (persistedEditFreight) {\n      form.freightCost = number(persistedEditFreight.costAmount)\n      form.freightSale = number(persistedEditFreight.saleAmount)\n    }\n    if (editingRate.value?.podId) form.podId = editingRate.value.podId\n    if (editingRate.value?.carrierId) form.carrierId = editingRate.value.carrierId\n    if (editingRate.value?.currencyId) form.currencyId = editingRate.value.currencyId\n  }\n\n${chooseRateStepAnchor}`,
+    )
+  }
+  code = code.slice(0, chooseRateStart) + chooseRateBlock + code.slice(chooseRateEnd)
+
+  const bundleStart = code.indexOf('function chooseFclRateBundle(bundle: FclRateBundle) {')
+  if (bundleStart >= 0) {
+    const bundleEnd = code.indexOf('\n}', bundleStart)
+    if (bundleEnd < 0) {
+      throw new Error('[pricingWizardStep4NavigationHardFix] chooseFclRateBundle end not found.')
+    }
+    let bundleBlock = code.slice(bundleStart, bundleEnd + 2)
+    const agentAnchor = `  if (agent) form.agentId = agent.id`
+    if (bundleBlock.includes(agentAnchor) && !bundleBlock.includes('editingRate.value?.agentId')) {
+      bundleBlock = bundleBlock.replace(
+        agentAnchor,
+        `${agentAnchor}\n  if (shouldPreservePersistedEditLines() && editingRate.value?.agentId) {\n    form.agentId = editingRate.value.agentId\n  }`,
+      )
+      code = code.slice(0, bundleStart) + bundleBlock + code.slice(bundleEnd + 2)
+    }
+  }
 
   // Algunos transforms anteriores pueden conservar compareFclCandidateRates pero
   // eliminar accidentalmente su helper fclRateApprovalRank. Eso compila porque la
