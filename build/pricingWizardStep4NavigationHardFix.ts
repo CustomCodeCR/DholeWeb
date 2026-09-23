@@ -268,7 +268,7 @@ async function next() {
   if (!canNext.value) return
 
   if (step.value === 6) {
-\${savedManualStep}    if (shouldPreservePersistedEditLines()) {
+${savedManualStep}    if (shouldPreservePersistedEditLines()) {
       // Equipo e Incoterm NO regeneran el snapshot.
       // Si cambió el Incoterm, aplicar únicamente su delta.
       if (persistedEditAppliedIncotermId.value !== form.incotermId) {
