@@ -133,19 +133,41 @@ const calculatedCost = computed(
     Number(form.surcharges || 0),
 )
 
+function isLclMarker(value: unknown) {
+  return String(value ?? '').trim().toLowerCase() === 'lcl'
+}
+
+const isLclImport = computed(() =>
+  String(current.value.shipmentMode ?? '').trim().toLowerCase() === 'lcl'
+  || [
+    current.value.containerType,
+    current.value.containerTypeCode,
+    current.value.containerTypeSlug,
+  ].some(isLclMarker),
+)
+
 const canInactivate = computed(() => String(current.value.status) === 'Approved')
 
-const requiredFieldStatus = computed(() => [
-  { label: 'Perfil', ready: Boolean(form.importProfileId) },
-  { label: 'Agente', ready: Boolean(form.agentId) },
-  { label: 'Naviera', ready: Boolean(form.carrierId) },
-  { label: 'Contenedor', ready: Boolean(form.containerTypeId) },
-  { label: 'POL', ready: Boolean(form.polId) },
-  { label: 'POE', ready: Boolean(form.poeId) },
-  { label: 'Moneda', ready: Boolean(form.currencyId) },
-  { label: 'Flete', ready: form.oceanFreight !== '' && Number(form.oceanFreight) >= 0 },
-  { label: 'Vigencia', ready: Boolean(form.validFrom && form.validTo) },
-])
+const requiredFieldStatus = computed(() => {
+  const fields = [
+    { label: 'Perfil', ready: Boolean(form.importProfileId) },
+    { label: 'Agente', ready: Boolean(form.agentId) },
+    { label: 'POL', ready: Boolean(form.polId) },
+    { label: 'POE', ready: Boolean(form.poeId) },
+    { label: 'Moneda', ready: Boolean(form.currencyId) },
+    { label: 'Flete', ready: form.oceanFreight !== '' && Number(form.oceanFreight) >= 0 },
+    { label: 'Vigencia', ready: Boolean(form.validFrom && form.validTo) },
+  ]
+
+  if (!isLclImport.value) {
+    fields.splice(2, 0,
+      { label: 'Naviera', ready: Boolean(form.carrierId) },
+      { label: 'Contenedor', ready: Boolean(form.containerTypeId) },
+    )
+  }
+
+  return fields
+})
 const missingRequired = computed(() => requiredFieldStatus.value.filter((field) => !field.ready))
 const completionPercent = computed(() => Math.round(((requiredFieldStatus.value.length - missingRequired.value.length) / requiredFieldStatus.value.length) * 100))
 
@@ -155,11 +177,15 @@ function validate() {
     ['importProfileId', 'Seleccione el perfil.'],
     ['polId', 'Seleccione el POL.'],
     ['poeId', 'Seleccione el POE.'],
-    ['carrierId', 'Seleccione la naviera.'],
     ['agentId', 'Seleccione el agente.'],
-    ['containerTypeId', 'Seleccione el tamaño y tipo de contenedor.'],
     ['currencyId', 'Seleccione la moneda.'],
   ]
+  if (!isLclImport.value) {
+    requiredCatalogs.push(
+      ['carrierId', 'Seleccione la naviera.'],
+      ['containerTypeId', 'Seleccione el tamaño y tipo de contenedor.'],
+    )
+  }
   for (const [key, message] of requiredCatalogs) {
     if (!String(form[key] ?? '').trim()) errors[key] = message
   }
@@ -195,9 +221,9 @@ function payload(): ReviewImportRateRequest {
     polId: form.polId,
     poeId: form.poeId,
     podId: form.podId || (null as unknown as string),
-    carrierId: form.carrierId,
+    carrierId: form.carrierId || null,
     agentId: form.agentId,
-    containerTypeId: form.containerTypeId,
+    containerTypeId: form.containerTypeId || null,
     currencyId: form.currencyId,
     commodity: form.commodity.trim() || null,
     spaceComment: form.spaceComment.trim() || null,
@@ -333,8 +359,19 @@ onMounted(async () => {
         <div class="grid gap-4 md:grid-cols-2">
           <DhSelect v-model="form.importProfileId" label="Perfil de importación *" :options="catalogs.profileOptions.value" :error="errors.importProfileId" />
           <DhSelect v-model="form.agentId" label="Agente *" :options="catalogs.agentOptions.value" :error="errors.agentId" />
-          <DhSelect v-model="form.carrierId" label="Naviera *" :options="catalogs.carrierOptions.value" :error="errors.carrierId" />
-          <PricingContainerSelector v-model="form.containerTypeId" :error="errors.containerTypeId" />
+          <template v-if="!isLclImport">
+            <DhSelect v-model="form.carrierId" label="Naviera *" :options="catalogs.carrierOptions.value" :error="errors.carrierId" />
+            <PricingContainerSelector v-model="form.containerTypeId" :error="errors.containerTypeId" />
+          </template>
+          <div
+            v-else
+            class="md:col-span-2 rounded-[20px] border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.06)] px-4 py-3"
+          >
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Modalidad LCL · Coloader</p>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+              La naviera y el contenedor no son obligatorios para LCL. La fuente se segrega por ruta, vigencia y agente y se publica en Coloader.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -357,7 +394,7 @@ onMounted(async () => {
         </div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <DhSelect v-model="form.currencyId" label="Moneda *" :options="catalogs.currencyOptions.value" :error="errors.currencyId" />
-          <DhInput v-model="form.oceanFreight" type="number" label="Flete internacional *" :error="errors.oceanFreight" />
+          <DhInput v-model="form.oceanFreight" type="number" :label="isLclImport ? 'Flete internacional / CBM *' : 'Flete internacional *'" :error="errors.oceanFreight" />
           <DhInput v-model="form.originCharges" type="number" label="Cargos de origen *" :error="errors.originCharges" />
           <DhInput v-model="form.destinationCharges" type="number" label="Cargos de destino *" :error="errors.destinationCharges" />
           <DhInput v-model="form.surcharges" type="number" label="Recargos *" :error="errors.surcharges" />
