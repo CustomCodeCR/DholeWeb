@@ -63,7 +63,7 @@ export function pricingWizardEnhancements(): Plugin {
       code = replaceOne(code, quantityAnchor, quantityReplacement, 'LCL chargeable CBM quantity')
 
       const canNextAnchor = `  if (step.value === 4) return true\n  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`
-      const canNextReplacement = `  if (step.value === 4) {\n    if (shipmentModeForApi.value !== 'Lcl') return true\n    return Boolean(\n      form.cargoPallets > 0 &&\n      form.cargoWeightKg > 0 &&\n      form.cargoLengthCm > 0 &&\n      form.cargoWidthCm > 0 &&\n      form.cargoHeightCm > 0 &&\n      lclChargeableCbm.value > 0\n    )\n  }\n  if (step.value === 5) {\n    if (shipmentModeForApi.value === 'Lcl') return Boolean(lclSelectedSource.value)\n    return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  }\n  if (step.value === 6) {\n    const providerReady = shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value ? true : Boolean(form.agentId)\n    return Boolean(providerReady && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  }`
+      const canNextReplacement = `  if (step.value === 4) {\n    if (shipmentModeForApi.value !== 'Lcl') return true\n    return Boolean(\n      form.cargoPallets > 0 &&\n      form.cargoWeightKg > 0 &&\n      form.cargoLengthCm > 0 &&\n      form.cargoWidthCm > 0 &&\n      form.cargoHeightCm > 0 &&\n      lclChargeableCbm.value > 0\n    )\n  }\n  if (step.value === 5) {\n    if (shipmentModeForApi.value === 'Lcl') return Boolean(lclSelectedSource.value)\n    return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  }\n  if (step.value === 6) {\n    if (shipmentModeForApi.value === 'Lcl') {\n      return Boolean(lclSelectedSource.value && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n    }\n    return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  }`
       code = replaceOne(code, canNextAnchor, canNextReplacement, 'wizard LCL next validation')
 
       const searchRatesAnchor = `  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {\n    form.manualRate = true\n    return\n  }`
@@ -75,7 +75,7 @@ export function pricingWizardEnhancements(): Plugin {
       code = replaceOne(code, helperAnchor, helperCode + helperAnchor, 'LCL source and commercial term helpers')
 
       const lclCarrierAnchor = `  if (selection.carrierId) form.carrierId = selection.carrierId\n  if (selection.currencyId) form.currencyId = selection.currencyId`
-      const lclCarrierReplacement = `  const sourceCarrier = selection.carrierId\n    ? catalogs.carriers.find((item) => item.id === selection.carrierId)\n    : catalogs.carriers.find((item) => {\n        const sourceCode = normalizeCatalogValue(selection.carrierCode ?? '')\n        const sourceName = normalizeCatalogValue(selection.carrierName ?? '')\n        return (sourceCode && normalizeCatalogValue(item.code ?? '') === sourceCode)\n          || (sourceName && normalizeCatalogValue(displayValue(item)) === sourceName)\n      })\n  if (sourceCarrier) form.carrierId = sourceCarrier.id\n  if (selection.currencyId) form.currencyId = selection.currencyId`
+      const lclCarrierReplacement = `  const sourceCarrier = selection.carrierId\n    ? catalogs.carriers.find((item) => item.id === selection.carrierId)\n    : catalogs.carriers.find((item) => {\n        const sourceCode = normalizeCatalogValue(selection.carrierCode ?? '')\n        const sourceName = normalizeCatalogValue(selection.carrierName ?? '')\n        return (sourceCode && normalizeCatalogValue(item.code ?? '') === sourceCode)\n          || (sourceName && normalizeCatalogValue(displayValue(item)) === sourceName)\n      })\n  form.carrierId = sourceCarrier?.id ?? ''\n  if (selection.currencyId) form.currencyId = selection.currencyId`
       code = replaceOne(code, lclCarrierAnchor, lclCarrierReplacement, 'LCL source carrier resolution')
 
       const includeTermsAnchor = `  const includeTerms = uniqueTermLines([\n    ...commercialTerms.includes.map((item) => item.text),\n    ...includedLines.value.map((line) => line.name),\n  ])`
@@ -91,7 +91,7 @@ export function pricingWizardEnhancements(): Plugin {
       code = replaceOne(code, excludeTermsAnchor, excludeTermsReplacement, 'commercial excludes')
 
       const missingAgentAnchor = `  if (!agent) missing.push('agente')\n  if (!carrier) missing.push('proveedor')`
-      const missingAgentReplacement = `  if (!agent && !(shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value)) missing.push('agente')\n  if (!carrier) missing.push('proveedor')`
+      const missingAgentReplacement = `  if (!agent && !(shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value)) missing.push('agente')\n  if (!carrier && shipmentModeForApi.value !== 'Lcl') missing.push('proveedor')`
       code = replaceOne(code, missingAgentAnchor, missingAgentReplacement, 'own LCL nullable agent validation')
 
       const createAgentAnchor = `      agentId: agent!.id,\n      agentName: displayValue(agent),\n      agentCode: agent!.code,`
@@ -101,6 +101,14 @@ export function pricingWizardEnhancements(): Plugin {
       const updateAgentAnchor = `        agentId: agent!.id,\n        agentName: displayValue(agent),\n        agentCode: agent!.code,`
       const updateAgentReplacement = `        agentId: agent?.id ?? null,\n        agentName: agent ? displayValue(agent) : lclSelectedSource.value?.providerName ?? null,\n        agentCode: agent?.code ?? lclSelectedSource.value?.providerCode ?? null,`
       code = replaceOne(code, updateAgentAnchor, updateAgentReplacement, 'update payload nullable agent')
+
+      const createCarrierAnchor = `      carrierId: carrier!.id,\n      carrierName: displayValue(carrier),\n      carrierCode: carrier!.code,`
+      const createCarrierReplacement = `      carrierId: carrier?.id ?? null,\n      carrierName: carrier ? displayValue(carrier) : null,\n      carrierCode: carrier?.code ?? null,`
+      code = replaceOne(code, createCarrierAnchor, createCarrierReplacement, 'create payload nullable carrier')
+
+      const updateCarrierAnchor = `        carrierId: carrier!.id,\n        carrierName: displayValue(carrier),\n        carrierCode: carrier!.code,`
+      const updateCarrierReplacement = `        carrierId: carrier?.id ?? null,\n        carrierName: carrier ? displayValue(carrier) : null,\n        carrierCode: carrier?.code ?? null,`
+      code = replaceOne(code, updateCarrierAnchor, updateCarrierReplacement, 'update payload nullable carrier')
 
       const persistedTermsAnchor = `      includes: includeTerms.join('\\n') || null,\n      subjectTo: subjectTerms.join('\\n') || null,\n      excludes: excludeTerms.join('\\n') || null,`
       const persistedTermsReplacement = `      includes: (draftCommercialTermsInitialized.value ? draftCommercialTerms.value.includes : includeTerms).join('\\n') || null,\n      subjectTo: (draftCommercialTermsInitialized.value ? draftCommercialTerms.value.subjectTo : subjectTerms)\n        .filter((text) => !excludedOptionalTermKeys.has(commercialTermKey(text)))\n        .join('\\n') || null,\n      excludes: (draftCommercialTermsInitialized.value ? draftCommercialTerms.value.excludes : excludeTerms).join('\\n') || null,`
@@ -173,6 +181,10 @@ export function pricingWizardEnhancements(): Plugin {
       const providerAgentAnchor = '            <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />'
       const providerAgentReplacement = `            <DhInput v-if="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Own'" :model-value="lclSelectedSource.providerName || 'Grupo Castro Fallas'" label="Fuente / proveedor" disabled />\n            <DhSelect v-else v-model="form.agentId" label="Agente / coloader" :options="agentOptions" />`
       code = replaceOne(code, providerAgentAnchor, providerAgentReplacement, 'LCL provider field')
+
+      const lclCarrierSelectAnchor = '            <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
+      const lclCarrierSelectReplacement = '            <DhSelect v-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
+      code = replaceOne(code, lclCarrierSelectAnchor, lclCarrierSelectReplacement, 'hide carrier selector for LCL')
 
       const freightCostAnchor = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />'
       const freightCostReplacement = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" :disabled="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Coloader\'" />'
