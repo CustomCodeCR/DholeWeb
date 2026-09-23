@@ -74,9 +74,36 @@ function costResolvedByBackendContext(cost: CostSelectDto) {
   return String(cost.__dholePricingContextKey ?? '') === currentCostContextKey()
 }
 
+function costMatchesHardRouteContext(cost: CostSelectDto) {
+  const contextPoeId = costContextPoeId()
+  const selectedPodId = String(form.podId ?? '').trim()
+
+  // POL/POE/POD are hard route constraints even when Pricing says the cost matched the
+  // requested context. In particular, a POD-specific cost must never leak into a quote
+  // whose POD is empty.
+  if (cost.polId && cost.polId !== form.originId) return false
+  if (cost.poeId && cost.poeId !== contextPoeId) return false
+  if (cost.podId && (!selectedPodId || cost.podId !== selectedPodId)) return false
+
+  if (cost.portId) {
+    const matchesLegacyPort = cost.portRole === 'Pol'
+      ? cost.portId === form.originId
+      : cost.portRole === 'Poe'
+        ? cost.portId === contextPoeId
+        : cost.portRole === 'Pod'
+          ? Boolean(selectedPodId) && cost.portId === selectedPodId
+          : [form.originId, contextPoeId, selectedPodId].filter(Boolean).includes(cost.portId)
+    if (!matchesLegacyPort) return false
+  }
+
+  return true
+}
+
 function applicableCost(cost: CostSelectDto) {
   const backendContextMatched = costResolvedByBackendContext(cost)
-  const contextPoeId = costContextPoeId()
+
+  // Never trust a broad backend match over explicit route identity.
+  if (!costMatchesHardRouteContext(cost)) return false
 
   if (!backendContextMatched) {
     if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
@@ -84,20 +111,6 @@ function applicableCost(cost: CostSelectDto) {
     if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
     if (cost.carrierId && cost.carrierId !== form.carrierId) return false
     if (cost.agentId && cost.agentId !== form.agentId) return false
-    if (cost.polId && cost.polId !== form.originId) return false
-    if (cost.poeId && cost.poeId !== contextPoeId) return false
-    if (cost.podId && cost.podId !== form.podId) return false
-
-    if (cost.portId) {
-      const matchesLegacyPort = cost.portRole === 'Pol'
-        ? cost.portId === form.originId
-        : cost.portRole === 'Poe'
-          ? cost.portId === contextPoeId
-          : cost.portRole === 'Pod'
-            ? cost.portId === form.podId
-            : [form.originId, contextPoeId, form.podId].includes(cost.portId)
-      if (!matchesLegacyPort) return false
-    }
   }
 
   // Pricing already evaluates each cost's own Incoterm restriction. The extra section
@@ -174,10 +187,12 @@ function shouldIncludeOptionalCost(line: { id?: string | null; costId?: string |
       importRateId: importRateId || undefined,
     })
 
-    costs.value = selectedCosts.map((cost) => ({
-      ...cost,
-      __dholePricingContextKey: contextKey,
-    }))
+    costs.value = selectedCosts
+      .filter(costMatchesHardRouteContext)
+      .map((cost) => ({
+        ...cost,
+        __dholePricingContextKey: contextKey,
+      }))
   } catch (error) {
     costs.value = []
     toastStore.backendError(
