@@ -417,6 +417,7 @@ export interface AssignImportRatePoeRequest extends Record<string, unknown> {
 
 export interface ReviewImportRateRequest extends Record<string, unknown> {
   importProfileId: string
+  shipmentMode?: ShipmentMode | 'Air'
   polId: string
   poeId: string
   podId: string
