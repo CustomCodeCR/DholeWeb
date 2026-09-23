@@ -163,14 +163,6 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     children.push({ label: t('sidebar.pricingPanel'), path: '/pricing', icon: TrendingUp })
   }
 
-  if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
-    children.push({
-      label: 'Consolidados propios',
-      path: '/pricing/own-lcl',
-      icon: PackagePlus,
-    })
-  }
-
   if (canView(VIEW_SCOPES.pricingRates)) {
     children.push({ label: t('sidebar.rates'), path: '/pricing/rates', icon: ReceiptText })
     children.push({ label: 'Tarifarios', path: '/pricing/tariffs', icon: BookOpen })
@@ -267,6 +259,14 @@ const sidebarItems = computed<SidebarItem[]>(() => {
       icon: Home,
     },
   ]
+
+  if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
+    items.push({
+      label: 'Consolidados propios',
+      path: '/pricing/own-lcl',
+      icon: PackagePlus,
+    })
+  }
 
   if (pricingChildren.value.length > 0) {
     items.push({ label: t('sidebar.pricing'), icon: TrendingUp, children: pricingChildren.value })
