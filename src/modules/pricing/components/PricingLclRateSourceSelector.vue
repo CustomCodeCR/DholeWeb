@@ -129,7 +129,7 @@ const coloaderColumns: DhTableColumn<LclColoaderRateDto & TableRow>[] = [
   { key: 'source', label: 'Coloader / tarifario', width: '220px' },
   { key: 'route', label: 'Ruta' },
   { key: 'validity', label: 'Vigencia', width: '180px' },
-  { key: 'sale', label: 'Venta base', align: 'right', width: '140px' },
+  { key: 'sale', label: 'Flete / CBM', align: 'right', width: '160px' },
   { key: 'action', label: '', align: 'right', width: '120px' },
 ]
 
@@ -138,6 +138,10 @@ function n(value: unknown) {
 }
 function money(value: unknown) {
   return n(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function coloaderFreightPerCbm(row: LclColoaderRateDto) {
+  const freight = row.lines.find((line) => line.costDetailType === 'Freight')
+  return freight ? n(freight.saleAmount || freight.costAmount) : null
 }
 function normalize(value: unknown) {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
@@ -539,7 +543,15 @@ onMounted(load)
         </template>
         <template #cell-route="{ row }"><span class="font-bold">{{ row.polName }} → {{ row.podName || row.poeName }}</span></template>
         <template #cell-validity="{ row }"><div><p class="font-bold">{{ row.validFrom }} – {{ row.validTo }}</p><DhBadge class="mt-1" label="Tarifario LCL" variant="success" /></div></template>
-        <template #cell-sale="{ row }"><span class="font-black">{{ row.currencyCode }} {{ money(row.totalSaleAmount) }}</span></template>
+        <template #cell-sale="{ row }">
+          <div class="space-y-0.5 text-right">
+            <p class="font-black">
+              <template v-if="coloaderFreightPerCbm(row) != null">{{ row.currencyCode }} {{ money(coloaderFreightPerCbm(row)) }}</template>
+              <template v-else>—</template>
+            </p>
+            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Total base {{ row.currencyCode }} {{ money(row.totalSaleAmount) }}</p>
+          </div>
+        </template>
         <template #cell-action="{ row }">
           <div class="flex justify-end" @click.stop>
             <DhButton :label="modelValue === `Coloader:${row.id}` ? 'Seleccionado' : 'Seleccionar'" :icon="modelValue === `Coloader:${row.id}` ? Check : undefined" size="sm" @click="chooseColoader(row)" />
