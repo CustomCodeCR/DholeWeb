@@ -35,6 +35,7 @@ const inactivating = ref(false)
 const errors = reactive<Record<string, string>>({})
 const form = reactive({
   importProfileId: '',
+  shipmentMode: 'Fcl' as 'Fcl' | 'Lcl',
   polId: '',
   poeId: '',
   podId: '',
@@ -71,8 +72,43 @@ function bestId(
   return catalogs.findBestMatch(items, id, ...values)?.id ?? ''
 }
 
+function containsLclMarker(value: unknown) {
+  const normalized = String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+  return /(^|[^a-z0-9])lcl([^a-z0-9]|$)/.test(normalized)
+    || normalized.includes('less than container load')
+    || normalized.includes('less-than-container-load')
+    || normalized.includes('coloader')
+    || normalized.includes('co-loader')
+    || normalized.includes('coloading')
+    || normalized.includes('groupage')
+}
+
+function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'Lcl' {
+  const declared = String(rate.shipmentMode ?? '').trim().toLowerCase()
+  if (declared === 'lcl') return 'Lcl'
+
+  const markers = [
+    rate.containerType,
+    rate.containerTypeCode,
+    rate.containerTypeSlug,
+    rate.importProfileName,
+    rate.importProfileCode,
+    rate.importProfileSlug,
+    rate.commodity,
+    rate.spaceComment,
+    rate.rawDataJson,
+  ]
+  return markers.some(containsLclMarker) ? 'Lcl' : 'Fcl'
+}
+
+const shipmentModeOptions = [
+  { value: 'Fcl', label: 'FCL · Contenedor completo' },
+  { value: 'Lcl', label: 'LCL · Carga consolidada / coloader' },
+]
+
 function hydrate(rate: ImportRateDto) {
   current.value = rate
+  form.shipmentMode = inferredShipmentMode(rate)
   form.importProfileId = bestId(
     catalogs.importProfiles.value,
     rate.importProfileId,
@@ -133,24 +169,14 @@ const calculatedCost = computed(
     Number(form.surcharges || 0),
 )
 
-function isLclMarker(value: unknown) {
-  return String(value ?? '').trim().toLowerCase() === 'lcl'
-}
-
-const isLclImport = computed(() =>
-  String(current.value.shipmentMode ?? '').trim().toLowerCase() === 'lcl'
-  || [
-    current.value.containerType,
-    current.value.containerTypeCode,
-    current.value.containerTypeSlug,
-  ].some(isLclMarker),
-)
+const isLclImport = computed(() => form.shipmentMode === 'Lcl')
 
 const canInactivate = computed(() => String(current.value.status) === 'Approved')
 
 const requiredFieldStatus = computed(() => {
   const fields = [
     { label: 'Perfil', ready: Boolean(form.importProfileId) },
+    { label: 'Modalidad', ready: Boolean(form.shipmentMode) },
     { label: 'Agente', ready: Boolean(form.agentId) },
     { label: 'POL', ready: Boolean(form.polId) },
     { label: 'POE', ready: Boolean(form.poeId) },
@@ -175,6 +201,7 @@ function validate() {
   Object.keys(errors).forEach((key) => delete errors[key])
   const requiredCatalogs: Array<[keyof typeof form, string]> = [
     ['importProfileId', 'Seleccione el perfil.'],
+    ['shipmentMode', 'Seleccione la modalidad.'],
     ['polId', 'Seleccione el POL.'],
     ['poeId', 'Seleccione el POE.'],
     ['agentId', 'Seleccione el agente.'],
@@ -218,6 +245,7 @@ function validate() {
 function payload(): ReviewImportRateRequest {
   return {
     importProfileId: form.importProfileId,
+    shipmentMode: form.shipmentMode,
     polId: form.polId,
     poeId: form.poeId,
     podId: form.podId || (null as unknown as string),
@@ -358,6 +386,7 @@ onMounted(async () => {
         </div>
         <div class="grid gap-4 md:grid-cols-2">
           <DhSelect v-model="form.importProfileId" label="Perfil de importación *" :options="catalogs.profileOptions.value" :error="errors.importProfileId" />
+          <DhSelect v-model="form.shipmentMode" label="Modalidad *" :options="shipmentModeOptions" :error="errors.shipmentMode" />
           <DhSelect v-model="form.agentId" label="Agente *" :options="catalogs.agentOptions.value" :error="errors.agentId" />
           <template v-if="!isLclImport">
             <DhSelect v-model="form.carrierId" label="Naviera *" :options="catalogs.carrierOptions.value" :error="errors.carrierId" />
