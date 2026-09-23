@@ -32,6 +32,7 @@ const loading = ref(false)
 const saving = ref(false)
 const renameSaving = ref(false)
 let renameTimer: ReturnType<typeof setTimeout> | null = null
+let renameQueue: Promise<void> = Promise.resolve()
 const previewLoading = ref(false)
 const scenarioLoading = ref(false)
 const scenarioSaving = ref(false)
@@ -304,8 +305,37 @@ function handleRowClick(row: OwnLclTableRow) {
   void openRow(row, 'view')
 }
 
+async function persistConsolidationName(id: string, name: string, showToast = false) {
+  const normalizedName = name.trim()
+  if (!id || !normalizedName) return
+
+  renameSaving.value = true
+  renameQueue = renameQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const renamed = await OwnLclConsolidationService.rename(id, normalizedName)
+      const row = rows.value.find((item) => item.id === id)
+      if (row) row.name = renamed.name
+
+      // No sobrescribir lo que el usuario sigue escribiendo mientras una petición anterior termina.
+      if (selectedId.value === id && form.name.trim() === normalizedName) {
+        form.name = renamed.name
+      }
+
+      if (showToast) {
+        toastStore.success('Nombre actualizado', `El consolidado ahora se llama "${renamed.name}".`)
+      }
+    })
+
+  try {
+    await renameQueue
+  } finally {
+    renameSaving.value = false
+  }
+}
+
 async function saveConsolidationName() {
-  if (!selectedId.value || renameSaving.value) return
+  if (!selectedId.value) return
 
   const name = form.name.trim()
   if (!name) {
@@ -317,17 +347,9 @@ async function saveConsolidationName() {
   if (name === selected.value?.name) return
 
   try {
-    renameSaving.value = true
-    const renamed = await OwnLclConsolidationService.rename(selectedId.value, name)
-    const row = rows.value.find((item) => item.id === selectedId.value)
-    if (row) row.name = renamed.name
-    form.name = renamed.name
-    toastStore.success('Nombre actualizado', `El consolidado ahora se llama "${renamed.name}".`)
+    await persistConsolidationName(selectedId.value, name, true)
   } catch (error) {
-    form.name = selected.value?.name ?? form.name
     toastStore.backendError(error, 'No fue posible cambiar el nombre del consolidado.')
-  } finally {
-    renameSaving.value = false
   }
 }
 
@@ -532,6 +554,18 @@ async function saveScenarioRows(showToast = true) {
 
 async function save() {
   if (readOnly.value) return
+
+  if (renameTimer) {
+    clearTimeout(renameTimer)
+    renameTimer = null
+  }
+
+  const desiredName = form.name.trim()
+  if (!desiredName) {
+    toastStore.warning('Nombre requerido', 'El consolidado debe tener un nombre.')
+    return
+  }
+
   const body = buildPayload()
   if (!body.booking || !body.etd || !body.carrierCode || !body.panamaArrivalPortCode || !body.polCode || !body.containerCode || body.oceanFreight <= 0) {
     toastStore.warning('Datos incompletos', 'Ingrese booking y ETD; seleccione naviera, POE, POL y equipo; e indique el flete marítimo.')
@@ -552,6 +586,10 @@ async function save() {
     await OwnLclConsolidationService.saveCostOverrides(targetId, buildCostOverrides())
     await OwnLclConsolidationService.savePricingLines(targetId, buildPricingLinesPayload())
     if (!wasNew && scenarioMatrix.value) await saveScenarioRows(false)
+
+    // El nombre se guarda por un endpoint dedicado y se ejecuta al final.
+    // Así "Guardar consolidado" nunca puede restaurar el nombre anterior.
+    await persistConsolidationName(targetId, desiredName, false)
 
     toastStore.success(
       wasNew ? 'Consolidado creado' : 'Consolidado actualizado',
