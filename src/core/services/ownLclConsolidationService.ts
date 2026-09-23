@@ -9,6 +9,7 @@ const acceptJson = { Accept: 'application/json' }
 const endpoints = {
   browse: { method: 'GET', path: '/api/pricing/own-lcl-consolidations', headers: acceptJson },
   get: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}', headers: acceptJson },
+  rename: { method: 'PATCH', path: '/api/pricing/own-lcl-consolidations/{{id}}/name', headers: jsonHeaders },
   createAutomatic: { method: 'POST', path: '/api/pricing/own-lcl-automation/consolidations', headers: jsonHeaders },
   updateAutomatic: { method: 'PUT', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: jsonHeaders },
   getAutomation: { method: 'GET', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: acceptJson },
@@ -325,6 +326,13 @@ export const OwnLclConsolidationService = {
   async get(id: string): Promise<OwnLclConsolidationDto> {
     const response = await callEndpoint<unknown>(endpoints.get, { params: { id } })
     return unwrapApiResponse<OwnLclConsolidationDto>(response as never)
+  },
+  async rename(id: string, name: string): Promise<{ id: string; name: string }> {
+    const response = await callEndpoint<unknown, { name: string }>(endpoints.rename, {
+      params: { id },
+      body: { name },
+    })
+    return unwrapApiResponse<{ id: string; name: string }>(response as never)
   },
   async getAutomation(id: string): Promise<OwnLclAutomationSnapshotDto> {
     const response = await callEndpoint<unknown>(endpoints.getAutomation, { params: { id } })
