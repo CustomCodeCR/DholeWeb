@@ -12,6 +12,7 @@ import {
   FtlTariffService,
   type CreateLandTariffItem,
   type FtlTariffDto,
+  type LandCommercialProfile,
   type LandShipmentMode,
   type UpdateFtlTariffItem,
 } from '@/core/services/ftlTariffService'
@@ -37,6 +38,7 @@ const creating = ref(false)
 const showNewRate = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedMode = ref<LandShipmentMode>('Ftl')
+const selectedCommercialProfile = ref<LandCommercialProfile>('FinalClient')
 const selectedEquipmentClass = ref('48_53')
 const rows = ref<EditableLandTariff[]>([])
 const currencies = ref<CatalogItemDto[]>([])
@@ -63,6 +65,11 @@ const equipmentOptions = [
   { value: '5_7_TON', label: 'Equipo 5 a 7 toneladas' },
 ]
 
+const commercialProfileOptions: Array<{ value: LandCommercialProfile; label: string; description: string }> = [
+  { value: 'FinalClient', label: 'Cliente final', description: 'Tarifario comercial para clientes finales.' },
+  { value: 'Nvocc', label: 'NVOCC', description: 'Tarifario neto/comercial para NVOCC.' },
+]
+
 const newRate = reactive({
   originName: '',
   originCode: '',
@@ -82,7 +89,7 @@ const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.costs.update)
 const visibleRows = computed(() =>
   rows.value.filter((row) => {
     if (row.shipmentMode !== selectedMode.value) return false
-    if (selectedMode.value === 'Ltl') return true
+    if (selectedMode.value === 'Ltl') return row.commercialProfile === selectedCommercialProfile.value
     return row.equipmentClass.toUpperCase() === selectedEquipmentClass.value
   }),
 )
@@ -201,7 +208,7 @@ async function seedDefaults() {
     const result = await FtlTariffService.seedDefaults()
     toastStore.success(
       'Tarifario terrestre base verificado',
-      `Dhole tiene ${result.ftl} tarifas FTL y ${result.ltl} tarifas LTL (${result.total} en total). No se sobrescribieron cambios manuales.`,
+      `Dhole tiene ${result.ftl} tarifas FTL y ${result.ltl} LTL: ${result.ltlFinalClient} Cliente final + ${result.ltlNvocc} NVOCC (${result.total} total). No se sobrescribieron cambios manuales.`,
     )
     await load()
   } catch (error) {
@@ -255,6 +262,7 @@ function currencyByCode(code?: string | null) {
 
 function makeCreateItem(input: {
   shipmentMode?: string | null
+  commercialProfile?: string | null
   origin?: string | null
   originCode?: string | null
   destination?: string | null
@@ -273,6 +281,10 @@ function makeCreateItem(input: {
   currency?: string | null
 }): CreateLandTariffItem | null {
   const shipmentMode: LandShipmentMode = String(input.shipmentMode ?? selectedMode.value).trim().toLowerCase() === 'ltl' ? 'Ltl' : 'Ftl'
+  const rawProfile = String(input.commercialProfile ?? (shipmentMode === 'Ltl' ? selectedCommercialProfile.value : 'General')).trim().toLowerCase()
+  const commercialProfile: LandCommercialProfile = shipmentMode === 'Ltl'
+    ? (rawProfile.includes('nvocc') || rawProfile === 'nvo' ? 'Nvocc' : 'FinalClient')
+    : 'General'
   const currency = currencyByCode(input.currency)
   if (!currency) {
     toastStore.error('Moneda requerida', 'No existe una moneda activa para crear/importar tarifas terrestres.')
@@ -304,6 +316,7 @@ function makeCreateItem(input: {
     destinationName,
     destinationCode: String(input.destinationCode ?? '').trim() || null,
     shipmentMode,
+    commercialProfile,
     equipmentClass,
     equipmentLabel: String(
       input.equipmentLabel
@@ -350,6 +363,7 @@ async function createRate() {
   if (!canUpdate.value || creating.value) return
   const item = makeCreateItem({
     shipmentMode: selectedMode.value,
+    commercialProfile: selectedMode.value === 'Ltl' ? selectedCommercialProfile.value : 'General',
     origin: newRate.originName,
     originCode: newRate.originCode,
     destination: newRate.destinationName,
@@ -413,6 +427,7 @@ function normalizeHeader(value: string) {
 
 const headerAliases: Record<string, string> = {
   modalidad: 'shipmentMode', shipmentmode: 'shipmentMode', modo: 'shipmentMode',
+  perfil: 'commercialProfile', perfilcomercial: 'commercialProfile', commercialprofile: 'commercialProfile', segmento: 'commercialProfile',
   origen: 'origin', origin: 'origin', pol: 'origin',
   codigoorigen: 'originCode', origincode: 'originCode',
   destino: 'destination', destination: 'destination', pod: 'destination', poe: 'destination',
@@ -442,10 +457,15 @@ const gcfLtlEngineRoutes = [
   { origin: 'CFZ Panamá', destination: 'Ciudad Guatemala, Guatemala', rateId: 'cfz_gua_rate', minId: 'cfz_gua_min', transitDays: 6, warehouse: 'Almacenadora Integrada' },
 ] as const
 
-function gcfLtlItemsFromTariffMap(tariffs: Record<string, unknown>, source: string) {
+function gcfLtlItemsFromTariffMap(
+  tariffs: Record<string, unknown>,
+  source: string,
+  commercialProfile: LandCommercialProfile = selectedCommercialProfile.value,
+) {
   return gcfLtlEngineRoutes
     .map((route) => makeCreateItem({
       shipmentMode: 'Ltl',
+      commercialProfile,
       origin: route.origin,
       destination: route.destination,
       equipmentClass: 'LTL_CBM',
@@ -455,7 +475,7 @@ function gcfLtlItemsFromTariffMap(tariffs: Record<string, unknown>, source: stri
       transitDays: route.transitDays,
       warehouse: route.warehouse,
       source,
-      notes: 'Importado desde GCF Centroamérica LTL Pricing Engine.',
+      notes: `Importado desde GCF Centroamérica LTL · ${commercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente final'}.`,
       currency: 'USD',
     }))
     .filter((item): item is CreateLandTariffItem => Boolean(item))
@@ -463,6 +483,10 @@ function gcfLtlItemsFromTariffMap(tariffs: Record<string, unknown>, source: stri
 
 function gcfLtlItemsFromHtml(text: string) {
   const document = new DOMParser().parseFromString(text, 'text/html')
+  const title = String(document.title || '').toLowerCase()
+  const commercialProfile: LandCommercialProfile = title.includes('nvocc') || text.toLowerCase().includes('gfc nvocc')
+    ? 'Nvocc'
+    : 'FinalClient'
   const tariffs: Record<string, unknown> = {}
   gcfLtlEngineRoutes.forEach((route) => {
     const rate = document.getElementById(route.rateId) as HTMLInputElement | null
@@ -470,7 +494,13 @@ function gcfLtlItemsFromHtml(text: string) {
     if (rate?.value) tariffs[route.rateId] = rate.value
     if (minimum?.value) tariffs[route.minId] = minimum.value
   })
-  return gcfLtlItemsFromTariffMap(tariffs, 'GCF Centroamérica LTL Pricing Engine · HTML')
+  return gcfLtlItemsFromTariffMap(
+    tariffs,
+    commercialProfile === 'Nvocc'
+      ? 'LTL GFC NVOCC CENTROAMERICA v1.3 · HTML'
+      : 'GCF Centroamérica LTL Pricing Engine v2.4 · HTML',
+    commercialProfile,
+  )
 }
 
 function parseCsv(text: string) {
@@ -500,9 +530,13 @@ async function importFile(event: Event) {
     if (file.name.toLowerCase().endsWith('.json')) {
       const parsed = JSON.parse(text) as unknown
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && (parsed as { tarifas?: unknown }).tarifas) {
+        const profile: LandCommercialProfile = JSON.stringify(parsed).toLowerCase().includes('nvocc')
+          ? 'Nvocc'
+          : selectedCommercialProfile.value
         items = gcfLtlItemsFromTariffMap(
           (parsed as { tarifas: Record<string, unknown> }).tarifas,
-          'GCF Centroamérica LTL Pricing Engine · JSON',
+          profile === 'Nvocc' ? 'LTL GFC NVOCC CENTROAMERICA · JSON' : 'GCF Centroamérica LTL Pricing Engine · JSON',
+          profile,
         )
       } else {
         const raw = Array.isArray(parsed)
@@ -542,9 +576,9 @@ function downloadTemplate() {
     ? 'LTL · USD/CBM'
     : equipmentOptions.find((option) => option.value === equipment)?.label ?? 'Equipo FTL'
   const example = mode === 'Ltl'
-    ? ['Ltl', 'San José, Costa Rica', '', 'Managua, Nicaragua', '', equipment, label, '40', '55', '3', 'Almacén Fiscal Premier 6117', 'Proveedor / tarifario', 'Tránsito estimado', '', '', 'true', 'USD']
-    : ['Ftl', 'Costa Rica', '', 'Nicaragua', '', equipment, label, '1400', '', '4', '', 'Proveedor / tarifario', '', '', '', 'true', 'USD']
-  const headers = ['shipmentMode','origin','originCode','destination','destinationCode','equipmentClass','equipmentLabel','price','minimum','transitDays','warehouse','source','notes','validFrom','validTo','isActive','currency']
+    ? ['Ltl', selectedCommercialProfile.value, 'San José, Costa Rica', '', 'Managua, Nicaragua', '', equipment, label, selectedCommercialProfile.value === 'Nvocc' ? '35' : '40', selectedCommercialProfile.value === 'Nvocc' ? '50' : '55', '3', 'Almacén Fiscal Premier 6117', 'Proveedor / tarifario', 'Tránsito estimado', '', '', 'true', 'USD']
+    : ['Ftl', 'General', 'Costa Rica', '', 'Nicaragua', '', equipment, label, '1400', '', '4', '', 'Proveedor / tarifario', '', '', '', 'true', 'USD']
+  const headers = ['shipmentMode','commercialProfile','origin','originCode','destination','destinationCode','equipmentClass','equipmentLabel','price','minimum','transitDays','warehouse','source','notes','validFrom','validTo','isActive','currency']
   const escape = (value: string) => `"${value.replaceAll('"', '""')}"`
   const csv = [headers.join(','), example.map(escape).join(',')].join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
@@ -591,7 +625,7 @@ onMounted(load)
           <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">Tarifario maestro terrestre</p>
           <h2 class="mt-1 text-xl font-black text-[var(--dh-text)]">FTL completos y LTL consolidados</h2>
           <p class="mt-1 max-w-3xl text-sm font-semibold text-[var(--dh-text-muted)]">
-            FTL se cobra por unidad completa. LTL se calcula por CBM con mínimo por ruta. Ambos pueden administrarse manualmente o cargarse en lote.
+            FTL se cobra por unidad completa. LTL se calcula por CBM con mínimo por ruta y mantiene matrices separadas para Cliente final y NVOCC.
             Esta misma matriz es la que usa Dhole para resolver el tramo terrestre de las rutas multimodales vía Panamá.
           </p>
         </div>
@@ -626,10 +660,26 @@ onMounted(load)
         </button>
       </div>
 
+      <div v-if="selectedMode === 'Ltl'" class="mt-4 grid gap-3 md:grid-cols-2">
+        <button
+          v-for="profile in commercialProfileOptions"
+          :key="profile.value"
+          type="button"
+          class="rounded-2xl border px-4 py-3 text-left transition"
+          :class="selectedCommercialProfile === profile.value
+            ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]'
+            : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)]'"
+          @click="selectedCommercialProfile = profile.value"
+        >
+          <span class="block text-sm font-black">{{ profile.label }}</span>
+          <span class="mt-1 block text-xs font-semibold text-[var(--dh-text-muted)]">{{ profile.description }}</span>
+        </button>
+      </div>
+
       <div v-if="showNewRate && canUpdate" class="mt-5 rounded-[24px] border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h3 class="font-black">Nueva tarifa {{ selectedMode.toUpperCase() }}</h3>
+            <h3 class="font-black">Nueva tarifa {{ selectedMode.toUpperCase() }}<span v-if="selectedMode === 'Ltl'"> · {{ selectedCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente final' }}</span></h3>
             <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Si la misma ruta y clase ya existe, Dhole la actualiza en lugar de duplicarla.</p>
           </div>
           <button type="button" class="text-sm font-black text-[var(--dh-text-muted)]" @click="showNewRate = false">Cerrar</button>
@@ -755,7 +805,7 @@ onMounted(load)
       </div>
 
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-[var(--dh-text-muted)]">
-        <span>{{ visibleRows.length }} rutas {{ selectedMode.toUpperCase() }} configuradas</span>
+        <span>{{ visibleRows.length }} rutas {{ selectedMode.toUpperCase() }} configuradas<span v-if="selectedMode === 'Ltl'"> · {{ selectedCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente final' }}</span></span>
         <span v-if="dirtyRows.length" class="font-black text-amber-600 dark:text-amber-300">{{ dirtyRows.length }} cambios sin guardar</span>
       </div>
     </section>
