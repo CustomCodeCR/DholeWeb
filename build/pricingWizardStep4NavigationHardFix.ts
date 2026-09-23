@@ -18,7 +18,44 @@ function patchWizard(source: string) {
     ? `    if (selectedSavedManualRate.value) {\n      await loadApplicableCosts()\n      hydrateSavedManualRateLines(selectedSavedManualRate.value)\n      if (step.value < 8) step.value += 1\n      return\n    }\n`
     : ''
 
-  const replacement = `async function next() {
+  const replacement = `function shouldPreservePersistedEditLines() {
+  const rate = editingRate.value
+  if (!rate || props.viewOnly) return false
+
+  const sameFreightSource = rate.sourceImportFclRateId
+    ? form.selectedImportRateId === rate.sourceImportFclRateId
+    : form.manualRate && !form.selectedImportRateId
+  if (!sameFreightSource) return false
+
+  const persistedServiceIds = (rate.services ?? [])
+    .map((service) => service.id)
+    .filter(Boolean)
+    .sort()
+    .join("|")
+  const selectedServiceIds = [...form.serviceIds].filter(Boolean).sort().join("|")
+
+  return String(rate.shipmentMode ?? "").toUpperCase() === String(form.shipmentMode ?? "").toUpperCase()
+    && String(rate.polId ?? "") === String(form.originId ?? "")
+    && String(rate.poeId ?? "") === String(form.destinationId ?? "")
+    && String(rate.podId ?? "") === String(form.podId ?? "")
+    && String(rate.containerTypeId ?? "") === String(form.equipmentId ?? "")
+    && String(rate.incotermId ?? "") === String(form.incotermId ?? "")
+    && String(rate.agentId ?? "") === String(form.agentId ?? "")
+    && String(rate.carrierId ?? "") === String(form.carrierId ?? "")
+    && String(rate.currencyId ?? "") === String(form.currencyId ?? "")
+    && persistedServiceIds === selectedServiceIds
+}
+
+function syncPersistedFreightLineForEdit() {
+  const freight = rateLines.value.find((line) => line.costDetailType === "Freight")
+  if (freight) {
+    freight.costAmount = number(form.freightCost)
+    freight.saleAmount = number(form.freightSale)
+  }
+  relinkExistingDetailIdsForEdit()
+}
+
+async function next() {
   // Solo la vista de solo lectura puede saltarse la lógica del wizard. En edición
   // debemos ejecutar exactamente el mismo flujo que creación para volver a consultar
   // tarifas en Pantalla 5 y reconstruir costos/líneas antes de guardar.
@@ -40,8 +77,15 @@ function patchWizard(source: string) {
   if (!canNext.value) return
 
   if (step.value === 6) {
-${savedManualStep}    await loadApplicableCosts()
-    rebuildRateLines()
+${savedManualStep}    // Editar con el mismo flete/origen de tarifa es una revisión del snapshot
+    // persistido, no una cotización nueva. Mantener exactamente las líneas y valores
+    // recibidos por getRate; solo reconstruir Costs cuando realmente cambió el contexto.
+    if (shouldPreservePersistedEditLines()) {
+      syncPersistedFreightLineForEdit()
+    } else {
+      await loadApplicableCosts()
+      rebuildRateLines()
+    }
   }
 
   if (step.value < 8) step.value += 1
