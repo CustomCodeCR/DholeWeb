@@ -164,7 +164,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     children.push({ label: t('sidebar.pricingPanel'), path: '/pricing', icon: TrendingUp })
   }
 
-  if (canOpenPricing || isSuperUser()) {
+  if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
     children.push({
       label: 'Consolidados propios',
       path: '/pricing/own-lcl',
