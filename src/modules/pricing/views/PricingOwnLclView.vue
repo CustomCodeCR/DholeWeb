@@ -538,9 +538,8 @@ async function saveScenarioRows(showToast = true) {
       rows: scenarioMatrix.value.countries.flatMap((country) => country.ports.map((port) => ({
         destinationCode: country.destinationCode,
         polCode: port.polCode,
-        salePerCbm: isCentralAmericaDestination(country.destinationCode)
-          ? Math.max(Number(port.costPerCbm || 0), 0) + Math.max(Number(form.freightProfitPerCbm || 0), 0)
-          : Math.max(Number(port.salePerCbm || 0), 0),
+        salePerCbm: Math.max(Number(port.costPerCbm || 0), 0)
+          + Math.max(Number(form.freightProfitPerCbm || 0), 0),
       }))),
     })
     if (showToast) toastStore.success('Escenarios guardados', 'Las ventas FOB por país y puerto quedaron asociadas a este consolidado.')
@@ -840,10 +839,9 @@ onMounted(load)
                         <td class="px-4 py-2 font-black">{{ port.polCode }}</td>
                         <td class="px-4 py-2 text-right font-bold">USD {{ money(port.costPerCbm) }}</td>
                         <td class="px-4 py-2 text-right">
-                          <span v-if="isCentralAmericaDestination(country.destinationCode)" class="inline-block min-w-28 rounded-xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 px-3 py-2 text-right font-black text-[var(--dh-primary)]">
+                          <span class="inline-block min-w-28 rounded-xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 px-3 py-2 text-right font-black text-[var(--dh-primary)]">
                             USD {{ money(Number(port.costPerCbm || 0) + Math.max(Number(form.freightProfitPerCbm || 0), 0)) }}
                           </span>
-                          <input v-else v-model.number="port.salePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
                         </td>
                         <td class="px-4 py-2 text-right text-[var(--dh-text-muted)]">USD {{ money(port.recommendedSalePerCbm) }}</td>
                       </tr>
