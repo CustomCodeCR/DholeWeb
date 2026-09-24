@@ -53,6 +53,7 @@ import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingIntera
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
+import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
 import PricingCompetitorTariffMatchModal from '@/modules/pricing/components/PricingCompetitorTariffMatchModal.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
@@ -3570,6 +3571,7 @@ onMounted(async () => {
       <div v-if="editingRate.status === 'AcceptedByClient' && !viewOnly" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">
         Esta tarifa ya fue aceptada. Al guardar, Dhole conservará la revisión {{ editingRate.revisionNumber || 1 }} como versión histórica y abrirá la revisión {{ (editingRate.revisionNumber || 1) + 1 }}.
       </div>
+      <PricingRateHistory v-if="editingRate" :rate-id="editingRate.id" />
       <details v-if="rateRevisions.length" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
         <summary class="cursor-pointer text-sm font-black">Historial de revisiones · {{ rateRevisions.length }} versión{{ rateRevisions.length === 1 ? '' : 'es' }} anterior{{ rateRevisions.length === 1 ? '' : 'es' }}</summary>
         <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
