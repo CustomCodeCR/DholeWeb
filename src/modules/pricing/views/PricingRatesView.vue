@@ -29,6 +29,7 @@ import {
 } from '@/modules/pricing/utils/pricingFormat'
 
 type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient'
+type CommercialRateStatusFilter = CommercialRateStatus | ''
 
 const commercialStatuses = new Set<CommercialRateStatus>([
   'PendingApproval',
@@ -39,7 +40,7 @@ const commercialStatuses = new Set<CommercialRateStatus>([
   'RejectedByClient',
 ])
 
-function normalizeCommercialStatus(value: unknown): CommercialRateStatus {
+function normalizeCommercialStatus(value: unknown): CommercialRateStatusFilter {
   const status = typeof value === 'string' ? value : ''
   if (commercialStatuses.has(status as CommercialRateStatus)) return status as CommercialRateStatus
   if (status === 'RejectedByClient' || status === 'Closed') return 'RejectedByClient'
@@ -309,7 +310,8 @@ function rateUpdateWindowMessage(rate: RateDto) {
   return 'La tarifa todavía se encuentra dentro de la solicitud antes del envío de Pricing.'
 }
 
-const statusOptions: Array<{ label: string; value: CommercialRateStatus }> = [
+const statusOptions: Array<{ label: string; value: CommercialRateStatusFilter }> = [
+  { label: 'Todas', value: '' },
   { label: 'Pendientes de aprobación', value: 'PendingApproval' },
   { label: 'Abiertas', value: 'Open' },
   { label: 'Enviadas', value: 'Sent' },
@@ -326,7 +328,7 @@ const activeFiltersCount = computed(
       .length + (filters.search.trim() ? 1 : 0),
 )
 
-function applyQuickStatus(status: CommercialRateStatus) {
+function applyQuickStatus(status: CommercialRateStatusFilter) {
   filters.status = status
   applyFilters()
 }
