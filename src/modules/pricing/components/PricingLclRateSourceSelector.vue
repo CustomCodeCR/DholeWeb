@@ -433,7 +433,7 @@ function mapColoaderLine(line: LclColoaderRateLineDto, rate: LclColoaderRateDto)
     chargeBasis: line.chargeBasis,
     costId: line.costId,
     contextLabel: `${rate.providerName || rate.providerCode || 'Coloader'} · ${rate.rateCode}`,
-    notes: line.notes,
+    notes: [`LCL COLOADER · RateId: ${rate.id}`, line.notes].filter(Boolean).join(' · '),
     currencyId: line.currencyId,
     currencyName: line.currencyName,
     currencyCode: line.currencyCode,
