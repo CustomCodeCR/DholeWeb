@@ -28,6 +28,7 @@ const events = ref<AuditEventDto[]>([])
 
 const fieldLabels: Record<string, string> = {
   RateName: 'Nombre de tarifa',
+  RevisionNumber: 'Revisión',
   AgentName: 'Agente',
   CarrierName: 'Naviera / proveedor',
   PolName: 'POL',
@@ -50,6 +51,7 @@ const fieldLabels: Record<string, string> = {
   ValidFrom: 'Vigencia desde',
   ValidTo: 'Vigencia hasta',
   ClientName: 'Cliente',
+  ExecutiveName: 'Ejecutivo',
   IdtraNumber: 'IDTRA',
   QuoNumber: 'QUO',
   Includes: 'Incluye',
@@ -57,6 +59,9 @@ const fieldLabels: Record<string, string> = {
   Excludes: 'No incluye',
   TransitTime: 'Tiempo de tránsito',
   RateType: 'Tipo de tarifa',
+  OperationType: 'Tipo de operación',
+  UseAllInPresentation: 'Presentación ALL IN',
+  Services: 'Servicios',
   TotalCostAmount: 'Costo total',
   TotalSaleAmount: 'Venta total',
   TotalUtilityAmount: 'Utilidad total',
@@ -75,11 +80,17 @@ const fieldLabels: Record<string, string> = {
   UtilityAmount: 'Utilidad unitaria',
   Quantity: 'Cantidad',
   Notes: 'Notas',
+  ApplyDestinationTax: 'Aplica IVA destino',
+  DestinationTaxRate: 'Tasa IVA destino',
+  DestinationTaxAmount: 'IVA destino',
+  BillToClient: 'Cobrar al cliente',
 }
 
 const ignoredHeaderFields = new Set([
   'Id',
   'SourceImportFclRateId',
+  'SourceTariffRateId',
+  'SourceTariffRevisionNumber',
   'AgentId',
   'AgentCode',
   'CarrierId',
