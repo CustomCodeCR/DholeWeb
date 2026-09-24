@@ -1485,9 +1485,12 @@ function sectionForDetail(type: CostDetailType, name = ''): RateSection {
   const normalized = normalizeCatalogValue(name)
   const mentionsOrigin = /(^| )(origen|origin)( |$)/.test(normalized)
   const mentionsDestination = /(^| )(destino|destination)( |$)/.test(normalized)
-  const mentionsPickup = /recole|pickup/.test(normalized)
+  const mentionsPickup = /recole|pick\s*up/.test(normalized)
   const mentionsDelivery = /entrega|delivery/.test(normalized)
 
+  // PICK UP / Recolecta is always an origin-side item, even when an older
+  // persisted snapshot incorrectly stored it as DestinationCharge.
+  if (mentionsPickup) return 'pickup_origin'
   if (type === 'Freight') return 'international_freight'
   if (type === 'OriginCharge') return 'origin_charges'
   if (type === 'DestinationCharge' || type === 'Insurance') return 'destination_charges'
