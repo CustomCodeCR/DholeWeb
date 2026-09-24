@@ -234,26 +234,29 @@ function occurredAt(event: AuditEventDto): string {
 }
 
 const history = computed<HistoryGroup[]>(() => {
-  const grouped = new Map<string, AuditEventDto[]>()
-  for (const event of events.value) {
+  const detailEventsByCorrelation = new Map<string, AuditEventDto[]>()
+  for (const event of events.value.filter((item) => item.entityType === 'RateDetail')) {
     const key = event.correlationId || event.id
-    const bucket = grouped.get(key) ?? []
+    const bucket = detailEventsByCorrelation.get(key) ?? []
     bucket.push(event)
-    grouped.set(key, bucket)
+    detailEventsByCorrelation.set(key, bucket)
   }
 
-  return [...grouped.entries()]
-    .map(([id, group]) => {
-      const root = group.find((event) => event.entityType === 'RateHeader')
-      if (!root) return null
+  return events.value
+    .filter((event) => event.entityType === 'RateHeader')
+    .filter((event) => ['updated', 'approved', 'rejected', 'created'].includes((event.action || '').toLowerCase()))
+    .map((root) => {
+      const action = (root.action || '').toLowerCase()
+      const details = action === 'updated' || action === 'created'
+        ? detailEventsByCorrelation.get(root.correlationId || root.id) ?? []
+        : []
+
       return {
-        id,
+        id: root.id,
         root,
-        details: group.filter((event) => event.entityType === 'RateDetail'),
+        details,
       }
     })
-    .filter((group): group is HistoryGroup => Boolean(group))
-    .filter((group) => ['updated', 'approved', 'rejected', 'created'].includes((group.root.action || '').toLowerCase()))
     .sort((a, b) => new Date(b.root.occurredAt).getTime() - new Date(a.root.occurredAt).getTime())
 })
 
