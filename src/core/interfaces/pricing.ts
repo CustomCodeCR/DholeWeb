@@ -837,6 +837,7 @@ export interface UpdateRateRequest extends Omit<
   carrierCode: string
   extraDetails: UpsertRateExtraDetailRequest[]
   removedExtraDetailIds: string[]
+  updateReason?: string | null
 }
 
 export interface DuplicateRateRequest extends Record<string, unknown> {
