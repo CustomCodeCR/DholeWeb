@@ -121,14 +121,31 @@ function syncPersistedFreightLineForEdit() {
 
 function appendConfiguredCostToPersistedEdit(cost: CostSelectDto) {
   const section = sectionForCost(cost)
-  const duplicate = rateLines.value.some((line) =>
-    (line.costId && line.costId === cost.id)
-    || (
-      line.costDetailType === cost.costDetailType
-      && normalizeCatalogValue(line.name) === normalizeCatalogValue(cost.name)
-    ),
+  if (cost.costDetailType === 'Freight') return
+
+  const byCostId = rateLines.value.find((line) => line.costId === cost.id)
+  if (byCostId) return
+
+  const equivalent = rateLines.value.find((line) =>
+    line.costDetailType === cost.costDetailType
+    && normalizeCatalogValue(line.name) === normalizeCatalogValue(cost.name),
   )
-  if (duplicate || !visibleSections.value.includes(section) || cost.costDetailType === 'Freight') return
+
+  if (equivalent) {
+    // Una línea que fue reparada manualmente después de una hidratación defectuosa
+    // se vuelve a enlazar al costo maestro sin pisar costo/venta ya revisados.
+    if (!equivalent.costId) {
+      equivalent.costId = cost.id
+      equivalent.costType = cost.costType
+      equivalent.chargeBasis = cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType)
+      equivalent.contextLabel = costContextLabel(cost)
+      equivalent.notes ||= cost.notes?.trim() || null
+      equivalent.serviceIds = cost.services?.map((service) => service.id) ?? []
+      equivalent.optional = cost.costType === 'Optional'
+      equivalent.manual = false
+    }
+    return
+  }
 
   rateLines.value.push({
     key: \`edit-incoterm-cost:\${cost.id}\`,
@@ -149,10 +166,7 @@ function appendConfiguredCostToPersistedEdit(cost: CostSelectDto) {
     saleAmount: number(cost.saleAmount),
     included:
       cost.costType !== 'Optional'
-      || (form.dangerousCargo && isDangerousCargoCost(cost))
-      || (form.overweight && isOverweightCost(cost))
-      || (form.merchantHaulage && haulageAssociation(cost) === 'merchant')
-      || (form.carrierHaulage && haulageAssociation(cost) === 'carrier'),
+      || shouldIncludeOptionalCost(cost),
     optional: cost.costType === 'Optional',
     manual: false,
     applyDestinationTax: false,
@@ -312,6 +326,23 @@ ${savedManualStep}    if (shouldPreservePersistedEditLines()) {
     )
   }
 
+  const hydrateMergeAnchor = `    mergeConfiguredOptionalCostsIntoRateLines()
+    step.value = props.viewOnly ? 9 : 8`
+  if (code.includes(hydrateMergeAnchor)) {
+    code = code.replace(
+      hydrateMergeAnchor,
+      `    if (!props.viewOnly) {
+      // RateDetails persistidos siguen siendo autoritativos para montos. A la vez,
+      // completamos los costos que Pricing confirmó para el contexto y revinculamos
+      // reparaciones manuales que perdieron CostId en revisiones anteriores.
+      applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+    }
+    step.value = props.viewOnly ? 9 : 8`,
+    )
+  } else {
+    throw new Error('[pricingWizardStep4NavigationHardFix] hydrate merge anchor not found.')
+  }
+
   // Cualquier rebuild disparado por watchers debe respetar el snapshot cuando
   // ruta + naviera + agente siguen iguales.
   const rebuildAnchor = `function rebuildRateLines() {\n`
@@ -324,14 +355,11 @@ ${savedManualStep}    if (shouldPreservePersistedEditLines()) {
     )
   }
 
-  // Al hidratar una edición existente, rateDetails es autoritativo. No agregar
-  // opcionales del catálogo hasta que el usuario cambie explícitamente Incoterm.
+  // Vista de solo lectura conserva exactamente el snapshot. En edición no se
+  // bloquea la reconciliación: los costos faltantes se completan sin sobrescribir montos.
   const optionalMergeGuard = `  if (props.viewOnly && props.rateId) return`
-  if (code.includes(optionalMergeGuard)) {
-    code = code.replace(
-      optionalMergeGuard,
-      `  if (props.rateId && (props.viewOnly || shouldPreservePersistedEditLines())) return`,
-    )
+  if (!code.includes(optionalMergeGuard)) {
+    throw new Error('[pricingWizardStep4NavigationHardFix] optional merge guard not found.')
   }
 
   // Proteger el POD final y los valores del mismo flete original. Un flete NUEVO
