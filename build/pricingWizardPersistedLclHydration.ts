@@ -60,7 +60,7 @@ function hydratePersistedLclSource(rate: RateDto) {
   lclRequestedCbm.value = Math.max(1, Number(rate.chargeableQuantity || 0))
   if (!kind || !sourceId) return
 
-  lclSelectedSourceKey.value = \`${kind}:${sourceId}\`
+  lclSelectedSourceKey.value = \`\${kind}:\${sourceId}\`
   const billableCbm = lclRequestedCbm.value
   const profitAmount = Number(rate.totalUtilityAmount || 0)
 
@@ -68,8 +68,8 @@ function hydratePersistedLclSource(rate: RateDto) {
     kind,
     id: sourceId,
     label: kind === 'Own'
-      ? \`Consolidado propio · ${rate.polName}\`
-      : \`${rate.agentName || 'Coloader'} · ${rate.rateCode}\`,
+      ? \`Consolidado propio · \${rate.polName}\`
+      : \`\${rate.agentName || 'Coloader'} · \${rate.rateCode}\`,
     requestedCbm: billableCbm,
     providerId: kind === 'Own' ? null : rate.agentId ?? null,
     providerName: kind === 'Own' ? (rate.agentName || 'Grupo Castro Fallas') : rate.agentName ?? null,
