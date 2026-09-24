@@ -271,6 +271,24 @@ const gcfLtlRoutes = [
   ['CFZ Panamá', 'San Salvador, El Salvador', 'cfz_ss_rate', 'cfz_ss_min', 5, 'Central Logistics SA De C.V.'],
   ['CFZ Panamá', 'Ciudad Guatemala, Guatemala', 'cfz_gua_rate', 'cfz_gua_min', 6, 'Almacenadora Integrada'],
 ] as const
+function gcfItemsFromMap(
+  tariffs: Record<string, unknown>,
+  profile: LandCommercialProfile,
+  source: string,
+) {
+  return gcfLtlRoutes.map(([origin, destination, rateId, minimumId, transitDays, warehouse]) => importItem({
+    shipmentMode: 'Ltl',
+    commercialProfile: profile,
+    origin,
+    destination,
+    price: tariffs[rateId],
+    minimum: tariffs[minimumId],
+    transitDays,
+    warehouse,
+    source,
+  })).filter((item): item is CreateLandTariffItem => Boolean(item))
+}
+
 function parseGcfHtml(text: string) {
   const document = new DOMParser().parseFromString(text, 'text/html')
   const profile = text.toLowerCase().includes('nvocc') ? 'Nvocc' : 'FinalClient'
@@ -298,12 +316,28 @@ async function importFile(event: Event) {
     let items: CreateLandTariffItem[] = []
     if (name.endsWith('.json')) {
       const parsed = JSON.parse(text) as unknown
-      const raw = Array.isArray(parsed)
-        ? parsed
-        : parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown[] }).items)
-          ? (parsed as { items: unknown[] }).items : []
-      items = raw.map((value) => importItem(value as Record<string, unknown>))
-        .filter((item): item is CreateLandTariffItem => Boolean(item))
+      const tariffMap =
+        parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? (parsed as { tarifas?: unknown }).tarifas
+          : null
+
+      if (tariffMap && typeof tariffMap === 'object' && !Array.isArray(tariffMap)) {
+        const profile: LandCommercialProfile = JSON.stringify(parsed).toLowerCase().includes('nvocc')
+          ? 'Nvocc'
+          : 'FinalClient'
+        items = gcfItemsFromMap(
+          tariffMap as Record<string, unknown>,
+          profile,
+          profile === 'Nvocc' ? 'LTL GCF NVOCC · JSON' : 'GCF Centroamérica LTL · JSON',
+        )
+      } else {
+        const raw = Array.isArray(parsed)
+          ? parsed
+          : parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown[] }).items)
+            ? (parsed as { items: unknown[] }).items : []
+        items = raw.map((value) => importItem(value as Record<string, unknown>))
+          .filter((item): item is CreateLandTariffItem => Boolean(item))
+      }
     } else if (name.endsWith('.html') || name.endsWith('.htm')) items = parseGcfHtml(text)
     else items = parseCsv(text)
 
