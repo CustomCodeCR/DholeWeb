@@ -9,6 +9,7 @@ import { pricingLclCostBreakdownUi } from './build/pricingLclCostBreakdownUi'
 import { pricingWizardFixedAutomaticCostEditFix } from './build/pricingWizardFixedAutomaticCostEditFix'
 import { pricingWizardEnhancementsScoped } from './build/pricingWizardEnhancementsScoped'
 import { pricingWizardOwnLclLinePersistence } from './build/pricingWizardOwnLclLinePersistence'
+import { pricingWizardPersistedLclHydration } from './build/pricingWizardPersistedLclHydration'
 import { pricingWizardLclRouteContextFix } from './build/pricingWizardLclRouteContextFix'
 import { pricingWizardUiParity } from './build/pricingWizardUiParity'
 import { pricingWizardLclFclParityFix } from './build/pricingWizardLclFclParityFix'
@@ -132,6 +133,7 @@ export default defineConfig({
     pricingWizardPanamaContinuation(),
     pricingDuplicateRateRefreshWorkflow(),
     pricingWizardMixedFclFreightFix(),
+    pricingWizardPersistedLclHydration(),
     vue(),
     tailwindcss(),
   ],
