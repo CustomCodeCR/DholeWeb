@@ -55,8 +55,14 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `async function hydrateExistingRate() {\n  if (!props.rateId) return`,
-    `async function hydrateExistingRate() {\n  const rateToHydrateId = duplicateSourceRateId.value || props.rateId\n  if (!rateToHydrateId) return`,
+    `async function hydrateExistingRate() {`,
+    `async function hydrateExistingRate() {\n  const rateToHydrateId = duplicateSourceRateId.value || props.rateId`,
+    'duplicate source hydration state',
+  )
+  code = replaceOne(
+    code,
+    `  if (!props.rateId) return`,
+    `  if (!rateToHydrateId) return`,
     'duplicate source hydration entry',
   )
 
