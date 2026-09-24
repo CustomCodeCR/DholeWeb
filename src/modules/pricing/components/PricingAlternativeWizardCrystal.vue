@@ -1680,6 +1680,70 @@ function applicableConfiguredCosts() {
     .sort((left, right) => costSpecificity(right) - costSpecificity(left))
 }
 
+function syncPersistedLinesWithChangedConfiguredCosts() {
+  if (!editingRate.value || props.viewOnly) return 0
+
+  const configuredById = new Map(
+    applicableConfiguredCosts().map((cost) => [cost.id, cost] as const),
+  )
+  const persistedById = new Map(
+    editingRate.value.rateDetails.map((detail) => [detail.id, detail] as const),
+  )
+
+  let changedCount = 0
+
+  rateLines.value.forEach((line) => {
+    if (!line.costId || line.costDetailType === 'Freight') return
+
+    const configured = configuredById.get(line.costId)
+    if (!configured) return
+
+    const persisted = line.detailId
+      ? persistedById.get(line.detailId)
+      : editingRate.value?.rateDetails.find((detail) => detail.costId === line.costId)
+    if (!persisted) return
+
+    const configuredChargeBasis =
+      configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType)
+
+    // Compare against the persisted snapshot, not against the values currently being
+    // edited. This prevents a user's manual edit from being mistaken for a catalog
+    // change. Only a real change in Costos y recargos refreshes this linked line.
+    const catalogChanged =
+      persisted.name.trim() !== configured.name.trim() ||
+      persisted.costDetailType !== configured.costDetailType ||
+      persisted.costType !== configured.costType ||
+      persisted.chargeBasis !== configuredChargeBasis ||
+      persisted.currencyId !== configured.currencyId ||
+      persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase() ||
+      number(persisted.costAmount) !== number(configured.costAmount) ||
+      number(persisted.saleAmount) !== number(configured.saleAmount)
+
+    if (!catalogChanged) return
+
+    line.section = sectionForCost(configured)
+    line.name = configured.name
+    line.costDetailType = configured.costDetailType
+    line.costType = configured.costType
+    line.chargeBasis = configuredChargeBasis
+    line.contextLabel = costContextLabel(configured)
+    line.notes = configured.notes?.trim() || null
+    line.serviceIds = configured.services?.map((service) => service.id) ?? []
+    line.currencyId = configured.currencyId
+    line.currencyName = configured.currencyName
+    line.currencyCode = configured.currencyCode
+    line.amountCurrencyCode = configured.currencyCode
+    line.costAmount = number(configured.costAmount)
+    line.saleAmount = number(configured.saleAmount)
+    line.optional = configured.costType === 'Optional'
+    line.manual = false
+    enforceLineCurrency(line)
+    changedCount += 1
+  })
+
+  return changedCount
+}
+
 async function loadApplicableCosts() {
   try {
     costs.value = await PricingService.selectCosts({
@@ -2580,6 +2644,7 @@ async function hydrateExistingRate() {
         destinationTaxRate: Number(detail.destinationTaxRate || 0),
       } as RateLine
     })
+    if (!props.viewOnly) syncPersistedLinesWithChangedConfiguredCosts()
     mergeConfiguredOptionalCostsIntoRateLines()
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
@@ -3131,6 +3196,13 @@ async function saveRate() {
   if (missing.length) {
     toastStore.error(`No se pudo resolver: ${missing.join(', ')}.`)
     return
+  }
+
+  if (editingRate.value && !props.viewOnly) {
+    // Re-query immediately before saving so changes made in Costos y recargos while
+    // this quote was open are applied only to the linked detail that actually changed.
+    await loadApplicableCosts()
+    syncPersistedLinesWithChangedConfiguredCosts()
   }
 
   const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({
