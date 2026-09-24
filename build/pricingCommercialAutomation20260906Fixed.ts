@@ -188,9 +188,13 @@ watch(
   code = replaceOne(code, sellerLabelAnchor, fclState + sellerLabelAnchor, 'FCL mix state')
 
   // Pickup/Recolección is an origin-side charge regardless of legacy POE metadata.
-  const sectionAnchor = `function sectionForCost(cost: CostSelectDto): RateSection {\n  const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)`
-  const sectionReplacement = `function sectionForCost(cost: CostSelectDto): RateSection {\n  const normalizedCostName = normalizeCatalogValue(cost.name)\n  if (normalizedCostName.includes('pickup') || normalizedCostName.includes('pick up') || normalizedCostName.includes('recoleccion')) {\n    return 'pickup_origin'\n  }\n  const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)`
-  code = replaceOne(code, sectionAnchor, sectionReplacement, 'pickup origin classification')
+  // Newer wizard code centralizes this in explicitSectionFromName(), so this legacy
+  // transform is only needed when that helper is not present.
+  if (!code.includes('function explicitSectionFromName(')) {
+    const sectionAnchor = `function sectionForCost(cost: CostSelectDto): RateSection {\n  const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)`
+    const sectionReplacement = `function sectionForCost(cost: CostSelectDto): RateSection {\n  const normalizedCostName = normalizeCatalogValue(cost.name)\n  if (normalizedCostName.includes('pickup') || normalizedCostName.includes('pick up') || normalizedCostName.includes('recoleccion')) {\n    return 'pickup_origin'\n  }\n  const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)`
+    code = replaceOne(code, sectionAnchor, sectionReplacement, 'pickup origin classification')
+  }
 
   // EXW pickup cost and sale are explicitly editable, including fixed/master-cost rows.
   code = code.split(`:disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'"`).join(
