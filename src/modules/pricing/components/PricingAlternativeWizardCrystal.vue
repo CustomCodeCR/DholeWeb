@@ -221,6 +221,7 @@ const pageDescription = computed(() => isEditing.value
 const availableRates = ref<ImportRateSelectDto[]>([])
 const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
 const costs = ref<CostSelectDto[]>([])
+const allCosts = ref<CostSelectDto[]>([])
 const cabysResults = ref<CabysItem[]>([])
 const rateLines = ref<RateLine[]>([])
 const billToBatchByGroup = ref<Record<string, string>>({})
@@ -1276,19 +1277,19 @@ function persistedLineInFullView(line: RateLine) {
 function standardSectionLines(section: RateSection) {
   return rateLines.value.filter(
     (line) =>
-      line.section === section &&
-      line.included &&
-      ((!line.optional && !line.manual) || persistedLineInFullView(line)) &&
-      line.costDetailType !== 'AgentCharge',
+      line.section === section
+      && line.included
+      && (!line.manual || line.costDetailType === 'Freight')
+      && line.costDetailType !== 'AgentCharge',
   )
 }
 
 const agentLines = computed(() =>
   rateLines.value.filter(
     (line) =>
-      line.included &&
-      line.costDetailType === 'AgentCharge' &&
-      ((!line.optional && !line.manual) || persistedLineInFullView(line)),
+      line.included
+      && line.costDetailType === 'AgentCharge'
+      && !line.manual,
   ),
 )
 
@@ -1298,7 +1299,11 @@ const insuranceLines = computed(() =>
 
 const bottomRateLines = computed(() =>
   rateLines.value.filter(
-    (line) => line.included && (line.optional || line.manual) && line.costDetailType !== 'Insurance',
+    (line) =>
+      line.included
+      && line.manual
+      && line.costDetailType !== 'Insurance'
+      && line.costDetailType !== 'Freight',
   ),
 )
 
@@ -1482,47 +1487,54 @@ function sectionFromPortRole(
   return detailType === 'InlandTransport' ? 'delivery_destination' : 'destination_charges'
 }
 
-function sectionForDetail(type: CostDetailType, name = ''): RateSection {
+function explicitSectionFromName(name = ''): RateSection | null {
   const normalized = normalizeCatalogValue(name)
   const mentionsOrigin = /(^| )(origen|origin)( |$)/.test(normalized)
   const mentionsDestination = /(^| )(destino|destination)( |$)/.test(normalized)
   const mentionsPickup = /recole|pick\s*up/.test(normalized)
   const mentionsDelivery = /entrega|delivery/.test(normalized)
 
-  // PICK UP / Recolecta is always an origin-side item, even when an older
-  // persisted snapshot incorrectly stored it as DestinationCharge.
   if (mentionsPickup) return 'pickup_origin'
+  if (mentionsDelivery) return 'delivery_destination'
+  if (mentionsOrigin && !mentionsDestination) return 'origin_charges'
+  if (mentionsDestination && !mentionsOrigin) return 'destination_charges'
+  return null
+}
+
+function sectionForDetail(type: CostDetailType, name = ''): RateSection {
+  const normalized = normalizeCatalogValue(name)
+  const explicitSection = type === 'Freight' ? null : explicitSectionFromName(name)
+
+  if (explicitSection) return explicitSection
   if (type === 'Freight') return 'international_freight'
   if (type === 'OriginCharge') return 'origin_charges'
   if (type === 'DestinationCharge' || type === 'Insurance') return 'destination_charges'
-  if (type === 'PortCharge') return mentionsOrigin ? 'origin_charges' : 'destination_charges'
+  if (type === 'PortCharge') return /(^| )(origen|origin)( |$)/.test(normalized) ? 'origin_charges' : 'destination_charges'
   if (type === 'InlandTransport') {
-    return mentionsPickup || mentionsOrigin ? 'pickup_origin' : 'delivery_destination'
+    return /recole|pick\s*up|(^| )(origen|origin)( |$)/.test(normalized)
+      ? 'pickup_origin'
+      : 'delivery_destination'
   }
   if (type === 'CustomsCharge') {
-    return mentionsOrigin || /exterior|export/.test(normalized)
+    return /(^| )(origen|origin)( |$)|exterior|export/.test(normalized)
       ? 'origin_charges'
       : 'destination_charges'
   }
   if (type === 'AgentCharge') {
-    if (mentionsOrigin) return 'origin_charges'
-    if (mentionsDestination) return 'destination_charges'
     return normalizeCatalogValue(direction.value).includes('exportacion')
       ? 'origin_charges'
       : 'destination_charges'
   }
-  if (type === 'Documentation') {
-    if (mentionsOrigin) return 'origin_charges'
-    if (mentionsDestination) return 'destination_charges'
-    return 'international_freight'
-  }
-  if (mentionsPickup) return 'pickup_origin'
-  if (mentionsDelivery) return 'delivery_destination'
-  if (mentionsOrigin) return 'origin_charges'
+  if (type === 'Documentation') return 'international_freight'
   return 'destination_charges'
 }
 
 function sectionForCost(cost: CostSelectDto): RateSection {
+  if (cost.costDetailType !== 'Freight') {
+    const explicitSection = explicitSectionFromName(cost.name)
+    if (explicitSection) return explicitSection
+  }
+
   const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)
   if (byPortRole) return byPortRole
 
@@ -1680,64 +1692,219 @@ function applicableConfiguredCosts() {
     .sort((left, right) => costSpecificity(right) - costSpecificity(left))
 }
 
+function revisionSnapshotRecord(revision: RateRevisionDto) {
+  try {
+    return JSON.parse(revision.snapshotJson) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function snapshotField<T = unknown>(record: Record<string, unknown>, pascal: string, camel: string): T | undefined {
+  return (record[pascal] ?? record[camel]) as T | undefined
+}
+
+function revisionMatchesCurrentRate(snapshot: Record<string, unknown>, rate: RateDto) {
+  const same = (pascal: string, camel: string, current: unknown) => {
+    const value = snapshotField(snapshot, pascal, camel)
+    return value == null || String(value) === String(current ?? '')
+  }
+
+  return same('PolId', 'polId', rate.polId)
+    && same('PoeId', 'poeId', rate.poeId)
+    && same('PodId', 'podId', rate.podId)
+    && same('CarrierId', 'carrierId', rate.carrierId)
+    && same('AgentId', 'agentId', rate.agentId)
+    && same('IncotermId', 'incotermId', rate.incotermId)
+}
+
+function latestMatchingRevisionDetails(rate: RateDto) {
+  const revisions = [...rateRevisions.value].sort((left, right) => right.revisionNumber - left.revisionNumber)
+
+  for (const revision of revisions) {
+    const snapshot = revisionSnapshotRecord(revision)
+    if (!snapshot || !revisionMatchesCurrentRate(snapshot, rate)) continue
+    const details = snapshotField<unknown[]>(snapshot, 'Details', 'details')
+    if (!Array.isArray(details)) continue
+
+    return details.filter((detail): detail is Record<string, unknown> =>
+      Boolean(detail) && typeof detail === 'object',
+    )
+  }
+
+  return [] as Record<string, unknown>[]
+}
+
+function applyConfiguredMetadataToPersistedLine(line: RateLine, configured: CostSelectDto) {
+  line.costId = configured.id
+  line.section = sectionForCost(configured)
+  line.name = configured.name
+  line.costDetailType = configured.costDetailType
+  line.costType = configured.costType
+  line.chargeBasis = configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType)
+  line.contextLabel = costContextLabel(configured)
+  line.serviceIds = configured.services?.map((service) => service.id) ?? []
+  line.optional = configured.costType === 'Optional'
+  line.manual = false
+
+  const normalizedNotes = normalizeCatalogValue(String(line.notes ?? ''))
+  if (!line.notes || normalizedNotes === 'cargo manual agregado desde el wizard de pricing') {
+    line.notes = configured.notes?.trim() || null
+  }
+}
+
 function syncPersistedLinesWithChangedConfiguredCosts() {
   if (!editingRate.value || props.viewOnly) return 0
 
-  const configuredById = new Map(
-    applicableConfiguredCosts().map((cost) => [cost.id, cost] as const),
-  )
+  const applicable = applicableConfiguredCosts()
+  const configuredById = new Map(applicable.map((cost) => [cost.id, cost] as const))
+  const allCostsById = new Map(allCosts.value.map((cost) => [cost.id, cost] as const))
   const persistedById = new Map(
     editingRate.value.rateDetails.map((detail) => [detail.id, detail] as const),
   )
 
+  const revisionDetails = latestMatchingRevisionDetails(editingRate.value)
+  const revisionCostIdByName = new Map<string, string>()
+  revisionDetails.forEach((detail) => {
+    const name = String(snapshotField(detail, 'Name', 'name') ?? '').trim()
+    const costId = String(snapshotField(detail, 'CostId', 'costId') ?? '').trim()
+    if (name && costId) revisionCostIdByName.set(normalizeCatalogValue(name), costId)
+  })
+
   let changedCount = 0
 
   rateLines.value.forEach((line) => {
-    if (!line.costId || line.costDetailType === 'Freight') return
+    if (line.costDetailType === 'Freight' && !line.costId) {
+      // Flete de importación/manual seleccionado en Pantalla 6 es parte estructural
+      // de la tarifa; no debe caer al bloque de "rubros manuales".
+      line.manual = false
+      line.section = 'international_freight'
+      return
+    }
 
-    const configured = configuredById.get(line.costId)
-    if (!configured) return
+    let configured: CostSelectDto | undefined
+
+    if (line.costId) {
+      configured = configuredById.get(line.costId) ?? allCostsById.get(line.costId)
+    } else {
+      const normalizedName = normalizeCatalogValue(line.name)
+      const revisionCostId = revisionCostIdByName.get(normalizedName)
+      if (revisionCostId) {
+        configured = configuredById.get(revisionCostId) ?? allCostsById.get(revisionCostId)
+      }
+
+      if (!configured) {
+        const sameNameApplicable = applicable.filter(
+          (cost) => normalizeCatalogValue(cost.name) === normalizedName,
+        )
+        if (sameNameApplicable.length === 1) configured = sameNameApplicable[0]
+      }
+
+      if (configured) {
+        // Recupera CostId/Tipo/Sección de una revisión dañada SIN alterar costo/venta.
+        applyConfiguredMetadataToPersistedLine(line, configured)
+        changedCount += 1
+      } else {
+        line.section = sectionForDetail(line.costDetailType, line.name)
+      }
+      return
+    }
+
+    if (!configured || line.costDetailType === 'Freight') return
 
     const persisted = line.detailId
       ? persistedById.get(line.detailId)
       : editingRate.value?.rateDetails.find((detail) => detail.costId === line.costId)
-    if (!persisted) return
+    if (!persisted) {
+      applyConfiguredMetadataToPersistedLine(line, configured)
+      return
+    }
 
     const configuredChargeBasis =
       configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType)
 
-    // Compare against the persisted snapshot, not against the values currently being
-    // edited. This prevents a user's manual edit from being mistaken for a catalog
-    // change. Only a real change in Costos y recargos refreshes this linked line.
     const catalogChanged =
-      persisted.name.trim() !== configured.name.trim() ||
-      persisted.costDetailType !== configured.costDetailType ||
-      persisted.costType !== configured.costType ||
-      persisted.chargeBasis !== configuredChargeBasis ||
-      persisted.currencyId !== configured.currencyId ||
-      persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase() ||
-      number(persisted.costAmount) !== number(configured.costAmount) ||
-      number(persisted.saleAmount) !== number(configured.saleAmount)
+      persisted.name.trim() !== configured.name.trim()
+      || persisted.costDetailType !== configured.costDetailType
+      || persisted.costType !== configured.costType
+      || persisted.chargeBasis !== configuredChargeBasis
+      || persisted.currencyId !== configured.currencyId
+      || persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase()
+      || number(persisted.costAmount) !== number(configured.costAmount)
+      || number(persisted.saleAmount) !== number(configured.saleAmount)
 
-    if (!catalogChanged) return
+    if (!catalogChanged) {
+      applyConfiguredMetadataToPersistedLine(line, configured)
+      return
+    }
 
-    line.section = sectionForCost(configured)
-    line.name = configured.name
-    line.costDetailType = configured.costDetailType
-    line.costType = configured.costType
-    line.chargeBasis = configuredChargeBasis
-    line.contextLabel = costContextLabel(configured)
+    // Solo el item cuyo maestro cambió se refresca. Las demás líneas se conservan.
+    applyConfiguredMetadataToPersistedLine(line, configured)
     line.notes = configured.notes?.trim() || null
-    line.serviceIds = configured.services?.map((service) => service.id) ?? []
     line.currencyId = configured.currencyId
     line.currencyName = configured.currencyName
     line.currencyCode = configured.currencyCode
     line.amountCurrencyCode = configured.currencyCode
     line.costAmount = number(configured.costAmount)
     line.saleAmount = number(configured.saleAmount)
-    line.optional = configured.costType === 'Optional'
-    line.manual = false
     enforceLineCurrency(line)
+    changedCount += 1
+  })
+
+  // Si una edición anterior eliminó líneas al cambiar únicamente el equipo, recuperar
+  // las líneas configuradas de la revisión previa que siguen formando parte comercial
+  // de esta misma tarifa. No se reutiliza el DetailId viejo: al guardar se crea uno nuevo.
+  const includesText = normalizeCatalogValue(String(editingRate.value.includes ?? ''))
+
+  revisionDetails.forEach((detail) => {
+    const costId = String(snapshotField(detail, 'CostId', 'costId') ?? '').trim()
+    const name = String(snapshotField(detail, 'Name', 'name') ?? '').trim()
+    if (!costId || !name) return
+
+    const configured = configuredById.get(costId) ?? allCostsById.get(costId)
+    if (!configured || configured.costDetailType === 'Freight') return
+
+    const exists = rateLines.value.some((line) =>
+      line.costId === costId
+      || normalizeCatalogValue(line.name) === normalizeCatalogValue(name),
+    )
+    if (exists) return
+
+    const wasIncluded =
+      includesText.includes(normalizeCatalogValue(name))
+      || configured.costType === 'Fixed'
+    if (!wasIncluded) return
+
+    const currencyId = String(snapshotField(detail, 'CurrencyId', 'currencyId') ?? configured.currencyId)
+    const currencyName = String(snapshotField(detail, 'CurrencyName', 'currencyName') ?? configured.currencyName)
+    const currencyCode = String(snapshotField(detail, 'CurrencyCode', 'currencyCode') ?? configured.currencyCode)
+
+    rateLines.value.push({
+      key: `recovered-revision:${configured.id}`,
+      section: sectionForCost(configured),
+      name: configured.name,
+      costDetailType: configured.costDetailType,
+      costType: configured.costType,
+      chargeBasis: configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType),
+      costId: configured.id,
+      contextLabel: costContextLabel(configured),
+      notes: snapshotField<string | null>(detail, 'Notes', 'notes')
+        ?? configured.notes?.trim()
+        ?? null,
+      billToClient: snapshotField<string | null>(detail, 'BillToClient', 'billToClient') ?? null,
+      serviceIds: configured.services?.map((service) => service.id) ?? [],
+      currencyId,
+      currencyName,
+      currencyCode,
+      amountCurrencyCode: currencyCode,
+      costAmount: Number(snapshotField(detail, 'CostAmount', 'costAmount') ?? configured.costAmount),
+      saleAmount: Number(snapshotField(detail, 'SaleAmount', 'saleAmount') ?? configured.saleAmount),
+      included: true,
+      optional: configured.costType === 'Optional',
+      manual: false,
+      applyDestinationTax: Boolean(snapshotField(detail, 'ApplyDestinationTax', 'applyDestinationTax') ?? false),
+      destinationTaxRate: Number(snapshotField(detail, 'DestinationTaxRate', 'destinationTaxRate') ?? 0),
+    } as RateLine)
     changedCount += 1
   })
 
@@ -2184,6 +2351,7 @@ async function loadCatalogs() {
       clients,
       salesExecutives,
     })
+    allCosts.value = selectedCosts
     costs.value = selectedCosts
     const usd = currencies.find((item) => normalizeCatalogValue(displayValue(item)) === 'usd') ?? currencies[0]
     form.currencyId = usd?.id ?? ''
@@ -4426,6 +4594,7 @@ onMounted(async () => {
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="font-bold">{{ line.name }}</p>
+                  <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
                   <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
                 </div>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
