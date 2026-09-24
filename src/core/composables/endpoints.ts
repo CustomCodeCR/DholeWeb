@@ -475,6 +475,13 @@ export const ScrapingEndpoints = {
 export const PricingEndpoints = {
   browseCosts: { method: 'GET', path: '/api/pricing/costs', headers: acceptJson },
   selectCosts: { method: 'GET', path: '/api/pricing/costs/select', headers: acceptJson },
+  exportActiveCostsExcel: {
+    method: 'GET',
+    path: '/api/pricing/costs/export.xlsx',
+    headers: {
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    },
+  },
   getCostById: { method: 'GET', path: '/api/pricing/costs/{{costId}}', headers: acceptJson },
   createCost: { method: 'POST', path: '/api/pricing/costs', headers: jsonHeaders },
   updateCost: { method: 'PUT', path: '/api/pricing/costs/{{costId}}', headers: jsonHeaders },
