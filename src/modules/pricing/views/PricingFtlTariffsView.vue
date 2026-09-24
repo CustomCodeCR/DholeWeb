@@ -65,10 +65,15 @@ const activeOptions = [
   { label: 'Activas', value: 'true' },
   { label: 'Inactivas', value: 'false' },
 ]
-const equipmentFilterOptions = [
-  { label: 'Equipo 48/53 pies', value: '48_53' },
-  { label: 'Equipo 5 a 7 toneladas', value: '5_7_TON' },
-]
+function equipmentCatalogKey(item: { id: string; code: string; value: string; slug: string }) {
+  return String(item.code || item.value || item.slug || item.id).trim()
+}
+const equipmentFilterOptions = computed(() =>
+  catalogs.landEquipmentSizes.value.map((item) => ({
+    label: item.name,
+    value: equipmentCatalogKey(item).toUpperCase(),
+  })),
+)
 
 function applicableClasses(row: FtlTariffDto) {
   const values = row.applicableEquipmentClasses?.length
@@ -77,10 +82,12 @@ function applicableClasses(row: FtlTariffDto) {
   return [...new Set(values.map((value) => value.trim().toUpperCase()).filter(Boolean))]
 }
 function equipmentClassLabel(value: string) {
-  if (value === '48_53') return '48/53 pies'
-  if (value === '5_7_TON') return '5–7 toneladas'
   if (value === 'LTL_CBM') return 'Consolidado'
-  return value
+  const target = value.trim().toUpperCase()
+  const item = catalogs.landEquipmentSizes.value.find(
+    (candidate) => equipmentCatalogKey(candidate).toUpperCase() === target,
+  )
+  return item?.name || value
 }
 function profileLabel(value: string) {
   if (value === 'Nvocc') return 'NVOCC'
@@ -197,7 +204,7 @@ function parseEquipmentClasses(value: unknown, mode: LandShipmentMode) {
   if (mode === 'Ltl') return ['LTL_CBM']
   const values = Array.isArray(value) ? value : String(value || '').split(/[|;,]+/)
   const normalized = values.map((item) => String(item).trim().toUpperCase()).filter(Boolean)
-  return normalized.length ? [...new Set(normalized)] : ['48_53']
+  return [...new Set(normalized)]
 }
 function importItem(input: Record<string, unknown>): CreateLandTariffItem | null {
   const mode = parsedMode(input.shipmentMode ?? input.modalidad ?? input.mode)
@@ -384,8 +391,13 @@ async function importFile(event: Event) {
 }
 function downloadTemplate() {
   const headers = ['shipmentMode','commercialProfile','origin','originCode','destination','destinationCode','equipmentClasses','price','minimum','transitDays','warehouse','source','notes','validFrom','validTo','isActive','currency']
+  const ftlEquipmentExample = catalogs.landEquipmentSizes.value
+    .slice(0, 2)
+    .map(equipmentCatalogKey)
+    .filter(Boolean)
+    .join('|')
   const examples = [
-    ['Ftl','General','Costa Rica','','Nicaragua','','48_53|5_7_TON','1400','','4','','Proveedor','','','','true','USD'],
+    ['Ftl','General','Costa Rica','','Nicaragua','',ftlEquipmentExample,'1400','','4','','Proveedor','','','','true','USD'],
     ['Ltl','FinalClient','San José, Costa Rica','','Managua, Nicaragua','','','40','55','3','Almacén Fiscal Premier 6117','Proveedor','','','','true','USD'],
   ]
   const escape = (value: string) => '"' + value.replaceAll('"', '""') + '"'

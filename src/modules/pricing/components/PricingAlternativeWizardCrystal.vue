@@ -651,7 +651,7 @@ const equipmentSource = computed(() => {
   if (!modality) return []
 
   if (modality === 'Land') {
-    return catalogs.landEquipmentTypes.filter((item) => {
+    return catalogs.landEquipmentSizes.filter((item) => {
       const meta = metadata(item)
       if (meta?.modality && meta.modality.toLocaleLowerCase() !== 'land') return false
 
@@ -692,7 +692,10 @@ const equipmentSource = computed(() => {
   })
 })
 
-const equipmentHasSizes = computed(() => equipmentSource.value.some((item) => Boolean(metadata(item)?.size)))
+// land-equipment-sizes already contains the selectable FTL furgones.
+const equipmentHasSizes = computed(() =>
+  form.modality !== 'Land' && equipmentSource.value.some((item) => Boolean(metadata(item)?.size)),
+)
 
 const equipmentSizeOptions = computed(() => {
   const availableSizes = new Set(
@@ -2667,7 +2670,8 @@ async function hydrateExistingRate() {
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = Boolean(rate.useAllInPresentation)
     const modality = modalityForRate(rate)
-    const equipment = [...catalogs.containers, ...catalogs.landEquipmentTypes].find((item) => item.id === rate.containerTypeId) ?? null
+    const equipment = [...catalogs.containers, ...catalogs.landEquipmentSizes, ...catalogs.landEquipmentTypes]
+      .find((item) => item.id === rate.containerTypeId) ?? null
     const equipmentMeta = metadata(equipment)
     form.rateType = rate.rateType
     form.modality = modality
@@ -3933,54 +3937,31 @@ onMounted(async () => {
           <div class="grid gap-3 md:grid-cols-2">
             <button
               type="button"
-              class="group flex min-h-[62px] items-center justify-between gap-3 rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-200"
-              :class="form.rateType === 'Spot'
-                ? 'border-[rgb(var(--dh-primary-rgb)/0.48)] bg-[rgb(var(--dh-primary-rgb)/0.09)] shadow-[0_8px_24px_rgb(var(--dh-primary-rgb)/0.08)]'
-                : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[rgb(var(--dh-primary-rgb)/0.28)] hover:bg-[var(--dh-card-hover)]'"
-              :aria-pressed="form.rateType === 'Spot'"
+              class="crystal-choice min-h-[118px] text-left"
+              :class="form.rateType === 'Spot' ? 'crystal-choice--active' : ''"
               @click="form.rateType = 'Spot'"
             >
-              <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-black text-[var(--dh-text)]">SPOT</span>
-                  <span class="rounded-full border border-[var(--dh-border)] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Puntual</span>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-base font-black">SPOT</p>
+                  <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">Cotización puntual. Al duplicarla se revisan los datos y se vuelve a escoger el flete vigente.</p>
                 </div>
-                <p class="mt-0.5 text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]">Se recotiza al duplicar.</p>
+                <Check v-if="form.rateType === 'Spot'" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
               </div>
-              <span
-                class="grid h-6 w-6 shrink-0 place-items-center rounded-full border transition"
-                :class="form.rateType === 'Spot'
-                  ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-                  : 'border-[var(--dh-border-strong)] text-transparent'"
-              >
-                <Check class="h-3.5 w-3.5" />
-              </span>
             </button>
-
             <button
               type="button"
-              class="group flex min-h-[62px] items-center justify-between gap-3 rounded-2xl border px-3.5 py-2.5 text-left transition-all duration-200"
-              :class="form.rateType === 'Tariff'
-                ? 'border-[rgb(var(--dh-primary-rgb)/0.48)] bg-[rgb(var(--dh-primary-rgb)/0.09)] shadow-[0_8px_24px_rgb(var(--dh-primary-rgb)/0.08)]'
-                : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[rgb(var(--dh-primary-rgb)/0.28)] hover:bg-[var(--dh-card-hover)]'"
-              :aria-pressed="form.rateType === 'Tariff'"
+              class="crystal-choice min-h-[118px] text-left"
+              :class="form.rateType === 'Tariff' ? 'crystal-choice--active' : ''"
               @click="form.rateType = 'Tariff'"
             >
-              <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-black text-[var(--dh-text)]">TARIFARIO</span>
-                  <span class="rounded-full border border-[var(--dh-border)] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Larga vigencia</span>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-base font-black">TARIFARIO</p>
+                  <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">Tarifa de vigencia extendida. Cuando un cliente la acepta se crea otra QUO con el mismo flete, cargos y recargos.</p>
                 </div>
-                <p class="mt-0.5 text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]">Snapshot exacto al aceptar.</p>
+                <Check v-if="form.rateType === 'Tariff'" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
               </div>
-              <span
-                class="grid h-6 w-6 shrink-0 place-items-center rounded-full border transition"
-                :class="form.rateType === 'Tariff'
-                  ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-                  : 'border-[var(--dh-border-strong)] text-transparent'"
-              >
-                <Check class="h-3.5 w-3.5" />
-              </span>
             </button>
           </div>
 

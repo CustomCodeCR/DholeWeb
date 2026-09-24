@@ -423,7 +423,7 @@ export function usePricingCatalogs() {
     const incoterm = incoterms.value.find((item) => item.id === rate.incotermId)
     const equipmentCatalog =
       rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl'
-        ? landEquipmentTypes.value
+        ? landEquipmentSizes.value
         : containerTypes.value
 
     return {
@@ -513,7 +513,8 @@ export function usePricingCatalogs() {
     containerOptions: computed(() => options(containerTypes.value)),
     containerSizeOptions: computed(() => options(containerSizes.value)),
     containerKindOptions: computed(() => options(containerKinds.value)),
-    landEquipmentOptions: computed(() => options(landEquipmentTypes.value)),
+    // FTL furgones are the items configured in the land-equipment-sizes catalog.
+    landEquipmentOptions: computed(() => options(landEquipmentSizes.value)),
     landEquipmentSizeOptions: computed(() => options(landEquipmentSizes.value)),
     landEquipmentKindOptions: computed(() => options(landEquipmentKinds.value)),
     profileOptions: computed(() => options(importProfiles.value)),
