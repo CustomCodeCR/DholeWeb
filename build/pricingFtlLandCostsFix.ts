@@ -115,13 +115,10 @@ function applicableCost(cost: CostSelectDto) {
     if (cost.agentId && cost.agentId !== form.agentId) return false
   }
 
-  // Pricing already evaluates each cost's own Incoterm restriction. The extra section
-  // responsibility filter is only applicable to the maritime/air presentation model.
-  const isTerrestrial = form.modality === 'Land'
-    || shipmentModeForApi.value === 'Ftl'
-    || shipmentModeForApi.value === 'Ltl'
-  if (!isTerrestrial && !incotermResponsibilitySections.value.includes(sectionForCost(cost))) return false
-
+  // /costs/select ya evaluó las restricciones reales del costo: ruta, naviera/agente,
+  // Incoterm explícito, modalidad y servicios. CostDetailType/section es presentación,
+  // no una segunda regla de aplicabilidad. Un OriginCharge configurado para FOB, por
+  // ejemplo, debe seguir apareciendo si Pricing lo devolvió para ese contexto.
   return true
 }
 
@@ -207,6 +204,18 @@ function shouldIncludeOptionalCost(line: { id?: string | null; costId?: string |
 
 function rebuildRateLines`,
     'contextual cost loader',
+  )
+
+  // Los costos que devolvió Pricing para el contexto completo son autoritativos.
+  // No descartarlos otra vez por visibleSections, ya que esa lista modela presentación
+  // por Incoterm y puede contradecir una asociación explícita del costo maestro.
+  code = replaceRegexOne(
+    code,
+    /const configuredCosts = applicableConfiguredCosts\(\)\n  configuredCosts\.forEach\(\(cost\) => \{\n    const section = sectionForCost\(cost\)\n    if \(!visible\.has\(section\)\) return/,
+    `const configuredCosts = applicableConfiguredCosts()
+  configuredCosts.forEach((cost) => {
+    const section = sectionForCost(cost)`,
+    'configured cost visual-section filter',
   )
 
   // Pantalla 7 no debe inventar una fila "Recolecta". Si existe Recolecta en Cargos y
