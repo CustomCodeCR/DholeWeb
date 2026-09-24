@@ -71,6 +71,15 @@ export const AuditLogsService = {
     return unwrapListResponse<AuditEventListItemDto>(response)
   },
 
+  async getPricingRateHistory(rateId: string): Promise<AuditEventDto[]> {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: `/api/auditlogs/events/pricing-rate-history/${rateId}`,
+    })
+
+    return unwrapListResponse<AuditEventDto>(response)
+  },
+
   async getUserHistory(userId: string): Promise<AuditEventListItemDto[]> {
     const response = await callEndpoint<unknown>(Endpoints.getUserHistory, {
       params: { userId },
