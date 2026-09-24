@@ -10,11 +10,31 @@ function patchWizard(source: string) {
   let code = source
 
   // FCL no debe tener una selección duplicada de tamaño/tipo/cantidad fuera de la distribución.
-  code = replaceOptional(
-    code,
+  // Este plugin corre después de pricingWizardLclCorrections, que actualmente transforma
+  // la fila base con el guard de LCL/LTL. Aceptamos también las variantes anteriores para
+  // que un cambio de orden de plugins no vuelva a mostrar ambos selectores.
+  const standaloneEquipmentGuards = [
+    `v-if="!['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`,
     `v-if="shipmentModeForApi !== 'Lcl'" class="grid gap-4 md:grid-cols-3"`,
-    `v-if="shipmentModeForApi !== 'Lcl' && shipmentModeForApi !== 'Fcl'" class="grid gap-4 md:grid-cols-3"`,
-  )
+    `class="grid gap-4 md:grid-cols-3"`,
+  ]
+  const standaloneEquipmentGuard =
+    standaloneEquipmentGuards.find((guard) => code.includes(guard)) ?? null
+
+  if (standaloneEquipmentGuard) {
+    code = code.replace(
+      standaloneEquipmentGuard,
+      `v-if="shipmentModeForApi !== 'Fcl' && !['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`,
+    )
+  } else if (
+    !code.includes(
+      `v-if="shipmentModeForApi !== 'Fcl' && !['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`,
+    )
+  ) {
+    throw new Error(
+      '[pricingWizardFclDistributionOnly] Standalone equipment selector guard was not found.',
+    )
+  }
 
   // Las leyendas intermedias agregaban ruido visual y repetían lo que ya dicen los campos.
   const routeLegend = `            <div class="flex items-center gap-3 border-t border-[var(--dh-border)] pt-5">\n              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.08)] text-[var(--dh-primary)]"><Waypoints class="h-4 w-4" /></span>\n              <div>\n                <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-soft)]">Ruta logística</p>\n                <p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">Defina POL, POE y destino final cuando corresponda.</p>\n              </div>\n            </div>\n\n`
