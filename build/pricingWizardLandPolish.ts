@@ -58,11 +58,11 @@ function patchWizard(source: string) {
 
   // Improve the land extra-equipment state so incomplete rows are explicit and duplicate
   // furgón types cannot be selected accidentally.
-  const addLandAnchor = `function addLandEquipment() {\n  const used = new Set([form.equipmentId, ...landExtraEquipment.value.map((row) => row.containerTypeId)].filter(Boolean))\n  const next = catalogs.landEquipmentTypes.find((item) => !used.has(item.id))\n  landExtraEquipment.value.push({ key: crypto.randomUUID(), containerTypeId: next?.id ?? '', quantity: 1 })\n}`
+  const addLandAnchor = `function addLandEquipment() {\n  const used = new Set([form.equipmentId, ...landExtraEquipment.value.map((row) => row.containerTypeId)].filter(Boolean))\n  const next = catalogs.landEquipmentSizes.find((item) => !used.has(item.id))\n  landExtraEquipment.value.push({ key: crypto.randomUUID(), containerTypeId: next?.id ?? '', quantity: 1 })\n}`
   if (code.includes(addLandAnchor)) {
     code = code.replace(
       addLandAnchor,
-      `const canAddLandEquipment = computed(() => {\n  if (!selectedEquipment.value) return false\n  if (landExtraEquipment.value.some((row) => !row.containerTypeId)) return false\n  const used = new Set([form.equipmentId, ...landExtraEquipment.value.map((row) => row.containerTypeId)].filter(Boolean))\n  return catalogs.landEquipmentTypes.some((item) => !used.has(item.id))\n})\n\nfunction landExtraExcludedEquipmentIds(rowKey: string) {\n  return [\n    form.equipmentId,\n    ...landExtraEquipment.value\n      .filter((row) => row.key !== rowKey)\n      .map((row) => row.containerTypeId),\n  ].filter(Boolean)\n}\n\nfunction addLandEquipment() {\n  if (!canAddLandEquipment.value) return\n  landExtraEquipment.value.push({ key: crypto.randomUUID(), containerTypeId: '', quantity: 1 })\n}`,
+      `const canAddLandEquipment = computed(() => {\n  if (!selectedEquipment.value) return false\n  if (landExtraEquipment.value.some((row) => !row.containerTypeId)) return false\n  const used = new Set([form.equipmentId, ...landExtraEquipment.value.map((row) => row.containerTypeId)].filter(Boolean))\n  return catalogs.landEquipmentSizes.some((item) => !used.has(item.id))\n})\n\nfunction landExtraExcludedEquipmentIds(rowKey: string) {\n  return [\n    form.equipmentId,\n    ...landExtraEquipment.value\n      .filter((row) => row.key !== rowKey)\n      .map((row) => row.containerTypeId),\n  ].filter(Boolean)\n}\n\nfunction addLandEquipment() {\n  if (!canAddLandEquipment.value) return\n  landExtraEquipment.value.push({ key: crypto.randomUUID(), containerTypeId: '', quantity: 1 })\n}`,
     )
   }
 

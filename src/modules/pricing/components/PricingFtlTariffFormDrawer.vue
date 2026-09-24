@@ -24,17 +24,8 @@ const catalogs = usePricingCatalogs()
 const LEGACY_ORIGIN = '__legacy_origin__'
 const LEGACY_DESTINATION = '__legacy_destination__'
 
-function normalize(value: string) {
-  return value.trim().toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-}
-
-function classifyEquipment(item: PricingCatalogItem) {
-  const text = normalize([item.code, item.name, item.value, item.slug, item.metadataJson || ''].join(' '))
-  if (/(^|[^0-9])(48|53)([^0-9]|$)/.test(text)) return '48_53'
-  if (/(^|[^0-9])(5|6|7)([^0-9]|$).*(ton|tons|tonelada|toneladas)/.test(text)) return '5_7_TON'
-  if (/(ton|tons|tonelada|toneladas).*(^|[^0-9])(5|6|7)([^0-9]|$)/.test(text)) return '5_7_TON'
-  if (/5\s*(a|-|\/)\s*7/.test(text)) return '5_7_TON'
-  return ''
+function equipmentKey(item: PricingCatalogItem) {
+  return String(item.code || item.value || item.slug || item.id).trim()
 }
 
 const modeOptions: Array<{ label: string; value: LandShipmentMode }> = [
@@ -115,12 +106,10 @@ const destinationOptions = computed(() => {
 
 const equipmentOptions = computed(() => {
   const labels = new Map<string, string>()
-  catalogs.landEquipmentTypes.value.forEach((item) => {
-    const equipmentClass = classifyEquipment(item)
-    if (equipmentClass && !labels.has(equipmentClass)) labels.set(equipmentClass, item.name)
+  catalogs.landEquipmentSizes.value.forEach((item) => {
+    const key = equipmentKey(item)
+    if (key && !labels.has(key)) labels.set(key, item.name)
   })
-  if (!labels.has('48_53')) labels.set('48_53', 'Equipo 48/53 pies')
-  if (!labels.has('5_7_TON')) labels.set('5_7_TON', 'Equipo 5 a 7 toneladas')
   form.equipmentClasses.forEach((value) => {
     if (!labels.has(value)) labels.set(value, value)
   })
@@ -286,14 +275,14 @@ onMounted(catalogs.loadAll)
       <div v-if="!isLtl" class="mb-4">
         <PricingMultiSelect
           v-model="form.equipmentClasses"
-          label="Equipos / contenedores aplicables"
+          label="Furgones aplicables"
           :options="equipmentOptions"
-          placeholder="Seleccione uno o varios equipos"
-          search-placeholder="Buscar equipo..."
-          empty-text="No hay equipos terrestres configurados."
+          placeholder="Seleccione uno o varios furgones"
+          search-placeholder="Buscar furgón..."
+          empty-text="No hay furgones configurados en land-equipment-sizes."
         />
         <p v-if="form.submitted && !form.equipmentClasses.length" class="mt-2 text-xs font-bold text-red-500">
-          Seleccione al menos un equipo para una tarifa completa.
+          Seleccione al menos un furgón para una tarifa FTL.
         </p>
       </div>
       <div v-else class="mb-4 rounded-2xl border border-[var(--dh-border)] bg-black/[0.025] px-4 py-3 dark:bg-white/[0.04]">
