@@ -71,14 +71,24 @@ function isUnassignedCandidateParty(value: unknown) {
 
 function persistedRateLineForEdit(detail: RateDto['rateDetails'][number]): RateLine {
   const configuredCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
+  const normalizedName = normalizeCatalogValue(detail.name)
+  const isLclPickup =
+    shipmentModeForApi.value === 'Lcl'
+    && /pickup|recole/.test(normalizedName)
+  const detailType: CostDetailType = isLclPickup ? 'OriginCharge' : detail.costDetailType
+  const chargeBasis: ChargeBasis =
+    shipmentModeForApi.value === 'Lcl' && normalizedName === 'cfs'
+      ? 'PerCbm'
+      : detail.chargeBasis
+
   return {
     key: \`existing:\${detail.id}\`,
     detailId: detail.id,
-    section: sectionForDetail(detail.costDetailType, detail.name),
+    section: isLclPickup ? 'pickup_origin' : sectionForDetail(detailType, detail.name),
     name: detail.name,
-    costDetailType: detail.costDetailType,
+    costDetailType: detailType,
     costType: detail.costType,
-    chargeBasis: detail.chargeBasis,
+    chargeBasis,
     costId: detail.costId ?? null,
     notes: detail.notes ?? null,
     billToClient: detail.billToClient ?? null,
