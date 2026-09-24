@@ -326,22 +326,18 @@ ${savedManualStep}    if (shouldPreservePersistedEditLines()) {
     )
   }
 
-  const hydrateMergeAnchor = `    mergeConfiguredOptionalCostsIntoRateLines()
-    step.value = props.viewOnly ? 9 : 8`
-  if (code.includes(hydrateMergeAnchor)) {
-    code = code.replace(
-      hydrateMergeAnchor,
-      `    if (!props.viewOnly) {
+  const hydrateMergeAnchor = `    mergeConfiguredOptionalCostsIntoRateLines()`
+  code = replaceOne(
+    code,
+    hydrateMergeAnchor,
+    `    if (!props.viewOnly) {
       // RateDetails persistidos siguen siendo autoritativos para montos. A la vez,
       // completamos los costos que Pricing confirmó para el contexto y revinculamos
       // reparaciones manuales que perdieron CostId en revisiones anteriores.
       applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
-    }
-    step.value = props.viewOnly ? 9 : 8`,
-    )
-  } else {
-    throw new Error('[pricingWizardStep4NavigationHardFix] hydrate merge anchor not found.')
-  }
+    }`,
+    'hydrate configured-cost completion',
+  )
 
   // Cualquier rebuild disparado por watchers debe respetar el snapshot cuando
   // ruta + naviera + agente siguen iguales.
