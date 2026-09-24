@@ -350,11 +350,18 @@ ${savedManualStep}    if (shouldPreservePersistedEditLines()) {
   )
 
   // Antes de materializar Details para un UPDATE, hacer una última reconciliación
-  // contra /costs/select. Así un cambio de equipo/cantidad/vigencia nunca convierte
-  // una ausencia temporal de UI en una eliminación de costos automáticos.
-  const saveDetailsAnchor = `  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({`
-  code = replaceOne(
-    code,
+  // contra /costs/select. Plugins anteriores pueden cambiar el mapper de
+  // includedLines -> sourceDetails (Own LCL), por lo que aceptamos ambas formas.
+  const saveDetailsAnchors = [
+    `  const details: CreateRateDetailRequest[] = sourceDetails.map((line) => ({`,
+    `  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({`,
+  ]
+  const saveDetailsAnchor = saveDetailsAnchors.find((anchor) => code.includes(anchor))
+  if (!saveDetailsAnchor) {
+    throw new Error('[pricingWizardStep4NavigationHardFix] Missing pre-save edit cost reconciliation anchor.')
+  }
+
+  code = code.replace(
     saveDetailsAnchor,
     `  if (editingRate.value && !props.viewOnly) {
     await loadApplicableCosts()
@@ -371,7 +378,6 @@ ${savedManualStep}    if (shouldPreservePersistedEditLines()) {
   }
 
 ${saveDetailsAnchor}`,
-    'pre-save edit cost reconciliation',
   )
 
   // Cualquier rebuild disparado por watchers debe respetar el snapshot cuando
