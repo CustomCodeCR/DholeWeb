@@ -114,6 +114,17 @@ export const PricingService = {
     return unwrapListResponse<CostSelectDto>(response)
   },
 
+  async exportActiveCostsExcel(): Promise<void> {
+    const blob = await fetchBlobClient(Endpoints.exportActiveCostsExcel.path, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
+    })
+    const date = new Date().toISOString().slice(0, 10).replaceAll('-', '')
+    downloadBlob(blob, `costos-pricing-activos-${date}.xlsx`)
+  },
+
   async getCost(costId: string): Promise<CostDto> {
     const response = await callEndpoint<unknown>(Endpoints.getCostById, { params: { costId } })
     return unwrapApiResponse<CostDto>(response as never)

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { CircleDollarSign, Pencil, Power, PowerOff, Trash2 } from 'lucide-vue-next'
+import { CircleDollarSign, FileSpreadsheet, Pencil, Power, PowerOff, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import {
   DhCrudToolbar,
@@ -39,6 +39,7 @@ const displayCost = (cost: CostDto) => catalogs.resolveCostLabels(cost)
 
 const rows = ref<CostDto[]>([])
 const loading = ref(false)
+const exporting = ref(false)
 const filtersOpen = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
@@ -193,6 +194,21 @@ function buildCostsQueryString() {
   return `?${params.toString()}`
 }
 
+async function exportExcel() {
+  try {
+    exporting.value = true
+    await PricingService.exportActiveCostsExcel()
+    toastStore.success(
+      'Excel generado',
+      'DholeReports exportó todos los costos activos disponibles.',
+    )
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron exportar los costos activos.')
+  } finally {
+    exporting.value = false
+  }
+}
+
 async function load() {
   try {
     loading.value = true
@@ -291,9 +307,19 @@ onMounted(async () => {
       subtitle="Matriz maestra de costos fijos, opcionales y variables por naviera, agente y puerto."
       :icon="CircleDollarSign"
     >
-      <template v-if="canCreate" #actions
-        ><DhButton label="Nuevo costo" @click="openForm()"
-      /></template>
+      <template #actions>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <DhButton
+            label="Exportar Excel"
+            :icon="FileSpreadsheet"
+            variant="secondary"
+            :loading="exporting"
+            :disabled="exporting"
+            @click="exportExcel"
+          />
+          <DhButton v-if="canCreate" label="Nuevo costo" @click="openForm()" />
+        </div>
+      </template>
     </DhPageHeader>
 
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
