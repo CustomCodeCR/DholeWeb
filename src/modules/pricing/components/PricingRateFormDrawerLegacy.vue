@@ -271,7 +271,7 @@ const isConsolidated = computed(() => isLcl.value || isLtl.value)
 const usesEquipmentDistribution = computed(() => isFcl.value || isFtl.value)
 const usesContainerFreight = computed(() => isFcl.value && !isContainerMixLocked.value)
 const currentEquipmentItems = computed(() =>
-  isFtl.value ? catalogs.landEquipmentTypes.value : catalogs.containerTypes.value,
+  isFtl.value ? catalogs.landEquipmentSizes.value : catalogs.containerTypes.value,
 )
 const currentEquipmentOptions = computed(() =>
   isFtl.value ? catalogs.landEquipmentOptions.value : catalogs.containerOptions.value,
@@ -2049,7 +2049,7 @@ watch(
 
     if (mode === 'Fcl' || mode === 'Ftl') {
       const validEquipment =
-        mode === 'Ftl' ? catalogs.landEquipmentTypes.value : catalogs.containerTypes.value
+        mode === 'Ftl' ? catalogs.landEquipmentSizes.value : catalogs.containerTypes.value
       const selectedId = containerAllocations.value[0]?.containerTypeId || form.containerTypeId
       if (!validEquipment.some((item) => item.id === selectedId)) {
         const quantity = Math.max(1, Number(form.containerQuantity || 1))

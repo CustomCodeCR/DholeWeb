@@ -651,7 +651,7 @@ const equipmentSource = computed(() => {
   if (!modality) return []
 
   if (modality === 'Land') {
-    return catalogs.landEquipmentTypes.filter((item) => {
+    return catalogs.landEquipmentSizes.filter((item) => {
       const meta = metadata(item)
       if (meta?.modality && meta.modality.toLocaleLowerCase() !== 'land') return false
 
@@ -692,7 +692,10 @@ const equipmentSource = computed(() => {
   })
 })
 
-const equipmentHasSizes = computed(() => equipmentSource.value.some((item) => Boolean(metadata(item)?.size)))
+// land-equipment-sizes already contains the selectable FTL furgones.
+const equipmentHasSizes = computed(() =>
+  form.modality !== 'Land' && equipmentSource.value.some((item) => Boolean(metadata(item)?.size)),
+)
 
 const equipmentSizeOptions = computed(() => {
   const availableSizes = new Set(
@@ -2667,7 +2670,8 @@ async function hydrateExistingRate() {
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = Boolean(rate.useAllInPresentation)
     const modality = modalityForRate(rate)
-    const equipment = [...catalogs.containers, ...catalogs.landEquipmentTypes].find((item) => item.id === rate.containerTypeId) ?? null
+    const equipment = [...catalogs.containers, ...catalogs.landEquipmentSizes, ...catalogs.landEquipmentTypes]
+      .find((item) => item.id === rate.containerTypeId) ?? null
     const equipmentMeta = metadata(equipment)
     form.rateType = rate.rateType
     form.modality = modality

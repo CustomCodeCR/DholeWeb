@@ -32,7 +32,7 @@ let hydrating = false
 
 const isLand = computed(() => props.transport === 'land')
 const equipmentItems = computed(() =>
-  isLand.value ? catalogs.landEquipmentTypes.value : catalogs.containerTypes.value,
+  isLand.value ? catalogs.landEquipmentSizes.value : catalogs.containerTypes.value,
 )
 const sizeItems = computed(() =>
   isLand.value ? catalogs.landEquipmentSizes.value : catalogs.containerSizes.value,
@@ -42,7 +42,11 @@ const kindItems = computed(() =>
 )
 
 const hasDimensionCatalogs = computed(
-  () => sizeItems.value.length > 0 && kindItems.value.length > 0 && equipmentItems.value.length > 0,
+  () =>
+    !isLand.value &&
+    sizeItems.value.length > 0 &&
+    kindItems.value.length > 0 &&
+    equipmentItems.value.length > 0,
 )
 
 const sizeOptions = computed(() =>
@@ -175,8 +179,8 @@ onMounted(() => {
     v-else
     :model-value="modelValue"
     :disabled="disabled"
-    :label="isLand ? 'Tipo de equipo terrestre' : 'Tipo de contenedor'"
-    :placeholder="isLand ? 'Seleccione equipo terrestre' : 'Seleccione contenedor'"
+    :label="isLand ? 'Furgón' : 'Tipo de contenedor'"
+    :placeholder="isLand ? 'Seleccione furgón' : 'Seleccione contenedor'"
     :options="legacyEquipmentOptions"
     :error="error"
     @update:model-value="emit('update:modelValue', String($event ?? ''))"
