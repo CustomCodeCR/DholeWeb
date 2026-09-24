@@ -74,7 +74,7 @@ function persistedRateLineForEdit(detail: RateDto['rateDetails'][number]): RateL
   const normalizedName = normalizeCatalogValue(detail.name)
   const isLclPickup =
     shipmentModeForApi.value === 'Lcl'
-    && /pickup|recole/.test(normalizedName)
+    && /pick\\s*up|recole/.test(normalizedName)
   const detailType: CostDetailType = isLclPickup ? 'OriginCharge' : detail.costDetailType
   const chargeBasis: ChargeBasis =
     shipmentModeForApi.value === 'Lcl' && normalizedName === 'cfs'
