@@ -16,24 +16,27 @@ function patchWizard(source: string) {
   const standaloneEquipmentGuards = [
     `v-if="!['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`,
     `v-if="shipmentModeForApi !== 'Lcl'" class="grid gap-4 md:grid-cols-3"`,
-    `class="grid gap-4 md:grid-cols-3"`,
   ]
   const standaloneEquipmentGuard =
     standaloneEquipmentGuards.find((guard) => code.includes(guard)) ?? null
+  const fclOnlyEquipmentGuard =
+    `v-if="shipmentModeForApi !== 'Fcl' && !['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`
 
   if (standaloneEquipmentGuard) {
-    code = code.replace(
-      standaloneEquipmentGuard,
-      `v-if="shipmentModeForApi !== 'Fcl' && !['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`,
-    )
-  } else if (
-    !code.includes(
-      `v-if="shipmentModeForApi !== 'Fcl' && !['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`,
-    )
-  ) {
-    throw new Error(
-      '[pricingWizardFclDistributionOnly] Standalone equipment selector guard was not found.',
-    )
+    code = code.replace(standaloneEquipmentGuard, fclOnlyEquipmentGuard)
+  } else if (!code.includes(fclOnlyEquipmentGuard)) {
+    const rawEquipmentRow =
+      `            <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->\\n            <div class="grid gap-4 md:grid-cols-3">`
+    const guardedEquipmentRow =
+      `            <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->\\n            <div ${fclOnlyEquipmentGuard}>`
+
+    if (!code.includes(rawEquipmentRow)) {
+      throw new Error(
+        '[pricingWizardFclDistributionOnly] Standalone equipment selector guard was not found.',
+      )
+    }
+
+    code = code.replace(rawEquipmentRow, guardedEquipmentRow)
   }
 
   // Las leyendas intermedias agregaban ruido visual y repetían lo que ya dicen los campos.
