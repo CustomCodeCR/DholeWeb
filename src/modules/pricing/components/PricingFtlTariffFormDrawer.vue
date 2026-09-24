@@ -219,7 +219,7 @@ onMounted(catalogs.loadAll)
           <Route class="h-5 w-5" />
         </div>
         <div>
-          <h3 class="font-black text-[var(--dh-text)]">{{ tariff ? 'Editar tarifa terrestre' : 'Nueva tarifa terrestre' }}</h3>
+          <h3 class="font-black text-[var(--dh-text)]">{{ props.tariff ? 'Editar tarifa terrestre' : 'Nueva tarifa terrestre' }}</h3>
           <p class="mt-1 text-sm font-medium text-[var(--dh-text-muted)]">
             Defina la ruta y si corresponde a un movimiento completo o consolidado.
           </p>
