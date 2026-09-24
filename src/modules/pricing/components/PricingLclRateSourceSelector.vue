@@ -170,7 +170,9 @@ function sectionForDetail(type: CostDetailType, name = ''): LclNormalizedRateLin
 function ownLineType(name: string): CostDetailType {
   const value = normalize(name)
   if (value.includes('flete internacional') || value.includes('ocean')) return 'Freight'
-  if (value.includes('recolecta')) return 'InlandTransport'
+  // PICK UP / Recolecta belong to origin. They must never be rendered or
+  // persisted as a destination charge.
+  if (value.includes('recolecta') || value.includes('pickup') || value.includes('pick up')) return 'OriginCharge'
   if (value.includes('custom')) return 'CustomsCharge'
   if (value.includes('doc') || value.includes('manifest') || value.includes('vgm')) return 'Documentation'
   if (value.includes('flete terrestre')) return 'InlandTransport'
