@@ -126,16 +126,23 @@ function appendConfiguredCostToPersistedEdit(cost: CostSelectDto) {
   const byCostId = rateLines.value.find((line) => line.costId === cost.id)
   if (byCostId) return
 
-  const equivalent = rateLines.value.find((line) =>
-    line.costDetailType === cost.costDetailType
-    && normalizeCatalogValue(line.name) === normalizeCatalogValue(cost.name),
+  const normalizedCostName = normalizeCatalogValue(cost.name)
+  const sameNameLines = rateLines.value.filter(
+    (line) => normalizeCatalogValue(line.name) === normalizedCostName,
   )
+  const equivalent =
+    sameNameLines.find((line) => line.costDetailType === cost.costDetailType)
+    ?? (sameNameLines.length === 1 ? sameNameLines[0] : undefined)
 
   if (equivalent) {
-    // Una línea que fue reparada manualmente después de una hidratación defectuosa
-    // se vuelve a enlazar al costo maestro sin pisar costo/venta ya revisados.
+    // Revisiones dañadas pueden haber guardado un costo configurado como "Manual" o
+    // incluso con el CostDetailType equivocado. Si el nombre identifica de forma única
+    // al costo que Pricing acaba de confirmar para el contexto, revincularlo al maestro
+    // y reparar clasificación/sección SIN pisar costo/venta ya revisados.
     if (!equivalent.costId) {
       equivalent.costId = cost.id
+      equivalent.costDetailType = cost.costDetailType
+      equivalent.section = section
       equivalent.costType = cost.costType
       equivalent.chargeBasis = cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType)
       equivalent.contextLabel = costContextLabel(cost)
@@ -335,8 +342,36 @@ ${savedManualStep}    if (shouldPreservePersistedEditLines()) {
       // completamos los costos que Pricing confirmó para el contexto y revinculamos
       // reparaciones manuales que perdieron CostId en revisiones anteriores.
       applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+      // Después de completar/reparar costos, volver a enlazar DetailId evita que al guardar
+      // una revisión el frontend interprete una línea existente como alta nueva + baja vieja.
+      relinkExistingDetailIdsForEdit()
     }`,
     'hydrate configured-cost completion',
+  )
+
+  // Antes de materializar Details para un UPDATE, hacer una última reconciliación
+  // contra /costs/select. Así un cambio de equipo/cantidad/vigencia nunca convierte
+  // una ausencia temporal de UI en una eliminación de costos automáticos.
+  const saveDetailsAnchor = `  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({`
+  code = replaceOne(
+    code,
+    saveDetailsAnchor,
+    `  if (editingRate.value && !props.viewOnly) {
+    await loadApplicableCosts()
+
+    if (shouldPreservePersistedEditLines()) {
+      applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+      syncPersistedFreightLineForEdit()
+    } else {
+      // Solo un cambio real del contexto comercial debe reconstruir las líneas.
+      rebuildRateLines()
+    }
+
+    relinkExistingDetailIdsForEdit()
+  }
+
+${saveDetailsAnchor}`,
+    'pre-save edit cost reconciliation',
   )
 
   // Cualquier rebuild disparado por watchers debe respetar el snapshot cuando
