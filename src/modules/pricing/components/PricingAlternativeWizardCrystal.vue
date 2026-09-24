@@ -1756,155 +1756,90 @@ function applyConfiguredMetadataToPersistedLine(line: RateLine, configured: Cost
 function syncPersistedLinesWithChangedConfiguredCosts() {
   if (!editingRate.value || props.viewOnly) return 0
 
-  const applicable = applicableConfiguredCosts()
-  const configuredById = new Map(applicable.map((cost) => [cost.id, cost] as const))
-  const allCostsById = new Map(allCosts.value.map((cost) => [cost.id, cost] as const))
+  const configuredCosts = applicableConfiguredCosts()
   const persistedById = new Map(
     editingRate.value.rateDetails.map((detail) => [detail.id, detail] as const),
   )
 
-  const revisionDetails = latestMatchingRevisionDetails(editingRate.value)
-  const revisionCostIdByName = new Map<string, string>()
-  revisionDetails.forEach((detail) => {
-    const name = String(snapshotField(detail, 'Name', 'name') ?? '').trim()
-    const costId = String(snapshotField(detail, 'CostId', 'costId') ?? '').trim()
-    if (name && costId) revisionCostIdByName.set(normalizeCatalogValue(name), costId)
-  })
+  const resolveCurrentConfiguredCost = (line: RateLine) => {
+    const normalizedLineName = normalizeCatalogValue(line.name)
+
+    // A Costos y recargos row can be replaced/deactivated and recreated with a new id.
+    // The active applicable catalog is authoritative, so resolve the current logical
+    // charge by business identity first instead of requiring the historical CostId.
+    const sameLogicalCharge = configuredCosts.find(
+      (cost) =>
+        normalizeCatalogValue(cost.name) === normalizedLineName
+        && cost.costDetailType === line.costDetailType,
+    )
+    if (sameLogicalCharge) return sameLogicalCharge
+
+    const sameName = configuredCosts.filter(
+      (cost) => normalizeCatalogValue(cost.name) === normalizedLineName,
+    )
+    if (sameName.length === 1) return sameName[0]
+
+    return line.costId
+      ? configuredCosts.find((cost) => cost.id === line.costId) ?? null
+      : null
+  }
 
   let changedCount = 0
 
   rateLines.value.forEach((line) => {
-    if (line.costDetailType === 'Freight' && !line.costId) {
-      // Flete de importación/manual seleccionado en Pantalla 6 es parte estructural
-      // de la tarifa; no debe caer al bloque de "rubros manuales".
-      line.manual = false
-      line.section = 'international_freight'
-      return
-    }
+    if (!line.costId || line.costDetailType === 'Freight') return
 
-    let configured: CostSelectDto | undefined
-
-    if (line.costId) {
-      configured = configuredById.get(line.costId) ?? allCostsById.get(line.costId)
-    } else {
-      const normalizedName = normalizeCatalogValue(line.name)
-      const revisionCostId = revisionCostIdByName.get(normalizedName)
-      if (revisionCostId) {
-        configured = configuredById.get(revisionCostId) ?? allCostsById.get(revisionCostId)
-      }
-
-      if (!configured) {
-        const sameNameApplicable = applicable.filter(
-          (cost) => normalizeCatalogValue(cost.name) === normalizedName,
-        )
-        if (sameNameApplicable.length === 1) configured = sameNameApplicable[0]
-      }
-
-      if (configured) {
-        // Recupera CostId/Tipo/Sección de una revisión dañada SIN alterar costo/venta.
-        applyConfiguredMetadataToPersistedLine(line, configured)
-        changedCount += 1
-      } else {
-        line.section = sectionForDetail(line.costDetailType, line.name)
-      }
-      return
-    }
-
-    if (!configured || line.costDetailType === 'Freight') return
+    const configured = resolveCurrentConfiguredCost(line)
+    if (!configured) return
 
     const persisted = line.detailId
       ? persistedById.get(line.detailId)
       : editingRate.value?.rateDetails.find((detail) => detail.costId === line.costId)
-    if (!persisted) {
-      applyConfiguredMetadataToPersistedLine(line, configured)
-      return
-    }
+    if (!persisted) return
 
     const configuredChargeBasis =
       configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType)
+    const persistedNotes = String(persisted.notes ?? '').trim()
+    const configuredNotes = String(configured.notes ?? '').trim()
 
+    // Compare against the persisted quote snapshot. This means a manual value typed
+    // during the current edit is not confused with a catalog change. If the active
+    // Costos y recargos version differs, only this linked tariff line is refreshed.
     const catalogChanged =
-      persisted.name.trim() !== configured.name.trim()
-      || persisted.costDetailType !== configured.costDetailType
-      || persisted.costType !== configured.costType
-      || persisted.chargeBasis !== configuredChargeBasis
-      || persisted.currencyId !== configured.currencyId
-      || persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase()
-      || number(persisted.costAmount) !== number(configured.costAmount)
-      || number(persisted.saleAmount) !== number(configured.saleAmount)
+      persisted.name.trim() !== configured.name.trim() ||
+      persisted.costDetailType !== configured.costDetailType ||
+      persisted.costType !== configured.costType ||
+      persisted.chargeBasis !== configuredChargeBasis ||
+      persisted.currencyId !== configured.currencyId ||
+      persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase() ||
+      number(persisted.costAmount) !== number(configured.costAmount) ||
+      number(persisted.saleAmount) !== number(configured.saleAmount) ||
+      persistedNotes !== configuredNotes
 
-    if (!catalogChanged) {
-      applyConfiguredMetadataToPersistedLine(line, configured)
-      return
-    }
+    if (!catalogChanged) return
 
-    // Solo el item cuyo maestro cambió se refresca. Las demás líneas se conservan.
-    applyConfiguredMetadataToPersistedLine(line, configured)
+    line.section = sectionForCost(configured)
+    line.name = configured.name
+    line.costDetailType = configured.costDetailType
+    line.costType = configured.costType
+    line.chargeBasis = configuredChargeBasis
+    line.contextLabel = costContextLabel(configured)
     line.notes = configured.notes?.trim() || null
+    line.serviceIds = configured.services?.map((service) => service.id) ?? []
     line.currencyId = configured.currencyId
     line.currencyName = configured.currencyName
     line.currencyCode = configured.currencyCode
     line.amountCurrencyCode = configured.currencyCode
     line.costAmount = number(configured.costAmount)
     line.saleAmount = number(configured.saleAmount)
+    line.optional = configured.costType === 'Optional'
+    line.manual = false
+
+    // Keep the persisted CostId when the catalog row was recreated under a new id.
+    // Pricing treats automatic fixed CostId as immutable on an existing detail; the
+    // current catalog amounts still become the new snapshot without deleting/recreating
+    // unrelated tariff lines.
     enforceLineCurrency(line)
-    changedCount += 1
-  })
-
-  // Si una edición anterior eliminó líneas al cambiar únicamente el equipo, recuperar
-  // las líneas configuradas de la revisión previa que siguen formando parte comercial
-  // de esta misma tarifa. No se reutiliza el DetailId viejo: al guardar se crea uno nuevo.
-  const includesText = normalizeCatalogValue(String(editingRate.value.includes ?? ''))
-
-  revisionDetails.forEach((detail) => {
-    const costId = String(snapshotField(detail, 'CostId', 'costId') ?? '').trim()
-    const name = String(snapshotField(detail, 'Name', 'name') ?? '').trim()
-    if (!costId || !name) return
-
-    const configured = configuredById.get(costId) ?? allCostsById.get(costId)
-    if (!configured || configured.costDetailType === 'Freight') return
-
-    const exists = rateLines.value.some((line) =>
-      line.costId === costId
-      || normalizeCatalogValue(line.name) === normalizeCatalogValue(name),
-    )
-    if (exists) return
-
-    const wasIncluded =
-      includesText.includes(normalizeCatalogValue(name))
-      || configured.costType === 'Fixed'
-    if (!wasIncluded) return
-
-    const currencyId = String(snapshotField(detail, 'CurrencyId', 'currencyId') ?? configured.currencyId)
-    const currencyName = String(snapshotField(detail, 'CurrencyName', 'currencyName') ?? configured.currencyName)
-    const currencyCode = String(snapshotField(detail, 'CurrencyCode', 'currencyCode') ?? configured.currencyCode)
-
-    rateLines.value.push({
-      key: `recovered-revision:${configured.id}`,
-      section: sectionForCost(configured),
-      name: configured.name,
-      costDetailType: configured.costDetailType,
-      costType: configured.costType,
-      chargeBasis: configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType),
-      costId: configured.id,
-      contextLabel: costContextLabel(configured),
-      notes: snapshotField<string | null>(detail, 'Notes', 'notes')
-        ?? configured.notes?.trim()
-        ?? null,
-      billToClient: snapshotField<string | null>(detail, 'BillToClient', 'billToClient') ?? null,
-      serviceIds: configured.services?.map((service) => service.id) ?? [],
-      currencyId,
-      currencyName,
-      currencyCode,
-      amountCurrencyCode: currencyCode,
-      costAmount: Number(snapshotField(detail, 'CostAmount', 'costAmount') ?? configured.costAmount),
-      saleAmount: Number(snapshotField(detail, 'SaleAmount', 'saleAmount') ?? configured.saleAmount),
-      included: true,
-      optional: configured.costType === 'Optional',
-      manual: false,
-      applyDestinationTax: Boolean(snapshotField(detail, 'ApplyDestinationTax', 'applyDestinationTax') ?? false),
-      destinationTaxRate: Number(snapshotField(detail, 'DestinationTaxRate', 'destinationTaxRate') ?? 0),
-    } as RateLine)
     changedCount += 1
   })
 
