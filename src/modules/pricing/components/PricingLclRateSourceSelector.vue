@@ -344,7 +344,9 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateL
       name: line.name,
       costDetailType: type,
       costType: variable ? 'Variable' : 'Fixed',
-      chargeBasis: ownBasis(line.chargeBasis),
+      // CFS is a raw-CBM charge: it must keep the real volume (for example
+      // 0.20 CBM) and must not inherit the 1-CBM ocean-freight minimum.
+      chargeBasis: normalizedName === 'cfs' ? 'PerCbm' : ownBasis(line.chargeBasis),
       contextLabel: `Consolidado ${calculation.consolidationNumber} · ${calculation.matrixVersion}`,
       notes: sourceBasis.includes('cbm')
         ? sourceMarker
