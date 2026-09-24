@@ -28,6 +28,7 @@ const rows = ref<FtlTariffDto[]>([])
 const loading = ref(false)
 const importing = ref(false)
 const seedingDefaults = ref(false)
+const selectedLtlMatrixProfile = ref<'FinalClient' | 'Nvocc'>('FinalClient')
 const filtersOpen = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const page = ref(1)
@@ -110,6 +111,30 @@ const pagedRows = computed(() => {
   return filteredRows.value.slice(start, start + pageSize.value)
 })
 
+const ltlMatrixRows = computed(() =>
+  rows.value.filter(
+    (row) =>
+      row.shipmentMode === 'Ltl' &&
+      row.commercialProfile === selectedLtlMatrixProfile.value,
+  ),
+)
+const ltlMatrixOrigins = computed(() =>
+  [...new Set(ltlMatrixRows.value.map((row) => row.originName))]
+    .sort((a, b) => a.localeCompare(b, 'es')),
+)
+const ltlMatrixDestinations = computed(() =>
+  [...new Set(ltlMatrixRows.value.map((row) => row.destinationName))]
+    .sort((a, b) => a.localeCompare(b, 'es')),
+)
+
+function ltlMatrixTariff(originName: string, destinationName: string) {
+  return ltlMatrixRows.value.find(
+    (row) =>
+      row.originName === originName &&
+      row.destinationName === destinationName,
+  )
+}
+
 watch(() => [filters.search, filters.shipmentMode, filters.commercialProfile, filters.equipmentClasses, filters.active], () => {
   page.value = 1
 }, { deep: true })
@@ -142,10 +167,13 @@ async function seedDefaults() {
   seedingDefaults.value = true
   try {
     const result = await FtlTariffService.seedDefaults()
-    toastStore.success('Tarifario base verificado', result.ftl + ' completos y ' + result.ltl + ' consolidados disponibles (' + result.total + ' total).')
+    toastStore.success(
+      'Matriz LTL verificada',
+      result.ltlFinalClient + ' tarifas Cliente final y ' + result.ltlNvocc + ' tarifas NVOCC disponibles. FTL permanece para carga manual.',
+    )
     await load()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron cargar las tarifas base TIGSA / GCF.')
+    toastStore.backendError(error, 'No se pudo verificar la matriz LTL GCF.')
   } finally {
     seedingDefaults.value = false
   }
@@ -380,13 +408,13 @@ onMounted(async () => {
   <section class="space-y-6">
     <DhPageHeader
       title="Tarifas terrestres FTL / LTL"
-      subtitle="Configure la ruta, modalidad, equipos aplicables y días de tránsito de cada tarifa."
+      subtitle="FTL se carga manualmente. LTL se administra como matriz por ruta para Cliente final y NVOCC."
       :icon="Truck"
     >
       <template #actions>
         <div class="flex flex-wrap items-center justify-end gap-2">
           <DhButton label="Plantilla CSV" :icon="Download" variant="secondary" @click="downloadTemplate" />
-          <DhButton v-if="canUpdate" label="Cargar base TIGSA / GCF" :icon="RefreshCw" variant="secondary" :loading="seedingDefaults" @click="seedDefaults" />
+          <DhButton v-if="canUpdate" label="Verificar matriz LTL" :icon="RefreshCw" variant="secondary" :loading="seedingDefaults" @click="seedDefaults" />
           <DhButton v-if="canUpdate" label="Importar" :icon="Upload" variant="secondary" :loading="importing" @click="fileInput?.click()" />
           <DhButton v-if="canUpdate" label="Nueva tarifa" @click="openForm()" />
           <input ref="fileInput" type="file" accept=".csv,text/csv,.json,application/json,.html,.htm,text/html" class="hidden" @change="importFile" />
@@ -407,10 +435,102 @@ onMounted(async () => {
       >
         <template #description>
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-            {{ total }} tarifas. Los completos pueden compartir tarifa entre varios equipos; los consolidados no requieren contenedor.
+            {{ total }} tarifas. FTL se mantiene por carga manual; LTL se consulta y edita desde la matriz por ruta.
           </p>
         </template>
       </DhCrudToolbar>
+
+      <section class="mt-5 rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">Matriz LTL</p>
+            <h3 class="mt-1 text-lg font-black text-[var(--dh-text)]">Tarifa consolidada por ruta</h3>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+              Cada celda muestra tarifa USD/CBM, mínimo y días de tránsito. LTL no requiere contenedor.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-xl border px-4 py-2 text-xs font-black transition"
+              :class="selectedLtlMatrixProfile === 'FinalClient'
+                ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]'
+                : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text-soft)]'"
+              @click="selectedLtlMatrixProfile = 'FinalClient'"
+            >
+              Cliente final
+            </button>
+            <button
+              type="button"
+              class="rounded-xl border px-4 py-2 text-xs font-black transition"
+              :class="selectedLtlMatrixProfile === 'Nvocc'
+                ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]'
+                : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text-soft)]'"
+              @click="selectedLtlMatrixProfile = 'Nvocc'"
+            >
+              NVOCC
+            </button>
+          </div>
+        </div>
+
+        <div v-if="ltlMatrixOrigins.length && ltlMatrixDestinations.length" class="mt-4 overflow-x-auto dh-scrollbar">
+          <table class="min-w-[980px] w-full border-separate border-spacing-0 text-left">
+            <thead>
+              <tr>
+                <th class="sticky left-0 z-10 min-w-[210px] border-b border-r border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+                  Origen
+                </th>
+                <th
+                  v-for="destination in ltlMatrixDestinations"
+                  :key="destination"
+                  class="min-w-[190px] border-b border-[var(--dh-border)] px-4 py-3 text-xs font-black text-[var(--dh-text)]"
+                >
+                  {{ destination }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="origin in ltlMatrixOrigins" :key="origin">
+                <th class="sticky left-0 z-10 border-b border-r border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-4 align-top text-sm font-black text-[var(--dh-text)]">
+                  {{ origin }}
+                </th>
+                <td
+                  v-for="destination in ltlMatrixDestinations"
+                  :key="origin + '|' + destination"
+                  class="border-b border-[var(--dh-border)] p-2 align-top"
+                >
+                  <button
+                    v-if="ltlMatrixTariff(origin, destination)"
+                    type="button"
+                    class="w-full rounded-2xl border border-[var(--dh-border)] bg-black/[0.025] p-3 text-left transition hover:border-[rgb(var(--dh-primary-rgb)/0.4)] hover:bg-[rgb(var(--dh-primary-rgb)/0.05)] dark:bg-white/[0.04]"
+                    @click="canUpdate && openForm(ltlMatrixTariff(origin, destination)!)"
+                  >
+                    <span class="block text-sm font-black text-[var(--dh-text)]">
+                      {{ formatMoney(ltlMatrixTariff(origin, destination)!.priceAmount, ltlMatrixTariff(origin, destination)!.currencyCode || 'USD') }}
+                      <span class="text-[10px] text-[var(--dh-text-muted)]">/ CBM</span>
+                    </span>
+                    <span class="mt-1 block text-xs font-semibold text-[var(--dh-text-muted)]">
+                      Mín. {{ formatMoney(ltlMatrixTariff(origin, destination)!.minimumAmount || 0, ltlMatrixTariff(origin, destination)!.currencyCode || 'USD') }}
+                    </span>
+                    <span class="mt-1 block text-xs font-bold text-[var(--dh-primary)]">
+                      {{ ltlMatrixTariff(origin, destination)!.transitDays == null ? 'Tránsito sin definir' : ltlMatrixTariff(origin, destination)!.transitDays + ' días' }}
+                    </span>
+                  </button>
+                  <div v-else class="rounded-2xl border border-dashed border-[var(--dh-border)] px-3 py-5 text-center text-xs font-bold text-[var(--dh-text-muted)]">
+                    Sin tarifa
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] px-4 py-8 text-center">
+          <p class="font-black text-[var(--dh-text)]">No hay matriz LTL para este perfil.</p>
+          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+            Use “Verificar matriz LTL” para crear las rutas base faltantes.
+          </p>
+        </div>
+      </section>
 
       <div v-if="filtersOpen" class="mt-5 rounded-[26px] border border-[var(--dh-border)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
