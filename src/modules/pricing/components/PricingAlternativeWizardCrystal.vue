@@ -4747,18 +4747,6 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div class="flex flex-wrap justify-end gap-2">
-            <DhButton
-              size="sm"
-              variant="secondary"
-              :loading="downloadingLinesExcel"
-              :disabled="downloadingLinesExcel || !editingRate"
-              @click="downloadRateLinesExcel"
-            >
-              Descargar líneas en Excel
-            </DhButton>
-          </div>
-
           <div class="crystal-soft overflow-hidden p-0">
             <div class="border-b border-[var(--dh-border)] px-5 py-4">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>
