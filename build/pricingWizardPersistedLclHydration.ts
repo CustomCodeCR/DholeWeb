@@ -87,7 +87,14 @@ function hydratePersistedLclSource(rate: RateDto) {
     includes: splitPersistedLclTerms(rate.includes),
     subjectTo: splitPersistedLclTerms(rate.subjectTo),
     excludes: splitPersistedLclTerms(rate.excludes),
-    lines: rateLines.value.map((line) => ({ ...line })) as LclRateSourceSelection['lines'],
+    lines: rateLines.value.map((line) => ({
+      ...line,
+      // Normalize historical LCL snapshots created before CFS was separated
+      // from the ocean-freight minimum.
+      chargeBasis: String(line.name ?? '').trim().toLowerCase() === 'cfs'
+        ? 'PerCbm'
+        : line.chargeBasis,
+    })) as LclRateSourceSelection['lines'],
     totalCost: Number(rate.totalCostAmount || 0),
     totalSale: Number(rate.totalSaleAmount || 0),
     profitAmount,
