@@ -69,18 +69,44 @@ const form = reactive({
   saving: false,
 })
 
-const routeOptions = computed(() => {
-  const values = new Map<string, { label: string; value: string }>()
-  const add = (item: PricingCatalogItem, role: string) => {
-    if (!values.has(item.id)) values.set(item.id, { value: item.id, label: item.name + ' · ' + role })
+function routeTerminalType(item: PricingCatalogItem, fallback: 'CY' | 'SD' = 'CY') {
+  if (item.metadataJson) {
+    try {
+      const metadata = JSON.parse(item.metadataJson) as Record<string, unknown>
+      const configured = String(metadata.terminalType ?? '').trim().toUpperCase()
+      if (configured === 'CY' || configured === 'SD') return configured as 'CY' | 'SD'
+    } catch {
+      // Fall through to the catalog code convention.
+    }
   }
-  catalogs.polPorts.value.forEach((item) => add(item, 'POL'))
-  catalogs.poePorts.value.forEach((item) => add(item, 'POE'))
-  catalogs.podPorts.value.forEach((item) => add(item, 'POD'))
-  const options = [...values.values()].sort((a, b) => a.label.localeCompare(b.label, 'es'))
+
+  const code = String(item.code || '').trim().toUpperCase()
+  if (code.startsWith('SD_') || code.endsWith('_SD') || code.includes('_SD_')) return 'SD'
+  if (code.startsWith('CY_') || code.endsWith('_CY') || code.includes('_CY_')) return 'CY'
+  return fallback
+}
+
+const landOrigins = computed(() =>
+  catalogs.polPorts.value.filter((item) => routeTerminalType(item, 'CY') === 'SD'),
+)
+const landDestinations = computed(() =>
+  catalogs.poePorts.value.filter((item) => routeTerminalType(item, 'CY') === 'SD'),
+)
+
+const originOptions = computed(() => {
+  const options = landOrigins.value
+    .map((item) => ({ value: item.id, label: item.name }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es'))
   if (props.tariff && !props.tariff.originId) {
     options.unshift({ value: LEGACY_ORIGIN, label: props.tariff.originName + ' · ruta actual' })
   }
+  return options
+})
+
+const destinationOptions = computed(() => {
+  const options = landDestinations.value
+    .map((item) => ({ value: item.id, label: item.name }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es'))
   if (props.tariff && !props.tariff.destinationId) {
     options.unshift({ value: LEGACY_DESTINATION, label: props.tariff.destinationName + ' · ruta actual' })
   }
@@ -105,8 +131,7 @@ const isLtl = computed(() => form.shipmentMode === 'Ltl')
 
 function allRouteItems() {
   const result = new Map<string, PricingCatalogItem>()
-  ;[...catalogs.polPorts.value, ...catalogs.poePorts.value, ...catalogs.podPorts.value]
-    .forEach((item) => result.set(item.id, item))
+  ;[...landOrigins.value, ...landDestinations.value].forEach((item) => result.set(item.id, item))
   return result
 }
 
@@ -232,14 +257,14 @@ onMounted(catalogs.loadAll)
           v-model="form.originId"
           label="Origen de la ruta"
           placeholder="Seleccione origen"
-          :options="routeOptions"
+          :options="originOptions"
           :error="form.submitted && !form.originId ? 'Seleccione el origen.' : undefined"
         />
         <DhSelect
           v-model="form.destinationId"
           label="Destino de la ruta"
           placeholder="Seleccione destino"
-          :options="routeOptions"
+          :options="destinationOptions"
           :error="form.submitted && !form.destinationId ? 'Seleccione el destino.' : undefined"
         />
       </div>
