@@ -30,6 +30,7 @@ export interface FtlTariffDto {
   validFrom: string | null
   validTo: string | null
   commercialProfile: LandCommercialProfile
+  applicableEquipmentClasses: string[]
 }
 
 export interface ResolveFtlTariffQuery {
@@ -69,6 +70,7 @@ export interface CreateLandTariffItem {
   validFrom?: string | null
   validTo?: string | null
   isActive?: boolean
+  applicableEquipmentClasses?: string[] | null
 }
 
 export interface UpdateFtlTariffItem {
@@ -151,6 +153,17 @@ export const FtlTariffService = {
       { body: item },
     )
     return unwrapApiResponse<{ id: string; created: boolean; message: string }>(response)
+  },
+
+  async update(id: string, item: CreateLandTariffItem): Promise<void> {
+    await callEndpoint<void, CreateLandTariffItem>(
+      {
+        method: 'PUT',
+        path: '/api/pricing/ftl-tariffs/' + id,
+        headers: jsonHeaders,
+      },
+      { body: item },
+    )
   },
 
   async importBatch(items: CreateLandTariffItem[]): Promise<ImportLandTariffResult> {
