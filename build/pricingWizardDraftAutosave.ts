@@ -210,8 +210,40 @@ async function restorePricingDraft() {
 }
 
 function discardPricingDraft() {
+  // Pausar el autosave mientras se reinicia todo el wizard para que los watchers
+  // no vuelvan a persistir el estado que justamente se está descartando.
+  pricingDraftReady.value = false
+  pricingDraftRestoring.value = true
+
+  resetWizard()
+  form.currencyId = ''
+  rateCarrierFilter.value = ''
+  fclExtraContainers.value = []
+  fclRatesByContainer.value = {}
+  selectedFclBundleKey.value = ''
+  fclSelectedImportRateIds.value = {}
+  lclSelectedSourceKey.value = ''
+  lclRequestedCbm.value = 1
+  lclSelectedSource.value = null
+  draftCommercialTerms.value = { includes: [], subjectTo: [], excludes: [] }
+  draftCommercialTermsInitialized.value = false
+  rateRequestPriority.value = 'Green'
+  requestedPoeName.value = ''
+  requestedPodName.value = ''
+  nearestPortRecommendations.value = []
+  landExtraEquipment.value = []
+  updateReason.value = ''
+
   clearPricingDraft(false)
-  toastStore.success('Borrador descartado', 'Los cambios actuales siguen en pantalla y se volverán a guardar cuando modifique la tarifa.')
+  pricingDraftRestoring.value = false
+
+  // Los watchers del reset corren en el siguiente flush de Vue. Reactivamos el
+  // autosave después para que el formulario limpio no genere otro borrador.
+  setTimeout(() => {
+    pricingDraftReady.value = true
+  }, 0)
+
+  toastStore.success('Borrador descartado', 'Se limpió la cotización y regresó a Pantalla 1.')
 }
 `
   code = replaceOne(code, stateAnchor, draftState, 'draft state')
