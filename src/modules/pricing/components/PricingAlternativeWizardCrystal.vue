@@ -4747,23 +4747,21 @@ onMounted(async () => {
             </div>
           </div>
 
+          <div class="flex flex-wrap justify-end gap-2">
+            <DhButton
+              size="sm"
+              variant="secondary"
+              :loading="downloadingLinesExcel"
+              :disabled="downloadingLinesExcel || !editingRate"
+              @click="downloadRateLinesExcel"
+            >
+              Descargar líneas en Excel
+            </DhButton>
+          </div>
+
           <div class="crystal-soft overflow-hidden p-0">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] px-5 py-4">
-              <div>
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>
-                <p class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">
-                  Descargue estas líneas en Excel desde el generador de reportes.
-                </p>
-              </div>
-              <DhButton
-                size="sm"
-                variant="secondary"
-                :loading="downloadingLinesExcel"
-                :disabled="downloadingLinesExcel || !editingRate"
-                @click="downloadRateLinesExcel"
-              >
-                Descargar Excel
-              </DhButton>
+            <div class="border-b border-[var(--dh-border)] px-5 py-4">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>
             </div>
             <div class="overflow-x-auto">
               <table class="min-w-[1180px] w-full text-left text-xs">
