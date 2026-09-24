@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { History, MessageSquareText, PencilLine, ShieldCheck, UserRound } from 'lucide-vue-next'
+import { ChevronDown, History, MessageSquareText, PencilLine, ShieldCheck, UserRound } from 'lucide-vue-next'
 import { DhBadge } from '@/shared/components/atoms'
 import { AuditLogsService } from '@/core/services/auditLogsService'
 import type { AuditEventDto } from '@/core/interfaces/auditLogs'
@@ -293,18 +293,35 @@ onMounted(loadHistory)
 </script>
 
 <template>
-  <section class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-    <div class="flex items-start gap-3">
-      <div class="rounded-xl bg-[var(--dh-primary-soft)] p-2 text-[var(--dh-primary)]">
-        <History class="h-5 w-5" />
+  <details class="group mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+    <summary class="flex cursor-pointer list-none items-start justify-between gap-4">
+      <div class="flex min-w-0 items-start gap-3">
+        <div class="rounded-xl bg-[var(--dh-primary-soft)] p-2 text-[var(--dh-primary)]">
+          <History class="h-5 w-5" />
+        </div>
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="text-sm font-black">Historial de la cotización</h3>
+            <span
+              v-if="!loading && !error && history.length"
+              class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-bg)] px-2 py-0.5 text-[10px] font-black text-[var(--dh-text-muted)]"
+            >
+              {{ history.length }}
+            </span>
+          </div>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Quién aprobó o modificó la cotización, el motivo indicado antes de editar y los cambios realizados.
+          </p>
+        </div>
       </div>
-      <div>
-        <h3 class="text-sm font-black">Historial de la cotización</h3>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-          Quién aprobó o modificó la cotización, el motivo indicado antes de editar y los cambios realizados.
-        </p>
+
+      <div class="flex shrink-0 items-center gap-2 pt-1 text-[var(--dh-text-muted)]">
+        <span class="hidden text-[10px] font-black uppercase tracking-[0.1em] sm:inline">
+          Mostrar / ocultar
+        </span>
+        <ChevronDown class="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
       </div>
-    </div>
+    </summary>
 
     <p v-if="loading" class="mt-4 text-xs font-bold text-[var(--dh-text-muted)]">Cargando historial…</p>
     <p v-else-if="error" class="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300">{{ error }}</p>
@@ -382,5 +399,5 @@ onMounted(loadHistory)
         </div>
       </details>
     </div>
-  </section>
+  </details>
 </template>
