@@ -3340,8 +3340,13 @@ async function saveOpenRequest() {
         ? lclDimensionalCbm.value
         : shipmentModeForApi.value === 'Ltl' ? 0.001 : 0,
       kgPerCbm: shipmentModeForApi.value === 'Lcl' ? 500 : undefined,
-      cargoLines: form.cargoDescription || supportText || shipmentModeForApi.value === 'Lcl' ? [{
-        description: [form.cabysCode ? `CABYS ${form.cabysCode}` : '', form.cargoDescription, form.cargoObservations, supportText].filter(Boolean).join(' · '),
+      cargoLines: form.cargoDescription || form.cargoObservations || form.cabysCode || supportText || shipmentModeForApi.value === 'Lcl' ? [{
+        description: [
+          form.cabysCode ? `CABYS ${form.cabysCode}` : '',
+          form.cargoDescription,
+          form.cargoObservations ? `Observaciones: ${form.cargoObservations}` : '',
+          supportText,
+        ].filter(Boolean).join(' · '),
         packages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
         pallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
         weightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
@@ -3596,10 +3601,11 @@ async function saveRate() {
       totalPallets: 0,
       totalWeightKg: 0,
       totalVolumeCbm: 0,
-      cargoLines: form.cargoDescription
+      cargoLines: form.cargoDescription || form.cargoObservations || form.cabysCode || supportSummaryText()
         ? [{
             description: [
-              `${form.cabysCode ? `CABYS ${form.cabysCode} · ` : ''}${form.cargoDescription}`,
+              form.cabysCode ? `CABYS ${form.cabysCode}` : '',
+              form.cargoDescription,
               form.cargoObservations ? `Observaciones: ${form.cargoObservations}` : '',
               supportSummaryText(),
             ].filter(Boolean).join(' · '),
