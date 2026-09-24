@@ -126,6 +126,7 @@ const cargoLines = ref<EditableCargoLine[]>([])
 const optionalCostIds = ref<string[]>([])
 const removedDetailIds = ref<string[]>([])
 const initialized = ref(false)
+const updateReason = ref('')
 const canEditImportedAgent = ref(false)
 const canEditImportedPoe = ref(false)
 const canEditImportedPod = ref(false)
@@ -1673,6 +1674,10 @@ function notifyValidationProblems() {
 }
 
 async function submit() {
+  if (props.rate && !updateReason.value.trim()) {
+    toastStore.warning('Motivo requerido', 'Indique el motivo de la modificación antes de guardar la cotización.')
+    return
+  }
   if (!validate()) {
     notifyValidationProblems()
     return
@@ -1715,6 +1720,7 @@ async function submit() {
         removedExtraDetailIds: [...new Set(removedDetailIds.value)].filter(
           (id) => !liveDetailIds.has(id),
         ),
+        updateReason: updateReason.value.trim(),
       }
       pendingUpdate = payload
       await PricingService.updateRate(props.rate.id, payload)
@@ -2148,6 +2154,16 @@ onMounted(initialize)
       <p class="mt-1 text-lg font-black text-[var(--dh-text)]">
         {{ editingDisplayName }}
       </p>
+    </section>
+
+    <section v-if="rate" class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <DhTextarea
+        v-model="updateReason"
+        label="Motivo de modificación *"
+        placeholder="Explique qué necesita cambiar y por qué. Este mensaje quedará en el historial de la cotización."
+        :rows="3"
+      />
+      <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">El motivo se registra junto con su usuario, fecha y cambios realizados.</p>
     </section>
 
     <section
