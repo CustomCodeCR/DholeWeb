@@ -20,6 +20,38 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
 
       let code = source
 
+      const lineStateAnchor = `const rateLines = ref<RateLine[]>([])`
+      code = replaceOne(
+        code,
+        lineStateAnchor,
+        `${lineStateAnchor}\nconst explicitlyRemovedPersistedDetailIds = ref(new Set<string>())`,
+        'explicit persisted-detail removal state',
+      )
+
+      const hydrateAnchor = `async function hydrateExistingRate() {`
+      code = replaceOne(
+        code,
+        hydrateAnchor,
+        `${hydrateAnchor}\n  explicitlyRemovedPersistedDetailIds.value.clear()`,
+        'edit hydration removal-state reset',
+      )
+
+      const manualHelperAnchor = `function addManualCharge() {`
+      code = replaceOne(
+        code,
+        manualHelperAnchor,
+        `function removeManualRateLine(line: RateLine) {\n  if (line.detailId) explicitlyRemovedPersistedDetailIds.value.add(line.detailId)\n  rateLines.value = rateLines.value.filter((item) => item.key !== line.key)\n}\n\n${manualHelperAnchor}`,
+        'manual persisted-detail removal helper',
+      )
+
+      const manualDeleteAnchor = `@click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>`
+      code = replaceOne(
+        code,
+        manualDeleteAnchor,
+        `@click="removeManualRateLine(line)">Eliminar</button>`,
+        'manual persisted-detail delete button',
+      )
+
       const removalAnchor = `      const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
       const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))`
@@ -36,15 +68,46 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
           .map((line) => line.costId)
           .filter((id): id is string => Boolean(id)),
       )
-      // Pantalla 7 es autoritativa durante una edición. Si una línea persistida ya no está
-      // incluida, debe eliminarse incluso cuando provenga de un costo Fixed del maestro.
-      // Solo evitamos una falsa eliminación cuando la línea sigue incluida pero perdió
-      // temporalmente su detailId durante un rebuild y puede reconciliarse por CostId.
-      const removedExtraDetailIds = existingRateDetails
-        .filter((detail) =>
-          !currentDetailIds.has(detail.id)
-          && !(detail.costId && includedCostIds.has(detail.costId)),
+      const persistedServiceIds = (editingRate.value.services ?? [])
+        .map((service) => service.id)
+        .filter(Boolean)
+        .sort()
+      const currentServiceIds = [...form.serviceIds].filter(Boolean).sort()
+      const samePersistedPricingContext =
+        String(editingRate.value.polId ?? '') === String(form.originId ?? '')
+        && String(editingRate.value.poeId ?? '') === String(form.destinationId ?? '')
+        && String(editingRate.value.podId ?? '') === String(form.podId ?? '')
+        && String(editingRate.value.carrierId ?? '') === String(form.carrierId ?? '')
+        && String(editingRate.value.agentId ?? '') === String(form.agentId ?? '')
+        && String(editingRate.value.incotermId ?? '') === String(form.incotermId ?? '')
+        && String(editingRate.value.shipmentMode ?? '').toUpperCase() === String(shipmentModeForApi.value ?? '').toUpperCase()
+        && persistedServiceIds.join('|') === currentServiceIds.join('|')
+
+      const persistedLineForDetail = (detail: RateDto['rateDetails'][number]) =>
+        rateLines.value.find((line) =>
+          line.detailId === detail.id
+          || Boolean(detail.costId && line.costId === detail.costId)
+          || (
+            line.costDetailType === detail.costDetailType
+            && normalizeCatalogValue(line.name) === normalizeCatalogValue(detail.name)
+          ),
         )
+
+      // Un cambio de equipo, cantidad, moneda, vigencia o source de flete NO puede
+      // convertir una ausencia temporal de UI en una eliminación. Solo se elimina:
+      // 1) una línea que el usuario quitó explícitamente; 2) una línea todavía presente
+      // pero desmarcada; o 3) una línea que dejó de pertenecer al contexto real de costos.
+      const removedExtraDetailIds = existingRateDetails
+        .filter((detail) => {
+          if (explicitlyRemovedPersistedDetailIds.value.has(detail.id)) return true
+
+          const currentLine = persistedLineForDetail(detail)
+          if (currentLine) return !currentLine.included
+
+          if (samePersistedPricingContext) return false
+          return !currentDetailIds.has(detail.id)
+            && !(detail.costId && includedCostIds.has(detail.costId))
+        })
         .map((detail) => detail.id)`
 
       code = replaceOne(code, removalAnchor, removalReplacement, 'persisted detail removal reconciliation')
