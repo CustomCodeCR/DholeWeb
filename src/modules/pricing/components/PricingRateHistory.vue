@@ -113,9 +113,9 @@ const ignoredHeaderFields = new Set([
   'ExchangeRateManualOverride',
   'CargoLinesJson',
   'RateDetails',
-])
+].map((field) => field.toLowerCase()))
 
-const ignoredDetailFields = new Set(['Id', 'RateHeaderId', 'CostId'])
+const ignoredDetailFields = new Set(['Id', 'RateHeaderId', 'CostId'].map((field) => field.toLowerCase()))
 
 function parseRecord(value?: string | null): JsonRecord {
   if (!value) return {}
@@ -142,13 +142,14 @@ function humanize(value: string): string {
 }
 
 function labelFor(field: string): string {
-  return fieldLabels[field] || humanize(field)
+  const canonical = field ? field.charAt(0).toUpperCase() + field.slice(1) : field
+  return fieldLabels[field] || fieldLabels[canonical] || humanize(field)
 }
 
 function diffRecords(before: JsonRecord, after: JsonRecord, ignored: Set<string>): FieldChange[] {
   const keys = new Set([...Object.keys(before), ...Object.keys(after)])
   return [...keys]
-    .filter((field) => !ignored.has(field))
+    .filter((field) => !ignored.has(field.toLowerCase()))
     .filter((field) => !sameValue(before[field], after[field]))
     .map((field) => ({
       field,
@@ -171,7 +172,9 @@ function formatValue(value: unknown): string {
     return value.map((item) => {
       if (item && typeof item === 'object') {
         const record = item as JsonRecord
-        const name = record.ContainerTypeName ?? record.Name ?? record.name
+        const name = record.ContainerTypeName ?? record.containerTypeName
+          ?? record.ServiceName ?? record.serviceName
+          ?? record.Name ?? record.name
         const quantity = record.Quantity ?? record.quantity
         if (name) return quantity ? `${quantity} × ${name}` : String(name)
       }
@@ -225,7 +228,7 @@ function headerChanges(event: AuditEventDto): FieldChange[] {
 function detailName(event: AuditEventDto): string {
   const after = parseRecord(event.afterJson)
   const before = parseRecord(event.beforeJson)
-  return String(after.Name ?? before.Name ?? 'Rubro de tarifa')
+  return String(after.Name ?? after.name ?? before.Name ?? before.name ?? 'Rubro de tarifa')
 }
 
 function detailChanges(event: AuditEventDto): FieldChange[] {
