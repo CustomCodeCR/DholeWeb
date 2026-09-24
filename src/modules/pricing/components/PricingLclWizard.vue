@@ -405,9 +405,11 @@ function makeLine(
   detail: CreateRateDetailRequest['costDetailType'],
   source: QuoteLine['source'],
   notes?: string,
+  costAmount?: number,
 ): QuoteLine {
   const rateSource = selectedSource.value!
-  const total = number(amount) * number(quantity)
+  const saleTotal = number(amount) * number(quantity)
+  const costTotal = number(costAmount ?? amount) * number(quantity)
   return {
     costId: null,
     name,
@@ -417,8 +419,8 @@ function makeLine(
     currencyId: rateSource.currencyId,
     currencyName: rateSource.currencyName,
     currencyCode: rateSource.currencyCode,
-    costAmount: Number(total.toFixed(2)),
-    saleAmount: Number(total.toFixed(2)),
+    costAmount: Number(costTotal.toFixed(2)),
+    saleAmount: Number(saleTotal.toFixed(2)),
     quantity: 1,
     notes,
     source,
@@ -468,7 +470,18 @@ async function buildQuoteLines() {
     const value = number(destination[key])
     if (value <= 0) return
     const isPerCbm = key.toLowerCase().includes('percbm') || ['transshipment', 'inland', 'stuffing'].includes(key)
-    lines.push(makeLine(label, value, isPerCbm ? calc.chargeableCbm : 1, isPerCbm ? 'PerChargeableCbm' : 'PerShipment', detail, 'Ruta', 'Regla CNCA-023/#048'))
+    const saleOnlyInCostaRica = quote.destinationRule === 'San José, Costa Rica'
+      && (key === 'handling' || key === 'zone')
+    lines.push(makeLine(
+      label,
+      value,
+      isPerCbm ? calc.chargeableCbm : 1,
+      isPerCbm ? 'PerChargeableCbm' : 'PerShipment',
+      detail,
+      'Ruta',
+      'Regla CNCA-023/#048',
+      saleOnlyInCostaRica ? 0 : value,
+    ))
   }
   addDestination('destinationPerCbm', 'Destination Charge')
   addDestination('dmce', 'DMCE')
