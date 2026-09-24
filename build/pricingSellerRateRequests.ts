@@ -37,8 +37,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `const visibleStepTitles = computed(() => {\n  const titles = [...stepTitles]\n  if (form.shipmentMode.trim().toUpperCase() === 'LCL') titles[2] = 'Ruta'\n  return props.viewOnly ? [...titles, 'Vista completa'] : titles\n})`,
-    `const visibleStepTitles = computed(() => {\n  const titles = [...stepTitles]\n  if (form.shipmentMode.trim().toUpperCase() === 'LCL') titles[2] = 'Ruta'\n  if (props.sellerRequestMode) return titles.slice(0, 4)\n  return props.viewOnly ? [...titles, 'Vista completa'] : titles\n})`,
+    `const visibleStepTitles = computed(() => {\n  const titles = [...stepTitles]\n  if (['LCL', 'LTL'].includes(form.shipmentMode.trim().toUpperCase())) titles[2] = 'Ruta'\n  return props.viewOnly ? [...titles, 'Vista completa'] : titles\n})`,
+    `const visibleStepTitles = computed(() => {\n  const titles = [...stepTitles]\n  if (['LCL', 'LTL'].includes(form.shipmentMode.trim().toUpperCase())) titles[2] = 'Ruta'\n  if (props.sellerRequestMode) return titles.slice(0, 4)\n  return props.viewOnly ? [...titles, 'Vista completa'] : titles\n})`,
     'visible step titles',
   )
 
