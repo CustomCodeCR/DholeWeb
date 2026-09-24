@@ -122,10 +122,10 @@ function hydratePersistedLclSource(rate: RateDto) {
   code = replaceOne(
     code,
     `    mergeConfiguredOptionalCostsIntoRateLines()
-    step.value = props.viewOnly ? 9 : 8`,
+    step.value = props.viewOnly ? 9 : 0`,
     `    hydratePersistedLclSource(rate)
     mergeConfiguredOptionalCostsIntoRateLines()
-    step.value = props.viewOnly ? 9 : 8`,
+    step.value = props.viewOnly ? 9 : 0`,
     'persisted LCL source hydration',
   )
 
