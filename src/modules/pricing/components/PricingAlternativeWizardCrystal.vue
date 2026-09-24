@@ -210,6 +210,7 @@ const commercialRejectionReason = ref('')
 const commercialStatusSaving = ref(false)
 const commercialActionError = ref('')
 const downloadingQuote = ref(false)
+const downloadingLinesExcel = ref(false)
 const allInPresentation = ref(false)
 const competitorTariffsOpen = ref(false)
 const isEditing = computed(() => Boolean(props.rateId))
@@ -2714,6 +2715,23 @@ async function downloadCurrentQuote() {
   }
 }
 
+async function downloadRateLinesExcel() {
+  if (!editingRate.value || downloadingLinesExcel.value) return
+  try {
+    downloadingLinesExcel.value = true
+    const reference = editingRate.value.quoNumber || editingRate.value.rateCode || 'tarifa'
+    await PricingService.downloadRateDocument(
+      editingRate.value.id,
+      `${reference} - lineas de tarifa`,
+      { format: 'xlsx' },
+    )
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron descargar las líneas de la tarifa en Excel.')
+  } finally {
+    downloadingLinesExcel.value = false
+  }
+}
+
 async function next() {
   if (props.rateId) {
     if (step.value < maxStep.value) step.value += 1
@@ -4753,8 +4771,22 @@ onMounted(async () => {
           </div>
 
           <div class="crystal-soft overflow-hidden p-0">
-            <div class="border-b border-[var(--dh-border)] px-5 py-4">
-              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] px-5 py-4">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>
+                <p class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                  Descargue estas líneas en Excel desde el generador de reportes.
+                </p>
+              </div>
+              <DhButton
+                size="sm"
+                variant="secondary"
+                :loading="downloadingLinesExcel"
+                :disabled="downloadingLinesExcel || !editingRate"
+                @click="downloadRateLinesExcel"
+              >
+                Descargar Excel
+              </DhButton>
             </div>
             <div class="overflow-x-auto">
               <table class="min-w-[1180px] w-full text-left text-xs">
