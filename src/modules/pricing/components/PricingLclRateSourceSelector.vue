@@ -161,7 +161,7 @@ function destinationCode() {
 }
 function sectionForDetail(type: CostDetailType, name = ''): LclNormalizedRateLine['section'] {
   const normalizedName = normalize(name)
-  if (normalizedName.includes('recolecta') || normalizedName.includes('pickup')) return 'pickup_origin'
+  if (normalizedName.includes('recolecta') || normalizedName.includes('pickup') || normalizedName.includes('pick up')) return 'pickup_origin'
   if (type === 'Freight') return 'international_freight'
   if (type === 'OriginCharge' || type === 'CustomsCharge' || type === 'Documentation') return 'origin_charges'
   if (type === 'InlandTransport' && (normalizedName.includes('terrestre') || normalizedName.includes('delivery'))) return 'delivery_destination'
