@@ -131,7 +131,7 @@ function patchWizard(source: string) {
 
   code = replaceRegexOnce(
     code,
-    /const selectableOptionalLines = computed\(\(\) =>\n\s*rateLines\.value\.filter\(\(line\) => line\.optional\),\n\)/,
+    /const selectableOptionalLines = computed\(\(\) =>[\s\S]*?\n\)\nconst optionalChargeOptions = computed/,
     [
       "const selectableOptionalLines = computed(() =>",
       "  rateLines.value.filter((line) =>",
@@ -142,6 +142,7 @@ function patchWizard(source: string) {
       "    && haulageAssociation(line) === null,",
       "  ),",
       ")",
+      "const optionalChargeOptions = computed",
     ].join('\n'),
     'screen 7 optional selector filter',
   )
