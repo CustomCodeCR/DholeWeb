@@ -15,6 +15,28 @@ function replaceAllRequired(source: string, anchor: string, replacement: string,
   return source.split(anchor).join(replacement)
 }
 
+function guardButtonForLand(source: string, handler: 'toggleMerchantHaulage' | 'toggleCarrierHaulage') {
+  const pattern = new RegExp(`<button\\s+([^>]*@click="${handler}"[^>]*)>`, 'g')
+  const matches = source.match(pattern) ?? []
+  if (matches.length !== 1) {
+    throw new Error(`[pricingRequirements20260908] Expected one ${handler} button, found ${matches.length}.`)
+  }
+
+  return source.replace(pattern, (opening) => {
+    if (opening.includes("form.modality !== 'Land'")) return opening
+
+    const vIf = opening.match(/v-if="([^"]*)"/)
+    if (vIf) {
+      return opening.replace(
+        vIf[0],
+        `v-if="form.modality !== 'Land' && (${vIf[1]})"`,
+      )
+    }
+
+    return opening.replace('<button ', `<button v-if="form.modality !== 'Land'" `)
+  })
+}
+
 function patchWizard(source: string) {
   let code = source
 
@@ -199,18 +221,9 @@ function patchWizard(source: string) {
   )
 
   // 16. Merchant and Carrier/Naviera haulage do not apply to the land screen.
-  code = replaceRequired(
-    code,
-    `<button v-if="shipmentModeForApi !== 'Lcl'" type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">`,
-    `<button v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">`,
-    'hide Merchant for land',
-  )
-  code = replaceRequired(
-    code,
-    `<button v-if="shipmentModeForApi !== 'Lcl'" type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">`,
-    `<button v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">`,
-    'hide Carrier for land',
-  )
+  // Preserve any LCL/Panama visibility guard applied by earlier plugins.
+  code = guardButtonForLand(code, 'toggleMerchantHaulage')
+  code = guardButtonForLand(code, 'toggleCarrierHaulage')
 
   // 6. Every edit carries an explicit update reason; backend still enforces the allowed statuses/request window.
   code = replaceRequired(
