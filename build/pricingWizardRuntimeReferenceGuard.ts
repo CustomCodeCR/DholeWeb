@@ -80,7 +80,7 @@ function patchWizard(source: string) {
       "function automaticOptionalCostId(line: { id?: string | null; costId?: string | null }) {",
       "  return String(line.costId ?? line.id ?? '').trim()",
       "}",
-    ].join('\\n'))
+    ].join('\n'))
   }
 
   if (
@@ -114,7 +114,7 @@ function patchWizard(source: string) {
       "  if (type === 'Documentation') return 'international_freight'",
       "  return 'destination_charges'",
       "}",
-    ].join('\\n'))
+    ].join('\n'))
   }
 
   if (
@@ -131,12 +131,12 @@ function patchWizard(source: string) {
       "  if (electronicSeal) return Boolean(form.electronicSeal)",
       "  return null",
       "}",
-    ].join('\\n'))
+    ].join('\n'))
   }
 
   const helpers = `// dhole-runtime-reference-guard-20260925
-${missingRuntimeDefinitions.join('\\n\\n')}
-${missingRuntimeDefinitions.length ? '\\n\\n' : ''}function dholeRuntimeCostContextImportRateId() {
+${missingRuntimeDefinitions.join('\n\n')}
+${missingRuntimeDefinitions.length ? '\n\n' : ''}function dholeRuntimeCostContextImportRateId() {
   const selectedRateId = String(form.selectedImportRateId ?? '').trim()
   if (!selectedRateId) return String(manualOceanFreightSavedId.value ?? '').trim()
   if (!isMultimodalViaPanama(selectedDestination.value)) return ''
