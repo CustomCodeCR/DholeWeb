@@ -45,6 +45,7 @@ const form = reactive({
   providerId: '',
   agentDefinitionId: '',
   credentialId: '',
+  extractionProfileId: '',
   scheduleType: 'Interval' as AgentScheduleType,
   executeAt: '',
   intervalMinutes: '360',
@@ -106,6 +107,19 @@ const credentialOptions = computed(() => [
     .map((credential) => ({ value: credential.id, label: credential.name })),
 ])
 
+const availableExtractionProfiles = computed(() =>
+  store.extractionProfiles.filter(
+    (profile) => profile.providerId === form.providerId && profile.isActive,
+  ),
+)
+
+const extractionProfileOptions = computed(() =>
+  availableExtractionProfiles.value.map((profile) => ({
+    value: profile.id,
+    label: `${profile.name} · ${profile.executionStrategy}`,
+  })),
+)
+
 const selectedDefinition = computed(() =>
   store.definitions.find((definition) => definition.id === form.agentDefinitionId),
 )
@@ -119,11 +133,35 @@ watch(
     const definition = store.definitions.find(
       (item) => item.providerId === providerId && item.isActive,
     )
-    const credential = store.credentials.find(
+    const profile = store.extractionProfiles.find(
       (item) => item.providerId === providerId && item.isActive,
     )
+    const credential = profile?.credentialId
+      ? store.credentials.find((item) => item.id === profile.credentialId && item.isActive)
+      : store.credentials.find(
+          (item) => item.providerId === providerId && item.isActive,
+        )
+
     form.agentDefinitionId = definition?.id ?? ''
+    form.extractionProfileId = profile?.id ?? ''
     form.credentialId = credential?.id ?? ''
+  },
+)
+
+watch(
+  () => form.extractionProfileId,
+  (profileId) => {
+    if (!profileId) return
+    const profile = store.extractionProfiles.find((item) => item.id === profileId)
+    if (!profile) return
+
+    if (profile.providerId !== form.providerId) {
+      form.providerId = profile.providerId
+    }
+
+    if (profile.credentialId) {
+      form.credentialId = profile.credentialId
+    }
   },
 )
 
@@ -179,10 +217,16 @@ function resetForm() {
     store.definitions.find(
       (definition) => definition.providerId === form.providerId && definition.isActive,
     )?.id ?? ''
+  const defaultProfile = store.extractionProfiles.find(
+    (profile) => profile.providerId === form.providerId && profile.isActive,
+  )
+  form.extractionProfileId = defaultProfile?.id ?? ''
   form.credentialId =
+    defaultProfile?.credentialId ??
     store.credentials.find(
       (credential) => credential.providerId === form.providerId && credential.isActive,
-    )?.id ?? ''
+    )?.id ??
+    ''
   form.scheduleType = 'Interval'
   form.executeAt = ''
   form.intervalMinutes = '360'
@@ -216,6 +260,15 @@ async function openEdit(row: AgentScheduleDto) {
     form.providerId = schedule.providerId
     form.agentDefinitionId = schedule.agentDefinitionId
     form.credentialId = schedule.credentialId ?? ''
+    form.extractionProfileId =
+      schedule.extractionProfileId ??
+      store.extractionProfiles.find(
+        (profile) =>
+          profile.providerId === schedule.providerId &&
+          profile.isActive &&
+          (!schedule.credentialId || profile.credentialId === schedule.credentialId),
+      )?.id ??
+      ''
     form.scheduleType = schedule.scheduleType
     form.executeAt = toDateTimeLocal(schedule.executeAt)
     form.intervalMinutes = schedule.intervalMinutes?.toString() ?? ''
@@ -265,6 +318,7 @@ function validateSchedule() {
   if (!form.name.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.name') }))
   if (!form.providerId) throw new Error(t('agent.validation.required', { field: t('agent.fields.provider') }))
   if (!form.agentDefinitionId) throw new Error(t('agent.validation.required', { field: t('agent.fields.definition') }))
+  if (!form.extractionProfileId) throw new Error(t('agent.validation.required', { field: t('agent.fields.extractionProfile') }))
   if (!form.timezone.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.timezone') }))
 
   const maxRetries = Number(form.maxRetries)
@@ -316,6 +370,7 @@ async function save() {
       await AgentService.updateSchedule(editingId.value, {
         name: form.name.trim(),
         credentialId: form.credentialId || null,
+        extractionProfileId: form.extractionProfileId || null,
         scheduleType: form.scheduleType,
         cronExpression: validated.cronExpression,
         intervalMinutes: validated.intervalMinutes,
@@ -324,7 +379,7 @@ async function save() {
         inputJson: validated.inputJson,
         maxRetries: validated.maxRetries,
         timeoutSeconds: validated.timeoutSeconds,
-        nextExecutionAt: editingNextExecutionAt.value,
+        nextExecutionAt: null,
       })
       toastStore.success(t('agent.messages.scheduleUpdated'))
     } else {
@@ -333,6 +388,7 @@ async function save() {
         agentDefinitionId: form.agentDefinitionId,
         providerId: form.providerId,
         credentialId: form.credentialId || null,
+        extractionProfileId: form.extractionProfileId || null,
         scheduleType: form.scheduleType,
         cronExpression: validated.cronExpression,
         intervalMinutes: validated.intervalMinutes,
@@ -395,6 +451,7 @@ async function refresh() {
       store.loadProviders(),
       store.loadDefinitions(),
       store.loadCredentials(),
+      store.loadProfiles(),
       store.loadSchedules(),
     ])
   } catch (error) {
@@ -487,6 +544,13 @@ onMounted(refresh)
             :label="t('agent.fields.definition')"
             :options="definitionOptions"
             :disabled="saving || Boolean(editingId) || !form.providerId"
+          />
+          <DhSelect
+            v-model="form.extractionProfileId"
+            :label="t('agent.fields.extractionProfile')"
+            :options="extractionProfileOptions"
+            :placeholder="t('agent.schedules.selectExtractionProfile')"
+            :disabled="saving || !form.providerId"
           />
           <DhSelect
             v-model="form.credentialId"
