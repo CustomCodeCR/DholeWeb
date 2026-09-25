@@ -69,6 +69,7 @@ import { pricingWizardPanamaContinuation } from './build/pricingWizardPanamaCont
 import { pricingDuplicateRateRefreshWorkflow } from './build/pricingDuplicateRateRefreshWorkflow'
 import { pricingWizardMixedFclFreightFix } from './build/pricingWizardMixedFclFreightFix'
 import { pricingWizardScreen4CostSelectors } from './build/pricingWizardScreen4CostSelectors'
+import { pricingWizardRuntimeReferenceGuard } from './build/pricingWizardRuntimeReferenceGuard'
 
 export default defineConfig({
   plugins: [
@@ -137,6 +138,7 @@ export default defineConfig({
     pricingWizardPersistedLclHydration(),
     pricingWizardLandPolish(),
     pricingWizardScreen4CostSelectors(),
+    pricingWizardRuntimeReferenceGuard(),
     vue(),
     tailwindcss(),
   ],
