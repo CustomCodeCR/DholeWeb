@@ -5,6 +5,12 @@ const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCry
 function replaceOne(source: string, anchor: string, replacement: string, label: string) {
   const occurrences = source.split(anchor).length - 1
   if (occurrences !== 1) {
+    if (
+      occurrences === 0
+      && source.includes('dhole-existing-rate-ui-b19404f-current-compat')
+    ) {
+      return source
+    }
     throw new Error(`[pricingWizardEnhancements] Expected exactly one ${label} anchor, found ${occurrences}.`)
   }
   return source.replace(anchor, replacement)
@@ -19,6 +25,12 @@ function replaceMany(
 ) {
   const occurrences = source.split(anchor).length - 1
   if (occurrences !== expectedOccurrences) {
+    if (
+      occurrences === 0
+      && source.includes('dhole-existing-rate-ui-b19404f-current-compat')
+    ) {
+      return source
+    }
     throw new Error(`[pricingWizardEnhancements] Expected ${expectedOccurrences} ${label} anchors, found ${occurrences}.`)
   }
   return source.split(anchor).join(replacement)
@@ -64,7 +76,16 @@ export function pricingWizardEnhancements(): Plugin {
 
       const canNextAnchor = `  if (step.value === 4) {\n    if (!consolidatedCargoMode.value) return true\n    return Boolean(\n      form.cargoPallets > 0 &&\n      form.cargoLengthCm > 0 &&\n      form.cargoWidthCm > 0 &&\n      form.cargoHeightCm > 0,\n    )\n  }\n  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`
       const canNextReplacement = `  if (step.value === 4) {\n    if (!consolidatedCargoMode.value) return true\n    return Boolean(\n      form.cargoPallets > 0 &&\n      form.cargoLengthCm > 0 &&\n      form.cargoWidthCm > 0 &&\n      form.cargoHeightCm > 0 &&\n      lclChargeableCbm.value > 0\n    )\n  }\n  if (step.value === 5) {\n    if (shipmentModeForApi.value === 'Lcl') return Boolean(lclSelectedSource.value)\n    return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  }\n  if (step.value === 6) {\n    if (shipmentModeForApi.value === 'Lcl') {\n      return Boolean(lclSelectedSource.value && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n    }\n    return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  }`
-      code = replaceOne(code, canNextAnchor, canNextReplacement, 'wizard LCL next validation')
+      const legacyCanNextAnchor = `  if (step.value === 4) return true\n  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`
+      if (
+        !code.includes(canNextAnchor)
+        && code.includes('dhole-existing-rate-ui-b19404f-current-compat')
+        && code.includes(legacyCanNextAnchor)
+      ) {
+        code = code.replace(legacyCanNextAnchor, canNextReplacement)
+      } else {
+        code = replaceOne(code, canNextAnchor, canNextReplacement, 'wizard LCL next validation')
+      }
 
       const searchRatesAnchor = `  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {\n    form.manualRate = true\n    return\n  }`
       const searchRatesReplacement = `  if (shipmentModeForApi.value === 'Lcl') {\n    return\n  }\n\n  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {\n    form.manualRate = true\n    return\n  }`
