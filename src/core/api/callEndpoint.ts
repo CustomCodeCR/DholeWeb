@@ -33,6 +33,8 @@ function resolveIdempotencyKey(
   explicitKey?: string,
 ) {
   if (String(endpoint.method).toUpperCase() !== 'POST') return null
+  const cleanPath = finalPath.split('?', 1)[0] ?? finalPath
+  if (!cleanPath.startsWith('/api/pricing/')) return null
 
   const supplied = explicitKey?.trim()
   if (supplied) return supplied
