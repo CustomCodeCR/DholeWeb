@@ -222,8 +222,8 @@ watch(
   const includeTermsReplacement = `  const includeTerms = uniqueTermLines([\n    ...commercialTerms.includes.map((item) => item.text),\n    ...(lclSelectedSource.value?.includes ?? []),\n    ...includedLines.value.map((line) => line.name),\n  ]).filter((text) => !isFreeDayCommercialTerm(text))`
   code = replaceOne(code, includeTermsAnchor, includeTermsReplacement, 'persist linked includes')
 
-  const subjectTermsAnchor = `  const subjectTerms = uniqueTermLines([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    ...(lclSelectedSource.value?.subjectTo ?? []),\n    form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => !includeKeys.has(commercialTermKey(text)))`
-  const subjectTermsReplacement = `  const subjectTerms = uniqueTermLines([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    ...(lclSelectedSource.value?.subjectTo ?? []),\n    form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => {\n    const key = commercialTermKey(text)\n    return !includeKeys.has(key) && !excludedOptionalTermKeys.has(key) && !isFreeDayCommercialTerm(text)\n  })\n  if (shipmentModeForApi.value === 'Fcl' && number(form.freeDays) > 0) {\n    subjectTerms.push(Math.trunc(number(form.freeDays)) + ' días libres de contenedor')\n  }`
+  const subjectTermsAnchor = `  const subjectTerms = uniqueTermLines([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    ...(lclSelectedSource.value?.subjectTo ?? []),\n    !ltlCargoMode.value && form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    !ltlCargoMode.value && form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => !includeKeys.has(commercialTermKey(text)))`
+  const subjectTermsReplacement = `  const subjectTerms = uniqueTermLines([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    ...(lclSelectedSource.value?.subjectTo ?? []),\n    !ltlCargoMode.value && form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    !ltlCargoMode.value && form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => {\n    const key = commercialTermKey(text)\n    return !includeKeys.has(key) && !excludedOptionalTermKeys.has(key) && !isFreeDayCommercialTerm(text)\n  })\n  if (shipmentModeForApi.value === 'Fcl' && number(form.freeDays) > 0) {\n    subjectTerms.push(Math.trunc(number(form.freeDays)) + ' días libres de contenedor')\n  }`
   code = replaceOne(code, subjectTermsAnchor, subjectTermsReplacement, 'persist dynamic subject terms')
 
   const excludeFilterAnchor = `  ]).filter((text) => {\n    const key = commercialTermKey(text)\n    return !includeKeys.has(key) && !subjectKeys.has(key)\n  })`
@@ -256,16 +256,16 @@ watch(
   )
 
   // Persist every FCL equipment allocation while keeping the legacy first-container snapshot.
-  const containerQuantityAnchor = `      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,`
+  const containerQuantityAnchor = `      containerQuantity: consolidatedCargoMode.value ? 0 : form.equipmentQuantity,`
   code = replaceOne(
     code,
     containerQuantityAnchor,
-    `      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.equipmentQuantity,`,
+    `      containerQuantity: consolidatedCargoMode.value ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.equipmentQuantity,`,
     'FCL total container quantity',
   )
 
-  const containersAnchor = `      containers: shipmentModeForApi.value === 'Lcl'\n        ? []\n        : [\n            {\n              containerTypeId: equipment!.id,\n              containerTypeName: equipmentName,\n              containerTypeCode: equipment!.code,\n              quantity: form.equipmentQuantity,\n            },\n          ],`
-  const containersReplacement = `      containers: shipmentModeForApi.value === 'Lcl'\n        ? []\n        : shipmentModeForApi.value === 'Fcl'\n          ? fclContainerAllocations.value.map((row) => ({\n              containerTypeId: row.containerTypeId,\n              containerTypeName: row.containerTypeName,\n              containerTypeCode: row.containerTypeCode,\n              quantity: row.quantity,\n            }))\n          : [\n              {\n                containerTypeId: equipment!.id,\n                containerTypeName: equipmentName,\n                containerTypeCode: equipment!.code,\n                quantity: form.equipmentQuantity,\n              },\n            ],`
+  const containersAnchor = `      containers: consolidatedCargoMode.value\n        ? []\n        : [\n            {\n              containerTypeId: equipment!.id,\n              containerTypeName: equipmentName,\n              containerTypeCode: equipment!.code,\n              quantity: form.equipmentQuantity,\n            },\n          ],`
+  const containersReplacement = `      containers: consolidatedCargoMode.value\n        ? []\n        : shipmentModeForApi.value === 'Fcl'\n          ? fclContainerAllocations.value.map((row) => ({\n              containerTypeId: row.containerTypeId,\n              containerTypeName: row.containerTypeName,\n              containerTypeCode: row.containerTypeCode,\n              quantity: row.quantity,\n            }))\n          : [\n              {\n                containerTypeId: equipment!.id,\n                containerTypeName: equipmentName,\n                containerTypeCode: equipment!.code,\n                quantity: form.equipmentQuantity,\n              },\n            ],`
   code = replaceOne(code, containersAnchor, containersReplacement, 'FCL container allocations payload')
 
   // A mixed FCL needs one freight detail per equipment type.
