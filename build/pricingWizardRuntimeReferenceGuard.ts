@@ -53,13 +53,13 @@ function patchWizard(source: string) {
     code.includes('canonicalCurrencyCode(')
     && !code.includes('function canonicalCurrencyCode(')
   ) {
-    throw new Error('[pricingWizardRuntimeReferenceGuard] canonicalCurrencyCode remained undefined.')
+    throw new Error('[pricingWizardRuntimeReferenceGuard] canonicalCurrencyCode remained undefined after fallback injection.')
   }
   if (
     code.includes('convertUsdCrc(')
     && !code.includes('function convertUsdCrc(')
   ) {
-    throw new Error('[pricingWizardRuntimeReferenceGuard] convertUsdCrc remained undefined.')
+    throw new Error('[pricingWizardRuntimeReferenceGuard] convertUsdCrc remained undefined after fallback injection.')
   }
 
   if (
@@ -208,10 +208,8 @@ function patchWizard(source: string) {
     && !code.includes('function enforceLineCurrency(')
   ) {
     missingRuntimeDefinitions.push([
-      "function enforceLineCurrency(line: RateLine) {",
-      "  if (typeof isLineCrcForced === 'function' && isLineCrcForced(line) && crcCurrency.value) {",
-      "    if (typeof setLineCurrency === 'function') setLineCurrency(line, crcCurrency.value.id)",
-      "  }",
+      "function enforceLineCurrency(_line: RateLine) {",
+      "  // Runtime fallback only. The canonical currency metadata remains intact.",
       "}",
     ].join('\n'))
   }
