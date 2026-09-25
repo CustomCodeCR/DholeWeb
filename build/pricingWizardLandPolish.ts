@@ -48,13 +48,21 @@ function patchWizard(source: string) {
     `            <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->\n            <div class="grid gap-3" :class="form.modality === 'Land' ? 'md:grid-cols-2' : 'md:grid-cols-3'">`,
   )
 
-  // The land distribution owns equipment selection, exactly as the maritime FCL block
-  // owns container selection. Hide the legacy single-equipment row for terrestrial.
-  code = replaceOptional(
-    code,
+  // FCL/FTL use their distribution component and LCL/LTL are consolidated cargo.
+  // None of those four modes should render the legacy standalone equipment row.
+  // Accept every guard shape produced by the earlier parity plugins so FTL cannot
+  // accidentally show a duplicated "Tipo de furgón / Cantidad" selector.
+  const standaloneEquipmentGuards = [
+    `v-if="shipmentModeForApi !== 'Fcl' && !['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`,
+    `v-if="!['Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`,
     `v-if="shipmentModeForApi !== 'Lcl' && shipmentModeForApi !== 'Fcl'" class="grid gap-4 md:grid-cols-3"`,
-    `v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl' && shipmentModeForApi !== 'Fcl'" class="grid gap-4 md:grid-cols-3"`,
-  )
+  ]
+  const unifiedEquipmentGuard =
+    `v-if="!['Fcl', 'Ftl', 'Lcl', 'Ltl'].includes(shipmentModeForApi)" class="grid gap-4 md:grid-cols-3"`
+
+  standaloneEquipmentGuards.forEach((guard) => {
+    code = replaceOptional(code, guard, unifiedEquipmentGuard)
+  })
 
   // Improve the land extra-equipment state so incomplete rows are explicit and duplicate
   // furgón types cannot be selected accidentally.
@@ -75,7 +83,64 @@ function patchWizard(source: string) {
     const row4Anchor = `            <!-- Fila 4: Incoterm y fecha de carga lista. -->`
     const landEnd = code.indexOf(row4Anchor, landTitleIndex)
     if (landStart >= 0 && landEnd > landStart) {
-      const compactLandBlock = `            <div v-if="form.modality === 'Land' && shipmentModeForApi !== 'Ltl'" class="overflow-hidden rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.035)]">\n              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--dh-primary-rgb)/0.16)] px-4 py-3 md:px-5">\n                <div>\n                  <p class="font-black text-[var(--dh-text)]">Distribución de furgones</p>\n                  <p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">Agregue los tamaños y tipos necesarios en la misma cotización terrestre.</p>\n                </div>\n                <DhButton variant="secondary" :disabled="!canAddLandEquipment" @click="addLandEquipment">\n                  <Plus class="h-4 w-4" /> Añadir furgón\n                </DhButton>\n              </div>\n\n              <div class="space-y-3 p-4 md:p-5">\n                <div class="rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.24)] bg-[rgb(var(--dh-primary-rgb)/0.055)] p-4">\n                  <div class="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Furgón 1</div>\n                  <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_140px] lg:items-end">\n                    <PricingContainerSelector\n                      v-model="form.equipmentId"\n                      transport="land"\n                      :excluded-equipment-ids="landExtraEquipment.map((row) => row.containerTypeId).filter(Boolean)"\n                      :show-resolved-label="false"\n                    />\n                    <DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                </div>\n\n                <div\n                  v-for="(row, index) in landExtraEquipment"\n                  :key="row.key"\n                  class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"\n                >\n                  <div class="mb-2 flex items-center justify-between gap-3">\n                    <span class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Furgón {{ index + 2 }}</span>\n                    <DhButton variant="danger" size="sm" @click="removeLandEquipment(row.key)">Quitar</DhButton>\n                  </div>\n                  <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_140px] lg:items-end">\n                    <PricingContainerSelector\n                      v-model="row.containerTypeId"\n                      transport="land"\n                      :excluded-equipment-ids="landExtraExcludedEquipmentIds(row.key)"\n                      :show-resolved-label="false"\n                    />\n                    <DhInput v-model.number="row.quantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                </div>\n\n                <div v-if="selectedEquipment" class="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.20)] bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-2.5">\n                  <strong class="text-sm text-[var(--dh-primary)]">Total: {{ landEquipmentTotal }} furgón{{ landEquipmentTotal === 1 ? '' : 'es' }}</strong>\n                  <div class="flex flex-wrap gap-2">\n                    <span v-for="allocation in landEquipmentAllocations" :key="'land-summary:' + allocation.containerTypeId" class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-1 text-[10px] font-black text-[var(--dh-text-soft)]">\n                      {{ allocation.quantity }} × {{ allocation.containerTypeName }}\n                    </span>\n                  </div>\n                </div>\n              </div>\n            </div>\n\n`
+      const compactLandBlock = `            <div v-if="shipmentModeForApi === 'Ftl'" class="overflow-hidden rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.035)]">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--dh-primary-rgb)/0.16)] px-4 py-4 md:px-5">
+                <p class="font-black text-[var(--dh-text)]">Distribución de furgones FTL</p>
+                <DhButton variant="secondary" :disabled="!canAddLandEquipment" @click="addLandEquipment">
+                  <Plus class="h-4 w-4" /> Añadir furgón
+                </DhButton>
+              </div>
+
+              <div class="space-y-3 p-4 md:p-5">
+                <div class="rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.24)] bg-[rgb(var(--dh-primary-rgb)/0.055)] p-4">
+                  <div class="mb-3 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Furgón 1</div>
+                  <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_160px] lg:items-end">
+                    <PricingContainerSelector
+                      v-model="form.equipmentId"
+                      transport="land"
+                      :excluded-equipment-ids="landExtraEquipment.map((row) => row.containerTypeId).filter(Boolean)"
+                      :show-resolved-label="false"
+                    />
+                    <DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />
+                  </div>
+                </div>
+
+                <div
+                  v-for="(row, index) in landExtraEquipment"
+                  :key="row.key"
+                  class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
+                >
+                  <div class="mb-3 flex items-center justify-between gap-3">
+                    <span class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Furgón {{ index + 2 }}</span>
+                    <DhButton variant="danger" size="sm" @click="removeLandEquipment(row.key)">Quitar</DhButton>
+                  </div>
+                  <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_160px] lg:items-end">
+                    <PricingContainerSelector
+                      v-model="row.containerTypeId"
+                      transport="land"
+                      :excluded-equipment-ids="landExtraExcludedEquipmentIds(row.key)"
+                      :show-resolved-label="false"
+                    />
+                    <DhInput v-model.number="row.quantity" type="number" min="1" label="Cantidad" />
+                  </div>
+                </div>
+
+                <div v-if="selectedEquipment" class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.20)] bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-3">
+                  <strong class="text-sm text-[var(--dh-primary)]">Total: {{ landEquipmentTotal }} furgón{{ landEquipmentTotal === 1 ? '' : 'es' }}</strong>
+                  <div class="flex flex-wrap gap-2">
+                    <span
+                      v-for="allocation in landEquipmentAllocations"
+                      :key="'land-summary:' + allocation.containerTypeId"
+                      class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-1 text-[11px] font-black text-[var(--dh-text-soft)]"
+                    >
+                      {{ allocation.quantity }} × {{ allocation.containerTypeName }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+`
       code = code.slice(0, landStart) + compactLandBlock + code.slice(landEnd)
     }
   }
