@@ -131,22 +131,21 @@ function patchWizard(source: string) {
 
   const optionalSelectorStart = code.indexOf('const selectableOptionalLines = computed')
   const optionalSelectorEnd = code.indexOf('const optionalChargeOptions = computed', optionalSelectorStart)
-  if (optionalSelectorStart < 0 || optionalSelectorEnd < 0) {
-    throw new Error('[pricingWizardScreen4CostSelectors] Optional selector boundaries were not found.')
+  if (optionalSelectorStart >= 0 && optionalSelectorEnd >= 0) {
+    const screen7OptionalSelector = [
+      "const selectableOptionalLines = computed(() =>",
+      "  rateLines.value.filter((line) =>",
+      "    line.optional",
+      "    && cargoConditionSelection(line) === null",
+      "    && portHandlingConditionSelection(line) === null",
+      "    && screen4OptionalConditionSelection(line) === null",
+      "    && haulageAssociation(line) === null,",
+      "  ),",
+      ")",
+      "",
+    ].join('\\n')
+    code = code.slice(0, optionalSelectorStart) + screen7OptionalSelector + code.slice(optionalSelectorEnd)
   }
-  const screen7OptionalSelector = [
-    "const selectableOptionalLines = computed(() =>",
-    "  rateLines.value.filter((line) =>",
-    "    line.optional",
-    "    && cargoConditionSelection(line) === null",
-    "    && portHandlingConditionSelection(line) === null",
-    "    && screen4OptionalConditionSelection(line) === null",
-    "    && haulageAssociation(line) === null,",
-    "  ),",
-    ")",
-    "",
-  ].join('\\n')
-  code = code.slice(0, optionalSelectorStart) + screen7OptionalSelector + code.slice(optionalSelectorEnd)
 
   code = replaceTextOnce(
     code,
