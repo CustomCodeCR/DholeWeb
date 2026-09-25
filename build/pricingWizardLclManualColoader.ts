@@ -172,7 +172,7 @@ export function pricingWizardLclManualColoader(): Plugin {
     name: 'dhole-pricing-wizard-lcl-manual-coloader',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
       return { code: patchWizard(source), map: null }
     },
