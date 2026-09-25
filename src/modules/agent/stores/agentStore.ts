@@ -9,6 +9,7 @@ import type {
   AgentExecutionStatus,
   AgentExtractionEquipmentDto,
   AgentExtractionFieldDto,
+  AgentExtractionProfileDto,
   AgentExtractionRouteDto,
   AgentProviderDto,
   AgentScheduleDto,
@@ -27,6 +28,8 @@ export const useAgentStore = defineStore('agent', () => {
   const credentials = ref<AgentCredentialDto[]>([])
   const browserProfiles = ref<BrowserProfileDto[]>([])
   const schedules = ref<AgentScheduleDto[]>([])
+  const extractionProfiles = ref<AgentExtractionProfileDto[]>([])
+  const selectedProfile = ref<AgentExtractionProfileDto | null>(null)
 
   const routes = ref<AgentExtractionRouteDto[]>([])
   const equipment = ref<AgentExtractionEquipmentDto[]>([])
@@ -115,6 +118,19 @@ export const useAgentStore = defineStore('agent', () => {
     return browserProfiles.value
   }
 
+  async function loadProfiles() {
+    extractionProfiles.value = await withLoading(() => AgentService.profiles.browse())
+    return extractionProfiles.value
+  }
+
+  async function loadProfile(profileId: string) {
+    selectedProfile.value = await withLoading(() => AgentService.profiles.get(profileId))
+    const index = extractionProfiles.value.findIndex((item) => item.id === selectedProfile.value?.id)
+    if (selectedProfile.value && index >= 0) extractionProfiles.value[index] = selectedProfile.value
+    else if (selectedProfile.value) extractionProfiles.value.unshift(selectedProfile.value)
+    return selectedProfile.value
+  }
+
   async function loadSchedules() {
     schedules.value = await withLoading(() => AgentService.schedules.browse())
     return schedules.value
@@ -185,7 +201,10 @@ export const useAgentStore = defineStore('agent', () => {
   async function loadDashboard() {
     const tasks: Promise<unknown>[] = [checkHealth()]
 
-    if (authStore.hasScope(AGENT_SCOPES.providers.view)) tasks.push(loadProviders())
+    if (authStore.hasScope(AGENT_SCOPES.providers.view)) {
+      tasks.push(loadProviders())
+      tasks.push(loadProfiles())
+    }
     if (authStore.hasScope(AGENT_SCOPES.definitions.view)) tasks.push(loadDefinitions())
     if (authStore.hasScope(AGENT_SCOPES.credentials.view)) tasks.push(loadCredentials())
     if (authStore.hasScope(AGENT_SCOPES.browserProfiles.view)) tasks.push(loadBrowserProfiles())
@@ -216,6 +235,8 @@ export const useAgentStore = defineStore('agent', () => {
     credentials,
     browserProfiles,
     schedules,
+    extractionProfiles,
+    selectedProfile,
     routes,
     equipment,
     captures,
@@ -242,6 +263,8 @@ export const useAgentStore = defineStore('agent', () => {
     loadDefinitions,
     loadCredentials,
     loadBrowserProfiles,
+    loadProfiles,
+    loadProfile,
     loadSchedules,
     loadRoutes,
     loadEquipment,
