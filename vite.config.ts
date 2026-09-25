@@ -71,6 +71,7 @@ import { pricingWizardMixedFclFreightFix } from './build/pricingWizardMixedFclFr
 import { pricingWizardScreen4CostSelectors } from './build/pricingWizardScreen4CostSelectors'
 import { pricingWizardRuntimeReferenceGuard } from './build/pricingWizardRuntimeReferenceGuard'
 import { pricingWizardMultipleDrafts } from './build/pricingWizardMultipleDrafts'
+import { pricingWizardLclManualColoader } from './build/pricingWizardLclManualColoader'
 
 export default defineConfig({
   plugins: [
@@ -141,6 +142,7 @@ export default defineConfig({
     pricingWizardScreen4CostSelectors(),
     pricingWizardMultipleDrafts(),
     pricingWizardRuntimeReferenceGuard(),
+    pricingWizardLclManualColoader(),
     vue(),
     tailwindcss(),
   ],
