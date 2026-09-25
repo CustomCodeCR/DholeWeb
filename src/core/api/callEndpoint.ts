@@ -1,6 +1,7 @@
 import type { RequestOptions } from '@/core/api/interfaces/requestOptions'
 import type { Endpoint } from '@/core/composables/endpoints'
 import { fetchClient, replaceEndpointParams } from '@/core/api/fetchConfig'
+import { createUuid } from '@/core/utils/id'
 import {
   markPricingRateCommentSaved,
   pendingPricingRateComment,
@@ -9,6 +10,49 @@ import {
 type PathParams = Record<string, string>
 
 const RATE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const IDEMPOTENCY_REUSE_MS = 2 * 60 * 1000
+const recentIdempotencyKeys = new Map<string, { key: string; expiresAt: number }>()
+
+function requestBodyFingerprint(body: unknown, isFormData?: boolean): string | null {
+  if (body === undefined) return ''
+  if (isFormData || (typeof FormData !== 'undefined' && body instanceof FormData)) return null
+
+  try {
+    return JSON.stringify(body)
+  } catch {
+    return null
+  }
+}
+
+function resolveIdempotencyKey(
+  endpoint: Endpoint,
+  finalPath: string,
+  body: unknown,
+  isFormData?: boolean,
+  explicitKey?: string,
+) {
+  if (String(endpoint.method).toUpperCase() !== 'POST') return null
+
+  const supplied = explicitKey?.trim()
+  if (supplied) return supplied
+
+  const fingerprintBody = requestBodyFingerprint(body, isFormData)
+  if (fingerprintBody == null) return createUuid()
+
+  const now = Date.now()
+  for (const [fingerprint, entry] of recentIdempotencyKeys) {
+    if (entry.expiresAt <= now) recentIdempotencyKeys.delete(fingerprint)
+  }
+
+  const fingerprint = `${finalPath}\n${fingerprintBody}`
+  const existing = recentIdempotencyKeys.get(fingerprint)
+  if (existing && existing.expiresAt > now) return existing.key
+
+  const key = createUuid()
+  recentIdempotencyKeys.set(fingerprint, { key, expiresAt: now + IDEMPOTENCY_REUSE_MS })
+  return key
+}
 
 function todayIso(): string {
   const now = new Date()
@@ -101,6 +145,7 @@ export async function callEndpoint<TResponse, TBody = unknown>(
     body?: TBody
     isFormData?: boolean
     extraHeaders?: Record<string, string>
+    idempotencyKey?: string
   },
 ): Promise<TResponse> {
   const finalPath = args?.params ? replaceEndpointParams(endpoint.path, args.params) : endpoint.path
@@ -109,12 +154,27 @@ export async function callEndpoint<TResponse, TBody = unknown>(
       ? undefined
       : normalizePricingRateEditBody(endpoint, finalPath, args.body)
 
+  const headers: Record<string, string> = {
+    ...(endpoint.headers ?? {}),
+    ...(args?.extraHeaders ?? {}),
+  }
+  const hasIdempotencyHeader = Object.keys(headers).some(
+    (name) => name.toLowerCase() === 'idempotency-key',
+  )
+  const idempotencyKey = hasIdempotencyHeader
+    ? null
+    : resolveIdempotencyKey(
+        endpoint,
+        finalPath,
+        normalizedBody,
+        args?.isFormData,
+        args?.idempotencyKey,
+      )
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
+
   const options: RequestOptions = {
     method: endpoint.method,
-    headers: {
-      ...(endpoint.headers ?? {}),
-      ...(args?.extraHeaders ?? {}),
-    },
+    headers,
     ...(normalizedBody !== undefined ? { body: normalizedBody } : {}),
     ...(args?.isFormData ? { isFormData: true } : {}),
   }
