@@ -70,6 +70,7 @@ export interface LclRateSourceSelection {
   profitPercentage: number
   meetsMinimumMargin: boolean | null
   matrixVersion: string | null
+  manual?: boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -488,6 +489,43 @@ function chooseColoader(rate: LclColoaderRateDto) {
   emit('select', selection)
 }
 
+function chooseManualColoader() {
+  const cbm = requested()
+  const selection: LclRateSourceSelection = {
+    kind: 'Coloader',
+    id: 'manual',
+    label: 'Coloader · tarifa manual',
+    requestedCbm: cbm,
+    providerId: null,
+    providerName: null,
+    providerCode: null,
+    carrierId: null,
+    carrierName: null,
+    carrierCode: null,
+    currencyId: props.currencyId,
+    currencyName: props.currencyName,
+    currencyCode: props.currencyCode,
+    freeDays: 0,
+    transitDays: 0,
+    validFrom: props.quoteDate ?? null,
+    validTo: null,
+    includes: [],
+    subjectTo: [],
+    excludes: [],
+    lines: [],
+    totalCost: 0,
+    totalSale: 0,
+    profitAmount: 0,
+    profitPerCbm: 0,
+    profitPercentage: 0,
+    meetsMinimumMargin: null,
+    matrixVersion: 'MANUAL',
+    manual: true,
+  }
+  emit('update:modelValue', 'Coloader:manual')
+  emit('select', selection)
+}
+
 function updateCbm(value: string | number | null) {
   if (props.requestedCbmLocked) return
   emit('update:requestedCbm', Math.max(1, n(value)))
@@ -562,6 +600,20 @@ onMounted(load)
           </div>
         </template>
       </DhDataTable>
+
+      <div class="mt-4 flex flex-col gap-3 rounded-[22px] border border-dashed border-[rgb(var(--dh-primary-rgb)/0.35)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="font-black">Tarifa LCL de coloader manual</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Úsela cuando el coloader no tenga un tarifario vigente cargado. Podrá indicar agente, naviera, moneda, flete y líneas en las siguientes pantallas.</p>
+        </div>
+        <DhButton
+          class="shrink-0"
+          :label="modelValue === 'Coloader:manual' ? 'Tarifa manual seleccionada' : 'Crear tarifa manual'"
+          :icon="modelValue === 'Coloader:manual' ? Check : undefined"
+          variant="secondary"
+          @click="chooseManualColoader"
+        />
+      </div>
     </div>
   </section>
 </template>
