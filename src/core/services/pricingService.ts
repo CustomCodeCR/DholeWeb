@@ -511,9 +511,10 @@ export const PricingService = {
     )
   },
 
-  async createRate(payload: CreateRateRequest): Promise<string> {
+  async createRate(payload: CreateRateRequest, idempotencyKey?: string): Promise<string> {
     const response = await callEndpoint<unknown, CreateRateRequest>(Endpoints.createRate, {
       body: payload,
+      idempotencyKey,
     })
 
     return unwrapApiResponse<string>(response as never)
