@@ -4,7 +4,7 @@ import { createUuid } from '@/core/utils/id'
 import type { CreateRateRequest, UpdateRateRequest } from '@/core/interfaces/pricing'
 
 type QueuedPricingMutation =
-  | { id: string; type: 'create-rate'; payload: CreateRateRequest; createdAt: string; attempts: number }
+  | { id: string; type: 'create-rate'; payload: CreateRateRequest; idempotencyKey?: string; createdAt: string; attempts: number }
   | { id: string; type: 'update-rate'; rateId: string; payload: UpdateRateRequest; createdAt: string; attempts: number }
 
 const STORAGE_KEY = 'dhole.offline.pricing.queue.v1'
@@ -34,7 +34,8 @@ export function isConnectionFailure(error: unknown): boolean {
 
 export function queueRateCreate(payload: CreateRateRequest) {
   const queue = readQueue()
-  queue.push({ id: createUuid(), type: 'create-rate', payload, createdAt: new Date().toISOString(), attempts: 0 })
+  const id = createUuid()
+  queue.push({ id, type: 'create-rate', payload, idempotencyKey: id, createdAt: new Date().toISOString(), attempts: 0 })
   writeQueue(queue)
 }
 
@@ -66,7 +67,7 @@ export async function flushPricingOfflineQueue() {
 
     for (const item of queue) {
       try {
-        if (item.type === 'create-rate') await PricingService.createRate(item.payload)
+        if (item.type === 'create-rate') await PricingService.createRate(item.payload, item.idempotencyKey || item.id)
         else await PricingService.updateRate(item.rateId, item.payload)
         synced += 1
       } catch (error) {
