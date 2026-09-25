@@ -367,6 +367,10 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] restorePersistedFclDistribution call remained unresolved.')
   }
 
+  console.log('DHOLE_WIZARD_FINAL_SOURCE_BEGIN')
+  console.log(code)
+  console.log('DHOLE_WIZARD_FINAL_SOURCE_END')
+
   return code
 }
 
