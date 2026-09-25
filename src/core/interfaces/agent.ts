@@ -228,6 +228,48 @@ export interface UpdateAgentScheduleRequest {
   nextExecutionAt: string | null
 }
 
+export interface AgentExtractionProfileDto {
+  id: string
+  providerId: string
+  credentialId: string | null
+  name: string
+  description: string | null
+  baseUrl: string | null
+  loginUrl: string | null
+  searchUrl: string | null
+  promptTemplate: string
+  executionStrategy: AgentExecutionStrategy
+  parserKey: string | null
+  isActive: boolean
+  createdAtUtc: string
+  updatedAtUtc: string | null
+}
+
+export interface CreateAgentExtractionProfileRequest {
+  providerId: string
+  credentialId: string | null
+  name: string
+  description: string | null
+  baseUrl: string | null
+  loginUrl: string | null
+  searchUrl: string | null
+  promptTemplate: string
+  executionStrategy: AgentExecutionStrategy
+  parserKey: string | null
+}
+
+export interface UpdateAgentExtractionProfileRequest {
+  credentialId: string | null
+  name: string
+  description: string | null
+  baseUrl: string | null
+  loginUrl: string | null
+  searchUrl: string | null
+  promptTemplate: string
+  executionStrategy: AgentExecutionStrategy
+  parserKey: string | null
+}
+
 export interface AgentExtractionRouteDto {
   id: string
   profileId: string
