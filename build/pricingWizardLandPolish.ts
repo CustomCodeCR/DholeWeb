@@ -79,7 +79,7 @@ function patchWizard(source: string) {
   const landTitle = `<p class="font-black">Distribución de furgones</p>`
   const landTitleIndex = code.indexOf(landTitle)
   if (landTitleIndex >= 0) {
-    const landStart = code.lastIndexOf(`            <div v-if="form.modality === 'Land'"`, landTitleIndex)
+    const landStart = code.lastIndexOf(`            <div v-if="form.modality === 'Land'`, landTitleIndex)
     const row4Anchors = [
       `            <!-- Fila 4: Incoterm y fecha de carga lista. -->`,
       `            <!-- Fila 4: Incoterm y vigencia. -->`,
@@ -149,6 +149,11 @@ function patchWizard(source: string) {
 
 `
       code = code.slice(0, landStart) + compactLandBlock + code.slice(landEnd)
+    } else {
+      throw new Error(
+        '[pricingWizardLandPolish] FTL distribution block could not be replaced. ' +
+        `landStart=${landStart}, landEnd=${landEnd}, landTitleIndex=${landTitleIndex}`,
+      )
     }
   }
 
