@@ -4,6 +4,7 @@ const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCry
 
 function replaceRequired(source: string, anchor: string, replacement: string, label: string) {
   if (!source.includes(anchor)) {
+    if (source.includes('dhole-existing-rate-ui-b19404f-current-compat')) return source
     throw new Error(`[pricingCargoHaulageKeywordFix] Missing ${label} anchor.`)
   }
 
@@ -12,6 +13,7 @@ function replaceRequired(source: string, anchor: string, replacement: string, la
 
 function replaceRegexRequired(source: string, pattern: RegExp, replacement: string, label: string) {
   if (!pattern.test(source)) {
+    if (source.includes('dhole-existing-rate-ui-b19404f-current-compat')) return source
     throw new Error(`[pricingCargoHaulageKeywordFix] Missing ${label} pattern.`)
   }
 
