@@ -15,6 +15,28 @@ function replaceAllRequired(source: string, anchor: string, replacement: string,
   return source.split(anchor).join(replacement)
 }
 
+function guardButtonForLand(source: string, handler: 'toggleMerchantHaulage' | 'toggleCarrierHaulage') {
+  const pattern = new RegExp(`<button\\s+([^>]*@click="${handler}"[^>]*)>`, 'g')
+  const matches = source.match(pattern) ?? []
+  if (!matches.length) {
+    throw new Error(`[pricingRequirements20260908] Expected at least one ${handler} button, found 0.`)
+  }
+
+  return source.replace(pattern, (opening) => {
+    if (opening.includes("form.modality !== 'Land'")) return opening
+
+    const vIf = opening.match(/v-if="([^"]*)"/)
+    if (vIf) {
+      return opening.replace(
+        vIf[0],
+        `v-if="form.modality !== 'Land' && (${vIf[1]})"`,
+      )
+    }
+
+    return opening.replace('<button ', `<button v-if="form.modality !== 'Land'" `)
+  })
+}
+
 function patchWizard(source: string) {
   let code = source
 
@@ -129,8 +151,8 @@ function patchWizard(source: string) {
   // Persist land allocations in final rate payload and seller request context.
   code = replaceAllRequired(
     code,
-    `shipmentModeForApi.value === 'Lcl' ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.equipmentQuantity`,
-    `shipmentModeForApi.value === 'Lcl' ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.modality === 'Land' ? Math.max(1, landEquipmentTotal.value) : form.equipmentQuantity`,
+    `consolidatedCargoMode.value ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.equipmentQuantity`,
+    `consolidatedCargoMode.value ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.modality === 'Land' ? Math.max(1, landEquipmentTotal.value) : form.equipmentQuantity`,
     'land total equipment quantity',
   )
   code = replaceRequired(
@@ -193,24 +215,15 @@ function patchWizard(source: string) {
   )
   code = replaceRequired(
     code,
-    `<button type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>`,
-    `<button type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>\n            <span v-if="form.dangerousCargo && !hasDangerousTechSheet" class="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-black text-red-600 dark:text-red-300">Ficha técnica / MSDS obligatoria</span>`,
+    `<button v-if="!ltlCargoMode" type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>`,
+    `<button v-if="!ltlCargoMode" type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>\n            <span v-if="!ltlCargoMode && form.dangerousCargo && !hasDangerousTechSheet" class="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-black text-red-600 dark:text-red-300">Ficha técnica / MSDS obligatoria</span>`,
     'dangerous cargo warning',
   )
 
   // 16. Merchant and Carrier/Naviera haulage do not apply to the land screen.
-  code = replaceRequired(
-    code,
-    `<button type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">`,
-    `<button v-if="form.modality !== 'Land'" type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">`,
-    'hide Merchant for land',
-  )
-  code = replaceRequired(
-    code,
-    `<button type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">`,
-    `<button v-if="form.modality !== 'Land'" type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">`,
-    'hide Carrier for land',
-  )
+  // Preserve any LCL/Panama visibility guard applied by earlier plugins.
+  code = guardButtonForLand(code, 'toggleMerchantHaulage')
+  code = guardButtonForLand(code, 'toggleCarrierHaulage')
 
   // 6. Every edit carries an explicit update reason; backend still enforces the allowed statuses/request window.
   code = replaceRequired(
