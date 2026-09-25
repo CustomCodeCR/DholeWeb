@@ -192,6 +192,18 @@ function currencyByCode(code?: string | null) {
     [item.code, item.value, item.name].some((value) => String(value).trim().toUpperCase() === target),
   ) || catalogs.currencies.value[0]
 }
+function currencyDisplayValue(row: Pick<FtlTariffDto, 'currencyId' | 'currencyName' | 'currencyCode'>) {
+  const catalogCurrency = catalogs.currencies.value.find((item) => item.id === row.currencyId)
+  const catalogValue = String(catalogCurrency?.value || '').trim()
+  if (catalogValue) return /^[a-z]{3}$/i.test(catalogValue) ? catalogValue.toUpperCase() : catalogValue
+
+  const fallbackIso = [row.currencyName, row.currencyCode]
+    .map((value) => String(value || '').trim())
+    .find((value) => /^[a-z]{3}$/i.test(value))
+  if (fallbackIso) return fallbackIso.toUpperCase()
+
+  return String(row.currencyName || row.currencyCode || 'USD').trim() || 'USD'
+}
 function parsedMode(value: unknown): LandShipmentMode {
   return String(value || '').trim().toLowerCase() === 'ltl' ? 'Ltl' : 'Ftl'
 }
@@ -238,7 +250,7 @@ function importItem(input: Record<string, unknown>): CreateLandTariffItem | null
     applicableEquipmentClasses: classes,
     currencyId: currency.id,
     currencyName: currency.name,
-    currencyCode: currency.code || currency.value || currency.name,
+    currencyCode: currency.value || currency.code || currency.name,
     priceAmount,
     rateBasis: mode === 'Ltl' ? 'PerCbm' : 'PerTruck',
     minimumAmount,
@@ -518,11 +530,11 @@ onMounted(async () => {
                     @click="canUpdate && openForm(ltlMatrixTariff(origin, destination)!)"
                   >
                     <span class="block text-sm font-black text-[var(--dh-text)]">
-                      {{ formatMoney(ltlMatrixTariff(origin, destination)!.priceAmount, ltlMatrixTariff(origin, destination)!.currencyCode || 'USD') }}
+                      {{ formatMoney(ltlMatrixTariff(origin, destination)!.priceAmount, currencyDisplayValue(ltlMatrixTariff(origin, destination)!)) }}
                       <span class="text-[10px] text-[var(--dh-text-muted)]">/ CBM</span>
                     </span>
                     <span class="mt-1 block text-xs font-semibold text-[var(--dh-text-muted)]">
-                      Mín. {{ formatMoney(ltlMatrixTariff(origin, destination)!.minimumAmount || 0, ltlMatrixTariff(origin, destination)!.currencyCode || 'USD') }}
+                      Mín. {{ formatMoney(ltlMatrixTariff(origin, destination)!.minimumAmount || 0, currencyDisplayValue(ltlMatrixTariff(origin, destination)!)) }}
                     </span>
                     <span class="mt-1 block text-xs font-bold text-[var(--dh-primary)]">
                       {{ ltlMatrixTariff(origin, destination)!.transitDays == null ? 'Tránsito sin definir' : ltlMatrixTariff(origin, destination)!.transitDays + ' días' }}
@@ -583,12 +595,12 @@ onMounted(async () => {
           <template #cell-transitDays="{ row }"><span class="font-black">{{ row.transitDays == null ? '—' : row.transitDays + ' días' }}</span></template>
           <template #cell-priceAmount="{ row }">
             <span class="font-black">
-              {{ formatMoney(row.priceAmount, row.currencyCode || row.currencyName) }}
+              {{ formatMoney(row.priceAmount, currencyDisplayValue(row)) }}
               <span v-if="row.shipmentMode === 'Ltl'" class="text-[10px] text-[var(--dh-text-muted)]">/ CBM</span>
             </span>
           </template>
           <template #cell-minimumAmount="{ row }">
-            <span v-if="row.shipmentMode === 'Ltl' && row.minimumAmount != null" class="font-bold">{{ formatMoney(row.minimumAmount, row.currencyCode || row.currencyName) }}</span>
+            <span v-if="row.shipmentMode === 'Ltl' && row.minimumAmount != null" class="font-bold">{{ formatMoney(row.minimumAmount, currencyDisplayValue(row)) }}</span>
             <span v-else>—</span>
           </template>
           <template #cell-validity="{ row }">
