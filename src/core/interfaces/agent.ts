@@ -89,6 +89,7 @@ export interface AgentScheduleDto {
   agentDefinitionId: string
   providerId: string
   credentialId: string | null
+  extractionProfileId: string | null
   scheduleType: AgentScheduleType
   cronExpression: string | null
   intervalMinutes: number | null
@@ -108,6 +109,7 @@ export interface AgentExecutionDto {
   providerId: string
   scheduleId: string | null
   credentialId: string | null
+  extractionProfileId: string | null
   executionType: string
   status: AgentExecutionStatus
   priority: number
@@ -169,6 +171,7 @@ export interface CreateAgentScheduleRequest {
   agentDefinitionId: string
   providerId: string
   credentialId: string | null
+  extractionProfileId: string | null
   scheduleType: AgentScheduleType
   cronExpression: string | null
   intervalMinutes: number | null
@@ -213,6 +216,7 @@ export interface CreateBrowserProfileRequest {
 export interface UpdateAgentScheduleRequest {
   name: string
   credentialId: string | null
+  extractionProfileId: string | null
   scheduleType: AgentScheduleType
   cronExpression: string | null
   intervalMinutes: number | null
