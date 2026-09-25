@@ -47,8 +47,96 @@ function patchWizard(source: string) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] script end not found.')
   }
 
+  const missingRuntimeDefinitions: string[] = []
+
+  if (
+    code.includes('automaticOptionalContextKey.value')
+    && !code.includes('const automaticOptionalContextKey = ref(')
+  ) {
+    missingRuntimeDefinitions.push("const automaticOptionalContextKey = ref('')")
+  }
+
+  if (
+    code.includes('dismissedAutomaticOptionalCostIds.value')
+    && !code.includes('const dismissedAutomaticOptionalCostIds = ref(')
+  ) {
+    missingRuntimeDefinitions.push("const dismissedAutomaticOptionalCostIds = ref(new Set<string>())")
+  }
+
+  if (
+    code.includes('canManageAutomaticOptionalCosts')
+    && !code.includes('const canManageAutomaticOptionalCosts = computed(')
+  ) {
+    missingRuntimeDefinitions.push(
+      "const canManageAutomaticOptionalCosts = computed(() => !props.sellerRequestMode && !props.viewOnly)",
+    )
+  }
+
+  if (
+    code.includes('automaticOptionalCostId(')
+    && !code.includes('function automaticOptionalCostId(')
+  ) {
+    missingRuntimeDefinitions.push([
+      "function automaticOptionalCostId(line: { id?: string | null; costId?: string | null }) {",
+      "  return String(line.costId ?? line.id ?? '').trim()",
+      "}",
+    ].join('\\n'))
+  }
+
+  if (
+    code.includes('sectionForDetail(')
+    && !code.includes('function sectionForDetail(')
+  ) {
+    missingRuntimeDefinitions.push([
+      "function sectionForDetail(type: CostDetailType, name = ''): RateSection {",
+      "  const normalized = normalizeCatalogValue(name)",
+      "  const mentionsOrigin = /(^| )(origen|origin)( |$)/.test(normalized)",
+      "  const mentionsDestination = /(^| )(destino|destination)( |$)/.test(normalized)",
+      "  const mentionsPickup = /recole|pick\\s*up/.test(normalized)",
+      "  const mentionsDelivery = /entrega|delivery/.test(normalized)",
+      "",
+      "  if (type !== 'Freight') {",
+      "    if (mentionsPickup) return 'pickup_origin'",
+      "    if (mentionsDelivery) return 'delivery_destination'",
+      "    if (mentionsOrigin && !mentionsDestination) return 'origin_charges'",
+      "    if (mentionsDestination && !mentionsOrigin) return 'destination_charges'",
+      "  }",
+      "",
+      "  if (type === 'Freight') return 'international_freight'",
+      "  if (type === 'OriginCharge') return 'origin_charges'",
+      "  if (type === 'DestinationCharge' || type === 'Insurance') return 'destination_charges'",
+      "  if (type === 'PortCharge') return mentionsOrigin ? 'origin_charges' : 'destination_charges'",
+      "  if (type === 'InlandTransport') return mentionsPickup || mentionsOrigin ? 'pickup_origin' : 'delivery_destination'",
+      "  if (type === 'CustomsCharge') return mentionsOrigin || normalized.includes('exterior') || normalized.includes('export') ? 'origin_charges' : 'destination_charges'",
+      "  if (type === 'AgentCharge') {",
+      "    return normalizeCatalogValue(direction.value).includes('exportacion') ? 'origin_charges' : 'destination_charges'",
+      "  }",
+      "  if (type === 'Documentation') return 'international_freight'",
+      "  return 'destination_charges'",
+      "}",
+    ].join('\\n'))
+  }
+
+  if (
+    code.includes('screen4OptionalConditionSelection(')
+    && !code.includes('function screen4OptionalConditionSelection(')
+  ) {
+    missingRuntimeDefinitions.push([
+      "function screen4OptionalConditionSelection(line: { name: string; notes?: string | null }) {",
+      "  if (form.modality !== 'Maritime' || shipmentModeForApi.value !== 'Fcl') return null",
+      "  const value = normalizeCatalogValue(String(line.name ?? '') + ' ' + String(line.notes ?? ''))",
+      "  const emptyReturn = value.includes('retiro vacio') || value.includes('retiro de vacio') || value.includes('empty return') || value.includes('empty container return') || value.includes('return empty')",
+      "  if (emptyReturn) return Boolean(form.emptyReturn)",
+      "  const electronicSeal = value.includes('marchamo electronico') || value.includes('electronic seal') || value.includes('electronic security seal') || value.includes('e seal')",
+      "  if (electronicSeal) return Boolean(form.electronicSeal)",
+      "  return null",
+      "}",
+    ].join('\\n'))
+  }
+
   const helpers = `// dhole-runtime-reference-guard-20260925
-function dholeRuntimeCostContextImportRateId() {
+${missingRuntimeDefinitions.join('\\n\\n')}
+${missingRuntimeDefinitions.length ? '\\n\\n' : ''}function dholeRuntimeCostContextImportRateId() {
   const selectedRateId = String(form.selectedImportRateId ?? '').trim()
   if (!selectedRateId) return String(manualOceanFreightSavedId.value ?? '').trim()
   if (!isMultimodalViaPanama(selectedDestination.value)) return ''
@@ -172,6 +260,25 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
 `
 
   code = code.slice(0, scriptEnd) + helpers + code.slice(scriptEnd)
+
+  if (
+    code.includes('automaticOptionalContextKey.value')
+    && !code.includes('const automaticOptionalContextKey = ref(')
+  ) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] automaticOptionalContextKey remained undefined.')
+  }
+  if (
+    code.includes('sectionForDetail(')
+    && !code.includes('function sectionForDetail(')
+  ) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] sectionForDetail remained undefined.')
+  }
+  if (
+    code.includes('dismissedAutomaticOptionalCostIds.value')
+    && !code.includes('const dismissedAutomaticOptionalCostIds = ref(')
+  ) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] dismissedAutomaticOptionalCostIds remained undefined.')
+  }
 
   if (code.includes('const contextKey = currentCostContextKey()')) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] currentCostContextKey call remained unresolved.')
