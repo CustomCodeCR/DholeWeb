@@ -1,0 +1,5683 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  ExternalLink,
+  Edit3,
+  FileUp,
+  Plane,
+  Plus,
+  Search,
+  Ship,
+  Sparkles,
+  Truck,
+  Waypoints,
+} from 'lucide-vue-next'
+import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import DhStorageImage from '@/shared/components/DhStorageImage.vue'
+import { DhPageHeader } from '@/shared/components/organisms'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapApiResponse } from '@/core/api/apiResponse'
+import { PRICING_SCOPES } from '@/core/auth/scopes'
+import { useAuthStore } from '@/core/stores/authStore'
+import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
+import type {
+  BrowseImportRatesQuery,
+  ChargeBasis,
+  CostDetailType,
+  CostPortRole,
+  CostSelectDto,
+  CostType,
+  CreateRateDetailRequest,
+  CreateRateRequest,
+  ImportRateSelectDto,
+  RateDto,
+  RateRevisionDto,
+  UpdateRateRequest,
+  RateOperationType,
+  RateType,
+  ShipmentMode,
+} from '@/core/interfaces/pricing'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import { PricingService } from '@/core/services/pricingService'
+import { EmailExtractionService } from '@/core/services/emailExtractionService'
+import { StorageService } from '@/core/services/storageService'
+import { useToastStore } from '@/core/stores/toastStore'
+import { useModalStore } from '@/core/stores/modalStore'
+import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
+import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
+import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
+import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
+import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
+import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
+import PricingCompetitorTariffMatchModal from '@/modules/pricing/components/PricingCompetitorTariffMatchModal.vue'
+import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
+import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
+import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
+import {
+  calculateCargoInsurance,
+  canonicalServiceLine,
+  cargoInsuranceNote,
+  commercialTermKey,
+  incotermBuyerPaysMainTransport,
+  incotermRateSections,
+  resolveCommercialTerms,
+} from '@/modules/pricing/services/pricingCommercialRules'
+
+type Modality = 'Maritime' | 'Air' | 'Land' | 'Multimodal'
+type RateSection =
+  | 'pickup_origin'
+  | 'origin_charges'
+  | 'international_freight'
+  | 'destination_charges'
+  | 'delivery_destination'
+
+interface WarehouseContactDirectoryEntry {
+  name?: string
+  email?: string
+  phone?: string
+  role?: string
+  shipmentModes?: string[]
+  modalities?: string[]
+  routes?: string[]
+  isPrimary?: boolean
+  isActive?: boolean
+}
+
+interface CatalogMetadata {
+  modality?: string
+  modalities?: string[]
+  shipmentModes?: string[]
+  rateSections?: RateSection[]
+  optional?: boolean
+  requiresCargoValue?: boolean
+  saleFactor?: number
+  saleMinimumUsd?: number
+  costFactor?: number
+  costMinimumUsd?: number
+  countryCode?: string
+  taxRate?: number | string
+  vatRate?: number | string
+  address?: string
+  latitude?: number | string
+  longitude?: number | string
+  lat?: number | string
+  lng?: number | string
+  size?: string
+  kind?: string
+  schedule?: string
+  contacts?: string
+  email?: string
+  phone?: string
+  imageStorageId?: string
+  imageFileName?: string
+  contactDirectory?: WarehouseContactDirectoryEntry[]
+  salesExecutiveId?: string
+}
+
+interface CabysItem {
+  code: string
+  description: string
+}
+
+interface NearestPortRecommendation {
+  key: string
+  name: string
+  code: string | null
+  reason: string
+  distanceKm: number | null
+  latitude: number | null
+  longitude: number | null
+  polId: string | null
+}
+
+interface NominatimResult {
+  lat: string
+  lon: string
+  display_name?: string
+}
+
+interface SupportDocument {
+  id: string
+  category: string
+  categoryLabel: string
+  fileName: string
+  sizeInBytes: number
+}
+
+interface RateLine {
+  key: string
+  section: RateSection
+  name: string
+  costDetailType: CostDetailType
+  costType: CostType
+  chargeBasis: ChargeBasis
+  costId?: string | null
+  contextLabel?: string | null
+  notes?: string | null
+  billToClient?: string | null
+  currencyId: string
+  currencyName: string
+  currencyCode: string
+  // Moneda real en la que están expresados costAmount/saleAmount. Puede diferir
+  // temporalmente de currencyCode cuando una regla fuerza la divisa visual antes
+  // de que se ejecute la conversión.
+  amountCurrencyCode?: string
+  costAmount: number
+  saleAmount: number
+  included: boolean
+  optional: boolean
+  manual: boolean
+  serviceIds?: string[]
+  applyDestinationTax?: boolean
+  destinationTaxRate?: number
+  detailId?: string | null
+}
+
+const props = withDefaults(defineProps<{ rateId?: string | null; viewOnly?: boolean }>(), {
+  rateId: null,
+  viewOnly: false,
+})
+
+const router = useRouter()
+const toastStore = useToastStore()
+const modalStore = useModalStore()
+const authStore = useAuthStore()
+const step = ref(1)
+const loadingCatalogs = ref(false)
+const loadingRates = ref(false)
+const loadingCabys = ref(false)
+const saving = ref(false)
+const exchangeRateLoading = ref(false)
+const exchangeRatePurchase = ref<number | null>(null)
+const exchangeRateSale = ref<number | null>(null)
+const exchangeRateDate = ref('')
+const exchangeRateSource = ref('Ministerio de Hacienda de Costa Rica')
+const exchangeRateError = ref('')
+const createdRateId = ref('')
+const editingRate = ref<RateDto | null>(null)
+const rateRevisions = ref<RateRevisionDto[]>([])
+const loadingExistingRate = ref(false)
+const hydratingExistingRate = ref(false)
+const commercialAction = ref<'accept' | 'reject' | null>(null)
+const commercialIdtra = ref('')
+const commercialRejectionReason = ref('')
+const commercialStatusSaving = ref(false)
+const commercialActionError = ref('')
+const downloadingQuote = ref(false)
+const downloadingLinesExcel = ref(false)
+const allInPresentation = ref(false)
+const competitorTariffsOpen = ref(false)
+const isEditing = computed(() => Boolean(props.rateId))
+const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Seleccionar alternativa')
+const pageDescription = computed(() => isEditing.value
+  ? 'Toda la tarifa se revisa en el mismo wizard. Las tarifas aceptadas crean una nueva revisión al guardar.'
+  : 'Construya la alternativa paso a paso con catálogos filtrados por modalidad.')
+const availableRates = ref<ImportRateSelectDto[]>([])
+const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
+const costs = ref<CostSelectDto[]>([])
+const allCosts = ref<CostSelectDto[]>([])
+const cabysResults = ref<CabysItem[]>([])
+const rateLines = ref<RateLine[]>([])
+const billToBatchByGroup = ref<Record<string, string>>({})
+const locatingPickup = ref(false)
+const recommendingPorts = ref(false)
+const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
+const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.flatMap((recommendation) => {
+  if (recommendation.latitude == null || recommendation.longitude == null) return []
+  if (!Number.isFinite(recommendation.latitude) || !Number.isFinite(recommendation.longitude)) return []
+  const distanceLabel = recommendation.distanceKm == null ? '' : ` · ${recommendation.distanceKm.toFixed(1)} km`
+  return [{
+    id: `nearest-port:${recommendation.key}`,
+    label: `${recommendation.name}${distanceLabel}`,
+    latitude: recommendation.latitude,
+    longitude: recommendation.longitude,
+    selected: false,
+  }]
+}))
+const supportEntityId = ref(crypto.randomUUID())
+const supportDocuments = ref<SupportDocument[]>([])
+const uploadingSupportKey = ref('')
+const finalBackupEntityId = ref(crypto.randomUUID())
+const finalBackupDocuments = ref<SupportDocument[]>([])
+const uploadingFinalBackups = ref(false)
+const supportCategories = [
+  { key: 'purchase-order', label: 'OC / Detalle de la carga' },
+  { key: 'packing-list', label: 'Packing List (PL)' },
+  { key: 'invoice', label: 'Invoice' },
+  { key: 'msds-tech-sheet', label: 'MSDS / Ficha técnica' },
+] as const
+const supportAccept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.xlsb'
+
+const catalogs = reactive({
+  shipmentModes: [] as CatalogItemSelectDto[],
+  services: [] as CatalogItemSelectDto[],
+  incoterms: [] as CatalogItemSelectDto[],
+  pol: [] as CatalogItemSelectDto[],
+  pod: [] as CatalogItemSelectDto[],
+  poe: [] as CatalogItemSelectDto[],
+  landEquipmentTypes: [] as CatalogItemSelectDto[],
+  landEquipmentSizes: [] as CatalogItemSelectDto[],
+  landEquipmentKinds: [] as CatalogItemSelectDto[],
+  containers: [] as CatalogItemSelectDto[],
+  agents: [] as CatalogItemSelectDto[],
+  carriers: [] as CatalogItemSelectDto[],
+  currencies: [] as CatalogItemSelectDto[],
+  warehouses: [] as CatalogItemSelectDto[],
+  countries: [] as CatalogItemSelectDto[],
+  clients: [] as CatalogItemSelectDto[],
+  salesExecutives: [] as CatalogItemSelectDto[],
+})
+
+const form = reactive({
+  rateType: 'Spot' as RateType,
+  modality: '' as Modality | '',
+  shipmentMode: '',
+  originId: '',
+  destinationId: '',
+  podId: '',
+  equipmentSize: '',
+  equipmentType: '',
+  equipmentId: '',
+  equipmentQuantity: 1,
+  incotermId: '',
+  serviceIds: [] as string[],
+  loadDate: todayIso(),
+  validTo: addDaysIso(todayIso(), 30),
+  selectedImportRateId: '',
+  manualRate: false,
+  clientId: '',
+  clientName: '',
+  executiveId: '',
+  executiveName: '',
+  idtraNumber: '',
+  pickupAddress: '',
+  warehouseId: '',
+  pickupLatitude: null as number | null,
+  pickupLongitude: null as number | null,
+  freeDays: 0,
+  transitDays: 0,
+  agentId: '',
+  carrierId: '',
+  currencyId: '',
+  freightCost: 0,
+  freightSale: 0,
+  cabysSearch: '',
+  cabysCode: '',
+  cargoDescription: '',
+  cargoObservations: '',
+  cargoValue: 0,
+  cargoWeightKg: 0,
+  cargoPallets: 1,
+  cargoLengthCm: 0,
+  cargoWidthCm: 0,
+  cargoHeightCm: 0,
+  dangerousCargo: false,
+  nonStackable: false,
+  overweight: false,
+  merchantHaulage: false,
+  carrierHaulage: false,
+  manualName: '',
+  manualSection: 'destination_charges' as RateSection,
+})
+
+const stepTitles = [
+  'Modalidad',
+  'Embarque',
+  'Ruta y equipo',
+  'Carga',
+  'Tarifa',
+  'Proveedor',
+  'Líneas',
+  'Borrador',
+]
+const visibleStepTitles = computed(() => props.viewOnly ? [...stepTitles, 'Vista completa'] : stepTitles)
+const maxStep = computed(() => visibleStepTitles.value.length)
+const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')
+const currentRateType = computed<RateType>(() =>
+  editingRate.value?.rateType === 'Tariff' || form.rateType === 'Tariff' ? 'Tariff' : 'Spot',
+)
+const isMasterTariff = computed(() =>
+  currentRateType.value === 'Tariff'
+    && String(editingRate.value?.clientName ?? form.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO'),
+)
+const isClientTariff = computed(() =>
+  currentRateType.value === 'Tariff' && !isMasterTariff.value,
+)
+const commercialRateTypeLabel = computed(() =>
+  isMasterTariff.value
+    ? 'TARIFARIO · MAESTRO'
+    : isClientTariff.value
+      ? 'TARIFA'
+      : 'SPOT',
+)
+const canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
+const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canApproveCurrentRate = computed(() =>
+  canApproveLowMargin.value
+  && editingRate.value?.status === 'PendingApproval'
+  && Boolean(editingRate.value?.requiredApproval),
+)
+const canOpenApprovedRate = computed(() =>
+  canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',
+)
+const canDownloadCurrentQuote = computed(() => {
+  const rate = editingRate.value
+  return Boolean(
+    rate
+    && !['PendingApproval', 'RejectedByManagement'].includes(rate.status),
+  )
+})
+const canMarkSent = computed(() =>
+  canUpdateRateStatus.value
+  && !isMasterTariff.value
+  && currentCommercialStatus.value === 'Open',
+)
+const canAcceptOrReject = computed(() => {
+  if (isMasterTariff.value) return false
+
+  const status = currentCommercialStatus.value
+  const regularDecision =
+    canUpdateRateStatus.value && ['Sent', 'RequestedByClient', 'Expired'].includes(status)
+  const privilegedDecision =
+    canApproveLowMargin.value && ['Open', 'Sent', 'RequestedByClient', 'Expired'].includes(status)
+
+  return regularDecision || privilegedDecision
+})
+
+const modalityOptions: Array<{ value: Modality; label: string; caption: string }> = [
+  { value: 'Maritime', label: 'Marítimo', caption: 'FCL y LCL' },
+  { value: 'Air', label: 'Aéreo', caption: 'Carga aérea LCL' },
+  { value: 'Land', label: 'Terrestre', caption: 'FTL y LTL' },
+  { value: 'Multimodal', label: 'Multimodal', caption: 'Marítimo + terrestre' },
+]
+
+const nearbyOriginCopy = computed(() => {
+  if (form.modality === 'Air') {
+    return {
+      title: 'Aeropuertos más cercanos a la recolección',
+      description: 'La IA busca aeropuertos reales aptos para carga aérea dentro de 500 km desde el pin EXW. El catálogo de orígenes solo se usa para ofrecer cambio rápido cuando existe una coincidencia.',
+      action: 'Buscar aeropuertos cercanos',
+      badge: 'Aeropuerto cercano',
+      defaultReason: 'Aeropuerto recomendado por cercanía y viabilidad logística desde la recolección.',
+      emptyTitle: 'Sin aeropuertos encontrados',
+      emptyDescription: 'La búsqueda geográfica no encontró un aeropuerto verificable dentro de 500 km del punto marcado.',
+      unavailableTitle: 'Búsqueda de aeropuertos no disponible',
+      unavailableDescription: 'No fue posible consultar los aeropuertos cercanos en este momento. Inténtelo nuevamente.',
+    }
+  }
+
+  if (form.modality === 'Land') {
+    return {
+      title: 'Puntos logísticos cercanos a la recolección',
+      description: 'La IA busca terminales o nodos logísticos terrestres dentro de 500 km desde el pin EXW.',
+      action: 'Buscar puntos cercanos',
+      badge: 'Punto cercano',
+      defaultReason: 'Punto logístico recomendado por cercanía desde la recolección.',
+      emptyTitle: 'Sin puntos logísticos encontrados',
+      emptyDescription: 'La búsqueda geográfica no encontró un nodo logístico terrestre verificable dentro de 500 km del punto marcado.',
+      unavailableTitle: 'Búsqueda terrestre no disponible',
+      unavailableDescription: 'No fue posible consultar puntos logísticos terrestres cercanos en este momento. Inténtelo nuevamente.',
+    }
+  }
+
+  return {
+    title: 'Puertos marítimos de carga internacional más cercanos',
+    description: 'La IA busca exclusivamente puertos marítimos comerciales que operen carga internacional dentro de 500 km desde el pin EXW: contenedores, carga general, graneles, RoRo de carga o terminales tanker. No muestra marinas, pesca, ferris o terminales solo de pasajeros, cruceros ni muelles locales.',
+    action: 'Buscar puertos de carga cercanos',
+    badge: 'Puerto de carga internacional',
+    defaultReason: 'Puerto marítimo de carga internacional recomendado por cercanía y viabilidad logística desde la recolección.',
+    emptyTitle: 'Sin puertos de carga internacional encontrados',
+    emptyDescription: 'La búsqueda no encontró un puerto marítimo de carga internacional verificable dentro de 500 km del punto marcado.',
+    unavailableTitle: 'Búsqueda de puertos no disponible',
+    unavailableDescription: 'No fue posible consultar los puertos marítimos de carga internacional cercanos en este momento. Inténtelo nuevamente.',
+  }
+})
+
+const allowedShipmentModes: Record<Modality, string[]> = {
+  Maritime: ['FCL', 'LCL'],
+  Air: ['LCL'],
+  Land: ['FTL', 'LTL'],
+  Multimodal: ['FCL', 'LCL'],
+}
+
+const sectionOrder: RateSection[] = [
+  'pickup_origin',
+  'origin_charges',
+  'international_freight',
+  'destination_charges',
+  'delivery_destination',
+]
+
+const kindLabels: Record<string, string> = {
+  'dry-van': 'Dry Van',
+  'high-cube': 'High Cube',
+  'open-top': 'Open Top',
+  'open-side': 'Open Side',
+  tank: 'Tank',
+  'flat-rack': 'Flat Rack',
+  nor: 'NOR',
+  reefer: 'Reefer',
+}
+
+function metadata(item?: CatalogItemSelectDto | null): CatalogMetadata | null {
+  if (!item?.metadataJson) return null
+  try {
+    return JSON.parse(item.metadataJson) as CatalogMetadata
+  } catch {
+    return null
+  }
+}
+
+function displayValue(item?: CatalogItemSelectDto | null) {
+  return item ? String(item.value ?? '').trim() : ''
+}
+
+function detailCurrencyValue(detail: { currencyId: string; currencyName: string; currencyCode: string }) {
+  const configuredCurrency = findById(catalogs.currencies, detail.currencyId)
+  const configuredValue = displayValue(configuredCurrency)
+  if (configuredValue) return configuredValue
+
+  // Historical rates can predate the current catalog item. In that case prefer
+  // the persisted display value/name and use the internal CODE only as last fallback.
+  const persistedValue = String(detail.currencyName ?? '').trim()
+  if (persistedValue) return persistedValue
+  return String(detail.currencyCode ?? '').trim()
+}
+
+function normalizeCatalogValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .replace(/\b(puerto|port|de|del|of|the)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function valueTokens(value: string) {
+  return normalizeCatalogValue(value)
+    .split(' ')
+    .filter((token) => token.length > 1)
+}
+
+function valueMatchScore(leftValue: string, rightValue: string) {
+  const left = new Set(valueTokens(leftValue))
+  const right = new Set(valueTokens(rightValue))
+  if (!left.size || !right.size) return 0
+
+  let intersection = 0
+  left.forEach((token) => {
+    if (right.has(token)) intersection += 1
+  })
+
+  return intersection / Math.min(left.size, right.size)
+}
+
+function findById(items: CatalogItemSelectDto[], id: string) {
+  return items.find((item) => item.id === id) ?? null
+}
+
+function findEquivalentValue(items: CatalogItemSelectDto[], sourceValue?: string | null) {
+  const source = String(sourceValue ?? '').trim()
+  const normalizedSource = normalizeCatalogValue(source)
+  if (!normalizedSource) return null
+
+  const exact = items.filter(
+    (item) => normalizeCatalogValue(displayValue(item)) === normalizedSource,
+  )
+  if (exact.length === 1) return exact[0]
+
+  const scored = items
+    .map((item) => ({ item, score: valueMatchScore(displayValue(item), source) }))
+    .filter((candidate) => candidate.score >= 0.75)
+    .sort((a, b) => b.score - a.score)
+
+  const best = scored[0]
+  if (!best) return null
+  const second = scored[1]
+  if (second && best.score === second.score) return null
+  return best.item
+}
+
+function findEquivalent(items: CatalogItemSelectDto[], source?: CatalogItemSelectDto | null) {
+  return findEquivalentValue(items, displayValue(source))
+}
+
+function todayIso() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 10)
+}
+
+function addDaysIso(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00`)
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+function number(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function normalizeBillToClient(value?: string | null) {
+  const normalized = String(value ?? '').trim()
+  return normalized || null
+}
+
+function applyBillToBatch(group: { key: string; lines: RateLine[] }) {
+  const billToClient = normalizeBillToClient(billToBatchByGroup.value[group.key])
+  group.lines.forEach((line) => {
+    line.billToClient = billToClient
+  })
+}
+
+function distanceKm(fromLatitude: number, fromLongitude: number, toLatitude: number, toLongitude: number) {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180
+  const latitudeDelta = radians(toLatitude - fromLatitude)
+  const longitudeDelta = radians(toLongitude - fromLongitude)
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(radians(fromLatitude)) * Math.cos(radians(toLatitude)) * Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function modalityIcon(value: Modality) {
+  if (value === 'Maritime') return Ship
+  if (value === 'Air') return Plane
+  if (value === 'Land') return Truck
+  return Waypoints
+}
+
+function shipmentLabel(value: string, modality: Modality) {
+  const normalized = value.toUpperCase()
+  if (modality === 'Maritime' && normalized === 'LCL') return 'LCL · Coloading / Propio'
+  if (modality === 'Multimodal' && normalized === 'LCL') return 'LCL · Consolidado propio'
+  return normalized
+}
+
+function sectionLabel(section: RateSection) {
+  return ({
+    pickup_origin: 'Recolecta',
+    origin_charges: 'Cargos en Origen',
+    international_freight: 'Flete Internacional',
+    destination_charges: 'Cargos en Destino',
+    delivery_destination: 'Entrega',
+  } as Record<RateSection, string>)[section]
+}
+
+function isCostaRica(item?: CatalogItemSelectDto | null) {
+  if (!item) return false
+  const meta = metadata(item)
+  if (meta?.countryCode?.toUpperCase() === 'CR') return true
+
+  const code = String(item.code ?? '').trim().toUpperCase()
+  if (code === 'CR' || /^CR[A-Z0-9]{3}$/.test(code)) return true
+
+  const text = normalizeCatalogValue([displayValue(item), item.label, item.code, item.slug].filter(Boolean).join(' '))
+  return text.includes('costa rica') || text.includes('costarica')
+}
+
+function catalogSearchText(item: CatalogItemSelectDto) {
+  return displayValue(item)
+}
+
+const shipmentModeOptions = computed(() => {
+  if (!form.modality) return []
+  const allowed = allowedShipmentModes[form.modality]
+  const configured = catalogs.shipmentModes
+    .filter((item) => allowed.includes(displayValue(item).toUpperCase()))
+    .map((item) => {
+      const value = displayValue(item).toUpperCase()
+      return {
+        value,
+        label: shipmentLabel(value, form.modality as Modality),
+      }
+    })
+  return configured.length
+    ? configured
+    : allowed.map((value) => ({ value, label: shipmentLabel(value, form.modality as Modality) }))
+})
+
+const equipmentSource = computed(() => {
+  const modality = String(form.modality)
+  if (!modality) return []
+
+  if (modality === 'Land') {
+    return catalogs.landEquipmentSizes.filter((item) => {
+      const meta = metadata(item)
+      if (meta?.modality && meta.modality.toLocaleLowerCase() !== 'land') return false
+
+      if (meta?.shipmentModes?.length && form.shipmentMode) {
+        const currentMode = form.shipmentMode.toUpperCase()
+        return meta.shipmentModes.some(
+          (value) => String(value).trim().toUpperCase() === currentMode,
+        )
+      }
+
+      return true
+    })
+  }
+
+  return catalogs.containers.filter((item) => {
+    const meta = metadata(item)
+    const normalizedModality = modality.toLocaleLowerCase()
+
+    if (meta?.modalities?.length) {
+      return meta.modalities.some(
+        (value) => String(value).trim().toLocaleLowerCase() === normalizedModality,
+      )
+    }
+
+    if (meta?.shipmentModes?.length && form.shipmentMode) {
+      const currentMode = form.shipmentMode.toUpperCase()
+      if (meta.shipmentModes.some((value) => String(value).trim().toUpperCase() === currentMode)) {
+        return true
+      }
+    }
+
+    if (modality === 'Air') {
+      const value = displayValue(item).toUpperCase()
+      return ['LOOSE', 'PALLET', 'ULD'].some((kind) => value.includes(kind))
+    }
+
+    return true
+  })
+})
+
+// land-equipment-sizes already contains the selectable FTL furgones.
+const equipmentHasSizes = computed(() =>
+  form.modality !== 'Land' && equipmentSource.value.some((item) => Boolean(metadata(item)?.size)),
+)
+
+const equipmentSizeOptions = computed(() => {
+  const availableSizes = new Set(
+    equipmentSource.value
+      .map((item) => metadata(item)?.size?.trim())
+      .filter((value): value is string => Boolean(value)),
+  )
+
+  if (form.modality === 'Land' && catalogs.landEquipmentSizes.length) {
+    return catalogs.landEquipmentSizes
+      .filter((item) => availableSizes.has(displayValue(item)))
+      .map((item) => ({ value: displayValue(item), label: item.label || `${displayValue(item)} pies` }))
+  }
+
+  return [...availableSizes]
+    .sort((a, b) => number(a) - number(b))
+    .map((size) => ({ value: size, label: size }))
+})
+
+const equipmentTypeOptions = computed(() => {
+  if (!equipmentHasSizes.value) {
+    return equipmentSource.value.map((item) => ({ value: item.id, label: item.label || displayValue(item) }))
+  }
+
+  if (!form.equipmentSize) return []
+
+  const availableKinds = new Set(
+    equipmentSource.value
+      .filter((item) => metadata(item)?.size === form.equipmentSize)
+      .map((item) => metadata(item)?.kind?.trim())
+      .filter((value): value is string => Boolean(value)),
+  )
+
+  if (form.modality === 'Land' && catalogs.landEquipmentKinds.length) {
+    const configured = catalogs.landEquipmentKinds
+      .filter((item) => availableKinds.has(item.slug))
+      .map((item) => ({ value: item.slug, label: item.label || displayValue(item) }))
+
+    if (configured.length) return configured
+  }
+
+  return [...availableKinds].map((kind) => ({
+    value: kind,
+    label: kindLabels[kind] ?? kind.replaceAll('-', ' '),
+  }))
+})
+
+const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))
+const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
+const selectedPod = computed(() => findById(catalogs.pod, form.podId))
+const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
+const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
+const selectedIncotermCode = computed(() => {
+  const raw = normalizeCatalogValue(`${selectedIncoterm.value?.code ?? ''} ${displayValue(selectedIncoterm.value)}`)
+  if (/(^|\s)exw(\s|$)/.test(raw)) return 'EXW'
+  if (/(^|\s)fca(\s|$)/.test(raw)) return 'FCA'
+  return String(selectedIncoterm.value?.code ?? displayValue(selectedIncoterm.value)).trim().toUpperCase()
+})
+const selectedWarehouse = computed(() => findById(catalogs.warehouses, form.warehouseId))
+
+function normalizedWarehouseContactModes(contact: WarehouseContactDirectoryEntry) {
+  return [...new Set([...(contact.shipmentModes ?? []), ...(contact.modalities ?? [])]
+    .map((value) => String(value ?? '').trim().toUpperCase())
+    .filter(Boolean))]
+}
+
+const selectedWarehouseContacts = computed<WarehouseContactDirectoryEntry[] | null>(() => {
+  const directory = metadata(selectedWarehouse.value)?.contactDirectory
+  if (!Array.isArray(directory)) return null
+
+  const active = directory.filter((contact) => contact && contact.isActive !== false)
+  const currentMode = form.shipmentMode.trim().toUpperCase()
+  if (!currentMode) {
+    return [...active].sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
+  }
+
+  const eligible = active.filter((contact) => {
+    const modes = normalizedWarehouseContactModes(contact)
+    return modes.length === 0 || modes.includes(currentMode)
+  })
+
+  // Cuando existen contactos específicos para la modalidad actual, no mezclar
+  // contactos genéricos ni registros legacy configurados simultáneamente FCL/LCL.
+  const specific = eligible.filter((contact) => {
+    const modes = normalizedWarehouseContactModes(contact)
+    return modes.length > 0 && modes.includes(currentMode) && modes.every((mode) => mode === currentMode)
+  })
+
+  const resolved = specific.length ? specific : eligible
+  return [...resolved].sort((left, right) => Number(right.isPrimary === true) - Number(left.isPrimary === true))
+})
+
+function warehouseContactDisplay(
+  field: 'name' | 'email' | 'phone',
+  legacyField: 'contacts' | 'email' | 'phone',
+) {
+  const meta = metadata(selectedWarehouse.value)
+  const directory = selectedWarehouseContacts.value
+
+  if (directory === null) return String(meta?.[legacyField] ?? '').trim()
+
+  return [...new Set(directory
+    .map((contact) => String(contact[field] ?? '').trim())
+    .filter(Boolean))].join(' / ')
+}
+
+const selectedWarehouseContactNames = computed(() => warehouseContactDisplay('name', 'contacts'))
+const selectedWarehouseContactEmails = computed(() => warehouseContactDisplay('email', 'email'))
+const selectedWarehouseContactPhones = computed(() => warehouseContactDisplay('phone', 'phone'))
+
+function metadataNumber(item: CatalogItemSelectDto | null | undefined, ...keys: Array<keyof CatalogMetadata>) {
+  const meta = metadata(item)
+  for (const key of keys) {
+    const raw = meta?.[key]
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+function warehouseAddress(item: CatalogItemSelectDto | null | undefined) {
+  const meta = metadata(item)
+  return String(meta?.address ?? displayValue(item) ?? item?.label ?? '').trim()
+}
+
+function resolvePersistedWarehouseId(rate: RateDto) {
+  const persistedId = String(rate.warehouseId ?? '').trim()
+  if (persistedId && catalogs.warehouses.some((warehouse) => warehouse.id === persistedId)) {
+    return persistedId
+  }
+
+  const persistedAddress = normalizeCatalogValue(String(rate.pickupAddress ?? ''))
+  if (persistedAddress) {
+    const byAddress = catalogs.warehouses.find(
+      (warehouse) => normalizeCatalogValue(warehouseAddress(warehouse)) === persistedAddress,
+    )
+    if (byAddress) return byAddress.id
+  }
+
+  const latitude = Number(rate.pickupLatitude)
+  const longitude = Number(rate.pickupLongitude)
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    const byCoordinates = catalogs.warehouses.find((warehouse) => {
+      const warehouseLatitude = metadataNumber(warehouse, 'latitude', 'lat')
+      const warehouseLongitude = metadataNumber(warehouse, 'longitude', 'lng')
+      return warehouseLatitude != null
+        && warehouseLongitude != null
+        && Math.abs(warehouseLatitude - latitude) <= 0.0001
+        && Math.abs(warehouseLongitude - longitude) <= 0.0001
+    })
+    if (byCoordinates) return byCoordinates.id
+  }
+
+  return ''
+}
+
+const pickupCoordinates = computed(() => {
+  if (form.pickupLatitude == null || form.pickupLongitude == null) return null
+  return { latitude: form.pickupLatitude, longitude: form.pickupLongitude }
+})
+const warehouseMapMarkers = computed(() =>
+  catalogs.warehouses.flatMap((warehouse) => {
+    let latitude = metadataNumber(warehouse, 'latitude', 'lat')
+    let longitude = metadataNumber(warehouse, 'longitude', 'lng')
+
+    if (warehouse.id === form.warehouseId) {
+      latitude ??= form.pickupLatitude
+      longitude ??= form.pickupLongitude
+    }
+
+    if (latitude == null || longitude == null) return []
+    return [{
+      id: warehouse.id,
+      label: `WHS · ${warehouse.label || displayValue(warehouse) || warehouse.code}`,
+      latitude,
+      longitude,
+      selected: warehouse.id === form.warehouseId,
+    }]
+  }),
+)
+const exwLocationReady = computed(() =>
+  selectedIncotermCode.value !== 'EXW' ||
+  Boolean(form.pickupAddress.trim() && pickupCoordinates.value),
+)
+const fcaLocationReady = computed(() =>
+  selectedIncotermCode.value !== 'FCA' ||
+  (catalogs.warehouses.length
+    ? Boolean(form.warehouseId)
+    : Boolean(form.pickupAddress.trim() && pickupCoordinates.value)),
+)
+const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
+const cargoInsuranceService = computed(() =>
+  catalogs.services.find((item) => {
+    const value = normalizeCatalogValue(displayValue(item))
+    return value.includes('seguro') && value.includes('carga')
+  }) ?? null,
+)
+const effectiveServices = computed(() => {
+  const services = [...selectedServices.value]
+  const insurance = cargoInsuranceService.value
+  if (form.cargoValue > 0 && insurance && !services.some((item) => item.id === insurance.id)) {
+    services.push(insurance)
+  }
+  return services
+})
+const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))
+const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))
+const selectedCurrency = computed(() => findById(catalogs.currencies, form.currencyId))
+const destinationCountryCode = computed(() => {
+  const configured = String(metadata(selectedDestination.value)?.countryCode ?? '').trim().toUpperCase()
+  if (configured) return configured
+  if (isCostaRica(selectedDestination.value)) return 'CR'
+  const destination = normalizeCatalogValue([
+    displayValue(selectedDestination.value),
+    selectedDestination.value?.label,
+    selectedDestination.value?.code,
+    selectedDestination.value?.slug,
+  ].filter(Boolean).join(' '))
+  if (destination.includes('panama')) return 'PA'
+  if (destination.includes('guatemala')) return 'GT'
+  return ''
+})
+const destinationTaxRate = computed(() => {
+  const country = catalogs.countries.find((item) => {
+    const code = String(item.code ?? metadata(item)?.countryCode ?? '').trim().toUpperCase()
+    return code === destinationCountryCode.value
+  })
+  const configured = metadataNumber(country, 'vatRate', 'taxRate')
+  if (configured != null && configured > 0) return configured
+  return ({ CR: 13, PA: 7, GT: 15 } as Record<string, number>)[destinationCountryCode.value] ?? 0
+})
+const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
+
+function resolvedImportSource(rate: ImportRateSelectDto) {
+  return importSourceByBatch.value[rate.importBatchId] ?? null
+}
+
+function importSourceTitle(rate: ImportRateSelectDto) {
+  return sourceTitle(rate, resolvedImportSource(rate))
+}
+
+async function loadImportSources(rates: ImportRateSelectDto[]) {
+  const batchIds = [...new Set(rates.map((rate) => rate.importBatchId).filter(Boolean))]
+  await Promise.all(batchIds.map(async (batchId) => {
+    if (importSourceByBatch.value[batchId]) return
+    try {
+      const source = await EmailExtractionService.getPricingImportSource(batchId)
+      importSourceByBatch.value = { ...importSourceByBatch.value, [batchId]: source }
+    } catch {
+      // Importaciones históricas pueden no tener vínculo de correo; RawData sigue siendo fallback.
+    }
+  }))
+}
+
+function rateCommentRank(comment?: string | null) {
+  const value = normalizeCatalogValue(String(comment ?? ''))
+  if (!value) return 1
+  const negative = ['sin espacio', 'no disponible', 'no space', 'not available', 'full', 'cerrado', 'closed', 'negativo', 'rechazado']
+  if (negative.some((term) => value.includes(normalizeCatalogValue(term)))) return 0
+  const positive = ['espacio disponible', 'disponible', 'available', 'confirmado', 'confirmed', 'positivo', 'ok', 'aprobado']
+  if (positive.some((term) => value.includes(normalizeCatalogValue(term)))) return 2
+  return 1
+}
+
+const sortedAvailableRates = computed(() =>
+  [...availableRates.value].sort((left, right) => {
+    const price = number(left.freight) - number(right.freight)
+    if (price !== 0) return price
+    const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)
+    if (comment !== 0) return comment
+    return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
+  }),
+)
+
+function remainingValidityDays(validTo: string) {
+  const end = new Date(`${String(validTo).slice(0, 10)}T12:00:00`)
+  const today = new Date(`${todayIso()}T12:00:00`)
+  return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86_400_000))
+}
+
+const originOptions = computed(() => catalogs.pol.map((item) => ({ value: item.id, label: displayValue(item) })))
+const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))
+const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
+const incotermOptions = computed(() => catalogs.incoterms.map((item) => ({ value: item.id, label: displayValue(item) })))
+const agentOptions = computed(() => catalogs.agents.map((item) => ({ value: item.id, label: displayValue(item) })))
+
+function countryTokens(item: CatalogItemSelectDto | null | undefined) {
+  const tokens = new Set<string>()
+  if (!item) return tokens
+
+  const meta = (metadata(item) ?? {}) as unknown as Record<string, unknown>
+  const add = (raw: unknown) => {
+    if (Array.isArray(raw)) {
+      raw.forEach(add)
+      return
+    }
+    if (raw == null || typeof raw === 'object') return
+    const value = normalizeCatalogValue(String(raw))
+    if (value.length >= 2) tokens.add(value)
+  }
+
+  for (const key of [
+    'countryCode', 'country', 'countryName', 'countryIso2', 'countryIso3',
+    'originCountryCode', 'originCountry', 'iso2', 'iso3', 'countries', 'countryCodes',
+  ]) add(meta[key])
+
+  for (const raw of [item.value, item.label]) {
+    const text = String(raw ?? '').trim()
+    if (!text.includes(',')) continue
+    add(text.split(',').at(-1))
+  }
+
+  return tokens
+}
+
+function resolveAgentForOrigin() {
+  const origin = selectedOrigin.value
+  const originTokens = countryTokens(origin)
+  if (!origin || !originTokens.size) return null
+
+  let best: CatalogItemSelectDto | null = null
+  let bestScore = 0
+  for (const agent of catalogs.agents) {
+    const agentTokens = countryTokens(agent)
+    const searchText = normalizeCatalogValue(
+      [agent.code, agent.value, agent.label, agent.metadataJson].filter(Boolean).join(' '),
+    )
+    let score = 0
+    for (const token of originTokens) {
+      if (agentTokens.has(token)) score = Math.max(score, token.length <= 3 ? 100 : 90)
+      else if (token.length >= 4 && searchText.includes(token)) score = Math.max(score, 60)
+    }
+    if (score > bestScore) {
+      best = agent
+      bestScore = score
+    }
+  }
+  return best
+}
+
+function assignAgentForOrigin() {
+  if (hydratingExistingRate.value || !form.originId) return
+  const agent = resolveAgentForOrigin()
+  if (agent && form.agentId !== agent.id) form.agentId = agent.id
+}
+const carrierOptions = computed(() => catalogs.carriers.map((item) => ({ value: item.id, label: displayValue(item) })))
+const currencyOptions = computed(() => catalogs.currencies.map((item) => ({ value: item.id, label: displayValue(item) })))
+const serviceOptions = computed(() => catalogs.services.map((item) => ({ value: item.id, label: displayValue(item) })))
+const warehouseOptions = computed(() => catalogs.warehouses.map((item) => {
+  const meta = metadata(item)
+  const name = item.label || displayValue(item) || item.code
+  return {
+    value: item.id,
+    label: name,
+    searchText: [
+      name,
+      displayValue(item),
+      item.code,
+      item.slug,
+      meta?.countryCode,
+      meta?.address,
+    ].filter(Boolean).join(' '),
+  }
+}))
+const clientOptions = computed(() => catalogs.clients.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
+const salesExecutiveOptions = computed(() => catalogs.salesExecutives.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
+
+const shipmentModeForApi = computed<ShipmentMode>(() => {
+  const value = form.shipmentMode.toUpperCase()
+  if (value === 'LCL') return 'Lcl'
+  if (value === 'FTL') return 'Ftl'
+  if (value === 'LTL') return 'Ltl'
+  return 'Fcl'
+})
+
+const competitorMatchContext = computed(() => {
+  const pod = resolvePodForDestination()
+  return {
+    polId: selectedOrigin.value?.id ?? null,
+    poeId: selectedDestination.value?.id ?? null,
+    podId: pod?.id ?? null,
+    carrierId: selectedCarrier.value?.id ?? null,
+    shipmentMode: shipmentModeForApi.value,
+    validOn: form.loadDate || null,
+  }
+})
+
+const canShowCompetitorTariffs = computed(() => {
+  const context = competitorMatchContext.value
+  return Boolean(
+    context.polId &&
+    context.poeId &&
+    context.podId &&
+    context.carrierId &&
+    context.shipmentMode,
+  )
+})
+
+const lclDimensionalCbm = computed(() => {
+  const pallets = Math.max(0, number(form.cargoPallets))
+  const volume = number(form.cargoLengthCm) * number(form.cargoWidthCm) * number(form.cargoHeightCm) * pallets
+  return Math.max(0, volume / 1_000_000)
+})
+const lclWeightCbm = computed(() => Math.max(0, number(form.cargoWeightKg)) / 500)
+const lclChargeableCbm = computed(() => {
+  const calculated = Math.max(lclDimensionalCbm.value, lclWeightCbm.value)
+  return calculated > 0 ? Math.max(1, calculated) : 0
+})
+const lclCargoLines = computed(() => shipmentModeForApi.value === 'Lcl' && lclChargeableCbm.value > 0
+  ? [{
+      description: form.cargoDescription.trim() || 'Carga LCL',
+      units: Math.max(1, Math.trunc(number(form.cargoPallets))),
+      totalWeightKg: Math.max(0, number(form.cargoWeightKg)),
+      lengthCm: Math.max(0, number(form.cargoLengthCm)),
+      widthCm: Math.max(0, number(form.cargoWidthCm)),
+      heightCm: Math.max(0, number(form.cargoHeightCm)),
+    }]
+  : [])
+
+const direction = computed(() => {
+  if (!selectedOrigin.value || !selectedDestination.value) return ''
+  const originCr = isCostaRica(selectedOrigin.value)
+  const destinationCr = isCostaRica(selectedDestination.value)
+  if (originCr && !destinationCr) return 'Exportación'
+  if (!originCr && destinationCr) return 'Importación'
+  return 'Tránsito / doméstico'
+})
+const operationType = computed<RateOperationType>(() => {
+  if (direction.value === 'Importación') return 'Import'
+  if (direction.value === 'Exportación') return 'Export'
+  return 'TransitDomestic'
+})
+
+const forcedCrcServiceIds = computed(() => {
+  const forcedNames = new Set([
+    'agencia de aduanas crc',
+    'almacenamiento',
+    'embalaje de carga',
+    'picking cargas',
+    'recepcion de carga',
+    'transporte de entrega',
+    'transporte de recoleccion',
+  ])
+  return new Set(
+    catalogs.services
+      .filter((service) => {
+        const values = [displayValue(service), service.label, service.code, service.slug]
+          .map((value) => normalizeCatalogValue(String(value ?? '')))
+        return values.some((value) => forcedNames.has(value))
+      })
+      .map((service) => service.id),
+  )
+})
+// Un POE de Costa Rica o una operación clasificada como importación activa la regla CRC.
+// El OR evita que un catálogo incompleto de país deje una importación CR cobrando en USD.
+const crcImportContext = computed(() => operationType.value === 'Import' || destinationCountryCode.value === 'CR')
+const usdCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'USD') ?? null)
+const crcCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'CRC') ?? null)
+const lineCurrencyOptions = computed(() => {
+  const options = catalogs.currencies
+    .filter((item) => ['USD', 'CRC'].includes(String(item.code || displayValue(item)).trim().toUpperCase()))
+    .map((item) => ({ value: item.id, label: displayValue(item) }))
+  return options.length ? options : currencyOptions.value
+})
+
+function isLineCrcForced(line: RateLine) {
+  if (!crcImportContext.value || !line.serviceIds?.length) return false
+  return line.serviceIds.some((id) => forcedCrcServiceIds.value.has(id) && form.serviceIds.includes(id))
+}
+
+function setLineCurrency(line: RateLine, currencyId: string) {
+  const currency = findById(catalogs.currencies, currencyId)
+  if (!currency) return
+
+  // amountCurrencyCode represents the currency in which the numeric amounts are
+  // currently expressed. Never infer it again from the Cost master when the user
+  // changes the selector: doing so can make the UI change USD/CRC without changing
+  // the actual numeric amounts.
+  const previousCode = String(
+    line.amountCurrencyCode || canonicalCurrencyCode(line),
+  ).trim().toUpperCase()
+  const nextCode = String(canonicalCurrencyCode({
+    currencyId: currency.id,
+    currencyCode: String(currency.code ?? ''),
+    currencyName: displayValue(currency) || currency.label || String(currency.code ?? ''),
+  })).trim().toUpperCase()
+
+  if (!['USD', 'CRC'].includes(nextCode)) return
+
+  if (previousCode !== nextCode) {
+    const exchangeRate = number(exchangeRateSale.value)
+    if (exchangeRate <= 0) {
+      toastStore.warning(
+        'Tipo de cambio requerido',
+        'No se puede convertir USD/CRC hasta tener un tipo de cambio de Venta válido.',
+      )
+      return
+    }
+
+    if (previousCode === 'USD' && nextCode === 'CRC') {
+      line.costAmount = Math.round(number(line.costAmount) * exchangeRate * 100) / 100
+      line.saleAmount = Math.round(number(line.saleAmount) * exchangeRate * 100) / 100
+    } else if (previousCode === 'CRC' && nextCode === 'USD') {
+      line.costAmount = Math.round((number(line.costAmount) / exchangeRate) * 100) / 100
+      line.saleAmount = Math.round((number(line.saleAmount) / exchangeRate) * 100) / 100
+    } else {
+      return
+    }
+  }
+
+  line.currencyId = currency.id
+  line.currencyName = displayValue(currency) || currency.label || currency.code
+  line.currencyCode = nextCode
+  line.amountCurrencyCode = nextCode
+}
+
+function enforceLineCurrency(line: RateLine) {
+  if (isLineCrcForced(line) && crcCurrency.value) setLineCurrency(line, crcCurrency.value.id)
+}
+
+watch(
+  [crcImportContext, () => form.serviceIds.join('|'), crcCurrency, exchangeRateSale],
+  () => rateLines.value.forEach(enforceLineCurrency),
+)
+
+const incotermResponsibilitySections = computed<RateSection[]>(() => {
+  const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
+  return incotermRateSections(selectedIncoterm.value?.code, configured) as RateSection[]
+})
+
+const visibleSections = computed<RateSection[]>(() => {
+  // El Incoterm es el límite de responsabilidad. Servicios y costos pueden aportar
+  // líneas dentro de ese límite, pero nunca volver a mostrar una etapa que el
+  // Incoterm quitó para el comprador.
+  const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
+  return sectionOrder.filter((section) => allowed.has(section))
+})
+
+const includedLines = computed(() => rateLines.value.filter((line) => line.included))
+function haulageAssociation(line: { name: string }) {
+  const value = normalizeCatalogValue(line.name)
+  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
+  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
+  return null
+}
+
+const selectableOptionalLines = computed(() =>
+  rateLines.value.filter((line) => {
+    if (!line.optional) return false
+    const association = haulageAssociation(line)
+    if (!association) return true
+    if (form.merchantHaulage) return association === 'merchant'
+    if (form.carrierHaulage) return association === 'carrier'
+    return false
+  }),
+)
+const optionalChargeOptions = computed(() =>
+  selectableOptionalLines.value
+    .map((line) => ({
+      value: line.key,
+      label: `${line.name} · ${sectionLabel(line.section)}`,
+    })),
+)
+const selectedOptionalChargeKeys = computed<string[]>({
+  get: () =>
+    selectableOptionalLines.value
+      .filter((line) => line.optional && line.included)
+      .map((line) => line.key),
+  set: (keys) => {
+    const selected = new Set(keys)
+    rateLines.value.forEach((line) => {
+      if (!line.optional) return
+      const selectable = selectableOptionalLines.value.some((candidate) => candidate.key === line.key)
+      line.included = selectable && selected.has(line.key)
+    })
+  },
+})
+function persistedLineInFullView(line: RateLine) {
+  return props.viewOnly && step.value === 9 && Boolean(line.detailId)
+}
+
+function standardSectionLines(section: RateSection) {
+  return rateLines.value.filter(
+    (line) =>
+      line.section === section
+      && line.included
+      && (!line.manual || line.costDetailType === 'Freight')
+      && line.costDetailType !== 'AgentCharge',
+  )
+}
+
+const agentLines = computed(() =>
+  rateLines.value.filter(
+    (line) =>
+      line.included
+      && line.costDetailType === 'AgentCharge'
+      && !line.manual,
+  ),
+)
+
+const insuranceLines = computed(() =>
+  rateLines.value.filter((line) => line.included && !line.manual && line.costDetailType === 'Insurance'),
+)
+
+const bottomRateLines = computed(() =>
+  rateLines.value.filter(
+    (line) =>
+      line.included
+      && line.manual
+      && line.costDetailType !== 'Insurance'
+      && line.costDetailType !== 'Freight',
+  ),
+)
+
+const orderedRateGroups = computed(() => [
+  { key: 'pickup', label: 'Recolecta', lines: standardSectionLines('pickup_origin') },
+  { key: 'origin', label: 'Cargos de origen', lines: standardSectionLines('origin_charges') },
+  { key: 'agent', label: 'Costos de agente', lines: agentLines.value },
+  { key: 'freight', label: 'Flete internacional', lines: standardSectionLines('international_freight') },
+  { key: 'destination', label: 'Cargos en destino', lines: standardSectionLines('destination_charges') },
+  { key: 'insurance', label: 'Seguro de carga', lines: insuranceLines.value },
+  { key: 'delivery', label: 'Entrega', lines: standardSectionLines('delivery_destination') },
+].filter((group) => group.lines.length > 0))
+
+const providerAgentCosts = computed(() => {
+  const seen = new Set<string>()
+  return applicableConfiguredCosts().filter((cost) => {
+    if (cost.costDetailType !== 'AgentCharge' || cost.costType === 'Optional') return false
+    const key = normalizeCatalogValue(cost.name)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+})
+const providerAgentCost = computed(() =>
+  providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.costAmount), 0),
+)
+const providerAgentSale = computed(() =>
+  providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.saleAmount), 0),
+)
+const providerCost = computed(() => number(form.freightCost) + providerAgentCost.value)
+const providerSale = computed(() => number(form.freightSale) + providerAgentSale.value)
+const providerUtility = computed(() => providerSale.value - providerCost.value)
+const providerMarginPercentage = computed(() =>
+  providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
+)
+function canApplyDestinationTax(line: RateLine) {
+  // IVA destino solo pertenece a cargos de destino. Recolecta, origen y costos de agente no llevan IVA.
+  return line.section === 'destination_charges' && line.costDetailType !== 'AgentCharge'
+}
+function lineDestinationTaxRate(line: RateLine) {
+  const persistedRate = number(line.destinationTaxRate)
+  return persistedRate > 0 ? persistedRate : destinationTaxRate.value
+}
+function lineTaxAmount(line: RateLine) {
+  const taxRate = lineDestinationTaxRate(line)
+  return line.applyDestinationTax && canApplyDestinationTax(line) && taxRate > 0
+    ? Math.round(number(line.saleAmount) * taxRate) / 100
+    : 0
+}
+function lineTaxTotalAmount(line: RateLine) {
+  return lineTaxAmount(line) * quantityForChargeBasis(line.chargeBasis)
+}
+function lineSaleWithTax(line: RateLine) {
+  return number(line.saleAmount) + lineTaxAmount(line)
+}
+function setLineDestinationTax(line: RateLine, enabled: boolean) {
+  const active = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0
+  line.applyDestinationTax = active
+  line.destinationTaxRate = active ? destinationTaxRate.value : 0
+}
+function canonicalCurrencyCode(line: Pick<RateLine, 'currencyId' | 'currencyCode' | 'currencyName'>) {
+  const catalogCurrency = findById(catalogs.currencies, line.currencyId)
+  const candidates = [
+    line.currencyCode,
+    line.currencyName,
+    catalogCurrency?.code,
+    catalogCurrency?.slug,
+    catalogCurrency?.label,
+    displayValue(catalogCurrency),
+  ]
+
+  for (const candidate of candidates) {
+    const raw = String(candidate ?? '').trim()
+    const normalized = normalizeCatalogValue(raw)
+    const upper = raw.toUpperCase()
+    if (upper === 'USD' || normalized === 'usd' || normalized.includes('dolar') || normalized.includes('dollar')) {
+      return 'USD' as const
+    }
+    if (
+      upper === 'CRC' ||
+      normalized === 'crc' ||
+      normalized.includes('colon costarricense') ||
+      normalized.includes('colones') ||
+      normalized === 'colon'
+    ) {
+      return 'CRC' as const
+    }
+  }
+
+  return String(line.currencyCode ?? '').trim().toUpperCase()
+}
+
+function convertUsdCrc(amount: number, sourceCode: string, targetCode: 'USD' | 'CRC') {
+  const source = String(sourceCode || 'USD').trim().toUpperCase()
+  if (source === targetCode) return number(amount)
+  const rate = number(exchangeRateSale.value)
+  if (rate <= 0) return 0
+  if (source === 'USD' && targetCode === 'CRC') return number(amount) * rate
+  if (source === 'CRC' && targetCode === 'USD') return number(amount) / rate
+  return 0
+}
+function sumLinesInCurrency(amount: (line: RateLine) => number, target: 'USD' | 'CRC') {
+  return includedLines.value.reduce((sum, line) => {
+    const quantity = Math.max(0, number(quantityForChargeBasis(line.chargeBasis)))
+    const lineTotal = number(amount(line)) * quantity
+    return sum + convertUsdCrc(lineTotal, canonicalCurrencyCode(line), target)
+  }, 0)
+}
+const totalCostUsd = computed(() => sumLinesInCurrency((line) => number(line.costAmount), 'USD'))
+const totalCostCrc = computed(() => sumLinesInCurrency((line) => number(line.costAmount), 'CRC'))
+const totalSaleBeforeTaxUsd = computed(() => sumLinesInCurrency((line) => number(line.saleAmount), 'USD'))
+const totalSaleBeforeTaxCrc = computed(() => sumLinesInCurrency((line) => number(line.saleAmount), 'CRC'))
+const totalTaxUsd = computed(() => sumLinesInCurrency(lineTaxAmount, 'USD'))
+const totalTaxCrc = computed(() => sumLinesInCurrency(lineTaxAmount, 'CRC'))
+const totalSaleUsd = computed(() => totalSaleBeforeTaxUsd.value + totalTaxUsd.value)
+const totalSaleCrc = computed(() => totalSaleBeforeTaxCrc.value + totalTaxCrc.value)
+const totalUtilityUsd = computed(() => totalSaleBeforeTaxUsd.value - totalCostUsd.value)
+const totalUtilityCrc = computed(() => totalSaleBeforeTaxCrc.value - totalCostCrc.value)
+const totalMarginPercentage = computed(() =>
+  totalSaleBeforeTaxUsd.value > 0 ? (totalUtilityUsd.value / totalSaleBeforeTaxUsd.value) * 100 : 0,
+)
+const includedCurrencyCodes = computed(() => new Set(includedLines.value.map((line) => canonicalCurrencyCode(line)).filter(Boolean)))
+const hasMixedCurrencies = computed(() => includedCurrencyCodes.value.size > 1)
+// Compatibility aliases used by existing visual helpers. Header currency is still preserved in the persisted rate.
+const totalCost = computed(() => String(selectedCurrency.value?.code ?? '').toUpperCase() === 'CRC' ? totalCostCrc.value : totalCostUsd.value)
+const totalSale = computed(() => String(selectedCurrency.value?.code ?? '').toUpperCase() === 'CRC' ? totalSaleCrc.value : totalSaleUsd.value)
+const totalUtility = computed(() => String(selectedCurrency.value?.code ?? '').toUpperCase() === 'CRC' ? totalUtilityCrc.value : totalUtilityUsd.value)
+
+function financialTone(value: number) {
+  if (value < 0) return 'danger'
+  if (value > 0) return 'success'
+  return 'neutral'
+}
+
+function validityTone(validTo: string) {
+  const days = remainingValidityDays(validTo)
+  if (days <= 3) return 'danger'
+  if (days <= 7) return 'warning'
+  return 'success'
+}
+
+const canNext = computed(() => {
+  if (step.value === 1) return Boolean(form.modality)
+  if (step.value === 2) return Boolean(form.shipmentMode)
+  if (step.value === 3) {
+    return Boolean(
+      form.originId &&
+      form.destinationId &&
+      selectedEquipment.value &&
+      form.equipmentQuantity > 0 &&
+      form.incotermId &&
+      form.serviceIds.length &&
+      form.loadDate &&
+      exwLocationReady.value &&
+      fcaLocationReady.value,
+    )
+  }
+  if (step.value === 4) return true
+  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
+  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
+  return true
+})
+
+function detailTypeForService(service: CatalogItemSelectDto): CostDetailType {
+  const value = normalizeCatalogValue(displayValue(service))
+  if (value.includes('transporte internacional')) return 'Freight'
+  if (value.includes('seguro') && value.includes('carga')) return 'Insurance'
+  if (value.includes('aduana')) return 'CustomsCharge'
+  if (value.includes('transporte entrega') || value.includes('transporte recoleccion')) return 'InlandTransport'
+  return 'Other'
+}
+
+function sectionFromPortRole(
+  role: CostPortRole | null | undefined,
+  detailType: CostDetailType,
+): RateSection | null {
+  if (!role || role === 'Any') return null
+  if (role === 'Pol') {
+    return detailType === 'InlandTransport' ? 'pickup_origin' : 'origin_charges'
+  }
+  return detailType === 'InlandTransport' ? 'delivery_destination' : 'destination_charges'
+}
+
+function explicitSectionFromName(name = ''): RateSection | null {
+  const normalized = normalizeCatalogValue(name)
+  const mentionsOrigin = /(^| )(origen|origin)( |$)/.test(normalized)
+  const mentionsDestination = /(^| )(destino|destination)( |$)/.test(normalized)
+  const mentionsPickup = /recole|pick\s*up/.test(normalized)
+  const mentionsDelivery = /entrega|delivery/.test(normalized)
+
+  if (mentionsPickup) return 'pickup_origin'
+  if (mentionsDelivery) return 'delivery_destination'
+  if (mentionsOrigin && !mentionsDestination) return 'origin_charges'
+  if (mentionsDestination && !mentionsOrigin) return 'destination_charges'
+  return null
+}
+
+function sectionForDetail(type: CostDetailType, name = ''): RateSection {
+  const normalized = normalizeCatalogValue(name)
+  const explicitSection = type === 'Freight' ? null : explicitSectionFromName(name)
+
+  if (explicitSection) return explicitSection
+  if (type === 'Freight') return 'international_freight'
+  if (type === 'OriginCharge') return 'origin_charges'
+  if (type === 'DestinationCharge' || type === 'Insurance') return 'destination_charges'
+  if (type === 'PortCharge') return /(^| )(origen|origin)( |$)/.test(normalized) ? 'origin_charges' : 'destination_charges'
+  if (type === 'InlandTransport') {
+    return /recole|pick\s*up|(^| )(origen|origin)( |$)/.test(normalized)
+      ? 'pickup_origin'
+      : 'delivery_destination'
+  }
+  if (type === 'CustomsCharge') {
+    return /(^| )(origen|origin)( |$)|exterior|export/.test(normalized)
+      ? 'origin_charges'
+      : 'destination_charges'
+  }
+  if (type === 'AgentCharge') {
+    return normalizeCatalogValue(direction.value).includes('exportacion')
+      ? 'origin_charges'
+      : 'destination_charges'
+  }
+  if (type === 'Documentation') return 'international_freight'
+  return 'destination_charges'
+}
+
+function sectionForCost(cost: CostSelectDto): RateSection {
+  if (cost.costDetailType !== 'Freight') {
+    const explicitSection = explicitSectionFromName(cost.name)
+    if (explicitSection) return explicitSection
+  }
+
+  const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)
+  if (byPortRole) return byPortRole
+
+  if (cost.polId && !cost.poeId && !cost.podId) {
+    return cost.costDetailType === 'InlandTransport' ? 'pickup_origin' : 'origin_charges'
+  }
+  if ((cost.poeId || cost.podId) && !cost.polId) {
+    return cost.costDetailType === 'InlandTransport'
+      ? 'delivery_destination'
+      : 'destination_charges'
+  }
+
+  return sectionForDetail(cost.costDetailType, cost.name)
+}
+
+function sectionForManual(section: RateSection): CostDetailType {
+  if (section === 'international_freight') return 'Freight'
+  if (section === 'origin_charges') return 'OriginCharge'
+  if (section === 'destination_charges') return 'DestinationCharge'
+  if (section === 'pickup_origin' || section === 'delivery_destination') return 'InlandTransport'
+  return 'Other'
+}
+
+function defaultChargeBasis(type: CostDetailType): ChargeBasis {
+  if (type === 'Documentation') return 'PerDocument'
+  if (type === 'Freight' || type === 'InlandTransport') {
+    if (shipmentModeForApi.value === 'Fcl') return 'PerContainer'
+    if (shipmentModeForApi.value === 'Ftl') return 'PerTruck'
+    if (shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'Ltl') {
+      return 'PerChargeableCbm'
+    }
+  }
+  return 'PerShipment'
+}
+
+function quantityForChargeBasis(basis: ChargeBasis) {
+  if (basis === 'PerContainer' || basis === 'PerTruck') {
+    return Math.max(1, form.equipmentQuantity)
+  }
+  if (basis === 'PerTeu') {
+    const equipment = `${selectedEquipment.value?.code ?? ''} ${displayValue(selectedEquipment.value)}`
+    const multiplier = /(^|\D)20(\D|$)/.test(equipment) ? 1 : 2
+    return Math.max(1, form.equipmentQuantity) * multiplier
+  }
+  return 1
+}
+
+function detailTypeLabel(type: CostDetailType) {
+  return ({
+    Freight: 'Flete internacional',
+    AgentCharge: 'Costo de agente',
+    OriginCharge: 'Cargo en origen',
+    DestinationCharge: 'Cargo en destino',
+    PortCharge: 'Cargo portuario',
+    CustomsCharge: 'Aduana',
+    InlandTransport: 'Transporte interno',
+    Documentation: 'Documentación',
+    Insurance: 'Seguro',
+    Other: 'Otro',
+  } as Record<CostDetailType, string>)[type]
+}
+
+function chargeBasisLabel(basis: ChargeBasis) {
+  return ({
+    PerShipment: 'Por embarque',
+    PerService: 'Por Servicio',
+    PerContainer: 'Por contenedor',
+    PerTeu: 'Por TEU',
+    PerTruck: 'Por camión',
+    PerCbm: 'Por CBM',
+    PerChargeableCbm: 'Por CBM cobrable',
+    PerKg: 'Por kg',
+    Per100Kg: 'Por 100 kg',
+    PerTon: 'Por tonelada',
+    PerPallet: 'Por pallet',
+    PerPackage: 'Por bulto',
+    PerDocument: 'Por documento',
+  } as Record<ChargeBasis, string>)[basis]
+}
+
+function costContextLabel(cost: CostSelectDto) {
+  const parts: string[] = []
+  if (cost.agentName) parts.push(`Agente: ${cost.agentName}`)
+  if (cost.carrierName) parts.push(`Naviera: ${cost.carrierName}`)
+  if (cost.polName) parts.push(`POL: ${cost.polName}`)
+  if (cost.poeName) parts.push(`POE: ${cost.poeName}`)
+  if (cost.podName) parts.push(`POD: ${cost.podName}`)
+  if (cost.portName && !parts.some((part) => part.includes(cost.portName!))) {
+    const role = cost.portRole && cost.portRole !== 'Any' ? cost.portRole.toUpperCase() : 'Puerto'
+    parts.push(`${role}: ${cost.portName}`)
+  }
+  return parts.join(' · ') || null
+}
+
+function applicableCost(cost: CostSelectDto) {
+  if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
+  if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
+  if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
+  if (cost.carrierId && cost.carrierId !== form.carrierId) return false
+  if (cost.agentId && cost.agentId !== form.agentId) return false
+  if (cost.polId && cost.polId !== form.originId) return false
+  if (cost.poeId && cost.poeId !== form.destinationId) return false
+  if (cost.podId && cost.podId !== form.podId) return false
+  if (!incotermResponsibilitySections.value.includes(sectionForCost(cost))) return false
+
+  if (cost.portId) {
+    const matchesLegacyPort = cost.portRole === 'Pol'
+      ? cost.portId === form.originId
+      : cost.portRole === 'Poe'
+        ? cost.portId === form.destinationId
+        : cost.portRole === 'Pod'
+          ? cost.portId === form.podId
+          : [form.originId, form.destinationId, form.podId].includes(cost.portId)
+    if (!matchesLegacyPort) return false
+  }
+
+  return true
+}
+
+function costSpecificity(cost: CostSelectDto) {
+  let score = 0
+  if (cost.shipmentMode) score += 2
+  if (cost.incoterms?.length) score += 2
+  if (cost.services?.length) score += 2
+  if (cost.carrierId) score += 3
+  if (cost.agentId) score += 3
+  if (cost.polId) score += 4
+  if (cost.poeId) score += 4
+  if (cost.podId) score += 4
+  if (cost.portId) score += 4
+  if (cost.portRole && cost.portRole !== 'Any') score += 1
+  return score
+}
+
+function isDangerousCargoCost(cost: CostSelectDto) {
+  const value = normalizeCatalogValue(`${cost.name} ${cost.notes ?? ''}`)
+  return value.includes('carga peligrosa') || value.includes('dangerous') || value.includes('hazmat')
+}
+
+function isOverweightCost(cost: CostSelectDto) {
+  const value = normalizeCatalogValue(`${cost.name} ${cost.notes ?? ''}`)
+  return value.includes('sobrepeso') || value.includes('overweight') || value.includes('over weight')
+}
+
+function isCargoConditionLine(line: RateLine, kind: 'dangerous' | 'overweight') {
+  const value = normalizeCatalogValue(line.name)
+  return kind === 'dangerous'
+    ? value.includes('carga peligrosa') || value.includes('dangerous') || value.includes('hazmat')
+    : value.includes('sobrepeso') || value.includes('overweight') || value.includes('over weight')
+}
+
+function applicableConfiguredCosts() {
+  return costs.value
+    .filter(applicableCost)
+    .sort((left, right) => costSpecificity(right) - costSpecificity(left))
+}
+
+function revisionSnapshotRecord(revision: RateRevisionDto) {
+  try {
+    return JSON.parse(revision.snapshotJson) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function snapshotField<T = unknown>(record: Record<string, unknown>, pascal: string, camel: string): T | undefined {
+  return (record[pascal] ?? record[camel]) as T | undefined
+}
+
+function revisionMatchesCurrentRate(snapshot: Record<string, unknown>, rate: RateDto) {
+  const same = (pascal: string, camel: string, current: unknown) => {
+    const value = snapshotField(snapshot, pascal, camel)
+    return value == null || String(value) === String(current ?? '')
+  }
+
+  return same('PolId', 'polId', rate.polId)
+    && same('PoeId', 'poeId', rate.poeId)
+    && same('PodId', 'podId', rate.podId)
+    && same('CarrierId', 'carrierId', rate.carrierId)
+    && same('AgentId', 'agentId', rate.agentId)
+    && same('IncotermId', 'incotermId', rate.incotermId)
+}
+
+function latestMatchingRevisionDetails(rate: RateDto) {
+  const revisions = [...rateRevisions.value].sort((left, right) => right.revisionNumber - left.revisionNumber)
+
+  for (const revision of revisions) {
+    const snapshot = revisionSnapshotRecord(revision)
+    if (!snapshot || !revisionMatchesCurrentRate(snapshot, rate)) continue
+    const details = snapshotField<unknown[]>(snapshot, 'Details', 'details')
+    if (!Array.isArray(details)) continue
+
+    return details.filter((detail): detail is Record<string, unknown> =>
+      Boolean(detail) && typeof detail === 'object',
+    )
+  }
+
+  return [] as Record<string, unknown>[]
+}
+
+function applyConfiguredMetadataToPersistedLine(line: RateLine, configured: CostSelectDto) {
+  line.costId = configured.id
+  line.section = sectionForCost(configured)
+  line.name = configured.name
+  line.costDetailType = configured.costDetailType
+  line.costType = configured.costType
+  line.chargeBasis = configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType)
+  line.contextLabel = costContextLabel(configured)
+  line.serviceIds = configured.services?.map((service) => service.id) ?? []
+  line.optional = configured.costType === 'Optional'
+  line.manual = false
+
+  const normalizedNotes = normalizeCatalogValue(String(line.notes ?? ''))
+  if (!line.notes || normalizedNotes === 'cargo manual agregado desde el wizard de pricing') {
+    line.notes = configured.notes?.trim() || null
+  }
+}
+
+function syncPersistedLinesWithChangedConfiguredCosts() {
+  if (!editingRate.value || props.viewOnly) return 0
+
+  const configuredCosts = applicableConfiguredCosts()
+  const persistedById = new Map(
+    editingRate.value.rateDetails.map((detail) => [detail.id, detail] as const),
+  )
+
+  const resolveCurrentConfiguredCost = (line: RateLine) => {
+    const normalizedLineName = normalizeCatalogValue(line.name)
+
+    // A Costos y recargos row can be replaced/deactivated and recreated with a new id.
+    // The active applicable catalog is authoritative, so resolve the current logical
+    // charge by business identity first instead of requiring the historical CostId.
+    const sameLogicalCharge = configuredCosts.find(
+      (cost) =>
+        normalizeCatalogValue(cost.name) === normalizedLineName
+        && cost.costDetailType === line.costDetailType,
+    )
+    if (sameLogicalCharge) return sameLogicalCharge
+
+    const sameName = configuredCosts.filter(
+      (cost) => normalizeCatalogValue(cost.name) === normalizedLineName,
+    )
+    if (sameName.length === 1) return sameName[0]
+
+    return line.costId
+      ? configuredCosts.find((cost) => cost.id === line.costId) ?? null
+      : null
+  }
+
+  let changedCount = 0
+
+  rateLines.value.forEach((line) => {
+    if (!line.costId || line.costDetailType === 'Freight') return
+
+    const configured = resolveCurrentConfiguredCost(line)
+    if (!configured) return
+
+    const persisted = line.detailId
+      ? persistedById.get(line.detailId)
+      : editingRate.value?.rateDetails.find((detail) => detail.costId === line.costId)
+    if (!persisted) return
+
+    const configuredChargeBasis =
+      configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType)
+    const persistedNotes = String(persisted.notes ?? '').trim()
+    const configuredNotes = String(configured.notes ?? '').trim()
+
+    // Compare against the persisted quote snapshot. This means a manual value typed
+    // during the current edit is not confused with a catalog change. If the active
+    // Costos y recargos version differs, only this linked tariff line is refreshed.
+    const catalogChanged =
+      persisted.name.trim() !== configured.name.trim() ||
+      persisted.costDetailType !== configured.costDetailType ||
+      persisted.costType !== configured.costType ||
+      persisted.chargeBasis !== configuredChargeBasis ||
+      persisted.currencyId !== configured.currencyId ||
+      persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase() ||
+      number(persisted.costAmount) !== number(configured.costAmount) ||
+      number(persisted.saleAmount) !== number(configured.saleAmount) ||
+      persistedNotes !== configuredNotes
+
+    if (!catalogChanged) return
+
+    line.section = sectionForCost(configured)
+    line.name = configured.name
+    line.costDetailType = configured.costDetailType
+    line.costType = configured.costType
+    line.chargeBasis = configuredChargeBasis
+    line.contextLabel = costContextLabel(configured)
+    line.notes = configured.notes?.trim() || null
+    line.serviceIds = configured.services?.map((service) => service.id) ?? []
+    line.currencyId = configured.currencyId
+    line.currencyName = configured.currencyName
+    line.currencyCode = configured.currencyCode
+    line.amountCurrencyCode = configured.currencyCode
+    line.costAmount = number(configured.costAmount)
+    line.saleAmount = number(configured.saleAmount)
+    line.optional = configured.costType === 'Optional'
+    line.manual = false
+
+    // Keep the persisted CostId when the catalog row was recreated under a new id.
+    // Pricing treats automatic fixed CostId as immutable on an existing detail; the
+    // current catalog amounts still become the new snapshot without deleting/recreating
+    // unrelated tariff lines.
+    enforceLineCurrency(line)
+    changedCount += 1
+  })
+
+  return changedCount
+}
+
+async function loadApplicableCosts() {
+  try {
+    costs.value = await PricingService.selectCosts({
+      carrierId: form.carrierId || undefined,
+      agentId: form.agentId || undefined,
+      polId: form.originId || undefined,
+      poeId: form.destinationId || undefined,
+      podId: form.podId || undefined,
+      incotermId: form.incotermId || undefined,
+      shipmentMode: shipmentModeForApi.value,
+      isActive: true,
+      applicableToContext: true,
+      serviceIds: form.serviceIds.join(',') || undefined,
+    })
+  } catch (error) {
+    costs.value = []
+    toastStore.backendError(
+      error,
+      'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.',
+    )
+  }
+}
+
+function rebuildRateLines() {
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!currency) return
+
+  const visible = new Set(visibleSections.value)
+  const lines: RateLine[] = []
+  const hasEquivalent = (name: string, detailType: CostDetailType) =>
+    lines.some((line) =>
+      line.costDetailType === detailType &&
+      normalizeCatalogValue(line.name) === normalizeCatalogValue(name),
+    )
+
+  if (visible.has('international_freight')) {
+    lines.push({
+      key: 'freight',
+      section: 'international_freight',
+      name: 'Flete Internacional',
+      costDetailType: 'Freight',
+      costType: 'Variable',
+      chargeBasis: defaultChargeBasis('Freight'),
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: number(form.freightCost),
+      saleAmount: number(form.freightSale),
+      included: true,
+      optional: false,
+      manual: false,
+    })
+  }
+
+  const configuredCosts = applicableConfiguredCosts()
+  configuredCosts.forEach((cost) => {
+    const section = sectionForCost(cost)
+    if (!visible.has(section)) return
+    if (cost.costDetailType === 'Freight' && lines.some((line) => line.costDetailType === 'Freight')) return
+    if (hasEquivalent(cost.name, cost.costDetailType)) return
+    lines.push({
+      key: `cost:${cost.id}`,
+      section,
+      name: cost.name,
+      costDetailType: cost.costDetailType,
+      costType: cost.costType,
+      chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+      costId: cost.id,
+      contextLabel: costContextLabel(cost),
+      notes: cost.notes?.trim() || null,
+      serviceIds: cost.services?.map((service) => service.id) ?? [],
+      currencyId: cost.currencyId,
+      currencyName: cost.currencyName,
+      currencyCode: cost.currencyCode,
+      costAmount: number(cost.costAmount),
+      saleAmount: number(cost.saleAmount),
+      included:
+        cost.costType !== 'Optional' ||
+        (form.dangerousCargo && isDangerousCargoCost(cost)) ||
+        (form.overweight && isOverweightCost(cost)) ||
+        (form.merchantHaulage && haulageAssociation(cost) === 'merchant') ||
+        (form.carrierHaulage && haulageAssociation(cost) === 'carrier'),
+      optional: cost.costType === 'Optional',
+      manual: false,
+    })
+  })
+
+
+const addVariableSectionFallback = (
+  section: RateSection,
+  name: string,
+  detailType: CostDetailType,
+  contextLabel: string,
+) => {
+  const alreadyPresent = section === 'pickup_origin'
+    ? lines.some((line) => line.section === section && line.costDetailType === 'InlandTransport')
+    : lines.some((line) => line.section === section && line.costDetailType === 'OriginCharge')
+  if (!visible.has(section) || alreadyPresent) return
+  lines.push({
+    key: `variable-section:${section}`,
+    section,
+    name,
+    costDetailType: detailType,
+    costType: 'Variable',
+    chargeBasis: defaultChargeBasis(detailType),
+    contextLabel,
+    currencyId: currency.id,
+    currencyName: displayValue(currency),
+    currencyCode: currency.code,
+    costAmount: 0,
+    saleAmount: 0,
+    included: true,
+    optional: false,
+    manual: false,
+  })
+}
+
+addVariableSectionFallback(
+  'pickup_origin',
+  'Recolecta',
+  'InlandTransport',
+  'Variable: complete costo y venta según la recolección aplicable.',
+)
+addVariableSectionFallback(
+  'origin_charges',
+  'Cargos en Origen',
+  'OriginCharge',
+  'Variable: complete costo y venta según los cargos de origen aplicables.',
+)
+
+  const cargoConditionSection: RateSection | null = visible.has('destination_charges')
+    ? 'destination_charges'
+    : visible.has('international_freight')
+      ? 'international_freight'
+      : visibleSections.value[0] ?? null
+
+  const addCargoConditionFallback = (kind: 'dangerous' | 'overweight', name: string) => {
+    if (!cargoConditionSection || lines.some((line) => isCargoConditionLine(line, kind))) return
+    lines.push({
+      key: `cargo-condition:${kind}`,
+      section: cargoConditionSection,
+      name,
+      costDetailType: 'Other',
+      costType: 'Variable',
+      chargeBasis: 'PerShipment',
+      contextLabel: 'Agregado automáticamente por condición de carga.',
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: 0,
+      saleAmount: 0,
+      included: true,
+      optional: false,
+      manual: false,
+    })
+  }
+
+  if (form.dangerousCargo) addCargoConditionFallback('dangerous', 'Carga peligrosa')
+  if (form.overweight) addCargoConditionFallback('overweight', 'Sobrepeso')
+
+  const addHaulageOption = (key: string, name: string) => {
+    if (!visible.has('destination_charges')) return
+    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(name))) return
+    lines.push({
+      key,
+      section: 'destination_charges',
+      name,
+      costDetailType: 'InlandTransport',
+      costType: 'Optional',
+      chargeBasis: 'PerShipment',
+      contextLabel: 'Opción agregada automáticamente según la responsabilidad de transporte seleccionada.',
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: 0,
+      saleAmount: 0,
+      included: false,
+      optional: true,
+      manual: false,
+    })
+  }
+  if (form.merchantHaulage) addHaulageOption('haulage:merchant', 'Gate + Inland GAM Merchant')
+  if (form.carrierHaulage) addHaulageOption('haulage:carrier', 'Inland GAM Naviera')
+
+  const insuranceServiceSelected = Boolean(
+  cargoInsuranceService.value && form.serviceIds.includes(cargoInsuranceService.value.id),
+)
+const insuranceRequested = insuranceServiceSelected || form.cargoValue > 0
+const existingInsurance = lines.find((line) => line.costDetailType === 'Insurance')
+
+if (insuranceRequested && visible.has('destination_charges')) {
+  const insurance = form.cargoValue > 0
+    ? calculateCargoInsurance(form.cargoValue, form.freightCost)
+    : null
+
+  if (existingInsurance) {
+    // A configured Insurance cost must not suppress the cargo-insurance line.
+    // Selecting the service or entering cargo value means the user requested it.
+    existingInsurance.included = true
+    existingInsurance.optional = true
+    existingInsurance.costType = 'Optional'
+    existingInsurance.chargeBasis = 'PerShipment'
+    existingInsurance.section = 'destination_charges'
+    if (insurance) {
+      existingInsurance.costAmount = insurance.cost
+      existingInsurance.saleAmount = insurance.sale
+    }
+  } else {
+    lines.push({
+      key: 'cargo-insurance:auto',
+      section: 'destination_charges',
+      name: 'Seguro de carga',
+      costDetailType: 'Insurance',
+      costType: 'Optional',
+      chargeBasis: 'PerShipment',
+      contextLabel: form.cargoValue > 0
+        ? 'Calculado automáticamente sobre el valor declarado de la carga.'
+        : 'Ingrese el valor de la carga para calcular costo y venta del seguro.',
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      costAmount: insurance?.cost ?? 0,
+      saleAmount: insurance?.sale ?? 0,
+      included: true,
+      optional: true,
+      manual: false,
+    })
+  }
+}
+
+  lines.forEach((line) => {
+    line.amountCurrencyCode = canonicalCurrencyCode(line)
+    enforceLineCurrency(line)
+  })
+  rateLines.value = lines
+}
+
+function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
+  // Una tarifa persistida en modo vista es un snapshot autoritativo del response.
+  // No mezclar aquí costos/opcionales del catálogo porque pueden no formar parte
+  // de RateDetails y terminar apareciendo visualmente como si estuvieran guardados.
+  if (props.viewOnly && props.rateId) return
+
+  const visible = new Set(visibleSections.value)
+  const existingCostIds = new Set(
+    rateLines.value.map((line) => line.costId).filter((value): value is string => Boolean(value)),
+  )
+  const existingKeys = new Set(
+    rateLines.value.map((line) => `${normalizeCatalogValue(line.name)}|${line.costDetailType}`),
+  )
+
+  applicableConfiguredCosts()
+    .filter((cost) => includeFixed ? cost.costDetailType !== 'Freight' : cost.costType === 'Optional')
+    .forEach((cost) => {
+      const section = sectionForCost(cost)
+      const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`
+      if (!visible.has(section) || existingCostIds.has(cost.id) || existingKeys.has(equivalentKey)) return
+
+      rateLines.value.push({
+        key: `cost:${cost.id}`,
+        section,
+        name: cost.name,
+        costDetailType: cost.costDetailType,
+        costType: cost.costType,
+        chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+        costId: cost.id,
+        contextLabel: costContextLabel(cost),
+        notes: cost.notes?.trim() || null,
+        serviceIds: cost.services?.map((service) => service.id) ?? [],
+        currencyId: cost.currencyId,
+        currencyName: cost.currencyName,
+        currencyCode: cost.currencyCode,
+        costAmount: number(cost.costAmount),
+        saleAmount: number(cost.saleAmount),
+        included: includeFixed && cost.costType !== 'Optional',
+        optional: cost.costType === 'Optional',
+        manual: false,
+        applyDestinationTax: false,
+        destinationTaxRate: 0,
+      })
+    })
+
+  rateLines.value.forEach((line) => {
+    line.amountCurrencyCode ||= canonicalCurrencyCode(line)
+    enforceLineCurrency(line)
+  })
+}
+
+function addManualCharge() {
+  const name = form.manualName.trim()
+  const currency = selectedCurrency.value
+  if (!name || !currency) return
+  const detailType = sectionForManual(form.manualSection)
+  rateLines.value.push({
+    key: `manual:${crypto.randomUUID()}`,
+    section: form.manualSection,
+    name,
+    costDetailType: detailType,
+    costType: 'Variable',
+    chargeBasis: defaultChargeBasis(detailType),
+    currencyId: currency.id,
+    currencyName: displayValue(currency),
+    currencyCode: currency.code,
+    costAmount: 0,
+    saleAmount: 0,
+    included: true,
+    optional: false,
+    manual: true,
+  })
+  form.manualName = ''
+}
+
+function selectDefaultService() {
+  const internationalTransport = catalogs.services.find((item) =>
+    normalizeCatalogValue(displayValue(item)).includes('transporte internacional'),
+  )
+  form.serviceIds = internationalTransport ? [internationalTransport.id] : []
+}
+
+function chooseModality(value: Modality) {
+  form.modality = value
+  form.shipmentMode = ''
+  form.equipmentSize = ''
+  form.equipmentType = ''
+  form.equipmentId = ''
+  selectDefaultService()
+  step.value = 2
+}
+
+function chooseShipmentMode(value: string) {
+  form.shipmentMode = value
+  form.equipmentSize = ''
+  form.equipmentType = ''
+  form.equipmentId = ''
+  if (value.toUpperCase() === 'FCL') form.nonStackable = false
+  step.value = 3
+}
+
+function syncHaulageOptionalLines() {
+  rateLines.value.forEach((line) => {
+    if (!line.optional) return
+    const association = haulageAssociation(line)
+    if (!association) return
+
+    line.included =
+      (association === 'merchant' && form.merchantHaulage) ||
+      (association === 'carrier' && form.carrierHaulage)
+
+    if (!line.included) {
+      line.applyDestinationTax = false
+    }
+  })
+}
+
+function toggleMerchantHaulage() {
+  form.merchantHaulage = !form.merchantHaulage
+  if (form.merchantHaulage) form.carrierHaulage = false
+  syncHaulageOptionalLines()
+}
+
+function toggleCarrierHaulage() {
+  form.carrierHaulage = !form.carrierHaulage
+  if (form.carrierHaulage) form.merchantHaulage = false
+  syncHaulageOptionalLines()
+}
+
+async function loadCatalogs() {
+  try {
+    loadingCatalogs.value = true
+    const select = (slug: string) => CatalogItemsService.select({ catalogGroupSlug: slug })
+    const selectOptional = async (...slugs: string[]) => {
+      for (const slug of slugs) {
+        try {
+          const items = await select(slug)
+          if (items.length) return items
+        } catch {
+          // Compatibility with installations that use an older WHS catalog slug.
+        }
+      }
+      return [] as CatalogItemSelectDto[]
+    }
+    const [
+      shipmentModes,
+      services,
+      incoterms,
+      pol,
+      pod,
+      poe,
+      landEquipmentTypes,
+      landEquipmentSizes,
+      landEquipmentKinds,
+      containers,
+      agents,
+      carriers,
+      currencies,
+      warehouses,
+      countries,
+      clients,
+      salesExecutives,
+      selectedCosts,
+    ] = await Promise.all([
+      select('shipment-modes'),
+      select('pricing-services'),
+      select('incoterms'),
+      select('pol'),
+      select('pod'),
+      select('poe'),
+      select('land-equipment-types'),
+      select('land-equipment-sizes'),
+      select('land-equipment-kinds'),
+      select('container-types'),
+      select('agents'),
+      select('carriers'),
+      select('currencies'),
+      selectOptional('pricing-warehouses', 'warehouses', 'whs', 'fca-warehouses'),
+      selectOptional('country-vat-rates', 'countries', 'country-tax-rates'),
+      selectOptional('pricing-clients'),
+      selectOptional('pricing-sales-executives'),
+      PricingService.selectCosts().catch(() => [] as CostSelectDto[]),
+    ])
+
+    Object.assign(catalogs, {
+      shipmentModes,
+      services,
+      incoterms,
+      pol,
+      pod,
+      poe,
+      landEquipmentTypes,
+      landEquipmentSizes,
+      landEquipmentKinds,
+      containers,
+      agents,
+      carriers,
+      currencies,
+      countries,
+      warehouses,
+      clients,
+      salesExecutives,
+    })
+    allCosts.value = selectedCosts
+    costs.value = selectedCosts
+    const usd = currencies.find((item) => normalizeCatalogValue(displayValue(item)) === 'usd') ?? currencies[0]
+    form.currencyId = usd?.id ?? ''
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron cargar los catálogos de Pricing.')
+  } finally {
+    loadingCatalogs.value = false
+  }
+}
+
+function resolvePodForDestination() {
+  if (selectedPod.value) return selectedPod.value
+
+  const fromRate = selectedImportRate.value?.podId
+    ? findById(catalogs.pod, selectedImportRate.value.podId)
+    : null
+  if (fromRate) return fromRate
+
+  return findEquivalentValue(catalogs.pod, selectedImportRate.value?.pod)
+}
+
+async function searchApprovedRates() {
+  availableRates.value = []
+  form.selectedImportRateId = ''
+  form.manualRate = false
+
+  if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {
+    form.manualRate = true
+    return
+  }
+
+  try {
+    loadingRates.value = true
+    const query: BrowseImportRatesQuery = {
+      pol: catalogSearchText(selectedOrigin.value),
+      poe: catalogSearchText(selectedDestination.value),
+      pod: selectedPod.value ? catalogSearchText(selectedPod.value) : undefined,
+      containerType: catalogSearchText(selectedEquipment.value),
+      quoteDate: form.loadDate,
+    }
+    availableRates.value = await PricingService.selectImportRates(query)
+    await loadImportSources(availableRates.value)
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron consultar las tarifas aprobadas.')
+  } finally {
+    loadingRates.value = false
+  }
+
+  if (!availableRates.value.length) form.manualRate = true
+}
+
+function chooseRate(rate: ImportRateSelectDto) {
+  form.selectedImportRateId = rate.id
+  form.manualRate = false
+  form.freightCost = number(rate.freight)
+  form.freightSale = number(rate.totalSale ?? rate.freight)
+  form.freeDays = number(rate.freeDays)
+  form.transitDays = number(rate.transitDays)
+
+  const ratePod = rate.podId
+    ? findById(catalogs.pod, rate.podId)
+    : findEquivalentValue(catalogs.pod, rate.pod)
+  if (ratePod) form.podId = ratePod.id
+
+  const rateCarrier = normalizeCatalogValue(String(rate.carrier ?? ''))
+  const carrier = catalogs.carriers.find((item) =>
+    normalizeCatalogValue(displayValue(item)).includes(rateCarrier),
+  )
+  if (carrier) form.carrierId = carrier.id
+
+  const rateCurrency = normalizeCatalogValue(String(rate.currency ?? ''))
+  const currency = catalogs.currencies.find((item) =>
+    normalizeCatalogValue(displayValue(item)).includes(rateCurrency),
+  )
+  if (currency) form.currencyId = currency.id
+
+  step.value = 6
+}
+
+function continueManual() {
+  form.selectedImportRateId = ''
+  form.manualRate = true
+  step.value = 6
+}
+
+async function reverseGeocodePickup(latitude: number, longitude: number) {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
+    { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+  )
+  if (!response.ok) throw new Error(`Nominatim ${response.status}`)
+  const location = await response.json() as { display_name?: string }
+  return location.display_name?.trim() || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+}
+
+async function selectPickupFromMap(point: { latitude: number; longitude: number }) {
+  form.pickupLatitude = point.latitude
+  form.pickupLongitude = point.longitude
+  nearestPortRecommendations.value = []
+
+  try {
+    locatingPickup.value = true
+    form.pickupAddress = await reverseGeocodePickup(point.latitude, point.longitude)
+  } catch {
+    form.pickupAddress = `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`
+  } finally {
+    locatingPickup.value = false
+  }
+
+  if (selectedIncotermCode.value === 'EXW') await recommendNearestPorts()
+}
+
+function selectWarehouseFromMap(warehouseId: string) {
+  if (catalogs.warehouses.some((warehouse) => warehouse.id === warehouseId)) {
+    form.warehouseId = warehouseId
+  }
+}
+
+function parseNearestPortResponse(content: string) {
+  const cleaned = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+  if (!cleaned) return []
+  const parsed = JSON.parse(cleaned) as {
+    recommendations?: Array<{
+      name?: string
+      code?: string | null
+      latitude?: number
+      longitude?: number
+      distanceKm?: number
+      reason?: string
+    }>
+  }
+  return Array.isArray(parsed.recommendations) ? parsed.recommendations : []
+}
+
+function normalizePortMatch(value: string) {
+  return normalizeCatalogValue(value)
+    .replace(/\b(port of|port|puerto de|puerto|harbour|harbor|terminal)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function matchConfiguredPol(name: string, code: string | null) {
+  const normalizedCode = normalizeCatalogValue(code ?? '')
+  if (normalizedCode) {
+    const byCode = catalogs.pol.find((port) => normalizeCatalogValue(port.code) === normalizedCode)
+    if (byCode) return byCode.id
+  }
+
+  const target = normalizePortMatch(name)
+  if (!target) return null
+  const exact = catalogs.pol.find((port) => normalizePortMatch(displayValue(port) || port.label || port.code) === target)
+  if (exact) return exact.id
+
+  const fuzzy = catalogs.pol.find((port) => {
+    const candidate = normalizePortMatch(displayValue(port) || port.label || port.code)
+    return candidate.length >= 4 && (candidate.includes(target) || target.includes(candidate))
+  })
+  return fuzzy?.id ?? null
+}
+
+async function recommendNearestPorts() {
+  if (selectedIncotermCode.value !== 'EXW' || !form.pickupAddress.trim()) return
+  if (!pickupCoordinates.value) {
+    await geocodePickupAddress(false)
+    if (!pickupCoordinates.value) return
+  }
+
+  try {
+    recommendingPorts.value = true
+    nearestPortRecommendations.value = []
+
+    const response = await callEndpoint<unknown, Record<string, unknown>>(
+      { method: 'POST', path: '/api/ai/logistics/nearest-ports', headers: { Accept: 'application/json' } },
+      {
+        body: {
+          pickupAddress: form.pickupAddress.trim(),
+          latitude: form.pickupLatitude,
+          longitude: form.pickupLongitude,
+          maxDistanceKm: 500,
+          transportMode: form.modality,
+        },
+      },
+    )
+
+    const result = unwrapApiResponse<{ content?: string }>(response as never)
+    const rawContent = String(result?.content ?? (response as { content?: unknown })?.content ?? '')
+    const recommendations = parseNearestPortResponse(rawContent)
+    const seen = new Set<string>()
+
+    nearestPortRecommendations.value = recommendations
+      .flatMap((item) => {
+        const name = String(item.name ?? '').trim()
+        if (!name) return []
+        const distance = Number(item.distanceKm)
+        if (!Number.isFinite(distance) || distance < 0 || distance > 500) return []
+        const latitude = Number(item.latitude)
+        const longitude = Number(item.longitude)
+        const code = String(item.code ?? '').trim() || null
+        const key = `${normalizeCatalogValue(name)}|${Number.isFinite(latitude) ? latitude.toFixed(4) : ''}|${Number.isFinite(longitude) ? longitude.toFixed(4) : ''}`
+        if (seen.has(key)) return []
+        seen.add(key)
+
+        return [{
+          key,
+          name,
+          code,
+          reason: String(item.reason ?? nearbyOriginCopy.value.defaultReason),
+          distanceKm: Math.round(distance * 10) / 10,
+          latitude: Number.isFinite(latitude) ? latitude : null,
+          longitude: Number.isFinite(longitude) ? longitude : null,
+          polId: matchConfiguredPol(name, code),
+        } satisfies NearestPortRecommendation]
+      })
+      .sort((left, right) => number(left.distanceKm ?? 999999) - number(right.distanceKm ?? 999999))
+      .slice(0, 5)
+
+    if (!nearestPortRecommendations.value.length) {
+      toastStore.warning(
+        nearbyOriginCopy.value.emptyTitle,
+        nearbyOriginCopy.value.emptyDescription,
+      )
+    }
+  } catch {
+    toastStore.warning(
+      nearbyOriginCopy.value.unavailableTitle,
+      nearbyOriginCopy.value.unavailableDescription,
+    )
+  } finally {
+    recommendingPorts.value = false
+  }
+}
+
+async function geocodePickupAddress(recommendAfter = true) {
+  const address = form.pickupAddress.trim()
+  if (!address) {
+    toastStore.warning('Dirección requerida', 'Escriba la dirección que desea ubicar.')
+    return
+  }
+
+  try {
+    locatingPickup.value = true
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${encodeURIComponent(address)}`,
+      { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+    )
+    if (!response.ok) throw new Error(`Nominatim ${response.status}`)
+    const rows = await response.json() as NominatimResult[]
+    const match = rows[0]
+    if (!match) {
+      toastStore.warning('Dirección no encontrada', 'Revise la dirección e inténtelo nuevamente.')
+      return
+    }
+    form.pickupLatitude = Number(match.lat)
+    form.pickupLongitude = Number(match.lon)
+    if (match.display_name) form.pickupAddress = match.display_name
+    if (recommendAfter && selectedIncotermCode.value === 'EXW') await recommendNearestPorts()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo ubicar la dirección en OpenStreetMap.')
+  } finally {
+    locatingPickup.value = false
+  }
+}
+
+async function useCurrentLocation() {
+  if (!navigator.geolocation) {
+    toastStore.warning('Ubicación no disponible', 'El navegador no permite obtener la ubicación actual.')
+    return
+  }
+
+  try {
+    locatingPickup.value = true
+    const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 30000,
+      }),
+    )
+    await selectPickupFromMap({
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    })
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo obtener la ubicación actual.')
+  } finally {
+    locatingPickup.value = false
+  }
+}
+
+function selectRecommendedPort(polId: string) {
+  const port = catalogs.pol.find((candidate) => candidate.id === polId)
+  if (!port) return
+  form.originId = polId
+  toastStore.success(`POL actualizado a ${displayValue(port) || port.label || port.code}.`)
+}
+
+async function applySelectedWarehouse() {
+  const warehouse = selectedWarehouse.value
+  if (!warehouse) return
+  form.pickupAddress = warehouseAddress(warehouse)
+  form.pickupLatitude = metadataNumber(warehouse, 'latitude', 'lat')
+  form.pickupLongitude = metadataNumber(warehouse, 'longitude', 'lng')
+  nearestPortRecommendations.value = []
+  if (form.pickupAddress && (form.pickupLatitude == null || form.pickupLongitude == null)) {
+    await geocodePickupAddress(false)
+  }
+}
+
+function modalityForRate(rate: RateDto): Modality {
+  if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Land'
+  if (rate.shipmentMode === 'Fcl' || rate.shipmentMode === 'Lcl') return 'Maritime'
+  return 'Multimodal'
+}
+
+function transitDaysFrom(value?: string | null) {
+  const match = String(value ?? '').match(/\\d+/)
+  return match ? Number(match[0]) : 0
+}
+
+function sanitizeCargoDescriptionForField(rawDescription: string | null | undefined) {
+  return String(rawDescription ?? '')
+    .split(/\s+·\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .filter((segment) => !/^CABYS\s+\d+/i.test(segment))
+    .filter((segment) => !/^Observaciones\s*:/i.test(segment))
+    .filter((segment) => !/^Recolecci[oó]n\s*:/i.test(segment))
+    .filter((segment) => !/^WHS\s+(?:FCA|FOB)\s*:/i.test(segment))
+    .join(' · ')
+}
+
+const cargoDescriptionModel = computed({
+  get: () => sanitizeCargoDescriptionForField(form.cargoDescription),
+  set: (value: string) => {
+    form.cargoDescription = value
+  },
+})
+
+function hydratePersistedCargoDescription(rawDescription: string | null | undefined) {
+  const raw = String(rawDescription ?? '').trim()
+  if (!raw) {
+    form.cargoDescription = ''
+    return
+  }
+
+  const segments = raw
+    .split(/\s+·\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  const cabysSegment = segments.find((segment) => /^CABYS\s+\d+/i.test(segment))
+  const cabysMatch = cabysSegment?.match(/^CABYS\s+(\d+)/i)
+  if (cabysMatch?.[1]) form.cabysCode = cabysMatch[1]
+
+  const observationSegment = segments.find((segment) => /^Observaciones\s*:/i.test(segment))
+  if (observationSegment) {
+    form.cargoObservations = observationSegment.replace(/^Observaciones\s*:\s*/i, '').trim()
+  }
+
+  form.cargoDescription = sanitizeCargoDescriptionForField(raw)
+}
+
+async function hydrateExistingRate() {
+  if (!props.rateId) return
+  try {
+    loadingExistingRate.value = true
+    hydratingExistingRate.value = true
+    const [rate, revisions] = await Promise.all([
+      PricingService.getRate(props.rateId),
+      PricingService.getRateRevisions(props.rateId).catch(() => [] as RateRevisionDto[]),
+    ])
+    editingRate.value = rate
+    rateRevisions.value = revisions
+    await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
+    allInPresentation.value = Boolean(rate.useAllInPresentation)
+    const modality = modalityForRate(rate)
+    const equipment = [...catalogs.containers, ...catalogs.landEquipmentSizes, ...catalogs.landEquipmentTypes]
+      .find((item) => item.id === rate.containerTypeId) ?? null
+    const equipmentMeta = metadata(equipment)
+    form.rateType = rate.rateType
+    form.modality = modality
+    form.shipmentMode = String(rate.shipmentMode).toUpperCase()
+    form.originId = rate.polId
+    form.destinationId = rate.poeId
+    form.podId = rate.podId ?? ''
+    form.equipmentId = rate.containerTypeId
+    form.equipmentQuantity = Math.max(1, Number(rate.containerQuantity || 1))
+    form.equipmentSize = String(equipmentMeta?.size ?? '')
+    form.equipmentType = equipmentHasSizes.value ? String(equipmentMeta?.kind ?? '') : rate.containerTypeId
+    form.incotermId = rate.incotermId ?? ''
+    form.serviceIds = (rate.services ?? []).map((service) => service.id)
+    form.loadDate = String(rate.validFrom).slice(0,10)
+    form.validTo = String(rate.validTo).slice(0,10)
+    form.selectedImportRateId = rate.sourceImportFclRateId ?? ''
+    form.manualRate = !rate.sourceImportFclRateId
+    form.clientName = rate.clientName ?? ''
+    form.executiveName = rate.executiveName ?? ''
+    form.idtraNumber = rate.idtraNumber ?? ''
+    commercialIdtra.value = rate.idtraNumber ?? ''
+    commercialRejectionReason.value = rate.status === 'RejectedByClient' ? rate.closedReason ?? '' : ''
+    commercialAction.value = null
+    commercialActionError.value = ''
+    form.pickupAddress = rate.pickupAddress ?? ''
+    form.pickupLatitude = rate.pickupLatitude ?? null
+    form.pickupLongitude = rate.pickupLongitude ?? null
+    // Tarifas nuevas persisten WarehouseId. Para tarifas históricas, resolver por
+    // dirección/coordenadas evita que una revisión FCA pierda el WHS seleccionado.
+    form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
+    form.freeDays = Number(rate.freeDays || 0)
+    form.transitDays = transitDaysFrom(rate.transitTime)
+    form.agentId = rate.agentId ?? ''
+    form.carrierId = rate.carrierId ?? ''
+    form.currencyId = rate.currencyId
+    await loadApplicableCosts()
+    exchangeRatePurchase.value = Number(rate.exchangeRatePurchase || rate.exchangeRateApplied || 0) || null
+    exchangeRateSale.value = Number(rate.exchangeRateSale || rate.exchangeRateApplied || 0) || null
+    exchangeRateDate.value = String(rate.exchangeRateDate ?? '').slice(0,10)
+    exchangeRateSource.value = rate.exchangeRateSource || exchangeRateSource.value
+    const freight = rate.rateDetails.find((detail) => detail.costDetailType === 'Freight')
+    form.freightCost = Number(freight?.costAmount || 0)
+    form.freightSale = Number(freight?.saleAmount || 0)
+    form.cargoDescription = rate.cargoLines?.[0]?.description ?? ''
+    hydratePersistedCargoDescription(rate.cargoLines?.[0]?.description)
+    form.cargoWeightKg = Number(rate.cargoLines?.[0]?.weightKg ?? rate.totalWeightKg ?? 0)
+    form.cargoPallets = Math.max(1, Number(rate.cargoLines?.[0]?.pallets ?? rate.totalPallets ?? 1))
+    form.cargoLengthCm = Number(rate.cargoLines?.[0]?.lengthCm ?? 0)
+    form.cargoWidthCm = Number(rate.cargoLines?.[0]?.widthCm ?? 0)
+    form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
+
+    rateLines.value = rate.rateDetails.map((detail) => {
+      const configuredCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
+      return {
+        key: `existing:${detail.id}`,
+        detailId: detail.id,
+        section: sectionForDetail(detail.costDetailType, detail.name),
+        name: detail.name,
+        costDetailType: detail.costDetailType,
+        costType: detail.costType,
+        chargeBasis: detail.chargeBasis,
+        costId: detail.costId ?? null,
+        notes: detail.notes ?? null,
+        billToClient: detail.billToClient ?? null,
+        serviceIds: configuredCost?.services?.map((service) => service.id) ?? [],
+        currencyId: detail.currencyId,
+        currencyName: detail.currencyName,
+        currencyCode: detail.currencyCode,
+        amountCurrencyCode: detail.currencyCode,
+        costAmount: Number(detail.costAmount || 0),
+        saleAmount: Number(detail.saleAmount || 0),
+        included: true,
+        optional: detail.costType === 'Optional',
+        manual: !detail.costId,
+        applyDestinationTax:
+          Boolean(detail.applyDestinationTax) || /IVA\s+\d+/i.test(String(detail.notes ?? '')),
+        destinationTaxRate: Number(detail.destinationTaxRate || 0),
+      } as RateLine
+    })
+    if (!props.viewOnly) syncPersistedLinesWithChangedConfiguredCosts()
+    mergeConfiguredOptionalCostsIntoRateLines()
+    step.value = props.viewOnly ? 9 : 8
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
+    await router.push({ name: 'pricing-rates' })
+  } finally {
+    hydratingExistingRate.value = false
+    loadingExistingRate.value = false
+  }
+}
+
+function editCurrentRate() {
+  if (!editingRate.value) return
+  router.replace({ name: 'pricing-rate-wizard', params: { rateId: editingRate.value.id }, query: { mode: 'edit' } })
+}
+
+function goToStep(target: number) {
+  if (target < 1 || target > maxStep.value) return
+  // Crear mantiene el flujo guiado; Ver y Editar pueden recorrer libremente toda la tarifa.
+  if (props.rateId || target <= step.value) step.value = target
+}
+
+function commercialStatusLabel(status: string) {
+  return ({
+    PendingApproval: 'Pendiente de aprobación',
+    ApprovedByManagement: 'Aprobada por gerencia',
+    RejectedByManagement: 'Rechazada por gerencia',
+    Open: 'Abierta',
+    Sent: 'Enviada',
+    AcceptedByClient: 'Aceptada',
+    RejectedByClient: 'Rechazada',
+    RequestedByClient: 'Solicitada por cliente',
+    Closed: 'Cerrada',
+    Expired: 'Vencida',
+  } as Record<string, string>)[status] ?? status
+}
+
+async function markCurrentRateSent() {
+  if (!editingRate.value || !canMarkSent.value) return
+  try {
+    commercialStatusSaving.value = true
+    commercialActionError.value = ''
+    await PricingService.setRateStatus(editingRate.value.id, { status: 'Sent' })
+    toastStore.success('Tarifa marcada como enviada.')
+    await hydrateExistingRate()
+  } catch (error) {
+    commercialActionError.value = 'No se pudo marcar la tarifa como enviada.'
+    toastStore.backendError(error, commercialActionError.value)
+  } finally {
+    commercialStatusSaving.value = false
+  }
+}
+
+function applyMasterTariff() {
+  if (!editingRate.value || !isMasterTariff.value) return
+
+  modalStore.open({
+    title: 'Aplicar tarifario a cliente',
+    component: PricingApplyTariffModal,
+    size: 'md',
+    props: {
+      rate: editingRate.value,
+      onApplied: async (appliedRateId: string) => {
+        await router.push({
+          name: 'pricing-rate-wizard',
+          params: { rateId: appliedRateId },
+          query: { mode: 'view' },
+        })
+      },
+    },
+  })
+}
+
+function startCommercialDecision(action: 'accept' | 'reject') {
+  if (!canAcceptOrReject.value) return
+  commercialAction.value = action
+  commercialActionError.value = ''
+  if (action === 'accept') commercialIdtra.value = editingRate.value?.idtraNumber ?? form.idtraNumber ?? ''
+  if (action === 'reject') commercialRejectionReason.value = ''
+}
+
+async function submitCommercialDecision() {
+  if (!editingRate.value || !commercialAction.value || !canAcceptOrReject.value) return
+  if (commercialAction.value === 'accept' && !commercialIdtra.value.trim()) {
+    commercialActionError.value = 'El IDTRA es obligatorio para aceptar la tarifa.'
+    return
+  }
+  if (commercialAction.value === 'reject' && !commercialRejectionReason.value.trim()) {
+    commercialActionError.value = 'El motivo de rechazo es obligatorio.'
+    return
+  }
+
+  try {
+    commercialStatusSaving.value = true
+    commercialActionError.value = ''
+    if (commercialAction.value === 'accept') {
+      await PricingService.setRateStatus(editingRate.value.id, {
+        status: 'AcceptedByClient',
+        idtraNumber: commercialIdtra.value.trim(),
+      })
+      toastStore.success('Tarifa aceptada', `IDTRA ${commercialIdtra.value.trim()} registrado.`)
+    } else {
+      await PricingService.setRateStatus(editingRate.value.id, {
+        status: 'RejectedByClient',
+        reason: commercialRejectionReason.value.trim(),
+      })
+      toastStore.success('Tarifa marcada como rechazada.')
+    }
+    await hydrateExistingRate()
+  } catch (error) {
+    commercialActionError.value = commercialAction.value === 'accept'
+      ? 'No se pudo aceptar la tarifa.'
+      : 'No se pudo rechazar la tarifa.'
+    toastStore.backendError(error, commercialActionError.value)
+  } finally {
+    commercialStatusSaving.value = false
+  }
+}
+
+async function downloadCurrentQuote() {
+  if (!editingRate.value || downloadingQuote.value) return
+  try {
+    downloadingQuote.value = true
+    await PricingService.downloadRateDocument(
+      editingRate.value.id,
+      editingRate.value.rateName || editingRate.value.rateCode,
+      { format: 'pdf' },
+    )
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo descargar la cotización.')
+  } finally {
+    downloadingQuote.value = false
+  }
+}
+
+async function downloadRateLinesExcel() {
+  if (!editingRate.value || downloadingLinesExcel.value) return
+
+  try {
+    downloadingLinesExcel.value = true
+
+    // Pantalla 9 debe exportar EXACTAMENTE la tabla que el usuario está viendo,
+    // con todas sus filas y columnas. No reutilizar el documento XLSX de la
+    // cotización general porque ese template puede omitir columnas del detalle.
+    const table = document.querySelector<HTMLTableElement>('[data-screen09-rate-lines-table]')
+    if (!table) {
+      throw new Error('No se encontró la tabla completa de líneas de la tarifa.')
+    }
+
+    const exportedTable = table.cloneNode(true) as HTMLTableElement
+    exportedTable.removeAttribute('class')
+    exportedTable.setAttribute('border', '1')
+    exportedTable.setAttribute('cellpadding', '5')
+    exportedTable.setAttribute('cellspacing', '0')
+
+    exportedTable.querySelectorAll<HTMLElement>('*').forEach((element) => {
+      element.removeAttribute('class')
+      element.removeAttribute('style')
+    })
+
+    const reference = editingRate.value.quoNumber || editingRate.value.rateCode || 'tarifa'
+    const safeReference = reference
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    const workbookHtml = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="application/vnd.ms-excel; charset=utf-8">
+  <style>
+    table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; }
+    th { font-weight: 700; background: #e7e7e7; white-space: nowrap; }
+    th, td { border: 1px solid #999; padding: 6px 8px; vertical-align: top; }
+    td:first-child { min-width: 340px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h3>${safeReference} - Líneas completas de la tarifa</h3>
+  ${exportedTable.outerHTML}
+</body>
+</html>`
+
+    const blob = new Blob(['\uFEFF', workbookHtml], {
+      type: 'application/vnd.ms-excel;charset=utf-8',
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${safeReference} - lineas completas de tarifa.xls`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron descargar todas las líneas de la tarifa en Excel.')
+  } finally {
+    downloadingLinesExcel.value = false
+  }
+}
+
+async function next() {
+  if (props.rateId) {
+    if (step.value < maxStep.value) step.value += 1
+    return
+  }
+  if (!canNext.value) return
+  if (step.value === 4) await searchApprovedRates()
+  if (step.value === 6) {
+    await loadApplicableCosts()
+    rebuildRateLines()
+  }
+  if (step.value < 8) step.value += 1
+}
+
+function previous() {
+  if (step.value > 1) step.value -= 1
+}
+
+async function searchCabys() {
+  const query = form.cabysSearch.trim()
+  if (query.length < 3) {
+    toastStore.error('Digite al menos 3 caracteres para buscar CABYS.')
+    return
+  }
+
+  try {
+    loadingCabys.value = true
+    const payload = await callEndpoint<unknown>({
+      method: 'GET',
+      path: `/api/pricing/cabys?q=${encodeURIComponent(query)}&top=20`,
+      headers: { Accept: 'application/json' },
+    })
+    cabysResults.value = normalizeCabys(payload)
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo consultar CABYS en Hacienda.')
+  } finally {
+    loadingCabys.value = false
+  }
+}
+
+function normalizeCabys(payload: unknown): CabysItem[] {
+  const root = payload as Record<string, unknown> | null
+  const candidates = Array.isArray(payload)
+    ? payload
+    : Array.isArray(root?.cabys)
+      ? root.cabys
+      : Array.isArray(root?.data)
+        ? root.data
+        : Array.isArray(root?.results)
+          ? root.results
+          : root && (root.codigo || root.code)
+            ? [root]
+            : []
+
+  return candidates
+    .map((entry) => {
+      const item = entry as Record<string, unknown>
+      return {
+        code: String(item.codigo ?? item.code ?? item.cabys ?? ''),
+        description: String(item.descripcion ?? item.description ?? item.detalle ?? ''),
+      }
+    })
+    .filter((item) => item.code && item.description)
+}
+
+function chooseCabys(item: CabysItem) {
+  form.cabysCode = item.code
+  form.cargoDescription = item.description
+}
+
+function openImportSource(rate: ImportRateSelectDto) {
+  modalStore.open({
+    title: `Correo / fuente de la tarifa · ${importSourceTitle(rate)}`,
+    component: PricingEmailSourceModal,
+    size: 'xl',
+    props: { batchId: rate.importBatchId },
+  })
+}
+
+function openRateRevision(revision: RateRevisionDto) {
+  modalStore.open({
+    title: `Historial de tarifa · Revisión ${revision.revisionNumber}`,
+    component: PricingRateRevisionViewer,
+    size: 'xl',
+    props: { revision },
+  })
+}
+
+function revisionTotals(revision: RateRevisionDto) {
+  return computePricingRevisionTotals(revision)
+}
+
+async function loadHaciendaExchangeRate(force = false) {
+  if (exchangeRateLoading.value) return
+  if (!force && exchangeRatePurchase.value && exchangeRateSale.value) return
+
+  try {
+    exchangeRateLoading.value = true
+    exchangeRateError.value = ''
+    const snapshot = await PricingService.getUsdCrcExchangeRate()
+    const purchase = Number(snapshot.purchase)
+    const sale = Number(snapshot.sale)
+
+    if (!Number.isFinite(purchase) || purchase <= 0 || !Number.isFinite(sale) || sale <= 0) {
+      throw new Error('Hacienda devolvió un tipo de cambio inválido')
+    }
+
+    exchangeRatePurchase.value = purchase
+    exchangeRateSale.value = sale
+    exchangeRateDate.value = snapshot.rateDate || ''
+    exchangeRateSource.value = snapshot.source || 'Ministerio de Hacienda de Costa Rica'
+  } catch {
+    // No borrar valores escritos por el usuario si una actualización falla.
+    exchangeRateError.value = 'No fue posible consultar Hacienda. Ingrese Compra y Venta manualmente o intente actualizar.'
+  } finally {
+    exchangeRateLoading.value = false
+  }
+}
+
+async function uploadSupportDocument(category: string, categoryLabel: string, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  try {
+    uploadingSupportKey.value = category
+    const uploaded = await StorageService.uploadFile({
+      file,
+      sourceService: 'DholeWeb',
+      entityType: 'PricingRequestSupport',
+      entityId: supportEntityId.value,
+      metadataJson: JSON.stringify({ category, categoryLabel, clientName: form.clientName || null }),
+    })
+    supportDocuments.value.push({
+      id: uploaded.id,
+      category,
+      categoryLabel,
+      fileName: uploaded.originalFileName,
+      sizeInBytes: uploaded.sizeInBytes,
+    })
+    toastStore.success(`${categoryLabel}: archivo respaldado.`)
+  } catch (error) {
+    toastStore.backendError(error, `No se pudo subir ${categoryLabel}.`)
+  } finally {
+    uploadingSupportKey.value = ''
+  }
+}
+
+async function removeSupportDocument(document: SupportDocument) {
+  try {
+    await StorageService.deleteFile(document.id)
+    supportDocuments.value = supportDocuments.value.filter((item) => item.id !== document.id)
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo eliminar el respaldo.')
+  }
+}
+
+async function uploadFinalBackups(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!files.length) return
+
+  uploadingFinalBackups.value = true
+  let uploadedCount = 0
+
+  try {
+    for (const file of files) {
+      try {
+        const uploaded = await StorageService.uploadFile({
+          file,
+          sourceService: 'DholeWeb',
+          entityType: 'PricingRateFinalBackup',
+          entityId: editingRate.value?.id ?? finalBackupEntityId.value,
+          metadataJson: JSON.stringify({
+            category: 'final-backup',
+            categoryLabel: 'Respaldo final',
+            rateId: editingRate.value?.id ?? null,
+            clientName: form.clientName || null,
+          }),
+        })
+
+        finalBackupDocuments.value.push({
+          id: uploaded.id,
+          category: 'final-backup',
+          categoryLabel: 'Respaldo final',
+          fileName: uploaded.originalFileName,
+          sizeInBytes: uploaded.sizeInBytes,
+        })
+        uploadedCount += 1
+      } catch (error) {
+        toastStore.backendError(error, `No se pudo subir ${file.name}.`)
+      }
+    }
+
+    if (uploadedCount > 0) {
+      toastStore.success(
+        uploadedCount === 1
+          ? 'Respaldo final agregado.'
+          : `${uploadedCount} respaldos finales agregados.`,
+      )
+    }
+  } finally {
+    uploadingFinalBackups.value = false
+  }
+}
+
+function removeFinalBackup(document: SupportDocument) {
+  // Solo se quita la relación de Pricing al guardar. No borramos el objeto de
+  // Storage aquí porque una edición cancelada no debe romper una tarifa existente.
+  finalBackupDocuments.value = finalBackupDocuments.value.filter((item) => item.id !== document.id)
+}
+
+async function downloadFinalBackup(document: SupportDocument) {
+  try {
+    await StorageService.downloadFile({
+      id: document.id,
+      fileName: document.fileName,
+      sizeInBytes: document.sizeInBytes,
+    })
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo descargar el respaldo final.')
+  }
+}
+
+async function hydrateFinalBackupDocuments(storageIds: string[] | null | undefined) {
+  const ids = [...new Set((storageIds ?? []).filter(Boolean))]
+  const loaded = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const file = await StorageService.getFile(id)
+        return {
+          id: file.id,
+          category: 'final-backup',
+          categoryLabel: 'Respaldo final',
+          fileName: file.originalFileName,
+          sizeInBytes: file.sizeInBytes,
+        } as SupportDocument
+      } catch {
+        return {
+          id,
+          category: 'final-backup',
+          categoryLabel: 'Respaldo final',
+          fileName: 'Archivo no disponible en Storage',
+          sizeInBytes: 0,
+        } as SupportDocument
+      }
+    }),
+  )
+  finalBackupDocuments.value = loaded
+}
+
+function supportSummaryText() {
+  if (!supportDocuments.value.length) return ''
+  return `Soportes Pricing ${supportEntityId.value}: ${supportDocuments.value.map((item) => `${item.categoryLabel}=${item.fileName}`).join(' | ')}`
+}
+
+async function saveOpenRequest() {
+  const origin = selectedOrigin.value
+  const poe = selectedDestination.value
+  const equipment = selectedEquipment.value
+  const incoterm = selectedIncoterm.value
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!origin || !poe || !equipment || !incoterm || !currency) {
+    toastStore.error('Complete ruta, equipo, Incoterm y moneda antes de guardar la solicitud.')
+    return
+  }
+
+  try {
+    saving.value = true
+    const equipmentName = displayValue(equipment)
+    const supportText = supportSummaryText()
+    const rateId = await PricingService.createRate({
+      sourceImportFclRateId: null,
+      agentId: null,
+      agentName: null,
+      agentCode: null,
+      carrierId: null,
+      carrierName: null,
+      carrierCode: null,
+      polId: origin.id,
+      polName: displayValue(origin),
+      polCode: origin.code,
+      poeId: poe.id,
+      poeName: displayValue(poe),
+      poeCode: poe.code,
+      podId: selectedPod.value?.id ?? null,
+      podName: selectedPod.value ? displayValue(selectedPod.value) : null,
+      podCode: selectedPod.value?.code ?? null,
+      containerTypeId: equipment.id,
+      containerTypeName: equipmentName,
+      containerTypeCode: equipment.code,
+      incotermId: incoterm.id,
+      incotermName: displayValue(incoterm),
+      incotermCode: incoterm.code,
+      warehouseId: selectedIncotermCode.value === 'FCA' ? form.warehouseId || null : null,
+      pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
+      pickupLatitude: form.pickupLatitude,
+      pickupLongitude: form.pickupLongitude,
+      exchangeRatePurchase: exchangeRatePurchase.value,
+      exchangeRateSale: exchangeRateSale.value,
+      exchangeRateApplied: exchangeRateSale.value,
+      currencyId: currency.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency.code,
+      clientName: form.clientName.trim() || null,
+      executiveName: form.executiveName.trim() || null,
+      idtraNumber: form.idtraNumber.trim() || null,
+      freeDays: 0,
+      validFrom: form.loadDate,
+      validTo: addDaysIso(form.loadDate, 30),
+      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
+      rateType: form.rateType,
+      operationType: operationType.value,
+      services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
+      shipmentMode: shipmentModeForApi.value,
+      containers: shipmentModeForApi.value === 'Lcl' ? [] : [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
+      totalPackages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+      totalPallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+      totalWeightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
+      totalVolumeCbm: shipmentModeForApi.value === 'Lcl'
+        ? lclDimensionalCbm.value
+        : shipmentModeForApi.value === 'Ltl' ? 0.001 : 0,
+      kgPerCbm: shipmentModeForApi.value === 'Lcl' ? 500 : undefined,
+      cargoLines: form.cargoDescription || form.cargoObservations || form.cabysCode || supportText || shipmentModeForApi.value === 'Lcl' ? [{
+        description: [
+          form.cabysCode ? `CABYS ${form.cabysCode}` : '',
+          form.cargoDescription,
+          form.cargoObservations ? `Observaciones: ${form.cargoObservations}` : '',
+          supportText,
+        ].filter(Boolean).join(' · '),
+        packages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+        pallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+        weightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
+        lengthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoLengthCm)) : 0,
+        widthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWidthCm)) : 0,
+        heightCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoHeightCm)) : 0,
+      }] : [],
+      details: [{
+        costId: null,
+        name: 'Solicitud pendiente de Pricing',
+        costDetailType: 'Freight',
+        costType: 'Variable',
+        chargeBasis: defaultChargeBasis('Freight'),
+        currencyId: currency.id,
+        currencyName: displayValue(currency),
+        currencyCode: currency.code,
+        costAmount: 0,
+        saleAmount: 0,
+        quantity: shipmentModeForApi.value === 'Fcl' || shipmentModeForApi.value === 'Ftl' ? form.equipmentQuantity : 1,
+        notes: supportText || 'Solicitud abierta pendiente de completar costos y proveedor.',
+      }],
+    })
+    // CreateRate puede devolver la solicitud ya Open cuando el usuario tiene
+    // permiso de aprobación. No enviamos Open -> Open porque esa transición era la
+    // causa del RateInvalidStatus al crear.
+    let created = await PricingService.getRate(rateId)
+    if (created.status !== 'Open') {
+      await PricingService.setRateStatus(rateId, { status: 'Open' })
+      created = await PricingService.getRate(rateId)
+    }
+    toastStore.success('Solicitud abierta guardada', `Seguimiento ${created.rateCode}. Pricing puede continuarla sin perder la solicitud.`)
+    await router.push({ name: 'pricing-rates', query: { rateId } })
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo guardar la solicitud abierta.')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveRate() {
+  if (
+    !exchangeRatePurchase.value ||
+    exchangeRatePurchase.value <= 0 ||
+    !exchangeRateSale.value ||
+    exchangeRateSale.value <= 0
+  ) {
+    step.value = 7
+    exchangeRateError.value = 'Ingrese los tipos de cambio de Compra y Venta antes de crear la tarifa.'
+    return
+  }
+
+  const origin = selectedOrigin.value
+  const poe = selectedDestination.value
+  const pod = resolvePodForDestination()
+  const equipment = selectedEquipment.value
+  const incoterm = selectedIncoterm.value
+  const agent = selectedAgent.value
+  const carrier = selectedCarrier.value
+  const currency = selectedCurrency.value
+
+  const missing: string[] = []
+  if (!origin) missing.push('origen')
+  if (!poe) missing.push('destino/POE')
+  if (!equipment) missing.push(form.modality === 'Land' ? 'furgón / equipo terrestre' : 'equipo')
+  if (!incoterm) missing.push('Incoterm')
+  if (!agent) missing.push('agente')
+  if (!carrier) missing.push('proveedor')
+  if (!currency) missing.push('moneda')
+
+  if (missing.length) {
+    toastStore.error(`No se pudo resolver: ${missing.join(', ')}.`)
+    return
+  }
+
+  if (editingRate.value && !props.viewOnly) {
+    // Re-query immediately before saving so changes made in Costos y recargos while
+    // this quote was open are applied only to the linked detail that actually changed.
+    await loadApplicableCosts()
+    syncPersistedLinesWithChangedConfiguredCosts()
+  }
+
+  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({
+    costId: line.costId ?? null,
+    name: line.name,
+    costDetailType: line.costDetailType,
+    costType: line.costType,
+    chargeBasis: line.chargeBasis,
+    currencyId: line.currencyId,
+    currencyName: line.currencyName,
+    currencyCode: line.currencyCode,
+    costAmount: number(line.costAmount),
+    saleAmount: number(line.saleAmount),
+    billToClient: normalizeBillToClient(line.billToClient),
+    quantity: quantityForChargeBasis(line.chargeBasis),
+    applyDestinationTax: Boolean(line.applyDestinationTax) && canApplyDestinationTax(line),
+    destinationTaxRate:
+      Boolean(line.applyDestinationTax) && canApplyDestinationTax(line)
+        ? lineDestinationTaxRate(line)
+        : 0,
+    notes: line.costDetailType === 'Insurance'
+      ? [line.notes, cargoInsuranceNote(form.cargoValue, form.freightCost)].filter(Boolean).join(' · ')
+      : line.applyDestinationTax
+        ? [line.notes, `IVA ${lineDestinationTaxRate(line)}%: ${lineTaxAmount(line).toFixed(2)}; venta total: ${lineSaleWithTax(line).toFixed(2)}`].filter(Boolean).join(' · ')
+      : line.manual
+        ? line.notes || 'Cargo manual agregado desde el wizard de Pricing.'
+        : line.notes || null,
+  }))
+
+  const includedNameKeys = new Set(
+    includedLines.value.map((line) => normalizeCatalogValue(line.name)),
+  )
+  const serviceCodes = new Set<string>()
+  selectedServices.value.forEach((service) => {
+    const code = service.code?.trim().toUpperCase()
+    if (!code) return
+    const canonical = canonicalServiceLine(code, displayValue(service))
+    if (
+      Boolean(metadata(service)?.optional) &&
+      !includedNameKeys.has(normalizeCatalogValue(canonical.name))
+    ) return
+    serviceCodes.add(code)
+  })
+  if (!incotermBuyerPaysMainTransport(incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
+  if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))
+    serviceCodes.add('CARGO_INSURANCE')
+  else
+    serviceCodes.delete('CARGO_INSURANCE')
+  if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')
+  if (form.overweight) serviceCodes.add('OVERWEIGHT')
+
+  const commercialTerms = await resolveCommercialTerms({
+    transportModality: form.modality as Modality,
+    shipmentMode: shipmentModeForApi.value,
+    direction: direction.value,
+    incotermId: incoterm!.id,
+    incotermCode: incoterm!.code,
+    serviceCodes: [...serviceCodes],
+    routeText: [displayValue(origin), displayValue(poe), displayValue(pod)]
+      .filter(Boolean)
+      .join(' '),
+  })
+
+  const uniqueTermLines = (values: Array<string | null | undefined>) => {
+    const seen = new Set<string>()
+    const result: string[] = []
+
+    values.forEach((value) => {
+      String(value ?? '')
+        .split(/\r?\n/)
+        .forEach((rawLine) => {
+          const text = rawLine.trim()
+          if (!text) return
+          const key = commercialTermKey(text) || normalizeCatalogValue(text)
+          if (!key || seen.has(key)) return
+          seen.add(key)
+          result.push(text)
+        })
+    })
+
+    return result
+  }
+
+  const includeTerms = uniqueTermLines([
+    ...commercialTerms.includes.map((item) => item.text),
+    ...includedLines.value.map((line) => line.name),
+  ])
+  const includeKeys = new Set(includeTerms.map(commercialTermKey))
+  const excludedOptionalTermKeys = new Set(
+    rateLines.value
+      .filter((line) => line.optional && !line.included)
+      .map((line) => commercialTermKey(line.name))
+      .filter(Boolean),
+  )
+  const subjectTerms = uniqueTermLines([
+    ...commercialTerms.subjectTo.map((item) => item.text),
+    form.dangerousCargo ? 'Carga peligrosa' : null,
+    form.nonStackable ? 'Carga no estibable' : null,
+    form.overweight ? 'Sobrepeso' : null,
+  ]).filter((text) => !includeKeys.has(commercialTermKey(text)))
+  const subjectKeys = new Set(subjectTerms.map(commercialTermKey))
+  const excludeTerms = uniqueTermLines(
+    commercialTerms.excludes.map((item) => item.text),
+  ).filter((text) => {
+    const key = commercialTermKey(text)
+    return !includeKeys.has(key) && !subjectKeys.has(key)
+  })
+
+  try {
+    saving.value = true
+    const equipmentName = displayValue(equipment!)
+    const createPayload: CreateRateRequest = {
+      sourceImportFclRateId: form.selectedImportRateId || null,
+      agentId: agent!.id,
+      agentName: displayValue(agent),
+      agentCode: agent!.code,
+      carrierId: carrier!.id,
+      carrierName: displayValue(carrier),
+      carrierCode: carrier!.code,
+      polId: origin!.id,
+      polName: displayValue(origin),
+      polCode: origin!.code,
+      poeId: poe!.id,
+      poeName: displayValue(poe),
+      poeCode: poe!.code,
+      podId: pod?.id ?? null,
+      podName: pod ? displayValue(pod) : null,
+      podCode: pod?.code ?? null,
+      containerTypeId: equipment!.id,
+      containerTypeName: equipmentName,
+      containerTypeCode: equipment!.code,
+      incotermId: incoterm!.id,
+      incotermName: displayValue(incoterm),
+      incotermCode: incoterm!.code,
+      warehouseId: selectedIncotermCode.value === 'FCA' ? form.warehouseId || null : null,
+      pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
+      pickupLatitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLatitude : null,
+      pickupLongitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLongitude : null,
+      exchangeRatePurchase: exchangeRatePurchase.value,
+      exchangeRateSale: exchangeRateSale.value,
+      exchangeRateApplied: exchangeRateSale.value,
+      currencyId: currency!.id,
+      currencyName: displayValue(currency),
+      currencyCode: currency!.code,
+      clientName: form.clientName.trim() || null,
+      executiveName: form.executiveName.trim() || null,
+      idtraNumber: form.idtraNumber.trim() || null,
+      freeDays: shipmentModeForApi.value === 'Lcl' ? 0 : number(form.freeDays),
+      validFrom: form.loadDate,
+      validTo: form.validTo || selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
+      containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
+      rateType: form.rateType,
+      operationType: operationType.value,
+      services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
+      shipmentMode: shipmentModeForApi.value,
+      containers: shipmentModeForApi.value === 'Lcl'
+        ? []
+        : [
+            {
+              containerTypeId: equipment!.id,
+              containerTypeName: equipmentName,
+              containerTypeCode: equipment!.code,
+              quantity: form.equipmentQuantity,
+            },
+          ],
+      transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
+      useAllInPresentation: allInPresentation.value,
+      finalBackupStorageIds: finalBackupDocuments.value.map((document) => document.id),
+      includes: includeTerms.join('\n') || null,
+      subjectTo: subjectTerms.join('\n') || null,
+      excludes: excludeTerms.join('\n') || null,
+      totalPackages: 0,
+      totalPallets: 0,
+      totalWeightKg: 0,
+      totalVolumeCbm: 0,
+      cargoLines: form.cargoDescription || form.cargoObservations || form.cabysCode || supportSummaryText()
+        ? [{
+            description: [
+              form.cabysCode ? `CABYS ${form.cabysCode}` : '',
+              form.cargoDescription,
+              form.cargoObservations ? `Observaciones: ${form.cargoObservations}` : '',
+              supportSummaryText(),
+            ].filter(Boolean).join(' · '),
+            packages: 0,
+            pallets: 0,
+            weightKg: 0,
+            lengthCm: 0,
+            widthCm: 0,
+            heightCm: 0,
+          }]
+        : [],
+      details,
+    }
+
+    let rateId: string
+    if (editingRate.value) {
+      const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
+      const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
+      const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
+      const extraDetails = createPayload.details.map((detail, index) => ({
+        ...detail,
+        id: includedLines.value[index]?.detailId ?? null,
+      }))
+      const { sourceImportFclRateId: _sourceImportFclRateId, details: _details, ...baseUpdate } = createPayload
+      const updatePayload = {
+        ...baseUpdate,
+        agentId: agent!.id,
+        agentName: displayValue(agent),
+        agentCode: agent!.code,
+        carrierId: carrier!.id,
+        carrierName: displayValue(carrier),
+        carrierCode: carrier!.code,
+        rateType: editingRate.value.rateType,
+        quoNumber: editingRate.value.quoNumber ?? null,
+        // Includes / SubjectTo / Excludes already come from baseUpdate, recalculated by
+        // this same wizard from the edited Incoterm, services and tariff lines.
+        extraDetails,
+        removedExtraDetailIds,
+      } as UpdateRateRequest
+      await PricingService.updateRate(editingRate.value.id, updatePayload)
+      rateId = editingRate.value.id
+      const nextRevision = editingRate.value.status === 'AcceptedByClient'
+        ? (editingRate.value.revisionNumber || 1) + 1
+        : (editingRate.value.revisionNumber || 1)
+      toastStore.success(
+        editingRate.value.status === 'AcceptedByClient'
+          ? `Revisión ${nextRevision} creada y versión aceptada anterior conservada.`
+          : 'Tarifa actualizada correctamente.',
+      )
+    } else {
+      rateId = await PricingService.createRate(createPayload)
+      toastStore.success('Tarifa creada correctamente.')
+    }
+    createdRateId.value = rateId
+    await router.push({ name: 'pricing-rates' })
+  } catch (error) {
+    toastStore.backendError(error, isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.')
+  } finally {
+    saving.value = false
+  }
+}
+
+function resetWizard() {
+  step.value = 1
+  createdRateId.value = ''
+  availableRates.value = []
+  rateLines.value = []
+  supportEntityId.value = crypto.randomUUID()
+  finalBackupEntityId.value = crypto.randomUUID()
+  allInPresentation.value = false
+  supportDocuments.value = []
+  finalBackupDocuments.value = []
+  Object.assign(form, {
+    rateType: 'Spot',
+    modality: '',
+    shipmentMode: '',
+    originId: '',
+    destinationId: '',
+    podId: '',
+    equipmentSize: '',
+    equipmentType: '',
+    equipmentId: '',
+    equipmentQuantity: 1,
+    incotermId: '',
+    serviceIds: [],
+    loadDate: todayIso(),
+    validTo: addDaysIso(todayIso(), 30),
+    selectedImportRateId: '',
+    manualRate: false,
+    clientId: '',
+    clientName: '',
+    executiveId: '',
+    executiveName: '',
+    idtraNumber: '',
+    pickupAddress: '',
+    warehouseId: '',
+    pickupLatitude: null,
+    pickupLongitude: null,
+    freeDays: 0,
+    transitDays: 0,
+    agentId: '',
+    carrierId: '',
+    freightCost: 0,
+    freightSale: 0,
+    cabysSearch: '',
+    cabysCode: '',
+    cargoDescription: '',
+    cargoObservations: '',
+    cargoValue: 0,
+    cargoWeightKg: 0,
+    cargoPallets: 1,
+    cargoLengthCm: 0,
+    cargoWidthCm: 0,
+    cargoHeightCm: 0,
+    dangerousCargo: false,
+    nonStackable: false,
+    overweight: false,
+    merchantHaulage: false,
+    carrierHaulage: false,
+    manualName: '',
+    manualSection: 'destination_charges',
+  })
+}
+
+watch(
+  () => form.cargoDescription,
+  (value) => {
+    const sanitized = sanitizeCargoDescriptionForField(value)
+    if (sanitized !== value) form.cargoDescription = sanitized
+  },
+  { flush: 'sync' },
+)
+
+watch(
+  () => selectedIncotermCode.value,
+  (code) => {
+    nearestPortRecommendations.value = []
+    if (code !== 'FCA') form.warehouseId = ''
+    if (code !== 'EXW' && code !== 'FCA') {
+      form.pickupAddress = ''
+      form.pickupLatitude = null
+      form.pickupLongitude = null
+    }
+  },
+)
+
+watch(
+  () => form.warehouseId,
+  () => {
+    if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()
+  },
+)
+
+watch(
+  () => form.clientId,
+  (clientId) => {
+    const client = findById(catalogs.clients, clientId)
+    if (!client) return
+    form.clientName = displayValue(client) || client.label
+    const assignedExecutiveId = metadata(client)?.salesExecutiveId
+    if (assignedExecutiveId && catalogs.salesExecutives.some((item) => item.id === assignedExecutiveId)) {
+      form.executiveId = assignedExecutiveId
+    }
+  },
+)
+
+watch(
+  () => form.executiveId,
+  (executiveId) => {
+    const executive = findById(catalogs.salesExecutives, executiveId)
+    if (executive) form.executiveName = displayValue(executive) || executive.label
+  },
+)
+
+watch(
+  () => form.originId,
+  () => assignAgentForOrigin(),
+)
+
+watch(
+  () => form.destinationId,
+  () => {
+    const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
+    form.podId = equivalent?.id ?? ''
+  },
+)
+
+watch(
+  () => form.equipmentSize,
+  () => {
+    if (!equipmentHasSizes.value) return
+    if (form.equipmentType && !equipmentTypeOptions.value.some((option) => option.value === form.equipmentType)) {
+      form.equipmentType = ''
+      form.equipmentId = ''
+    }
+  },
+)
+
+watch(
+  () => [form.equipmentSize, form.equipmentType, form.modality] as const,
+  () => {
+    if (!form.modality || !form.equipmentType) {
+      form.equipmentId = ''
+      return
+    }
+
+    if (!equipmentHasSizes.value) {
+      form.equipmentId = equipmentSource.value.some((item) => item.id === form.equipmentType)
+        ? form.equipmentType
+        : ''
+      return
+    }
+
+    const equipment = equipmentSource.value.find((item) => {
+      const meta = metadata(item)
+      return meta?.size === form.equipmentSize && meta?.kind === form.equipmentType
+    })
+    form.equipmentId = equipment?.id ?? ''
+  },
+)
+
+watch(
+  () => [form.agentId, form.carrierId] as const,
+  async ([agentId]) => {
+    if (hydratingExistingRate.value || step.value < 6 || !agentId) return
+    await loadApplicableCosts()
+    if (step.value >= 7) rebuildRateLines()
+  },
+)
+
+watch(() => form.currencyId, () => {
+  if (hydratingExistingRate.value) return
+  if (step.value === 7) rebuildRateLines()
+})
+
+watch(
+  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|')] as const,
+  () => {
+    if (hydratingExistingRate.value || step.value < 7) return
+    rebuildRateLines()
+  },
+)
+
+watch(step, (value) => {
+  if (value === 7) void loadHaciendaExchangeRate(false)
+})
+
+onMounted(async () => {
+  await loadCatalogs()
+  if (props.rateId) await hydrateExistingRate()
+  else await loadHaciendaExchangeRate(true)
+})
+</script>
+
+<template>
+  <div class="pricing-crystal-shell space-y-5">
+    <div class="crystal-orb crystal-orb--one" />
+    <div class="crystal-orb crystal-orb--two" />
+
+    <DhPageHeader
+      :title="pageTitle"
+      :description="pageDescription"
+    />
+
+    <div v-if="loadingExistingRate" class="crystal-soft p-5 text-sm font-black">Cargando tarifa completa…</div>
+
+    <div v-else-if="editingRate" class="crystal-soft p-5">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <DhBadge :label="editingRate.rateCode" variant="primary" />
+            <DhBadge :label="`Revisión ${editingRate.revisionNumber || 1}`" variant="neutral" />
+            <DhBadge :label="editingRate.status" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
+          </div>
+          <p class="mt-3 text-lg font-black">{{ editingRate.rateName }}</p>
+          <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ editingRate.quoNumber || '—' }}</p>
+        </div>
+        <DhButton v-if="viewOnly" variant="secondary" @click="editCurrentRate">Editar en este wizard</DhButton>
+      </div>
+      <div v-if="editingRate.status === 'AcceptedByClient' && !viewOnly" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">
+        Esta tarifa ya fue aceptada. Al guardar, Dhole conservará la revisión {{ editingRate.revisionNumber || 1 }} como versión histórica y abrirá la revisión {{ (editingRate.revisionNumber || 1) + 1 }}.
+      </div>
+      <PricingRateHistory v-if="editingRate" :rate-id="editingRate.id" />
+      <details v-if="rateRevisions.length" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+        <summary class="cursor-pointer text-sm font-black">Historial de revisiones · {{ rateRevisions.length }} versión{{ rateRevisions.length === 1 ? '' : 'es' }} anterior{{ rateRevisions.length === 1 ? '' : 'es' }}</summary>
+        <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="revision in rateRevisions" :key="revision.id" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs">
+            <div class="flex items-center justify-between gap-2">
+              <strong>Revisión {{ revision.revisionNumber }}</strong>
+              <DhBadge :label="revision.status" :variant="revision.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
+            </div>
+            <p class="mt-2 truncate font-bold" :title="revision.rateName">{{ revision.idtraNumber || 'Sin IDTRA' }} · {{ revision.quoNumber || 'Sin QUO' }}</p>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <div class="rounded-lg bg-[var(--dh-card-hover)] px-2.5 py-2">
+                <span class="block text-[9px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo</span>
+                <strong class="mt-0.5 block">USD {{ revisionTotals(revision).costUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</strong>
+              </div>
+              <div class="rounded-lg bg-[var(--dh-card-hover)] px-2.5 py-2">
+                <span class="block text-[9px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Venta</span>
+                <strong class="mt-0.5 block">USD {{ revisionTotals(revision).saleUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</strong>
+              </div>
+            </div>
+            <p class="mt-2 font-bold">Margen {{ revisionTotals(revision).marginPercentage.toFixed(2) }}%</p>
+            <p class="mt-1 text-[var(--dh-text-muted)]">CRC costo ₡{{ revisionTotals(revision).costCrc.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} · venta ₡{{ revisionTotals(revision).saleCrc.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
+            <p class="mt-1 text-[var(--dh-text-muted)]">{{ new Date(revision.createdAtUtc).toLocaleString('es-CR') }}</p>
+            <DhButton class="mt-3 w-full" variant="secondary" size="sm" @click="openRateRevision(revision)">
+              Ver revisión completa
+            </DhButton>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">
+      <button
+        v-for="(title, index) in visibleStepTitles"
+        :key="title"
+        type="button"
+        class="crystal-step"
+        :class="{
+          'crystal-step--active': index + 1 === step,
+          'crystal-step--done': index + 1 < step,
+        }"
+        @click="goToStep(index + 1)"
+      >
+        <span class="text-[10px] font-black uppercase tracking-[0.16em]">{{ String(index + 1).padStart(2, '0') }}</span>
+        <span class="mt-1 block text-xs font-extrabold">{{ title }}</span>
+      </button>
+    </div>
+
+    <section class="crystal-panel min-h-[470px] p-5 md:p-8" :class="{ 'wizard-view-readonly': viewOnly && step !== 9 }">
+      <div v-if="loadingCatalogs" class="grid min-h-[390px] place-items-center text-sm font-semibold text-[var(--dh-text-muted)]">
+        Cargando configuración de Pricing…
+      </div>
+
+      <template v-else>
+        <div v-if="step === 1" class="space-y-6">
+          <div>
+            <p class="crystal-kicker">Pantalla 1</p>
+            <h2 class="crystal-title">Seleccione la modalidad</h2>
+            <p class="crystal-description">Al elegir una modalidad se agrega Transporte Internacional como servicio inicial.</p>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <button
+              v-for="option in modalityOptions"
+              :key="option.value"
+              type="button"
+              class="crystal-choice group"
+              :class="form.modality === option.value ? 'crystal-choice--active' : ''"
+              @click="chooseModality(option.value)"
+            >
+              <span class="crystal-icon"><component :is="modalityIcon(option.value)" class="h-6 w-6" /></span>
+              <span class="mt-5 block text-lg font-black">{{ option.label }}</span>
+              <span class="mt-1 block text-xs font-semibold text-[var(--dh-text-muted)]">{{ option.caption }}</span>
+              <Check v-if="form.modality === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="step === 2" class="space-y-6">
+          <div>
+            <p class="crystal-kicker">Pantalla 2</p>
+            <h2 class="crystal-title">Tipo de embarque</h2>
+            <p class="crystal-description">Solo se muestran los tipos compatibles con la modalidad elegida.</p>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-3">
+            <button
+              v-for="option in shipmentModeOptions"
+              :key="option.value"
+              type="button"
+              class="crystal-choice min-h-[120px]"
+              :class="form.shipmentMode === option.value ? 'crystal-choice--active' : ''"
+              @click="chooseShipmentMode(option.value)"
+            >
+              <span class="text-lg font-black">{{ option.label }}</span>
+              <Check v-if="form.shipmentMode === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="step === 3" class="space-y-6">
+          <div>
+            <p class="crystal-kicker">Pantalla 3</p>
+            <h2 class="crystal-title">{{ form.modality === 'Land' ? 'Ruta, furgón, Incoterm y servicios' : 'Ruta, equipo, Incoterm y servicios' }}</h2>
+            <p class="crystal-description">Seleccione el tipo comercial y luego complete la ruta. Un SPOT se vuelve a cotizar al duplicarse; un TARIFARIO conserva su snapshot cuando un cliente lo acepta.</p>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              class="crystal-choice min-h-[118px] text-left"
+              :class="form.rateType === 'Spot' ? 'crystal-choice--active' : ''"
+              @click="form.rateType = 'Spot'"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-base font-black">SPOT</p>
+                  <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">Cotización puntual. Al duplicarla se revisan los datos y se vuelve a escoger el flete vigente.</p>
+                </div>
+                <Check v-if="form.rateType === 'Spot'" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+              </div>
+            </button>
+            <button
+              type="button"
+              class="crystal-choice min-h-[118px] text-left"
+              :class="form.rateType === 'Tariff' ? 'crystal-choice--active' : ''"
+              @click="form.rateType = 'Tariff'"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-base font-black">TARIFARIO</p>
+                  <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">Tarifa de vigencia extendida. Cuando un cliente la acepta se crea otra QUO con el mismo flete, cargos y recargos.</p>
+                </div>
+                <Check v-if="form.rateType === 'Tariff'" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+              </div>
+            </button>
+          </div>
+
+          <div
+            v-if="form.rateType === 'Tariff'"
+            class="rounded-2xl border border-[var(--dh-primary)]/25 dh-bg-primary-soft px-4 py-3 text-xs font-semibold leading-5 text-[var(--dh-text-soft)]"
+          >
+            El tarifario maestro puede reutilizarse durante su vigencia. La aceptación de un cliente no modifica el maestro: genera una nueva QUO ligada a la revisión exacta del tarifario.
+          </div>
+
+          <div class="crystal-soft space-y-5 p-4 md:p-5">
+            <div class="grid gap-4 md:grid-cols-2">
+              <DhSelect v-if="clientOptions.length" v-model="form.clientId" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />
+              <DhInput v-else v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
+              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />
+              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
+            </div>
+            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">Clientes y ejecutivos usan catálogos temporales de Config para evitar duplicar el futuro módulo Comercial.</p>
+
+            <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
+            <div class="grid gap-4 md:grid-cols-3">
+              <PricingLocationSearchSelect
+                v-model="form.originId"
+                label="Origen (POL)"
+                placeholder="Buscar puerto de origen"
+                search-placeholder="Buscar puerto, ciudad o país…"
+                terminal-type="CY"
+                :options="originOptions"
+              />
+              <PricingLocationSearchSelect
+                v-model="form.destinationId"
+                label="Destino (POE)"
+                placeholder="Buscar puerto de salida"
+                search-placeholder="Buscar puerto, ciudad o país…"
+                terminal-type="CY"
+                :options="destinationOptions"
+              />
+              <PricingLocationSearchSelect
+                v-model="form.podId"
+                label="POD"
+                placeholder="Buscar destino final"
+                search-placeholder="Buscar destino, ciudad o región…"
+                terminal-type="SD"
+                :optional="true"
+                :options="podOptions"
+              />
+            </div>
+
+            <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->
+            <div class="grid gap-4 md:grid-cols-3">
+              <DhSelect
+                v-if="equipmentHasSizes"
+                v-model="form.equipmentSize"
+                :label="form.modality === 'Land' ? 'Tamaño de furgón' : 'Tamaño de equipo'"
+                :placeholder="form.modality === 'Land' ? 'Seleccione tamaño de furgón' : 'Seleccione tamaño'"
+                :options="equipmentSizeOptions"
+              />
+              <DhSelect
+                v-model="form.equipmentType"
+                :label="form.modality === 'Land' ? 'Tipo de furgón' : equipmentHasSizes ? 'Tipo de equipo' : 'Tipo de equipo'"
+                :placeholder="form.modality === 'Land' ? 'Seleccione furgón' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
+                :disabled="equipmentHasSizes && !form.equipmentSize"
+                :options="equipmentTypeOptions"
+              />
+              <DhInput v-model.number="form.equipmentQuantity" type="number" min="1" :label="form.modality === 'Land' ? 'Cantidad de unidades' : 'Cantidad de equipo'" />
+            </div>
+
+            <!-- Fila 4: Incoterm y fecha de carga lista. -->
+            <div class="grid gap-4 md:grid-cols-2">
+              <DhSelect v-model="form.incotermId" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
+              <DhInput v-model="form.loadDate" type="date" :label="form.rateType === 'Tariff' ? 'Vigente desde' : 'Vigente desde / carga lista'" />
+              <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />
+            </div>
+
+            <PricingCrystalMultiSelect
+              v-model="form.serviceIds"
+              label="Servicios"
+              placeholder="Seleccione servicios"
+              search-placeholder="Buscar servicio..."
+              :options="serviceOptions"
+            />
+          </div>
+
+          <div v-if="selectedIncotermCode === 'EXW' || selectedIncotermCode === 'FCA'" class="crystal-soft space-y-4 p-4 md:p-5">
+            <div>
+              <p class="font-black">{{ selectedIncotermCode === 'EXW' ? 'Lugar de recolección EXW' : 'WHS de entrega FCA' }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ selectedIncotermCode === 'EXW'
+                  ? nearbyOriginCopy.description
+                  : 'Seleccione uno de los WHS globales configurados. Su ubicación se refleja en el mapa.' }}
+              </p>
+            </div>
+
+            <PricingLocationSearchSelect
+              v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length"
+              v-model="form.warehouseId"
+              label="WHS global"
+              placeholder="Buscar o seleccionar WHS"
+              search-placeholder="Buscar WHS, país, ciudad, código o iniciales…"
+              terminal-type="WHS"
+              :options="warehouseOptions"
+            />
+            <div
+              v-else-if="selectedIncotermCode === 'FCA'"
+              class="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold text-[var(--dh-text-soft)]"
+            >
+              No hay WHS cargados todavía en Config. Puede indicar una dirección temporal mientras se completa el catálogo “WHS globales”.
+            </div>
+
+            <div v-if="selectedIncotermCode === 'FCA' && selectedWarehouse" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-xs font-semibold text-[var(--dh-text-soft)]">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+                <DhStorageImage
+                  v-if="metadata(selectedWarehouse)?.imageStorageId"
+                  :file-id="metadata(selectedWarehouse)?.imageStorageId"
+                  :alt="`Imagen de ${selectedWarehouse.label || displayValue(selectedWarehouse)}`"
+                  class="h-28 w-28 shrink-0 self-start sm:h-32 sm:w-32"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-black text-[var(--dh-text)]">{{ selectedWarehouse.label || displayValue(selectedWarehouse) }}</p>
+                  <p class="mt-2"><strong>Dirección:</strong> {{ warehouseAddress(selectedWarehouse) || 'Sin dirección' }}</p>
+                  <p v-if="metadata(selectedWarehouse)?.schedule" class="mt-1"><strong>Horario:</strong> {{ metadata(selectedWarehouse)?.schedule }}</p>
+                  <p v-if="form.shipmentMode !== 'FCL' && selectedWarehouseContactNames" class="mt-1"><strong>Contactos:</strong> {{ selectedWarehouseContactNames }}</p>
+                  <p v-if="form.shipmentMode !== 'FCL' && selectedWarehouseContactEmails" class="mt-1 break-words"><strong>Email:</strong> {{ selectedWarehouseContactEmails }}</p>
+                  <p v-if="form.shipmentMode !== 'FCL' && selectedWarehouseContactPhones" class="mt-1"><strong>Teléfono:</strong> {{ selectedWarehouseContactPhones }}</p>
+                  <p v-if="metadataNumber(selectedWarehouse, 'latitude', 'lat') != null && metadataNumber(selectedWarehouse, 'longitude', 'lng') != null" class="mt-1">
+                    <strong>Ubicación:</strong>
+                    {{ metadataNumber(selectedWarehouse, 'latitude', 'lat')?.toFixed(6) }},
+                    {{ metadataNumber(selectedWarehouse, 'longitude', 'lng')?.toFixed(6) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <DhButton v-if="selectedIncotermCode === 'FCA'" variant="ghost" @click="router.push({ name: 'config-catalogs', query: { search: 'pricing-warehouses' } })">Administrar / crear WHS en Config</DhButton>
+
+            <DhInput
+              v-model="form.pickupAddress"
+              :label="selectedIncotermCode === 'EXW' ? 'Dirección de recolección' : 'Dirección del WHS'"
+              placeholder="Ciudad, provincia/estado y país"
+              :disabled="selectedIncotermCode === 'FCA' && warehouseOptions.length > 0"
+            />
+
+            <div class="flex flex-wrap gap-2">
+              <DhButton
+                variant="secondary"
+                :disabled="locatingPickup || !form.pickupAddress.trim()"
+                @click="geocodePickupAddress(selectedIncotermCode === 'EXW')"
+              >
+                <Waypoints class="h-4 w-4" /> {{ locatingPickup ? 'Ubicando…' : 'Ubicar en mapa' }}
+              </DhButton>
+              <DhButton
+                v-if="selectedIncotermCode === 'EXW'"
+                variant="ghost"
+                :disabled="locatingPickup"
+                @click="useCurrentLocation"
+              >
+                Usar mi ubicación
+              </DhButton>
+            </div>
+
+            <PricingInteractiveOsmMap
+              v-if="selectedIncotermCode === 'EXW'"
+              :latitude="form.pickupLatitude"
+              :longitude="form.pickupLongitude"
+              :markers="nearestPortMapMarkers"
+              :fit-markers="nearestPortMapMarkers.length > 0"
+              :interactive-selection="true"
+              :initial-zoom="11"
+              :selection-zoom="13"
+              hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección. Los puertos encontrados se muestran como marcadores."
+              @select-point="selectPickupFromMap"
+            />
+            <PricingInteractiveOsmMap
+              v-else
+              :latitude="form.pickupLatitude"
+              :longitude="form.pickupLongitude"
+              :markers="warehouseMapMarkers"
+              :interactive-selection="false"
+              :fit-markers="!form.warehouseId"
+              :initial-zoom="3"
+              :selection-zoom="10"
+              hint="Los marcadores corresponden a los WHS globales configurados en Dhole. Al seleccionar uno, el mapa se centra en ese WHS."
+              @select-marker="selectWarehouseFromMap"
+            />
+            <p
+              v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length > warehouseMapMarkers.length"
+              class="text-[11px] font-bold text-amber-600"
+            >
+              Algunos WHS todavía no tienen coordenadas configuradas; siguen disponibles en la lista y se ubican al seleccionarlos.
+            </p>
+            <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
+              Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
+            </p>
+
+            <div v-if="selectedIncotermCode === 'EXW'" class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p class="text-sm font-black">{{ nearbyOriginCopy.title }}</p>
+                  <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ nearbyOriginCopy.description }}</p>
+                </div>
+                <DhButton
+                  variant="secondary"
+                  :disabled="recommendingPorts || !form.pickupAddress.trim()"
+                  @click="recommendNearestPorts"
+                >
+                  <Sparkles class="h-4 w-4" /> {{ recommendingPorts ? 'Analizando…' : nearbyOriginCopy.action }}
+                </DhButton>
+              </div>
+
+              <div v-if="nearestPortRecommendations.length" class="grid gap-2 md:grid-cols-3">
+                <button
+                  v-for="recommendation in nearestPortRecommendations"
+                  :key="recommendation.key"
+                  type="button"
+                  class="min-h-24 rounded-2xl border p-3 text-left transition"
+                  :class="recommendation.polId && form.originId === recommendation.polId
+                    ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)]'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[rgb(var(--dh-primary-rgb)/0.35)]'"
+                  :disabled="!recommendation.polId"
+                  @click="recommendation.polId && selectRecommendedPort(recommendation.polId)"
+                >
+                  <span class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="block text-sm font-black">{{ recommendation.name }}</span>
+                    <DhBadge :variant="recommendation.polId && form.originId === recommendation.polId ? 'success' : recommendation.polId ? 'primary' : 'neutral'">
+                      {{ recommendation.polId && form.originId === recommendation.polId
+                        ? 'POL actual'
+                        : recommendation.polId
+                          ? 'Cambiar POL'
+                          : nearbyOriginCopy.badge }}
+                    </DhBadge>
+                  </span>
+                  <span v-if="recommendation.distanceKm != null" class="mt-2 block text-xs font-black text-[var(--dh-primary)]">
+                    {{ recommendation.distanceKm.toFixed(1) }} km desde la recolección
+                  </span>
+                  <span class="mt-1 block text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]">{{ recommendation.reason }}</span>
+                  <span v-if="!recommendation.polId" class="mt-2 block text-[11px] font-bold text-[var(--dh-text-muted)]">
+                    No está en el catálogo de orígenes (POL); se muestra porque sí está dentro del radio geográfico y corresponde a la modalidad seleccionada.
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <a
+              class="inline-flex min-h-11 touch-manipulation items-center font-black text-[var(--dh-primary)]"
+              :href="pickupCoordinates
+                ? `https://www.openstreetmap.org/?mlat=${pickupCoordinates.latitude}&mlon=${pickupCoordinates.longitude}#map=12/${pickupCoordinates.latitude}/${pickupCoordinates.longitude}`
+                : `https://www.openstreetmap.org/search?query=${encodeURIComponent(form.pickupAddress)}`"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Abrir ubicación en OpenStreetMap</a>
+          </div>
+
+          <div v-if="selectedEquipment || direction" class="crystal-route-summary">
+            <div>
+              <span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Operación</span>
+              <strong class="mt-1 block text-sm">{{ direction || 'Por determinar' }}</strong>
+            </div>
+            <div v-if="selectedEquipment">
+              <span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">{{ form.modality === 'Land' ? 'Furgón' : 'Equipo' }}</span>
+              <strong class="mt-1 block text-sm">{{ displayValue(selectedEquipment) }}</strong>
+            </div>
+            <div>
+              <span class="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">Servicios</span>
+              <strong class="mt-1 block text-sm">{{ selectedServices.length }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="step === 5" class="space-y-6">
+          <div>
+            <p class="crystal-kicker">Pantalla 5</p>
+            <h2 class="crystal-title">Tarifas pre-aprobadas disponibles</h2>
+            <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
+          </div>
+
+          <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
+
+          <template v-else-if="availableRates.length">
+            <div class="grid gap-4 lg:grid-cols-2">
+              <button
+                v-for="rate in sortedAvailableRates"
+                :key="rate.id"
+                type="button"
+                class="crystal-rate-card"
+                :class="form.selectedImportRateId === rate.id ? 'crystal-rate-card--active' : ''"
+                @click="chooseRate(rate)"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="font-black">{{ rate.carrier }}</p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                      {{ rate.pol }} → {{ rate.poe || rate.pod }} · {{ rate.containerType }}
+                    </p>
+                  </div>
+                  <DhBadge :variant="rate.status === 'PreAuthorized' ? 'warning' : 'success'">{{ rate.status === 'PreAuthorized' ? 'Preautorizada' : 'Preaprobada' }}</DhBadge>
+                </div>
+                <p class="mt-5 text-2xl font-black">{{ formatMoney(rate.freight, displayValue(findById(catalogs.currencies, rate.currencyId)) || rate.currency || 'USD') }}</p>
+                <div class="crystal-validity">
+        <div class="crystal-validity-range">
+          <span>Vigencia</span>
+          <strong>{{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}</strong>
+        </div>
+        <div class="crystal-validity-days" :class="`crystal-validity-days--${validityTone(rate.validTo)}`">
+          <strong>{{ remainingValidityDays(rate.validTo) }}</strong>
+          <span>días restantes</span>
+        </div>
+      </div>
+                <p v-if="rate.spaceComment" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-left text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Comentario: {{ rate.spaceComment }}
+                </p>
+                <p class="mt-3 text-left text-xs font-black" :class="rate.freeDays > 0 ? 'text-emerald-600' : 'text-amber-600'">
+                  {{ rate.freeDays > 0 ? `Incluye ${rate.freeDays} días libres` : 'No incluye días libres; deberá ingresarlos en Proveedor' }}
+                </p>
+                <p class="mt-3 text-left text-[11px] font-bold text-[var(--dh-text-muted)]">
+                  Fuente: {{ importSourceTitle(rate) }}
+                </p>
+                <span class="mt-1 inline-flex items-center gap-1 text-xs font-black text-[var(--dh-primary)] hover:underline" role="link" tabindex="0" @click.stop="openImportSource(rate)" @keyup.enter.stop="openImportSource(rate)">
+                  <ExternalLink class="h-3.5 w-3.5" /> Ver correo / fuente de la tarifa
+                </span>
+              </button>
+            </div>
+            <div class="flex justify-end">
+              <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+            </div>
+          </template>
+
+          <div v-else class="crystal-empty p-9 text-center">
+            <p class="text-lg font-black">No existen tarifas vigentes para esa ruta y equipo</p>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">Puede guardar la solicitud como Abierta para que Pricing la procese después, o continuar de manera manual.</p>
+            <div class="mt-5 flex flex-wrap justify-center gap-2">
+              <DhButton :disabled="saving" @click="saveOpenRequest">{{ saving ? 'Guardando…' : 'Guardar solicitud abierta' }}</DhButton>
+              <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+            </div>
+          </div>
+
+          <div v-if="form.manualRate && availableRates.length" class="crystal-soft px-4 py-3 text-sm font-bold">
+            Se usará captura manual en la siguiente pantalla.
+          </div>
+        </div>
+
+        <div v-else-if="step === 6" class="space-y-6">
+          <div>
+            <p class="crystal-kicker">Pantalla 6</p>
+            <h2 class="crystal-title">Proveedor y flete internacional</h2>
+            <p class="crystal-description">Los selects muestran el Value configurado en Config.</p>
+          </div>
+
+          <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
+            <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />
+            <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
+            <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
+            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
+            <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
+            <DhInput v-if="shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
+            <div v-else class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
+            <DhInput v-model.number="form.transitDays" type="number" min="0" label="Días de tránsito" />
+          </div>
+
+          <div class="crystal-route-summary grid gap-3 md:grid-cols-4">
+  <div class="crystal-metric crystal-metric--cost">
+    <span class="block text-[10px] font-black uppercase tracking-[0.16em]">Costo</span>
+    <strong class="mt-1 block text-sm">{{ formatMoney(providerCost, displayValue(selectedCurrency) || 'USD') }}</strong>
+    <small v-if="providerAgentCost > 0">Incluye {{ formatMoney(providerAgentCost, displayValue(selectedCurrency) || 'USD') }} de agente</small>
+  </div>
+  <div class="crystal-metric crystal-metric--sale">
+    <span class="block text-[10px] font-black uppercase tracking-[0.16em]">Venta</span>
+    <strong class="mt-1 block text-sm">{{ formatMoney(providerSale, displayValue(selectedCurrency) || 'USD') }}</strong>
+  </div>
+  <div class="crystal-metric" :class="`crystal-metric--${financialTone(providerUtility)}`">
+    <span class="block text-[10px] font-black uppercase tracking-[0.16em]">Utilidad</span>
+    <strong class="mt-1 block text-sm">{{ formatMoney(providerUtility, displayValue(selectedCurrency) || 'USD') }}</strong>
+  </div>
+  <div class="crystal-metric" :class="`crystal-metric--${financialTone(providerMarginPercentage)}`">
+    <span class="block text-[10px] font-black uppercase tracking-[0.16em]">Margen</span>
+    <strong class="mt-1 block text-sm">{{ providerMarginPercentage.toFixed(2) }}%</strong>
+  </div>
+</div>
+        </div>
+
+        <div v-else-if="step === 4" class="space-y-6">
+          <div>
+            <p class="crystal-kicker">Pantalla 4</p>
+            <h2 class="crystal-title">Descripción de carga y CABYS</h2>
+          </div>
+
+          <div class="crystal-soft space-y-4 p-4 md:p-5">
+            <div class="flex flex-col gap-2 sm:flex-row">
+              <div class="flex-1">
+                <DhInput v-model="form.cabysSearch" label="Buscar CABYS de Hacienda" placeholder="Ej. repuestos, textiles, maquinaria…" @keyup.enter="searchCabys" />
+              </div>
+              <DhButton class="sm:mt-6" :disabled="loadingCabys" @click="searchCabys"><Search class="h-4 w-4" /> Buscar</DhButton>
+            </div>
+
+            <div v-if="cabysResults.length" class="max-h-52 overflow-auto rounded-[20px] border border-[var(--dh-border)] bg-[rgb(var(--dh-primary-rgb)/0.025)]">
+              <button
+                v-for="item in cabysResults"
+                :key="item.code"
+                type="button"
+                class="flex w-full gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-left last:border-b-0 hover:bg-[rgb(var(--dh-primary-rgb)/0.06)]"
+                @click="chooseCabys(item)"
+              >
+                <span class="shrink-0 font-mono text-xs font-black">{{ item.code }}</span>
+                <span class="text-sm font-semibold">{{ item.description }}</span>
+              </button>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <DhInput v-model="cargoDescriptionModel" label="Descripción de la carga (opcional)" />
+              <DhInput v-model.number="form.cargoValue" type="number" min="0" step="0.01" label="Valor de la carga (si aplica)" />
+            </div>
+
+            <div v-if="shipmentModeForApi === 'Lcl'" class="space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
+              <div>
+                <p class="font-black">Medidas de la carga LCL</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Ingrese las medidas de cada tarima en centímetros. El sistema multiplica por la cantidad de tarimas y compara volumen contra peso/500.</p>
+              </div>
+              <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <DhInput v-model.number="form.cargoWeightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />
+                <DhInput v-model.number="form.cargoPallets" type="number" min="1" step="1" label="Tarimas" />
+                <DhInput v-model.number="form.cargoLengthCm" type="number" min="0" step="0.01" label="Largo (cm)" />
+                <DhInput v-model.number="form.cargoWidthCm" type="number" min="0" step="0.01" label="Ancho (cm)" />
+                <DhInput v-model.number="form.cargoHeightCm" type="number" min="0" step="0.01" label="Alto (cm)" />
+              </div>
+              <div class="grid gap-3 sm:grid-cols-3">
+                <div class="crystal-metric crystal-metric--neutral">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">CBM dimensional</span>
+                  <strong class="mt-1 block text-base">{{ lclDimensionalCbm.toFixed(3) }} CBM</strong>
+                </div>
+                <div class="crystal-metric crystal-metric--neutral">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">Equivalente por peso</span>
+                  <strong class="mt-1 block text-base">{{ lclWeightCbm.toFixed(3) }} CBM</strong>
+                </div>
+                <div class="crystal-metric crystal-metric--sale">
+                  <span class="block text-[10px] font-black uppercase tracking-[0.12em]">CBM cobrable</span>
+                  <strong class="mt-1 block text-base">{{ lclChargeableCbm.toFixed(3) }} CBM</strong>
+                  <small>Mínimo facturable: 1 CBM</small>
+                </div>
+              </div>
+              <p v-if="form.cargoWeightKg <= 0 || form.cargoPallets <= 0 || form.cargoLengthCm <= 0 || form.cargoWidthCm <= 0 || form.cargoHeightCm <= 0" class="text-xs font-bold text-amber-600">
+                Complete peso, tarimas, largo, ancho y alto para continuar.
+              </p>
+            </div>
+            <DhTextarea v-model="form.cargoObservations" label="Observaciones de la carga" :rows="4" />
+
+            <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>
+            <p v-if="form.cargoValue > 0" class="crystal-insurance-hint">
+              Se mostrará Seguro de carga como opcional en Líneas con costo y venta calculados sobre el valor de la carga.
+            </p>
+          </div>
+
+          <div class="crystal-soft space-y-3 p-4 md:p-5">
+            <div>
+              <p class="font-black">Documentos de respaldo de la solicitud</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Imágenes, PDF, Word y Excel quedan guardados en Storage y vinculados a esta solicitud.</p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <label v-for="category in supportCategories" :key="category.key" class="crystal-flag cursor-pointer">
+                <FileUp class="h-4 w-4" />
+                <span>{{ uploadingSupportKey === category.key ? 'Subiendo…' : category.label }}</span>
+                <input class="hidden" type="file" :accept="supportAccept" :disabled="Boolean(uploadingSupportKey)" @change="uploadSupportDocument(category.key, category.label, $event)" />
+              </label>
+            </div>
+            <div v-if="supportDocuments.length" class="grid gap-2 md:grid-cols-2">
+              <div v-for="document in supportDocuments" :key="document.id" class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-xs">
+                <div class="min-w-0"><p class="font-black">{{ document.categoryLabel }}</p><p class="truncate text-[var(--dh-text-muted)]">{{ document.fileName }}</p></div>
+                <button type="button" class="font-black text-red-500" @click="removeSupportDocument(document)">Eliminar</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <button type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">
+              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa
+            </button>
+            <button v-if="shipmentModeForApi !== 'Fcl'" type="button" class="crystal-flag" :class="form.nonStackable ? 'crystal-flag--active' : ''" @click="form.nonStackable = !form.nonStackable">
+              <Check v-if="form.nonStackable" class="h-4 w-4" /> No estibable
+            </button>
+            <button type="button" class="crystal-flag" :class="form.overweight ? 'crystal-flag--active' : ''" @click="form.overweight = !form.overweight">
+              <Check v-if="form.overweight" class="h-4 w-4" /> Sobrepeso
+            </button>
+            <button type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">
+              <Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant
+            </button>
+            <button type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">
+              <Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="step === 7" class="crystal-lines-stage space-y-6">
+          <div class="crystal-lines-header flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p class="crystal-kicker">Pantalla 7</p>
+              <h2 class="crystal-title">Líneas de tarifa</h2>
+              <p class="crystal-description">Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.</p>
+              <p class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] px-3 py-2 text-xs font-semibold text-[var(--dh-text)]">Facturación por cliente: puede escribir el cliente en cada ítem o asignarlo de una vez a todo un bloque.</p>
+            </div>
+            <div class="crystal-total-card" aria-label="Resumen financiero de la tarifa">
+              <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo USD <strong>{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo CRC <strong>{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Subtotal USD <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Subtotal CRC <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--tax">IVA USD <strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--tax">IVA CRC <strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--total">Total USD <strong>{{ formatMoney(totalSaleUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--total">Total CRC <strong>{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityUsd)}`">Utilidad USD <strong>{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityCrc)}`">Utilidad CRC <strong>{{ formatMoney(totalUtilityCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
+              <span v-if="hasMixedCurrencies" class="crystal-total-card__metric crystal-total-card__metric--neutral">Oferta mixta <strong>USD + CRC</strong></span>
+            </div>
+          </div>
+
+          <div class="crystal-soft p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tipo de cambio USD / CRC</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se consulta automáticamente a Hacienda. Compra y Venta se pueden ajustar manualmente.</p>
+              </div>
+              <DhButton variant="secondary" size="sm" :loading="exchangeRateLoading" :disabled="exchangeRateLoading" @click="loadHaciendaExchangeRate(true)">Actualizar Hacienda</DhButton>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-2">
+              <DhInput v-model.number="exchangeRatePurchase" type="number" min="0.000001" step="0.01" label="Compra Hacienda (editable)" />
+              <DhInput v-model.number="exchangeRateSale" type="number" min="0.000001" step="0.01" label="Venta Hacienda (editable)" />
+            </div>
+            <p v-if="exchangeRateDate" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ exchangeRateSource }} · fecha {{ formatDate(exchangeRateDate) }}</p>
+            <p v-if="exchangeRateError" class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-700">{{ exchangeRateError }}</p>
+          </div>
+
+          <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
+            <div class="crystal-group-header">
+              <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
+              <div class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
+                <DhInput
+                  :model-value="billToBatchByGroup[group.key] ?? ''"
+                  class="min-w-[240px]"
+                  label="Facturar / cobrar todo el bloque a"
+                  placeholder="Escriba el cliente"
+                  maxlength="200"
+                  autocomplete="off"
+                  @update:model-value="(value) => { billToBatchByGroup[group.key] = String(value ?? '') }"
+                />
+                <DhButton type="button" variant="secondary" size="sm" @click="applyBillToBatch(group)">
+                  Aplicar cliente al bloque
+                </DhButton>
+              </div>
+            </div>
+            <div
+              v-for="line in group.lines"
+              :key="line.key"
+              :class="['crystal-line grid items-end gap-3 p-3 lg:grid-cols-[minmax(200px,1fr)_120px_140px_140px_minmax(200px,260px)_minmax(190px,230px)]', group.key === 'freight' ? 'crystal-line--freight' : '']"
+            >
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="font-bold">{{ line.name }}</p>
+                  <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
+                  <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
+                </div>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
+                </p>
+                <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
+                <button
+                  v-if="group.key === 'freight' && selectedImportRate"
+                  type="button"
+                  class="mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-left text-xs font-black text-[var(--dh-primary)] hover:underline"
+                  @click="openImportSource(selectedImportRate)"
+                >
+                  <ExternalLink class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span class="min-w-0">
+                    <span class="block text-[9px] uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Fuente del flete internacional</span>
+                    <span class="block break-words">{{ importSourceTitle(selectedImportRate) }}</span>
+                  </span>
+                </button>
+      <div v-if="line.notes" class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-left">
+        <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Comentario de Costos y recargos</span>
+        <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>
+      </div>
+              </div>
+              <div>
+                <DhSelect
+                  :model-value="line.currencyId"
+                  label="Divisa"
+                  :options="lineCurrencyOptions"
+                  :disabled="isLineCrcForced(line)"
+                  @update:model-value="(value) => setLineCurrency(line, String(value))"
+                />
+                <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · POE Costa Rica / importación</p>
+              </div>
+              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
+              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              <DhInput
+                :model-value="line.billToClient ?? ''"
+                class="min-w-[220px]"
+                maxlength="200"
+                label="Cliente a facturar"
+                placeholder="Escriba cliente"
+                autocomplete="off"
+                @update:model-value="(value) => { line.billToClient = String(value ?? '') }"
+              />
+              <div v-if="canApplyDestinationTax(line)" class="crystal-line-vat">
+                <DhCheckbox
+                  :model-value="Boolean(line.applyDestinationTax)"
+                  :label="`IVA destino (${destinationTaxRate}%)`"
+                  :disabled="destinationTaxRate <= 0"
+                  @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="crystal-bottom-charges space-y-4 p-4">
+            <div v-if="optionalChargeOptions.length">
+              <div class="crystal-group-header mb-3">
+                <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Cargos opcionales</p>
+              </div>
+              <PricingCrystalMultiSelect
+                v-model="selectedOptionalChargeKeys"
+                placeholder="Seleccione cargos opcionales"
+                search-placeholder="Buscar cargo opcional..."
+                :options="optionalChargeOptions"
+              />
+            </div>
+
+            <div v-if="bottomRateLines.length" class="space-y-2">
+              <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Opcionales y rubros manuales</p>
+              <div
+                v-for="line in bottomRateLines"
+                :key="line.key"
+                class="crystal-line grid items-end gap-3 p-3 lg:grid-cols-[minmax(200px,1fr)_120px_140px_140px_minmax(200px,260px)_minmax(190px,230px)_auto]"
+              >
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="font-bold">{{ line.name }}</p>
+                    <DhBadge v-if="line.optional" variant="neutral">Opcional</DhBadge>
+                    <DhBadge v-if="line.manual" variant="primary">Manual</DhBadge>
+                    <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
+                  </div>
+                  <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                    {{ sectionLabel(line.section) }} · Rubro: {{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}
+                  </p>
+        <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
+        <div v-if="line.notes" class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-left">
+          <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Comentario de Costos y recargos</span>
+          <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text-soft)]">{{ line.notes }}</p>
+        </div>
+                </div>
+                <div>
+                  <DhSelect
+                    :model-value="line.currencyId"
+                    label="Divisa"
+                    :options="lineCurrencyOptions"
+                    :disabled="isLineCrcForced(line)"
+                    @update:model-value="(value) => setLineCurrency(line, String(value))"
+                  />
+                  <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · POE Costa Rica / importación</p>
+                </div>
+                <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
+                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              <DhInput
+                :model-value="line.billToClient ?? ''"
+                class="min-w-[220px]"
+                maxlength="200"
+                label="Cliente a facturar"
+                placeholder="Escriba cliente"
+                autocomplete="off"
+                @update:model-value="(value) => { line.billToClient = String(value ?? '') }"
+              />
+                <div v-if="canApplyDestinationTax(line)" class="crystal-line-vat">
+                  <DhCheckbox
+                    :model-value="Boolean(line.applyDestinationTax)"
+                    :label="`IVA destino (${destinationTaxRate}%)`"
+                    :disabled="destinationTaxRate <= 0"
+                    @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
+                  />
+                </div>
+                <span v-else />
+                <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
+                <span v-else />
+              </div>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm font-black">Agregar rubro manual</p>
+              <div class="grid gap-3 md:grid-cols-[1fr_220px_auto]">
+                <DhInput v-model="form.manualName" label="Nombre del rubro" />
+                <DhSelect v-model="form.manualSection" label="Etapa" :options="visibleSections.map((value) => ({ value, label: sectionLabel(value) }))" />
+                <DhButton class="md:mt-6" variant="secondary" :disabled="!form.manualName.trim()" @click="addManualCharge"><Plus class="h-4 w-4" /> Añadir rubro</DhButton>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="step === 8" class="space-y-6">
+          <div>
+            <p class="crystal-kicker">Pantalla 8</p>
+            <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
+            <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
+          </div>
+
+          <div class="crystal-soft p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Presentación comercial</p>
+                  <DhBadge :variant="allInPresentation ? 'success' : 'neutral'">
+                    {{ allInPresentation ? 'ALL IN activo' : 'Desglose activo' }}
+                  </DhBadge>
+                </div>
+                <p class="mt-2 max-w-3xl text-xs font-semibold text-[var(--dh-text-muted)]">
+                  La formulación de costo y venta conserva todas las líneas. ALL IN solo cambia cómo se presenta la venta al cliente en el borrador y en el PDF.
+                </p>
+              </div>
+              <DhButton
+                variant="secondary"
+                type="button"
+                @click="allInPresentation = !allInPresentation"
+              >
+                {{ allInPresentation ? 'Quitar ALL IN' : 'Convertir a ALL IN' }}
+              </DhButton>
+            </div>
+
+            <div v-if="allInPresentation" class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">
+              <div class="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Concepto comercial</p>
+                  <p class="mt-1 text-xl font-black text-[var(--dh-text)]">ALL IN</p>
+                </div>
+                <div class="sm:text-right">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">USD</p>
+                  <strong class="text-base">{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong>
+                </div>
+                <div class="sm:text-right">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">CRC</p>
+                  <strong class="text-base">{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong>
+                </div>
+              </div>
+
+              <details class="border-t border-[var(--dh-border)] bg-[var(--dh-card)]" open>
+                <summary class="cursor-pointer px-4 py-3 text-xs font-black">
+                  Ver líneas incluidas · {{ includedLines.length }}
+                </summary>
+                <div class="border-t border-[var(--dh-border)] px-4 py-2">
+                  <div
+                    v-for="line in includedLines"
+                    :key="`all-in:${line.key}`"
+                    class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2 text-xs last:border-b-0"
+                  >
+                    <div class="min-w-0">
+                      <strong class="block">{{ line.name }}</strong>
+                      <span class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}</span>
+                    </div>
+                    <strong>{{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), line.currencyCode || line.currencyName || 'USD') }}</strong>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div v-else class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              El borrador y el PDF mostrarán las líneas comerciales individualmente. Active ALL IN para presentar una única línea con la suma de todas las ventas.
+            </div>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-2">
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
+              <p class="mt-3 text-lg font-black">{{ form.clientName || 'Cliente sin definir' }}</p>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Ejecutivo: {{ form.executiveName || 'Sin asignar' }}</p>
+              <div class="mt-4"><DhInput v-model="form.idtraNumber" label="Número IDTRA" placeholder="Ej. IDTRA-2026-00125" :disabled="viewOnly" /></div>
+              <p class="mt-4 text-sm font-bold">{{ displayValue(selectedOrigin) }} → {{ displayValue(selectedDestination) }}<span v-if="selectedPod"> → {{ displayValue(selectedPod) }}</span></p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }} · {{ displayValue(selectedEquipment) }} · {{ displayValue(selectedIncoterm) }}</p>
+            </div>
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Resumen comercial</p>
+              <p class="mt-3 text-sm font-bold">Proveedor: {{ displayValue(selectedCarrier) || 'Sin proveedor' }}</p>
+              <p class="mt-1 text-sm font-bold">Agente: {{ displayValue(selectedAgent) || 'Sin agente' }}</p>
+              <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+                <span>Costo USD <strong class="block">{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
+                <span>Costo CRC <strong class="block">{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
+                <span>Venta sin IVA USD <strong class="block">{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
+                <span>Venta sin IVA CRC <strong class="block">{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
+                <span>Utilidad USD <strong class="block">{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
+                <span>Utilidad CRC <strong class="block">{{ formatMoney(totalUtilityCrc, 'CRC') }}</strong></span>
+                <span>Margen <strong class="block">{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
+                <span>Operación <strong class="block">{{ direction }}</strong></span>
+              </div>
+            </div>
+            <div class="crystal-soft p-5 lg:col-span-2">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Totales de la oferta</p>
+                  <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El IVA no forma parte de los totales de Pantalla 7. Aquí se presenta separado del subtotal.</p>
+                </div>
+                <DhBadge :variant="totalTaxUsd > 0 ? 'primary' : 'neutral'">
+                  {{ totalTaxUsd > 0 ? `IVA aplicado ${destinationTaxRate}%` : 'Sin IVA aplicado' }}
+                </DhBadge>
+              </div>
+
+              <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+                <div class="min-w-[440px]">
+                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+                    <span>Concepto</span>
+                    <span>USD</span>
+                    <span>CRC</span>
+                  </div>
+                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm">
+                    <strong>Subtotal</strong>
+                    <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong>
+                    <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong>
+                  </div>
+                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm">
+                    <strong>IVA</strong>
+                    <strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong>
+                    <strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong>
+                  </div>
+                  <div class="grid grid-cols-[minmax(100px,1fr)_minmax(130px,1fr)_minmax(130px,1fr)] items-center gap-3 bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-4 text-base">
+                    <strong>Total</strong>
+                    <strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleUsd, 'USD') }}</strong>
+                    <strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleCrc, 'CRC') }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="crystal-soft p-5 lg:col-span-2">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Carga y respaldos</p>
+              <p class="mt-3 text-sm font-semibold">{{ form.cargoDescription || 'Sin descripción adicional' }}</p>
+              <div v-if="shipmentModeForApi === 'Lcl'" class="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
+                <span>{{ form.cargoPallets }} tarima{{ Number(form.cargoPallets) === 1 ? '' : 's' }}</span>
+                <span>· {{ Number(form.cargoWeightKg).toLocaleString('es-CR') }} kg</span>
+                <span>· {{ lclDimensionalCbm.toFixed(3) }} CBM dimensional</span>
+                <span>· {{ lclChargeableCbm.toFixed(3) }} CBM cobrable</span>
+              </div>
+              <p v-if="form.cabysCode" class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">CABYS {{ form.cabysCode }}</p>
+              <p class="mt-2 text-xs font-bold text-[var(--dh-text-muted)]">{{ supportDocuments.length }} documento{{ supportDocuments.length === 1 ? '' : 's' }} de respaldo en Storage.</p>
+            </div>
+          </div>
+
+          <div class="crystal-soft space-y-4 p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Respaldo final</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Adjunte uno o varios archivos que queden asociados a la tarifa final. Puede seleccionar varios archivos en una sola carga.
+                </p>
+              </div>
+              <label v-if="!viewOnly" class="crystal-flag cursor-pointer" :class="uploadingFinalBackups ? 'pointer-events-none opacity-60' : ''">
+                <FileUp class="h-4 w-4" />
+                <span>{{ uploadingFinalBackups ? 'Subiendo respaldos…' : 'Añadir adjuntos' }}</span>
+                <input
+                  class="hidden"
+                  type="file"
+                  multiple
+                  :accept="supportAccept"
+                  :disabled="uploadingFinalBackups"
+                  @change="uploadFinalBackups"
+                />
+              </label>
+            </div>
+
+            <div v-if="finalBackupDocuments.length" class="grid gap-2 md:grid-cols-2">
+              <div
+                v-for="document in finalBackupDocuments"
+                :key="`final-backup:${document.id}`"
+                class="flex items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 text-xs"
+              >
+                <div class="min-w-0">
+                  <p class="font-black">Respaldo final</p>
+                  <p class="truncate text-[var(--dh-text-muted)]">{{ document.fileName }}</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-3">
+                  <button type="button" class="font-black text-[var(--dh-primary)]" @click="downloadFinalBackup(document)">Descargar</button>
+                  <button v-if="!viewOnly" type="button" class="font-black text-red-500" @click="removeFinalBackup(document)">Quitar</button>
+                </div>
+              </div>
+            </div>
+            <p v-else class="rounded-2xl border border-dashed border-[var(--dh-border)] px-4 py-4 text-xs font-semibold text-[var(--dh-text-muted)]">
+              No hay respaldos finales adjuntos.
+            </p>
+          </div>
+        </div>
+
+        <div v-else-if="step === 9 && viewOnly && editingRate" class="space-y-6">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p class="crystal-kicker">Pantalla 9</p>
+              <h2 class="crystal-title">{{ isMasterTariff ? 'Vista completa del tarifario' : 'Vista completa de la tarifa' }}</h2>
+              <p class="crystal-description">
+                {{ isMasterTariff
+                  ? 'Tarifario maestro reutilizable. Desde aquí se aplica a clientes para generar nuevas QUO sin consumir ni cerrar el maestro.'
+                  : 'Resumen integral de la revisión actual, decisión comercial, líneas, condiciones y totales.' }}
+              </p>
+            </div>
+            <DhButton variant="secondary" :loading="downloadingQuote" :disabled="downloadingQuote" @click="downloadCurrentQuote">
+              Descargar cotización PDF
+            </DhButton>
+          </div>
+
+          <div class="crystal-soft p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Estado comercial</p>
+                <div class="mt-2 flex flex-wrap items-center gap-2">
+                  <DhBadge
+                    :label="commercialRateTypeLabel"
+                    :variant="isMasterTariff ? 'primary' : isClientTariff ? 'success' : 'warning'"
+                  />
+                  <DhBadge :label="commercialStatusLabel(editingRate.status)" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : editingRate.status === 'RejectedByClient' ? 'danger' : 'neutral'" />
+                  <DhBadge :label="`REV ${editingRate.revisionNumber || 1}`" variant="neutral" />
+                  <DhBadge v-if="editingRate.idtraNumber" :label="`IDTRA ${editingRate.idtraNumber}`" variant="primary" />
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <template v-if="isMasterTariff">
+                  <DhButton size="sm" @click="applyMasterTariff">Aplicar a cliente</DhButton>
+                  <span class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-[11px] font-bold text-[var(--dh-text-muted)]">
+                    El maestro no se acepta ni se rechaza.
+                  </span>
+                </template>
+                <template v-else>
+                  <DhButton size="sm" variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
+                  <DhButton size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
+                  <DhButton size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
+                </template>
+              </div>
+            </div>
+            <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ isMasterTariff
+                ? 'El tarifario maestro permanece reutilizable durante su vigencia. Aplicarlo crea una nueva QUO del cliente; la aceptación o rechazo se registra únicamente sobre esa QUO hija.'
+                : canApproveLowMargin && currentCommercialStatus === 'Open'
+                  ? 'Con el permiso Aprobar margen bajo puede registrar la tarifa como Aceptada o Rechazada directamente desde Abierta, sin marcarla primero como Enviada.'
+                  : 'Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.' }}
+            </p>
+
+            <div v-if="commercialAction === 'accept'" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
+              <p class="text-sm font-black">Aceptar tarifa</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Para aceptar la tarifa debe registrar el número IDTRA.</p>
+              <div class="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
+                <DhInput v-model="commercialIdtra" label="Número IDTRA" placeholder="Ej. IDTRA-2026-00125" />
+                <DhButton :loading="commercialStatusSaving" :disabled="commercialStatusSaving || !commercialIdtra.trim()" @click="submitCommercialDecision">Confirmar aceptación</DhButton>
+                <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Cancelar</DhButton>
+              </div>
+            </div>
+
+            <div v-if="commercialAction === 'reject'" class="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4">
+              <p class="text-sm font-black">Rechazar tarifa</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El motivo es obligatorio y quedará guardado en la tarifa y visible en la cotización.</p>
+              <DhTextarea v-model="commercialRejectionReason" class="mt-3" label="Motivo de rechazo" placeholder="Indique por qué el cliente rechazó la tarifa" :rows="4" />
+              <div class="mt-3 flex flex-wrap justify-end gap-2">
+                <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Cancelar</DhButton>
+                <DhButton variant="danger" :loading="commercialStatusSaving" :disabled="commercialStatusSaving || !commercialRejectionReason.trim()" @click="submitCommercialDecision">Confirmar rechazo</DhButton>
+              </div>
+            </div>
+
+            <p v-if="commercialActionError" class="mt-3 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-black text-red-600 dark:text-red-300">{{ commercialActionError }}</p>
+            <div v-if="editingRate.status === 'RejectedByClient' && editingRate.closedReason" class="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4">
+              <p class="text-[10px] font-black uppercase tracking-[0.14em] text-red-600 dark:text-red-300">Motivo de rechazo</p>
+              <p class="mt-2 whitespace-pre-wrap text-sm font-bold">{{ editingRate.closedReason }}</p>
+            </div>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Identificación</p>
+              <p class="mt-3 text-lg font-black">{{ editingRate.rateCode }}</p>
+              <p class="mt-1 text-sm font-bold">QUO: {{ editingRate.quoNumber || '—' }}</p>
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <DhBadge
+                  :label="commercialRateTypeLabel"
+                  :variant="isMasterTariff ? 'primary' : isClientTariff ? 'success' : 'warning'"
+                />
+                <span
+                  v-if="isClientTariff"
+                  class="text-[11px] font-bold text-[var(--dh-text-muted)]"
+                >
+                  Derivada de tarifario · REV {{ editingRate.sourceTariffRevisionNumber || 1 }}
+                </span>
+              </div>
+              <p class="mt-2 text-sm font-bold">IDTRA: {{ editingRate.idtraNumber || 'Pendiente' }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ editingRate.rateName }}</p>
+            </div>
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
+              <p class="mt-3 text-lg font-black">{{ editingRate.clientName || 'Cliente sin definir' }}</p>
+              <p class="mt-1 text-sm font-bold">Ejecutivo: {{ editingRate.executiveName || 'Sin asignar' }}</p>
+              <p class="mt-1 text-sm font-bold">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incoterm {{ displayValue(selectedIncoterm) || editingRate.incotermName || editingRate.incotermCode || '—' }}</p>
+            </div>
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Vigencia y cambio</p>
+              <p class="mt-3 text-sm font-bold">{{ formatDate(editingRate.validFrom) }} → {{ formatDate(editingRate.validTo) }}</p>
+              <p v-if="editingRate.shipmentMode !== 'Lcl'" class="mt-1 text-sm font-bold">Días libres: {{ editingRate.freeDays }}</p>
+              <p class="mt-1 text-sm font-bold">Tránsito: {{ editingRate.transitTime || 'Por confirmar' }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">TC venta: {{ Number(editingRate.exchangeRateSale || editingRate.exchangeRateApplied || 0).toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</p>
+            </div>
+          </div>
+
+          <div class="crystal-soft p-5">
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Ruta, proveedor y servicios</p>
+            <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Ruta</span><p class="mt-1 font-bold">{{ editingRate.polName }} → {{ editingRate.poeName }}<span v-if="editingRate.podName"> → {{ editingRate.podName }}</span></p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Naviera / proveedor</span><p class="mt-1 font-bold">{{ editingRate.carrierName || 'Sin asignar' }}</p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Agente</span><p class="mt-1 font-bold">{{ editingRate.agentName || 'Sin asignar' }}</p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Equipo</span><p class="mt-1 font-bold">{{ editingRate.containerQuantity }} × {{ editingRate.containerTypeName }}</p></div>
+            </div>
+            <div class="mt-4">
+              <span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Servicios</span>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <DhBadge v-for="service in editingRate.services || []" :key="service.id" :label="service.name" variant="neutral" />
+                <span v-if="!(editingRate.services || []).length" class="text-xs font-semibold text-[var(--dh-text-muted)]">Sin servicios asociados</span>
+              </div>
+            </div>
+            <div v-if="editingRate.pickupAddress" class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-sm font-semibold">
+              <span v-if="String(editingRate.incotermName || editingRate.incotermCode || '').toUpperCase().includes('EXW')">
+                Recolección EXW: {{ editingRate.pickupAddress }}
+              </span>
+              <span v-else>
+                WHS {{ String(editingRate.incotermName || '').toUpperCase().includes('FOB') ? 'FOB' : 'FCA' }}: {{ editingRate.pickupAddress }}
+              </span>
+            </div>
+          </div>
+
+          <div class="crystal-soft overflow-hidden p-0">
+            <div class="border-b border-[var(--dh-border)] px-5 py-4">
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Líneas completas de la tarifa</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-[1180px] w-full text-left text-xs">
+                <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+                  <tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3">Facturar / cobrar a</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta subtotal</th><th class="px-4 py-3 text-right">IVA</th><th class="px-4 py-3 text-right">Venta total</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="line in includedLines" :key="line.key" class="border-t border-[var(--dh-border)]">
+                    <td class="px-4 py-3">
+                      <strong>{{ line.name }}</strong>
+                      <p v-if="line.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ line.notes }}</p>
+                    </td>
+                    <td class="px-4 py-3">{{ chargeBasisLabel(line.chargeBasis) }}</td>
+                    <td class="px-4 py-3">{{ quantityForChargeBasis(line.chargeBasis).toLocaleString('es-CR') }}</td>
+                    <td class="px-4 py-3 font-black">{{ detailCurrencyValue(line) }}</td>
+                    <td class="px-4 py-3 font-semibold">{{ line.billToClient || '—' }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(number(line.costAmount), canonicalCurrencyCode(line)) }}</td>
+                    <td class="px-4 py-3 text-right">
+                      {{ formatMoney(number(line.saleAmount), canonicalCurrencyCode(line)) }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-semibold">
+                      {{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), canonicalCurrencyCode(line)) }}
+                    </td>
+                    <td
+                      class="px-4 py-3 text-right font-semibold"
+                      :class="lineTaxTotalAmount(line) > 0 ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'"
+                    >
+                      {{ formatMoney(lineTaxTotalAmount(line), canonicalCurrencyCode(line)) }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-black">
+                      {{ formatMoney(lineSaleWithTax(line) * quantityForChargeBasis(line.chargeBasis), canonicalCurrencyCode(line)) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="crystal-soft p-5">
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Totales de la oferta</p>
+            <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+              <div class="min-w-[520px]">
+                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-[10px] font-black uppercase text-[var(--dh-text-muted)]"><span>Concepto</span><span>USD</span><span>CRC</span></div>
+                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm"><strong>Subtotal</strong><strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong><strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></div>
+                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 border-b border-[var(--dh-border)] px-4 py-3 text-sm"><strong>IVA</strong><strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong><strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong></div>
+                <div class="grid grid-cols-[minmax(120px,1fr)_minmax(160px,1fr)_minmax(160px,1fr)] gap-3 bg-[rgb(var(--dh-primary-rgb)/0.07)] px-4 py-4 text-base"><strong>Total</strong><strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleUsd, 'USD') }}</strong><strong class="text-[var(--dh-primary)]">{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></div>
+              </div>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-3 text-sm">
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Costo</span><p class="mt-1 font-black">{{ formatMoney(totalCostUsd, 'USD') }} / {{ formatMoney(totalCostCrc, 'CRC') }}</p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Utilidad</span><p class="mt-1 font-black">{{ formatMoney(totalUtilityUsd, 'USD') }} / {{ formatMoney(totalUtilityCrc, 'CRC') }}</p></div>
+              <div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Margen</span><p class="mt-1 font-black">{{ totalMarginPercentage.toFixed(2) }}%</p></div>
+            </div>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="crystal-soft p-5"><p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifa incluye</p><p class="mt-3 whitespace-pre-wrap text-sm font-semibold">{{ editingRate.includes || '—' }}</p></div>
+            <div class="crystal-soft p-5"><p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Sujeta a</p><p class="mt-3 whitespace-pre-wrap text-sm font-semibold">{{ editingRate.subjectTo || '—' }}</p></div>
+            <div class="crystal-soft p-5"><p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifa no incluye</p><p class="mt-3 whitespace-pre-wrap text-sm font-semibold">{{ editingRate.excludes || '—' }}</p></div>
+          </div>
+        </div>
+      </template>
+    </section>
+
+    <PricingCompetitorTariffMatchModal
+      :open="competitorTariffsOpen"
+      :pol-id="competitorMatchContext.polId"
+      :poe-id="competitorMatchContext.poeId"
+      :pod-id="competitorMatchContext.podId"
+      :carrier-id="competitorMatchContext.carrierId"
+      :shipment-mode="competitorMatchContext.shipmentMode"
+      :valid-on="competitorMatchContext.validOn"
+      @close="competitorTariffsOpen = false"
+    />
+
+    <div class="crystal-footer flex items-center justify-between gap-3 p-3">
+      <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
+      <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
+      <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
+      <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
+      <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
+        <DhButton
+          variant="secondary"
+          :disabled="!canShowCompetitorTariffs"
+          @click="competitorTariffsOpen = true"
+        >
+          <Search class="h-4 w-4" /> Mostrar tarifas competencia
+        </DhButton>
+        <DhButton :disabled="saving || uploadingFinalBackups || !includedLines.length" @click="saveRate">
+          <Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
+        </DhButton>
+      </div>
+      <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Seleccione una alternativa para continuar</span>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.pricing-crystal-shell {
+  position: relative;
+  isolation: isolate;
+  padding-bottom: 0.5rem;
+}
+
+.crystal-orb {
+  position: absolute;
+  z-index: -1;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(76px);
+  opacity: 0.22;
+  background: rgb(var(--dh-primary-rgb) / 0.48);
+}
+
+.crystal-orb--one {
+  width: 260px;
+  height: 260px;
+  top: 70px;
+  right: 6%;
+}
+
+.crystal-orb--two {
+  width: 220px;
+  height: 220px;
+  top: 420px;
+  left: 2%;
+  opacity: 0.13;
+}
+
+.crystal-panel,
+.crystal-stepbar,
+.crystal-footer,
+.crystal-soft,
+.crystal-route-summary,
+.crystal-total-card,
+.crystal-line,
+.crystal-success {
+  border: 1px solid color-mix(in srgb, var(--dh-border-strong) 82%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 96%, var(--dh-text) 4%);
+  box-shadow: 0 26px 76px rgb(15 23 42 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.34);
+  backdrop-filter: blur(34px) saturate(145%);
+  -webkit-backdrop-filter: blur(34px) saturate(145%);
+}
+
+.crystal-panel {
+  border-radius: 30px;
+  overflow: visible;
+}
+
+.crystal-stepbar,
+.crystal-footer {
+  border-radius: 22px;
+}
+
+.crystal-step {
+  min-height: 58px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  color: var(--dh-text-muted);
+  transition: 180ms ease;
+}
+
+.crystal-step:hover {
+  background: rgb(var(--dh-primary-rgb) / 0.05);
+}
+
+.crystal-step--active {
+  border-color: rgb(var(--dh-primary-rgb) / 0.24);
+  background: rgb(var(--dh-primary-rgb) / 0.1);
+  color: var(--dh-text);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24);
+}
+
+.crystal-step--done {
+  color: var(--dh-text-soft);
+  background: color-mix(in srgb, var(--dh-card-hover) 52%, transparent);
+}
+
+.crystal-choice,
+.crystal-rate-card,
+.crystal-empty,
+.crystal-flag {
+  position: relative;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--dh-border) 84%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 94%, var(--dh-text) 6%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24);
+  backdrop-filter: blur(30px) saturate(145%);
+  -webkit-backdrop-filter: blur(30px) saturate(145%);
+  transition: 180ms ease;
+}
+
+.crystal-choice {
+  min-height: 150px;
+  padding: 1.25rem;
+  text-align: left;
+}
+
+.crystal-choice:hover,
+.crystal-rate-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(var(--dh-primary-rgb) / 0.32);
+  box-shadow: 0 18px 48px rgb(15 23 42 / 0.09), inset 0 1px 0 rgb(255 255 255 / 0.32);
+}
+
+.crystal-choice--active,
+.crystal-rate-card--active {
+  border-color: rgb(var(--dh-primary-rgb) / 0.44);
+  background: rgb(var(--dh-primary-rgb) / 0.085);
+  box-shadow: 0 18px 55px rgb(var(--dh-primary-rgb) / 0.11), inset 0 1px 0 rgb(255 255 255 / 0.32);
+}
+
+.crystal-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 16px;
+  background: rgb(var(--dh-primary-rgb) / 0.095);
+  color: var(--dh-primary);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
+}
+
+.crystal-soft {
+  border-radius: 24px;
+  box-shadow: 0 14px 40px rgb(15 23 42 / 0.09), inset 0 1px 0 rgb(255 255 255 / 0.24);
+}
+
+.crystal-lines-stage {
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--dh-card) 97%, var(--dh-text) 3%);
+  padding: 1rem;
+}
+
+.crystal-bottom-charges {
+  border: 1px solid color-mix(in srgb, var(--dh-border-strong) 82%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--dh-card) 96%, var(--dh-text) 4%);
+  box-shadow: 0 18px 48px rgb(15 23 42 / 0.12);
+}
+
+.crystal-route-summary {
+  display: grid;
+  gap: 1rem;
+  border-radius: 20px;
+  padding: 0.85rem 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.crystal-rate-card {
+  padding: 1rem;
+  text-align: left;
+}
+
+.crystal-validity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid color-mix(in srgb, var(--dh-border) 86%, transparent);
+}
+
+.crystal-validity-range {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  color: var(--dh-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.crystal-validity-range strong {
+  color: var(--dh-text-soft);
+  font-size: 0.78rem;
+}
+
+.crystal-validity-days {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 120px;
+  border: 1px solid currentColor;
+  border-radius: 14px;
+  padding: 0.42rem 0.65rem;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  line-height: 1;
+}
+
+.crystal-validity-days strong {
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.crystal-validity-days span {
+  max-width: 54px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.08;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.crystal-validity-days--success { color: rgb(5 150 105); }
+.crystal-validity-days--warning { color: rgb(217 119 6); }
+.crystal-validity-days--danger { color: rgb(220 38 38); }
+
+.crystal-exchange-metric {
+  display: grid;
+  gap: 0.3rem;
+  min-height: 66px;
+  align-content: center;
+  border: 1px solid var(--dh-border);
+  border-radius: 16px;
+  padding: 0.65rem 0.8rem;
+  background: var(--dh-card);
+}
+
+.crystal-exchange-metric span {
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dh-text-muted);
+}
+
+.crystal-exchange-metric strong {
+  font-size: 1rem;
+  color: var(--dh-text);
+}
+
+.crystal-metric {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--dh-border) 88%, transparent);
+  border-radius: 14px;
+  padding: 0.55rem 0.7rem;
+  background: color-mix(in srgb, var(--dh-card) 72%, transparent);
+  color: var(--dh-text-soft);
+}
+
+.crystal-metric small {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: currentColor;
+  opacity: 0.82;
+}
+
+.crystal-total-card__metric {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--dh-border) 88%, transparent);
+  border-radius: 999px;
+  padding: 0.32rem 0.55rem;
+}
+
+.crystal-metric--cost,
+.crystal-total-card__metric--cost {
+  color: rgb(217 119 6);
+  border-color: rgb(217 119 6 / 0.28);
+  background: rgb(217 119 6 / 0.08);
+}
+
+.crystal-metric--sale,
+.crystal-total-card__metric--sale {
+  color: var(--dh-primary);
+  border-color: rgb(var(--dh-primary-rgb) / 0.26);
+  background: rgb(var(--dh-primary-rgb) / 0.08);
+}
+
+.crystal-metric--success,
+.crystal-total-card__metric--success {
+  color: rgb(5 150 105);
+  border-color: rgb(5 150 105 / 0.28);
+  background: rgb(5 150 105 / 0.08);
+}
+
+.crystal-metric--danger,
+.crystal-total-card__metric--danger {
+  color: rgb(220 38 38);
+  border-color: rgb(220 38 38 / 0.3);
+  background: rgb(220 38 38 / 0.09);
+}
+
+.crystal-metric--neutral,
+.crystal-total-card__metric--neutral {
+  color: var(--dh-text-soft);
+  border-color: color-mix(in srgb, var(--dh-border) 88%, transparent);
+  background: color-mix(in srgb, var(--dh-card) 72%, transparent);
+}
+
+.crystal-empty {
+  border-style: dashed;
+}
+
+.crystal-flag {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.crystal-flag--active,
+.crystal-mini-toggle--active {
+  border-color: rgb(var(--dh-primary-rgb) / 0.3);
+  background: rgb(var(--dh-primary-rgb) / 0.1);
+  color: var(--dh-primary);
+}
+
+.crystal-total-card {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 16px;
+  padding: 0.42rem 0.5rem;
+  font-size: 0.62rem;
+  scrollbar-width: thin;
+  overscroll-behavior-inline: contain;
+}
+
+.crystal-total-card__metric {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: max-content;
+  align-items: center;
+  gap: 0.22rem;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.crystal-total-card__metric strong {
+  font-size: 0.69rem;
+  white-space: nowrap;
+}
+
+.crystal-total-card__metric--subtotal {
+  color: rgb(2 132 199);
+  border-color: rgb(2 132 199 / 0.28);
+  background: rgb(2 132 199 / 0.08);
+}
+
+.crystal-total-card__metric--tax {
+  color: rgb(124 58 237);
+  border-color: rgb(124 58 237 / 0.28);
+  background: rgb(124 58 237 / 0.08);
+}
+
+.crystal-total-card__metric--total {
+  color: rgb(5 150 105);
+  border-color: rgb(5 150 105 / 0.3);
+  background: rgb(5 150 105 / 0.1);
+}
+
+.crystal-lines-header {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 5.75rem;
+  z-index: 120;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  align-self: flex-start;
+  width: 100%;
+  min-width: 0;
+  gap: 0.55rem !important;
+  isolation: isolate;
+  border: 1px solid var(--dh-border);
+  border-radius: 20px;
+  padding: 0.72rem;
+  background-color: var(--dh-card-solid);
+  background-image: none;
+  opacity: 1;
+  box-shadow: 0 14px 34px rgb(15 23 42 / 0.22);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.crystal-lines-header > div {
+  min-width: 0;
+}
+
+.crystal-lines-stage {
+  isolation: isolate;
+}
+
+.crystal-group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1024px) {
+  .crystal-line--freight {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: minmax(320px, 1fr) 120px 140px 140px minmax(200px, 260px) !important;
+    justify-content: stretch;
+  }
+
+  .crystal-line--freight .crystal-line-vat {
+    grid-column: 1 / -1;
+    max-width: 320px;
+  }
+}
+
+.crystal-line-vat {
+  display: grid;
+  gap: 0.35rem;
+  align-self: stretch;
+  border: 1px solid var(--dh-border);
+  border-radius: 16px;
+  background: var(--dh-card);
+  padding: 0.55rem 0.65rem;
+}
+
+.crystal-line-vat p {
+  white-space: nowrap;
+  font-size: 0.62rem;
+  line-height: 1.15;
+}
+
+.crystal-total-card span {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.crystal-line {
+  border-radius: 20px;
+  transition: opacity 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.crystal-line--optional-off {
+  border-style: dashed;
+  opacity: 0.68;
+  background: color-mix(in srgb, var(--dh-card) 42%, transparent);
+}
+
+.crystal-line--optional-off .crystal-mini-toggle {
+  opacity: 1;
+  border-color: rgb(var(--dh-primary-rgb) / 0.32);
+  background: rgb(var(--dh-primary-rgb) / 0.06);
+  color: var(--dh-primary);
+}
+
+.crystal-insurance-hint {
+  border-radius: 14px;
+  border: 1px solid rgb(var(--dh-primary-rgb) / 0.18);
+  background: rgb(var(--dh-primary-rgb) / 0.06);
+  padding: 0.7rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 750;
+  color: var(--dh-text-soft);
+}
+
+.crystal-mini-toggle {
+  border-radius: 999px;
+  border: 1px solid var(--dh-border);
+  padding: 0.24rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  transition: 150ms ease;
+}
+
+.crystal-success {
+  border-color: rgb(16 185 129 / 0.28);
+  border-radius: 20px;
+  background: rgb(16 185 129 / 0.08);
+}
+
+.crystal-kicker {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--dh-primary);
+}
+
+.crystal-title {
+  margin-top: 0.25rem;
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  color: var(--dh-text);
+}
+
+.crystal-description {
+  margin-top: 0.35rem;
+  max-width: 760px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--dh-text-muted);
+}
+
+.crystal-panel :deep(select),
+.crystal-panel :deep(input) {
+  background-color: color-mix(in srgb, var(--dh-input) 94%, var(--dh-card) 6%);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+
+@media (max-width: 640px) {
+  .pricing-crystal-shell :deep(button),
+  .pricing-crystal-shell :deep(a) {
+    min-height: 44px;
+  }
+
+  .crystal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    background: color-mix(in srgb, var(--dh-card) 96%, transparent);
+    backdrop-filter: blur(20px);
+  }
+
+  .crystal-footer :deep(button) {
+    flex: 1 1 0;
+    padding-inline: 0.75rem;
+  }
+
+  .crystal-lines-header {
+    top: 5rem;
+    gap: 0.5rem;
+    padding: 0.65rem;
+  }
+
+  .crystal-lines-header .crystal-kicker,
+  .crystal-lines-header .crystal-description {
+    display: none;
+  }
+
+  .crystal-lines-header .crystal-title {
+    margin-top: 0;
+    font-size: 1rem;
+  }
+
+  .crystal-lines-header .crystal-total-card {
+    display: flex;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 0.28rem;
+    padding: 0.32rem;
+  }
+
+  .crystal-lines-header .crystal-total-card__metric {
+    flex: 0 0 auto;
+    min-width: max-content;
+    justify-content: flex-start;
+    border-radius: 999px;
+    padding: 0.32rem 0.42rem;
+  }
+
+  .crystal-line-vat {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .crystal-line-vat p {
+    white-space: normal;
+  }
+
+
+  .crystal-panel {
+    border-radius: 24px;
+  }
+
+  .crystal-orb {
+    opacity: 0.12;
+  }
+}
+</style>
+
+
+<style scoped>
+.wizard-view-readonly {
+  pointer-events: none;
+  user-select: text;
+}
+</style>
