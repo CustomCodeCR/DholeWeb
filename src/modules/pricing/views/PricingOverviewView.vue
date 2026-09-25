@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import PricingAlternativeWizardCrystal from '@/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
-import PricingRateExistingWizardStable from '@/modules/pricing/components/PricingRateExistingWizardStable.vue'
+import PricingRateExistingWizardStable from '@/modules/pricing/existing/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 import PricingOwnLclView from '@/modules/pricing/views/PricingOwnLclView.vue'
 
 const route = useRoute()
