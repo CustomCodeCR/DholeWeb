@@ -49,7 +49,7 @@ function patchApplyLclSource(source: string) {
     resetAnchor,
     `  if (selection.manual) {
     // Manual LCL is only available from the Coloader tab. Clear any provider
-    // inherited from the route so the user must choose the real coloader/naviera.
+    // inherited from the route so the user must choose the real coloader.
     form.agentId = ''
     form.carrierId = ''
     form.freeDays = 0
@@ -72,21 +72,6 @@ function patchWizard(source: string) {
 
   code = patchApplyLclSource(code)
 
-  code = replaceOneOf(
-    code,
-    [
-      {
-        anchor: `<DhSelect v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
-        replacement: `<DhSelect v-if="form.modality !== 'Land' && (shipmentModeForApi !== 'Lcl' || lclSelectedSource?.manual)" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
-      },
-      {
-        anchor: `<DhSelect v-if="shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
-        replacement: `<DhSelect v-if="shipmentModeForApi !== 'Lcl' || lclSelectedSource?.manual" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
-      },
-    ],
-    'manual LCL carrier selector',
-  )
-
   code = replaceRequired(
     code,
     `:disabled="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Coloader'"`,
@@ -102,8 +87,7 @@ function patchWizard(source: string) {
       return Boolean(lclSelectedSource.value && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
     }`,
         replacement: `    if (shipmentModeForApi.value === 'Lcl') {
-      const manualColoaderProviderReady = !lclSelectedSource.value?.manual
-        || Boolean(form.agentId && form.carrierId)
+      const manualColoaderProviderReady = !lclSelectedSource.value?.manual || Boolean(form.agentId)
       return Boolean(
         lclSelectedSource.value
         && manualColoaderProviderReady
@@ -116,10 +100,11 @@ function patchWizard(source: string) {
       {
         anchor: `    const providerReady = shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value ? true : Boolean(form.agentId)
     return Boolean(providerReady && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`,
-        replacement: `    const providerReady = shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value
-      ? (!lclSelectedSource.value.manual || Boolean(form.agentId && form.carrierId))
-      : Boolean(form.agentId)
-    return Boolean(providerReady && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`,
+        replacement: `    if (shipmentModeForApi.value === 'Lcl') {
+      const providerReady = !lclSelectedSource.value?.manual || Boolean(form.agentId)
+      return Boolean(lclSelectedSource.value && providerReady && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
+    }
+    return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`,
       },
     ],
     'manual LCL step 6 validation',
@@ -138,21 +123,6 @@ function patchWizard(source: string) {
       },
     ],
     'manual LCL agent validation',
-  )
-
-  code = replaceOneOf(
-    code,
-    [
-      {
-        anchor: `  if (form.modality !== 'Land' && !carrier && shipmentModeForApi.value !== 'Lcl') missing.push('proveedor')`,
-        replacement: `  if (form.modality !== 'Land' && !carrier && (shipmentModeForApi.value !== 'Lcl' || lclSelectedSource.value?.manual)) missing.push('proveedor')`,
-      },
-      {
-        anchor: `  if (!carrier && shipmentModeForApi.value !== 'Lcl') missing.push('proveedor')`,
-        replacement: `  if (!carrier && (shipmentModeForApi.value !== 'Lcl' || lclSelectedSource.value?.manual)) missing.push('proveedor')`,
-      },
-    ],
-    'manual LCL carrier validation',
   )
 
   const markerAnchor = 'async function initializeDraftCommercialTerms()'
