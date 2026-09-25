@@ -42,9 +42,9 @@ function patchWizard(source: string) {
     '    const restoredMixedFclFreight = dholeRuntimeRestorePersistedFclDistribution(rate)',
   )
 
-  const anchor = 'const canNext = computed(() => {'
-  if (!code.includes(anchor)) {
-    throw new Error('[pricingWizardRuntimeReferenceGuard] canNext anchor not found.')
+  const scriptEnd = code.lastIndexOf('</script>')
+  if (scriptEnd < 0) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] script end not found.')
   }
 
   const helpers = `// dhole-runtime-reference-guard-20260925
@@ -169,9 +169,9 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
   return true
 }
 
-${anchor}`
+`
 
-  code = code.replace(anchor, helpers)
+  code = code.slice(0, scriptEnd) + helpers + code.slice(scriptEnd)
 
   if (code.includes('const contextKey = currentCostContextKey()')) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] currentCostContextKey call remained unresolved.')
