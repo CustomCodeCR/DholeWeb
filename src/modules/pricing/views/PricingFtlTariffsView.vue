@@ -194,15 +194,26 @@ function currencyByCode(code?: string | null) {
 }
 function currencyDisplayValue(row: Pick<FtlTariffDto, 'currencyId' | 'currencyName' | 'currencyCode'>) {
   const catalogCurrency = catalogs.currencies.value.find((item) => item.id === row.currencyId)
-  const catalogValue = String(catalogCurrency?.value || '').trim()
-  if (catalogValue) return /^[a-z]{3}$/i.test(catalogValue) ? catalogValue.toUpperCase() : catalogValue
-
-  const fallbackIso = [row.currencyName, row.currencyCode]
+  const iso = [
+    catalogCurrency?.code,
+    catalogCurrency?.value,
+    catalogCurrency?.name,
+    row.currencyName,
+    row.currencyCode,
+  ]
     .map((value) => String(value || '').trim())
     .find((value) => /^[a-z]{3}$/i.test(value))
-  if (fallbackIso) return fallbackIso.toUpperCase()
 
-  return String(row.currencyName || row.currencyCode || 'USD').trim() || 'USD'
+  if (iso) return iso.toUpperCase()
+
+  const fallback = String(
+    catalogCurrency?.name ||
+      catalogCurrency?.value ||
+      row.currencyName ||
+      row.currencyCode ||
+      'USD',
+  ).trim()
+  return fallback || 'USD'
 }
 function parsedMode(value: unknown): LandShipmentMode {
   return String(value || '').trim().toLowerCase() === 'ltl' ? 'Ltl' : 'Ftl'
@@ -250,7 +261,7 @@ function importItem(input: Record<string, unknown>): CreateLandTariffItem | null
     applicableEquipmentClasses: classes,
     currencyId: currency.id,
     currencyName: currency.name,
-    currencyCode: currency.value || currency.code || currency.name,
+    currencyCode: currency.code || currency.value || currency.name,
     priceAmount,
     rateBasis: mode === 'Ltl' ? 'PerCbm' : 'PerTruck',
     minimumAmount,
