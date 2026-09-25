@@ -30,7 +30,6 @@ const confirmOpen = ref(false)
 const saving = ref(false)
 const runningId = ref<string | null>(null)
 const editingId = ref<string | null>(null)
-const editingNextExecutionAt = ref<string | null>(null)
 const pendingToggle = ref<AgentScheduleDto | null>(null)
 const advancedJson = ref(false)
 
@@ -68,6 +67,7 @@ const columns: DhTableColumn<AgentScheduleDto>[] = [
   { key: 'name', label: t('agent.fields.name') },
   { key: 'providerId', label: t('agent.fields.provider') },
   { key: 'agentDefinitionId', label: t('agent.fields.definition') },
+  { key: 'extractionProfileId', label: t('agent.fields.extractionProfile') },
   { key: 'scheduleType', label: t('agent.fields.scheduleType') },
   { key: 'lastExecutionAt', label: t('agent.fields.lastExecution') },
   { key: 'nextExecutionAt', label: t('agent.fields.nextExecution') },
@@ -173,6 +173,11 @@ function definitionName(id: string) {
   return store.definitions.find((definition) => definition.id === id)?.name ?? id
 }
 
+function extractionProfileName(id: string | null) {
+  if (!id) return '—'
+  return store.extractionProfiles.find((profile) => profile.id === id)?.name ?? id
+}
+
 function toDateTimeLocal(value: string | null | undefined) {
   if (!value) return ''
   const date = new Date(value)
@@ -210,7 +215,6 @@ function populateVisualInput(inputJson: string) {
 
 function resetForm() {
   editingId.value = null
-  editingNextExecutionAt.value = null
   form.name = ''
   form.providerId = store.activeProviders[0]?.id ?? ''
   form.agentDefinitionId =
@@ -255,7 +259,6 @@ async function openEdit(row: AgentScheduleDto) {
   try {
     const schedule = await AgentService.getSchedule(row.id)
     editingId.value = schedule.id
-    editingNextExecutionAt.value = schedule.nextExecutionAt
     form.name = schedule.name
     form.providerId = schedule.providerId
     form.agentDefinitionId = schedule.agentDefinitionId
@@ -494,6 +497,7 @@ onMounted(refresh)
     >
       <template #cell-providerId="{ row }">{{ providerName(row.providerId) }}</template>
       <template #cell-agentDefinitionId="{ row }">{{ definitionName(row.agentDefinitionId) }}</template>
+      <template #cell-extractionProfileId="{ row }">{{ extractionProfileName(row.extractionProfileId) }}</template>
       <template #cell-lastExecutionAt="{ row }">{{ formatDate(row.lastExecutionAt) }}</template>
       <template #cell-nextExecutionAt="{ row }">{{ formatDate(row.nextExecutionAt) }}</template>
       <template #cell-isActive="{ row }"><AgentStatusBadge :active="row.isActive" /></template>
