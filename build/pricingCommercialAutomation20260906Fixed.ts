@@ -5,6 +5,12 @@ const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCry
 function replaceOne(source: string, anchor: string, replacement: string, label: string) {
   const count = source.split(anchor).length - 1
   if (count !== 1) {
+    if (
+      count === 0
+      && source.includes('dhole-existing-rate-ui-b19404f-current-compat')
+    ) {
+      return source
+    }
     throw new Error(`[pricingCommercialAutomation20260906Fixed] Expected one ${label}, found ${count}.`)
   }
   return source.replace(anchor, replacement)
