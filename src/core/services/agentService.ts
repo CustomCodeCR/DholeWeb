@@ -10,6 +10,7 @@ import type {
   AgentExecutionPromptSnapshotDto,
   AgentExecutionStatus,
   AgentExtractionEquipmentDto,
+  AgentExtractionProfileDto,
   AgentExtractionFieldDto,
   AgentExtractionRouteDto,
   AgentPromptPreviewDto,
@@ -20,6 +21,7 @@ import type {
   CreateAgentCredentialRequest,
   CreateAgentDefinitionRequest,
   CreateAgentExecutionRequest,
+  CreateAgentExtractionProfileRequest,
   CreateAgentProviderRequest,
   CreateAgentScheduleRequest,
   CreateBrowserProfileRequest,
@@ -30,6 +32,7 @@ import type {
   TestAgentEndpointCaptureRequest,
   TestAgentEndpointCaptureResponse,
   UpdateAgentCredentialRequest,
+  UpdateAgentExtractionProfileRequest,
   UpdateAgentDefinitionRequest,
   UpdateAgentProviderRequest,
   UpdateAgentScheduleRequest,
@@ -164,6 +167,48 @@ const credentials = {
   verify(credentialId: string): Promise<NoContent> {
     return callEndpoint<NoContent>(AgentEndpoints.verifyCredential, {
       params: { credentialId },
+    })
+  },
+}
+
+const profiles = {
+  contractAvailable: true as const,
+
+  browse(): Promise<AgentExtractionProfileDto[]> {
+    return browseList<AgentExtractionProfileDto>(AgentEndpoints.browseExtractionProfiles)
+  },
+
+  get(profileId: string): Promise<AgentExtractionProfileDto> {
+    return getOne<AgentExtractionProfileDto>(AgentEndpoints.getExtractionProfile, { profileId })
+  },
+
+  create(payload: CreateAgentExtractionProfileRequest): Promise<string> {
+    return createOne(AgentEndpoints.createExtractionProfile, payload)
+  },
+
+  update(profileId: string, payload: UpdateAgentExtractionProfileRequest): Promise<NoContent> {
+    return callEndpoint<NoContent, UpdateAgentExtractionProfileRequest>(
+      AgentEndpoints.updateExtractionProfile,
+      {
+        params: { profileId },
+        body: payload,
+      },
+    )
+  },
+
+  setActive(profileId: string, isActive: boolean): Promise<NoContent> {
+    return callEndpoint<NoContent, { isActive: boolean }>(
+      AgentEndpoints.setExtractionProfileActive,
+      {
+        params: { profileId },
+        body: { isActive },
+      },
+    )
+  },
+
+  delete(profileId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>(AgentEndpoints.deleteExtractionProfile, {
+      params: { profileId },
     })
   },
 }
@@ -425,12 +470,7 @@ export const AgentService = {
     return true
   },
 
-  // The principal extraction-profile CRUD is intentionally not exposed until
-  // DholeAgentService publishes the corresponding REST contract.
-  profiles: {
-    contractAvailable: false as const,
-  },
-
+  profiles,
   providers,
   definitions,
   credentials,
