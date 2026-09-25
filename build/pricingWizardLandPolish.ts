@@ -80,8 +80,15 @@ function patchWizard(source: string) {
   const landTitleIndex = code.indexOf(landTitle)
   if (landTitleIndex >= 0) {
     const landStart = code.lastIndexOf(`            <div v-if="form.modality === 'Land'"`, landTitleIndex)
-    const row4Anchor = `            <!-- Fila 4: Incoterm y fecha de carga lista. -->`
-    const landEnd = code.indexOf(row4Anchor, landTitleIndex)
+    const row4Anchors = [
+      `            <!-- Fila 4: Incoterm y fecha de carga lista. -->`,
+      `            <!-- Fila 4: Incoterm y vigencia. -->`,
+    ]
+    const landEnd = row4Anchors
+      .map((anchor) => code.indexOf(anchor, landTitleIndex))
+      .filter((index) => index >= 0)
+      .sort((left, right) => left - right)[0] ?? -1
+
     if (landStart >= 0 && landEnd > landStart) {
       const compactLandBlock = `            <div v-if="shipmentModeForApi === 'Ftl'" class="overflow-hidden rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.035)]">
               <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--dh-primary-rgb)/0.16)] px-4 py-4 md:px-5">
