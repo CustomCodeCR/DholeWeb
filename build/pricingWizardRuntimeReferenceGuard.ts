@@ -8,15 +8,11 @@ function replaceOptional(source: string, anchor: string, replacement: string) {
 }
 
 function hasRuntimeBinding(source: string, name: string) {
-  const escaped = name.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\function replaceOptional(source: string, anchor: string, replacement: string) {
-  return source.includes(anchor) ? source.replace(anchor, replacement) : source
-}
-')
-  if (new RegExp('\\b(?:async\\s+)?function\\s+' + escaped + '\\s*\\(').test(source)) return true
-  if (new RegExp('\\b(?:const|let|var)\\s+' + escaped + '\\s*=').test(source)) return true
+  if (new RegExp('\\b(?:async\\s+)?function\\s+' + name + '\\s*\\(').test(source)) return true
+  if (new RegExp('\\b(?:const|let|var)\\s+' + name + '\\s*=').test(source)) return true
 
   const imports = source.match(/import[\\s\\S]*?from\\s+['"][^'"]+['"]/g) ?? []
-  return imports.some((statement) => new RegExp('\\b' + escaped + '\\b').test(statement))
+  return imports.some((statement) => new RegExp('\\b' + name + '\\b').test(statement))
 }
 
 function ensureRuntimeFunction(
