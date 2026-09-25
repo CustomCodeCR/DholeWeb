@@ -129,8 +129,8 @@ function patchWizard(source: string) {
   // Persist land allocations in final rate payload and seller request context.
   code = replaceAllRequired(
     code,
-    `shipmentModeForApi.value === 'Lcl' ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.equipmentQuantity`,
-    `shipmentModeForApi.value === 'Lcl' ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.modality === 'Land' ? Math.max(1, landEquipmentTotal.value) : form.equipmentQuantity`,
+    `consolidatedCargoMode.value ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.equipmentQuantity`,
+    `consolidatedCargoMode.value ? 0 : shipmentModeForApi.value === 'Fcl' ? Math.max(1, fclContainerTotal.value) : form.modality === 'Land' ? Math.max(1, landEquipmentTotal.value) : form.equipmentQuantity`,
     'land total equipment quantity',
   )
   code = replaceRequired(
@@ -193,22 +193,22 @@ function patchWizard(source: string) {
   )
   code = replaceRequired(
     code,
-    `<button type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>`,
-    `<button type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>\n            <span v-if="form.dangerousCargo && !hasDangerousTechSheet" class="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-black text-red-600 dark:text-red-300">Ficha técnica / MSDS obligatoria</span>`,
+    `<button v-if="!ltlCargoMode" type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>`,
+    `<button v-if="!ltlCargoMode" type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>\n            <span v-if="!ltlCargoMode && form.dangerousCargo && !hasDangerousTechSheet" class="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-black text-red-600 dark:text-red-300">Ficha técnica / MSDS obligatoria</span>`,
     'dangerous cargo warning',
   )
 
   // 16. Merchant and Carrier/Naviera haulage do not apply to the land screen.
   code = replaceRequired(
     code,
-    `<button type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">`,
-    `<button v-if="form.modality !== 'Land'" type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">`,
+    `<button v-if="shipmentModeForApi !== 'Lcl'" type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">`,
+    `<button v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" type="button" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage">`,
     'hide Merchant for land',
   )
   code = replaceRequired(
     code,
-    `<button type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">`,
-    `<button v-if="form.modality !== 'Land'" type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">`,
+    `<button v-if="shipmentModeForApi !== 'Lcl'" type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">`,
+    `<button v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" type="button" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage">`,
     'hide Carrier for land',
   )
 
