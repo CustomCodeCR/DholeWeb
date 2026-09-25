@@ -50,6 +50,19 @@ function patchWizard(source: string) {
   const missingRuntimeDefinitions: string[] = []
 
   if (
+    code.includes('canonicalCurrencyCode(')
+    && !code.includes('function canonicalCurrencyCode(')
+  ) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] canonicalCurrencyCode remained undefined.')
+  }
+  if (
+    code.includes('convertUsdCrc(')
+    && !code.includes('function convertUsdCrc(')
+  ) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] convertUsdCrc remained undefined.')
+  }
+
+  if (
     code.includes('automaticOptionalContextKey.value')
     && !code.includes('const automaticOptionalContextKey = ref(')
   ) {
@@ -130,6 +143,75 @@ function patchWizard(source: string) {
       "  const electronicSeal = value.includes('marchamo electronico') || value.includes('electronic seal') || value.includes('electronic security seal') || value.includes('e seal')",
       "  if (electronicSeal) return Boolean(form.electronicSeal)",
       "  return null",
+      "}",
+    ].join('\n'))
+  }
+
+  if (
+    code.includes('canonicalCurrencyCode(')
+    && !code.includes('function canonicalCurrencyCode(')
+  ) {
+    missingRuntimeDefinitions.push([
+      "function canonicalCurrencyCode(line: Pick<RateLine, 'currencyId' | 'currencyCode' | 'currencyName'>) {",
+      "  const catalogCurrency = findById(catalogs.currencies, line.currencyId)",
+      "  const candidates = [",
+      "    line.currencyCode,",
+      "    line.currencyName,",
+      "    catalogCurrency?.code,",
+      "    catalogCurrency?.slug,",
+      "    catalogCurrency?.label,",
+      "    displayValue(catalogCurrency),",
+      "  ]",
+      "",
+      "  for (const candidate of candidates) {",
+      "    const raw = String(candidate ?? '').trim()",
+      "    const normalized = normalizeCatalogValue(raw)",
+      "    const upper = raw.toUpperCase()",
+      "    if (upper === 'USD' || normalized === 'usd' || normalized.includes('dolar') || normalized.includes('dollar')) {",
+      "      return 'USD' as const",
+      "    }",
+      "    if (",
+      "      upper === 'CRC'",
+      "      || normalized === 'crc'",
+      "      || normalized.includes('colon costarricense')",
+      "      || normalized.includes('colones')",
+      "      || normalized === 'colon'",
+      "    ) {",
+      "      return 'CRC' as const",
+      "    }",
+      "  }",
+      "",
+      "  return String(line.currencyCode ?? '').trim().toUpperCase()",
+      "}",
+    ].join('\n'))
+  }
+
+  if (
+    code.includes('convertUsdCrc(')
+    && !code.includes('function convertUsdCrc(')
+  ) {
+    missingRuntimeDefinitions.push([
+      "function convertUsdCrc(amount: number, sourceCode: string, targetCode: 'USD' | 'CRC') {",
+      "  const source = String(sourceCode || 'USD').trim().toUpperCase()",
+      "  if (source === targetCode) return number(amount)",
+      "  const rate = number(exchangeRateSale.value)",
+      "  if (rate <= 0) return 0",
+      "  if (source === 'USD' && targetCode === 'CRC') return number(amount) * rate",
+      "  if (source === 'CRC' && targetCode === 'USD') return number(amount) / rate",
+      "  return 0",
+      "}",
+    ].join('\n'))
+  }
+
+  if (
+    code.includes('enforceLineCurrency(')
+    && !code.includes('function enforceLineCurrency(')
+  ) {
+    missingRuntimeDefinitions.push([
+      "function enforceLineCurrency(line: RateLine) {",
+      "  if (typeof isLineCrcForced === 'function' && isLineCrcForced(line) && crcCurrency.value) {",
+      "    if (typeof setLineCurrency === 'function') setLineCurrency(line, crcCurrency.value.id)",
+      "  }",
       "}",
     ].join('\n'))
   }
