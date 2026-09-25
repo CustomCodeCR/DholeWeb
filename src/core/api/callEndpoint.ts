@@ -11,12 +11,28 @@ type PathParams = Record<string, string>
 
 const RATE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-const IDEMPOTENCY_REUSE_MS = 2 * 60 * 1000
+const IDEMPOTENCY_REUSE_MS = 30 * 60 * 1000
 const recentIdempotencyKeys = new Map<string, { key: string; expiresAt: number }>()
 
 function requestBodyFingerprint(body: unknown, isFormData?: boolean): string | null {
   if (body === undefined) return ''
-  if (isFormData || (typeof FormData !== 'undefined' && body instanceof FormData)) return null
+
+  if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    const entries: string[] = []
+    for (const [name, value] of body.entries()) {
+      if (typeof value === 'string') {
+        entries.push(`${name}=text:${value}`)
+        continue
+      }
+
+      entries.push(
+        `${name}=file:${value.name}:${value.size}:${value.type}:${value.lastModified}`,
+      )
+    }
+    return entries.join('&')
+  }
+
+  if (isFormData) return null
 
   try {
     return JSON.stringify(body)
