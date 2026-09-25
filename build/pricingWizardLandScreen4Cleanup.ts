@@ -5,19 +5,13 @@ const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCry
 function guardButtonsForScreen4(source: string, handler: 'toggleMerchantHaulage' | 'toggleCarrierHaulage') {
   const pattern = new RegExp(`<button\\s+([^>]*@click="${handler}"[^>]*)>`, 'g')
   return source.replace(pattern, (opening) => {
-    const guards: string[] = []
-    if (!opening.includes(`form.modality !== 'Land'`)) guards.push(`form.modality !== 'Land'`)
-    if (!opening.includes('!isMultimodalViaPanama(selectedDestination)')) {
-      guards.push('!isMultimodalViaPanama(selectedDestination)')
-    }
-    if (!guards.length) return opening
+    if (opening.includes(`form.modality !== 'Land'`)) return opening
 
-    const guard = guards.join(' && ')
     const vif = opening.match(/v-if="([^"]*)"/)
     if (vif) {
-      return opening.replace(vif[0], `v-if="${guard} && (${vif[1]})"`)
+      return opening.replace(vif[0], `v-if="form.modality !== 'Land' && (${vif[1]})"`)
     }
-    return opening.replace('<button ', `<button v-if="${guard}" `)
+    return opening.replace('<button ', `<button v-if="form.modality !== 'Land'" `)
   })
 }
 
@@ -42,23 +36,20 @@ function guardCardBeforeText(source: string, text: string) {
     }
 
     const opening = code.slice(cardStart, cardEnd + 1)
-    const guards: string[] = []
-    if (!opening.includes(`form.modality !== 'Land'`)) guards.push(`form.modality !== 'Land'`)
-    if (!opening.includes('!isMultimodalViaPanama(selectedDestination)')) {
-      guards.push('!isMultimodalViaPanama(selectedDestination)')
+    if (opening.includes(`form.modality !== 'Land'`)) {
+      searchFrom = textIndex + text.length
+      continue
     }
 
-    if (guards.length) {
-      const vif = opening.match(/v-if="([^"]*)"/)
-      if (vif) {
-        const replacement = opening.replace(
-          vif[0],
-          `v-if="${guards.join(' && ')} && (${vif[1]})"`,
-        )
-        code = code.slice(0, cardStart) + replacement + code.slice(cardEnd + 1)
-        searchFrom = cardStart + replacement.length + text.length
-        continue
-      }
+    const vif = opening.match(/v-if="([^"]*)"/)
+    if (vif) {
+      const replacement = opening.replace(
+        vif[0],
+        `v-if="form.modality !== 'Land' && (${vif[1]})"`,
+      )
+      code = code.slice(0, cardStart) + replacement + code.slice(cardEnd + 1)
+      searchFrom = cardStart + replacement.length + text.length
+      continue
     }
 
     searchFrom = textIndex + text.length
@@ -70,21 +61,24 @@ function guardCardBeforeText(source: string, text: string) {
 function patchWizard(source: string) {
   let code = source
 
-  // Terrestre y Multimodal Via Panamá no usan Merchant/Naviera en pantalla 4.
+  // Merchant/Naviera son controles marítimos FCL. Solo se ocultan para Terrestre.
+  // Un FCL marítimo conserva estos controles aunque la ruta utilice el POE sintético
+  // Multimodal Via Panamá.
   code = guardButtonsForScreen4(code, 'toggleMerchantHaulage')
   code = guardButtonsForScreen4(code, 'toggleCarrierHaulage')
 
-  // Anticipado/Redestino es muellaje marítimo y no aplica a Terrestre ni al POE sintético
-  // Multimodal Via Panamá.
+  // Anticipado/Redestino es muellaje marítimo FCL y debe permanecer disponible
+  // también cuando la ruta marítima continúa vía Panamá.
   code = guardCardBeforeText(code, 'Muellaje en destino')
 
-  // Al entrar a Terrestre o seleccionar Multimodal Via Panamá, limpiar estados antiguos
-  // para evitar que cargos ocultos permanezcan seleccionados en el borrador.
+  // Al entrar a Terrestre, limpiar estados marítimos antiguos para evitar que cargos
+  // ocultos permanezcan seleccionados en el borrador. Cambiar de POE en un FCL no
+  // debe borrar Merchant/Naviera ni el muellaje.
   const watchAnchor = `watch(\n  () => [form.dangerousCargo, form.overweight, form.merchantHaulage, form.carrierHaulage, form.portHandlingMode] as const,`
   if (code.includes(watchAnchor) && !code.includes('dholeLandMaritimeStateCleanup')) {
     code = code.replace(
       watchAnchor,
-      `const dholeLandMaritimeStateCleanup = watch(\n  () => [form.modality, form.destinationId] as const,\n  ([modality]) => {\n    const hideMaritimeControls = modality === 'Land' || isMultimodalViaPanama(selectedDestination.value)\n    if (!hideMaritimeControls) return\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.portHandlingMode = ''\n    sellerPortHandlingMode.value = ''\n    syncHaulageOptionalLines()\n  },\n  { immediate: true },\n)\n\n${watchAnchor}`,
+      `const dholeLandMaritimeStateCleanup = watch(\n  () => [form.modality, form.destinationId] as const,\n  ([modality]) => {\n    if (modality !== 'Land') return\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.portHandlingMode = ''\n    sellerPortHandlingMode.value = ''\n    syncHaulageOptionalLines()\n  },\n  { immediate: true },\n)\n\n${watchAnchor}`,
     )
   }
 
@@ -96,7 +90,7 @@ export function pricingWizardLandScreen4Cleanup(): Plugin {
     name: 'dhole-pricing-wizard-land-screen4-cleanup',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\', '/').split('?')[0]
+      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
       return { code: patchWizard(source), map: null }
     },
