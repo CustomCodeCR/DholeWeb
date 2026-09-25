@@ -10,7 +10,18 @@ function guardFlagForLcl(code: string, field: (typeof LCL_ONLY_HIDDEN_FLAGS)[num
   )
 
   return code.replace(pattern, (tag) => {
-    if (tag.includes(`v-if="shipmentModeForApi !== 'Lcl'"`)) return tag
+    const existingVIf = tag.match(/v-if="([^"]*)"/)
+    if (existingVIf?.[1].includes("shipmentModeForApi !== 'Lcl'")) return tag
+
+    // Preserve any newer guard already present (for example !ltlCargoMode)
+    // instead of adding a second v-if attribute, which Vue rejects.
+    if (existingVIf) {
+      return tag.replace(
+        existingVIf[0],
+        `v-if="shipmentModeForApi !== 'Lcl' && (${existingVIf[1]})"`,
+      )
+    }
+
     return tag.replace('<button', `<button v-if="shipmentModeForApi !== 'Lcl'"`)
   })
 }
@@ -58,7 +69,8 @@ function patchWizard(source: string) {
       'g',
     )
     const tags = code.match(pattern) ?? []
-    if (tags.length !== 1 || !tags[0].includes(`v-if="shipmentModeForApi !== 'Lcl'"`)) {
+    const vIfExpression = tags[0]?.match(/v-if="([^"]*)"/)?.[1] ?? ''
+    if (tags.length !== 1 || !vIfExpression.includes("shipmentModeForApi !== 'Lcl'")) {
       throw new Error(`[pricingWizardLclFinalGuard] ${field} is not guarded for LCL.`)
     }
   }
