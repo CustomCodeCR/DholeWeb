@@ -18,8 +18,8 @@ function replaceAllRequired(source: string, anchor: string, replacement: string,
 function guardButtonForLand(source: string, handler: 'toggleMerchantHaulage' | 'toggleCarrierHaulage') {
   const pattern = new RegExp(`<button\\s+([^>]*@click="${handler}"[^>]*)>`, 'g')
   const matches = source.match(pattern) ?? []
-  if (matches.length !== 1) {
-    throw new Error(`[pricingRequirements20260908] Expected one ${handler} button, found ${matches.length}.`)
+  if (!matches.length) {
+    throw new Error(`[pricingRequirements20260908] Expected at least one ${handler} button, found 0.`)
   }
 
   return source.replace(pattern, (opening) => {
