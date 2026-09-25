@@ -37,6 +37,8 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
 
 <template>
   <div class="min-w-0">
+    <!-- Mobile: every generic table becomes a readable record card. This keeps
+         the complete data set visible without forcing a 700+ px horizontal table. -->
     <div class="dh-data-table-mobile grid gap-3">
       <div
         v-if="loading"
@@ -89,8 +91,10 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
       </template>
     </div>
 
+    <!-- Tablet/desktop: preserve the dense table experience with contained
+         horizontal scrolling for genuinely wide operational datasets. -->
     <div
-      class="dh-data-table-desktop dh-scrollbar max-w-full overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl sm:block"
+      class="dh-data-table-desktop dh-scrollbar max-w-full overflow-x-auto overscroll-contain rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl sm:block"
     >
       <table class="w-full min-w-[680px] border-collapse text-left text-sm md:min-w-[760px]">
         <thead class="bg-black/[0.035] text-xs text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
