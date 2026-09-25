@@ -7,6 +7,29 @@ function replaceOptional(source: string, anchor: string, replacement: string) {
   return source.includes(anchor) ? source.replace(anchor, replacement) : source
 }
 
+function hasRuntimeBinding(source: string, name: string) {
+  const escaped = name.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\function replaceOptional(source: string, anchor: string, replacement: string) {
+  return source.includes(anchor) ? source.replace(anchor, replacement) : source
+}
+')
+  if (new RegExp('\\b(?:async\\s+)?function\\s+' + escaped + '\\s*\\(').test(source)) return true
+  if (new RegExp('\\b(?:const|let|var)\\s+' + escaped + '\\s*=').test(source)) return true
+
+  const imports = source.match(/import[\\s\\S]*?from\\s+['"][^'"]+['"]/g) ?? []
+  return imports.some((statement) => new RegExp('\\b' + escaped + '\\b').test(statement))
+}
+
+function ensureRuntimeFunction(
+  source: string,
+  name: string,
+  definition: string,
+  definitions: string[],
+) {
+  if (!source.includes(name + '(')) return
+  if (hasRuntimeBinding(source, name)) return
+  definitions.push(definition)
+}
+
 function patchWizard(source: string) {
   let code = source
   if (code.includes(MARKER)) return code
@@ -201,6 +224,444 @@ function patchWizard(source: string) {
     ].join('\n'))
   }
 
+
+  ensureRuntimeFunction(
+    code,
+    'sectionForCost',
+    [
+      "function sectionForCost(cost: CostSelectDto): RateSection {",
+      "  if (cost.costDetailType !== 'Freight') {",
+      "    const explicitSection = explicitSectionFromName(cost.name)",
+      "    if (explicitSection) return explicitSection",
+      "  }",
+      "  const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)",
+      "  if (byPortRole) return byPortRole",
+      "  if (cost.polId && !cost.poeId && !cost.podId) {",
+      "    return cost.costDetailType === 'InlandTransport' ? 'pickup_origin' : 'origin_charges'",
+      "  }",
+      "  if ((cost.poeId || cost.podId) && !cost.polId) {",
+      "    return cost.costDetailType === 'InlandTransport' ? 'delivery_destination' : 'destination_charges'",
+      "  }",
+      "  return sectionForDetail(cost.costDetailType, cost.name)",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'sectionForManual',
+    [
+      "function sectionForManual(section: RateSection): CostDetailType {",
+      "  if (section === 'international_freight') return 'Freight'",
+      "  if (section === 'origin_charges') return 'OriginCharge'",
+      "  if (section === 'destination_charges') return 'DestinationCharge'",
+      "  if (section === 'pickup_origin' || section === 'delivery_destination') return 'InlandTransport'",
+      "  return 'Other'",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'defaultChargeBasis',
+    [
+      "function defaultChargeBasis(type: CostDetailType): ChargeBasis {",
+      "  if (type === 'Documentation') return 'PerDocument'",
+      "  if (type === 'Freight' || type === 'InlandTransport') {",
+      "    if (shipmentModeForApi.value === 'Fcl') return 'PerContainer'",
+      "    if (shipmentModeForApi.value === 'Ftl') return 'PerTruck'",
+      "    if (shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'Ltl') return 'PerChargeableCbm'",
+      "  }",
+      "  return 'PerShipment'",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'detailTypeLabel',
+    [
+      "function detailTypeLabel(type: CostDetailType) {",
+      "  return ({",
+      "    Freight: 'Flete internacional',",
+      "    AgentCharge: 'Costo de agente',",
+      "    OriginCharge: 'Cargo en origen',",
+      "    DestinationCharge: 'Cargo en destino',",
+      "    PortCharge: 'Cargo portuario',",
+      "    CustomsCharge: 'Aduana',",
+      "    InlandTransport: 'Transporte interno',",
+      "    Documentation: 'Documentación',",
+      "    Insurance: 'Seguro',",
+      "    Other: 'Otro',",
+      "  } as Record<CostDetailType, string>)[type]",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'chargeBasisLabel',
+    [
+      "function chargeBasisLabel(basis: ChargeBasis) {",
+      "  return ({",
+      "    PerShipment: 'Por embarque',",
+      "    PerService: 'Por Servicio',",
+      "    PerContainer: 'Por contenedor',",
+      "    PerTeu: 'Por TEU',",
+      "    PerTruck: 'Por camión',",
+      "    PerCbm: 'Por CBM',",
+      "    PerChargeableCbm: 'Por CBM cobrable',",
+      "    PerKg: 'Por kg',",
+      "    Per100Kg: 'Por 100 kg',",
+      "    PerTon: 'Por tonelada',",
+      "    PerPallet: 'Por pallet',",
+      "    PerPackage: 'Por bulto',",
+      "    PerDocument: 'Por documento',",
+      "  } as Record<ChargeBasis, string>)[basis]",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'costContextLabel',
+    [
+      "function costContextLabel(cost: CostSelectDto) {",
+      "  const parts: string[] = []",
+      "  if (cost.agentName) parts.push('Agente: ' + cost.agentName)",
+      "  if (cost.carrierName) parts.push('Naviera: ' + cost.carrierName)",
+      "  if (cost.polName) parts.push('POL: ' + cost.polName)",
+      "  if (cost.poeName) parts.push('POE: ' + cost.poeName)",
+      "  if (cost.podName) parts.push('POD: ' + cost.podName)",
+      "  if (cost.portName && !parts.some((part) => part.includes(cost.portName!))) {",
+      "    const role = cost.portRole && cost.portRole !== 'Any' ? cost.portRole.toUpperCase() : 'Puerto'",
+      "    parts.push(role + ': ' + cost.portName)",
+      "  }",
+      "  return parts.join(' · ') || null",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'applicableConfiguredCosts',
+    [
+      "function applicableConfiguredCosts() {",
+      "  return costs.value",
+      "    .filter(applicableCost)",
+      "    .sort((left, right) => costSpecificity(right) - costSpecificity(left))",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'isCargoConditionLine',
+    [
+      "function isCargoConditionLine(line: RateLine, kind: 'dangerous' | 'overweight') {",
+      "  const value = normalizeCatalogValue(line.name)",
+      "  return kind === 'dangerous'",
+      "    ? value.includes('carga peligrosa') || value.includes('dangerous') || value.includes('hazmat')",
+      "    : value.includes('sobrepeso') || value.includes('overweight') || value.includes('over weight')",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'canApplyDestinationTax',
+    [
+      "function canApplyDestinationTax(line: RateLine) {",
+      "  return line.section === 'destination_charges' && line.costDetailType !== 'AgentCharge'",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'lineDestinationTaxRate',
+    [
+      "function lineDestinationTaxRate(line: RateLine) {",
+      "  const persistedRate = number(line.destinationTaxRate)",
+      "  return persistedRate > 0 ? persistedRate : destinationTaxRate.value",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'lineTaxAmount',
+    [
+      "function lineTaxAmount(line: RateLine) {",
+      "  const taxRate = lineDestinationTaxRate(line)",
+      "  return line.applyDestinationTax && canApplyDestinationTax(line) && taxRate > 0",
+      "    ? Math.round(number(line.saleAmount) * taxRate) / 100",
+      "    : 0",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'lineTaxTotalAmount',
+    [
+      "function lineTaxTotalAmount(line: RateLine) {",
+      "  return lineTaxAmount(line) * quantityForRateLine(line)",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'lineSaleWithTax',
+    [
+      "function lineSaleWithTax(line: RateLine) {",
+      "  return number(line.saleAmount) + lineTaxAmount(line)",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'setLineDestinationTax',
+    [
+      "function setLineDestinationTax(line: RateLine, enabled: boolean) {",
+      "  const active = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0",
+      "  line.applyDestinationTax = active",
+      "  line.destinationTaxRate = active ? destinationTaxRate.value : 0",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'quantityForRateLine',
+    [
+      "function quantityForRateLine(line: RateLine) {",
+      "  const explicitQuantity = number(line.quantityOverride)",
+      "  if (explicitQuantity > 0) return explicitQuantity",
+      "  return quantityForChargeBasis(line.chargeBasis)",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'rateEquipmentSummary',
+    [
+      "function rateEquipmentSummary(rate: RateDto) {",
+      "  const mode = String(rate.shipmentMode).toLocaleLowerCase()",
+      "  if (mode === 'lcl') return 'LCL · ' + Number(rate.chargeableQuantity || 0).toFixed(3) + ' CBM cobrable'",
+      "  if (mode === 'ltl') return 'LTL · ' + Number(rate.chargeableQuantity || 0).toFixed(3) + ' CBM cobrable'",
+      "  const allocations = (rate.containers ?? []).filter((container) => number(container.quantity) > 0)",
+      "  if (allocations.length) {",
+      "    return allocations",
+      "      .map((container) => String(container.quantity) + ' × ' + (container.containerTypeName || container.containerTypeCode))",
+      "      .join(' + ')",
+      "  }",
+      "  return String(rate.containerQuantity) + ' × ' + rate.containerTypeName",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'financialTone',
+    [
+      "function financialTone(value: number) {",
+      "  if (value < 0) return 'danger'",
+      "  if (value > 0) return 'success'",
+      "  return 'neutral'",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'validityTone',
+    [
+      "function validityTone(validTo: string) {",
+      "  const days = remainingValidityDays(validTo)",
+      "  if (days <= 3) return 'danger'",
+      "  if (days <= 7) return 'warning'",
+      "  return 'success'",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'selectedSellerRequestExecutiveName',
+    [
+      "function selectedSellerRequestExecutiveName() {",
+      "  const selected = sellerRequestOwnerOptions.value.find((option) => option.value === sellerRequestOwnerId.value)",
+      "  return String(selected?.label || '').trim()",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'chooseLandLtlCommercialProfile',
+    [
+      "async function chooseLandLtlCommercialProfile(profile: LandCommercialProfile) {",
+      "  if (profile === landLtlCommercialProfile.value && resolvedFtlTariff.value) return",
+      "  landLtlCommercialProfile.value = profile",
+      "  await searchApprovedRates()",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'appendPanamaProductionLandLine',
+    [
+      "function appendPanamaProductionLandLine(lines: RateLine[]) {",
+      "  if (!panamaProductionNoSearchActive.value) return",
+      "  const finalDestination = panamaProductionFinalDestination()",
+      "  if (!isPanamaCostaRicaGamProductionRoute(finalDestination)) return",
+      "  const usd = catalogs.currencies.find((currency) => {",
+      "    const value = normalizeCatalogValue([currency.code, displayValue(currency), currency.label].filter(Boolean).join(' '))",
+      "    return value === 'usd' || value.includes(' usd') || value.includes('dolar') || value.includes('dollar')",
+      "  }) ?? null",
+      "  if (!usd) return",
+      "  lines.push({",
+      "    key: 'panama-production:cfz-san-jose-2140',",
+      "    section: 'international_freight',",
+      "    name: 'Flete terrestre internacional CFZ / Zona Libre Colón, Panamá → ' + finalDestination,",
+      "    costDetailType: 'InlandTransport',",
+      "    costType: 'Variable',",
+      "    chargeBasis: 'PerContainer',",
+      "    contextLabel: 'CFZ / Zona Libre Colón, Panamá → ' + finalDestination + ' · Marítimo-terrestre',",
+      "    notes: '[PANAMA_PRODUCTION_NO_SEARCH] Regla GCF multimodal: CFZ / Zona Libre Colón, Panamá → San José, Costa Rica · USD 2,140 por unidad. No realiza búsqueda adicional.',",
+      "    currencyId: usd.id,",
+      "    currencyName: displayValue(usd) || usd.label || 'USD',",
+      "    currencyCode: String(usd.code || 'USD'),",
+      "    amountCurrencyCode: String(usd.code || 'USD'),",
+      "    costAmount: 2140,",
+      "    saleAmount: 2140,",
+      "    included: true,",
+      "    optional: false,",
+      "    manual: false,",
+      "  })",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'calculateCargoInsurance',
+    [
+      "function calculateCargoInsurance(cargoValue: number, _freightAmount: number) {",
+      "  const value = Math.max(0, Number(cargoValue) || 0)",
+      "  const roundMoney = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100",
+      "  return {",
+      "    insuredValue: roundMoney(value),",
+      "    cost: Math.max(35, roundMoney(value * 0.002)),",
+      "    sale: Math.max(95, roundMoney(value * 0.0065)),",
+      "  }",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'cargoInsuranceNote',
+    [
+      "function cargoInsuranceNote(cargoValue: number, freightAmount: number) {",
+      "  const calculated = calculateCargoInsurance(cargoValue, freightAmount)",
+      "  return 'Seguro de carga · valor carga USD ' + calculated.insuredValue.toFixed(2) + ' · venta 0.65% · mínimo USD 95 · costo 0.20% · mínimo costo USD 35'",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'syncPersistedLinesWithChangedConfiguredCosts',
+    [
+      "function syncPersistedLinesWithChangedConfiguredCosts() {",
+      "  if (!editingRate.value || props.viewOnly) return 0",
+      "  const configuredCosts = applicableConfiguredCosts()",
+      "  const persistedById = new Map(editingRate.value.rateDetails.map((detail) => [detail.id, detail] as const))",
+      "  const resolveCurrentConfiguredCost = (line: RateLine) => {",
+      "    const normalizedLineName = normalizeCatalogValue(line.name)",
+      "    const sameLogicalCharge = configuredCosts.find((cost) =>",
+      "      normalizeCatalogValue(cost.name) === normalizedLineName && cost.costDetailType === line.costDetailType,",
+      "    )",
+      "    if (sameLogicalCharge) return sameLogicalCharge",
+      "    const sameName = configuredCosts.filter((cost) => normalizeCatalogValue(cost.name) === normalizedLineName)",
+      "    if (sameName.length === 1) return sameName[0]",
+      "    return line.costId ? configuredCosts.find((cost) => cost.id === line.costId) ?? null : null",
+      "  }",
+      "  let changedCount = 0",
+      "  rateLines.value.forEach((line) => {",
+      "    if (!line.costId || line.costDetailType === 'Freight') return",
+      "    const configured = resolveCurrentConfiguredCost(line)",
+      "    if (!configured) return",
+      "    const persisted = line.detailId",
+      "      ? persistedById.get(line.detailId)",
+      "      : editingRate.value?.rateDetails.find((detail) => detail.costId === line.costId)",
+      "    if (!persisted) return",
+      "    const configuredChargeBasis = configured.chargeBasis ?? defaultChargeBasis(configured.costDetailType)",
+      "    const catalogChanged =",
+      "      persisted.name.trim() !== configured.name.trim()",
+      "      || persisted.costDetailType !== configured.costDetailType",
+      "      || persisted.costType !== configured.costType",
+      "      || persisted.chargeBasis !== configuredChargeBasis",
+      "      || persisted.currencyId !== configured.currencyId",
+      "      || persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase()",
+      "      || number(persisted.costAmount) !== number(configured.costAmount)",
+      "      || number(persisted.saleAmount) !== number(configured.saleAmount)",
+      "      || String(persisted.notes ?? '').trim() !== String(configured.notes ?? '').trim()",
+      "    if (!catalogChanged) return",
+      "    line.section = sectionForCost(configured)",
+      "    line.name = configured.name",
+      "    line.costDetailType = configured.costDetailType",
+      "    line.costType = configured.costType",
+      "    line.chargeBasis = configuredChargeBasis",
+      "    line.contextLabel = costContextLabel(configured)",
+      "    line.notes = configured.notes?.trim() || null",
+      "    line.serviceIds = configured.services?.map((service) => service.id) ?? []",
+      "    line.currencyId = configured.currencyId",
+      "    line.currencyName = configured.currencyName",
+      "    line.currencyCode = configured.currencyCode",
+      "    line.amountCurrencyCode = configured.currencyCode",
+      "    line.costAmount = number(configured.costAmount)",
+      "    line.saleAmount = number(configured.saleAmount)",
+      "    line.optional = configured.costType === 'Optional'",
+      "    line.manual = false",
+      "    enforceLineCurrency(line)",
+      "    changedCount += 1",
+      "  })",
+      "  return changedCount",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
   const helpers = `// dhole-runtime-reference-guard-20260925
 ${missingRuntimeDefinitions.join('\n\n')}
 ${missingRuntimeDefinitions.length ? '\n\n' : ''}function dholeRuntimeCostContextImportRateId() {
@@ -327,6 +788,46 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
 `
 
   code = code.slice(0, scriptEnd) + helpers + code.slice(scriptEnd)
+
+
+  const guardedRuntimeFunctions = [
+    'automaticOptionalCostId',
+    'sectionForDetail',
+    'screen4OptionalConditionSelection',
+    'canonicalCurrencyCode',
+    'convertUsdCrc',
+    'enforceLineCurrency',
+    'sectionForCost',
+    'sectionForManual',
+    'defaultChargeBasis',
+    'detailTypeLabel',
+    'chargeBasisLabel',
+    'costContextLabel',
+    'applicableConfiguredCosts',
+    'isCargoConditionLine',
+    'canApplyDestinationTax',
+    'lineDestinationTaxRate',
+    'lineTaxAmount',
+    'lineTaxTotalAmount',
+    'lineSaleWithTax',
+    'setLineDestinationTax',
+    'quantityForRateLine',
+    'rateEquipmentSummary',
+    'financialTone',
+    'validityTone',
+    'selectedSellerRequestExecutiveName',
+    'chooseLandLtlCommercialProfile',
+    'appendPanamaProductionLandLine',
+    'calculateCargoInsurance',
+    'cargoInsuranceNote',
+    'syncPersistedLinesWithChangedConfiguredCosts',
+  ]
+
+  for (const name of guardedRuntimeFunctions) {
+    if (code.includes(name + '(') && !hasRuntimeBinding(code, name)) {
+      throw new Error('[pricingWizardRuntimeReferenceGuard] ' + name + ' remained undefined after final fallback injection.')
+    }
+  }
 
   if (
     code.includes('canonicalCurrencyCode(')
