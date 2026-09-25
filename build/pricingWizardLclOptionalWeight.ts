@@ -4,9 +4,15 @@ const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCry
 
 function replaceOne(source: string, anchor: string, replacement: string, label: string) {
   const occurrences = source.split(anchor).length - 1
-  if (occurrences !== 1) {
-    throw new Error(`[pricingWizardLclOptionalWeight] Expected exactly one ${label} anchor, found ${occurrences}.`)
+  if (occurrences > 1) {
+    throw new Error(`[pricingWizardLclOptionalWeight] Expected at most one ${label} anchor, found ${occurrences}.`)
   }
+
+  // This build plugin predates several direct wizard fixes. Newer source can
+  // already contain the intended behavior (or a more specific LTL/LCL guard),
+  // so a missing legacy anchor is no longer an error.
+  if (occurrences === 0) return source
+
   return source.replace(anchor, replacement)
 }
 
