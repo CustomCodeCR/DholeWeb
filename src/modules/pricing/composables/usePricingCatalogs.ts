@@ -124,6 +124,7 @@ function normalizeCurrency(item: PricingCatalogItem): PricingCatalogItem {
     ...item,
     name: isoLabel,
     code: isoLabel,
+    value: isoLabel,
   }
 }
 
