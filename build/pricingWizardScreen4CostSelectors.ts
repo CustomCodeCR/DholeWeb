@@ -93,10 +93,25 @@ function patchWizard(source: string) {
 
   code = replaceRegexOnce(
     code,
-    /function shouldIncludeOptionalCost\([\s\S]*?\n\}(?=\n\nasync function loadApplicableCosts)/,
+    /function shouldIncludeOptionalCost\([\s\S]*?\n\}(?=\n\n(?:const selectableOptionalLines = computed|async function loadApplicableCosts))/,
     shouldIncludeOptional,
     'automatic optional inclusion',
   )
+
+  const preservedRuntimeAnchors = [
+    'const selectableOptionalLines = computed',
+    'const optionalChargeOptions = computed',
+    'const canNext = computed',
+    'function sectionForCost(',
+    'function defaultChargeBasis(',
+    'function applicableConfiguredCosts(',
+    'function quantityForRateLine(',
+  ]
+  preservedRuntimeAnchors.forEach((anchor) => {
+    if (!code.includes(anchor)) {
+      throw new Error('[pricingWizardScreen4CostSelectors] Runtime helper was removed unexpectedly: ' + anchor)
+    }
+  })
 
   const syncOptionalLines = [
     "function syncHaulageOptionalLines() {",
@@ -143,7 +158,7 @@ function patchWizard(source: string) {
       "  ),",
       ")",
       "",
-    ].join('\\n')
+    ].join('\n')
     code = code.slice(0, optionalSelectorStart) + screen7OptionalSelector + code.slice(optionalSelectorEnd)
   }
 
