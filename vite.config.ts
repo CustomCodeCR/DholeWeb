@@ -70,6 +70,7 @@ import { pricingDuplicateRateRefreshWorkflow } from './build/pricingDuplicateRat
 import { pricingWizardMixedFclFreightFix } from './build/pricingWizardMixedFclFreightFix'
 import { pricingWizardScreen4CostSelectors } from './build/pricingWizardScreen4CostSelectors'
 import { pricingWizardRuntimeReferenceGuard } from './build/pricingWizardRuntimeReferenceGuard'
+import { pricingWizardMultipleDrafts } from './build/pricingWizardMultipleDrafts'
 
 export default defineConfig({
   plugins: [
@@ -138,6 +139,7 @@ export default defineConfig({
     pricingWizardPersistedLclHydration(),
     pricingWizardLandPolish(),
     pricingWizardScreen4CostSelectors(),
+    pricingWizardMultipleDrafts(),
     pricingWizardRuntimeReferenceGuard(),
     vue(),
     tailwindcss(),
