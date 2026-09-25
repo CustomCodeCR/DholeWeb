@@ -174,7 +174,7 @@ function buildPayload(): CreateLandTariffItem | null {
     applicableEquipmentClasses: classes,
     currencyId: currency.id,
     currencyName: currency.name,
-    currencyCode: currency.value || currency.code || currency.name,
+    currencyCode: currency.code || currency.value || currency.name,
     priceAmount,
     rateBasis: isLtl.value ? 'PerCbm' : 'PerTruck',
     minimumAmount: isLtl.value ? minimumAmount : null,
