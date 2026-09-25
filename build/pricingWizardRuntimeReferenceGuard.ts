@@ -50,19 +50,6 @@ function patchWizard(source: string) {
   const missingRuntimeDefinitions: string[] = []
 
   if (
-    code.includes('canonicalCurrencyCode(')
-    && !code.includes('function canonicalCurrencyCode(')
-  ) {
-    throw new Error('[pricingWizardRuntimeReferenceGuard] canonicalCurrencyCode remained undefined after fallback injection.')
-  }
-  if (
-    code.includes('convertUsdCrc(')
-    && !code.includes('function convertUsdCrc(')
-  ) {
-    throw new Error('[pricingWizardRuntimeReferenceGuard] convertUsdCrc remained undefined after fallback injection.')
-  }
-
-  if (
     code.includes('automaticOptionalContextKey.value')
     && !code.includes('const automaticOptionalContextKey = ref(')
   ) {
@@ -340,6 +327,19 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
 `
 
   code = code.slice(0, scriptEnd) + helpers + code.slice(scriptEnd)
+
+  if (
+    code.includes('canonicalCurrencyCode(')
+    && !code.includes('function canonicalCurrencyCode(')
+  ) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] canonicalCurrencyCode remained undefined after fallback injection.')
+  }
+  if (
+    code.includes('convertUsdCrc(')
+    && !code.includes('function convertUsdCrc(')
+  ) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] convertUsdCrc remained undefined after fallback injection.')
+  }
 
   if (
     code.includes('automaticOptionalContextKey.value')
