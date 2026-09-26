@@ -992,6 +992,11 @@ export const AgentEndpoints = {
     path: '/api/agents/executions/{{executionId}}/prompt',
     headers: acceptJson,
   },
+  getAgentExecutionResult: {
+    method: 'GET',
+    path: '/api/agents/executions/{{executionId}}/result',
+    headers: acceptJson,
+  },
   createAgentExecution: { method: 'POST', path: '/api/agents/executions', headers: jsonHeaders },
   cancelAgentExecution: {
     method: 'POST',
