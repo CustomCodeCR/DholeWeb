@@ -1494,7 +1494,8 @@
       "noCredential": "Sin credencial",
       "selectExtractionProfile": "Seleccione el perfil que usará esta programación",
       "inputTitle": "Input de ejecución",
-      "oceanInput": "Formulario marítimo detectado por ActionType SearchOceanRates.",
+      "oceanInput": "Las rutas, equipos, cantidades, pesos y campos a extraer se toman del perfil seleccionado.",
+      "profileDrivenInput": "Perfil = fuente de verdad. Aquí solo se definen parámetros variables de la ejecución.",
       "genericInput": "Esta definición utiliza InputJson genérico.",
       "editJson": "Editar JSON",
       "advancedMode": "Modo avanzado"
