@@ -9,6 +9,7 @@ import type {
   AgentExecutionDto,
   AgentExecutionPromptSnapshotDto,
   AgentExecutionStatus,
+  AgentResultDto,
   AgentExtractionEquipmentDto,
   AgentExtractionProfileDto,
   AgentExtractionFieldDto,
@@ -453,6 +454,13 @@ const executions = {
     return unwrapApiResponse<AgentExecutionPromptSnapshotDto>(response as never)
   },
 
+  async getResult(executionId: string): Promise<AgentResultDto> {
+    const response = await callEndpoint<unknown>(AgentEndpoints.getAgentExecutionResult, {
+      params: { executionId },
+    })
+    return unwrapApiResponse<AgentResultDto>(response as never)
+  },
+
   create(payload: CreateAgentExecutionRequest): Promise<string> {
     return createOne(AgentEndpoints.createAgentExecution, payload)
   },
@@ -519,6 +527,7 @@ export const AgentService = {
   browseExecutions: executions.browse,
   getExecution: executions.get,
   getExecutionPrompt: executions.getPrompt,
+  getExecutionResult: executions.getResult,
   createExecution: executions.create,
   cancelExecution: executions.cancel,
 }
