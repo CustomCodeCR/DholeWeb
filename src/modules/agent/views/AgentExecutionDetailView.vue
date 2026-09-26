@@ -10,6 +10,7 @@ import type {
   AgentExecutionDto,
   AgentExecutionPromptSnapshotDto,
   AgentExecutionStatus,
+  AgentResultDto,
 } from '@/core/interfaces/agent'
 import { AgentService } from '@/core/services/agentService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -33,6 +34,8 @@ const { formatDate, formatDuration } = useAgentFormatting()
 
 const execution = ref<AgentExecutionDto | null>(null)
 const promptSnapshot = ref<AgentExecutionPromptSnapshotDto | null>(null)
+const storedResult = ref<AgentResultDto | null>(null)
+const resultLoading = ref(false)
 const promptLoading = ref(false)
 const promptLoaded = ref(false)
 const promptUnavailable = ref(false)
@@ -114,6 +117,19 @@ async function loadPromptSnapshot(force = false) {
   }
 }
 
+async function loadStoredResult() {
+  if (!executionId.value || resultLoading.value) return
+
+  try {
+    resultLoading.value = true
+    storedResult.value = await AgentService.executions.getResult(executionId.value)
+  } catch {
+    storedResult.value = null
+  } finally {
+    resultLoading.value = false
+  }
+}
+
 async function refresh(showToast = false) {
   if (!executionId.value || loading.value) return
 
@@ -127,7 +143,11 @@ async function refresh(showToast = false) {
     store.upsertExecution(row)
     polling.sync()
 
-    if (activeTab.value === 'prompt') {
+    if (['Completed', 'PartiallyCompleted'].includes(row.status)) {
+      await loadStoredResult()
+    }
+
+    if (activeTab.value === 'prompt' || activeTab.value === 'tasks') {
       await loadPromptSnapshot(true)
     }
 
@@ -155,6 +175,29 @@ async function cancelExecution() {
   }
 }
 
+const executionPlan = computed(() => {
+  const raw = promptSnapshot.value?.configurationSnapshotJson
+  if (!raw) return { routes: [] as Record<string, unknown>[], equipment: [] as Record<string, unknown>[], tasks: [] as Array<{ route: Record<string, unknown>; equipment: Record<string, unknown> }> }
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      routes?: Record<string, unknown>[]
+      equipment?: Record<string, unknown>[]
+    }
+    const routes = Array.isArray(parsed.routes) ? parsed.routes : []
+    const equipment = Array.isArray(parsed.equipment) ? parsed.equipment : []
+    return {
+      routes,
+      equipment,
+      tasks: routes.flatMap((route) => equipment.map((item) => ({ route, equipment: item }))),
+    }
+  } catch {
+    return { routes: [], equipment: [], tasks: [] }
+  }
+})
+
+const resultValue = computed(() => storedResult.value?.dataJson ?? execution.value?.outputJson ?? null)
+
 const metadata = computed(() => {
   const row = execution.value
   if (!row) return []
@@ -177,7 +220,10 @@ const metadata = computed(() => {
 })
 
 watch(activeTab, (tab) => {
-  if (tab === 'prompt') void loadPromptSnapshot()
+  if (tab === 'prompt' || tab === 'tasks') void loadPromptSnapshot()
+  if (tab === 'result' && execution.value && ['Completed', 'PartiallyCompleted'].includes(execution.value.status)) {
+    void loadStoredResult()
+  }
 })
 
 onMounted(async () => {
@@ -251,14 +297,50 @@ onMounted(async () => {
         </div>
       </DhCard>
 
-      <DhCard v-else-if="activeTab === 'tasks'" title="Tareas">
-        <div class="rounded-[18px] border border-dashed border-[var(--dh-border)] p-5 text-sm font-semibold text-[var(--dh-text-muted)]">
-          Feature blocked by backend contract: DholeAgentService todavía no expone las tareas Route × Equipment de una ejecución.
+      <DhCard v-else-if="activeTab === 'tasks'" title="Tareas Route × Equipment">
+        <p
+          v-if="promptLoading"
+          class="py-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+        >
+          Cargando plan del perfil...
+        </p>
+        <div
+          v-else-if="executionPlan.tasks.length"
+          class="grid gap-3"
+        >
+          <div
+            v-for="(task, index) in executionPlan.tasks"
+            :key="index"
+            class="rounded-[18px] border border-[var(--dh-border)] p-4"
+          >
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <span class="text-sm font-black text-[var(--dh-text)]">Búsqueda {{ index + 1 }}</span>
+              <span class="text-xs font-bold text-[var(--dh-text-muted)]">
+                {{ String(task.equipment.code ?? task.equipment.name ?? 'Equipo') }}
+              </span>
+            </div>
+            <div class="grid gap-3 md:grid-cols-2">
+              <AgentJsonViewer :value="task.route" />
+              <AgentJsonViewer :value="task.equipment" />
+            </div>
+          </div>
+        </div>
+        <div
+          v-else
+          class="rounded-[18px] border border-dashed border-[var(--dh-border)] p-5 text-sm font-semibold text-[var(--dh-text-muted)]"
+        >
+          El snapshot del perfil no contiene rutas/equipos para construir el plan de ejecución.
         </div>
       </DhCard>
 
       <DhCard v-else-if="activeTab === 'result'" :title="t('agent.fields.result')">
-        <AgentRateResult v-if="execution.outputJson" :value="execution.outputJson" />
+        <p
+          v-if="resultLoading"
+          class="py-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+        >
+          Cargando resultado extraído...
+        </p>
+        <AgentRateResult v-else-if="resultValue" :value="resultValue" />
         <p v-else class="py-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
           {{ t('agent.detail.outputPending') }}
         </p>
