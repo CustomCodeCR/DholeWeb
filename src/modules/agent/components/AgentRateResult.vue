@@ -24,8 +24,22 @@ const parsed = computed<unknown>(() => {
 })
 
 const root = computed(() => readObject(parsed.value))
-const rate = computed(() => {
+const extractionData = computed(() => {
   const object = root.value
+  if (!object) return null
+  return readObject(object.data) ?? object
+})
+
+const extractionResults = computed(() => {
+  const data = extractionData.value
+  if (!data || !Array.isArray(data.results)) return []
+  return data.results
+    .map((item) => readObject(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+})
+
+const rate = computed(() => {
+  const object = extractionData.value
   if (!object) return null
 
   const candidates = [object, readObject(object.result), readObject(object.data), readObject(object.rate)]
@@ -46,6 +60,26 @@ function get(obj: Record<string, unknown> | null, ...keys: string[]) {
     if (found && obj[found] !== undefined && obj[found] !== null) return obj[found]
   }
   return null
+}
+
+function resultFields(item: Record<string, unknown>) {
+  return readObject(item.fields)
+}
+
+function resultTitle(item: Record<string, unknown>, index: number) {
+  const route = readObject(item.route)
+  const equipment = readObject(item.equipment)
+  const pol = get(route, 'polName', 'polCode')
+  const pod = get(route, 'podName', 'podCode', 'poeName', 'poeCode')
+  const equipmentCode = get(equipment, 'code', 'name')
+  return [pol, pod, equipmentCode].filter(Boolean).join(' → ') || `Resultado ${index + 1}`
+}
+
+function statusVariant(item: Record<string, unknown>) {
+  const status = String(get(item, 'status') ?? '').toLowerCase()
+  if (status === 'available') return 'success'
+  if (status === 'error') return 'danger'
+  return 'neutral'
 }
 
 const rows = computed(() => [
@@ -72,7 +106,61 @@ const charges = computed(() => {
 </script>
 
 <template>
-  <div v-if="rate" class="grid gap-4">
+  <div v-if="extractionResults.length" class="grid gap-4">
+    <DhCard
+      v-for="(item, index) in extractionResults"
+      :key="String(get(item, 'routeId') ?? '') + String(get(item, 'equipmentId') ?? '') + index"
+      :title="resultTitle(item, index)"
+    >
+      <div class="mb-4 flex flex-wrap items-center gap-2">
+        <DhBadge
+          :label="String(get(item, 'status') ?? 'Unknown')"
+          :variant="statusVariant(item)"
+        />
+        <span
+          v-if="get(item, 'error')"
+          class="text-sm font-semibold text-red-700 dark:text-red-300"
+        >
+          {{ String(get(item, 'error')) }}
+        </span>
+      </div>
+
+      <div
+        v-if="resultFields(item)"
+        class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        <div
+          v-for="[key, fieldValue] in Object.entries(resultFields(item) ?? {})"
+          :key="key"
+          class="rounded-[18px] border border-[var(--dh-border)] p-3"
+        >
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+            {{ key }}
+          </p>
+          <div class="mt-1 text-sm font-bold text-[var(--dh-text)]">
+            <AgentJsonViewer
+              v-if="fieldValue && typeof fieldValue === 'object'"
+              :value="fieldValue"
+            />
+            <span v-else>{{ fieldValue ?? '—' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-3 lg:grid-cols-2">
+        <div>
+          <p class="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Ruta</p>
+          <AgentJsonViewer :value="get(item, 'route')" />
+        </div>
+        <div>
+          <p class="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Equipo</p>
+          <AgentJsonViewer :value="get(item, 'equipment')" />
+        </div>
+      </div>
+    </DhCard>
+  </div>
+
+  <div v-else-if="rate" class="grid gap-4">
     <DhCard :title="t('agent.rateResult.title')">
       <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div v-for="[label, value] in rows" :key="String(label)" class="rounded-[18px] border border-[var(--dh-border)] p-3">
