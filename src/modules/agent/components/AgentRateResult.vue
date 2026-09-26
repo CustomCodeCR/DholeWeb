@@ -75,7 +75,7 @@ function resultTitle(item: Record<string, unknown>, index: number) {
   return [pol, pod, equipmentCode].filter(Boolean).join(' → ') || `Resultado ${index + 1}`
 }
 
-function statusVariant(item: Record<string, unknown>) {
+function statusVariant(item: Record<string, unknown>): 'success' | 'danger' | 'neutral' {
   const status = String(get(item, 'status') ?? '').toLowerCase()
   if (status === 'available') return 'success'
   if (status === 'error') return 'danger'
