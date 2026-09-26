@@ -289,30 +289,22 @@ async function openEdit(row: AgentScheduleDto) {
 }
 
 function buildInputJson() {
-  if (advancedJson.value || !isOceanRate.value) {
+  if (!isOceanRate.value) {
     const value = form.inputJson.trim()
     if (!value) throw new Error(t('agent.validation.required', { field: t('agent.fields.inputJson') }))
     parseObjectJson(value)
     return value
   }
 
-  const quantity = Number(form.quantity)
-  const weightKg = Number(form.weightKg)
-  if (!form.pol.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.pol') }))
-  if (!form.pod.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.pod') }))
-  if (!form.containerType.trim()) throw new Error(t('agent.validation.required', { field: t('agent.fields.containerType') }))
-  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error(t('agent.validation.positive', { field: t('agent.fields.quantity') }))
-  if (!Number.isFinite(weightKg) || weightKg <= 0) throw new Error(t('agent.validation.positive', { field: t('agent.fields.weightKg') }))
-  if (!form.cargoReadyDate) throw new Error(t('agent.validation.required', { field: t('agent.fields.cargoReadyDate') }))
+  if (!form.cargoReadyDate) {
+    throw new Error(t('agent.validation.required', { field: t('agent.fields.cargoReadyDate') }))
+  }
 
+  // Route, equipment, quantity, weight and requested extraction fields are owned by
+  // the selected extraction profile. The schedule only carries runtime overrides.
   return JSON.stringify({
-    pol: form.pol.trim(),
-    pod: form.pod.trim(),
-    containerType: form.containerType.trim(),
-    quantity,
-    weightKg,
-    commodity: form.commodity.trim() || 'FAK',
     cargoReadyDate: form.cargoReadyDate,
+    ...(form.commodity.trim() ? { commodity: form.commodity.trim() } : {}),
     ...(form.instruction.trim() ? { instruction: form.instruction.trim() } : {}),
   })
 }
@@ -603,23 +595,17 @@ onMounted(refresh)
                 {{ isOceanRate ? t('agent.schedules.oceanInput') : t('agent.schedules.genericInput') }}
               </p>
             </div>
-            <DhSwitch
+            <div
               v-if="isOceanRate"
-              v-model="advancedJson"
-              :label="t('agent.schedules.editJson')"
-              :description="t('agent.schedules.advancedMode')"
-              :disabled="saving"
-            />
+              class="rounded-[14px] border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold text-[var(--dh-text-muted)]"
+            >
+              {{ t('agent.schedules.profileDrivenInput') }}
+            </div>
           </div>
 
-          <div v-if="isOceanRate && !advancedJson" class="grid gap-4 md:grid-cols-2">
-            <DhInput v-model="form.pol" :label="t('agent.fields.pol')" :disabled="saving" />
-            <DhInput v-model="form.pod" :label="t('agent.fields.pod')" :disabled="saving" />
-            <DhInput v-model="form.containerType" :label="t('agent.fields.containerType')" :disabled="saving" />
-            <DhInput v-model="form.quantity" :label="t('agent.fields.quantity')" type="number" :disabled="saving" />
-            <DhInput v-model="form.weightKg" :label="t('agent.fields.weightKg')" type="number" :disabled="saving" />
-            <DhInput v-model="form.commodity" :label="t('agent.fields.commodity')" :disabled="saving" />
+          <div v-if="isOceanRate" class="grid gap-4 md:grid-cols-2">
             <DhInput v-model="form.cargoReadyDate" :label="t('agent.fields.cargoReadyDate')" type="date" :disabled="saving" />
+            <DhInput v-model="form.commodity" :label="t('agent.fields.commodity')" :disabled="saving" />
             <div class="md:col-span-2">
               <DhTextarea v-model="form.instruction" :label="t('agent.fields.instruction')" :rows="4" :disabled="saving" />
             </div>
