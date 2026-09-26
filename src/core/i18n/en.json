@@ -1494,7 +1494,8 @@
       "noCredential": "No credential",
       "selectExtractionProfile": "Select the extraction profile used by this schedule",
       "inputTitle": "Execution input",
-      "oceanInput": "Ocean form detected from ActionType SearchOceanRates.",
+      "oceanInput": "Routes, equipment, quantities, weights and extraction fields come from the selected profile.",
+      "profileDrivenInput": "Profile = source of truth. Only runtime-varying parameters are configured here.",
       "genericInput": "This definition uses generic InputJson.",
       "editJson": "Edit JSON",
       "advancedMode": "Advanced mode"
