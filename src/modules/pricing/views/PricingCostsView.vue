@@ -67,6 +67,7 @@ const columns: DhTableColumn<CostDto>[] = [
   { key: 'relation', label: 'Naviera / agente' },
   { key: 'portName', label: 'Ruta / puerto' },
   { key: 'incoterms', label: 'Incoterms' },
+  { key: 'operationalConditions', label: 'Botones' },
   { key: 'costAmount', label: 'Costo', align: 'right' },
   { key: 'saleAmount', label: 'Venta', align: 'right' },
   { key: 'utilityAmount', label: 'Utilidad', align: 'right' },
@@ -124,6 +125,17 @@ function detailLabel(value: CostDetailType) {
       Other: 'Otro',
     } as Record<CostDetailType, string>
   )[value]
+}
+
+const operationalConditionLabels: Record<string, string> = {
+  DangerousCargo: 'Carga peligrosa',
+  Overweight: 'Sobrepeso · 3 ejes',
+  MerchantHaulage: 'Merchant',
+  CarrierHaulage: 'Naviera',
+  EmptyReturn: 'Retiro de vacío',
+  ElectronicSeal: 'Marchamo electrónico',
+  Anticipado: 'Anticipado',
+  Redestino: 'Redestino',
 }
 
 function chargeBasisLabel(value: unknown) {
@@ -456,6 +468,22 @@ onMounted(async () => {
                   variant="primary"
                 />
               </template>
+            </div>
+          </template>
+          <template #cell-operationalConditions="{ row }">
+            <div class="flex max-w-[260px] flex-wrap gap-1">
+              <DhBadge
+                v-if="row.costType !== 'Optional' || !row.operationalConditions?.length"
+                :label="row.costType === 'Optional' ? 'Manual' : '—'"
+                variant="neutral"
+              />
+              <DhBadge
+                v-for="condition in row.operationalConditions ?? []"
+                v-else
+                :key="condition"
+                :label="operationalConditionLabels[condition] ?? condition"
+                variant="primary"
+              />
             </div>
           </template>
           <template #cell-costAmount="{ row }"
