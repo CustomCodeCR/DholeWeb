@@ -117,6 +117,22 @@ function patchWizard(source: string) {
     }
   })
 
+  // En edición, Step4NavigationHardFix completa RateDetails con los costos que devolvió
+  // Pricing. Solo reutilizar una línea histórica por nombre cuando aún NO tiene CostId;
+  // una línea ya ligada a otro CostId nunca debe absorber un segundo costo distinto.
+  code = replaceRegexOnce(
+    code,
+    /  const normalizedCostName = normalizeCatalogValue\(cost\.name\)\n  const sameNameLines = rateLines\.value\.filter\(\n    \(line\) => normalizeCatalogValue\(line\.name\) === normalizedCostName,\n  \)\n  const equivalent =\n    sameNameLines\.find\(\(line\) => line\.costDetailType === cost\.costDetailType\)\n    \?\? \(sameNameLines\.length === 1 \? sameNameLines\[0\] : undefined\)/,
+    `  const normalizedCostName = normalizeCatalogValue(cost.name)
+  const sameNameLines = rateLines.value.filter(
+    (line) => normalizeCatalogValue(line.name) === normalizedCostName,
+  )
+  const equivalent =
+    sameNameLines.find((line) => !line.costId && line.costDetailType === cost.costDetailType)
+    ?? (sameNameLines.length === 1 && !sameNameLines[0].costId ? sameNameLines[0] : undefined)`,
+    'edit configured-cost identity hydration',
+  )
+
   const syncOptionalLines = [
     "function syncHaulageOptionalLines() {",
     "  if (props.viewOnly && props.rateId) return",
@@ -244,12 +260,6 @@ function patchWizard(source: string) {
     code = code.slice(0, mergeStart) + mergeBlock + code.slice(mergeEnd + 2)
   }
 
-  code = replaceTextOnce(
-    code,
-    "    mergeConfiguredOptionalCostsIntoRateLines()\n    step.value = props.viewOnly ? 9 : 8",
-    "    mergeConfiguredOptionalCostsIntoRateLines(true)\n    step.value = props.viewOnly ? 9 : 8",
-    'existing rate full cost hydration',
-  )
 
   // Al entrar realmente a Pantalla 7 todas las líneas ya existen. Reconciliar una vez
   // más en ese punto cubre rutas de edición/borrador que preservan RateDetails.
