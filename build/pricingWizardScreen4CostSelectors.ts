@@ -148,6 +148,73 @@ function patchWizard(source: string) {
     'optional synchronization watcher',
   )
 
+  // Reaplicar selección automática después de construir/mezclar las líneas.
+  // Esto evita que Merchant/Naviera, Sobrepeso, Retiro de vacío, Marchamo o Muellaje
+  // queden visibles pero desmarcados al entrar a Pantalla 7.
+  const rebuildStart = code.indexOf('function rebuildRateLines() {')
+  const rebuildEnd = rebuildStart >= 0 ? code.indexOf('\n}\n\nfunction mergeConfiguredOptionalCostsIntoRateLines', rebuildStart) : -1
+  if (rebuildStart >= 0 && rebuildEnd >= 0) {
+    const rebuildBlock = code.slice(rebuildStart, rebuildEnd + 2)
+    if (!rebuildBlock.includes('syncHaulageOptionalLines()')) {
+      const assignment = '  rateLines.value = lines'
+      if (!rebuildBlock.includes(assignment)) {
+        throw new Error('[pricingWizardScreen4CostSelectors] Missing rebuild rateLines assignment.')
+      }
+      const patchedRebuild = rebuildBlock.replace(
+        assignment,
+        assignment + '\n  syncHaulageOptionalLines()',
+      )
+      code = code.slice(0, rebuildStart) + patchedRebuild + code.slice(rebuildEnd + 2)
+    }
+  }
+
+  const mergeStart = code.indexOf('function mergeConfiguredOptionalCostsIntoRateLines(')
+  const mergeEnd = mergeStart >= 0 ? code.indexOf('\n}\n\nfunction addManualCharge', mergeStart) : -1
+  if (mergeStart >= 0 && mergeEnd >= 0) {
+    let mergeBlock = code.slice(mergeStart, mergeEnd + 2)
+    mergeBlock = mergeBlock.replace(
+      "        included: includeFixed && cost.costType !== 'Optional',",
+      "        included: cost.costType === 'Optional' ? shouldIncludeOptionalCost(cost) : includeFixed,",
+    )
+    if (!mergeBlock.includes('syncHaulageOptionalLines()')) {
+      const currencySync = [
+        "  rateLines.value.forEach((line) => {",
+        "    line.amountCurrencyCode ||= canonicalCurrencyCode(line)",
+        "    enforceLineCurrency(line)",
+        "  })",
+      ].join('\\n')
+      if (mergeBlock.includes(currencySync)) {
+        mergeBlock = mergeBlock.replace(currencySync, currencySync + '\\n  syncHaulageOptionalLines()')
+      }
+    }
+    code = code.slice(0, mergeStart) + mergeBlock + code.slice(mergeEnd + 2)
+  }
+
+  // Al entrar realmente a Pantalla 7 todas las líneas ya existen. Reconciliar una vez
+  // más en ese punto cubre rutas de edición/borrador que preservan RateDetails.
+  const carrierToggleEnd = [
+    "function toggleCarrierHaulage() {",
+    "  form.carrierHaulage = !form.carrierHaulage",
+    "  if (form.carrierHaulage) form.merchantHaulage = false",
+    "  syncHaulageOptionalLines()",
+    "}",
+  ].join('\\n')
+  if (code.includes(carrierToggleEnd) && !code.includes('dholeScreen7AutomaticOptionalSync')) {
+    code = code.replace(
+      carrierToggleEnd,
+      carrierToggleEnd + [
+        "",
+        "const dholeScreen7AutomaticOptionalSync = watch(",
+        "  () => step.value,",
+        "  (currentStep) => {",
+        "    if (currentStep === 7) syncHaulageOptionalLines()",
+        "  },",
+        "  { flush: 'post' },",
+        ")",
+      ].join('\\n'),
+    )
+  }
+
   const optionalSelectorStart = code.indexOf('const selectableOptionalLines = computed')
   const optionalSelectorEnd = code.indexOf('const optionalChargeOptions = computed', optionalSelectorStart)
   if (optionalSelectorStart >= 0 && optionalSelectorEnd >= 0) {
