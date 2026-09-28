@@ -43,6 +43,51 @@ function patchWizard(source: string) {
   }
 }
 
+function operationalConditionsFor(line: {
+  operationalConditions?: string[] | null
+}) {
+  return Array.isArray(line.operationalConditions)
+    ? line.operationalConditions.filter(Boolean)
+    : []
+}
+
+function hasSatisfiedOverweightVariant(
+  line: {
+    id?: string | null
+    costId?: string | null
+    operationalConditions?: string[] | null
+  },
+  conditions: string[],
+) {
+  if (!form.overweight || conditions.includes('Overweight')) return false
+
+  const lineId = automaticOptionalCostId(line)
+  const base = [...conditions].sort()
+
+  return costs.value.some((candidate) => {
+    if (candidate.costType !== 'Optional') return false
+    if (candidate.id === lineId) return false
+
+    const candidateConditions = operationalConditionsFor(candidate)
+    if (!candidateConditions.includes('Overweight')) return false
+
+    const candidateBase = candidateConditions
+      .filter((condition) => condition !== 'Overweight')
+      .sort()
+
+    // Variante mutuamente excluyente: misma regla base, pero especializada
+    // para Sobrepeso. Ej.: [CarrierHaulage] vs [CarrierHaulage, Overweight].
+    if (
+      candidateBase.length !== base.length
+      || candidateBase.some((condition, index) => condition !== base[index])
+    ) {
+      return false
+    }
+
+    return candidateConditions.every((condition) => operationalConditionSelected(condition))
+  })
+}
+
 function shouldIncludeOptionalCost(line: {
   id?: string | null
   costId?: string | null
@@ -51,9 +96,7 @@ function shouldIncludeOptionalCost(line: {
   const automaticCostId = automaticOptionalCostId(line)
   if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
 
-  const conditions = Array.isArray(line.operationalConditions)
-    ? line.operationalConditions.filter(Boolean)
-    : []
+  const conditions = operationalConditionsFor(line)
 
   // Sin condiciones explícitas el cargo sigue disponible en Pantalla 7,
   // pero nunca se marca automáticamente.
@@ -61,7 +104,13 @@ function shouldIncludeOptionalCost(line: {
 
   // AND estricto: cuando un cargo requiere Naviera + Sobrepeso, ambos botones
   // deben estar seleccionados. El nombre del cargo no participa en esta decisión.
-  return conditions.every((condition) => operationalConditionSelected(condition))
+  if (!conditions.every((condition) => operationalConditionSelected(condition))) return false
+
+  // Si existe una variante específica de Sobrepeso para la misma regla base,
+  // la variante normal es excluyente y no se selecciona al mismo tiempo.
+  if (hasSatisfiedOverweightVariant(line, conditions)) return false
+
+  return true
 }`,
     'explicit operational condition matcher',
   )
