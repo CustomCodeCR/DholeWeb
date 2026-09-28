@@ -107,21 +107,21 @@ function shouldIncludeOptionalCost(line: {
   costId?: string | null
   operationalConditions?: string[] | null
 }) {
-  const automaticCostId = automaticOptionalCostId(line)
-  if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
-
   const conditions = operationalConditionsFor(line)
 
   // Sin condiciones explícitas el cargo sigue disponible en Pantalla 7,
   // pero nunca se marca automáticamente.
   if (conditions.length === 0) return false
 
-  // AND estricto: cuando un cargo requiere Naviera + Sobrepeso, ambos botones
-  // deben estar seleccionados. El nombre del cargo no participa en esta decisión.
+  // Los botones de Pantalla 4 son autoritativos. Un cargo ligado a Merchant,
+  // Naviera, Sobrepeso, etc. no puede quedar desmarcado por un estado manual
+  // anterior del selector. Si el usuario pidió Merchant, se seleccionan TODOS
+  // los rubros Merchant aplicables al contexto que Pricing devolvió.
   if (!conditions.every((condition) => operationalConditionSelected(condition))) return false
 
-  // Si existe una variante específica de Sobrepeso para la misma regla base,
-  // la variante normal es excluyente y no se selecciona al mismo tiempo.
+  // Si existe una variante específica de Sobrepeso para el MISMO cargo base,
+  // se usa esa variante en lugar de la normal. Los demás rubros Merchant/Naviera
+  // continúan seleccionados.
   if (hasSatisfiedOverweightVariant(line, conditions)) return false
 
   return true
