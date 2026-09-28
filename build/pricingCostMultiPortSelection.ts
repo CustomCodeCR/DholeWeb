@@ -78,8 +78,10 @@ function patchCostForm(source: string) {
   const partyStateAnchor = `  carrierId: props.cost?.carrierId ?? '',
   agentId: props.cost?.agentId ?? '',`
   const partyStateReplacement = `${partyStateAnchor}
-  carrierIds: props.cost?.carrierId ? [String(props.cost.carrierId)] : [] as string[],
-  agentIds: props.cost?.agentId ? [String(props.cost.agentId)] : [] as string[],`
+  carrierIds: props.cost?.carriers?.map((item) => item.id)
+    ?? (props.cost?.carrierId ? [String(props.cost.carrierId)] : []) as string[],
+  agentIds: props.cost?.agents?.map((item) => item.id)
+    ?? (props.cost?.agentId ? [String(props.cost.agentId)] : []) as string[],`
   code = replaceOne(code, partyStateAnchor, partyStateReplacement, 'party selection state')
 
   const stateAnchor = `  portId: props.cost?.portId ?? '',
@@ -87,15 +89,18 @@ function patchCostForm(source: string) {
   poeId: props.cost?.poeId ?? (props.cost?.portRole === 'Poe' ? (props.cost?.portId ?? '') : ''),
   podId: props.cost?.podId ?? (props.cost?.portRole === 'Pod' ? (props.cost?.portId ?? '') : ''),`
   const stateReplacement = `${stateAnchor}
-  polIds: (props.cost?.polId ?? (props.cost?.portRole === 'Pol' ? props.cost?.portId : null))
-    ? [String(props.cost?.polId ?? props.cost?.portId)]
-    : [] as string[],
-  poeIds: (props.cost?.poeId ?? (props.cost?.portRole === 'Poe' ? props.cost?.portId : null))
-    ? [String(props.cost?.poeId ?? props.cost?.portId)]
-    : [] as string[],
-  podIds: (props.cost?.podId ?? (props.cost?.portRole === 'Pod' ? props.cost?.portId : null))
-    ? [String(props.cost?.podId ?? props.cost?.portId)]
-    : [] as string[],`
+  polIds: props.cost?.pols?.map((item) => item.id)
+    ?? ((props.cost?.polId ?? (props.cost?.portRole === 'Pol' ? props.cost?.portId : null))
+      ? [String(props.cost?.polId ?? props.cost?.portId)]
+      : []) as string[],
+  poeIds: props.cost?.poes?.map((item) => item.id)
+    ?? ((props.cost?.poeId ?? (props.cost?.portRole === 'Poe' ? props.cost?.portId : null))
+      ? [String(props.cost?.poeId ?? props.cost?.portId)]
+      : []) as string[],
+  podIds: props.cost?.pods?.map((item) => item.id)
+    ?? ((props.cost?.podId ?? (props.cost?.portRole === 'Pod' ? props.cost?.portId : null))
+      ? [String(props.cost?.podId ?? props.cost?.portId)]
+      : []) as string[],`
   code = replaceOne(code, stateAnchor, stateReplacement, 'route selection state')
 
   const validationAnchor = `  if (scopeIncludes('Pol') && !form.polId) return false
@@ -181,6 +186,26 @@ function patchCostForm(source: string) {
   const mountedReplacement = `onMounted(async () => {
   await catalogs.loadAll()
   if (!props.cost?.id) return
+
+  const hasEmbeddedSelections =
+    Array.isArray(props.cost.pols)
+    || Array.isArray(props.cost.poes)
+    || Array.isArray(props.cost.pods)
+    || Array.isArray(props.cost.carriers)
+    || Array.isArray(props.cost.agents)
+
+  if (hasEmbeddedSelections) {
+    form.polIds = props.cost.pols?.map((item) => item.id) ?? []
+    form.poeIds = props.cost.poes?.map((item) => item.id) ?? []
+    form.podIds = props.cost.pods?.map((item) => item.id) ?? []
+    form.carrierIds = props.cost.carriers?.map((item) => item.id) ?? []
+    form.agentIds = props.cost.agents?.map((item) => item.id) ?? []
+
+    if (form.agentIds.length) form.associationType = 'Agent'
+    else if (form.carrierIds.length) form.associationType = 'Carrier'
+    else form.associationType = 'None'
+    return
+  }
 
   try {
     const routePorts = await PricingService.getCostRoutePorts(props.cost.id)
