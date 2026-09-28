@@ -174,7 +174,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
   }
 
   if (canView(VIEW_SCOPES.pricingCosts)) {
-    children.push({ label: 'Tarifas terrestres', path: '/pricing/ftl-tariffs', icon: Truck })
+    children.push({ label: 'Tarifas terrestres FTL', path: '/pricing/ftl-tariffs', icon: Truck })
   }
 
   if (canView(VIEW_SCOPES.pricingSellerAssignment)) {
@@ -266,11 +266,26 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     },
   ]
 
+  const ownConsolidationChildren: SidebarItem[] = []
   if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
+    ownConsolidationChildren.push({
+      label: 'LCL · Marítimo',
+      path: '/pricing/own-lcl',
+      icon: Ship,
+    })
+  }
+  if (canView(VIEW_SCOPES.pricingCosts)) {
+    ownConsolidationChildren.push({
+      label: 'LTL · Terrestre',
+      path: '/pricing/own-ltl',
+      icon: Truck,
+    })
+  }
+  if (ownConsolidationChildren.length > 0) {
     items.push({
       label: 'Consolidados propios',
-      path: '/pricing/own-lcl',
       icon: PackagePlus,
+      children: ownConsolidationChildren,
     })
   }
 
