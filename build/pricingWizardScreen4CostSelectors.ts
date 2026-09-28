@@ -182,9 +182,9 @@ function patchWizard(source: string) {
         "    line.amountCurrencyCode ||= canonicalCurrencyCode(line)",
         "    enforceLineCurrency(line)",
         "  })",
-      ].join('\\n')
+      ].join('\n')
       if (mergeBlock.includes(currencySync)) {
-        mergeBlock = mergeBlock.replace(currencySync, currencySync + '\\n  syncHaulageOptionalLines()')
+        mergeBlock = mergeBlock.replace(currencySync, currencySync + '\n  syncHaulageOptionalLines()')
       }
     }
     code = code.slice(0, mergeStart) + mergeBlock + code.slice(mergeEnd + 2)
@@ -198,7 +198,7 @@ function patchWizard(source: string) {
     "  if (form.carrierHaulage) form.merchantHaulage = false",
     "  syncHaulageOptionalLines()",
     "}",
-  ].join('\\n')
+  ].join('\n')
   if (code.includes(carrierToggleEnd) && !code.includes('dholeScreen7AutomaticOptionalSync')) {
     code = code.replace(
       carrierToggleEnd,
@@ -211,7 +211,7 @@ function patchWizard(source: string) {
         "  },",
         "  { flush: 'post' },",
         ")",
-      ].join('\\n'),
+      ].join('\n'),
     )
   }
 
