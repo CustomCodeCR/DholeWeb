@@ -477,13 +477,14 @@ onMounted(async () => {
                 :label="row.costType === 'Optional' ? 'Manual' : '—'"
                 variant="neutral"
               />
-              <DhBadge
-                v-for="condition in row.operationalConditions ?? []"
-                v-else
-                :key="condition"
-                :label="operationalConditionLabels[condition] ?? condition"
-                variant="primary"
-              />
+              <template v-else>
+                <DhBadge
+                  v-for="condition in row.operationalConditions ?? []"
+                  :key="condition"
+                  :label="operationalConditionLabels[condition] ?? condition"
+                  variant="primary"
+                />
+              </template>
             </div>
           </template>
           <template #cell-costAmount="{ row }"
