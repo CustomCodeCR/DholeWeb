@@ -1133,7 +1133,10 @@ const lclDimensionalCbm = computed(() => {
   const volume = number(form.cargoLengthCm) * number(form.cargoWidthCm) * number(form.cargoHeightCm) * pallets
   return Math.max(0, volume / 1_000_000)
 })
-const lclWeightCbm = computed(() => Math.max(0, number(form.cargoWeightKg)) / 500)
+const consolidatedKgPerCbm = computed(() => shipmentModeForApi.value === 'Ltl' ? 330 : 500)
+const lclWeightCbm = computed(() =>
+  Math.max(0, number(form.cargoWeightKg)) / Math.max(1, consolidatedKgPerCbm.value),
+)
 const lclChargeableCbm = computed(() => {
   const calculated = Math.max(lclDimensionalCbm.value, lclWeightCbm.value)
   return calculated > 0 ? Math.max(1, calculated) : 0
@@ -3323,7 +3326,7 @@ async function saveOpenRequest() {
       totalPallets: consolidatedCargoMode.value ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
       totalWeightKg: consolidatedCargoMode.value ? Math.max(0, number(form.cargoWeightKg)) : 0,
       totalVolumeCbm: consolidatedCargoMode.value ? lclDimensionalCbm.value : 0,
-      kgPerCbm: consolidatedCargoMode.value ? 500 : undefined,
+      kgPerCbm: consolidatedCargoMode.value ? consolidatedKgPerCbm.value : undefined,
       cargoLines: form.cargoDescription || form.cargoObservations || form.cabysCode || supportText || consolidatedCargoMode.value ? [{
         description: [
           form.cabysCode ? `CABYS ${form.cabysCode}` : '',
@@ -3585,7 +3588,7 @@ async function saveRate() {
       totalPallets: consolidatedCargoMode.value ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
       totalWeightKg: consolidatedCargoMode.value ? Math.max(0, number(form.cargoWeightKg)) : 0,
       totalVolumeCbm: consolidatedCargoMode.value ? lclDimensionalCbm.value : 0,
-      kgPerCbm: consolidatedCargoMode.value ? 500 : undefined,
+      kgPerCbm: consolidatedCargoMode.value ? consolidatedKgPerCbm.value : undefined,
       cargoLines: form.cargoDescription || form.cargoObservations || form.cabysCode || supportSummaryText() || consolidatedCargoMode.value
         ? [{
             description: [
@@ -4421,7 +4424,7 @@ onMounted(async () => {
             <div v-if="consolidatedCargoMode" class="space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
               <div>
                 <p class="font-black">Medidas de la carga {{ shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Ingrese las medidas de cada tarima en centímetros. El sistema multiplica por la cantidad de tarimas y compara volumen contra peso/500.</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Ingrese las medidas de cada tarima en centímetros. El sistema multiplica por la cantidad de tarimas y compara volumen contra {{ shipmentModeForApi === 'Ltl' ? 'peso/330' : 'peso/500' }}.</p>
               </div>
               <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <DhInput v-model.number="form.cargoWeightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />
