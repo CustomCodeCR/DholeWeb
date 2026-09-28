@@ -26,6 +26,7 @@ import type {
 } from '@/core/interfaces/catalogs'
 import CatalogGroupFormDrawer from '@/modules/catalogs/components/CatalogGroupFormDrawer.vue'
 import CatalogItemFormDrawer from '@/modules/catalogs/components/CatalogItemFormDrawer.vue'
+import { DhSearchInput } from '@/shared/components/molecules'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 
 const props = defineProps<{
@@ -43,6 +44,7 @@ const loading = ref(false)
 const savingOrder = ref(false)
 const detail = ref<CatalogGroupDetailDto | null>(null)
 const items = ref<CatalogItemDto[]>([])
+const itemSearch = ref('')
 const draggingIndex = ref<number | null>(null)
 
 const localGroup = computed<CatalogGroupDto>(() => detail.value ?? props.group)
@@ -58,6 +60,32 @@ const canSetItemActive = computed(() => authStore.hasScope(CONFIG_SCOPES.catalog
 const canChangeItemOrder = computed(() =>
   authStore.hasScope(CONFIG_SCOPES.catalogItems.changeSortOrder),
 )
+
+const canDragItems = computed(() => canChangeItemOrder.value && itemSearch.value.trim().length === 0)
+
+function normalizeSearch(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+const filteredItems = computed(() => {
+  const query = normalizeSearch(itemSearch.value)
+  if (!query) return items.value
+
+  return items.value.filter((item) =>
+    [
+      item.name,
+      item.code,
+      item.slug,
+      item.value,
+      item.description,
+      item.metadataJson,
+    ].some((value) => normalizeSearch(value).includes(query)),
+  )
+})
 
 const showGroupActions = computed(
   () => canUpdateGroup.value || canDeleteGroup.value || canSetGroupActive.value,
@@ -236,12 +264,12 @@ function confirmDeleteItem(item: CatalogItemDto) {
 }
 
 function onDragStart(index: number) {
-  if (!canChangeItemOrder.value) return
+  if (!canDragItems.value) return
   draggingIndex.value = index
 }
 
 async function onDrop(dropIndex: number) {
-  if (!canChangeItemOrder.value || draggingIndex.value === null) return
+  if (!canDragItems.value || draggingIndex.value === null) return
 
   const fromIndex = draggingIndex.value
   draggingIndex.value = null
@@ -417,6 +445,18 @@ onMounted(loadDetail)
         </div>
       </div>
 
+      <div class="mb-4">
+        <DhSearchInput
+          v-model="itemSearch"
+          placeholder="Buscar ítems por nombre, código, slug, valor o metadata..."
+        />
+        <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+          {{ itemSearch.trim()
+            ? filteredItems.length + ' de ' + items.length + ' ítems encontrados'
+            : items.length + ' ítems en este catálogo' }}
+        </p>
+      </div>
+
       <div
         v-if="loading"
         class="rounded-[24px] border border-[var(--dh-border)] p-8 text-center text-sm font-bold text-[var(--dh-text-muted)]"
@@ -436,13 +476,25 @@ onMounted(loadDetail)
         </p>
       </div>
 
+      <div
+        v-else-if="filteredItems.length === 0"
+        class="rounded-[24px] border border-dashed border-[var(--dh-border)] p-8 text-center"
+      >
+        <p class="text-sm font-black text-[var(--dh-text)]">
+          No se encontraron ítems
+        </p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+          Pruebe buscando por nombre, código, slug, valor o metadata.
+        </p>
+      </div>
+
       <div v-else class="space-y-3">
         <div
-          v-for="(item, index) in items"
+          v-for="(item, index) in filteredItems"
           :key="item.id"
-          :draggable="canChangeItemOrder"
+          :draggable="canDragItems"
           class="group rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 transition hover:-translate-y-0.5 hover:shadow-[var(--dh-shadow-sm)]"
-          :class="{ 'cursor-grab active:cursor-grabbing': canChangeItemOrder }"
+          :class="{ 'cursor-grab active:cursor-grabbing': canDragItems }"
           @dragstart="onDragStart(index)"
           @dragover.prevent
           @drop="onDrop(index)"
@@ -451,8 +503,8 @@ onMounted(loadDetail)
             <div class="flex min-w-0 gap-3">
               <div
                 class="mt-1 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 text-[var(--dh-text-muted)]"
-                :class="{ 'opacity-40': !canChangeItemOrder }"
-                :title="t('catalogs.dragToSort')"
+                :class="{ 'opacity-40': !canDragItems }"
+                :title="itemSearch.trim() ? 'Limpie la búsqueda para reordenar' : t('catalogs.dragToSort')"
               >
                 <GripVertical class="h-4 w-4" />
               </div>
