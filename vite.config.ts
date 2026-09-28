@@ -69,6 +69,7 @@ import { pricingWizardPanamaContinuation } from './build/pricingWizardPanamaCont
 import { pricingDuplicateRateRefreshWorkflow } from './build/pricingDuplicateRateRefreshWorkflow'
 import { pricingWizardMixedFclFreightFix } from './build/pricingWizardMixedFclFreightFix'
 import { pricingWizardScreen4CostSelectors } from './build/pricingWizardScreen4CostSelectors'
+import { pricingCostOperationalConditions } from './build/pricingCostOperationalConditions'
 import { pricingWizardRuntimeReferenceGuard } from './build/pricingWizardRuntimeReferenceGuard'
 import { pricingWizardMultipleDrafts } from './build/pricingWizardMultipleDrafts'
 import { pricingWizardLclManualColoader } from './build/pricingWizardLclManualColoader'
@@ -140,6 +141,7 @@ export default defineConfig({
     pricingWizardPersistedLclHydration(),
     pricingWizardLandPolish(),
     pricingWizardScreen4CostSelectors(),
+    pricingCostOperationalConditions(),
     pricingWizardMultipleDrafts(),
     pricingWizardRuntimeReferenceGuard(),
     pricingWizardLclManualColoader(),
