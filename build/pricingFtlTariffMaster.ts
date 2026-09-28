@@ -24,7 +24,7 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `const rateCarrierFilter = ref('')`,
-    `const rateCarrierFilter = ref('')\nconst resolvedFtlTariff = ref<FtlTariffDto | null>(null)\nconst landLtlCommercialProfile = ref<LandCommercialProfile>('FinalClient')`,
+    `const rateCarrierFilter = ref('')\nconst resolvedFtlTariff = ref<FtlTariffDto | null>(null)\nconst landLtlCommercialProfile = ref<LandCommercialProfile | ''>('')`,
     'FTL tariff selection state',
   )
 
@@ -42,19 +42,82 @@ function patchWizard(source: string) {
   const firstGuardIndex = code.indexOf(`\n  if (`, searchIndex + searchStart.length)
   if (firstGuardIndex < 0) throw new Error('[pricingFtlTariffMaster] searchApprovedRates first guard not found.')
 
-  const ftlSearchBranch = `\n  if (form.modality === 'Land' && (shipmentModeForApi.value === 'Ftl' || shipmentModeForApi.value === 'Ltl')) {\n    resolvedFtlTariff.value = null\n    form.manualRate = false\n    const isLandLtl = shipmentModeForApi.value === 'Ltl'\n    const equipmentClass = isLandLtl ? 'LTL_CBM' : (() => {\n      const equipment = selectedEquipment.value\n      if (!equipment) return ''\n      return String(equipment.code || displayValue(equipment) || equipment.slug || equipment.id).trim()\n    })()\n\n    if (!equipmentClass) {\n      form.manualRate = true\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      toastStore.warning('Furgón terrestre sin código', 'El furgón seleccionado en land-equipment-sizes no tiene un código o valor utilizable.')\n      return\n    }\n\n    try {\n      loadingRates.value = true\n      const configured = await FtlTariffService.resolve({\n        originId: form.originId || null,\n        destinationId: form.destinationId || null,\n        originName: selectedOrigin.value ? displayValue(selectedOrigin.value) : null,\n        destinationName: selectedDestination.value ? displayValue(selectedDestination.value) : null,\n        originCode: selectedOrigin.value?.code ?? null,\n        destinationCode: selectedDestination.value?.code ?? null,\n        equipmentClass,\n        shipmentMode: isLandLtl ? 'Ltl' : 'Ftl',\n        commercialProfile: isLandLtl ? landLtlCommercialProfile.value : 'General',\n        quoteDate: form.loadDate,\n      })\n\n      if (configured) {\n        resolvedFtlTariff.value = configured\n        form.manualRate = false\n        if (isLandLtl) {\n          applyResolvedLandLtlFreight()\n        } else {\n          form.freightCost = number(configured.priceAmount)\n          form.freightSale = number(configured.priceAmount)\n        }\n        form.transitDays = configured.transitDays ?? 0\n        if (configured.currencyId) form.currencyId = configured.currencyId\n      } else {\n        form.manualRate = true\n        form.freightCost = 0\n        form.freightSale = 0\n        form.transitDays = 0\n        toastStore.warning(\n          isLandLtl ? 'Tarifa LTL no configurada' : 'Tarifa FTL no configurada',\n          'No existe una tarifa maestra terrestre activa para la ruta, fecha y modalidad seleccionadas.',\n        )\n      }\n    } catch (error) {\n      form.manualRate = true\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      toastStore.backendError(error, 'No se pudo consultar el tarifario maestro terrestre.')\n    } finally {\n      loadingRates.value = false\n    }\n    return\n  }\n`
+  const ftlSearchBranch = `\n  if (form.modality === 'Land' && (shipmentModeForApi.value === 'Ftl' || shipmentModeForApi.value === 'Ltl')) {\n    resolvedFtlTariff.value = null\n    form.manualRate = false\n    const isLandLtl = shipmentModeForApi.value === 'Ltl'\n\n    if (isLandLtl && !landLtlCommercialProfile.value) {\n      form.manualRate = false\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      loadingRates.value = false\n      return\n    }\n\n    const equipmentClass = isLandLtl ? 'LTL_CBM' : (() => {\n      const equipment = selectedEquipment.value\n      if (!equipment) return ''\n      return String(equipment.code || displayValue(equipment) || equipment.slug || equipment.id).trim()\n    })()\n\n    if (!equipmentClass) {\n      form.manualRate = true\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      toastStore.warning('Furgón terrestre sin código', 'El furgón seleccionado en land-equipment-sizes no tiene un código o valor utilizable.')\n      return\n    }\n\n    try {\n      loadingRates.value = true\n      const configured = await FtlTariffService.resolve({\n        originId: form.originId || null,\n        destinationId: form.destinationId || null,\n        originName: selectedOrigin.value ? displayValue(selectedOrigin.value) : null,\n        destinationName: selectedDestination.value ? displayValue(selectedDestination.value) : null,\n        originCode: selectedOrigin.value?.code ?? null,\n        destinationCode: selectedDestination.value?.code ?? null,\n        equipmentClass,\n        shipmentMode: isLandLtl ? 'Ltl' : 'Ftl',\n        commercialProfile: isLandLtl ? landLtlCommercialProfile.value : 'General',\n        quoteDate: form.loadDate,\n      })\n\n      if (configured) {\n        resolvedFtlTariff.value = configured\n        form.manualRate = false\n        if (isLandLtl) {\n          applyResolvedLandLtlFreight()\n        } else {\n          form.freightCost = number(configured.priceAmount)\n          form.freightSale = number(configured.priceAmount)\n        }\n        form.transitDays = configured.transitDays ?? 0\n        if (configured.currencyId) form.currencyId = configured.currencyId\n      } else {\n        form.manualRate = true\n        form.freightCost = 0\n        form.freightSale = 0\n        form.transitDays = 0\n        toastStore.warning(\n          isLandLtl ? 'Tarifa LTL no configurada' : 'Tarifa FTL no configurada',\n          'No existe una tarifa maestra terrestre activa para la ruta, fecha y modalidad seleccionadas.',\n        )\n      }\n    } catch (error) {\n      form.manualRate = true\n      form.freightCost = 0\n      form.freightSale = 0\n      form.transitDays = 0\n      toastStore.backendError(error, 'No se pudo consultar el tarifario maestro terrestre.')\n    } finally {\n      loadingRates.value = false\n    }\n    return\n  }\n`
 
   code = code.slice(0, firstGuardIndex) + ftlSearchBranch + code.slice(firstGuardIndex)
 
   const ratesTemplateAnchor = `          <template v-else-if="availableRates.length">`
-  const ftlTemplate = `          <template v-else-if="form.modality === 'Land' && (shipmentModeForApi === 'Ftl' || shipmentModeForApi === 'Ltl') && resolvedFtlTariff">\n            <div v-if="shipmentModeForApi === 'Ltl'" class="mb-4 space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">\n              <div>\n                <p class="font-black">Seleccione la tarifa LTL</p>\n                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Los datos de carga ya fueron definidos en Pantalla 4. En esta pantalla únicamente seleccione la tarifa de Cliente final o NVOCC.</p>\n              </div>\n              <div class="grid gap-2 sm:grid-cols-2">\n                <button type="button" class="crystal-choice min-h-[82px] text-left" :class="landLtlCommercialProfile === 'FinalClient' ? 'crystal-choice--active' : ''" @click="chooseLandLtlCommercialProfile('FinalClient')">\n                  <strong>Cliente final</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Matriz comercial GCF.</span>\n                </button>\n                <button type="button" class="crystal-choice min-h-[82px] text-left" :class="landLtlCommercialProfile === 'Nvocc' ? 'crystal-choice--active' : ''" @click="chooseLandLtlCommercialProfile('Nvocc')">\n                  <strong>NVOCC</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Matriz GCF para consolidadores.</span>\n                </button>\n              </div>\n            </div>\n            <div class="grid gap-4 lg:grid-cols-2">\n              <button\n                type="button"\n                class="crystal-rate-card crystal-rate-card--active text-left"\n                @click="form.manualRate = false"\n              >\n                <div class="flex flex-wrap items-start justify-between gap-3">\n                  <div>\n                    <p class="font-black">Tarifa terrestre {{ shipmentModeForApi.toUpperCase() }}<span v-if="shipmentModeForApi === 'Ltl'"> · {{ landLtlCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente final' }}</span></p>\n                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">\n                      {{ resolvedFtlTariff.originName }} → {{ resolvedFtlTariff.destinationName }} · {{ resolvedFtlTariff.equipmentLabel }}\n                    </p>\n                  </div>\n                  <DhBadge variant="success">Tarifario maestro</DhBadge>\n                </div>\n                <p class="mt-5 text-2xl font-black">\n                  {{ formatMoney(resolvedFtlTariff.priceAmount, resolvedFtlTariff.currencyCode || resolvedFtlTariff.currencyName || 'USD') }}\n                  <span v-if="shipmentModeForApi === 'Ltl'" class="text-sm text-[var(--dh-text-muted)]">/ CBM</span>\n                </p>\n                <p v-if="shipmentModeForApi === 'Ltl'" class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">\n                  Mínimo: {{ formatMoney(resolvedFtlTariff.minimumAmount || 0, resolvedFtlTariff.currencyCode || 'USD') }}\n                  · CBM tarifado: {{ landLtlBillableCbm(resolvedFtlTariff).toFixed(3) }}\n                  · Venta base: {{ formatMoney(Math.max(number(resolvedFtlTariff.priceAmount) * landLtlBillableCbm(resolvedFtlTariff), number(resolvedFtlTariff.minimumAmount)), resolvedFtlTariff.currencyCode || 'USD') }}\n                  · Peso: {{ number(resolvedFtlTariff.weightKgPerCbm || 330) }} kg/CBM\n                </p>\n                <div class="mt-4 grid gap-2 sm:grid-cols-2">\n                  <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">\n                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Tránsito</span>\n                    <strong class="mt-1 block text-sm">{{ resolvedFtlTariff.transitDays != null ? resolvedFtlTariff.transitDays + ' días' : 'Por confirmar' }}</strong>\n                  </div>\n                  <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">\n                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Fuente</span>\n                    <strong class="mt-1 block text-sm">{{ resolvedFtlTariff.source || 'Pricing terrestre' }}</strong>\n                  </div>\n                </div>\n                <p v-if="resolvedFtlTariff.warehouseName" class="mt-3 text-xs font-bold text-[var(--dh-text-muted)]">Almacén de ingreso: {{ resolvedFtlTariff.warehouseName }}</p>\n                <p v-if="resolvedFtlTariff.notes" class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold text-[var(--dh-text-muted)]">\n                  {{ resolvedFtlTariff.notes }}\n                </p>\n              </button>\n            </div>\n            <div class="flex flex-wrap justify-end gap-2">\n              <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>\n              <DhButton :disabled="shipmentModeForApi === 'Ltl' && lclChargeableCbm <= 0" @click="next">Usar tarifa {{ shipmentModeForApi.toUpperCase() }}</DhButton>\n            </div>\n          </template>\n\n${ratesTemplateAnchor}`
+  const ftlTemplate = `          <template v-else-if="form.modality === 'Land' && (shipmentModeForApi === 'Ltl' || (shipmentModeForApi === 'Ftl' && resolvedFtlTariff))">
+            <div v-if="shipmentModeForApi === 'Ltl'" class="mb-4 space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
+              <div>
+                <p class="font-black">Seleccione la tarifa LTL</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">La ruta y los datos de carga ya están definidos. Seleccione Cliente o NVOCC para calcular la tarifa.</p>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <button type="button" class="crystal-choice min-h-[82px] text-left" :class="landLtlCommercialProfile === 'FinalClient' ? 'crystal-choice--active' : ''" @click="chooseLandLtlCommercialProfile('FinalClient')">
+                  <strong>Cliente</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Consolidado Cliente.</span>
+                </button>
+                <button type="button" class="crystal-choice min-h-[82px] text-left" :class="landLtlCommercialProfile === 'Nvocc' ? 'crystal-choice--active' : ''" @click="chooseLandLtlCommercialProfile('Nvocc')">
+                  <strong>NVOCC</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Consolidado NVOCC.</span>
+                </button>
+              </div>
+            </div>
+            <div v-if="shipmentModeForApi === 'Ltl' && !landLtlCommercialProfile" class="crystal-soft p-6 text-center">
+              <p class="font-black">Seleccione Cliente o NVOCC</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">La tarifa se consulta automáticamente para la ruta de esta cotización.</p>
+            </div>
+            <div v-else-if="shipmentModeForApi === 'Ltl' && loadingRates" class="py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Calculando tarifa LTL…</div>
+            <div v-else-if="resolvedFtlTariff" class="grid gap-4 lg:grid-cols-2">
+              <button type="button" class="crystal-rate-card crystal-rate-card--active text-left" @click="form.manualRate = false">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p class="font-black">Tarifa terrestre {{ shipmentModeForApi.toUpperCase() }}<span v-if="shipmentModeForApi === 'Ltl'"> · {{ landLtlCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente' }}</span></p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ resolvedFtlTariff.originName }} → {{ resolvedFtlTariff.destinationName }}<span v-if="shipmentModeForApi === 'Ftl'"> · {{ resolvedFtlTariff.equipmentLabel }}</span></p>
+                  </div>
+                  <DhBadge variant="success">Tarifario maestro</DhBadge>
+                </div>
+                <p class="mt-5 text-2xl font-black">
+                  {{ formatMoney(resolvedFtlTariff.priceAmount, resolvedFtlTariff.currencyCode || resolvedFtlTariff.currencyName || 'USD') }}
+                  <span v-if="shipmentModeForApi === 'Ltl'" class="text-sm text-[var(--dh-text-muted)]">/ CBM</span>
+                </p>
+                <p v-if="shipmentModeForApi === 'Ltl'" class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">
+                  Mínimo: {{ formatMoney(resolvedFtlTariff.minimumAmount || 0, resolvedFtlTariff.currencyCode || 'USD') }}
+                  · CBM tarifado: {{ landLtlBillableCbm(resolvedFtlTariff).toFixed(3) }}
+                  · Venta calculada: {{ formatMoney(form.freightSale, resolvedFtlTariff.currencyCode || 'USD') }}
+                  · Costo calculado: {{ formatMoney(form.freightCost, resolvedFtlTariff.currencyCode || 'USD') }}
+                  · Peso: {{ number(resolvedFtlTariff.weightKgPerCbm || 330) }} kg/CBM
+                </p>
+                <div class="mt-4 grid gap-2 sm:grid-cols-2">
+                  <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
+                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Tránsito</span>
+                    <strong class="mt-1 block text-sm">{{ resolvedFtlTariff.transitDays != null ? resolvedFtlTariff.transitDays + ' días' : 'Por confirmar' }}</strong>
+                  </div>
+                  <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
+                    <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Fuente</span>
+                    <strong class="mt-1 block text-sm">{{ resolvedFtlTariff.source || 'Pricing terrestre' }}</strong>
+                  </div>
+                </div>
+                <p v-if="resolvedFtlTariff.warehouseName" class="mt-3 text-xs font-bold text-[var(--dh-text-muted)]">Almacén de ingreso: {{ resolvedFtlTariff.warehouseName }}</p>
+              </button>
+            </div>
+            <div v-else-if="shipmentModeForApi === 'Ltl' && landLtlCommercialProfile" class="crystal-empty p-8 text-center">
+              <p class="text-lg font-black">No existe tarifa LTL para esta combinación</p>
+              <p class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">No se encontró una tarifa activa {{ landLtlCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente' }} para la ruta y fecha seleccionadas.</p>
+            </div>
+            <div v-if="resolvedFtlTariff" class="flex flex-wrap justify-end gap-2">
+              <DhButton v-if="shipmentModeForApi === 'Ftl'" variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+              <DhButton :disabled="shipmentModeForApi === 'Ltl' && lclChargeableCbm <= 0" @click="next">Usar tarifa {{ shipmentModeForApi.toUpperCase() }}</DhButton>
+            </div>
+          </template>
+
+${ratesTemplateAnchor}`
   code = replaceRequired(code, ratesTemplateAnchor, ftlTemplate, 'FTL screen 5 tariff card')
 
   const titleAnchor = `<h2 class="crystal-title">Tarifas pre-aprobadas disponibles</h2>`
   if (code.includes(titleAnchor)) {
     code = code.replace(
       titleAnchor,
-      `<h2 class="crystal-title">{{ form.modality === 'Land' && (shipmentModeForApi === 'Ftl' || shipmentModeForApi === 'Ltl') ? 'Tarifa terrestre disponible' : 'Tarifas pre-aprobadas disponibles' }}</h2>`,
+      `<h2 class="crystal-title">{{ shipmentModeForApi === 'Ltl' ? 'Seleccione la tarifa LTL' : form.modality === 'Land' && shipmentModeForApi === 'Ftl' ? 'Tarifa terrestre disponible' : 'Tarifas pre-aprobadas disponibles' }}</h2>`,
     )
   }
 
