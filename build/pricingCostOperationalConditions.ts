@@ -51,10 +51,19 @@ function operationalConditionsFor(line: {
     : []
 }
 
+function overweightVariantFamilyKey(name: string) {
+  return normalizeCatalogValue(name)
+    .replace(/\\b(con )?(sobre ?peso|over ?weight|3 ejes|3 axle(?:s)?|three axle(?:s)?)\\b/g, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim()
+}
+
 function hasSatisfiedOverweightVariant(
   line: {
     id?: string | null
     costId?: string | null
+    name?: string | null
+    costDetailType?: string | null
     operationalConditions?: string[] | null
   },
   conditions: string[],
@@ -63,10 +72,13 @@ function hasSatisfiedOverweightVariant(
 
   const lineId = automaticOptionalCostId(line)
   const base = [...conditions].sort()
+  const familyKey = overweightVariantFamilyKey(String(line.name ?? ''))
+  if (!familyKey) return false
 
   return costs.value.some((candidate) => {
     if (candidate.costType !== 'Optional') return false
     if (candidate.id === lineId) return false
+    if (line.costDetailType && candidate.costDetailType !== line.costDetailType) return false
 
     const candidateConditions = operationalConditionsFor(candidate)
     if (!candidateConditions.includes('Overweight')) return false
@@ -75,11 +87,13 @@ function hasSatisfiedOverweightVariant(
       .filter((condition) => condition !== 'Overweight')
       .sort()
 
-    // Variante mutuamente excluyente: misma regla base, pero especializada
-    // para Sobrepeso. Ej.: [CarrierHaulage] vs [CarrierHaulage, Overweight].
+    // La exclusividad solo aplica a la variante del MISMO cargo. Antes se comparaban
+    // únicamente las condiciones, por lo que un Sobre Peso (Merchant) desactivaba
+    // todos los demás cargos Merchant. Ahora la familia comercial también debe coincidir.
     if (
       candidateBase.length !== base.length
       || candidateBase.some((condition, index) => condition !== base[index])
+      || overweightVariantFamilyKey(candidate.name) !== familyKey
     ) {
       return false
     }
