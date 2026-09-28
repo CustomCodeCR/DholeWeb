@@ -55,6 +55,7 @@ import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSo
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
 import PricingCompetitorTariffMatchModal from '@/modules/pricing/components/PricingCompetitorTariffMatchModal.vue'
+import PricingMarketBenchmarkPanel from '@/modules/pricing/components/PricingMarketBenchmarkPanel.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
@@ -1064,10 +1065,12 @@ const clientOptions = computed(() => catalogs.clients.map((item) => ({ value: it
 const salesExecutiveOptions = computed(() => catalogs.salesExecutives.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
 
 const shipmentModeForApi = computed<ShipmentMode>(() => {
-  const value = form.shipmentMode.toUpperCase()
+  const value = form.shipmentMode.toUpperCase().replace(/[\s_-]+/g, '')
   if (value === 'LCL') return 'Lcl'
   if (value === 'FTL') return 'Ftl'
   if (value === 'LTL') return 'Ltl'
+  if (value === 'AIRCONSOL' || value === 'AEREOCONSOL' || value === 'AÉREOCONSOL') return 'AirConsol'
+  if (value === 'AIR' || value === 'AEREO' || value === 'AÉREO') return 'Air'
   return 'Fcl'
 })
 const consolidatedCargoMode = computed(() =>
@@ -1096,6 +1099,33 @@ const canShowCompetitorTariffs = computed(() => {
     context.carrierId &&
     context.shipmentMode,
   )
+})
+
+const canAccessMarketPricing = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.marketBenchmark.view)
+  || authStore.hasScope(PRICING_SCOPES.marketBenchmark.calculate)
+  || authStore.hasScope(PRICING_SCOPES.autoPricing.view)
+  || authStore.hasScope(PRICING_SCOPES.autoPricing.calculate),
+)
+
+const marketPricingContext = computed(() => {
+  const pod = resolvePodForDestination()
+  return {
+    incotermId: selectedIncoterm.value?.id ?? null,
+    incotermLabel: selectedIncoterm.value ? displayValue(selectedIncoterm.value) : null,
+    polId: selectedOrigin.value?.id ?? null,
+    polLabel: selectedOrigin.value ? displayValue(selectedOrigin.value) : null,
+    poeId: selectedDestination.value?.id ?? null,
+    poeLabel: selectedDestination.value ? displayValue(selectedDestination.value) : null,
+    podId: pod?.id ?? null,
+    podLabel: pod ? displayValue(pod) : null,
+    containerTypeId: selectedEquipment.value?.id ?? null,
+    containerLabel: selectedEquipment.value ? displayValue(selectedEquipment.value) : null,
+    mode: shipmentModeForApi.value,
+    carrierId: selectedCarrier.value?.id ?? null,
+    carrierLabel: selectedCarrier.value ? displayValue(selectedCarrier.value) : null,
+    referenceDate: form.loadDate || null,
+  }
 })
 
 const lclDimensionalCbm = computed(() => {
@@ -4676,6 +4706,15 @@ onMounted(async () => {
             <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
             <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
           </div>
+
+          <PricingMarketBenchmarkPanel
+            v-if="canAccessMarketPricing"
+            :rate-id="editingRate?.id ?? rateId"
+            :rate="editingRate"
+            :context="marketPricingContext"
+            :view-only="viewOnly"
+            @refreshed="hydrateExistingRate"
+          />
 
           <div class="crystal-soft p-5">
             <div class="flex flex-wrap items-start justify-between gap-4">

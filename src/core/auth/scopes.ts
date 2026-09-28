@@ -146,6 +146,19 @@ export const PRICING_SCOPES = {
     delete: 'pricing.fcl-decisions.delete',
   },
 
+  marketBenchmark: {
+    view: 'pricing.market-benchmark.view',
+    calculate: 'pricing.market-benchmark.calculate',
+  },
+
+  autoPricing: {
+    view: 'pricing.auto-pricing.view',
+    calculate: 'pricing.auto-pricing.calculate',
+    apply: 'pricing.auto-pricing.apply',
+    override: 'pricing.auto-pricing.override',
+    approve: 'pricing.auto-pricing.approve',
+  },
+
   // Backward-compatible aliases for older UI code.
   fclRateImports: {
     create: 'pricing.import-fcl-rate.create',

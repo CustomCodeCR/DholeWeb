@@ -653,6 +653,47 @@ export const PricingEndpoints = {
     path: '/api/pricing/rates/{{rateId}}/status',
     headers: jsonHeaders,
   },
+  calculateMarketBenchmark: {
+    method: 'POST',
+    path: '/api/pricing/market-benchmark/calculate',
+    headers: jsonHeaders,
+  },
+  getRateMarketBenchmark: {
+    method: 'GET',
+    path: '/api/pricing/rates/{{rateId}}/market-benchmark',
+    headers: acceptJson,
+  },
+  calculateAutoPricing: {
+    method: 'POST',
+    path: '/api/pricing/rates/{{rateId}}/auto-pricing/calculate',
+    headers: jsonHeaders,
+  },
+  recalculateAutoPricing: {
+    method: 'POST',
+    path: '/api/pricing/rates/{{rateId}}/auto-pricing/recalculate',
+    headers: jsonHeaders,
+  },
+  getAutoPricing: {
+    method: 'GET',
+    path: '/api/pricing/rates/{{rateId}}/auto-pricing',
+    headers: acceptJson,
+  },
+  applyAutoPricing: {
+    method: 'POST',
+    path: '/api/pricing/rates/{{rateId}}/auto-pricing/apply',
+    headers: jsonHeaders,
+  },
+  overrideAutoPricing: {
+    method: 'POST',
+    path: '/api/pricing/rates/{{rateId}}/auto-pricing/override',
+    headers: jsonHeaders,
+  },
+  approveAutoPricing: {
+    method: 'POST',
+    path: '/api/pricing/rates/{{rateId}}/auto-pricing/approve',
+    headers: jsonHeaders,
+  },
+
   deleteRates: { method: 'DELETE', path: '/api/pricing/rates', headers: jsonHeaders },
 } satisfies Record<string, Endpoint>
 
