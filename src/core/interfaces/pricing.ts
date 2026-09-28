@@ -13,6 +13,15 @@ export type CostDetailType =
   | 'Insurance'
   | 'Other'
 export type CostPortRole = 'Any' | 'Pol' | 'Poe' | 'Pod'
+export type CostOperationalCondition =
+  | 'DangerousCargo'
+  | 'Overweight'
+  | 'MerchantHaulage'
+  | 'CarrierHaulage'
+  | 'EmptyReturn'
+  | 'ElectronicSeal'
+  | 'Anticipado'
+  | 'Redestino'
 export type ShipmentMode = 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl'
 export type RateType = 'Spot' | 'Tariff'
 export type ChargeBasis =
@@ -153,6 +162,7 @@ export interface CostDto extends Record<string, unknown> {
   pods?: CostRelationDto[] | null
   carriers?: CostRelationDto[] | null
   agents?: CostRelationDto[] | null
+  operationalConditions?: CostOperationalCondition[] | null
   shipmentMode?: ShipmentMode | null
   chargeBasis: ChargeBasis
   minimumCostAmount?: number | null
@@ -197,6 +207,7 @@ export interface CreateCostRequest extends Record<string, unknown> {
   isAccountant?: boolean
   incoterms?: CostIncotermDto[]
   services?: CostServiceDto[]
+  operationalConditions?: CostOperationalCondition[]
   shipmentMode?: ShipmentMode | null
   chargeBasis?: ChargeBasis
   minimumCostAmount?: number | null
