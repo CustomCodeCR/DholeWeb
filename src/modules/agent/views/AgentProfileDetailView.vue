@@ -232,7 +232,11 @@ onMounted(refresh)
               <dd class="mt-1 break-all font-bold text-[var(--dh-text)]">{{ profile.loginUrl || '—' }}</dd>
             </div>
             <div>
-              <dt class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Search URL</dt>
+              <dt class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Callback / autenticación exitosa</dt>
+              <dd class="mt-1 break-all font-bold text-[var(--dh-text)]">{{ profile.authenticationSuccessUrl || '—' }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">URL inicial de extracción / búsqueda</dt>
               <dd class="mt-1 break-all font-bold text-[var(--dh-text)]">{{ profile.searchUrl || '—' }}</dd>
             </div>
           </dl>

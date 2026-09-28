@@ -236,6 +236,7 @@ export interface AgentExtractionProfileDto {
   description: string | null
   baseUrl: string | null
   loginUrl: string | null
+  authenticationSuccessUrl: string | null
   searchUrl: string | null
   promptTemplate: string
   executionStrategy: AgentExecutionStrategy
@@ -252,6 +253,7 @@ export interface CreateAgentExtractionProfileRequest {
   description: string | null
   baseUrl: string | null
   loginUrl: string | null
+  authenticationSuccessUrl: string | null
   searchUrl: string | null
   promptTemplate: string
   executionStrategy: AgentExecutionStrategy
@@ -264,6 +266,7 @@ export interface UpdateAgentExtractionProfileRequest {
   description: string | null
   baseUrl: string | null
   loginUrl: string | null
+  authenticationSuccessUrl: string | null
   searchUrl: string | null
   promptTemplate: string
   executionStrategy: AgentExecutionStrategy

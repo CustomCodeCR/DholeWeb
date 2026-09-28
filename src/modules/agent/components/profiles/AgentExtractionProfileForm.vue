@@ -56,6 +56,7 @@ const form = reactive({
   description: '',
   baseUrl: '',
   loginUrl: '',
+  authenticationSuccessUrl: '',
   searchUrl: '',
   promptTemplate: defaultPrompt,
   executionStrategy: 'Hermes' as AgentExecutionStrategy,
@@ -82,6 +83,7 @@ function reset() {
   form.description = props.profile?.description ?? ''
   form.baseUrl = props.profile?.baseUrl ?? ''
   form.loginUrl = props.profile?.loginUrl ?? ''
+  form.authenticationSuccessUrl = props.profile?.authenticationSuccessUrl ?? ''
   form.searchUrl = props.profile?.searchUrl ?? ''
   form.promptTemplate = props.profile?.promptTemplate ?? defaultPrompt
   form.executionStrategy = props.profile?.executionStrategy ?? 'Hermes'
@@ -96,6 +98,16 @@ watch(
     if (!providerId || providerId === previousProviderId) return
     const provider = store.providers.find((item) => item.id === providerId)
     if (!props.profile && provider?.baseUrl && !form.baseUrl) form.baseUrl = provider.baseUrl
+
+    if (!props.profile && provider?.code?.toUpperCase() === 'MAERSK') {
+      if (!form.baseUrl) form.baseUrl = 'https://www.maersk.com'
+      if (!form.loginUrl) form.loginUrl = 'https://www.maersk.com/portaluser/login'
+      if (!form.authenticationSuccessUrl) {
+        form.authenticationSuccessUrl = 'https://www.maersk.com/portaluser/oidc/callback'
+      }
+      if (!form.searchUrl) form.searchUrl = 'https://www.maersk.com/book/'
+    }
+
     if (!props.profile || providerId !== props.profile.providerId) form.credentialId = ''
   },
 )
@@ -126,6 +138,7 @@ async function save() {
         description: form.description.trim() || null,
         baseUrl: form.baseUrl.trim() || null,
         loginUrl: form.loginUrl.trim() || null,
+        authenticationSuccessUrl: form.authenticationSuccessUrl.trim() || null,
         searchUrl: form.searchUrl.trim() || null,
         promptTemplate: form.promptTemplate.trim(),
         executionStrategy: form.executionStrategy,
@@ -198,7 +211,18 @@ onMounted(async () => {
       />
       <DhInput v-model="form.baseUrl" label="URL de la naviera" placeholder="https://..." :disabled="saving" />
       <DhInput v-model="form.loginUrl" label="URL de login" placeholder="https://..." :disabled="saving" />
-      <DhInput v-model="form.searchUrl" label="URL / endpoint de búsqueda" placeholder="https://..." :disabled="saving" />
+      <DhInput
+        v-model="form.authenticationSuccessUrl"
+        label="URL de callback / autenticación exitosa"
+        placeholder="https://www.maersk.com/portaluser/oidc/callback"
+        :disabled="saving"
+      />
+      <DhInput
+        v-model="form.searchUrl"
+        label="URL inicial de extracción / búsqueda"
+        placeholder="https://www.maersk.com/book/"
+        :disabled="saving"
+      />
       <DhInput v-model="form.parserKey" label="Parser Key (opcional)" :disabled="saving" />
     </section>
 
