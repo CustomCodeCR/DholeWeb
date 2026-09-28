@@ -17,7 +17,7 @@ import {
 } from '@/modules/pricing/composables/usePricingCatalogs'
 import PricingMultiSelect from './PricingMultiSelect.vue'
 
-const props = defineProps<{ tariff?: FtlTariffDto; onSaved?: () => void | Promise<void> }>()
+const props = defineProps<{ tariff?: FtlTariffDto; lockedMode?: LandShipmentMode; onSaved?: () => void | Promise<void> }>()
 const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
@@ -41,7 +41,7 @@ const initialClasses = props.tariff?.applicableEquipmentClasses?.length
   : props.tariff?.equipmentClass ? [props.tariff.equipmentClass] : []
 
 const form = reactive({
-  shipmentMode: (props.tariff?.shipmentMode || 'Ftl') as LandShipmentMode,
+  shipmentMode: (props.lockedMode || props.tariff?.shipmentMode || 'Ftl') as LandShipmentMode,
   commercialProfile: (props.tariff?.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient') as LandCommercialProfile,
   originId: props.tariff?.originId || (props.tariff ? LEGACY_ORIGIN : ''),
   destinationId: props.tariff?.destinationId || (props.tariff ? LEGACY_DESTINATION : ''),
@@ -49,6 +49,13 @@ const form = reactive({
   currencyId: props.tariff?.currencyId || '',
   priceAmount: props.tariff ? String(props.tariff.priceAmount) : '',
   minimumAmount: props.tariff?.minimumAmount == null ? '' : String(props.tariff.minimumAmount),
+  costPerCbm: props.tariff?.costPerCbm == null ? '' : String(props.tariff.costPerCbm),
+  weightKgPerCbm: String(props.tariff?.weightKgPerCbm ?? 330),
+  duaCost: String(props.tariff?.duaCost ?? 50),
+  ducaTCost: String(props.tariff?.ducaTCost ?? 30),
+  stuffingCostPerCbm: String(props.tariff?.stuffingCostPerCbm ?? (550 / 60)),
+  stuffingSalePerCbm: String(props.tariff?.stuffingSalePerCbm ?? 10),
+  panamaCostSurchargePerCbm: String(props.tariff?.panamaCostSurchargePerCbm ?? 9),
   transitDays: props.tariff?.transitDays == null ? '' : String(props.tariff.transitDays),
   warehouseName: props.tariff?.warehouseName || '',
   source: props.tariff?.source || '',
@@ -148,6 +155,13 @@ function buildPayload(): CreateLandTariffItem | null {
   const currency = catalogs.currencies.value.find((item) => item.id === form.currencyId)
   const priceAmount = numberOrNull(form.priceAmount)
   const minimumAmount = numberOrNull(form.minimumAmount)
+  const costPerCbm = isLtl.value ? numberOrNull(form.costPerCbm) : null
+  const weightKgPerCbm = isLtl.value ? numberOrNull(form.weightKgPerCbm) : null
+  const duaCost = isLtl.value ? numberOrNull(form.duaCost) : null
+  const ducaTCost = isLtl.value ? numberOrNull(form.ducaTCost) : null
+  const stuffingCostPerCbm = isLtl.value ? numberOrNull(form.stuffingCostPerCbm) : null
+  const stuffingSalePerCbm = isLtl.value ? numberOrNull(form.stuffingSalePerCbm) : null
+  const panamaCostSurchargePerCbm = isLtl.value ? numberOrNull(form.panamaCostSurchargePerCbm) : null
   const transitDays = numberOrNull(form.transitDays)
   const classes = isLtl.value ? ['LTL_CBM'] : [...new Set(form.equipmentClasses)]
   if (
@@ -155,6 +169,10 @@ function buildPayload(): CreateLandTariffItem | null {
     !Number.isFinite(priceAmount) || priceAmount < 0 ||
     (!isLtl.value && classes.length === 0) ||
     (minimumAmount != null && (!Number.isFinite(minimumAmount) || minimumAmount < 0)) ||
+    (isLtl.value && (costPerCbm == null || !Number.isFinite(costPerCbm) || costPerCbm < 0)) ||
+    (isLtl.value && (weightKgPerCbm == null || !Number.isFinite(weightKgPerCbm) || weightKgPerCbm <= 0)) ||
+    (isLtl.value && [duaCost, ducaTCost, stuffingCostPerCbm, stuffingSalePerCbm, panamaCostSurchargePerCbm]
+      .some((value) => value == null || !Number.isFinite(value) || value < 0)) ||
     (transitDays != null && (!Number.isInteger(transitDays) || transitDays < 0)) ||
     (form.validFrom && form.validTo && form.validFrom > form.validTo)
   ) return null
@@ -178,6 +196,13 @@ function buildPayload(): CreateLandTariffItem | null {
     priceAmount,
     rateBasis: isLtl.value ? 'PerCbm' : 'PerTruck',
     minimumAmount: isLtl.value ? minimumAmount : null,
+    costPerCbm: isLtl.value ? costPerCbm : null,
+    weightKgPerCbm: isLtl.value ? weightKgPerCbm : null,
+    duaCost: isLtl.value ? duaCost : null,
+    ducaTCost: isLtl.value ? ducaTCost : null,
+    stuffingCostPerCbm: isLtl.value ? stuffingCostPerCbm : null,
+    stuffingSalePerCbm: isLtl.value ? stuffingSalePerCbm : null,
+    panamaCostSurchargePerCbm: isLtl.value ? panamaCostSurchargePerCbm : null,
     transitDays,
     warehouseName: form.warehouseName.trim() || null,
     source: form.source.trim() || null,
@@ -218,8 +243,21 @@ async function submit() {
 }
 
 watch(() => form.shipmentMode, (mode) => {
-  if (mode === 'Ltl') form.equipmentClasses = []
-  else form.minimumAmount = ''
+  if (props.lockedMode && mode !== props.lockedMode) {
+    form.shipmentMode = props.lockedMode
+    return
+  }
+  if (mode === 'Ltl') {
+    form.equipmentClasses = []
+    if (!form.weightKgPerCbm) form.weightKgPerCbm = '330'
+    if (!form.duaCost) form.duaCost = '50'
+    if (!form.ducaTCost) form.ducaTCost = '30'
+    if (!form.stuffingCostPerCbm) form.stuffingCostPerCbm = String(550 / 60)
+    if (!form.stuffingSalePerCbm) form.stuffingSalePerCbm = '10'
+    if (!form.panamaCostSurchargePerCbm) form.panamaCostSurchargePerCbm = '9'
+  } else {
+    form.minimumAmount = ''
+  }
 })
 
 onMounted(catalogs.loadAll)
@@ -240,7 +278,11 @@ onMounted(catalogs.loadAll)
         </div>
       </div>
       <div class="grid gap-4 md:grid-cols-2">
-        <DhSelect v-model="form.shipmentMode" label="Tipo de carga" :options="modeOptions" />
+        <DhSelect v-if="!props.lockedMode" v-model="form.shipmentMode" label="Tipo de carga" :options="modeOptions" />
+        <div v-else class="rounded-2xl border border-[var(--dh-border)] bg-black/[0.025] px-4 py-3 dark:bg-white/[0.04]">
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Modalidad</p>
+          <p class="mt-1 text-sm font-black text-[var(--dh-text)]">{{ props.lockedMode === 'Ltl' ? 'LTL · Consolidado propio' : 'FTL · Completo' }}</p>
+        </div>
         <DhSelect v-if="isLtl" v-model="form.commercialProfile" label="Perfil comercial" :options="commercialProfileOptions" />
         <DhSelect
           v-model="form.originId"
@@ -298,13 +340,23 @@ onMounted(catalogs.loadAll)
           :options="catalogs.currencyOptions.value"
           :error="form.submitted && !form.currencyId ? 'Seleccione la moneda.' : undefined"
         />
-        <DhInput v-model="form.priceAmount" type="number" min="0" step="0.01" :label="isLtl ? 'Tarifa por CBM' : 'Tarifa por completo'" />
-        <DhInput v-if="isLtl" v-model="form.minimumAmount" type="number" min="0" step="0.01" label="Mínimo" />
+        <DhInput v-model="form.priceAmount" type="number" min="0" step="0.01" :label="isLtl ? 'Venta / CBM' : 'Tarifa por completo'" />
+        <DhInput v-if="isLtl" v-model="form.minimumAmount" type="number" min="0" step="0.01" label="Venta mínima" />
+        <DhInput v-if="isLtl" v-model="form.costPerCbm" type="number" min="0" step="0.000001" label="Costo base / CBM" />
+        <DhInput v-if="isLtl" v-model="form.weightKgPerCbm" type="number" min="0.01" step="0.01" label="Peso kg por CBM" />
+        <DhInput v-if="isLtl" v-model="form.duaCost" type="number" min="0" step="0.01" label="DUA · costo" />
+        <DhInput v-if="isLtl" v-model="form.ducaTCost" type="number" min="0" step="0.01" label="DUCA-T · costo" />
+        <DhInput v-if="isLtl" v-model="form.stuffingCostPerCbm" type="number" min="0" step="0.000001" label="Stuffing · costo / CBM" />
+        <DhInput v-if="isLtl" v-model="form.stuffingSalePerCbm" type="number" min="0" step="0.01" label="Stuffing · venta / CBM" />
+        <DhInput v-if="isLtl" v-model="form.panamaCostSurchargePerCbm" type="number" min="0" step="0.01" label="Recargo costo desde Panamá / CBM" />
         <DhInput v-model="form.transitDays" type="number" min="0" step="1" label="Días de tránsito" />
         <DhInput v-model="form.validFrom" type="date" label="Vigencia desde" />
         <DhInput v-model="form.validTo" type="date" label="Vigencia hasta" />
         <DhInput v-if="isLtl" v-model="form.warehouseName" label="Almacén de ingreso" placeholder="Opcional" />
         <DhInput v-model="form.source" label="Fuente / proveedor" placeholder="Opcional" />
+      </div>
+      <div v-if="isLtl" class="mt-4 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+        CBM por peso = kg ÷ {{ form.weightKgPerCbm || 330 }}. Se usa el mayor entre CBM dimensional y CBM por peso. En rutas con origen Panamá, al costo base/CBM se suma el recargo configurado. Stuffing conserva la base LCL (USD 550 ÷ 60 CBM) y la venta/CBM es editable.
       </div>
       <div class="mt-4"><DhTextarea v-model="form.notes" label="Notas" :rows="3" /></div>
       <label class="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--dh-border)] px-4 py-3">
