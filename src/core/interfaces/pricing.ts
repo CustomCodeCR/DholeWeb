@@ -148,11 +148,11 @@ export interface CostDto extends Record<string, unknown> {
   isActive: boolean
   incoterms: CostIncotermDto[]
   services?: CostServiceDto[]
-  pols?: CostRelationDto[]
-  poes?: CostRelationDto[]
-  pods?: CostRelationDto[]
-  carriers?: CostRelationDto[]
-  agents?: CostRelationDto[]
+  pols?: CostRelationDto[] | null
+  poes?: CostRelationDto[] | null
+  pods?: CostRelationDto[] | null
+  carriers?: CostRelationDto[] | null
+  agents?: CostRelationDto[] | null
   shipmentMode?: ShipmentMode | null
   chargeBasis: ChargeBasis
   minimumCostAmount?: number | null
