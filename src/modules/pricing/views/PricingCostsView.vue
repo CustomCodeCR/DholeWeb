@@ -67,7 +67,7 @@ const columns: DhTableColumn<CostDto>[] = [
   { key: 'relation', label: 'Naviera / agente' },
   { key: 'portName', label: 'Ruta / puerto' },
   { key: 'incoterms', label: 'Incoterms' },
-  { key: 'operationalConditions', label: 'Botones' },
+  { key: 'operationalConditions', label: 'Botones Pantalla 4' },
   { key: 'costAmount', label: 'Costo', align: 'right' },
   { key: 'saleAmount', label: 'Venta', align: 'right' },
   { key: 'utilityAmount', label: 'Utilidad', align: 'right' },
