@@ -16,26 +16,32 @@ function patchWizard(source: string) {
     `function costContextLabel(cost: CostSelectDto) {
   const parts: string[] = []
 
-  // CostSelectDto conserva carrierId/agentId legacy con la primera asociación guardada.
-  // Cuando Pricing ya resolvió el costo contra el contexto actual, la etiqueta debe mostrar
-  // la naviera/agente seleccionado en la tarifa, no ese primer snapshot legacy.
-  const selectedAgentForCost = cost.agentId && form.agentId
-    ? findById(catalogs.agents, form.agentId)
-    : null
-  const selectedCarrierForCost = cost.carrierId && form.carrierId
-    ? findById(catalogs.carriers, form.carrierId)
-    : null
-  const agentName = selectedAgentForCost ? displayValue(selectedAgentForCost) : cost.agentName
-  const carrierName = selectedCarrierForCost ? displayValue(selectedCarrierForCost) : cost.carrierName
+  // Pricing expone todas las relaciones como listas. Para una cotización concreta
+  // mostramos la relación que coincide con el contexto seleccionado, manteniendo
+  // los campos legacy únicamente como fallback de compatibilidad.
+  const relationName = (
+    relations: Array<{ id: string; name: string }> | null | undefined,
+    selectedId: string,
+    legacyName?: string | null,
+  ) => relations?.find((item) => item.id === selectedId)?.name
+    ?? relations?.[0]?.name
+    ?? legacyName
+    ?? null
 
-  if (agentName) parts.push(\`Agente: \${agentName}\`)
-  if (carrierName) parts.push(\`Naviera: \${carrierName}\`)
-  if (cost.polName) parts.push(\`POL: \${cost.polName}\`)
-  if (cost.poeName) parts.push(\`POE: \${cost.poeName}\`)
-  if (cost.podName) parts.push(\`POD: \${cost.podName}\`)
+  const agentName = relationName(cost.agents, form.agentId, cost.agentName)
+  const carrierName = relationName(cost.carriers, form.carrierId, cost.carrierName)
+  const polName = relationName(cost.pols, form.originId, cost.polName)
+  const poeName = relationName(cost.poes, costContextPoeId(), cost.poeName)
+  const podName = relationName(cost.pods, form.podId, cost.podName)
+
+  if (agentName) parts.push(`Agente: ${agentName}`)
+  if (carrierName) parts.push(`Naviera: ${carrierName}`)
+  if (polName) parts.push(`POL: ${polName}`)
+  if (poeName) parts.push(`POE: ${poeName}`)
+  if (podName) parts.push(`POD: ${podName}`)
   if (cost.portName && !parts.some((part) => part.includes(cost.portName!))) {
     const role = cost.portRole && cost.portRole !== 'Any' ? cost.portRole.toUpperCase() : 'Puerto'
-    parts.push(\`\${role}: \${cost.portName}\`)
+    parts.push(`${role}: ${cost.portName}`)
   }
   return parts.join(' · ') || null
 }
