@@ -515,6 +515,66 @@ function patchWizard(source: string) {
     missingRuntimeDefinitions,
   )
 
+  if (
+    code.includes('landLtlCommercialProfile')
+    && !hasRuntimeBinding(code, 'landLtlCommercialProfile')
+  ) {
+    missingRuntimeDefinitions.push("const landLtlCommercialProfile = ref<'FinalClient' | 'Nvocc' | ''>('')")
+  }
+
+  if (
+    code.includes('resolvedFtlTariff')
+    && !hasRuntimeBinding(code, 'resolvedFtlTariff')
+  ) {
+    missingRuntimeDefinitions.push('const resolvedFtlTariff = ref<any | null>(null)')
+  }
+
+  ensureRuntimeFunction(
+    code,
+    'isPanamaLandLtlTariff',
+    [
+      'function isPanamaLandLtlTariff(tariff: any) {',
+      "  const route = normalizeCatalogValue(String(tariff?.originName ?? '') + ' ' + String(tariff?.originCode ?? ''))",
+      "  return route.includes('panama') || route.includes('cfz') || route.includes('colon free zone')",
+      '}',
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'landLtlBillableCbm',
+    [
+      'function landLtlBillableCbm(tariff: any) {',
+      '  const factor = Math.max(1, number(tariff?.weightKgPerCbm) || 330)',
+      '  const weightCbm = Math.max(0, number(form.cargoWeightKg)) / factor',
+      '  const calculated = Math.max(number(lclDimensionalCbm.value), weightCbm)',
+      '  return calculated > 0 ? Math.max(1, calculated) : 0',
+      '}',
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'applyResolvedLandLtlFreight',
+    [
+      'function applyResolvedLandLtlFreight() {',
+      "  if (shipmentModeForApi.value !== 'Ltl' || !resolvedFtlTariff.value) return",
+      '  const tariff = resolvedFtlTariff.value',
+      '  const cbm = landLtlBillableCbm(tariff)',
+      '  const panamaSurcharge = isPanamaLandLtlTariff(tariff) ? number(tariff.panamaCostSurchargePerCbm ?? 9) : 0',
+      '  const effectiveCostPerCbm = number(tariff.costPerCbm) + panamaSurcharge',
+      '  form.freightCost = (effectiveCostPerCbm + number(tariff.stuffingCostPerCbm ?? (550 / 60))) * cbm',
+      '    + number(tariff.duaCost ?? 50)',
+      '    + number(tariff.ducaTCost ?? 30)',
+      '  form.freightSale = Math.max(number(tariff.priceAmount) * cbm, number(tariff.minimumAmount))',
+      '    + number(tariff.stuffingSalePerCbm ?? 10) * cbm',
+      '}',
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
   ensureRuntimeFunction(
     code,
     'chooseLandLtlCommercialProfile',
