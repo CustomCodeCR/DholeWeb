@@ -34,14 +34,14 @@ function patchWizard(source: string) {
   const poeName = relationName(cost.poes, costContextPoeId(), cost.poeName)
   const podName = relationName(cost.pods, form.podId, cost.podName)
 
-  if (agentName) parts.push(`Agente: ${agentName}`)
-  if (carrierName) parts.push(`Naviera: ${carrierName}`)
-  if (polName) parts.push(`POL: ${polName}`)
-  if (poeName) parts.push(`POE: ${poeName}`)
-  if (podName) parts.push(`POD: ${podName}`)
+  if (agentName) parts.push('Agente: ' + agentName)
+  if (carrierName) parts.push('Naviera: ' + carrierName)
+  if (polName) parts.push('POL: ' + polName)
+  if (poeName) parts.push('POE: ' + poeName)
+  if (podName) parts.push('POD: ' + podName)
   if (cost.portName && !parts.some((part) => part.includes(cost.portName!))) {
     const role = cost.portRole && cost.portRole !== 'Any' ? cost.portRole.toUpperCase() : 'Puerto'
-    parts.push(`${role}: ${cost.portName}`)
+    parts.push(role + ': ' + cost.portName)
   }
   return parts.join(' · ') || null
 }
