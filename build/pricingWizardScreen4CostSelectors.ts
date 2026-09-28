@@ -154,28 +154,82 @@ function patchWizard(source: string) {
   const rebuildStart = code.indexOf('function rebuildRateLines() {')
   const rebuildEnd = rebuildStart >= 0 ? code.indexOf('\n}\n\nfunction mergeConfiguredOptionalCostsIntoRateLines', rebuildStart) : -1
   if (rebuildStart >= 0 && rebuildEnd >= 0) {
-    const rebuildBlock = code.slice(rebuildStart, rebuildEnd + 2)
+    let rebuildBlock = code.slice(rebuildStart, rebuildEnd + 2)
+
+    // Cada fila que /costs/select devuelve tiene un id de costo autoritativo. No
+    // colapsar dos costos distintos solo porque comparten nombre + tipo de detalle.
+    const equivalentHelper = [
+      "  const hasEquivalent = (name: string, detailType: CostDetailType) =>",
+      "    lines.some((line) =>",
+      "      line.costDetailType === detailType &&",
+      "      normalizeCatalogValue(line.name) === normalizeCatalogValue(name),",
+      "    )",
+    ].join('\n')
+    if (!rebuildBlock.includes(equivalentHelper)) {
+      throw new Error('[pricingWizardScreen4CostSelectors] Missing legacy configured-cost name dedupe helper.')
+    }
+    rebuildBlock = rebuildBlock.replace(equivalentHelper + '\n', '')
+    rebuildBlock = rebuildBlock.replace(
+      "    if (hasEquivalent(cost.name, cost.costDetailType)) return\n",
+      '',
+    )
+
     if (!rebuildBlock.includes('syncHaulageOptionalLines()')) {
       const assignment = '  rateLines.value = lines'
       if (!rebuildBlock.includes(assignment)) {
         throw new Error('[pricingWizardScreen4CostSelectors] Missing rebuild rateLines assignment.')
       }
-      const patchedRebuild = rebuildBlock.replace(
+      rebuildBlock = rebuildBlock.replace(
         assignment,
         assignment + '\n  syncHaulageOptionalLines()',
       )
-      code = code.slice(0, rebuildStart) + patchedRebuild + code.slice(rebuildEnd + 2)
     }
+
+    code = code.slice(0, rebuildStart) + rebuildBlock + code.slice(rebuildEnd + 2)
   }
 
   const mergeStart = code.indexOf('function mergeConfiguredOptionalCostsIntoRateLines(')
   const mergeEnd = mergeStart >= 0 ? code.indexOf('\n}\n\nfunction addManualCharge', mergeStart) : -1
   if (mergeStart >= 0 && mergeEnd >= 0) {
     let mergeBlock = code.slice(mergeStart, mergeEnd + 2)
+
+    // /costs/select es el catálogo autoritativo del contexto actual. Al hidratar una
+    // edición o un borrador, agregar TODOS los ids devueltos: fijos y opcionales.
+    // No volver a filtrarlos por visibleSections ni por nombre, porque eso elimina
+    // cargos válidos cuando existen filas distintas con el mismo nombre comercial.
+    mergeBlock = mergeBlock.replace(
+      "  const visible = new Set(visibleSections.value)\n",
+      '',
+    )
+    const existingKeysBlock = [
+      "  const existingKeys = new Set(",
+      "    rateLines.value.map((line) => `${normalizeCatalogValue(line.name)}|${line.costDetailType}`),",
+      "  )",
+      "",
+    ].join('\n')
+    mergeBlock = mergeBlock.replace(existingKeysBlock, '')
+    mergeBlock = mergeBlock.replace(
+      "      const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`\n",
+      '',
+    )
+    mergeBlock = mergeBlock.replace(
+      "      if (!visible.has(section) || existingCostIds.has(cost.id) || existingKeys.has(equivalentKey)) return",
+      "      if (existingCostIds.has(cost.id)) return",
+    )
     mergeBlock = mergeBlock.replace(
       "        included: includeFixed && cost.costType !== 'Optional',",
       "        included: cost.costType === 'Optional' ? shouldIncludeOptionalCost(cost) : includeFixed,",
     )
+
+    const pushEnd = "      })\n    })"
+    if (!mergeBlock.includes(pushEnd)) {
+      throw new Error('[pricingWizardScreen4CostSelectors] Missing configured cost push end.')
+    }
+    mergeBlock = mergeBlock.replace(
+      pushEnd,
+      "      })\n      existingCostIds.add(cost.id)\n    })",
+    )
+
     if (!mergeBlock.includes('syncHaulageOptionalLines()')) {
       const currencySync = [
         "  rateLines.value.forEach((line) => {",
@@ -189,6 +243,13 @@ function patchWizard(source: string) {
     }
     code = code.slice(0, mergeStart) + mergeBlock + code.slice(mergeEnd + 2)
   }
+
+  code = replaceTextOnce(
+    code,
+    "    mergeConfiguredOptionalCostsIntoRateLines()\n    step.value = props.viewOnly ? 9 : 8",
+    "    mergeConfiguredOptionalCostsIntoRateLines(true)\n    step.value = props.viewOnly ? 9 : 8",
+    'existing rate full cost hydration',
+  )
 
   // Al entrar realmente a Pantalla 7 todas las líneas ya existen. Reconciliar una vez
   // más en ese punto cubre rutas de edición/borrador que preservan RateDetails.
@@ -207,7 +268,10 @@ function patchWizard(source: string) {
         "const dholeScreen7AutomaticOptionalSync = watch(",
         "  () => step.value,",
         "  (currentStep) => {",
-        "    if (currentStep === 7) syncHaulageOptionalLines()",
+        "    if (currentStep === 7) {",
+        "      mergeConfiguredOptionalCostsIntoRateLines(true)",
+        "      syncHaulageOptionalLines()",
+        "    }",
         "  },",
         "  { flush: 'post' },",
         ")",
