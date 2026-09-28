@@ -3513,7 +3513,7 @@ async function saveRate() {
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
       idtraNumber: form.idtraNumber.trim() || null,
-      freeDays: shipmentModeForApi.value === 'Lcl' ? 0 : number(form.freeDays),
+      freeDays: (form.modality === 'Land' || shipmentModeForApi.value === 'Lcl') ? 0 : number(form.freeDays),
       validFrom: form.loadDate,
       validTo: form.validTo || selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
       containerQuantity: shipmentModeForApi.value === 'Lcl' ? 0 : form.equipmentQuantity,
@@ -4315,8 +4315,8 @@ onMounted(async () => {
             <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
             <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
             <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
-            <DhInput v-if="shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
-            <div v-else class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
+            <DhInput v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
+            <div v-else-if="form.modality !== 'Land'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
             <DhInput v-model.number="form.transitDays" type="number" min="0" label="Días de tránsito" />
           </div>
 
