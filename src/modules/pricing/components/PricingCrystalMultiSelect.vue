@@ -27,13 +27,29 @@ const props = withDefaults(
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const search = ref('')
 const detailsRef = ref<HTMLDetailsElement | null>(null)
+const opensUpward = ref(false)
 const inlineMenu = computed(() => props.searchPlaceholder.trim().toLocaleLowerCase() === 'buscar servicio...')
 
 function handleToggle() {
   const current = detailsRef.value
-  if (!current?.open) return
+  if (!current?.open) {
+    opensUpward.value = false
+    return
+  }
+
   document.querySelectorAll<HTMLDetailsElement>('details[data-dh-dropdown="true"][open]').forEach((item) => {
     if (item !== current) item.removeAttribute('open')
+  })
+
+  requestAnimationFrame(() => {
+    const menu = current.querySelector<HTMLElement>('.crystal-multi__menu')
+    const rect = current.getBoundingClientRect()
+    const menuHeight = Math.min(menu?.scrollHeight ?? 320, 360)
+    const reservedBottomUi = 96
+    const spaceBelow = window.innerHeight - rect.bottom - reservedBottomUi
+    const spaceAbove = rect.top - 16
+
+    opensUpward.value = spaceBelow < menuHeight + 12 && spaceAbove > spaceBelow
   })
 }
 
@@ -72,7 +88,7 @@ function toggle(value: string) {
       ref="detailsRef"
       data-dh-dropdown="true"
       class="crystal-multi group relative"
-      :class="{ 'crystal-multi--inline': inlineMenu }"
+      :class="{ 'crystal-multi--inline': inlineMenu, 'crystal-multi--dropup': opensUpward && !inlineMenu }"
       @toggle="handleToggle"
     >
       <summary class="crystal-multi__trigger">
@@ -137,7 +153,7 @@ function toggle(value: string) {
 <style scoped>
 :global(.crystal-soft:has(details[data-dh-dropdown="true"][open])) {
   position: relative;
-  z-index: 1200;
+  z-index: 180;
   overflow: visible;
 }
 
@@ -153,7 +169,7 @@ function toggle(value: string) {
 }
 
 .crystal-multi[open] {
-  z-index: 1000;
+  z-index: 181;
 }
 
 .crystal-multi--inline[open] {
@@ -197,7 +213,7 @@ function toggle(value: string) {
 
 .crystal-multi__menu {
   position: absolute;
-  z-index: 1001;
+  z-index: 182;
   top: calc(100% + 0.55rem);
   inset-inline-start: 0;
   width: 100%;
@@ -211,6 +227,11 @@ function toggle(value: string) {
   box-shadow: 0 26px 70px rgb(15 23 42 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.34);
   backdrop-filter: blur(32px) saturate(155%);
   -webkit-backdrop-filter: blur(32px) saturate(155%);
+}
+
+.crystal-multi--dropup .crystal-multi__menu {
+  top: auto;
+  bottom: calc(100% + 0.55rem);
 }
 
 .crystal-multi--inline .crystal-multi__menu {
