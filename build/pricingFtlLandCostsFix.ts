@@ -260,12 +260,18 @@ const selectedOptionalChargeKeys = computed<string[]>({`,
     `  set: (keys) => {
     if (!canManageAutomaticOptionalCosts.value) return
 
+    const previousSelected = new Set(
+      selectableOptionalLines.value.filter((line) => line.included).map((line) => line.key),
+    )
     const selected = new Set(keys)
     selectableOptionalLines.value.forEach((line) => {
       const automaticCostId = automaticOptionalCostId(line)
       if (!automaticCostId) return
-      if (selected.has(line.key)) dismissedAutomaticOptionalCostIds.value.delete(automaticCostId)
-      else dismissedAutomaticOptionalCostIds.value.add(automaticCostId)
+
+      const wasSelected = previousSelected.has(line.key)
+      const isSelected = selected.has(line.key)
+      if (wasSelected && !isSelected) dismissedAutomaticOptionalCostIds.value.add(automaticCostId)
+      if (!wasSelected && isSelected) dismissedAutomaticOptionalCostIds.value.delete(automaticCostId)
     })
 `,
     'optional selector permission and dismissal tracking',
