@@ -126,10 +126,10 @@ function costSpecificity`,
     'applicable cost function',
   )
 
-  // Cargos Optional que ya pasaron el filtro contextual del backend se incluyen de forma
-  // automática. Se conservan las condiciones explícitas de carga peligrosa, sobrepeso,
-  // muellaje y haulage. Si Pricing retira un cargo con la X, se recuerda mientras no cambie
-  // el contexto de la cotización para que un rebuild no lo agregue nuevamente.
+  // Cargos Optional que ya pasaron el filtro contextual del backend quedan disponibles
+  // en Pantalla 7. Solo las reglas explícitas de Pantalla 4 (Merchant/Naviera, carga,
+  // muellaje, etc.) deben preseleccionarlos automáticamente. Si Pricing retira un cargo
+  // con la X, se recuerda mientras no cambie el contexto de la cotización.
   code = replaceRegexOne(
     code,
     /function shouldIncludeOptionalCost\(line: \{ name: string; notes\?: string \| null \}\) \{[\s\S]*?\n\}/,
@@ -152,9 +152,9 @@ function shouldIncludeOptionalCost(line: { id?: string | null; costId?: string |
   if (association === 'merchant') return form.merchantHaulage
   if (association === 'carrier') return form.carrierHaulage
 
-  // Un Optional sin una condición especial adicional ya fue validado contra POE/POD,
-  // naviera/agente, Incoterm, modalidad y servicios por DholePricing.
-  return true
+  // Un Optional sin regla automática sigue siendo elegible y visible, pero se
+  // selecciona manualmente en Pantalla 7.
+  return false
 }`,
     'automatic optional inclusion',
   )
