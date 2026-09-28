@@ -164,8 +164,54 @@ function countryName(code: string) {
   return COUNTRY_NAMES[code] || code || 'Sin país'
 }
 
-const landOrigins = computed(() =>
+function originLabel(code: string) {
+  if (code === 'PA') return 'CFZ, Panamá'
+  if (code === 'CR') return 'San José, Costa Rica'
+  return countryName(code)
+}
+
+function isAllowedLtlOriginRow(row: FtlTariffDto) {
+  const value = normalize([row.originName, row.originCode].filter(Boolean).join(' '))
+  const country = rowCountryCode(row, 'origin')
+
+  if (country === 'PA') {
+    return value.includes('cfz')
+      || value.includes('colon free zone')
+      || value.includes('zona libre de colon')
+      || value.includes('zona libre colon')
+  }
+
+  if (country === 'CR') {
+    return value.includes('san jose')
+  }
+
+  return false
+}
+
+const allLandOrigins = computed(() =>
   catalogs.polPorts.value.filter((item) => routeTerminalType(item, 'CY') === 'SD'),
+)
+
+function isAllowedLtlOriginItem(item: PricingCatalogItem) {
+  const value = normalize([item.name, item.code, item.value, item.slug].filter(Boolean).join(' '))
+  const country = locationCountryCode(item)
+
+  if (country === 'PA') {
+    return value.includes('cfz')
+      || value.includes('colon free zone')
+      || value.includes('zona libre de colon')
+      || value.includes('zona libre colon')
+  }
+
+  if (country === 'CR') {
+    return value.includes('san jose')
+  }
+
+  return false
+}
+
+const landOrigins = computed(() =>
+  allLandOrigins.value.filter(isAllowedLtlOriginItem),
 )
 
 const landDestinations = computed(() =>
@@ -199,16 +245,14 @@ function uniqueCountries(values: string[]) {
 
 const profileRows = computed(() =>
   selectedProfile.value
-    ? rows.value.filter((row) => row.commercialProfile === selectedProfile.value)
+    ? rows.value.filter((row) =>
+        row.commercialProfile === selectedProfile.value
+        && isAllowedLtlOriginRow(row),
+      )
     : [],
 )
 
-const originCountries = computed(() =>
-  uniqueCountries([
-    ...landOrigins.value.map(locationCountryCode),
-    ...profileRows.value.map((row) => rowCountryCode(row, 'origin')),
-  ]),
-)
+const originCountries = computed(() => ['PA', 'CR'])
 
 const destinationCountries = computed(() =>
   uniqueCountries([
@@ -225,13 +269,19 @@ const selectedPairRows = computed(() =>
 )
 
 function profileRouteCount(profile: LandCommercialProfile) {
-  return rows.value.filter((row) => row.commercialProfile === profile).length
+  return rows.value.filter((row) =>
+    row.commercialProfile === profile
+    && isAllowedLtlOriginRow(row),
+  ).length
 }
 
 function profileCountryCount(profile: LandCommercialProfile, role: 'origin' | 'destination') {
   return new Set(
     rows.value
-      .filter((row) => row.commercialProfile === profile)
+      .filter((row) =>
+        row.commercialProfile === profile
+        && isAllowedLtlOriginRow(row),
+      )
       .map((row) => rowCountryCode(row, role))
       .filter(Boolean),
   ).size
@@ -346,10 +396,10 @@ const variableCostPerCbm = computed(() =>
 
 const routeTitle = computed(() => {
   if (!formOrigin.value && !formDestination.value) {
-    return countryName(selectedOriginCountry.value) + ' → ' + countryName(selectedDestinationCountry.value)
+    return originLabel(selectedOriginCountry.value) + ' → ' + countryName(selectedDestinationCountry.value)
   }
 
-  return (formOrigin.value?.name || countryName(selectedOriginCountry.value))
+  return (formOrigin.value?.name || originLabel(selectedOriginCountry.value))
     + ' → '
     + (formDestination.value?.name || countryName(selectedDestinationCountry.value))
 })
@@ -704,8 +754,8 @@ onMounted(load)
         <section>
           <div class="flex items-center justify-between gap-3">
             <div>
-              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">1. País de origen</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione desde dónde sale el consolidado.</p>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">1. Origen</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El LTL solo puede salir desde CFZ, Panamá o San José, Costa Rica.</p>
             </div>
             <DhButton
               v-if="selectedOriginCountry"
@@ -728,7 +778,7 @@ onMounted(load)
                 : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
               @click="selectOriginCountry(code)"
             >
-              <p class="font-black text-[var(--dh-text)]">{{ countryName(code) }}</p>
+              <p class="font-black text-[var(--dh-text)]">{{ originLabel(code) }}</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ originRouteCount(code) }} rutas configuradas</p>
             </button>
           </div>
@@ -743,7 +793,7 @@ onMounted(load)
             <div>
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">2. País de destino</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Origen seleccionado: <strong class="text-[var(--dh-text)]">{{ countryName(selectedOriginCountry) }}</strong>
+                Origen seleccionado: <strong class="text-[var(--dh-text)]">{{ originLabel(selectedOriginCountry) }}</strong>
               </p>
             </div>
           </div>
@@ -770,7 +820,7 @@ onMounted(load)
             <div>
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">3. Datos de la ruta</p>
               <p class="mt-1 text-sm font-black text-[var(--dh-text)]">
-                {{ countryName(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}
+                {{ originLabel(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}
               </p>
             </div>
             <DhButton v-if="canUpdate" label="Agregar ruta" :icon="Plus" @click.stop="newRouteForPair" />
@@ -825,7 +875,7 @@ onMounted(load)
 
           <div v-else class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] px-5 py-10 text-center">
             <p class="font-black text-[var(--dh-text)]">No hay una ruta configurada para esta combinación.</p>
-            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Use “Agregar ruta” para ingresar los valores de {{ countryName(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}.</p>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Use “Agregar ruta” para ingresar los valores de {{ originLabel(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}.</p>
           </div>
         </section>
       </div>
@@ -841,7 +891,7 @@ onMounted(load)
             <DhBadge v-if="readOnly" label="Solo lectura" variant="neutral" />
           </div>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            {{ countryName(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }} · Los valores quedan asociados a esta ruta dentro del consolidado.
+            {{ originLabel(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }} · Los valores quedan asociados a esta ruta dentro del consolidado.
           </p>
         </div>
         <DhButton :icon="X" variant="ghost" aria-label="Cerrar" @click="closeEditor" />
@@ -859,8 +909,8 @@ onMounted(load)
               </div>
 
               <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
-                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">País origen</p>
-                <p class="mt-1 text-sm font-black">{{ countryName(selectedOriginCountry) }}</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Origen</p>
+                <p class="mt-1 text-sm font-black">{{ originLabel(selectedOriginCountry) }}</p>
               </div>
 
               <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
