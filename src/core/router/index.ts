@@ -199,6 +199,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/own-ltl',
+          name: 'pricing-own-ltl',
+          component: () => import('@/modules/pricing/views/PricingOwnLtlView.vue'),
+          meta: {
+            tabTitle: 'Consolidados propios LTL',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingCosts,
+          },
+        },
+        {
           path: 'pricing/imports',
           name: 'pricing-imports',
           component: () => import('@/modules/pricing/views/PricingImportsView.vue'),
@@ -293,7 +303,7 @@ export const router = createRouter({
           name: 'pricing-ftl-tariffs',
           component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),
           meta: {
-            tabTitle: 'Tarifas terrestres',
+            tabTitle: 'Tarifas terrestres FTL',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
