@@ -51,80 +51,24 @@ function operationalConditionsFor(line: {
     : []
 }
 
-function overweightVariantFamilyKey(name: string) {
-  return normalizeCatalogValue(name)
-    .replace(/\\b(con )?(sobre ?peso|over ?weight|3 ejes|3 axle(?:s)?|three axle(?:s)?)\\b/g, ' ')
-    .replace(/\\s+/g, ' ')
-    .trim()
-}
-
-function hasSatisfiedOverweightVariant(
-  line: {
-    id?: string | null
-    costId?: string | null
-    name?: string | null
-    costDetailType?: string | null
-    operationalConditions?: string[] | null
-  },
-  conditions: string[],
-) {
-  if (!form.overweight || conditions.includes('Overweight')) return false
-
-  const lineId = automaticOptionalCostId(line)
-  const base = [...conditions].sort()
-  const familyKey = overweightVariantFamilyKey(String(line.name ?? ''))
-  if (!familyKey) return false
-
-  return costs.value.some((candidate) => {
-    if (candidate.costType !== 'Optional') return false
-    if (candidate.id === lineId) return false
-    if (line.costDetailType && candidate.costDetailType !== line.costDetailType) return false
-
-    const candidateConditions = operationalConditionsFor(candidate)
-    if (!candidateConditions.includes('Overweight')) return false
-
-    const candidateBase = candidateConditions
-      .filter((condition) => condition !== 'Overweight')
-      .sort()
-
-    // La exclusividad solo aplica a la variante del MISMO cargo. Antes se comparaban
-    // únicamente las condiciones, por lo que un Sobre Peso (Merchant) desactivaba
-    // todos los demás cargos Merchant. Ahora la familia comercial también debe coincidir.
-    if (
-      candidateBase.length !== base.length
-      || candidateBase.some((condition, index) => condition !== base[index])
-      || overweightVariantFamilyKey(candidate.name) !== familyKey
-    ) {
-      return false
-    }
-
-    return candidateConditions.every((condition) => operationalConditionSelected(condition))
-  })
-}
-
 function shouldIncludeOptionalCost(line: {
   id?: string | null
   costId?: string | null
   operationalConditions?: string[] | null
 }) {
+  const automaticCostId = automaticOptionalCostId(line)
+  if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
+
   const conditions = operationalConditionsFor(line)
 
   // Sin condiciones explícitas el cargo sigue disponible en Pantalla 7,
   // pero nunca se marca automáticamente.
   if (conditions.length === 0) return false
 
-  // Los botones de Pantalla 4 son autoritativos. Un cargo ligado a Merchant,
-  // Naviera, Sobrepeso, etc. no puede quedar desmarcado por un estado manual
-  // anterior del selector. Si el usuario pidió Merchant, se seleccionan TODOS
-  // los rubros Merchant aplicables al contexto que Pricing devolvió.
-  if (!conditions.every((condition) => operationalConditionSelected(condition))) return false
-
-  // Si existe una variante específica de Sobrepeso para el MISMO cargo base,
-  // se usa esa variante en lugar de la normal. Los demás rubros Merchant/Naviera
-  // continúan seleccionados.
-  if (hasSatisfiedOverweightVariant(line, conditions)) return false
-
-  return true
+  // Los botones de Pantalla 4 únicamente definen la selección inicial/automática.
+  // No existe exclusividad especial de Sobrepeso: si coinciden el cargo normal
+  // y el cargo de Sobrepeso, ambos se cargan y el usuario puede quitar cualquiera.
+  return conditions.every((condition) => operationalConditionSelected(condition))
 }`,
     'explicit operational condition matcher',
   )
@@ -145,20 +89,6 @@ function shouldIncludeOptionalCost(line: {
   })
 }`,
     'operational condition synchronization',
-  )
-
-  // La selección manual tampoco puede dejar activa a la vez la variante normal
-  // y la variante de Sobrepeso. Después de cualquier cambio del multiselect, reaplicar
-  // las condiciones explícitas y su exclusividad.
-  code = replaceRegexOne(
-    code,
-    /      line\.included = selectable && selected\.has\(line\.key\)\n    \}\)\n  \},\n\}\)/,
-    `      line.included = selectable && selected.has(line.key)
-    })
-    syncHaulageOptionalLines()
-  },
-})`,
-    'manual optional selection exclusivity',
   )
 
   // No inventar cargos Inland por el botón. Los botones solo activan cargos
