@@ -133,9 +133,23 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
           {
             labelKey: 'Consolidados propios',
             icon: PackagePlus,
-            to: '/pricing/own-lcl',
-            name: 'pricing-own-lcl',
-            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
+            name: 'pricing-own-consolidations',
+            children: [
+              {
+                labelKey: 'LCL · Marítimo',
+                icon: PackagePlus,
+                to: '/pricing/own-lcl',
+                name: 'pricing-own-lcl',
+                requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
+              },
+              {
+                labelKey: 'LTL · Terrestre',
+                icon: Truck,
+                to: '/pricing/own-ltl',
+                name: 'pricing-own-ltl',
+                requiredScope: VIEW_SCOPES.pricingCosts,
+              },
+            ],
           },
           {
             labelKey: 'sidebar.importedRates',
@@ -152,7 +166,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.pricingImports,
           },
           {
-            labelKey: 'Tarifas terrestres FTL / LTL',
+            labelKey: 'Tarifas terrestres FTL',
             icon: Truck,
             to: '/pricing/ftl-tariffs',
             name: 'pricing-ftl-tariffs',
