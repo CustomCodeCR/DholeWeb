@@ -133,6 +133,20 @@ function shouldIncludeOptionalCost(line: {
     'operational condition synchronization',
   )
 
+  // La selección manual tampoco puede dejar activa a la vez la variante normal
+  // y la variante de Sobrepeso. Después de cualquier cambio del multiselect, reaplicar
+  // las condiciones explícitas y su exclusividad.
+  code = replaceRegexOne(
+    code,
+    /      line\.included = selectable && selected\.has\(line\.key\)\n    \}\)\n  \},\n\}\)/,
+    `      line.included = selectable && selected.has(line.key)
+    })
+    syncHaulageOptionalLines()
+  },
+})`,
+    'manual optional selection exclusivity',
+  )
+
   // No inventar cargos Inland por el botón. Los botones solo activan cargos
   // configurados en Costos y recargos que ya pasaron ruta/naviera/agente/etc.
   code = replaceRegexOne(
