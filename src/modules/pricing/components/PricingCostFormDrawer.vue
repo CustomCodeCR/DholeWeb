@@ -10,6 +10,7 @@ import type {
   ChargeBasis,
   CostDetailType,
   CostDto,
+  CostOperationalCondition,
   CostType,
   CreateCostRequest,
   ShipmentMode,
@@ -85,6 +86,7 @@ const form = reactive({
   podId: props.cost?.podId ?? (props.cost?.portRole === 'Pod' ? (props.cost?.portId ?? '') : ''),
   incotermIds: props.cost?.incoterms?.map((item) => item.id) ?? [],
   serviceIds: props.cost?.services?.map((item) => item.id) ?? [],
+  operationalConditionIds: [...(props.cost?.operationalConditions ?? [])] as CostOperationalCondition[],
   currencyId: props.cost?.currencyId ?? '',
   costAmount: String(props.cost?.costAmount ?? ''),
   saleAmount: String(props.cost?.saleAmount ?? ''),
@@ -132,6 +134,17 @@ const costTypeOptions = [
   { label: 'Fijo automático', value: 'Fixed' },
   { label: 'Opcional', value: 'Optional' },
   { label: 'Variable', value: 'Variable' },
+]
+
+const operationalConditionOptions: Array<{ label: string; value: CostOperationalCondition }> = [
+  { label: 'Carga peligrosa', value: 'DangerousCargo' },
+  { label: 'Sobrepeso · 3 ejes', value: 'Overweight' },
+  { label: 'Merchant', value: 'MerchantHaulage' },
+  { label: 'Naviera', value: 'CarrierHaulage' },
+  { label: 'Retiro de vacío', value: 'EmptyReturn' },
+  { label: 'Marchamo electrónico', value: 'ElectronicSeal' },
+  { label: 'Anticipado', value: 'Anticipado' },
+  { label: 'Redestino', value: 'Redestino' },
 ]
 
 const shipmentModeOptions: Array<{ label: string; value: CostShipmentMode }> = [
@@ -218,6 +231,13 @@ watch(
 watch(isAgentSaleDisabled, (disabled) => {
   if (disabled) form.saleAmount = '0'
 })
+
+watch(
+  () => form.costType,
+  (costType) => {
+    if (costType !== 'Optional') form.operationalConditionIds = []
+  },
+)
 
 watch(
   () => [form.costDetailType, form.shipmentMode] as const,
@@ -347,6 +367,8 @@ async function submit() {
     isAccountant: isEquipmentBasis.value,
     incoterms,
     services,
+    operationalConditions:
+      form.costType === 'Optional' ? [...form.operationalConditionIds] : [],
     // "Any" is the explicit UI/API value; null remains the internal wildcard in Pricing.
     shipmentMode: form.shipmentMode === 'Any' ? null : form.shipmentMode,
     chargeBasis: form.chargeBasis,
@@ -520,6 +542,20 @@ onMounted(catalogs.loadAll)
             Incoterm.
           </p>
         </div>
+        <div v-if="form.costType === 'Optional'" class="md:col-span-2">
+          <PricingMultiSelect
+            v-model="form.operationalConditionIds"
+            :options="operationalConditionOptions"
+            label="Aplica cuando el usuario selecciona"
+            placeholder="Sin condición automática"
+            empty-text="No hay condiciones operativas disponibles."
+            search-placeholder="Buscar condición..."
+          />
+          <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Si selecciona varias condiciones, todas deben cumplirse. Si no selecciona ninguna,
+            el cargo queda disponible en Pantalla 7 pero no se marca automáticamente.
+          </p>
+        </div>
       </div>
 
       <div
@@ -532,7 +568,8 @@ onMounted(catalogs.loadAll)
           POL + POE + POD, además de naviera/agente e Incoterm.
         </p>
         <p v-else-if="form.costType === 'Optional'">
-          Este rubro aparecerá en el selector múltiple al construir o editar una tarifa.
+          El rubro se ofrece únicamente cuando coincide la ruta y sus relaciones. Las condiciones
+          de botones seleccionadas arriba controlan su preselección automática en Pantalla 7.
         </p>
         <p v-else>Este rubro queda disponible como plantilla ajustable para la cotización.</p>
       </div>
