@@ -55,6 +55,12 @@ export interface CostServiceDto {
   code: string
 }
 
+export interface CostRelationDto {
+  id: string
+  name: string
+  code: string
+}
+
 export interface RateServiceDto {
   id: string
   name: string
@@ -142,6 +148,11 @@ export interface CostDto extends Record<string, unknown> {
   isActive: boolean
   incoterms: CostIncotermDto[]
   services?: CostServiceDto[]
+  pols?: CostRelationDto[]
+  poes?: CostRelationDto[]
+  pods?: CostRelationDto[]
+  carriers?: CostRelationDto[]
+  agents?: CostRelationDto[]
   shipmentMode?: ShipmentMode | null
   chargeBasis: ChargeBasis
   minimumCostAmount?: number | null
