@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ChevronLeft, Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -33,6 +33,7 @@ const selectedDestinationCountry = ref('')
 const selectedId = ref('')
 const editorOpen = ref(false)
 const readOnly = ref(false)
+const editorSection = ref<HTMLElement | null>(null)
 
 const LEGACY_ORIGIN = '__legacy_origin__'
 const LEGACY_DESTINATION = '__legacy_destination__'
@@ -414,7 +415,14 @@ function resetForm() {
   if (destinationLocationOptions.value.length === 1) form.destinationId = destinationLocationOptions.value[0]!.value
 }
 
-function newRouteForPair() {
+async function scrollToEditor() {
+  await nextTick()
+  requestAnimationFrame(() => {
+    editorSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+async function newRouteForPair() {
   if (!canUpdate.value) {
     toastStore.warning('Permiso requerido', 'Necesita permiso para administrar costos de Pricing.')
     return
@@ -427,6 +435,7 @@ function newRouteForPair() {
 
   resetForm()
   editorOpen.value = true
+  await scrollToEditor()
 }
 
 function hydrateForm(row: FtlTariffDto) {
@@ -455,7 +464,7 @@ function hydrateForm(row: FtlTariffDto) {
   })
 }
 
-function openRow(row: OwnLtlTableRow, mode: 'view' | 'edit') {
+async function openRow(row: OwnLtlTableRow, mode: 'view' | 'edit') {
   selectedProfile.value = row.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient'
   selectedOriginCountry.value = rowCountryCode(row, 'origin')
   selectedDestinationCountry.value = rowCountryCode(row, 'destination')
@@ -463,6 +472,7 @@ function openRow(row: OwnLtlTableRow, mode: 'view' | 'edit') {
   readOnly.value = mode === 'view'
   hydrateForm(row)
   editorOpen.value = true
+  await scrollToEditor()
 }
 
 function closeEditor() {
@@ -763,7 +773,7 @@ onMounted(load)
                 {{ countryName(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}
               </p>
             </div>
-            <DhButton v-if="canUpdate" label="Agregar ruta" :icon="Plus" @click="newRouteForPair" />
+            <DhButton v-if="canUpdate" label="Agregar ruta" :icon="Plus" @click.stop="newRouteForPair" />
           </div>
 
           <div v-if="selectedPairRows.length" class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
@@ -804,8 +814,8 @@ onMounted(load)
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex justify-end gap-1">
-                      <DhButton :icon="Eye" variant="ghost" size="sm" aria-label="Ver ruta" @click="openRow(row, 'view')" />
-                      <DhButton v-if="canUpdate" :icon="Edit3" variant="ghost" size="sm" aria-label="Editar ruta" @click="openRow(row, 'edit')" />
+                      <DhButton :icon="Eye" variant="ghost" size="sm" aria-label="Ver ruta" @click.stop="openRow(row, 'view')" />
+                      <DhButton v-if="canUpdate" :icon="Edit3" variant="ghost" size="sm" aria-label="Editar ruta" @click.stop="openRow(row, 'edit')" />
                     </div>
                   </td>
                 </tr>
@@ -821,7 +831,7 @@ onMounted(load)
       </div>
     </section>
 
-    <section v-if="editorOpen" class="rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow)] backdrop-blur-2xl">
+    <section ref="editorSection" v-if="editorOpen" class="scroll-mt-36 rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow)] backdrop-blur-2xl">
       <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--dh-border)] p-5">
         <div>
           <div class="flex flex-wrap items-center gap-2">
