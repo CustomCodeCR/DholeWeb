@@ -158,6 +158,7 @@ async function save() {
       description: form.description.trim() || null,
       baseUrl: form.baseUrl.trim() || null,
       loginUrl: form.loginUrl.trim() || null,
+      authenticationSuccessUrl: form.authenticationSuccessUrl.trim() || null,
       searchUrl: form.searchUrl.trim() || null,
       promptTemplate: form.promptTemplate.trim(),
       executionStrategy: form.executionStrategy,
