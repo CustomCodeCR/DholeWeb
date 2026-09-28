@@ -139,7 +139,6 @@ function previous() {`,
 export function pricingWizardLtlProviderParity(): Plugin {
   return {
     name: 'dhole-pricing-wizard-ltl-provider-parity',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
