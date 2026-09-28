@@ -31,6 +31,13 @@ export interface FtlTariffDto {
   validTo: string | null
   commercialProfile: LandCommercialProfile
   applicableEquipmentClasses: string[]
+  costPerCbm: number | null
+  weightKgPerCbm: number | null
+  duaCost: number | null
+  ducaTCost: number | null
+  stuffingCostPerCbm: number | null
+  stuffingSalePerCbm: number | null
+  panamaCostSurchargePerCbm: number | null
 }
 
 export interface ResolveFtlTariffQuery {
@@ -71,6 +78,13 @@ export interface CreateLandTariffItem {
   validTo?: string | null
   isActive?: boolean
   applicableEquipmentClasses?: string[] | null
+  costPerCbm?: number | null
+  weightKgPerCbm?: number | null
+  duaCost?: number | null
+  ducaTCost?: number | null
+  stuffingCostPerCbm?: number | null
+  stuffingSalePerCbm?: number | null
+  panamaCostSurchargePerCbm?: number | null
 }
 
 export interface UpdateFtlTariffItem {
