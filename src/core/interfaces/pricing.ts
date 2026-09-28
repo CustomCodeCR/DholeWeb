@@ -22,7 +22,7 @@ export type CostOperationalCondition =
   | 'ElectronicSeal'
   | 'Anticipado'
   | 'Redestino'
-export type ShipmentMode = 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl'
+export type ShipmentMode = 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl' | 'Air' | 'AirConsol'
 export type RateType = 'Spot' | 'Tariff'
 export type ChargeBasis =
   | 'PerShipment'
