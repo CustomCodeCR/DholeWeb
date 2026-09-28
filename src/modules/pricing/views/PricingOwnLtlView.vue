@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
+import { ChevronLeft, Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
-import { DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -28,8 +27,9 @@ const catalogs = usePricingCatalogs()
 const rows = ref<OwnLtlTableRow[]>([])
 const loading = ref(false)
 const saving = ref(false)
-const search = ref('')
 const selectedProfile = ref<LandCommercialProfile | ''>('')
+const selectedOriginCountry = ref('')
+const selectedDestinationCountry = ref('')
 const selectedId = ref('')
 const editorOpen = ref(false)
 const readOnly = ref(false)
@@ -42,6 +42,18 @@ const DEFAULT_DUCA_T_COST = 30
 const DEFAULT_STUFFING_COST_PER_CBM = 550 / 60
 const DEFAULT_STUFFING_SALE_PER_CBM = 10
 const DEFAULT_PANAMA_SURCHARGE_PER_CBM = 9
+
+const COUNTRY_NAMES: Record<string, string> = {
+  PA: 'Panamá',
+  CR: 'Costa Rica',
+  NI: 'Nicaragua',
+  HN: 'Honduras',
+  GT: 'Guatemala',
+  SV: 'El Salvador',
+  BZ: 'Belice',
+  MX: 'México',
+  US: 'Estados Unidos',
+}
 
 const canUpdate = computed(() =>
   authStore.hasScope(PRICING_SCOPES.costs.update)
@@ -74,18 +86,6 @@ const form = reactive({
   submitted: false,
 })
 
-const columns: DhTableColumn<OwnLtlTableRow>[] = [
-  { key: 'route', label: 'Ruta / logística' },
-  { key: 'profile', label: 'Perfil', width: '125px' },
-  { key: 'freight', label: 'Costo / venta CBM', align: 'right', width: '185px' },
-  { key: 'minimum', label: 'Venta mínima', align: 'right', width: '125px' },
-  { key: 'documents', label: 'Documentos', align: 'right', width: '155px' },
-  { key: 'weight', label: 'Peso', align: 'right', width: '120px' },
-  { key: 'transit', label: 'Tránsito', align: 'center', width: '105px' },
-  { key: 'status', label: 'Estado', width: '100px' },
-  { key: 'actions', label: '', align: 'right', width: '110px' },
-]
-
 const selected = computed(() => rows.value.find((row) => row.id === selectedId.value) ?? null)
 
 function normalize(value: unknown) {
@@ -104,7 +104,11 @@ function money(value: number | string | null | undefined) {
 }
 
 function profileLabel(profile: LandCommercialProfile | string | null | undefined) {
-  return String(profile).toLowerCase() === 'nvocc' ? 'NVOCC' : 'Cliente final'
+  return String(profile).toLowerCase() === 'nvocc' ? 'NVOCC' : 'Cliente'
+}
+
+function profileTitle(profile: LandCommercialProfile | string | null | undefined) {
+  return String(profile).toLowerCase() === 'nvocc' ? 'Consolidado NVOCC' : 'Consolidado Cliente'
 }
 
 function routeTerminalType(item: PricingCatalogItem, fallback: 'CY' | 'SD' = 'CY') {
@@ -124,6 +128,41 @@ function routeTerminalType(item: PricingCatalogItem, fallback: 'CY' | 'SD' = 'CY
   return fallback
 }
 
+function metadataCountryCode(item: PricingCatalogItem | null | undefined) {
+  if (!item?.metadataJson) return ''
+  try {
+    const metadata = JSON.parse(item.metadataJson) as Record<string, unknown>
+    return String(metadata.countryCode ?? metadata.country ?? '')
+      .trim()
+      .toUpperCase()
+  } catch {
+    return ''
+  }
+}
+
+function inferCountryCode(value: unknown) {
+  const text = normalize(value)
+  if (!text) return ''
+  if (text.includes('panama') || text.includes('panamá') || text.includes('cfz') || text.includes('colon') || text.includes('colón')) return 'PA'
+  if (text.includes('costa rica') || text.includes('san jose') || text.includes('san josé') || text.includes('alajuela') || text.includes('heredia') || text.includes('coyol')) return 'CR'
+  if (text.includes('nicaragua') || text.includes('managua')) return 'NI'
+  if (text.includes('honduras') || text.includes('san pedro sula') || text.includes('tegucigalpa')) return 'HN'
+  if (text.includes('guatemala')) return 'GT'
+  if (text.includes('el salvador') || text.includes('san salvador')) return 'SV'
+  if (text.includes('belice') || text.includes('belize')) return 'BZ'
+  if (text.includes('mexico') || text.includes('méxico')) return 'MX'
+  if (text.includes('miami') || text.includes('united states') || text.includes('estados unidos')) return 'US'
+  return ''
+}
+
+function locationCountryCode(item: PricingCatalogItem | null | undefined) {
+  return metadataCountryCode(item) || inferCountryCode([item?.name, item?.code, item?.value].filter(Boolean).join(' '))
+}
+
+function countryName(code: string) {
+  return COUNTRY_NAMES[code] || code || 'Sin país'
+}
+
 const landOrigins = computed(() =>
   catalogs.polPorts.value.filter((item) => routeTerminalType(item, 'CY') === 'SD'),
 )
@@ -132,46 +171,80 @@ const landDestinations = computed(() =>
   catalogs.poePorts.value.filter((item) => routeTerminalType(item, 'CY') === 'SD'),
 )
 
-const originLocationOptions = computed(() => {
-  const options = landOrigins.value.map((item) => ({
-    value: item.id,
-    label: item.name,
-    searchText: [item.code, item.value, item.slug, item.name].filter(Boolean).join(' '),
-  }))
+function catalogItemById(id: string | null | undefined, role: 'origin' | 'destination') {
+  if (!id) return null
+  return (role === 'origin' ? landOrigins.value : landDestinations.value)
+    .find((item) => item.id === id) ?? null
+}
 
-  if (selected.value && !selected.value.originId) {
-    options.unshift({
-      value: LEGACY_ORIGIN,
-      label: selected.value.originName + ' · ruta actual',
-      searchText: [selected.value.originCode, selected.value.originName].filter(Boolean).join(' '),
-    })
+function rowCountryCode(row: FtlTariffDto, role: 'origin' | 'destination') {
+  const item = catalogItemById(role === 'origin' ? row.originId : row.destinationId, role)
+  if (item) {
+    const code = locationCountryCode(item)
+    if (code) return code
   }
 
-  return options
-})
+  return inferCountryCode(
+    role === 'origin'
+      ? [row.originName, row.originCode].filter(Boolean).join(' ')
+      : [row.destinationName, row.destinationCode].filter(Boolean).join(' '),
+  )
+}
 
-const destinationLocationOptions = computed(() => {
-  const options = landDestinations.value.map((item) => ({
-    value: item.id,
-    label: item.name,
-    searchText: [item.code, item.value, item.slug, item.name].filter(Boolean).join(' '),
-  }))
+function uniqueCountries(values: string[]) {
+  return [...new Set(values.filter(Boolean))]
+    .sort((a, b) => countryName(a).localeCompare(countryName(b), 'es'))
+}
 
-  if (selected.value && !selected.value.destinationId) {
-    options.unshift({
-      value: LEGACY_DESTINATION,
-      label: selected.value.destinationName + ' · ruta actual',
-      searchText: [selected.value.destinationCode, selected.value.destinationName].filter(Boolean).join(' '),
-    })
-  }
+const profileRows = computed(() =>
+  selectedProfile.value
+    ? rows.value.filter((row) => row.commercialProfile === selectedProfile.value)
+    : [],
+)
 
-  return options
-})
+const originCountries = computed(() =>
+  uniqueCountries([
+    ...landOrigins.value.map(locationCountryCode),
+    ...profileRows.value.map((row) => rowCountryCode(row, 'origin')),
+  ]),
+)
 
-function allRouteItems() {
-  const result = new Map<string, PricingCatalogItem>()
-  ;[...landOrigins.value, ...landDestinations.value].forEach((item) => result.set(item.id, item))
-  return result
+const destinationCountries = computed(() =>
+  uniqueCountries([
+    ...landDestinations.value.map(locationCountryCode),
+    ...profileRows.value.map((row) => rowCountryCode(row, 'destination')),
+  ]),
+)
+
+const selectedPairRows = computed(() =>
+  profileRows.value.filter((row) =>
+    rowCountryCode(row, 'origin') === selectedOriginCountry.value
+    && rowCountryCode(row, 'destination') === selectedDestinationCountry.value,
+  ),
+)
+
+function profileRouteCount(profile: LandCommercialProfile) {
+  return rows.value.filter((row) => row.commercialProfile === profile).length
+}
+
+function profileCountryCount(profile: LandCommercialProfile, role: 'origin' | 'destination') {
+  return new Set(
+    rows.value
+      .filter((row) => row.commercialProfile === profile)
+      .map((row) => rowCountryCode(row, role))
+      .filter(Boolean),
+  ).size
+}
+
+function originRouteCount(code: string) {
+  return profileRows.value.filter((row) => rowCountryCode(row, 'origin') === code).length
+}
+
+function destinationRouteCount(code: string) {
+  return profileRows.value.filter((row) =>
+    rowCountryCode(row, 'origin') === selectedOriginCountry.value
+    && rowCountryCode(row, 'destination') === code,
+  ).length
 }
 
 function routeSnapshot(value: string, role: 'origin' | 'destination') {
@@ -191,26 +264,70 @@ function routeSnapshot(value: string, role: 'origin' | 'destination') {
     }
   }
 
-  const item = allRouteItems().get(value)
+  const list = role === 'origin' ? landOrigins.value : landDestinations.value
+  const item = list.find((candidate) => candidate.id === value)
   return item ? { id: item.id, name: item.name, code: item.code } : null
 }
+
+function optionsForCountry(role: 'origin' | 'destination', countryCode: string) {
+  const list = role === 'origin' ? landOrigins.value : landDestinations.value
+  return list
+    .filter((item) => locationCountryCode(item) === countryCode)
+    .map((item) => ({
+      value: item.id,
+      label: item.name,
+      searchText: [item.code, item.value, item.slug, item.name].filter(Boolean).join(' '),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es'))
+}
+
+const originLocationOptions = computed(() => {
+  const options = optionsForCountry('origin', selectedOriginCountry.value)
+
+  if (selected.value && !selected.value.originId) {
+    options.unshift({
+      value: LEGACY_ORIGIN,
+      label: selected.value.originName + ' · ruta actual',
+      searchText: [selected.value.originCode, selected.value.originName].filter(Boolean).join(' '),
+    })
+  }
+
+  return options
+})
+
+const destinationLocationOptions = computed(() => {
+  const options = optionsForCountry('destination', selectedDestinationCountry.value)
+
+  if (selected.value && !selected.value.destinationId) {
+    options.unshift({
+      value: LEGACY_DESTINATION,
+      label: selected.value.destinationName + ' · ruta actual',
+      searchText: [selected.value.destinationCode, selected.value.destinationName].filter(Boolean).join(' '),
+    })
+  }
+
+  return options
+})
 
 function isPanamaValue(value: unknown) {
   const normalized = normalize(value)
   return normalized.includes('panama')
+    || normalized.includes('panamá')
     || normalized.includes('cfz')
     || normalized.includes('colon free zone')
     || normalized.includes('zona libre de colon')
 }
 
 function isPanamaOrigin(row: FtlTariffDto) {
-  return isPanamaValue([row.originName, row.originCode].filter(Boolean).join(' '))
+  return rowCountryCode(row, 'origin') === 'PA'
+    || isPanamaValue([row.originName, row.originCode].filter(Boolean).join(' '))
 }
 
 const formOrigin = computed(() => routeSnapshot(form.originId, 'origin'))
 const formDestination = computed(() => routeSnapshot(form.destinationId, 'destination'))
 const formIsPanamaOrigin = computed(() =>
-  isPanamaValue([formOrigin.value?.name, formOrigin.value?.code].filter(Boolean).join(' ')),
+  selectedOriginCountry.value === 'PA'
+  || isPanamaValue([formOrigin.value?.name, formOrigin.value?.code].filter(Boolean).join(' ')),
 )
 
 const effectiveCostPerCbm = computed(() =>
@@ -227,8 +344,13 @@ const variableCostPerCbm = computed(() =>
 )
 
 const routeTitle = computed(() => {
-  if (!formOrigin.value && !formDestination.value) return 'Nuevo consolidado LTL'
-  return (formOrigin.value?.name || 'Origen pendiente') + ' → ' + (formDestination.value?.name || 'Destino pendiente')
+  if (!formOrigin.value && !formDestination.value) {
+    return countryName(selectedOriginCountry.value) + ' → ' + countryName(selectedDestinationCountry.value)
+  }
+
+  return (formOrigin.value?.name || countryName(selectedOriginCountry.value))
+    + ' → '
+    + (formDestination.value?.name || countryName(selectedDestinationCountry.value))
 })
 
 function effectiveRowCost(row: FtlTariffDto) {
@@ -236,34 +358,39 @@ function effectiveRowCost(row: FtlTariffDto) {
     + (isPanamaOrigin(row) ? Number(row.panamaCostSurchargePerCbm ?? DEFAULT_PANAMA_SURCHARGE_PER_CBM) : 0)
 }
 
-const filteredRows = computed(() => {
-  const q = normalize(search.value)
+function selectProfile(profile: LandCommercialProfile) {
+  selectedProfile.value = profile
+  selectedOriginCountry.value = ''
+  selectedDestinationCountry.value = ''
+  closeEditor()
+}
 
-  return rows.value.filter((row) => {
-    if (selectedProfile.value && row.commercialProfile !== selectedProfile.value) return false
-    if (!q) return true
+function clearProfile() {
+  selectedProfile.value = ''
+  selectedOriginCountry.value = ''
+  selectedDestinationCountry.value = ''
+  closeEditor()
+}
 
-    return [
-      row.originName,
-      row.originCode,
-      row.destinationName,
-      row.destinationCode,
-      row.warehouseName,
-      row.source,
-      row.notes,
-      profileLabel(row.commercialProfile),
-    ].some((value) => normalize(value).includes(q))
-  })
-})
+function selectOriginCountry(code: string) {
+  selectedOriginCountry.value = code
+  selectedDestinationCountry.value = ''
+  closeEditor()
+}
+
+function selectDestinationCountry(code: string) {
+  selectedDestinationCountry.value = code
+  closeEditor()
+}
 
 function resetForm() {
   selectedId.value = ''
   readOnly.value = false
   Object.assign(form, {
-    commercialProfile: selectedProfile.value || 'FinalClient',
+    commercialProfile: (selectedProfile.value || 'FinalClient') as LandCommercialProfile,
     originId: '',
     destinationId: '',
-    currencyId: '',
+    currencyId: catalogs.currencies.value.find((item) => String(item.code || item.value).toUpperCase() === 'USD')?.id || '',
     priceAmount: '',
     minimumAmount: '',
     costPerCbm: '',
@@ -282,11 +409,19 @@ function resetForm() {
     isActive: true,
     submitted: false,
   })
+
+  if (originLocationOptions.value.length === 1) form.originId = originLocationOptions.value[0]!.value
+  if (destinationLocationOptions.value.length === 1) form.destinationId = destinationLocationOptions.value[0]!.value
 }
 
-function newConsolidation() {
+function newRouteForPair() {
   if (!canUpdate.value) {
     toastStore.warning('Permiso requerido', 'Necesita permiso para administrar costos de Pricing.')
+    return
+  }
+
+  if (!selectedProfile.value || !selectedOriginCountry.value || !selectedDestinationCountry.value) {
+    toastStore.warning('Seleccione la matriz', 'Seleccione consolidado, país de origen y país de destino.')
     return
   }
 
@@ -321,14 +456,13 @@ function hydrateForm(row: FtlTariffDto) {
 }
 
 function openRow(row: OwnLtlTableRow, mode: 'view' | 'edit') {
+  selectedProfile.value = row.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient'
+  selectedOriginCountry.value = rowCountryCode(row, 'origin')
+  selectedDestinationCountry.value = rowCountryCode(row, 'destination')
   selectedId.value = row.id
   readOnly.value = mode === 'view'
   hydrateForm(row)
   editorOpen.value = true
-}
-
-function handleRowClick(row: OwnLtlTableRow) {
-  openRow(row, 'view')
 }
 
 function closeEditor() {
@@ -436,14 +570,15 @@ async function save() {
   const payload = buildPayload()
   if (!payload) {
     toastStore.error(
-      'Revise el consolidado',
-      'Seleccione origen, destino y moneda; complete costo/venta por CBM, factor de peso y los cargos LTL.',
+      'Revise la ruta',
+      'Seleccione los puntos de origen y destino y complete costo/venta por CBM, factor de peso y cargos LTL.',
     )
     return
   }
 
   try {
     saving.value = true
+    const editing = Boolean(selectedId.value)
     let targetId = selectedId.value
 
     if (targetId) {
@@ -455,15 +590,15 @@ async function save() {
     }
 
     toastStore.success(
-      selected.value ? 'Consolidado actualizado' : 'Consolidado creado',
-      payload.originName + ' → ' + payload.destinationName + ' quedó guardado en la matriz LTL propia.',
+      editing ? 'Ruta actualizada' : 'Ruta creada',
+      payload.originName + ' → ' + payload.destinationName + ' quedó guardada en ' + profileTitle(payload.commercialProfile) + '.',
     )
 
     await load()
     const row = rows.value.find((item) => item.id === targetId)
     if (row) openRow(row, 'view')
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo guardar el consolidado LTL.')
+    toastStore.backendError(error, 'No se pudo guardar la ruta LTL.')
   } finally {
     saving.value = false
   }
@@ -476,92 +611,213 @@ onMounted(load)
   <div class="space-y-5">
     <DhPageHeader
       title="Consolidados propios LTL"
-      description="Administre rutas, costos y ventas del consolidado terrestre. El flujo visual sigue el mismo patrón de los consolidados propios LCL."
+      description="Seleccione Cliente o NVOCC y administre la matriz LTL por país de origen y país de destino."
     />
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div class="min-w-0 flex-1 lg:max-w-xl">
-          <DhSearchInput v-model="search" placeholder="Buscar ruta, almacén, proveedor o perfil..." />
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Consolidados LTL</p>
+          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Solo existen las matrices Cliente y NVOCC.</p>
         </div>
-
-        <DhSelect
-          v-model="selectedProfile"
-          class="lg:w-52"
-          :options="[
-            { label: 'Todos los perfiles', value: '' },
-            { label: 'Cliente final', value: 'FinalClient' },
-            { label: 'NVOCC', value: 'Nvocc' },
-          ]"
-        />
-
-        <div class="flex gap-2 lg:ml-auto">
-          <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
-          <DhButton v-if="canUpdate" label="Crear consolidado" :icon="Plus" @click="newConsolidation" />
-        </div>
+        <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
       </div>
 
-      <div class="mt-4">
-        <DhDataTable
-          :columns="columns"
-          :rows="filteredRows"
-          :loading="loading"
-          empty-text="No hay consolidados LTL que coincidan con la búsqueda."
-          @row-click="handleRowClick"
+      <div class="mt-4 grid gap-4 md:grid-cols-2">
+        <button
+          type="button"
+          class="rounded-[26px] border p-5 text-left transition hover:border-[var(--dh-primary)]"
+          :class="selectedProfile === 'FinalClient'
+            ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/8'
+            : 'border-[var(--dh-border)] bg-black/[0.018] dark:bg-white/[0.025]'"
+          @click="selectProfile('FinalClient')"
         >
-          <template #cell-route="{ row }">
-            <div class="min-w-0">
-              <p class="font-black text-[var(--dh-text)]">{{ row.originName }} → {{ row.destinationName }}</p>
-              <p class="mt-0.5 truncate text-xs text-[var(--dh-text-muted)]">
-                {{ row.warehouseName || 'Sin almacén' }}<span v-if="row.source"> · {{ row.source }}</span>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">LTL · Terrestre</p>
+              <h2 class="mt-2 text-xl font-black text-[var(--dh-text)]">Consolidado Cliente</h2>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Matriz para tarifas de cliente final.</p>
+            </div>
+            <DhBadge label="Cliente" variant="neutral" />
+          </div>
+          <div class="mt-5 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
+            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileRouteCount('FinalClient') }} rutas</span>
+            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileCountryCount('FinalClient', 'origin') }} orígenes</span>
+            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileCountryCount('FinalClient', 'destination') }} destinos</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="rounded-[26px] border p-5 text-left transition hover:border-[var(--dh-primary)]"
+          :class="selectedProfile === 'Nvocc'
+            ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/8'
+            : 'border-[var(--dh-border)] bg-black/[0.018] dark:bg-white/[0.025]'"
+          @click="selectProfile('Nvocc')"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">LTL · Terrestre</p>
+              <h2 class="mt-2 text-xl font-black text-[var(--dh-text)]">Consolidado NVOCC</h2>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Matriz independiente para tarifas NVOCC.</p>
+            </div>
+            <DhBadge label="NVOCC" variant="warning" />
+          </div>
+          <div class="mt-5 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
+            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileRouteCount('Nvocc') }} rutas</span>
+            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileCountryCount('Nvocc', 'origin') }} orígenes</span>
+            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileCountryCount('Nvocc', 'destination') }} destinos</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <section
+      v-if="selectedProfile"
+      class="rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow)] backdrop-blur-2xl"
+    >
+      <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--dh-border)] p-5">
+        <div>
+          <div class="flex items-center gap-2">
+            <Truck class="h-5 w-5 text-[var(--dh-primary)]" />
+            <h2 class="text-lg font-black">{{ profileTitle(selectedProfile) }}</h2>
+            <DhBadge :label="profileLabel(selectedProfile)" :variant="selectedProfile === 'Nvocc' ? 'warning' : 'neutral'" />
+          </div>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Primero seleccione el país de origen y luego el país de destino para administrar sus datos.
+          </p>
+        </div>
+        <DhButton :icon="X" variant="ghost" aria-label="Cerrar consolidado" @click="clearProfile" />
+      </header>
+
+      <div class="p-5">
+        <section>
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">1. País de origen</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione desde dónde sale el consolidado.</p>
+            </div>
+            <DhButton
+              v-if="selectedOriginCountry"
+              label="Cambiar origen"
+              :icon="ChevronLeft"
+              variant="ghost"
+              size="sm"
+              @click="selectedOriginCountry = ''; selectedDestinationCountry = ''; closeEditor()"
+            />
+          </div>
+
+          <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <button
+              v-for="code in originCountries"
+              :key="code"
+              type="button"
+              class="rounded-2xl border px-4 py-4 text-left transition hover:border-[var(--dh-primary)]"
+              :class="selectedOriginCountry === code
+                ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/8'
+                : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+              @click="selectOriginCountry(code)"
+            >
+              <p class="font-black text-[var(--dh-text)]">{{ countryName(code) }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ originRouteCount(code) }} rutas configuradas</p>
+            </button>
+          </div>
+
+          <div v-if="originCountries.length === 0" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-5 text-sm font-semibold text-[var(--dh-text-muted)]">
+            No hay países de origen terrestres configurados.
+          </div>
+        </section>
+
+        <section v-if="selectedOriginCountry" class="mt-6 border-t border-[var(--dh-border)] pt-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">2. País de destino</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Origen seleccionado: <strong class="text-[var(--dh-text)]">{{ countryName(selectedOriginCountry) }}</strong>
               </p>
             </div>
-          </template>
+          </div>
 
-          <template #cell-profile="{ row }">
-            <DhBadge :label="profileLabel(row.commercialProfile)" :variant="row.commercialProfile === 'Nvocc' ? 'warning' : 'neutral'" />
-          </template>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <button
+              v-for="code in destinationCountries"
+              :key="code"
+              type="button"
+              class="rounded-2xl border px-4 py-4 text-left transition hover:border-[var(--dh-primary)]"
+              :class="selectedDestinationCountry === code
+                ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/8'
+                : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+              @click="selectDestinationCountry(code)"
+            >
+              <p class="font-black text-[var(--dh-text)]">{{ countryName(code) }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ destinationRouteCount(code) }} rutas desde {{ countryName(selectedOriginCountry) }}</p>
+            </button>
+          </div>
+        </section>
 
-          <template #cell-freight="{ row }">
-            <div class="text-right">
-              <p class="font-black">USD {{ money(effectiveRowCost(row)) }} costo</p>
-              <p class="text-[11px] font-bold text-[var(--dh-primary)]">USD {{ money(row.priceAmount) }} venta</p>
-              <p v-if="isPanamaOrigin(row)" class="text-[10px] text-[var(--dh-text-muted)]">
-                incluye +USD {{ money(row.panamaCostSurchargePerCbm ?? DEFAULT_PANAMA_SURCHARGE_PER_CBM) }} Panamá
+        <section v-if="selectedOriginCountry && selectedDestinationCountry" class="mt-6 border-t border-[var(--dh-border)] pt-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">3. Datos de la ruta</p>
+              <p class="mt-1 text-sm font-black text-[var(--dh-text)]">
+                {{ countryName(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}
               </p>
             </div>
-          </template>
+            <DhButton v-if="canUpdate" label="Agregar ruta" :icon="Plus" @click="newRouteForPair" />
+          </div>
 
-          <template #cell-minimum="{ row }">
-            <span class="font-black">USD {{ money(row.minimumAmount) }}</span>
-          </template>
+          <div v-if="selectedPairRows.length" class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
+            <table class="w-full min-w-[920px] text-sm">
+              <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]">
+                <tr>
+                  <th class="px-4 py-3 text-left">Origen</th>
+                  <th class="px-4 py-3 text-left">Destino</th>
+                  <th class="px-4 py-3 text-right">Costo / CBM</th>
+                  <th class="px-4 py-3 text-right">Venta / CBM</th>
+                  <th class="px-4 py-3 text-right">Mínimo</th>
+                  <th class="px-4 py-3 text-right">Documentos</th>
+                  <th class="px-4 py-3 text-center">Tránsito</th>
+                  <th class="px-4 py-3 text-center">Estado</th>
+                  <th class="px-4 py-3 text-right"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in selectedPairRows" :key="row.id" class="border-t border-[var(--dh-border)] first:border-t-0">
+                  <td class="px-4 py-3">
+                    <p class="font-black">{{ row.originName }}</p>
+                    <p class="mt-0.5 text-[11px] text-[var(--dh-text-muted)]">{{ row.warehouseName || 'Sin almacén' }}</p>
+                  </td>
+                  <td class="px-4 py-3 font-black">{{ row.destinationName }}</td>
+                  <td class="px-4 py-3 text-right">
+                    <p class="font-black">USD {{ money(effectiveRowCost(row)) }}</p>
+                    <p v-if="isPanamaOrigin(row)" class="text-[10px] text-[var(--dh-text-muted)]">incluye +USD {{ money(row.panamaCostSurchargePerCbm ?? DEFAULT_PANAMA_SURCHARGE_PER_CBM) }}</p>
+                  </td>
+                  <td class="px-4 py-3 text-right font-black text-[var(--dh-primary)]">USD {{ money(row.priceAmount) }}</td>
+                  <td class="px-4 py-3 text-right font-black">USD {{ money(row.minimumAmount) }}</td>
+                  <td class="px-4 py-3 text-right text-xs font-bold">
+                    <p>DUA {{ money(row.duaCost ?? DEFAULT_DUA_COST) }}</p>
+                    <p class="text-[var(--dh-text-muted)]">DUCA-T {{ money(row.ducaTCost ?? DEFAULT_DUCA_T_COST) }}</p>
+                  </td>
+                  <td class="px-4 py-3 text-center font-bold">{{ row.transitDays == null ? '—' : row.transitDays + ' días' }}</td>
+                  <td class="px-4 py-3 text-center">
+                    <DhBadge :label="row.isActive ? 'Activa' : 'Inactiva'" :variant="row.isActive ? 'success' : 'neutral'" />
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex justify-end gap-1">
+                      <DhButton :icon="Eye" variant="ghost" size="sm" aria-label="Ver ruta" @click="openRow(row, 'view')" />
+                      <DhButton v-if="canUpdate" :icon="Edit3" variant="ghost" size="sm" aria-label="Editar ruta" @click="openRow(row, 'edit')" />
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-          <template #cell-documents="{ row }">
-            <div class="text-right text-xs font-bold">
-              <p>DUA {{ money(row.duaCost ?? DEFAULT_DUA_COST) }}</p>
-              <p class="text-[var(--dh-text-muted)]">DUCA-T {{ money(row.ducaTCost ?? DEFAULT_DUCA_T_COST) }}</p>
-            </div>
-          </template>
-
-          <template #cell-weight="{ row }">
-            <span class="font-black">{{ money(row.weightKgPerCbm ?? DEFAULT_WEIGHT_KG_PER_CBM) }} kg/CBM</span>
-          </template>
-
-          <template #cell-transit="{ row }">
-            <span class="font-bold">{{ row.transitDays == null ? '—' : row.transitDays + ' días' }}</span>
-          </template>
-
-          <template #cell-status="{ row }">
-            <DhBadge :label="row.isActive ? 'Activa' : 'Inactiva'" :variant="row.isActive ? 'success' : 'neutral'" />
-          </template>
-
-          <template #cell-actions="{ row }">
-            <div class="flex justify-end gap-1" @click.stop>
-              <DhButton :icon="Eye" variant="ghost" size="sm" aria-label="Ver consolidado" @click="openRow(row, 'view')" />
-              <DhButton v-if="canUpdate" :icon="Edit3" variant="ghost" size="sm" aria-label="Editar consolidado" @click="openRow(row, 'edit')" />
-            </div>
-          </template>
-        </DhDataTable>
+          <div v-else class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] px-5 py-10 text-center">
+            <p class="font-black text-[var(--dh-text)]">No hay una ruta configurada para esta combinación.</p>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Use “Agregar ruta” para ingresar los valores de {{ countryName(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}.</p>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -571,41 +827,42 @@ onMounted(load)
           <div class="flex flex-wrap items-center gap-2">
             <Truck class="h-5 w-5 text-[var(--dh-primary)]" />
             <h2 class="text-lg font-black">{{ routeTitle }}</h2>
-            <DhBadge label="LTL · Terrestre" variant="neutral" />
-            <DhBadge :label="profileLabel(form.commercialProfile)" :variant="form.commercialProfile === 'Nvocc' ? 'warning' : 'neutral'" />
+            <DhBadge :label="profileTitle(form.commercialProfile)" variant="neutral" />
             <DhBadge v-if="readOnly" label="Solo lectura" variant="neutral" />
           </div>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Los costos y ventas quedan ligados a esta ruta LTL propia y se reutilizan al cotizar.
+            {{ countryName(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }} · Los valores quedan asociados a esta ruta dentro del consolidado.
           </p>
         </div>
-
         <DhButton :icon="X" variant="ghost" aria-label="Cerrar" @click="closeEditor" />
       </header>
 
       <div class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
         <div class="space-y-5">
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
-            <p class="mb-4 text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">
-              Datos del proyecto y ruta
-            </p>
+            <p class="mb-4 text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Datos de la ruta</p>
 
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <DhSelect
-                v-model="form.commercialProfile"
-                label="Perfil comercial"
-                :disabled="readOnly"
-                :options="[
-                  { label: 'Cliente final', value: 'FinalClient' },
-                  { label: 'NVOCC', value: 'Nvocc' },
-                ]"
-              />
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Consolidado</p>
+                <p class="mt-1 text-sm font-black">{{ profileTitle(form.commercialProfile) }}</p>
+              </div>
+
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">País origen</p>
+                <p class="mt-1 text-sm font-black">{{ countryName(selectedOriginCountry) }}</p>
+              </div>
+
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">País destino</p>
+                <p class="mt-1 text-sm font-black">{{ countryName(selectedDestinationCountry) }}</p>
+              </div>
 
               <PricingLocationSearchSelect
                 v-model="form.originId"
-                label="Origen terrestre"
+                label="Punto de origen"
                 placeholder="Buscar origen"
-                search-placeholder="Buscar ciudad o punto terrestre…"
+                search-placeholder="Buscar ubicación terrestre…"
                 terminal-type="SD"
                 :disabled="readOnly"
                 :options="originLocationOptions"
@@ -613,9 +870,9 @@ onMounted(load)
 
               <PricingLocationSearchSelect
                 v-model="form.destinationId"
-                label="Destino terrestre"
+                label="Punto de destino"
                 placeholder="Buscar destino"
-                search-placeholder="Buscar ciudad o punto terrestre…"
+                search-placeholder="Buscar ubicación terrestre…"
                 terminal-type="SD"
                 :disabled="readOnly"
                 :options="destinationLocationOptions"
@@ -630,9 +887,9 @@ onMounted(load)
 
               <DhInput v-model="form.transitDays" type="number" min="0" step="1" label="Días de tránsito" :disabled="readOnly" />
               <DhInput v-model="form.warehouseName" label="Almacén de ingreso" placeholder="Opcional" :disabled="readOnly" />
+              <DhInput v-model="form.source" label="Fuente / proveedor" placeholder="Opcional" :disabled="readOnly" />
               <DhInput v-model="form.validFrom" type="date" label="Vigencia desde" :disabled="readOnly" />
               <DhInput v-model="form.validTo" type="date" label="Vigencia hasta" :disabled="readOnly" />
-              <DhInput v-model="form.source" label="Fuente / proveedor" placeholder="Opcional" :disabled="readOnly" />
             </div>
 
             <div class="mt-4">
@@ -642,20 +899,16 @@ onMounted(load)
             <label class="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--dh-border)] px-4 py-3">
               <input v-model="form.isActive" type="checkbox" class="h-4 w-4" :disabled="readOnly" />
               <span>
-                <strong class="block text-sm text-[var(--dh-text)]">Consolidado activo</strong>
-                <span class="text-xs font-semibold text-[var(--dh-text-muted)]">Disponible para resolver nuevas cotizaciones LTL.</span>
+                <strong class="block text-sm text-[var(--dh-text)]">Ruta activa</strong>
+                <span class="text-xs font-semibold text-[var(--dh-text-muted)]">Disponible para resolver cotizaciones LTL.</span>
               </span>
             </label>
           </section>
 
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div>
-              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">
-                Tarifario del consolidado · costos y ventas
-              </p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Igual que en LCL propio, los conceptos se editan en una matriz compacta. Venta/CBM y mínimo pertenecen a esta ruta.
-              </p>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifario de la ruta · costos y ventas</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Ingrese los valores de esta combinación de país origen y país destino.</p>
             </div>
 
             <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
@@ -673,45 +926,26 @@ onMounted(load)
                   <tr class="border-t border-[var(--dh-border)]">
                     <td class="px-4 py-3">
                       <p class="font-black">Flete terrestre LTL</p>
-                      <p v-if="formIsPanamaOrigin" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">
-                        Al costo base se suma el recargo Panamá configurado abajo.
-                      </p>
+                      <p v-if="formIsPanamaOrigin" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Al costo base se suma el recargo de salida Panamá.</p>
                     </td>
                     <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">CBM</td>
-                    <td class="px-4 py-3 text-right">
-                      <input v-model="form.costPerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
-                    </td>
-                    <td class="px-4 py-3 text-right">
-                      <input v-model="form.priceAmount" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
-                    </td>
-                    <td class="px-4 py-3 text-right">
-                      <input v-model="form.minimumAmount" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
-                    </td>
+                    <td class="px-4 py-3 text-right"><input v-model="form.costPerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
+                    <td class="px-4 py-3 text-right"><input v-model="form.priceAmount" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
+                    <td class="px-4 py-3 text-right"><input v-model="form.minimumAmount" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
                   </tr>
 
                   <tr class="border-t border-[var(--dh-border)]">
-                    <td class="px-4 py-3">
-                      <p class="font-black">Stuffing</p>
-                      <p class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">
-                        Base LCL: USD 550 ÷ 60 CBM = USD {{ money(DEFAULT_STUFFING_COST_PER_CBM) }}/CBM.
-                      </p>
-                    </td>
+                    <td class="px-4 py-3"><p class="font-black">Stuffing</p><p class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Misma base usada por el consolidado LCL.</p></td>
                     <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">CBM</td>
-                    <td class="px-4 py-3 text-right">
-                      <input v-model="form.stuffingCostPerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
-                    </td>
-                    <td class="px-4 py-3 text-right">
-                      <input v-model="form.stuffingSalePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
-                    </td>
+                    <td class="px-4 py-3 text-right"><input v-model="form.stuffingCostPerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
+                    <td class="px-4 py-3 text-right"><input v-model="form.stuffingSalePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
                   </tr>
 
                   <tr class="border-t border-[var(--dh-border)]">
                     <td class="px-4 py-3 font-black">DUA</td>
                     <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">Documento</td>
-                    <td class="px-4 py-3 text-right">
-                      <input v-model="form.duaCost" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
-                    </td>
+                    <td class="px-4 py-3 text-right"><input v-model="form.duaCost" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
                   </tr>
@@ -719,24 +953,15 @@ onMounted(load)
                   <tr class="border-t border-[var(--dh-border)]">
                     <td class="px-4 py-3 font-black">DUCA-T</td>
                     <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">Documento</td>
-                    <td class="px-4 py-3 text-right">
-                      <input v-model="form.ducaTCost" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
-                    </td>
+                    <td class="px-4 py-3 text-right"><input v-model="form.ducaTCost" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
                   </tr>
 
                   <tr class="border-t border-[var(--dh-border)]">
-                    <td class="px-4 py-3">
-                      <p class="font-black">Recargo origen Panamá</p>
-                      <p class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">
-                        Se aplica únicamente cuando la ruta inicia en Panamá.
-                      </p>
-                    </td>
+                    <td class="px-4 py-3"><p class="font-black">Recargo salida Panamá</p><p class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Solo se aplica cuando el origen es Panamá.</p></td>
                     <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">CBM</td>
-                    <td class="px-4 py-3 text-right">
-                      <input v-model="form.panamaCostSurchargePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
-                    </td>
+                    <td class="px-4 py-3 text-right"><input v-model="form.panamaCostSurchargePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
                   </tr>
@@ -749,89 +974,29 @@ onMounted(load)
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Regla de cubicaje LTL</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                  Se compara el CBM dimensional contra el CBM por peso y se utiliza el mayor.
-                </p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se usa el mayor entre CBM dimensional y CBM por peso.</p>
               </div>
-
-              <div class="w-full sm:w-64">
-                <DhInput
-                  v-model="form.weightKgPerCbm"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  label="Peso kg por CBM"
-                  :disabled="readOnly"
-                />
-              </div>
-            </div>
-
-            <div class="mt-4 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
-              CBM por peso = peso total kg ÷ {{ form.weightKgPerCbm || DEFAULT_WEIGHT_KG_PER_CBM }}. El valor inicial es 330 kg/CBM, no 500.
+              <div class="w-full sm:w-64"><DhInput v-model="form.weightKgPerCbm" type="number" min="0.01" step="0.01" label="Peso kg por CBM" :disabled="readOnly" /></div>
             </div>
           </section>
         </div>
 
         <aside class="space-y-4">
           <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl">
-            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Costo del consolidado</p>
-
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Resumen de la ruta</p>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4">
-                <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo base / CBM</p>
-                <p class="mt-1 text-xl font-black">USD {{ money(form.costPerCbm) }}</p>
-              </div>
-
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4">
-                <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Recargo Panamá / CBM</p>
-                <p class="mt-1 text-xl font-black">USD {{ money(formIsPanamaOrigin ? form.panamaCostSurchargePerCbm : 0) }}</p>
-              </div>
-
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4">
-                <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo terrestre / CBM</p>
-                <p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(effectiveCostPerCbm) }}</p>
-              </div>
-
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4">
-                <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Venta / CBM</p>
-                <p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(form.priceAmount) }}</p>
-              </div>
-
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4">
-                <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Stuffing C / V</p>
-                <p class="mt-1 text-sm font-black">USD {{ money(form.stuffingCostPerCbm) }} / {{ money(form.stuffingSalePerCbm) }}</p>
-              </div>
-
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4">
-                <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Documentos</p>
-                <p class="mt-1 text-xl font-black">USD {{ money(documentCostTotal) }}</p>
-                <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">DUA + DUCA-T</p>
-              </div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo base / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(form.costPerCbm) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Venta / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(form.priceAmount) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo efectivo / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(effectiveCostPerCbm) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Documentos</p><p class="mt-1 text-xl font-black">USD {{ money(documentCostTotal) }}</p></div>
             </div>
-
-            <div class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-              <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo variable proyectado</p>
-              <p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(variableCostPerCbm) }} / CBM</p>
-              <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Flete efectivo + Stuffing. Los documentos se mantienen por embarque.</p>
-            </div>
-
-            <div class="mt-3 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 p-4">
-              <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Venta mínima</p>
-              <p class="mt-1 text-2xl font-black">USD {{ money(form.minimumAmount) }}</p>
-              <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">La cotización usa el mayor entre CBM × venta y este mínimo.</p>
-            </div>
-          </section>
-
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]">
-            <p class="font-black text-[var(--dh-text)]">Regla de operación · LTL</p>
-            <p class="mt-2">
-              Peso inicial {{ form.weightKgPerCbm || DEFAULT_WEIGHT_KG_PER_CBM }} kg/CBM. DUA USD {{ money(form.duaCost) }}, DUCA-T USD {{ money(form.ducaTCost) }} y Stuffing con base LCL. Si el origen es Panamá se suma USD {{ money(form.panamaCostSurchargePerCbm) }}/CBM al costo terrestre.
-            </p>
+            <div class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo variable proyectado</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(variableCostPerCbm) }} / CBM</p></div>
+            <div class="mt-3 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Venta mínima</p><p class="mt-1 text-2xl font-black">USD {{ money(form.minimumAmount) }}</p></div>
           </section>
 
           <div v-if="!readOnly" class="flex justify-end gap-2">
             <DhButton label="Cancelar" variant="secondary" @click="closeEditor" />
-            <DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" @click="save" />
+            <DhButton :label="selectedId ? 'Guardar ruta' : 'Crear ruta'" :loading="saving" @click="save" />
           </div>
 
           <div v-else class="flex justify-end">
