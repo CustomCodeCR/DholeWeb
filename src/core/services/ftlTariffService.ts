@@ -5,6 +5,17 @@ export type LandShipmentMode = 'Ftl' | 'Ltl'
 export type LandRateBasis = 'PerTruck' | 'PerCbm'
 export type LandCommercialProfile = 'General' | 'FinalClient' | 'Nvocc'
 
+export interface LtlChargeItemDto {
+  key: string
+  name: string
+  costDetailType: string
+  chargeBasis: string
+  section: string
+  costAmount: number | null
+  saleAmount: number | null
+  isFlat: boolean
+}
+
 export interface FtlTariffDto {
   id: string
   originId: string | null
@@ -40,6 +51,7 @@ export interface FtlTariffDto {
   stuffingCostPerCbm: number | null
   stuffingSalePerCbm: number | null
   panamaCostSurchargePerCbm: number | null
+  ltlChargeItems: LtlChargeItemDto[]
 }
 
 export interface ResolveFtlTariffQuery {
@@ -89,6 +101,7 @@ export interface CreateLandTariffItem {
   stuffingCostPerCbm?: number | null
   stuffingSalePerCbm?: number | null
   panamaCostSurchargePerCbm?: number | null
+  ltlChargeItems?: LtlChargeItemDto[] | null
 }
 
 export interface UpdateFtlTariffItem {
