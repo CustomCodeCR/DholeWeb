@@ -94,7 +94,7 @@ function patchWizard(source: string) {
       "  const route = normalizeCatalogValue(String(tariff?.originName ?? '') + ' ' + String(tariff?.originCode ?? ''))",
       "  return route.includes('panama') || route.includes('cfz') || route.includes('colon free zone') || route.includes('zona libre de colon')",
       '}',
-    ].join('\\n'))
+    ].join('\n'))
   }
 
   if (
@@ -108,7 +108,7 @@ function patchWizard(source: string) {
       '  const calculated = Math.max(number(lclDimensionalCbm.value), weightCbm)',
       '  return calculated > 0 ? Math.max(1, calculated) : 0',
       '}',
-    ].join('\\n'))
+    ].join('\n'))
   }
 
   if (
@@ -128,7 +128,7 @@ function patchWizard(source: string) {
       '  form.freightSale = Math.max(number(tariff.priceAmount) * cbm, number(tariff.minimumAmount))',
       '    + number(tariff.stuffingSalePerCbm ?? 10) * cbm',
       '}',
-    ].join('\\n'))
+    ].join('\n'))
   }
 
   if (helperDefinitions.length) {
@@ -136,7 +136,7 @@ function patchWizard(source: string) {
     if (!code.includes(runtimeAnchor)) {
       throw new Error('[pricingWizardLtlProviderParity] canNext runtime anchor not found.')
     }
-    code = code.replace(runtimeAnchor, helperDefinitions.join('\\n\\n') + '\\n\\n' + runtimeAnchor)
+    code = code.replace(runtimeAnchor, helperDefinitions.join('\n\n') + '\n\n' + runtimeAnchor)
   }
 
   // LTL has its own selection model: commercial profile + resolved master tariff.
