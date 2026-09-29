@@ -31,7 +31,31 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .dhole-system
-          git clone --depth 1 --branch master https://github.com/CustomCodeCR/DholeSystem.git .dhole-system
+
+          # El runner es self-hosted y hemos observado fallos DNS transitorios hacia
+          # github.com. No debe abortar el deploy por un único fallo de resolución.
+          cloned=0
+          for attempt in 1 2 3 4 5; do
+            if git clone --depth 1 --branch master https://github.com/CustomCodeCR/DholeSystem.git .dhole-system; then
+              cloned=1
+              break
+            fi
+
+            rm -rf .dhole-system
+            echo "::warning::No se pudo clonar DholeSystem (intento ${attempt}/5). Verificando DNS antes de reintentar..."
+            timeout 5 getent ahosts github.com || true
+            sleep $((attempt * 5))
+          done
+
+          if [ "$cloned" -ne 1 ]; then
+            echo "::error::No se pudo resolver/clonar github.com después de 5 intentos."
+            echo "----- /etc/resolv.conf -----"
+            cat /etc/resolv.conf || true
+            echo "----- github.com -----"
+            timeout 5 getent ahosts github.com || true
+            exit 1
+          fi
+
           test -r /opt/dhole/.env.staging
           echo "DHOLE_ENV_FILE=/opt/dhole/.env.staging" >> "$GITHUB_ENV"
 
