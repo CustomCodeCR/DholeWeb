@@ -197,13 +197,15 @@ export function buildOperationalLines(context: {
       add('Cargos en destino de la línea aérea', 'destination_charges', 'DestinationCharge')
   }
 
-  if (context.modality === 'Land') {
-    const handling = context.shipmentMode === 'Ftl' ? 55 : 45
-    add('Manejos', 'international_freight', 'AgentCharge', handling)
+  if (context.modality === 'Land' && context.shipmentMode === 'Ftl') {
+    add('Manejos', 'international_freight', 'AgentCharge', 55)
     add('Carta porte', 'international_freight', 'Documentation', 40)
     add('Manifiesto de carga', 'international_freight', 'Documentation', 40)
     add('DUCA-T', 'international_freight', 'Documentation', 40)
   }
+
+  // LTL no usa los defaults terrestres genéricos. Sus cargos salen únicamente
+  // de la matriz Cliente/NVOCC para evitar duplicados y respetar sus valores Flat.
 
   if (context.modality === 'Multimodal' && isImport) {
     add('Manejos', 'international_freight', 'AgentCharge')
