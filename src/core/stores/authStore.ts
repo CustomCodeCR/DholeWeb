@@ -573,10 +573,19 @@ export const useAuthStore = defineStore('auth', () => {
         !scopes.value.some((scope) => scope.trim().toLowerCase() === 'auth.users.impersonate')
       )
 
+    const superUserNeedsScopeRefresh =
+      (hasRole('SuperUsuario') || hasRole('SuperUser')) &&
+      (
+        !scopes.value.some((scope) => scope.trim().toLowerCase() === 'pricing.rate.create') ||
+        !scopes.value.some((scope) => scope.trim().toLowerCase() === 'pricing.market-benchmark.calculate') ||
+        !scopes.value.some((scope) => scope.trim().toLowerCase() === 'pricing.auto-pricing.calculate')
+      )
+
     if (
       isAccessTokenExpired(accessToken.value) ||
       pricingRoleNeedsScopeRefresh ||
-      administratorNeedsCredentialScopeRefresh
+      administratorNeedsCredentialScopeRefresh ||
+      superUserNeedsScopeRefresh
     ) {
       await refreshSession()
       return
