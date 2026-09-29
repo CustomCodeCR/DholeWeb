@@ -81,6 +81,15 @@ function patchWizard(source: string) {
   if (source.includes(MARKER)) return source
   let code = source
 
+  code = code.replace(
+    'const canNext = computed(() => {',
+    `const canNext = computed(() => {
+  if (step.value === 5 && shipmentModeForApi.value === 'Ltl') return Boolean(landLtlCommercialProfile.value && resolvedFtlTariff.value)
+  if (step.value === 6 && shipmentModeForApi.value === 'Ltl') {
+    return Boolean(resolvedFtlTariff.value && form.currencyId && number(form.freightCost) >= 0 && number(form.freightSale) >= 0)
+  }`,
+  )
+
   if (
     code.includes('resolvedFtlTariff')
     && code.includes('applyResolvedLandLtlFreight')
@@ -103,7 +112,18 @@ function patchWizard(source: string) {
   if (
     code.includes('resolvedFtlTariff')
     && code.includes('applyResolvedLandLtlFreight')
-    && code.includes('function previous() {')
+    && code.includes('function continueWithResolvedLandLtlTariff() {
+  if (shipmentModeForApi.value !== 'Ltl' || !resolvedFtlTariff.value || !landLtlCommercialProfile.value) return
+  applyResolvedLandLtlFreight()
+  form.freeDays = 0
+  form.agentId = ''
+  form.carrierId = ''
+  form.transitDays = resolvedFtlTariff.value.transitDays ?? 0
+  if (resolvedFtlTariff.value.currencyId) form.currencyId = resolvedFtlTariff.value.currencyId
+  step.value = 6
+}
+
+function previous() {')
   ) {
     code = code.replace(
       'function previous() {',
