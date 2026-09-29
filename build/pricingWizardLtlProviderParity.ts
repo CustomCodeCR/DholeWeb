@@ -122,11 +122,8 @@ function patchWizard(source: string) {
       '  const cbm = landLtlBillableCbm(tariff)',
       '  const panamaSurcharge = isPanamaLandLtlTariff(tariff) ? number(tariff.panamaCostSurchargePerCbm ?? 9) : 0',
       '  const effectiveCostPerCbm = number(tariff.costPerCbm) + panamaSurcharge',
-      '  form.freightCost = (effectiveCostPerCbm + number(tariff.stuffingCostPerCbm ?? (550 / 60))) * cbm',
-      '    + number(tariff.duaCost ?? 50)',
-      '    + number(tariff.ducaTCost ?? 30)',
+      '  form.freightCost = effectiveCostPerCbm * cbm',
       '  form.freightSale = Math.max(number(tariff.priceAmount) * cbm, number(tariff.minimumAmount))',
-      '    + number(tariff.stuffingSalePerCbm ?? 10) * cbm',
       '}',
     ].join('\n'))
   }
