@@ -39,12 +39,28 @@ const commercialProfileOptions: Array<{ label: string; value: LandCommercialProf
 const initialClasses = props.tariff?.applicableEquipmentClasses?.length
   ? props.tariff.applicableEquipmentClasses
   : props.tariff?.equipmentClass ? [props.tariff.equipmentClass] : []
+const initialOriginIds = props.tariff?.applicableOriginIds?.length
+  ? [...props.tariff.applicableOriginIds]
+  : props.tariff?.originId
+    ? [props.tariff.originId]
+    : props.tariff
+      ? [LEGACY_ORIGIN]
+      : []
+const initialDestinationIds = props.tariff?.applicableDestinationIds?.length
+  ? [...props.tariff.applicableDestinationIds]
+  : props.tariff?.destinationId
+    ? [props.tariff.destinationId]
+    : props.tariff
+      ? [LEGACY_DESTINATION]
+      : []
 
 const form = reactive({
   shipmentMode: (props.lockedMode || props.tariff?.shipmentMode || 'Ftl') as LandShipmentMode,
   commercialProfile: (props.tariff?.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient') as LandCommercialProfile,
-  originId: props.tariff?.originId || (props.tariff ? LEGACY_ORIGIN : ''),
-  destinationId: props.tariff?.destinationId || (props.tariff ? LEGACY_DESTINATION : ''),
+  originId: initialOriginIds[0] || '',
+  destinationId: initialDestinationIds[0] || '',
+  originIds: initialOriginIds,
+  destinationIds: initialDestinationIds,
   equipmentClasses: initialClasses.filter((value) => value && value !== 'LTL_CBM'),
   currencyId: props.tariff?.currencyId || '',
   priceAmount: props.tariff ? String(props.tariff.priceAmount) : '',
@@ -142,6 +158,21 @@ function routeSnapshot(value: string, role: 'origin' | 'destination') {
   return item ? { id: item.id, name: item.name, code: item.code } : null
 }
 
+function selectedRouteSnapshots(values: string[], role: 'origin' | 'destination') {
+  const result: Array<{ id: string | null; name: string; code: string | null }> = []
+  ;[...new Set(values.filter(Boolean))].forEach((value) => {
+    const snapshot = routeSnapshot(value, role)
+    if (snapshot) {
+      result.push({
+        id: snapshot.id,
+        name: snapshot.name,
+        code: snapshot.code || null,
+      })
+    }
+  })
+  return result
+}
+
 function numberOrNull(value: string) {
   if (!value.trim()) return null
   const parsed = Number(value)
@@ -150,8 +181,10 @@ function numberOrNull(value: string) {
 
 function buildPayload(): CreateLandTariffItem | null {
   form.submitted = true
-  const origin = routeSnapshot(form.originId, 'origin')
-  const destination = routeSnapshot(form.destinationId, 'destination')
+  const origins = selectedRouteSnapshots(isLtl.value ? [form.originId] : form.originIds, 'origin')
+  const destinations = selectedRouteSnapshots(isLtl.value ? [form.destinationId] : form.destinationIds, 'destination')
+  const origin = origins[0] || null
+  const destination = destinations[0] || null
   const currency = catalogs.currencies.value.find((item) => item.id === form.currencyId)
   const priceAmount = numberOrNull(form.priceAmount)
   const minimumAmount = numberOrNull(form.minimumAmount)
@@ -182,9 +215,11 @@ function buildPayload(): CreateLandTariffItem | null {
     originId: origin.id,
     originName: origin.name,
     originCode: origin.code || null,
+    applicableOriginIds: origins.map((item) => item.id).filter((id): id is string => Boolean(id)),
     destinationId: destination.id,
     destinationName: destination.name,
     destinationCode: destination.code || null,
+    applicableDestinationIds: destinations.map((item) => item.id).filter((id): id is string => Boolean(id)),
     shipmentMode: form.shipmentMode,
     commercialProfile: isLtl.value ? form.commercialProfile : 'General',
     equipmentClass: classes[0]!,
@@ -220,7 +255,7 @@ async function submit() {
       'Revise la tarifa',
       isLtl.value
         ? 'Seleccione la ruta, moneda y complete los valores requeridos.'
-        : 'Seleccione la ruta, al menos un equipo aplicable, moneda y complete los valores requeridos.',
+        : 'Seleccione al menos un POL y un POE, un equipo aplicable, moneda y complete los valores requeridos.',
     )
     return
   }
@@ -248,6 +283,8 @@ watch(() => form.shipmentMode, (mode) => {
     return
   }
   if (mode === 'Ltl') {
+    if (!form.originId && form.originIds.length) form.originId = form.originIds[0]!
+    if (!form.destinationId && form.destinationIds.length) form.destinationId = form.destinationIds[0]!
     form.equipmentClasses = []
     if (!form.weightKgPerCbm) form.weightKgPerCbm = '330'
     if (!form.duaCost) form.duaCost = '50'
@@ -256,6 +293,8 @@ watch(() => form.shipmentMode, (mode) => {
     if (!form.stuffingSalePerCbm) form.stuffingSalePerCbm = '10'
     if (!form.panamaCostSurchargePerCbm) form.panamaCostSurchargePerCbm = '9'
   } else {
+    if (!form.originIds.length && form.originId) form.originIds = [form.originId]
+    if (!form.destinationIds.length && form.destinationId) form.destinationIds = [form.destinationId]
     form.minimumAmount = ''
   }
 })
@@ -284,20 +323,50 @@ onMounted(catalogs.loadAll)
           <p class="mt-1 text-sm font-black text-[var(--dh-text)]">{{ props.lockedMode === 'Ltl' ? 'LTL · Consolidado propio' : 'FTL · Completo' }}</p>
         </div>
         <DhSelect v-if="isLtl" v-model="form.commercialProfile" label="Perfil comercial" :options="commercialProfileOptions" />
-        <DhSelect
-          v-model="form.originId"
-          label="Origen de la ruta"
-          placeholder="Seleccione origen"
-          :options="originOptions"
-          :error="form.submitted && !form.originId ? 'Seleccione el origen.' : undefined"
-        />
-        <DhSelect
-          v-model="form.destinationId"
-          label="Destino de la ruta"
-          placeholder="Seleccione destino"
-          :options="destinationOptions"
-          :error="form.submitted && !form.destinationId ? 'Seleccione el destino.' : undefined"
-        />
+        <template v-if="!isLtl">
+          <div>
+            <PricingMultiSelect
+              v-model="form.originIds"
+              label="POL / orígenes aplicables"
+              :options="originOptions"
+              placeholder="Seleccione uno o varios POL"
+              search-placeholder="Buscar POL..."
+              empty-text="No hay orígenes terrestres configurados."
+            />
+            <p v-if="form.submitted && !form.originIds.length" class="mt-2 text-xs font-bold text-red-500">
+              Seleccione al menos un POL.
+            </p>
+          </div>
+          <div>
+            <PricingMultiSelect
+              v-model="form.destinationIds"
+              label="POE / destinos aplicables"
+              :options="destinationOptions"
+              placeholder="Seleccione uno o varios POE"
+              search-placeholder="Buscar POE..."
+              empty-text="No hay destinos terrestres configurados."
+            />
+            <p v-if="form.submitted && !form.destinationIds.length" class="mt-2 text-xs font-bold text-red-500">
+              Seleccione al menos un POE.
+            </p>
+          </div>
+        </template>
+        <template v-else>
+          <DhSelect
+            v-model="form.originId"
+            label="Origen de la ruta"
+            placeholder="Seleccione origen"
+            :options="originOptions"
+            :error="form.submitted && !form.originId ? 'Seleccione el origen.' : undefined"
+          />
+          <DhSelect
+            v-model="form.destinationId"
+            label="Destino de la ruta"
+            placeholder="Seleccione destino"
+            :options="destinationOptions"
+            :error="form.submitted && !form.destinationId ? 'Seleccione el destino.' : undefined"
+          />
+        </template>
       </div>
     </section>
 
