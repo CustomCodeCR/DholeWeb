@@ -219,7 +219,7 @@ function patchWizard(source: string) {
       "    'Costo documental configurado en el tarifario LTL.',",
       '  )',
       '}',
-    ].join('\\n'))
+    ].join('\n'))
   }
 
   if (helperDefinitions.length) {
@@ -316,7 +316,7 @@ function previous() {`,
   }
 
   const nextStart = code.indexOf('async function next() {')
-  const nextEnd = nextStart >= 0 ? code.indexOf('\\n}\\n\\nfunction ', nextStart) : -1
+  const nextEnd = nextStart >= 0 ? code.indexOf('\n}\n\nfunction ', nextStart) : -1
   if (nextStart >= 0 && nextEnd >= 0) {
     let nextBlock = code.slice(nextStart, nextEnd + 2)
     const advanceAnchor = '  if (step.value < 8) step.value += 1'
