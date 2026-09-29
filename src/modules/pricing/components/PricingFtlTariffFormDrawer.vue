@@ -10,6 +10,7 @@ import {
   type FtlTariffDto,
   type LandCommercialProfile,
   type LandShipmentMode,
+  type LtlChargeItemDto,
 } from '@/core/services/ftlTariffService'
 import {
   usePricingCatalogs,
@@ -23,6 +24,47 @@ const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
 const LEGACY_ORIGIN = '__legacy_origin__'
 const LEGACY_DESTINATION = '__legacy_destination__'
+
+interface EditableLtlVariableCharge {
+  key: string
+  name: string
+  costDetailType: string
+  chargeBasis: string
+  section: string
+  costAmount: string
+  saleAmount: string
+  isFlat: false
+}
+
+const LTL_VARIABLE_CHARGES: ReadonlyArray<Omit<EditableLtlVariableCharge, 'costAmount' | 'saleAmount'>> = [
+  { key: 'seguro', name: 'Seguro', costDetailType: 'Insurance', chargeBasis: 'PerShipment', section: 'origin_charges', isFlat: false },
+  { key: 'recolecta', name: 'Recolecta', costDetailType: 'OriginCharge', chargeBasis: 'PerShipment', section: 'pickup_origin', isFlat: false },
+  { key: 'reembarque', name: 'Reembarque', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'origin_charges', isFlat: false },
+  { key: 'inspeccion', name: 'Inspección', costDetailType: 'CustomsCharge', chargeBasis: 'PerShipment', section: 'origin_charges', isFlat: false },
+  { key: 'tramite-aduanas-destino', name: 'Trámite Aduanas Destino', costDetailType: 'CustomsCharge', chargeBasis: 'PerShipment', section: 'destination_charges', isFlat: false },
+  { key: 'entrega-destino', name: 'Entrega en Destino', costDetailType: 'InlandTransport', chargeBasis: 'PerShipment', section: 'delivery_destination', isFlat: false },
+  { key: 'otros', name: 'Otros', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'destination_charges', isFlat: false },
+  { key: 'duca-f', name: 'DUCA-F', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', isFlat: false },
+  { key: 'impuesto-exportacion', name: 'Impuesto Exportación', costDetailType: 'CustomsCharge', chargeBasis: 'PerShipment', section: 'origin_charges', isFlat: false },
+  { key: 'recepcion-destino', name: 'Recepción en Destino', costDetailType: 'DestinationCharge', chargeBasis: 'PerShipment', section: 'destination_charges', isFlat: false },
+]
+
+function hydrateLtlVariableCharges(source?: LtlChargeItemDto[] | null): EditableLtlVariableCharge[] {
+  const byKey = new Map(
+    (source ?? [])
+      .filter((item) => !item.isFlat)
+      .map((item) => [item.key.toLowerCase(), item]),
+  )
+
+  return LTL_VARIABLE_CHARGES.map((item) => {
+    const saved = byKey.get(item.key.toLowerCase())
+    return {
+      ...item,
+      costAmount: saved?.costAmount == null ? '' : String(saved.costAmount),
+      saleAmount: saved?.saleAmount == null ? '' : String(saved.saleAmount),
+    }
+  })
+}
 
 function equipmentKey(item: PricingCatalogItem) {
   return String(item.code || item.value || item.slug || item.id).trim()
@@ -72,6 +114,7 @@ const form = reactive({
   stuffingCostPerCbm: String(props.tariff?.stuffingCostPerCbm ?? (550 / 60)),
   stuffingSalePerCbm: String(props.tariff?.stuffingSalePerCbm ?? 10),
   panamaCostSurchargePerCbm: String(props.tariff?.panamaCostSurchargePerCbm ?? 9),
+  ltlVariableCharges: hydrateLtlVariableCharges(props.tariff?.ltlChargeItems),
   transitDays: props.tariff?.transitDays == null ? '' : String(props.tariff.transitDays),
   warehouseName: props.tariff?.warehouseName || '',
   source: props.tariff?.source || '',
@@ -195,6 +238,26 @@ function buildPayload(): CreateLandTariffItem | null {
   const stuffingCostPerCbm = isLtl.value ? numberOrNull(form.stuffingCostPerCbm) : null
   const stuffingSalePerCbm = isLtl.value ? numberOrNull(form.stuffingSalePerCbm) : null
   const panamaCostSurchargePerCbm = isLtl.value ? numberOrNull(form.panamaCostSurchargePerCbm) : null
+  const ltlChargeItems = isLtl.value
+    ? form.ltlVariableCharges.map((charge) => ({
+        key: charge.key,
+        name: charge.name,
+        costDetailType: charge.costDetailType,
+        chargeBasis: charge.chargeBasis,
+        section: charge.section,
+        costAmount: numberOrNull(charge.costAmount),
+        saleAmount: numberOrNull(charge.saleAmount),
+        isFlat: false,
+      } satisfies LtlChargeItemDto))
+    : null
+  const invalidLtlVariableCharge = isLtl.value && form.ltlVariableCharges.some((charge, index) => {
+    const parsed = ltlChargeItems?.[index]
+    if (!parsed) return false
+    return (
+      (charge.costAmount.trim() !== '' && (parsed.costAmount == null || !Number.isFinite(parsed.costAmount) || parsed.costAmount < 0))
+      || (charge.saleAmount.trim() !== '' && (parsed.saleAmount == null || !Number.isFinite(parsed.saleAmount) || parsed.saleAmount < 0))
+    )
+  })
   const transitDays = numberOrNull(form.transitDays)
   const classes = isLtl.value ? ['LTL_CBM'] : [...new Set(form.equipmentClasses)]
   if (
@@ -206,6 +269,7 @@ function buildPayload(): CreateLandTariffItem | null {
     (isLtl.value && (weightKgPerCbm == null || !Number.isFinite(weightKgPerCbm) || weightKgPerCbm <= 0)) ||
     (isLtl.value && [duaCost, ducaTCost, stuffingCostPerCbm, stuffingSalePerCbm, panamaCostSurchargePerCbm]
       .some((value) => value == null || !Number.isFinite(value) || value < 0)) ||
+    invalidLtlVariableCharge ||
     (transitDays != null && (!Number.isInteger(transitDays) || transitDays < 0)) ||
     (form.validFrom && form.validTo && form.validFrom > form.validTo)
   ) return null
@@ -238,6 +302,7 @@ function buildPayload(): CreateLandTariffItem | null {
     stuffingCostPerCbm: isLtl.value ? stuffingCostPerCbm : null,
     stuffingSalePerCbm: isLtl.value ? stuffingSalePerCbm : null,
     panamaCostSurchargePerCbm: isLtl.value ? panamaCostSurchargePerCbm : null,
+    ltlChargeItems: isLtl.value ? ltlChargeItems : null,
     transitDays,
     warehouseName: form.warehouseName.trim() || null,
     source: form.source.trim() || null,
@@ -427,6 +492,47 @@ onMounted(catalogs.loadAll)
       <div v-if="isLtl" class="mt-4 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
         CBM por peso = kg ÷ {{ form.weightKgPerCbm || 330 }}. Se usa el mayor entre CBM dimensional y CBM por peso. En rutas con origen Panamá, al costo base/CBM se suma el recargo configurado. Stuffing conserva la base LCL (USD 550 ÷ 60 CBM) y la venta/CBM es editable.
       </div>
+
+      <div v-if="isLtl" class="mt-5 rounded-[22px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cargos variables LTL</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Estos conceptos no tienen costo ni venta fija. Se muestran siempre y puede dejar los campos vacíos cuando no apliquen.
+          </p>
+        </div>
+
+        <div class="mt-4 space-y-2">
+          <div
+            v-for="charge in form.ltlVariableCharges"
+            :key="charge.key"
+            class="grid gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 md:grid-cols-[minmax(220px,1fr)_160px_160px]"
+          >
+            <div class="self-center">
+              <p class="font-black text-[var(--dh-text)]">{{ charge.name }}</p>
+              <p class="mt-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+                Variable · sin monto fijo
+              </p>
+            </div>
+            <DhInput
+              v-model="charge.costAmount"
+              type="number"
+              min="0"
+              step="0.01"
+              label="Costo"
+              placeholder="Variable"
+            />
+            <DhInput
+              v-model="charge.saleAmount"
+              type="number"
+              min="0"
+              step="0.01"
+              label="Venta"
+              placeholder="Variable"
+            />
+          </div>
+        </div>
+      </div>
+
       <div class="mt-4"><DhTextarea v-model="form.notes" label="Notas" :rows="3" /></div>
       <label class="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--dh-border)] px-4 py-3">
         <input v-model="form.isActive" type="checkbox" class="h-4 w-4" />
