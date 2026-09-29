@@ -13,6 +13,8 @@ export interface FtlTariffDto {
   destinationId: string | null
   destinationName: string
   destinationCode: string | null
+  applicableOriginIds: string[]
+  applicableDestinationIds: string[]
   equipmentClass: string
   equipmentLabel: string
   currencyId: string
@@ -60,6 +62,8 @@ export interface CreateLandTariffItem {
   destinationId?: string | null
   destinationName: string
   destinationCode?: string | null
+  applicableOriginIds?: string[] | null
+  applicableDestinationIds?: string[] | null
   shipmentMode: LandShipmentMode
   commercialProfile?: LandCommercialProfile | null
   equipmentClass: string
