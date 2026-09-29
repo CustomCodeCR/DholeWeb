@@ -128,6 +128,100 @@ function patchWizard(source: string) {
     ].join('\n'))
   }
 
+  if (
+    code.includes('resolvedFtlTariff')
+    && !code.includes('function syncResolvedLandLtlTariffLines(')
+  ) {
+    helperDefinitions.push([
+      'function syncResolvedLandLtlTariffLines() {',
+      "  if (shipmentModeForApi.value !== 'Ltl' || !resolvedFtlTariff.value) return",
+      '  const tariff = resolvedFtlTariff.value',
+      '  const currency = selectedCurrency.value ?? catalogs.currencies[0]',
+      '  if (!currency) return',
+      '  const cbm = landLtlBillableCbm(tariff)',
+      '  if (cbm <= 0) return',
+      '',
+      '  const upsertLtlLine = (',
+      '    key: string,',
+      '    name: string,',
+      '    section: RateSection,',
+      '    costDetailType: CostDetailType,',
+      '    chargeBasis: ChargeBasis,',
+      '    costAmount: number,',
+      '    saleAmount: number,',
+      '    notes: string,',
+      '  ) => {',
+      '    const normalizedName = normalizeCatalogValue(name)',
+      '    const existing = rateLines.value.find((line) =>',
+      '      line.key === key || normalizeCatalogValue(line.name) === normalizedName,',
+      '    )',
+      '    const values = {',
+      '      key,',
+      '      section,',
+      '      name,',
+      '      costDetailType,',
+      "      costType: 'Variable' as CostType,",
+      '      chargeBasis,',
+      '      costId: null,',
+      "      contextLabel: `Tarifario LTL · ${landLtlCommercialProfile.value === 'Nvocc' ? 'NVOCC' : 'Cliente'}`,",
+      '      notes,',
+      '      currencyId: currency.id,',
+      '      currencyName: displayValue(currency),',
+      '      currencyCode: currency.code,',
+      '      amountCurrencyCode: currency.code,',
+      '      costAmount: Math.max(0, costAmount),',
+      '      saleAmount: Math.max(0, saleAmount),',
+      '      included: true,',
+      '      optional: false,',
+      '      manual: false,',
+      '      applyDestinationTax: false,',
+      '      destinationTaxRate: 0,',
+      '    }',
+      '    if (existing) {',
+      '      Object.assign(existing, values)',
+      '      return',
+      '    }',
+      '    rateLines.value.push(values as RateLine)',
+      '  }',
+      '',
+      '  const stuffingCostPerCbm = number(tariff.stuffingCostPerCbm ?? (550 / 60))',
+      '  const stuffingSalePerCbm = number(tariff.stuffingSalePerCbm ?? 10)',
+      '  upsertLtlLine(',
+      "    'ltl-tariff:stuffing',",
+      "    'Stuffing',",
+      "    'origin_charges',",
+      "    'OriginCharge',",
+      "    'PerShipment',",
+      '    stuffingCostPerCbm * cbm,',
+      '    stuffingSalePerCbm * cbm,',
+      '    `Calculado desde tarifario LTL: ${cbm.toFixed(3)} CBM × costo USD ${stuffingCostPerCbm.toFixed(2)} / venta USD ${stuffingSalePerCbm.toFixed(2)} por CBM.`,',
+      '  )',
+      '',
+      '  upsertLtlLine(',
+      "    'ltl-tariff:dua',",
+      "    'DUA',",
+      "    'origin_charges',",
+      "    'CustomsCharge',",
+      "    'PerDocument',",
+      '    number(tariff.duaCost ?? 50),',
+      '    0,',
+      "    'Costo documental configurado en el tarifario LTL.',",
+      '  )',
+      '',
+      '  upsertLtlLine(',
+      "    'ltl-tariff:duca-t',",
+      "    'DUCA-T',",
+      "    'international_freight',",
+      "    'Documentation',",
+      "    'PerDocument',",
+      '    number(tariff.ducaTCost ?? 30),',
+      '    0,',
+      "    'Costo documental configurado en el tarifario LTL.',",
+      '  )',
+      '}',
+    ].join('\\n'))
+  }
+
   if (helperDefinitions.length) {
     const runtimeAnchor = 'const canNext = computed(() => {'
     if (!code.includes(runtimeAnchor)) {
@@ -219,6 +313,26 @@ function previous() {`,
     }
   }`,
     )
+  }
+
+  const nextStart = code.indexOf('async function next() {')
+  const nextEnd = nextStart >= 0 ? code.indexOf('\\n}\\n\\nfunction ', nextStart) : -1
+  if (nextStart >= 0 && nextEnd >= 0) {
+    let nextBlock = code.slice(nextStart, nextEnd + 2)
+    const advanceAnchor = '  if (step.value < 8) step.value += 1'
+    if (
+      nextBlock.includes(advanceAnchor)
+      && !nextBlock.includes('syncResolvedLandLtlTariffLines()')
+    ) {
+      nextBlock = nextBlock.replace(
+        advanceAnchor,
+        `  if (step.value === 6 && shipmentModeForApi.value === 'Ltl') {
+    syncResolvedLandLtlTariffLines()
+  }
+${advanceAnchor}`,
+      )
+      code = code.slice(0, nextStart) + nextBlock + code.slice(nextEnd + 2)
+    }
   }
 
   // The tariff card button advances through the LTL-specific transition.
