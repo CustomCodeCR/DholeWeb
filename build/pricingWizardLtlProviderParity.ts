@@ -81,18 +81,73 @@ function patchWizard(source: string) {
   if (source.includes(MARKER)) return source
   let code = source
 
+  // LTL has its own selection model: commercial profile + resolved master tariff.
   code = code.replace(
     'const canNext = computed(() => {',
     `const canNext = computed(() => {
-  if (step.value === 5 && shipmentModeForApi.value === 'Ltl') return Boolean(landLtlCommercialProfile.value && resolvedFtlTariff.value)
+  if (step.value === 5 && shipmentModeForApi.value === 'Ltl') {
+    return Boolean(landLtlCommercialProfile.value && resolvedFtlTariff.value)
+  }
   if (step.value === 6 && shipmentModeForApi.value === 'Ltl') {
-    return Boolean(resolvedFtlTariff.value && form.currencyId && number(form.freightCost) >= 0 && number(form.freightSale) >= 0)
+    return Boolean(
+      resolvedFtlTariff.value
+      && form.currencyId
+      && number(form.freightCost) >= 0
+      && number(form.freightSale) >= 0
+    )
   }`,
   )
 
+  // Dedicated LTL continuation avoids the imported-rate validation used by FCL/FTL.
   if (
-    code.includes('resolvedFtlTariff')
-    && code.includes('applyResolvedLandLtlFreight')
+    code.includes('applyResolvedLandLtlFreight')
+    && code.includes('function previous() {')
+    && !code.includes('function continueWithResolvedLandLtlTariff()')
+  ) {
+    code = code.replace(
+      'function previous() {',
+      `function continueWithResolvedLandLtlTariff() {
+  if (
+    shipmentModeForApi.value !== 'Ltl'
+    || !resolvedFtlTariff.value
+    || !landLtlCommercialProfile.value
+  ) return
+
+  applyResolvedLandLtlFreight()
+  form.freeDays = 0
+  form.agentId = ''
+  form.carrierId = ''
+  form.transitDays = resolvedFtlTariff.value.transitDays ?? 0
+  if (resolvedFtlTariff.value.currencyId) {
+    form.currencyId = resolvedFtlTariff.value.currencyId
+  }
+  step.value = 6
+}
+
+watch(step, (currentStep) => {
+  if (
+    currentStep !== 6
+    || shipmentModeForApi.value !== 'Ltl'
+    || !resolvedFtlTariff.value
+  ) return
+
+  applyResolvedLandLtlFreight()
+  form.freeDays = 0
+  form.agentId = ''
+  form.carrierId = ''
+  form.transitDays = resolvedFtlTariff.value.transitDays ?? 0
+  if (resolvedFtlTariff.value.currencyId) {
+    form.currencyId = resolvedFtlTariff.value.currencyId
+  }
+})
+
+function previous() {`,
+    )
+  }
+
+  // Keep next() safe for keyboard/navigation paths too.
+  if (
+    code.includes('applyResolvedLandLtlFreight')
     && code.includes('async function next() {')
   ) {
     code = code.replace(
@@ -104,43 +159,20 @@ function patchWizard(source: string) {
     form.agentId = ''
     form.carrierId = ''
     form.transitDays = resolvedFtlTariff.value.transitDays ?? 0
-    if (resolvedFtlTariff.value.currencyId) form.currencyId = resolvedFtlTariff.value.currencyId
+    if (resolvedFtlTariff.value.currencyId) {
+      form.currencyId = resolvedFtlTariff.value.currencyId
+    }
   }`,
     )
   }
 
-  if (
-    code.includes('resolvedFtlTariff')
-    && code.includes('applyResolvedLandLtlFreight')
-    && code.includes('function continueWithResolvedLandLtlTariff() {
-  if (shipmentModeForApi.value !== 'Ltl' || !resolvedFtlTariff.value || !landLtlCommercialProfile.value) return
-  applyResolvedLandLtlFreight()
-  form.freeDays = 0
-  form.agentId = ''
-  form.carrierId = ''
-  form.transitDays = resolvedFtlTariff.value.transitDays ?? 0
-  if (resolvedFtlTariff.value.currencyId) form.currencyId = resolvedFtlTariff.value.currencyId
-  step.value = 6
-}
+  // The tariff card button advances through the LTL-specific transition.
+  code = code.replace(
+    '@click="next">Usar tarifa {{ shipmentModeForApi.toUpperCase() }}</DhButton>',
+    '@click="shipmentModeForApi === \'Ltl\' ? continueWithResolvedLandLtlTariff() : next()">Usar tarifa {{ shipmentModeForApi.toUpperCase() }}</DhButton>',
+  )
 
-function previous() {')
-  ) {
-    code = code.replace(
-      'function previous() {',
-      `watch(step, (currentStep) => {
-  if (currentStep !== 6 || shipmentModeForApi.value !== 'Ltl' || !resolvedFtlTariff.value) return
-  applyResolvedLandLtlFreight()
-  form.freeDays = 0
-  form.agentId = ''
-  form.carrierId = ''
-  form.transitDays = resolvedFtlTariff.value.transitDays ?? 0
-  if (resolvedFtlTariff.value.currencyId) form.currencyId = resolvedFtlTariff.value.currencyId
-})
-
-function previous() {`,
-    )
-  }
-
+  // LTL, like LCL, never persists free days.
   code = code.replaceAll(
     "freeDays: shipmentModeForApi.value === 'Lcl' ? 0 : number(form.freeDays),",
     "freeDays: (shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'Ltl') ? 0 : number(form.freeDays),",
@@ -161,7 +193,7 @@ export function pricingWizardLtlProviderParity(): Plugin {
     name: 'dhole-pricing-wizard-ltl-provider-parity',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (!WIZARD_SUFFIXES.some((suffix) => normalizedId.endsWith(suffix))) return null
       return { code: patchWizard(source), map: null }
     },
