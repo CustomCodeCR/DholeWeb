@@ -136,6 +136,11 @@ const shipmentModeSelection = computed<string[]>({
 const concreteShipmentModes = computed<ShipmentMode[]>(() =>
   form.shipmentModes.filter((mode): mode is ShipmentMode => mode !== 'Any'),
 )
+const shipmentModeSummary = computed(() =>
+  concreteShipmentModes.value.length > 0
+    ? concreteShipmentModes.value.map((mode) => mode.toUpperCase()).join(' / ')
+    : 'TODAS',
+)
 
 function suggestedChargeBasis(modes: readonly ShipmentMode[]): ChargeBasis | null {
   if (modes.length === 1 && modes[0] === 'Fcl') return 'PerContainer'
@@ -664,7 +669,7 @@ onMounted(catalogs.loadAll)
           min="0.01"
           step="0.01"
           label="KG por CBM"
-          :placeholder="form.shipmentMode === 'Ltl' ? '333' : '500'"
+          :placeholder="concreteShipmentModes.length === 1 && concreteShipmentModes[0] === 'Ltl' ? '333' : '500'"
         />
       </div>
       <div
@@ -691,7 +696,7 @@ onMounted(catalogs.loadAll)
         </p>
         <p class="mt-2 text-sm font-semibold text-[var(--dh-text)]">
           {{ chargeBasisOptions.find((item) => item.value === form.chargeBasis)?.label }}
-          <span> · {{ form.shipmentMode.toUpperCase() }}</span>
+          <span> · {{ shipmentModeSummary }}</span>
         </p>
         <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
           Los mínimos se aplican al total del rubro después de calcular su cantidad cobrable.
