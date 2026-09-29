@@ -11,6 +11,7 @@ import {
   type CreateLandTariffItem,
   type FtlTariffDto,
   type LandCommercialProfile,
+  type LtlChargeItemDto,
 } from '@/core/services/ftlTariffService'
 import {
   usePricingCatalogs,
@@ -19,6 +20,17 @@ import {
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 
 type OwnLtlTableRow = FtlTariffDto & Record<string, unknown>
+
+interface EditableLtlCharge {
+  key: string
+  name: string
+  costDetailType: string
+  chargeBasis: string
+  section: string
+  costAmount: string
+  saleAmount: string
+  isFlat: boolean
+}
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
@@ -43,6 +55,52 @@ const DEFAULT_DUCA_T_COST = 30
 const DEFAULT_STUFFING_COST_PER_CBM = 550 / 60
 const DEFAULT_STUFFING_SALE_PER_CBM = 10
 const DEFAULT_PANAMA_SURCHARGE_PER_CBM = 9
+
+function canonicalLtlCharges(profile: LandCommercialProfile): EditableLtlCharge[] {
+  const isNvocc = profile === 'Nvocc'
+  return [
+    { key: 'dua', name: 'DUA', costDetailType: 'CustomsCharge', chargeBasis: 'PerDocument', section: 'origin_charges', costAmount: '50', saleAmount: '60', isFlat: true },
+    { key: 'duca-t', name: 'DUCA-T', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '30', saleAmount: isNvocc ? '30' : '35', isFlat: true },
+    { key: 'stuffing', name: 'Stuffing', costDetailType: 'OriginCharge', chargeBasis: 'PerChargeableCbm', section: 'origin_charges', costAmount: String(DEFAULT_STUFFING_COST_PER_CBM), saleAmount: '10', isFlat: true },
+    { key: 'carta-porte', name: 'Carta Porte', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '0', saleAmount: isNvocc ? '35' : '45', isFlat: true },
+    { key: 'manejos', name: 'Manejos', costDetailType: 'AgentCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '0', saleAmount: isNvocc ? '25' : '45', isFlat: true },
+    { key: 'seguro', name: 'Seguro', costDetailType: 'Insurance', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'recolecta', name: 'Recolecta', costDetailType: 'OriginCharge', chargeBasis: 'PerShipment', section: 'pickup_origin', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'reembarque', name: 'Reembarque', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'inspeccion', name: 'Inspección', costDetailType: 'CustomsCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'tramite-aduanas-destino', name: 'Trámite Aduanas Destino', costDetailType: 'CustomsCharge', chargeBasis: 'PerShipment', section: 'destination_charges', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'entrega-destino', name: 'Entrega en Destino', costDetailType: 'InlandTransport', chargeBasis: 'PerShipment', section: 'delivery_destination', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'otros', name: 'Otros', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'destination_charges', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'duca-f', name: 'DUCA-F', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'impuesto-exportacion', name: 'Impuesto Exportación', costDetailType: 'CustomsCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'recepcion-destino', name: 'Recepción en Destino', costDetailType: 'DestinationCharge', chargeBasis: 'PerShipment', section: 'destination_charges', costAmount: '', saleAmount: '', isFlat: false },
+  ]
+}
+
+function hydrateLtlCharges(
+  profile: LandCommercialProfile,
+  source?: LtlChargeItemDto[] | null,
+): EditableLtlCharge[] {
+  const defaults = canonicalLtlCharges(profile)
+  if (!source?.length) return defaults
+
+  const sourceByKey = new Map(source.map((item) => [item.key.toLowerCase(), item]))
+  return defaults.map((item) => {
+    const incoming = sourceByKey.get(item.key.toLowerCase())
+    if (!incoming || item.isFlat) return item
+    return {
+      ...item,
+      costAmount: incoming.costAmount == null ? '' : String(incoming.costAmount),
+      saleAmount: incoming.saleAmount == null ? '' : String(incoming.saleAmount),
+    }
+  })
+}
+
+function ltlChargeBasisLabel(value: string) {
+  if (value === 'PerChargeableCbm' || value === 'PerCbm') return 'CBM'
+  if (value === 'PerDocument') return 'Documento'
+  return 'Embarque'
+}
 
 const COUNTRY_NAMES: Record<string, string> = {
   PA: 'Panamá',
@@ -77,6 +135,7 @@ const form = reactive({
   stuffingCostPerCbm: String(DEFAULT_STUFFING_COST_PER_CBM),
   stuffingSalePerCbm: String(DEFAULT_STUFFING_SALE_PER_CBM),
   panamaCostSurchargePerCbm: String(DEFAULT_PANAMA_SURCHARGE_PER_CBM),
+  ltlCharges: hydrateLtlCharges('FinalClient'),
   transitDays: '',
   warehouseName: '',
   source: '',
@@ -451,6 +510,7 @@ function resetForm() {
     stuffingCostPerCbm: String(DEFAULT_STUFFING_COST_PER_CBM),
     stuffingSalePerCbm: String(DEFAULT_STUFFING_SALE_PER_CBM),
     panamaCostSurchargePerCbm: String(DEFAULT_PANAMA_SURCHARGE_PER_CBM),
+    ltlCharges: hydrateLtlCharges((selectedProfile.value || 'FinalClient') as LandCommercialProfile),
     transitDays: '',
     warehouseName: '',
     source: '',
@@ -503,6 +563,10 @@ function hydrateForm(row: FtlTariffDto) {
     stuffingCostPerCbm: String(row.stuffingCostPerCbm ?? DEFAULT_STUFFING_COST_PER_CBM),
     stuffingSalePerCbm: String(row.stuffingSalePerCbm ?? DEFAULT_STUFFING_SALE_PER_CBM),
     panamaCostSurchargePerCbm: String(row.panamaCostSurchargePerCbm ?? DEFAULT_PANAMA_SURCHARGE_PER_CBM),
+    ltlCharges: hydrateLtlCharges(
+      row.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient',
+      row.ltlChargeItems,
+    ),
     transitDays: row.transitDays == null ? '' : String(row.transitDays),
     warehouseName: row.warehouseName || '',
     source: row.source || '',
@@ -554,6 +618,26 @@ function buildPayload(): CreateLandTariffItem | null {
   const stuffingSalePerCbm = numberOrNull(form.stuffingSalePerCbm)
   const panamaCostSurchargePerCbm = numberOrNull(form.panamaCostSurchargePerCbm)
   const transitDays = numberOrNull(form.transitDays)
+  const ltlChargeItems = form.ltlCharges.map((charge) => {
+    const costAmount = numberOrNull(charge.costAmount)
+    const saleAmount = numberOrNull(charge.saleAmount)
+    return {
+      key: charge.key,
+      name: charge.name,
+      costDetailType: charge.costDetailType,
+      chargeBasis: charge.chargeBasis,
+      section: charge.section,
+      costAmount,
+      saleAmount,
+      isFlat: charge.isFlat,
+    } satisfies LtlChargeItemDto
+  })
+  const invalidVariableCharge = form.ltlCharges.some((charge, index) => {
+    if (charge.isFlat) return false
+    const value = ltlChargeItems[index]!
+    return (charge.costAmount.trim() && (value.costAmount == null || !Number.isFinite(value.costAmount) || value.costAmount < 0))
+      || (charge.saleAmount.trim() && (value.saleAmount == null || !Number.isFinite(value.saleAmount) || value.saleAmount < 0))
+  })
 
   if (
     !origin
@@ -571,6 +655,7 @@ function buildPayload(): CreateLandTariffItem | null {
     || (minimumAmount != null && (!Number.isFinite(minimumAmount) || minimumAmount < 0))
     || [duaCost, ducaTCost, stuffingCostPerCbm, stuffingSalePerCbm, panamaCostSurchargePerCbm]
       .some((value) => value == null || !Number.isFinite(value) || value < 0)
+    || invalidVariableCharge
     || (transitDays != null && (!Number.isInteger(transitDays) || transitDays < 0))
     || (form.validFrom && form.validTo && form.validFrom > form.validTo)
   ) {
@@ -602,6 +687,7 @@ function buildPayload(): CreateLandTariffItem | null {
     stuffingCostPerCbm,
     stuffingSalePerCbm,
     panamaCostSurchargePerCbm,
+    ltlChargeItems,
     transitDays,
     warehouseName: form.warehouseName.trim() || null,
     source: form.source.trim() || null,
@@ -995,35 +1081,74 @@ onMounted(load)
                   </tr>
 
                   <tr class="border-t border-[var(--dh-border)]">
-                    <td class="px-4 py-3"><p class="font-black">Stuffing</p><p class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Misma base usada por el consolidado LCL.</p></td>
-                    <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">CBM</td>
-                    <td class="px-4 py-3 text-right"><input v-model="form.stuffingCostPerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
-                    <td class="px-4 py-3 text-right"><input v-model="form.stuffingSalePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
-                    <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
-                  </tr>
-
-                  <tr class="border-t border-[var(--dh-border)]">
-                    <td class="px-4 py-3 font-black">DUA</td>
-                    <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">Documento</td>
-                    <td class="px-4 py-3 text-right"><input v-model="form.duaCost" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
-                    <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
-                    <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
-                  </tr>
-
-                  <tr class="border-t border-[var(--dh-border)]">
-                    <td class="px-4 py-3 font-black">DUCA-T</td>
-                    <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">Documento</td>
-                    <td class="px-4 py-3 text-right"><input v-model="form.ducaTCost" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
-                    <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
-                    <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
-                  </tr>
-
-                  <tr class="border-t border-[var(--dh-border)]">
                     <td class="px-4 py-3"><p class="font-black">Recargo salida Panamá</p><p class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">Solo se aplica cuando el origen es Panamá.</p></td>
                     <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">CBM</td>
                     <td class="px-4 py-3 text-right"><input v-model="form.panamaCostSurchargePerCbm" type="number" min="0" step="0.01" :disabled="readOnly" class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" /></td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
                     <td class="px-4 py-3 text-right text-xs font-bold text-[var(--dh-text-muted)]">—</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
+            <div>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cargos y recargos LTL</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Los cargos Flat tienen costo/venta definidos. Los variables no tienen monto fijo y se completan cuando corresponda.
+              </p>
+            </div>
+
+            <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+              <table class="w-full min-w-[760px] text-sm">
+                <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]">
+                  <tr>
+                    <th class="px-4 py-3 text-left">Concepto</th>
+                    <th class="px-4 py-3 text-left">Tipo</th>
+                    <th class="px-4 py-3 text-left">Base</th>
+                    <th class="px-4 py-3 text-right">Costo USD</th>
+                    <th class="px-4 py-3 text-right">Venta USD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="charge in form.ltlCharges" :key="charge.key" class="border-t border-[var(--dh-border)]">
+                    <td class="px-4 py-3">
+                      <p class="font-black">{{ charge.name }}</p>
+                      <p v-if="charge.key === 'stuffing'" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">
+                        Costo por CBM = USD 550 ÷ 60. Venta = USD 10 / CBM.
+                      </p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <DhBadge :label="charge.isFlat ? 'Flat' : 'Variable'" :variant="charge.isFlat ? 'success' : 'warning'" />
+                    </td>
+                    <td class="px-4 py-3 text-xs font-bold text-[var(--dh-text-muted)]">{{ ltlChargeBasisLabel(charge.chargeBasis) }}</td>
+                    <td class="px-4 py-3 text-right">
+                      <span v-if="charge.isFlat" class="font-black">USD {{ money(charge.costAmount) }}</span>
+                      <input
+                        v-else
+                        v-model="charge.costAmount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Variable"
+                        :disabled="readOnly"
+                        class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60"
+                      />
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                      <span v-if="charge.isFlat" class="font-black text-[var(--dh-primary)]">USD {{ money(charge.saleAmount) }}</span>
+                      <input
+                        v-else
+                        v-model="charge.saleAmount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Variable"
+                        :disabled="readOnly"
+                        class="w-32 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60"
+                      />
+                    </td>
                   </tr>
                 </tbody>
               </table>
