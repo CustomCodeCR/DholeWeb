@@ -43,6 +43,28 @@ function money(row: FtlTariffDto) {
   })}`
 }
 
+function routeNames(row: FtlTariffDto, role: 'origin' | 'destination') {
+  const ids = role === 'origin' ? row.applicableOriginIds : row.applicableDestinationIds
+  const legacyId = role === 'origin' ? row.originId : row.destinationId
+  const legacyName = role === 'origin' ? row.originName : row.destinationName
+  const items = role === 'origin' ? catalogs.polPorts.value : catalogs.poePorts.value
+
+  if (!ids?.length) return [legacyName]
+
+  const names = ids.map((id) => {
+    const item = items.find((candidate) => candidate.id === id)
+    if (item) return item.name
+    if (legacyId === id) return legacyName
+    return id
+  })
+
+  return [...new Set(names.filter(Boolean))]
+}
+
+function routeLabel(row: FtlTariffDto) {
+  return `${routeNames(row, 'origin').join(', ')} → ${routeNames(row, 'destination').join(', ')}`
+}
+
 function equipmentLabels(row: FtlTariffDto) {
   const values = row.applicableEquipmentClasses?.length
     ? row.applicableEquipmentClasses
@@ -62,6 +84,7 @@ const filteredRows = computed(() => {
   if (!q) return rows.value
   return rows.value.filter((row) =>
     [
+      routeLabel(row),
       row.originName,
       row.destinationName,
       row.originCode,
@@ -161,7 +184,13 @@ onMounted(load)
           <tbody>
             <tr v-for="row in filteredRows" :key="row.id">
               <td class="border-b border-[var(--dh-border)] px-3 py-4">
-                <p class="font-black text-[var(--dh-text)]">{{ row.originName }} → {{ row.destinationName }}</p>
+                <p class="font-black text-[var(--dh-text)]">{{ routeLabel(row) }}</p>
+                <p
+                  v-if="(row.applicableOriginIds?.length || 0) > 1 || (row.applicableDestinationIds?.length || 0) > 1"
+                  class="mt-1 text-[11px] font-bold text-[var(--dh-text-muted)]"
+                >
+                  {{ row.applicableOriginIds?.length || 1 }} POL · {{ row.applicableDestinationIds?.length || 1 }} POE
+                </p>
                 <p v-if="row.source" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ row.source }}</p>
               </td>
               <td class="border-b border-[var(--dh-border)] px-3 py-4 font-bold">{{ equipmentLabels(row) || row.equipmentLabel }}</td>
