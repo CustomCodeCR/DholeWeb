@@ -20,6 +20,17 @@ import PricingMultiSelect from './PricingMultiSelect.vue'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
 type CostShipmentMode = ShipmentMode | 'Any'
+
+function initialShipmentModes(cost?: CostDto): CostShipmentMode[] {
+  const configured = cost?.shipmentModes?.filter(
+    (mode): mode is ShipmentMode => Boolean(mode),
+  ) ?? []
+
+  if (configured.length > 0) return [...new Set(configured)]
+  if (cost?.shipmentMode) return [cost.shipmentMode]
+  return ['Any']
+}
+
 type CostRouteScope =
   | ''
   | 'Any'
@@ -58,7 +69,10 @@ function initialChargeBasis(cost?: CostDto): ChargeBasis {
   // Compatibility for costs created before chargeBasis existed. The old
   // isAccountant=true flag meant that the value was applied per equipment unit.
   if (cost.isAccountant && cost.chargeBasis === 'PerShipment') {
-    return cost.shipmentMode === 'Ftl' ? 'PerTruck' : 'PerContainer'
+    const modes = initialShipmentModes(cost).filter(
+      (mode): mode is ShipmentMode => mode !== 'Any',
+    )
+    return modes.length === 1 && modes[0] === 'Ftl' ? 'PerTruck' : 'PerContainer'
   }
 
   return cost.chargeBasis ?? 'PerShipment'
@@ -68,7 +82,7 @@ const form = reactive({
   name: props.cost?.name ?? '',
   costType: (props.cost?.costType ?? 'Fixed') as CostType,
   costDetailType: (props.cost?.costDetailType ?? 'DestinationCharge') as CostDetailType,
-  shipmentMode: (props.cost?.shipmentMode ?? 'Any') as CostShipmentMode,
+  shipmentModes: initialShipmentModes(props.cost),
   chargeBasis: initialChargeBasis(props.cost),
   minimumCostAmount: String(props.cost?.minimumCostAmount ?? ''),
   minimumSaleAmount: String(props.cost?.minimumSaleAmount ?? ''),
@@ -104,6 +118,34 @@ const isCarrierCost = computed(() => form.associationType === 'Carrier')
 const isEquipmentBasis = computed(
   () => form.chargeBasis === 'PerContainer' || form.chargeBasis === 'PerTruck',
 )
+const shipmentModeSelection = computed<string[]>({
+  get: () => form.shipmentModes,
+  set: (value) => {
+    const unique = [...new Set(value)] as CostShipmentMode[]
+    const hadAny = form.shipmentModes.includes('Any')
+
+    if (unique.includes('Any')) {
+      form.shipmentModes =
+        hadAny && unique.length > 1 ? unique.filter((mode) => mode !== 'Any') : ['Any']
+      return
+    }
+
+    form.shipmentModes = unique.length > 0 ? unique : ['Any']
+  },
+})
+const concreteShipmentModes = computed<ShipmentMode[]>(() =>
+  form.shipmentModes.filter((mode): mode is ShipmentMode => mode !== 'Any'),
+)
+
+function suggestedChargeBasis(modes: readonly ShipmentMode[]): ChargeBasis | null {
+  if (modes.length === 1 && modes[0] === 'Fcl') return 'PerContainer'
+  if (modes.length === 1 && modes[0] === 'Ftl') return 'PerTruck'
+  if (modes.length > 0 && modes.every((mode) => mode === 'Lcl' || mode === 'Ltl')) {
+    return 'PerChargeableCbm'
+  }
+  return null
+}
+
 const perServiceId = computed<string>({
   get: () => form.serviceIds[0] ?? '',
   set: (value) => {
@@ -240,8 +282,8 @@ watch(
 )
 
 watch(
-  () => [form.costDetailType, form.shipmentMode] as const,
-  ([detailType, shipmentMode]) => {
+  () => [form.costDetailType, concreteShipmentModes.value.join('|')] as const,
+  ([detailType]) => {
     if (!props.cost && detailType === 'Documentation' && form.chargeBasis === 'PerShipment') {
       form.chargeBasis = 'PerDocument'
       return
@@ -249,9 +291,9 @@ watch(
 
     if (!['Freight', 'InlandTransport'].includes(detailType)) return
     if (form.chargeBasis !== 'PerShipment' || props.cost) return
-    if (shipmentMode === 'Fcl') form.chargeBasis = 'PerContainer'
-    else if (shipmentMode === 'Ftl') form.chargeBasis = 'PerTruck'
-    else if (shipmentMode === 'Lcl' || shipmentMode === 'Ltl') form.chargeBasis = 'PerChargeableCbm'
+
+    const suggested = suggestedChargeBasis(concreteShipmentModes.value)
+    if (suggested) form.chargeBasis = suggested
   },
   { immediate: true },
 )
@@ -266,11 +308,7 @@ watch(
       form.chargeBasis === 'PerDocument'
     ) {
       if (detailType === 'Freight' || detailType === 'InlandTransport') {
-        if (form.shipmentMode === 'Fcl') form.chargeBasis = 'PerContainer'
-        else if (form.shipmentMode === 'Ftl') form.chargeBasis = 'PerTruck'
-        else if (form.shipmentMode === 'Lcl' || form.shipmentMode === 'Ltl')
-          form.chargeBasis = 'PerChargeableCbm'
-        else form.chargeBasis = 'PerShipment'
+        form.chargeBasis = suggestedChargeBasis(concreteShipmentModes.value) ?? 'PerShipment'
       } else {
         form.chargeBasis = 'PerShipment'
       }
@@ -335,6 +373,8 @@ async function submit() {
   )
     return
 
+  const shipmentModes = concreteShipmentModes.value
+
   const payload: CreateCostRequest = {
     name: form.name.trim(),
     costType: form.costType,
@@ -369,8 +409,9 @@ async function submit() {
     services,
     operationalConditions:
       form.costType === 'Optional' ? [...form.operationalConditionIds] : [],
-    // "Any" is the explicit UI/API value; null remains the internal wildcard in Pricing.
-    shipmentMode: form.shipmentMode === 'Any' ? null : form.shipmentMode,
+    // Empty shipmentModes means "Any". Keep shipmentMode for backwards compatibility.
+    shipmentMode: shipmentModes.length === 1 ? shipmentModes[0] : null,
+    shipmentModes: [...shipmentModes],
     chargeBasis: form.chargeBasis,
     minimumCostAmount: form.minimumCostAmount === '' ? null : Number(form.minimumCostAmount),
     minimumSaleAmount: form.minimumSaleAmount === '' ? null : Number(form.minimumSaleAmount),
@@ -426,9 +467,11 @@ onMounted(catalogs.loadAll)
         />
         <DhSelect v-model="form.costType" label="Aplicación" :options="costTypeOptions" />
         <DhSelect v-model="form.costDetailType" label="Rubro" :options="detailTypeOptions" />
-        <DhSelect
-          v-model="form.shipmentMode"
+        <PricingMultiSelect
+          v-model="shipmentModeSelection"
           label="Modalidad aplicable"
+          placeholder="Seleccione una o varias modalidades"
+          search-placeholder="Buscar modalidad..."
           :options="shipmentModeOptions"
         />
         <DhSelect v-model="form.chargeBasis" label="Base de cobro" :options="chargeBasisOptions" />

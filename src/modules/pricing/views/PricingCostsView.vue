@@ -163,7 +163,9 @@ function chargeBasisLabel(value: unknown) {
 
 function effectiveChargeBasis(cost: CostDto): ChargeBasis {
   if (cost.isAccountant && cost.chargeBasis === 'PerShipment') {
-    return cost.shipmentMode === 'Ftl' ? 'PerTruck' : 'PerContainer'
+    const modes =
+      cost.shipmentModes?.length ? cost.shipmentModes : cost.shipmentMode ? [cost.shipmentMode] : []
+    return modes.length === 1 && modes[0] === 'Ftl' ? 'PerTruck' : 'PerContainer'
   }
 
   return cost.chargeBasis

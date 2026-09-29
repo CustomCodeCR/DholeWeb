@@ -164,6 +164,7 @@ export interface CostDto extends Record<string, unknown> {
   agents?: CostRelationDto[] | null
   operationalConditions?: CostOperationalCondition[] | null
   shipmentMode?: ShipmentMode | null
+  shipmentModes?: ShipmentMode[] | null
   chargeBasis: ChargeBasis
   minimumCostAmount?: number | null
   minimumSaleAmount?: number | null
@@ -209,6 +210,7 @@ export interface CreateCostRequest extends Record<string, unknown> {
   services?: CostServiceDto[]
   operationalConditions?: CostOperationalCondition[]
   shipmentMode?: ShipmentMode | null
+  shipmentModes?: ShipmentMode[] | null
   chargeBasis?: ChargeBasis
   minimumCostAmount?: number | null
   minimumSaleAmount?: number | null
