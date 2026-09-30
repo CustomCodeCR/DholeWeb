@@ -44,6 +44,7 @@ interface ReviewQueueItem {
   id: string
   importBatchId: string
   sourceType: string
+  shipmentMode: string
   carrier: string
   agent: string
   pol: string
@@ -205,6 +206,22 @@ function sourceLabel(value: string) {
     Manual: 'Manual',
     AgentExtraction: 'Extracción agente',
   } as Record<string, string>)[value] ?? value
+}
+
+function shipmentModeLabel(value: string) {
+  return ({
+    fcl: 'FCL',
+    lcl: 'LCL marítimo · Coloader',
+    air: 'LCL aéreo · Coloader',
+    unknown: 'Por clasificar',
+  } as Record<string, string>)[String(value ?? '').trim().toLowerCase()] ?? 'Por clasificar'
+}
+
+function shipmentModeVariant(value: string): 'success' | 'warning' | 'danger' | 'neutral' {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (normalized === 'air') return 'success'
+  if (normalized === 'lcl') return 'warning'
+  return 'neutral'
 }
 
 function extractionSourceDetails(rawDataJson?: string | null) {
@@ -571,6 +588,7 @@ onMounted(() => {
               </th>
               <th class="px-4 py-3">Cargada</th>
               <th class="px-4 py-3">Origen</th>
+              <th class="px-4 py-3">Modalidad</th>
               <th class="px-4 py-3">Naviera / Agente</th>
               <th class="px-4 py-3">Ruta</th>
               <th class="px-4 py-3">Equipo</th>
@@ -583,10 +601,10 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="11" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
+              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="11" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas con esos filtros.</td>
+              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas con esos filtros.</td>
             </tr>
             <tr
               v-for="row in rows"
@@ -605,6 +623,11 @@ onMounted(() => {
                 >
                   {{ sourceDetails(row) }}
                 </p>
+              </td>
+              <td class="min-w-[180px] px-4 py-3">
+                <DhBadge :variant="shipmentModeVariant(row.shipmentMode)">
+                  {{ shipmentModeLabel(row.shipmentMode) }}
+                </DhBadge>
               </td>
               <td class="px-4 py-3">
                 <p class="font-black text-[var(--dh-text)]">{{ row.carrier || '—' }}</p>
