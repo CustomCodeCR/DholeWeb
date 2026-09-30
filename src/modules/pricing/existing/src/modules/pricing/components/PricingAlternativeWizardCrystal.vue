@@ -4544,16 +4544,16 @@ onMounted(async () => {
             </div>
             <div class="crystal-total-card" aria-label="Resumen financiero de la tarifa">
               <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo USD <strong>{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
-              <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo CRC <strong>{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
-              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Subtotal USD <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
-              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Subtotal CRC <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
-              <span class="crystal-total-card__metric crystal-total-card__metric--tax">IVA USD <strong>{{ formatMoney(totalTaxUsd, 'USD') }}</strong></span>
-              <span class="crystal-total-card__metric crystal-total-card__metric--tax">IVA CRC <strong>{{ formatMoney(totalTaxCrc, 'CRC') }}</strong></span>
-              <span class="crystal-total-card__metric crystal-total-card__metric--total">Total USD <strong>{{ formatMoney(totalSaleUsd, 'USD') }}</strong></span>
-              <span class="crystal-total-card__metric crystal-total-card__metric--total">Total CRC <strong>{{ formatMoney(totalSaleCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Venta USD <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
               <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityUsd)}`">Utilidad USD <strong>{{ formatMoney(totalUtilityUsd, 'USD') }}</strong></span>
+              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen % <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--cost">Costo CRC <strong>{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Venta CRC <strong>{{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
               <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalUtilityCrc)}`">Utilidad CRC <strong>{{ formatMoney(totalUtilityCrc, 'CRC') }}</strong></span>
-              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
+              <span class="crystal-total-card__metric" :class="`crystal-total-card__metric--${financialTone(totalMarginPercentage)}`">Margen % <strong>{{ totalMarginPercentage.toFixed(2) }}%</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--subtotal">Subtotal USD / CRC <strong>{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }} / {{ formatMoney(totalSaleBeforeTaxCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--tax">IVA USD / CRC <strong>{{ formatMoney(totalTaxUsd, 'USD') }} / {{ formatMoney(totalTaxCrc, 'CRC') }}</strong></span>
+              <span class="crystal-total-card__metric crystal-total-card__metric--total">Total USD / CRC <strong>{{ formatMoney(totalSaleUsd, 'USD') }} / {{ formatMoney(totalSaleCrc, 'CRC') }}</strong></span>
               <span v-if="hasMixedCurrencies" class="crystal-total-card__metric crystal-total-card__metric--neutral">Oferta mixta <strong>USD + CRC</strong></span>
             </div>
           </div>
