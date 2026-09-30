@@ -3,9 +3,14 @@ import { readFileSync } from 'node:fs'
 const wizardPath = new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url)
 const source = readFileSync(wizardPath, 'utf8')
 
-const mapperStart = source.indexOf(
+const mapperAnchors = [
+  'const details: CreateRateDetailRequest[] = normalizedIncludedLines.map((line) => ({',
   'const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({',
-)
+]
+
+const mapperStart = mapperAnchors
+  .map((anchor) => source.indexOf(anchor))
+  .find((index) => index >= 0) ?? -1
 
 if (mapperStart < 0) {
   throw new Error('No se encontró el mapper de details de PricingAlternativeWizardCrystal.')
