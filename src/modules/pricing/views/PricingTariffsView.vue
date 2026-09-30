@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { BookOpen, Eye, RefreshCw, UserRoundPlus } from 'lucide-vue-next'
+import { BookOpen, CheckCircle2, Eye, RefreshCw, UserRoundPlus, XCircle } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
+import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
+import { useAuthStore } from '@/core/stores/authStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { RateDto } from '@/core/interfaces/pricing'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
+import PricingReasonModal from '@/modules/pricing/components/PricingReasonModal.vue'
 import { formatDate, formatMoney, statusTone } from '@/modules/pricing/utils/pricingFormat'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
 
@@ -21,10 +25,27 @@ const selectedMasterId = ref('')
 const search = ref('')
 const loadingMasters = ref(false)
 const loadingDerived = ref(false)
+const approvingMaster = ref(false)
 
 const selectedMaster = computed(
   () => masters.value.find((rate) => rate.id === selectedMasterId.value) ?? null,
 )
+
+function canApplyTariffRate(rate: RateDto | null) {
+  return Boolean(
+    rate
+    && authStore.hasScope(PRICING_SCOPES.rates.create)
+    && ['ApprovedByManagement', 'Open', 'Sent', 'RequestedByClient', 'AcceptedByClient'].includes(rate.status),
+  )
+}
+
+const canApproveSelectedMaster = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin)
+  && selectedMaster.value?.status === 'PendingApproval'
+  && Boolean(selectedMaster.value?.requiredApproval),
+)
+
+const canApplySelectedMaster = computed(() => canApplyTariffRate(selectedMaster.value))
 
 const filteredMasters = computed(() => {
   const value = search.value.trim().toLowerCase()
@@ -134,8 +155,42 @@ function openRate(rate: RateDto | null) {
   })
 }
 
+async function approveMaster(rate: RateDto | null) {
+  if (!rate || !canApproveSelectedMaster.value || approvingMaster.value) return
+
+  try {
+    approvingMaster.value = true
+    await PricingService.approveRateMargin(rate.id)
+    toastStore.success(
+      'Tarifario maestro aprobado',
+      'El margen quedó aprobado por gerencia y el tarifario ya puede aplicarse a clientes.',
+    )
+    await loadMasters()
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo aprobar el tarifario maestro.')
+  } finally {
+    approvingMaster.value = false
+  }
+}
+
+function rejectMaster(rate: RateDto | null) {
+  if (!rate || !canApproveSelectedMaster.value) return
+
+  modalStore.open({
+    title: 'Rechazar autorización de margen',
+    component: PricingReasonModal,
+    props: {
+      target: 'margin',
+      id: rate.id,
+      onSaved: async () => {
+        await loadMasters()
+      },
+    },
+  })
+}
+
 function applyTariff(rate: RateDto | null) {
-  if (!rate) return
+  if (!canApplyTariffRate(rate) || !rate) return
   modalStore.open({
     title: 'Aplicar tarifario a cliente',
     component: PricingApplyTariffModal,
@@ -258,9 +313,33 @@ onMounted(loadMasters)
               </p>
             </div>
 
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
               <DhButton label="Ver maestro" :icon="Eye" variant="secondary" size="sm" @click="openRate(selectedMaster)" />
-              <DhButton label="Aplicar a cliente" :icon="UserRoundPlus" size="sm" @click="applyTariff(selectedMaster)" />
+              <DhButton
+                v-if="canApproveSelectedMaster"
+                label="Rechazar"
+                :icon="XCircle"
+                variant="secondary"
+                size="sm"
+                :disabled="approvingMaster"
+                @click="rejectMaster(selectedMaster)"
+              />
+              <DhButton
+                v-if="canApproveSelectedMaster"
+                label="Aprobar margen"
+                :icon="CheckCircle2"
+                size="sm"
+                :loading="approvingMaster"
+                :disabled="approvingMaster"
+                @click="approveMaster(selectedMaster)"
+              />
+              <DhButton
+                v-if="canApplySelectedMaster"
+                label="Aplicar a cliente"
+                :icon="UserRoundPlus"
+                size="sm"
+                @click="applyTariff(selectedMaster)"
+              />
             </div>
           </div>
 
