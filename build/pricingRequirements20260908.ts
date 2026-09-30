@@ -84,11 +84,26 @@ function patchWizard(source: string) {
   const routeOptionsReplacement = `function pricingItemCountryCode(item: CatalogItemSelectDto | null | undefined) {\n  return String(metadata(item)?.countryCode ?? '').trim().toUpperCase()\n}\n\nfunction isMultimodalViaPanama(item: CatalogItemSelectDto | null | undefined) {\n  if (!item) return false\n  const meta = metadata(item)\n  const descriptor = normalizeCatalogValue([item.code, item.slug, item.label, displayValue(item)].filter(Boolean).join(' '))\n  return meta?.multimodalViaPanama === true\n    || String(item.code ?? '').trim().toUpperCase() === 'MULTIMODAL_VIA_PANAMA'\n    || descriptor.includes('multimodal via panama')\n}\n\nfunction isRealPanamaPoe(item: CatalogItemSelectDto | null | undefined) {\n  return Boolean(item && !isMultimodalViaPanama(item) && pricingItemCountryCode(item) === 'PA')\n}\n\nconst panamaPoeItems = computed(() => catalogs.poe.filter(isRealPanamaPoe))\nconst originCatalog = computed(() => form.modality === 'Land' ? catalogs.landPol : catalogs.pol)\nconst destinationCatalog = computed(() => {\n  if (form.modality === 'Land') return catalogs.landPoe\n  if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl') {\n    return catalogs.poe.filter((item) => isMultimodalViaPanama(item) || !isRealPanamaPoe(item))\n  }\n  return catalogs.poe.filter((item) => !isMultimodalViaPanama(item))\n})\n\nconst originOptions = computed(() => originCatalog.value.map((item) => ({ value: item.id, label: displayValue(item) })))\nconst destinationOptions = computed(() => destinationCatalog.value.map((item) => ({ value: item.id, label: displayValue(item) })))\nconst podOptions = computed(() => form.modality === 'Land' ? [] : catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))`
   code = replaceRequired(code, routeOptionsAnchor, routeOptionsReplacement, 'route options')
 
+  // Keep these selectors as independent anchors. Other pricing fixes can insert
+  // computed helpers between them (for example multimodalAllInPresentation)
+  // without breaking this transform.
   code = replaceRequired(
     code,
-    `const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))\nconst selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))\nconst selectedPod = computed(() => findById(catalogs.pod, form.podId))`,
-    `const selectedOrigin = computed(() => findById(originCatalog.value, form.originId))\nconst selectedDestination = computed(() => findById(destinationCatalog.value, form.destinationId))\nconst selectedPod = computed(() => form.modality === 'Land' ? null : findById(catalogs.pod, form.podId))`,
-    'selected route catalogs',
+    `const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))`,
+    `const selectedOrigin = computed(() => findById(originCatalog.value, form.originId))`,
+    'selected origin catalog',
+  )
+  code = replaceRequired(
+    code,
+    `const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))`,
+    `const selectedDestination = computed(() => findById(destinationCatalog.value, form.destinationId))`,
+    'selected destination catalog',
+  )
+  code = replaceRequired(
+    code,
+    `const selectedPod = computed(() => findById(catalogs.pod, form.podId))`,
+    `const selectedPod = computed(() => form.modality === 'Land' ? null : findById(catalogs.pod, form.podId))`,
+    'selected POD catalog',
   )
 
   // 9. Remaining validity is measured from the requested load date, not from today.
