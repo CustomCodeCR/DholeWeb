@@ -266,8 +266,11 @@ function reconcilePersistedEditLinesForIncoterm() {
     if (!exists) rateLines.value.push(restored)
   })
 
-  // Agregar los cargos/recargos del NUEVO Incoterm sin tocar líneas ya guardadas.
+  // Agregar los cargos/recargos del NUEVO Incoterm y actualizar las líneas existentes
+  // contra los valores vigentes de Costos y recargos.
   applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+  syncPersistedLinesWithChangedConfiguredCosts()
+  syncHaulageOptionalLines()
 
   // EXW/FCA pueden necesitar sus bloques de origen aunque no haya costo maestro.
   addIncotermFallbackLine('pickup_origin')
@@ -328,6 +331,10 @@ ${savedManualStep}      if (shouldPreservePersistedEditLines()) {
           // cargos fijos/opcionales que falten en una tarifa persistida incompleta.
           await loadApplicableCosts()
           applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+          // En edición, Costos y recargos es el maestro vigente: además de agregar
+          // cargos nuevos, refrescar costo/venta/moneda/notas de líneas existentes
+          // cuando el catálogo cambió desde que se creó la tarifa.
+          syncPersistedLinesWithChangedConfiguredCosts()
           syncHaulageOptionalLines()
           syncPersistedFreightLineForEdit()
         }
@@ -376,6 +383,10 @@ ${savedManualStep}      if (shouldPreservePersistedEditLines()) {
       // completamos los costos que Pricing confirmó para el contexto y revinculamos
       // reparaciones manuales que perdieron CostId en revisiones anteriores.
       applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+      // La edición debe abrir contra el catálogo vigente, no contra importes históricos.
+      // Actualiza únicamente líneas ligadas a Costos y recargos; flete y cargos manuales
+      // permanecen intactos.
+      syncPersistedLinesWithChangedConfiguredCosts()
       // Reaplicar la selección de Pantalla 4 después de completar los costos.
       // Esto mantiene Naviera/Merchant/Muellaje y demás condiciones persistidas.
       syncHaulageOptionalLines()
@@ -405,6 +416,8 @@ ${savedManualStep}      if (shouldPreservePersistedEditLines()) {
 
     if (shouldPreservePersistedEditLines()) {
       applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+      syncPersistedLinesWithChangedConfiguredCosts()
+      syncHaulageOptionalLines()
       syncPersistedFreightLineForEdit()
     } else {
       // Solo un cambio real del contexto comercial debe reconstruir las líneas.
