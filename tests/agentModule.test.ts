@@ -78,8 +78,13 @@ test('Extraction profile contracts mirror the contracts currently exposed by Age
   assert.equal(contracts.includes('usernameSecretKey'), false)
   assert.equal(contracts.includes('passwordSecretKey'), false)
 
-  // The backend still does not publish these contracts; frontend must not invent them.
-  assert.equal(contracts.includes('interface AgentExtractionProfileDto'), false)
+  for (const name of [
+    'AgentExtractionProfileDto',
+    'CreateAgentExtractionProfileRequest',
+    'UpdateAgentExtractionProfileRequest',
+  ]) {
+    assert.ok(contracts.includes(`interface ${name}`), `Missing extraction profile CRUD contract: ${name}`)
+  }
   assert.equal(contracts.includes('interface AgentExecutionTaskDto'), false)
   assert.equal(contracts.includes('interface AgentExecutionStepDto'), false)
   assert.equal(contracts.includes('interface AgentNetworkCaptureDto'), false)
@@ -217,7 +222,12 @@ test('Agent service uses centralized endpoints and never performs direct fetch c
     '/api/agents/executions/{{executionId}}/prompt',
   ]) assert.ok(endpoints.includes(path), `Missing Agent endpoint: ${path}`)
 
-  assert.equal(endpoints.includes("path: '/api/agents/extraction-profiles'"), false)
+  for (const path of [
+    '/api/agents/extraction-profiles',
+    '/api/agents/extraction-profiles/{{profileId}}',
+    '/api/agents/extraction-profiles/{{profileId}}/active',
+  ]) assert.ok(endpoints.includes(path), `Missing extraction profile CRUD endpoint: ${path}`)
+
   assert.equal(endpoints.includes('/api/agents/extraction-profiles/{{profileId}}/run'), false)
 
   for (const placeholder of ['{{providerId}}', '{{definitionId}}', '{{credentialId}}', '{{profileId}}', '{{routeId}}', '{{equipmentId}}', '{{captureId}}', '{{fieldId}}', '{{scheduleId}}', '{{executionId}}']) {
@@ -227,10 +237,11 @@ test('Agent service uses centralized endpoints and never performs direct fetch c
 
 
 
-test('Agent service exposes profile-first grouped operations without inventing profile CRUD', async () => {
+test('Agent service exposes real extraction profile CRUD and profile-first grouped operations', async () => {
   const service = await source('../src/core/services/agentService.ts')
 
   for (const group of [
+    'profiles',
     'providers',
     'definitions',
     'credentials',
@@ -247,6 +258,12 @@ test('Agent service exposes profile-first grouped operations without inventing p
   }
 
   for (const operation of [
+    'profiles.browse',
+    'profiles.get',
+    'profiles.create',
+    'profiles.update',
+    'profiles.setActive',
+    'profiles.delete',
     'credentials.verify',
     'routes.browse',
     'routes.create',
@@ -263,17 +280,18 @@ test('Agent service exposes profile-first grouped operations without inventing p
     assert.match(service, new RegExp(`const ${group} = \\{[\\s\\S]*?\\n  (?:async )?${method}\\(`))
   }
 
-  assert.match(service, /profiles:\s*\{\s*contractAvailable:\s*false as const/)
-  assert.equal(service.includes('browseProfiles()'), false)
+  assert.match(service, /const profiles = \{[\s\S]*?contractAvailable: true as const/)
   assert.equal(service.includes('runProfile('), false)
   assert.equal(/\bfetch\s*\(/.test(service), false)
 })
 
 
-test('Agent Pinia store keeps profile configuration state without inventing profile CRUD', async () => {
+test('Agent Pinia store keeps extraction profiles and profile configuration state', async () => {
   const store = await source('../src/modules/agent/stores/agentStore.ts')
 
   for (const fragment of [
+    'const extractionProfiles = ref<AgentExtractionProfileDto[]>([])',
+    'const selectedProfile = ref<AgentExtractionProfileDto | null>(null)',
     'const routes = ref<AgentExtractionRouteDto[]>([])',
     'const equipment = ref<AgentExtractionEquipmentDto[]>([])',
     'const captures = ref<AgentEndpointCaptureDto[]>([])',
@@ -284,6 +302,10 @@ test('Agent Pinia store keeps profile configuration state without inventing prof
     'AgentService.equipment.browse(profileId)',
     'AgentService.captures.browse(profileId)',
     'AgentService.fields.browse(profileId)',
+    'loadProfiles()',
+    'loadProfile(profileId: string)',
+    'AgentService.profiles.browse()',
+    'AgentService.profiles.get(profileId)',
     'refreshExecution(executionId?: string)',
   ]) {
     assert.ok(store.includes(fragment), `Missing profile store behavior: ${fragment}`)
@@ -292,8 +314,6 @@ test('Agent Pinia store keeps profile configuration state without inventing prof
   assert.match(store, /plannedSearchCount = computed\(\(\) => activeRoutes\.value\.length \* activeEquipment\.value\.length\)/)
   assert.match(store, /profileCrudAvailable = computed\(\(\) => AgentService\.profiles\.contractAvailable\)/)
   assert.equal(store.includes('password'), false)
-  assert.equal(store.includes('loadProfiles('), false)
-  assert.equal(store.includes('loadProfile('), false)
 })
 
 
@@ -473,8 +493,7 @@ test('Hermes prompt UI previews only through the backend contract', async () => 
   const editor = await source('../src/modules/agent/components/prompt/AgentPromptEditor.vue')
   const preview = await source('../src/modules/agent/components/prompt/AgentPromptPreview.vue')
 
-  assert.match(editor, /Feature blocked by backend contract/)
-  assert.equal(editor.includes('AgentService.profiles.update'), false)
+  assert.equal(editor.includes('Feature blocked by backend contract'), false)
   assert.equal(editor.toLowerCase().includes('password'), false)
 
   assert.match(preview, /AgentService\.prompts\.preview\(props\.profileId/)
@@ -501,4 +520,27 @@ test('Execution detail uses tabs, real prompt snapshot and explicit backend-cont
   assert.match(detail, /Route × Equipment/)
   assert.equal(detail.includes('/api/agents/executions/{id}/result'), false)
   assert.equal(detail.includes('/api/agents/executions/{id}/hermes') && detail.includes('AgentService.executions.hermes'), false)
+})
+
+
+test('Extraction profile screens are operational instead of showing a backend-contract blocker', async () => {
+  const list = await source('../src/modules/agent/views/AgentProfilesView.vue')
+  const wizard = await source('../src/modules/agent/views/AgentProfileWizardView.vue')
+  const detail = await source('../src/modules/agent/views/AgentProfileDetailView.vue')
+  const form = await source('../src/modules/agent/components/profiles/AgentExtractionProfileForm.vue')
+
+  for (const view of [list, wizard, detail]) {
+    assert.equal(view.includes('Feature blocked by backend contract'), false)
+  }
+
+  assert.match(list, /store\.loadProfiles\(\)/)
+  assert.match(list, /AgentService\.profiles\.setActive/)
+  assert.match(wizard, /AgentExtractionProfileForm/)
+  assert.match(form, /AgentService\.profiles\.create\(payload\)/)
+  assert.match(form, /AgentService\.profiles\.update\(props\.profile\.id, payload\)/)
+  assert.match(detail, /AgentRoutesTable/)
+  assert.match(detail, /AgentEquipmentTable/)
+  assert.match(detail, /AgentCaptureRulesTable/)
+  assert.match(detail, /AgentExtractionFieldsTable/)
+  assert.match(detail, /AgentPromptPreview/)
 })

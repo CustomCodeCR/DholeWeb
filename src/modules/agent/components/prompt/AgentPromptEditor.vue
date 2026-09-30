@@ -25,8 +25,8 @@ const emit = defineEmits<{
       @update:model-value="emit('update:modelValue', $event)"
     />
 
-    <p class="rounded-[18px] border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-300">
-      Feature blocked by backend contract: el editor puede preparar el contenido, pero DholeAgentService todavía no expone el CRUD principal de AgentExtractionProfile para persistir el prompt.
+    <p class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+      El prompt se guarda dentro del perfil de extracción y puede usar las variables publicadas por DholeAgentService.
     </p>
   </section>
 </template>

@@ -244,6 +244,13 @@ function statusVariant(status: string): 'success' | 'danger' | 'warning' | 'neut
 
 <template>
   <div v-if="rows.length" class="space-y-4">
+    <div>
+      <h3 class="text-base font-black text-[var(--dh-text)]">Tarifas extraídas</h3>
+      <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+        Resultado normalizado de la extracción marítima FCL.
+      </p>
+    </div>
+
     <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
       <DhBadge :label="summary.provider" variant="neutral" />
       <span v-if="summary.completed != null">
