@@ -227,7 +227,7 @@ export interface ImportRateDto extends Record<string, unknown> {
   importBatchId: string
   extractionRecordId: string
   sourceType: ImportSourceType
-  shipmentMode?: ShipmentMode | 'Air'
+  shipmentMode?: ShipmentMode | 'Unknown'
   importProfileId: string
   importProfileName: string
   importProfileCode: string
