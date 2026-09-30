@@ -1236,22 +1236,20 @@ const visibleSections = computed<RateSection[]>(() => {
 })
 
 const includedLines = computed(() => rateLines.value.filter((line) => line.included))
-function haulageAssociation(line: { name: string }) {
-  const value = normalizeCatalogValue(line.name)
-  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
-  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
+function haulageAssociation(line: { name: string; notes?: string | null; operationalConditions?: string[] | null }) {
+  const conditions = Array.isArray(line.operationalConditions) ? line.operationalConditions : []
+  if (conditions.includes('MerchantHaulage')) return 'merchant'
+  if (conditions.includes('CarrierHaulage')) return 'carrier'
+
+  const value = normalizeCatalogValue(`${line.name} ${line.notes ?? ''}`)
+  if (value.includes('merchant')) return 'merchant'
+  if (value.includes('naviera') || value.includes('carrier')) return 'carrier'
+  if (value.trim() === 'gate') return 'merchant'
   return null
 }
 
 const selectableOptionalLines = computed(() =>
-  rateLines.value.filter((line) => {
-    if (!line.optional) return false
-    const association = haulageAssociation(line)
-    if (!association) return true
-    if (form.merchantHaulage) return association === 'merchant'
-    if (form.carrierHaulage) return association === 'carrier'
-    return false
-  }),
+  rateLines.value.filter((line) => line.optional),
 )
 const optionalChargeOptions = computed(() =>
   selectableOptionalLines.value
@@ -1926,12 +1924,7 @@ function rebuildRateLines() {
       currencyCode: cost.currencyCode,
       costAmount: number(cost.costAmount),
       saleAmount: number(cost.saleAmount),
-      included:
-        cost.costType !== 'Optional' ||
-        (form.dangerousCargo && isDangerousCargoCost(cost)) ||
-        (form.overweight && isOverweightCost(cost)) ||
-        (form.merchantHaulage && haulageAssociation(cost) === 'merchant') ||
-        (form.carrierHaulage && haulageAssociation(cost) === 'carrier'),
+      included: true,
       optional: cost.costType === 'Optional',
       manual: false,
     })
@@ -2124,7 +2117,7 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
         currencyCode: cost.currencyCode,
         costAmount: number(cost.costAmount),
         saleAmount: number(cost.saleAmount),
-        included: includeFixed && cost.costType !== 'Optional',
+        included: cost.costType === 'Optional' ? true : includeFixed,
         optional: cost.costType === 'Optional',
         manual: false,
         applyDestinationTax: false,
@@ -2189,19 +2182,8 @@ function chooseShipmentMode(value: string) {
 }
 
 function syncHaulageOptionalLines() {
-  rateLines.value.forEach((line) => {
-    if (!line.optional) return
-    const association = haulageAssociation(line)
-    if (!association) return
-
-    line.included =
-      (association === 'merchant' && form.merchantHaulage) ||
-      (association === 'carrier' && form.carrierHaulage)
-
-    if (!line.included) {
-      line.applyDestinationTax = false
-    }
-  })
+  // Todos los Optional aplicables quedan marcados por defecto. Merchant/Naviera y
+  // demás botones ya no desmarcan líneas automáticamente; Pantalla 7 es autoritativa.
 }
 
 function toggleMerchantHaulage() {
