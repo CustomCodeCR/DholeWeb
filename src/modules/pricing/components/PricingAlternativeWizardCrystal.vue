@@ -746,6 +746,23 @@ const equipmentTypeOptions = computed(() => {
 
 const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))
 const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
+const multimodalAllInPresentation = computed(() => {
+  if (form.modality === 'Multimodal') return true
+
+  const destination = selectedDestination.value
+  if (!destination) return false
+
+  const destinationMetadata = metadata(destination) as (CatalogMetadata & { multimodalViaPanama?: boolean }) | null
+  const descriptor = normalizeCatalogValue(
+    [destination.code, destination.slug, destination.label, displayValue(destination)]
+      .filter(Boolean)
+      .join(' '),
+  )
+
+  return destinationMetadata?.multimodalViaPanama === true
+    || String(destination.code ?? '').trim().toUpperCase() === 'MULTIMODAL_VIA_PANAMA'
+    || descriptor.includes('multimodal via panama')
+})
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
 const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
@@ -3708,7 +3725,7 @@ async function saveRate() {
             },
           ],
       transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
-      useAllInPresentation: true,
+      useAllInPresentation: multimodalAllInPresentation.value,
       finalBackupStorageIds: finalBackupDocuments.value.map((document) => document.id),
       includes: includeTerms.join('\n') || null,
       subjectTo: subjectTerms.join('\n') || null,
@@ -4853,10 +4870,14 @@ onMounted(async () => {
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Presentación comercial</p>
-                  <DhBadge variant="success">ALL IN activo</DhBadge>
+                  <DhBadge :variant="multimodalAllInPresentation ? 'success' : 'neutral'">
+                    {{ multimodalAllInPresentation ? 'ALL IN activo' : 'Desglose por rubros' }}
+                  </DhBadge>
                 </div>
                 <p class="mt-2 max-w-3xl text-xs font-semibold text-[var(--dh-text-muted)]">
-                  La formulación conserva todas las líneas; la presentación comercial del borrador y del PDF es siempre ALL IN.
+                  {{ multimodalAllInPresentation
+                    ? 'La formulación conserva todas las líneas; la presentación comercial del borrador y del PDF es ALL IN únicamente para la ruta multimodal.'
+                    : 'El borrador y el PDF mantienen los rubros comerciales individualmente. ALL IN aplica únicamente a multimodal.' }}
                 </p>
               </div>
             </div>
@@ -4865,7 +4886,9 @@ onMounted(async () => {
               <div class="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
                 <div>
                   <p class="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Concepto comercial</p>
-                  <p class="mt-1 text-xl font-black text-[var(--dh-text)]">ALL IN</p>
+                  <p class="mt-1 text-xl font-black text-[var(--dh-text)]">
+                    {{ multimodalAllInPresentation ? 'ALL IN' : 'DESGLOSE POR RUBROS' }}
+                  </p>
                 </div>
                 <div class="sm:text-right">
                   <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">USD</p>
