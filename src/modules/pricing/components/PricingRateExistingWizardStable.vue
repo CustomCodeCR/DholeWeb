@@ -363,6 +363,14 @@ const canApproveCurrentRate = computed(() =>
   && editingRate.value?.status === 'PendingApproval'
   && Boolean(editingRate.value?.requiredApproval),
 )
+const canApplyMasterTariff = computed(() =>
+  isMasterTariff.value
+  && authStore.hasScope(PRICING_SCOPES.rates.create)
+  && Boolean(
+    editingRate.value
+    && ['ApprovedByManagement', 'Open', 'Sent', 'RequestedByClient', 'AcceptedByClient'].includes(editingRate.value.status),
+  ),
+)
 const canOpenApprovedRate = computed(() =>
   canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',
 )
@@ -2805,8 +2813,32 @@ async function markCurrentRateSent() {
   }
 }
 
+async function approveCurrentRate() {
+  if (!editingRate.value || !canApproveCurrentRate.value || commercialStatusSaving.value) return
+
+  try {
+    commercialStatusSaving.value = true
+    commercialActionError.value = ''
+    await PricingService.approveRateMargin(editingRate.value.id)
+    toastStore.success(
+      isMasterTariff.value ? 'Tarifario maestro aprobado' : 'Margen aprobado',
+      isMasterTariff.value
+        ? 'El tarifario quedó aprobado por gerencia y ya puede aplicarse a clientes.'
+        : 'La tarifa quedó aprobada por gerencia.',
+    )
+    await hydrateExistingRate()
+  } catch (error) {
+    commercialActionError.value = isMasterTariff.value
+      ? 'No se pudo aprobar el tarifario maestro.'
+      : 'No se pudo aprobar el margen.'
+    toastStore.backendError(error, commercialActionError.value)
+  } finally {
+    commercialStatusSaving.value = false
+  }
+}
+
 function applyMasterTariff() {
-  if (!editingRate.value || !isMasterTariff.value) return
+  if (!editingRate.value || !canApplyMasterTariff.value) return
 
   modalStore.open({
     title: 'Aplicar tarifario a cliente',
@@ -4874,10 +4906,19 @@ onMounted(async () => {
                 </div>
               </div>
               <div class="flex flex-wrap items-center gap-2">
+                <DhButton
+                  v-if="canApproveCurrentRate"
+                  size="sm"
+                  :loading="commercialStatusSaving"
+                  :disabled="commercialStatusSaving"
+                  @click="approveCurrentRate"
+                >Aprobar margen</DhButton>
                 <template v-if="isMasterTariff">
-                  <DhButton size="sm" @click="applyMasterTariff">Aplicar a cliente</DhButton>
+                  <DhButton v-if="canApplyMasterTariff" size="sm" @click="applyMasterTariff">Aplicar a cliente</DhButton>
                   <span class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-[11px] font-bold text-[var(--dh-text-muted)]">
-                    El maestro no se acepta ni se rechaza.
+                    {{ editingRate.status === 'PendingApproval'
+                      ? 'El maestro debe aprobarse antes de aplicarlo a clientes.'
+                      : 'El maestro no se acepta ni se rechaza por cliente.' }}
                   </span>
                 </template>
                 <template v-else>
