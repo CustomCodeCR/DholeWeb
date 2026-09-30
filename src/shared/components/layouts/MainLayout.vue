@@ -163,6 +163,10 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     children.push({ label: t('sidebar.pricingPanel'), path: '/pricing', icon: TrendingUp })
   }
 
+  if (canView(VIEW_SCOPES.pricingCosts)) {
+    children.push({ label: t('sidebar.costs'), path: '/pricing/costs', icon: BadgeDollarSign })
+  }
+
   if (canView(VIEW_SCOPES.pricingRates)) {
     children.push({ label: t('sidebar.rates'), path: '/pricing/rates', icon: ReceiptText })
     children.push({ label: 'Tarifarios', path: '/pricing/tariffs', icon: BookOpen })
@@ -178,10 +182,6 @@ const pricingChildren = computed<SidebarItem[]>(() => {
 
   if (canView(VIEW_SCOPES.pricingSellerAssignment)) {
     children.push({ label: 'Visibilidad comercial', path: '/pricing/seller-visibility', icon: Users })
-  }
-
-  if (canView(VIEW_SCOPES.pricingCosts)) {
-    children.push({ label: t('sidebar.costs'), path: '/pricing/costs', icon: BadgeDollarSign })
   }
 
   if (canView(VIEW_SCOPES.pricingRateTerms)) {
