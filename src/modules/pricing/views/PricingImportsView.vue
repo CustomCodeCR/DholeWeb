@@ -56,6 +56,7 @@ interface ReviewQueueItem {
   validTo: string
   status: string
   spaceComment?: string | null
+  rawDataJson?: string | null
   createdAt: string
 }
 
@@ -203,6 +204,44 @@ function sourceLabel(value: string) {
     Manual: 'Manual',
     AgentExtraction: 'Extracción agente',
   } as Record<string, string>)[value] ?? value
+}
+
+function extractionSourceDetails(rawDataJson?: string | null) {
+  if (!rawDataJson) return null
+
+  try {
+    const parsed = JSON.parse(rawDataJson) as {
+      _dholeSource?: {
+        providerName?: string
+        provider?: string
+        extractedAtUtc?: string
+        executionId?: string
+      }
+    }
+    const source = parsed._dholeSource
+    if (!source) return null
+
+    const provider = source.providerName || source.provider || 'Agente'
+    const extractedAt = source.extractedAtUtc
+      ? new Intl.DateTimeFormat('es-CR', {
+          dateStyle: 'short',
+          timeStyle: 'medium',
+          timeZone: 'America/Costa_Rica',
+        }).format(new Date(source.extractedAtUtc))
+      : null
+
+    return [`Extracción automática ${provider}`, extractedAt ? `realizada ${extractedAt}` : null]
+      .filter(Boolean)
+      .join(' · ')
+  } catch {
+    return null
+  }
+}
+
+function sourceDetails(row: ReviewQueueItem) {
+  return row.sourceType === 'AgentExtraction'
+    ? extractionSourceDetails(row.rawDataJson)
+    : null
 }
 
 function buildReviewQueueQueryString() {
@@ -559,10 +598,10 @@ onMounted(() => {
               <td class="min-w-[220px] px-4 py-3">
                 <DhBadge variant="neutral">{{ sourceLabel(row.sourceType) }}</DhBadge>
                 <p
-                  v-if="row.spaceComment"
+                  v-if="sourceDetails(row)"
                   class="mt-1 max-w-[320px] text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]"
                 >
-                  {{ row.spaceComment }}
+                  {{ sourceDetails(row) }}
                 </p>
               </td>
               <td class="px-4 py-3">
