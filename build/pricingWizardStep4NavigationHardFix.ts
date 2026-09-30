@@ -296,25 +296,59 @@ async function next() {
     return
   }
 
-  if (!canNext.value) return
+  if (step.value === 6 && props.rateId && editingRate.value) {
+    // Una revisión ya tiene proveedor persistido. Si un select quedó visualmente
+    // hidratado pero perdió temporalmente su id, recuperar el valor autoritativo.
+    if (!form.agentId && editingRate.value.agentId) form.agentId = editingRate.value.agentId
+    if (!form.carrierId && editingRate.value.carrierId) form.carrierId = editingRate.value.carrierId
+    if (!form.currencyId && editingRate.value.currencyId) form.currencyId = editingRate.value.currencyId
+  }
+
+  if (!canNext.value) {
+    if (step.value === 6) {
+      toastStore.warning(
+        'Proveedor incompleto',
+        'Revise Agente, Naviera / proveedor, Moneda y los valores de flete antes de continuar a Pantalla 7.',
+      )
+    }
+    return
+  }
 
   if (step.value === 6) {
-${savedManualStep}    if (shouldPreservePersistedEditLines()) {
-      // Equipo e Incoterm NO regeneran el snapshot.
-      // Si cambió el Incoterm, aplicar únicamente su delta.
-      if (persistedEditAppliedIncotermId.value !== form.incotermId) {
-        await loadApplicableCosts()
-        reconcilePersistedEditLinesForIncoterm()
-        persistedEditAppliedIncotermId.value = form.incotermId
+    try {
+${savedManualStep}      if (shouldPreservePersistedEditLines()) {
+        // Equipo e Incoterm NO regeneran el snapshot.
+        // Si cambió el Incoterm, aplicar únicamente su delta.
+        if (persistedEditAppliedIncotermId.value !== form.incotermId) {
+          await loadApplicableCosts()
+          reconcilePersistedEditLinesForIncoterm()
+          persistedEditAppliedIncotermId.value = form.incotermId
+        } else {
+          // Aunque el contexto no cambió, refrescar /costs/select para recuperar
+          // cargos fijos/opcionales que falten en una tarifa persistida incompleta.
+          await loadApplicableCosts()
+          applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+          syncHaulageOptionalLines()
+          syncPersistedFreightLineForEdit()
+        }
       } else {
-        syncPersistedFreightLineForEdit()
+        // Ruta, naviera o agente sí cambió: aquí sí corresponde recalcular.
+        await loadApplicableCosts()
+        rebuildRateLines()
+        persistedEditAppliedIncotermId.value = form.incotermId
       }
-    } else {
-      // Ruta, naviera o agente sí cambió: aquí sí corresponde recalcular.
-      await loadApplicableCosts()
-      rebuildRateLines()
-      persistedEditAppliedIncotermId.value = form.incotermId
+    } catch (error) {
+      if (!props.rateId || !editingRate.value) throw error
+      toastStore.backendError(
+        error,
+        'No se pudieron refrescar todos los cargos y recargos; se conservaron las líneas ya guardadas para permitir revisar Pantalla 7.',
+      )
+      syncPersistedFreightLineForEdit()
+      relinkExistingDetailIdsForEdit()
     }
+
+    step.value = 7
+    return
   }
 
   if (step.value < 8) step.value += 1
@@ -342,6 +376,9 @@ ${savedManualStep}    if (shouldPreservePersistedEditLines()) {
       // completamos los costos que Pricing confirmó para el contexto y revinculamos
       // reparaciones manuales que perdieron CostId en revisiones anteriores.
       applicableConfiguredCosts().forEach(appendConfiguredCostToPersistedEdit)
+      // Reaplicar la selección de Pantalla 4 después de completar los costos.
+      // Esto mantiene Naviera/Merchant/Muellaje y demás condiciones persistidas.
+      syncHaulageOptionalLines()
       // Después de completar/reparar costos, volver a enlazar DetailId evita que al guardar
       // una revisión el frontend interprete una línea existente como alta nueva + baja vieja.
       relinkExistingDetailIdsForEdit()
