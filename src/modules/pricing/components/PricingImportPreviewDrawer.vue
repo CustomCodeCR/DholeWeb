@@ -157,6 +157,40 @@ const canAssignPoeCurrent = computed(
 const canRejectCurrent = computed(() => props.canReject && current.value.status === 'Pending')
 const canCreateCurrent = computed(() => props.canCreateRate && current.value.status === 'Approved')
 
+const extractionSourceDetails = computed(() => {
+  if (current.value.sourceType !== 'AgentExtraction' || !current.value.rawDataJson) return null
+
+  try {
+    const parsed = JSON.parse(current.value.rawDataJson) as {
+      _dholeSource?: {
+        providerName?: string
+        provider?: string
+        extractedAtUtc?: string
+        executionId?: string
+      }
+    }
+    const source = parsed._dholeSource
+    if (!source) return null
+
+    const provider = source.providerName || source.provider || 'Agente'
+    const extractedAt = source.extractedAtUtc
+      ? new Intl.DateTimeFormat('es-CR', {
+          dateStyle: 'medium',
+          timeStyle: 'medium',
+          timeZone: 'America/Costa_Rica',
+        }).format(new Date(source.extractedAtUtc))
+      : null
+
+    return {
+      provider,
+      extractedAt,
+      executionId: source.executionId ?? null,
+    }
+  } catch {
+    return null
+  }
+})
+
 const commercialRows = computed(() => [
   { label: 'Flete internacional', value: oceanFreight.value },
   { label: 'Cargos de origen', value: current.value.originCharges },
@@ -321,14 +355,20 @@ onMounted(load)
 
     <template v-else>
       <section
-        v-if="current.spaceComment"
+        v-if="extractionSourceDetails"
         class="rounded-[26px] border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.07)] p-5"
       >
         <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
           Origen de la tarifa
         </p>
-        <p class="mt-2 text-sm font-bold text-[var(--dh-text)]">
-          {{ current.spaceComment }}
+        <p class="mt-2 text-sm font-black text-[var(--dh-text)]">
+          Extracción automática {{ extractionSourceDetails.provider }}
+        </p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+          Realizada: {{ extractionSourceDetails.extractedAt || '—' }}
+          <span v-if="extractionSourceDetails.executionId">
+            · Ejecución {{ extractionSourceDetails.executionId }}
+          </span>
         </p>
       </section>
 
