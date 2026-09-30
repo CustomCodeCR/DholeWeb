@@ -38,7 +38,7 @@ type QueueStatus =
   | 'Created'
   | 'Expired'
   | 'Inactive'
-type QueueSource = 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
+type QueueSource = 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image' | 'Manual' | 'AgentExtraction'
 
 interface ReviewQueueItem {
   id: string
@@ -106,6 +106,8 @@ const sourceOptions = [
   { label: 'Excel', value: 'Excel' },
   { label: 'CSV', value: 'Csv' },
   { label: 'Imagen', value: 'Image' },
+  { label: 'Manual', value: 'Manual' },
+  { label: 'Extracción agente', value: 'AgentExtraction' },
 ]
 const pageSizeOptions = [
   { label: '10', value: '10' },
@@ -192,7 +194,15 @@ function statusVariant(value: string): 'success' | 'warning' | 'danger' | 'neutr
 }
 
 function sourceLabel(value: string) {
-  return ({ Email: 'Correo', Pdf: 'PDF', Excel: 'Excel', Csv: 'CSV', Image: 'Imagen' } as Record<string, string>)[value] ?? value
+  return ({
+    Email: 'Correo',
+    Pdf: 'PDF',
+    Excel: 'Excel',
+    Csv: 'CSV',
+    Image: 'Imagen',
+    Manual: 'Manual',
+    AgentExtraction: 'Extracción agente',
+  } as Record<string, string>)[value] ?? value
 }
 
 function buildReviewQueueQueryString() {
@@ -415,7 +425,7 @@ onMounted(() => {
   <div class="space-y-5">
     <DhPageHeader
       title="Revisión de tarifas recibidas"
-      description="Revise tarifas de correo o cargue Excel/PDF manualmente para enviarlos al flujo de extracción, preautorización y preaprobación."
+      description="Revise tarifas recibidas por correo, archivo o extracción automática de agentes antes de utilizarlas en Pricing."
     >
       <template #actions>
         <DhButton @click="openManualUpload">
@@ -546,7 +556,15 @@ onMounted(() => {
                 <input type="checkbox" :checked="selectedIds.includes(row.id)" :aria-label="`Seleccionar ${row.carrier}`" @change="toggle(row.id)" />
               </td>
               <td class="whitespace-nowrap px-4 py-3 font-semibold">{{ formatDate(row.createdAt) }}</td>
-              <td class="px-4 py-3"><DhBadge variant="neutral">{{ sourceLabel(row.sourceType) }}</DhBadge></td>
+              <td class="min-w-[220px] px-4 py-3">
+                <DhBadge variant="neutral">{{ sourceLabel(row.sourceType) }}</DhBadge>
+                <p
+                  v-if="row.spaceComment"
+                  class="mt-1 max-w-[320px] text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]"
+                >
+                  {{ row.spaceComment }}
+                </p>
+              </td>
               <td class="px-4 py-3">
                 <p class="font-black text-[var(--dh-text)]">{{ row.carrier || '—' }}</p>
                 <p class="text-xs text-[var(--dh-text-muted)]">{{ row.agent || 'Por asignar' }}</p>

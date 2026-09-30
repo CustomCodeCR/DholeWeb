@@ -340,7 +340,11 @@ onMounted(async () => {
         >
           Cargando resultado extraído...
         </p>
-        <AgentRateResult v-else-if="resultValue" :value="resultValue" />
+        <AgentRateResult
+          v-else-if="resultValue"
+          :value="resultValue"
+          :extracted-at="storedResult?.createdAtUtc ?? execution.completedAt"
+        />
         <p v-else class="py-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
           {{ t('agent.detail.outputPending') }}
         </p>

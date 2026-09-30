@@ -186,6 +186,8 @@ function sourceLabel(source: string) {
         Excel: 'Excel',
         Csv: 'CSV',
         Image: 'Imagen',
+        Manual: 'Manual',
+        AgentExtraction: 'Extracción agente',
       } as Record<string, string>
     )[source] ?? source
   )
@@ -318,6 +320,18 @@ onMounted(load)
     </div>
 
     <template v-else>
+      <section
+        v-if="current.spaceComment"
+        class="rounded-[26px] border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.07)] p-5"
+      >
+        <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+          Origen de la tarifa
+        </p>
+        <p class="mt-2 text-sm font-bold text-[var(--dh-text)]">
+          {{ current.spaceComment }}
+        </p>
+      </section>
+
       <section
         v-if="!isPoeAssigned"
         class="rounded-[26px] border border-red-500/30 bg-red-500/10 p-5"
