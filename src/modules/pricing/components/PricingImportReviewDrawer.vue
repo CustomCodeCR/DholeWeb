@@ -35,7 +35,7 @@ const inactivating = ref(false)
 const errors = reactive<Record<string, string>>({})
 const form = reactive({
   importProfileId: '',
-  shipmentMode: 'Fcl' as 'Fcl' | 'Lcl' | 'Air',
+  shipmentMode: 'Fcl' as 'Fcl' | 'LclColoader' | 'AirLclColoader',
   polId: '',
   poeId: '',
   podId: '',
@@ -104,10 +104,10 @@ function containsAirMarker(value: unknown) {
       && (canonical.includes('167kg') || canonical.includes('kgvol')))
 }
 
-function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'Lcl' | 'Air' {
+function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'LclColoader' | 'AirLclColoader' {
   const declared = String(rate.shipmentMode ?? '').trim().toLowerCase()
-  if (declared === 'lcl') return 'Lcl'
-  if (declared === 'air' || declared === 'airconsol') return 'Air'
+  if (declared === 'lcl' || declared === 'lclcoloader') return 'LclColoader'
+  if (declared === 'air' || declared === 'airconsol' || declared === 'airlclcoloader') return 'AirLclColoader'
   if (declared === 'fcl') return 'Fcl'
 
   const markers = [
@@ -121,14 +121,14 @@ function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'Lcl' | 'Air' {
     rate.spaceComment,
     rate.rawDataJson,
   ]
-  if (markers.some(containsAirMarker)) return 'Air'
-  return markers.some(containsLclMarker) ? 'Lcl' : 'Fcl'
+  if (markers.some(containsAirMarker)) return 'AirLclColoader'
+  return markers.some(containsLclMarker) ? 'LclColoader' : 'Fcl'
 }
 
 const shipmentModeOptions = [
   { value: 'Fcl', label: 'FCL · Contenedor completo' },
-  { value: 'Lcl', label: 'LCL marítimo · Coloader' },
-  { value: 'Air', label: 'LCL aéreo · Coloader' },
+  { value: 'LclColoader', label: 'LCL marítimo · Coloader' },
+  { value: 'AirLclColoader', label: 'LCL aéreo · Coloader' },
 ]
 
 function hydrate(rate: ImportRateDto) {
@@ -194,8 +194,8 @@ const calculatedCost = computed(
     Number(form.surcharges || 0),
 )
 
-const isLclImport = computed(() => form.shipmentMode === 'Lcl')
-const isAirImport = computed(() => form.shipmentMode === 'Air')
+const isLclImport = computed(() => form.shipmentMode === 'LclColoader')
+const isAirImport = computed(() => form.shipmentMode === 'AirLclColoader')
 const isConsolidatedImport = computed(() => isLclImport.value || isAirImport.value)
 
 const canInactivate = computed(() => String(current.value.status) === 'Approved')
