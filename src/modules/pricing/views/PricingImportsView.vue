@@ -52,6 +52,7 @@ interface ReviewQueueItem {
   containerType: string
   currency: string
   freight: number
+  transitDays?: number | null
   validFrom: string
   validTo: string
   status: string
@@ -574,6 +575,7 @@ onMounted(() => {
               <th class="px-4 py-3">Ruta</th>
               <th class="px-4 py-3">Equipo</th>
               <th class="px-4 py-3 text-right">Flete</th>
+              <th class="px-4 py-3 text-center">Tránsito</th>
               <th class="px-4 py-3">Vigencia</th>
               <th class="px-4 py-3">Estado</th>
               <th class="px-4 py-3 text-right">Acción</th>
@@ -581,10 +583,10 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="10" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
+              <td colspan="11" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="10" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas con esos filtros.</td>
+              <td colspan="11" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas con esos filtros.</td>
             </tr>
             <tr
               v-for="row in rows"
@@ -613,6 +615,9 @@ onMounted(() => {
               </td>
               <td class="px-4 py-3 font-semibold">{{ row.containerType }}</td>
               <td class="px-4 py-3 text-right font-black">{{ formatMoney(row.freight, row.currency || 'USD') }}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-center font-black">
+                {{ row.transitDays == null ? '—' : `${Math.ceil(row.transitDays)} días` }}
+              </td>
               <td class="whitespace-nowrap px-4 py-3 text-xs font-semibold">{{ formatDate(row.validFrom) }} – {{ formatDate(row.validTo) }}</td>
               <td class="px-4 py-3"><DhBadge :variant="statusVariant(row.status)">{{ statusLabel(row.status) }}</DhBadge></td>
               <td class="px-4 py-3">
