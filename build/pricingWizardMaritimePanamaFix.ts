@@ -173,34 +173,19 @@ function shouldBrowseAllPanamaRates() {
     )
   }
 
-  // Todas las tarifas comerciales se presentan ALL IN. La opción de alternar
-  // desglose se elimina para que Web/PDF conserven una sola presentación.
-  code = code.replace('const allInPresentation = ref(false)', 'const allInPresentation = ref(true)')
-  code = code.replace(
-    'allInPresentation.value = Boolean(rate.useAllInPresentation)',
-    'allInPresentation.value = true',
-  )
-  code = code.replace('allInPresentation.value = false', 'allInPresentation.value = true')
-
-  code = code.replace(
-    /\s*<DhButton\n\s*variant="secondary"\n\s*type="button"\n\s*@click="allInPresentation = !allInPresentation"[\s\S]*?<\/DhButton>/,
-    '',
-  )
-
-  code = code.replace(
-    `<div v-if="allInPresentation" class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">`,
-    `<div class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">`,
-  )
-
-  code = code.replace(
-    /\s*<div v-else class="mt-4 rounded-2xl border border-\[var\(--dh-border\)\] bg-\[var\(--dh-card\)\] px-4 py-3 text-xs font-semibold text-\[var\(--dh-text-muted\)\]">\s*El borrador y el PDF mostrarán las líneas comerciales individualmente\. Active ALL IN para presentar una única línea con la suma de todas las ventas\.\s*<\/div>/,
-    '',
-  )
-
-  code = code.replace(
-    `useAllInPresentation: allInPresentation.value,`,
-    `useAllInPresentation: true,`,
-  )
+  // ALL IN is exclusive to multimodal. Do not rewrite the wizard UI/state to
+  // force it globally. The wizard owns the route-aware computed rule; keep a
+  // compatibility replacement only for older source variants.
+  if (code.includes('const multimodalAllInPresentation = computed(() => {')) {
+    code = code.replace(
+      `useAllInPresentation: allInPresentation.value,`,
+      `useAllInPresentation: multimodalAllInPresentation.value,`,
+    )
+    code = code.replace(
+      `useAllInPresentation: true,`,
+      `useAllInPresentation: multimodalAllInPresentation.value,`,
+    )
+  }
 
   return code
 }
