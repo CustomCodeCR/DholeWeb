@@ -173,20 +173,28 @@ function shouldBrowseAllPanamaRates() {
     )
   }
 
-  // ALL IN es exclusivo de "Multimodal Via Panamá".
+  // Todas las tarifas comerciales se presentan ALL IN. La opción de alternar
+  // desglose se elimina para que Web/PDF conserven una sola presentación.
+  code = code.replace('const allInPresentation = ref(false)', 'const allInPresentation = ref(true)')
   code = code.replace(
-    `<DhButton\n                variant="secondary"\n                type="button"\n                @click="allInPresentation = !allInPresentation"`,
-    `<DhButton\n                v-if="isMultimodalViaPanama(selectedDestination)"\n                variant="secondary"\n                type="button"\n                @click="allInPresentation = !allInPresentation"`,
+    'allInPresentation.value = Boolean(rate.useAllInPresentation)',
+    'allInPresentation.value = true',
+  )
+  code = code.replace('allInPresentation.value = false', 'allInPresentation.value = true')
+
+  code = code.replace(
+    /\s*<DhButton\n\s*variant="secondary"\n\s*type="button"\n\s*@click="allInPresentation = !allInPresentation"[\s\S]*?<\/DhButton>/,
+    '',
   )
 
   code = code.replace(
     `<div v-if="allInPresentation" class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">`,
-    `<div v-if="allInPresentation && isMultimodalViaPanama(selectedDestination)" class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">`,
+    `<div class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">`,
   )
 
   code = code.replace(
     `useAllInPresentation: allInPresentation.value,`,
-    `useAllInPresentation: isMultimodalViaPanama(selectedDestination.value) && allInPresentation.value,`,
+    `useAllInPresentation: true,`,
   )
 
   return code
