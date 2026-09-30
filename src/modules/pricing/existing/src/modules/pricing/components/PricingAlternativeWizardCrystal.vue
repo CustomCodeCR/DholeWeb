@@ -2527,6 +2527,53 @@ async function recommendNearestPorts() {
   }
 }
 
+function pickupGeocodeQueries(rawAddress: string) {
+  const exact = rawAddress.replace(/\s+/g, ' ').trim()
+  const queries: string[] = []
+  const push = (value: string) => {
+    const normalized = value
+      .replace(/\s*,\s*/g, ', ')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^,\s*|,\s*$/g, '')
+      .trim()
+    if (normalized.length >= 3 && !queries.some((item) => normalizeCatalogValue(item) === normalizeCatalogValue(normalized))) {
+      queries.push(normalized)
+    }
+  }
+
+  // 1) Dirección exacta escrita por el usuario.
+  push(exact)
+
+  // 2) Quitar detalles de bodega/local/oficina que normalmente no existen en OSM,
+  // conservando la ciudad/zona/país para poder ubicar el mapa aproximadamente.
+  const relaxed = exact
+    .replace(/\b(?:bodega|warehouse|oficina|office|local|piso|floor|suite|unidad|unit|lote|lot|nave|edificio|building|planta)\b[\s:#.-]*[a-z0-9-]*/gi, ' ')
+    .replace(/\b(?:km|kilometro|kilómetro)\s*\d+(?:[.,]\d+)?\b/gi, ' ')
+    .replace(/\s*,\s*/g, ', ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  push(relaxed)
+
+  // 3) Si la dirección viene por segmentos, probar progresivamente la ubicación general:
+  // barrio/ciudad/provincia/país, luego ciudad/provincia/país.
+  const parts = exact.split(',').map((part) => part.trim()).filter(Boolean)
+  if (parts.length >= 4) push(parts.slice(-4).join(', '))
+  if (parts.length >= 3) push(parts.slice(-3).join(', '))
+  if (parts.length >= 2) push(parts.slice(-2).join(', '))
+
+  return queries.slice(0, 5)
+}
+
+async function searchPickupGeocode(query: string) {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=3&addressdetails=1&dedupe=1&q=${encodeURIComponent(query)}`,
+    { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+  )
+  if (!response.ok) throw new Error(`Nominatim ${response.status}`)
+  const rows = await response.json() as NominatimResult[]
+  return rows.find((row) => Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lon))) ?? null
+}
+
 async function geocodePickupAddress(recommendAfter = true) {
   const address = form.pickupAddress.trim()
   if (!address) {
@@ -2536,20 +2583,41 @@ async function geocodePickupAddress(recommendAfter = true) {
 
   try {
     locatingPickup.value = true
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q=${encodeURIComponent(address)}`,
-      { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
-    )
-    if (!response.ok) throw new Error(`Nominatim ${response.status}`)
-    const rows = await response.json() as NominatimResult[]
-    const match = rows[0]
+    const queries = pickupGeocodeQueries(address)
+    let match: NominatimResult | null = null
+    let matchedQuery = ''
+
+    for (const query of queries) {
+      match = await searchPickupGeocode(query)
+      if (match) {
+        matchedQuery = query
+        break
+      }
+    }
+
     if (!match) {
-      toastStore.warning('Dirección no encontrada', 'Revise la dirección e inténtelo nuevamente.')
+      toastStore.warning(
+        'Ubicación no encontrada',
+        'No se encontró ni la dirección exacta ni una ubicación general. Pruebe con ciudad, provincia/estado y país.',
+      )
       return
     }
+
     form.pickupLatitude = Number(match.lat)
     form.pickupLongitude = Number(match.lon)
-    if (match.display_name) form.pickupAddress = match.display_name
+
+    // La dirección comercial exacta es autoritativa y debe guardarse tal como fue escrita.
+    // Si OSM solo encuentra la ciudad/zona general, usamos esas coordenadas para el mapa
+    // sin reemplazar la dirección específica de recolección.
+    form.pickupAddress = address
+
+    if (normalizeCatalogValue(matchedQuery) !== normalizeCatalogValue(address)) {
+      toastStore.warning(
+        'Ubicación aproximada',
+        `La dirección exacta no aparece en el mapa. Se ubicó usando “${matchedQuery}” y se conservará la dirección específica escrita.`,
+      )
+    }
+
     if (recommendAfter && selectedIncotermCode.value === 'EXW') await recommendNearestPorts()
   } catch (error) {
     toastStore.backendError(error, 'No se pudo ubicar la dirección en OpenStreetMap.')
