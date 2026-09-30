@@ -2544,6 +2544,16 @@ function pickupGeocodeQueries(rawAddress: string) {
   // 1) Dirección exacta escrita por el usuario.
   push(exact)
 
+  // Dar contexto geográfico con el POL/origen evita que una dirección específica
+  // falle solo porque OSM no reconoce el nombre de la bodega/local.
+  const originContext = String(displayValue(selectedOrigin.value) || selectedOrigin.value?.label || '').trim()
+  if (
+    originContext &&
+    !normalizeCatalogValue(exact).includes(normalizeCatalogValue(originContext))
+  ) {
+    push(`${exact}, ${originContext}`)
+  }
+
   // 2) Quitar detalles de bodega/local/oficina que normalmente no existen en OSM,
   // conservando la ciudad/zona/país para poder ubicar el mapa aproximadamente.
   const relaxed = exact
@@ -2553,6 +2563,13 @@ function pickupGeocodeQueries(rawAddress: string) {
     .replace(/\s{2,}/g, ' ')
     .trim()
   push(relaxed)
+  if (
+    relaxed &&
+    originContext &&
+    !normalizeCatalogValue(relaxed).includes(normalizeCatalogValue(originContext))
+  ) {
+    push(`${relaxed}, ${originContext}`)
+  }
 
   // 3) Si la dirección viene por segmentos, probar progresivamente la ubicación general:
   // barrio/ciudad/provincia/país, luego ciudad/provincia/país.
@@ -2561,7 +2578,11 @@ function pickupGeocodeQueries(rawAddress: string) {
   if (parts.length >= 3) push(parts.slice(-3).join(', '))
   if (parts.length >= 2) push(parts.slice(-2).join(', '))
 
-  return queries.slice(0, 5)
+  // Último fallback: ubicar aproximadamente el origen/POL. La dirección comercial
+  // específica se conserva intacta en form.pickupAddress.
+  if (originContext) push(originContext)
+
+  return queries.slice(0, 8)
 }
 
 async function searchPickupGeocode(query: string) {
@@ -3028,6 +3049,18 @@ async function next() {
     if (step.value < maxStep.value) step.value += 1
     return
   }
+
+  // EXW/FCA: escribir la ubicación y presionar Continuar debe bastar. Primero
+  // intentamos resolver coordenadas; solo después evaluamos canNext.
+  if (
+    step.value === 3 &&
+    ['EXW', 'FCA'].includes(selectedIncotermCode.value) &&
+    form.pickupAddress.trim() &&
+    !pickupCoordinates.value
+  ) {
+    await geocodePickupAddress(false)
+  }
+
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
