@@ -80,10 +80,16 @@ function patchWizard(source: string) {
   )
 
   // Last line of defense: Own may only persist matrix snapshots (costId=null).
+  const detailsMapperAnchor = code.includes(
+    'const details: CreateRateDetailRequest[] = normalizedIncludedLines.map((line) => ({',
+  )
+    ? 'normalizedIncludedLines'
+    : 'includedLines.value'
+
   code = replaceOne(
     code,
-    `  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({`,
-    `  const sourceDetails = isOwnLclMatrixContext()\n    ? includedLines.value.filter((line) => !line.costId)\n    : includedLines.value\n  const details: CreateRateDetailRequest[] = sourceDetails.map((line) => ({`,
+    `  const details: CreateRateDetailRequest[] = ${detailsMapperAnchor}.map((line) => ({`,
+    `  const sourceDetails = isOwnLclMatrixContext()\n    ? ${detailsMapperAnchor}.filter((line) => !line.costId)\n    : ${detailsMapperAnchor}\n  const details: CreateRateDetailRequest[] = sourceDetails.map((line) => ({`,
     'own LCL persisted detail guard',
   )
 
