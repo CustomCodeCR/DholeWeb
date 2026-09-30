@@ -3483,7 +3483,35 @@ async function saveRate() {
     syncPersistedLinesWithChangedConfiguredCosts()
   }
 
-  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({
+  // Todas las líneas que se muestran como incluidas deben viajar en el POST.
+  // Las líneas generadas por matrices/reglas antiguas pueden no traer CurrencyId;
+  // en ese caso heredan la moneda válida del encabezado. Costo/venta en cero son válidos.
+  const normalizedIncludedLines = includedLines.value.map((line) => {
+    if (line.currencyId) return line
+
+    return {
+      ...line,
+      currencyId: currency!.id,
+      currencyName: line.currencyName.trim() || displayValue(currency),
+      currencyCode: line.currencyCode.trim() || currency!.code,
+    }
+  })
+
+  const invalidLines = normalizedIncludedLines.filter(
+    (line) => !line.name.trim() || !line.currencyId,
+  )
+  if (invalidLines.length) {
+    step.value = 7
+    toastStore.error(
+      'Revise las líneas de la tarifa',
+      `No se puede crear porque faltan datos estructurales en: ${invalidLines
+        .map((line) => line.name.trim() || 'Rubro sin nombre')
+        .join(', ')}. Los montos en cero sí son válidos.`,
+    )
+    return
+  }
+
+  const details: CreateRateDetailRequest[] = normalizedIncludedLines.map((line) => ({
     costId: line.costId ?? null,
     name: line.name,
     costDetailType: line.costDetailType,
