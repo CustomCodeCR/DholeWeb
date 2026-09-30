@@ -59,16 +59,11 @@ function shouldIncludeOptionalCost(line: {
   const automaticCostId = automaticOptionalCostId(line)
   if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
 
-  const conditions = operationalConditionsFor(line)
-
-  // Sin condiciones explícitas el cargo sigue disponible en Pantalla 7,
-  // pero nunca se marca automáticamente.
-  if (conditions.length === 0) return false
-
-  // Los botones de Pantalla 4 únicamente definen la selección inicial/automática.
-  // No existe exclusividad especial de Sobrepeso: si coinciden el cargo normal
-  // y el cargo de Sobrepeso, ambos se cargan y el usuario puede quitar cualquiera.
-  return conditions.every((condition) => operationalConditionSelected(condition))
+  // Pricing pidió que TODOS los cargos Optional aplicables al contexto entren marcados
+  // por defecto. Las condiciones operativas siguen sirviendo para identificar el botón
+  // relacionado, pero no desmarcan automáticamente la línea. El usuario puede quitarla
+  // manualmente en Pantalla 7 y esa decisión se conserva mediante dismissed...Ids.
+  return true
 }`,
     'explicit operational condition matcher',
   )
