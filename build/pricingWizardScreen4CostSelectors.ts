@@ -41,12 +41,36 @@ function patchWizard(source: string) {
     "}",
   ].join('\n')
 
-  code = replaceRegexOnce(
-    code,
-    /function cargoConditionSelection\([\s\S]*?\n\}(?=\n\nfunction portHandlingConditionSelection)/,
-    cargoCondition,
-    'cargo condition selector',
-  )
+  if (code.includes('function cargoConditionSelection(')) {
+    code = replaceRegexOnce(
+      code,
+      /function cargoConditionSelection\([\s\S]*?\n\}(?=\n\nfunction portHandlingConditionSelection)/,
+      cargoCondition,
+      'cargo condition selector',
+    )
+  } else {
+    const conditionAnchor = 'function automaticOptionalCostId('
+    if (!code.includes(conditionAnchor)) {
+      throw new Error('[pricingWizardScreen4CostSelectors] automatic optional helper not found.')
+    }
+
+    const portHandlingCondition = [
+      "function portHandlingConditionSelection(line: { name: string; notes?: string | null }) {",
+      "  const value = normalizeCatalogValue(String(line.name ?? '') + ' ' + String(line.notes ?? ''))",
+      "  const hasAnticipado = value.includes('anticipado')",
+      "  const hasRedestino = value.includes('redestino')",
+      "  if (!hasAnticipado && !hasRedestino) return null",
+      "  if (hasAnticipado && hasRedestino) return form.portHandlingMode !== ''",
+      "  if (hasAnticipado) return form.portHandlingMode === 'Anticipado'",
+      "  return form.portHandlingMode === 'Redestino'",
+      "}",
+    ].join('\n')
+
+    code = code.replace(
+      conditionAnchor,
+      cargoCondition + '\n\n' + portHandlingCondition + '\n\n' + conditionAnchor,
+    )
+  }
 
   const screen4OptionalCondition = [
     "function screen4OptionalConditionSelection(line: { name: string; notes?: string | null }) {",
