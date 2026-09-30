@@ -75,7 +75,9 @@ function isMultimodalExcludedOptional(line: {
   ) return true
 
   const value = normalizeCatalogValue(
-    `${String((source as { name?: string | null }).name ?? '')} ${String((source as { notes?: string | null }).notes ?? '')}`,
+    String((source as { name?: string | null }).name ?? '')
+      + ' '
+      + String((source as { notes?: string | null }).notes ?? ''),
   )
   return value.includes('merchant')
     || value.includes('naviera')
@@ -151,7 +153,7 @@ export function pricingCostOperationalConditions(): Plugin {
     name: 'dhole-pricing-cost-operational-conditions',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
       return { code: patchWizard(source), map: null }
     },
