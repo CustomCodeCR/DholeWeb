@@ -136,13 +136,19 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       }))`
       code = replaceOne(code, updateExtraDetailsAnchor, updateExtraDetailsReplacement, 'persisted detail id reconciliation')
 
-      const createDetailsAnchor = `  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({
+      const detailsMapper = code.includes(
+        'const details: CreateRateDetailRequest[] = normalizedIncludedLines.map((line) => ({',
+      )
+        ? 'normalizedIncludedLines'
+        : 'includedLines.value'
+
+      const createDetailsAnchor = `  const details: CreateRateDetailRequest[] = ${detailsMapper}.map((line) => ({
     costId: line.costId ?? null,
     name: line.name,
     costDetailType: line.costDetailType,
     costType: line.costType,`
 
-      const createDetailsReplacement = `  const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({
+      const createDetailsReplacement = `  const details: CreateRateDetailRequest[] = ${detailsMapper}.map((line) => ({
     costId: line.costId ?? null,
     name: line.name,
     costDetailType: line.costDetailType,
