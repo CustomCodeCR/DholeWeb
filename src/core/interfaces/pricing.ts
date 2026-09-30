@@ -23,6 +23,7 @@ export type CostOperationalCondition =
   | 'Anticipado'
   | 'Redestino'
 export type ShipmentMode = 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl' | 'Air' | 'AirConsol'
+export type ImportedShipmentMode = 'Fcl' | 'LclColoader' | 'AirLclColoader' | 'Unknown'
 export type RateType = 'Spot' | 'Tariff'
 export type ChargeBasis =
   | 'PerShipment'
@@ -227,7 +228,7 @@ export interface ImportRateDto extends Record<string, unknown> {
   importBatchId: string
   extractionRecordId: string
   sourceType: ImportSourceType
-  shipmentMode?: ShipmentMode | 'Unknown'
+  shipmentMode?: ImportedShipmentMode
   importProfileId: string
   importProfileName: string
   importProfileCode: string
@@ -441,7 +442,7 @@ export interface AssignImportRatePoeRequest extends Record<string, unknown> {
 
 export interface ReviewImportRateRequest extends Record<string, unknown> {
   importProfileId: string
-  shipmentMode?: ShipmentMode | 'Air'
+  shipmentMode?: Exclude<ImportedShipmentMode, 'Unknown'>
   polId: string
   poeId: string
   podId: string
