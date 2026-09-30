@@ -193,6 +193,11 @@ function shouldBrowseAllPanamaRates() {
   )
 
   code = code.replace(
+    /\s*<div v-else class="mt-4 rounded-2xl border border-\[var\(--dh-border\)\] bg-\[var\(--dh-card\)\] px-4 py-3 text-xs font-semibold text-\[var\(--dh-text-muted\)\]">\s*El borrador y el PDF mostrarán las líneas comerciales individualmente\. Active ALL IN para presentar una única línea con la suma de todas las ventas\.\s*<\/div>/,
+    '',
+  )
+
+  code = code.replace(
     `useAllInPresentation: allInPresentation.value,`,
     `useAllInPresentation: true,`,
   )
