@@ -131,6 +131,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.pricing,
           },
           {
+            labelKey: 'sidebar.costs',
+            icon: CircleDollarSign,
+            to: '/pricing/costs',
+            name: 'pricing-costs',
+            requiredScope: VIEW_SCOPES.pricingCosts,
+          },
+          {
             labelKey: 'Consolidados propios',
             icon: PackagePlus,
             name: 'pricing-own-consolidations',
@@ -185,13 +192,6 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             to: '/pricing/competition',
             name: 'pricing-competition',
             requiredScope: VIEW_SCOPES.pricingCompetition,
-          },
-          {
-            labelKey: 'sidebar.costs',
-            icon: CircleDollarSign,
-            to: '/pricing/costs',
-            name: 'pricing-costs',
-            requiredScope: VIEW_SCOPES.pricingCosts,
           },
           {
             labelKey: 'sidebar.rateTerms',
