@@ -72,6 +72,7 @@ import { pricingWizardRuntimeReferenceGuard } from './build/pricingWizardRuntime
 import { pricingWizardMultipleDrafts } from './build/pricingWizardMultipleDrafts'
 import { pricingWizardLclManualColoader } from './build/pricingWizardLclManualColoader'
 import { pricingWizardLtlProviderParity } from './build/pricingWizardLtlProviderParity'
+import { pricingOptionalChargesFinalGuard } from './build/pricingOptionalChargesFinalGuard'
 
 export default defineConfig({
   plugins: [
@@ -146,6 +147,7 @@ export default defineConfig({
     pricingWizardRuntimeReferenceGuard(),
     pricingWizardLclManualColoader(),
     pricingWizardLtlProviderParity(),
+    pricingOptionalChargesFinalGuard(),
     vue(),
     tailwindcss(),
   ],
