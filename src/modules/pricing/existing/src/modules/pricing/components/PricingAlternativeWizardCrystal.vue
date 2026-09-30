@@ -212,7 +212,7 @@ const commercialStatusSaving = ref(false)
 const commercialActionError = ref('')
 const downloadingQuote = ref(false)
 const downloadingLinesExcel = ref(false)
-const allInPresentation = ref(false)
+const allInPresentation = ref(true)
 const competitorTariffsOpen = ref(false)
 const isEditing = computed(() => Boolean(props.rateId))
 const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Seleccionar alternativa')
@@ -2758,7 +2758,7 @@ async function hydrateExistingRate() {
     editingRate.value = rate
     rateRevisions.value = revisions
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
-    allInPresentation.value = Boolean(rate.useAllInPresentation)
+    allInPresentation.value = true
     const modality = modalityForRate(rate)
     const equipment = [...catalogs.containers, ...catalogs.landEquipmentSizes, ...catalogs.landEquipmentTypes]
       .find((item) => item.id === rate.containerTypeId) ?? null
@@ -3633,7 +3633,7 @@ async function saveRate() {
             },
           ],
       transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
-      useAllInPresentation: allInPresentation.value,
+      useAllInPresentation: true,
       finalBackupStorageIds: finalBackupDocuments.value.map((document) => document.id),
       includes: includeTerms.join('\n') || null,
       subjectTo: subjectTerms.join('\n') || null,
@@ -3716,7 +3716,7 @@ function resetWizard() {
   rateLines.value = []
   supportEntityId.value = crypto.randomUUID()
   finalBackupEntityId.value = crypto.randomUUID()
-  allInPresentation.value = false
+  allInPresentation.value = true
   supportDocuments.value = []
   finalBackupDocuments.value = []
   Object.assign(form, {
@@ -4768,24 +4768,15 @@ onMounted(async () => {
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Presentación comercial</p>
-                  <DhBadge :variant="allInPresentation ? 'success' : 'neutral'">
-                    {{ allInPresentation ? 'ALL IN activo' : 'Desglose activo' }}
-                  </DhBadge>
+                  <DhBadge variant="success">ALL IN activo</DhBadge>
                 </div>
                 <p class="mt-2 max-w-3xl text-xs font-semibold text-[var(--dh-text-muted)]">
-                  La formulación de costo y venta conserva todas las líneas. ALL IN solo cambia cómo se presenta la venta al cliente en el borrador y en el PDF.
+                  La formulación conserva todas las líneas; la presentación comercial del borrador y del PDF es siempre ALL IN.
                 </p>
               </div>
-              <DhButton
-                variant="secondary"
-                type="button"
-                @click="allInPresentation = !allInPresentation"
-              >
-                {{ allInPresentation ? 'Quitar ALL IN' : 'Convertir a ALL IN' }}
-              </DhButton>
             </div>
 
-            <div v-if="allInPresentation" class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">
+            <div class="mt-5 overflow-hidden rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.06)]">
               <div class="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
                 <div>
                   <p class="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Concepto comercial</p>
