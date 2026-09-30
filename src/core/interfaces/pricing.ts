@@ -38,7 +38,7 @@ export type ChargeBasis =
   | 'PerPallet'
   | 'PerPackage'
   | 'PerDocument'
-export type ImportSourceType = 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image'
+export type ImportSourceType = 'Email' | 'Pdf' | 'Excel' | 'Csv' | 'Image' | 'Manual' | 'AgentExtraction'
 export type ImportStatus = 'Pending' | 'PreAuthorized' | 'Approved' | 'Rejected' | 'Created' | 'Expired'
 export type RateStatus =
   | 'PendingApproval'
