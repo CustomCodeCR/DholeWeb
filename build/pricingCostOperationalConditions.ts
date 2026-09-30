@@ -51,6 +51,40 @@ function operationalConditionsFor(line: {
     : []
 }
 
+function isMultimodalExcludedOptional(line: {
+  id?: string | null
+  costId?: string | null
+  name?: string | null
+  notes?: string | null
+  operationalConditions?: string[] | null
+}) {
+  if (!isMultimodalViaPanama(selectedDestination.value)) return false
+
+  const configured = line.costId
+    ? costs.value.find((cost) => cost.id === line.costId)
+    : line.id
+      ? costs.value.find((cost) => cost.id === line.id)
+      : null
+  const source = configured ?? line
+  const conditions = operationalConditionsFor(source)
+  if (
+    conditions.includes('MerchantHaulage')
+    || conditions.includes('CarrierHaulage')
+    || conditions.includes('Anticipado')
+    || conditions.includes('Redestino')
+  ) return true
+
+  const value = normalizeCatalogValue(
+    `${String((source as { name?: string | null }).name ?? '')} ${String((source as { notes?: string | null }).notes ?? '')}`,
+  )
+  return value.includes('merchant')
+    || value.includes('naviera')
+    || value.includes('carrier haulage')
+    || value.includes('anticipado')
+    || value.includes('redestino')
+    || value.includes('muellaje')
+}
+
 function shouldIncludeOptionalCost(line: {
   id?: string | null
   costId?: string | null
@@ -58,6 +92,7 @@ function shouldIncludeOptionalCost(line: {
 }) {
   const automaticCostId = automaticOptionalCostId(line)
   if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
+  if (isMultimodalExcludedOptional(line)) return false
 
   // Pricing pidió que TODOS los cargos Optional aplicables al contexto entren marcados
   // por defecto. Las condiciones operativas siguen sirviendo para identificar el botón
@@ -77,13 +112,26 @@ function shouldIncludeOptionalCost(line: {
   rateLines.value.forEach((line) => {
     if (!line.optional || !line.costId) return
     const configured = costs.value.find((cost) => cost.id === line.costId)
-    if (!configured?.operationalConditions?.length) return
+    if (!configured) return
 
-    line.included = shouldIncludeOptionalCost(configured)
+    line.included = shouldIncludeOptionalCost({
+      ...configured,
+      costId: line.costId,
+    })
     if (!line.included) line.applyDestinationTax = false
   })
 }`,
     'operational condition synchronization',
+  )
+
+  code = replaceRegexOne(
+    code,
+    /const selectableOptionalLines = computed\(\(\) =>[\s\S]*?\n\)\nconst optionalChargeOptions = computed/,
+    `const selectableOptionalLines = computed(() =>
+  rateLines.value.filter((line) => line.optional && !isMultimodalExcludedOptional(line)),
+)
+const optionalChargeOptions = computed`,
+    'multimodal optional selector exclusion',
   )
 
   // No inventar cargos Inland por el botón. Los botones solo activan cargos
