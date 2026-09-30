@@ -126,14 +126,15 @@ function costSpecificity`,
     'applicable cost function',
   )
 
-  // Cargos Optional que ya pasaron el filtro contextual del backend quedan disponibles
-  // en Pantalla 7. Solo las reglas explícitas de Pantalla 4 (Merchant/Naviera, carga,
-  // muellaje, etc.) deben preseleccionarlos automáticamente. Si Pricing retira un cargo
-  // con la X, se recuerda mientras no cambie el contexto de la cotización.
-  code = replaceRegexOne(
-    code,
-    /function shouldIncludeOptionalCost\(line: \{ name: string; notes\?: string \| null \}\) \{[\s\S]*?\n\}/,
-    `function automaticOptionalCostId(line: { id?: string | null; costId?: string | null }) {
+  // El wizard principal todavía recibe el helper de selección automática desde
+  // pricingCargoHaulageKeywordFix. La vista estable de edición ya trae los opcionales
+  // normalizados en el source y no siempre contiene ese helper; crear una versión
+  // compatible para que los plugins posteriores puedan endurecer la regla.
+  if (code.includes('function shouldIncludeOptionalCost(')) {
+    code = replaceRegexOne(
+      code,
+      /function shouldIncludeOptionalCost\(line: \{ name: string; notes\?: string \| null \}\) \{[\s\S]*?\n\}/,
+      `function automaticOptionalCostId(line: { id?: string | null; costId?: string | null }) {
   return String(line.costId ?? line.id ?? '').trim()
 }
 
@@ -151,13 +152,30 @@ function shouldIncludeOptionalCost(line: { id?: string | null; costId?: string |
   if (cargoSelected === true || portHandlingSelected === true) return true
   if (association === 'merchant') return form.merchantHaulage
   if (association === 'carrier') return form.carrierHaulage
-
-  // Un Optional sin regla automática sigue siendo elegible y visible, pero se
-  // selecciona manualmente en Pantalla 7.
   return false
 }`,
-    'automatic optional inclusion',
-  )
+      'automatic optional inclusion',
+    )
+  } else {
+    const optionalSelectorAnchor = 'const selectableOptionalLines = computed'
+    if (!code.includes(optionalSelectorAnchor)) {
+      throw new Error('[pricingFtlLandCostsFix] Optional selector anchor not found.')
+    }
+    code = code.replace(
+      optionalSelectorAnchor,
+      `function automaticOptionalCostId(line: { id?: string | null; costId?: string | null }) {
+  return String(line.costId ?? line.id ?? '').trim()
+}
+
+function shouldIncludeOptionalCost(line: { id?: string | null; costId?: string | null }) {
+  const automaticCostId = automaticOptionalCostId(line)
+  if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
+  return true
+}
+
+${optionalSelectorAnchor}`,
+    )
+  }
 
   code = replaceRegexOne(
     code,
