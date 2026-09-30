@@ -35,7 +35,7 @@ const inactivating = ref(false)
 const errors = reactive<Record<string, string>>({})
 const form = reactive({
   importProfileId: '',
-  shipmentMode: 'Fcl' as 'Fcl' | 'Lcl',
+  shipmentMode: 'Fcl' as 'Fcl' | 'Lcl' | 'Air',
   polId: '',
   poeId: '',
   podId: '',
@@ -83,9 +83,32 @@ function containsLclMarker(value: unknown) {
     || normalized.includes('groupage')
 }
 
-function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'Lcl' {
+function containsAirMarker(value: unknown) {
+  const canonical = String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+
+  return canonical === 'air'
+    || canonical.includes('tariffmodeair')
+    || canonical.includes('shipmentmodeair')
+    || canonical.includes('servicemodeair')
+    || canonical.includes('containertypeair')
+    || canonical.includes('airconsolidated')
+    || canonical.includes('airbacktoback')
+    || canonical.includes('airlineroute')
+    || canonical.includes('kgpercbm')
+    || canonical.includes('ratebasiskgvol')
+    || ((canonical.includes('aerolinea') || canonical.includes('airline'))
+      && (canonical.includes('167kg') || canonical.includes('kgvol')))
+}
+
+function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'Lcl' | 'Air' {
   const declared = String(rate.shipmentMode ?? '').trim().toLowerCase()
   if (declared === 'lcl') return 'Lcl'
+  if (declared === 'air' || declared === 'airconsol') return 'Air'
+  if (declared === 'fcl') return 'Fcl'
 
   const markers = [
     rate.containerType,
@@ -98,12 +121,14 @@ function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'Lcl' {
     rate.spaceComment,
     rate.rawDataJson,
   ]
+  if (markers.some(containsAirMarker)) return 'Air'
   return markers.some(containsLclMarker) ? 'Lcl' : 'Fcl'
 }
 
 const shipmentModeOptions = [
   { value: 'Fcl', label: 'FCL · Contenedor completo' },
-  { value: 'Lcl', label: 'LCL · Carga consolidada / coloader' },
+  { value: 'Lcl', label: 'LCL marítimo · Coloader' },
+  { value: 'Air', label: 'LCL aéreo · Coloader' },
 ]
 
 function hydrate(rate: ImportRateDto) {
@@ -170,6 +195,8 @@ const calculatedCost = computed(
 )
 
 const isLclImport = computed(() => form.shipmentMode === 'Lcl')
+const isAirImport = computed(() => form.shipmentMode === 'Air')
+const isConsolidatedImport = computed(() => isLclImport.value || isAirImport.value)
 
 const canInactivate = computed(() => String(current.value.status) === 'Approved')
 
@@ -185,7 +212,7 @@ const requiredFieldStatus = computed(() => {
     { label: 'Vigencia', ready: Boolean(form.validFrom && form.validTo) },
   ]
 
-  if (!isLclImport.value) {
+  if (!isConsolidatedImport.value) {
     fields.splice(2, 0,
       { label: 'Naviera', ready: Boolean(form.carrierId) },
       { label: 'Contenedor', ready: Boolean(form.containerTypeId) },
@@ -207,7 +234,7 @@ function validate() {
     ['agentId', 'Seleccione el agente.'],
     ['currencyId', 'Seleccione la moneda.'],
   ]
-  if (!isLclImport.value) {
+  if (!isConsolidatedImport.value) {
     requiredCatalogs.push(
       ['carrierId', 'Seleccione la naviera.'],
       ['containerTypeId', 'Seleccione el tamaño y tipo de contenedor.'],
@@ -388,7 +415,7 @@ onMounted(async () => {
           <DhSelect v-model="form.importProfileId" label="Perfil de importación *" :options="catalogs.profileOptions.value" :error="errors.importProfileId" />
           <DhSelect v-model="form.shipmentMode" label="Modalidad *" :options="shipmentModeOptions" :error="errors.shipmentMode" />
           <DhSelect v-model="form.agentId" label="Agente *" :options="catalogs.agentOptions.value" :error="errors.agentId" />
-          <template v-if="!isLclImport">
+          <template v-if="!isConsolidatedImport">
             <DhSelect v-model="form.carrierId" label="Naviera *" :options="catalogs.carrierOptions.value" :error="errors.carrierId" />
             <PricingContainerSelector v-model="form.containerTypeId" :error="errors.containerTypeId" />
           </template>
@@ -396,9 +423,13 @@ onMounted(async () => {
             v-else
             class="md:col-span-2 rounded-[20px] border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.06)] px-4 py-3"
           >
-            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Modalidad LCL · Coloader</p>
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">
+              {{ isAirImport ? 'Modalidad aérea · Coloader' : 'Modalidad LCL marítima · Coloader' }}
+            </p>
             <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-              La naviera y el contenedor no son obligatorios para LCL. La fuente se segrega por ruta, vigencia y agente y se publica en Coloader.
+              {{ isAirImport
+                ? 'El equipo se normaliza como AIR y la tarifa se identifica como aéreo de coloader.'
+                : 'El equipo se normaliza como LCL y la tarifa se identifica como marítimo de coloader.' }}
             </p>
           </div>
         </div>
@@ -423,7 +454,7 @@ onMounted(async () => {
         </div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <DhSelect v-model="form.currencyId" label="Moneda *" :options="catalogs.currencyOptions.value" :error="errors.currencyId" />
-          <DhInput v-model="form.oceanFreight" type="number" :label="isLclImport ? 'Flete internacional / CBM *' : 'Flete internacional *'" :error="errors.oceanFreight" />
+          <DhInput v-model="form.oceanFreight" type="number" :label="isLclImport ? 'Flete marítimo / W/M *' : isAirImport ? 'Flete aéreo / KG/VOL *' : 'Flete internacional *'" :error="errors.oceanFreight" />
           <DhInput v-model="form.originCharges" type="number" label="Cargos de origen *" :error="errors.originCharges" />
           <DhInput v-model="form.destinationCharges" type="number" label="Cargos de destino *" :error="errors.destinationCharges" />
           <DhInput v-model="form.surcharges" type="number" label="Recargos *" :error="errors.surcharges" />
