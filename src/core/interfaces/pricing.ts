@@ -644,7 +644,8 @@ export interface RateCargoLineRequest extends Record<string, unknown> {
   weightKg: number
   lengthCm: number
   widthCm: number
-  heightCm: number  isStackable?: boolean | null
+  heightCm: number
+  isStackable?: boolean | null
 }
 
 export interface PricingExchangeRateDto extends Record<string, unknown> {
