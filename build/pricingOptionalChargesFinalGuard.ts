@@ -118,7 +118,9 @@ async function loadAllApplicableOptionalCosts() {
     isActive: true,
   })
 
-  return optionalCosts.filter(finalOptionalMatchesCurrentContext)
+  return optionalCosts
+    .filter(finalOptionalMatchesCurrentContext)
+    .filter((cost) => shouldIncludeOptionalCost(cost))
 }
 
 async function ensureAllApplicableOptionalCosts() {
@@ -146,10 +148,7 @@ async function ensureAllApplicableOptionalCosts() {
     allCosts.value = [...allMerged.values()]
 
     mergeConfiguredOptionalCostsIntoRateLines(true)
-
-    rateLines.value.forEach((line) => {
-      if (line.optional) line.included = true
-    })
+    syncHaulageOptionalLines()
   } catch (error) {
     toastStore.backendError(
       error,
