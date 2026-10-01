@@ -176,7 +176,7 @@ export function pricingConsolidatedCargo20261001(): Plugin {
     name: 'dhole-pricing-consolidated-cargo-20261001',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replace(/\\/g, '/').split('?')[0]
       if (!WIZARD_SUFFIXES.some((suffix) => normalizedId.endsWith(suffix))) return null
       return { code: patchWizard(source), map: null }
     },
