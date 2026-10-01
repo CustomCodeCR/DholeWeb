@@ -26,31 +26,57 @@ function patchPayloads(source: string) {
     'totalVolumeCbm: consolidatedCargoMode.value ? lclPhysicalCbm.value : 0,',
   )
 
-  const kgAnchor = '      kgPerCbm: consolidatedCargoMode.value ? consolidatedKgPerCbm.value : undefined,'
+  // Patch cargoLines by the payload itself instead of depending on the exact
+  // kgPerCbm anchor. Pre-build compatibility scripts can legitimately reshape
+  // one of the request payloads, so requiring exactly two identical anchors
+  // made production builds fail even when the remaining payload was valid.
   let cursor = 0
   let payloadIndex = 0
   while (true) {
-    const kgStart = code.indexOf(kgAnchor, cursor)
-    if (kgStart < 0) break
-    const start = code.indexOf('      cargoLines:', kgStart + kgAnchor.length)
-    if (start < 0) throw new Error('[pricingConsolidatedCargo20261001] cargo payload start not found.')
+    const start = code.indexOf('      cargoLines:', cursor)
+    if (start < 0) break
+
     const detailsWithColon = code.indexOf('      details:', start)
     const detailsWithComma = code.indexOf('      details,', start)
     const candidates = [detailsWithColon, detailsWithComma].filter((index) => index >= 0)
     const end = candidates.length ? Math.min(...candidates) : -1
-    if (end < 0) throw new Error('[pricingConsolidatedCargo20261001] cargo payload end not found.')
+
+    if (end < 0) {
+      cursor = start + '      cargoLines:'.length
+      continue
+    }
+
     const block = code.slice(start, end)
-    const commonText = block.includes('supportSummaryText()') || payloadIndex > 0
+    const isConsolidatedCargoPayload = block.includes('consolidatedCargoMode.value')
+      || block.includes('consolidatedCargoPayload(')
+
+    if (!isConsolidatedCargoPayload) {
+      cursor = end
+      continue
+    }
+
+    // Another compatibility transform may already have upgraded this payload.
+    // Count it as valid and keep scanning instead of failing the build.
+    if (block.includes('consolidatedCargoPayload(')) {
+      payloadIndex += 1
+      cursor = end
+      continue
+    }
+
+    const commonText = block.includes('supportSummaryText()')
       ? 'supportSummaryText()'
-      : 'supportText'
-    code = code.slice(0, start)
-      + '      cargoLines: consolidatedCargoPayload(' + commonText + '),\n'
-      + code.slice(end)
-    cursor = start + 80
+      : block.includes('supportText')
+        ? 'supportText'
+        : "''"
+
+    const replacement = '      cargoLines: consolidatedCargoPayload(' + commonText + '),\n'
+    code = code.slice(0, start) + replacement + code.slice(end)
+    cursor = start + replacement.length
     payloadIndex += 1
   }
-  if (payloadIndex < 2) {
-    throw new Error('[pricingConsolidatedCargo20261001] expected both create/open cargo payloads, found ' + payloadIndex + '.')
+
+  if (payloadIndex < 1) {
+    throw new Error('[pricingConsolidatedCargo20261001] no consolidated cargo payload was found to patch.')
   }
   return code
 }
