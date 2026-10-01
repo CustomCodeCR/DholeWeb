@@ -2773,14 +2773,53 @@ function pickupGeocodeQueries(rawAddress: string) {
   return queries.slice(0, 8)
 }
 
+const pickupGeocodeCache = new Map<string, NominatimResult | null>()
+let lastPickupGeocodeAt = 0
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+}
+
 async function searchPickupGeocode(query: string) {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=3&addressdetails=1&dedupe=1&q=${encodeURIComponent(query)}`,
-    { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
-  )
-  if (!response.ok) throw new Error(`Nominatim ${response.status}`)
-  const rows = await response.json() as NominatimResult[]
-  return rows.find((row) => Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lon))) ?? null
+  const cacheKey = normalizeCatalogValue(query)
+  if (pickupGeocodeCache.has(cacheKey)) return pickupGeocodeCache.get(cacheKey) ?? null
+
+  // Nominatim es un servicio público y puede limitar ráfagas. Serializar las
+  // consultas evita que una dirección falle de forma intermitente solo porque
+  // varios fallbacks se ejecutaron demasiado rápido.
+  const elapsed = Date.now() - lastPickupGeocodeAt
+  if (elapsed < 1100) await wait(1100 - elapsed)
+
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 8000)
+
+  try {
+    lastPickupGeocodeAt = Date.now()
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&dedupe=1&q=${encodeURIComponent(query)}`,
+      {
+        headers: { Accept: 'application/json', 'Accept-Language': 'es' },
+        signal: controller.signal,
+      },
+    )
+
+    if (response.status === 429 || response.status === 503) {
+      await wait(1400)
+      return null
+    }
+    if (!response.ok) return null
+
+    const rows = await response.json() as NominatimResult[]
+    const match = rows.find((row) => Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lon))) ?? null
+    pickupGeocodeCache.set(cacheKey, match)
+    return match
+  } catch {
+    // Una consulta puntual no debe abortar todos los fallbacks. El caller seguirá
+    // con la versión contextual/general de la misma dirección.
+    return null
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
 async function geocodePickupAddress(recommendAfter = true) {
