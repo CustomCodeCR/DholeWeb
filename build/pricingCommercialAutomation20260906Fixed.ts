@@ -211,7 +211,9 @@ watch(
   )
 
   // Mixed FCL generic charges use all containers/TEU instead of only the first selected type.
-  const quantityAnchor = code.includes(`function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {`)\n    ? `function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {`\n    : `function quantityForChargeBasis(basis: ChargeBasis) {`
+  const quantityAnchor = code.includes(`function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {`)
+    ? `function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {`
+    : `function quantityForChargeBasis(basis: ChargeBasis) {`
   code = replaceOne(
     code,
     quantityAnchor,
