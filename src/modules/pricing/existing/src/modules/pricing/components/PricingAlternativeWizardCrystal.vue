@@ -4305,6 +4305,13 @@ onMounted(async () => {
             </div>
             <DhButton v-if="selectedIncotermCode === 'FCA'" variant="ghost" @click="router.push({ name: 'config-catalogs', query: { search: 'pricing-warehouses' } })">Administrar / crear WHS en Config</DhButton>
 
+            <DhSelect
+              v-if="selectedIncotermCode === 'EXW'"
+              v-model="pickupCargoCondition"
+              label="Tipo de carga en esta recolecta"
+              :options="pickupCargoConditionOptions"
+              placeholder="Seleccione carga fiscal o carga nacionalizada"
+            />
             <DhInput
               v-model="form.pickupAddress"
               :label="selectedIncotermCode === 'EXW' ? 'Dirección de recolección' : 'Dirección del WHS'"
@@ -4327,6 +4334,13 @@ onMounted(async () => {
                 @click="useCurrentLocation"
               >
                 Usar mi ubicación
+              </DhButton>
+              <DhButton
+                v-if="selectedIncotermCode === 'EXW'"
+                :disabled="!form.pickupAddress.trim() || !pickupCoordinates || !pickupCargoCondition"
+                @click="savePickupLocation"
+              >
+                {{ editingPickupIndex == null ? 'Agregar recolecta' : 'Actualizar recolecta' }}
               </DhButton>
             </div>
 
@@ -4363,6 +4377,29 @@ onMounted(async () => {
             <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
               Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
             </p>
+            <div v-if="selectedIncotermCode === 'EXW'" class="space-y-2">
+              <div v-for="(pickup, index) in pickupLocations" :key="`${index}:${pickup.address}`" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <strong class="text-sm">Recolecta {{ index + 1 }}</strong>
+                      <DhBadge variant="primary">{{ pickupCargoConditionLabel(pickup.cargoCondition) }}</DhBadge>
+                    </div>
+                    <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-soft)]">{{ pickup.address }}</p>
+                    <p v-if="pickup.latitude != null && pickup.longitude != null" class="mt-1 text-[10px] font-bold text-[var(--dh-text-muted)]">
+                      {{ Number(pickup.latitude).toFixed(6) }}, {{ Number(pickup.longitude).toFixed(6) }}
+                    </p>
+                  </div>
+                  <div class="flex gap-2">
+                    <button type="button" class="text-xs font-black text-[var(--dh-primary)]" @click="editPickupLocation(index)">Editar</button>
+                    <button type="button" class="text-xs font-black text-red-500" @click="removePickupLocation(index)">Eliminar</button>
+                  </div>
+                </div>
+              </div>
+              <p v-if="!pickupLocations.length" class="text-[11px] font-bold text-amber-600">
+                Agregue al menos una recolecta y clasifíquela como carga fiscal o carga nacionalizada.
+              </p>
+            </div>
 
             <div v-if="selectedIncotermCode === 'EXW'" class="space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
