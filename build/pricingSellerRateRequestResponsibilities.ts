@@ -80,10 +80,21 @@ function patchWizard(source: string) {
     'seller request reset',
   )
 
+  const sellerHydrationAnchor = code.includes(
+    `    if (request.payload?.form) Object.assign(form, request.payload.form)\n    pickupLocations.value = Array.isArray(request.payload?.pickupLocations)`,
+  )
+    ? `    if (request.payload?.form) Object.assign(form, request.payload.form)\n    pickupLocations.value = Array.isArray(request.payload?.pickupLocations)\n      ? request.payload!.pickupLocations!.map((pickup) => ({ ...pickup }))\n      : []\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`
+    : `    if (request.payload?.form) Object.assign(form, request.payload.form)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`
+
+  const sellerHydrationReplacement = sellerHydrationAnchor.replace(
+    `    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`,
+    `    const sellerContext = (request.payload as unknown as { sellerContext?: { cargoReadyDate?: string | null; portHandlingMode?: SellerPortHandlingMode | null } } | null)?.sellerContext\n    requestedCargoReadyDate.value = sellerContext?.cargoReadyDate || form.loadDate || ''\n    requestedPortHandlingMode.value = sellerContext?.portHandlingMode || ''\n    if (!form.validTo && form.loadDate) form.validTo = addDaysIso(form.loadDate, 30)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`,
+  )
+
   code = replaceOne(
     code,
-    `    if (request.payload?.form) Object.assign(form, request.payload.form)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`,
-    `    if (request.payload?.form) Object.assign(form, request.payload.form)\n    const sellerContext = (request.payload as unknown as { sellerContext?: { cargoReadyDate?: string | null; portHandlingMode?: SellerPortHandlingMode | null } } | null)?.sellerContext\n    requestedCargoReadyDate.value = sellerContext?.cargoReadyDate || form.loadDate || ''\n    requestedPortHandlingMode.value = sellerContext?.portHandlingMode || ''\n    if (!form.validTo && form.loadDate) form.validTo = addDaysIso(form.loadDate, 30)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`,
+    sellerHydrationAnchor,
+    sellerHydrationReplacement,
     'seller context hydration',
   )
 
