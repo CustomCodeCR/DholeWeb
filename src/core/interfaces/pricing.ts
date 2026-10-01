@@ -22,6 +22,8 @@ export type CostOperationalCondition =
   | 'ElectronicSeal'
   | 'Anticipado'
   | 'Redestino'
+  | 'FiscalCargo'
+  | 'NationalizedCargo'
 export type ShipmentMode = 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl' | 'Air' | 'AirConsol'
 export type ImportedShipmentMode = 'Fcl' | 'LclColoader' | 'AirLclColoader' | 'Unknown'
 export type RateType = 'Spot' | 'Tariff'
@@ -31,6 +33,7 @@ export type ChargeBasis =
   | 'PerContainer'
   | 'PerTruck'
   | 'PerTeu'
+  | 'PerPickup'
   | 'PerCbm'
   | 'PerChargeableCbm'
   | 'PerKg'
@@ -75,6 +78,15 @@ export interface RateServiceDto {
   id: string
   name: string
   code: string
+}
+
+export type PickupCargoCondition = 'FiscalCargo' | 'NationalizedCargo'
+
+export interface RatePickupLocationDto {
+  address: string
+  latitude?: number | null
+  longitude?: number | null
+  cargoCondition?: PickupCargoCondition | null
 }
 
 export type RateOperationType = 'Import' | 'Export' | 'TransitDomestic'
@@ -671,6 +683,7 @@ export interface RateDto extends Record<string, unknown> {
   pickupAddress?: string | null
   pickupLatitude?: number | null
   pickupLongitude?: number | null
+  pickupLocations?: RatePickupLocationDto[]
   containerQuantity: number
   currencyId: string
   currencyName: string
@@ -812,6 +825,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   pickupAddress?: string | null
   pickupLatitude?: number | null
   pickupLongitude?: number | null
+  pickupLocations?: RatePickupLocationDto[]
   exchangeRatePurchase?: number | null
   exchangeRateSale?: number | null
   exchangeRateApplied?: number | null
