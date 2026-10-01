@@ -1612,6 +1612,7 @@ function chargeBasisLabel(basis: ChargeBasis) {
     PerService: 'Por Servicio',
     PerContainer: 'Por contenedor',
     PerTeu: 'Por TEU',
+    PerPickup: 'Por recolecta',
     PerTruck: 'Por camión',
     PerCbm: 'Por CBM',
     PerChargeableCbm: 'Por CBM cobrable',
