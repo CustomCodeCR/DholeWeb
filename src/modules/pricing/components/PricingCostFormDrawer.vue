@@ -192,6 +192,8 @@ const operationalConditionOptions: Array<{ label: string; value: CostOperational
   { label: 'Marchamo electrónico', value: 'ElectronicSeal' },
   { label: 'Anticipado', value: 'Anticipado' },
   { label: 'Redestino', value: 'Redestino' },
+  { label: 'Carga fiscal', value: 'FiscalCargo' },
+  { label: 'Carga nacionalizada', value: 'NationalizedCargo' },
 ]
 
 const shipmentModeOptions: Array<{ label: string; value: CostShipmentMode }> = [
@@ -204,6 +206,7 @@ const shipmentModeOptions: Array<{ label: string; value: CostShipmentMode }> = [
 
 const chargeBasisOptions: Array<{ label: string; value: ChargeBasis }> = [
   { label: 'Por embarque', value: 'PerShipment' },
+  { label: 'Por recolecta', value: 'PerPickup' },
   { label: 'Por Servicio', value: 'PerService' },
   { label: 'Por contenedor', value: 'PerContainer' },
   { label: 'Por TEU', value: 'PerTeu' },
