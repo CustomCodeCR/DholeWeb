@@ -111,9 +111,7 @@ const form = reactive({
 })
 
 const isAgentCost = computed(() => form.associationType === 'Agent')
-const isAgentSaleDisabled = computed(
-  () => isAgentCost.value && form.costDetailType !== 'OriginCharge',
-)
+const isAgentSaleDisabled = computed(() => form.costDetailType === 'AgentCharge')
 const isCarrierCost = computed(() => form.associationType === 'Carrier')
 const isEquipmentBasis = computed(
   () => form.chargeBasis === 'PerContainer' || form.chargeBasis === 'PerTruck',
@@ -264,11 +262,9 @@ watch(
   () => form.associationType,
   (associationType) => {
     if (associationType === 'Agent') {
+      // Asociar el costo a un agente solo filtra su aplicabilidad.
+      // No convierte automáticamente el rubro en "Costo de agente".
       form.carrierId = ''
-      if (form.costDetailType !== 'OriginCharge') {
-        form.costDetailType = 'AgentCharge'
-        form.saleAmount = '0'
-      }
       return
     }
 
