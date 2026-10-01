@@ -211,11 +211,11 @@ watch(
   )
 
   // Mixed FCL generic charges use all containers/TEU instead of only the first selected type.
-  const quantityAnchor = `function quantityForChargeBasis(basis: ChargeBasis) {`
+  const quantityAnchor = code.includes(`function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {`)\n    ? `function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {`\n    : `function quantityForChargeBasis(basis: ChargeBasis) {`
   code = replaceOne(
     code,
     quantityAnchor,
-    `function quantityForChargeBasis(basis: ChargeBasis) {\n  if (shipmentModeForApi.value === 'Fcl' && basis === 'PerContainer') return Math.max(1, fclContainerTotal.value)\n  if (shipmentModeForApi.value === 'Fcl' && basis === 'PerTeu') return Math.max(1, fclContainerTeu.value)`,
+    `${quantityAnchor}\n  if (shipmentModeForApi.value === 'Fcl' && basis === 'PerContainer') return Math.max(1, fclContainerTotal.value)\n  if (shipmentModeForApi.value === 'Fcl' && basis === 'PerTeu') return Math.max(1, fclContainerTeu.value)`,
     'FCL quantity basis',
   )
 
