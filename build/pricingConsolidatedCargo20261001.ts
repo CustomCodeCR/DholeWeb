@@ -156,6 +156,22 @@ function patchWizard(source: string) {
     "!ltlCargoMode.value && form.dangerousCargo ? 'Carga peligrosa' : null",
     "form.dangerousCargo ? (shipmentModeForApi.value === 'Ltl' ? 'Carga IMO' : 'Carga peligrosa') : null",
   )
+  code = code.replaceAll(
+    "if (!ltlCargoMode.value && form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')",
+    "if (form.dangerousCargo) serviceCodes.add('DANGEROUS_CARGO')",
+  )
+  code = code.replaceAll(
+    "if (!ltlCargoMode.value && form.dangerousCargo) addCargoConditionFallback('dangerous', 'Carga peligrosa')",
+    "if (form.dangerousCargo) addCargoConditionFallback('dangerous', shipmentModeForApi.value === 'Ltl' ? 'Carga IMO' : 'Carga peligrosa')",
+  )
+  code = code.replaceAll(
+    "case 'DangerousCargo':\n      return !ltlCargoMode.value && form.dangerousCargo",
+    "case 'DangerousCargo':\n      return form.dangerousCargo",
+  )
+  code = code.replaceAll(
+    "if (value.includes('carga peligrosa') || value.includes('dangerous') || value.includes('hazmat')) return ltlCargoMode.value ? false : form.dangerousCargo",
+    "if (value.includes('carga peligrosa') || value.includes('dangerous') || value.includes('hazmat') || value.includes('imo')) return form.dangerousCargo",
+  )
 
   code = code.replace(
     /<button([^>]*:class="form\.nonStackable \? 'crystal-flag--active' : ''"[^>]*)>/,
