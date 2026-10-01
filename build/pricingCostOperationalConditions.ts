@@ -55,6 +55,14 @@ function operationalConditionsFor(line: {
     : []
 }
 
+function operationalConditionsSatisfied(line: {
+  operationalConditions?: string[] | null
+}) {
+  const conditions = operationalConditionsFor(line)
+  if (!conditions.length) return true
+  return conditions.every((condition) => operationalConditionSelected(condition))
+}
+
 function shouldIncludeOptionalCost(line: {
   id?: string | null
   costId?: string | null
@@ -62,11 +70,23 @@ function shouldIncludeOptionalCost(line: {
 }) {
   const automaticCostId = automaticOptionalCostId(line)
   if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
-  // Pricing pidió que TODOS los cargos Optional aplicables al contexto entren marcados
-  // por defecto. Las condiciones operativas siguen sirviendo para identificar el botón
-  // relacionado, pero no desmarcan automáticamente la línea. El usuario puede quitarla
-  // manualmente en Pantalla 7 y esa decisión se conserva mediante dismissed...Ids.
-  return true
+
+  // Sin botón/condición asignada = Manual: entra automáticamente.
+  // Con condiciones asignadas, todas deben estar seleccionadas en Pantalla 4.
+  return operationalConditionsSatisfied(line)
+}
+
+function optionalLineMatchesScreen4Selection(line: {
+  costId?: string | null
+  operationalConditions?: string[] | null
+}) {
+  const directConditions = operationalConditionsFor(line)
+  if (directConditions.length) return operationalConditionsSatisfied(line)
+
+  if (!line.costId) return true
+  const configured = costs.value.find((cost) => cost.id === line.costId)
+  if (!configured) return true
+  return operationalConditionsSatisfied(configured)
 }`,
     'explicit operational condition matcher',
   )
@@ -96,7 +116,11 @@ function shouldIncludeOptionalCost(line: {
     code,
     /const selectableOptionalLines = computed\(\(\) =>[\s\S]*?\n\)\nconst optionalChargeOptions = computed/,
     `const selectableOptionalLines = computed(() =>
-  rateLines.value.filter((line) => line.optional && lineMatchesPickupCargoCondition(line)),
+  rateLines.value.filter((line) =>
+    line.optional
+    && lineMatchesPickupCargoCondition(line)
+    && optionalLineMatchesScreen4Selection(line),
+  ),
 )
 const optionalChargeOptions = computed`,
     'multimodal optional selector exclusion',
