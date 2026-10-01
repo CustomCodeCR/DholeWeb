@@ -26,18 +26,23 @@ function patchPayloads(source: string) {
     'totalVolumeCbm: consolidatedCargoMode.value ? lclPhysicalCbm.value : 0,',
   )
 
+  const kgAnchor = '      kgPerCbm: consolidatedCargoMode.value ? consolidatedKgPerCbm.value : undefined,'
   let cursor = 0
   let payloadIndex = 0
   while (true) {
-    const start = code.indexOf('      cargoLines: form.cargoDescription', cursor)
-    if (start < 0) break
+    const kgStart = code.indexOf(kgAnchor, cursor)
+    if (kgStart < 0) break
+    const start = code.indexOf('      cargoLines:', kgStart + kgAnchor.length)
+    if (start < 0) throw new Error('[pricingConsolidatedCargo20261001] cargo payload start not found.')
     const detailsWithColon = code.indexOf('      details:', start)
     const detailsWithComma = code.indexOf('      details,', start)
     const candidates = [detailsWithColon, detailsWithComma].filter((index) => index >= 0)
     const end = candidates.length ? Math.min(...candidates) : -1
     if (end < 0) throw new Error('[pricingConsolidatedCargo20261001] cargo payload end not found.')
     const block = code.slice(start, end)
-    const commonText = block.includes('supportSummaryText()') ? 'supportSummaryText()' : 'supportText'
+    const commonText = block.includes('supportSummaryText()') || payloadIndex > 0
+      ? 'supportSummaryText()'
+      : 'supportText'
     code = code.slice(0, start)
       + '      cargoLines: consolidatedCargoPayload(' + commonText + '),\n'
       + code.slice(end)
@@ -45,7 +50,7 @@ function patchPayloads(source: string) {
     payloadIndex += 1
   }
   if (payloadIndex < 2) {
-    throw new Error('[pricingConsolidatedCargo20261001] expected both create/open cargo payloads.')
+    throw new Error('[pricingConsolidatedCargo20261001] expected both create/open cargo payloads, found ' + payloadIndex + '.')
   }
   return code
 }
@@ -179,6 +184,7 @@ export function pricingConsolidatedCargo20261001(): Plugin {
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replace(/\\/g, '/').split('?')[0]
+      if (normalizedId.includes('/src/modules/pricing/existing/')) return null
       if (!WIZARD_SUFFIXES.some((suffix) => normalizedId.endsWith(suffix))) return null
       return { code: patchWizard(source), map: null }
     },
