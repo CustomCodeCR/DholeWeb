@@ -200,10 +200,15 @@ function patchWizard(source: string) {
     'seller land containers context',
   )
 
+  const quantityBasisSignature = code.includes(
+    `function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {`,
+  )
+    ? `function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {`
+    : `function quantityForChargeBasis(basis: ChargeBasis) {`
   code = replaceRequired(
     code,
-    `function quantityForChargeBasis(basis: ChargeBasis) {\n  if (shipmentModeForApi.value === 'Fcl' && basis === 'PerContainer')`,
-    `function quantityForChargeBasis(basis: ChargeBasis) {\n  if (form.modality === 'Land' && basis === 'PerContainer') return Math.max(1, landEquipmentTotal.value)\n  if (shipmentModeForApi.value === 'Fcl' && basis === 'PerContainer')`,
+    quantityBasisSignature,
+    `${quantityBasisSignature}\n  if (form.modality === 'Land' && basis === 'PerContainer') return Math.max(1, landEquipmentTotal.value)`,
     'land per-unit charge quantity',
   )
 
