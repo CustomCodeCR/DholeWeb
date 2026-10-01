@@ -2716,61 +2716,99 @@ async function recommendNearestPorts() {
 }
 
 function pickupGeocodeQueries(rawAddress: string) {
-  const exact = rawAddress.replace(/\s+/g, ' ').trim()
+  const clean = (value: string) => value
+    .replace(/\s+/g, ' ')
+    .replace(/\s*,\s*/g, ', ')
+    .replace(/[.;]+(?=\s*(?:,|$))/g, '')
+    .replace(/^,\s*|,\s*$/g, '')
+    .trim()
+
+  const exact = clean(rawAddress)
   const queries: string[] = []
   const push = (value: string) => {
-    const normalized = value
-      .replace(/\s*,\s*/g, ', ')
-      .replace(/\s{2,}/g, ' ')
-      .replace(/^,\s*|,\s*$/g, '')
-      .trim()
-    if (normalized.length >= 3 && !queries.some((item) => normalizeCatalogValue(item) === normalizeCatalogValue(normalized))) {
+    const normalized = clean(value)
+    if (
+      normalized.length >= 2
+      && !queries.some((item) => normalizeCatalogValue(item) === normalizeCatalogValue(normalized))
+    ) {
       queries.push(normalized)
     }
   }
 
-  // 1) Dirección exacta escrita por el usuario.
+  const routeNodes = [selectedOrigin.value, selectedDestination.value, selectedPod.value]
+    .filter(Boolean) as CatalogItemSelectDto[]
+
+  const routeContexts = routeNodes
+    .map((item) => clean(String(displayValue(item) || item.label || '')))
+    .filter(Boolean)
+
+  const countryHints: string[] = []
+  const pushCountryHint = (value: string | null | undefined) => {
+    const normalized = clean(String(value ?? ''))
+    if (
+      normalized.length >= 2
+      && !countryHints.some((item) => normalizeCatalogValue(item) === normalizeCatalogValue(normalized))
+    ) {
+      countryHints.push(normalized)
+    }
+  }
+
+  routeNodes.forEach((item) => {
+    const label = clean(String(displayValue(item) || item.label || ''))
+    const parts = label.split(',').map((part) => clean(part)).filter(Boolean)
+    if (parts.length >= 2) pushCountryHint(parts.at(-1))
+    pushCountryHint(metadata(item)?.countryCode)
+  })
+
+  // 1) Probar exactamente lo escrito.
   push(exact)
 
-  // Dar contexto geográfico con el POL/origen evita que una dirección específica
-  // falle solo porque OSM no reconoce el nombre de la bodega/local.
-  const originContext = String(displayValue(selectedOrigin.value) || selectedOrigin.value?.label || '').trim()
-  if (
-    originContext &&
-    !normalizeCatalogValue(exact).includes(normalizeCatalogValue(originContext))
-  ) {
-    push(`${exact}, ${originContext}`)
+  // 2) Agregar contexto de ruta. En EXW el origen suele ser el contexto más útil,
+  // pero también probamos destino/POD porque algunas rutas terrestres o de exportación
+  // usan nodos internos de Costa Rica.
+  routeContexts.forEach((context) => {
+    if (!normalizeCatalogValue(exact).includes(normalizeCatalogValue(context))) {
+      push(`${exact}, ${context}`)
+    }
+  })
+
+  // 3) Separar el nombre comercial de la localidad. Direcciones como
+  // "Comercial Capresso, Guadalupe" normalmente no existen como POI en OSM,
+  // mientras que "Guadalupe, Costa Rica" sí es geocodificable.
+  const parts = exact.split(',').map((part) => clean(part)).filter(Boolean)
+  if (parts.length >= 2) {
+    const locality = clean(parts.slice(1).join(', '))
+    push(locality)
+    countryHints.forEach((country) => {
+      if (!normalizeCatalogValue(locality).includes(normalizeCatalogValue(country))) {
+        push(`${locality}, ${country}`)
+      }
+    })
   }
 
-  // 2) Quitar detalles de bodega/local/oficina que normalmente no existen en OSM,
-  // conservando la ciudad/zona/país para poder ubicar el mapa aproximadamente.
-  const relaxed = exact
-    .replace(/\b(?:bodega|warehouse|oficina|office|local|piso|floor|suite|unidad|unit|lote|lot|nave|edificio|building|planta)\b[\s:#.-]*[a-z0-9-]*/gi, ' ')
-    .replace(/\b(?:km|kilometro|kilómetro)\s*\d+(?:[.,]\d+)?\b/gi, ' ')
-    .replace(/\s*,\s*/g, ', ')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
+  // 4) Quitar detalles de bodega/local/oficina que normalmente no existen en OSM.
+  const relaxed = clean(
+    exact
+      .replace(/\b(?:bodega|warehouse|oficina|office|local|piso|floor|suite|unidad|unit|lote|lot|nave|edificio|building|planta)\b[\s:#.-]*[a-z0-9-]*/gi, ' ')
+      .replace(/\b(?:km|kilometro|kilómetro)\s*\d+(?:[.,]\d+)?\b/gi, ' '),
+  )
   push(relaxed)
-  if (
-    relaxed &&
-    originContext &&
-    !normalizeCatalogValue(relaxed).includes(normalizeCatalogValue(originContext))
-  ) {
-    push(`${relaxed}, ${originContext}`)
-  }
+  countryHints.forEach((country) => {
+    if (relaxed && !normalizeCatalogValue(relaxed).includes(normalizeCatalogValue(country))) {
+      push(`${relaxed}, ${country}`)
+    }
+  })
 
-  // 3) Si la dirección viene por segmentos, probar progresivamente la ubicación general:
-  // barrio/ciudad/provincia/país, luego ciudad/provincia/país.
-  const parts = exact.split(',').map((part) => part.trim()).filter(Boolean)
+  // 5) Fallbacks progresivos de ciudad/provincia/país.
   if (parts.length >= 4) push(parts.slice(-4).join(', '))
   if (parts.length >= 3) push(parts.slice(-3).join(', '))
   if (parts.length >= 2) push(parts.slice(-2).join(', '))
 
-  // Último fallback: ubicar aproximadamente el origen/POL. La dirección comercial
-  // específica se conserva intacta en form.pickupAddress.
-  if (originContext) push(originContext)
+  // 6) Como último recurso, usar los nodos de la ruta para al menos centrar el mapa
+  // en la zona correcta sin sustituir la dirección comercial escrita.
+  routeContexts.forEach(push)
 
-  return queries.slice(0, 8)
+  return queries.slice(0, 16)
 }
 
 const pickupGeocodeCache = new Map<string, NominatimResult | null>()
