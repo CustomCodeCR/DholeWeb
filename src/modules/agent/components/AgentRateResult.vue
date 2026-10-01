@@ -12,6 +12,7 @@ type Row = {
   key: string
   status: string
   route: string
+  externalRouteId: string
   equipment: string
   products: string
   oceanFreight: number | null
@@ -173,6 +174,7 @@ const rows = computed<Row[]>(() =>
         {
           key: `${asText(get(result, 'routeId'))}-${asText(get(result, 'equipmentId'))}-${resultIndex}`,
           ...base,
+          externalRouteId: '',
           products: '',
           oceanFreight: asNumber(
             get(fields, 'totalBasicFreightAmount', 'oceanFreight', 'price'),
@@ -196,9 +198,19 @@ const rows = computed<Row[]>(() =>
         ? (get(offer, 'products') as unknown[]).map(asText).filter(Boolean).join(', ')
         : ''
 
+      const availableValue = get(offer, 'available')
+      const offerStatus =
+        availableValue === true || asText(availableValue).toLowerCase() === 'true'
+          ? 'Available'
+          : availableValue === false || asText(availableValue).toLowerCase() === 'false'
+            ? 'Unavailable'
+            : status
+
       return {
         key: `${asText(get(offer, 'externalRouteId')) || resultIndex}-${offerIndex}`,
         ...base,
+        status: offerStatus,
+        externalRouteId: asText(get(offer, 'externalRouteId')),
         products,
         oceanFreight:
           freight.amount ??
@@ -230,6 +242,10 @@ const summary = computed(() => {
     completed: asNumber(get(object, 'completedSearchCount')),
     available: asNumber(get(object, 'availableSearchCount')),
     failed: asNumber(get(object, 'failedSearchCount')),
+    returnedOffers: rows.value.filter((row) => row.externalRouteId).length,
+    availableOffers: rows.value.filter(
+      (row) => row.externalRouteId && row.status.toLowerCase() === 'available',
+    ).length,
   }
 })
 
@@ -256,7 +272,11 @@ function statusVariant(status: string): 'success' | 'danger' | 'warning' | 'neut
       <span v-if="summary.completed != null">
         {{ summary.completed }}/{{ summary.planned ?? summary.completed }} búsquedas completadas
       </span>
-      <span v-if="summary.available != null">· {{ summary.available }} disponibles</span>
+      <span v-if="summary.returnedOffers">
+        · {{ summary.returnedOffers }} salidas devueltas
+      </span>
+      <span v-if="summary.returnedOffers">· {{ summary.availableOffers }} disponibles</span>
+      <span v-else-if="summary.available != null">· {{ summary.available }} disponibles</span>
       <span v-if="summary.failed">· {{ summary.failed }} con error</span>
       <span>· Extraído {{ formatExtractionTime(extractedAt) }}</span>
     </div>
@@ -292,8 +312,14 @@ function statusVariant(status: string): 'success' | 'danger' | 'warning' | 'neut
                   {{ row.error }}
                 </p>
               </td>
-              <td class="min-w-[240px] px-3 py-3 align-top font-bold text-[var(--dh-text)]">
-                {{ row.route }}
+              <td class="min-w-[260px] px-3 py-3 align-top font-bold text-[var(--dh-text)]">
+                <p>{{ row.route }}</p>
+                <p
+                  v-if="row.externalRouteId"
+                  class="mt-1 break-all text-[10px] font-semibold text-[var(--dh-text-muted)]"
+                >
+                  {{ row.externalRouteId }}
+                </p>
               </td>
               <td class="whitespace-nowrap px-3 py-3 align-top font-semibold">
                 {{ row.equipment }}
