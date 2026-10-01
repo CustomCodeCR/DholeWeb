@@ -169,29 +169,33 @@ const rows = computed<Row[]>(() =>
       error: asText(get(result, 'error')),
     }
 
-    if (!offers.length) {
+    const availableOffers = offers.filter((offer) => {
+      const value = get(offer, 'available')
+      return value === true || asText(value).toLowerCase() === 'true'
+    })
+
+    if (!availableOffers.length) {
       return [
         {
           key: `${asText(get(result, 'routeId'))}-${asText(get(result, 'equipmentId'))}-${resultIndex}`,
           ...base,
+          status: status.toLowerCase() === 'error' ? status : 'Unavailable',
           externalRouteId: '',
           products: '',
-          oceanFreight: asNumber(
-            get(fields, 'totalBasicFreightAmount', 'oceanFreight', 'price'),
-          ),
-          allIn: asNumber(get(fields, 'allIn')),
+          oceanFreight: null,
+          allIn: null,
           currency: asText(get(fields, 'currency')) || 'USD',
-          cargoCutoff: get(fields, 'cargoCutoff', 'ccc', 'etd'),
-          etd: get(fields, 'scheduleEtd', 'sailingEtd'),
-          eta: get(fields, 'eta'),
-          transitDays: asNumber(get(fields, 'transitDays', 'transitTime')),
-          vessel: asText(get(fields, 'vessel')),
-          voyage: asText(get(fields, 'voyage')),
+          cargoCutoff: null,
+          etd: null,
+          eta: null,
+          transitDays: null,
+          vessel: '',
+          voyage: '',
         },
       ]
     }
 
-    return offers.map((offer, offerIndex) => {
+    return availableOffers.map((offer, offerIndex) => {
       const freight = moneyParts(get(offer, 'oceanFreight'))
       const allIn = moneyParts(get(offer, 'allIn'))
       const products = Array.isArray(get(offer, 'products'))
