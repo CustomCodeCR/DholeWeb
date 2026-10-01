@@ -1792,6 +1792,8 @@ function chargeBasisLabel(basis: ChargeBasis) {
     PerTruck: 'Por camión',
     PerCbm: 'Por CBM',
     PerChargeableCbm: 'Por CBM cobrable',
+    PerCft: 'Por CFT',
+    PerChargeableCft: 'Por CFT cobrable',
     PerKg: 'Por kg',
     Per100Kg: 'Por 100 kg',
     PerTon: 'Por tonelada',
