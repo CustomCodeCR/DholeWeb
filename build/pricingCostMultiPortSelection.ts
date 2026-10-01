@@ -112,10 +112,10 @@ function patchCostForm(source: string) {
   code = replaceOne(code, validationAnchor, validationReplacement, 'route validation')
 
   const agentWatchAnchor = `      form.carrierId = ''
-      if (form.costDetailType !== 'OriginCharge') {`
+      return`
   const agentWatchReplacement = `      form.carrierId = ''
       form.carrierIds = []
-      if (form.costDetailType !== 'OriginCharge') {`
+      return`
   code = replaceOne(code, agentWatchAnchor, agentWatchReplacement, 'agent party watcher')
 
   const partyClearAnchor = `    form.agentId = ''
