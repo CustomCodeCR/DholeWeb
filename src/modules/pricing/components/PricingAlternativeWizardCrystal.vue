@@ -36,6 +36,8 @@ import type {
   CreateRateRequest,
   ImportRateSelectDto,
   RateDto,
+  RatePickupLocationDto,
+  PickupCargoCondition,
   RateRevisionDto,
   UpdateRateRequest,
   RateOperationType,
@@ -326,6 +328,14 @@ const form = reactive({
   manualName: '',
   manualSection: 'destination_charges' as RateSection,
 })
+
+const pickupLocations = ref<RatePickupLocationDto[]>([])
+const pickupCargoCondition = ref<PickupCargoCondition | ''>('')
+const editingPickupIndex = ref<number | null>(null)
+const pickupCargoConditionOptions: Array<{ label: string; value: PickupCargoCondition }> = [
+  { label: 'Carga fiscal', value: 'FiscalCargo' },
+  { label: 'Carga nacionalizada', value: 'NationalizedCargo' },
+]
 
 const stepTitles = [
   'Modalidad',
@@ -874,6 +884,75 @@ const pickupCoordinates = computed(() => {
   if (form.pickupLatitude == null || form.pickupLongitude == null) return null
   return { latitude: form.pickupLatitude, longitude: form.pickupLongitude }
 })
+const primaryExwPickup = computed(() => pickupLocations.value[0] ?? null)
+
+function pickupCargoConditionLabel(value?: PickupCargoCondition | null) {
+  if (value === 'FiscalCargo') return 'Carga fiscal'
+  if (value === 'NationalizedCargo') return 'Carga nacionalizada'
+  return 'Sin clasificar'
+}
+
+function pickupLocationsPayload() {
+  return pickupLocations.value.map((location) => ({
+    address: location.address.trim(),
+    latitude: location.latitude ?? null,
+    longitude: location.longitude ?? null,
+    cargoCondition: location.cargoCondition ?? null,
+  }))
+}
+
+function resetPickupEditor() {
+  editingPickupIndex.value = null
+  pickupCargoCondition.value = ''
+  form.pickupAddress = ''
+  form.pickupLatitude = null
+  form.pickupLongitude = null
+  nearestPortRecommendations.value = []
+}
+
+function savePickupLocation() {
+  const address = form.pickupAddress.trim()
+  if (!address) {
+    toastStore.warning('Dirección requerida', 'Indique la dirección de esta recolecta.')
+    return
+  }
+  if (!pickupCoordinates.value) {
+    toastStore.warning('Ubicación requerida', 'Ubique la recolecta en el mapa antes de agregarla.')
+    return
+  }
+  if (!pickupCargoCondition.value) {
+    toastStore.warning('Tipo de carga requerido', 'Seleccione si esta recolecta es carga fiscal o carga nacionalizada.')
+    return
+  }
+
+  const pickup: RatePickupLocationDto = {
+    address,
+    latitude: form.pickupLatitude,
+    longitude: form.pickupLongitude,
+    cargoCondition: pickupCargoCondition.value,
+  }
+
+  if (editingPickupIndex.value == null) pickupLocations.value.push(pickup)
+  else pickupLocations.value.splice(editingPickupIndex.value, 1, pickup)
+  resetPickupEditor()
+}
+
+function editPickupLocation(index: number) {
+  const pickup = pickupLocations.value[index]
+  if (!pickup) return
+  editingPickupIndex.value = index
+  form.pickupAddress = pickup.address
+  form.pickupLatitude = pickup.latitude ?? null
+  form.pickupLongitude = pickup.longitude ?? null
+  pickupCargoCondition.value = pickup.cargoCondition ?? ''
+  nearestPortRecommendations.value = []
+}
+
+function removePickupLocation(index: number) {
+  pickupLocations.value.splice(index, 1)
+  if (editingPickupIndex.value === index) resetPickupEditor()
+  else if (editingPickupIndex.value != null && editingPickupIndex.value > index) editingPickupIndex.value -= 1
+}
 const warehouseMapMarkers = computed(() =>
   catalogs.warehouses.flatMap((warehouse) => {
     let latitude = metadataNumber(warehouse, 'latitude', 'lat')
@@ -896,7 +975,7 @@ const warehouseMapMarkers = computed(() =>
 )
 const exwLocationReady = computed(() =>
   selectedIncotermCode.value !== 'EXW' ||
-  Boolean(form.pickupAddress.trim() && pickupCoordinates.value),
+  (pickupLocations.value.length > 0 && !form.pickupAddress.trim()),
 )
 const fcaLocationReady = computed(() =>
   selectedIncotermCode.value !== 'FCA' ||
@@ -1288,7 +1367,7 @@ const visibleSections = computed<RateSection[]>(() => {
   return sectionOrder.filter((section) => allowed.has(section))
 })
 
-const includedLines = computed(() => rateLines.value.filter((line) => line.included))
+const includedLines = computed(() => rateLines.value.filter((line) => line.included && lineMatchesPickupCargoCondition(line)))
 function haulageAssociation(line: { name: string }) {
   const value = normalizeCatalogValue(line.name)
   if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
@@ -1298,7 +1377,7 @@ function haulageAssociation(line: { name: string }) {
 
 const selectableOptionalLines = computed(() =>
   rateLines.value.filter((line) => {
-    if (!line.optional) return false
+    if (!line.optional || !lineMatchesPickupCargoCondition(line)) return false
     const association = haulageAssociation(line)
     if (!association) return true
     if (form.merchantHaulage) return association === 'merchant'
@@ -1336,6 +1415,7 @@ function standardSectionLines(section: RateSection) {
     (line) =>
       line.section === section
       && line.included
+      && lineMatchesPickupCargoCondition(line)
       && (!line.manual || line.costDetailType === 'Freight')
       && line.costDetailType !== 'AgentCharge',
   )
@@ -1345,19 +1425,21 @@ const agentLines = computed(() =>
   rateLines.value.filter(
     (line) =>
       line.included
+      && lineMatchesPickupCargoCondition(line)
       && line.costDetailType === 'AgentCharge'
       && !line.manual,
   ),
 )
 
 const insuranceLines = computed(() =>
-  rateLines.value.filter((line) => line.included && !line.manual && line.costDetailType === 'Insurance'),
+  rateLines.value.filter((line) => line.included && lineMatchesPickupCargoCondition(line) && !line.manual && line.costDetailType === 'Insurance'),
 )
 
 const bottomRateLines = computed(() =>
   rateLines.value.filter(
     (line) =>
       line.included
+      && lineMatchesPickupCargoCondition(line)
       && line.manual
       && line.costDetailType !== 'Insurance'
       && line.costDetailType !== 'Freight',
@@ -1411,7 +1493,7 @@ function lineTaxAmount(line: RateLine) {
     : 0
 }
 function lineTaxTotalAmount(line: RateLine) {
-  return lineTaxAmount(line) * quantityForChargeBasis(line.chargeBasis)
+  return lineTaxAmount(line) * quantityForRateLine(line)
 }
 function lineSaleWithTax(line: RateLine) {
   return number(line.saleAmount) + lineTaxAmount(line)
@@ -1464,7 +1546,7 @@ function convertUsdCrc(amount: number, sourceCode: string, targetCode: 'USD' | '
 }
 function sumLinesInCurrency(amount: (line: RateLine) => number, target: 'USD' | 'CRC') {
   return includedLines.value.reduce((sum, line) => {
-    const quantity = Math.max(0, number(quantityForChargeBasis(line.chargeBasis)))
+    const quantity = Math.max(0, number(quantityForRateLine(line)))
     const lineTotal = number(amount(line)) * quantity
     return sum + convertUsdCrc(lineTotal, canonicalCurrencyCode(line), target)
   }, 0)
@@ -1635,16 +1717,52 @@ function defaultChargeBasis(type: CostDetailType): ChargeBasis {
   return 'PerShipment'
 }
 
-function quantityForChargeBasis(basis: ChargeBasis) {
-  if (basis === 'PerContainer' || basis === 'PerTruck') {
-    return Math.max(1, form.equipmentQuantity)
-  }
+function pickupCargoConditionsMatch(conditions: readonly string[] | null | undefined) {
+  const selected = conditions ?? []
+  const requiresFiscal = selected.includes('FiscalCargo')
+  const requiresNationalized = selected.includes('NationalizedCargo')
+  if (!requiresFiscal && !requiresNationalized) return true
+  if (selectedIncotermCode.value !== 'EXW') return false
+  return pickupLocations.value.some((pickup) =>
+    (requiresFiscal && pickup.cargoCondition === 'FiscalCargo')
+    || (requiresNationalized && pickup.cargoCondition === 'NationalizedCargo'),
+  )
+}
+
+function pickupQuantityForConditions(conditions: readonly string[] | null | undefined) {
+  if (selectedIncotermCode.value !== 'EXW') return 1
+  const selected = conditions ?? []
+  const requiresFiscal = selected.includes('FiscalCargo')
+  const requiresNationalized = selected.includes('NationalizedCargo')
+  if (!requiresFiscal && !requiresNationalized) return pickupLocations.value.length
+  return pickupLocations.value.filter((pickup) =>
+    (requiresFiscal && pickup.cargoCondition === 'FiscalCargo')
+    || (requiresNationalized && pickup.cargoCondition === 'NationalizedCargo'),
+  ).length
+}
+
+function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {
+  if (basis === 'PerContainer' || basis === 'PerTruck') return Math.max(1, form.equipmentQuantity)
   if (basis === 'PerTeu') {
     const equipment = `${selectedEquipment.value?.code ?? ''} ${displayValue(selectedEquipment.value)}`
     const multiplier = /(^|\D)20(\D|$)/.test(equipment) ? 1 : 2
     return Math.max(1, form.equipmentQuantity) * multiplier
   }
+  if (basis === 'PerPickup') return pickupQuantityForConditions(conditions)
   return 1
+}
+
+function operationalConditionsForLine(line: RateLine) {
+  if (!line.costId) return [] as string[]
+  return costs.value.find((cost) => cost.id === line.costId)?.operationalConditions ?? []
+}
+
+function lineMatchesPickupCargoCondition(line: RateLine) {
+  return pickupCargoConditionsMatch(operationalConditionsForLine(line))
+}
+
+function quantityForRateLine(line: RateLine) {
+  return quantityForChargeBasis(line.chargeBasis, operationalConditionsForLine(line))
 }
 
 function detailTypeLabel(type: CostDetailType) {
@@ -1668,6 +1786,7 @@ function chargeBasisLabel(basis: ChargeBasis) {
     PerService: 'Por Servicio',
     PerContainer: 'Por contenedor',
     PerTeu: 'Por TEU',
+    PerPickup: 'Por recolecta',
     PerTruck: 'Por camión',
     PerCbm: 'Por CBM',
     PerChargeableCbm: 'Por CBM cobrable',
@@ -1698,6 +1817,7 @@ function applicableCost(cost: CostSelectDto) {
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
+  if (!pickupCargoConditionsMatch(cost.operationalConditions)) return false
   if (cost.carrierId && cost.carrierId !== form.carrierId) return false
   if (cost.agentId && cost.agentId !== form.agentId) return false
   if (cost.polId && cost.polId !== form.originId) return false
@@ -2852,9 +2972,19 @@ async function hydrateExistingRate() {
     commercialRejectionReason.value = rate.status === 'RejectedByClient' ? rate.closedReason ?? '' : ''
     commercialAction.value = null
     commercialActionError.value = ''
-    form.pickupAddress = rate.pickupAddress ?? ''
-    form.pickupLatitude = rate.pickupLatitude ?? null
-    form.pickupLongitude = rate.pickupLongitude ?? null
+    if (selectedIncotermCode.value === 'EXW') {
+      pickupLocations.value = rate.pickupLocations?.length
+        ? rate.pickupLocations.map((pickup) => ({ ...pickup }))
+        : rate.pickupAddress
+          ? [{ address: rate.pickupAddress, latitude: rate.pickupLatitude ?? null, longitude: rate.pickupLongitude ?? null, cargoCondition: null }]
+          : []
+      resetPickupEditor()
+    } else {
+      pickupLocations.value = []
+      form.pickupAddress = rate.pickupAddress ?? ''
+      form.pickupLatitude = rate.pickupLatitude ?? null
+      form.pickupLongitude = rate.pickupLongitude ?? null
+    }
     // Tarifas nuevas persisten WarehouseId. Para tarifas históricas, resolver por
     // dirección/coordenadas evita que una revisión FCA pierda el WHS seleccionado.
     form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
@@ -3419,9 +3549,16 @@ async function saveOpenRequest() {
       incotermName: displayValue(incoterm),
       incotermCode: incoterm.code,
       warehouseId: selectedIncotermCode.value === 'FCA' ? form.warehouseId || null : null,
-      pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
-      pickupLatitude: form.pickupLatitude,
-      pickupLongitude: form.pickupLongitude,
+      pickupAddress: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.address ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupAddress.trim() || null : null,
+      pickupLatitude: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.latitude ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupLatitude : null,
+      pickupLongitude: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.longitude ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupLongitude : null,
+      pickupLocations: selectedIncotermCode.value === 'EXW' ? pickupLocationsPayload() : [],
       exchangeRatePurchase: exchangeRatePurchase.value,
       exchangeRateSale: exchangeRateSale.value,
       exchangeRateApplied: exchangeRateSale.value,
@@ -3573,7 +3710,7 @@ async function saveRate() {
     costAmount: number(line.costAmount),
     saleAmount: number(line.saleAmount),
     billToClient: normalizeBillToClient(line.billToClient),
-    quantity: quantityForChargeBasis(line.chargeBasis),
+    quantity: quantityForRateLine(line),
     applyDestinationTax: Boolean(line.applyDestinationTax) && canApplyDestinationTax(line),
     destinationTaxRate:
       Boolean(line.applyDestinationTax) && canApplyDestinationTax(line)
@@ -3694,9 +3831,16 @@ async function saveRate() {
       incotermName: displayValue(incoterm),
       incotermCode: incoterm!.code,
       warehouseId: selectedIncotermCode.value === 'FCA' ? form.warehouseId || null : null,
-      pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
-      pickupLatitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLatitude : null,
-      pickupLongitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLongitude : null,
+      pickupAddress: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.address ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupAddress.trim() || null : null,
+      pickupLatitude: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.latitude ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupLatitude : null,
+      pickupLongitude: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.longitude ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupLongitude : null,
+      pickupLocations: selectedIncotermCode.value === 'EXW' ? pickupLocationsPayload() : [],
       exchangeRatePurchase: exchangeRatePurchase.value,
       exchangeRateSale: exchangeRateSale.value,
       exchangeRateApplied: exchangeRateSale.value,
@@ -3812,6 +3956,9 @@ function resetWizard() {
   allInPresentation.value = true
   supportDocuments.value = []
   finalBackupDocuments.value = []
+  pickupLocations.value = []
+  pickupCargoCondition.value = ''
+  editingPickupIndex.value = null
   Object.assign(form, {
     rateType: 'Spot',
     modality: '',
@@ -3878,6 +4025,11 @@ watch(
   (code) => {
     nearestPortRecommendations.value = []
     if (code !== 'FCA') form.warehouseId = ''
+    if (code !== 'EXW') {
+      pickupLocations.value = []
+      pickupCargoCondition.value = ''
+      editingPickupIndex.value = null
+    }
     if (code !== 'EXW' && code !== 'FCA') {
       form.pickupAddress = ''
       form.pickupLatitude = null
@@ -4291,6 +4443,14 @@ onMounted(async () => {
             </div>
             <DhButton v-if="selectedIncotermCode === 'FCA'" variant="ghost" @click="router.push({ name: 'config-catalogs', query: { search: 'pricing-warehouses' } })">Administrar / crear WHS en Config</DhButton>
 
+            <DhSelect
+              v-if="selectedIncotermCode === 'EXW'"
+              v-model="pickupCargoCondition"
+              label="Tipo de carga en esta recolecta"
+              :options="pickupCargoConditionOptions"
+              placeholder="Seleccione carga fiscal o carga nacionalizada"
+            />
+
             <DhInput
               v-model="form.pickupAddress"
               :label="selectedIncotermCode === 'EXW' ? 'Dirección de recolección' : 'Dirección del WHS'"
@@ -4313,6 +4473,13 @@ onMounted(async () => {
                 @click="useCurrentLocation"
               >
                 Usar mi ubicación
+              </DhButton>
+              <DhButton
+                v-if="selectedIncotermCode === 'EXW'"
+                :disabled="!form.pickupAddress.trim() || !pickupCoordinates || !pickupCargoCondition"
+                @click="savePickupLocation"
+              >
+                {{ editingPickupIndex == null ? 'Agregar recolecta' : 'Actualizar recolecta' }}
               </DhButton>
             </div>
 
@@ -4349,6 +4516,34 @@ onMounted(async () => {
             <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
               Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
             </p>
+
+            <div v-if="selectedIncotermCode === 'EXW'" class="space-y-2">
+              <div
+                v-for="(pickup, index) in pickupLocations"
+                :key="`${index}:${pickup.address}`"
+                class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <strong class="text-sm">Recolecta {{ index + 1 }}</strong>
+                      <DhBadge variant="primary">{{ pickupCargoConditionLabel(pickup.cargoCondition) }}</DhBadge>
+                    </div>
+                    <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-soft)]">{{ pickup.address }}</p>
+                    <p v-if="pickup.latitude != null && pickup.longitude != null" class="mt-1 text-[10px] font-bold text-[var(--dh-text-muted)]">
+                      {{ Number(pickup.latitude).toFixed(6) }}, {{ Number(pickup.longitude).toFixed(6) }}
+                    </p>
+                  </div>
+                  <div class="flex gap-2">
+                    <button type="button" class="text-xs font-black text-[var(--dh-primary)]" @click="editPickupLocation(index)">Editar</button>
+                    <button type="button" class="text-xs font-black text-red-500" @click="removePickupLocation(index)">Eliminar</button>
+                  </div>
+                </div>
+              </div>
+              <p v-if="!pickupLocations.length" class="text-[11px] font-bold text-amber-600">
+                Agregue al menos una recolecta y clasifíquela como carga fiscal o carga nacionalizada.
+              </p>
+            </div>
 
             <div v-if="selectedIncotermCode === 'EXW'" class="space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
@@ -4914,7 +5109,7 @@ onMounted(async () => {
                       <strong class="block">{{ line.name }}</strong>
                       <span class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}</span>
                     </div>
-                    <strong>{{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), line.currencyCode || line.currencyName || 'USD') }}</strong>
+                    <strong>{{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), line.currencyCode || line.currencyName || 'USD') }}</strong>
                   </div>
                 </div>
               </details>
@@ -5197,7 +5392,7 @@ onMounted(async () => {
                       <p v-if="line.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ line.notes }}</p>
                     </td>
                     <td class="px-4 py-3">{{ chargeBasisLabel(line.chargeBasis) }}</td>
-                    <td class="px-4 py-3">{{ quantityForChargeBasis(line.chargeBasis).toLocaleString('es-CR') }}</td>
+                    <td class="px-4 py-3">{{ quantityForRateLine(line).toLocaleString('es-CR') }}</td>
                     <td class="px-4 py-3 font-black">{{ detailCurrencyValue(line) }}</td>
                     <td class="px-4 py-3 font-semibold">{{ line.billToClient || '—' }}</td>
                     <td class="px-4 py-3 text-right">{{ formatMoney(number(line.costAmount), canonicalCurrencyCode(line)) }}</td>
@@ -5205,7 +5400,7 @@ onMounted(async () => {
                       {{ formatMoney(number(line.saleAmount), canonicalCurrencyCode(line)) }}
                     </td>
                     <td class="px-4 py-3 text-right font-semibold">
-                      {{ formatMoney(number(line.saleAmount) * quantityForChargeBasis(line.chargeBasis), canonicalCurrencyCode(line)) }}
+                      {{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), canonicalCurrencyCode(line)) }}
                     </td>
                     <td
                       class="px-4 py-3 text-right font-semibold"
@@ -5214,7 +5409,7 @@ onMounted(async () => {
                       {{ formatMoney(lineTaxTotalAmount(line), canonicalCurrencyCode(line)) }}
                     </td>
                     <td class="px-4 py-3 text-right font-black">
-                      {{ formatMoney(lineSaleWithTax(line) * quantityForChargeBasis(line.chargeBasis), canonicalCurrencyCode(line)) }}
+                      {{ formatMoney(lineSaleWithTax(line) * quantityForRateLine(line), canonicalCurrencyCode(line)) }}
                     </td>
                   </tr>
                 </tbody>
