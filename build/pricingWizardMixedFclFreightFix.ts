@@ -13,12 +13,14 @@ function replaceRequired(source: string, anchor: string, replacement: string, la
 function patchWizard(source: string) {
   let code = source
 
-  code = replaceRequired(
-    code,
-    '  detailId?: string | null\n}',
-    '  detailId?: string | null\n  quantityOverride?: number | null\n}',
-    'RateLine quantity override',
-  )
+  if (!code.includes('quantityOverride?: number | null')) {
+    code = replaceRequired(
+      code,
+      '  detailId?: string | null\\n}',
+      '  detailId?: string | null\\n  quantityOverride?: number | null\\n}',
+      'RateLine quantity override',
+    )
+  }
 
   const quantityUsage = 'quantityForChargeBasis(line.chargeBasis)'
   const quantityUsageCount = code.split(quantityUsage).length - 1
@@ -29,16 +31,22 @@ function patchWizard(source: string) {
   }
   code = code.split(quantityUsage).join('quantityForRateLine(line)')
 
+  const quantityHelper = code.includes('function quantityForRateLine(line: RateLine)')
+    ? []
+    : [
+        'function quantityForRateLine(line: RateLine) {',
+        '  const explicitQuantity = number(line.quantityOverride)',
+        '  if (explicitQuantity > 0) return explicitQuantity',
+        '  return quantityForChargeBasis(line.chargeBasis)',
+        '}',
+        '',
+      ]
+
   code = replaceRequired(
     code,
     'function detailTypeLabel(type: CostDetailType) {',
     [
-      'function quantityForRateLine(line: RateLine) {',
-      '  const explicitQuantity = number(line.quantityOverride)',
-      '  if (explicitQuantity > 0) return explicitQuantity',
-      '  return quantityForChargeBasis(line.chargeBasis)',
-      '}',
-      '',
+      ...quantityHelper,
       'function persistedFclFreightForContainer(',
       '  rate: RateDto,',
       '  container: { containerTypeName?: string | null; containerTypeCode?: string | null },',
