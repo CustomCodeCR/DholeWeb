@@ -73,6 +73,7 @@ import { pricingWizardMultipleDrafts } from './build/pricingWizardMultipleDrafts
 import { pricingWizardLclManualColoader } from './build/pricingWizardLclManualColoader'
 import { pricingWizardLtlProviderParity } from './build/pricingWizardLtlProviderParity'
 import { pricingOptionalChargesFinalGuard } from './build/pricingOptionalChargesFinalGuard'
+import { pricingConsolidatedCargo20261001 } from './build/pricingConsolidatedCargo20261001'
 
 export default defineConfig({
   plugins: [
@@ -148,6 +149,7 @@ export default defineConfig({
     pricingWizardLclManualColoader(),
     pricingWizardLtlProviderParity(),
     pricingOptionalChargesFinalGuard(),
+    pricingConsolidatedCargo20261001(),
     vue(),
     tailwindcss(),
   ],
