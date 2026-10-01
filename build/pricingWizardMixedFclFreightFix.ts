@@ -16,8 +16,8 @@ function patchWizard(source: string) {
   if (!code.includes('quantityOverride?: number | null')) {
     code = replaceRequired(
       code,
-      '  detailId?: string | null\\n}',
-      '  detailId?: string | null\\n  quantityOverride?: number | null\\n}',
+      '  detailId?: string | null\n}',
+      '  detailId?: string | null\n  quantityOverride?: number | null\n}',
       'RateLine quantity override',
     )
   }
