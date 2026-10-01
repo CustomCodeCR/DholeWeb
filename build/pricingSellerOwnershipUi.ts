@@ -30,12 +30,14 @@ function patchWizard(source: string) {
     )
   }
 
-  code = replaceOne(
-    code,
-    `})\n\nconst stepTitles = [`,
-    `})\n\nconst sellerExecutiveLabel = computed(() => {\n  const name = String(authStore.displayName || authStore.userDisplayName || '').trim()\n  const username = String(authStore.username || authStore.email?.split('@')[0] || '').trim()\n  if (name && username) return name.toLowerCase() === username.toLowerCase() ? name : name + ' - ' + username\n  return name || username\n})\n\nwatch(\n  () => [props.sellerRequestMode, sellerExecutiveLabel.value] as const,\n  ([sellerMode, label]) => {\n    if (!sellerMode || !label) return\n    form.executiveId = ''\n    form.executiveName = label\n  },\n  { immediate: true },\n)\n\nconst stepTitles = [`,
-    'seller executive computed state',
-  )
+  if (!code.includes('const sellerExecutiveLabel = computed(() => {')) {
+    code = replaceOne(
+      code,
+      'const stepTitles = [',
+      "const sellerExecutiveLabel = computed(() => {\n  const name = String(authStore.displayName || authStore.userDisplayName || '').trim()\n  const username = String(authStore.username || authStore.email?.split('@')[0] || '').trim()\n  if (name && username) return name.toLowerCase() === username.toLowerCase() ? name : name + ' - ' + username\n  return name || username\n})\n\nwatch(\n  () => [props.sellerRequestMode, sellerExecutiveLabel.value] as const,\n  ([sellerMode, label]) => {\n    if (!sellerMode || !label) return\n    form.executiveId = ''\n    form.executiveName = label\n  },\n  { immediate: true },\n)\n" + 'const stepTitles = [',
+      'seller executive computed state',
+    )
+  }
 
   code = replaceOne(
     code,
