@@ -59,10 +59,19 @@ export function pricingCargoHaulageKeywordFix(): Plugin {
         'full optional condition synchronization',
       )
 
+      const optionalVisibilityAnchor = code.includes(
+        `    if (!line.optional || !lineMatchesPickupCargoCondition(line)) return false\n    const association = haulageAssociation(line)`,
+      )
+        ? `    if (!line.optional || !lineMatchesPickupCargoCondition(line)) return false\n    const association = haulageAssociation(line)`
+        : `    if (!line.optional) return false\n    const association = haulageAssociation(line)`
+      const optionalVisibilityReplacement = optionalVisibilityAnchor.replace(
+        `    const association = haulageAssociation(line)`,
+        `    if (cargoConditionSelection(line) === false || portHandlingConditionSelection(line) === false) return false\n    const association = haulageAssociation(line)`,
+      )
       code = replaceRequired(
         code,
-        `    if (!line.optional) return false\n    const association = haulageAssociation(line)`,
-        `    if (!line.optional) return false\n    if (cargoConditionSelection(line) === false || portHandlingConditionSelection(line) === false) return false\n    const association = haulageAssociation(line)`,
+        optionalVisibilityAnchor,
+        optionalVisibilityReplacement,
         'optional line visibility',
       )
 
