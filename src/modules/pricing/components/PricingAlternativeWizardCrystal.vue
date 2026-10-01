@@ -1762,6 +1762,8 @@ function lineMatchesPickupCargoCondition(line: RateLine) {
 }
 
 function quantityForRateLine(line: RateLine) {
+  const explicitQuantity = number((line as RateLine & { quantityOverride?: number | null }).quantityOverride)
+  if (explicitQuantity > 0) return explicitQuantity
   return quantityForChargeBasis(line.chargeBasis, operationalConditionsForLine(line))
 }
 
