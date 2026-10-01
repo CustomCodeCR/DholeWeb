@@ -38,6 +38,10 @@ function patchWizard(source: string) {
       return form.portHandlingMode === 'Anticipado'
     case 'Redestino':
       return form.portHandlingMode === 'Redestino'
+    case 'FiscalCargo':
+      return pickupLocations.value.some((pickup) => pickup.cargoCondition === 'FiscalCargo')
+    case 'NationalizedCargo':
+      return pickupLocations.value.some((pickup) => pickup.cargoCondition === 'NationalizedCargo')
     default:
       return false
   }
@@ -92,7 +96,7 @@ function shouldIncludeOptionalCost(line: {
     code,
     /const selectableOptionalLines = computed\(\(\) =>[\s\S]*?\n\)\nconst optionalChargeOptions = computed/,
     `const selectableOptionalLines = computed(() =>
-  rateLines.value.filter((line) => line.optional),
+  rateLines.value.filter((line) => line.optional && lineMatchesPickupCargoCondition(line)),
 )
 const optionalChargeOptions = computed`,
     'multimodal optional selector exclusion',
