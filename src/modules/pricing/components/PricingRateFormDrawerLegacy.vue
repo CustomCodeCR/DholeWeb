@@ -762,6 +762,8 @@ const chargeBasisOptions: Array<{ label: string; value: ChargeBasis }> = [
   { label: 'Por camión', value: 'PerTruck' },
   { label: 'Por CBM', value: 'PerCbm' },
   { label: 'Por CBM cobrable', value: 'PerChargeableCbm' },
+  { label: 'Por CFT', value: 'PerCft' },
+  { label: 'Por CFT cobrable', value: 'PerChargeableCft' },
   { label: 'Por KG', value: 'PerKg' },
   { label: 'Por 100 KG', value: 'Per100Kg' },
   { label: 'Por tonelada', value: 'PerTon' },
