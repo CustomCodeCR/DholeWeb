@@ -56,7 +56,7 @@ import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateR
 import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
 import PricingCompetitorTariffMatchModal from '@/modules/pricing/components/PricingCompetitorTariffMatchModal.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
-import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
@@ -2981,7 +2981,7 @@ async function downloadCurrentQuote() {
     downloadingQuote.value = true
     await PricingService.downloadRateDocument(
       editingRate.value.id,
-      editingRate.value.rateName || editingRate.value.rateCode,
+      rateDisplayName(editingRate.value),
       { format: 'pdf' },
     )
   } catch (error) {
@@ -3935,7 +3935,7 @@ onMounted(async () => {
             <DhBadge :label="`Revisión ${editingRate.revisionNumber || 1}`" variant="neutral" />
             <DhBadge :label="editingRate.status" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
           </div>
-          <p class="mt-3 text-lg font-black">{{ editingRate.rateName }}</p>
+          <p class="mt-3 text-lg font-black">{{ rateDisplayName(editingRate) }}</p>
           <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ editingRate.quoNumber || '—' }}</p>
         </div>
         <DhButton v-if="viewOnly" variant="secondary" @click="editCurrentRate">Editar en este wizard</DhButton>
