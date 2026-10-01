@@ -23,6 +23,7 @@ import {
   formatDate,
   formatMoney,
   marginTone,
+  landEquipmentSummary,
   rateDisplayName,
   routeLabel,
   statusTone,
@@ -63,10 +64,20 @@ function containerSummary(rate: RateDto) {
   if (rate.shipmentMode === 'Lcl' || rate.shipmentMode === 'Ltl') {
     return `${rate.shipmentMode.toUpperCase()} · ${Number(rate.chargeableQuantity || 0).toFixed(3)} CBM`
   }
-  if (rate.shipmentMode === 'Ftl') return `${rate.containerQuantity} × FTL`
+  if (rate.shipmentMode === 'Ftl') return landEquipmentSummary(rate)
   const allocations = rate.containers?.filter((item) => item.quantity > 0) ?? []
   if (allocations.length === 0) return `${rate.containerQuantity} × ${rate.containerTypeName}`
   return allocations.map((item) => `${item.quantity} × ${item.containerTypeName}`).join(' + ')
+}
+
+function operationProvider(rate: RateDto) {
+  if (rate.shipmentMode === 'Ftl') return 'TIGSA'
+  return rate.carrierName || 'Sin naviera'
+}
+
+function operationAgent(rate: RateDto) {
+  if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Grupo Castro Fallas'
+  return rate.agentName || '—'
 }
 
 function canonicalRateCurrency(code?: string | null, name?: string | null) {
@@ -797,9 +808,9 @@ onMounted(async () => {
                 </td>
                 <td class="px-4 py-4">
                   <div class="min-w-[190px]">
-                    <p class="font-black text-[var(--dh-text)]">{{ row.carrierName || 'Sin naviera' }}</p>
+                    <p class="font-black text-[var(--dh-text)]">{{ operationProvider(row) }}</p>
                     <p class="mt-1 text-sm font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
-                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Agente: {{ row.agentName || '—' }}</p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Agente: {{ operationAgent(row) }}</p>
                   </div>
                 </td>
                 <td class="px-4 py-4">
