@@ -147,25 +147,9 @@ export function pricingWizardEnhancements(): Plugin {
         code = replaceOne(code, cargoLineAnchor, cargoLineReplacement, 'LCL cargo line dimensions')
       }
 
-      code = replaceMany(
-        code,
-        "pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value)",
-        "pickupAddress: ['EXW', 'FCA', 'FOB'].includes(selectedIncotermCode.value)",
-        2,
-        'FOB pickup address persistence',
-      )
-      code = replaceOne(
-        code,
-        "pickupLatitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value)",
-        "pickupLatitude: ['EXW', 'FCA', 'FOB'].includes(selectedIncotermCode.value)",
-        'FOB pickup latitude persistence',
-      )
-      code = replaceOne(
-        code,
-        "pickupLongitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value)",
-        "pickupLongitude: ['EXW', 'FCA', 'FOB'].includes(selectedIncotermCode.value)",
-        'FOB pickup longitude persistence',
-      )
+      code = replaceMany(code, "pickupAddress: selectedIncotermCode.value === 'EXW'\n        ? primaryExwPickup.value?.address ?? null\n        : selectedIncotermCode.value === 'FCA' ? form.pickupAddress.trim() || null : null,", "pickupAddress: selectedIncotermCode.value === 'EXW'\n        ? primaryExwPickup.value?.address ?? null\n        : ['FCA', 'FOB'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,", 2, 'FOB pickup address persistence')
+      code = replaceMany(code, "pickupLatitude: selectedIncotermCode.value === 'EXW'\n        ? primaryExwPickup.value?.latitude ?? null\n        : selectedIncotermCode.value === 'FCA' ? form.pickupLatitude : null,", "pickupLatitude: selectedIncotermCode.value === 'EXW'\n        ? primaryExwPickup.value?.latitude ?? null\n        : ['FCA', 'FOB'].includes(selectedIncotermCode.value) ? form.pickupLatitude : null,", 2, 'FOB pickup latitude persistence')
+      code = replaceMany(code, "pickupLongitude: selectedIncotermCode.value === 'EXW'\n        ? primaryExwPickup.value?.longitude ?? null\n        : selectedIncotermCode.value === 'FCA' ? form.pickupLongitude : null,", "pickupLongitude: selectedIncotermCode.value === 'EXW'\n        ? primaryExwPickup.value?.longitude ?? null\n        : ['FCA', 'FOB'].includes(selectedIncotermCode.value) ? form.pickupLongitude : null,", 2, 'FOB pickup longitude persistence')
 
       const nextAnchor = `  if (!canNext.value) return\n  if (step.value === 4) await searchApprovedRates()\n  if (step.value === 6) {\n    await loadApplicableCosts()\n    rebuildRateLines()\n  }\n  if (step.value < 8) step.value += 1`
       const nextReplacement = `  if (!canNext.value) return\n  if (step.value === 4) await searchApprovedRates()\n  if (step.value === 6) {\n    await loadApplicableCosts()\n    if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value) {\n      const freight = rateLines.value.find((line) => line.costDetailType === 'Freight')\n      if (freight) {\n        freight.costAmount = number(form.freightCost)\n        freight.saleAmount = number(form.freightSale)\n      }\n      mergeConfiguredOptionalCostsIntoRateLines(true)\n    } else {\n      rebuildRateLines()\n    }\n  }\n  if (step.value < 8) step.value += 1`
