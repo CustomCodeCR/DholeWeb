@@ -36,6 +36,8 @@ export type ChargeBasis =
   | 'PerPickup'
   | 'PerCbm'
   | 'PerChargeableCbm'
+  | 'PerCft'
+  | 'PerChargeableCft'
   | 'PerKg'
   | 'Per100Kg'
   | 'PerTon'
@@ -630,6 +632,9 @@ export interface RateCargoLineDto extends Record<string, unknown> {
   widthCm: number
   heightCm: number
   volumeCbm: number
+  isStackable?: boolean | null
+  billableVolumeCbm: number
+  deadSpaceCbm: number
 }
 
 export interface RateCargoLineRequest extends Record<string, unknown> {
@@ -640,6 +645,7 @@ export interface RateCargoLineRequest extends Record<string, unknown> {
   lengthCm: number
   widthCm: number
   heightCm: number
+  isStackable?: boolean | null
 }
 
 export interface PricingExchangeRateDto extends Record<string, unknown> {
