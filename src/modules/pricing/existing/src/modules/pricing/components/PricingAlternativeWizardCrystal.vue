@@ -2893,9 +2893,19 @@ async function hydrateExistingRate() {
     commercialRejectionReason.value = rate.status === 'RejectedByClient' ? rate.closedReason ?? '' : ''
     commercialAction.value = null
     commercialActionError.value = ''
-    form.pickupAddress = rate.pickupAddress ?? ''
-    form.pickupLatitude = rate.pickupLatitude ?? null
-    form.pickupLongitude = rate.pickupLongitude ?? null
+    if (selectedIncotermCode.value === 'EXW') {
+      pickupLocations.value = rate.pickupLocations?.length
+        ? rate.pickupLocations.map((pickup) => ({ ...pickup }))
+        : rate.pickupAddress
+          ? [{ address: rate.pickupAddress, latitude: rate.pickupLatitude ?? null, longitude: rate.pickupLongitude ?? null, cargoCondition: null }]
+          : []
+      resetPickupEditor()
+    } else {
+      pickupLocations.value = []
+      form.pickupAddress = rate.pickupAddress ?? ''
+      form.pickupLatitude = rate.pickupLatitude ?? null
+      form.pickupLongitude = rate.pickupLongitude ?? null
+    }
     // Tarifas nuevas persisten WarehouseId. Para tarifas históricas, resolver por
     // dirección/coordenadas evita que una revisión FCA pierda el WHS seleccionado.
     form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
@@ -3460,9 +3470,16 @@ async function saveOpenRequest() {
       incotermName: displayValue(incoterm),
       incotermCode: incoterm.code,
       warehouseId: selectedIncotermCode.value === 'FCA' ? form.warehouseId || null : null,
-      pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
-      pickupLatitude: form.pickupLatitude,
-      pickupLongitude: form.pickupLongitude,
+      pickupAddress: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.address ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupAddress.trim() || null : null,
+      pickupLatitude: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.latitude ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupLatitude : null,
+      pickupLongitude: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.longitude ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupLongitude : null,
+      pickupLocations: selectedIncotermCode.value === 'EXW' ? pickupLocationsPayload() : [],
       exchangeRatePurchase: exchangeRatePurchase.value,
       exchangeRateSale: exchangeRateSale.value,
       exchangeRateApplied: exchangeRateSale.value,
@@ -3709,9 +3726,16 @@ async function saveRate() {
       incotermName: displayValue(incoterm),
       incotermCode: incoterm!.code,
       warehouseId: selectedIncotermCode.value === 'FCA' ? form.warehouseId || null : null,
-      pickupAddress: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupAddress.trim() || null : null,
-      pickupLatitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLatitude : null,
-      pickupLongitude: ['EXW', 'FCA'].includes(selectedIncotermCode.value) ? form.pickupLongitude : null,
+      pickupAddress: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.address ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupAddress.trim() || null : null,
+      pickupLatitude: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.latitude ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupLatitude : null,
+      pickupLongitude: selectedIncotermCode.value === 'EXW'
+        ? primaryExwPickup.value?.longitude ?? null
+        : selectedIncotermCode.value === 'FCA' ? form.pickupLongitude : null,
+      pickupLocations: selectedIncotermCode.value === 'EXW' ? pickupLocationsPayload() : [],
       exchangeRatePurchase: exchangeRatePurchase.value,
       exchangeRateSale: exchangeRateSale.value,
       exchangeRateApplied: exchangeRateSale.value,
@@ -3826,6 +3850,9 @@ function resetWizard() {
   allInPresentation.value = true
   supportDocuments.value = []
   finalBackupDocuments.value = []
+  pickupLocations.value = []
+  pickupCargoCondition.value = ''
+  editingPickupIndex.value = null
   Object.assign(form, {
     rateType: 'Spot',
     modality: '',
@@ -3892,6 +3919,11 @@ watch(
   (code) => {
     nearestPortRecommendations.value = []
     if (code !== 'FCA') form.warehouseId = ''
+    if (code !== 'EXW') {
+      pickupLocations.value = []
+      pickupCargoCondition.value = ''
+      editingPickupIndex.value = null
+    }
     if (code !== 'EXW' && code !== 'FCA') {
       form.pickupAddress = ''
       form.pickupLatitude = null
