@@ -136,6 +136,8 @@ const operationalConditionLabels: Record<string, string> = {
   ElectronicSeal: 'Marchamo electrónico',
   Anticipado: 'Anticipado',
   Redestino: 'Redestino',
+  FiscalCargo: 'Carga fiscal',
+  NationalizedCargo: 'Carga nacionalizada',
 }
 
 function chargeBasisLabel(value: unknown) {
@@ -147,6 +149,7 @@ function chargeBasisLabel(value: unknown) {
         PerService: 'Por Servicio',
         PerContainer: 'Por contenedor',
         PerTeu: 'Por TEU',
+        PerPickup: 'Por recolecta',
         PerTruck: 'Por camión',
         PerCbm: 'Por CBM',
         PerChargeableCbm: 'Por CBM cobrable',
