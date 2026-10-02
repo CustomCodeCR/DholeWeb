@@ -44,6 +44,7 @@ function patchWizard(source: string) {
 const INCH_TO_CM = 2.54`,
     `const CFT_PER_CBM = 35.31466672148859
 const MIAMI_KG_PER_CFT = 14.16
+const MIAMI_LB_PER_KG = 2.20462262
 const INCH_TO_CM = 2.54
 
 interface MiamiCommercialRateUi {
@@ -102,6 +103,18 @@ const miamiCommercialPlanOptions = [
 const miamiCommercialRate = computed(() =>
   MIAMI_COMMERCIAL_RATES[String(form.miamiCommercialPlan || 'A')] ?? MIAMI_COMMERCIAL_RATES.A,
 )
+
+function miamiKgToLb(value: number) {
+  return Math.max(0, number(value)) * MIAMI_LB_PER_KG
+}
+
+function setMiamiWeightLb(line: ConsolidatedCargoLineUi, value: unknown) {
+  line.weightKg = Math.max(0, number(value)) / MIAMI_LB_PER_KG
+}
+
+function miamiDimensionCm(value: number) {
+  return Math.max(0, number(value)) * INCH_TO_CM
+}
 
 const cargoVolumeUnit = computed(() => isUnitedStatesPol.value ? 'CFT' : 'CBM')`,
     'Miami origin resolver',
@@ -173,6 +186,53 @@ const miamiLittleIssues = computed(() => {
   return issues
 })`,
     'Miami CFT chargeable calculation',
+  )
+
+  code = replaceRequired(
+    code,
+    `                    {{ isUnitedStatesPol
+                      ? 'POL Estados Unidos: capture dimensiones en pulgadas y el volumen comercial se trabaja en CFT.'
+                      : 'Capture dimensiones en centímetros y el volumen comercial se trabaja en CBM.' }}
+                    Se compara contra {{ shipmentModeForApi === 'Ltl' ? 'peso/330' : 'peso/500' }}.`,
+    `                    {{ isMiamiLcl
+                      ? 'Miami: capture dimensiones en pulgadas y peso en libras. Dhole convierte cada valor a centímetros y kilogramos antes de calcular.'
+                      : isUnitedStatesPol
+                        ? 'POL Estados Unidos: capture dimensiones en pulgadas y el volumen comercial se trabaja en CFT.'
+                        : 'Capture dimensiones en centímetros y el volumen comercial se trabaja en CBM.' }}
+                    {{ isMiamiLcl
+                      ? 'El CFT cobrable compara el volumen facturable contra el equivalente por peso ya convertido.'
+                      : 'Se compara contra ' + (shipmentModeForApi === 'Ltl' ? 'peso/330' : 'peso/500') + '.' }}`,
+    'Miami live conversion instructions',
+  )
+
+  code = replaceRequired(
+    code,
+    `                    <DhInput v-model.number="line.weightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />`,
+    `                    <DhInput
+                      v-if="isMiamiLcl"
+                      :model-value="miamiKgToLb(line.weightKg)"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      label="Peso total (lb)"
+                      @update:model-value="setMiamiWeightLb(line, $event)"
+                    />
+                    <DhInput v-else v-model.number="line.weightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />`,
+    'Miami pounds input',
+  )
+
+  code = replaceRequired(
+    code,
+    `                  <p v-if="cargoLineForcedNonStackable(line)" class="mt-2 text-xs font-black text-amber-600">`,
+    `                  <div v-if="isMiamiLcl" class="mt-3 grid gap-2 rounded-xl border border-[var(--dh-border)] bg-black/[0.02] px-3 py-2 text-[11px] font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025] sm:grid-cols-2 xl:grid-cols-4">
+                    <span>Peso: <b class="text-[var(--dh-text)]">{{ miamiKgToLb(line.weightKg).toFixed(2) }} lb → {{ Math.max(0, number(line.weightKg)).toFixed(2) }} kg</b></span>
+                    <span>Largo: <b class="text-[var(--dh-text)]">{{ Math.max(0, number(line.length)).toFixed(2) }} in → {{ miamiDimensionCm(line.length).toFixed(2) }} cm</b></span>
+                    <span>Ancho: <b class="text-[var(--dh-text)]">{{ Math.max(0, number(line.width)).toFixed(2) }} in → {{ miamiDimensionCm(line.width).toFixed(2) }} cm</b></span>
+                    <span>Alto: <b class="text-[var(--dh-text)]">{{ Math.max(0, number(line.height)).toFixed(2) }} in → {{ miamiDimensionCm(line.height).toFixed(2) }} cm</b></span>
+                  </div>
+
+                  <p v-if="cargoLineForcedNonStackable(line)" class="mt-2 text-xs font-black text-amber-600">`,
+    'Miami per-line live conversions',
   )
 
   code = replaceRequired(
@@ -292,20 +352,19 @@ const miamiLittleIssues = computed(() => {
   )
 
   const conversionBoard = `              <div v-if="isMiamiLcl" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-xs font-semibold text-[var(--dh-text-muted)]">
-                <p class="font-black text-[var(--dh-text)]">Conversiones y regla de cobro Miami</p>
-                <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                  <span>1 CBM = <b>{{ CFT_PER_CBM.toFixed(6) }} CFT</b></span>
-                  <span>1 CFT = <b>{{ (1 / CFT_PER_CBM).toFixed(8) }} CBM</b></span>
-                  <span>Peso = <b>kg ÷ {{ MIAMI_KG_PER_CFT.toFixed(2) }}</b> = CFT</span>
-                  <span>CFT cobrable = <b>MAX(volumen, peso)</b></span>
+                <p class="font-black text-[var(--dh-text)]">Conversiones aplicadas a esta carga</p>
+                <p class="mt-1">Las dimensiones se capturan en pulgadas y el peso en libras. Los valores convertidos a cm y kg se actualizan con lo que realmente se ingrese.</p>
+                <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                  <span>Peso total: <b class="text-[var(--dh-text)]">{{ miamiKgToLb(consolidatedTotalWeightKg).toFixed(2) }} lb → {{ consolidatedTotalWeightKg.toFixed(2) }} kg</b></span>
+                  <span>Volumen físico: <b class="text-[var(--dh-text)]">{{ miamiPhysicalCft.toFixed(3) }} CFT / {{ lclPhysicalCbm.toFixed(3) }} CBM</b></span>
+                  <span>Volumen facturable: <b class="text-[var(--dh-text)]">{{ miamiDimensionalCft.toFixed(3) }} CFT / {{ lclDimensionalCbm.toFixed(3) }} CBM</b></span>
+                  <span>Equivalente por peso: <b class="text-[var(--dh-text)]">{{ miamiWeightCft.toFixed(3) }} CFT</b></span>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                  <span>Físico: <b>{{ miamiPhysicalCft.toFixed(3) }} CFT</b> / {{ lclPhysicalCbm.toFixed(3) }} CBM</span>
-                  <span>Facturable: <b>{{ miamiDimensionalCft.toFixed(3) }} CFT</b> / {{ lclDimensionalCbm.toFixed(3) }} CBM</span>
-                  <span>Peso: <b>{{ miamiWeightCft.toFixed(3) }} CFT</b></span>
-                  <span>Cobrable: <b>{{ miamiChargeableCft.toFixed(3) }} CFT</b> / {{ lclChargeableCbm.toFixed(3) }} CBM</span>
+                <div class="mt-2 rounded-xl border border-[var(--dh-primary)]/20 bg-[var(--dh-primary)]/5 px-3 py-2">
+                  CFT cobrable: <b class="text-[var(--dh-primary)]">{{ miamiChargeableCft.toFixed(3) }} CFT</b>
+                  <span class="ml-2">({{ lclChargeableCbm.toFixed(3) }} CBM)</span>
                 </div>
-                <p class="mt-2">No estibable: alto ≥ 70 in (177.8 cm) automático; altura facturable mínima 2.66 m. El peso capturado es total por línea y las dimensiones sí se multiplican por cantidad.</p>
+                <p class="mt-2">No estibable: alto ≥ 70 in (177.8 cm) automático; altura facturable mínima 2.66 m. El peso es total por línea y las dimensiones sí se multiplican por cantidad.</p>
               </div>
 
 `
