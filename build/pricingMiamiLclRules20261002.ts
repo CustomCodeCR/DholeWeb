@@ -183,6 +183,15 @@ const miamiLittleIssues = computed(() => {
 
   code = replaceRequired(
     code,
+    `  if (consolidatedCargoMode.value && basis === 'PerChargeableCft') return Math.max(CFT_PER_CBM, number(lclChargeableCbm.value) * CFT_PER_CBM)`,
+    `  if (consolidatedCargoMode.value && basis === 'PerChargeableCft') return isMiamiLcl.value
+    ? Math.max(0.001, number(lclChargeableCbm.value) * CFT_PER_CBM)
+    : Math.max(CFT_PER_CBM, number(lclChargeableCbm.value) * CFT_PER_CBM)`,
+    'Miami CFT quantity without 1-CBM floor',
+  )
+
+  code = replaceRequired(
+    code,
     `      heightCm: cargoDimensionToCm(line.height),
     }))
   : [])`,
