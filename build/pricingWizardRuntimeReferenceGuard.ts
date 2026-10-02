@@ -4,7 +4,10 @@ const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCry
 const MARKER = '// dhole-runtime-reference-guard-20260925'
 
 function replaceOptional(source: string, anchor: string, replacement: string) {
-  return source.includes(anchor) ? source.replace(anchor, replacement) : source
+  // Final runtime repair can see the same unresolved call more than once because
+  // several pricing transforms inject equivalent blocks into the edit wizard.
+  // Replace every exact occurrence, not only the first one.
+  return source.includes(anchor) ? source.split(anchor).join(replacement) : source
 }
 
 function hasRuntimeBinding(source: string, name: string) {
@@ -934,10 +937,16 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] dismissedAutomaticOptionalCostIds remained undefined.')
   }
 
-  if (code.includes('const contextKey = currentCostContextKey()')) {
+  if (
+    code.includes('const contextKey = currentCostContextKey()')
+    && !hasRuntimeBinding(code, 'currentCostContextKey')
+  ) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] currentCostContextKey call remained unresolved.')
   }
-  if (code.includes('const restoredMixedFclFreight = restorePersistedFclDistribution(rate)')) {
+  if (
+    code.includes('const restoredMixedFclFreight = restorePersistedFclDistribution(rate)')
+    && !hasRuntimeBinding(code, 'restorePersistedFclDistribution')
+  ) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] restorePersistedFclDistribution call remained unresolved.')
   }
 
