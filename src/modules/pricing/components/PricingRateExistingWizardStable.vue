@@ -214,7 +214,7 @@ const downloadingLinesExcel = ref(false)
 const allInPresentation = ref(true)
 const competitorTariffsOpen = ref(false)
 const isEditing = computed(() => Boolean(props.rateId))
-const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Seleccionar alternativa')
+const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Crear tarifa')
 const pageDescription = computed(() => isEditing.value
   ? 'Toda la tarifa se revisa en el mismo wizard. Las tarifas aceptadas crean una nueva revisión al guardar.'
   : 'Construya la alternativa paso a paso con catálogos filtrados por modalidad.')
