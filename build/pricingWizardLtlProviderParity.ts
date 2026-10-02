@@ -17,7 +17,7 @@ function patchStepSixTemplate(source: string) {
 
   block = block.replace(
     `<p class="crystal-description">{{ form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
-    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? 'La tarifa LTL seleccionada en Pantalla 5 se carga automáticamente. LTL no utiliza agente, naviera ni días libres.' : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
+    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? (form.manualRate && landLtlCommercialProfile === 'FinalClient' ? 'Tarifa LTL Cliente manual: ingrese moneda, costo y venta. LTL no utiliza agente, naviera ni días libres.' : 'La tarifa LTL seleccionada en Pantalla 5 se carga automáticamente. LTL no utiliza agente, naviera ni días libres.') : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
   )
 
   const gridAnchor = '          <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">'
@@ -229,11 +229,13 @@ function patchWizard(source: string) {
     'const canNext = computed(() => {',
     `const canNext = computed(() => {
   if (step.value === 5 && shipmentModeForApi.value === 'Ltl') {
-    return Boolean(landLtlCommercialProfile.value && resolvedFtlTariff.value)
+    const manualClient = landLtlCommercialProfile.value === 'FinalClient' && form.manualRate
+    return Boolean(landLtlCommercialProfile.value && (resolvedFtlTariff.value || manualClient))
   }
   if (step.value === 6 && shipmentModeForApi.value === 'Ltl') {
+    const manualClient = landLtlCommercialProfile.value === 'FinalClient' && form.manualRate
     return Boolean(
-      resolvedFtlTariff.value
+      (resolvedFtlTariff.value || manualClient)
       && form.currencyId
       && number(form.freightCost) >= 0
       && number(form.freightSale) >= 0
@@ -249,7 +251,26 @@ function patchWizard(source: string) {
   ) {
     code = code.replace(
       'function previous() {',
-      `function continueWithResolvedLandLtlTariff() {
+      `function continueWithManualLandLtlTariff() {
+  if (
+    shipmentModeForApi.value !== 'Ltl'
+    || landLtlCommercialProfile.value !== 'FinalClient'
+  ) return
+
+  resolvedFtlTariff.value = null
+  form.selectedImportRateId = ''
+  form.manualRate = true
+  form.freeDays = 0
+  form.agentId = ''
+  form.carrierId = ''
+  form.freightCost = 0
+  form.freightSale = 0
+  form.transitDays = 0
+  rateLines.value = rateLines.value.filter((line) => !String(line.key ?? '').startsWith('ltl-tariff:'))
+  step.value = 6
+}
+
+function continueWithResolvedLandLtlTariff() {
   if (
     shipmentModeForApi.value !== 'Ltl'
     || !resolvedFtlTariff.value
