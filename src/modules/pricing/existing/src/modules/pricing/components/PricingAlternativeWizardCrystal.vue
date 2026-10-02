@@ -1161,6 +1161,8 @@ const shipmentModeForApi = computed<ShipmentMode>(() => {
   return 'Fcl'
 })
 
+const ltlCargoMode = computed(() => shipmentModeForApi.value === 'Ltl')
+
 const competitorMatchContext = computed(() => {
   const pod = resolvePodForDestination()
   return {
