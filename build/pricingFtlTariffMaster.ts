@@ -103,9 +103,17 @@ function patchWizard(source: string) {
             <div v-else-if="shipmentModeForApi === 'Ltl' && landLtlCommercialProfile" class="crystal-empty p-8 text-center">
               <p class="text-lg font-black">No existe tarifa LTL para esta combinación</p>
               <p class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">No se encontró una tarifa activa {{ landLtlCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente' }} para la ruta y fecha seleccionadas.</p>
+              <div v-if="landLtlCommercialProfile === 'FinalClient'" class="mt-5 flex justify-center">
+                <DhButton variant="secondary" @click="continueWithManualLandLtlTariff">Crear tarifa manual Cliente</DhButton>
+              </div>
             </div>
             <div v-if="resolvedFtlTariff" class="flex flex-wrap justify-end gap-2">
               <DhButton v-if="shipmentModeForApi === 'Ftl'" variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+              <DhButton
+                v-if="shipmentModeForApi === 'Ltl' && landLtlCommercialProfile === 'FinalClient'"
+                variant="secondary"
+                @click="continueWithManualLandLtlTariff"
+              >Crear tarifa manual Cliente</DhButton>
               <DhButton :disabled="shipmentModeForApi === 'Ltl' && lclChargeableCbm <= 0" @click="next">Usar tarifa {{ shipmentModeForApi.toUpperCase() }}</DhButton>
             </div>
           </template>
