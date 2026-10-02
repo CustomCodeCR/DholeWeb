@@ -917,15 +917,11 @@ function savePickupLocation() {
     toastStore.warning('Ubicación requerida', 'Ubique la recolecta en el mapa antes de agregarla.')
     return
   }
-  if (!pickupCargoCondition.value) {
-    toastStore.warning('Tipo de carga requerido', 'Seleccione si esta recolecta es carga fiscal o carga nacionalizada.')
-    return
-  }
   const pickup: RatePickupLocationDto = {
     address,
     latitude: form.pickupLatitude,
     longitude: form.pickupLongitude,
-    cargoCondition: pickupCargoCondition.value,
+    cargoCondition: pickupCargoCondition.value || null,
   }
   if (editingPickupIndex.value == null) pickupLocations.value.push(pickup)
   else pickupLocations.value.splice(editingPickupIndex.value, 1, pickup)
@@ -4432,9 +4428,9 @@ onMounted(async () => {
             <DhSelect
               v-if="selectedIncotermCode === 'EXW'"
               v-model="pickupCargoCondition"
-              label="Tipo de carga en esta recolecta"
+              label="Tipo de carga en esta recolecta (opcional)"
               :options="pickupCargoConditionOptions"
-              placeholder="Seleccione carga fiscal o carga nacionalizada"
+              placeholder="Sin clasificar / seleccione solo si aplica"
             />
             <DhInput
               v-model="form.pickupAddress"
@@ -4461,7 +4457,7 @@ onMounted(async () => {
               </DhButton>
               <DhButton
                 v-if="selectedIncotermCode === 'EXW'"
-                :disabled="!form.pickupAddress.trim() || !pickupCoordinates || !pickupCargoCondition"
+                :disabled="!form.pickupAddress.trim() || !pickupCoordinates"
                 @click="savePickupLocation"
               >
                 {{ editingPickupIndex == null ? 'Agregar recolecta' : 'Actualizar recolecta' }}
@@ -4521,7 +4517,7 @@ onMounted(async () => {
                 </div>
               </div>
               <p v-if="!pickupLocations.length" class="text-[11px] font-bold text-amber-600">
-                Agregue al menos una recolecta y clasifíquela como carga fiscal o carga nacionalizada.
+                Agregue al menos una recolecta. La clasificación fiscal/nacionalizada es opcional.
               </p>
             </div>
 
