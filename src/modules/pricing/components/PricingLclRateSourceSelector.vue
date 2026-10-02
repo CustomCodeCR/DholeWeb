@@ -89,6 +89,13 @@ const props = withDefaults(defineProps<{
   requestedCbm?: number
   requestedCbmLocked?: boolean
   cargoLines?: OwnLclCargoLineRequest[]
+  commercialPlan?: string | null
+  cargoValue?: number
+  whsQty?: number
+  includeSed?: boolean
+  sedQty?: number
+  dangerousCargo?: boolean
+  bonded?: boolean
 }>(), {
   polId: null,
   polCode: null,
@@ -102,6 +109,13 @@ const props = withDefaults(defineProps<{
   requestedCbm: 1,
   requestedCbmLocked: false,
   cargoLines: () => [],
+  commercialPlan: null,
+  cargoValue: 0,
+  whsQty: 1,
+  includeSed: true,
+  sedQty: 1,
+  dangerousCargo: false,
+  bonded: false,
 })
 
 const emit = defineEmits<{
@@ -182,12 +196,14 @@ function ownLineType(name: string): CostDetailType {
 }
 function ownBasis(basis: string): ChargeBasis {
   const value = normalize(basis)
+  if (value.includes('cft')) return 'PerChargeableCft'
   if (value.includes('cbm')) return 'PerChargeableCbm'
   if (value.includes('document')) return 'PerDocument'
   return 'PerShipment'
 }
 function requested() {
-  return Math.max(1, n(props.requestedCbm || 1))
+  const minimum = props.commercialPlan ? 0.001 : 1
+  return Math.max(minimum, n(props.requestedCbm || minimum))
 }
 
 function costaRicaTodayIso() {
@@ -335,7 +351,10 @@ function cargoForCbm(cbm: number) {
 }
 
 function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateLine[] {
-  const sourceMarker = `LCL PROPIO · ConsolidadoId: ${calculation.consolidationId} · Consolidado: #${calculation.consolidationNumber}`
+  const commercialMarker = props.commercialPlan
+    ? ` · Plan Miami: ${props.commercialPlan} · WHS: ${Math.max(1, Math.trunc(n(props.whsQty)))} · SED: ${props.includeSed ? Math.max(1, Math.trunc(n(props.sedQty))) : 0} · Bonded: ${props.bonded ? 'Sí' : 'No'}`
+    : ''
+  const sourceMarker = `LCL PROPIO · ConsolidadoId: ${calculation.consolidationId} · Consolidado: #${calculation.consolidationNumber}${commercialMarker}`
   return calculation.lines.map((line, index) => {
     const type = ownLineType(line.name)
     const normalizedName = normalize(line.name)
@@ -388,6 +407,13 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       pickupCost: 0,
       pickupSale: 0,
       discount: 0,
+      commercialPlan: props.commercialPlan,
+      cargoValue: Math.max(0, n(props.cargoValue)),
+      whsQty: Math.max(1, Math.trunc(n(props.whsQty))),
+      includeSed: Boolean(props.includeSed),
+      sedQty: Math.max(1, Math.trunc(n(props.sedQty))),
+      isDangerousCargo: Boolean(props.dangerousCargo),
+      isBonded: Boolean(props.bonded),
     })
     const selection: LclRateSourceSelection = {
       kind: 'Own',
@@ -528,7 +554,8 @@ function chooseManualColoader() {
 
 function updateCbm(value: string | number | null) {
   if (props.requestedCbmLocked) return
-  emit('update:requestedCbm', Math.max(1, n(value)))
+  const minimum = props.commercialPlan ? 0.001 : 1
+  emit('update:requestedCbm', Math.max(minimum, n(value)))
 }
 
 watch(() => [props.polId, props.poeId, props.podId, props.incotermId, props.quoteDate], () => void load())
