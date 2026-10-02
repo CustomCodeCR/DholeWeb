@@ -183,7 +183,7 @@ export const router = createRouter({
           name: 'pricing',
           component: () => import('@/modules/pricing/views/PricingOverviewView.vue'),
           meta: {
-            tabTitle: 'Seleccionar alternativa',
+            tabTitle: 'Crear tarifa',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingDecisions,
           },
@@ -273,7 +273,7 @@ export const router = createRouter({
           name: 'pricing-rates',
           component: () => import('@/modules/pricing/views/PricingRatesView.vue'),
           meta: {
-            tabTitle: 'Tarifas oficiales',
+            tabTitle: 'Tarifas',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRates,
           },
