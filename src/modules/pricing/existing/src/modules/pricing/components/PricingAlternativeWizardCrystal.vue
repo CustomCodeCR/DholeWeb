@@ -1708,14 +1708,12 @@ function lineMatchesPickupCargoCondition(line: RateLine) {
 function quantityForRateLine(line: RateLine) {
   const explicitQuantity = number((line as RateLine & { quantityOverride?: number | null }).quantityOverride)
 
-  // quantityOverride is only authoritative for the synthetic freight rows created
-  // for a mixed FCL distribution (different container types). Persisted details also
-  // carry their historical quantity, but that value must not freeze Pantalla 7 when
-  // the user edits the FCL container quantity in Pantalla 3.
+  // Only synthetic mixed-FCL freight rows own an explicit quantity. Persisted details
+  // use the current wizard quantity so editing 1 -> 3 containers updates Pantalla 7/8.
   const mixedFclFreightQuantity =
     shipmentModeForApi.value === 'Fcl'
     && line.costDetailType === 'Freight'
-    && fclContainerAllocations.value.length > 1
+    && String(line.key ?? '').startsWith('freight:')
     && explicitQuantity > 0
 
   if (mixedFclFreightQuantity) return explicitQuantity
