@@ -48,7 +48,7 @@ function normalizeCommercialStatus(value: unknown): CommercialRateStatusFilter {
   if (status === 'Sent') return 'Sent'
   if (status === 'Expired') return 'Expired'
   if (status === 'AcceptedByClient') return 'AcceptedByClient'
-  return 'Open'
+  return ''
 }
 
 const route = useRoute()
@@ -465,7 +465,7 @@ function applyFilters() {
 function clearFilters() {
   Object.assign(filters, {
     search: '',
-    status: 'Open',
+    status: '',
     agentId: '',
     carrierId: '',
     polId: '',
@@ -603,7 +603,7 @@ onMounted(async () => {
 <template>
   <section class="space-y-6">
     <DhPageHeader
-      title="Tarifas oficiales"
+      title="Tarifas"
       subtitle="Seguimiento por Pendientes de aprobación, Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."
       :icon="ReceiptText"
     />
@@ -611,7 +611,7 @@ onMounted(async () => {
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
       <DhCrudToolbar
         v-model:search="filters.search"
-        title="Tarifas oficiales"
+        title="Tarifas"
         :show-create="false"
         @refresh="load"
         @search="applyFilters"
