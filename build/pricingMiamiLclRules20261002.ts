@@ -11,37 +11,32 @@ function replaceRequired(source: string, anchor: string, replacement: string, la
   return source.replace(anchor, replacement)
 }
 
+function insertMiamiFormState(source: string) {
+  if (source.includes("miamiCommercialPlan: 'A'")) return source
+
+  const pattern = /^(\s*)carrierHaulage:\s*false,/gm
+  const matches = [...source.matchAll(pattern)]
+  if (matches.length < 2) {
+    throw new Error(
+      `[pricingMiamiLclRules20261002] Miami form state: expected at least 2 carrierHaulage anchors, found ${matches.length}.`,
+    )
+  }
+
+  return source.replace(pattern, (_match, indent: string) => [
+    `${indent}carrierHaulage: false,`,
+    `${indent}miamiCommercialPlan: 'A',`,
+    `${indent}miamiWhsQty: 1,`,
+    `${indent}miamiIncludeSed: true,`,
+    `${indent}miamiSedQty: 1,`,
+    `${indent}miamiBonded: false,`,
+  ].join('\n'))
+}
+
 function patchWizard(source: string) {
   if (source.includes(MARKER)) return source
   let code = source
 
-  code = replaceRequired(
-    code,
-    `  carrierHaulage: false,
-  manualName: '',`,
-    `  carrierHaulage: false,
-  miamiCommercialPlan: 'A',
-  miamiWhsQty: 1,
-  miamiIncludeSed: true,
-  miamiSedQty: 1,
-  miamiBonded: false,
-  manualName: '',`,
-    'initial Miami form fields',
-  )
-
-  code = replaceRequired(
-    code,
-    `    carrierHaulage: false,
-    manualName: '',`,
-    `    carrierHaulage: false,
-    miamiCommercialPlan: 'A',
-    miamiWhsQty: 1,
-    miamiIncludeSed: true,
-    miamiSedQty: 1,
-    miamiBonded: false,
-    manualName: '',`,
-    'reset Miami form fields',
-  )
+  code = insertMiamiFormState(code)
 
   code = replaceRequired(
     code,
