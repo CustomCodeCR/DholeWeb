@@ -198,6 +198,7 @@ export interface OwnLclCargoLineRequest {
   lengthCm: number
   widthCm: number
   heightCm: number
+  isStackable?: boolean | null
 }
 
 export interface OwnLclQuoteLine {
@@ -308,6 +309,13 @@ export interface CalculateOwnLclQuoteRequest {
   pickupCost: number
   pickupSale: number
   discount: number
+  commercialPlan?: string | null
+  cargoValue?: number
+  whsQty?: number
+  includeSed?: boolean
+  sedQty?: number
+  isDangerousCargo?: boolean
+  isBonded?: boolean
 }
 
 type CreatedOwnLcl = {
