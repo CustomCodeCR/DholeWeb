@@ -94,6 +94,18 @@ const columns: DhTableColumn<OwnLclTableRow>[] = [
 const money = (value: number | null | undefined) => Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const decimal = (value: number | null | undefined, digits = 2) => Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 
+const MIAMI_CFT_PER_CBM = 35.3146667
+const MIAMI_KG_PER_CFT = 14.16
+const miamiCommercialRates = [
+  { key: 'A', label: 'Cliente A', salePerCft: 2.80, minimum: 280, sed: 25, handling: 45, vgm: 20, tica: 25, seal: 20, documentation: 25, forwarding: 0, insurance: 0.75, insuranceMin: 50 },
+  { key: 'B', label: 'Cliente B', salePerCft: 2.95, minimum: 295, sed: 28, handling: 55, vgm: 25, tica: 25, seal: 30, documentation: 45, forwarding: 0, insurance: 0.80, insuranceMin: 60 },
+  { key: 'C', label: 'Cliente C', salePerCft: 3.00, minimum: 300, sed: 30, handling: 65, vgm: 25, tica: 25, seal: 35, documentation: 50, forwarding: 0, insurance: 0.80, insuranceMin: 60 },
+  { key: 'D', label: 'Cliente D', salePerCft: 2.92, minimum: 292, sed: 35, handling: 55, vgm: 45, tica: 30, seal: 35, documentation: 50, forwarding: 65, insurance: 0.80, insuranceMin: 60 },
+  { key: 'NVOCC-B', label: 'Cliente NVOCC-B', salePerCft: 2.90, minimum: 170, sed: 25, handling: 45, vgm: 20, tica: 0, seal: 20, documentation: 0, forwarding: 0, insurance: 0.50, insuranceMin: 50 },
+  { key: 'NVOCC-A', label: 'Cliente NVOCC-A', salePerCft: 2.60, minimum: 95, sed: 25, handling: 60, vgm: 0, tica: 0, seal: 25, documentation: 25, forwarding: 0, insurance: 0.50, insuranceMin: 50 },
+  { key: 'LITTLE', label: 'CARGAS LITTLE', salePerCft: 0, minimum: 0, sed: 0, handling: 35, vgm: 15, tica: 0, seal: 0, documentation: 20, forwarding: 0, insurance: 0.50, insuranceMin: 10 },
+]
+
 function option(items: CatalogItemSelectDto[], id: string) {
   return items.find((item) => item.id === id) ?? null
 }
@@ -145,7 +157,7 @@ const pricingLineGroups = computed(() => {
       {
         scope: 'MIA',
         label: 'Miami',
-        description: 'Matriz independiente por consolidado: Manejos, Forwarding, HBL, Bunker y THC/D. Los costos y ventas quedan guardados únicamente en este proyecto.',
+        description: 'Matriz independiente por consolidado: Manejos, Forwarding, HBL, Bunker y THC/D. En Miami estos valores representan el costo operativo; la venta se determina por la tarifa comercial elegida en cada cotización.',
         rows: pricingLines.value.filter((line) => line.scope === 'MIA'),
       },
     ]
@@ -440,6 +452,8 @@ const previewMiamiHblCost = computed(() => pricingLines.value
 const previewMiamiHblSale = computed(() => pricingLines.value
   .filter((line) => line.scope === 'MIA' && !normalize(line.chargeBasis).includes('cbm'))
   .reduce((total, line) => total + Math.max(Number(line.saleUnit || 0), 0), 0))
+const previewMiamiOceanPerCft = computed(() => previewOceanPerCbm.value / MIAMI_CFT_PER_CBM)
+const previewMiamiVariableCostPerCft = computed(() => (previewOceanPerCbm.value + previewMiamiCbmCost.value) / MIAMI_CFT_PER_CBM)
 
 watch(previewDestinationPerCbm, (value) => {
   if (hydratingPricingEditor.value || readOnly.value) return
@@ -746,6 +760,44 @@ onMounted(load)
             </div>
           </section>
 
+          <section v-if="isMiamiMatrix" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
+            <div>
+              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifas comerciales Miami por tipo de cliente</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El perfil se selecciona en Pantalla 4 de cada cotización. Aquí se muestran las reglas que se aplicarán automáticamente.</p>
+            </div>
+            <div class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+              <table class="w-full min-w-[1180px] text-sm">
+                <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]">
+                  <tr>
+                    <th class="px-3 py-2 text-left">Perfil</th><th class="px-3 py-2 text-right">Venta/CFT</th><th class="px-3 py-2 text-right">Equiv./CBM</th><th class="px-3 py-2 text-right">Mínimo</th><th class="px-3 py-2 text-right">SED</th><th class="px-3 py-2 text-right">Manejos</th><th class="px-3 py-2 text-right">VGM</th><th class="px-3 py-2 text-right">TICA</th><th class="px-3 py-2 text-right">Marchamo</th><th class="px-3 py-2 text-right">Doc.</th><th class="px-3 py-2 text-right">Forwarding</th><th class="px-3 py-2 text-right">Seguro</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="rate in miamiCommercialRates" :key="rate.key" class="border-t border-[var(--dh-border)] first:border-t-0">
+                    <td class="px-3 py-2 font-black">{{ rate.label }}</td>
+                    <td class="px-3 py-2 text-right font-bold">{{ rate.key === 'LITTLE' ? 'Escalonada' : 'USD ' + money(rate.salePerCft) }}</td>
+                    <td class="px-3 py-2 text-right font-bold">{{ rate.key === 'LITTLE' ? 'Por tramo' : 'USD ' + money(rate.salePerCft * MIAMI_CFT_PER_CBM) }}</td>
+                    <td class="px-3 py-2 text-right">{{ rate.key === 'LITTLE' ? '30 / 40 / 50' : 'USD ' + money(rate.minimum) }}</td>
+                    <td class="px-3 py-2 text-right">{{ money(rate.sed) }}</td>
+                    <td class="px-3 py-2 text-right">{{ money(rate.handling) }}</td>
+                    <td class="px-3 py-2 text-right">{{ money(rate.vgm) }}</td>
+                    <td class="px-3 py-2 text-right">{{ money(rate.tica) }}</td>
+                    <td class="px-3 py-2 text-right">{{ money(rate.seal) }}</td>
+                    <td class="px-3 py-2 text-right">{{ money(rate.documentation) }}</td>
+                    <td class="px-3 py-2 text-right">{{ money(rate.forwarding) }}</td>
+                    <td class="px-3 py-2 text-right">{{ rate.insurance.toFixed(2) }}% · mín. USD {{ money(rate.insuranceMin) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Conversión volumen</p><p class="mt-1 font-black">1 CBM = {{ MIAMI_CFT_PER_CBM.toFixed(6) }} CFT</p><p class="mt-1 text-xs text-[var(--dh-text-muted)]">1 CFT = {{ (1 / MIAMI_CFT_PER_CBM).toFixed(8) }} CBM</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Conversión peso</p><p class="mt-1 font-black">CFT peso = kg ÷ {{ MIAMI_KG_PER_CFT.toFixed(2) }}</p><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se cobra el mayor entre volumen facturable y peso.</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Estibabilidad</p><p class="mt-1 font-black">≥ 70 in / 177.8 cm = No estibable</p><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Altura mínima facturable no estibable: 2.66 m.</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">CARGAS LITTLE</p><p class="mt-1 font-black">0–30 CFT $30 · 30.01–60 $40 · 60.01–80 $50</p><p class="mt-1 text-xs text-[var(--dh-text-muted)]">≤100 kg · ≤USD 1,000 · máx. 3 WHS · No IMO · No Bonded.</p></div>
+            </div>
+          </section>
+
           <section v-if="!isMiamiMatrix" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div class="flex items-center justify-between gap-3">
               <div>
@@ -772,10 +824,10 @@ onMounted(load)
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifario del consolidado · Matriz {{ formMatrixType }} · costos y ventas</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Estos valores pertenecen solo a este consolidado. Las cotizaciones LCL propias los cargan automáticamente y ya no hay que corregirlos cotización por cotización.</p>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifario del consolidado · Matriz {{ formMatrixType }} · {{ isMiamiMatrix ? 'costos operativos' : 'costos y ventas' }}</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isMiamiMatrix ? 'Miami guarda aquí los costos reales del proyecto. La venta ya no se define en esta matriz: se calcula por tipo de cliente en la cotización.' : 'Estos valores pertenecen solo a este consolidado. Las cotizaciones LCL propias los cargan automáticamente y ya no hay que corregirlos cotización por cotización.' }}</p>
               </div>
-              <DhButton v-if="selectedId && !readOnly" label="Guardar costos y ventas" :loading="pricingLineSaving" variant="secondary" @click="savePricingLineRows()" />
+              <DhButton v-if="selectedId && !readOnly" :label="isMiamiMatrix ? 'Guardar costos Miami' : 'Guardar costos y ventas'" :loading="pricingLineSaving" variant="secondary" @click="savePricingLineRows()" />
             </div>
 
             <div class="mt-4 space-y-3">
@@ -787,7 +839,7 @@ onMounted(load)
                 <div class="overflow-x-auto border-t border-[var(--dh-border)]">
                   <table class="w-full min-w-[790px] text-sm">
                     <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]">
-                      <tr><th class="px-4 py-2 text-left">Concepto</th><th class="px-4 py-2 text-left">Base cobro</th><th class="px-4 py-2 text-right">Costo USD</th><th class="px-4 py-2 text-right">CBM cálculo</th><th class="px-4 py-2 text-right">Venta USD</th></tr>
+                      <tr><th class="px-4 py-2 text-left">Concepto</th><th class="px-4 py-2 text-left">Base cobro</th><th class="px-4 py-2 text-right">Costo USD</th><th class="px-4 py-2 text-right">CBM cálculo</th><th class="px-4 py-2 text-right">{{ isMiamiMatrix ? 'Venta comercial' : 'Venta USD' }}</th></tr>
                     </thead>
                     <tbody>
                       <tr v-for="line in group.rows" :key="line.lineKey" class="border-t border-[var(--dh-border)] first:border-t-0">
@@ -808,7 +860,8 @@ onMounted(load)
                           <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">—</span>
                         </td>
                         <td class="px-4 py-2 text-right">
-                          <input v-model.number="line.saleUnit" type="number" min="0" step="0.01" :disabled="readOnly" @change="line.lineKey === 'PA_DESTINATION_CHARGE' && syncTransshipmentSaleFromPanama()" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
+                          <span v-if="isMiamiMatrix" class="inline-block min-w-32 rounded-xl border border-[var(--dh-primary)]/20 bg-[var(--dh-primary)]/5 px-3 py-2 text-center text-[11px] font-black text-[var(--dh-primary)]">Según tipo de cliente</span>
+                          <input v-else v-model.number="line.saleUnit" type="number" min="0" step="0.01" :disabled="readOnly" @change="line.lineKey === 'PA_DESTINATION_CHARGE' && syncTransshipmentSaleFromPanama()" class="w-28 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-right font-black outline-none focus:border-[var(--dh-primary)] disabled:opacity-60" />
                         </td>
                       </tr>
                     </tbody>
@@ -857,9 +910,9 @@ onMounted(load)
           <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl">
             <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Costo del consolidado</p>
             <div v-if="isMiamiMatrix" class="mt-4 grid gap-3 sm:grid-cols-2">
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }}</p></div>
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Cargos Miami / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewMiamiCbmCost) }}</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Venta USD {{ money(previewMiamiCbmSale) }}</p></div>
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Cargos por HBL / embarque</p><p class="mt-1 text-xl font-black">Costo USD {{ money(previewMiamiHblCost) }}</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Venta USD {{ money(previewMiamiHblSale) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }} / CBM</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">USD {{ money(previewMiamiOceanPerCft) }} / CFT</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean + cargos variables Miami</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm + previewMiamiCbmCost) }} / CBM</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">USD {{ money(previewMiamiVariableCostPerCft) }} / CFT</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costos por HBL / embarque</p><p class="mt-1 text-xl font-black">USD {{ money(previewMiamiHblCost) }}</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">La venta se resuelve por tarifa comercial A/B/C/D/NVOCC/LITTLE.</p></div>
             </div>
             <div v-else class="mt-4 grid gap-3 sm:grid-cols-2">
               <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }}</p></div>
