@@ -461,7 +461,7 @@ function patchWizard(source: string) {
       "  const explicitQuantity = number(line.quantityOverride)",
       "  const mixedFclFreightQuantity = shipmentModeForApi.value === 'Fcl'",
       "    && line.costDetailType === 'Freight'",
-      "    && fclContainerAllocations.value.length > 1",
+      "    && String(line.key ?? '').startsWith('freight:')",
       "    && explicitQuantity > 0",
       "  if (mixedFclFreightQuantity) return explicitQuantity",
       "  return quantityForChargeBasis(line.chargeBasis)",
