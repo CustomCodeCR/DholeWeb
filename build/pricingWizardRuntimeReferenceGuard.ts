@@ -459,7 +459,11 @@ function patchWizard(source: string) {
     [
       "function quantityForRateLine(line: RateLine) {",
       "  const explicitQuantity = number(line.quantityOverride)",
-      "  if (explicitQuantity > 0) return explicitQuantity",
+      "  const mixedFclFreightQuantity = shipmentModeForApi.value === 'Fcl'",
+      "    && line.costDetailType === 'Freight'",
+      "    && fclContainerAllocations.value.length > 1",
+      "    && explicitQuantity > 0",
+      "  if (mixedFclFreightQuantity) return explicitQuantity",
       "  return quantityForChargeBasis(line.chargeBasis)",
       "}",
     ].join('\n'),
