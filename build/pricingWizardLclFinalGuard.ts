@@ -35,14 +35,13 @@ function patchWizard(source: string) {
     `      form.cargoPallets > 0 &&\n      form.cargoLengthCm > 0 &&`,
   )
 
-  code = code.replace('label="Peso total (kg)"', 'label="Peso total (kg) · opcional"')
   code = code.replace(
     `v-if="form.cargoWeightKg <= 0 || form.cargoPallets <= 0 || form.cargoLengthCm <= 0 || form.cargoWidthCm <= 0 || form.cargoHeightCm <= 0"`,
     `v-if="form.cargoPallets <= 0 || form.cargoLengthCm <= 0 || form.cargoWidthCm <= 0 || form.cargoHeightCm <= 0"`,
   )
   code = code.replace(
     'Complete peso, tarimas, largo, ancho y alto para continuar.',
-    'Complete tarimas, largo, ancho y alto. El peso es opcional.',
+    'Complete tarimas, largo, ancho y alto para continuar.',
   )
 
   for (const field of LCL_ONLY_HIDDEN_FLAGS) {
