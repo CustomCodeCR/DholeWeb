@@ -21,13 +21,6 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    'label="Peso total (kg)"',
-    'label="Peso total (kg) · opcional"',
-    'LCL weight label',
-  )
-
-  code = replaceOne(
-    code,
     'v-if="form.cargoWeightKg <= 0 || form.cargoPallets <= 0 || form.cargoLengthCm <= 0 || form.cargoWidthCm <= 0 || form.cargoHeightCm <= 0"',
     'v-if="form.cargoPallets <= 0 || form.cargoLengthCm <= 0 || form.cargoWidthCm <= 0 || form.cargoHeightCm <= 0"',
     'LCL cargo warning condition',
@@ -36,7 +29,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     'Complete peso, tarimas, largo, ancho y alto para continuar.',
-    'Complete tarimas, largo, ancho y alto. El peso es opcional.',
+    'Complete tarimas, largo, ancho y alto para continuar.',
     'LCL cargo warning copy',
   )
 
