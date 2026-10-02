@@ -80,8 +80,7 @@ const miamiCommercialPlanOptions = [
   { value: 'NVOCC-B', label: 'Cliente NVOCC-B' },
   { value: 'NVOCC-A', label: 'Cliente NVOCC-A' },
   { value: 'LITTLE', label: 'CARGAS LITTLE' },
-]
-const INCH_TO_CM = 2.54`,
+]`,
     'Miami rate constants',
   )
 
