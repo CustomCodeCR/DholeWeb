@@ -37,7 +37,7 @@ const steps = [
   {
     id: 'decision' as const,
     number: 3,
-    title: 'Seleccionar alternativa',
+    title: 'Crear tarifa',
     description: 'Compare rutas y elija la opción comercial.',
     shortDescription: 'Decisión comercial',
     path: '/pricing',
@@ -48,7 +48,7 @@ const steps = [
     number: 4,
     title: 'Usar tarifa oficial',
     description: 'Consulte y gestione las tarifas finales.',
-    shortDescription: 'Tarifas oficiales',
+    shortDescription: 'Tarifas',
     path: '/pricing/rates',
     icon: FileCheck2,
   },
