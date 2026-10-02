@@ -76,6 +76,13 @@ function patchWizard(source: string) {
   }
 
   if (
+    code.includes('ltlCargoMode')
+    && !hasRuntimeBinding(code, 'ltlCargoMode')
+  ) {
+    missingRuntimeDefinitions.push("const ltlCargoMode = computed(() => shipmentModeForApi.value === 'Ltl')")
+  }
+
+  if (
     code.includes('dismissedAutomaticOptionalCostIds.value')
     && !code.includes('const dismissedAutomaticOptionalCostIds = ref(')
   ) {
@@ -903,6 +910,12 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
     && !code.includes('const automaticOptionalContextKey = ref(')
   ) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] automaticOptionalContextKey remained undefined.')
+  }
+  if (
+    code.includes('ltlCargoMode')
+    && !hasRuntimeBinding(code, 'ltlCargoMode')
+  ) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] ltlCargoMode remained undefined.')
   }
   if (
     code.includes('sectionForDetail(')
