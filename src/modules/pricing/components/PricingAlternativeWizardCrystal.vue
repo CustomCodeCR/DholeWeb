@@ -4871,7 +4871,7 @@ onMounted(async () => {
                 </div>
               </div>
               <p v-if="form.cargoPallets <= 0 || form.cargoLengthCm <= 0 || form.cargoWidthCm <= 0 || form.cargoHeightCm <= 0" class="text-xs font-bold text-amber-600">
-                Complete tarimas, largo, ancho y alto para continuar. El peso es opcional.
+                Complete tarimas, largo, ancho y alto para continuar.
               </p>
             </div>
             <DhTextarea v-model="form.cargoObservations" label="Observaciones de la carga" :rows="4" />
