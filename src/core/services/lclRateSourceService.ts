@@ -74,6 +74,7 @@ export interface LclColoaderRateDto extends Record<string, unknown> {
 }
 
 export interface BrowseLclColoaderRatesQuery {
+  modality?: 'Maritime' | 'Air' | 'Land' | 'Multimodal' | null
   polId?: string | null
   pol?: string | null
   poeId?: string | null
