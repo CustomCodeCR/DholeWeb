@@ -74,6 +74,7 @@ export interface LclRateSourceSelection {
 }
 
 const props = withDefaults(defineProps<{
+  modality?: 'Maritime' | 'Air' | 'Land' | 'Multimodal'
   polId?: string | null
   polCode?: string | null
   polName?: string | null
@@ -98,6 +99,7 @@ const props = withDefaults(defineProps<{
   dangerousCargo?: boolean
   bonded?: boolean
 }>(), {
+  modality: 'Maritime',
   polId: null,
   polCode: null,
   polName: null,
@@ -133,6 +135,7 @@ const search = ref('')
 const ownRows = ref<Array<OwnLclConsolidationDto & TableRow>>([])
 const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
+const isAir = computed(() => props.modality === 'Air')
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
   { key: 'source', label: 'Consolidado', width: '220px' },
@@ -333,6 +336,9 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
 }
 
 const filteredOwn = computed(() => {
+  // Los consolidados propios actuales son marítimos (China/Miami). Nunca deben
+  // aparecer dentro de una cotización aérea aunque la ciudad del APT coincida.
+  if (isAir.value) return []
   const q = normalize(search.value)
   return ownRows.value.filter((row) => {
     if (!row.isActive || normalize(row.status) === 'closed') return false
@@ -356,8 +362,9 @@ async function load() {
     loading.value = true
     error.value = ''
     const [own, coloaders] = await Promise.all([
-      OwnLclConsolidationService.browse(),
+      isAir.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse(),
       LclRateSourceService.browseColoaders({
+        modality: props.modality,
         polId: props.polId,
         poeId: props.poeId,
         podId: props.podId,
@@ -367,7 +374,7 @@ async function load() {
     ])
     ownRows.value = own.map((row) => ({ ...row }))
     coloaderRows.value = coloaders.map((row) => ({ ...row }))
-    if (!filteredOwn.value.length && filteredColoaders.value.length) tab.value = 'Coloader'
+    if (isAir.value || (!filteredOwn.value.length && filteredColoaders.value.length)) tab.value = 'Coloader'
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'No fue posible consultar las fuentes LCL.'
   } finally {
@@ -600,11 +607,11 @@ onMounted(load)
     </div>
 
     <div class="flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
-      <button type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Own' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Own'">
+      <button v-if="!isAir" type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Own' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Own'">
         <Ship class="h-4 w-4" /> Consolidados propios <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ filteredOwn.length }}</span>
       </button>
       <button type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Coloader' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Coloader'">
-        <Building2 class="h-4 w-4" /> Coloader <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ filteredColoaders.length }}</span>
+        <Building2 class="h-4 w-4" /> {{ isAir ? 'Tarifarios aéreos' : 'Coloader' }} <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ filteredColoaders.length }}</span>
       </button>
     </div>
 
@@ -635,7 +642,7 @@ onMounted(load)
     </div>
 
     <div v-else>
-      <DhDataTable :columns="coloaderColumns" :rows="filteredColoaders" :loading="loading" empty-text="No hay tarifarios LCL de coloader vigentes para esta ruta.">
+      <DhDataTable :columns="coloaderColumns" :rows="filteredColoaders" :loading="loading" :empty-text="isAir ? 'No hay tarifarios aéreos vigentes para esta ruta.' : 'No hay tarifarios LCL de coloader vigentes para esta ruta.'">
         <template #cell-source="{ row }">
           <div><p class="font-black">{{ row.providerName || row.providerCode || 'Coloader' }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.rateCode }} · {{ row.carrierName || row.carrierCode || 'Sin naviera' }}</p></div>
         </template>
@@ -659,8 +666,8 @@ onMounted(load)
 
       <div class="mt-4 flex flex-col gap-3 rounded-[22px] border border-dashed border-[rgb(var(--dh-primary-rgb)/0.35)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p class="font-black">Tarifa LCL de coloader manual</p>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Úsela cuando el coloader no tenga un tarifario vigente cargado. Podrá indicar agente, naviera, moneda, flete y líneas en las siguientes pantallas.</p>
+          <p class="font-black">{{ isAir ? 'Tarifa aérea manual' : 'Tarifa LCL de coloader manual' }}</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isAir ? 'Úsela cuando no exista un tarifario aéreo vigente cargado. Podrá indicar proveedor, aerolínea, moneda, flete y líneas en las siguientes pantallas.' : 'Úsela cuando el coloader no tenga un tarifario vigente cargado. Podrá indicar agente, naviera, moneda, flete y líneas en las siguientes pantallas.' }}</p>
         </div>
         <DhButton
           class="shrink-0"
