@@ -3,9 +3,10 @@ import type { Plugin } from 'vite'
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 
 const lclAwareDescription = `<p class="crystal-description">{{ shipmentModeForApi === 'Lcl' ? 'Compare consolidados propios y tarifarios de coloader. Al seleccionar una fuente, sus líneas reales pasan a Pantalla 7.' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>`
+const airAwareDescription = `<p class="crystal-description">{{ form.modality === 'Air' ? 'Solo se muestran fuentes tarifarias aéreas para la ruta APT-APT seleccionada. Los consolidados propios marítimos no aplican.' : shipmentModeForApi === 'Lcl' ? 'Compare consolidados propios y tarifarios de coloader. Al seleccionar una fuente, sus líneas reales pasan a Pantalla 7.' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>`
 const baseDescription = `<p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>`
 const fclAwareDescription = `<p class="crystal-description">{{ shipmentModeForApi === 'Fcl' ? 'La búsqueda valida todos los tipos de contenedor seleccionados y solo ofrece combinaciones que cubren la composición FCL completa.' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>`
-const finalDescription = `<p class="crystal-description">{{ shipmentModeForApi === 'Lcl' ? 'Compare consolidados propios y tarifarios de coloader. Al seleccionar una fuente, sus líneas reales pasan a Pantalla 7.' : shipmentModeForApi === 'Fcl' ? 'La búsqueda valida todos los tipos de contenedor seleccionados y solo ofrece combinaciones que cubren la composición FCL completa.' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>`
+const finalDescription = `<p class="crystal-description">{{ form.modality === 'Air' ? 'Solo se muestran fuentes tarifarias aéreas para la ruta APT-APT seleccionada. Los consolidados propios marítimos no aplican.' : shipmentModeForApi === 'Lcl' ? 'Compare consolidados propios y tarifarios de coloader. Al seleccionar una fuente, sus líneas reales pasan a Pantalla 7.' : shipmentModeForApi === 'Fcl' ? 'La búsqueda valida todos los tipos de contenedor seleccionados y solo ofrece combinaciones que cubren la composición FCL completa.' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>`
 
 function scopedPlugin(name: string, transformSource: (source: string) => string): Plugin {
   return {
@@ -21,9 +22,11 @@ function scopedPlugin(name: string, transformSource: (source: string) => string)
 }
 
 export function pricingWizardFclRateBundlesPreCompat(): Plugin {
-  return scopedPlugin('dhole-pricing-wizard-fcl-rate-bundles-pre-compat', (source) =>
-    source.includes(lclAwareDescription) ? source.replace(lclAwareDescription, baseDescription) : source,
-  )
+  return scopedPlugin('dhole-pricing-wizard-fcl-rate-bundles-pre-compat', (source) => {
+    if (source.includes(airAwareDescription)) return source.replace(airAwareDescription, baseDescription)
+    if (source.includes(lclAwareDescription)) return source.replace(lclAwareDescription, baseDescription)
+    return source
+  })
 }
 
 export function pricingWizardFclRateBundlesPostCompat(): Plugin {
