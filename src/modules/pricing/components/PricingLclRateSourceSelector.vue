@@ -76,6 +76,7 @@ export interface LclRateSourceSelection {
 const props = withDefaults(defineProps<{
   polId?: string | null
   polCode?: string | null
+  polName?: string | null
   poeId?: string | null
   podId?: string | null
   incotermId?: string | null
@@ -99,6 +100,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   polId: null,
   polCode: null,
+  polName: null,
   poeId: null,
   podId: null,
   incotermId: null,
@@ -279,36 +281,58 @@ function canonicalOwnLclOrigin(value: unknown) {
   return key
 }
 
+function requestedOwnLclOrigins() {
+  return new Set(
+    [props.polCode, props.polName]
+      .map(canonicalOwnLclOrigin)
+      .filter(Boolean),
+  )
+}
+
 function ownCalculationPolCode(row: OwnLclConsolidationDto) {
   const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
   if (consolidationOrigin === 'miami') return 'MIAMI'
-  return canonicalOwnLclOrigin(props.polCode || row.polName || row.polCode).toUpperCase()
+
+  const requestedOrigins = [...requestedOwnLclOrigins()]
+  const requestedChinaOrigin = requestedOrigins.find((origin) => chinaOwnLclOrigins.has(origin))
+  return (requestedChinaOrigin || consolidationOrigin).toUpperCase()
 }
 
-function ownConsolidationSupportsPol(row: OwnLclConsolidationDto, pol: string) {
-  if (!pol) return true
+function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
+  // El ID es la coincidencia más fuerte. Evita perder el consolidado cuando el
+  // catálogo usa un código auxiliar distinto al UN/LOCODE (por ejemplo CY).
+  if (props.polId && row.polId && String(props.polId) === String(row.polId)) return true
 
-  const requestedOrigin = canonicalOwnLclOrigin(pol)
-  const consolidationOrigins = [row.polCode, row.polName]
-    .map(canonicalOwnLclOrigin)
-    .filter(Boolean)
+  const requestedOrigins = requestedOwnLclOrigins()
+  if (!requestedOrigins.size) return true
 
-  if (consolidationOrigins.includes(requestedOrigin)) return true
+  const consolidationOrigins = new Set(
+    [row.polCode, row.polName]
+      .map(canonicalOwnLclOrigin)
+      .filter(Boolean),
+  )
+
+  for (const origin of requestedOrigins) {
+    if (consolidationOrigins.has(origin)) return true
+  }
+
+  // Miami es una matriz independiente. Si el nombre del POL solicitado resuelve
+  // a Miami, únicamente debe ofrecer consolidaciones Miami.
+  if (requestedOrigins.has('miami')) {
+    return consolidationOrigins.has('miami')
+  }
 
   // China usa Shanghai como base física y aplica el diferencial del POL comercial.
-  // Miami es una matriz aparte y nunca debe caer en esta regla.
-  return requestedOrigin !== 'miami'
-    && consolidationOrigins.includes('shanghai')
-    && chinaOwnLclOrigins.has(requestedOrigin)
+  return consolidationOrigins.has('shanghai')
+    && [...requestedOrigins].some((origin) => chinaOwnLclOrigins.has(origin))
 }
 
 const filteredOwn = computed(() => {
   const q = normalize(search.value)
-  const pol = normalize(props.polCode)
   return ownRows.value.filter((row) => {
     if (!row.isActive || normalize(row.status) === 'closed') return false
     if (row.etd && row.etd.slice(0, 10) <= costaRicaTodayIso()) return false
-    if (!ownConsolidationSupportsPol(row, pol)) return false
+    if (!ownConsolidationSupportsPol(row)) return false
     if (!q) return true
     return [row.name, row.booking, row.carrierName, row.carrierCode, row.polName, row.polCode, row.containerName, row.containerCode, row.etd]
       .some((value) => normalize(value).includes(q))
