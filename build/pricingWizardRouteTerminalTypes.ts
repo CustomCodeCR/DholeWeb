@@ -84,8 +84,31 @@ const destinationCatalog = computed(() => {
   return maritimePoeCatalog.value.filter((item) => !isMultimodalViaPanama(item))
 })
 
-const originOptions = computed(() => originCatalog.value.map((item) => ({ value: item.id, label: displayValue(item) })))
-const destinationOptions = computed(() => destinationCatalog.value.map((item) => ({ value: item.id, label: displayValue(item) })))
+function routeOptionSearchText(item: CatalogItemSelectDto) {
+  const meta = (metadata(item) ?? {}) as unknown as Record<string, unknown>
+  return [
+    item.code,
+    item.slug,
+    item.label,
+    displayValue(item),
+    meta.iataCode,
+    meta.airportName,
+    meta.city,
+    meta.countryCode,
+    meta.countryName,
+  ].filter(Boolean).join(' ')
+}
+
+const originOptions = computed(() => originCatalog.value.map((item) => ({
+  value: item.id,
+  label: displayValue(item),
+  searchText: routeOptionSearchText(item),
+})))
+const destinationOptions = computed(() => destinationCatalog.value.map((item) => ({
+  value: item.id,
+  label: displayValue(item),
+  searchText: routeOptionSearchText(item),
+})))
 const podOptions = computed(() => ['Land', 'Air'].includes(form.modality)
   ? []
   : maritimePodCatalog.value.map((item) => ({ value: item.id, label: displayValue(item) })))
@@ -105,8 +128,8 @@ const podOptions = computed(() => ['Land', 'Air'].includes(form.modality)
     `const selectedPod = computed(() => ['Land', 'Air'].includes(form.modality) ? null : findById(maritimePodCatalog.value, form.podId))`,
   )
   code = code.replace(
-    `const selectedPod = computed(() => ['Land', 'Air'].includes(form.modality) ? null : findById(maritimePodCatalog.value, form.podId))`,
     `const selectedPod = computed(() => form.modality === 'Land' ? null : findById(maritimePodCatalog.value, form.podId))`,
+    `const selectedPod = computed(() => ['Land', 'Air'].includes(form.modality) ? null : findById(maritimePodCatalog.value, form.podId))`,
   )
 
   code = code.replace(
@@ -116,6 +139,11 @@ const podOptions = computed(() => ['Land', 'Air'].includes(form.modality)
   code = code.replace(
     `label="Origen (POL)"\n                placeholder="Buscar puerto de origen"\n                search-placeholder="Buscar puerto, ciudad o país…"`,
     `:label="form.modality === 'Air' ? 'Aeropuerto origen (POL)' : 'Origen (POL)'"\n                :placeholder="form.modality === 'Air' ? 'Buscar aeropuerto de origen' : 'Buscar puerto de origen'"\n                :search-placeholder="form.modality === 'Air' ? 'Buscar aeropuerto, ciudad o código IATA…' : 'Buscar puerto, ciudad o país…'"`,
+  )
+  // route-grid-air-land-2-cols
+  code = code.replace(
+    `<div class="grid gap-4 md:grid-cols-3">\n              <PricingLocationSearchSelect\n                v-model="form.originId"`,
+    `<div class="grid gap-4" :class="['Land', 'Air'].includes(form.modality) ? 'md:grid-cols-2' : 'md:grid-cols-3'">\n              <PricingLocationSearchSelect\n                v-model="form.originId"`,
   )
   code = code.replace(
     `terminal-type="CY"\n                :options="destinationOptions"`,
