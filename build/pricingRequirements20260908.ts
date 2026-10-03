@@ -137,9 +137,9 @@ function patchWizard(source: string) {
     'land shipment icons',
   )
 
-  // 13. Land has only POL/POE and both selectors use the truck visual.
-  code = replaceAllRequired(code, `terminal-type="CY"\n                :options="originOptions"`, `:terminal-type="form.modality === 'Land' ? 'SD' : 'CY'"\n                :options="originOptions"`, 'POL terminal icon')
-  code = replaceAllRequired(code, `terminal-type="CY"\n                :options="destinationOptions"`, `:terminal-type="form.modality === 'Land' ? 'SD' : 'CY'"\n                :options="destinationOptions"`, 'POE terminal icon')
+  // 13. Route selector visual: Land=SD/truck, Air=APT/plane, Maritime=CY/anchor.
+  code = replaceAllRequired(code, `terminal-type="CY"\n                :options="originOptions"`, `:terminal-type="form.modality === 'Land' ? 'SD' : form.modality === 'Air' ? 'APT' : 'CY'"\n                :options="originOptions"`, 'POL terminal icon')
+  code = replaceAllRequired(code, `terminal-type="CY"\n                :options="destinationOptions"`, `:terminal-type="form.modality === 'Land' ? 'SD' : form.modality === 'Air' ? 'APT' : 'CY'"\n                :options="destinationOptions"`, 'POE terminal icon')
   code = replaceRequired(
     code,
     `<PricingLocationSearchSelect\n                v-model="form.podId"`,
