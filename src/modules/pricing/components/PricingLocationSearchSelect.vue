@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Anchor, ChevronDown, Plane, Search, Truck, Warehouse, X } from 'lucide-vue-next'
+import { Anchor, ChevronDown, PlaneTakeoff, Search, Truck, Warehouse, X } from 'lucide-vue-next'
 
 interface LocationOption {
   value: string
@@ -36,7 +36,7 @@ const typing = ref(false)
 const selected = computed(() => props.options.find((option) => option.value === props.modelValue) ?? null)
 const icon = computed(() => {
   if (props.terminalType === 'WHS') return Warehouse
-  if (props.terminalType === 'APT') return Plane
+  if (props.terminalType === 'APT') return PlaneTakeoff
   return props.terminalType === 'SD' ? Truck : Anchor
 })
 
@@ -141,7 +141,8 @@ onBeforeUnmount(() => {
       <span class="relative block">
         <component
           :is="icon"
-          class="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--dh-primary)]"
+          class="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[var(--dh-primary)]"
+          :class="terminalType === 'APT' ? 'h-5 w-5' : 'h-4 w-4'"
         />
         <input
           ref="input"
@@ -194,7 +195,11 @@ onBeforeUnmount(() => {
           @mousedown.prevent
           @click="choose(option)"
         >
-          <component :is="icon" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+          <component
+            :is="icon"
+            class="shrink-0 text-[var(--dh-primary)]"
+            :class="terminalType === 'APT' ? 'h-5 w-5' : 'h-4 w-4'"
+          />
           <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ option.label }}</span>
           <span class="shrink-0 text-[10px] font-black text-[var(--dh-text-muted)]">({{ terminalType }})</span>
         </button>
