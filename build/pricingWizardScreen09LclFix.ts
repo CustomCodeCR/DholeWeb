@@ -42,7 +42,17 @@ function patchWizard(source: string) {
                   <path d="M8 10v20M56 10v20" />
                 </svg>
               </span>`
-  const fixedLclIcon = `              <span v-else-if="option.value === 'LCL'" class="mb-3 inline-flex h-12 w-14 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-primary)]" aria-label="LCL · carga consolidada con puertas abiertas">
+  const fixedLclIcon = `              <span v-else-if="option.value === 'LCL' && form.modality === 'Air'" class="mb-3 inline-flex h-12 w-14 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-primary)]" aria-label="LCL aéreo · avión de carga con compartimiento abierto">
+                <svg viewBox="0 0 80 48" class="h-9 w-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M5 27h43l12-8h8l-5 8 11 3-11 4 5 8h-8L48 34H31l-9 8h-7l5-8H7c-2 0-3-1-3-3s0-3 1-4z" />
+                  <path d="M42 22h13v12H42zM42 22l13-7" />
+                  <path d="M42 34 31 40h-8" />
+                  <path d="M27 33h7v6h-7zM35 29h7v7h-7z" />
+                  <circle cx="18" cy="35" r="2" />
+                  <circle cx="54" cy="36" r="2" />
+                </svg>
+              </span>
+              <span v-else-if="option.value === 'LCL'" class="mb-3 inline-flex h-12 w-14 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-primary)]" aria-label="LCL marítimo · carga consolidada con puertas abiertas">
                 <svg viewBox="0 0 72 48" class="h-9 w-14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M21 9h30v30H21z" />
                   <path d="M21 13 6 7v34l15-5M51 13l15-6v34l-15-5" />
