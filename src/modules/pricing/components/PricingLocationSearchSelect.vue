@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Anchor, ChevronDown, Search, Truck, Warehouse, X } from 'lucide-vue-next'
+import { Anchor, ChevronDown, Plane, Search, Truck, Warehouse, X } from 'lucide-vue-next'
 
 interface LocationOption {
   value: string
@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<{
   placeholder?: string
   searchPlaceholder?: string
   options: LocationOption[]
-  terminalType?: 'CY' | 'SD' | 'WHS'
+  terminalType?: 'CY' | 'SD' | 'APT' | 'WHS'
   optional?: boolean
   disabled?: boolean
 }>(), {
@@ -36,6 +36,7 @@ const typing = ref(false)
 const selected = computed(() => props.options.find((option) => option.value === props.modelValue) ?? null)
 const icon = computed(() => {
   if (props.terminalType === 'WHS') return Warehouse
+  if (props.terminalType === 'APT') return Plane
   return props.terminalType === 'SD' ? Truck : Anchor
 })
 
