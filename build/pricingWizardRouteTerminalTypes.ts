@@ -27,19 +27,20 @@ function patchWizard(source: string) {
       throw new Error('[pricingWizardRouteTerminalTypes] Panama POE anchor not found.')
     }
 
-    const terminalHelpers = `function routeTerminalType(item: CatalogItemSelectDto | null | undefined, fallback: 'CY' | 'SD') {
+    const terminalHelpers = `function routeTerminalType(item: CatalogItemSelectDto | null | undefined, fallback: 'CY' | 'SD' | 'APT') {
   if (!item) return fallback
   const meta = (metadata(item) ?? {}) as unknown as Record<string, unknown>
   const configured = String(meta.terminalType ?? '').trim().toUpperCase()
-  if (configured === 'CY' || configured === 'SD') return configured as 'CY' | 'SD'
+  if (configured === 'CY' || configured === 'SD' || configured === 'APT') return configured as 'CY' | 'SD' | 'APT'
 
   const codeValue = String(item.code ?? '').trim().toUpperCase()
   if (codeValue.startsWith('CY_') || codeValue.endsWith('_CY') || codeValue.includes('_CY_')) return 'CY'
   if (codeValue.startsWith('SD_') || codeValue.endsWith('_SD') || codeValue.includes('_SD_')) return 'SD'
+  if (codeValue.startsWith('APT_') || codeValue.endsWith('_APT') || codeValue.includes('_APT_')) return 'APT'
   return fallback
 }
 
-function routeItemsByTerminal(items: CatalogItemSelectDto[], terminalType: 'CY' | 'SD', fallback: 'CY' | 'SD') {
+function routeItemsByTerminal(items: CatalogItemSelectDto[], terminalType: 'CY' | 'SD' | 'APT', fallback: 'CY' | 'SD' | 'APT') {
   return items.filter((item) => routeTerminalType(item, fallback) === terminalType)
 }
 
@@ -61,15 +62,20 @@ const panamaPoeItems = computed(() =>
 
   const routeBlock = `const maritimePolCatalog = computed(() => routeItemsByTerminal(catalogs.pol, 'CY', 'CY'))
 const terrestrialPolCatalog = computed(() => routeItemsByTerminal(catalogs.pol, 'SD', 'CY'))
+const airPolCatalog = computed(() => routeItemsByTerminal(catalogs.pol, 'APT', 'CY'))
 const maritimePoeCatalog = computed(() => routeItemsByTerminal(catalogs.poe, 'CY', 'CY'))
 const terrestrialPoeCatalog = computed(() => routeItemsByTerminal(catalogs.poe, 'SD', 'CY'))
+const airPoeCatalog = computed(() => routeItemsByTerminal(catalogs.poe, 'APT', 'CY'))
 const maritimePodCatalog = computed(() => routeItemsByTerminal(catalogs.pod, 'SD', 'SD'))
 
-const originCatalog = computed(() =>
-  form.modality === 'Land' ? terrestrialPolCatalog.value : maritimePolCatalog.value,
-)
+const originCatalog = computed(() => {
+  if (form.modality === 'Land') return terrestrialPolCatalog.value
+  if (form.modality === 'Air') return airPolCatalog.value
+  return maritimePolCatalog.value
+})
 const destinationCatalog = computed(() => {
   if (form.modality === 'Land') return terrestrialPoeCatalog.value
+  if (form.modality === 'Air') return airPoeCatalog.value
   if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl') {
     // En FCL se muestran tanto los POE reales de Panamá como el POE sintético.
     // La combinación con POD define después si permanece Panamá o pasa a multimodal.
@@ -80,7 +86,7 @@ const destinationCatalog = computed(() => {
 
 const originOptions = computed(() => originCatalog.value.map((item) => ({ value: item.id, label: displayValue(item) })))
 const destinationOptions = computed(() => destinationCatalog.value.map((item) => ({ value: item.id, label: displayValue(item) })))
-const podOptions = computed(() => form.modality === 'Land'
+const podOptions = computed(() => ['Land', 'Air'].includes(form.modality)
   ? []
   : maritimePodCatalog.value.map((item) => ({ value: item.id, label: displayValue(item) })))
 `
@@ -96,31 +102,47 @@ const podOptions = computed(() => form.modality === 'Land'
   )
   code = code.replace(
     `const selectedPod = computed(() => findById(catalogs.pod, form.podId))`,
-    `const selectedPod = computed(() => form.modality === 'Land' ? null : findById(maritimePodCatalog.value, form.podId))`,
+    `const selectedPod = computed(() => ['Land', 'Air'].includes(form.modality) ? null : findById(maritimePodCatalog.value, form.podId))`,
   )
   code = code.replace(
-    `const selectedPod = computed(() => form.modality === 'Land' ? null : findById(catalogs.pod, form.podId))`,
+    `const selectedPod = computed(() => ['Land', 'Air'].includes(form.modality) ? null : findById(maritimePodCatalog.value, form.podId))`,
     `const selectedPod = computed(() => form.modality === 'Land' ? null : findById(maritimePodCatalog.value, form.podId))`,
   )
 
   code = code.replace(
     `terminal-type="CY"\n                :options="originOptions"`,
-    `:terminal-type="form.modality === 'Land' ? 'SD' : 'CY'"\n                :options="originOptions"`,
+    `:terminal-type="form.modality === 'Land' ? 'SD' : form.modality === 'Air' ? 'APT' : 'CY'"\n                :options="originOptions"`,
+  )
+  code = code.replace(
+    `label="Origen (POL)"\n                placeholder="Buscar puerto de origen"\n                search-placeholder="Buscar puerto, ciudad o país…"`,
+    `:label="form.modality === 'Air' ? 'Aeropuerto origen (POL)' : 'Origen (POL)'"\n                :placeholder="form.modality === 'Air' ? 'Buscar aeropuerto de origen' : 'Buscar puerto de origen'"\n                :search-placeholder="form.modality === 'Air' ? 'Buscar aeropuerto, ciudad o código IATA…' : 'Buscar puerto, ciudad o país…'"`,
   )
   code = code.replace(
     `terminal-type="CY"\n                :options="destinationOptions"`,
-    `:terminal-type="form.modality === 'Land' ? 'SD' : 'CY'"\n                :options="destinationOptions"`,
+    `:terminal-type="form.modality === 'Land' ? 'SD' : form.modality === 'Air' ? 'APT' : 'CY'"\n                :options="destinationOptions"`,
+  )
+  code = code.replace(
+    `label="Destino (POE)"\n                placeholder="Buscar puerto de salida"\n                search-placeholder="Buscar puerto, ciudad o país…"`,
+    `:label="form.modality === 'Air' ? 'Aeropuerto destino (POE)' : 'Destino (POE)'"\n                :placeholder="form.modality === 'Air' ? 'Buscar aeropuerto de destino' : 'Buscar puerto de salida'"\n                :search-placeholder="form.modality === 'Air' ? 'Buscar aeropuerto, ciudad o código IATA…' : 'Buscar puerto, ciudad o país…'"`,
   )
 
-  if (!code.includes(`<PricingLocationSearchSelect\n                v-if="form.modality !== 'Land'"\n                v-model="form.podId"`)) {
-    const podComponentAnchor = `<PricingLocationSearchSelect\n                v-model="form.podId"`
-    if (!code.includes(podComponentAnchor)) {
-      throw new Error('[pricingWizardRouteTerminalTypes] POD component anchor not found.')
+  if (!code.includes(`<PricingLocationSearchSelect\n                v-if="!['Land', 'Air'].includes(form.modality)"\n                v-model="form.podId"`)) {
+    const existingLandOnlyPod = `<PricingLocationSearchSelect\n                v-if="form.modality !== 'Land'"\n                v-model="form.podId"`
+    if (code.includes(existingLandOnlyPod)) {
+      code = code.replace(
+        existingLandOnlyPod,
+        `<PricingLocationSearchSelect\n                v-if="!['Land', 'Air'].includes(form.modality)"\n                v-model="form.podId"`,
+      )
+    } else {
+      const podComponentAnchor = `<PricingLocationSearchSelect\n                v-model="form.podId"`
+      if (!code.includes(podComponentAnchor)) {
+        throw new Error('[pricingWizardRouteTerminalTypes] POD component anchor not found.')
+      }
+      code = code.replace(
+        podComponentAnchor,
+        `<PricingLocationSearchSelect\n                v-if="!['Land', 'Air'].includes(form.modality)"\n                v-model="form.podId"`,
+      )
     }
-    code = code.replace(
-      podComponentAnchor,
-      `<PricingLocationSearchSelect\n                v-if="form.modality !== 'Land'"\n                v-model="form.podId"`,
-    )
   }
 
   code = code.replace(
@@ -136,12 +158,12 @@ const podOptions = computed(() => form.modality === 'Land'
   if (code.includes(destinationWatcher)) {
     code = code.replace(
       destinationWatcher,
-      `watch(\n  () => form.destinationId,\n  () => {\n    // POD is always user-selected. Only clear it for land routes, where POD is not used.\n    if (form.modality === 'Land') form.podId = ''\n  },\n)`,
+      `watch(\n  () => form.destinationId,\n  () => {\n    // POD is always user-selected. Only clear it for land routes, where POD is not used.\n    if (['Land', 'Air'].includes(form.modality)) form.podId = ''\n  },\n)`,
     )
   }
 
   const modalityAnchor = `function chooseModality(value: Modality) {\n  form.modality = value`
-  if (code.includes(modalityAnchor) && !code.includes(`if (value === 'Land') form.podId = ''`)) {
+  if (code.includes(modalityAnchor) && !code.includes(`if (value === 'Land' || value === 'Air') form.podId = ''`)) {
     code = code.replace(
       modalityAnchor,
       `function chooseModality(value: Modality) {\n  form.modality = value\n  if (value === 'Land') form.podId = ''`,
@@ -153,7 +175,7 @@ const podOptions = computed(() => form.modality === 'Land'
     if (code.includes(originWatchAnchor)) {
       code = code.replace(
         originWatchAnchor,
-        `// shared-route-catalog land POD guard\nwatch(\n  () => form.modality,\n  (modality) => {\n    if (modality === 'Land') form.podId = ''\n  },\n)\n\n${originWatchAnchor}`,
+        `// shared-route-catalog land POD guard\nwatch(\n  () => form.modality,\n  (modality) => {\n    if (modality === 'Land' || modality === 'Air') form.podId = ''\n  },\n)\n\n${originWatchAnchor}`,
       )
     }
   }
