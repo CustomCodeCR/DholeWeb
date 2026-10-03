@@ -137,6 +137,10 @@ const podOptions = computed(() => ['Land', 'Air'].includes(form.modality)
     `:terminal-type="form.modality === 'Land' ? 'SD' : form.modality === 'Air' ? 'APT' : 'CY'"\n                :options="originOptions"`,
   )
   code = code.replace(
+    `:terminal-type="form.modality === 'Land' ? 'SD' : 'CY'"\n                :options="originOptions"`,
+    `:terminal-type="form.modality === 'Land' ? 'SD' : form.modality === 'Air' ? 'APT' : 'CY'"\n                :options="originOptions"`,
+  )
+  code = code.replace(
     `label="Origen (POL)"\n                placeholder="Buscar puerto de origen"\n                search-placeholder="Buscar puerto, ciudad o país…"`,
     `:label="form.modality === 'Air' ? 'Aeropuerto origen (POL)' : 'Origen (POL)'"\n                :placeholder="form.modality === 'Air' ? 'Buscar aeropuerto de origen' : 'Buscar puerto de origen'"\n                :search-placeholder="form.modality === 'Air' ? 'Buscar aeropuerto, ciudad o código IATA…' : 'Buscar puerto, ciudad o país…'"`,
   )
@@ -147,6 +151,10 @@ const podOptions = computed(() => ['Land', 'Air'].includes(form.modality)
   )
   code = code.replace(
     `terminal-type="CY"\n                :options="destinationOptions"`,
+    `:terminal-type="form.modality === 'Land' ? 'SD' : form.modality === 'Air' ? 'APT' : 'CY'"\n                :options="destinationOptions"`,
+  )
+  code = code.replace(
+    `:terminal-type="form.modality === 'Land' ? 'SD' : 'CY'"\n                :options="destinationOptions"`,
     `:terminal-type="form.modality === 'Land' ? 'SD' : form.modality === 'Air' ? 'APT' : 'CY'"\n                :options="destinationOptions"`,
   )
   code = code.replace(
@@ -194,7 +202,7 @@ const podOptions = computed(() => ['Land', 'Air'].includes(form.modality)
   if (code.includes(modalityAnchor) && !code.includes(`if (value === 'Land' || value === 'Air') form.podId = ''`)) {
     code = code.replace(
       modalityAnchor,
-      `function chooseModality(value: Modality) {\n  form.modality = value\n  if (value === 'Land') form.podId = ''`,
+      `function chooseModality(value: Modality) {\n  form.modality = value\n  if (value === 'Land' || value === 'Air') form.podId = ''`,
     )
   }
 
