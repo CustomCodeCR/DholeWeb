@@ -333,6 +333,13 @@ const miamiLittleIssues = computed(() => {
 
   code = replaceRequired(
     code,
+    `  lclRequestedCbm.value = Math.max(1, number(selection.requestedCbm))`,
+    `  lclRequestedCbm.value = Math.max(isMiamiLcl.value ? 0.001 : 1, number(selection.requestedCbm))`,
+    'Miami selected source without 1-CBM floor',
+  )
+
+  code = replaceRequired(
+    code,
     `  if (consolidatedCargoMode.value && basis === 'PerChargeableCft') return Math.max(CFT_PER_CBM, number(lclChargeableCbm.value) * CFT_PER_CBM)`,
     `  if (consolidatedCargoMode.value && basis === 'PerChargeableCft') return isMiamiLcl.value
     ? Math.max(0.001, number(lclChargeableCbm.value) * CFT_PER_CBM)
