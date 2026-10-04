@@ -164,8 +164,24 @@ function miamiDimensionConversionText(valueInches: number) {
     : inches.toFixed(2) + ' in → ' + cm.toFixed(2) + ' cm'
 }
 
-const cargoVolumeUnit = computed(() => isUnitedStatesPol.value ? 'CFT' : 'CBM')`,
+const useCftCargoVolume = computed(() =>
+  isMiamiLcl.value
+    ? form.miamiDimensionInputUnit === 'in'
+    : isUnitedStatesPol.value,
+)
+const cargoVolumeUnit = computed(() => useCftCargoVolume.value ? 'CFT' : 'CBM')`,
     'Miami origin resolver',
+  )
+
+  code = replaceRequired(
+    code,
+    `function cargoVolumeForDisplay(cbm: number) {
+  return Math.max(0, number(cbm)) * (isUnitedStatesPol.value ? CFT_PER_CBM : 1)
+}`,
+    `function cargoVolumeForDisplay(cbm: number) {
+  return Math.max(0, number(cbm)) * (useCftCargoVolume.value ? CFT_PER_CBM : 1)
+}`,
+    'dimension-selected CFT/CBM display conversion',
   )
 
   code = replaceRequired(
@@ -248,7 +264,7 @@ const miamiLittleIssues = computed(() => {
                         ? 'POL Estados Unidos: capture dimensiones en pulgadas y el volumen comercial se trabaja en CFT.'
                         : 'Capture dimensiones en centímetros y el volumen comercial se trabaja en CBM.' }}
                     {{ isMiamiLcl
-                      ? 'Dhole convierte automáticamente la unidad elegida y usa el valor normalizado para calcular el CFT cobrable.'
+                      ? 'Pulgadas (in) trabaja y muestra el volumen en CFT; centímetros (cm) trabaja y muestra el volumen en CBM. Dhole conserva el mismo volumen físico al cambiar de unidad.'
                       : 'Se compara contra ' + (shipmentModeForApi === 'Ltl' ? 'peso/330' : 'peso/500') + '.' }}`,
     'Miami live conversion instructions',
   )
@@ -391,6 +407,7 @@ const miamiLittleIssues = computed(() => {
     `            :cargo-lines="lclCargoLines"
             :pol-id="selectedOrigin?.id ?? null"`,
     `            :cargo-lines="lclCargoLines"
+            :chargeable-volume-unit="isMiamiLcl && form.miamiDimensionInputUnit === 'in' ? 'CFT' : 'CBM'"
             :commercial-plan="isMiamiLcl ? form.miamiCommercialPlan : null"
             :cargo-value="form.cargoValue"
             :whs-qty="form.miamiWhsQty"
@@ -408,7 +425,7 @@ const miamiLittleIssues = computed(() => {
                     <p class="text-sm font-black">Tarifa comercial Miami</p>
                     <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El tipo de cliente se aplica por cotización aquí; el consolidado conserva únicamente sus costos operativos.</p>
                   </div>
-                  <span class="rounded-full border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">CFT · Miami</span>
+                  <span class="rounded-full border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">{{ form.miamiDimensionInputUnit === 'in' ? 'CFT · Pulgadas' : 'CBM · Centímetros' }}</span>
                 </div>
                 <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                   <DhSelect v-model="form.miamiCommercialPlan" label="Tipo / tarifa de cliente" :options="miamiCommercialPlanOptions" />
