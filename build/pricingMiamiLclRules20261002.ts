@@ -261,6 +261,13 @@ const miamiLittleIssues = computed(() => {
 
   code = replaceRequired(
     code,
+    `                  <p class="font-black">Medidas de la carga {{ shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}</p>`,
+    `                  <p class="font-black">Medidas de la carga {{ isAirLcl ? 'Aérea' : shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}</p>`,
+    'Air cargo title',
+  )
+
+  code = replaceRequired(
+    code,
     `                    {{ isUnitedStatesPol
                       ? 'POL Estados Unidos: capture dimensiones en pulgadas y el volumen comercial se trabaja en CFT.'
                       : 'Capture dimensiones en centímetros y el volumen comercial se trabaja en CBM.' }}
