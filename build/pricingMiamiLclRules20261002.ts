@@ -100,8 +100,12 @@ const miamiWeightUnitOptions = [
   code = replaceRequired(
     code,
     `const cargoVolumeUnit = computed(() => isUnitedStatesPol.value ? 'CFT' : 'CBM')`,
-    `const isMiamiLcl = computed(() => {
-  if (shipmentModeForApi.value !== 'Lcl') return false
+    `const isAirLcl = computed(() =>
+  form.modality === 'Air' && shipmentModeForApi.value === 'Lcl',
+)
+
+const isMiamiLcl = computed(() => {
+  if (form.modality !== 'Maritime' || shipmentModeForApi.value !== 'Lcl') return false
   const origin = selectedOrigin.value
   const values = [
     String(origin?.code ?? ''),
@@ -111,6 +115,8 @@ const miamiWeightUnitOptions = [
   ].map((value) => normalizeCatalogValue(value).replace(/[^a-z0-9]/g, ''))
   return values.some((value) => value === 'mia' || value === 'usmia' || value.includes('miami'))
 })
+
+const usesSelectableCargoUnits = computed(() => isMiamiLcl.value || isAirLcl.value)
 
 const miamiCommercialRate = computed(() =>
   MIAMI_COMMERCIAL_RATES[String(form.miamiCommercialPlan || 'A')] ?? MIAMI_COMMERCIAL_RATES.A,
@@ -132,9 +138,9 @@ function setMiamiWeightInputValue(line: ConsolidatedCargoLineUi, value: unknown)
     : entered
 }
 
-function miamiDimensionInputValue(valueInches: number) {
-  const inches = Math.max(0, number(valueInches))
-  return form.miamiDimensionInputUnit === 'cm' ? inches * INCH_TO_CM : inches
+function miamiDimensionInputValue(storedValue: number) {
+  const cm = cargoDimensionToCm(storedValue)
+  return form.miamiDimensionInputUnit === 'cm' ? cm : cm / INCH_TO_CM
 }
 
 function setMiamiDimensionInputValue(
@@ -143,9 +149,10 @@ function setMiamiDimensionInputValue(
   value: unknown,
 ) {
   const entered = Math.max(0, number(value))
-  line[field] = form.miamiDimensionInputUnit === 'cm'
-    ? entered / INCH_TO_CM
-    : entered
+  const cm = form.miamiDimensionInputUnit === 'cm'
+    ? entered
+    : entered * INCH_TO_CM
+  line[field] = cargoDimensionFromCm(cm)
 }
 
 function miamiWeightConversionText(weightKg: number) {
@@ -156,16 +163,16 @@ function miamiWeightConversionText(weightKg: number) {
     : kg.toFixed(2) + ' kg → ' + lb.toFixed(2) + ' lb'
 }
 
-function miamiDimensionConversionText(valueInches: number) {
-  const inches = Math.max(0, number(valueInches))
-  const cm = inches * INCH_TO_CM
+function miamiDimensionConversionText(storedValue: number) {
+  const cm = cargoDimensionToCm(storedValue)
+  const inches = cm / INCH_TO_CM
   return form.miamiDimensionInputUnit === 'cm'
     ? cm.toFixed(2) + ' cm → ' + inches.toFixed(2) + ' in'
     : inches.toFixed(2) + ' in → ' + cm.toFixed(2) + ' cm'
 }
 
 const useCftCargoVolume = computed(() =>
-  isMiamiLcl.value
+  usesSelectableCargoUnits.value
     ? form.miamiDimensionInputUnit === 'in'
     : isUnitedStatesPol.value,
 )
@@ -204,8 +211,8 @@ const lclWeightCbm = computed(() =>
 const lclChargeableCbm = computed(() => {
   const calculated = Math.max(lclDimensionalCbm.value, lclWeightCbm.value)
   if (calculated <= 0) return 0
-  // Miami aplica mínimo monetario por tarifa comercial; no fuerza 1 CBM.
-  if (isMiamiLcl.value) return calculated
+  // Miami marítimo aplica mínimo monetario; Aéreo conserva su volumen real.
+  if (isMiamiLcl.value || isAirLcl.value) return calculated
   return Math.max(1, calculated)
 })
 const miamiPhysicalCft = computed(() => lclPhysicalCbm.value * CFT_PER_CBM)
@@ -258,12 +265,14 @@ const miamiLittleIssues = computed(() => {
                       ? 'POL Estados Unidos: capture dimensiones en pulgadas y el volumen comercial se trabaja en CFT.'
                       : 'Capture dimensiones en centímetros y el volumen comercial se trabaja en CBM.' }}
                     Se compara contra {{ shipmentModeForApi === 'Ltl' ? 'peso/330' : 'peso/500' }}.`,
-    `                    {{ isMiamiLcl
-                      ? 'Miami: elija si va a capturar dimensiones en centímetros o pulgadas y el peso en kilogramos o libras.'
-                      : isUnitedStatesPol
-                        ? 'POL Estados Unidos: capture dimensiones en pulgadas y el volumen comercial se trabaja en CFT.'
-                        : 'Capture dimensiones en centímetros y el volumen comercial se trabaja en CBM.' }}
-                    {{ isMiamiLcl
+    `                    {{ isAirLcl
+                      ? 'Carga aérea: elija si va a capturar dimensiones en centímetros o pulgadas y el peso en kilogramos o libras.'
+                      : isMiamiLcl
+                        ? 'Miami marítimo: elija si va a capturar dimensiones en centímetros o pulgadas y el peso en kilogramos o libras.'
+                        : isUnitedStatesPol
+                          ? 'POL Estados Unidos: capture dimensiones en pulgadas y el volumen comercial se trabaja en CFT.'
+                          : 'Capture dimensiones en centímetros y el volumen comercial se trabaja en CBM.' }}
+                    {{ usesSelectableCargoUnits
                       ? 'Pulgadas (in) trabaja y muestra el volumen en CFT; centímetros (cm) trabaja y muestra el volumen en CBM. Dhole conserva el mismo volumen físico al cambiar de unidad.'
                       : 'Se compara contra ' + (shipmentModeForApi === 'Ltl' ? 'peso/330' : 'peso/500') + '.' }}`,
     'Miami live conversion instructions',
@@ -273,7 +282,7 @@ const miamiLittleIssues = computed(() => {
     code,
     `                    <DhInput v-model.number="line.weightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />`,
     `                    <DhInput
-                      v-if="isMiamiLcl"
+                      v-if="usesSelectableCargoUnits"
                       :model-value="miamiWeightInputValue(line.weightKg)"
                       type="number"
                       min="0"
@@ -289,7 +298,7 @@ const miamiLittleIssues = computed(() => {
     code,
     `                    <DhInput v-model.number="line.length" type="number" min="0" step="0.01" :label="'Largo (' + cargoDimensionUnit + ')'" />`,
     `                    <DhInput
-                      v-if="isMiamiLcl"
+                      v-if="usesSelectableCargoUnits"
                       :model-value="miamiDimensionInputValue(line.length)"
                       type="number"
                       min="0"
@@ -305,7 +314,7 @@ const miamiLittleIssues = computed(() => {
     code,
     `                    <DhInput v-model.number="line.width" type="number" min="0" step="0.01" :label="'Ancho (' + cargoDimensionUnit + ')'" />`,
     `                    <DhInput
-                      v-if="isMiamiLcl"
+                      v-if="usesSelectableCargoUnits"
                       :model-value="miamiDimensionInputValue(line.width)"
                       type="number"
                       min="0"
@@ -321,7 +330,7 @@ const miamiLittleIssues = computed(() => {
     code,
     `                    <DhInput v-model.number="line.height" type="number" min="0" step="0.01" :label="'Alto (' + cargoDimensionUnit + ')'" />`,
     `                    <DhInput
-                      v-if="isMiamiLcl"
+                      v-if="usesSelectableCargoUnits"
                       :model-value="miamiDimensionInputValue(line.height)"
                       type="number"
                       min="0"
@@ -336,7 +345,7 @@ const miamiLittleIssues = computed(() => {
   code = replaceRequired(
     code,
     `                  <p v-if="cargoLineForcedNonStackable(line)" class="mt-2 text-xs font-black text-amber-600">`,
-    `                  <div v-if="isMiamiLcl" class="mt-3 grid gap-2 rounded-xl border border-[var(--dh-border)] bg-black/[0.02] px-3 py-2 text-[11px] font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025] sm:grid-cols-2 xl:grid-cols-4">
+    `                  <div v-if="usesSelectableCargoUnits" class="mt-3 grid gap-2 rounded-xl border border-[var(--dh-border)] bg-black/[0.02] px-3 py-2 text-[11px] font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025] sm:grid-cols-2 xl:grid-cols-4">
                     <span>Peso: <b class="text-[var(--dh-text)]">{{ miamiWeightConversionText(line.weightKg) }}</b></span>
                     <span>Largo: <b class="text-[var(--dh-text)]">{{ miamiDimensionConversionText(line.length) }}</b></span>
                     <span>Ancho: <b class="text-[var(--dh-text)]">{{ miamiDimensionConversionText(line.width) }}</b></span>
@@ -350,14 +359,14 @@ const miamiLittleIssues = computed(() => {
   code = replaceRequired(
     code,
     `  lclRequestedCbm.value = Math.max(1, number(selection.requestedCbm))`,
-    `  lclRequestedCbm.value = Math.max(isMiamiLcl.value ? 0.001 : 1, number(selection.requestedCbm))`,
+    `  lclRequestedCbm.value = Math.max((isMiamiLcl.value || isAirLcl.value) ? 0.001 : 1, number(selection.requestedCbm))`,
     'Miami selected source without 1-CBM floor',
   )
 
   code = replaceRequired(
     code,
     `  if (consolidatedCargoMode.value && basis === 'PerChargeableCft') return Math.max(CFT_PER_CBM, number(lclChargeableCbm.value) * CFT_PER_CBM)`,
-    `  if (consolidatedCargoMode.value && basis === 'PerChargeableCft') return isMiamiLcl.value
+    `  if (consolidatedCargoMode.value && basis === 'PerChargeableCft') return (isMiamiLcl.value || isAirLcl.value)
     ? Math.max(0.001, number(lclChargeableCbm.value) * CFT_PER_CBM)
     : Math.max(CFT_PER_CBM, number(lclChargeableCbm.value) * CFT_PER_CBM)`,
     'Miami CFT quantity without 1-CBM floor',
@@ -407,7 +416,7 @@ const miamiLittleIssues = computed(() => {
     `            :cargo-lines="lclCargoLines"
             :pol-id="selectedOrigin?.id ?? null"`,
     `            :cargo-lines="lclCargoLines"
-            :chargeable-volume-unit="isMiamiLcl && form.miamiDimensionInputUnit === 'in' ? 'CFT' : 'CBM'"
+            :chargeable-volume-unit="usesSelectableCargoUnits && form.miamiDimensionInputUnit === 'in' ? 'CFT' : 'CBM'"
             :commercial-plan="isMiamiLcl ? form.miamiCommercialPlan : null"
             :cargo-value="form.cargoValue"
             :whs-qty="form.miamiWhsQty"
@@ -458,12 +467,33 @@ const miamiLittleIssues = computed(() => {
 
 `
 
+  const airCargoBoard = `              <div v-if="isAirLcl" class="rounded-2xl border border-[var(--dh-primary)]/30 bg-[var(--dh-card)] p-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p class="text-sm font-black">Configuración de carga aérea</p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El CFT aéreo es la conversión del mismo volumen físico. No aplica la tarifa comercial ni las reglas del consolidado propio marítimo.</p>
+                  </div>
+                  <span class="rounded-full border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">{{ form.miamiDimensionInputUnit === 'in' ? 'CFT · Pulgadas' : 'CBM · Centímetros' }}</span>
+                </div>
+                <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <DhSelect v-model="form.miamiDimensionInputUnit" label="Unidad de dimensiones" :options="miamiDimensionUnitOptions" />
+                  <DhSelect v-model="form.miamiWeightInputUnit" label="Unidad de peso" :options="miamiWeightUnitOptions" />
+                  <button type="button" class="crystal-flag self-end" :class="form.miamiIncludeSed ? 'crystal-flag--active' : ''" @click="form.miamiIncludeSed = !form.miamiIncludeSed">
+                    <Check v-if="form.miamiIncludeSed" class="h-4 w-4" /> Incluir SED
+                  </button>
+                  <DhInput v-if="form.miamiIncludeSed" v-model.number="form.miamiSedQty" type="number" min="1" step="1" label="Cantidad de SED" />
+                </div>
+                <p class="mt-2 text-[11px] font-semibold text-[var(--dh-text-muted)]">Pulgadas → CFT · Centímetros → CBM. Dhole conserva la conversión equivalente al cambiar la unidad.</p>
+              </div>
+
+`
+
   code = replaceRequired(
     code,
     `              <div class="space-y-3">
                 <div
                   v-for="(line, index) in consolidatedCargoLines"`,
-    planBoard + `              <div class="space-y-3">
+    planBoard + airCargoBoard + `              <div class="space-y-3">
                 <div
                   v-for="(line, index) in consolidatedCargoLines"`,
     'Miami plan board',
@@ -473,22 +503,24 @@ const miamiLittleIssues = computed(() => {
     code,
     `                  <small>{{ isUnitedStatesPol ? 'Mínimo facturable: 35.315 CFT (1 CBM)' : 'Mínimo facturable: 1 CBM' }}</small>`,
     `                  <small v-if="isMiamiLcl">{{ miamiCommercialRate.little ? 'Flete escalonado por CFT real' : 'Mínimo monetario de flete: USD ' + miamiCommercialRate.minimumFreightSale.toFixed(2) }}</small>
+                  <small v-else-if="isAirLcl">Volumen aéreo real en {{ cargoVolumeUnit }}; sin mínimo del consolidado marítimo.</small>
                   <small v-else>{{ isUnitedStatesPol ? 'Mínimo facturable: 35.315 CFT (1 CBM)' : 'Mínimo facturable: 1 CBM' }}</small>`,
     'Miami minimum caption',
   )
 
-  const conversionBoard = `              <div v-if="isMiamiLcl" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-xs font-semibold text-[var(--dh-text-muted)]">
+  const conversionBoard = `              <div v-if="usesSelectableCargoUnits" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-xs font-semibold text-[var(--dh-text-muted)]">
                 <p class="font-black text-[var(--dh-text)]">Conversiones aplicadas a esta carga</p>
                 <p class="mt-1">Unidad de dimensiones: <b>{{ form.miamiDimensionInputUnit === 'in' ? 'Pulgadas' : 'Centímetros' }}</b> · Unidad de peso: <b>{{ form.miamiWeightInputUnit === 'lb' ? 'Libras' : 'Kilogramos' }}</b>. Dhole normaliza internamente a cm y kg para calcular.</p>
                 <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                   <span>Peso total: <b class="text-[var(--dh-text)]">{{ miamiWeightConversionText(consolidatedTotalWeightKg) }}</b></span>
                   <span>Volumen físico: <b class="text-[var(--dh-text)]">{{ miamiPhysicalCft.toFixed(3) }} CFT / {{ lclPhysicalCbm.toFixed(3) }} CBM</b></span>
                   <span>Volumen facturable: <b class="text-[var(--dh-text)]">{{ miamiDimensionalCft.toFixed(3) }} CFT / {{ lclDimensionalCbm.toFixed(3) }} CBM</b></span>
-                  <span>Equivalente por peso: <b class="text-[var(--dh-text)]">{{ miamiWeightCft.toFixed(3) }} CFT</b></span>
+                  <span>Equivalente por peso: <b class="text-[var(--dh-text)]">{{ (lclWeightCbm * CFT_PER_CBM).toFixed(3) }} CFT / {{ lclWeightCbm.toFixed(3) }} CBM</b></span>
                 </div>
                 <div class="mt-2 rounded-xl border border-[var(--dh-primary)]/20 bg-[var(--dh-primary)]/5 px-3 py-2">
-                  CFT cobrable: <b class="text-[var(--dh-primary)]">{{ miamiChargeableCft.toFixed(3) }} CFT</b>
-                  <span class="ml-2">({{ lclChargeableCbm.toFixed(3) }} CBM)</span>
+                  {{ cargoVolumeUnit }} cobrable:
+                  <b class="text-[var(--dh-primary)]">{{ formatCargoVolume(lclChargeableCbm) }}</b>
+                  <span class="ml-2">({{ (lclChargeableCbm * CFT_PER_CBM).toFixed(3) }} CFT / {{ lclChargeableCbm.toFixed(3) }} CBM)</span>
                 </div>
                 <p class="mt-2">No estibable: alto ≥ 70 in (177.8 cm) automático; altura facturable mínima 2.66 m. El peso es total por línea y las dimensiones sí se multiplican por cantidad.</p>
               </div>
