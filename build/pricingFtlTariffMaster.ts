@@ -53,14 +53,27 @@ function patchWizard(source: string) {
                 <p class="font-black">Seleccione la fuente tarifaria LTL</p>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">La ruta y los datos de carga ya están definidos. Seleccione Consolidados propios o Coloaders para calcular la tarifa.</p>
               </div>
-              <div class="grid gap-2 sm:grid-cols-2">
-                <button type="button" class="crystal-choice min-h-[82px] text-left" :class="landLtlCommercialProfile === 'FinalClient' ? 'crystal-choice--active' : ''" @click="chooseLandLtlCommercialProfile('FinalClient')">
-                  <strong>Consolidados propios</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Tarifas LTL propias de Grupo Castro Fallas.</span>
+              <div class="flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
+                <button
+                  type="button"
+                  class="flex min-h-10 flex-1 items-center justify-center rounded-[16px] px-4 text-sm font-black transition"
+                  :class="landLtlCommercialProfile === 'FinalClient' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'"
+                  @click="chooseLandLtlCommercialProfile('FinalClient')"
+                >
+                  Consolidados propios
                 </button>
-                <button type="button" class="crystal-choice min-h-[82px] text-left" :class="landLtlCommercialProfile === 'Nvocc' ? 'crystal-choice--active' : ''" @click="chooseLandLtlCommercialProfile('Nvocc')">
-                  <strong>Coloaders</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Tarifas LTL cargadas para proveedores coloader.</span>
+                <button
+                  type="button"
+                  class="flex min-h-10 flex-1 items-center justify-center rounded-[16px] px-4 text-sm font-black transition"
+                  :class="landLtlCommercialProfile === 'Nvocc' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'"
+                  @click="chooseLandLtlCommercialProfile('Nvocc')"
+                >
+                  Coloaders
                 </button>
               </div>
+              <p v-if="landLtlCommercialProfile" class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ landLtlCommercialProfile === 'Nvocc' ? 'Tarifas LTL cargadas para proveedores coloader.' : 'Tarifas LTL propias de Grupo Castro Fallas.' }}
+              </p>
 
               <div
                 v-if="landLtlCommercialProfile === 'FinalClient'"
