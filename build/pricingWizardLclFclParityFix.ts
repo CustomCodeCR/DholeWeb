@@ -167,12 +167,20 @@ function patchSelector(source: string) {
     'LCL selector route label defaults',
   )
 
-  code = replaceOne(
-    code,
-    `        polId: props.polId,\n        poeId: props.poeId,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,`,
-    `        polId: props.polId,\n        pol: props.polCode,\n        poeId: props.poeId,\n        poe: props.poeLabel,\n        podId: props.podId,\n        pod: props.podLabel,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,`,
-    'FCL-style LCL coloader query',
-  )
+  const legacyColoaderQueryAnchor = `        polId: props.polId,\n        poeId: props.poeId,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,`
+  const routeAwareColoaderQueryAnchor = `        modality: props.modality,\n        polId: props.polId,\n        pol: props.polName || props.polCode || undefined,\n        poeId: props.poeId,\n        poe: isAir.value ? props.destinationLabel || undefined : undefined,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,`
+  const coloaderQueryReplacement = `        modality: props.modality,\n        polId: props.polId,\n        pol: props.polName || props.polCode || undefined,\n        poeId: props.poeId,\n        poe: isAir.value ? (props.poeLabel || props.destinationLabel || undefined) : (props.poeLabel || undefined),\n        podId: props.podId,\n        pod: props.podLabel || undefined,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,`
+
+  if (code.includes(routeAwareColoaderQueryAnchor)) {
+    code = code.replace(routeAwareColoaderQueryAnchor, coloaderQueryReplacement)
+  } else {
+    code = replaceOne(
+      code,
+      legacyColoaderQueryAnchor,
+      coloaderQueryReplacement,
+      'FCL-style LCL coloader query',
+    )
+  }
 
   return code
 }
