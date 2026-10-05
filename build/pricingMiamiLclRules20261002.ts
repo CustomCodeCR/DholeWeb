@@ -209,6 +209,12 @@ const lclWeightCbm = computed(() =>
     : consolidatedTotalWeightKg.value / Math.max(1, consolidatedKgPerCbm.value),
 )
 const lclChargeableCbm = computed(() => {
+  // El cotizador Miami compara peso contra volumen a nivel TOTAL.
+  // CARGAS LITTLE es la excepción: el peso NO participa en el CFT cobrable.
+  if (isMiamiLcl.value && miamiCommercialRate.value.little) {
+    return Math.max(0, lclDimensionalCbm.value)
+  }
+
   const calculated = Math.max(lclDimensionalCbm.value, lclWeightCbm.value)
   if (calculated <= 0) return 0
   // Miami marítimo aplica mínimo monetario; Aéreo conserva su volumen real.
@@ -225,9 +231,9 @@ const miamiFreightSale = computed(() => {
   const rate = miamiCommercialRate.value
   if (rate.little) {
     if (miamiChargeableCft.value <= 0) return 0
-    if (miamiChargeableCft.value <= 30) return 30
-    if (miamiChargeableCft.value <= 60) return 40
-    if (miamiChargeableCft.value <= 80) return 50
+    if (miamiDimensionalCft.value <= 30) return 30
+    if (miamiDimensionalCft.value <= 60) return 40
+    if (miamiDimensionalCft.value <= 80.01) return 50
     return 0
   }
   return Math.max(miamiFreightCalculated.value, rate.minimumFreightSale)
@@ -249,7 +255,7 @@ const miamiLittleIssues = computed(() => {
   if (!isMiamiLcl.value || !miamiCommercialRate.value.little) return [] as string[]
   const issues: string[] = []
   if (consolidatedTotalWeightKg.value > 100) issues.push('Peso mayor a 100 kg')
-  if (miamiChargeableCft.value > 80) issues.push('Volumen mayor a 80 CFT')
+  if (miamiDimensionalCft.value > 80.01) issues.push('Volumen mayor a 80.01 CFT')
   if (number(form.cargoValue) > 1000) issues.push('Valor de carga mayor a USD 1,000')
   if (form.dangerousCargo) issues.push('Carga IMO')
   if (form.miamiBonded) issues.push('Carga Bonded')
