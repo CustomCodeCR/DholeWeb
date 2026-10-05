@@ -362,7 +362,9 @@ async function load() {
       LclRateSourceService.browseColoaders({
         modality: props.modality,
         polId: props.polId,
+        pol: props.polName || props.polCode || undefined,
         poeId: props.poeId,
+        poe: isAir.value ? props.destinationLabel || undefined : undefined,
         podId: props.podId,
         incotermId: props.incotermId,
         quoteDate: props.quoteDate,
@@ -595,7 +597,10 @@ function updateCbm(value: string | number | null) {
   emit('update:requestedCbm', Math.max(minimum, n(value)))
 }
 
-watch(() => [props.polId, props.poeId, props.podId, props.incotermId, props.quoteDate], () => void load())
+watch(
+  () => [props.modality, props.polId, props.polCode, props.polName, props.poeId, props.podId, props.incotermId, props.destinationLabel, props.quoteDate],
+  () => void load(),
+)
 
 watch(
   () => [
