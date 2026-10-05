@@ -108,34 +108,43 @@ const destinationOptions = computed(() => {
     }
 
     const behavior = `// dhole-panama-route-auto-switch
+function applyPanamaMultimodalRoute() {
+  if (hydratingExistingRate.value) return
+  if (form.modality !== 'Maritime' || shipmentModeForApi.value !== 'Fcl') return
+
+  // Resolve directly from the master catalogs so this rule is independent from
+  // later CY/SD route filtering transforms and from the order in which route data
+  // and Config catalogs finish hydrating.
+  const poe = findById(catalogs.poe, form.destinationId)
+  const pod = findById(catalogs.pod, form.podId)
+  if (!isRealPanamaPoe(poe) || !pod || isPanamaCatalogItem(pod)) return
+
+  const multimodal = multimodalViaPanamaPoe.value
+  if (!multimodal || form.destinationId === multimodal.id) return
+
+  // Panamá + POD fuera de Panamá => mantener el POD y convertir únicamente el POE.
+  form.destinationId = multimodal.id
+  form.selectedImportRateId = ''
+  availableRates.value = []
+}
+
 watch(
-  () => [form.destinationId, form.podId, form.modality, form.shipmentMode] as const,
-  () => {
-    if (hydratingExistingRate.value) return
-    if (form.modality !== 'Maritime' || shipmentModeForApi.value !== 'Fcl') return
-
-    // Resolve directly from the master catalogs so this rule is independent from
-    // later CY/SD route filtering transforms.
-    const poe = findById(catalogs.poe, form.destinationId)
-    const pod = findById(catalogs.pod, form.podId)
-    if (!isRealPanamaPoe(poe) || !pod || isPanamaCatalogItem(pod)) return
-
-    const multimodal = multimodalViaPanamaPoe.value
-    if (!multimodal || form.destinationId === multimodal.id) return
-
-    // Panamá + POD fuera de Panamá => mantener el POD y convertir únicamente el POE.
-    form.destinationId = multimodal.id
-    form.selectedImportRateId = ''
-    availableRates.value = []
-  },
+  () => [
+    form.destinationId,
+    form.podId,
+    form.modality,
+    form.shipmentMode,
+    catalogs.poe,
+    catalogs.pod,
+    hydratingExistingRate.value,
+  ] as const,
+  () => applyPanamaMultimodalRoute(),
   { flush: 'sync' },
 )
 
 function shouldBrowseAllPanamaRates() {
   const poe = findById(catalogs.poe, form.destinationId)
-  const pod = findById(catalogs.pod, form.podId)
-  return isMultimodalViaPanama(poe)
-    || (isRealPanamaPoe(poe) && isPanamaCatalogItem(pod))
+  return isMultimodalViaPanama(poe) || isRealPanamaPoe(poe)
 }`
 
     code = code.replace(behaviorAnchor, `${behaviorAnchor}\n\n${behavior}`)
