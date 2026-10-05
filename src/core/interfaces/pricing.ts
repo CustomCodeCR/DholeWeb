@@ -950,6 +950,7 @@ export interface BrowseImportRatesQuery extends Record<string, unknown> {
   containerType?: string | null
   currency?: string | null
   quoteDate?: string | null
+  shipmentMode?: ImportedShipmentMode | null
   validFrom?: string | null
   validTo?: string | null
 }
