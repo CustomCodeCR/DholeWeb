@@ -259,6 +259,26 @@ const miamiLittleIssues = computed(() => {
     'Miami CFT chargeable calculation',
   )
 
+  // Miami ya calcula su seguro dentro de la tarifa comercial del consolidado.
+  // Evita agregar además el seguro genérico del wizard (0.65% / mínimo USD 95).
+  code = replaceRequired(
+    code,
+    `if (insuranceRequested && visible.has('destination_charges')) {`,
+    `if (!isMiamiLcl.value && insuranceRequested && visible.has('destination_charges')) {`,
+    'Miami duplicate cargo insurance guard',
+  )
+
+  code = replaceRequired(
+    code,
+    `            <p v-if="form.cargoValue > 0" class="crystal-insurance-hint">
+              Se mostrará Seguro de carga como opcional en Líneas con costo y venta calculados sobre el valor de la carga.
+            </p>`,
+    `            <p v-if="form.cargoValue > 0 && !isMiamiLcl" class="crystal-insurance-hint">
+              Se mostrará Seguro de carga como opcional en Líneas con costo y venta calculados sobre el valor de la carga.
+            </p>`,
+    'Miami generic insurance hint guard',
+  )
+
   code = replaceRequired(
     code,
     `                  <p class="font-black">Medidas de la carga {{ shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}</p>`,
