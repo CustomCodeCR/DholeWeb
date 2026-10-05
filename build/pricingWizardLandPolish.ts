@@ -16,7 +16,7 @@ function patchWizard(source: string) {
   if (code.includes(selectAnchor) && !code.includes('const selectCompleteRouteCatalog = async')) {
     code = code.replace(
       selectAnchor,
-      `${selectAnchor}\n    const selectCompleteRouteCatalog = async (slug: 'pol' | 'poe' | 'pod') => {\n      const items = await CatalogItemsService.getByGroupSlug(slug)\n      return items\n        .filter((item) => item.isActive)\n        .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'es'))\n        .map((item): CatalogItemSelectDto => ({\n          id: item.id,\n          code: item.code,\n          slug: item.slug,\n          value: String(item.value ?? '').trim(),\n          label: String(item.value ?? item.name ?? '').trim(),\n          metadataJson: item.metadataJson,\n          isActive: item.isActive,\n        }))\n    }`,
+      `${selectAnchor}\n    const selectCompleteRouteCatalog = async (slug: 'pol' | 'poe' | 'pod') => {\n      const items = await CatalogItemsService.getByGroupSlug(slug)\n      return items\n        .filter((item) => item.isActive)\n        .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'es'))\n        .map((item): CatalogItemSelectDto => ({\n          id: item.id,\n          code: item.code,\n          slug: item.slug,\n          value: String(item.value ?? '').trim() || String(item.name ?? '').trim(),\n          label: String(item.value ?? '').trim() || String(item.name ?? '').trim(),\n          metadataJson: item.metadataJson,\n          isActive: item.isActive,\n        }))\n    }`,
     )
   }
 
