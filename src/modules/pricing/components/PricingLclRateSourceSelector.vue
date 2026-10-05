@@ -392,24 +392,29 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateL
     const normalizedName = normalize(line.name)
     const variable = normalizedName.includes('recolecta') || normalizedName.includes('pickup')
     const sourceBasis = normalize(line.chargeBasis)
+    const volumeBased = sourceBasis.includes('cbm') || sourceBasis.includes('cft')
+    const sourceQuantity = Math.max(0, n(line.quantity))
+    // Las líneas planas con cantidad > 1 (por ejemplo 2 SED) deben conservar
+    // el total calculado por Pricing. Si se deja solo saleUnit, Pantalla 7 cobra
+    // una sola unidad y rompe la regla del cotizador Miami.
+    const collapseFixedQuantity = !volumeBased && sourceQuantity > 1
     return {
       key: `own-lcl:${calculation.consolidationId}:${index}`,
       section: sectionForDetail(type, line.name),
       name: line.name,
       costDetailType: type,
       costType: variable ? 'Variable' : 'Fixed',
-      // CFS is a raw-CBM charge: it must keep the real volume (for example
-      // 0.20 CBM) and must not inherit the 1-CBM ocean-freight minimum.
+      // CFS es CBM físico. CFT/CBM cobrable conservan su base dinámica.
       chargeBasis: normalizedName === 'cfs' ? 'PerCbm' : ownBasis(line.chargeBasis),
       contextLabel: `Consolidado ${calculation.consolidationNumber} · ${calculation.matrixVersion}`,
-      notes: sourceBasis.includes('cbm')
+      notes: volumeBased
         ? sourceMarker
-        : `${sourceMarker} · Base del Excel: ${line.chargeBasis}; cantidad aplicada: 1.`,
+        : `${sourceMarker} · Base: ${line.chargeBasis}; cantidad aplicada: ${sourceQuantity || 1}.`,
       currencyId: props.currencyId,
       currencyName: props.currencyName,
       currencyCode: props.currencyCode,
-      costAmount: n(line.costUnit),
-      saleAmount: n(line.saleUnit),
+      costAmount: collapseFixedQuantity ? n(line.costTotal) : n(line.costUnit),
+      saleAmount: collapseFixedQuantity ? n(line.saleTotal) : n(line.saleUnit),
       included: true,
       optional: false,
       manual: variable,
