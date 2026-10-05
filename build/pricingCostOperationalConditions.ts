@@ -118,6 +118,7 @@ function optionalLineMatchesScreen4Selection(line: {
     `const selectableOptionalLines = computed(() =>
   rateLines.value.filter((line) =>
     line.optional
+    && line.costDetailType !== 'Insurance'
     && lineMatchesPickupCargoCondition(line)
     && optionalLineMatchesScreen4Selection(line),
   ),
