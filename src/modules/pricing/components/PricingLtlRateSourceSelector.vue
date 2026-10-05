@@ -6,11 +6,13 @@ import { DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/compone
 import {
   FtlTariffService,
   type FtlTariffDto,
-  type LandCommercialProfile,
 } from '@/core/services/ftlTariffService'
+import { PricingService } from '@/core/services/pricingService'
+import type { ImportRateSelectDto } from '@/core/interfaces/pricing'
 
 type SourceTab = 'Own' | 'Coloader'
-type TableRow = FtlTariffDto & Record<string, unknown>
+type OwnRow = FtlTariffDto & Record<string, unknown>
+type ColoaderRow = ImportRateSelectDto & Record<string, unknown>
 
 const props = withDefaults(defineProps<{
   originId?: string | null
@@ -21,7 +23,8 @@ const props = withDefaults(defineProps<{
   destinationCode?: string | null
   quoteDate?: string | null
   requestedCbm?: number
-  selectedId?: string | null
+  selectedMasterId?: string | null
+  selectedImportId?: string | null
 }>(), {
   originId: null,
   originName: null,
@@ -31,11 +34,13 @@ const props = withDefaults(defineProps<{
   destinationCode: null,
   quoteDate: null,
   requestedCbm: 0,
-  selectedId: null,
+  selectedMasterId: null,
+  selectedImportId: null,
 })
 
 const emit = defineEmits<{
-  select: [tariff: FtlTariffDto]
+  'select-own': [tariff: FtlTariffDto]
+  'select-coloader': [rate: ImportRateSelectDto]
   'manual-own': []
 }>()
 
@@ -43,19 +48,20 @@ const loading = ref(false)
 const selecting = ref('')
 const search = ref('')
 const tab = ref<SourceTab>('Own')
-const rows = ref<TableRow[]>([])
+const ownRows = ref<OwnRow[]>([])
+const coloaderRows = ref<ColoaderRow[]>([])
 const error = ref('')
 
-const ownColumns: DhTableColumn<TableRow>[] = [
-  { key: 'source', label: 'Consolidado', width: '220px' },
+const ownColumns: DhTableColumn<OwnRow>[] = [
+  { key: 'source', label: 'Tarifario propio', width: '220px' },
   { key: 'route', label: 'Ruta' },
   { key: 'validity', label: 'Vigencia', width: '190px' },
   { key: 'sale', label: 'Flete / CBM', align: 'right', width: '220px' },
   { key: 'action', label: '', align: 'right', width: '130px' },
 ]
 
-const coloaderColumns: DhTableColumn<TableRow>[] = [
-  { key: 'source', label: 'Coloader / tarifario', width: '220px' },
+const coloaderColumns: DhTableColumn<ColoaderRow>[] = [
+  { key: 'source', label: 'Coloader / importación', width: '220px' },
   { key: 'route', label: 'Ruta' },
   { key: 'validity', label: 'Vigencia', width: '190px' },
   { key: 'sale', label: 'Flete / CBM', align: 'right', width: '220px' },
@@ -119,17 +125,17 @@ function endpointMatches(
   )
 }
 
-function isValidOn(row: FtlTariffDto) {
+function isValidOn(validFrom: string | null | undefined, validTo: string | null | undefined) {
   const date = String(props.quoteDate ?? '').slice(0, 10)
   if (!date) return true
-  const from = String(row.validFrom ?? '').slice(0, 10)
-  const to = String(row.validTo ?? '').slice(0, 10)
+  const from = String(validFrom ?? '').slice(0, 10)
+  const to = String(validTo ?? '').slice(0, 10)
   if (from && date < from) return false
   if (to && date > to) return false
   return true
 }
 
-function matchesRoute(row: FtlTariffDto) {
+function ownMatchesRoute(row: FtlTariffDto) {
   return endpointMatches(
     row.originId,
     row.applicableOriginIds,
@@ -149,16 +155,7 @@ function matchesRoute(row: FtlTariffDto) {
   )
 }
 
-const routeRows = computed(() =>
-  rows.value.filter((row) =>
-    row.isActive
-    && String(row.shipmentMode).toLowerCase() === 'ltl'
-    && isValidOn(row)
-    && matchesRoute(row),
-  ),
-)
-
-function searchable(row: FtlTariffDto) {
+function searchableOwn(row: FtlTariffDto) {
   return [
     row.source,
     row.notes,
@@ -172,22 +169,62 @@ function searchable(row: FtlTariffDto) {
   ].map(normalize).join(' ')
 }
 
-function profileRows(profile: LandCommercialProfile) {
-  const q = normalize(search.value)
-  return routeRows.value.filter((row) =>
-    row.commercialProfile === profile
-    && (!q || searchable(row).includes(q)),
-  )
+function searchableColoader(row: ImportRateSelectDto) {
+  return [
+    row.agent,
+    row.agentCode,
+    row.carrier,
+    row.carrierCode,
+    row.pol,
+    row.polCode,
+    row.poe,
+    row.poeCode,
+    row.pod,
+    row.currency,
+    row.currencyCode,
+    row.importProfileName,
+  ].map(normalize).join(' ')
 }
 
-const filteredOwn = computed(() => profileRows('FinalClient'))
-const filteredColoaders = computed(() => profileRows('Nvocc'))
+const filteredOwn = computed(() => {
+  const q = normalize(search.value)
+  return ownRows.value.filter((row) =>
+    row.isActive
+    && String(row.shipmentMode).toLowerCase() === 'ltl'
+    && isValidOn(row.validFrom, row.validTo)
+    && ownMatchesRoute(row)
+    && (!q || searchableOwn(row).includes(q)),
+  )
+})
+
+const filteredColoaders = computed(() => {
+  const q = normalize(search.value)
+  return coloaderRows.value.filter((row) =>
+    isValidOn(row.validFrom, row.validTo)
+    && (!q || searchableColoader(row).includes(q)),
+  )
+})
 
 async function load() {
   try {
     loading.value = true
     error.value = ''
-    rows.value = (await FtlTariffService.browse('Ltl')).map((row) => ({ ...row }))
+    const [masters, imports] = await Promise.all([
+      FtlTariffService.browse('Ltl'),
+      PricingService.selectImportRates({
+        shipmentMode: 'Ltl',
+        pol: props.originName || props.originCode || undefined,
+        poe: props.destinationName || props.destinationCode || undefined,
+        quoteDate: props.quoteDate || undefined,
+      }),
+    ])
+
+    // Regla de negocio:
+    // FinalClient y NVOCC administrados en Tarifas terrestres son ambos tarifarios propios.
+    // Solamente los LTL provenientes de Revisar importaciones se consideran Coloaders.
+    ownRows.value = masters.map((row) => ({ ...row }))
+    coloaderRows.value = imports.map((row) => ({ ...row }))
+
     if (!filteredOwn.value.length && filteredColoaders.value.length) tab.value = 'Coloader'
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'No fue posible consultar las tarifas LTL.'
@@ -196,14 +233,32 @@ async function load() {
   }
 }
 
-function choose(row: FtlTariffDto) {
-  selecting.value = row.id
-  emit('select', row)
+function chooseOwn(row: FtlTariffDto) {
+  selecting.value = 'own:' + row.id
+  emit('select-own', row)
   selecting.value = ''
 }
 
-function profileLabel(row: FtlTariffDto) {
-  return row.commercialProfile === 'Nvocc' ? 'Coloader' : 'Consolidado propio'
+function chooseColoader(row: ImportRateSelectDto) {
+  selecting.value = 'import:' + row.id
+  emit('select-coloader', row)
+  selecting.value = ''
+}
+
+function ownProfileLabel(row: FtlTariffDto) {
+  return String(row.commercialProfile).toLowerCase() === 'nvocc' ? 'NVOCC propio' : 'Cliente propio'
+}
+
+function importedProvider(row: ImportRateSelectDto) {
+  return row.agent || row.agentCode || row.carrier || row.carrierCode || 'Coloader importado'
+}
+
+function importedSale(row: ImportRateSelectDto) {
+  return n(row.totalSale ?? row.freight)
+}
+
+function importedCost(row: ImportRateSelectDto) {
+  return n(row.totalCost ?? row.freight)
 }
 
 onMounted(load)
@@ -217,7 +272,7 @@ watch(
 <template>
   <section class="space-y-4">
     <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_210px_auto] lg:items-end">
-      <DhSearchInput v-model="search" placeholder="Buscar consolidado, coloader, ruta o código..." />
+      <DhSearchInput v-model="search" placeholder="Buscar tarifario, coloader, ruta o código..." />
       <DhInput :model-value="requestedCbm" type="number" label="CBM cobrable calculado" disabled />
       <DhButton label="Actualizar tarifas" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
     </div>
@@ -255,75 +310,13 @@ watch(
         :columns="ownColumns"
         :rows="filteredOwn"
         :loading="loading"
-        empty-text="No hay consolidados propios LTL vigentes para esta ruta."
+        empty-text="No hay tarifarios propios LTL vigentes para esta ruta."
       >
         <template #cell-source="{ row }">
           <div>
-            <p class="font-black">Grupo Castro Fallas</p>
+            <p class="font-black">{{ row.source || 'Grupo Castro Fallas' }}</p>
             <p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">
-              {{ row.source || row.warehouseName || 'Tarifario LTL propio' }}
-            </p>
-          </div>
-        </template>
-        <template #cell-route="{ row }">
-          <div>
-            <p class="font-bold">{{ row.originName }} → {{ row.destinationName }}</p>
-            <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">
-              {{ row.warehouseName || 'LTL terrestre' }} · {{ row.transitDays != null ? row.transitDays + ' días' : 'Tránsito por confirmar' }}
-            </p>
-          </div>
-        </template>
-        <template #cell-validity="{ row }">
-          <div>
-            <p class="font-bold">{{ row.validFrom || 'Sin inicio' }} – {{ row.validTo || 'Sin vencimiento' }}</p>
-            <DhBadge class="mt-1" :label="profileLabel(row)" variant="success" />
-          </div>
-        </template>
-        <template #cell-sale="{ row }">
-          <div class="space-y-0.5 text-right">
-            <p class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount) }} / CBM</p>
-            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
-              Costo {{ row.currencyCode || 'USD' }} {{ money(row.costPerCbm) }} / CBM · Mínimo {{ row.currencyCode || 'USD' }} {{ money(row.minimumAmount) }}
-            </p>
-          </div>
-        </template>
-        <template #cell-action="{ row }">
-          <div class="flex justify-end" @click.stop>
-            <DhButton
-              class="min-w-[108px]"
-              :label="selectedId === row.id ? 'Seleccionado' : 'Seleccionar'"
-              :icon="selectedId === row.id ? Check : undefined"
-              size="sm"
-              :loading="selecting === row.id"
-              @click="choose(row)"
-            />
-          </div>
-        </template>
-      </DhDataTable>
-
-      <div class="mt-4 flex flex-col gap-3 rounded-[22px] border border-dashed border-[rgb(var(--dh-primary-rgb)/0.35)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="font-black">Tarifa LTL propia manual</p>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Puede crearla aunque exista una tarifa propia vigente para esta ruta.
-          </p>
-        </div>
-        <DhButton class="shrink-0" label="Crear tarifa manual" variant="secondary" @click="emit('manual-own')" />
-      </div>
-    </div>
-
-    <div v-else>
-      <DhDataTable
-        :columns="coloaderColumns"
-        :rows="filteredColoaders"
-        :loading="loading"
-        empty-text="No hay tarifarios LTL de coloader vigentes para esta ruta."
-      >
-        <template #cell-source="{ row }">
-          <div>
-            <p class="font-black">{{ row.source || 'Coloader' }}</p>
-            <p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">
-              {{ row.warehouseName || 'Tarifario LTL' }}
+              {{ row.warehouseName || 'Tarifario LTL propio' }}
             </p>
           </div>
         </template>
@@ -338,7 +331,7 @@ watch(
         <template #cell-validity="{ row }">
           <div>
             <p class="font-bold">{{ row.validFrom || 'Sin inicio' }} – {{ row.validTo || 'Sin vencimiento' }}</p>
-            <DhBadge class="mt-1" label="Tarifario LTL" variant="success" />
+            <DhBadge class="mt-1" :label="ownProfileLabel(row)" variant="success" />
           </div>
         </template>
         <template #cell-sale="{ row }">
@@ -353,11 +346,73 @@ watch(
           <div class="flex justify-end" @click.stop>
             <DhButton
               class="min-w-[108px]"
-              :label="selectedId === row.id ? 'Seleccionado' : 'Seleccionar'"
-              :icon="selectedId === row.id ? Check : undefined"
+              :label="selectedMasterId === row.id ? 'Seleccionado' : 'Seleccionar'"
+              :icon="selectedMasterId === row.id ? Check : undefined"
               size="sm"
-              :loading="selecting === row.id"
-              @click="choose(row)"
+              :loading="selecting === 'own:' + row.id"
+              @click="chooseOwn(row)"
+            />
+          </div>
+        </template>
+      </DhDataTable>
+
+      <div class="mt-4 flex flex-col gap-3 rounded-[22px] border border-dashed border-[rgb(var(--dh-primary-rgb)/0.35)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="font-black">Tarifa LTL propia manual</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Puede crearla aunque exista un tarifario Cliente o NVOCC vigente para esta ruta.
+          </p>
+        </div>
+        <DhButton class="shrink-0" label="Crear tarifa manual" variant="secondary" @click="emit('manual-own')" />
+      </div>
+    </div>
+
+    <div v-else>
+      <DhDataTable
+        :columns="coloaderColumns"
+        :rows="filteredColoaders"
+        :loading="loading"
+        empty-text="No hay LTL aprobados o preautorizados en Revisar importaciones para esta ruta."
+      >
+        <template #cell-source="{ row }">
+          <div>
+            <p class="font-black">{{ importedProvider(row) }}</p>
+            <p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">
+              Revisar importaciones · {{ row.sourceType }}
+            </p>
+          </div>
+        </template>
+        <template #cell-route="{ row }">
+          <div>
+            <p class="font-bold">{{ row.pol }} → {{ row.poe || row.pod }}</p>
+            <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">
+              {{ row.transitDays != null ? row.transitDays + ' días' : 'Tránsito por confirmar' }}
+            </p>
+          </div>
+        </template>
+        <template #cell-validity="{ row }">
+          <div>
+            <p class="font-bold">{{ row.validFrom }} – {{ row.validTo }}</p>
+            <DhBadge class="mt-1" label="LTL importado · Coloader" variant="warning" />
+          </div>
+        </template>
+        <template #cell-sale="{ row }">
+          <div class="space-y-0.5 text-right">
+            <p class="font-black">{{ row.currencyCode || row.currency || 'USD' }} {{ money(importedSale(row)) }} / CBM</p>
+            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
+              Costo {{ row.currencyCode || row.currency || 'USD' }} {{ money(importedCost(row)) }} / CBM
+            </p>
+          </div>
+        </template>
+        <template #cell-action="{ row }">
+          <div class="flex justify-end" @click.stop>
+            <DhButton
+              class="min-w-[108px]"
+              :label="selectedImportId === row.id ? 'Seleccionado' : 'Seleccionar'"
+              :icon="selectedImportId === row.id ? Check : undefined"
+              size="sm"
+              :loading="selecting === 'import:' + row.id"
+              @click="chooseColoader(row)"
             />
           </div>
         </template>
