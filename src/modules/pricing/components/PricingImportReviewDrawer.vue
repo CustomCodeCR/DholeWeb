@@ -35,7 +35,7 @@ const inactivating = ref(false)
 const errors = reactive<Record<string, string>>({})
 const form = reactive({
   importProfileId: '',
-  shipmentMode: 'Fcl' as 'Fcl' | 'LclColoader' | 'AirLclColoader',
+  shipmentMode: 'Fcl' as 'Fcl' | 'LclColoader' | 'AirLclColoader' | 'Ltl',
   polId: '',
   poeId: '',
   podId: '',
@@ -83,6 +83,23 @@ function containsLclMarker(value: unknown) {
     || normalized.includes('groupage')
 }
 
+function containsLandLtlMarker(value: unknown) {
+  const canonical = String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+
+  return canonical === 'ltl'
+    || canonical.includes('lessthantruckload')
+    || canonical.includes('ltlterrestre')
+    || canonical.includes('terrestreltl')
+    || canonical.includes('landltl')
+    || canonical.includes('shipmentmodeltl')
+    || canonical.includes('tariffmodeltl')
+    || canonical.includes('servicemodeltl')
+}
+
 function containsAirMarker(value: unknown) {
   const canonical = String(value ?? '')
     .normalize('NFD')
@@ -104,10 +121,11 @@ function containsAirMarker(value: unknown) {
       && (canonical.includes('167kg') || canonical.includes('kgvol')))
 }
 
-function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'LclColoader' | 'AirLclColoader' {
+function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'LclColoader' | 'AirLclColoader' | 'Ltl' {
   const declared = String(rate.shipmentMode ?? '').trim().toLowerCase()
   if (declared === 'lcl' || declared === 'lclcoloader') return 'LclColoader'
   if (declared === 'air' || declared === 'airconsol' || declared === 'airlclcoloader') return 'AirLclColoader'
+  if (declared === 'ltl' || declared === 'landltl' || declared === 'ltlland') return 'Ltl'
   if (declared === 'fcl') return 'Fcl'
 
   const markers = [
@@ -122,6 +140,7 @@ function inferredShipmentMode(rate: ImportRateDto): 'Fcl' | 'LclColoader' | 'Air
     rate.rawDataJson,
   ]
   if (markers.some(containsAirMarker)) return 'AirLclColoader'
+  if (markers.some(containsLandLtlMarker)) return 'Ltl'
   return markers.some(containsLclMarker) ? 'LclColoader' : 'Fcl'
 }
 
@@ -129,6 +148,7 @@ const shipmentModeOptions = [
   { value: 'Fcl', label: 'FCL · Contenedor completo' },
   { value: 'LclColoader', label: 'LCL marítimo · Coloader' },
   { value: 'AirLclColoader', label: 'LCL aéreo · Coloader' },
+  { value: 'Ltl', label: 'LTL · Terrestre consolidado' },
 ]
 
 function hydrate(rate: ImportRateDto) {
@@ -196,7 +216,8 @@ const calculatedCost = computed(
 
 const isLclImport = computed(() => form.shipmentMode === 'LclColoader')
 const isAirImport = computed(() => form.shipmentMode === 'AirLclColoader')
-const isConsolidatedImport = computed(() => isLclImport.value || isAirImport.value)
+const isLandLtlImport = computed(() => form.shipmentMode === 'Ltl')
+const isConsolidatedImport = computed(() => isLclImport.value || isAirImport.value || isLandLtlImport.value)
 
 const canInactivate = computed(() => String(current.value.status) === 'Approved')
 
@@ -424,12 +445,18 @@ onMounted(async () => {
             class="md:col-span-2 rounded-[20px] border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.06)] px-4 py-3"
           >
             <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">
-              {{ isAirImport ? 'Modalidad aérea · Coloader' : 'Modalidad LCL marítima · Coloader' }}
+              {{ isAirImport
+                ? 'Modalidad aérea · Coloader'
+                : isLandLtlImport
+                  ? 'Modalidad LTL · Terrestre consolidado'
+                  : 'Modalidad LCL marítima · Coloader' }}
             </p>
             <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
               {{ isAirImport
                 ? 'El equipo se normaliza como AIR y la tarifa se identifica como aéreo de coloader.'
-                : 'El equipo se normaliza como LCL y la tarifa se identifica como marítimo de coloader.' }}
+                : isLandLtlImport
+                  ? 'La tarifa se normaliza como LTL terrestre. No requiere naviera ni contenedor para aprobarse.'
+                  : 'El equipo se normaliza como LCL y la tarifa se identifica como marítimo de coloader.' }}
             </p>
           </div>
         </div>
@@ -441,8 +468,8 @@ onMounted(async () => {
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Confirme POL → POE. El POD es opcional y el POE debe existir en Config para aprobar.</p>
         </div>
         <div class="grid gap-4 md:grid-cols-3">
-          <DhSelect v-model="form.polId" label="POL · Puerto de origen *" :options="catalogs.polOptions.value" :error="errors.polId" />
-          <DhSelect v-model="form.poeId" label="POE · Puerto de entrada *" :options="catalogs.poeOptions.value" :error="errors.poeId" />
+          <DhSelect v-model="form.polId" :label="isLandLtlImport ? 'Origen terrestre *' : 'POL · Puerto de origen *'" :options="catalogs.polOptions.value" :error="errors.polId" />
+          <DhSelect v-model="form.poeId" :label="isLandLtlImport ? 'Destino terrestre *' : 'POE · Puerto de entrada *'" :options="catalogs.poeOptions.value" :error="errors.poeId" />
           <DhSelect v-model="form.podId" label="POD · Destino final (opcional)" :options="catalogs.podOptions.value" />
         </div>
       </section>
@@ -454,7 +481,7 @@ onMounted(async () => {
         </div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <DhSelect v-model="form.currencyId" label="Moneda *" :options="catalogs.currencyOptions.value" :error="errors.currencyId" />
-          <DhInput v-model="form.oceanFreight" type="number" :label="isLclImport ? 'Flete marítimo / W/M *' : isAirImport ? 'Flete aéreo / KG/VOL *' : 'Flete internacional *'" :error="errors.oceanFreight" />
+          <DhInput v-model="form.oceanFreight" type="number" :label="isLclImport ? 'Flete marítimo / W/M *' : isAirImport ? 'Flete aéreo / KG/VOL *' : isLandLtlImport ? 'Flete terrestre LTL / CBM *' : 'Flete internacional *'" :error="errors.oceanFreight" />
           <DhInput v-model="form.originCharges" type="number" label="Cargos de origen *" :error="errors.originCharges" />
           <DhInput v-model="form.destinationCharges" type="number" label="Cargos de destino *" :error="errors.destinationCharges" />
           <DhInput v-model="form.surcharges" type="number" label="Recargos *" :error="errors.surcharges" />
