@@ -164,11 +164,11 @@ function money(value: number | string | null | undefined) {
 }
 
 function profileLabel(profile: LandCommercialProfile | string | null | undefined) {
-  return String(profile).toLowerCase() === 'nvocc' ? 'NVOCC' : 'Cliente'
+  return String(profile).toLowerCase() === 'nvocc' ? 'Coloader' : 'Propio'
 }
 
 function profileTitle(profile: LandCommercialProfile | string | null | undefined) {
-  return String(profile).toLowerCase() === 'nvocc' ? 'Consolidado NVOCC' : 'Consolidado Cliente'
+  return String(profile).toLowerCase() === 'nvocc' ? 'Coloaders' : 'Consolidados propios'
 }
 
 function routeTerminalType(item: PricingCatalogItem, fallback: 'CY' | 'SD' = 'CY') {
@@ -756,15 +756,15 @@ onMounted(load)
 <template>
   <div class="space-y-5">
     <DhPageHeader
-      title="Consolidados propios LTL"
-      description="Seleccione Cliente o NVOCC y administre la matriz LTL por país de origen y país de destino."
+      title="Tarifas LTL"
+      description="Administre las tarifas LTL separadas entre Consolidados propios y Coloaders, por país de origen y destino."
     />
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Consolidados LTL</p>
-          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Solo existen las matrices Cliente y NVOCC.</p>
+          <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Fuentes tarifarias LTL</p>
+          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Seleccione si la tarifa corresponde a un consolidado propio o a un coloader.</p>
         </div>
         <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
       </div>
@@ -781,10 +781,10 @@ onMounted(load)
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">LTL · Terrestre</p>
-              <h2 class="mt-2 text-xl font-black text-[var(--dh-text)]">Consolidado Cliente</h2>
-              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Matriz para tarifas de cliente final.</p>
+              <h2 class="mt-2 text-xl font-black text-[var(--dh-text)]">Consolidados propios</h2>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Matriz de tarifas LTL propias de Grupo Castro Fallas.</p>
             </div>
-            <DhBadge label="Cliente" variant="neutral" />
+            <DhBadge label="Propio" variant="neutral" />
           </div>
           <div class="mt-5 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
             <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileRouteCount('FinalClient') }} rutas</span>
@@ -804,10 +804,10 @@ onMounted(load)
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">LTL · Terrestre</p>
-              <h2 class="mt-2 text-xl font-black text-[var(--dh-text)]">Consolidado NVOCC</h2>
-              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Matriz independiente para tarifas NVOCC.</p>
+              <h2 class="mt-2 text-xl font-black text-[var(--dh-text)]">Coloaders</h2>
+              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Matriz independiente para tarifas LTL de coloaders.</p>
             </div>
-            <DhBadge label="NVOCC" variant="warning" />
+            <DhBadge label="Coloader" variant="warning" />
           </div>
           <div class="mt-5 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
             <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileRouteCount('Nvocc') }} rutas</span>
