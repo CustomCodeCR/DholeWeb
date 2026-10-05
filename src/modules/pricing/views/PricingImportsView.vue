@@ -212,7 +212,10 @@ function shipmentModeLabel(value: string) {
   return ({
     fcl: 'FCL',
     lcl: 'LCL marítimo · Coloader',
+    lclcoloader: 'LCL marítimo · Coloader',
     air: 'LCL aéreo · Coloader',
+    airlclcoloader: 'LCL aéreo · Coloader',
+    ltl: 'LTL · Terrestre consolidado',
     unknown: 'Por clasificar',
   } as Record<string, string>)[String(value ?? '').trim().toLowerCase()] ?? 'Por clasificar'
 }
@@ -220,6 +223,7 @@ function shipmentModeLabel(value: string) {
 function shipmentModeVariant(value: string): 'success' | 'warning' | 'danger' | 'neutral' {
   const normalized = String(value ?? '').trim().toLowerCase()
   if (normalized === 'air' || normalized === 'airlclcoloader') return 'success'
+  if (normalized === 'ltl') return 'success'
   if (normalized === 'lcl' || normalized === 'lclcoloader') return 'warning'
   return 'neutral'
 }
