@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// LTL source parity: propios / coloaders.
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ChevronLeft, Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
