@@ -106,7 +106,9 @@ const originOptions = computed(() => originCatalog.value.map((item) => ({
 })))
 const destinationOptions = computed(() => destinationCatalog.value.map((item) => ({
   value: item.id,
-  label: displayValue(item),
+  label: isMultimodalViaPanama(item) && isRealPanamaPoe(item)
+    ? 'Multimodal vía Panamá'
+    : displayValue(item),
   searchText: routeOptionSearchText(item),
 })))
 const podOptions = computed(() => ['Land', 'Air'].includes(form.modality)
