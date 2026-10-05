@@ -199,6 +199,7 @@ function ownLineType(name: string): CostDetailType {
   // persisted as a destination charge.
   if (value.includes('recolecta') || value.includes('pickup') || value.includes('pick up')) return 'OriginCharge'
   if (value.includes('custom')) return 'CustomsCharge'
+  if (value.includes('seguro') || value.includes('insurance')) return 'Insurance'
   if (value.includes('doc') || value.includes('manifest') || value.includes('vgm')) return 'Documentation'
   if (value.includes('flete terrestre')) return 'InlandTransport'
   if (value.includes('cfs') || value.includes('whse') || value.includes('warehouse')) return 'OriginCharge'
