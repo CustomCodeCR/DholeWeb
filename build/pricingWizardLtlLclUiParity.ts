@@ -23,7 +23,7 @@ function patchStepFiveHeader(code: string) {
   const descEnd = descStart >= 0 ? code.indexOf('</p>', descStart) : -1
   if (descStart >= 0 && descEnd >= 0) {
     code = code.slice(0, descStart)
-      + `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? 'Compare consolidados propios y tarifarios de coloader. Al seleccionar una fuente, la tarifa pasa a Pantalla 6.' : form.modality === 'Air' ? 'Solo se muestran fuentes tarifarias aéreas para la ruta APT-APT seleccionada.' : shipmentModeForApi === 'Lcl' ? 'Compare consolidados propios y tarifarios de coloader. Al seleccionar una fuente, sus líneas reales pasan a Pantalla 7.' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>`
+      + `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? 'Los tarifarios Cliente y NVOCC administrados en Tarifas terrestres son propios. Coloaders muestra únicamente LTL provenientes de Revisar importaciones.' : form.modality === 'Air' ? 'Solo se muestran fuentes tarifarias aéreas para la ruta APT-APT seleccionada.' : shipmentModeForApi === 'Lcl' ? 'Compare consolidados propios y tarifarios de coloader. Al seleccionar una fuente, sus líneas reales pasan a Pantalla 7.' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>`
       + code.slice(descEnd + 4)
   }
 
@@ -49,6 +49,7 @@ function patchWizard(source: string) {
       `function selectLandLtlRateSource(tariff: FtlTariffDto) {
   resolvedFtlTariff.value = tariff
   landLtlCommercialProfile.value = tariff.commercialProfile
+  availableRates.value = []
   form.manualRate = false
   form.selectedImportRateId = ''
   applyResolvedLandLtlFreight()
@@ -58,6 +59,67 @@ function patchWizard(source: string) {
   form.transitDays = tariff.transitDays ?? 0
   if (tariff.currencyId) form.currencyId = tariff.currencyId
   continueWithResolvedLandLtlTariff()
+}
+
+function importedLandLtlAsTariff(rate: ImportRateSelectDto): FtlTariffDto {
+  const currencyCode = String(rate.currencyCode || rate.currency || 'USD')
+  return {
+    id: 'import:' + rate.id,
+    originId: rate.polId || null,
+    originName: String(rate.pol || ''),
+    originCode: String(rate.polCode || ''),
+    destinationId: rate.poeId || null,
+    destinationName: String(rate.poe || rate.pod || ''),
+    destinationCode: String(rate.poeCode || ''),
+    applicableOriginIds: rate.polId ? [rate.polId] : [],
+    applicableDestinationIds: rate.poeId ? [rate.poeId] : [],
+    equipmentClass: 'LTL_CBM',
+    equipmentLabel: 'LTL · CBM',
+    currencyId: String(rate.currencyId || ''),
+    currencyName: String(rate.currency || currencyCode),
+    currencyCode,
+    priceAmount: number(rate.totalSale ?? rate.freight),
+    transitDays: rate.transitDays == null ? null : number(rate.transitDays),
+    source: String(rate.agent || rate.agentCode || rate.carrier || rate.carrierCode || 'Revisar importaciones'),
+    notes: String(rate.spaceComment || ''),
+    isActive: true,
+    shipmentMode: 'Ltl',
+    rateBasis: 'PerCbm',
+    minimumAmount: 0,
+    warehouseName: 'Revisar importaciones',
+    validFrom: String(rate.validFrom || ''),
+    validTo: String(rate.validTo || ''),
+    commercialProfile: 'Nvocc',
+    applicableEquipmentClasses: ['LTL_CBM'],
+    costPerCbm: number(rate.totalCost ?? rate.freight),
+    weightKgPerCbm: 330,
+    duaCost: null,
+    ducaTCost: null,
+    stuffingCostPerCbm: null,
+    stuffingSalePerCbm: null,
+    panamaCostSurchargePerCbm: 0,
+    ltlChargeItems: [],
+  }
+}
+
+function selectImportedLandLtlSource(rate: ImportRateSelectDto) {
+  availableRates.value = [rate]
+  form.selectedImportRateId = rate.id
+  resolvedFtlTariff.value = importedLandLtlAsTariff(rate)
+  landLtlCommercialProfile.value = 'Nvocc'
+  form.manualRate = false
+  applyResolvedLandLtlFreight()
+  form.freeDays = 0
+  form.agentId = ''
+  form.carrierId = ''
+  form.transitDays = rate.transitDays == null ? 0 : number(rate.transitDays)
+  if (rate.currencyId) form.currencyId = rate.currencyId
+  continueWithResolvedLandLtlTariff()
+}
+
+function startManualLandLtlOwnTariff() {
+  landLtlCommercialProfile.value = 'FinalClient'
+  continueWithManualLandLtlTariff()
 }
 
 ${functionAnchor}`,
@@ -81,9 +143,11 @@ ${functionAnchor}`,
               :destination-code="selectedDestination?.code ?? null"
               :quote-date="form.loadDate || null"
               :requested-cbm="Math.max(number(lclChargeableCbm), number(form.cargoWeightKg) / 330)"
-              :selected-id="resolvedFtlTariff?.id ?? null"
-              @select="selectLandLtlRateSource"
-              @manual-own="continueWithManualLandLtlTariff"
+              :selected-master-id="form.selectedImportRateId ? null : resolvedFtlTariff?.id ?? null"
+              :selected-import-id="form.selectedImportRateId || null"
+              @select-own="selectLandLtlRateSource"
+              @select-coloader="selectImportedLandLtlSource"
+              @manual-own="startManualLandLtlOwnTariff"
             />
 
             <template v-else>
