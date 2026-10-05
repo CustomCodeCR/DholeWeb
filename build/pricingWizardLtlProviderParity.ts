@@ -17,7 +17,7 @@ function patchStepSixTemplate(source: string) {
 
   block = block.replace(
     `<p class="crystal-description">{{ form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
-    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? (form.manualRate && landLtlCommercialProfile === 'FinalClient' ? 'Tarifa LTL Cliente manual: ingrese moneda, costo y venta. LTL no utiliza agente, naviera ni días libres.' : 'La tarifa LTL seleccionada en Pantalla 5 se carga automáticamente. LTL no utiliza agente, naviera ni días libres.') : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
+    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? (form.manualRate && landLtlCommercialProfile === 'FinalClient' ? 'Tarifa LTL propia manual: ingrese moneda, costo y venta. LTL no utiliza agente, naviera ni días libres.' : 'La tarifa LTL seleccionada en Pantalla 5 se carga automáticamente. LTL no utiliza agente, naviera ni días libres.') : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
   )
 
   const gridAnchor = '          <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">'
@@ -31,7 +31,7 @@ function patchStepSixTemplate(source: string) {
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Tarifa LTL seleccionada</p>
-                <p class="mt-1 font-black">{{ landLtlCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente' }}</p>
+                <p class="mt-1 font-black">{{ landLtlCommercialProfile === 'Nvocc' ? 'Coloader' : 'Propio' }}</p>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                   {{ resolvedFtlTariff.originName }} → {{ resolvedFtlTariff.destinationName }}
                 </p>
@@ -192,7 +192,7 @@ function patchWizard(source: string) {
       "      costType: 'Variable' as CostType,",
       '      chargeBasis,',
       '      costId: null,',
-      "      contextLabel: `Tarifario LTL · ${landLtlCommercialProfile.value === 'Nvocc' ? 'NVOCC' : 'Cliente'}`,",
+      "      contextLabel: `Tarifario LTL · ${landLtlCommercialProfile.value === 'Nvocc' ? 'Coloader' : 'Propio'}`,",
       "      notes: isFlat ? 'Cargo Flat del tarifario LTL' + formulaNote : 'Cargo variable LTL sin costo ni venta fija; completar cuando corresponda.',",
       '      currencyId: currency.id,',
       '      currencyName: displayValue(currency),',
