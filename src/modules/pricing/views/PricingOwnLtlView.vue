@@ -770,52 +770,41 @@ onMounted(load)
         <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
       </div>
 
-      <div class="mt-4 grid gap-4 md:grid-cols-2">
+      <div class="mt-4 flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
         <button
           type="button"
-          class="rounded-[26px] border p-5 text-left transition hover:border-[var(--dh-primary)]"
+          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition"
           :class="selectedProfile === 'FinalClient'
-            ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/8'
-            : 'border-[var(--dh-border)] bg-black/[0.018] dark:bg-white/[0.025]'"
+            ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]'
+            : 'text-[var(--dh-text-muted)]'"
           @click="selectProfile('FinalClient')"
         >
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">LTL · Terrestre</p>
-              <h2 class="mt-2 text-xl font-black text-[var(--dh-text)]">Consolidados propios</h2>
-              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Matriz de tarifas LTL propias de Grupo Castro Fallas.</p>
-            </div>
-            <DhBadge label="Propio" variant="neutral" />
-          </div>
-          <div class="mt-5 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
-            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileRouteCount('FinalClient') }} rutas</span>
-            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileCountryCount('FinalClient', 'origin') }} orígenes</span>
-            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileCountryCount('FinalClient', 'destination') }} destinos</span>
-          </div>
+          Consolidados propios
+          <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ profileRouteCount('FinalClient') }}</span>
         </button>
-
         <button
           type="button"
-          class="rounded-[26px] border p-5 text-left transition hover:border-[var(--dh-primary)]"
+          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition"
           :class="selectedProfile === 'Nvocc'
-            ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/8'
-            : 'border-[var(--dh-border)] bg-black/[0.018] dark:bg-white/[0.025]'"
+            ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]'
+            : 'text-[var(--dh-text-muted)]'"
           @click="selectProfile('Nvocc')"
         >
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">LTL · Terrestre</p>
-              <h2 class="mt-2 text-xl font-black text-[var(--dh-text)]">Coloaders</h2>
-              <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Matriz independiente para tarifas LTL de coloaders.</p>
-            </div>
-            <DhBadge label="Coloader" variant="warning" />
-          </div>
-          <div class="mt-5 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
-            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileRouteCount('Nvocc') }} rutas</span>
-            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileCountryCount('Nvocc', 'origin') }} orígenes</span>
-            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">{{ profileCountryCount('Nvocc', 'destination') }} destinos</span>
-          </div>
+          Coloaders
+          <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ profileRouteCount('Nvocc') }}</span>
         </button>
+      </div>
+
+      <div v-if="selectedProfile" class="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
+        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
+          {{ profileCountryCount(selectedProfile, 'origin') }} orígenes
+        </span>
+        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
+          {{ profileCountryCount(selectedProfile, 'destination') }} destinos
+        </span>
+        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
+          {{ selectedProfile === 'Nvocc' ? 'Tarifas de coloaders' : 'Tarifas propias GCF' }}
+        </span>
       </div>
     </section>
 
