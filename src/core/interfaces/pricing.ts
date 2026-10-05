@@ -25,7 +25,7 @@ export type CostOperationalCondition =
   | 'FiscalCargo'
   | 'NationalizedCargo'
 export type ShipmentMode = 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl' | 'Air' | 'AirConsol'
-export type ImportedShipmentMode = 'Fcl' | 'LclColoader' | 'AirLclColoader' | 'Unknown'
+export type ImportedShipmentMode = 'Fcl' | 'LclColoader' | 'AirLclColoader' | 'Ltl' | 'Unknown'
 export type RateType = 'Spot' | 'Tariff'
 export type ChargeBasis =
   | 'PerShipment'
