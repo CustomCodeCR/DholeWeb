@@ -29,12 +29,37 @@ function patchWizard(source: string) {
     || descriptor.includes('panama')
 }`
 
+  const explicitMultimodalDetector = `function isExplicitMultimodalViaPanama(item: CatalogItemSelectDto | null | undefined) {
+  if (!item) return false
+  const meta = metadata(item)
+  const descriptor = normalizeCatalogValue([item.code, item.slug, item.label, displayValue(item)].filter(Boolean).join(' '))
+  return meta?.multimodalViaPanama === true
+    || String(item.code ?? '').trim().toUpperCase() === 'MULTIMODAL_VIA_PANAMA'
+    || descriptor.includes('multimodal via panama')
+}`
+
+  const routeAwareMultimodalDetector = `function isMultimodalViaPanama(item: CatalogItemSelectDto | null | undefined) {
+  if (isExplicitMultimodalViaPanama(item)) return true
+  if (!item || item.id !== form.destinationId) return false
+  if (form.modality !== 'Maritime' || shipmentModeForApi.value !== 'Fcl') return false
+
+  const pod = findById(catalogs.pod, form.podId)
+  return Boolean(isPanamaCatalogItem(item) && pod && !isPanamaCatalogItem(pod))
+}`
+
   const robustPanamaDetector = `function isRealPanamaPoe(item: CatalogItemSelectDto | null | undefined) {
-  return Boolean(item && !isMultimodalViaPanama(item) && isPanamaCatalogItem(item))
+  return Boolean(item && !isExplicitMultimodalViaPanama(item) && isPanamaCatalogItem(item))
 }`
 
   // pricingRequirements20260908 already introduces isRealPanamaPoe before this plugin
   // runs. Always enhance that helper instead of assuming this plugin created it.
+  if (code.includes('function isMultimodalViaPanama(')) {
+    code = code.replace(
+      /function isMultimodalViaPanama\(item: CatalogItemSelectDto \| null \| undefined\) \{[\s\S]*?\n\}/,
+      `${explicitMultimodalDetector}\n\n${routeAwareMultimodalDetector}`,
+    )
+  }
+
   if (code.includes('function isRealPanamaPoe(')) {
     if (!code.includes('function isPanamaCatalogItem(')) {
       code = code.replace(
@@ -52,14 +77,9 @@ function patchWizard(source: string) {
       throw new Error('[pricingWizardMaritimePanamaFix] Route options anchor not found.')
     }
 
-    const routeReplacement = `function isMultimodalViaPanama(item: CatalogItemSelectDto | null | undefined) {
-  if (!item) return false
-  const meta = metadata(item)
-  const descriptor = normalizeCatalogValue([item.code, item.slug, item.label, displayValue(item)].filter(Boolean).join(' '))
-  return meta?.multimodalViaPanama === true
-    || String(item.code ?? '').trim().toUpperCase() === 'MULTIMODAL_VIA_PANAMA'
-    || descriptor.includes('multimodal via panama')
-}
+    const routeReplacement = `${explicitMultimodalDetector}
+
+${routeAwareMultimodalDetector}
 
 ${panamaCatalogDetector}
 
@@ -94,7 +114,7 @@ const destinationOptions = computed(() => {
     }
     code = code.replace(
       panamaItemsAnchor,
-      `${panamaItemsAnchor}\nconst multimodalViaPanamaPoe = computed(() => catalogs.poe.find(isMultimodalViaPanama) ?? null)`,
+      `${panamaItemsAnchor}\nconst multimodalViaPanamaPoe = computed(() => catalogs.poe.find(isExplicitMultimodalViaPanama) ?? null)`,
     )
   }
 
@@ -102,7 +122,7 @@ const destinationOptions = computed(() => {
   // already declared isRealPanamaPoe. The old implementation skipped this block in
   // that case, which is why Balboa + San José remained as Balboa in production.
   if (!code.includes('// dhole-panama-route-auto-switch')) {
-    const behaviorAnchor = `const multimodalViaPanamaPoe = computed(() => catalogs.poe.find(isMultimodalViaPanama) ?? null)`
+    const behaviorAnchor = `const multimodalViaPanamaPoe = computed(() => catalogs.poe.find(isExplicitMultimodalViaPanama) ?? null)`
     if (!code.includes(behaviorAnchor)) {
       throw new Error('[pricingWizardMaritimePanamaFix] Multimodal Panama anchor not found.')
     }
@@ -181,6 +201,13 @@ function shouldBrowseAllPanamaRates() {
       `${selectedDestinationAnchor}\n\n${panamaSelectHelper}`,
     )
   }
+
+  // Route-aware fallback: if Config does not expose the synthetic POE, the
+  // combination Panamá POE + POD outside Panamá is still multimodal.
+  code = code.replace(
+    /const multimodalAllInPresentation = computed\(\(\) => \{[\s\S]*?\n\}\)\nconst selectedPod =/,
+    `const multimodalAllInPresentation = computed(() => isMultimodalViaPanama(selectedDestination.value))\nconst selectedPod =`,
+  )
 
   // ALL IN is exclusive to multimodal. Do not rewrite the wizard UI/state to
   // force it globally. The wizard owns the route-aware computed rule; keep a
