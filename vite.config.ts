@@ -77,6 +77,7 @@ import { pricingWizardLtlProviderParity } from './build/pricingWizardLtlProvider
 import { pricingOptionalChargesFinalGuard } from './build/pricingOptionalChargesFinalGuard'
 import { pricingConsolidatedCargo20261001 } from './build/pricingConsolidatedCargo20261001'
 import { pricingMiamiLclRules20261002 } from './build/pricingMiamiLclRules20261002'
+import { pricingWizardLtlLclUiParity } from './build/pricingWizardLtlLclUiParity'
 
 export default defineConfig({
   plugins: [
@@ -153,6 +154,7 @@ export default defineConfig({
     pricingConsolidatedCargo20261001(),
     pricingMiamiLclRules20261002(),
     pricingWizardRuntimeReferenceGuard(),
+    pricingWizardLtlLclUiParity(),
     vue(),
     tailwindcss(),
   ],
