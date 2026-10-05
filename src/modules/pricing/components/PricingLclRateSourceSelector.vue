@@ -596,6 +596,29 @@ function updateCbm(value: string | number | null) {
 }
 
 watch(() => [props.polId, props.poeId, props.podId, props.incotermId, props.quoteDate], () => void load())
+
+watch(
+  () => [
+    props.commercialPlan,
+    props.cargoValue,
+    props.whsQty,
+    props.includeSed,
+    props.sedQty,
+    props.dangerousCargo,
+    props.bonded,
+    JSON.stringify(props.cargoLines),
+  ],
+  () => {
+    // Miami pricing inputs changed: an already selected own consolidation must
+    // be recalculated immediately so Pantalla 7 never keeps stale A/B/C/D,
+    // NVOCC/LITTLE, insurance, SED, weight/volume or stackability values.
+    if (!props.commercialPlan || !String(props.modelValue ?? '').startsWith('Own:')) return
+    const selectedId = String(props.modelValue).slice(4)
+    const row = ownRows.value.find((item) => String(item.id) === selectedId)
+    if (row) void chooseOwn(row)
+  },
+  { deep: true },
+)
 onMounted(load)
 </script>
 
