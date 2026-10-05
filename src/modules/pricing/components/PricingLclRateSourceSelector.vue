@@ -15,6 +15,8 @@ import {
   type LclColoaderRateLineDto,
 } from '@/core/services/lclRateSourceService'
 import type { ChargeBasis, CostDetailType, CostType } from '@/core/interfaces/pricing'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
 type SourceTab = 'Own' | 'Coloader'
 type TableRow = Record<string, unknown>
@@ -135,6 +137,7 @@ const search = ref('')
 const ownRows = ref<Array<OwnLclConsolidationDto & TableRow>>([])
 const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
+const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isAir = computed(() => props.modality === 'Air')
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
@@ -162,6 +165,24 @@ function money(value: unknown) {
 function coloaderFreightPerCbm(row: LclColoaderRateDto) {
   const freight = row.lines.find((line) => line.costDetailType === 'Freight')
   return freight ? n(freight.saleAmount || freight.costAmount) : null
+}
+async function loadCurrencyCatalog() {
+  if (currencyCatalog.value.length) return
+  try {
+    currencyCatalog.value = (await CatalogItemsService.select({ catalogGroupSlug: 'currencies' }))
+      .filter((item) => item.isActive !== false)
+  } catch {
+    currencyCatalog.value = []
+  }
+}
+function currencyValue(row: Pick<LclColoaderRateDto, 'currencyId' | 'currencyName'>) {
+  const configuredValue = String(
+    currencyCatalog.value.find((item) => item.id === row.currencyId)?.value ?? '',
+  ).trim()
+  if (configuredValue) return configuredValue
+
+  // Never expose Config.Code (for example CUR-2026-001) as user-facing currency text.
+  return String(row.currencyName ?? '').trim()
 }
 function normalize(value: unknown) {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
@@ -359,6 +380,7 @@ const filteredColoaders = computed(() => {
 })
 
 async function load() {
+  void loadCurrencyCatalog()
   try {
     loading.value = true
     error.value = ''
@@ -686,10 +708,10 @@ onMounted(load)
         <template #cell-sale="{ row }">
           <div class="space-y-0.5 text-right">
             <p class="font-black">
-              <template v-if="coloaderFreightPerCbm(row) != null">{{ row.currencyCode }} {{ money(coloaderFreightPerCbm(row)) }}</template>
+              <template v-if="coloaderFreightPerCbm(row) != null">{{ currencyValue(row) }} {{ money(coloaderFreightPerCbm(row)) }}</template>
               <template v-else>—</template>
             </p>
-            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Total base {{ row.currencyCode }} {{ money(row.totalSaleAmount) }}</p>
+            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Total base {{ currencyValue(row) }} {{ money(row.totalSaleAmount) }}</p>
           </div>
         </template>
         <template #cell-action="{ row }">
