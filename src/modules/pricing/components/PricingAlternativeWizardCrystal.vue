@@ -1372,6 +1372,7 @@ function haulageAssociation(line: { name: string }) {
 
 const selectableOptionalLines = computed(() =>
   rateLines.value.filter((line) => {
+    if (line.costDetailType === 'Insurance') return false
     if (!line.optional || !lineMatchesPickupCargoCondition(line)) return false
     const association = haulageAssociation(line)
     if (!association) return true
@@ -1412,7 +1413,8 @@ function standardSectionLines(section: RateSection) {
       && line.included
       && lineMatchesPickupCargoCondition(line)
       && (!line.manual || line.costDetailType === 'Freight')
-      && line.costDetailType !== 'AgentCharge',
+      && line.costDetailType !== 'AgentCharge'
+      && line.costDetailType !== 'Insurance',
   )
 }
 
