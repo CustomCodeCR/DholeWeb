@@ -50,15 +50,15 @@ function patchWizard(source: string) {
   const ftlTemplate = `          <template v-else-if="form.modality === 'Land' && (shipmentModeForApi === 'Ltl' || (shipmentModeForApi === 'Ftl' && resolvedFtlTariff))">
             <div v-if="shipmentModeForApi === 'Ltl'" class="mb-4 space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
               <div>
-                <p class="font-black">Seleccione la tarifa LTL</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">La ruta y los datos de carga ya están definidos. Seleccione Cliente o NVOCC para calcular la tarifa.</p>
+                <p class="font-black">Seleccione la fuente tarifaria LTL</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">La ruta y los datos de carga ya están definidos. Seleccione Consolidados propios o Coloaders para calcular la tarifa.</p>
               </div>
               <div class="grid gap-2 sm:grid-cols-2">
                 <button type="button" class="crystal-choice min-h-[82px] text-left" :class="landLtlCommercialProfile === 'FinalClient' ? 'crystal-choice--active' : ''" @click="chooseLandLtlCommercialProfile('FinalClient')">
-                  <strong>Cliente</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Consolidado Cliente.</span>
+                  <strong>Consolidados propios</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Tarifas LTL propias de Grupo Castro Fallas.</span>
                 </button>
                 <button type="button" class="crystal-choice min-h-[82px] text-left" :class="landLtlCommercialProfile === 'Nvocc' ? 'crystal-choice--active' : ''" @click="chooseLandLtlCommercialProfile('Nvocc')">
-                  <strong>NVOCC</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Consolidado NVOCC.</span>
+                  <strong>Coloaders</strong><span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Tarifas LTL cargadas para proveedores coloader.</span>
                 </button>
               </div>
 
@@ -67,9 +67,9 @@ function patchWizard(source: string) {
                 class="flex flex-col gap-3 rounded-[18px] border border-dashed border-[rgb(var(--dh-primary-rgb)/0.35)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p class="font-black">Tarifa LTL Cliente manual</p>
+                  <p class="font-black">Tarifa LTL propia manual</p>
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                    Siempre puede crear una tarifa manual, aunque exista una tarifa Cliente vigente para esta ruta.
+                    Siempre puede crear una tarifa propia manual, aunque exista una tarifa vigente para esta ruta.
                   </p>
                 </div>
                 <DhButton class="shrink-0" variant="secondary" @click="continueWithManualLandLtlTariff">
@@ -78,7 +78,7 @@ function patchWizard(source: string) {
               </div>
             </div>
             <div v-if="shipmentModeForApi === 'Ltl' && !landLtlCommercialProfile" class="crystal-soft p-6 text-center">
-              <p class="font-black">Seleccione Cliente o NVOCC</p>
+              <p class="font-black">Seleccione Consolidados propios o Coloaders</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">La tarifa se consulta automáticamente para la ruta de esta cotización.</p>
             </div>
             <div v-else-if="shipmentModeForApi === 'Ltl' && loadingRates" class="py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Calculando tarifa LTL…</div>
@@ -86,7 +86,7 @@ function patchWizard(source: string) {
               <button type="button" class="crystal-rate-card crystal-rate-card--active text-left" @click="form.manualRate = false">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p class="font-black">Tarifa terrestre {{ shipmentModeForApi.toUpperCase() }}<span v-if="shipmentModeForApi === 'Ltl'"> · {{ landLtlCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente' }}</span></p>
+                    <p class="font-black">Tarifa terrestre {{ shipmentModeForApi.toUpperCase() }}<span v-if="shipmentModeForApi === 'Ltl'"> · {{ landLtlCommercialProfile === 'Nvocc' ? 'Coloader' : 'Propio' }}</span></p>
                     <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ resolvedFtlTariff.originName }} → {{ resolvedFtlTariff.destinationName }}<span v-if="shipmentModeForApi === 'Ftl'"> · {{ resolvedFtlTariff.equipmentLabel }}</span></p>
                   </div>
                   <DhBadge variant="success">Tarifario maestro</DhBadge>
@@ -117,7 +117,7 @@ function patchWizard(source: string) {
             </div>
             <div v-else-if="shipmentModeForApi === 'Ltl' && landLtlCommercialProfile" class="crystal-empty p-8 text-center">
               <p class="text-lg font-black">No existe tarifa LTL para esta combinación</p>
-              <p class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">No se encontró una tarifa activa {{ landLtlCommercialProfile === 'Nvocc' ? 'NVOCC' : 'Cliente' }} para la ruta y fecha seleccionadas.</p>
+              <p class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">No se encontró una tarifa activa de {{ landLtlCommercialProfile === 'Nvocc' ? 'Coloader' : 'Consolidado propio' }} para la ruta y fecha seleccionadas.</p>
             </div>
             <div v-if="resolvedFtlTariff" class="flex flex-wrap justify-end gap-2">
               <DhButton v-if="shipmentModeForApi === 'Ftl'" variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
@@ -132,7 +132,7 @@ ${ratesTemplateAnchor}`
   if (code.includes(titleAnchor)) {
     code = code.replace(
       titleAnchor,
-      `<h2 class="crystal-title">{{ shipmentModeForApi === 'Ltl' ? 'Seleccione la tarifa LTL' : form.modality === 'Land' && shipmentModeForApi === 'Ftl' ? 'Tarifa terrestre disponible' : 'Tarifas pre-aprobadas disponibles' }}</h2>`,
+      `<h2 class="crystal-title">{{ shipmentModeForApi === 'Ltl' ? 'Seleccione la fuente tarifaria LTL' : form.modality === 'Land' && shipmentModeForApi === 'Ftl' ? 'Tarifa terrestre disponible' : 'Tarifas pre-aprobadas disponibles' }}</h2>`,
     )
   }
 
