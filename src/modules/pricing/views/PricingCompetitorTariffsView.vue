@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { BarChart3, Eye, FilePlus2, Trash2, Upload } from 'lucide-vue-next'
+import { BarChart3, Eye, FilePlus2, Pencil, Trash2, Upload } from 'lucide-vue-next'
 import { DhButton, DhInput, DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import { DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
@@ -26,6 +26,19 @@ type ImportForm = {
   file: File | null
 }
 
+type ReviewForm = {
+  incotermId: string
+  polId: string
+  poeId: string
+  podId: string
+  carrierId: string
+  containerTypeId: string
+  currencyId: string
+  originalAmount: number | null
+  validFrom: string
+  validTo: string
+}
+
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
@@ -46,6 +59,22 @@ const observationsOpen = ref(false)
 const observationsLoading = ref(false)
 const observations = ref<CompetitorRateObservationDto[]>([])
 const observationTariff = ref<CompetitorTariffDto | null>(null)
+
+const reviewOpen = ref(false)
+const reviewSaving = ref(false)
+const reviewTarget = ref<CompetitorRateObservationDto | null>(null)
+const reviewForm = reactive<ReviewForm>({
+  incotermId: '',
+  polId: '',
+  poeId: '',
+  podId: '',
+  carrierId: '',
+  containerTypeId: '',
+  currencyId: '',
+  originalAmount: null,
+  validFrom: '',
+  validTo: '',
+})
 
 const filters = reactive({
   search: '',
@@ -74,7 +103,14 @@ const importStatusOptions = [
 ]
 
 const canCreate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
+const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))
+
+const reviewEquipmentOptions = computed(() => {
+  const mode = reviewTarget.value?.shipmentMode
+  if (mode === 'Ftl' || mode === 'Ltl') return catalogs.landEquipmentOptions.value
+  return catalogs.containerOptions.value
+})
 
 const columns: DhTableColumn<CompetitorTariffDto>[] = [
   { key: 'source', label: 'Fuente' },
@@ -125,7 +161,34 @@ function formatDate(value?: string | null) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium' }).format(date)
+  return new Intl.DateTimeFormat('es-CR', {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(date)
+}
+
+function toDateInput(value?: string | null) {
+  if (!value) return ''
+  return value.slice(0, 10)
+}
+
+function incotermLabel(row: CompetitorRateObservationDto) {
+  const item = catalogs.incoterms.value.find((candidate) => candidate.id === row.incotermId)
+  return item?.value || item?.name || row.incotermCode || '—'
+}
+
+function observationReviewReason(row: CompetitorRateObservationDto) {
+  const reasons: string[] = []
+  if (!row.incotermId) reasons.push('Incoterm sin normalizar')
+  if (!row.polId) reasons.push('POL sin normalizar')
+  if (!row.normalizedAmount) reasons.push('Monto comparable sin normalizar')
+  if (row.shipmentMode === 'Fcl' || row.shipmentMode === 'Ftl') {
+    if (!row.containerTypeId) reasons.push('Equipo sin normalizar')
+  }
+  if (!row.normalizedCurrency || row.normalizedCurrency.toUpperCase() !== 'USD') {
+    reasons.push('Moneda pendiente de normalización')
+  }
+  return reasons.join(' · ') || 'Revise los datos detectados antes de usar esta tarifa en Average.'
 }
 
 function formatMoney(value?: number | null, currency?: string | null) {
@@ -381,6 +444,103 @@ async function importTariff() {
     toastStore.backendError(error, 'No se pudo iniciar la importación del tarifario de competencia.')
   } finally {
     saving.value = false
+  }
+}
+
+function openReview(row: CompetitorRateObservationDto) {
+  reviewTarget.value = row
+
+  const currency = catalogs.currencies.value.find((item) =>
+    [item.id, item.code, item.value, item.name]
+      .filter(Boolean)
+      .some((value) =>
+        String(value).trim().toLowerCase()
+        === String(row.normalizedCurrency || row.currency || '').trim().toLowerCase(),
+      ),
+  )
+
+  Object.assign(reviewForm, {
+    incotermId: row.incotermId || observationTariff.value?.incotermId || '',
+    polId: row.polId || '',
+    poeId: row.poeId || '',
+    podId: row.podId || '',
+    carrierId: row.carrierId || '',
+    containerTypeId: row.containerTypeId || '',
+    currencyId: currency?.id || '',
+    originalAmount: row.originalAmount ?? row.normalizedAmount ?? null,
+    validFrom: toDateInput(row.validFrom),
+    validTo: toDateInput(row.validTo),
+  })
+
+  reviewOpen.value = true
+}
+
+async function saveReview() {
+  if (!reviewTarget.value || !observationTariff.value) return
+
+  if (!reviewForm.incotermId || !reviewForm.polId || !reviewForm.currencyId) {
+    toastStore.error(
+      'Datos incompletos',
+      'Incoterm, POL y moneda son obligatorios para revisar la tarifa.',
+    )
+    return
+  }
+
+  if (reviewForm.originalAmount == null || reviewForm.originalAmount < 0) {
+    toastStore.error('Monto inválido', 'Indique el monto original de la tarifa.')
+    return
+  }
+
+  if (!reviewForm.validFrom || !reviewForm.validTo || reviewForm.validTo < reviewForm.validFrom) {
+    toastStore.error('Vigencia inválida', 'Revise las fechas de vigencia.')
+    return
+  }
+
+  const currency = catalogs.currencies.value.find((item) => item.id === reviewForm.currencyId)
+  const businessCurrency = currency?.value || currency?.name || currency?.code
+  if (!businessCurrency) {
+    toastStore.error('Moneda inválida', 'No se pudo resolver el valor de la moneda seleccionada.')
+    return
+  }
+
+  reviewSaving.value = true
+  try {
+    const updated = await PricingService.reviewCompetitorTariffObservation(
+      observationTariff.value.id,
+      reviewTarget.value.id,
+      {
+        incotermId: reviewForm.incotermId,
+        polId: reviewForm.polId,
+        poeId: reviewForm.poeId || null,
+        podId: reviewForm.podId || null,
+        carrierId: reviewForm.carrierId || null,
+        containerTypeId: reviewForm.containerTypeId || null,
+        currency: businessCurrency,
+        originalAmount: reviewForm.originalAmount,
+        validFrom: reviewForm.validFrom,
+        validTo: reviewForm.validTo,
+      },
+    )
+
+    const index = observations.value.findIndex((row) => row.id === updated.id)
+    if (index >= 0) observations.value.splice(index, 1, updated)
+
+    const parent = await PricingService.getCompetitorTariff(observationTariff.value.id)
+    observationTariff.value = parent
+    replaceRow(parent)
+
+    reviewOpen.value = false
+    reviewTarget.value = null
+    toastStore.success(
+      updated.isUsable ? 'Tarifa revisada' : 'Revisión guardada',
+      updated.isUsable
+        ? 'La observación ya está disponible para Average.'
+        : 'Los cambios se guardaron, pero todavía falta normalizar algún dato.',
+    )
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo guardar la revisión de la tarifa.')
+  } finally {
+    reviewSaving.value = false
   }
 }
 
