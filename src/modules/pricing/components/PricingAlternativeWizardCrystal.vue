@@ -1577,12 +1577,10 @@ function applyDraftMarketSaleSuggestion(targetSaleUsd: number) {
   const currentIncluded = includedLines.value
   if (!currentIncluded.length) return
 
-  // Average/IA may suggest a new commercial sale, but cost is immutable here.
-  // The global 12% floor protects the normal Pricing margin rule.
-  const minimumSaleByMargin = totalCostUsd.value > 0
-    ? totalCostUsd.value / (1 - 0.12)
-    : 0
-  const requestedTarget = Math.max(targetSaleUsd, minimumSaleByMargin)
+  // Cost never changes. The market target may be below the normal 12% margin
+  // threshold; in that case Pricing can require approval, but this draft
+  // suggestion stays close to the competitor market and never recommends a loss.
+  const requestedTarget = Math.max(targetSaleUsd, totalCostUsd.value)
 
   const adjustable = currentIncluded.filter((line) => {
     const currency = canonicalCurrencyCode(line)
@@ -1590,6 +1588,7 @@ function applyDraftMarketSaleSuggestion(targetSaleUsd: number) {
       && ['USD', 'CRC'].includes(currency)
       && quantityForRateLine(line) > 0
   })
+
   if (!adjustable.length) {
     toastStore.warning(
       'Sin ventas ajustables',
@@ -1609,39 +1608,96 @@ function applyDraftMarketSaleSuggestion(targetSaleUsd: number) {
     .filter((line) => !adjustableKeys.has(line.key))
     .reduce((sum, line) => sum + rateLineTotalUsd(line, 'saleAmount'), 0)
 
-  const states = adjustable.map((line) => {
-    const costTotalUsd = rateLineTotalUsd(line, 'costAmount')
-    const saleTotalUsd = rateLineTotalUsd(line, 'saleAmount')
-    return {
-      line,
-      costTotalUsd,
-      saleTotalUsd,
-      weight: Math.max(1, saleTotalUsd, costTotalUsd),
-    }
-  })
+  const states = adjustable.map((line) => ({
+    line,
+    saleTotalUsd: rateLineTotalUsd(line, 'saleAmount'),
+    costTotalUsd: rateLineTotalUsd(line, 'costAmount'),
+  }))
 
-  const costFloorUsd = states.reduce((sum, state) => sum + state.costTotalUsd, 0)
-  const targetForAdjustable = Math.max(
-    costFloorUsd,
-    requestedTarget - protectedSaleUsd,
+  const currentAdjustableSaleUsd = states.reduce(
+    (sum, state) => sum + state.saleTotalUsd,
+    0,
   )
-  const commercialSpreadUsd = Math.max(0, targetForAdjustable - costFloorUsd)
-  const totalWeight = states.reduce((sum, state) => sum + state.weight, 0)
+  const targetAdjustableSaleUsd = Math.max(0, requestedTarget - protectedSaleUsd)
+  const deltaUsd = targetAdjustableSaleUsd - currentAdjustableSaleUsd
 
-  for (const state of states) {
-    const quantity = Math.max(1, number(quantityForRateLine(state.line)))
-    const currency = canonicalCurrencyCode(state.line) as 'USD' | 'CRC'
-    const share = totalWeight > 0
-      ? commercialSpreadUsd * (state.weight / totalWeight)
-      : 0
-    const suggestedTotalUsd = state.costTotalUsd + share
-    const nativeTotal = convertUsdCrc(suggestedTotalUsd, 'USD', currency)
-
-    // Deliberadamente solo cambia saleAmount. costAmount nunca se toca.
-    state.line.saleAmount = Math.max(
+  const applyTotalUsd = (line: RateLine, totalUsd: number) => {
+    const quantity = Math.max(1, number(quantityForRateLine(line)))
+    const currency = canonicalCurrencyCode(line) as 'USD' | 'CRC'
+    const nativeTotal = convertUsdCrc(Math.max(0, totalUsd), 'USD', currency)
+    line.saleAmount = Math.max(
       0,
       Math.round((nativeTotal / quantity) * 100) / 100,
     )
+  }
+
+  if (deltaUsd < -0.01 && currentAdjustableSaleUsd > 0) {
+    // If the market asks us to come down, preserve the exact commercial shape:
+    // every editable sale is reduced by the same proportion.
+    const factor = Math.max(0, targetAdjustableSaleUsd / currentAdjustableSaleUsd)
+    for (const state of states) {
+      applyTotalUsd(state.line, state.saleTotalUsd * factor)
+    }
+  } else if (deltaUsd > 0.01) {
+    const saleWeightTotal = states.reduce(
+      (sum, state) => sum + Math.max(0, state.saleTotalUsd),
+      0,
+    )
+    const costWeightTotal = states.reduce(
+      (sum, state) => sum + Math.max(0, state.costTotalUsd),
+      0,
+    )
+
+    const weighted = states.map((state) => {
+      const saleShare = saleWeightTotal > 0
+        ? Math.max(0, state.saleTotalUsd) / saleWeightTotal
+        : 0
+      const costShare = costWeightTotal > 0
+        ? Math.max(0, state.costTotalUsd) / costWeightTotal
+        : 0
+
+      // 80% follows the sale structure the user already built.
+      // 20% follows cost structure so the extra sale does not fall entirely
+      // into freight when other editable charges also carry real cost.
+      const weight = saleWeightTotal > 0
+        ? (saleShare * 0.80) + (costShare * 0.20)
+        : costShare
+
+      return { ...state, weight }
+    })
+
+    const totalWeight = weighted.reduce((sum, state) => sum + state.weight, 0)
+
+    for (const state of weighted) {
+      const fallbackWeight = weighted.length > 0 ? 1 / weighted.length : 0
+      const share = totalWeight > 0 ? state.weight / totalWeight : fallbackWeight
+      applyTotalUsd(
+        state.line,
+        state.saleTotalUsd + (deltaUsd * share),
+      )
+    }
+  }
+
+  // Correct only the rounding residue. This should be cents, not a commercial
+  // redistribution, so it goes to the line with the largest existing sale.
+  const adjustedTotalUsd = adjustable.reduce(
+    (sum, line) => sum + rateLineTotalUsd(line, 'saleAmount'),
+    0,
+  )
+  const roundingResidualUsd = targetAdjustableSaleUsd - adjustedTotalUsd
+
+  if (Math.abs(roundingResidualUsd) >= 0.01) {
+    const residualLine = [...adjustable].sort(
+      (left, right) =>
+        rateLineTotalUsd(right, 'saleAmount') - rateLineTotalUsd(left, 'saleAmount'),
+    )[0]
+
+    if (residualLine) {
+      applyTotalUsd(
+        residualLine,
+        rateLineTotalUsd(residualLine, 'saleAmount') + roundingResidualUsd,
+      )
+    }
   }
 
   const freightLines = adjustable.filter((line) => line.costDetailType === 'Freight')
@@ -1649,6 +1705,7 @@ function applyDraftMarketSaleSuggestion(targetSaleUsd: number) {
     form.freightSale = number(freightLines[0]?.saleAmount)
   }
 }
+
 const includedCurrencyCodes = computed(() => new Set(includedLines.value.map((line) => canonicalCurrencyCode(line)).filter(Boolean)))
 const hasMixedCurrencies = computed(() => includedCurrencyCodes.value.size > 1)
 // Compatibility aliases used by existing visual helpers. Header currency is still preserved in the persisted rate.
