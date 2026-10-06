@@ -12,10 +12,11 @@ import {
   WandSparkles,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhTextarea } from '@/shared/components/atoms'
-import { PRICING_SCOPES } from '@/core/auth/scopes'
+import { AI_SCOPES, PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { MarketPricingService } from '@/core/services/marketPricingService'
+import { AiService } from '@/core/services/aiService'
 import type { RateDto, ShipmentMode } from '@/core/interfaces/pricing'
 import type {
   AutoPricingCalculationDto,
@@ -81,6 +82,15 @@ const overrideSales = reactive<Record<string, number>>({})
 const baselineSales = reactive<Record<string, number>>({})
 const baselineRateId = ref('')
 
+const aiDraftSuggestion = ref<{
+  suggestedSaleTotalUsd: number
+  reason: string
+  risk: string
+  modelName: string
+} | null>(null)
+const aiDraftAnalyzing = ref(false)
+const aiDraftAnalysisError = ref('')
+
 const selectedEquipmentId = ref<string | null>(props.context.containerTypeId ?? null)
 
 const canViewBenchmark = computed(() => authStore.hasScope(PRICING_SCOPES.marketBenchmark.view))
@@ -90,6 +100,7 @@ const canCalculateAutoPricing = computed(() => authStore.hasScope(PRICING_SCOPES
 const canApplyAutoPricing = computed(() => authStore.hasScope(PRICING_SCOPES.autoPricing.apply))
 const canOverrideAutoPricing = computed(() => authStore.hasScope(PRICING_SCOPES.autoPricing.override))
 const canApproveAutoPricing = computed(() => authStore.hasScope(PRICING_SCOPES.autoPricing.approve))
+const canExecuteMarketAi = computed(() => authStore.hasScope(AI_SCOPES.executions.execute))
 
 const equipmentOptions = computed(() => {
   const persisted = (props.rate?.containers ?? [])
@@ -189,10 +200,148 @@ const draftMinimumSalePrice = computed(() => {
 })
 
 const draftSuggestedSalePrice = computed(() => {
+  if (aiDraftSuggestion.value?.suggestedSaleTotalUsd) {
+    return Math.max(
+      draftMinimumSalePrice.value,
+      aiDraftSuggestion.value.suggestedSaleTotalUsd,
+    )
+  }
+
   const marketTarget = draftLowMarketTarget.value
   if (marketTarget == null || marketTarget <= 0) return null
   return Math.max(draftMinimumSalePrice.value, marketTarget)
 })
+
+const draftSuggestionSource = computed(() =>
+  aiDraftSuggestion.value ? 'IA + Average' : 'Average',
+)
+
+function clampDraftAiSuggestion(value: number) {
+  const stats = marketStats.value
+  const lowerMarket = stats.p25 ?? draftLowMarketTarget.value ?? 0
+  const upperMarket =
+    stats.p50
+    ?? stats.p60
+    ?? stats.competitiveCeiling
+    ?? draftLowMarketTarget.value
+    ?? lowerMarket
+
+  const lower = Math.max(draftMinimumSalePrice.value, lowerMarket)
+  const upper = Math.max(lower, upperMarket)
+
+  return Math.min(upper, Math.max(lower, value))
+}
+
+async function analyzeDraftMarketWithAi() {
+  aiDraftSuggestion.value = null
+  aiDraftAnalysisError.value = ''
+
+  if (
+    props.rateId
+    || props.viewOnly
+    || !benchmark.value
+    || benchmark.value.observationCount <= 0
+    || !canExecuteMarketAi.value
+  ) {
+    return
+  }
+
+  aiDraftAnalyzing.value = true
+  try {
+    const included = marketObservations.value
+      .filter((observation) => observation.wasIncluded && !observation.isOutlier)
+      .slice(0, 30)
+      .map((observation) => ({
+        competitor: observation.competitorCompanyName,
+        normalizedAmount: observation.normalizedAmount,
+        comparabilityScore: observation.comparabilityScore,
+        finalWeight: observation.finalWeight,
+      }))
+
+    const result = await AiService.executeStructured({
+      profileKey: 'assistant',
+      correlationId: crypto.randomUUID(),
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Actúe como analista de pricing logístico. Debe recomendar únicamente el TOTAL DE VENTA en USD. '
+            + 'El costo es inmutable y jamás debe sugerir modificarlo. La recomendación debe ser competitiva, '
+            + 'preferiblemente en la parte baja-media del mercado (aprox. P25-P50), sin violar el margen mínimo. '
+            + 'No invente tarifas ni datos; use únicamente las estadísticas y observaciones entregadas.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            route: {
+              incoterm: props.context.incotermLabel,
+              pol: props.context.polLabel,
+              poe: props.context.poeLabel,
+              pod: props.context.podLabel,
+              mode: props.context.mode,
+              carrier: props.context.carrierLabel,
+              equipment: props.context.containerLabel,
+            },
+            immutableCostTotalUsd: Number(props.draftCostTotalUsd || 0),
+            currentSaleTotalUsd: Number(props.draftSaleTotalUsd || 0),
+            minimumMarginPercentage: Number(props.minimumMarginPercentage || 0),
+            minimumSaleByMarginUsd: draftMinimumSalePrice.value,
+            market: {
+              p25: marketStats.value.p25,
+              p40: marketStats.value.p40,
+              p50: marketStats.value.p50,
+              p60: marketStats.value.p60,
+              p65: marketStats.value.p65,
+              p75: marketStats.value.p75,
+              median: marketStats.value.median,
+              weightedAverage: marketStats.value.weightedAverage,
+              competitiveCeiling: marketStats.value.competitiveCeiling,
+              confidenceScore: marketStats.value.confidenceScore,
+              observationCount: marketStats.value.observationCount,
+              competitorCount: marketStats.value.competitorCount,
+            },
+            comparableObservations: included,
+          }),
+        },
+      ],
+      jsonSchemaOverride: JSON.stringify({
+        type: 'object',
+        additionalProperties: false,
+        required: ['suggestedSaleTotalUsd', 'reason', 'risk'],
+        properties: {
+          suggestedSaleTotalUsd: { type: 'number', minimum: 0 },
+          reason: { type: 'string' },
+          risk: {
+            type: 'string',
+            enum: ['low', 'medium', 'high'],
+          },
+        },
+      }),
+    })
+
+    const parsed = JSON.parse(result.jsonContent) as {
+      suggestedSaleTotalUsd?: number
+      reason?: string
+      risk?: string
+    }
+    const rawSuggestion = Number(parsed.suggestedSaleTotalUsd)
+    if (!Number.isFinite(rawSuggestion) || rawSuggestion <= 0) return
+
+    aiDraftSuggestion.value = {
+      suggestedSaleTotalUsd: clampDraftAiSuggestion(rawSuggestion),
+      reason: String(parsed.reason || '').trim()
+        || 'Sugerencia basada en el rango bajo-medio del mercado comparable.',
+      risk: String(parsed.risk || 'medium'),
+      modelName: result.modelName,
+    }
+  } catch {
+    // Average sigue siendo el fallback autoritativo si IA no está disponible.
+    aiDraftAnalysisError.value =
+      'IA no disponible; la sugerencia se calculó de forma determinística con Average.'
+  } finally {
+    aiDraftAnalyzing.value = false
+  }
+}
 
 const position = computed(() => {
   if (calculation.value) return calculation.value.position
@@ -356,6 +505,7 @@ async function calculateDraftBenchmark() {
       targetPercentile: 40,
       competitiveCeilingPercentile: 65,
     })
+    await analyzeDraftMarketWithAi()
   } catch (error) {
     toastStore.backendError(error, 'No se pudo calcular el benchmark de mercado.')
   } finally {
@@ -696,6 +846,42 @@ onMounted(() => void initialize())
           {{ equipment.label }}
         </button>
       </div>
+    </div>
+
+    <div
+      v-if="!rateId && benchmark && (aiDraftSuggestion || aiDraftAnalyzing || aiDraftAnalysisError)"
+      class="rounded-2xl border border-[rgb(var(--dh-primary-rgb)/0.24)] bg-[rgb(var(--dh-primary-rgb)/0.06)] p-4"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">
+            Análisis IA de venta
+          </p>
+          <p v-if="aiDraftAnalyzing" class="mt-1 text-sm font-bold">
+            Analizando Average y tarifas comparables…
+          </p>
+          <template v-else-if="aiDraftSuggestion">
+            <p class="mt-1 text-lg font-black">
+              Venta sugerida {{ money(draftSuggestedSalePrice) }}
+            </p>
+            <p class="mt-1 max-w-3xl text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ aiDraftSuggestion.reason }}
+            </p>
+          </template>
+          <p v-else class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            {{ aiDraftAnalysisError }}
+          </p>
+        </div>
+        <div class="text-right text-xs font-bold text-[var(--dh-text-muted)]">
+          <span class="block">{{ draftSuggestionSource }}</span>
+          <span v-if="aiDraftSuggestion?.modelName" class="mt-1 block">
+            {{ aiDraftSuggestion.modelName }} · riesgo {{ aiDraftSuggestion.risk }}
+          </span>
+        </div>
+      </div>
+      <p class="mt-3 text-[11px] font-black text-[var(--dh-text)]">
+        Costo fijo {{ money(draftCostTotalUsd) }} · nunca se modifica.
+      </p>
     </div>
 
     <div
