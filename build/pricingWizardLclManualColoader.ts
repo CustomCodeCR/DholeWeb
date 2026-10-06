@@ -43,6 +43,30 @@ function patchApplyLclSource(source: string) {
     'manual LCL source state',
   )
 
+  block = replaceRequired(
+    block,
+    `  form.agentId = selection.providerId ?? ''`,
+    `  const selectedProviderId = String(selection.providerId ?? '').trim()
+  const sourceProviderText = normalizeCatalogValue(
+    [selection.providerCode, selection.providerName].filter(Boolean).join(' '),
+  )
+  const sourceAgent = catalogs.agents.find((item) => item.id === selectedProviderId)
+    ?? catalogs.agents.find((item) => {
+      const candidate = normalizeCatalogValue(
+        [item.code, displayValue(item), item.label, item.value].filter(Boolean).join(' '),
+      )
+      if (selection.kind === 'Own') {
+        return candidate.includes('gcf') || candidate.includes('grupo castro fallas')
+      }
+      return Boolean(
+        sourceProviderText
+        && (candidate.includes(sourceProviderText) || sourceProviderText.includes(candidate)),
+      )
+    })
+  form.agentId = sourceAgent?.id ?? selectedProviderId`,
+    'LCL source agent resolution',
+  )
+
   const resetAnchor = '  draftCommercialTermsInitialized.value = false'
   block = replaceRequired(
     block,
