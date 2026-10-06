@@ -532,6 +532,11 @@ export const PricingEndpoints = {
     path: '/api/pricing/competitor-tariffs/{{competitorTariffId}}/observations',
     headers: acceptJson,
   },
+  reviewCompetitorTariffObservation: {
+    method: 'PUT',
+    path: '/api/pricing/competitor-tariffs/{{competitorTariffId}}/observations/{{observationId}}',
+    headers: jsonHeaders,
+  },
 
   browseImportRates: { method: 'GET', path: '/api/pricing/import-rates', headers: acceptJson },
   getPricingDecisionDashboard: {
