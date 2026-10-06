@@ -140,27 +140,56 @@ function refreshAirLclRateLines() {
   }
 
   const source = lclSelectedSource.value
+  const sourceLines = source?.kind === 'Coloader' && Array.isArray(source.lines)
+    ? source.lines.map((line) => ({ ...line })) as RateLine[]
+    : []
   const manualLines = rateLines.value.filter((line) => line.manual)
 
-  if (source?.kind === 'Coloader' && Array.isArray(source.lines) && source.lines.length) {
-    rateLines.value = source.lines.map((line) => ({ ...line })) as RateLine[]
+  // Start from Pricing's configured costs so Fixed/Variable AirConsol rows (AWB,
+  // Manejos, etc.) are materialized. The previous guard replaced the whole list
+  // with the coloader source and therefore only optional costs could be merged.
+  rebuildRateLines()
 
-    const freight = rateLines.value.find((line) => line.costDetailType === 'Freight')
-    if (freight) {
-      freight.costAmount = number(form.freightCost)
-      freight.saleAmount = number(form.freightSale)
+  const rebuiltFreight = rateLines.value.find((line) => line.costDetailType === 'Freight')
+  const sourceFreight = sourceLines.find((line) => line.costDetailType === 'Freight')
+  if (rebuiltFreight) {
+    rebuiltFreight.costAmount = number(form.freightCost)
+    rebuiltFreight.saleAmount = number(form.freightSale)
+    if (sourceFreight) {
+      rebuiltFreight.chargeBasis = sourceFreight.chargeBasis
+      rebuiltFreight.contextLabel = sourceFreight.contextLabel
+      rebuiltFreight.notes = sourceFreight.notes
+      rebuiltFreight.currencyId = sourceFreight.currencyId || rebuiltFreight.currencyId
+      rebuiltFreight.currencyName = sourceFreight.currencyName || rebuiltFreight.currencyName
+      rebuiltFreight.currencyCode = sourceFreight.currencyCode || rebuiltFreight.currencyCode
     }
-
-    const existingKeys = new Set(rateLines.value.map((line) => line.key))
-    manualLines.forEach((line) => {
-      if (!existingKeys.has(line.key)) rateLines.value.push(line)
-    })
-
-    mergeConfiguredOptionalCostsIntoRateLines(true)
-    return
   }
 
-  rebuildRateLines()
+  const hasEquivalent = (candidate: RateLine) =>
+    rateLines.value.some((line) =>
+      (candidate.costId && line.costId === candidate.costId)
+      || (
+        line.costDetailType === candidate.costDetailType
+        && normalizeCatalogValue(line.name) === normalizeCatalogValue(candidate.name)
+      ),
+    )
+
+  // Keep source-specific air tariff lines that do not already exist in Costos y
+  // recargos. Pricing-configured rows win on duplicates because they are the active
+  // master for automatic charges.
+  sourceLines
+    .filter((line) => line.costDetailType !== 'Freight')
+    .forEach((line) => {
+      if (!hasEquivalent(line)) rateLines.value.push(line)
+    })
+
+  manualLines.forEach((line) => {
+    if (!rateLines.value.some((existing) => existing.key === line.key)) {
+      rateLines.value.push(line)
+    }
+  })
+
+  mergeConfiguredOptionalCostsIntoRateLines(true)
 }
 
 const dholeAirLclCostStepGuard = watch(
