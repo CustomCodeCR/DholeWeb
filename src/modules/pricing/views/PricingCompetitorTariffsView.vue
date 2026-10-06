@@ -34,7 +34,7 @@ type ReviewForm = {
   carrierId: string
   containerTypeId: string
   currencyId: string
-  originalAmount: number | null
+  originalAmount: string
   validFrom: string
   validTo: string
 }
@@ -71,7 +71,7 @@ const reviewForm = reactive<ReviewForm>({
   carrierId: '',
   containerTypeId: '',
   currencyId: '',
-  originalAmount: null,
+  originalAmount: '',
   validFrom: '',
   validTo: '',
 })
@@ -467,7 +467,7 @@ function openReview(row: CompetitorRateObservationDto) {
     carrierId: row.carrierId || '',
     containerTypeId: row.containerTypeId || '',
     currencyId: currency?.id || '',
-    originalAmount: row.originalAmount ?? row.normalizedAmount ?? null,
+    originalAmount: String(row.originalAmount ?? row.normalizedAmount ?? ''),
     validFrom: toDateInput(row.validFrom),
     validTo: toDateInput(row.validTo),
   })
@@ -486,7 +486,8 @@ async function saveReview() {
     return
   }
 
-  if (reviewForm.originalAmount == null || reviewForm.originalAmount < 0) {
+  const originalAmount = Number(reviewForm.originalAmount)
+  if (!Number.isFinite(originalAmount) || originalAmount < 0) {
     toastStore.error('Monto inválido', 'Indique el monto original de la tarifa.')
     return
   }
@@ -516,7 +517,7 @@ async function saveReview() {
         carrierId: reviewForm.carrierId || null,
         containerTypeId: reviewForm.containerTypeId || null,
         currency: businessCurrency,
-        originalAmount: reviewForm.originalAmount,
+        originalAmount,
         validFrom: reviewForm.validFrom,
         validTo: reviewForm.validTo,
       },
@@ -946,7 +947,7 @@ onMounted(async () => {
           :options="reviewEquipmentOptions"
         />
         <DhInput
-          v-model.number="reviewForm.originalAmount"
+          v-model="reviewForm.originalAmount"
           type="number"
           min="0"
           step="0.01"
