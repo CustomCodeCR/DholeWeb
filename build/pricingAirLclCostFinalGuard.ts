@@ -227,7 +227,7 @@ function appendAirLclConfiguredCost(cost: CostSelectDto) {
 
   const section = sectionForCost(cost)
   rateLines.value.push({
-    key: `cost:${cost.id}`,
+    key: 'cost:' + cost.id,
     section,
     name: cost.name,
     costDetailType: cost.costDetailType,
