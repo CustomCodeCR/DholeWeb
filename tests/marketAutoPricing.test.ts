@@ -7,20 +7,37 @@ async function source(path: string) {
   return readFile(new URL(path, import.meta.url), 'utf8')
 }
 
-test('Pantalla 8 exposes the complete Market Benchmark decision surface', async () => {
+test('Pantalla 7 exposes Average suggestion before the final draft and keeps cost immutable', async () => {
   const wizard = await source('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
   const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
 
-  assert.match(wizard, /<PricingMarketBenchmarkPanel/)
+  const screen7 = wizard.indexOf('v-else-if="step === 7"')
+  const marketPanel = wizard.indexOf('<PricingMarketBenchmarkPanel', screen7)
+  const screen8 = wizard.indexOf('v-else-if="step === 8"')
+
+  assert.ok(screen7 >= 0, 'Pantalla 7 was not found')
+  assert.ok(marketPanel > screen7, 'Average suggestion must be rendered inside Pantalla 7')
+  assert.ok(screen8 > marketPanel, 'Average suggestion must appear before Pantalla 8')
+  assert.equal(
+    wizard.slice(screen8).includes('<PricingMarketBenchmarkPanel'),
+    false,
+    'Pantalla 8 must remain a final draft/review screen, not the pricing suggestion step',
+  )
+
   assert.match(wizard, /:context="marketPricingContext"/)
-  assert.match(wizard, /@refreshed="hydrateExistingRate"/)
+  assert.match(wizard, /:draft-cost-total-usd="totalCostUsd"/)
+  assert.match(wizard, /:draft-sale-total-usd="totalSaleBeforeTaxUsd"/)
+  assert.match(wizard, /@apply-draft-suggestion="applyDraftMarketSaleSuggestion"/)
+  assert.match(wizard, /state\.line\.saleAmount\s*=/)
+  assert.doesNotMatch(wizard, /state\.line\.costAmount\s*=/)
 
   for (const label of [
-    'Market Benchmark',
+    'IA + Average',
     'Market Position',
     'Suggested Price',
     'Confidence',
     'Competitor Observations',
+    'Aplicar sugerencia solo a ventas',
     'Ajustes automáticos',
     'Aplicar precio sugerido',
     'Recalcular',
@@ -36,12 +53,14 @@ test('Market result is presented as range, target, ceiling, confidence and sampl
 
   for (const fragment of [
     'Rango P25–P75',
+    'Target competitivo bajo (P40)',
     'Target P60',
     'Competitive Ceiling',
     'Confidence',
     'Tarifas comparables',
     'Competidores',
     'marketStats.p25',
+    'marketStats.p40',
     'marketStats.p75',
     'marketStats.targetMarketPrice',
     'marketStats.competitiveCeiling',
@@ -53,6 +72,17 @@ test('Market result is presented as range, target, ceiling, confidence and sampl
 
   assert.match(panel, /No existe suficiente mercado comparable para auto-aplicar una tarifa/)
   assert.match(panel, /Dhole no debe inventar un precio de alta confianza/)
+})
+
+test('Draft suggestion targets the lower-middle market while respecting the margin floor', async () => {
+  const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
+
+  assert.match(panel, /targetPercentile:\s*40/)
+  assert.match(panel, /source\.p40/)
+  assert.match(panel, /Math\.max\(draftMinimumSalePrice\.value, marketTarget\)/)
+  assert.match(panel, /minimumMarginPercentage/)
+  assert.match(panel, /applyDraftSuggestion/)
+  assert.match(panel, /El costo es una referencia fija/)
 })
 
 test('Competitor observations expose traceability fields, weights and inclusion state', async () => {
