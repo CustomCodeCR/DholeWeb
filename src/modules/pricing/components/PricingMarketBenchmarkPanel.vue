@@ -47,14 +47,21 @@ const props = withDefaults(defineProps<{
   rate?: RateDto | null
   context: MarketPricingContext
   viewOnly?: boolean
+  draftCostTotalUsd?: number
+  draftSaleTotalUsd?: number
+  minimumMarginPercentage?: number
 }>(), {
   rateId: null,
   rate: null,
   viewOnly: false,
+  draftCostTotalUsd: 0,
+  draftSaleTotalUsd: 0,
+  minimumMarginPercentage: 12,
 })
 
 const emit = defineEmits<{
   refreshed: []
+  applyDraftSuggestion: [suggestedSaleTotalUsd: number]
 }>()
 
 const authStore = useAuthStore()
@@ -160,10 +167,67 @@ const marketStats = computed(() => {
   }
 })
 
+const draftLowMarketTarget = computed(() => {
+  if (props.rateId) return null
+  const source = calculation.value?.benchmark ?? benchmark.value
+  if (!source) return null
+
+  return source.p40
+    ?? source.p50
+    ?? source.weightedAverage
+    ?? source.median
+    ?? source.targetMarketPrice
+    ?? null
+})
+
+const draftMinimumSalePrice = computed(() => {
+  const cost = Math.max(0, Number(props.draftCostTotalUsd || 0))
+  if (cost <= 0) return 0
+
+  const margin = Math.min(99.99, Math.max(0, Number(props.minimumMarginPercentage || 0))) / 100
+  return cost / (1 - margin)
+})
+
+const draftSuggestedSalePrice = computed(() => {
+  const marketTarget = draftLowMarketTarget.value
+  if (marketTarget == null || marketTarget <= 0) return null
+  return Math.max(draftMinimumSalePrice.value, marketTarget)
+})
+
 const position = computed(() => {
   if (calculation.value) return calculation.value.position
 
-  if (!decision.value) return null
+  if (!decision.value) {
+    const suggested = draftSuggestedSalePrice.value
+    if (props.rateId || suggested == null) return null
+
+    const cost = Math.max(0, Number(props.draftCostTotalUsd || 0))
+    const originalSale = Math.max(0, Number(props.draftSaleTotalUsd || 0))
+    const suggestedMargin = suggested > 0 ? ((suggested - cost) / suggested) * 100 : 0
+    const currentMargin = originalSale > 0 ? ((originalSale - cost) / originalSale) * 100 : 0
+    const ceiling = marketStats.value.competitiveCeiling
+    const lowerMarket = marketStats.value.p25
+
+    let status = 'Competitive'
+    if (ceiling != null && suggested > ceiling) status = 'AboveCompetitiveRange'
+    else if (lowerMarket != null && suggested < lowerMarket) status = 'BelowCompetitiveRange'
+
+    return {
+      cost,
+      originalSale,
+      minimumSalePrice: draftMinimumSalePrice.value,
+      marketMedian: marketStats.value.median,
+      weightedMarketAverage: marketStats.value.weightedAverage,
+      targetMarketPrice: draftLowMarketTarget.value,
+      competitiveCeiling: ceiling,
+      suggestedSalePrice: suggested,
+      currentMargin,
+      suggestedMargin,
+      availableHeadroom: suggested - originalSale,
+      confidenceScore: marketStats.value.confidenceScore,
+      status,
+    }
+  }
 
   const suggested = decision.value.suggestedSaleTotal
   const cost = decision.value.costTotal
@@ -289,7 +353,7 @@ async function calculateDraftBenchmark() {
       carrierId: props.context.carrierId || null,
       referenceDate: props.context.referenceDate || null,
       amountKind: 'AllIn',
-      targetPercentile: 60,
+      targetPercentile: 40,
       competitiveCeilingPercentile: 65,
     })
   } catch (error) {
@@ -330,6 +394,20 @@ async function calculateAutoPricing(recalculate = false) {
   } finally {
     action.value = ''
   }
+}
+
+function applyDraftSuggestedPrice() {
+  if (
+    props.rateId
+    || props.viewOnly
+    || !draftSuggestedSalePrice.value
+  ) return
+
+  emit('applyDraftSuggestion', draftSuggestedSalePrice.value)
+  toastStore.success(
+    'Sugerencia aplicada a ventas',
+    `Venta objetivo ${money(draftSuggestedSalePrice.value)}. Los costos no fueron modificados.`,
+  )
 }
 
 async function applySuggestedPrice() {
@@ -540,10 +618,10 @@ onMounted(() => void initialize())
           <span class="market-icon"><BarChart3 class="h-5 w-5" /></span>
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">
-              Market Benchmark
+              IA + Average
             </p>
             <h3 class="mt-1 text-lg font-black text-[var(--dh-text)]">
-              Posición de Dhole contra mercado comparable
+              Sugerencia comercial contra mercado comparable
             </h3>
           </div>
           <DhBadge :variant="confidenceTone">
@@ -563,6 +641,10 @@ onMounted(() => void initialize())
           <span><strong>Modalidad:</strong> {{ context.mode }}</span>
           <span><strong>Naviera:</strong> {{ context.carrierLabel || 'Mercado general' }}</span>
         </div>
+        <p v-if="!rateId" class="mt-3 max-w-3xl text-xs font-semibold text-[var(--dh-text-muted)]">
+          Dhole analiza las tarifas comparables y busca una venta competitiva baja dentro del mercado.
+          El costo es una referencia fija: la sugerencia nunca modifica costos, únicamente valores de venta.
+        </p>
       </div>
 
       <div class="flex flex-wrap gap-2">
@@ -670,8 +752,12 @@ onMounted(() => void initialize())
           <strong>{{ money(marketStats.weightedAverage) }}</strong>
         </div>
         <div class="market-stat">
+          <span>Target competitivo bajo (P40)</span>
+          <strong class="text-[var(--dh-primary)]">{{ money(draftLowMarketTarget ?? marketStats.p40) }}</strong>
+        </div>
+        <div class="market-stat">
           <span>Target P60</span>
-          <strong class="text-[var(--dh-primary)]">{{ money(marketStats.targetMarketPrice) }}</strong>
+          <strong>{{ money(marketStats.p60) }}</strong>
         </div>
         <div class="market-stat">
           <span>Competitive Ceiling</span>
@@ -705,7 +791,7 @@ onMounted(() => void initialize())
 
           <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <div class="market-money">
-              <span>Costo Dhole</span>
+              <span>Costo base · no se modifica</span>
               <strong>{{ money(position.cost) }}</strong>
             </div>
             <div class="market-money">
@@ -739,13 +825,21 @@ onMounted(() => void initialize())
             {{ money(position.suggestedSalePrice) }}
           </p>
           <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Target de mercado {{ money(marketStats.targetMarketPrice) }} · techo competitivo
-            {{ money(marketStats.competitiveCeiling) }}.
+            Objetivo competitivo bajo {{ money(draftLowMarketTarget ?? marketStats.targetMarketPrice) }} · techo competitivo
+            {{ money(marketStats.competitiveCeiling) }}. La recomendación corresponde únicamente a venta.
           </p>
         </div>
       </div>
 
       <div class="flex flex-wrap gap-2">
+        <DhButton
+          v-if="!rateId && !viewOnly && draftSuggestedSalePrice"
+          :disabled="working"
+          @click="applyDraftSuggestedPrice"
+        >
+          <WandSparkles class="h-4 w-4" />
+          Aplicar sugerencia solo a ventas
+        </DhButton>
         <DhButton variant="secondary" size="sm" @click="showObservations = !showObservations">
           <Eye class="h-4 w-4" /> Ver tarifas utilizadas
         </DhButton>
@@ -774,7 +868,8 @@ onMounted(() => void initialize())
           <div><span class="market-label">Observaciones usadas</span><strong class="block mt-1">{{ marketStats.observationCount }}</strong></div>
           <div><span class="market-label">Competidores</span><strong class="block mt-1">{{ marketStats.competitorCount }}</strong></div>
           <div><span class="market-label">Weighted Average</span><strong class="block mt-1">{{ money(marketStats.weightedAverage) }}</strong></div>
-          <div><span class="market-label">Target P60</span><strong class="block mt-1">{{ money(marketStats.targetMarketPrice) }}</strong></div>
+          <div><span class="market-label">Target competitivo bajo P40</span><strong class="block mt-1">{{ money(draftLowMarketTarget ?? marketStats.p40) }}</strong></div>
+          <div><span class="market-label">Target P60</span><strong class="block mt-1">{{ money(marketStats.p60) }}</strong></div>
           <div><span class="market-label">Competitive Ceiling</span><strong class="block mt-1">{{ money(marketStats.competitiveCeiling) }}</strong></div>
           <div><span class="market-label">Minimum sale by margin</span><strong class="block mt-1">{{ money(position?.minimumSalePrice) }}</strong></div>
           <div><span class="market-label">Selected</span><strong class="block mt-1 text-[var(--dh-primary)]">{{ money(position?.suggestedSalePrice) }}</strong></div>
