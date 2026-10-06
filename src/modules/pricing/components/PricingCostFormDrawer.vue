@@ -198,6 +198,7 @@ const shipmentModeOptions: Array<{ label: string; value: CostShipmentMode }> = [
   { label: 'Any · Todas las modalidades', value: 'Any' },
   { label: 'FCL · Contenedor completo', value: 'Fcl' },
   { label: 'LCL · Marítimo consolidado', value: 'Lcl' },
+  { label: 'LCL Aéreo · Consolidado aéreo', value: 'AirConsol' },
   { label: 'FTL · Camión completo', value: 'Ftl' },
   { label: 'LTL · Terrestre consolidado', value: 'Ltl' },
 ]
