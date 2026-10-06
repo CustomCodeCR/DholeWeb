@@ -153,6 +153,19 @@ export interface CompetitorRateObservationDto extends Record<string, unknown> {
   needsReview: boolean
 }
 
+export interface ReviewCompetitorRateObservationRequest extends Record<string, unknown> {
+  incotermId: string
+  polId: string
+  poeId?: string | null
+  podId?: string | null
+  carrierId?: string | null
+  containerTypeId?: string | null
+  currency: string
+  originalAmount: number
+  validFrom: string
+  validTo: string
+}
+
 export interface ImportCompetitorTariffRequest {
   id: string
   competitorCompanyName: string
