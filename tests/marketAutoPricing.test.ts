@@ -85,6 +85,22 @@ test('Draft suggestion targets the lower-middle market while respecting the marg
   assert.match(panel, /El costo es una referencia fija/)
 })
 
+test('AI recommendation is bounded by Average and can never modify cost', async () => {
+  const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
+  const wizard = await source('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+
+  assert.match(panel, /AiService\.executeStructured/)
+  assert.match(panel, /profileKey:\s*'assistant'/)
+  assert.match(panel, /clampDraftAiSuggestion/)
+  assert.match(panel, /stats\.p25/)
+  assert.match(panel, /stats\.p50/)
+  assert.match(panel, /draftMinimumSalePrice\.value/)
+  assert.match(panel, /El costo es una referencia fija/)
+  assert.match(panel, /Costo fijo/)
+  assert.match(wizard, /state\.line\.saleAmount\s*=/)
+  assert.doesNotMatch(wizard, /state\.line\.costAmount\s*=/)
+})
+
 test('Competitor observations expose traceability fields, weights and inclusion state', async () => {
   const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
 
