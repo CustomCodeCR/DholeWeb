@@ -24,20 +24,64 @@ function isAirLclPricingContext() {
 }
 
 function airLclRelationMatches(
-  relations: Array<{ id: string }> | null | undefined,
+  relations: Array<{ id: string; name?: string | null; code?: string | null }> | null | undefined,
   legacyId: string | null | undefined,
   selectedId: string | null | undefined,
+  legacyName?: string | null,
+  legacyCode?: string | null,
+  selectedLabel?: string | null,
 ) {
   const selected = String(selectedId ?? '').trim()
-  const relationIds = Array.isArray(relations)
-    ? relations.map((item) => String(item.id ?? '').trim()).filter(Boolean)
-    : []
+  const relationList = Array.isArray(relations) ? relations : []
+  const relationIds = relationList
+    .map((item) => String(item.id ?? '').trim())
+    .filter(Boolean)
 
-  if (relationIds.length > 0) return Boolean(selected) && relationIds.includes(selected)
+  if (selected && relationIds.includes(selected)) return true
 
   const legacy = String(legacyId ?? '').trim()
-  if (!legacy) return true
-  return Boolean(selected) && legacy === selected
+  if (selected && legacy && legacy === selected) return true
+
+  // Imported air rates can carry a provider/catalog snapshot whose Guid differs from
+  // the current Config row. Fall back to the persisted name/code before rejecting an
+  // otherwise identical AirConsol cost.
+  const selectedText = normalizeCatalogValue(String(selectedLabel ?? ''))
+  const configuredTexts = [
+    ...relationList.flatMap((item) => [item.name, item.code]),
+    legacyName,
+    legacyCode,
+  ]
+    .map((value) => normalizeCatalogValue(String(value ?? '')))
+    .filter(Boolean)
+
+  if (selectedText && configuredTexts.some((value) =>
+    value === selectedText || value.includes(selectedText) || selectedText.includes(value),
+  )) return true
+
+  const hasRestriction =
+    relationIds.length > 0
+    || Boolean(legacy)
+    || configuredTexts.length > 0
+
+  return !hasRestriction
+}
+
+function airLclCatalogLabel(item: CatalogItemSelectDto | null | undefined) {
+  if (!item) return ''
+  return [item.code, displayValue(item), item.label, item.value]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function airLclSourceAgentLabel() {
+  const source = lclSelectedSource.value
+  return [
+    source?.providerCode,
+    source?.providerName,
+    airLclCatalogLabel(selectedAgent.value),
+  ]
+    .filter(Boolean)
+    .join(' ')
 }
 
 function airLclConfiguredModeMatches(cost: CostSelectDto) {
@@ -48,7 +92,7 @@ function airLclConfiguredModeMatches(cost: CostSelectDto) {
       : []
 
   if (!configuredModes.length) return true
-  return configuredModes.includes('airconsol')
+  return configuredModes.includes('airconsol') || configuredModes.includes('any')
 }
 
 function airLclLegacyPortMatches(cost: CostSelectDto) {
@@ -72,11 +116,51 @@ function airLclCostMatchesCurrentContext(cost: CostSelectDto) {
   if (!isAirLclPricingContext()) return false
   if (!airLclConfiguredModeMatches(cost)) return false
 
-  if (!airLclRelationMatches(cost.pols, cost.polId, form.originId)) return false
-  if (!airLclRelationMatches(cost.poes, cost.poeId, form.destinationId)) return false
-  if (!airLclRelationMatches(cost.pods, cost.podId, form.podId)) return false
-  if (!airLclRelationMatches(cost.carriers, cost.carrierId, form.carrierId)) return false
-  if (!airLclRelationMatches(cost.agents, cost.agentId, costContextAgentId())) return false
+  if (!airLclRelationMatches(
+    cost.pols,
+    cost.polId,
+    form.originId,
+    cost.polName,
+    cost.polCode,
+    airLclCatalogLabel(selectedOrigin.value),
+  )) return false
+
+  if (!airLclRelationMatches(
+    cost.poes,
+    cost.poeId,
+    form.destinationId,
+    cost.poeName,
+    cost.poeCode,
+    airLclCatalogLabel(selectedDestination.value),
+  )) return false
+
+  if (!airLclRelationMatches(
+    cost.pods,
+    cost.podId,
+    form.podId,
+    cost.podName,
+    cost.podCode,
+    airLclCatalogLabel(selectedPod.value),
+  )) return false
+
+  if (!airLclRelationMatches(
+    cost.carriers,
+    cost.carrierId,
+    form.carrierId,
+    cost.carrierName,
+    cost.carrierCode,
+    airLclCatalogLabel(selectedCarrier.value),
+  )) return false
+
+  if (!airLclRelationMatches(
+    cost.agents,
+    cost.agentId,
+    costContextAgentId(),
+    cost.agentName,
+    cost.agentCode,
+    airLclSourceAgentLabel(),
+  )) return false
+
   if (!airLclLegacyPortMatches(cost)) return false
 
   if (Array.isArray(cost.incoterms) && cost.incoterms.length) {
@@ -113,15 +197,10 @@ async function ensureAirLclApplicableCosts() {
         __dholePricingContextKey: contextKey,
       }))
 
-    const merged = new Map<string, CostSelectDto>()
-    costs.value
-      .filter(airLclCostMatchesCurrentContext)
-      .forEach((cost) => merged.set(cost.id, {
-        ...cost,
-        __dholePricingContextKey: contextKey,
-      }))
-    matchingCosts.forEach((cost) => merged.set(cost.id, cost))
-    costs.value = [...merged.values()]
+    // For Air LCL the broad AirConsol query is intentional: imported tariff provider
+    // snapshots can have a different Guid than the current Config agent. The matcher
+    // above resolves route/provider by id first and then by name/code.
+    costs.value = matchingCosts
 
     const allMerged = new Map(allCosts.value.map((cost) => [cost.id, cost]))
     matchingCosts.forEach((cost) => allMerged.set(cost.id, cost))
@@ -132,6 +211,42 @@ async function ensureAirLclApplicableCosts() {
       'No se pudieron refrescar los costos configurados para LCL aéreo.',
     )
   }
+}
+
+function appendAirLclConfiguredCost(cost: CostSelectDto) {
+  if (cost.costDetailType === 'Freight') return
+
+  const duplicate = rateLines.value.some((line) =>
+    (line.costId && line.costId === cost.id)
+    || (
+      line.costDetailType === cost.costDetailType
+      && normalizeCatalogValue(line.name) === normalizeCatalogValue(cost.name)
+    ),
+  )
+  if (duplicate) return
+
+  const section = sectionForCost(cost)
+  rateLines.value.push({
+    key: `cost:${cost.id}`,
+    section,
+    name: cost.name,
+    costDetailType: cost.costDetailType,
+    costType: cost.costType,
+    chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+    costId: cost.id,
+    contextLabel: costContextLabel(cost),
+    notes: cost.notes?.trim() || null,
+    serviceIds: cost.services?.map((service) => service.id) ?? [],
+    currencyId: cost.currencyId,
+    currencyName: cost.currencyName,
+    currencyCode: cost.currencyCode,
+    amountCurrencyCode: cost.currencyCode,
+    costAmount: number(cost.costAmount),
+    saleAmount: number(cost.saleAmount),
+    included: cost.costType !== 'Optional' || shouldIncludeOptionalCost(cost),
+    optional: cost.costType === 'Optional',
+    manual: false,
+  })
 }
 
 function refreshAirLclRateLines() {
@@ -174,6 +289,13 @@ function refreshAirLclRateLines() {
         && normalizeCatalogValue(line.name) === normalizeCatalogValue(candidate.name)
       ),
     )
+
+  // Rebuild can still be affected by legacy LCL transforms. Materialize every
+  // matching AirConsol Fixed/Variable/Optional Cost explicitly so AWB, Retiro de AWB
+  // and the remaining configured air charges cannot disappear from Pantalla 7.
+  costs.value
+    .filter(airLclCostMatchesCurrentContext)
+    .forEach(appendAirLclConfiguredCost)
 
   // Keep source-specific air tariff lines that do not already exist in Costos y
   // recargos. Pricing-configured rows win on duplicates because they are the active
