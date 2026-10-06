@@ -250,12 +250,59 @@ function validateForm() {
   return true
 }
 
+function sleep(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
+}
+
+function replaceRow(updated: CompetitorTariffDto) {
+  const index = rows.value.findIndex((row) => row.id === updated.id)
+  if (index >= 0) {
+    rows.value.splice(index, 1, updated)
+  }
+}
+
+async function monitorImport(competitorTariffId: string) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    await sleep(3000)
+
+    try {
+      const detail = await PricingService.getCompetitorTariff(competitorTariffId)
+      replaceRow(detail)
+
+      if (detail.importStatus === 'Processing') continue
+
+      if (detail.importStatus === 'Failed') {
+        toastStore.error(
+          'No se pudo procesar el tarifario',
+          'El archivo sí fue recibido, pero DataExtraction no pudo completar la extracción. Puede revisar el registro o volver a intentarlo.',
+        )
+        return
+      }
+
+      const message = detail.reviewCount > 0
+        ? detail.observationCount + ' tarifas extraídas; ' + detail.reviewCount + ' requieren revisión.'
+        : detail.observationCount + ' tarifas extraídas y disponibles para Average.'
+
+      toastStore.success('Tarifario procesado', message)
+      await load()
+      return
+    } catch {
+      // Un fallo transitorio al consultar el estado no debe cancelar la extracción.
+    }
+  }
+
+  toastStore.warning(
+    'Importación todavía en proceso',
+    'Dhole sigue procesando el archivo en segundo plano. El estado se actualizará al recargar la lista.',
+  )
+  await load()
+}
+
 async function importTariff() {
   if (!validateForm() || !form.file) return
 
   saving.value = true
   const id = crypto.randomUUID()
-  let uploadedStorageId: string | null = null
 
   try {
     const stored = await StorageService.uploadFile({
@@ -270,8 +317,6 @@ async function importTariff() {
       }),
     })
 
-    uploadedStorageId = stored.id
-
     const result = await PricingService.importCompetitorTariff({
       id,
       competitorCompanyName: form.competitorCompanyName.trim(),
@@ -283,27 +328,57 @@ async function importTariff() {
       file: form.file,
     })
 
+    formOpen.value = false
+    resetForm()
+    await load()
+
+    if (result.importStatus === 'Processing') {
+      toastStore.success(
+        'Importación iniciada',
+        'El archivo ya fue recibido. DataExtraction continuará en segundo plano y puede seguir usando Dhole mientras termina.',
+      )
+      void monitorImport(result.id)
+      return
+    }
+
     const detail = result.reviewCount > 0
       ? result.observationCount + ' tarifas extraídas; ' + result.reviewCount + ' requieren revisión.'
       : result.observationCount + ' tarifas extraídas y disponibles para Average.'
 
     toastStore.success('Tarifario procesado', detail)
-    formOpen.value = false
-    resetForm()
-    await load()
 
     if (result.observationCount > 0 || result.reviewCount > 0) {
       await openObservations(result)
     }
   } catch (error) {
-    if (uploadedStorageId) {
-      try {
-        await StorageService.deleteFile(uploadedStorageId)
-      } catch {
-        // Mantener el error original. Storage puede denegar el borrado según el scope.
+    // Si la respuesta HTTP se cortó después de que Pricing recibió el archivo,
+    // no lo eliminamos de Storage. Primero comprobamos si el registro existe.
+    try {
+      const persisted = await PricingService.getCompetitorTariff(id)
+      formOpen.value = false
+      resetForm()
+      await load()
+
+      if (persisted.importStatus === 'Processing') {
+        toastStore.success(
+          'Importación recibida',
+          'La respuesta de red se interrumpió, pero Dhole ya está procesando el tarifario en segundo plano.',
+        )
+        void monitorImport(persisted.id)
+        return
       }
+
+      replaceRow(persisted)
+      const message = persisted.reviewCount > 0
+        ? persisted.observationCount + ' tarifas extraídas; ' + persisted.reviewCount + ' requieren revisión.'
+        : persisted.observationCount + ' tarifas extraídas y disponibles para Average.'
+      toastStore.success('Tarifario procesado', message)
+      return
+    } catch {
+      // El error original es el que aporta el contexto útil al usuario.
     }
-    toastStore.backendError(error, 'No se pudo importar el tarifario de la competencia.')
+
+    toastStore.backendError(error, 'No se pudo iniciar la importación del tarifario de competencia.')
   } finally {
     saving.value = false
   }
