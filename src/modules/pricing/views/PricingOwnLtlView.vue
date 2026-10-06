@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // LTL source parity: propios / coloaders.
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
-import { ChevronLeft, Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
+import { Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -40,7 +41,8 @@ const catalogs = usePricingCatalogs()
 const rows = ref<OwnLtlTableRow[]>([])
 const loading = ref(false)
 const saving = ref(false)
-const selectedProfile = ref<LandCommercialProfile | ''>('')
+const selectedProfile = ref<LandCommercialProfile | ''>('FinalClient')
+const search = ref('')
 const selectedOriginCountry = ref('')
 const selectedDestinationCountry = ref('')
 const selectedId = ref('')
@@ -146,6 +148,17 @@ const form = reactive({
   isActive: true,
   submitted: false,
 })
+
+const columns: DhTableColumn<OwnLtlTableRow>[] = [
+  { key: 'route', label: 'Ruta / logística' },
+  { key: 'cost', label: 'Costo / CBM', align: 'right', width: '155px' },
+  { key: 'sale', label: 'Venta / CBM', align: 'right', width: '155px' },
+  { key: 'minimum', label: 'Mínimo', align: 'right', width: '135px' },
+  { key: 'documents', label: 'Documentos', align: 'right', width: '155px' },
+  { key: 'transit', label: 'Tránsito', align: 'center', width: '110px' },
+  { key: 'status', label: 'Estado', align: 'center', width: '110px' },
+  { key: 'actions', label: '', align: 'right', width: '110px' },
+]
 
 const selected = computed(() => rows.value.find((row) => row.id === selectedId.value) ?? null)
 
@@ -327,6 +340,48 @@ const selectedPairRows = computed(() =>
     && rowCountryCode(row, 'destination') === selectedDestinationCountry.value,
   ),
 )
+
+const originFilterOptions = computed(() => [
+  { label: 'Todos los orígenes', value: '' },
+  ...originCountries.value.map((code) => ({
+    label: originLabel(code),
+    value: code,
+  })),
+])
+
+const destinationFilterOptions = computed(() => [
+  { label: 'Todos los destinos', value: '' },
+  ...destinationCountries.value.map((code) => ({
+    label: countryName(code),
+    value: code,
+  })),
+])
+
+const filteredRows = computed(() => {
+  const q = normalize(search.value)
+
+  return profileRows.value.filter((row) => {
+    const originCountry = rowCountryCode(row, 'origin')
+    const destinationCountry = rowCountryCode(row, 'destination')
+
+    if (selectedOriginCountry.value && originCountry !== selectedOriginCountry.value) return false
+    if (selectedDestinationCountry.value && destinationCountry !== selectedDestinationCountry.value) return false
+    if (!q) return true
+
+    return [
+      row.originName,
+      row.originCode,
+      row.destinationName,
+      row.destinationCode,
+      row.warehouseName,
+      row.source,
+      row.currencyName,
+      row.currencyCode,
+      originLabel(originCountry),
+      countryName(destinationCountry),
+    ].some((value) => normalize(value).includes(q))
+  })
+})
 
 function profileRouteCount(profile: LandCommercialProfile) {
   return rows.value.filter((row) =>
@@ -590,6 +645,10 @@ async function openRow(row: OwnLtlTableRow, mode: 'view' | 'edit') {
   await scrollToEditor()
 }
 
+function handleRowClick(row: OwnLtlTableRow) {
+  void openRow(row, 'view')
+}
+
 function closeEditor() {
   editorOpen.value = false
   selectedId.value = ''
@@ -758,202 +817,156 @@ onMounted(load)
   <div class="space-y-5">
     <DhPageHeader
       title="Tarifas LTL"
-      description="Administre las tarifas LTL separadas entre Consolidados propios y Coloaders, por país de origen y destino."
+      description="Administre las rutas LTL en una sola vista, separadas entre Consolidados propios y Coloaders."
     />
 
     <section class="rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl">
-      <div class="flex items-center justify-between gap-3">
-        <div>
-          <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Fuentes tarifarias LTL</p>
-          <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Seleccione si la tarifa corresponde a un consolidado propio o a un coloader.</p>
-        </div>
-        <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
-      </div>
-
-      <div class="mt-4 flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
-        <button
-          type="button"
-          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition"
-          :class="selectedProfile === 'FinalClient'
-            ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]'
-            : 'text-[var(--dh-text-muted)]'"
-          @click="selectProfile('FinalClient')"
-        >
-          Consolidados propios
-          <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ profileRouteCount('FinalClient') }}</span>
-        </button>
-        <button
-          type="button"
-          class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition"
-          :class="selectedProfile === 'Nvocc'
-            ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]'
-            : 'text-[var(--dh-text-muted)]'"
-          @click="selectProfile('Nvocc')"
-        >
-          Coloaders
-          <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ profileRouteCount('Nvocc') }}</span>
-        </button>
-      </div>
-
-      <div v-if="selectedProfile" class="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
-        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
-          {{ profileCountryCount(selectedProfile, 'origin') }} orígenes
-        </span>
-        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
-          {{ profileCountryCount(selectedProfile, 'destination') }} destinos
-        </span>
-        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
-          {{ selectedProfile === 'Nvocc' ? 'Tarifas de coloaders' : 'Tarifas propias GCF' }}
-        </span>
-      </div>
-    </section>
-
-    <section
-      v-if="selectedProfile"
-      class="rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow)] backdrop-blur-2xl"
-    >
-      <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--dh-border)] p-5">
-        <div>
-          <div class="flex items-center gap-2">
-            <Truck class="h-5 w-5 text-[var(--dh-primary)]" />
-            <h2 class="text-lg font-black">{{ profileTitle(selectedProfile) }}</h2>
-            <DhBadge :label="profileLabel(selectedProfile)" :variant="selectedProfile === 'Nvocc' ? 'warning' : 'neutral'" />
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Fuentes tarifarias LTL</p>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+              Cambie entre tarifas propias y coloaders sin navegar por tarjetas de país.
+            </p>
           </div>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Primero seleccione el país de origen y luego el país de destino para administrar sus datos.
-          </p>
+          <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
         </div>
-        <DhButton :icon="X" variant="ghost" aria-label="Cerrar consolidado" @click="clearProfile" />
-      </header>
 
-      <div class="p-5">
-        <section>
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">1. Origen</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El LTL solo puede salir desde CFZ, Panamá o San José, Costa Rica.</p>
-            </div>
-            <DhButton
-              v-if="selectedOriginCountry"
-              label="Cambiar origen"
-              :icon="ChevronLeft"
-              variant="ghost"
-              size="sm"
-              @click="selectedOriginCountry = ''; selectedDestinationCountry = ''; closeEditor()"
+        <div class="flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
+          <button
+            type="button"
+            class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition"
+            :class="selectedProfile === 'FinalClient'
+              ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]'
+              : 'text-[var(--dh-text-muted)]'"
+            @click="selectProfile('FinalClient')"
+          >
+            Consolidados propios
+            <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ profileRouteCount('FinalClient') }}</span>
+          </button>
+          <button
+            type="button"
+            class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition"
+            :class="selectedProfile === 'Nvocc'
+              ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]'
+              : 'text-[var(--dh-text-muted)]'"
+            @click="selectProfile('Nvocc')"
+          >
+            Coloaders
+            <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ profileRouteCount('Nvocc') }}</span>
+          </button>
+        </div>
+
+        <div class="flex flex-col gap-3 xl:flex-row xl:items-end">
+          <div class="min-w-0 flex-1">
+            <DhSearchInput
+              v-model="search"
+              placeholder="Buscar origen, destino, almacén, proveedor..."
             />
           </div>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <button
-              v-for="code in originCountries"
-              :key="code"
-              type="button"
-              class="rounded-2xl border px-4 py-4 text-left transition hover:border-[var(--dh-primary)]"
-              :class="selectedOriginCountry === code
-                ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/8'
-                : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-              @click="selectOriginCountry(code)"
-            >
-              <p class="font-black text-[var(--dh-text)]">{{ originLabel(code) }}</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ originRouteCount(code) }} rutas configuradas</p>
-            </button>
-          </div>
+          <DhSelect
+            v-model="selectedOriginCountry"
+            class="xl:w-64"
+            label="País de origen"
+            :options="originFilterOptions"
+            @update:model-value="selectedDestinationCountry = ''; closeEditor()"
+          />
 
-          <div v-if="originCountries.length === 0" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-5 text-sm font-semibold text-[var(--dh-text-muted)]">
-            No hay países de origen terrestres configurados.
-          </div>
-        </section>
+          <DhSelect
+            v-model="selectedDestinationCountry"
+            class="xl:w-64"
+            label="País de destino"
+            :options="destinationFilterOptions"
+            @update:model-value="closeEditor()"
+          />
 
-        <section v-if="selectedOriginCountry" class="mt-6 border-t border-[var(--dh-border)] pt-5">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">2. País de destino</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Origen seleccionado: <strong class="text-[var(--dh-text)]">{{ originLabel(selectedOriginCountry) }}</strong>
+          <DhButton
+            v-if="canUpdate"
+            label="Nueva ruta"
+            :icon="Plus"
+            :disabled="!selectedOriginCountry || !selectedDestinationCountry"
+            @click="newRouteForPair"
+          />
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--dh-text-muted)]">
+          <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
+            {{ filteredRows.length }} rutas visibles
+          </span>
+          <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
+            {{ profileCountryCount(selectedProfile, 'origin') }} orígenes
+          </span>
+          <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
+            {{ profileCountryCount(selectedProfile, 'destination') }} destinos
+          </span>
+          <span class="rounded-full border border-[var(--dh-border)] px-3 py-1">
+            {{ selectedProfile === 'Nvocc' ? 'Tarifas de coloaders' : 'Tarifas propias GCF' }}
+          </span>
+          <span v-if="canUpdate && (!selectedOriginCountry || !selectedDestinationCountry)" class="text-[11px] font-semibold">
+            Seleccione origen y destino para habilitar “Nueva ruta”.
+          </span>
+        </div>
+
+        <DhDataTable
+          :columns="columns"
+          :rows="filteredRows"
+          :loading="loading"
+          empty-text="No hay rutas LTL que coincidan con los filtros."
+          @row-click="handleRowClick"
+        >
+          <template #cell-route="{ row }">
+            <div class="min-w-0">
+              <p class="font-black text-[var(--dh-text)]">
+                {{ row.originName || row.originCode }} → {{ row.destinationName || row.destinationCode }}
+              </p>
+              <p class="mt-0.5 truncate text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                {{ originLabel(rowCountryCode(row, 'origin')) }} → {{ countryName(rowCountryCode(row, 'destination')) }}
+                · {{ row.warehouseName || 'Sin almacén' }}
+                <span v-if="row.source"> · {{ row.source }}</span>
               </p>
             </div>
-          </div>
+          </template>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <button
-              v-for="code in destinationCountries"
-              :key="code"
-              type="button"
-              class="rounded-2xl border px-4 py-4 text-left transition hover:border-[var(--dh-primary)]"
-              :class="selectedDestinationCountry === code
-                ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/8'
-                : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-              @click="selectDestinationCountry(code)"
-            >
-              <p class="font-black text-[var(--dh-text)]">{{ countryName(code) }}</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ destinationRouteCount(code) }} rutas desde {{ countryName(selectedOriginCountry) }}</p>
-            </button>
-          </div>
-        </section>
-
-        <section v-if="selectedOriginCountry && selectedDestinationCountry" class="mt-6 border-t border-[var(--dh-border)] pt-5">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">3. Datos de la ruta</p>
-              <p class="mt-1 text-sm font-black text-[var(--dh-text)]">
-                {{ originLabel(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}
+          <template #cell-cost="{ row }">
+            <div class="text-right">
+              <p class="font-black">USD {{ money(effectiveRowCost(row)) }}</p>
+              <p v-if="isPanamaOrigin(row)" class="text-[10px] text-[var(--dh-text-muted)]">
+                Base {{ money(row.costPerCbm) }} + {{ money(row.panamaCostSurchargePerCbm ?? DEFAULT_PANAMA_SURCHARGE_PER_CBM) }}
               </p>
             </div>
-            <DhButton v-if="canUpdate" label="Agregar ruta" :icon="Plus" @click.stop="newRouteForPair" />
-          </div>
+          </template>
 
-          <div v-if="selectedPairRows.length" class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-            <table class="w-full min-w-[920px] text-sm">
-              <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]">
-                <tr>
-                  <th class="px-4 py-3 text-left">Origen</th>
-                  <th class="px-4 py-3 text-left">Destino</th>
-                  <th class="px-4 py-3 text-right">Costo / CBM</th>
-                  <th class="px-4 py-3 text-right">Venta / CBM</th>
-                  <th class="px-4 py-3 text-right">Mínimo</th>
-                  <th class="px-4 py-3 text-right">Documentos</th>
-                  <th class="px-4 py-3 text-center">Tránsito</th>
-                  <th class="px-4 py-3 text-center">Estado</th>
-                  <th class="px-4 py-3 text-right"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in selectedPairRows" :key="row.id" class="border-t border-[var(--dh-border)] first:border-t-0">
-                  <td class="px-4 py-3">
-                    <p class="font-black">{{ row.originName }}</p>
-                    <p class="mt-0.5 text-[11px] text-[var(--dh-text-muted)]">{{ row.warehouseName || 'Sin almacén' }}</p>
-                  </td>
-                  <td class="px-4 py-3 font-black">{{ row.destinationName }}</td>
-                  <td class="px-4 py-3 text-right">
-                    <p class="font-black">USD {{ money(effectiveRowCost(row)) }}</p>
-                    <p v-if="isPanamaOrigin(row)" class="text-[10px] text-[var(--dh-text-muted)]">incluye +USD {{ money(row.panamaCostSurchargePerCbm ?? DEFAULT_PANAMA_SURCHARGE_PER_CBM) }}</p>
-                  </td>
-                  <td class="px-4 py-3 text-right font-black text-[var(--dh-primary)]">USD {{ money(row.priceAmount) }}</td>
-                  <td class="px-4 py-3 text-right font-black">USD {{ money(row.minimumAmount) }}</td>
-                  <td class="px-4 py-3 text-right text-xs font-bold">
-                    <p>DUA {{ money(row.duaCost ?? DEFAULT_DUA_COST) }}</p>
-                    <p class="text-[var(--dh-text-muted)]">DUCA-T {{ money(row.ducaTCost ?? DEFAULT_DUCA_T_COST) }}</p>
-                  </td>
-                  <td class="px-4 py-3 text-center font-bold">{{ row.transitDays == null ? '—' : row.transitDays + ' días' }}</td>
-                  <td class="px-4 py-3 text-center">
-                    <DhBadge :label="row.isActive ? 'Activa' : 'Inactiva'" :variant="row.isActive ? 'success' : 'neutral'" />
-                  </td>
-                  <td class="px-4 py-3">
-                    <div class="flex justify-end gap-1">
-                      <DhButton :icon="Eye" variant="ghost" size="sm" aria-label="Ver ruta" @click.stop="openRow(row, 'view')" />
-                      <DhButton v-if="canUpdate" :icon="Edit3" variant="ghost" size="sm" aria-label="Editar ruta" @click.stop="openRow(row, 'edit')" />
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <template #cell-sale="{ row }">
+            <span class="font-black text-[var(--dh-primary)]">USD {{ money(row.priceAmount) }}</span>
+          </template>
 
-          <div v-else class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] px-5 py-10 text-center">
-            <p class="font-black text-[var(--dh-text)]">No hay una ruta configurada para esta combinación.</p>
-            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Use “Agregar ruta” para ingresar los valores de {{ originLabel(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}.</p>
-          </div>
-        </section>
+          <template #cell-minimum="{ row }">
+            <span class="font-black">{{ row.minimumAmount == null ? '—' : 'USD ' + money(row.minimumAmount) }}</span>
+          </template>
+
+          <template #cell-documents="{ row }">
+            <div class="text-right text-xs font-bold">
+              <p>DUA {{ money(row.duaCost ?? DEFAULT_DUA_COST) }}</p>
+              <p class="text-[var(--dh-text-muted)]">DUCA-T {{ money(row.ducaTCost ?? DEFAULT_DUCA_T_COST) }}</p>
+            </div>
+          </template>
+
+          <template #cell-transit="{ row }">
+            <span class="font-bold">{{ row.transitDays == null ? '—' : row.transitDays + ' días' }}</span>
+          </template>
+
+          <template #cell-status="{ row }">
+            <DhBadge :label="row.isActive ? 'Activa' : 'Inactiva'" :variant="row.isActive ? 'success' : 'neutral'" />
+          </template>
+
+          <template #cell-actions="{ row }">
+            <div class="flex justify-end gap-1" @click.stop>
+              <DhButton :icon="Eye" variant="ghost" size="sm" aria-label="Ver ruta" @click="openRow(row, 'view')" />
+              <DhButton v-if="canUpdate" :icon="Edit3" variant="ghost" size="sm" aria-label="Editar ruta" @click="openRow(row, 'edit')" />
+            </div>
+          </template>
+        </DhDataTable>
       </div>
     </section>
 
