@@ -742,7 +742,15 @@ ${missingRuntimeDefinitions.length ? '\n\n' : ''}function dholeRuntimeCostContex
 }
 
 function dholeRuntimeCostContextPoeId() {
-  const manualPoeId = String(manualOceanFreightPoeId.value ?? '').trim()
+  // The manual-ocean POE belongs only to maritime/multimodal FCL. Reusing it for
+  // LCL Air makes an APT-APT quote query costs against an unrelated sea POE.
+  const canUseManualOceanPoe =
+    shipmentModeForApi.value === 'Fcl'
+    && ['Maritime', 'Multimodal'].includes(String(form.modality))
+  const manualPoeId = canUseManualOceanPoe
+    ? String(manualOceanFreightPoeId.value ?? '').trim()
+    : ''
+
   if (!form.selectedImportRateId && manualPoeId) return manualPoeId
   if (!isMultimodalViaPanama(selectedDestination.value)) return form.destinationId
   return String(selectedImportRate.value?.poeId ?? '').trim() || form.destinationId
@@ -750,13 +758,13 @@ function dholeRuntimeCostContextPoeId() {
 
 function dholeRuntimeCostContextKey() {
   return [
-    shipmentModeForApi.value,
+    costShipmentModeForApi(),
     form.originId,
     dholeRuntimeCostContextPoeId(),
     form.podId,
     form.incotermId,
     form.carrierId,
-    form.agentId,
+    costContextAgentId(),
     dholeRuntimeCostContextImportRateId(),
     [...form.serviceIds].sort().join(','),
   ].join('|')
