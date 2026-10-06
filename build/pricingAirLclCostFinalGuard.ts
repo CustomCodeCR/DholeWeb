@@ -99,17 +99,23 @@ function airLclLegacyPortMatches(cost: CostSelectDto) {
   if (!cost.portId) return true
 
   const role = String(cost.portRole ?? '').toLowerCase()
-  const selectedPolId = String(form.originId ?? '').trim()
-  const selectedPoeId = String(form.destinationId ?? '').trim()
-  const selectedPodId = String(form.podId ?? '').trim()
+  const matches = (selectedId: string | null | undefined, selectedItem: CatalogItemSelectDto | null | undefined) =>
+    airLclRelationMatches(
+      null,
+      cost.portId,
+      selectedId,
+      cost.portName,
+      cost.portCode,
+      airLclCatalogLabel(selectedItem),
+    )
 
-  if (role === 'pol') return String(cost.portId) === selectedPolId
-  if (role === 'poe') return String(cost.portId) === selectedPoeId
-  if (role === 'pod') return Boolean(selectedPodId) && String(cost.portId) === selectedPodId
+  if (role === 'pol') return matches(form.originId, selectedOrigin.value)
+  if (role === 'poe') return matches(form.destinationId, selectedDestination.value)
+  if (role === 'pod') return matches(form.podId, selectedPod.value)
 
-  return [selectedPolId, selectedPoeId, selectedPodId]
-    .filter(Boolean)
-    .includes(String(cost.portId))
+  return matches(form.originId, selectedOrigin.value)
+    || matches(form.destinationId, selectedDestination.value)
+    || matches(form.podId, selectedPod.value)
 }
 
 function airLclCostMatchesCurrentContext(cost: CostSelectDto) {
