@@ -56,9 +56,16 @@ function costContextPoeId() {
   return String(selectedImportRate.value?.poeId ?? '').trim() || form.destinationId
 }
 
+function costShipmentModeForApi(): ShipmentMode {
+  // La UI aérea reutiliza el flujo consolidado LCL para medidas/CFT, pero los costos
+  // maestros deben resolverse con su modalidad propia para no mezclar LCL marítimo.
+  if (form.modality === 'Air' && shipmentModeForApi.value === 'Lcl') return 'AirConsol'
+  return shipmentModeForApi.value
+}
+
 function currentCostContextKey() {
   return [
-    shipmentModeForApi.value,
+    costShipmentModeForApi(),
     form.originId,
     costContextPoeId(),
     form.podId,
@@ -109,7 +116,12 @@ function applicableCost(cost: CostSelectDto) {
   if (!backendContextMatched) {
     if (!costMatchesHardRouteContext(cost)) return false
     if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
-    if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
+    const configuredModes = Array.isArray(cost.shipmentModes) && cost.shipmentModes.length
+      ? cost.shipmentModes
+      : cost.shipmentMode
+        ? [cost.shipmentMode]
+        : []
+    if (configuredModes.length && !configuredModes.includes(costShipmentModeForApi())) return false
     if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
     if (cost.carrierId && cost.carrierId !== form.carrierId) return false
     if (cost.agentId && cost.agentId !== form.agentId) return false
@@ -197,7 +209,7 @@ ${optionalSelectorAnchor}`,
       poeId: costContextPoeId() || undefined,
       podId: form.podId || undefined,
       incotermId: form.incotermId || undefined,
-      shipmentMode: shipmentModeForApi.value,
+      shipmentMode: costShipmentModeForApi(),
       isActive: true,
       applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
