@@ -506,8 +506,9 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       meetsMinimumMargin: calculation.meetsMinimumMargin,
       matrixVersion: calculation.matrixVersion,
     }
-    emit('update:modelValue', `Own:${row.id}`)
+    // Hydrate the wizard first; changing modelValue can advance/unmount Pantalla 5.
     emit('select', selection)
+    emit('update:modelValue', `Own:${row.id}`)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'No fue posible calcular el consolidado seleccionado.'
   } finally {
@@ -572,8 +573,9 @@ function chooseColoader(rate: LclColoaderRateDto) {
     meetsMinimumMargin: null,
     matrixVersion: rate.rateCode,
   }
-  emit('update:modelValue', `Coloader:${rate.id}`)
+  // The selected provider/agent must reach the wizard before v-model changes the screen.
   emit('select', selection)
+  emit('update:modelValue', `Coloader:${rate.id}`)
 }
 
 function chooseManualColoader() {
@@ -609,8 +611,8 @@ function chooseManualColoader() {
     matrixVersion: 'MANUAL',
     manual: true,
   }
-  emit('update:modelValue', 'Coloader:manual')
   emit('select', selection)
+  emit('update:modelValue', 'Coloader:manual')
 }
 
 function updateCbm(value: string | number | null) {
