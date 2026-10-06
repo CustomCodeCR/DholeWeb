@@ -9,6 +9,8 @@ import type {
   BrowseCompetitorTariffsQuery,
   MatchCompetitorTariffsQuery,
   CompetitorTariffDto,
+  CompetitorRateObservationDto,
+  ImportCompetitorTariffRequest,
   UpsertCompetitorTariffRequest,
   AssignImportRatePoeRequest,
   BrowseImportRatesQuery,
@@ -208,6 +210,41 @@ export const PricingService = {
     return callEndpoint<NoContent>(Endpoints.deleteCompetitorTariff, {
       params: { competitorTariffId },
     })
+  },
+
+  async importCompetitorTariff(
+    payload: ImportCompetitorTariffRequest,
+  ): Promise<CompetitorTariffDto> {
+    const formData = new FormData()
+    formData.append('id', payload.id)
+    formData.append('competitorCompanyName', payload.competitorCompanyName)
+    formData.append('incotermId', payload.incotermId)
+    formData.append('shipmentMode', payload.shipmentMode)
+    formData.append('storageId', payload.storageId)
+    if (payload.validFrom) formData.append('validFrom', payload.validFrom)
+    if (payload.validTo) formData.append('validTo', payload.validTo)
+    formData.append('file', payload.file)
+
+    const response = await callEndpoint<unknown, FormData>(
+      Endpoints.importCompetitorTariff,
+      {
+        body: formData,
+        isFormData: true,
+      },
+    )
+
+    return unwrapApiResponse<CompetitorTariffDto>(response as never)
+  },
+
+  async getCompetitorTariffObservations(
+    competitorTariffId: string,
+  ): Promise<CompetitorRateObservationDto[]> {
+    const response = await callEndpoint<unknown>(
+      Endpoints.getCompetitorTariffObservations,
+      { params: { competitorTariffId } },
+    )
+
+    return unwrapListResponse<CompetitorRateObservationDto>(response)
   },
 
   async browseRateTermItems(isActive?: boolean): Promise<RateTermItemDto[]> {

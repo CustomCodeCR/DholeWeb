@@ -93,6 +93,13 @@ export interface RatePickupLocationDto {
 
 export type RateOperationType = 'Import' | 'Export' | 'TransitDomestic'
 
+export type CompetitorTariffImportStatus =
+  | 'Processing'
+  | 'Processed'
+  | 'ReviewRequired'
+  | 'Failed'
+  | 'Legacy'
+
 export interface CompetitorTariffDto extends Record<string, unknown> {
   id: string
   polIds: string[]
@@ -103,6 +110,58 @@ export interface CompetitorTariffDto extends Record<string, unknown> {
   validTo: string
   shipmentMode: ShipmentMode
   storageId: string
+  competitorCompanyName: string
+  incotermId?: string | null
+  originalFileName?: string | null
+  extractionExecutionId?: string | null
+  observationCount: number
+  reviewCount: number
+  importStatus: CompetitorTariffImportStatus | string
+  importedAtUtc: string
+}
+
+export interface CompetitorRateObservationDto extends Record<string, unknown> {
+  id: string
+  competitorTariffId: string
+  competitorCompanyName: string
+  incotermId?: string | null
+  incotermCode?: string | null
+  polId?: string | null
+  polName?: string | null
+  polCode?: string | null
+  poeId?: string | null
+  poeName?: string | null
+  poeCode?: string | null
+  podId?: string | null
+  podName?: string | null
+  podCode?: string | null
+  carrierId?: string | null
+  carrierName?: string | null
+  carrierCode?: string | null
+  containerTypeId?: string | null
+  containerTypeCode?: string | null
+  shipmentMode: ShipmentMode
+  currency: string
+  originalAmount?: number | null
+  normalizedCurrency?: string | null
+  normalizedAmount?: number | null
+  validFrom: string
+  validTo: string
+  extractionConfidence: number
+  normalizationConfidence: number
+  isUsable: boolean
+  needsReview: boolean
+}
+
+export interface ImportCompetitorTariffRequest {
+  id: string
+  competitorCompanyName: string
+  incotermId: string
+  shipmentMode: ShipmentMode
+  storageId: string
+  validFrom?: string
+  validTo?: string
+  file: File
 }
 
 export interface UpsertCompetitorTariffRequest extends Record<string, unknown> {
@@ -120,6 +179,8 @@ export interface UpsertCompetitorTariffRequest extends Record<string, unknown> {
 export interface BrowseCompetitorTariffsQuery extends Record<string, unknown> {
   pageNumber?: number
   pageSize?: number
+  search?: string
+  importStatus?: string[]
   polId?: string[]
   poeId?: string[]
   podId?: string[]
