@@ -64,7 +64,10 @@ function costShipmentModeForApi(): ShipmentMode {
 }
 
 function costContextAgentId() {
-  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value) {
+  if (
+    (shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'AirConsol')
+    && lclSelectedSource.value
+  ) {
     const directId = String(lclSelectedSource.value.providerId ?? '').trim()
     if (directId && catalogs.agents.some((item) => item.id === directId)) return directId
 
