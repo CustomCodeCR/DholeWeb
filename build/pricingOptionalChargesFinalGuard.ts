@@ -82,7 +82,7 @@ function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
   if (cost.costType !== 'Optional') return false
   if (cost.isActive === false) return false
 
-  const shipmentMode = String(shipmentModeForApi.value ?? '').toLowerCase()
+  const shipmentMode = String(costShipmentModeForApi() ?? '').toLowerCase()
   const configuredModes = Array.isArray(cost.shipmentModes) && cost.shipmentModes.length
     ? cost.shipmentModes.map((mode) => String(mode).toLowerCase())
     : cost.shipmentMode
