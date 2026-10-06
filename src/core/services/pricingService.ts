@@ -11,6 +11,7 @@ import type {
   CompetitorTariffDto,
   CompetitorRateObservationDto,
   ImportCompetitorTariffRequest,
+  ReviewCompetitorRateObservationRequest,
   UpsertCompetitorTariffRequest,
   AssignImportRatePoeRequest,
   BrowseImportRatesQuery,
@@ -245,6 +246,22 @@ export const PricingService = {
     )
 
     return unwrapListResponse<CompetitorRateObservationDto>(response)
+  },
+
+  async reviewCompetitorTariffObservation(
+    competitorTariffId: string,
+    observationId: string,
+    payload: ReviewCompetitorRateObservationRequest,
+  ): Promise<CompetitorRateObservationDto> {
+    const response = await callEndpoint<unknown, ReviewCompetitorRateObservationRequest>(
+      Endpoints.reviewCompetitorTariffObservation,
+      {
+        params: { competitorTariffId, observationId },
+        body: payload,
+      },
+    )
+
+    return unwrapApiResponse<CompetitorRateObservationDto>(response as never)
   },
 
   async browseRateTermItems(isActive?: boolean): Promise<RateTermItemDto[]> {
