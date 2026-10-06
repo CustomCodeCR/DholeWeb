@@ -63,6 +63,35 @@ function costShipmentModeForApi(): ShipmentMode {
   return shipmentModeForApi.value
 }
 
+function costContextAgentId() {
+  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value) {
+    const directId = String(lclSelectedSource.value.providerId ?? '').trim()
+    if (directId && catalogs.agents.some((item) => item.id === directId)) return directId
+
+    const providerText = normalizeCatalogValue(
+      [lclSelectedSource.value.providerCode, lclSelectedSource.value.providerName]
+        .filter(Boolean)
+        .join(' '),
+    )
+    const matched = catalogs.agents.find((item) => {
+      const candidate = normalizeCatalogValue(
+        [item.code, displayValue(item), item.label, item.value].filter(Boolean).join(' '),
+      )
+      if (lclSelectedSource.value?.kind === 'Own') {
+        return candidate.includes('gcf') || candidate.includes('grupo castro fallas')
+      }
+      return Boolean(
+        providerText
+        && (candidate.includes(providerText) || providerText.includes(candidate)),
+      )
+    })
+    if (matched) return matched.id
+    if (directId) return directId
+  }
+
+  return String(form.agentId ?? '').trim()
+}
+
 function currentCostContextKey() {
   return [
     costShipmentModeForApi(),
@@ -71,7 +100,7 @@ function currentCostContextKey() {
     form.podId,
     form.incotermId,
     form.carrierId,
-    form.agentId,
+    costContextAgentId(),
     costContextImportRateId(),
     [...form.serviceIds].sort().join(','),
   ].join('|')
@@ -124,7 +153,7 @@ function applicableCost(cost: CostSelectDto) {
     if (configuredModes.length && !configuredModes.includes(costShipmentModeForApi())) return false
     if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
     if (cost.carrierId && cost.carrierId !== form.carrierId) return false
-    if (cost.agentId && cost.agentId !== form.agentId) return false
+    if (cost.agentId && cost.agentId !== costContextAgentId()) return false
   }
 
   // /costs/select ya evaluó las restricciones reales del costo: ruta, naviera/agente,
@@ -204,7 +233,7 @@ ${optionalSelectorAnchor}`,
 
     const selectedCosts = await PricingService.selectCosts({
       carrierId: form.carrierId || undefined,
-      agentId: form.agentId || undefined,
+      agentId: costContextAgentId() || undefined,
       polId: form.originId || undefined,
       poeId: costContextPoeId() || undefined,
       podId: form.podId || undefined,
