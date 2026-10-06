@@ -69,6 +69,7 @@ import { pricingWizardMixedFclFreightFix } from './build/pricingWizardMixedFclFr
 import { pricingWizardScreen4CostSelectors } from './build/pricingWizardScreen4CostSelectors'
 import { pricingCostOperationalConditions } from './build/pricingCostOperationalConditions'
 import { pricingWizardRuntimeReferenceGuard } from './build/pricingWizardRuntimeReferenceGuard'
+import { pricingAirLclCostFinalGuard } from './build/pricingAirLclCostFinalGuard'
 import { pricingWizardMultipleDrafts } from './build/pricingWizardMultipleDrafts'
 import { pricingWizardLclManualColoader } from './build/pricingWizardLclManualColoader'
 import { pricingWizardLtlProviderParity } from './build/pricingWizardLtlProviderParity'
@@ -153,6 +154,7 @@ export default defineConfig({
     pricingConsolidatedCargo20261001(),
     pricingMiamiLclRules20261002(),
     pricingWizardRuntimeReferenceGuard(),
+    pricingAirLclCostFinalGuard(),
     pricingWizardLtlLclUiParity(),
     vue(),
     tailwindcss(),
