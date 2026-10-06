@@ -1561,6 +1561,94 @@ const totalUtilityCrc = computed(() => totalSaleBeforeTaxCrc.value - totalCostCr
 const totalMarginPercentage = computed(() =>
   totalSaleBeforeTaxUsd.value > 0 ? (totalUtilityUsd.value / totalSaleBeforeTaxUsd.value) * 100 : 0,
 )
+
+const marketSaleBaseline = ref<Record<string, number>>({})
+
+function rateLineTotalUsd(line: RateLine, field: 'costAmount' | 'saleAmount') {
+  const quantity = Math.max(0, number(quantityForRateLine(line)))
+  const currency = canonicalCurrencyCode(line)
+  if (!['USD', 'CRC'].includes(currency)) return 0
+  return convertUsdCrc(number(line[field]) * quantity, currency, 'USD')
+}
+
+function applyDraftMarketSaleSuggestion(targetSaleUsd: number) {
+  if (props.viewOnly || !Number.isFinite(targetSaleUsd) || targetSaleUsd <= 0) return
+
+  const currentIncluded = includedLines.value
+  if (!currentIncluded.length) return
+
+  // Average/IA may suggest a new commercial sale, but cost is immutable here.
+  // The global 12% floor protects the normal Pricing margin rule.
+  const minimumSaleByMargin = totalCostUsd.value > 0
+    ? totalCostUsd.value / (1 - 0.12)
+    : 0
+  const requestedTarget = Math.max(targetSaleUsd, minimumSaleByMargin)
+
+  const adjustable = currentIncluded.filter((line) => {
+    const currency = canonicalCurrencyCode(line)
+    return line.costDetailType !== 'AgentCharge'
+      && ['USD', 'CRC'].includes(currency)
+      && quantityForRateLine(line) > 0
+  })
+  if (!adjustable.length) {
+    toastStore.warning(
+      'Sin ventas ajustables',
+      'No hay rubros de venta editables donde distribuir la sugerencia de mercado.',
+    )
+    return
+  }
+
+  if (!Object.keys(marketSaleBaseline.value).length) {
+    marketSaleBaseline.value = Object.fromEntries(
+      currentIncluded.map((line) => [line.key, number(line.saleAmount)]),
+    )
+  }
+
+  const adjustableKeys = new Set(adjustable.map((line) => line.key))
+  const protectedSaleUsd = currentIncluded
+    .filter((line) => !adjustableKeys.has(line.key))
+    .reduce((sum, line) => sum + rateLineTotalUsd(line, 'saleAmount'), 0)
+
+  const states = adjustable.map((line) => {
+    const costTotalUsd = rateLineTotalUsd(line, 'costAmount')
+    const saleTotalUsd = rateLineTotalUsd(line, 'saleAmount')
+    return {
+      line,
+      costTotalUsd,
+      saleTotalUsd,
+      weight: Math.max(1, saleTotalUsd, costTotalUsd),
+    }
+  })
+
+  const costFloorUsd = states.reduce((sum, state) => sum + state.costTotalUsd, 0)
+  const targetForAdjustable = Math.max(
+    costFloorUsd,
+    requestedTarget - protectedSaleUsd,
+  )
+  const commercialSpreadUsd = Math.max(0, targetForAdjustable - costFloorUsd)
+  const totalWeight = states.reduce((sum, state) => sum + state.weight, 0)
+
+  for (const state of states) {
+    const quantity = Math.max(1, number(quantityForRateLine(state.line)))
+    const currency = canonicalCurrencyCode(state.line) as 'USD' | 'CRC'
+    const share = totalWeight > 0
+      ? commercialSpreadUsd * (state.weight / totalWeight)
+      : 0
+    const suggestedTotalUsd = state.costTotalUsd + share
+    const nativeTotal = convertUsdCrc(suggestedTotalUsd, 'USD', currency)
+
+    // Deliberadamente solo cambia saleAmount. costAmount nunca se toca.
+    state.line.saleAmount = Math.max(
+      0,
+      Math.round((nativeTotal / quantity) * 100) / 100,
+    )
+  }
+
+  const freightLines = adjustable.filter((line) => line.costDetailType === 'Freight')
+  if (freightLines.length === 1) {
+    form.freightSale = number(freightLines[0]?.saleAmount)
+  }
+}
 const includedCurrencyCodes = computed(() => new Set(includedLines.value.map((line) => canonicalCurrencyCode(line)).filter(Boolean)))
 const hasMixedCurrencies = computed(() => includedCurrencyCodes.value.size > 1)
 // Compatibility aliases used by existing visual helpers. Header currency is still preserved in the persisted rate.
@@ -4967,6 +5055,19 @@ onMounted(async () => {
             <p v-if="exchangeRateError" class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-700">{{ exchangeRateError }}</p>
           </div>
 
+          <PricingMarketBenchmarkPanel
+            v-if="canAccessMarketPricing"
+            :rate-id="editingRate?.id ?? rateId"
+            :rate="editingRate"
+            :context="marketPricingContext"
+            :view-only="viewOnly"
+            :draft-cost-total-usd="totalCostUsd"
+            :draft-sale-total-usd="totalSaleBeforeTaxUsd"
+            :minimum-margin-percentage="12"
+            @apply-draft-suggestion="applyDraftMarketSaleSuggestion"
+            @refreshed="hydrateExistingRate"
+          />
+
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
@@ -5137,15 +5238,6 @@ onMounted(async () => {
             <h2 class="crystal-title">Visualización borrador de la tarifa</h2>
             <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
           </div>
-
-          <PricingMarketBenchmarkPanel
-            v-if="canAccessMarketPricing"
-            :rate-id="editingRate?.id ?? rateId"
-            :rate="editingRate"
-            :context="marketPricingContext"
-            :view-only="viewOnly"
-            @refreshed="hydrateExistingRate"
-          />
 
           <div class="crystal-soft p-5">
             <div class="flex flex-wrap items-start justify-between gap-4">
