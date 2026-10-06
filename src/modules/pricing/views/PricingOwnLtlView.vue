@@ -390,7 +390,8 @@ function profileRouteCount(profile: LandCommercialProfile) {
   ).length
 }
 
-function profileCountryCount(profile: LandCommercialProfile, role: 'origin' | 'destination') {
+function profileCountryCount(profile: LandCommercialProfile | '', role: 'origin' | 'destination') {
+  if (!profile) return 0
   return new Set(
     rows.value
       .filter((row) =>
