@@ -19,7 +19,8 @@ function patchWizard(source: string) {
 
   const helper = MARKER + `
 function isAirLclPricingContext() {
-  return form.modality === 'Air' && shipmentModeForApi.value === 'Lcl'
+  return form.modality === 'Air'
+    && (shipmentModeForApi.value === 'AirConsol' || shipmentModeForApi.value === 'Lcl')
 }
 
 function airLclRelationMatches(
