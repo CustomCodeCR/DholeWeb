@@ -655,7 +655,8 @@ onMounted(async () => {
           <p v-if="row.incotermId" class="mt-1 text-xs text-[var(--dh-text-muted)]">
             Incoterm:
             {{
-              catalogs.incoterms.value.find((item) => item.id === row.incotermId)?.name
+              catalogs.incoterms.value.find((item) => item.id === row.incotermId)?.value
+                || catalogs.incoterms.value.find((item) => item.id === row.incotermId)?.name
                 || catalogs.incoterms.value.find((item) => item.id === row.incotermId)?.code
                 || 'Configurado'
             }}
@@ -831,8 +832,8 @@ onMounted(async () => {
         <template #cell-route="{ row }">
           <div class="max-w-[360px]">
             <p class="font-bold">{{ routeLabel(row) }}</p>
-            <p v-if="row.incotermCode" class="mt-1 text-xs text-[var(--dh-text-muted)]">
-              {{ row.incotermCode }}
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              {{ incotermLabel(row) }}
             </p>
           </div>
         </template>
@@ -870,14 +871,107 @@ onMounted(async () => {
           >
             Lista para Average
           </span>
-          <span
-            v-else
-            class="inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-black text-amber-300"
-          >
-            Revisar
-          </span>
+          <div v-else class="flex flex-col items-center gap-1">
+            <DhButton
+              v-if="canUpdate"
+              label="Revisar"
+              :icon="Pencil"
+              size="sm"
+              variant="secondary"
+              @click="openReview(row)"
+            />
+            <span
+              v-else
+              class="inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-black text-amber-300"
+            >
+              Requiere revisión
+            </span>
+            <p class="max-w-[220px] text-center text-[10px] font-semibold leading-tight text-[var(--dh-text-muted)]">
+              {{ observationReviewReason(row) }}
+            </p>
+          </div>
         </template>
       </DhDataTable>
+    </div>
+  </DhModal>
+
+  <DhModal
+    :open="reviewOpen"
+    title="Revisar tarifa de competencia"
+    size="lg"
+    @close="reviewOpen = false"
+  >
+    <div v-if="reviewTarget" class="space-y-5">
+      <div
+        class="rounded-[22px] border border-amber-500/25 bg-amber-500/5 p-4 text-sm font-semibold text-[var(--dh-text-soft)]"
+      >
+        <p class="font-black text-amber-300">Motivo de revisión</p>
+        <p class="mt-1">{{ observationReviewReason(reviewTarget) }}</p>
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <DhSelect
+          v-model="reviewForm.incotermId"
+          label="Incoterm"
+          :options="catalogs.incotermOptions.value"
+        />
+        <DhSelect
+          v-model="reviewForm.currencyId"
+          label="Moneda"
+          :options="catalogs.currencyOptions.value"
+        />
+        <DhSelect
+          v-model="reviewForm.polId"
+          label="POL"
+          :options="catalogs.polOptions.value"
+        />
+        <DhSelect
+          v-model="reviewForm.poeId"
+          label="POE"
+          :options="catalogs.poeOptions.value"
+        />
+        <DhSelect
+          v-model="reviewForm.podId"
+          label="POD"
+          :options="catalogs.podOptions.value"
+        />
+        <DhSelect
+          v-model="reviewForm.carrierId"
+          label="Naviera"
+          :options="catalogs.carrierOptions.value"
+        />
+        <DhSelect
+          v-model="reviewForm.containerTypeId"
+          label="Equipo"
+          :options="reviewEquipmentOptions"
+        />
+        <DhInput
+          v-model.number="reviewForm.originalAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          label="Monto original"
+        />
+        <DhInput
+          v-model="reviewForm.validFrom"
+          type="date"
+          label="Vigencia desde"
+        />
+        <DhInput
+          v-model="reviewForm.validTo"
+          type="date"
+          label="Vigencia hasta"
+        />
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <DhButton label="Cancelar" variant="secondary" @click="reviewOpen = false" />
+        <DhButton
+          label="Guardar revisión"
+          :loading="reviewSaving"
+          @click="saveReview"
+        />
+      </div>
     </div>
   </DhModal>
 
