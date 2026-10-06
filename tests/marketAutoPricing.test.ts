@@ -74,12 +74,15 @@ test('Market result is presented as range, target, ceiling, confidence and sampl
   assert.match(panel, /Dhole no debe inventar un precio de alta confianza/)
 })
 
-test('Draft suggestion targets the lower-middle market while respecting the margin floor', async () => {
+test('Draft suggestion stays near the lower-middle market and treats margin as an approval threshold', async () => {
   const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
 
   assert.match(panel, /targetPercentile:\s*40/)
   assert.match(panel, /source\.p40/)
-  assert.match(panel, /Math\.max\(draftMinimumSalePrice\.value, marketTarget\)/)
+  assert.match(panel, /draftCostFloorPrice/)
+  assert.match(panel, /Math\.max\(draftCostFloorPrice\.value, marketSuggestion\)/)
+  assert.match(panel, /UMBRAL DE APROBACIÓN/)
+  assert.match(panel, /requiere aprobación, pero no se infla por encima del mercado/)
   assert.match(panel, /minimumMarginPercentage/)
   assert.match(panel, /applyDraftSuggestion/)
   assert.match(panel, /El costo es una referencia fija/)
@@ -94,11 +97,26 @@ test('AI recommendation is bounded by Average and can never modify cost', async 
   assert.match(panel, /clampDraftAiSuggestion/)
   assert.match(panel, /stats\.p25/)
   assert.match(panel, /stats\.p50/)
-  assert.match(panel, /draftMinimumSalePrice\.value/)
+  assert.match(panel, /draftCostFloorPrice\.value/)
   assert.match(panel, /El costo es una referencia fija/)
   assert.match(panel, /Costo fijo/)
   assert.match(wizard, /state\.line\.saleAmount\s*=/)
   assert.doesNotMatch(wizard, /state\.line\.costAmount\s*=/)
+})
+
+test('Draft auto-apply distributes sale changes from the existing sale structure instead of dumping them into freight', async () => {
+  const wizard = await source('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+
+  assert.match(wizard, /currentAdjustableSaleUsd/)
+  assert.match(wizard, /targetAdjustableSaleUsd/)
+  assert.match(wizard, /saleShare \* 0\.80/)
+  assert.match(wizard, /costShare \* 0\.20/)
+  assert.match(wizard, /state\.saleTotalUsd \+ \(deltaUsd \* share\)/)
+  assert.match(wizard, /state\.saleTotalUsd \* factor/)
+  assert.match(wizard, /roundingResidualUsd/)
+  assert.match(wizard, /requestedTarget = Math\.max\(targetSaleUsd, totalCostUsd\.value\)/)
+  assert.doesNotMatch(wizard, /minimumSaleByMargin/)
+  assert.doesNotMatch(wizard, /line\.costAmount\s*=/)
 })
 
 test('Competitor observations expose traceability fields, weights and inclusion state', async () => {
