@@ -199,22 +199,34 @@ const draftMinimumSalePrice = computed(() => {
   return cost / (1 - margin)
 })
 
-const draftSuggestedSalePrice = computed(() => {
-  if (aiDraftSuggestion.value?.suggestedSaleTotalUsd) {
-    return Math.max(
-      draftMinimumSalePrice.value,
-      aiDraftSuggestion.value.suggestedSaleTotalUsd,
-    )
-  }
+const draftCostFloorPrice = computed(() =>
+  Math.max(0, Number(props.draftCostTotalUsd || 0)),
+)
 
-  const marketTarget = draftLowMarketTarget.value
-  if (marketTarget == null || marketTarget <= 0) return null
-  return Math.max(draftMinimumSalePrice.value, marketTarget)
+const draftSuggestedSalePrice = computed(() => {
+  const marketSuggestion = aiDraftSuggestion.value?.suggestedSaleTotalUsd
+    ?? draftLowMarketTarget.value
+
+  if (marketSuggestion == null || marketSuggestion <= 0) return null
+
+  // The 12% margin is an approval threshold, not a reason to inflate a market
+  // suggestion beyond competitor reality. Never recommend a loss, but keep the
+  // price as close as possible to the comparable market.
+  return Math.max(draftCostFloorPrice.value, marketSuggestion)
 })
 
 const draftSuggestionSource = computed(() =>
   aiDraftSuggestion.value ? 'IA + Average' : 'Average',
 )
+
+const draftRequiresLowMarginApproval = computed(() => {
+  const suggestion = draftSuggestedSalePrice.value
+  if (!suggestion || suggestion <= 0) return false
+
+  const cost = draftCostFloorPrice.value
+  const margin = ((suggestion - cost) / suggestion) * 100
+  return margin + 0.0001 < Number(props.minimumMarginPercentage || 0)
+})
 
 function clampDraftAiSuggestion(value: number) {
   const stats = marketStats.value
@@ -226,7 +238,10 @@ function clampDraftAiSuggestion(value: number) {
     ?? draftLowMarketTarget.value
     ?? lowerMarket
 
-  const lower = Math.max(draftMinimumSalePrice.value, lowerMarket)
+  // When our cost is already above the competitive range, the closest
+  // non-loss recommendation is the cost itself. Margin approval is handled
+  // separately instead of pushing the price all the way to 12%.
+  const lower = Math.max(draftCostFloorPrice.value, lowerMarket)
   const upper = Math.max(lower, upperMarket)
 
   return Math.min(upper, Math.max(lower, value))
@@ -266,9 +281,11 @@ async function analyzeDraftMarketWithAi() {
           role: 'system',
           content:
             'Actúe como analista de pricing logístico. Debe recomendar únicamente el TOTAL DE VENTA en USD. '
-            + 'El costo es inmutable y jamás debe sugerir modificarlo. La recomendación debe ser competitiva, '
-            + 'preferiblemente en la parte baja-media del mercado (aprox. P25-P50), sin violar el margen mínimo. '
-            + 'No invente tarifas ni datos; use únicamente las estadísticas y observaciones entregadas.',
+            + 'El costo es inmutable y jamás debe sugerir modificarlo. Priorice una venta cercana a la parte baja-media '
+            + 'del mercado comparable (aprox. P25-P50). El margen mínimo es un UMBRAL DE APROBACIÓN, no un piso que '
+            + 'permita alejar artificialmente la venta del mercado. Nunca recomiende vender por debajo del costo. '
+            + 'Si el costo ya está por encima del mercado, recomiende el precio sin pérdida más cercano posible y explique '
+            + 'que requiere revisión/aprobación por margen bajo. No invente tarifas ni datos.',
         },
         {
           role: 'user',
@@ -285,7 +302,8 @@ async function analyzeDraftMarketWithAi() {
             immutableCostTotalUsd: Number(props.draftCostTotalUsd || 0),
             currentSaleTotalUsd: Number(props.draftSaleTotalUsd || 0),
             minimumMarginPercentage: Number(props.minimumMarginPercentage || 0),
-            minimumSaleByMarginUsd: draftMinimumSalePrice.value,
+            approvalThresholdSaleUsd: draftMinimumSalePrice.value,
+            nonLossFloorUsd: draftCostFloorPrice.value,
             market: {
               p25: marketStats.value.p25,
               p40: marketStats.value.p40,
@@ -358,7 +376,8 @@ const position = computed(() => {
     const lowerMarket = marketStats.value.p25
 
     let status = 'Competitive'
-    if (ceiling != null && suggested > ceiling) status = 'AboveCompetitiveRange'
+    if (draftRequiresLowMarginApproval.value) status = 'BelowMinimumMargin'
+    else if (ceiling != null && suggested > ceiling) status = 'AboveCompetitiveRange'
     else if (lowerMarket != null && suggested < lowerMarket) status = 'BelowCompetitiveRange'
 
     return {
@@ -882,6 +901,12 @@ onMounted(() => void initialize())
       <p class="mt-3 text-[11px] font-black text-[var(--dh-text)]">
         Costo fijo {{ money(draftCostTotalUsd) }} · nunca se modifica.
       </p>
+      <p
+        v-if="draftRequiresLowMarginApproval"
+        class="mt-1 text-[11px] font-black text-amber-700 dark:text-amber-300"
+      >
+        La sugerencia queda por debajo del {{ minimumMarginPercentage }}% de margen: requiere aprobación, pero no se infla por encima del mercado.
+      </p>
     </div>
 
     <div
@@ -1012,7 +1037,7 @@ onMounted(() => void initialize())
           </p>
           <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
             Objetivo competitivo bajo {{ money(draftLowMarketTarget ?? marketStats.targetMarketPrice) }} · techo competitivo
-            {{ money(marketStats.competitiveCeiling) }}. La recomendación corresponde únicamente a venta.
+            {{ money(marketStats.competitiveCeiling) }}. La recomendación corresponde únicamente a venta y busca permanecer cerca del mercado sin vender por debajo del costo.
           </p>
         </div>
       </div>
@@ -1057,7 +1082,7 @@ onMounted(() => void initialize())
           <div><span class="market-label">Target competitivo bajo P40</span><strong class="block mt-1">{{ money(draftLowMarketTarget ?? marketStats.p40) }}</strong></div>
           <div><span class="market-label">Target P60</span><strong class="block mt-1">{{ money(marketStats.p60) }}</strong></div>
           <div><span class="market-label">Competitive Ceiling</span><strong class="block mt-1">{{ money(marketStats.competitiveCeiling) }}</strong></div>
-          <div><span class="market-label">Minimum sale by margin</span><strong class="block mt-1">{{ money(position?.minimumSalePrice) }}</strong></div>
+          <div><span class="market-label">Umbral de venta para {{ minimumMarginPercentage }}%</span><strong class="block mt-1">{{ money(position?.minimumSalePrice) }}</strong></div>
           <div><span class="market-label">Selected</span><strong class="block mt-1 text-[var(--dh-primary)]">{{ money(position?.suggestedSalePrice) }}</strong></div>
           <div><span class="market-label">Algoritmo</span><strong class="block mt-1 break-all text-xs">{{ marketStats.algorithmVersion || '—' }}</strong></div>
         </div>
