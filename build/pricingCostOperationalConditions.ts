@@ -74,19 +74,6 @@ function shouldIncludeOptionalCost(line: {
   // Sin botón/condición asignada = Manual: entra automáticamente.
   // Con condiciones asignadas, todas deben estar seleccionadas en Pantalla 4.
   return operationalConditionsSatisfied(line)
-}
-
-function optionalLineMatchesScreen4Selection(line: {
-  costId?: string | null
-  operationalConditions?: string[] | null
-}) {
-  const directConditions = operationalConditionsFor(line)
-  if (directConditions.length) return operationalConditionsSatisfied(line)
-
-  if (!line.costId) return true
-  const configured = costs.value.find((cost) => cost.id === line.costId)
-  if (!configured) return true
-  return operationalConditionsSatisfied(configured)
 }`,
     'explicit operational condition matcher',
   )
@@ -116,11 +103,13 @@ function optionalLineMatchesScreen4Selection(line: {
     code,
     /const selectableOptionalLines = computed\(\(\) =>[\s\S]*?\n\)\nconst optionalChargeOptions = computed/,
     `const selectableOptionalLines = computed(() =>
+  // Mostrar todos los Optional aplicables al contexto. Pantalla 4 solo decide
+  // cuáles llegan preseleccionados; desde Pantalla 7 el operativo puede agregar
+  // o quitar cualquiera de los cargos opcionales disponibles.
   rateLines.value.filter((line) =>
     line.optional
     && line.costDetailType !== 'Insurance'
-    && lineMatchesPickupCargoCondition(line)
-    && optionalLineMatchesScreen4Selection(line),
+    && lineMatchesPickupCargoCondition(line),
   ),
 )
 const optionalChargeOptions = computed`,
