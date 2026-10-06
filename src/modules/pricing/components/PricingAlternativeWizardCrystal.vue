@@ -56,7 +56,6 @@ import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLoc
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
-import PricingCompetitorTariffMatchModal from '@/modules/pricing/components/PricingCompetitorTariffMatchModal.vue'
 import PricingMarketBenchmarkPanel from '@/modules/pricing/components/PricingMarketBenchmarkPanel.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
@@ -215,7 +214,6 @@ const commercialActionError = ref('')
 const downloadingQuote = ref(false)
 const downloadingLinesExcel = ref(false)
 const allInPresentation = ref(true)
-const competitorTariffsOpen = ref(false)
 const isEditing = computed(() => Boolean(props.rateId))
 const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Crear tarifa')
 const pageDescription = computed(() => isEditing.value
@@ -1169,28 +1167,6 @@ const consolidatedCargoMode = computed(() =>
 )
 const ltlCargoMode = computed(() => shipmentModeForApi.value === 'Ltl')
 
-const competitorMatchContext = computed(() => {
-  const pod = resolvePodForDestination()
-  return {
-    polId: selectedOrigin.value?.id ?? null,
-    poeId: selectedDestination.value?.id ?? null,
-    podId: pod?.id ?? null,
-    carrierId: selectedCarrier.value?.id ?? null,
-    shipmentMode: shipmentModeForApi.value,
-    validOn: form.loadDate || null,
-  }
-})
-
-const canShowCompetitorTariffs = computed(() => {
-  const context = competitorMatchContext.value
-  return Boolean(
-    context.polId &&
-    context.poeId &&
-    context.podId &&
-    context.carrierId &&
-    context.shipmentMode,
-  )
-})
 
 const canAccessMarketPricing = computed(() =>
   authStore.hasScope(PRICING_SCOPES.marketBenchmark.view)
@@ -5679,17 +5655,6 @@ onMounted(async () => {
       </template>
     </section>
 
-    <PricingCompetitorTariffMatchModal
-      :open="competitorTariffsOpen"
-      :pol-id="competitorMatchContext.polId"
-      :poe-id="competitorMatchContext.poeId"
-      :pod-id="competitorMatchContext.podId"
-      :carrier-id="competitorMatchContext.carrierId"
-      :shipment-mode="competitorMatchContext.shipmentMode"
-      :valid-on="competitorMatchContext.validOn"
-      @close="competitorTariffsOpen = false"
-    />
-
     <div class="crystal-footer flex items-center justify-between gap-3 p-3">
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
       <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
@@ -5698,13 +5663,6 @@ onMounted(async () => {
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
       <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
-        <DhButton
-          variant="secondary"
-          :disabled="!canShowCompetitorTariffs"
-          @click="competitorTariffsOpen = true"
-        >
-          <Search class="h-4 w-4" /> Mostrar tarifas competencia
-        </DhButton>
         <DhButton :disabled="saving || uploadingFinalBackups || !includedLines.length" @click="saveRate">
           <Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
         </DhButton>
