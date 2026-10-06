@@ -122,25 +122,33 @@ const miamiCommercialRate = computed(() =>
   MIAMI_COMMERCIAL_RATES[String(form.miamiCommercialPlan || 'A')] ?? MIAMI_COMMERCIAL_RATES.A,
 )
 
+function roundCargoInputValue(value: number, decimals = 4) {
+  const factor = 10 ** decimals
+  return Math.round((Math.max(0, number(value)) + Number.EPSILON) * factor) / factor
+}
+
 function miamiKgToLb(value: number) {
   return Math.max(0, number(value)) * MIAMI_LB_PER_KG
 }
 
 function miamiWeightInputValue(weightKg: number) {
   const kg = Math.max(0, number(weightKg))
-  return form.miamiWeightInputUnit === 'lb' ? kg * MIAMI_LB_PER_KG : kg
+  const displayValue = form.miamiWeightInputUnit === 'lb' ? kg * MIAMI_LB_PER_KG : kg
+  return roundCargoInputValue(displayValue)
 }
 
 function setMiamiWeightInputValue(line: ConsolidatedCargoLineUi, value: unknown) {
   const entered = Math.max(0, number(value))
-  line.weightKg = form.miamiWeightInputUnit === 'lb'
+  const weightKg = form.miamiWeightInputUnit === 'lb'
     ? entered / MIAMI_LB_PER_KG
     : entered
+  line.weightKg = roundCargoInputValue(weightKg, 8)
 }
 
 function miamiDimensionInputValue(storedValue: number) {
   const cm = cargoDimensionToCm(storedValue)
-  return form.miamiDimensionInputUnit === 'cm' ? cm : cm / INCH_TO_CM
+  const displayValue = form.miamiDimensionInputUnit === 'cm' ? cm : cm / INCH_TO_CM
+  return roundCargoInputValue(displayValue)
 }
 
 function setMiamiDimensionInputValue(
@@ -152,7 +160,7 @@ function setMiamiDimensionInputValue(
   const cm = form.miamiDimensionInputUnit === 'cm'
     ? entered
     : entered * INCH_TO_CM
-  line[field] = cargoDimensionFromCm(cm)
+  line[field] = roundCargoInputValue(cargoDimensionFromCm(cm), 8)
 }
 
 function miamiWeightConversionText(weightKg: number) {
