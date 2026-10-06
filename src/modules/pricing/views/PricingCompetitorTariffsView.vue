@@ -409,39 +409,27 @@ async function importTariff() {
 
   saving.value = true
   const id = crypto.randomUUID()
+  const requestSnapshot = {
+    competitorCompanyName: form.competitorCompanyName.trim(),
+    incotermId: form.incotermId,
+    shipmentMode: form.shipmentMode as ShipmentMode,
+    validFrom: form.validFrom || undefined,
+    validTo: form.validTo || undefined,
+    file: form.file,
+  }
+  let storageId = ''
 
-  try {
-    const stored = await StorageService.uploadFile({
-      file: form.file,
-      sourceService: 'DholePricingService',
-      entityType: 'CompetitorTariff',
-      entityId: id,
-      metadataJson: JSON.stringify({
-        purpose: 'competitor-tariff',
-        competitorCompanyName: form.competitorCompanyName.trim(),
-        shipmentMode: form.shipmentMode,
-      }),
-    })
-
-    const result = await PricingService.importCompetitorTariff({
-      id,
-      competitorCompanyName: form.competitorCompanyName.trim(),
-      incotermId: form.incotermId,
-      shipmentMode: form.shipmentMode as ShipmentMode,
-      storageId: stored.id,
-      validFrom: form.validFrom || undefined,
-      validTo: form.validTo || undefined,
-      file: form.file,
-    })
-
+  async function acceptImport(result: CompetitorTariffDto, recovered = false) {
     formOpen.value = false
     resetForm()
     await load()
 
     if (result.importStatus === 'Processing') {
       toastStore.success(
-        'Importación iniciada',
-        'El archivo ya fue recibido. DataExtraction continuará en segundo plano y puede seguir usando Dhole mientras termina.',
+        recovered ? 'Importación recuperada' : 'Importación iniciada',
+        recovered
+          ? 'Pricing volvió a estar disponible y confirmó que el archivo fue recibido. DataExtraction continuará en segundo plano.'
+          : 'El archivo ya fue recibido. DataExtraction continuará en segundo plano y puede seguir usando Dhole mientras termina.',
       )
       void monitorImport(result.id)
       return
@@ -456,35 +444,66 @@ async function importTariff() {
     if (result.observationCount > 0 || result.reviewCount > 0) {
       await openObservations(result)
     }
+  }
+
+  try {
+    const stored = await StorageService.uploadFile({
+      file: requestSnapshot.file,
+      sourceService: 'DholePricingService',
+      entityType: 'CompetitorTariff',
+      entityId: id,
+      metadataJson: JSON.stringify({
+        purpose: 'competitor-tariff',
+        competitorCompanyName: requestSnapshot.competitorCompanyName,
+        shipmentMode: requestSnapshot.shipmentMode,
+      }),
+    })
+    storageId = stored.id
+
+    const result = await PricingService.importCompetitorTariff({
+      id,
+      ...requestSnapshot,
+      storageId,
+    })
+
+    await acceptImport(result)
   } catch (error) {
-    // Si la respuesta HTTP se cortó después de que Pricing recibió el archivo,
-    // no lo eliminamos de Storage. Primero comprobamos si el registro existe.
-    try {
-      const persisted = await PricingService.getCompetitorTariff(id)
-      formOpen.value = false
-      resetForm()
-      await load()
+    // A production deploy can make the API origin unavailable for a few seconds.
+    // Do not immediately show the user a Cloudflare/Gateway 502. First verify
+    // whether the import reached Pricing using the client-generated id.
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await sleep(3000)
 
-      if (persisted.importStatus === 'Processing') {
-        toastStore.success(
-          'Importación recibida',
-          'La respuesta de red se interrumpió, pero Dhole ya está procesando el tarifario en segundo plano.',
-        )
-        void monitorImport(persisted.id)
+      try {
+        const persisted = await PricingService.getCompetitorTariff(id)
+        await acceptImport(persisted, true)
         return
+      } catch {
+        // Keep polling while the API/origin comes back.
       }
-
-      replaceRow(persisted)
-      const message = persisted.reviewCount > 0
-        ? persisted.observationCount + ' tarifas extraídas; ' + persisted.reviewCount + ' requieren revisión.'
-        : persisted.observationCount + ' tarifas extraídas y disponibles para Average.'
-      toastStore.success('Tarifario procesado', message)
-      return
-    } catch {
-      // El error original es el que aporta el contexto útil al usuario.
     }
 
-    toastStore.backendError(error, 'No se pudo iniciar la importación del tarifario de competencia.')
+    // If Pricing never saw the first POST, retry it once with the same id.
+    // The backend treats this id as an idempotency key, so a lost response
+    // cannot create a duplicate import.
+    if (storageId) {
+      try {
+        const retried = await PricingService.importCompetitorTariff({
+          id,
+          ...requestSnapshot,
+          storageId,
+        })
+        await acceptImport(retried, true)
+        return
+      } catch {
+        // Fall through to the original error only after recovery was exhausted.
+      }
+    }
+
+    toastStore.backendError(
+      error,
+      'Pricing no estuvo disponible para recibir el tarifario. Dhole intentó recuperarse automáticamente antes de mostrar este error.',
+    )
   } finally {
     saving.value = false
   }
