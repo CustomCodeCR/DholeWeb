@@ -118,9 +118,10 @@ async function loadAllApplicableOptionalCosts() {
     isActive: true,
   })
 
-  return optionalCosts
-    .filter(finalOptionalMatchesCurrentContext)
-    .filter((cost) => shouldIncludeOptionalCost(cost))
+  // Cargar todos los Optional que correspondan al contexto. Las condiciones de
+  // Pantalla 4 controlan la preselección mediante syncHaulageOptionalLines(),
+  // pero no deben impedir que el cargo exista en el selector de Pantalla 7.
+  return optionalCosts.filter(finalOptionalMatchesCurrentContext)
 }
 
 async function ensureAllApplicableOptionalCosts() {
