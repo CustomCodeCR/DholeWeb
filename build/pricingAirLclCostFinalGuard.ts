@@ -184,29 +184,54 @@ const dholeAirLclCostStepGuard = watch(
 
 `
 
-  code = replaceOne(
-    code,
-    'function addManualCharge() {',
-    helper + 'function addManualCharge() {',
-    'manual charge insertion point',
-  )
+  if (code.includes('function addManualCharge() {')) {
+    code = code.replace(
+      'function addManualCharge() {',
+      helper + 'function addManualCharge() {',
+    )
+  }
 
-  code = replaceOne(
-    code,
-    `  if (step.value === 6) {
+  // pricingWizardStep4NavigationHardFix owns the final Screen 6 transition.
+  // Patch its "new/recalculated quote" branch without depending on older anchors.
+  const hardFixTransition = `      } else {
+        // Ruta, naviera o agente sí cambió: aquí sí corresponde recalcular.
+        await loadApplicableCosts()
+        rebuildRateLines()
+        persistedEditAppliedIncotermId.value = form.incotermId
+      }`
+  if (code.includes(hardFixTransition)) {
+    code = code.replace(
+      hardFixTransition,
+      `      } else {
+        // Ruta, naviera o agente sí cambió: aquí sí corresponde recalcular.
+        await loadApplicableCosts()
+        await ensureAllApplicableOptionalCosts()
+        await ensureAirLclApplicableCosts()
+        if (isAirLclPricingContext()) refreshAirLclRateLines()
+        else rebuildRateLines()
+        persistedEditAppliedIncotermId.value = form.incotermId
+      }`,
+    )
+  } else {
+    // Compatibility with branches where the navigation hard-fix is not present.
+    const simpleTransition = `  if (step.value === 6) {
     await loadApplicableCosts()
     await ensureAllApplicableOptionalCosts()
     rebuildRateLines()
-  }`,
-    `  if (step.value === 6) {
+  }`
+    if (code.includes(simpleTransition)) {
+      code = code.replace(
+        simpleTransition,
+        `  if (step.value === 6) {
     await loadApplicableCosts()
     await ensureAllApplicableOptionalCosts()
     await ensureAirLclApplicableCosts()
     if (isAirLclPricingContext()) refreshAirLclRateLines()
     else rebuildRateLines()
   }`,
-    'screen 6 to 7 cost refresh',
-  )
+      )
+    }
+  }
 
   return code
 }
@@ -216,7 +241,7 @@ export function pricingAirLclCostFinalGuard(): Plugin {
     name: 'dhole-pricing-air-lcl-cost-final-guard',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replaceAll('\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
       return { code: patchWizard(source), map: null }
     },
