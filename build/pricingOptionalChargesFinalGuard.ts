@@ -95,7 +95,7 @@ function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
   if (!finalOptionalPoeMatches(cost)) return false
   if (!finalOptionalRelationMatches(cost.pods, cost.podId, form.podId)) return false
   if (!finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId)) return false
-  if (!finalOptionalRelationMatches(cost.agents, cost.agentId, form.agentId)) return false
+  if (!finalOptionalRelationMatches(cost.agents, cost.agentId, costContextAgentId())) return false
   if (!finalOptionalLegacyPortMatches(cost)) return false
 
   // Incoterm y servicio continúan siendo restricciones cuando fueron configurados
