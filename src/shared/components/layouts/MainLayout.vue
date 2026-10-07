@@ -187,7 +187,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     children.push({ label: t('sidebar.competitorRates'), path: '/pricing/competition', icon: FileText })
   }
 
-  if (canView(VIEW_SCOPES.pricingCosts)) {
+  if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
     children.push({ label: t('sidebar.ftlTariffs'), path: '/pricing/ftl-tariffs', icon: Truck })
   }
 
@@ -284,7 +284,7 @@ const sidebarItems = computed<SidebarItem[]>(() => {
       icon: Ship,
     })
   }
-  if (canView(VIEW_SCOPES.pricingCosts)) {
+  if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
     ownConsolidationChildren.push({
       label: t('sidebar.ownLtl'),
       path: '/pricing/own-ltl',
