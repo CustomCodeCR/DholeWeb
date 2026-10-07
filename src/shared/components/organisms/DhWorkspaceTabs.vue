@@ -18,7 +18,7 @@ watch(
     const active = tabListRef.value?.querySelector<HTMLElement>('[aria-selected="true"]')
     active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
   },
-  { flush: 'post' },
+  { flush: 'post', immediate: true },
 )
 
 function displayTitle(tab: { title: string; titleKey?: string }): string {
