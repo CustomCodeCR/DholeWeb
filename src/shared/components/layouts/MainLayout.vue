@@ -66,9 +66,14 @@ const tabsStore = useWorkspaceTabsStore()
 const commandOpen = ref(false)
 const commandQuery = ref('')
 const mobileSidebarOpen = ref(false)
+const splitViewportReady = ref(false)
+let splitMediaQuery: MediaQueryList | null = null
 
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true')
 const isEmbedded = new URLSearchParams(window.location.search).get('dhEmbed') === '1'
+const splitLayoutActive = computed(
+  () => Boolean(tabsStore.splitPane && !isEmbedded && splitViewportReady.value),
+)
 
 const contentClass = computed(() => {
   return sidebarCollapsed.value ? 'pl-0 lg:pl-28' : 'pl-0 lg:pl-80'
@@ -560,10 +565,17 @@ function handleShortcut(event: KeyboardEvent) {
 }
 
 onMounted(() => {
+  splitMediaQuery = window.matchMedia('(min-width: 1280px)')
+  splitViewportReady.value = splitMediaQuery.matches
+  splitMediaQuery.addEventListener('change', (event) => {
+    splitViewportReady.value = event.matches
+  })
+
   window.addEventListener('keydown', handleShortcut, { capture: true })
 })
 
 onBeforeUnmount(() => {
+  splitMediaQuery = null
   window.removeEventListener('keydown', handleShortcut, { capture: true })
 })
 </script>
@@ -587,7 +599,7 @@ onBeforeUnmount(() => {
       <DhWorkspaceTabs />
 
       <main class="min-w-0 overflow-x-clip p-2 sm:p-4">
-        <div v-if="tabsStore.splitPane && !isEmbedded" class="grid gap-4 xl:grid-cols-2">
+        <div v-if="splitLayoutActive" class="grid gap-4 xl:grid-cols-2">
           <section
             class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] min-w-0 overflow-hidden rounded-[24px] sm:rounded-[32px]"
             @dragover="handlePaneDragOver"
@@ -616,7 +628,7 @@ onBeforeUnmount(() => {
             @drop="dropTabToSplit"
           >
             <div class="flex items-center justify-between border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
-              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">{{ tabsStore.splitPane.title }}</h2>
+              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">{{ tabsStore.splitPane?.title }}</h2>
 
               <button
                 class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
@@ -628,7 +640,7 @@ onBeforeUnmount(() => {
             </div>
 
             <iframe
-              :key="tabsStore.splitPane.path"
+              :key="tabsStore.splitPane?.path"
               :src="splitFrameUrl"
               class="h-[calc(100vh-14rem)] w-full border-0 bg-transparent"
               :title="t('tabs.splitWorkspace')"
