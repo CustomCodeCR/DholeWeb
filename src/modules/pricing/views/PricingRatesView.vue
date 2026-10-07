@@ -801,7 +801,7 @@ onMounted(async () => {
                 <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.agentLabel') }}: {{ row.agentName || '—' }}</p>
               </div>
 
-              <div class="min-w-0 rounded-2xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
+              <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
                 <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.quotedBy') }}</p>
                 <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ creatorDisplayName(row) }}</p>
                 <p
@@ -818,7 +818,7 @@ onMounted(async () => {
                 <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
                 <p class="mt-1 whitespace-nowrap text-sm font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
               </div>
-              <div class="min-w-0 rounded-2xl border border-[var(--dh-border)] p-3">
+              <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2.5">
                 <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.validity') }}</p>
                 <p class="mt-1 text-sm font-black">{{ formatDate(row.validFrom) }}</p>
                 <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.until') }} {{ formatDate(row.validTo) }}</p>
@@ -843,7 +843,7 @@ onMounted(async () => {
               <p class="mt-2 text-[11px] font-bold text-[var(--dh-text-soft)]">{{ t('pricing.rates.freeDaysValue', { count: row.freeDays }) }}</p>
             </div>
 
-            <div class="mt-3 grid grid-flow-col auto-cols-[2.75rem] justify-end gap-1 border-t border-[var(--dh-border)] pt-2.5" @click.stop>
+            <div class="mt-3 grid grid-flow-col auto-cols-[2.75rem] justify-center gap-2 border-t border-[var(--dh-border)] pt-2.5" @click.stop>
               <button
                 type="button"
                 class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
