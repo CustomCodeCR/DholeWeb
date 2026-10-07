@@ -468,7 +468,10 @@
     "closeSplit": "Close pane",
     "moveToLeft": "Move to left pane",
     "moveToRight": "Move to right pane",
-    "splitWorkspace": "Split workspace"
+    "splitWorkspace": "Split workspace",
+    "workspaceTabs": "Workspace tabs",
+    "resizeSplit": "Resize panes",
+    "splitHint": "Drag a tab to the right pane or use the split button."
   },
   "monitoring": {
     "title": "Service monitoring",
