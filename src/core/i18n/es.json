@@ -472,7 +472,8 @@
     "splitWorkspace": "Espacio de trabajo dividido",
     "workspaceTabs": "Pestañas del espacio de trabajo",
     "resizeSplit": "Redimensionar paneles",
-    "splitHint": "Arrastre una pestaña al panel derecho o use el botón de split."
+    "splitHint": "Arrastre una pestaña al panel derecho o use el botón de split.",
+    "closePane": "Cerrar panel"
   },
   "monitoring": {
     "title": "Monitoreo de servicios",
