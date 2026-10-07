@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import DhToastContainer from '@/shared/components/containers/DhToastContainer.vue'
 import DhModalContainer from '@/shared/components/containers/DhModalContainer.vue'
 import DhDrawerContainer from '@/shared/components/containers/DhDrawerContainer.vue'
@@ -16,6 +17,7 @@ import {
 } from '@/core/realtime/notificationRealtime'
 
 const router = useRouter()
+const { t } = useI18n()
 const authStore = useAuthStore()
 const tabsStore = useWorkspaceTabsStore()
 const brandingStore = useBrandingStore()
@@ -65,9 +67,9 @@ onMounted(() => {
   }
 
   initializePricingOfflineSync()
-  const handleOffline = () => toastStore.warning('Sin conexión', 'Los cambios de Pricing se conservarán localmente y se sincronizarán al recuperar Internet.')
+  const handleOffline = () => toastStore.warning(t('connectivity.offlineTitle'), t('connectivity.offlineMessage'))
   const handleOnline = () => {
-    toastStore.info('Conexión recuperada', 'Sincronizando cambios pendientes…')
+    toastStore.info(t('connectivity.onlineTitle'), t('connectivity.onlineMessage'))
     void flushPricingOfflineQueue()
   }
   window.addEventListener('offline', handleOffline)
