@@ -85,8 +85,14 @@ body {
   overflow-wrap: anywhere;
 }
 
-#app :where(p, span, dd, td, th, a, label, legend) {
+#app :where(p, dd, td, a, label, legend) {
   overflow-wrap: anywhere;
+}
+
+/* Do not globally split badges, short labels or table headers character-by-character. */
+#app :where(span, th) {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 #app :where(.sticky) {
