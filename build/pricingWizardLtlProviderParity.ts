@@ -150,6 +150,7 @@ function patchWizard(source: string) {
       '  if (!currency) return',
       '  const cbm = landLtlBillableCbm(tariff)',
       '  if (cbm <= 0) return',
+      "  rateLines.value = rateLines.value.filter((line) => !String(line.key ?? '').startsWith('variable-section:'))",
       '',
       '  const fallbackCharges = [',
       "    { key: 'dua', name: 'DUA', costDetailType: 'CustomsCharge', chargeBasis: 'PerDocument', section: 'origin_charges', costAmount: number(tariff.duaCost ?? 50), saleAmount: 60, isFlat: true },",
@@ -199,7 +200,7 @@ function patchWizard(source: string) {
       '      section,',
       '      name,',
       '      costDetailType: detailType,',
-      "      costType: 'Variable' as CostType,",
+      "      costType: (isFlat ? 'Fixed' : 'Variable') as CostType,",
       '      chargeBasis,',
       '      costId: null,',
       "      contextLabel: `Tarifario LTL · ${landLtlCommercialProfile.value === 'Nvocc' ? 'Coloader' : 'Propio'}`,",
@@ -210,7 +211,7 @@ function patchWizard(source: string) {
       '      amountCurrencyCode: currency.code,',
       '      costAmount: Math.max(0, costAmount),',
       '      saleAmount: Math.max(0, saleAmount),',
-      '      included: isFlat || configuredVariable,',
+      '      included: true,',
       '      optional: !isFlat,',
       '      manual: false,',
       '      applyDestinationTax: false,',
@@ -358,6 +359,21 @@ ${advanceAnchor}`,
       )
       code = code.slice(0, nextStart) + nextBlock + code.slice(nextEnd + 2)
     }
+  }
+
+  // Keep the selected LTL tariff matrix attached to screen 7 after any normal
+  // rebuild caused by costs, currency, services or cargo changes.
+  const rebuildLinesAnchor = '  rateLines.value = lines\n}'
+  if (code.includes(rebuildLinesAnchor) && !code.includes('syncResolvedLandLtlTariffLines() after every rebuild')) {
+    code = code.replace(
+      rebuildLinesAnchor,
+      `  rateLines.value = lines
+  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {
+    syncResolvedLandLtlTariffLines()
+  }
+  // syncResolvedLandLtlTariffLines() after every rebuild
+}`,
+    )
   }
 
   // The tariff card button advances through the LTL-specific transition.
