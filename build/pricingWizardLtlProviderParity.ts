@@ -50,8 +50,18 @@ ${gridAnchor}`,
   )
 
   block = block.replace(
+    '<DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" :label="shipmentModeForApi === \'Fcl\' ? \'Flete \' + fclContainerName(form.equipmentId) + \' · costo\' : \'Flete internacional · costo\'" />',
+    '<DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" :label="shipmentModeForApi === \'Ltl\' ? \'Flete LTL · costo calculado\' : shipmentModeForApi === \'Fcl\' ? \'Flete \' + fclContainerName(form.equipmentId) + \' · costo\' : \'Flete internacional · costo\'" :disabled="shipmentModeForApi === \'Ltl\' && Boolean(resolvedFtlTariff)" />',
+  )
+
+  block = block.replace(
     '<DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />',
     '<DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" :label="shipmentModeForApi === \'Ltl\' ? \'Flete LTL · costo calculado\' : \'Flete internacional · costo\'" :disabled="shipmentModeForApi === \'Ltl\' && Boolean(resolvedFtlTariff)" />',
+  )
+
+  block = block.replace(
+    '<DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" :label="shipmentModeForApi === \'Fcl\' ? \'Flete \' + fclContainerName(form.equipmentId) + \' · venta\' : \'Flete internacional · venta\'" />',
+    '<DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" :label="shipmentModeForApi === \'Ltl\' ? \'Flete LTL · venta calculada\' : shipmentModeForApi === \'Fcl\' ? \'Flete \' + fclContainerName(form.equipmentId) + \' · venta\' : \'Flete internacional · venta\'" :disabled="shipmentModeForApi === \'Ltl\' && Boolean(resolvedFtlTariff)" />',
   )
 
   block = block.replace(
