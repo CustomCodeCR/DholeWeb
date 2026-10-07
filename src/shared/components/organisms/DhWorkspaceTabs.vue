@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from 'vue'
 import { PanelRightOpen, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
@@ -8,6 +9,17 @@ import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 const router = useRouter()
 const tabsStore = useWorkspaceTabsStore()
 const { t, locale } = useI18n()
+const tabListRef = ref<HTMLElement | null>(null)
+
+watch(
+  () => tabsStore.activeKey,
+  async () => {
+    await nextTick()
+    const active = tabListRef.value?.querySelector<HTMLElement>('[aria-selected="true"]')
+    active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+  },
+  { flush: 'post' },
+)
 
 function displayTitle(tab: { title: string; titleKey?: string }): string {
   if (tab.titleKey) return t(tab.titleKey)
@@ -74,6 +86,7 @@ function onTabDrop(event: DragEvent, targetKey: string) {
 <template>
   <div
     v-if="tabsStore.tabs.length"
+    ref="tabListRef"
     role="tablist"
     :aria-label="t('tabs.workspaceTabs')"
     class="dh-responsive-tabs dh-scrollbar mx-2 mt-2 flex max-w-[calc(100vw-1rem)] min-w-0 snap-x snap-proximity gap-1.5 overflow-x-auto rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-shell)] p-1.5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl sm:mx-4 sm:mt-4 sm:max-w-[calc(100vw-2rem)] sm:gap-2 sm:rounded-[26px] sm:p-2"
