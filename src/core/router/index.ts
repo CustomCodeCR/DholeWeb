@@ -5,6 +5,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { i18n } from '@/core/i18n'
+import { translateUiText } from '@/core/i18n/uiTextBridge'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -698,10 +699,15 @@ router.afterEach((to) => {
 
   const tabsStore = useWorkspaceTabsStore()
 
+  const locale = i18n.global.locale.value === 'en' ? 'en' : 'es'
+  const rawTitle = String(to.meta.tabTitle ?? to.name ?? i18n.global.t('common.view'))
+
   tabsStore.openTab({
     key: to.fullPath,
     path: to.fullPath,
-    title: to.meta.tabTitleKey ? String(i18n.global.t(to.meta.tabTitleKey)) : String(to.meta.tabTitle ?? to.name ?? 'Vista'),
+    title: to.meta.tabTitleKey
+      ? String(i18n.global.t(to.meta.tabTitleKey))
+      : translateUiText(rawTitle, locale),
     closable: Boolean(to.meta.closable ?? true),
   })
 })
