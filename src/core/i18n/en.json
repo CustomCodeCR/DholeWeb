@@ -65,7 +65,13 @@
     "confirm": "Confirm",
     "actionError": "The action could not be completed.",
     "exportExcel": "Export Excel",
-    "take": "Take"
+    "take": "Take",
+    "dialog": "Dialog",
+    "drawer": "Side panel",
+    "recordCount": "{count} records",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "rowsPerPage": "Rows per page"
   },
   "topbar": {
     "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs, pricing, reports, monitoring or audit logs...",
@@ -104,11 +110,11 @@
     "expand": "Expand sidebar",
     "monitoring": "Platform",
     "pricing": "Rate management",
-    "pricingPanel": "3. Select option",
+    "pricingPanel": "3. Create rate",
     "costs": "Costs and surcharges",
     "importedRates": "2. Review imports",
     "emailImports": "1. Email inbox",
-    "rates": "4. Official rates",
+    "rates": "4. Rates",
     "serviceMonitoring": "Services status",
     "aiAssistant": "AI Assistant",
     "ai": "Artificial intelligence",
@@ -140,7 +146,8 @@
     "ownLtl": "LTL · Land",
     "ownConsolidations": "Own consolidations",
     "marketing": "Marketing",
-    "marketingContent": "Marketing and content"
+    "marketingContent": "Marketing and content",
+    "requestRate": "Request rate"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -1335,6 +1342,28 @@
       "unloadConfirm": "Unload from memory",
       "unloadSuccess": "Model unloaded",
       "unloadSuccessMessage": "{model} was requested to be unloaded from Ollama memory."
+    },
+    "assistant": {
+      "title": "AI Assistant",
+      "subtitle": "Chat and CSV/XLSX analysis",
+      "clearConversation": "Clear conversation",
+      "close": "Close",
+      "unsupportedFileTitle": "Unsupported file",
+      "unsupportedFileMessage": "You can only attach CSV or XLSX files.",
+      "fileTooLargeTitle": "File too large",
+      "fileTooLargeMessage": "The maximum allowed file size is 25 MB.",
+      "partialFileTitle": "File partially analyzed",
+      "partialFileMessage": "A sample was processed because the file exceeded the row limit.",
+      "processError": "The query or file could not be processed.",
+      "greeting": "How can I help you?",
+      "emptyHint": "Ask about the system or attach a spreadsheet to analyze it and generate another file.",
+      "removeFile": "Remove file",
+      "attachFile": "Attach CSV or XLSX",
+      "placeholder": "Describe what you want to analyze...",
+      "send": "Send",
+      "footerHint": "Attach CSV/XLSX · Enter to send",
+      "open": "Open AI assistant",
+      "tokens": "{count} tokens"
     }
   },
   "agent": {

@@ -117,7 +117,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         name: 'pricing',
         children: [
           {
-            labelKey: 'Solicitar tarifa',
+            labelKey: 'sidebar.requestRate',
             icon: FileText,
             to: '/pricing/request-rate',
             name: 'pricing-seller-rate-request',
@@ -138,19 +138,19 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
           {
-            labelKey: 'Consolidados propios',
+            labelKey: 'sidebar.ownConsolidations',
             icon: PackagePlus,
             name: 'pricing-own-consolidations',
             children: [
               {
-                labelKey: 'LCL · Marítimo',
+                labelKey: 'sidebar.ownLcl',
                 icon: PackagePlus,
                 to: '/pricing/own-lcl',
                 name: 'pricing-own-lcl',
                 requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
               },
               {
-                labelKey: 'LTL · Terrestre',
+                labelKey: 'sidebar.ownLtl',
                 icon: Truck,
                 to: '/pricing/own-ltl',
                 name: 'pricing-own-ltl',
@@ -173,21 +173,21 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.pricingImports,
           },
           {
-            labelKey: 'Tarifas terrestres FTL',
+            labelKey: 'sidebar.ftlTariffs',
             icon: Truck,
             to: '/pricing/ftl-tariffs',
             name: 'pricing-ftl-tariffs',
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
           {
-            labelKey: 'Visibilidad comercial',
+            labelKey: 'sidebar.sellerVisibility',
             icon: Users,
             to: '/pricing/seller-visibility',
             name: 'pricing-seller-visibility',
             requiredScope: VIEW_SCOPES.pricingSellerAssignment,
           },
           {
-            labelKey: 'Tarifas competencia',
+            labelKey: 'sidebar.competitorRates',
             icon: FileText,
             to: '/pricing/competition',
             name: 'pricing-competition',
