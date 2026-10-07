@@ -30,6 +30,9 @@ const { t } = useI18n()
         @click.self="emit('close')"
       >
         <aside
+          role="dialog"
+          aria-modal="true"
+          :aria-label="title || t('common.drawer')"
           class="dh-glass-strong h-[calc(100dvh-0.5rem)] overflow-hidden rounded-t-[28px] border border-[var(--dh-border)] sm:h-full sm:rounded-none sm:border-y-0 sm:border-r-0 sm:border-l"
           :class="[
             size === 'sm' && 'w-full max-w-sm',

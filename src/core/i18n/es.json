@@ -64,7 +64,13 @@
     "notAvailable": "No disponible",
     "confirm": "Confirmar",
     "actionError": "No se pudo completar la acción.",
-    "exportExcel": "Exportar Excel"
+    "exportExcel": "Exportar Excel",
+    "dialog": "Diálogo",
+    "drawer": "Panel lateral",
+    "recordCount": "{count} registros",
+    "previousPage": "Página anterior",
+    "nextPage": "Página siguiente",
+    "rowsPerPage": "Registros por página"
   },
   "topbar": {
     "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos, pricing, reportes, monitoreo o auditoría...",
@@ -139,7 +145,8 @@
     "ownLtl": "LTL · Terrestre",
     "ownConsolidations": "Consolidados propios",
     "marketing": "Mercadeo",
-    "marketingContent": "Mercadeo y contenido"
+    "marketingContent": "Mercadeo y contenido",
+    "requestRate": "Solicitar tarifa"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -1332,6 +1339,28 @@
       "unloadConfirm": "Descargar de memoria",
       "unloadSuccess": "Modelo descargado",
       "unloadSuccessMessage": "{model} fue solicitado para descarga de memoria en Ollama."
+    },
+    "assistant": {
+      "title": "Asistente IA",
+      "subtitle": "Chat y análisis de CSV/XLSX",
+      "clearConversation": "Limpiar conversación",
+      "close": "Cerrar",
+      "unsupportedFileTitle": "Archivo no compatible",
+      "unsupportedFileMessage": "Solo puede adjuntar archivos CSV o XLSX.",
+      "fileTooLargeTitle": "Archivo demasiado grande",
+      "fileTooLargeMessage": "El tamaño máximo permitido es de 25 MB.",
+      "partialFileTitle": "Archivo parcialmente analizado",
+      "partialFileMessage": "Se procesó una muestra porque el archivo superó el límite de filas.",
+      "processError": "No se pudo procesar la consulta o el archivo.",
+      "greeting": "¿En qué puedo ayudarte?",
+      "emptyHint": "Pregunta sobre el sistema o adjunta una hoja de cálculo para analizarla y generar otro archivo.",
+      "removeFile": "Quitar archivo",
+      "attachFile": "Adjuntar CSV o XLSX",
+      "placeholder": "Escribe qué deseas analizar...",
+      "send": "Enviar",
+      "footerHint": "Adjunta CSV/XLSX · Enter para enviar",
+      "open": "Abrir asistente IA",
+      "tokens": "{count} tokens"
     }
   },
   "agent": {

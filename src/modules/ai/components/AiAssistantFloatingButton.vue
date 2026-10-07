@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Bot,
   Download,
@@ -32,6 +33,7 @@ const STORAGE_KEY = 'dhole.ai.floating-assistant.messages'
 const PROFILE_KEY = 'assistant'
 const MAXIMUM_FILE_BYTES = 25 * 1024 * 1024
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 const panelOpen = ref(false)
@@ -107,13 +109,13 @@ function selectFile(event: Event): void {
 
   const extension = file.name.split('.').pop()?.toLowerCase()
   if (!extension || !['csv', 'xlsx'].includes(extension)) {
-    toastStore.warning('Archivo no compatible', 'Solo puede adjuntar archivos CSV o XLSX.')
+    toastStore.warning(t('ai.assistant.unsupportedFileTitle'), t('ai.assistant.unsupportedFileMessage'))
     clearSelectedFile()
     return
   }
 
   if (file.size > MAXIMUM_FILE_BYTES) {
-    toastStore.warning('Archivo demasiado grande', 'El tamaño máximo permitido es de 25 MB.')
+    toastStore.warning(t('ai.assistant.fileTooLargeTitle'), t('ai.assistant.fileTooLargeMessage'))
     clearSelectedFile()
     return
   }
@@ -162,8 +164,8 @@ async function sendMessage(): Promise<void> {
 
       if (result.sourceWasTruncated) {
         toastStore.warning(
-          'Archivo parcialmente analizado',
-          'Se procesó una muestra porque el archivo superó el límite de filas.',
+          t('ai.assistant.partialFileTitle'),
+          t('ai.assistant.partialFileMessage'),
         )
       }
     } else {
@@ -185,7 +187,7 @@ async function sendMessage(): Promise<void> {
 
     persistMessages()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo procesar la consulta o el archivo.')
+    toastStore.backendError(error, t('ai.assistant.processError'))
   } finally {
     sending.value = false
     await scrollToBottom()
@@ -235,8 +237,8 @@ onBeforeUnmount(() => {
     >
       <section
         v-if="isVisible && panelOpen"
-        class="fixed bottom-24 left-4 z-[100] flex h-[min(680px,calc(100vh-8rem))] w-[calc(100vw-2rem)] max-w-[430px] flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[0_28px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:bottom-28 sm:left-7"
-        aria-label="Asistente IA"
+        class="dh-ai-assistant-panel fixed bottom-24 left-4 z-[100] flex h-[min(680px,calc(100vh-8rem))] w-[calc(100vw-2rem)] max-w-[430px] flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[0_28px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:bottom-28 sm:left-7"
+        :aria-label="t('ai.assistant.title')"
       >
         <header
           class="flex items-center justify-between border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3"
@@ -250,11 +252,11 @@ onBeforeUnmount(() => {
 
             <div class="min-w-0">
               <div class="flex items-center gap-2">
-                <h2 class="truncate text-sm font-black text-[var(--dh-text)]">Asistente IA</h2>
+                <h2 class="truncate text-sm font-black text-[var(--dh-text)]">{{ t('ai.assistant.title') }}</h2>
                 <Sparkles class="h-3.5 w-3.5 text-[var(--dh-primary)]" />
               </div>
               <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">
-                Chat y análisis de CSV/XLSX
+                {{ t('ai.assistant.subtitle') }}
               </p>
             </div>
           </div>
@@ -263,7 +265,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="rounded-xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] disabled:cursor-not-allowed disabled:opacity-40"
-              title="Limpiar conversación"
+              :title="t('ai.assistant.clearConversation')"
               :disabled="messages.length === 0 || sending"
               @click="clearConversation"
             >
@@ -273,7 +275,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="rounded-xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
-              title="Cerrar"
+              :title="t('ai.assistant.close')"
               @click="closePanel"
             >
               <X class="h-4 w-4" />
@@ -291,9 +293,9 @@ onBeforeUnmount(() => {
             >
               <Sparkles class="h-7 w-7" />
             </span>
-            <h3 class="text-base font-black text-[var(--dh-text)]">¿En qué puedo ayudarte?</h3>
+            <h3 class="text-base font-black text-[var(--dh-text)]">{{ t('ai.assistant.greeting') }}</h3>
             <p class="mt-2 max-w-xs text-sm leading-6 text-[var(--dh-text-muted)]">
-              Pregunta sobre el sistema o adjunta una hoja de cálculo para analizarla y generar otro archivo.
+              {{ t('ai.assistant.emptyHint') }}
             </p>
           </div>
 
@@ -352,7 +354,7 @@ onBeforeUnmount(() => {
               >
                 {{ message.modelName
                 }}<span v-if="message.modelName && message.tokenCount"> · </span
-                >{{ message.tokenCount ? `${message.tokenCount} tokens` : '' }}
+                >{{ message.tokenCount ? t('ai.assistant.tokens', { count: message.tokenCount }) : '' }}
               </p>
             </div>
 
@@ -404,7 +406,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="rounded-lg p-1 text-[var(--dh-text-muted)] hover:bg-[var(--dh-card-hover)]"
-              title="Quitar archivo"
+              :title="t('ai.assistant.removeFile')"
               @click="clearSelectedFile"
             >
               <X class="h-3.5 w-3.5" />
@@ -417,7 +419,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--dh-border)] text-[var(--dh-text-muted)] transition hover:text-[var(--dh-primary)] disabled:opacity-40"
-              title="Adjuntar CSV o XLSX"
+              :title="t('ai.assistant.attachFile')"
               :disabled="sending"
               @click="openFilePicker"
             >
@@ -428,7 +430,7 @@ onBeforeUnmount(() => {
               v-model="prompt"
               rows="1"
               class="dh-scrollbar max-h-32 min-h-11 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm text-[var(--dh-text)] outline-none placeholder:text-[var(--dh-text-muted)]"
-              placeholder="Escribe qué deseas analizar..."
+              :placeholder="t('ai.assistant.placeholder')"
               :disabled="sending"
               @keydown="handleComposerKeydown"
             />
@@ -436,7 +438,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-              title="Enviar"
+              :title="t('ai.assistant.send')"
               :disabled="!canSend"
               @click="sendMessage"
             >
@@ -444,7 +446,7 @@ onBeforeUnmount(() => {
             </button>
           </div>
           <p class="mt-2 text-center text-[10px] font-semibold text-[var(--dh-text-muted)]">
-            Adjunta CSV/XLSX · Enter para enviar
+            {{ t('ai.assistant.footerHint') }}
           </p>
         </footer>
       </section>
@@ -463,8 +465,8 @@ onBeforeUnmount(() => {
         type="button"
         class="group fixed bottom-5 left-5 z-[101] flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-[var(--dh-primary)] text-white shadow-[0_18px_45px_rgba(0,0,0,0.34)] transition hover:-translate-y-1 hover:scale-105 hover:shadow-[0_22px_60px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--dh-primary)_30%,transparent)] sm:bottom-7 sm:left-7"
         :aria-expanded="panelOpen"
-        aria-label="Abrir asistente IA"
-        title="Asistente IA"
+        :aria-label="t('ai.assistant.open')"
+        :title="t('ai.assistant.title')"
         @click="togglePanel"
       >
         <X v-if="panelOpen" class="h-6 w-6 transition-transform group-hover:rotate-90" />

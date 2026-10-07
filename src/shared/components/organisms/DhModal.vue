@@ -30,6 +30,9 @@ const { t } = useI18n()
         @click.self="emit('close')"
       >
         <section
+          role="dialog"
+          aria-modal="true"
+          :aria-label="title || t('common.dialog')"
           class="dh-glass-strong dh-liquid max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[26px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
           :class="[
             size === 'sm' && 'w-full max-w-sm',
