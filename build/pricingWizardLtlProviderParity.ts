@@ -375,6 +375,10 @@ ${advanceAnchor}`,
 export function pricingWizardLtlProviderParity(): Plugin {
   return {
     name: 'dhole-pricing-wizard-ltl-provider-parity',
+    // Debe ejecutarse en la misma fase pre que pricingFtlTariffMaster y antes de
+    // pricingWizardLtlLclUiParity. Este último enlaza los botones de selección a
+    // las funciones de continuación que este plugin agrega al wizard.
+    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
