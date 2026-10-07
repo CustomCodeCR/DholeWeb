@@ -113,6 +113,13 @@ const COUNTRY_NAMES: Record<string, string> = {
   US: 'Estados Unidos',
 }
 
+const canCreate = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.costs.create)
+  || authStore.hasRole('Administrador')
+  || authStore.hasRole('Admin')
+  || authStore.hasRole('Administrator'),
+)
+
 const canUpdate = computed(() =>
   authStore.hasScope(PRICING_SCOPES.costs.update)
   || authStore.hasRole('Administrador')
@@ -486,8 +493,8 @@ async function scrollToEditor() {
 }
 
 async function newRouteForPair() {
-  if (!canUpdate.value) {
-    toastStore.warning('Permiso requerido', 'Necesita permiso para administrar costos de Pricing.')
+  if (!canCreate.value) {
+    toastStore.warning('Permiso requerido', 'Necesita el scope pricing.cost.create para crear una tarifa LTL.')
     return
   }
 
@@ -665,6 +672,16 @@ async function load() {
 async function save() {
   if (readOnly.value) return
 
+  const editing = Boolean(selectedId.value)
+  if (editing && !canUpdate.value) {
+    toastStore.warning('Permiso requerido', 'Necesita el scope pricing.cost.update para editar una tarifa LTL.')
+    return
+  }
+  if (!editing && !canCreate.value) {
+    toastStore.warning('Permiso requerido', 'Necesita el scope pricing.cost.create para crear una tarifa LTL.')
+    return
+  }
+
   const payload = buildPayload()
   if (!payload) {
     toastStore.error(
@@ -676,7 +693,6 @@ async function save() {
 
   try {
     saving.value = true
-    const editing = Boolean(selectedId.value)
     let targetId = selectedId.value
 
     if (targetId) {
@@ -798,7 +814,7 @@ onMounted(load)
                 {{ originLabel(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}
               </p>
             </div>
-            <DhButton v-if="canUpdate" label="Agregar ruta" :icon="Plus" @click.stop="newRouteForPair" />
+            <DhButton v-if="canCreate" label="Agregar ruta" :icon="Plus" @click.stop="newRouteForPair" />
           </div>
 
           <div v-if="selectedPairRows.length" class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
