@@ -64,7 +64,8 @@
     "notAvailable": "Not available",
     "confirm": "Confirm",
     "actionError": "The action could not be completed.",
-    "exportExcel": "Export Excel"
+    "exportExcel": "Export Excel",
+    "take": "Take"
   },
   "topbar": {
     "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs, pricing, reports, monitoring or audit logs...",
@@ -73,7 +74,18 @@
     "notifications": "Notifications",
     "impersonating": "Impersonating {name}",
     "stopImpersonation": "Stop impersonating",
-    "logout": "Logout"
+    "logout": "Logout",
+    "settings": "Settings",
+    "notificationCenter": "Notifications",
+    "unreadCount": "{count} unread",
+    "allCaughtUp": "All caught up",
+    "markAllRead": "Mark all as read",
+    "loadingNotifications": "Loading notifications...",
+    "noNotifications": "No notifications",
+    "noNotificationsHint": "Important system alerts will appear here.",
+    "newNotification": "New notification",
+    "loadingPrevious": "Loading...",
+    "viewPrevious": "View earlier"
   },
   "sidebar": {
     "dashboard": "Dashboard",
@@ -118,7 +130,17 @@
     "agentSchedules": "5. Schedules",
     "agentExecutions": "Executions",
     "agentProfiles": "Extraction profiles",
-    "agentAdvanced": "Advanced settings"
+    "agentAdvanced": "Advanced settings",
+    "logisticsNews": "Logistics news",
+    "tariffs": "Rate sheets",
+    "competitorRates": "Competitor rates",
+    "ftlTariffs": "FTL land rates",
+    "sellerVisibility": "Commercial visibility",
+    "ownLcl": "LCL · Ocean",
+    "ownLtl": "LTL · Land",
+    "ownConsolidations": "Own consolidations",
+    "marketing": "Marketing",
+    "marketingContent": "Marketing and content"
   },
   "auth": {
     "loginTitle": "Sign in",
@@ -1626,5 +1648,11 @@
       "incompleteTitle": "Complete the configuration",
       "incompleteDescription": "Some steps are still missing before a rate search can be automated."
     }
+  },
+  "connectivity": {
+    "offlineTitle": "Offline",
+    "offlineMessage": "Pricing changes will be kept locally and synchronized when the Internet connection returns.",
+    "onlineTitle": "Connection restored",
+    "onlineMessage": "Synchronizing pending changes…"
   }
 }
