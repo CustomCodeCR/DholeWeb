@@ -70,6 +70,15 @@ function loadActiveKey(tabs: WorkspaceTab[]): string {
   return tabs.some((tab) => tab.key === stored) ? String(stored) : DASHBOARD_TAB.key
 }
 
+function splitPaneFromTab(tab: WorkspaceTab): WorkspaceSplitPane {
+  return {
+    key: tab.key,
+    title: tab.title,
+    titleKey: tab.titleKey,
+    path: tab.path,
+  }
+}
+
 function loadSplitPane(): WorkspaceSplitPane | null {
   const raw = localStorage.getItem(SPLIT_KEY)
   if (!raw) return null
@@ -174,22 +183,52 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
     },
 
     setActiveTab(key: string) {
-      this.activeKey = this.tabs.some((tab) => tab.key === key) ? key : DASHBOARD_TAB.key
+      const target = this.tabs.find((tab) => tab.key === key)
+      if (!target) {
+        this.activeKey = DASHBOARD_TAB.key
+        this.persist()
+        return
+      }
+
+      // Selecting the tab that currently lives in the split swaps both panes.
+      // This prevents the same route from being rendered twice.
+      if (this.splitPane?.key === key) {
+        const currentMain = this.tabs.find((tab) => tab.key === this.activeKey)
+        this.activeKey = target.key
+        this.splitPane =
+          currentMain && currentMain.key !== DASHBOARD_TAB.key
+            ? splitPaneFromTab(currentMain)
+            : null
+        this.persist()
+        return
+      }
+
+      this.activeKey = target.key
       this.persist()
     },
 
     openSplitPane(key: string) {
       const tab = this.tabs.find((x) => x.key === key)
-
       if (!tab || tab.key === DASHBOARD_TAB.key) return
 
-      this.splitPane = {
-        key: tab.key,
-        title: tab.title,
-        titleKey: tab.titleKey,
-        path: tab.path,
+      if (this.splitPane?.key === key) {
+        this.closeSplitPane()
+        return
       }
 
+      // If the current main tab is being moved to the split, keep a usable
+      // page in the main pane instead of duplicating the same route twice.
+      if (this.activeKey === key) {
+        const index = this.tabs.findIndex((item) => item.key === key)
+        const fallback =
+          this.tabs[index - 1]
+          ?? this.tabs[index + 1]
+          ?? this.tabs.find((item) => item.key === DASHBOARD_TAB.key)
+
+        this.activeKey = fallback?.key ?? DASHBOARD_TAB.key
+      }
+
+      this.splitPane = splitPaneFromTab(tab)
       this.persist()
     },
 
@@ -197,14 +236,33 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
       const tab = this.tabs.find((x) => x.key === key)
       if (!tab) return null
 
-      this.activeKey = tab.key
+      this.setActiveTab(key)
+      return tab
+    },
 
-      if (this.splitPane?.key === key) {
-        this.splitPane = null
+    reorderTab(sourceKey: string, targetKey: string) {
+      if (
+        sourceKey === targetKey
+        || sourceKey === DASHBOARD_TAB.key
+        || !this.tabs.some((tab) => tab.key === sourceKey)
+        || !this.tabs.some((tab) => tab.key === targetKey)
+      ) {
+        return
       }
 
+      const sourceIndex = this.tabs.findIndex((tab) => tab.key === sourceKey)
+      const [source] = this.tabs.splice(sourceIndex, 1)
+      if (!source) return
+
+      const targetIndex = this.tabs.findIndex((tab) => tab.key === targetKey)
+      const insertAt = targetKey === DASHBOARD_TAB.key
+        ? 1
+        : targetIndex < 0
+          ? this.tabs.length
+          : targetIndex
+
+      this.tabs.splice(insertAt, 0, source)
       this.persist()
-      return tab
     },
 
     promoteSplitPaneToMain() {
