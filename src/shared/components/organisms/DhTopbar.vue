@@ -161,7 +161,7 @@ onBeforeUnmount(() => {
 
 <template>
   <header
-    class="sticky top-2 z-30 mx-2 flex min-h-16 items-center gap-2 rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-shell)] px-2 py-2 shadow-[var(--dh-shadow-md)] backdrop-blur-2xl sm:top-4 sm:mx-4 sm:min-h-[76px] sm:rounded-[34px] sm:px-4"
+    class="dh-app-topbar sticky top-2 z-30 mx-2 flex min-h-16 items-center gap-2 rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-shell)] px-2 py-2 shadow-[var(--dh-shadow-md)] backdrop-blur-2xl sm:top-4 sm:mx-4 sm:min-h-[76px] sm:rounded-[34px] sm:px-4"
   >
     <DhIconButton
       :icon="Menu"

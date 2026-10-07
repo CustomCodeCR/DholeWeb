@@ -262,7 +262,7 @@ body {
     flex: 1 1 10rem;
   }
 
-  section[aria-label='Asistente IA'] {
+  .dh-ai-assistant-panel {
     width: calc(100vw - 1rem) !important;
     max-width: calc(100vw - 1rem) !important;
     height: min(680px, calc(100dvh - 7rem)) !important;
@@ -366,7 +366,7 @@ body {
     top: auto !important;
   }
 
-  section[aria-label='Asistente IA'] {
+  .dh-ai-assistant-panel {
     max-height: calc(100dvh - 1rem) !important;
     bottom: 0.5rem !important;
   }

@@ -27,6 +27,21 @@ function isStickyActionColumn(key: keyof T | string): boolean {
   return value === 'actions' || value === '__actions'
 }
 
+function onRowClick(event: MouseEvent, row: T) {
+  const target = event.target
+  const currentTarget = event.currentTarget
+
+  if (target instanceof Element && currentTarget instanceof Element) {
+    const interactive = target.closest(
+      'button, a, input, select, textarea, [role="button"], [role="link"], [data-row-action]',
+    )
+
+    if (interactive && interactive !== currentTarget) return
+  }
+
+  emit('rowClick', row)
+}
+
 function onCardKeydown(event: KeyboardEvent, row: T) {
   if (event.target !== event.currentTarget) return
   if (event.key !== 'Enter' && event.key !== ' ') return
@@ -61,7 +76,7 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
           role="button"
           tabindex="0"
           class="min-w-0 touch-manipulation overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)] transition active:scale-[0.995]"
-          @click="emit('rowClick', row)"
+          @click="onRowClick($event, row)"
           @keydown="onCardKeydown($event, row)"
         >
           <dl class="grid min-w-0 gap-3">
@@ -131,7 +146,7 @@ function onCardKeydown(event: KeyboardEvent, row: T) {
               v-for="row in rows"
               :key="String(row.id ?? JSON.stringify(row))"
               class="cursor-pointer border-t border-[var(--dh-border)] transition hover:bg-[var(--dh-card-hover)]"
-              @click="emit('rowClick', row)"
+              @click="onRowClick($event, row)"
             >
               <td
                 v-for="column in columns"

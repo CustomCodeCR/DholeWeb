@@ -58,7 +58,7 @@ function onDragStart(event: DragEvent, key: string) {
 
       <span
         v-if="tab.path !== '/home'"
-        class="inline-flex min-h-9 min-w-9 touch-manipulation items-center justify-center rounded-lg opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10 sm:min-h-0 sm:min-w-0 sm:p-0.5"
+        class="hidden min-h-9 min-w-9 touch-manipulation items-center justify-center rounded-lg opacity-70 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10 xl:inline-flex xl:min-h-0 xl:min-w-0 xl:p-0.5"
         :title="t('tabs.openSplit')"
         @click.stop="split(tab.key)"
       >
