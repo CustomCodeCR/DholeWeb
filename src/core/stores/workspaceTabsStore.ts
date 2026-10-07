@@ -128,6 +128,10 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
         this.splitPane = null
       }
 
+      if (this.splitPane?.key === this.activeKey) {
+        this.splitPane = null
+      }
+
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.tabs))
       localStorage.setItem(ACTIVE_KEY, this.activeKey)
 
@@ -157,7 +161,17 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
         }
       }
 
-      this.activeKey = normalized.key
+      if (this.splitPane?.key === normalized.key) {
+        const currentMain = this.tabs.find((tab) => tab.key === this.activeKey)
+        this.activeKey = normalized.key
+        this.splitPane =
+          currentMain && currentMain.key !== DASHBOARD_TAB.key && currentMain.key !== normalized.key
+            ? splitPaneFromTab(currentMain)
+            : null
+      } else {
+        this.activeKey = normalized.key
+      }
+
       this.persist()
     },
 
