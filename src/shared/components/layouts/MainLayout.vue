@@ -692,8 +692,8 @@ onBeforeUnmount(() => {
 
               <button
                 class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
-                :title="t('tabs.closeSplit')"
-                :aria-label="t('tabs.closeSplit')"
+                :title="t('tabs.closePane')"
+                :aria-label="t('tabs.closePane')"
                 @click="closeMainPane"
               >
                 <PanelRightClose class="h-4 w-4" />
