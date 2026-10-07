@@ -48,6 +48,10 @@ function patchWizard(source: string) {
 export function pricingWizardManualOceanFreight(): Plugin {
   return {
     name: 'dhole-pricing-wizard-manual-ocean-freight',
+    // Debe correr antes de los parches terrestres/LTL: inserta la tarjeta de
+    // guardado usando el campo base de venta y luego los plugins LTL pueden
+    // adaptar ese mismo campo sin romper el anchor.
+    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
