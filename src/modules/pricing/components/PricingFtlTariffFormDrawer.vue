@@ -47,6 +47,8 @@ const LTL_VARIABLE_CHARGES: ReadonlyArray<Omit<EditableLtlVariableCharge, 'costA
   { key: 'duca-f', name: 'DUCA-F', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', isFlat: false },
   { key: 'impuesto-exportacion', name: 'Impuesto Exportación', costDetailType: 'CustomsCharge', chargeBasis: 'PerShipment', section: 'origin_charges', isFlat: false },
   { key: 'recepcion-destino', name: 'Recepción en Destino', costDetailType: 'DestinationCharge', chargeBasis: 'PerShipment', section: 'destination_charges', isFlat: false },
+  { key: 'carga-peligrosa', name: 'Carga Peligrosa', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'origin_charges', isFlat: false },
+  { key: 'sobrepeso', name: 'Sobrepeso', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'origin_charges', isFlat: false },
 ]
 
 function hydrateLtlVariableCharges(source?: LtlChargeItemDto[] | null): EditableLtlVariableCharge[] {
@@ -108,7 +110,7 @@ const form = reactive({
   priceAmount: props.tariff ? String(props.tariff.priceAmount) : '',
   minimumAmount: props.tariff?.minimumAmount == null ? '' : String(props.tariff.minimumAmount),
   costPerCbm: props.tariff?.costPerCbm == null ? '' : String(props.tariff.costPerCbm),
-  weightKgPerCbm: String(props.tariff?.weightKgPerCbm ?? 330),
+  weightKgPerCbm: String(props.tariff?.weightKgPerCbm ?? 333.33),
   duaCost: String(props.tariff?.duaCost ?? 50),
   ducaTCost: String(props.tariff?.ducaTCost ?? 30),
   stuffingCostPerCbm: String(props.tariff?.stuffingCostPerCbm ?? (550 / 60)),
