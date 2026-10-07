@@ -295,8 +295,10 @@ body {
     flex: 1 1 100%;
   }
 
-  #app header.sticky > .ml-auto > button:nth-of-type(-n + 2) {
-    display: none;
+  /* Hide only explicitly low-priority topbar actions on very small screens.
+     Never rely on DOM position: language and navigation must remain reachable. */
+  #app .dh-topbar-optional-mobile {
+    display: none !important;
   }
 
   #app :where(.dh-glass, .dh-glass-strong, .dh-liquid)[class*='rounded-[3'] {
