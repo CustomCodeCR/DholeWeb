@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 export interface DhSelectOption { label: string; value: string | number; disabled?: boolean }
 
 defineProps<{ modelValue: string | number | null; label?: string; placeholder?: string; options: DhSelectOption[]; error?: string; disabled?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string | number] }>()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -15,7 +17,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: string | number] }>()
       :class="error && 'border-red-500'"
       @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
     >
-      <option v-if="placeholder !== ''" value="" disabled>{{ placeholder ?? 'Seleccione una opción' }}</option>
+      <option v-if="placeholder !== ''" value="" disabled>{{ placeholder ?? t('common.select') }}</option>
       <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">{{ option.label }}</option>
     </select>
     <span v-if="error" class="mt-1 block text-xs font-semibold text-red-500">{{ error }}</span>
