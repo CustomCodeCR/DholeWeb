@@ -97,6 +97,37 @@ body {
   white-space: nowrap;
 }
 
+/* Action cells must reserve enough intrinsic width for controls instead of
+   squeezing button labels vertically. */
+#app table td:has(> .flex > button),
+#app table td:has(> button),
+#app table th:last-child {
+  min-width: max-content;
+}
+
+#app table td:has(button) .flex {
+  flex-wrap: nowrap;
+}
+
+/* Long business text can wrap inside its own content blocks without allowing
+   the complete cell itself to collapse character by character. */
+#app table td :where(p, dd, .break-words) {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1023px) {
+  #app :where(.overflow-x-auto, .dh-scrollbar):has(> table) {
+    position: relative;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+  }
+
+  #app :where(.overflow-x-auto, .dh-scrollbar) > table {
+    min-width: max(720px, max-content);
+  }
+}
+
 #app :where(.dh-scrollbar) {
   scrollbar-width: thin;
 }
