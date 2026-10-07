@@ -29,7 +29,12 @@ function close(key: string) {
 }
 
 function split(key: string) {
+  const wasActive = tabsStore.activeKey === key
   tabsStore.openSplitPane(key)
+
+  if (wasActive) {
+    router.push(tabsStore.activeTab?.path ?? '/home')
+  }
 }
 
 function onAuxClick(event: MouseEvent, key: string, closable: boolean) {
