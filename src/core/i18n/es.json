@@ -73,7 +73,18 @@
     "notifications": "Notificaciones",
     "impersonating": "Impersonando a {name}",
     "stopImpersonation": "Salir de impersonación",
-    "logout": "Salir"
+    "logout": "Salir",
+    "settings": "Configuración",
+    "notificationCenter": "Notificaciones",
+    "unreadCount": "{count} sin leer",
+    "allCaughtUp": "Todo al día",
+    "markAllRead": "Marcar todas",
+    "loadingNotifications": "Cargando notificaciones...",
+    "noNotifications": "No hay notificaciones",
+    "noNotificationsHint": "Las alertas importantes del sistema aparecerán aquí.",
+    "newNotification": "Nueva notificación",
+    "loadingPrevious": "Cargando...",
+    "viewPrevious": "Ver anteriores"
   },
   "sidebar": {
     "dashboard": "Dashboard",
@@ -118,7 +129,17 @@
     "agentSchedules": "5. Programaciones",
     "agentExecutions": "Ejecuciones",
     "agentProfiles": "Perfiles de extracción",
-    "agentAdvanced": "Configuración avanzada"
+    "agentAdvanced": "Configuración avanzada",
+    "logisticsNews": "Noticias logísticas",
+    "tariffs": "Tarifarios",
+    "competitorRates": "Tarifas competencia",
+    "ftlTariffs": "Tarifas terrestres FTL",
+    "sellerVisibility": "Visibilidad comercial",
+    "ownLcl": "LCL · Marítimo",
+    "ownLtl": "LTL · Terrestre",
+    "ownConsolidations": "Consolidados propios",
+    "marketing": "Mercadeo",
+    "marketingContent": "Mercadeo y contenido"
   },
   "auth": {
     "loginTitle": "Iniciar sesión",
@@ -1624,5 +1645,11 @@
       "incompleteTitle": "Complete la configuración",
       "incompleteDescription": "Todavía faltan pasos antes de poder automatizar una búsqueda de tarifas."
     }
+  },
+  "connectivity": {
+    "offlineTitle": "Sin conexión",
+    "offlineMessage": "Los cambios de Pricing se conservarán localmente y se sincronizarán al recuperar Internet.",
+    "onlineTitle": "Conexión recuperada",
+    "onlineMessage": "Sincronizando cambios pendientes…"
   }
 }
