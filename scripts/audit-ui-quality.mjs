@@ -59,10 +59,24 @@ const sourceFiles = walk(SRC, ['.vue', '.ts'])
 const missingUsedKeys = []
 const hardcoded = []
 const responsive = []
+const hardcodedLocales = []
+const customTablesWithoutMobileAlternative = []
 
 const usedKeyPattern = /(?:\bt|\$t)\(\s*['"]([^'"]+)['"]/g
 for (const file of sourceFiles) {
   const source = fs.readFileSync(file, 'utf8')
+
+  const localeMatches = [
+    ...source.matchAll(/(?:Intl\.(?:DateTimeFormat|NumberFormat)|toLocaleString)\(\s*['"]((?:es|en)(?:-[A-Z]{2})?)['"]/g),
+  ]
+  if (localeMatches.length) {
+    hardcodedLocales.push({
+      file: relative(file),
+      count: localeMatches.length,
+      locales: [...new Set(localeMatches.map((match) => match[1]))],
+    })
+  }
+
   for (const match of source.matchAll(usedKeyPattern)) {
     const key = match[1]
     if (!es.has(key) || !en.has(key)) {
@@ -94,6 +108,16 @@ for (const file of vueFiles) {
     hardcoded.push({ file: relative(file), hasI18n, count: literals.length, examples: literals.slice(0, 5) })
   }
 
+  const tableCount = (template.match(/<table\b/g) ?? []).length
+  const hasMobileTableAlternative =
+    /dh-data-table-mobile|(?:sm|md|lg):hidden|hidden[^"'\n]*(?:sm|md|lg):block/.test(template)
+  if (tableCount > 0 && !hasMobileTableAlternative) {
+    customTablesWithoutMobileAlternative.push({
+      file: relative(file),
+      tableCount,
+    })
+  }
+
   const fixedWidth = (source.match(/\b(?:w|min-w|max-w)-\[(?:\d+(?:\.\d+)?)(?:px|rem)\]/g) ?? []).length
   const nowrap = (source.match(/\bwhitespace-nowrap\b/g) ?? []).length
   const unresponsiveGrid = (source.match(/(?<![:\w-])grid-cols-[2-9]\b/g) ?? []).length
@@ -108,6 +132,10 @@ for (const file of vueFiles) {
 
 hardcoded.sort((a, b) => b.count - a.count || a.file.localeCompare(b.file))
 responsive.sort((a, b) => b.score - a.score || a.file.localeCompare(b.file))
+hardcodedLocales.sort((a, b) => b.count - a.count || a.file.localeCompare(b.file))
+customTablesWithoutMobileAlternative.sort(
+  (a, b) => b.tableCount - a.tableCount || a.file.localeCompare(b.file),
+)
 
 const report = {
   summary: {
@@ -119,12 +147,16 @@ const report = {
     missingUsedKeys: missingUsedKeys.length,
     filesWithHardcodedVisibleText: hardcoded.length,
     filesWithResponsiveSmells: responsive.length,
+    filesWithHardcodedLocales: hardcodedLocales.length,
+    customTableFilesWithoutMobileAlternative: customTablesWithoutMobileAlternative.length,
   },
   missingInEnglish,
   missingInSpanish,
   missingUsedKeys,
   topHardcodedFiles: hardcoded.slice(0, 30),
   topResponsiveFiles: responsive.slice(0, 30),
+  hardcodedLocales: hardcodedLocales.slice(0, 30),
+  customTablesWithoutMobileAlternative: customTablesWithoutMobileAlternative.slice(0, 30),
 }
 
 if (jsonOutput) {
@@ -150,6 +182,16 @@ if (jsonOutput) {
   console.log('\nTop responsive-risk files:')
   for (const item of responsive.slice(0, 20)) {
     console.log(`- ${item.file}: score ${item.score} | fixed-width ${item.fixedWidth}, nowrap ${item.nowrap}, base grids ${item.unresponsiveGrid}, !important ${item.important}, fixed ${item.fixedPosition}`)
+  }
+
+  console.log('\nHardcoded locale usage:')
+  for (const item of hardcodedLocales.slice(0, 20)) {
+    console.log(`- ${item.file}: ${item.count} -> ${item.locales.join(', ')}`)
+  }
+
+  console.log('\nCustom tables without an explicit mobile alternative:')
+  for (const item of customTablesWithoutMobileAlternative.slice(0, 20)) {
+    console.log(`- ${item.file}: ${item.tableCount} table(s)`)
   }
 }
 
