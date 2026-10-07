@@ -75,7 +75,7 @@ export const router = createRouter({
           name: 'dashboard',
           component: () => import('@/modules/dashboard/views/DashboardView.vue'),
           meta: {
-            tabTitle: 'Dashboard',
+            tabTitleKey: 'sidebar.dashboard',
             closable: false,
           },
         },
@@ -85,7 +85,7 @@ export const router = createRouter({
           name: 'auth-users',
           component: () => import('@/modules/users/views/UsersView.vue'),
           meta: {
-            tabTitle: 'Usuarios',
+            tabTitleKey: 'sidebar.users',
             closable: true,
             requiredScope: VIEW_SCOPES.users,
           },
@@ -96,7 +96,7 @@ export const router = createRouter({
           name: 'auth-user-detail',
           component: () => import('@/modules/users/views/UserDetailView.vue'),
           meta: {
-            tabTitle: 'Detalle usuario',
+            tabTitleKey: 'routes.userDetail',
             closable: true,
             requiredScope: VIEW_SCOPES.users,
           },
@@ -107,7 +107,7 @@ export const router = createRouter({
           name: 'auth-roles',
           component: () => import('@/modules/roles/views/RolesView.vue'),
           meta: {
-            tabTitle: 'Roles',
+            tabTitleKey: 'sidebar.roles',
             closable: true,
             requiredScope: VIEW_SCOPES.roles,
           },
@@ -118,7 +118,7 @@ export const router = createRouter({
           name: 'auth-role-detail',
           component: () => import('@/modules/roles/views/RoleDetailView.vue'),
           meta: {
-            tabTitle: 'Detalle rol',
+            tabTitleKey: 'routes.roleDetail',
             closable: true,
             requiredScope: VIEW_SCOPES.roles,
           },
@@ -129,7 +129,7 @@ export const router = createRouter({
           name: 'auth-scopes',
           component: () => import('@/modules/scopes/views/ScopesView.vue'),
           meta: {
-            tabTitle: 'Permisos',
+            tabTitleKey: 'sidebar.scopes',
             closable: true,
             requiredScope: VIEW_SCOPES.scopes,
           },
@@ -140,7 +140,7 @@ export const router = createRouter({
           name: 'auth-scope-detail',
           component: () => import('@/modules/scopes/views/ScopeDetailView.vue'),
           meta: {
-            tabTitle: 'Detalle permiso',
+            tabTitleKey: 'routes.scopeDetail',
             closable: true,
             requiredScope: VIEW_SCOPES.scopes,
           },
@@ -151,7 +151,7 @@ export const router = createRouter({
           name: 'auth-sessions',
           component: () => import('@/modules/sessions/views/SessionsView.vue'),
           meta: {
-            tabTitle: 'Sesiones',
+            tabTitleKey: 'sidebar.sessions',
             closable: true,
             requiredScope: VIEW_SCOPES.sessions,
           },
@@ -162,7 +162,7 @@ export const router = createRouter({
           name: 'auth-session-detail',
           component: () => import('@/modules/sessions/views/SessionDetailView.vue'),
           meta: {
-            tabTitle: 'Detalle sesión',
+            tabTitleKey: 'routes.sessionDetail',
             closable: true,
             requiredScope: VIEW_SCOPES.sessions,
           },
@@ -173,7 +173,7 @@ export const router = createRouter({
           name: 'config-catalogs',
           component: () => import('@/modules/catalogs/views/CatalogsView.vue'),
           meta: {
-            tabTitle: 'Catálogos',
+            tabTitleKey: 'sidebar.catalogs',
             closable: true,
             requiredScope: VIEW_SCOPES.catalogs,
           },
@@ -184,7 +184,7 @@ export const router = createRouter({
           name: 'pricing',
           component: () => import('@/modules/pricing/views/PricingOverviewView.vue'),
           meta: {
-            tabTitle: 'Crear tarifa',
+            tabTitleKey: 'sidebar.pricingPanel',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingDecisions,
           },
@@ -194,7 +194,7 @@ export const router = createRouter({
           name: 'pricing-own-lcl',
           component: () => import('@/modules/pricing/views/PricingOwnLclView.vue'),
           meta: {
-            tabTitle: 'Consolidados propios LCL',
+            tabTitleKey: 'routes.ownLcl',
             closable: true,
             requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
@@ -204,7 +204,7 @@ export const router = createRouter({
           name: 'pricing-own-ltl',
           component: () => import('@/modules/pricing/views/PricingOwnLtlView.vue'),
           meta: {
-            tabTitle: 'Consolidados propios LTL',
+            tabTitleKey: 'routes.ownLtl',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
@@ -214,7 +214,7 @@ export const router = createRouter({
           name: 'pricing-imports',
           component: () => import('@/modules/pricing/views/PricingImportsView.vue'),
           meta: {
-            tabTitle: 'Revisar importaciones',
+            tabTitleKey: 'sidebar.importedRates',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingImports,
           },
@@ -224,7 +224,7 @@ export const router = createRouter({
           name: 'pricing-logistics-news',
           component: () => import('@/modules/pricing/views/PricingLogisticsNewsView.vue'),
           meta: {
-            tabTitle: 'Noticias logísticas',
+            tabTitleKey: 'sidebar.logisticsNews',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingImports,
           },
@@ -234,7 +234,7 @@ export const router = createRouter({
           name: 'pricing-import-review',
           component: () => import('@/modules/pricing/views/PricingImportReviewView.vue'),
           meta: {
-            tabTitle: 'Revisión de tarifas',
+            tabTitleKey: 'routes.importReview',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingImports,
           },
@@ -244,7 +244,7 @@ export const router = createRouter({
           name: 'pricing-email-imports',
           component: () => import('@/modules/pricing/views/PricingEmailImportsView.vue'),
           meta: {
-            tabTitle: 'Bandeja de correos',
+            tabTitleKey: 'sidebar.emailImports',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingImports,
           },
@@ -254,7 +254,7 @@ export const router = createRouter({
           name: 'pricing-email-source',
           component: () => import('@/modules/pricing/views/PricingEmailSourceView.vue'),
           meta: {
-            tabTitle: 'Fuente de tarifa',
+            tabTitleKey: 'routes.rateSource',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRates,
           },
@@ -264,7 +264,7 @@ export const router = createRouter({
           name: 'pricing-rate-wizard',
           component: () => import('@/modules/pricing/views/PricingOverviewView.vue'),
           meta: {
-            tabTitle: 'Tarifa · Wizard',
+            tabTitleKey: 'routes.rateWizard',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRates,
           },
@@ -274,7 +274,7 @@ export const router = createRouter({
           name: 'pricing-rates',
           component: () => import('@/modules/pricing/views/PricingRatesView.vue'),
           meta: {
-            tabTitle: 'Tarifas',
+            tabTitleKey: 'sidebar.rates',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRates,
           },
@@ -284,7 +284,7 @@ export const router = createRouter({
           name: 'pricing-tariffs',
           component: () => import('@/modules/pricing/views/PricingTariffsView.vue'),
           meta: {
-            tabTitle: 'Tarifarios',
+            tabTitleKey: 'sidebar.tariffs',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRates,
           },
@@ -294,7 +294,7 @@ export const router = createRouter({
           name: 'pricing-rate-comparison',
           component: () => import('@/modules/pricing/views/PricingRateComparisonView.vue'),
           meta: {
-            tabTitle: 'Comparación de tarifa',
+            tabTitleKey: 'routes.rateComparison',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRates,
           },
@@ -304,7 +304,7 @@ export const router = createRouter({
           name: 'pricing-ftl-tariffs',
           component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),
           meta: {
-            tabTitle: 'Tarifas terrestres FTL',
+            tabTitleKey: 'sidebar.ftlTariffs',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
@@ -314,7 +314,7 @@ export const router = createRouter({
           name: 'pricing-seller-visibility',
           component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),
           meta: {
-            tabTitle: 'Visibilidad comercial',
+            tabTitleKey: 'sidebar.sellerVisibility',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingSellerAssignment,
           },
@@ -324,7 +324,7 @@ export const router = createRouter({
           name: 'pricing-competition',
           component: () => import('@/modules/pricing/views/PricingCompetitorTariffsView.vue'),
           meta: {
-            tabTitle: 'Tarifas competencia',
+            tabTitleKey: 'sidebar.competitorRates',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingCompetition,
           },
@@ -334,7 +334,7 @@ export const router = createRouter({
           name: 'pricing-costs',
           component: () => import('@/modules/pricing/views/PricingCostsView.vue'),
           meta: {
-            tabTitle: 'Costos pricing',
+            tabTitleKey: 'sidebar.costs',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingCosts,
           },
@@ -344,7 +344,7 @@ export const router = createRouter({
           name: 'pricing-rate-terms',
           component: () => import('@/modules/pricing/views/PricingRateTermsView.vue'),
           meta: {
-            tabTitle: 'Ítems de tarifa',
+            tabTitleKey: 'sidebar.rateTerms',
             closable: true,
             requiredScope: VIEW_SCOPES.pricingRateTerms,
           },
@@ -394,7 +394,7 @@ export const router = createRouter({
           name: 'reports-templates',
           component: () => import('@/modules/reports/views/ReportTemplatesView.vue'),
           meta: {
-            tabTitle: 'Plantillas de reportes',
+            tabTitleKey: 'sidebar.reportTemplates',
             closable: true,
             requiredScope: VIEW_SCOPES.reportsTemplates,
           },
@@ -404,7 +404,7 @@ export const router = createRouter({
           name: 'reports-template-create',
           component: () => import('@/modules/reports/views/ReportTemplateDesignerView.vue'),
           meta: {
-            tabTitle: 'Nueva plantilla',
+            tabTitleKey: 'routes.reportTemplateNew',
             closable: true,
             requiredScope: 'reports.templates.create',
           },
@@ -414,7 +414,7 @@ export const router = createRouter({
           name: 'reports-template-designer',
           component: () => import('@/modules/reports/views/ReportTemplateDesignerView.vue'),
           meta: {
-            tabTitle: 'Diseñador de reportes',
+            tabTitleKey: 'routes.reportDesigner',
             closable: true,
             requiredScope: VIEW_SCOPES.reportsTemplates,
           },
@@ -425,7 +425,7 @@ export const router = createRouter({
           name: 'auditlogs-events',
           component: () => import('@/modules/auditlogs/views/AuditLogsView.vue'),
           meta: {
-            tabTitle: 'Auditoría',
+            tabTitleKey: 'sidebar.audits',
             closable: true,
             requiredScope: VIEW_SCOPES.auditLogs,
           },
@@ -436,7 +436,7 @@ export const router = createRouter({
           name: 'monitoring-services',
           component: () => import('@/modules/monitoring/views/ServicesMonitoringView.vue'),
           meta: {
-            tabTitle: 'Monitoreo',
+            tabTitleKey: 'sidebar.serviceMonitoring',
             closable: true,
             requiredScope: VIEW_SCOPES.monitoring,
           },
@@ -447,7 +447,7 @@ export const router = createRouter({
           name: 'storage',
           component: () => import('@/modules/storage/views/StorageView.vue'),
           meta: {
-            tabTitle: 'Storage',
+            tabTitleKey: 'sidebar.storage',
             closable: true,
             requiredScope: VIEW_SCOPES.storage,
           },
@@ -472,7 +472,7 @@ export const router = createRouter({
           name: 'agent-profiles',
           component: () => import('@/modules/agent/views/AgentProfilesView.vue'),
           meta: {
-            tabTitle: 'Perfiles de extracción',
+            tabTitleKey: 'sidebar.agentProfiles',
             closable: true,
             requiredAnyScopes: [
               VIEW_SCOPES.agentProviders,
@@ -487,7 +487,7 @@ export const router = createRouter({
           name: 'agent-profile-new',
           component: () => import('@/modules/agent/views/AgentProfileWizardView.vue'),
           meta: {
-            tabTitle: 'Nuevo perfil de extracción',
+            tabTitleKey: 'routes.agentProfileNew',
             closable: true,
             requiredAnyScopes: [
               VIEW_SCOPES.agentProviders,
@@ -500,7 +500,7 @@ export const router = createRouter({
           name: 'agent-profile-detail',
           component: () => import('@/modules/agent/views/AgentProfileDetailView.vue'),
           meta: {
-            tabTitle: 'Perfil de extracción',
+            tabTitleKey: 'routes.agentProfileDetail',
             closable: true,
             requiredAnyScopes: [
               VIEW_SCOPES.agentProviders,
@@ -515,7 +515,7 @@ export const router = createRouter({
           name: 'agent-profile-edit',
           component: () => import('@/modules/agent/views/AgentProfileWizardView.vue'),
           meta: {
-            tabTitle: 'Editar perfil de extracción',
+            tabTitleKey: 'routes.agentProfileEdit',
             closable: true,
             requiredAnyScopes: [
               VIEW_SCOPES.agentProviders,
@@ -528,7 +528,7 @@ export const router = createRouter({
           name: 'agent-executions',
           component: () => import('@/modules/agent/views/AgentExecutionsView.vue'),
           meta: {
-            tabTitle: 'Ejecuciones',
+            tabTitleKey: 'sidebar.agentExecutions',
             closable: true,
             requiredScope: VIEW_SCOPES.agentExecutions,
           },
@@ -538,7 +538,7 @@ export const router = createRouter({
           name: 'agent-execution-detail',
           component: () => import('@/modules/agent/views/AgentExecutionDetailView.vue'),
           meta: {
-            tabTitle: 'Detalle de ejecución',
+            tabTitleKey: 'routes.agentExecutionDetail',
             closable: true,
             requiredScope: VIEW_SCOPES.agentExecutions,
           },
@@ -548,7 +548,7 @@ export const router = createRouter({
           name: 'agent-advanced-settings',
           component: () => import('@/modules/agent/views/AgentAdvancedSettingsView.vue'),
           meta: {
-            tabTitle: 'Configuración avanzada',
+            tabTitleKey: 'sidebar.agentAdvanced',
             closable: true,
             requiredAnyScopes: [
               VIEW_SCOPES.agentProviders,
@@ -565,31 +565,31 @@ export const router = createRouter({
           path: 'agents/providers',
           name: 'agent-providers',
           component: () => import('@/modules/agent/views/AgentProvidersView.vue'),
-          meta: { tabTitle: 'Agentes · Navieras y sitios', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
+          meta: { tabTitleKey: 'routes.agentProviders', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
         },
         {
           path: 'agents/definitions',
           name: 'agent-definitions',
           component: () => import('@/modules/agent/views/AgentDefinitionsView.vue'),
-          meta: { tabTitle: 'Agentes · Definiciones', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
+          meta: { tabTitleKey: 'routes.agentDefinitions', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
         },
         {
           path: 'agents/credentials',
           name: 'agent-credentials',
           component: () => import('@/modules/agent/views/AgentCredentialsView.vue'),
-          meta: { tabTitle: 'Agentes · Credenciales', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
+          meta: { tabTitleKey: 'routes.agentCredentials', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
         },
         {
           path: 'agents/browser-profiles',
           name: 'agent-browser-profiles',
           component: () => import('@/modules/agent/views/AgentBrowserProfilesView.vue'),
-          meta: { tabTitle: 'Agentes · Sesiones web', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
+          meta: { tabTitleKey: 'routes.agentBrowserProfiles', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
         },
         {
           path: 'agents/schedules',
           name: 'agent-schedules',
           component: () => import('@/modules/agent/views/AgentSchedulesView.vue'),
-          meta: { tabTitle: 'Agentes · Programaciones técnicas', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
+          meta: { tabTitleKey: 'routes.agentSchedules', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
         },
 
         {
@@ -597,7 +597,7 @@ export const router = createRouter({
           name: 'ai-console',
           component: () => import('@/modules/ai/views/AiConsoleView.vue'),
           meta: {
-            tabTitle: 'Centro de IA',
+            tabTitleKey: 'ai.center',
             closable: true,
             requiredAnyScopes: [
               VIEW_SCOPES.aiConnections,
@@ -615,7 +615,7 @@ export const router = createRouter({
           name: 'settings',
           component: () => import('@/modules/settings/views/SettingsView.vue'),
           meta: {
-            tabTitle: 'Configuración',
+            tabTitleKey: 'sidebar.settings',
             closable: true,
           },
         },
@@ -625,7 +625,7 @@ export const router = createRouter({
           name: 'settings-appearance',
           component: () => import('@/modules/settings/views/AppearanceSettingsView.vue'),
           meta: {
-            tabTitle: 'Apariencia',
+            tabTitleKey: 'sidebar.appearance',
             closable: true,
           },
         },
@@ -635,7 +635,7 @@ export const router = createRouter({
           name: 'settings-shortcuts',
           component: () => import('@/modules/settings/views/ShortcutSettingsView.vue'),
           meta: {
-            tabTitle: 'Atajos',
+            tabTitleKey: 'sidebar.shortcuts',
             closable: true,
           },
         },
@@ -645,7 +645,7 @@ export const router = createRouter({
           name: 'settings-pricing-selects',
           component: () => import('@/modules/settings/views/PricingSelectSettingsView.vue'),
           meta: {
-            tabTitle: 'Selects Pricing',
+            tabTitleKey: 'routes.pricingSelects',
             closable: true,
             requiredScope: VIEW_SCOPES.catalogs,
           },
@@ -723,6 +723,7 @@ router.afterEach((to) => {
     title: to.meta.tabTitleKey
       ? String(i18n.global.t(to.meta.tabTitleKey))
       : translateUiText(rawTitle, locale),
+    titleKey: typeof to.meta.tabTitleKey === 'string' ? to.meta.tabTitleKey : undefined,
     closable: Boolean(to.meta.closable ?? true),
   })
 })

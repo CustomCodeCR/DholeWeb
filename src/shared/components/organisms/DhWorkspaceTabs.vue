@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { PanelRightOpen, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { translateUiText } from '@/core/i18n/uiTextBridge'
 import { useRouter } from 'vue-router'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 
 const router = useRouter()
 const tabsStore = useWorkspaceTabsStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+function displayTitle(tab: { title: string; titleKey?: string }): string {
+  if (tab.titleKey) return t(tab.titleKey)
+  return translateUiText(tab.title, locale.value === 'en' ? 'en' : 'es')
+}
 
 function activate(path: string, key: string) {
   tabsStore.setActiveTab(key)
@@ -54,7 +60,7 @@ function onDragStart(event: DragEvent, key: string) {
       @click="activate(tab.path, tab.key)"
       @dragstart="onDragStart($event, tab.key)"
     >
-      {{ tab.title }}
+      {{ displayTitle(tab) }}
 
       <span
         v-if="tab.path !== '/home'"

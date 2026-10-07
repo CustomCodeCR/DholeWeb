@@ -1680,5 +1680,29 @@
     "offlineMessage": "Los cambios de Pricing se conservarán localmente y se sincronizarán al recuperar Internet.",
     "onlineTitle": "Conexión recuperada",
     "onlineMessage": "Sincronizando cambios pendientes…"
+  },
+  "routes": {
+    "userDetail": "Detalle de usuario",
+    "roleDetail": "Detalle de rol",
+    "scopeDetail": "Detalle de permiso",
+    "sessionDetail": "Detalle de sesión",
+    "ownLcl": "Consolidado LCL",
+    "ownLtl": "Consolidado LTL",
+    "importReview": "Revisión de tarifas",
+    "rateSource": "Fuente de tarifa",
+    "rateWizard": "Tarifa · Wizard",
+    "rateComparison": "Comparación de tarifa",
+    "reportTemplateNew": "Nueva plantilla",
+    "reportDesigner": "Diseñador de reportes",
+    "agentProfileNew": "Nuevo perfil de extracción",
+    "agentProfileDetail": "Perfil de extracción",
+    "agentProfileEdit": "Editar perfil de extracción",
+    "agentExecutionDetail": "Detalle de ejecución",
+    "agentProviders": "Agentes · Navieras y sitios",
+    "agentDefinitions": "Agentes · Definiciones",
+    "agentCredentials": "Agentes · Credenciales",
+    "agentBrowserProfiles": "Agentes · Sesiones web",
+    "agentSchedules": "Agentes · Programaciones técnicas",
+    "pricingSelects": "Selectores de Pricing"
   }
 }

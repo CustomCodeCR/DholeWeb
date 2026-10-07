@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 export interface WorkspaceTab {
   key: string
   title: string
+  titleKey?: string
   path: string
   closable: boolean
 }
@@ -10,6 +11,7 @@ export interface WorkspaceTab {
 export interface WorkspaceSplitPane {
   key: string
   title: string
+  titleKey?: string
   path: string
 }
 
@@ -20,6 +22,7 @@ const SPLIT_KEY = 'dhole.workspace.splitPane'
 export const DASHBOARD_TAB: WorkspaceTab = {
   key: '/home',
   title: 'Dashboard',
+  titleKey: 'sidebar.dashboard',
   path: '/home',
   closable: false,
 }
@@ -35,6 +38,7 @@ function normalizeTab(tab: WorkspaceTab): WorkspaceTab | null {
     key: tab.key,
     path: tab.path,
     title: tab.title,
+    titleKey: tab.titleKey,
     closable: tab.closable !== false,
   }
 }
@@ -182,6 +186,7 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
       this.splitPane = {
         key: tab.key,
         title: tab.title,
+        titleKey: tab.titleKey,
         path: tab.path,
       }
 

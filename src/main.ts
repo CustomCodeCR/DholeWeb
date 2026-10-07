@@ -118,7 +118,7 @@ router.addRoute({
       name: 'ai-operations',
       component: () => import('@/modules/ai/views/AiOperationsView.vue'),
       meta: {
-        tabTitle: 'Cola de IA',
+        tabTitleKey: 'ai.queueOperations',
         closable: true,
         requiredScope: VIEW_SCOPES.aiExecutions,
       },
@@ -138,7 +138,7 @@ router.addRoute({
       name: 'ai-console',
       component: () => import('@/modules/ai/views/AiHubView.vue'),
       meta: {
-        tabTitle: 'Centro de IA',
+        tabTitleKey: 'ai.center',
         closable: true,
         requiredAnyScopes: [
           VIEW_SCOPES.aiConnections,
