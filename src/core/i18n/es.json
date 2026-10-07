@@ -469,7 +469,10 @@
     "closeSplit": "Cerrar panel",
     "moveToLeft": "Mover al panel izquierdo",
     "moveToRight": "Mover al panel derecho",
-    "splitWorkspace": "Espacio de trabajo dividido"
+    "splitWorkspace": "Espacio de trabajo dividido",
+    "workspaceTabs": "Pestañas del espacio de trabajo",
+    "resizeSplit": "Redimensionar paneles",
+    "splitHint": "Arrastre una pestaña al panel derecho o use el botón de split."
   },
   "monitoring": {
     "title": "Monitoreo de servicios",
