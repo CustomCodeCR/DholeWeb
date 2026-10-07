@@ -175,8 +175,68 @@ onMounted(load)
         Cargando tarifas FTL...
       </div>
 
-      <div v-else-if="filteredRows.length" class="mt-5 overflow-x-auto dh-scrollbar">
-        <table class="min-w-[1050px] w-full border-separate border-spacing-0 text-left text-sm">
+      <div v-else-if="filteredRows.length" class="mt-5">
+        <div data-ftl-mobile-cards class="grid gap-3 lg:hidden">
+          <article
+            v-for="row in filteredRows"
+            :key="`mobile:${row.id}`"
+            class="min-w-0 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-sm)]"
+          >
+            <div class="flex min-w-0 items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ruta</p>
+                <p class="mt-1 text-sm font-black leading-5 text-[var(--dh-text)]">{{ routeLabel(row) }}</p>
+                <p
+                  v-if="(row.applicableOriginIds?.length || 0) > 1 || (row.applicableDestinationIds?.length || 0) > 1"
+                  class="mt-1 text-[11px] font-bold text-[var(--dh-text-muted)]"
+                >
+                  {{ row.applicableOriginIds?.length || 1 }} POL · {{ row.applicableDestinationIds?.length || 1 }} POE
+                </p>
+              </div>
+              <DhBadge class="shrink-0" :variant="row.isActive ? 'success' : 'neutral'">
+                {{ row.isActive ? 'Activa' : 'Inactiva' }}
+              </DhBadge>
+            </div>
+
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Equipos</p>
+                <p class="mt-1 text-xs font-bold leading-5 text-[var(--dh-text)]">{{ equipmentLabels(row) || row.equipmentLabel || '—' }}</p>
+              </div>
+              <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 text-right dark:bg-white/[0.04]">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Tarifa</p>
+                <p class="mt-1 text-base font-black text-[var(--dh-text)]">{{ money(row) }}</p>
+              </div>
+            </div>
+
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2.5">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Tránsito</p>
+                <p class="mt-1 text-sm font-black">{{ row.transitDays == null ? '—' : row.transitDays + ' días' }}</p>
+              </div>
+              <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2.5">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Vigencia</p>
+                <p class="mt-1 text-xs font-bold leading-5 text-[var(--dh-text)]">{{ date(row.validFrom) }} → {{ date(row.validTo) }}</p>
+              </div>
+            </div>
+
+            <div v-if="row.source || canUpdate" class="mt-3 flex items-center gap-2 border-t border-[var(--dh-border)] pt-2.5">
+              <p v-if="row.source" class="min-w-0 flex-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.source }}</p>
+              <DhButton
+                v-if="canUpdate"
+                label="Editar"
+                :icon="Edit3"
+                variant="secondary"
+                size="sm"
+                class="shrink-0"
+                @click="openForm(row)"
+              />
+            </div>
+          </article>
+        </div>
+
+        <div class="hidden overflow-x-auto dh-scrollbar lg:block">
+          <table class="min-w-[1050px] w-full border-separate border-spacing-0 text-left text-sm">
           <thead>
             <tr class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
               <th class="border-b border-[var(--dh-border)] px-3 py-3">Ruta</th>
@@ -212,7 +272,8 @@ onMounted(load)
               </td>
             </tr>
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
       <div v-else class="mt-5 rounded-[24px] border border-dashed border-[var(--dh-border)] px-5 py-14 text-center">
