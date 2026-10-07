@@ -206,8 +206,8 @@ onBeforeUnmount(() => {
       </div>
 
       <DhIconButton :icon="Languages" :label="t('topbar.language')" variant="secondary" @click="localeStore.toggleLocale()" />
-      <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" @click="themeStore.toggleTheme()" />
-      <DhIconButton :icon="Settings" label="Configuración" variant="secondary" @click="openSettings" />
+      <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" class="dh-topbar-optional-mobile" @click="themeStore.toggleTheme()" />
+      <DhIconButton :icon="Settings" :label="t('topbar.settings')" variant="secondary" class="dh-topbar-optional-mobile" @click="openSettings" />
 
       <div ref="inboxRoot" class="relative">
         <div class="relative">
@@ -234,9 +234,9 @@ onBeforeUnmount(() => {
         >
           <div class="flex min-w-0 items-center justify-between gap-2 border-b border-[var(--dh-border)] px-3 py-3 sm:gap-3 sm:px-4">
             <div class="min-w-0 flex-1">
-              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">Notificaciones</h2>
+              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">{{ t('topbar.notificationCenter') }}</h2>
               <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo al día' }}
+                {{ unreadCount > 0 ? t('topbar.unreadCount', { count: unreadCount }) : t('topbar.allCaughtUp') }}
               </p>
             </div>
             <button
@@ -246,20 +246,20 @@ onBeforeUnmount(() => {
               @click="markAllNotificationsRead"
             >
               <CheckCheck class="h-4 w-4 shrink-0" />
-              <span>Marcar todas</span>
+              <span>{{ t('topbar.markAllRead') }}</span>
             </button>
           </div>
 
           <div class="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2">
             <div v-if="inboxLoading && inboxItems.length === 0" class="flex items-center justify-center gap-2 py-10 text-sm font-semibold text-[var(--dh-text-muted)]">
               <LoaderCircle class="h-4 w-4 animate-spin" />
-              Cargando notificaciones...
+              {{ t('topbar.loadingNotifications') }}
             </div>
 
             <div v-else-if="inboxItems.length === 0" class="px-4 py-10 text-center">
               <Bell class="mx-auto mb-3 h-7 w-7 text-[var(--dh-text-muted)]" />
-              <p class="text-sm font-black text-[var(--dh-text)]">No hay notificaciones</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Las alertas importantes del sistema aparecerán aquí.</p>
+              <p class="text-sm font-black text-[var(--dh-text)]">{{ t('topbar.noNotifications') }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('topbar.noNotificationsHint') }}</p>
             </div>
 
             <div v-else class="space-y-1.5">
@@ -282,7 +282,7 @@ onBeforeUnmount(() => {
                         class="min-w-0 break-words text-sm leading-5 text-[var(--dh-text)] [overflow-wrap:anywhere]"
                         :class="item.readAtUtc ? 'font-bold' : 'font-black'"
                       >
-                        {{ item.subject || 'Nueva notificación' }}
+                        {{ item.subject || t('topbar.newNotification') }}
                       </p>
                       <time class="shrink-0 whitespace-nowrap text-[10px] font-bold text-[var(--dh-text-muted)]">
                         {{ formatNotificationDate(item.createdAtUtc) }}
@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
                 @click="loadMoreNotifications"
               >
                 <LoaderCircle v-if="inboxLoadingMore" class="h-4 w-4 animate-spin" />
-                {{ inboxLoadingMore ? 'Cargando...' : 'Ver anteriores' }}
+                {{ inboxLoadingMore ? t('topbar.loadingPrevious') : t('topbar.viewPrevious') }}
               </button>
             </div>
           </div>
