@@ -160,7 +160,7 @@ function patchRouter(source: string) {
   const blockStart = source.lastIndexOf('{', pathIndex)
   if (blockStart < 0) throw new Error('[pricingFtlTariffMaster] pricing costs route block not found.')
 
-  const ftlRoute = `        {\n          path: 'pricing/ftl-tariffs',\n          name: 'pricing-ftl-tariffs',\n          component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),\n          meta: {\n            tabTitle: 'Tarifas terrestres',\n            closable: true,\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },\n        },\n`
+  const ftlRoute = `        {\n          path: 'pricing/ftl-tariffs',\n          name: 'pricing-ftl-tariffs',\n          component: () => import('@/modules/pricing/views/PricingFtlTariffsView.vue'),\n          meta: {\n            tabTitle: 'Tarifas terrestres',\n            closable: true,\n            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,\n          },\n        },\n`
 
   return source.slice(0, blockStart) + ftlRoute + source.slice(blockStart)
 }
@@ -181,7 +181,7 @@ function patchSidebar(source: string) {
   const blockStart = code.lastIndexOf('{', pathIndex)
   if (blockStart < 0) throw new Error('[pricingFtlTariffMaster] pricing costs sidebar block not found.')
 
-  const ftlItem = `          {\n            labelKey: 'Tarifas terrestres',\n            icon: Truck,\n            to: '/pricing/ftl-tariffs',\n            name: 'pricing-ftl-tariffs',\n            requiredScope: VIEW_SCOPES.pricingCosts,\n          },\n`
+  const ftlItem = `          {\n            labelKey: 'Tarifas terrestres',\n            icon: Truck,\n            to: '/pricing/ftl-tariffs',\n            name: 'pricing-ftl-tariffs',\n            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,\n          },\n`
 
   return code.slice(0, blockStart) + ftlItem + code.slice(blockStart)
 }
