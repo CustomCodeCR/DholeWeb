@@ -71,6 +71,32 @@ body {
   scrollbar-gutter: stable;
 }
 
+/* Scrollable desktop tables should grow intrinsically instead of crushing
+   status/action columns before horizontal scrolling can engage. */
+#app :where(.overflow-x-auto, .dh-scrollbar) > table {
+  width: max-content;
+  min-width: 100%;
+}
+
+#app table th,
+#app table td {
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+#app table th {
+  white-space: nowrap;
+}
+
+#app table :where(button, [role='button']) {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#app table :where(.whitespace-nowrap) {
+  white-space: nowrap;
+}
+
 #app :where(.dh-scrollbar) {
   scrollbar-width: thin;
 }
@@ -85,7 +111,7 @@ body {
   overflow-wrap: anywhere;
 }
 
-#app :where(p, dd, td, a, label, legend) {
+#app :where(p, dd, a, label, legend) {
   overflow-wrap: anywhere;
 }
 
