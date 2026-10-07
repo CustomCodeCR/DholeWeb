@@ -1386,7 +1386,20 @@
       "unloadMessage": "Libera el modelo de la RAM/VRAM de Ollama. No elimina el modelo del disco; volverá a cargarse automáticamente cuando una ejecución lo necesite.",
       "unloadConfirm": "Descargar de memoria",
       "unloadSuccess": "Modelo descargado",
-      "unloadSuccessMessage": "{model} fue solicitado para descarga de memoria en Ollama."
+      "unloadSuccessMessage": "{model} fue solicitado para descarga de memoria en Ollama.",
+      "queueTitle": "Cola durable de IA",
+      "queueVisible": "PostgreSQL · AiEmailAnalysisJobs · {count} visibles",
+      "emailRequest": "Correo / solicitud",
+      "execution": "Ejecución",
+      "model": "Modelo",
+      "attempt": "Intento",
+      "time": "Tiempo",
+      "notCreated": "Aún no creada",
+      "noSelection": "Sin selección",
+      "remove": "Retirar",
+      "retry": "Reintentar",
+      "requestShort": "Solicitud",
+      "jobShort": "Trabajo"
     },
     "assistant": {
       "title": "Asistente IA",
