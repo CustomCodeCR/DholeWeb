@@ -33,6 +33,14 @@ function handleAuthExpired() {
     return
   }
 
+  if (isEmbedded) {
+    authStore.clearSession()
+    if (window.parent !== window) {
+      window.parent.location.assign('/login?expired=1')
+    }
+    return
+  }
+
   void stopNotificationRealtime()
   authStore.clearSession()
   tabsStore.clear()
@@ -95,7 +103,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (!isPublicRoute.value) void stopNotificationRealtime()
+  if (!isPublicRoute.value && !isEmbedded) void stopNotificationRealtime()
   ;(window as Window & { __dholeConnectivityCleanup?: () => void }).__dholeConnectivityCleanup?.()
   window.removeEventListener('dhole:auth:expired', handleAuthExpired)
   window.removeEventListener('dhole:auth:refreshed', handleAuthRefreshed)
