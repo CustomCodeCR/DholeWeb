@@ -171,6 +171,25 @@ body {
     min-width: 0 !important;
   }
 
+  /* Mobile hardening: fixed-width view containers must shrink to the viewport.
+     Tables keep their own horizontal scroll contract and are intentionally excluded. */
+  #app :where(div, section, article, aside, form)[class*='w-['] {
+    max-width: 100% !important;
+  }
+
+  #app :where(button:not([aria-label]), a[role='button']) {
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+
+  #app :where(table) th,
+  #app :where(table) td {
+    padding-left: clamp(0.65rem, 2.8vw, 1rem);
+    padding-right: clamp(0.65rem, 2.8vw, 1rem);
+  }
+
   #app :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
     font-size: 16px;
   }
