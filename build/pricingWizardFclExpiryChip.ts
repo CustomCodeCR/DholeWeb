@@ -88,6 +88,10 @@ function patchWizard(source: string) {
 export function pricingWizardFclExpiryChip(): Plugin {
   return {
     name: 'dhole-pricing-wizard-fcl-expiry-chip',
+    // Debe ejecutarse antes de pricingWizardManualOceanFreight. Ambos modifican
+    // la tarjeta de tarifa de Pantalla 5; mantenerlos en fase pre conserva el
+    // orden declarado en vite.config.ts y evita que se consuman sus anchors.
+    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
