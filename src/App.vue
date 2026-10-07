@@ -23,6 +23,7 @@ const tabsStore = useWorkspaceTabsStore()
 const brandingStore = useBrandingStore()
 const toastStore = useToastStore()
 const isPublicRoute = computed(() => router.currentRoute.value.meta.public === true)
+const isEmbedded = new URLSearchParams(window.location.search).get('dhEmbed') === '1'
 
 function handleAuthExpired() {
   // Public origin pages must never redirect to Login because they intentionally work
@@ -66,6 +67,13 @@ onMounted(() => {
     return
   }
 
+  if (isEmbedded) {
+    void brandingStore.loadCurrentClientBranding()
+    window.addEventListener('dhole:auth:expired', handleAuthExpired)
+    window.addEventListener('dhole:auth:refreshed', handleAuthRefreshed)
+    return
+  }
+
   initializePricingOfflineSync()
   const handleOffline = () => toastStore.warning(t('connectivity.offlineTitle'), t('connectivity.offlineMessage'))
   const handleOnline = () => {
@@ -104,5 +112,5 @@ onBeforeUnmount(() => {
   </template>
 
   <RouterView />
-  <AiAssistantFloatingButton v-if="!isPublicRoute" />
+  <AiAssistantFloatingButton v-if="!isPublicRoute && !isEmbedded" />
 </template>
