@@ -756,10 +756,10 @@ onMounted(async () => {
             v-for="row in rows"
             v-else
             :key="`mobile:${row.id}`"
-            class="min-w-0 overflow-hidden rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)]"
+            class="min-w-0 overflow-hidden rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-sm)] sm:p-4"
             @click="openDetail(row)"
           >
-            <div class="flex min-w-0 items-start gap-3">
+            <div class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5">
               <div class="shrink-0 pt-0.5" @click.stop>
                 <DhCheckbox
                   :model-value="selectedIds.includes(row.id)"
@@ -777,6 +777,9 @@ onMounted(async () => {
                     :label="isMasterTariff(row) ? t('pricing.rates.masterTariff') : row.rateType === 'Tariff' ? t('pricing.rates.tariff') : t('pricing.rates.spot')"
                     :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
                   />
+                  <span data-mobile-rate-status class="inline-flex">
+                    <DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)" />
+                  </span>
                 </div>
 
                 <p class="mt-2 break-words text-sm font-black leading-5 text-[var(--dh-text)]">
@@ -788,13 +791,10 @@ onMounted(async () => {
                 </p>
               </div>
 
-              <div class="shrink-0">
-                <DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)" />
-              </div>
             </div>
 
-            <div class="mt-4 grid gap-2 sm:grid-cols-2">
-              <div class="min-w-0 rounded-2xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
                 <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.operation') }}</p>
                 <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ row.carrierName || t('pricing.rates.noCarrier') }}</p>
                 <p class="mt-1 break-words text-xs font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
@@ -814,7 +814,7 @@ onMounted(async () => {
             </div>
 
             <div class="mt-2 grid grid-cols-2 gap-2">
-              <div class="min-w-0 rounded-2xl border border-[var(--dh-border)] p-3">
+              <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2.5">
                 <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
                 <p class="mt-1 whitespace-nowrap text-sm font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
               </div>
@@ -825,7 +825,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div class="mt-2 rounded-2xl border border-[var(--dh-border)] p-3">
+            <div class="mt-2 rounded-xl border border-[var(--dh-border)] p-2.5">
               <div class="flex min-w-0 items-start justify-between gap-3">
                 <div class="min-w-0">
                   <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.saleUtility') }}</p>
@@ -843,11 +843,12 @@ onMounted(async () => {
               <p class="mt-2 text-[11px] font-bold text-[var(--dh-text-soft)]">{{ t('pricing.rates.freeDaysValue', { count: row.freeDays }) }}</p>
             </div>
 
-            <div class="mt-4 flex items-center justify-end gap-1 border-t border-[var(--dh-border)] pt-3" @click.stop>
+            <div class="mt-3 grid grid-flow-col auto-cols-[2.75rem] justify-end gap-1 border-t border-[var(--dh-border)] pt-2.5" @click.stop>
               <button
                 type="button"
                 class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
                 :title="t('pricing.rates.viewInWizard')"
+                :aria-label="t('pricing.rates.viewInWizard')"
                 @click="openDetail(row)"
               >
                 <Eye class="h-4 w-4" />
@@ -857,6 +858,7 @@ onMounted(async () => {
                 type="button"
                 class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
                 :title="t('pricing.rates.updateRate')"
+                :aria-label="t('pricing.rates.updateRate')"
                 @click="openEdit(row)"
               >
                 <Edit3 class="h-4 w-4" />
@@ -866,6 +868,7 @@ onMounted(async () => {
                 type="button"
                 class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
                 :title="t('pricing.rates.duplicateRate')"
+                :aria-label="t('pricing.rates.duplicateRate')"
                 @click="duplicate(row)"
               >
                 <Copy class="h-4 w-4" />
