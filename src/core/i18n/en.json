@@ -471,7 +471,8 @@
     "splitWorkspace": "Split workspace",
     "workspaceTabs": "Workspace tabs",
     "resizeSplit": "Resize panes",
-    "splitHint": "Drag a tab to the right pane or use the split button."
+    "splitHint": "Drag a tab to the right pane or use the split button.",
+    "closePane": "Close pane"
   },
   "monitoring": {
     "title": "Service monitoring",
