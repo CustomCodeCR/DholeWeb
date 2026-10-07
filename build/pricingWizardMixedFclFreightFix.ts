@@ -260,6 +260,9 @@ function patchWizard(source: string) {
 export function pricingWizardMixedFclFreightFix(): Plugin {
   return {
     name: 'dhole-pricing-wizard-mixed-fcl-freight-fix',
+    // LTL provider parity also rewrites the freight fields. Run this first so
+    // the mixed-FCL labels are established before the LTL-specific wrapper.
+    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
