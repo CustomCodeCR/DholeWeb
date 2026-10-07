@@ -27,7 +27,7 @@ const state = reactive({
   code: '',
   name: '',
   quantity: '1',
-  defaultWeightKg: '0',
+  defaultWeightKg: '15000',
   isActive: true,
   sortOrder: '0',
 })
@@ -36,7 +36,11 @@ function reset() {
   state.code = props.equipment?.code ?? ''
   state.name = props.equipment?.name ?? ''
   state.quantity = String(props.equipment?.quantity ?? 1)
-  state.defaultWeightKg = String(props.equipment?.defaultWeightKg ?? 0)
+  state.defaultWeightKg = String(
+    props.equipment && props.equipment.defaultWeightKg > 0
+      ? props.equipment.defaultWeightKg
+      : 15000,
+  )
   state.isActive = props.equipment?.isActive ?? true
   state.sortOrder = String(props.equipment?.sortOrder ?? 0)
 }
@@ -63,10 +67,10 @@ async function save() {
     return
   }
 
-  if (!Number.isFinite(defaultWeightKg) || defaultWeightKg < 0) {
+  if (!Number.isFinite(defaultWeightKg) || defaultWeightKg <= 0) {
     toastStore.warning(
       t('agent.review.equipment'),
-      t('agent.validation.nonNegativeInteger', { field: 'DefaultWeightKg' }),
+      t('agent.validation.positive', { field: 'DefaultWeightKg' }),
     )
     return
   }
