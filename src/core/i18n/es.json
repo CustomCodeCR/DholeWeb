@@ -610,7 +610,28 @@
       "search": "Buscar importaciones",
       "empty": "No hay importaciones.",
       "convertTitle": "Crear tarifa desde importación",
-      "extractedRate": "Tarifa extraída"
+      "extractedRate": "Tarifa extraída",
+      "noMatch": "No hay tarifas con esos filtros.",
+      "selectAllPage": "Seleccionar todos los de esta página",
+      "selectRow": "Seleccionar {name}",
+      "review": "Revisar",
+      "inactivate": "Inactivar",
+      "preapprove": "Preaprobar",
+      "showingRange": "Mostrando {from}–{to} de {total} tarifas",
+      "columns": {
+        "selection": "Seleccionar",
+        "loaded": "Cargada",
+        "source": "Origen",
+        "mode": "Modalidad",
+        "carrierAgent": "Naviera / Agente",
+        "route": "Ruta",
+        "equipment": "Equipo",
+        "freight": "Flete",
+        "transit": "Tránsito",
+        "validity": "Vigencia",
+        "status": "Estado",
+        "action": "Acción"
+      }
     },
     "upload": {
       "title": "Importar tarifario",
@@ -654,7 +675,31 @@
       "editCostTitle": "Editar costo de la tarifa",
       "editCostHelp": "Puede modificar costos fijos, automáticos, variables y manuales dentro de la tarifa. El maestro de costos no se altera.",
       "editFreightTitle": "Editar flete FCL",
-      "editFreightHelp": "Modifique naviera, ruta, contenedor, costo del flete, días libres y vigencia. Al guardar se recalcula el costo y venta de la tarifa."
+      "editFreightHelp": "Modifique naviera, ruta, contenedor, costo del flete, días libres y vigencia. Al guardar se recalcula el costo y venta de la tarifa.",
+      "noMatch": "No hay tarifas que coincidan con los filtros.",
+      "noClient": "Sin cliente",
+      "noCarrier": "Sin naviera",
+      "agentLabel": "Agente",
+      "saleUtility": "Venta / Utilidad",
+      "until": "hasta",
+      "freeDaysValue": "{count} días libres",
+      "viewInWizard": "Ver en wizard",
+      "update": "Actualizar",
+      "updateRate": "Actualizar tarifa",
+      "duplicateRate": "Duplicar tarifa",
+      "masterTariff": "TARIFARIO · MAESTRO",
+      "tariff": "TARIFA",
+      "spot": "SPOT",
+      "columns": {
+        "selection": "Seleccionar",
+        "rate": "Tarifa",
+        "operation": "Operación",
+        "quotedBy": "Cotizado por",
+        "commercial": "Resumen comercial",
+        "validity": "Vigencia",
+        "status": "Estado",
+        "actions": "Acciones"
+      }
     },
     "costs": {
       "title": "Costos",

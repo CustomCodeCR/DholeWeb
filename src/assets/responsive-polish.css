@@ -154,6 +154,86 @@ body,
     font-size: 0.8125rem;
   }
 
+  /* Dense operational tables opt into a true record-card layout on phones.
+     This keeps every field readable without forcing horizontal panning. */
+  #app .dh-responsive-record-table {
+    display: block;
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  #app .dh-responsive-record-table thead {
+    display: none;
+  }
+
+  #app .dh-responsive-record-table tbody {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  #app .dh-responsive-record-table tbody tr {
+    display: grid;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--dh-border);
+    border-radius: 1rem;
+    background: var(--dh-card);
+    box-shadow: var(--dh-shadow-sm);
+  }
+
+  #app .dh-responsive-record-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 36%) minmax(0, 1fr);
+    align-items: start;
+    gap: 0.75rem;
+    min-width: 0 !important;
+    width: 100%;
+    padding: 0.65rem 0.75rem !important;
+    border-bottom: 1px solid var(--dh-border);
+    text-align: left !important;
+  }
+
+  #app .dh-responsive-record-table tbody td:last-child {
+    border-bottom: 0;
+  }
+
+  #app .dh-responsive-record-table tbody td::before {
+    content: attr(data-label);
+    min-width: 0;
+    font-size: 0.625rem;
+    font-weight: 900;
+    line-height: 1.25;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dh-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  #app .dh-responsive-record-table tbody td[data-label=''] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #app .dh-responsive-record-table tbody td[data-label='']::before,
+  #app .dh-responsive-record-table tbody td[colspan]::before {
+    display: none;
+  }
+
+  #app .dh-responsive-record-table tbody td[colspan] {
+    display: block;
+    text-align: center !important;
+  }
+
+  #app .dh-responsive-record-table tbody td > * {
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  #app .dh-responsive-record-table tbody td .flex {
+    flex-wrap: wrap;
+    justify-content: flex-start !important;
+  }
+
   .pricing-crystal-shell {
     padding-left: max(0.65rem, env(safe-area-inset-left));
     padding-right: max(0.65rem, env(safe-area-inset-right));

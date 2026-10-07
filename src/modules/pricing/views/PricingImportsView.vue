@@ -574,52 +574,52 @@ onMounted(() => {
           <X class="h-4 w-4" /> Rechazar
         </DhButton>
         <DhButton v-if="canInactivateImported && selectedInactivatableIds.length" variant="secondary" :disabled="processing" @click="inactivate(selectedInactivatableIds)">
-          <PowerOff class="h-4 w-4" /> Inactivar
+          <PowerOff class="h-4 w-4" /> {{ t('pricing.imports.inactivate') }}
         </DhButton>
         <DhButton v-if="canPreApprove && selectedPendingIds.length" :disabled="processing" @click="approve(selectedPendingIds)">
-          <Check class="h-4 w-4" /> Preaprobar
+          <Check class="h-4 w-4" /> {{ t('pricing.imports.preapprove') }}
         </DhButton>
       </div>
     </section>
 
     <section class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
       <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
+        <table class="dh-responsive-record-table min-w-full text-sm">
           <thead class="border-b border-[var(--dh-border)] bg-black/[0.025] dark:bg-white/[0.025]">
             <tr class="text-left text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">
               <th class="px-4 py-3">
-                <input type="checkbox" :checked="allSelected" aria-label="Seleccionar todos los de esta página" @change="toggleAll" />
+                <input type="checkbox" :checked="allSelected" :aria-label="t('pricing.imports.selectAllPage')" @change="toggleAll" />
               </th>
-              <th class="px-4 py-3">Cargada</th>
-              <th class="px-4 py-3">Origen</th>
-              <th class="px-4 py-3">Modalidad</th>
-              <th class="px-4 py-3">Naviera / Agente</th>
-              <th class="px-4 py-3">Ruta</th>
-              <th class="px-4 py-3">Equipo</th>
-              <th class="px-4 py-3 text-right">Flete</th>
-              <th class="px-4 py-3 text-center">Tránsito</th>
-              <th class="px-4 py-3">Vigencia</th>
-              <th class="px-4 py-3">Estado</th>
-              <th class="px-4 py-3 text-right">Acción</th>
+              <th class="px-4 py-3">{{ t('pricing.imports.columns.loaded') }}</th>
+              <th class="px-4 py-3">{{ t('pricing.imports.columns.source') }}</th>
+              <th class="px-4 py-3">{{ t('pricing.imports.columns.mode') }}</th>
+              <th class="px-4 py-3">{{ t('pricing.imports.columns.carrierAgent') }}</th>
+              <th class="px-4 py-3">{{ t('pricing.imports.columns.route') }}</th>
+              <th class="px-4 py-3">{{ t('pricing.imports.columns.equipment') }}</th>
+              <th class="px-4 py-3 text-right">{{ t('pricing.imports.columns.freight') }}</th>
+              <th class="px-4 py-3 text-center">{{ t('pricing.imports.columns.transit') }}</th>
+              <th class="px-4 py-3">{{ t('pricing.imports.columns.validity') }}</th>
+              <th class="px-4 py-3">{{ t('pricing.imports.columns.status') }}</th>
+              <th class="px-4 py-3 text-right">{{ t('pricing.imports.columns.action') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
+              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('common.loading') }}</td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas con esos filtros.</td>
+              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.imports.noMatch') }}</td>
             </tr>
             <tr
               v-for="row in rows"
               :key="row.id"
               class="border-b border-[var(--dh-border)] last:border-b-0 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
             >
-              <td class="px-4 py-3">
-                <input type="checkbox" :checked="selectedIds.includes(row.id)" :aria-label="`Seleccionar ${row.carrier}`" @change="toggle(row.id)" />
+              <td :data-label="t('pricing.imports.columns.selection')" class="px-4 py-3">
+                <input type="checkbox" :checked="selectedIds.includes(row.id)" :aria-label="t('pricing.imports.selectRow', { name: row.carrier || row.id })" @change="toggle(row.id)" />
               </td>
-              <td class="whitespace-nowrap px-4 py-3 font-semibold">{{ formatDate(row.createdAt) }}</td>
-              <td class="min-w-[220px] px-4 py-3">
+              <td :data-label="t('pricing.imports.columns.loaded')" class="whitespace-nowrap px-4 py-3 font-semibold">{{ formatDate(row.createdAt) }}</td>
+              <td :data-label="t('pricing.imports.columns.source')" class="min-w-[220px] px-4 py-3">
                 <DhBadge variant="neutral">{{ sourceLabel(row.sourceType) }}</DhBadge>
                 <p
                   v-if="sourceDetails(row)"
@@ -628,29 +628,29 @@ onMounted(() => {
                   {{ sourceDetails(row) }}
                 </p>
               </td>
-              <td class="min-w-[180px] px-4 py-3">
+              <td :data-label="t('pricing.imports.columns.mode')" class="min-w-[180px] px-4 py-3">
                 <DhBadge :variant="shipmentModeVariant(row.shipmentMode)">
                   {{ shipmentModeLabel(row.shipmentMode) }}
                 </DhBadge>
               </td>
-              <td class="px-4 py-3">
+              <td :data-label="t('pricing.imports.columns.carrierAgent')" class="px-4 py-3">
                 <p class="font-black text-[var(--dh-text)]">{{ row.carrier || '—' }}</p>
                 <p class="text-xs text-[var(--dh-text-muted)]">{{ row.agent || 'Por asignar' }}</p>
               </td>
-              <td class="min-w-[220px] px-4 py-3">
+              <td :data-label="t('pricing.imports.columns.route')" class="min-w-[220px] px-4 py-3">
                 <p class="font-semibold">{{ row.pol }} → {{ row.poe }} → {{ row.pod }}</p>
               </td>
-              <td class="px-4 py-3 font-semibold">{{ row.containerType }}</td>
-              <td class="px-4 py-3 text-right font-black">{{ formatMoney(row.freight, row.currency || 'USD') }}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-center font-black">
+              <td :data-label="t('pricing.imports.columns.equipment')" class="px-4 py-3 font-semibold">{{ row.containerType }}</td>
+              <td :data-label="t('pricing.imports.columns.freight')" class="px-4 py-3 text-right font-black">{{ formatMoney(row.freight, row.currency || 'USD') }}</td>
+              <td :data-label="t('pricing.imports.columns.transit')" class="whitespace-nowrap px-4 py-3 text-center font-black">
                 {{ row.transitDays == null ? '—' : `${Math.ceil(row.transitDays)} días` }}
               </td>
-              <td class="whitespace-nowrap px-4 py-3 text-xs font-semibold">{{ formatDate(row.validFrom) }} – {{ formatDate(row.validTo) }}</td>
-              <td class="px-4 py-3"><DhBadge :variant="statusVariant(row.status)">{{ statusLabel(row.status) }}</DhBadge></td>
-              <td class="px-4 py-3">
+              <td :data-label="t('pricing.imports.columns.validity')" class="whitespace-nowrap px-4 py-3 text-xs font-semibold">{{ formatDate(row.validFrom) }} – {{ formatDate(row.validTo) }}</td>
+              <td :data-label="t('pricing.imports.columns.status')" class="px-4 py-3"><DhBadge :variant="statusVariant(row.status)">{{ statusLabel(row.status) }}</DhBadge></td>
+              <td :data-label="t('pricing.imports.columns.action')" class="px-4 py-3">
                 <div class="flex justify-end gap-2">
                   <DhButton size="sm" variant="secondary" @click="openReview(row)">
-                    <MessageSquareText class="h-4 w-4" /> Revisar
+                    <MessageSquareText class="h-4 w-4" /> {{ t('pricing.imports.review') }}
                   </DhButton>
                   <DhButton
                     v-if="canInactivateImported && inactivatableStatuses.includes(row.status)"
@@ -659,10 +659,10 @@ onMounted(() => {
                     :disabled="processing"
                     @click="inactivate([row.id])"
                   >
-                    <PowerOff class="h-4 w-4" /> Inactivar
+                    <PowerOff class="h-4 w-4" /> {{ t('pricing.imports.inactivate') }}
                   </DhButton>
                   <DhButton v-if="canPreApprove && ['Pending', 'PreAuthorized'].includes(row.status)" size="sm" :disabled="processing" @click="approve([row.id])">
-                    <Check class="h-4 w-4" /> Preaprobar
+                    <Check class="h-4 w-4" /> {{ t('pricing.imports.preapprove') }}
                   </DhButton>
                 </div>
               </td>
@@ -676,14 +676,14 @@ onMounted(() => {
         class="flex flex-col gap-3 border-t border-[var(--dh-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
       >
         <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-          Mostrando {{ firstVisibleItem }}–{{ lastVisibleItem }} de {{ totalCount }} tarifas
+          {{ t('pricing.imports.showingRange', { from: firstVisibleItem, to: lastVisibleItem, total: totalCount }) }}
         </p>
 
         <div class="flex flex-wrap items-center gap-2">
           <div class="w-24">
             <DhSelect
               :model-value="pageSize"
-              label="Por página"
+              :label="t('common.rowsPerPage')"
               placeholder=""
               :options="pageSizeOptions"
               @update:model-value="changePageSize"
@@ -694,7 +694,7 @@ onMounted(() => {
             size="sm"
             variant="secondary"
             :disabled="pageNumber <= 1"
-            aria-label="Página anterior"
+            :aria-label="t('common.previousPage')"
             @click="goToPage(pageNumber - 1)"
           >
             <ChevronLeft class="h-4 w-4" />
@@ -715,7 +715,7 @@ onMounted(() => {
             size="sm"
             variant="secondary"
             :disabled="pageNumber >= totalPages"
-            aria-label="Página siguiente"
+            :aria-label="t('common.nextPage')"
             @click="goToPage(pageNumber + 1)"
           >
             <ChevronRight class="h-4 w-4" />

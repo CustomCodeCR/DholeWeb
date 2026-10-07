@@ -610,7 +610,28 @@
       "search": "Search imports",
       "empty": "No imports.",
       "convertTitle": "Create rate from import",
-      "extractedRate": "Extracted rate"
+      "extractedRate": "Extracted rate",
+      "noMatch": "No rates match those filters.",
+      "selectAllPage": "Select all on this page",
+      "selectRow": "Select {name}",
+      "review": "Review",
+      "inactivate": "Deactivate",
+      "preapprove": "Preapprove",
+      "showingRange": "Showing {from}–{to} of {total} rates",
+      "columns": {
+        "selection": "Select",
+        "loaded": "Loaded",
+        "source": "Source",
+        "mode": "Mode",
+        "carrierAgent": "Carrier / Agent",
+        "route": "Route",
+        "equipment": "Equipment",
+        "freight": "Freight",
+        "transit": "Transit",
+        "validity": "Validity",
+        "status": "Status",
+        "action": "Action"
+      }
     },
     "upload": {
       "title": "Import rate sheet",
@@ -654,7 +675,31 @@
       "editCostTitle": "Edit rate cost",
       "editCostHelp": "You can edit fixed, automatic, variable and manual costs inside the rate. The master cost is not changed.",
       "editFreightTitle": "Edit FCL freight",
-      "editFreightHelp": "Update carrier, route, container, freight cost, free days and validity. The rate cost and sale are recalculated when saved."
+      "editFreightHelp": "Update carrier, route, container, freight cost, free days and validity. The rate cost and sale are recalculated when saved.",
+      "noMatch": "No rates match the filters.",
+      "noClient": "No client",
+      "noCarrier": "No carrier",
+      "agentLabel": "Agent",
+      "saleUtility": "Sale / Profit",
+      "until": "until",
+      "freeDaysValue": "{count} free days",
+      "viewInWizard": "View in wizard",
+      "update": "Update",
+      "updateRate": "Update rate",
+      "duplicateRate": "Duplicate rate",
+      "masterTariff": "RATE SHEET · MASTER",
+      "tariff": "RATE",
+      "spot": "SPOT",
+      "columns": {
+        "selection": "Select",
+        "rate": "Rate",
+        "operation": "Operation",
+        "quotedBy": "Quoted by",
+        "commercial": "Commercial summary",
+        "validity": "Validity",
+        "status": "Status",
+        "actions": "Actions"
+      }
     },
     "costs": {
       "title": "Costs",
