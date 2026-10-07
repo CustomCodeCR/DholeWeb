@@ -206,7 +206,7 @@ export const router = createRouter({
           meta: {
             tabTitleKey: 'routes.ownLtl',
             closable: true,
-            requiredScope: VIEW_SCOPES.pricingCosts,
+            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
         },
         {
@@ -306,7 +306,7 @@ export const router = createRouter({
           meta: {
             tabTitleKey: 'sidebar.ftlTariffs',
             closable: true,
-            requiredScope: VIEW_SCOPES.pricingCosts,
+            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
         },
         {
