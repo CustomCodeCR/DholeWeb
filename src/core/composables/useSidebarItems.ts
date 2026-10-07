@@ -154,7 +154,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
                 icon: Truck,
                 to: '/pricing/own-ltl',
                 name: 'pricing-own-ltl',
-                requiredScope: VIEW_SCOPES.pricingCosts,
+                requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
               },
             ],
           },
@@ -177,7 +177,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             icon: Truck,
             to: '/pricing/ftl-tariffs',
             name: 'pricing-ftl-tariffs',
-            requiredScope: VIEW_SCOPES.pricingCosts,
+            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
           {
             labelKey: 'sidebar.sellerVisibility',
