@@ -55,6 +55,7 @@ import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dhole.sidebar.collapsed'
+const SPLIT_RATIO_STORAGE_KEY = 'dhole.workspace.splitRatio'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -68,21 +69,31 @@ const commandOpen = ref(false)
 const commandQuery = ref('')
 const mobileSidebarOpen = ref(false)
 const splitViewportReady = ref(false)
+const splitContainerRef = ref<HTMLElement | null>(null)
+const splitResizing = ref(false)
 let splitMediaQuery: MediaQueryList | null = null
+
+const storedSplitRatio = Number(localStorage.getItem(SPLIT_RATIO_STORAGE_KEY) || 50)
+const splitRatio = ref(Number.isFinite(storedSplitRatio) ? Math.min(70, Math.max(30, storedSplitRatio)) : 50)
 
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true')
 const isEmbedded = new URLSearchParams(window.location.search).get('dhEmbed') === '1'
 const splitLayoutActive = computed(
   () => Boolean(tabsStore.splitPane && !isEmbedded && splitViewportReady.value),
 )
+const effectiveSidebarCollapsed = computed(() => splitLayoutActive.value || sidebarCollapsed.value)
 
 const contentClass = computed(() => {
-  return sidebarCollapsed.value ? 'pl-0 lg:pl-28' : 'pl-0 lg:pl-80'
+  return effectiveSidebarCollapsed.value ? 'pl-0 lg:pl-28' : 'pl-0 lg:pl-80'
 })
 
 const splitFrameUrl = computed(() => {
-  if (!tabsStore.splitPane) return ''
-  return `${window.location.origin}${tabsStore.splitPane.path}?dhEmbed=1`
+  const pane = tabsStore.splitPane
+  if (!pane) return ''
+
+  const url = new URL(pane.path, window.location.origin)
+  url.searchParams.set('dhEmbed', '1')
+  return url.toString()
 })
 
 watch(sidebarCollapsed, (value) => {
@@ -98,6 +109,50 @@ watch(
 
 function syncSplitViewport(event?: MediaQueryListEvent) {
   splitViewportReady.value = event?.matches ?? splitMediaQuery?.matches ?? false
+}
+
+function updateSplitRatio(clientX: number) {
+  const container = splitContainerRef.value
+  if (!container) return
+
+  const rect = container.getBoundingClientRect()
+  if (rect.width <= 0) return
+
+  const next = ((clientX - rect.left) / rect.width) * 100
+  splitRatio.value = Math.min(70, Math.max(30, next))
+}
+
+function handleSplitPointerMove(event: PointerEvent) {
+  if (!splitResizing.value) return
+  updateSplitRatio(event.clientX)
+}
+
+function stopSplitResize() {
+  if (!splitResizing.value) return
+
+  splitResizing.value = false
+  localStorage.setItem(SPLIT_RATIO_STORAGE_KEY, splitRatio.value.toFixed(2))
+  document.documentElement.style.cursor = ''
+  document.documentElement.style.userSelect = ''
+  window.removeEventListener('pointermove', handleSplitPointerMove)
+  window.removeEventListener('pointerup', stopSplitResize)
+  window.removeEventListener('pointercancel', stopSplitResize)
+}
+
+function startSplitResize(event: PointerEvent) {
+  event.preventDefault()
+  splitResizing.value = true
+  updateSplitRatio(event.clientX)
+  document.documentElement.style.cursor = 'col-resize'
+  document.documentElement.style.userSelect = 'none'
+  window.addEventListener('pointermove', handleSplitPointerMove)
+  window.addEventListener('pointerup', stopSplitResize)
+  window.addEventListener('pointercancel', stopSplitResize)
+}
+
+function resetSplitRatio() {
+  splitRatio.value = 50
+  localStorage.setItem(SPLIT_RATIO_STORAGE_KEY, '50')
 }
 
 function toggleSidebar() {
@@ -511,7 +566,12 @@ function dropTabToSplit(event: DragEvent) {
   const key = readDraggedTabKey(event)
   if (!key) return
 
+  const wasActive = tabsStore.activeKey === key
   tabsStore.openSplitPane(key)
+
+  if (wasActive) {
+    router.push(tabsStore.activeTab?.path ?? '/home')
+  }
 }
 
 function closeMainPane() {
@@ -582,7 +642,7 @@ function handleShortcut(event: KeyboardEvent) {
 }
 
 onMounted(() => {
-  splitMediaQuery = window.matchMedia('(min-width: 1280px)')
+  splitMediaQuery = window.matchMedia('(min-width: 1024px)')
   syncSplitViewport()
   splitMediaQuery.addEventListener('change', syncSplitViewport)
 
@@ -592,6 +652,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   splitMediaQuery?.removeEventListener('change', syncSplitViewport)
   splitMediaQuery = null
+  stopSplitResize()
   window.removeEventListener('keydown', handleShortcut, { capture: true })
 })
 </script>
@@ -604,7 +665,7 @@ onBeforeUnmount(() => {
   <div v-else class="min-h-screen">
     <DhSidebar
       :items="sidebarItems"
-      :collapsed="sidebarCollapsed"
+      :collapsed="effectiveSidebarCollapsed"
       :mobile-open="mobileSidebarOpen"
       @toggle-collapse="toggleSidebar"
       @close="mobileSidebarOpen = false"
@@ -615,9 +676,14 @@ onBeforeUnmount(() => {
       <DhWorkspaceTabs />
 
       <main class="min-w-0 overflow-x-clip p-2 sm:p-4">
-        <div v-if="splitLayoutActive" class="grid gap-4 xl:grid-cols-2">
+        <div
+          v-if="splitLayoutActive"
+          ref="splitContainerRef"
+          class="flex min-w-0 items-stretch"
+        >
           <section
-            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] min-w-0 overflow-hidden rounded-[24px] sm:rounded-[32px]"
+            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] min-w-0 shrink-0 overflow-hidden rounded-[24px] sm:rounded-[32px]"
+            :style="{ flexBasis: `${splitRatio}%` }"
             @dragover="handlePaneDragOver"
             @drop="dropTabToMain"
           >
@@ -627,6 +693,7 @@ onBeforeUnmount(() => {
               <button
                 class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
                 :title="t('tabs.closeSplit')"
+                :aria-label="t('tabs.closeSplit')"
                 @click="closeMainPane"
               >
                 <PanelRightClose class="h-4 w-4" />
@@ -638,8 +705,19 @@ onBeforeUnmount(() => {
             </div>
           </section>
 
+          <button
+            type="button"
+            class="group relative mx-1 w-3 shrink-0 cursor-col-resize touch-none rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--dh-primary)]"
+            :title="t('tabs.resizeSplit')"
+            :aria-label="t('tabs.resizeSplit')"
+            @pointerdown="startSplitResize"
+            @dblclick="resetSplitRatio"
+          >
+            <span class="absolute inset-y-5 left-1/2 w-1 -translate-x-1/2 rounded-full bg-[var(--dh-border)] transition group-hover:bg-[var(--dh-primary)]" />
+          </button>
+
           <section
-            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] min-w-0 overflow-hidden rounded-[24px] sm:rounded-[32px]"
+            class="dh-glass dh-liquid min-h-[calc(100vh-10rem)] min-w-0 flex-1 overflow-hidden rounded-[24px] sm:rounded-[32px]"
             @dragover="handlePaneDragOver"
             @drop="dropTabToSplit"
           >
@@ -649,6 +727,7 @@ onBeforeUnmount(() => {
               <button
                 class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
                 :title="t('tabs.closeSplit')"
+                :aria-label="t('tabs.closeSplit')"
                 @click="tabsStore.closeSplitPane()"
               >
                 <PanelRightClose class="h-4 w-4" />
