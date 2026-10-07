@@ -61,8 +61,11 @@ function handleAuthRefreshed(event: Event) {
   }
 
   authStore.setSession(detail)
-  void startNotificationRealtime()
   void brandingStore.loadCurrentClientBranding()
+
+  if (isEmbedded) return
+
+  void startNotificationRealtime()
 }
 
 onMounted(() => {
