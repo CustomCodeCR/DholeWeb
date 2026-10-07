@@ -20,6 +20,13 @@ const rows = ref<FtlTariffDto[]>([])
 const loading = ref(false)
 const search = ref('')
 
+const canCreate = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.costs.create)
+  || authStore.hasRole('Administrador')
+  || authStore.hasRole('Admin')
+  || authStore.hasRole('Administrator'),
+)
+
 const canUpdate = computed(() =>
   authStore.hasScope(PRICING_SCOPES.costs.update)
   || authStore.hasRole('Administrador')
@@ -109,7 +116,7 @@ async function load() {
 }
 
 function openForm(tariff?: FtlTariffDto) {
-  if (!canUpdate.value) return
+  if (tariff ? !canUpdate.value : !canCreate.value) return
   drawerStore.open({
     title: tariff ? 'Editar tarifa FTL' : 'Nueva tarifa FTL',
     component: PricingFtlTariffFormDrawer,
@@ -140,7 +147,7 @@ onMounted(load)
       <template #actions>
         <div class="flex flex-wrap items-center justify-end gap-2">
           <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
-          <DhButton v-if="canUpdate" label="Nueva tarifa FTL" :icon="Plus" @click="openForm()" />
+          <DhButton v-if="canCreate" label="Nueva tarifa FTL" :icon="Plus" @click="openForm()" />
         </div>
       </template>
     </DhPageHeader>
