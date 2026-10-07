@@ -1386,7 +1386,20 @@
       "unloadMessage": "Releases the model from Ollama RAM/VRAM. It does not delete the model from disk; it will load again automatically when an execution needs it.",
       "unloadConfirm": "Unload from memory",
       "unloadSuccess": "Model unloaded",
-      "unloadSuccessMessage": "{model} was requested to be unloaded from Ollama memory."
+      "unloadSuccessMessage": "{model} was requested to be unloaded from Ollama memory.",
+      "queueTitle": "Durable AI queue",
+      "queueVisible": "PostgreSQL · AiEmailAnalysisJobs · {count} visible",
+      "emailRequest": "Email / request",
+      "execution": "Execution",
+      "model": "Model",
+      "attempt": "Attempt",
+      "time": "Time",
+      "notCreated": "Not created yet",
+      "noSelection": "No selection",
+      "remove": "Remove",
+      "retry": "Retry",
+      "requestShort": "Request",
+      "jobShort": "Job"
     },
     "assistant": {
       "title": "AI Assistant",
