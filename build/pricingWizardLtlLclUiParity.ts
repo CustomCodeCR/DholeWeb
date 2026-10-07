@@ -92,7 +92,7 @@ function importedLandLtlAsTariff(rate: ImportRateSelectDto): FtlTariffDto {
     commercialProfile: 'Nvocc',
     applicableEquipmentClasses: ['LTL_CBM'],
     costPerCbm: number(rate.totalCost ?? rate.freight),
-    weightKgPerCbm: 330,
+    weightKgPerCbm: 333.33,
     duaCost: null,
     ducaTCost: null,
     stuffingCostPerCbm: null,
@@ -131,7 +131,7 @@ ${functionAnchor}`,
   if (code.includes(hydrationAnchor) && !code.includes('function selectAndContinueOwnLandLtlTariff(')) {
     const hydrationHelpers = [
       'function landLtlSelectorBillableCbm(tariff: FtlTariffDto) {',
-      '  const factor = Math.max(1, number(tariff.weightKgPerCbm) || 330)',
+      '  const factor = Math.max(1, number(tariff.weightKgPerCbm) || 333.33)',
       '  const dimensional = Math.max(0, number(lclDimensionalCbm.value))',
       '  const byWeight = Math.max(0, number(form.cargoWeightKg)) / factor',
       '  const calculated = Math.max(dimensional, byWeight)',
@@ -193,7 +193,7 @@ ${functionAnchor}`,
       "    commercialProfile: 'Nvocc',",
       "    applicableEquipmentClasses: ['LTL_CBM'],",
       '    costPerCbm: number(rate.totalCost ?? rate.freight),',
-      '    weightKgPerCbm: 330,',
+      '    weightKgPerCbm: 333.33,',
       '    duaCost: null,',
       '    ducaTCost: null,',
       '    stuffingCostPerCbm: null,',
@@ -250,7 +250,7 @@ ${functionAnchor}`,
               :destination-name="selectedDestination ? displayValue(selectedDestination) : null"
               :destination-code="selectedDestination?.code ?? null"
               :quote-date="form.loadDate || null"
-              :requested-cbm="Math.max(number(lclChargeableCbm), number(form.cargoWeightKg) / 330)"
+              :requested-cbm="Math.max(number(lclChargeableCbm), number(form.cargoWeightKg) / 333.33)"
               :selected-master-id="form.selectedImportRateId ? null : resolvedFtlTariff?.id ?? null"
               :selected-import-id="form.selectedImportRateId || null"
               @select-own="selectAndContinueOwnLandLtlTariff"
