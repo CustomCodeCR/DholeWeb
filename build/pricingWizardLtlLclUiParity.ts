@@ -145,9 +145,9 @@ ${functionAnchor}`,
               :requested-cbm="Math.max(number(lclChargeableCbm), number(form.cargoWeightKg) / 330)"
               :selected-master-id="form.selectedImportRateId ? null : resolvedFtlTariff?.id ?? null"
               :selected-import-id="form.selectedImportRateId || null"
-              @select-own="selectLandLtlRateSource"
-              @select-coloader="selectImportedLandLtlSource"
-              @manual-own="startManualLandLtlOwnTariff"
+              @select-own="(tariff) => { step = 6; selectLandLtlRateSource(tariff) }"
+              @select-coloader="(rate) => { step = 6; selectImportedLandLtlSource(rate) }"
+              @manual-own="() => { step = 6; startManualLandLtlOwnTariff() }"
             />
 
             <template v-else>
