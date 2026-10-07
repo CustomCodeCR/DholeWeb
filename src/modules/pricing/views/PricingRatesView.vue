@@ -599,7 +599,7 @@ onMounted(async () => {
       :icon="ReceiptText"
     />
 
-    <section class="dh-glass dh-liquid rounded-[32px] p-5">
+    <section class="dh-glass dh-liquid rounded-[24px] p-3 sm:rounded-[32px] sm:p-5">
       <DhCrudToolbar
         v-model:search="filters.search"
         title="Tarifas"
@@ -620,7 +620,7 @@ onMounted(async () => {
         >
       </DhCrudToolbar>
 
-      <div class="mt-4 flex flex-wrap items-center gap-2">
+      <div class="dh-scrollbar mt-4 flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
         <span
           class="mr-1 text-xs font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]"
         >
@@ -736,50 +736,196 @@ onMounted(async () => {
       </div>
 
       <div class="mt-5">
+        <!-- Phone/tablet: rates are records, not a squeezed desktop table. -->
+        <div class="grid gap-3 lg:hidden">
+          <div
+            v-if="loading"
+            class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+          >
+            {{ t('common.loading') }}
+          </div>
+
+          <div
+            v-else-if="rows.length === 0"
+            class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+          >
+            {{ t('pricing.rates.noMatch') }}
+          </div>
+
+          <article
+            v-for="row in rows"
+            v-else
+            :key="`mobile:${row.id}`"
+            class="min-w-0 overflow-hidden rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)]"
+            @click="openDetail(row)"
+          >
+            <div class="flex min-w-0 items-start gap-3">
+              <div class="shrink-0 pt-0.5" @click.stop>
+                <DhCheckbox
+                  :model-value="selectedIds.includes(row.id)"
+                  @update:model-value="toggleSelection(row.id)"
+                />
+              </div>
+
+              <div class="min-w-0 flex-1">
+                <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <span class="max-w-full break-all rounded-full dh-bg-primary-soft px-2.5 py-1 text-[10px] font-black text-[var(--dh-primary)]">
+                    {{ row.quoNumber || row.rateCode }}
+                  </span>
+                  <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
+                  <DhBadge
+                    :label="isMasterTariff(row) ? t('pricing.rates.masterTariff') : row.rateType === 'Tariff' ? t('pricing.rates.tariff') : t('pricing.rates.spot')"
+                    :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
+                  />
+                </div>
+
+                <p class="mt-2 break-words text-sm font-black leading-5 text-[var(--dh-text)]">
+                  {{ [row.polName, row.poeName, row.podName].filter(Boolean).join(' → ') }}
+                </p>
+                <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
+                  {{ row.clientName || t('pricing.rates.noClient') }}
+                  <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
+                </p>
+              </div>
+
+              <div class="shrink-0">
+                <DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)" />
+              </div>
+            </div>
+
+            <div class="mt-4 grid gap-2 sm:grid-cols-2">
+              <div class="min-w-0 rounded-2xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.operation') }}</p>
+                <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ row.carrierName || t('pricing.rates.noCarrier') }}</p>
+                <p class="mt-1 break-words text-xs font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
+                <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.agentLabel') }}: {{ row.agentName || '—' }}</p>
+              </div>
+
+              <div class="min-w-0 rounded-2xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.quotedBy') }}</p>
+                <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ creatorDisplayName(row) }}</p>
+                <p
+                  v-if="creatorUserName(row) && creatorUserName(row).toLowerCase() !== creatorDisplayName(row).toLowerCase()"
+                  class="mt-1 break-all text-[11px] font-semibold text-[var(--dh-text-muted)]"
+                >
+                  @{{ creatorUserName(row) }}
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <div class="min-w-0 rounded-2xl border border-[var(--dh-border)] p-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
+                <p class="mt-1 whitespace-nowrap text-sm font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
+              </div>
+              <div class="min-w-0 rounded-2xl border border-[var(--dh-border)] p-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.validity') }}</p>
+                <p class="mt-1 text-sm font-black">{{ formatDate(row.validFrom) }}</p>
+                <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.until') }} {{ formatDate(row.validTo) }}</p>
+              </div>
+            </div>
+
+            <div class="mt-2 rounded-2xl border border-[var(--dh-border)] p-3">
+              <div class="flex min-w-0 items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.saleUtility') }}</p>
+                  <p class="mt-1 break-words text-sm font-black text-[var(--dh-primary)]">
+                    {{ formatMoney(row.totalSaleUsd, 'USD') }}
+                    <span class="text-[var(--dh-text-soft)]"> / {{ formatMoney(row.totalUtilityUsd, 'USD') }}</span>
+                  </p>
+                </div>
+                <DhBadge
+                  class="shrink-0"
+                  :label="`${Number(row.marginPercentage || 0).toFixed(2)}%`"
+                  :variant="marginTone(Number(row.marginPercentage || 0))"
+                />
+              </div>
+              <p class="mt-2 text-[11px] font-bold text-[var(--dh-text-soft)]">{{ t('pricing.rates.freeDaysValue', { count: row.freeDays }) }}</p>
+            </div>
+
+            <div class="mt-4 flex items-center justify-end gap-1 border-t border-[var(--dh-border)] pt-3" @click.stop>
+              <button
+                type="button"
+                class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
+                :title="t('pricing.rates.viewInWizard')"
+                @click="openDetail(row)"
+              >
+                <Eye class="h-4 w-4" />
+              </button>
+              <button
+                v-if="canUpdateRate(row)"
+                type="button"
+                class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
+                :title="t('pricing.rates.updateRate')"
+                @click="openEdit(row)"
+              >
+                <Edit3 class="h-4 w-4" />
+              </button>
+              <button
+                v-if="canCreate"
+                type="button"
+                class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
+                :title="t('pricing.rates.duplicateRate')"
+                @click="duplicate(row)"
+              >
+                <Copy class="h-4 w-4" />
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <!-- Desktop: stable column widths prevent status/actions from collapsing letter-by-letter. -->
         <div
-          class="overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]"
+          class="hidden overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] lg:block"
         >
-          <table class="dh-responsive-record-table w-full min-w-[1280px] border-collapse text-left text-sm">
-            <thead class="bg-black/[0.035] text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
+          <table class="w-full min-w-[1160px] table-fixed border-collapse text-left text-sm">
+            <colgroup>
+              <col class="w-12" />
+              <col class="w-[27%]" />
+              <col class="w-[17%]" />
+              <col class="w-[14%]" />
+              <col class="w-[18%]" />
+              <col class="w-[11%]" />
+              <col class="w-[8%]" />
+              <col class="w-[112px]" />
+            </colgroup>
+            <thead class="bg-black/[0.035] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
               <tr>
-                <th class="w-12 px-4 py-3">{{ t('pricing.rates.columns.selection') }}</th>
-                <th class="px-4 py-3">{{ t('pricing.rates.columns.rate') }}</th>
-                <th class="px-4 py-3">{{ t('pricing.rates.columns.operation') }}</th>
-                <th class="px-4 py-3">{{ t('pricing.rates.columns.quotedBy') }}</th>
-                <th class="px-4 py-3 text-right">{{ t('pricing.rates.columns.commercial') }}</th>
-                <th class="px-4 py-3">{{ t('pricing.rates.columns.validity') }}</th>
-                <th class="px-4 py-3 text-center">{{ t('pricing.rates.columns.status') }}</th>
-                <th class="w-[190px] px-4 py-3 text-right">{{ t('pricing.rates.columns.actions') }}</th>
+                <th class="px-3 py-3"></th>
+                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.rate') }}</th>
+                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.operation') }}</th>
+                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.quotedBy') }}</th>
+                <th class="px-3 py-3 whitespace-nowrap text-right">{{ t('pricing.rates.columns.commercial') }}</th>
+                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.validity') }}</th>
+                <th class="px-3 py-3 whitespace-nowrap text-center">{{ t('pricing.rates.columns.status') }}</th>
+                <th class="px-3 py-3 whitespace-nowrap text-right">{{ t('pricing.rates.columns.actions') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">
-                  {{ t('common.loading') }}
-                </td>
+                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('common.loading') }}</td>
               </tr>
               <tr v-else-if="rows.length === 0">
-                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">
-                  {{ t('pricing.rates.noMatch') }}
-                </td>
+                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.noMatch') }}</td>
               </tr>
-              <template v-else>
               <tr
                 v-for="row in rows"
+                v-else
                 :key="row.id"
                 class="cursor-pointer border-t border-[var(--dh-border)] transition hover:bg-[var(--dh-card-hover)]"
                 @click="openDetail(row)"
               >
-                <td :data-label="t('pricing.rates.columns.selection')" class="px-4 py-4" @click.stop>
+                <td class="px-3 py-4 align-top" @click.stop>
                   <DhCheckbox
                     :model-value="selectedIds.includes(row.id)"
                     @update:model-value="toggleSelection(row.id)"
                   />
                 </td>
-                <td :data-label="t('pricing.rates.columns.rate')" class="px-4 py-4">
-                  <div class="min-w-[300px]">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span class="rounded-full dh-bg-primary-soft px-2.5 py-1 text-[11px] font-black text-[var(--dh-primary)]">
+
+                <td class="px-3 py-4 align-top">
+                  <div class="min-w-0">
+                    <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span class="max-w-full break-all rounded-full dh-bg-primary-soft px-2 py-1 text-[10px] font-black text-[var(--dh-primary)]">
                         {{ row.quoNumber || row.rateCode }}
                       </span>
                       <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
@@ -788,78 +934,80 @@ onMounted(async () => {
                         :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
                       />
                     </div>
-                    <p class="mt-2 font-black text-[var(--dh-text)]">
+                    <p class="mt-2 break-words font-black leading-5 text-[var(--dh-text)]">
                       {{ [row.polName, row.poeName, row.podName].filter(Boolean).join(' → ') }}
                     </p>
-                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                    <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
                       {{ row.clientName || t('pricing.rates.noClient') }}
                       <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
                     </p>
                   </div>
                 </td>
-                <td :data-label="t('pricing.rates.columns.operation')" class="px-4 py-4">
-                  <div class="min-w-[190px]">
-                    <p class="font-black text-[var(--dh-text)]">{{ row.carrierName || t('pricing.rates.noCarrier') }}</p>
-                    <p class="mt-1 text-sm font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
-                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.agentLabel') }}: {{ row.agentName || '—' }}</p>
+
+                <td class="px-3 py-4 align-top">
+                  <p class="break-words font-black text-[var(--dh-text)]">{{ row.carrierName || t('pricing.rates.noCarrier') }}</p>
+                  <p class="mt-1 break-words text-xs font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
+                  <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.agentLabel') }}: {{ row.agentName || '—' }}</p>
+                </td>
+
+                <td class="px-3 py-4 align-top">
+                  <p class="break-words font-black text-[var(--dh-text)]">{{ creatorDisplayName(row) }}</p>
+                  <p
+                    v-if="creatorUserName(row) && creatorUserName(row).toLowerCase() !== creatorDisplayName(row).toLowerCase()"
+                    class="mt-1 break-all text-[11px] font-semibold text-[var(--dh-text-muted)]"
+                  >
+                    @{{ creatorUserName(row) }}
+                  </p>
+                </td>
+
+                <td class="px-3 py-4 text-right align-top">
+                  <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
+                  <p class="whitespace-nowrap font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
+                  <p class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.saleUtility') }}</p>
+                  <p class="whitespace-nowrap font-black text-[var(--dh-primary)]">
+                    {{ formatMoney(row.totalSaleUsd, 'USD') }}
+                    <span class="text-[var(--dh-text-soft)]"> / {{ formatMoney(row.totalUtilityUsd, 'USD') }}</span>
+                  </p>
+                  <div class="mt-2 flex justify-end">
+                    <DhBadge :label="`${Number(row.marginPercentage || 0).toFixed(2)}%`" :variant="marginTone(Number(row.marginPercentage || 0))" />
                   </div>
                 </td>
-                <td :data-label="t('pricing.rates.columns.quotedBy')" class="px-4 py-4">
-                  <div class="min-w-[180px]">
-                    <p class="font-black text-[var(--dh-text)]">
-                      {{ creatorDisplayName(row) }}
-                    </p>
-                    <p
-                      v-if="creatorUserName(row) && creatorUserName(row).toLowerCase() !== creatorDisplayName(row).toLowerCase()"
-                      class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]"
+
+                <td class="px-3 py-4 align-top">
+                  <p class="whitespace-nowrap font-black">{{ formatDate(row.validFrom) }}</p>
+                  <p class="whitespace-nowrap text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.until') }} {{ formatDate(row.validTo) }}</p>
+                  <p class="mt-1 whitespace-nowrap text-[11px] font-bold text-[var(--dh-text-soft)]">{{ t('pricing.rates.freeDaysValue', { count: row.freeDays }) }}</p>
+                </td>
+
+                <td class="px-3 py-4 text-center align-top">
+                  <div class="flex justify-center whitespace-nowrap">
+                    <DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)" />
+                  </div>
+                </td>
+
+                <td class="px-3 py-4 align-top" @click.stop>
+                  <div class="flex items-center justify-end gap-1 whitespace-nowrap">
+                    <button
+                      type="button"
+                      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
+                      :title="t('pricing.rates.viewInWizard')"
+                      @click="openDetail(row)"
                     >
-                      @{{ creatorUserName(row) }}
-                    </p>
-                  </div>
-                </td>
-                <td :data-label="t('pricing.rates.columns.commercial')" class="px-4 py-4 text-right">
-                  <div class="min-w-[240px]">
-                    <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
-                    <p class="font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
-                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.saleUtility') }}</p>
-                    <p class="font-black text-[var(--dh-primary)]">
-                      {{ formatMoney(row.totalSaleUsd, 'USD') }}
-                      <span class="text-[var(--dh-text-soft)]"> / {{ formatMoney(row.totalUtilityUsd, 'USD') }}</span>
-                    </p>
-                    <div class="mt-2 flex justify-end">
-                      <DhBadge :label="`${Number(row.marginPercentage || 0).toFixed(2)}%`" :variant="marginTone(Number(row.marginPercentage || 0))" />
-                    </div>
-                  </div>
-                </td>
-                <td :data-label="t('pricing.rates.columns.validity')" class="px-4 py-4">
-                  <div class="min-w-[150px]">
-                    <p class="font-black">{{ formatDate(row.validFrom) }}</p>
-                    <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.until') }} {{ formatDate(row.validTo) }}</p>
-                    <p class="mt-1 text-xs font-bold text-[var(--dh-text-soft)]">{{ t('pricing.rates.freeDaysValue', { count: row.freeDays }) }}</p>
-                  </div>
-                </td>
-                <td :data-label="t('pricing.rates.columns.status')" class="px-4 py-4 text-center">
-                  <DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)" />
-                </td>
-                <td :data-label="t('pricing.rates.columns.actions')" class="px-4 py-4" @click.stop>
-                  <div class="flex justify-end gap-1">
-                    <button type="button" class="rounded-xl p-2 hover:bg-black/5 dark:hover:bg-white/10" :title="t('pricing.rates.viewInWizard')" @click="openDetail(row)">
                       <Eye class="h-4 w-4" />
                     </button>
                     <button
                       v-if="canUpdateRate(row)"
                       type="button"
-                      class="inline-flex items-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-black text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
+                      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
                       :title="t('pricing.rates.updateRate')"
                       @click="openEdit(row)"
                     >
-                      <Edit3 class="h-3.5 w-3.5" />
-                      <span>{{ t('pricing.rates.update') }}</span>
+                      <Edit3 class="h-4 w-4" />
                     </button>
                     <button
                       v-if="canCreate"
                       type="button"
-                      class="rounded-xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
+                      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
                       :title="t('pricing.rates.duplicateRate')"
                       @click="duplicate(row)"
                     >
@@ -868,7 +1016,6 @@ onMounted(async () => {
                   </div>
                 </td>
               </tr>
-              </template>
             </tbody>
           </table>
         </div>
