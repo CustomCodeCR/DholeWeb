@@ -157,7 +157,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
       icon: Mail,
     })
     children.push({ label: t('sidebar.importedRates'), path: '/pricing/imports', icon: FileText })
-    children.push({ label: 'Noticias logísticas', path: '/pricing/news', icon: Newspaper })
+    children.push({ label: t('sidebar.logisticsNews'), path: '/pricing/news', icon: Newspaper })
   }
 
   if (canOpenPricing) {
@@ -170,19 +170,19 @@ const pricingChildren = computed<SidebarItem[]>(() => {
 
   if (canView(VIEW_SCOPES.pricingRates)) {
     children.push({ label: t('sidebar.rates'), path: '/pricing/rates', icon: ReceiptText })
-    children.push({ label: 'Tarifarios', path: '/pricing/tariffs', icon: BookOpen })
+    children.push({ label: t('sidebar.tariffs'), path: '/pricing/tariffs', icon: BookOpen })
   }
 
   if (canView(VIEW_SCOPES.pricingCompetition)) {
-    children.push({ label: 'Tarifas competencia', path: '/pricing/competition', icon: FileText })
+    children.push({ label: t('sidebar.competitorRates'), path: '/pricing/competition', icon: FileText })
   }
 
   if (canView(VIEW_SCOPES.pricingCosts)) {
-    children.push({ label: 'Tarifas terrestres FTL', path: '/pricing/ftl-tariffs', icon: Truck })
+    children.push({ label: t('sidebar.ftlTariffs'), path: '/pricing/ftl-tariffs', icon: Truck })
   }
 
   if (canView(VIEW_SCOPES.pricingSellerAssignment)) {
-    children.push({ label: 'Visibilidad comercial', path: '/pricing/seller-visibility', icon: Users })
+    children.push({ label: t('sidebar.sellerVisibility'), path: '/pricing/seller-visibility', icon: Users })
   }
 
   if (canView(VIEW_SCOPES.pricingRateTerms)) {
@@ -208,7 +208,7 @@ const reportsChildren = computed<SidebarItem[]>(() => {
 
 const marketingChildren = computed<SidebarItem[]>(() => {
   if (!canView(VIEW_SCOPES.marketing)) return []
-  return [{ label: 'Mercadeo y contenido', path: '/marketing', icon: Megaphone }]
+  return [{ label: t('sidebar.marketingContent'), path: '/marketing', icon: Megaphone }]
 })
 
 const monitoringChildren = computed<SidebarItem[]>(() => {
@@ -269,21 +269,21 @@ const sidebarItems = computed<SidebarItem[]>(() => {
   const ownConsolidationChildren: SidebarItem[] = []
   if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
     ownConsolidationChildren.push({
-      label: 'LCL · Marítimo',
+      label: t('sidebar.ownLcl'),
       path: '/pricing/own-lcl',
       icon: Ship,
     })
   }
   if (canView(VIEW_SCOPES.pricingCosts)) {
     ownConsolidationChildren.push({
-      label: 'LTL · Terrestre',
+      label: t('sidebar.ownLtl'),
       path: '/pricing/own-ltl',
       icon: Truck,
     })
   }
   if (ownConsolidationChildren.length > 0) {
     items.push({
-      label: 'Consolidados propios',
+      label: t('sidebar.ownConsolidations'),
       icon: PackagePlus,
       children: ownConsolidationChildren,
     })
@@ -298,7 +298,7 @@ const sidebarItems = computed<SidebarItem[]>(() => {
   }
 
   if (marketingChildren.value.length > 0) {
-    items.push({ label: 'Mercadeo', icon: Megaphone, children: marketingChildren.value })
+    items.push({ label: t('sidebar.marketing'), icon: Megaphone, children: marketingChildren.value })
   }
 
   if (reportsChildren.value.length > 0) {
