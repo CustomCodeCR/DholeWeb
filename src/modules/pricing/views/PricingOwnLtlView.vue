@@ -48,7 +48,7 @@ const editorSection = ref<HTMLElement | null>(null)
 
 const LEGACY_ORIGIN = '__legacy_origin__'
 const LEGACY_DESTINATION = '__legacy_destination__'
-const DEFAULT_WEIGHT_KG_PER_CBM = 330
+const DEFAULT_WEIGHT_KG_PER_CBM = 333.33
 const DEFAULT_DUA_COST = 50
 const DEFAULT_DUCA_T_COST = 30
 const DEFAULT_STUFFING_COST_PER_CBM = 550 / 60
@@ -73,6 +73,8 @@ function canonicalLtlCharges(profile: LandCommercialProfile): EditableLtlCharge[
     { key: 'duca-f', name: 'DUCA-F', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '', saleAmount: '', isFlat: false },
     { key: 'impuesto-exportacion', name: 'Impuesto Exportación', costDetailType: 'CustomsCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
     { key: 'recepcion-destino', name: 'Recepción en Destino', costDetailType: 'DestinationCharge', chargeBasis: 'PerShipment', section: 'destination_charges', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'carga-peligrosa', name: 'Carga Peligrosa', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
+    { key: 'sobrepeso', name: 'Sobrepeso', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
   ]
 }
 
