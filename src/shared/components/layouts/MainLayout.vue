@@ -52,6 +52,7 @@ import { useShortcutStore, eventToShortcut } from '@/core/stores/shortcutStore'
 import { useThemeStore } from '@/core/stores/themeStore'
 import { useLocale } from '@/core/stores/locale'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
+import { translateUiText } from '@/core/i18n/uiTextBridge'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dhole.sidebar.collapsed'
 
@@ -94,6 +95,10 @@ watch(
     mobileSidebarOpen.value = false
   },
 )
+
+function syncSplitViewport(event?: MediaQueryListEvent) {
+  splitViewportReady.value = event?.matches ?? splitMediaQuery?.matches ?? false
+}
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -461,7 +466,19 @@ function closeCurrentTab() {
 }
 
 
-const activePaneTitle = computed(() => tabsStore.activeTab?.title ?? t('sidebar.dashboard'))
+const activePaneTitle = computed(() => {
+  const tab = tabsStore.activeTab
+  if (!tab) return t('sidebar.dashboard')
+  if (tab.titleKey) return t(tab.titleKey)
+  return translateUiText(tab.title, localeStore.getLocale())
+})
+
+const splitPaneTitle = computed(() => {
+  const pane = tabsStore.splitPane
+  if (!pane) return ''
+  if (pane.titleKey) return t(pane.titleKey)
+  return translateUiText(pane.title, localeStore.getLocale())
+})
 
 function readDraggedTabKey(event: DragEvent): string | null {
   return (
@@ -566,15 +583,14 @@ function handleShortcut(event: KeyboardEvent) {
 
 onMounted(() => {
   splitMediaQuery = window.matchMedia('(min-width: 1280px)')
-  splitViewportReady.value = splitMediaQuery.matches
-  splitMediaQuery.addEventListener('change', (event) => {
-    splitViewportReady.value = event.matches
-  })
+  syncSplitViewport()
+  splitMediaQuery.addEventListener('change', syncSplitViewport)
 
   window.addEventListener('keydown', handleShortcut, { capture: true })
 })
 
 onBeforeUnmount(() => {
+  splitMediaQuery?.removeEventListener('change', syncSplitViewport)
   splitMediaQuery = null
   window.removeEventListener('keydown', handleShortcut, { capture: true })
 })
@@ -628,7 +644,7 @@ onBeforeUnmount(() => {
             @drop="dropTabToSplit"
           >
             <div class="flex items-center justify-between border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
-              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">{{ tabsStore.splitPane?.title }}</h2>
+              <h2 class="truncate text-sm font-black text-[var(--dh-text)]">{{ splitPaneTitle }}</h2>
 
               <button
                 class="rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"

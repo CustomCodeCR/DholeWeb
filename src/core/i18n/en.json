@@ -1683,5 +1683,29 @@
     "offlineMessage": "Pricing changes will be kept locally and synchronized when the Internet connection returns.",
     "onlineTitle": "Connection restored",
     "onlineMessage": "Synchronizing pending changes…"
+  },
+  "routes": {
+    "userDetail": "User details",
+    "roleDetail": "Role details",
+    "scopeDetail": "Permission details",
+    "sessionDetail": "Session details",
+    "ownLcl": "LCL consolidation",
+    "ownLtl": "LTL consolidation",
+    "importReview": "Rate review",
+    "rateSource": "Rate source",
+    "rateWizard": "Rate · Wizard",
+    "rateComparison": "Rate comparison",
+    "reportTemplateNew": "New template",
+    "reportDesigner": "Report designer",
+    "agentProfileNew": "New extraction profile",
+    "agentProfileDetail": "Extraction profile",
+    "agentProfileEdit": "Edit extraction profile",
+    "agentExecutionDetail": "Execution details",
+    "agentProviders": "Agents · Carriers and sites",
+    "agentDefinitions": "Agents · Definitions",
+    "agentCredentials": "Agents · Credentials",
+    "agentBrowserProfiles": "Agents · Web sessions",
+    "agentSchedules": "Agents · Technical schedules",
+    "pricingSelects": "Pricing selectors"
   }
 }
