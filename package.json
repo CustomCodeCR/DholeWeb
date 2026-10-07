@@ -13,7 +13,9 @@
     "type-check": "vue-tsc --build",
     "test:agent": "node --test tests/agentModule.test.ts tests/agentRouteForm.test.ts",
     "test:market-pricing": "node --test tests/marketAutoPricing.test.ts",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli src/",
+    "audit:ui": "node scripts/audit-ui-quality.mjs",
+    "audit:i18n": "node scripts/audit-ui-quality.mjs --strict-i18n"
   },
   "dependencies": {
     "lucide-vue-next": "^1.0.0",
