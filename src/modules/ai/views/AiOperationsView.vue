@@ -499,20 +499,72 @@ onBeforeUnmount(() => {
       </section>
 
       <section class="dh-glass dh-liquid overflow-hidden rounded-[28px]">
-        <div class="flex items-center justify-between border-b border-[var(--dh-border)] px-5 py-4"><div><h2 class="font-black text-[var(--dh-text)]">Cola durable de IA</h2><p class="text-xs text-[var(--dh-text-muted)]">PostgreSQL · AiEmailAnalysisJobs · {{ activeItems.length }} visibles</p></div><HardDrive class="h-5 w-5 text-[var(--dh-text-muted)]" /></div>
-        <div class="overflow-x-auto">
+        <div class="flex items-center justify-between border-b border-[var(--dh-border)] px-5 py-4"><div><h2 class="font-black text-[var(--dh-text)]">{{ t('ai.operations.queueTitle') }}</h2><p class="text-xs text-[var(--dh-text-muted)]">{{ t('ai.operations.queueVisible', { count: activeItems.length }) }}</p></div><HardDrive class="h-5 w-5 text-[var(--dh-text-muted)]" /></div>
+        <div data-ai-queue-mobile class="grid gap-3 p-3 md:hidden">
+          <article
+            v-for="item in state.queue.items"
+            :key="`mobile:${item.jobId}`"
+            class="min-w-0 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
+          >
+            <div class="flex min-w-0 items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="break-all font-mono text-xs font-bold text-[var(--dh-text)]">{{ item.emailMessageId.slice(0, 12) }}…</p>
+                <p class="mt-1 break-all text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('ai.operations.requestShort') }} {{ item.requestId.slice(0, 10) }}…</p>
+                <p class="break-all text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('ai.operations.jobShort') }} {{ item.jobId.slice(0, 10) }}…</p>
+              </div>
+              <DhBadge :variant="badgeVariant(item.status)">{{ statusLabel(item.status) }}</DhBadge>
+            </div>
+
+            <dl class="mt-4 grid grid-cols-2 gap-2 text-xs">
+              <div class="rounded-xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
+                <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('ai.operations.execution') }}</dt>
+                <dd class="mt-1 min-w-0">
+                  <template v-if="item.executions?.[0]">
+                    <span class="block break-all font-mono">{{ item.executions[0].executionId.slice(0, 10) }}…</span>
+                    <DhBadge class="mt-1" :variant="badgeVariant(item.executions[0].status)">{{ statusLabel(item.executions[0].status) }}</DhBadge>
+                  </template>
+                  <span v-else class="text-[var(--dh-text-muted)]">{{ t('ai.operations.notCreated') }}</span>
+                </dd>
+              </div>
+              <div class="rounded-xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
+                <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('ai.operations.attempt') }}</dt>
+                <dd class="mt-1 font-black">{{ item.attemptCount }}/{{ item.maxAttemptCount }}</dd>
+              </div>
+            </dl>
+
+            <div class="mt-3 rounded-xl border border-[var(--dh-border)] p-3 text-xs">
+              <p class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('ai.operations.model') }}</p>
+              <template v-if="item.executions?.[0]?.attempt">
+                <p class="mt-1 break-words font-bold">{{ item.executions[0].attempt?.modelName ?? item.executions[0].attempt?.externalModelId }}</p>
+                <p class="break-words text-[var(--dh-text-muted)]">{{ item.executions[0].attempt?.providerType }} · {{ item.executions[0].attempt?.connectionName }}</p>
+              </template>
+              <p v-else class="mt-1 text-[var(--dh-text-muted)]">{{ t('ai.operations.noSelection') }}</p>
+            </div>
+
+            <div class="mt-3 flex items-center justify-between gap-3 text-xs">
+              <span class="font-black text-[var(--dh-text-muted)]">{{ t('ai.operations.time') }}</span>
+              <span class="text-right font-semibold">{{ formatDuration(item.executions?.[0]?.durationMilliseconds) }}<br><span class="text-[var(--dh-text-muted)]">{{ formatDate(item.startedAtUtc ?? item.nextAttemptAtUtc) }}</span></span>
+            </div>
+
+            <div v-if="canOperate && (item.status === 'Pending' || item.status === 'RetryScheduled' || item.status === 'Failed')" class="mt-4 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-3">
+              <DhButton v-if="item.status === 'Pending' || item.status === 'RetryScheduled'" class="flex-1" size="sm" variant="secondary" :loading="actionKey === `cancel:${item.jobId}`" @click="cancelJob(item)"><Trash2 class="h-4 w-4" />{{ t('ai.operations.remove') }}</DhButton>
+              <DhButton v-if="item.status === 'Failed'" class="flex-1" size="sm" variant="secondary" :loading="actionKey === `retry:${item.jobId}`" @click="retryJob(item)"><RotateCcw class="h-4 w-4" />{{ t('ai.operations.retry') }}</DhButton>
+            </div>
+          </article>
+        </div>
+        <div class="hidden overflow-x-auto md:block">
           <table class="w-full min-w-[1180px] text-left text-sm">
-            <thead class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><tr><th class="px-5 py-3">Estado</th><th class="px-4 py-3">Correo / solicitud</th><th class="px-4 py-3">Ejecución</th><th class="px-4 py-3">Modelo</th><th class="px-4 py-3">Intento</th><th class="px-4 py-3">Tiempo</th><th class="px-4 py-3">Acciones</th></tr></thead>
+            <thead class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><tr><th class="px-5 py-3">{{ t('common.status') }}</th><th class="px-4 py-3">{{ t('ai.operations.emailRequest') }}</th><th class="px-4 py-3">{{ t('ai.operations.execution') }}</th><th class="px-4 py-3">{{ t('ai.operations.model') }}</th><th class="px-4 py-3">{{ t('ai.operations.attempt') }}</th><th class="px-4 py-3">{{ t('ai.operations.time') }}</th><th class="px-4 py-3">{{ t('common.actions') }}</th></tr></thead>
             <tbody class="divide-y divide-[var(--dh-border)]">
               <template v-for="item in state.queue.items" :key="item.jobId">
                 <tr class="hover:bg-black/[0.025] dark:hover:bg-white/[0.025]">
                   <td class="px-5 py-4"><DhBadge :variant="badgeVariant(item.status)">{{ statusLabel(item.status) }}</DhBadge></td>
                   <td class="px-4 py-4"><button class="text-left" @click="toggleExpanded(item.jobId)"><div class="font-medium">{{ item.emailMessageId.slice(0, 8) }}…</div><div class="mt-1 text-xs text-[var(--dh-text-muted)]">Req {{ item.requestId.slice(0, 8) }}…</div><div class="text-xs text-[var(--dh-text-muted)]">Job {{ item.jobId.slice(0, 8) }}…</div></button></td>
-                  <td class="px-4 py-4"><div v-if="item.executions?.[0]" class="space-y-1"><div class="font-mono text-xs">{{ item.executions[0].executionId.slice(0, 8) }}…</div><DhBadge :variant="badgeVariant(item.executions[0].status)">{{ statusLabel(item.executions[0].status) }}</DhBadge></div><span v-else class="text-[var(--dh-text-muted)]">Aún no creada</span></td>
-                  <td class="px-4 py-4"><template v-if="item.executions?.[0]?.attempt"><div class="font-medium">{{ item.executions[0].attempt?.modelName ?? item.executions[0].attempt?.externalModelId }}</div><div class="text-xs text-[var(--dh-text-muted)]">{{ item.executions[0].attempt?.providerType }} · {{ item.executions[0].attempt?.connectionName }}</div></template><span v-else class="text-[var(--dh-text-muted)]">Sin selección</span></td>
+                  <td class="px-4 py-4"><div v-if="item.executions?.[0]" class="space-y-1"><div class="font-mono text-xs">{{ item.executions[0].executionId.slice(0, 8) }}…</div><DhBadge :variant="badgeVariant(item.executions[0].status)">{{ statusLabel(item.executions[0].status) }}</DhBadge></div><span v-else class="text-[var(--dh-text-muted)]">{{ t('ai.operations.notCreated') }}</span></td>
+                  <td class="px-4 py-4"><template v-if="item.executions?.[0]?.attempt"><div class="font-medium">{{ item.executions[0].attempt?.modelName ?? item.executions[0].attempt?.externalModelId }}</div><div class="text-xs text-[var(--dh-text-muted)]">{{ item.executions[0].attempt?.providerType }} · {{ item.executions[0].attempt?.connectionName }}</div></template><span v-else class="text-[var(--dh-text-muted)]">{{ t('ai.operations.noSelection') }}</span></td>
                   <td class="px-4 py-4">{{ item.attemptCount }}/{{ item.maxAttemptCount }}</td>
                   <td class="px-4 py-4"><div>{{ formatDuration(item.executions?.[0]?.durationMilliseconds) }}</div><div class="text-xs text-[var(--dh-text-muted)]">{{ formatDate(item.startedAtUtc ?? item.nextAttemptAtUtc) }}</div></td>
-                  <td class="px-4 py-4"><div v-if="canOperate" class="flex gap-2"><DhTooltip v-if="item.status === 'Pending' || item.status === 'RetryScheduled'" text="Cancela este trabajo durable y evita que llegue al modelo." position="left"><DhButton size="sm" variant="secondary" :loading="actionKey === `cancel:${item.jobId}`" @click="cancelJob(item)"><Trash2 class="h-4 w-4" />Retirar</DhButton></DhTooltip><DhTooltip v-if="item.status === 'Failed'" text="Vuelve a poner este trabajo fallido en la cola para otro intento." position="left"><DhButton size="sm" variant="secondary" :loading="actionKey === `retry:${item.jobId}`" @click="retryJob(item)"><RotateCcw class="h-4 w-4" />Reintentar</DhButton></DhTooltip></div></td>
+                  <td class="px-4 py-4"><div v-if="canOperate" class="flex gap-2"><DhTooltip v-if="item.status === 'Pending' || item.status === 'RetryScheduled'" text="Cancela este trabajo durable y evita que llegue al modelo." position="left"><DhButton size="sm" variant="secondary" :loading="actionKey === `cancel:${item.jobId}`" @click="cancelJob(item)"><Trash2 class="h-4 w-4" />{{ t('ai.operations.remove') }}</DhButton></DhTooltip><DhTooltip v-if="item.status === 'Failed'" text="Vuelve a poner este trabajo fallido en la cola para otro intento." position="left"><DhButton size="sm" variant="secondary" :loading="actionKey === `retry:${item.jobId}`" @click="retryJob(item)"><RotateCcw class="h-4 w-4" />{{ t('ai.operations.retry') }}</DhButton></DhTooltip></div></td>
                 </tr>
                 <tr v-if="expandedJobId === item.jobId" class="bg-black/5 dark:bg-black/20"><td colspan="7" class="px-5 py-5"><div class="grid gap-4 lg:grid-cols-3"><div><div class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]"><Link2 class="h-4 w-4" />Trazabilidad origen</div><dl class="space-y-2 text-xs"><div><dt class="text-[var(--dh-text-muted)]">EmailMessageId</dt><dd class="break-all font-mono">{{ item.emailMessageId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">EmailAttachmentId</dt><dd class="break-all font-mono">{{ item.emailAttachmentId ?? '—' }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">EmailExtractionJobId</dt><dd class="break-all font-mono">{{ item.emailExtractionJobId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">RequestId</dt><dd class="break-all font-mono">{{ item.requestId }}</dd></div></dl></div><div><div class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]">Correlación</div><dl class="space-y-2 text-xs"><div><dt class="text-[var(--dh-text-muted)]">CorrelationId</dt><dd class="break-all font-mono">{{ item.correlationId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">RequestHash</dt><dd class="break-all font-mono">{{ item.requestHash }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">Lease</dt><dd class="break-all font-mono">{{ item.leaseOwner ?? '—' }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">Heartbeat</dt><dd>{{ formatDate(item.lastHeartbeatAtUtc) }}</dd></div></dl></div><div><div class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]">Ejecuciones IA</div><div v-if="!item.executions?.length" class="text-xs text-[var(--dh-text-muted)]">Todavía no hay una AiExecution asociada.</div><div v-for="execution in item.executions" :key="execution.executionId" class="mb-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs"><div class="flex justify-between gap-2"><span class="break-all font-mono">{{ execution.executionId }}</span><DhBadge :variant="badgeVariant(execution.status)">{{ statusLabel(execution.status) }}</DhBadge></div><div v-if="execution.attempt" class="mt-2 text-[var(--dh-text-muted)]">Attempt {{ execution.attempt.attemptNumber }} · {{ execution.attempt.externalModelId }} · {{ execution.attempt.providerType }}</div><div v-if="execution.errorCode" class="mt-2 text-red-400">{{ execution.errorCode }} · {{ execution.errorMessage }}</div></div></div></div></td></tr>
               </template>
