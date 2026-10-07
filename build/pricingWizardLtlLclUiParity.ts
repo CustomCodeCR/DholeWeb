@@ -126,6 +126,114 @@ ${functionAnchor}`,
     )
   }
 
+
+  const hydrationAnchor = 'const canNext = computed(() => {'
+  if (code.includes(hydrationAnchor) && !code.includes('function selectAndContinueOwnLandLtlTariff(')) {
+    const hydrationHelpers = [
+      'function landLtlSelectorBillableCbm(tariff: FtlTariffDto) {',
+      '  const factor = Math.max(1, number(tariff.weightKgPerCbm) || 330)',
+      '  const dimensional = Math.max(0, number(lclDimensionalCbm.value))',
+      '  const byWeight = Math.max(0, number(form.cargoWeightKg)) / factor',
+      '  const calculated = Math.max(dimensional, byWeight)',
+      '  return calculated > 0 ? Math.max(1, calculated) : 1',
+      '}',
+      '',
+      'function applyLandLtlSelectorTariff(tariff: FtlTariffDto) {',
+      '  const cbm = landLtlSelectorBillableCbm(tariff)',
+      "  const origin = normalizeCatalogValue(String(tariff.originName ?? '') + ' ' + String(tariff.originCode ?? ''))",
+      "  const panama = origin.includes('panama') || origin.includes('cfz') || origin.includes('colon free zone') || origin.includes('zona libre de colon')",
+      '  const surcharge = panama ? number(tariff.panamaCostSurchargePerCbm ?? 9) : 0',
+      '  form.freightCost = Math.max(0, (number(tariff.costPerCbm) + surcharge) * cbm)',
+      '  form.freightSale = Math.max(0, number(tariff.priceAmount) * cbm, number(tariff.minimumAmount))',
+      '  form.freeDays = 0',
+      "  form.agentId = ''",
+      "  form.carrierId = ''",
+      '  form.transitDays = tariff.transitDays ?? 0',
+      '  if (tariff.currencyId) form.currencyId = tariff.currencyId',
+      '}',
+      '',
+      'function selectAndContinueOwnLandLtlTariff(tariff: FtlTariffDto) {',
+      '  resolvedFtlTariff.value = tariff',
+      "  landLtlCommercialProfile.value = tariff.commercialProfile || 'FinalClient'",
+      '  availableRates.value = []',
+      '  form.manualRate = false',
+      "  form.selectedImportRateId = ''",
+      '  applyLandLtlSelectorTariff(tariff)',
+      '  step.value = 6',
+      '}',
+      '',
+      'function landLtlImportedSelectorTariff(rate: ImportRateSelectDto): FtlTariffDto {',
+      "  const currencyCode = String(rate.currencyCode || rate.currency || 'USD')",
+      '  return {',
+      "    id: 'import:' + rate.id,",
+      '    originId: rate.polId || null,',
+      "    originName: String(rate.pol || ''),",
+      "    originCode: String(rate.polCode || ''),",
+      '    destinationId: rate.poeId || null,',
+      "    destinationName: String(rate.poe || rate.pod || ''),",
+      "    destinationCode: String(rate.poeCode || ''),",
+      '    applicableOriginIds: rate.polId ? [rate.polId] : [],',
+      '    applicableDestinationIds: rate.poeId ? [rate.poeId] : [],',
+      "    equipmentClass: 'LTL_CBM',",
+      "    equipmentLabel: 'LTL · CBM',",
+      "    currencyId: String(rate.currencyId || ''),",
+      '    currencyName: String(rate.currency || currencyCode),',
+      '    currencyCode,',
+      '    priceAmount: number(rate.totalSale ?? rate.freight),',
+      '    transitDays: rate.transitDays == null ? null : number(rate.transitDays),',
+      "    source: String(rate.agent || rate.agentCode || rate.carrier || rate.carrierCode || 'Revisar importaciones'),",
+      "    notes: String(rate.spaceComment || ''),",
+      '    isActive: true,',
+      "    shipmentMode: 'Ltl',",
+      "    rateBasis: 'PerCbm',",
+      '    minimumAmount: 0,',
+      "    warehouseName: 'Revisar importaciones',",
+      "    validFrom: String(rate.validFrom || ''),",
+      "    validTo: String(rate.validTo || ''),",
+      "    commercialProfile: 'Nvocc',",
+      "    applicableEquipmentClasses: ['LTL_CBM'],",
+      '    costPerCbm: number(rate.totalCost ?? rate.freight),',
+      '    weightKgPerCbm: 330,',
+      '    duaCost: null,',
+      '    ducaTCost: null,',
+      '    stuffingCostPerCbm: null,',
+      '    stuffingSalePerCbm: null,',
+      '    panamaCostSurchargePerCbm: 0,',
+      '    ltlChargeItems: [],',
+      '  }',
+      '}',
+      '',
+      'function selectAndContinueImportedLandLtlTariff(rate: ImportRateSelectDto) {',
+      '  availableRates.value = [rate]',
+      '  form.selectedImportRateId = rate.id',
+      '  const tariff = landLtlImportedSelectorTariff(rate)',
+      '  resolvedFtlTariff.value = tariff',
+      "  landLtlCommercialProfile.value = 'Nvocc'",
+      '  form.manualRate = false',
+      '  applyLandLtlSelectorTariff(tariff)',
+      '  step.value = 6',
+      '}',
+      '',
+      'function continueManualOwnLandLtlTariff() {',
+      '  resolvedFtlTariff.value = null',
+      "  landLtlCommercialProfile.value = 'FinalClient'",
+      '  availableRates.value = []',
+      "  form.selectedImportRateId = ''",
+      '  form.manualRate = true',
+      '  form.freeDays = 0',
+      "  form.agentId = ''",
+      "  form.carrierId = ''",
+      '  form.freightCost = 0',
+      '  form.freightSale = 0',
+      '  form.transitDays = 0',
+      '  step.value = 6',
+      '}',
+      '',
+    ].join('\n')
+
+    code = code.replace(hydrationAnchor, hydrationHelpers + '\n' + hydrationAnchor)
+  }
+
   const startTag = `          <template v-else-if="form.modality === 'Land' && (shipmentModeForApi === 'Ltl' || (shipmentModeForApi === 'Ftl' && resolvedFtlTariff))">`
   const endTag = `          <template v-else-if="availableRates.length">`
   const start = code.indexOf(startTag)
@@ -145,9 +253,9 @@ ${functionAnchor}`,
               :requested-cbm="Math.max(number(lclChargeableCbm), number(form.cargoWeightKg) / 330)"
               :selected-master-id="form.selectedImportRateId ? null : resolvedFtlTariff?.id ?? null"
               :selected-import-id="form.selectedImportRateId || null"
-              @select-own="(tariff) => { step = 6; selectLandLtlRateSource(tariff) }"
-              @select-coloader="(rate) => { step = 6; selectImportedLandLtlSource(rate) }"
-              @manual-own="() => { step = 6; startManualLandLtlOwnTariff() }"
+              @select-own="selectAndContinueOwnLandLtlTariff"
+              @select-coloader="selectAndContinueImportedLandLtlTariff"
+              @manual-own="continueManualOwnLandLtlTariff"
             />
 
             <template v-else>
