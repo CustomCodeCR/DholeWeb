@@ -11,7 +11,7 @@ const dholeHaulageVisible = computed(() =>
   form.modality === 'Maritime'
   && shipmentModeForApi.value === 'Fcl'
   && !isMultimodalViaPanama(selectedDestination.value)
-  && !sellerRequestMode.value,
+  && !props.sellerRequestMode,
 )
 const dholeHaulagePending = ref(false)
 const dholeHaulageLoadedContext = ref('')
