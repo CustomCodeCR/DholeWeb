@@ -347,7 +347,7 @@ function patchWizard(source: string) {
   // Previous Vite transforms may insert Panama and optional-cost work
   // between this assignment and the end of rebuildRateLines().
   // Match the assignment line only instead of assuming it precedes "}".
-  const rateLinesAssignment = /^[ \\t]*rateLines\\.value\\s*=\\s*lines\\s*;?[ \\t]*$/gm
+  const rateLinesAssignment = /^[ \t]*rateLines\.value\s*=\s*lines\s*;?[ \t]*$/gm
   const assignments = [...rateLinesRebuild.matchAll(rateLinesAssignment)]
   if (assignments.length !== 1) {
     throw new Error('[haulage screen6] Expected one rate-line assignment, found ' + assignments.length + '.')
@@ -355,7 +355,7 @@ function patchWizard(source: string) {
   if (!rateLinesRebuild.includes('if (dholeHaulageVisible.value) syncHaulageOptionalLines()')) {
     const syncedRebuild = rateLinesRebuild.replace(
       rateLinesAssignment,
-      (assignment) => assignment + '\\n  if (dholeHaulageVisible.value) syncHaulageOptionalLines()',
+      (assignment) => assignment + '\n  if (dholeHaulageVisible.value) syncHaulageOptionalLines()',
     )
     code = code.slice(0, rateLinesRebuildStart) + syncedRebuild + code.slice(rateLinesRebuildEnd)
   }
