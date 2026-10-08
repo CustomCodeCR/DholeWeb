@@ -80,6 +80,8 @@ import { pricingMiamiLclRules20261002 } from './build/pricingMiamiLclRules202610
 import { pricingConsolidatedHeightLimits20261007 } from './build/pricingConsolidatedHeightLimits20261007'
 import { pricingWizardLtlLclUiParity } from './build/pricingWizardLtlLclUiParity'
 
+import { pricingWizardHaulageComparison20261008 } from './build/pricingWizardHaulageComparison20261008'
+
 export default defineConfig({
   plugins: [
     pricingWizardLclOptionalWeight(),
@@ -160,6 +162,7 @@ export default defineConfig({
     pricingWizardLtlLclUiParity(),
     pricingWizardLtlProviderParity(),
     pricingLtlOptionalEditable(),
+    pricingWizardHaulageComparison20261008(),
     vue(),
     tailwindcss(),
   ],
