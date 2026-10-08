@@ -19,7 +19,7 @@ function replaceRequired(source: string, before: string, after: string, descript
 function patchWizard(source: string) {
   if (source.includes(MARKER)) return source
   let code = source
-  const editableOptionalLtl = "(shipmentModeForApi === 'Ltl' && line.optional)"
+  const editableOptionalLtl = "(shipmentModeForApi === 'Ltl' && line.optional && !viewOnly)"
 
   code = replaceRequired(
     code,
@@ -119,7 +119,7 @@ export function pricingLtlOptionalEditable(): Plugin {
     enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalizedId = id.replace(/\\\\/g, '/').split('?')[0]
       if (!SUFFIXES.some((suffix) => normalizedId.endsWith(suffix))) return null
       return { code: patchWizard(source), map: null }
     },
