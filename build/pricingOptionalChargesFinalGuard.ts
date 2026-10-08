@@ -78,9 +78,28 @@ function finalOptionalLegacyPortMatches(cost: CostSelectDto) {
     && (finalOptionalPanamaText(cost.portName) || finalOptionalPanamaText(cost.portCode))
 }
 
+function finalOptionalTerminalMatches(cost: CostSelectDto) {
+  // Optional inlands for different Panama terminals may share the generic
+  // multimodal POE in Config; the actual import-rate POE wins.
+  const label = normalizeCatalogValue(String(cost.name ?? ''))
+  const terminals = ['balboa', 'manzanillo', 'rodman', 'cristobal']
+    .map((value) => ({ value, index: label.indexOf(value) }))
+    .filter((item) => item.index >= 0)
+    .sort((left, right) => left.index - right.index)
+  if (!terminals.length) return true
+  const poe = findById(catalogs.poe, costContextPoeId())
+  const selected = normalizeCatalogValue([
+    poe?.code,
+    poe ? displayValue(poe) : '',
+    selectedImportRate.value?.poe,
+  ].filter(Boolean).join(' '))
+  return Boolean(selected && selected.includes(terminals[0].value))
+}
+
 function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
   if (cost.costType !== 'Optional') return false
   if (cost.isActive === false) return false
+  if (!finalOptionalTerminalMatches(cost)) return false
 
   const shipmentMode = String(costShipmentModeForApi() ?? '').toLowerCase()
   const configuredModes = Array.isArray(cost.shipmentModes) && cost.shipmentModes.length
