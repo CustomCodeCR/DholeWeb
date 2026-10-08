@@ -176,40 +176,6 @@ function effectiveChargeBasis(cost: CostDto): ChargeBasis {
   return cost.chargeBasis
 }
 
-function routeSummary(cost: CostDto) {
-  const current = displayCost(cost)
-  const parts: string[] = []
-
-  const appendRole = (
-    role: 'POL' | 'POE' | 'POD',
-    relations: CostDto['pols'],
-    legacyId?: string | null,
-    legacyName?: string | null,
-    legacyCode?: string | null,
-  ) => {
-    const names = (relations ?? [])
-      .map((item) => item.name || item.code)
-      .filter((value): value is string => Boolean(value))
-
-    if (names.length > 0) {
-      parts.push(`${role} · ${names.join(', ')}`)
-      return
-    }
-
-    if (legacyId) parts.push(`${role} · ${legacyName || legacyCode || '—'}`)
-  }
-
-  appendRole('POL', current.pols, current.polId, current.polName, current.polCode)
-  appendRole('POE', current.poes, current.poeId, current.poeName, current.poeCode)
-  appendRole('POD', current.pods, current.podId, current.podName, current.podCode)
-
-  if (parts.length) return parts
-  if (current.portId) {
-    return [`${current.portRole || 'Any'} · ${current.portName || current.portCode || '—'}`]
-  }
-  return ['Sin condición de ruta']
-}
-
 function routeDisplay(cost: CostDto) {
   const current = displayCost(cost)
 
