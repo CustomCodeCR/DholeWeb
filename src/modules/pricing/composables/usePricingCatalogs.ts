@@ -453,6 +453,19 @@ export function usePricingCatalogs() {
             ? podPorts.value
             : [...polPorts.value, ...poePorts.value, ...podPorts.value]
     const currency = currencies.value.find((item) => item.id === cost.currencyId)
+    const resolveRelations = (
+      relations: CostDto['carriers'],
+      items: PricingCatalogItem[],
+    ) =>
+      (relations ?? []).map((relation) => {
+        const current = items.find((item) => item.id === relation.id)
+        return current
+          ? { id: current.id, name: current.name, code: current.code }
+          : {
+              ...relation,
+              name: relation.name || relation.code || relation.id,
+            }
+      })
 
     return {
       ...cost,
@@ -468,6 +481,11 @@ export function usePricingCatalogs() {
       podCode: podPorts.value.find((item) => item.id === cost.podId)?.code || cost.podCode,
       currencyName: currency?.name || cost.currencyName,
       currencyCode: currency?.code || cost.currencyCode,
+      pols: resolveRelations(cost.pols, polPorts.value),
+      poes: resolveRelations(cost.poes, poePorts.value),
+      pods: resolveRelations(cost.pods, podPorts.value),
+      carriers: resolveRelations(cost.carriers, carriers.value),
+      agents: resolveRelations(cost.agents, agents.value),
       services: (cost.services ?? []).map((costService) => {
         const current = services.value.find((item) => item.id === costService.id)
         return current
