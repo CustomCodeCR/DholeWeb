@@ -483,7 +483,134 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="mt-5">
+      <div data-pricing-costs-mobile class="mt-5 grid gap-3 lg:hidden">
+        <div
+          v-if="loading"
+          class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+        >
+          Cargando...
+        </div>
+
+        <div
+          v-else-if="rows.length === 0"
+          class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+        >
+          No hay costos que coincidan con los filtros.
+        </div>
+
+        <article
+          v-for="row in rows"
+          v-else
+          :key="`mobile:${row.id}`"
+          class="min-w-0 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-sm)]"
+          @click="canUpdate && openForm(row)"
+        >
+          <div class="flex min-w-0 items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="break-words text-sm font-black text-[var(--dh-text)]">{{ row.name }}</p>
+              <div class="mt-2 flex flex-wrap gap-1">
+                <DhBadge
+                  :label="typeLabel(row.costType)"
+                  :variant="row.costType === 'Optional' ? 'primary' : row.costType === 'Fixed' ? 'neutral' : 'warning'"
+                />
+                <DhBadge :label="detailLabel(row.costDetailType)" variant="neutral" />
+                <DhBadge :label="row.isActive ? 'Activo' : 'Inactivo'" :variant="row.isActive ? 'success' : 'neutral'" />
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Naviera / agente</p>
+              <p class="mt-1 truncate text-xs font-black text-[var(--dh-text)]" :title="relationSummary(row).names.join(', ')">
+                {{ relationSummary(row).names.slice(0, 2).join(', ') || '—' }}
+              </p>
+              <p class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                {{ relationSummary(row).type }}
+                <span v-if="relationSummary(row).names.length > 2"> · +{{ relationSummary(row).names.length - 2 }}</span>
+              </p>
+            </div>
+
+            <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Base de cobro</p>
+              <p class="mt-1 text-xs font-black text-[var(--dh-text)]">{{ chargeBasisLabel(effectiveChargeBasis(row)) }}</p>
+            </div>
+          </div>
+
+          <div class="mt-2 rounded-xl border border-[var(--dh-border)] p-2.5">
+            <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Ruta / puerto</p>
+            <div class="mt-2 space-y-1.5">
+              <div
+                v-for="route in routeDisplay(row)"
+                :key="`mobile:${route.role}:${route.full}`"
+                class="grid min-w-0 grid-cols-[2.4rem_minmax(0,1fr)] gap-1.5"
+                :title="route.full"
+              >
+                <span class="rounded-md bg-black/[0.04] px-1 py-0.5 text-center text-[9px] font-black text-[var(--dh-text-muted)] dark:bg-white/[0.06]">
+                  {{ route.role }}
+                </span>
+                <p class="min-w-0 text-xs font-bold leading-4 text-[var(--dh-text-soft)]">
+                  {{ route.preview }}
+                  <span v-if="route.remaining" class="font-black text-[var(--dh-primary)]"> +{{ route.remaining }} más</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-2 grid grid-cols-3 gap-2">
+            <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2">
+              <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo</p>
+              <p class="mt-1 truncate text-xs font-black">{{ formatMoney(row.costAmount, displayCost(row).currencyName) }}</p>
+            </div>
+            <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2">
+              <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Venta</p>
+              <p class="mt-1 truncate text-xs font-black">{{ formatMoney(row.saleAmount, displayCost(row).currencyName) }}</p>
+            </div>
+            <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2">
+              <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Utilidad</p>
+              <p
+                class="mt-1 truncate text-xs font-black"
+                :class="row.utilityAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'"
+              >
+                {{ formatMoney(row.utilityAmount, displayCost(row).currencyName) }}
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-3 flex items-center justify-end gap-1 border-t border-[var(--dh-border)] pt-2.5" @click.stop>
+            <button
+              v-if="canUpdate"
+              type="button"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-black/[0.025] text-[var(--dh-text-soft)]"
+              aria-label="Editar costo"
+              @click="openForm(row)"
+            >
+              <Pencil class="h-4 w-4" />
+            </button>
+            <button
+              v-if="canSetActive"
+              type="button"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-black/[0.025]"
+              :aria-label="row.isActive ? 'Inactivar costo' : 'Activar costo'"
+              @click="toggleActive(row)"
+            >
+              <PowerOff v-if="row.isActive" class="h-4 w-4 text-amber-500" />
+              <Power v-else class="h-4 w-4 text-emerald-500" />
+            </button>
+            <button
+              v-if="canDelete"
+              type="button"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/[0.06] text-red-500"
+              aria-label="Eliminar costo"
+              @click="confirmDelete(row)"
+            >
+              <Trash2 class="h-4 w-4" />
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <div class="mt-5 hidden lg:block">
         <DhDataTable
           :columns="columns"
           :rows="rows"
