@@ -114,9 +114,15 @@ const canApplyTariff = computed(() =>
   && ['ApprovedByManagement', 'Open', 'Sent', 'RequestedByClient', 'AcceptedByClient'].includes(current.value.status),
 )
 const groups = computed(() => {
-  const byGroup = (key: ReturnType<typeof detailGroup>) =>
-    current.value.rateDetails.filter((detail) => detailGroup(detail.costDetailType) === key)
+  // Los Manejos de cotizaciones LTL antiguas pueden estar guardados como AgentCharge.
+  const byGroup = (key: ReturnType<typeof detailGroup> | 'origin') =>
+    current.value.rateDetails.filter((detail) => {
+      const isLtlHandling = current.value.shipmentMode === 'Ltl'
+        && detail.name.trim().toLocaleLowerCase() === 'manejos'
+      return (isLtlHandling ? 'origin' : detailGroup(detail.costDetailType)) === key
+    })
   return [
+    { key: 'origin', title: 'Cargos de origen', subtitle: 'Cargos de origen LTL', rows: byGroup('origin') },
     { key: 'agent', title: 'Costos de agente', subtitle: 'Sin venta', rows: byGroup('agent') },
     {
       key: 'freight',
@@ -131,7 +137,7 @@ const groups = computed(() => {
       rows: byGroup('destination'),
     },
     { key: 'other', title: 'Otros rubros', subtitle: 'Cargos adicionales', rows: byGroup('other') },
-  ]
+  ].filter((group) => group.key !== 'origin' || group.rows.length > 0)
 })
 
 function statusLabel(status: string) {
