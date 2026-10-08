@@ -355,8 +355,8 @@ function validateForm() {
   }
 
   const extension = form.file.name.toLowerCase().split('.').pop()
-  if (!['pdf', 'csv', 'xls', 'xlsx', 'xlsm'].includes(extension || '')) {
-    toastStore.error('Formato no soportado', 'Use PDF, XLSX, XLS, XLSM o CSV. Los demás formatos no se extraen para Average.')
+  if (!['pdf', 'csv', 'xls', 'xlsx', 'xlsm', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'tif', 'tiff'].includes(extension || '')) {
+    toastStore.error('Formato no soportado', 'Use PDF, Excel, CSV o una imagen PNG/JPG/WEBP/TIFF/BMP. Otros formatos requieren conversión.')
     return false
   }
 
@@ -831,14 +831,14 @@ onMounted(async () => {
           ref="fileInput"
           class="hidden"
           type="file"
-          accept=".pdf,.csv,.xls,.xlsx,.xlsm"
+          accept=".pdf,.csv,.xls,.xlsx,.xlsm,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff"
           @change="onFileSelected"
         />
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="min-w-0">
             <p class="font-black">Archivo del tarifario</p>
             <p class="mt-1 break-all text-xs font-semibold text-[var(--dh-text-muted)]">
-              {{ form.file?.name || 'PDF, XLSX, XLS, XLSM o CSV' }}
+              {{ form.file?.name || 'PDF, Excel, CSV o imagen de tarifario (PNG/JPG/WEBP/TIFF/BMP)' }}
             </p>
           </div>
           <DhButton
