@@ -179,6 +179,7 @@ function incotermLabel(row: CompetitorRateObservationDto) {
 
 function observationReviewReason(row: CompetitorRateObservationDto) {
   const reasons: string[] = []
+  if (row.extractionConfidence === 0) reasons.push('Datos provisionales: confirme moneda y vigencia')
   if (!row.incotermId) reasons.push('Incoterm sin normalizar')
   if (!row.polId) reasons.push('POL sin normalizar')
   if (!row.normalizedAmount) reasons.push('Monto comparable sin normalizar')
@@ -350,6 +351,12 @@ function validateForm() {
 
   if (!form.file) {
     toastStore.error('Archivo requerido', 'Adjunte el tarifario de la competencia.')
+    return false
+  }
+
+  const extension = form.file.name.toLowerCase().split('.').pop()
+  if (!['pdf', 'csv', 'xls', 'xlsx', 'xlsm'].includes(extension || '')) {
+    toastStore.error('Formato no soportado', 'Use PDF, XLSX, XLS, XLSM o CSV. Los demás formatos no se extraen para Average.')
     return false
   }
 
@@ -824,14 +831,14 @@ onMounted(async () => {
           ref="fileInput"
           class="hidden"
           type="file"
-          accept=".pdf,.csv,.xls,.xlsx,.xlsm,.xlsb,.doc,.docx,.txt,.eml,.png,.jpg,.jpeg"
+          accept=".pdf,.csv,.xls,.xlsx,.xlsm"
           @change="onFileSelected"
         />
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="min-w-0">
             <p class="font-black">Archivo del tarifario</p>
             <p class="mt-1 break-all text-xs font-semibold text-[var(--dh-text-muted)]">
-              {{ form.file?.name || 'PDF, XLSX, CSV y otros documentos' }}
+              {{ form.file?.name || 'PDF, XLSX, XLS, XLSM o CSV' }}
             </p>
           </div>
           <DhButton
