@@ -336,6 +336,24 @@ function patchWizard(source: string) {
 }`
   code = code.slice(0, syncStart) + syncBlock + code.slice(syncEnd + 2)
 
+  // A currency/freight/service change on Pantalla 7 rebuilds every line.
+  // Reapply the selected Panama terminal + Merchant/Naviera choice afterwards.
+  const rateLinesRebuildStart = code.indexOf('function rebuildRateLines() {')
+  const rateLinesRebuildEnd = code.indexOf('function mergeConfiguredOptionalCostsIntoRateLines(', rateLinesRebuildStart)
+  if (rateLinesRebuildStart < 0 || rateLinesRebuildEnd < 0) {
+    throw new Error('[haulage screen6] Missing rate-line rebuild boundaries.')
+  }
+  const rateLinesRebuild = code.slice(rateLinesRebuildStart, rateLinesRebuildEnd)
+  const rateLinesAssignment = '  rateLines.value = lines\\n}'
+  if (rateLinesRebuild.split(rateLinesAssignment).length !== 2) {
+    throw new Error('[haulage screen6] Missing unique rate-line assignment.')
+  }
+  const syncedRebuild = rateLinesRebuild.replace(
+    rateLinesAssignment,
+    '  rateLines.value = lines\\n  if (dholeHaulageVisible.value) syncHaulageOptionalLines()\\n}',
+  )
+  code = code.slice(0, rateLinesRebuildStart) + syncedRebuild + code.slice(rateLinesRebuildEnd)
+
   const optionalStart = code.indexOf('function shouldIncludeOptionalCost(')
   const optionalEnd = code.indexOf('\n}\n', optionalStart)
   if (optionalStart < 0 || optionalEnd < 0) throw new Error('[haulage screen6] Missing optional inclusion matcher.')
