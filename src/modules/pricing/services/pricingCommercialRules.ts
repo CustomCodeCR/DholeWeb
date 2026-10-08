@@ -199,7 +199,8 @@ export function buildOperationalLines(context: {
 
   if (context.modality === 'Land') {
     const handling = context.shipmentMode === 'Ftl' ? 55 : 45
-    add('Manejos', 'international_freight', 'AgentCharge', handling)
+    if (context.shipmentMode === 'Ltl') add('Manejos', 'origin_charges', 'OriginCharge', handling)
+    else add('Manejos', 'international_freight', 'AgentCharge', handling)
     add('Carta porte', 'international_freight', 'Documentation', 40)
     add('Manifiesto de carga', 'international_freight', 'Documentation', 40)
     add('DUCA-T', 'international_freight', 'Documentation', 40)
