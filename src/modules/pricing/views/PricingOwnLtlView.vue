@@ -62,7 +62,7 @@ function canonicalLtlCharges(profile: LandCommercialProfile): EditableLtlCharge[
     { key: 'duca-t', name: 'DUCA-T', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '30', saleAmount: isNvocc ? '30' : '35', isFlat: true },
     { key: 'stuffing', name: 'Stuffing', costDetailType: 'OriginCharge', chargeBasis: 'PerChargeableCbm', section: 'origin_charges', costAmount: String(DEFAULT_STUFFING_COST_PER_CBM), saleAmount: '10', isFlat: true },
     { key: 'carta-porte', name: 'Carta Porte', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '0', saleAmount: isNvocc ? '35' : '45', isFlat: true },
-    { key: 'manejos', name: 'Manejos', costDetailType: 'AgentCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '0', saleAmount: isNvocc ? '25' : '45', isFlat: true },
+    { key: 'manejos', name: 'Manejos', costDetailType: 'OriginCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '0', saleAmount: isNvocc ? '25' : '45', isFlat: true },
     { key: 'seguro', name: 'Seguro', costDetailType: 'Insurance', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
     { key: 'recolecta', name: 'Recolecta', costDetailType: 'OriginCharge', chargeBasis: 'PerShipment', section: 'pickup_origin', costAmount: '', saleAmount: '', isFlat: false },
     { key: 'reembarque', name: 'Reembarque', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
