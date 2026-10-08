@@ -8,9 +8,8 @@ const HELPERS = `// dhole-haulage-choice-screen6-20261008
 type DholeHaulageChoice = 'merchant' | 'carrier'
 
 const dholeHaulageVisible = computed(() =>
-  form.modality === 'Maritime'
+  ['Maritime', 'Multimodal'].includes(String(form.modality))
   && shipmentModeForApi.value === 'Fcl'
-  && !isMultimodalViaPanama(selectedDestination.value)
   && !props.sellerRequestMode,
 )
 const dholeHaulagePending = ref(false)
@@ -25,6 +24,27 @@ const dholeHaulageContextCosts = computed(() =>
   ),
 )
 
+// The imported Maersk/MSC/etc. rate determines the REAL Panama POE.
+ // An inland named for Rodman/Manzanillo cannot be selected for Balboa.
+function dholeHaulageMatchesSelectedTerminal(cost: { name: string }) {
+  const label = normalizeCatalogValue(String(cost.name ?? ''))
+  const terminals = ['balboa', 'manzanillo', 'rodman', 'cristobal']
+    .map((value) => ({ value, index: label.indexOf(value) }))
+    .filter((item) => item.index >= 0)
+    .sort((left, right) => left.index - right.index)
+  if (!terminals.length) return true
+
+  const poe = findById(catalogs.poe, costContextPoeId())
+  const routeLabel = normalizeCatalogValue([
+    poe?.code,
+    poe ? displayValue(poe) : '',
+    selectedImportRate.value?.poe,
+  ].filter(Boolean).join(' '))
+
+  // A generic "Multimodal vía Panamá" has no precise inland origin yet.
+  return Boolean(routeLabel && routeLabel.includes(terminals[0].value))
+}
+
 function dholeHaulageOtherConditionsMatch(cost: CostSelectDto) {
   return (cost.operationalConditions ?? [])
     .filter((condition) => condition !== 'MerchantHaulage' && condition !== 'CarrierHaulage')
@@ -32,9 +52,21 @@ function dholeHaulageOtherConditionsMatch(cost: CostSelectDto) {
 }
 
 function dholeHaulageCostsFor(mode: DholeHaulageChoice) {
-  return dholeHaulageContextCosts.value.filter((cost) =>
-    haulageAssociation(cost) === mode && dholeHaulageOtherConditionsMatch(cost),
+  const rows = dholeHaulageContextCosts.value.filter((cost) =>
+    haulageAssociation(cost) === mode
+    && dholeHaulageOtherConditionsMatch(cost)
+    && dholeHaulageMatchesSelectedTerminal(cost),
   )
+  // Do not offer a Panama haulage alternative that has only a Gate/other
+  // surcharge but no configured transport to/from the selected terminal.
+  if (isMultimodalViaPanama(selectedDestination.value) && !rows.some((cost) => {
+    const label = normalizeCatalogValue(cost.name)
+    return cost.costDetailType === 'InlandTransport'
+      || label.includes('inland')
+      || label.includes('flete terrestre')
+      || label.includes('transporte interno')
+  })) return []
+  return rows
 }
 
 const dholeMerchantCosts = computed(() => dholeHaulageCostsFor('merchant'))
@@ -291,7 +323,9 @@ function patchWizard(source: string) {
     const association = haulageAssociation(configured ?? line)
     if (association) {
       const enabled = association === 'merchant' ? form.merchantHaulage : form.carrierHaulage
-      line.included = enabled && (!configured || dholeHaulageOtherConditionsMatch(configured))
+      line.included = enabled
+        && dholeHaulageMatchesSelectedTerminal(configured ?? line)
+        && (!configured || dholeHaulageOtherConditionsMatch(configured))
       if (!line.included) line.applyDestinationTax = false
       return
     }
@@ -311,6 +345,7 @@ function patchWizard(source: string) {
   const updatedOptional = optionalBlock.replace(
     includeAnchor,
     `  const association = haulageAssociation(line as CostSelectDto)
+  if (association && !dholeHaulageMatchesSelectedTerminal(line as CostSelectDto)) return false
   if (association === 'merchant' && !form.merchantHaulage) return false
   if (association === 'carrier' && !form.carrierHaulage) return false
   return operationalConditionsSatisfied(line)`,
