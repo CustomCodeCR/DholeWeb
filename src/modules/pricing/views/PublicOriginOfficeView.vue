@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Building2, Mail, MapPin, Phone, Navigation } from 'lucide-vue-next'
+import { Building2, Clock3, Mail, MapPin, Phone, Navigation } from 'lucide-vue-next'
 
 interface OfficeContact {
   name: string
@@ -35,6 +35,7 @@ interface OriginOffice {
   contacts: OfficeContact[]
   photos: OfficePhoto[]
   message: string
+  schedule?: string
   gcfOnly?: boolean
 }
 
@@ -58,23 +59,12 @@ function publicAssetUrl(path: string) {
   return gatewayUrl(path)
 }
 
-function compactAgent(value: string) {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '')
-}
-
-function isRsLogistics(code: string, name: string) {
-  const values = [compactAgent(code), compactAgent(name)].filter(Boolean)
-  return values.some((value) => value === 'RS' || value.includes('RSLOGISTICS'))
-}
-
 const polValue = computed(() => String(route.query.pol ?? '').trim())
 const polCode = computed(() => String(route.query.polCode ?? route.params.polCode ?? '').trim().toUpperCase())
 const polLocator = computed(() => polValue.value || polCode.value)
 const polDisplay = computed(() => office.value?.polValue || polValue.value || office.value?.polCode || polCode.value)
 const agentCode = computed(() => String(route.query.agentCode ?? '').trim())
 const agentName = computed(() => String(route.query.agent ?? '').trim())
-const hasAgentContext = computed(() => Boolean(agentCode.value || agentName.value))
-const gcfOnlyFromAgent = computed(() => hasAgentContext.value && !isRsLogistics(agentCode.value, agentName.value))
 
 const coordinates = computed(() => {
   if (office.value?.gcfOnly) return ''
@@ -82,19 +72,6 @@ const coordinates = computed(() => {
   return `${office.value.latitude}, ${office.value.longitude}`
 })
 const mapUrl = computed(() => coordinates.value ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates.value)}` : '')
-
-function gcfContact(): OfficeContact {
-  return {
-    name: 'Grupo Castro Fallas',
-    phone: '',
-    email: 'china@grupocastrofallas.com',
-    role: 'Contacto GCF',
-    isPrimary: true,
-    modalities: [],
-    shipmentModes: ['FCL'],
-    routes: [],
-  }
-}
 
 function revokePhotoObjectUrls() {
   Object.values(photoObjectUrls.value).forEach((url) => URL.revokeObjectURL(url))
@@ -174,8 +151,9 @@ async function load() {
     const shipmentMode = String(route.query.shipmentMode ?? '').trim()
     const routeKey = String(route.query.route ?? '').trim()
 
-    // POL resolves the configured origin office. Agent context is carried by
-    // newly generated quote links so a non-RS quote never exposes RS contacts/WHS data.
+    // POL resolves the configured origin office. The Config API evaluates agent
+    // restrictions for the corresponding warehouse; the client must not replace
+    // contacts from unrelated origins based on agent alone.
     query.set('pol', polLocator.value)
     if (shipmentMode) query.set('shipmentMode', shipmentMode)
     if (routeKey) query.set('route', routeKey)
@@ -191,19 +169,14 @@ async function load() {
     const payload = await response.json()
     const resolved = (payload?.data ?? payload) as OriginOffice
 
-    office.value = gcfOnlyFromAgent.value
-      ? {
-          ...resolved,
-          address: '',
-          city: '',
-          country: '',
-          latitude: null,
-          longitude: null,
-          contacts: [gcfContact()],
-          photos: [],
-          gcfOnly: true,
-        }
-      : { ...resolved, gcfOnly: false }
+    // Keep the API decision for the special GCF-only China/FCL scenario.
+    // For other POLs, display the actual contact and warehouse information.
+    office.value = {
+      ...resolved,
+      gcfOnly: Boolean(resolved.gcfOnly),
+      contacts: Array.isArray(resolved.contacts) ? resolved.contacts : [],
+      photos: Array.isArray(resolved.photos) ? resolved.photos : [],
+    }
 
     if (!office.value.gcfOnly && office.value.photos.length) loadPublicPhotos(office.value.photos)
   } catch {
@@ -246,6 +219,7 @@ onBeforeUnmount(revokePhotoObjectUrls)
             <h2 class="mt-2 text-2xl font-black">{{ office.name }}</h2>
             <div class="mt-5 space-y-3 text-sm">
               <div class="flex gap-3"><MapPin class="mt-0.5 h-5 w-5 shrink-0 text-red-700" /><span>{{ office.address || 'Dirección por confirmar' }}<template v-if="office.city || office.country"><br>{{ [office.city, office.country].filter(Boolean).join(', ') }}</template></span></div>
+              <div v-if="office.schedule" class="flex gap-3"><Clock3 class="mt-0.5 h-5 w-5 shrink-0 text-red-700" /><span><strong>Horario:</strong> {{ office.schedule }}</span></div>
               <div v-if="coordinates" class="flex gap-3"><Navigation class="mt-0.5 h-5 w-5 shrink-0 text-red-700" /><a :href="mapUrl" target="_blank" rel="noopener noreferrer" class="font-bold text-red-700 hover:underline">{{ coordinates }} · Abrir mapa</a></div>
             </div>
           </article>
