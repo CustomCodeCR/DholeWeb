@@ -61,19 +61,19 @@ const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.costs.delete)
 const canSetActive = computed(() => authStore.hasScope(PRICING_SCOPES.costs.setActive))
 
 const columns: DhTableColumn<CostDto>[] = [
-  { key: 'name', label: 'Costo' },
-  { key: 'costType', label: 'Aplicación' },
-  { key: 'costDetailType', label: 'Rubro' },
-  { key: 'relation', label: 'Naviera / agente' },
-  { key: 'portName', label: 'Ruta / puerto' },
-  { key: 'incoterms', label: 'Incoterms' },
-  { key: 'operationalConditions', label: 'Botones Pantalla 4' },
-  { key: 'costAmount', label: 'Costo', align: 'right' },
-  { key: 'saleAmount', label: 'Venta', align: 'right' },
-  { key: 'utilityAmount', label: 'Utilidad', align: 'right' },
-  { key: 'chargeBasis', label: 'Base de cobro', align: 'center' },
-  { key: 'isActive', label: 'Estado', align: 'center' },
-  { key: 'actions', label: '', align: 'right', width: '144px' },
+  { key: 'name', label: 'Costo', width: '170px' },
+  { key: 'costType', label: 'Aplicación', width: '108px' },
+  { key: 'costDetailType', label: 'Rubro', width: '120px' },
+  { key: 'relation', label: 'Naviera / agente', width: '165px' },
+  { key: 'portName', label: 'Ruta / puerto', width: '290px' },
+  { key: 'incoterms', label: 'Incoterms', width: '130px' },
+  { key: 'operationalConditions', label: 'Pantalla 4', width: '190px' },
+  { key: 'costAmount', label: 'Costo', align: 'right', width: '110px' },
+  { key: 'saleAmount', label: 'Venta', align: 'right', width: '110px' },
+  { key: 'utilityAmount', label: 'Utilidad', align: 'right', width: '110px' },
+  { key: 'chargeBasis', label: 'Base de cobro', align: 'center', width: '150px' },
+  { key: 'isActive', label: 'Estado', align: 'center', width: '105px' },
+  { key: 'actions', label: '', align: 'right', width: '132px' },
 ]
 
 const typeOptions = [
@@ -208,6 +208,61 @@ function routeSummary(cost: CostDto) {
     return [`${current.portRole || 'Any'} · ${current.portName || current.portCode || '—'}`]
   }
   return ['Sin condición de ruta']
+}
+
+function routeDisplay(cost: CostDto) {
+  const current = displayCost(cost)
+
+  const build = (
+    role: 'POL' | 'POE' | 'POD',
+    relations: CostDto['pols'],
+    legacyId?: string | null,
+    legacyName?: string | null,
+    legacyCode?: string | null,
+  ) => {
+    const names = (relations ?? [])
+      .map((item) => item.name || item.code)
+      .filter((value): value is string => Boolean(value))
+
+    const resolved = names.length
+      ? names
+      : legacyId
+        ? [legacyName || legacyCode || '—']
+        : []
+
+    if (!resolved.length) return null
+
+    return {
+      role,
+      preview: resolved.slice(0, 2).join(', '),
+      remaining: Math.max(0, resolved.length - 2),
+      full: resolved.join(', '),
+    }
+  }
+
+  const routes = [
+    build('POL', current.pols, current.polId, current.polName, current.polCode),
+    build('POE', current.poes, current.poeId, current.poeName, current.poeCode),
+    build('POD', current.pods, current.podId, current.podName, current.podCode),
+  ].filter((item): item is NonNullable<typeof item> => item !== null)
+
+  if (routes.length) return routes
+
+  if (current.portId) {
+    return [{
+      role: (current.portRole || 'ANY').toUpperCase(),
+      preview: current.portName || current.portCode || '—',
+      remaining: 0,
+      full: current.portName || current.portCode || '—',
+    }]
+  }
+
+  return [{
+    role: 'RUTA',
+    preview: 'Sin condición de ruta',
+    remaining: 0,
+    full: 'Sin condición de ruta',
+  }]
 }
 
 function relationSummary(cost: CostDto) {
@@ -380,7 +435,7 @@ onMounted(async () => {
       </template>
     </DhPageHeader>
 
-    <section class="dh-glass dh-liquid rounded-[32px] p-5">
+    <section class="dh-glass dh-liquid rounded-[24px] p-3 sm:rounded-[32px] sm:p-5">
       <DhCrudToolbar
         v-model:search="filters.search"
         title="Matriz de costos"
@@ -482,48 +537,69 @@ onMounted(async () => {
               detailLabel(value as CostDetailType)
             }}</span></template
           >
-          <template #cell-relation="{ row }"
-            ><div>
-              <p class="font-bold text-[var(--dh-text)]">
-                {{ relationSummary(row).names.slice(0, 3).join(', ') || '—' }}
-              </p>
+          <template #cell-relation="{ row }">
+            <div class="max-w-[165px]">
               <p
-                v-if="relationSummary(row).names.length > 3"
-                class="text-xs font-semibold text-[var(--dh-text-muted)]"
+                class="truncate font-black text-[var(--dh-text)]"
+                :title="relationSummary(row).names.join(', ')"
               >
-                +{{ relationSummary(row).names.length - 3 }} más
+                {{ relationSummary(row).names.slice(0, 2).join(', ') || '—' }}
               </p>
-              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ relationSummary(row).type }}
-              </p>
-            </div></template
-          >
+              <div class="mt-1 flex flex-wrap items-center gap-1">
+                <span class="text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                  {{ relationSummary(row).type }}
+                </span>
+                <DhBadge
+                  v-if="relationSummary(row).names.length > 2"
+                  :label="`+${relationSummary(row).names.length - 2}`"
+                  variant="neutral"
+                />
+              </div>
+            </div>
+          </template>
           <template #cell-portName="{ row }">
-            <div class="space-y-1">
-              <p
-                v-for="route in routeSummary(row)"
-                :key="route"
-                class="text-xs font-bold text-[var(--dh-text-soft)]"
+            <div class="max-w-[290px] space-y-1.5">
+              <div
+                v-for="route in routeDisplay(row)"
+                :key="`${route.role}:${route.full}`"
+                class="grid min-w-0 grid-cols-[2.4rem_minmax(0,1fr)] items-start gap-1.5"
+                :title="route.full"
               >
-                {{ route }}
-              </p>
+                <span class="rounded-md bg-black/[0.04] px-1.5 py-0.5 text-center text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)] dark:bg-white/[0.06]">
+                  {{ route.role }}
+                </span>
+                <p class="min-w-0 text-xs font-bold leading-4 text-[var(--dh-text-soft)]">
+                  <span>{{ route.preview }}</span>
+                  <span
+                    v-if="route.remaining"
+                    class="ml-1 whitespace-nowrap font-black text-[var(--dh-primary)]"
+                  >
+                    +{{ route.remaining }} más
+                  </span>
+                </p>
+              </div>
             </div>
           </template>
           <template #cell-incoterms="{ row }">
-            <div class="flex max-w-[220px] flex-wrap gap-1">
+            <div class="flex max-w-[130px] flex-wrap gap-1">
               <DhBadge v-if="!displayCost(row).incoterms?.length" label="Todos" variant="neutral" />
               <template v-else>
                 <DhBadge
-                  v-for="incoterm in displayCost(row).incoterms"
+                  v-for="incoterm in displayCost(row).incoterms.slice(0, 3)"
                   :key="incoterm.id"
                   :label="incoterm.name || incoterm.code"
                   variant="primary"
+                />
+                <DhBadge
+                  v-if="displayCost(row).incoterms.length > 3"
+                  :label="`+${displayCost(row).incoterms.length - 3}`"
+                  variant="neutral"
                 />
               </template>
             </div>
           </template>
           <template #cell-operationalConditions="{ row }">
-            <div class="flex max-w-[260px] flex-wrap gap-1">
+            <div class="flex max-w-[190px] flex-wrap gap-1">
               <DhBadge
                 v-if="row.costType !== 'Optional' || !row.operationalConditions?.length"
                 :label="row.costType === 'Optional' ? 'Manual' : '—'"
@@ -531,27 +607,32 @@ onMounted(async () => {
               />
               <template v-else>
                 <DhBadge
-                  v-for="condition in row.operationalConditions ?? []"
+                  v-for="condition in (row.operationalConditions ?? []).slice(0, 2)"
                   :key="condition"
                   :label="operationalConditionLabels[condition] ?? condition"
                   variant="primary"
+                />
+                <DhBadge
+                  v-if="(row.operationalConditions?.length ?? 0) > 2"
+                  :label="`+${(row.operationalConditions?.length ?? 0) - 2}`"
+                  variant="neutral"
                 />
               </template>
             </div>
           </template>
           <template #cell-costAmount="{ row }"
-            ><span class="font-bold">{{
+            ><span class="whitespace-nowrap font-black">{{
               formatMoney(row.costAmount, displayCost(row).currencyName)
             }}</span></template
           >
           <template #cell-saleAmount="{ row }"
-            ><span class="font-bold">{{
+            ><span class="whitespace-nowrap font-black">{{
               formatMoney(row.saleAmount, displayCost(row).currencyName)
             }}</span></template
           >
           <template #cell-utilityAmount="{ row }"
             ><span
-              class="font-black"
+              class="whitespace-nowrap font-black"
               :class="
                 row.utilityAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
               "
@@ -574,7 +655,7 @@ onMounted(async () => {
               :variant="value ? 'success' : 'neutral'"
           /></template>
           <template #cell-actions="{ row }">
-            <div class="flex items-center justify-end gap-2">
+            <div class="flex items-center justify-end gap-1">
               <button
                 v-if="canUpdate"
                 type="button"
