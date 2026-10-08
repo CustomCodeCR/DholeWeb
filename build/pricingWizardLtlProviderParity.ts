@@ -168,7 +168,7 @@ function patchWizard(source: string) {
       "    { key: 'duca-t', name: 'DUCA-T', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: number(tariff.ducaTCost ?? 30), saleAmount: landLtlCommercialProfile.value === 'Nvocc' ? 30 : 35, isFlat: true },",
       "    { key: 'stuffing', name: 'Stuffing', costDetailType: 'OriginCharge', chargeBasis: 'PerChargeableCbm', section: 'origin_charges', costAmount: number(tariff.stuffingCostPerCbm ?? (550 / 60)), saleAmount: number(tariff.stuffingSalePerCbm ?? 10), isFlat: true },",
       "    { key: 'carta-porte', name: 'Carta Porte', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: 0, saleAmount: landLtlCommercialProfile.value === 'Nvocc' ? 35 : 45, isFlat: true },",
-      "    { key: 'manejos', name: 'Manejos', costDetailType: 'AgentCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: 0, saleAmount: landLtlCommercialProfile.value === 'Nvocc' ? 25 : 45, isFlat: true },",
+      "    { key: 'manejos', name: 'Manejos', costDetailType: 'OriginCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: 0, saleAmount: landLtlCommercialProfile.value === 'Nvocc' ? 25 : 45, isFlat: true },",
       "    { key: 'seguro', name: 'Seguro', costDetailType: 'Insurance', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: null, saleAmount: null, isFlat: false },",
       "    { key: 'recolecta', name: 'Recolecta', costDetailType: 'OriginCharge', chargeBasis: 'PerShipment', section: 'pickup_origin', costAmount: null, saleAmount: null, isFlat: false },",
       "    { key: 'reembarque', name: 'Reembarque', costDetailType: 'Other', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: null, saleAmount: null, isFlat: false },",
@@ -190,8 +190,10 @@ function patchWizard(source: string) {
       "    const key = String(charge?.key ?? '').trim()",
       "    const name = String(charge?.name ?? '').trim()",
       '    if (!key || !name) return',
-      "    const section = String(charge?.section ?? 'origin_charges') as RateSection",
-      "    const detailType = String(charge?.costDetailType ?? 'Other') as CostDetailType",
+      "    // Manejos LTL es un cargo de origen, incluso en tarifarios guardados con el tipo anterior.",
+      "    const isOriginHandling = key.toLowerCase() === 'manejos' || normalizeCatalogValue(name) === 'manejos'",
+      "    const section = (isOriginHandling ? 'origin_charges' : String(charge?.section ?? 'origin_charges')) as RateSection",
+      "    const detailType = (isOriginHandling ? 'OriginCharge' : String(charge?.costDetailType ?? 'Other')) as CostDetailType",
       "    const sourceBasis = String(charge?.chargeBasis ?? 'PerShipment')",
       "    const perCbm = sourceBasis === 'PerCbm' || sourceBasis === 'PerChargeableCbm'",
       '    const chargeBasis = sourceBasis as ChargeBasis',
@@ -246,6 +248,20 @@ function patchWizard(source: string) {
       throw new Error('[pricingWizardLtlProviderParity] canNext runtime anchor not found.')
     }
     code = code.replace(runtimeAnchor, helperDefinitions.join('\n\n') + '\n\n' + runtimeAnchor)
+  }
+
+  // Reclasificar Manejos al revisar una cotización LTL antigua sin cambiar sus importes.
+  const legacyHandlingDetail = [
+    '        section: sectionForDetail(detail.costDetailType, detail.name),',
+    '        name: detail.name,',
+    '        costDetailType: detail.costDetailType,',
+  ].join('\n')
+  if (code.includes(legacyHandlingDetail)) {
+    code = code.replace(legacyHandlingDetail, [
+      "        section: shipmentModeForApi.value === 'Ltl' && normalizeCatalogValue(detail.name) === 'manejos' ? 'origin_charges' : sectionForDetail(detail.costDetailType, detail.name),",
+      '        name: detail.name,',
+      "        costDetailType: shipmentModeForApi.value === 'Ltl' && normalizeCatalogValue(detail.name) === 'manejos' ? 'OriginCharge' : detail.costDetailType,",
+    ].join('\n'))
   }
 
   // LTL has its own selection model: commercial profile + resolved master tariff.
