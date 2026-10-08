@@ -179,15 +179,54 @@ function effectiveChargeBasis(cost: CostDto): ChargeBasis {
 function routeSummary(cost: CostDto) {
   const current = displayCost(cost)
   const parts: string[] = []
-  if (current.polId) parts.push(`POL · ${current.polName || current.polCode || '—'}`)
-  if (current.poeId) parts.push(`POE · ${current.poeName || current.poeCode || '—'}`)
-  if (current.podId) parts.push(`POD · ${current.podName || current.podCode || '—'}`)
+
+  const appendRole = (
+    role: 'POL' | 'POE' | 'POD',
+    relations: CostDto['pols'],
+    legacyId?: string | null,
+    legacyName?: string | null,
+    legacyCode?: string | null,
+  ) => {
+    const names = (relations ?? [])
+      .map((item) => item.name || item.code)
+      .filter((value): value is string => Boolean(value))
+
+    if (names.length > 0) {
+      parts.push(`${role} · ${names.join(', ')}`)
+      return
+    }
+
+    if (legacyId) parts.push(`${role} · ${legacyName || legacyCode || '—'}`)
+  }
+
+  appendRole('POL', current.pols, current.polId, current.polName, current.polCode)
+  appendRole('POE', current.poes, current.poeId, current.poeName, current.poeCode)
+  appendRole('POD', current.pods, current.podId, current.podName, current.podCode)
 
   if (parts.length) return parts
   if (current.portId) {
     return [`${current.portRole || 'Any'} · ${current.portName || current.portCode || '—'}`]
   }
   return ['Sin condición de ruta']
+}
+
+function relationSummary(cost: CostDto) {
+  const current = displayCost(cost)
+  const agentNames = (current.agents ?? [])
+    .map((item) => item.name || item.code)
+    .filter((value): value is string => Boolean(value))
+  if (agentNames.length > 0) return { names: agentNames, type: 'Agente' }
+
+  const carrierNames = (current.carriers ?? [])
+    .map((item) => item.name || item.code)
+    .filter((value): value is string => Boolean(value))
+  if (carrierNames.length > 0) return { names: carrierNames, type: 'Naviera' }
+
+  const legacyName = current.agentName || current.carrierName
+  return {
+    names: legacyName ? [legacyName] : [],
+    type: current.agentId ? 'Agente' : current.carrierId ? 'Naviera' : 'Sin relación',
+  }
 }
 
 function buildCostsQueryString() {
@@ -446,10 +485,16 @@ onMounted(async () => {
           <template #cell-relation="{ row }"
             ><div>
               <p class="font-bold text-[var(--dh-text)]">
-                {{ displayCost(row).agentName || displayCost(row).carrierName || '—' }}
+                {{ relationSummary(row).names.slice(0, 3).join(', ') || '—' }}
+              </p>
+              <p
+                v-if="relationSummary(row).names.length > 3"
+                class="text-xs font-semibold text-[var(--dh-text-muted)]"
+              >
+                +{{ relationSummary(row).names.length - 3 }} más
               </p>
               <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ row.agentId ? 'Agente' : row.carrierId ? 'Naviera' : 'Sin relación' }}
+                {{ relationSummary(row).type }}
               </p>
             </div></template
           >
