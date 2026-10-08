@@ -21,19 +21,26 @@ function patchWizard(source: string) {
   let code = source
   const editableOptionalLtl = "(shipmentModeForApi === 'Ltl' && line.optional && !viewOnly)"
 
-  code = replaceRequired(
-    code,
-    ':disabled="line.costDetailType === \'AgentCharge\' || line.costType !== \'Variable\'"',
-    ':disabled="(line.costDetailType === \'AgentCharge\' || line.costType !== \'Variable\') && !' + editableOptionalLtl + '"',
-    'desbloquear costo de un opcional LTL',
-  )
-  code = replaceRequired(
-    code,
-    ':disabled="line.costDetailType === \'AgentCharge\'"',
-    ':disabled="line.costDetailType === \'AgentCharge\' && !' + editableOptionalLtl + '"',
-    'desbloquear costo y venta de opcionales LTL clasificados como cargo de agente',
-  )
+  const standardCostDisabled = `:disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'"`
+  const exwCostDisabled = `:disabled="!isEditableExwPickup(line) && (line.costDetailType === 'AgentCharge' || line.costType !== 'Variable')"`
+  const standardSaleDisabled = `:disabled="line.costDetailType === 'AgentCharge'"`
+  const exwSaleDisabled = `:disabled="line.costDetailType === 'AgentCharge' && !isEditableExwPickup(line)"`
+  const addLtlOverride = (disabled: string) => disabled.slice(0, -1) + ' && !' + editableOptionalLtl + '"'
 
+  const costDisabled = code.includes(exwCostDisabled) ? exwCostDisabled : standardCostDisabled
+  code = replaceRequired(
+    code,
+    costDisabled,
+    addLtlOverride(costDisabled),
+    'desbloquear costo de opcionales LTL sin alterar la regla EXW',
+  )
+  const saleDisabled = code.includes(exwSaleDisabled) ? exwSaleDisabled : standardSaleDisabled
+  code = replaceRequired(
+    code,
+    saleDisabled,
+    addLtlOverride(saleDisabled),
+    'desbloquear venta de opcionales LTL sin alterar la regla EXW',
+  )
   // El wizard principal regenera las líneas desde la matriz del tarifario LTL.
   // Distinguir el tarifario de origen evita llevar valores de otra tarifa.
   if (code.includes('function syncResolvedLandLtlTariffLines() {')) {
