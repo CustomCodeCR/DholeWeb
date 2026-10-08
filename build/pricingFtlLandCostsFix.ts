@@ -294,7 +294,7 @@ async function loadApplicableCosts() {
       importRateId: importRateId || undefined,
     }
 
-    const maritimeFcl = form.modality === 'Maritime' && costShipmentModeForApi() === 'Fcl'
+    const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
     const [contextResult, fullCatalogResult] = await Promise.allSettled([
       PricingService.selectCosts(contextualQuery),
       maritimeFcl
