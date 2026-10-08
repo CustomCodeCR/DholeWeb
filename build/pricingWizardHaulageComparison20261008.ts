@@ -325,7 +325,7 @@ function patchWizard(source: string) {
   const afterFetch = '    const contextualCosts = contextResult.status ==='
   if (!code.includes(afterFetch)) throw new Error('[haulage screen6] Missing contextual fetch.')
   code = code.replace(afterFetch,
-    '    if (contextKey !== currentCostContextKey()) return\\n\\n' + afterFetch)
+    '    if (contextKey !== currentCostContextKey()) return\n\n' + afterFetch)
 
   const nextAnchor = "  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)"
   if (!code.includes(nextAnchor)) throw new Error('[haulage screen6] Missing step 6 validation.')
