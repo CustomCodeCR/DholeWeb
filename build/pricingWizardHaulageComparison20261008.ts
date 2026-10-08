@@ -344,15 +344,21 @@ function patchWizard(source: string) {
     throw new Error('[haulage screen6] Missing rate-line rebuild boundaries.')
   }
   const rateLinesRebuild = code.slice(rateLinesRebuildStart, rateLinesRebuildEnd)
-  const rateLinesAssignment = '  rateLines.value = lines\n}'
-  if (rateLinesRebuild.split(rateLinesAssignment).length !== 2) {
-    throw new Error('[haulage screen6] Missing unique rate-line assignment.')
+  // Previous Vite transforms may insert Panama and optional-cost work
+  // between this assignment and the end of rebuildRateLines().
+  // Match the assignment line only instead of assuming it precedes "}".
+  const rateLinesAssignment = /^[ \\t]*rateLines\\.value\\s*=\\s*lines\\s*;?[ \\t]*$/gm
+  const assignments = [...rateLinesRebuild.matchAll(rateLinesAssignment)]
+  if (assignments.length !== 1) {
+    throw new Error('[haulage screen6] Expected one rate-line assignment, found ' + assignments.length + '.')
   }
-  const syncedRebuild = rateLinesRebuild.replace(
-    rateLinesAssignment,
-    '  rateLines.value = lines\n  if (dholeHaulageVisible.value) syncHaulageOptionalLines()\n}',
-  )
-  code = code.slice(0, rateLinesRebuildStart) + syncedRebuild + code.slice(rateLinesRebuildEnd)
+  if (!rateLinesRebuild.includes('if (dholeHaulageVisible.value) syncHaulageOptionalLines()')) {
+    const syncedRebuild = rateLinesRebuild.replace(
+      rateLinesAssignment,
+      (assignment) => assignment + '\\n  if (dholeHaulageVisible.value) syncHaulageOptionalLines()',
+    )
+    code = code.slice(0, rateLinesRebuildStart) + syncedRebuild + code.slice(rateLinesRebuildEnd)
+  }
 
   const optionalStart = code.indexOf('function shouldIncludeOptionalCost(')
   const optionalEnd = code.indexOf('\n}\n', optionalStart)
