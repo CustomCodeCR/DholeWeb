@@ -344,13 +344,13 @@ function patchWizard(source: string) {
     throw new Error('[haulage screen6] Missing rate-line rebuild boundaries.')
   }
   const rateLinesRebuild = code.slice(rateLinesRebuildStart, rateLinesRebuildEnd)
-  const rateLinesAssignment = '  rateLines.value = lines\\n}'
+  const rateLinesAssignment = '  rateLines.value = lines\n}'
   if (rateLinesRebuild.split(rateLinesAssignment).length !== 2) {
     throw new Error('[haulage screen6] Missing unique rate-line assignment.')
   }
   const syncedRebuild = rateLinesRebuild.replace(
     rateLinesAssignment,
-    '  rateLines.value = lines\\n  if (dholeHaulageVisible.value) syncHaulageOptionalLines()\\n}',
+    '  rateLines.value = lines\n  if (dholeHaulageVisible.value) syncHaulageOptionalLines()\n}',
   )
   code = code.slice(0, rateLinesRebuildStart) + syncedRebuild + code.slice(rateLinesRebuildEnd)
 
