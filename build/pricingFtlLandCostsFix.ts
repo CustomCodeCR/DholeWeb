@@ -224,7 +224,53 @@ ${optionalSelectorAnchor}`,
   code = replaceRegexOne(
     code,
     /async function loadApplicableCosts\(\) \{[\s\S]*?\n\}\n\nfunction rebuildRateLines/,
-    `async function loadApplicableCosts() {
+    `function maritimeFclRelationMatches(
+  relations: Array<{ id: string }> | null | undefined,
+  legacyId: string | null | undefined,
+  selectedId: string | null | undefined,
+) {
+  const selected = String(selectedId ?? '').trim()
+  const ids = Array.isArray(relations)
+    ? relations.map((item) => String(item.id ?? '').trim()).filter(Boolean)
+    : []
+  if (ids.length > 0) return Boolean(selected) && ids.includes(selected)
+  return !legacyId || (Boolean(selected) && String(legacyId) === selected)
+}
+
+function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
+  if (cost.isActive === false) return false
+
+  const modes = Array.isArray(cost.shipmentModes) && cost.shipmentModes.length
+    ? cost.shipmentModes
+    : cost.shipmentMode ? [cost.shipmentMode] : []
+  if (modes.length > 0 && !modes.some((mode) => String(mode).toLowerCase() === 'fcl')) return false
+
+  if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId)) return false
+  if (cost.services?.length && !cost.services.some((item) => form.serviceIds.includes(item.id))) return false
+
+  const poeId = costContextPoeId()
+  if (!maritimeFclRelationMatches(cost.pols, cost.polId, form.originId)) return false
+  if (!maritimeFclRelationMatches(cost.poes, cost.poeId, poeId)) return false
+  if (!maritimeFclRelationMatches(cost.pods, cost.podId, form.podId)) return false
+  if (!maritimeFclRelationMatches(cost.carriers, cost.carrierId, form.carrierId)) return false
+  if (!maritimeFclRelationMatches(cost.agents, cost.agentId, costContextAgentId())) return false
+
+  // PortId reflects only the first legacy selection. Match the full
+  // relationship first when several POE/POD/POL values were configured.
+  if (cost.portId) {
+    const role = String(cost.portRole ?? '').toLowerCase()
+    const relation = role === 'pol' ? cost.pols : role === 'poe' ? cost.poes : role === 'pod' ? cost.pods : null
+    if (!Array.isArray(relation) || relation.length === 0) {
+      const expected = role === 'pol' ? form.originId : role === 'poe' ? poeId : role === 'pod' ? form.podId : null
+      const candidates = expected ? [expected] : [form.originId, poeId, form.podId].filter(Boolean)
+      if (!candidates.includes(String(cost.portId))) return false
+    }
+  }
+
+  return true
+}
+
+async function loadApplicableCosts() {
   try {
     const contextKey = currentCostContextKey()
     const importRateId = costContextImportRateId()
@@ -234,7 +280,7 @@ ${optionalSelectorAnchor}`,
       automaticOptionalContextKey.value = contextKey
     }
 
-    const selectedCosts = await PricingService.selectCosts({
+    const contextualQuery = {
       carrierId: form.carrierId || undefined,
       agentId: costContextAgentId() || undefined,
       polId: form.originId || undefined,
@@ -246,15 +292,42 @@ ${optionalSelectorAnchor}`,
       applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
       importRateId: importRateId || undefined,
-    })
+    }
 
-    // Pricing already evaluated the full multi-port selection table. Do not filter the
-    // response again with the legacy single POD/POL/POE fields kept on CostSelectDto.
-    costs.value = selectedCosts
-      .map((cost) => ({
-        ...cost,
-        __dholePricingContextKey: contextKey,
-      }))
+    const maritimeFcl = form.modality === 'Maritime' && costShipmentModeForApi() === 'Fcl'
+    const [contextResult, fullCatalogResult] = await Promise.allSettled([
+      PricingService.selectCosts(contextualQuery),
+      maritimeFcl
+        ? PricingService.selectCosts({ isActive: true })
+        : Promise.resolve([] as CostSelectDto[]),
+    ])
+
+    if (contextResult.status === 'rejected' && (!maritimeFcl || fullCatalogResult.status === 'rejected')) {
+      throw contextResult.reason
+    }
+
+    const contextualCosts = contextResult.status === 'fulfilled' ? contextResult.value : []
+    const fullCatalog = fullCatalogResult.status === 'fulfilled' ? fullCatalogResult.value : []
+    const mergedCosts = new Map<string, CostSelectDto>()
+
+    // The contextual API may reject a valid multi-port entry because PortId/
+    // PoeId/PodId represent only the first historical selection. Reconcile with
+    // the active catalog using explicit relation arrays as the source of truth.
+    if (maritimeFcl) {
+      fullCatalog
+        .filter(maritimeFclCostMatchesCurrentContext)
+        .forEach((cost) => mergedCosts.set(cost.id, cost))
+      contextualCosts
+        .filter(maritimeFclCostMatchesCurrentContext)
+        .forEach((cost) => mergedCosts.set(cost.id, cost))
+    } else {
+      contextualCosts.forEach((cost) => mergedCosts.set(cost.id, cost))
+    }
+
+    costs.value = [...mergedCosts.values()].map((cost) => ({
+      ...cost,
+      __dholePricingContextKey: contextKey,
+    }))
   } catch (error) {
     costs.value = []
     toastStore.backendError(
