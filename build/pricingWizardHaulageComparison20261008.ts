@@ -327,10 +327,11 @@ function patchWizard(source: string) {
   code = code.replace(afterFetch,
     '    if (contextKey !== currentCostContextKey()) return\n\n' + afterFetch)
 
-  const nextAnchor = "  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)"
-  if (!code.includes(nextAnchor)) throw new Error('[haulage screen6] Missing step 6 validation.')
-  code = code.replace(nextAnchor,
-    "  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0) && (!dholeHaulageVisible.value || (!dholeHaulagePending.value && ((!dholeMerchantAvailable.value && !dholeCarrierAvailable.value) || dholeCurrentChoice.value !== null)))")
+  const nextAnchor = 'const canNext = computed(() => {'
+  if (code.split(nextAnchor).length !== 2) throw new Error('[haulage screen6] Missing wizard canNext.')
+  code = code.replace(nextAnchor, nextAnchor + '\n'
+    + "  if (step.value === 6 && dholeHaulageVisible.value && (dholeHaulagePending.value || ((dholeMerchantAvailable.value || dholeCarrierAvailable.value) && !dholeCurrentChoice.value))) return false\n")
+
 
   return code
 }
