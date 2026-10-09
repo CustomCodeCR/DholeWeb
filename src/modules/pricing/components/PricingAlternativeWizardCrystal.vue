@@ -3258,30 +3258,25 @@ async function hydrateExistingRate() {
     form.cargoWidthCm = Number(rate.cargoLines?.[0]?.widthCm ?? 0)
     form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
 
+    // Existing rate details are an authoritative snapshot. Do not delete
+    // the only saved coloader charges merely because their charge basis,
+    // provider association or historical notes look like a container charge.
+    // Switching sources replaces these lines in applyLclRateSource instead.
     rateLines.value = rate.rateDetails.filter((detail) => {
-      if (!(shipmentModeForApi.value === 'Lcl' && (() => {
-    const notes = editingRate.value?.rateDetails?.map((detail) => String(detail.notes ?? '')) ?? []
-    const own = notes.some((note) => /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(note))
-    return notes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))
-      || (Boolean(editingRate.value) && !own)
-  })())) return true
-      // Al convertir un LCL propio a coloader, la edición reemplaza los cargos
-      // anteriores. Solo las líneas de la fuente actual son aplicables.
-      const detailNotes = String(detail.notes ?? '')
-      if (isColoaderRate
-        && /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(detailNotes)
-        && !/Fuente LCL:\s*Coloader|LCL\s+COLOADER/i.test(detailNotes)) return false
-      // Las líneas históricas de contenedor en coloader se excluyen incluso
-      // cuando CostId es null: no pertenecen a esta modalidad.
-      if (detail.chargeBasis === 'PerContainer' || detail.chargeBasis === 'PerTruck') return false
-      if (!detail.costId) return true
-      // Tarifas LCL coloader históricas pueden contener cargos FCL injertados.
-      // No presentarlos como líneas del coloader ni reintroducirlos al guardar.
-      // Los cargos manuales y los rubros del agente permanecen intactos.
-      const catalogCost = costs.value.find((cost) => cost.id === detail.costId)
+      if (!isColoaderRate) return true
+      const notes = String(detail.notes ?? '')
+      const hasExplicitColoader = rate.rateDetails.some((row) =>
+        /Fuente LCL:\s*Coloader|LCL\s+COLOADER/i.test(String(row.notes ?? '')),
+      )
+      if (!hasExplicitColoader) return true
+      if (/Fuente LCL:\s*Coloader|LCL\s+COLOADER/i.test(notes)) return true
+      if (/Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(notes)) return false
+      // Only exclude verifiably inherited carrier costs; manual and agent
+      // charges without source markers must stay visible.
+      const catalogCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
       if (catalogCost && isOwnLclCarrierCatalogCost(catalogCost)) return false
       return !/\bmaersk\b|\bmerchant\b|\bpase vac[ií]o\b/i.test(
-        String(detail.name ?? '') + ' ' + String(detail.notes ?? ''),
+        String(detail.name ?? '') + ' ' + notes,
       )
     }).map((detail) => {
       const configuredCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
