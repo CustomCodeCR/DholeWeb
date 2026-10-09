@@ -69,7 +69,7 @@ const MIAMI_COMMERCIAL_RATES: Record<string, MiamiCommercialRateUi> = {
   A: { label: 'Cliente A', salePerCft: 2.80, minimumFreightSale: 280, sed: 25, handling: 45, vgm: 20, tica: 25, seal: 20, documentation: 25, forwarding: 0, insurancePct: 0.75, insuranceMinimum: 50 },
   B: { label: 'Cliente B', salePerCft: 2.95, minimumFreightSale: 295, sed: 28, handling: 55, vgm: 25, tica: 25, seal: 30, documentation: 45, forwarding: 0, insurancePct: 0.80, insuranceMinimum: 60 },
   C: { label: 'Cliente C', salePerCft: 3.00, minimumFreightSale: 300, sed: 30, handling: 65, vgm: 25, tica: 25, seal: 35, documentation: 50, forwarding: 0, insurancePct: 0.80, insuranceMinimum: 60 },
-  D: { label: 'Cliente D', salePerCft: 3.00, minimumFreightSale: 300, sed: 35, handling: 65, vgm: 30, tica: 30, seal: 35, documentation: 50, forwarding: 50, insurancePct: 0.80, insuranceMinimum: 60 },
+  D: { label: 'Cliente D', salePerCft: 3.00, minimumFreightSale: 300, sed: 35, handling: 65, vgm: 30, tica: 30, seal: 35, documentation: 50, forwarding: 50, insurancePct: 0.80, insuranceMinimum: 95 },
   'NVOCC-B': { label: 'Cliente NVOCC-B', salePerCft: 2.90, minimumFreightSale: 170, sed: 25, handling: 45, vgm: 20, tica: 0, seal: 20, documentation: 0, forwarding: 0, insurancePct: 0.50, insuranceMinimum: 50 },
   'NVOCC-A': { label: 'Cliente NVOCC-A', salePerCft: 2.60, minimumFreightSale: 95, sed: 25, handling: 60, vgm: 0, tica: 0, seal: 25, documentation: 25, forwarding: 0, insurancePct: 0.50, insuranceMinimum: 50 },
   LITTLE: { label: 'CARGAS LITTLE', salePerCft: 0, minimumFreightSale: 0, sed: 0, handling: 35, vgm: 15, tica: 0, seal: 0, documentation: 20, forwarding: 0, insurancePct: 0.50, insuranceMinimum: 10, little: true },
