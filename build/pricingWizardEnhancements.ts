@@ -96,7 +96,13 @@ export function pricingWizardEnhancements(): Plugin {
       code = replaceOne(code, helperAnchor, helperCode + helperAnchor, 'LCL source and commercial term helpers')
 
       const lclCarrierAnchor = `  if (selection.carrierId) form.carrierId = selection.carrierId\n  if (selection.currencyId) form.currencyId = selection.currencyId`
-      const lclCarrierReplacement = `  const sourceCarrier = selection.carrierId\n    ? catalogs.carriers.find((item) => item.id === selection.carrierId)\n    : catalogs.carriers.find((item) => {\n        const sourceCode = normalizeCatalogValue(selection.carrierCode ?? '')\n        const sourceName = normalizeCatalogValue(selection.carrierName ?? '')\n        return (sourceCode && normalizeCatalogValue(item.code ?? '') === sourceCode)\n          || (sourceName && normalizeCatalogValue(displayValue(item)) === sourceName)\n      })\n  form.carrierId = sourceCarrier?.id ?? ''\n  if (selection.currencyId) form.currencyId = selection.currencyId`
+      const lclCarrierReplacement = `  const sourceCarrier = selection.carrierId\n    ? catalogs.carriers.find((item) => item.id === selection.carrierId)\n    : catalogs.carriers.find((item) => {\n        const sourceCode = normalizeCatalogValue(selection.carrierCode ?? '')\n        const sourceName = normalizeCatalogValue(selection.carrierName ?? '')\n        return (sourceCode && normalizeCatalogValue(item.code ?? '') === sourceCode)\n          || (sourceName && normalizeCatalogValue(displayValue(item)) === sourceName)\n      })\n  // Coloader no opera con la naviera del consolidado propio anterior.
+  form.carrierId = selection.kind === 'Coloader' ? '' : (sourceCarrier?.id ?? '')
+  if (selection.kind === 'Coloader') {
+    form.merchantHaulage = false
+    form.carrierHaulage = false
+  }
+  if (selection.currencyId) form.currencyId = selection.currencyId`
       code = replaceOne(code, lclCarrierAnchor, lclCarrierReplacement, 'LCL source carrier resolution')
 
       const includeTermsAnchor = `  const includeTerms = uniqueTermLines([\n    ...commercialTerms.includes.map((item) => item.text),\n    ...includedLines.value.map((line) => line.name),\n  ])`
@@ -124,11 +130,15 @@ export function pricingWizardEnhancements(): Plugin {
       code = replaceOne(code, updateAgentAnchor, updateAgentReplacement, 'update payload nullable agent')
 
       const createCarrierAnchor = `      carrierId: carrier!.id,\n      carrierName: displayValue(carrier),\n      carrierCode: carrier!.code,`
-      const createCarrierReplacement = `      carrierId: carrier?.id ?? null,\n      carrierName: carrier ? displayValue(carrier) : null,\n      carrierCode: carrier?.code ?? null,`
+      const createCarrierReplacement = `      carrierId: shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : carrier?.id ?? null,
+      carrierName: shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : (carrier ? displayValue(carrier) : null),
+      carrierCode: shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : carrier?.code ?? null,`
       code = replaceOne(code, createCarrierAnchor, createCarrierReplacement, 'create payload nullable carrier')
 
       const updateCarrierAnchor = `        carrierId: carrier!.id,\n        carrierName: displayValue(carrier),\n        carrierCode: carrier!.code,`
-      const updateCarrierReplacement = `        carrierId: carrier?.id ?? null,\n        carrierName: carrier ? displayValue(carrier) : null,\n        carrierCode: carrier?.code ?? null,`
+      const updateCarrierReplacement = `        carrierId: shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : carrier?.id ?? null,
+        carrierName: shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : (carrier ? displayValue(carrier) : null),
+        carrierCode: shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : carrier?.code ?? null,`
       code = replaceOne(code, updateCarrierAnchor, updateCarrierReplacement, 'update payload nullable carrier')
 
       const persistedTermsAnchor = `      includes: includeTerms.join('\\n') || null,\n      subjectTo: subjectTerms.join('\\n') || null,\n      excludes: excludeTerms.join('\\n') || null,`
