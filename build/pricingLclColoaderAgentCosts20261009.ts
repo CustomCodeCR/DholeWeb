@@ -56,7 +56,11 @@ function patchLclColoaderAgentCosts(source: string) {
     '    return',
     '  }',
   ].join('\n')
-  code = lclReplaceOnce(code, blockedLoader, agentLoader, 'LCL cost-loading guard')
+  // Previous Vite transforms rewrite the original coloader guard; install an early
+  // return before those guards instead of matching their old implementation.
+  code = lclReplaceOnce(code, 'async function loadApplicableCosts() {',
+    'async function loadApplicableCosts() {\n' + agentLoader,
+    'LCL agent-only cost loading')
   code = lclReplaceOnce(code, 'function applicableConfiguredCosts() {',
     'function applicableConfiguredCosts() {\n  if (isLclColoaderAgentCostContext()) return costs.value.filter(dholeLclColoaderAgentCostMatches).sort((a, b) => costSpecificity(b) - costSpecificity(a))',
     'configured cost matcher')
