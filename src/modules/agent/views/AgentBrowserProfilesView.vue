@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Eye, Globe2, LogIn, Plus, RefreshCw } from 'lucide-vue-next'
+import { Eye, Globe2, LogIn, Plus, RefreshCw, Wrench } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
@@ -23,6 +23,8 @@ const createOpen = ref(false)
 const detailOpen = ref(false)
 const saving = ref(false)
 const authenticatingId = ref<string | null>(null)
+const repairingId = ref<string | null>(null)
+const repairProfile = ref<BrowserProfileDto | null>(null)
 const selectedProfile = ref<BrowserProfileDto | null>(null)
 
 const form = reactive({
@@ -79,7 +81,7 @@ function credentialName(id: string) {
 function statusVariant(status: string): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
   if (status === 'Authenticated' || status === 'Ready') return 'success'
   if (status === 'Authenticating') return 'primary'
-  if (status === 'LoginRequired' || status === 'Expired') return 'warning'
+  if (status === 'LoginRequired' || status === 'Expired' || status === 'ResetRequested') return 'warning'
   if (status === 'Blocked' || status === 'Error') return 'danger'
   return 'neutral'
 }
@@ -148,6 +150,32 @@ async function authenticate(row: BrowserProfileDto) {
   }
 }
 
+function canRepair(row: BrowserProfileDto) {
+  return row.status === 'Expired' || row.status === 'Error'
+}
+
+function requestRepair(row: BrowserProfileDto) {
+  if (!canRepair(row) || repairingId.value) return
+  repairProfile.value = row
+}
+
+async function confirmRepair() {
+  const row = repairProfile.value
+  if (!row || !canRepair(row) || repairingId.value) return
+
+  try {
+    repairingId.value = row.id
+    await AgentService.browserProfiles.repairSession(row.id)
+    toastStore.success(t('agent.messages.repairRequested'), row.name)
+    repairProfile.value = null
+    await store.loadBrowserProfiles()
+  } catch (error) {
+    toastStore.backendError(error, t('agent.errors.repairProfile'))
+  } finally {
+    repairingId.value = null
+  }
+}
+
 async function viewDetail(row: BrowserProfileDto) {
   try {
     selectedProfile.value = await AgentService.getBrowserProfile(row.id)
@@ -196,6 +224,10 @@ onMounted(refresh)
       </template>
     </DhPageHeader>
 
+    <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-4 py-3 text-sm leading-relaxed text-[var(--dh-text-muted)]">
+      {{ t('agent.browserProfiles.help') }}
+    </p>
+
     <DhDataTable
       :columns="columns"
       :rows="store.browserProfiles"
@@ -227,8 +259,17 @@ onMounted(refresh)
             variant="secondary"
             size="sm"
             :loading="authenticatingId === row.id"
-            :disabled="Boolean(authenticatingId) && authenticatingId !== row.id"
+            :disabled="Boolean(authenticatingId) || row.status === 'ResetRequested'"
             @click="authenticate(row)"
+          />
+          <DhButton
+            v-if="permissions.canAuthenticateBrowserProfiles.value && canRepair(row)"
+            :label="t('agent.browserProfiles.repairAction')"
+            :icon="Wrench"
+            variant="secondary"
+            size="sm"
+            :disabled="Boolean(repairingId) || Boolean(authenticatingId)"
+            @click="requestRepair(row)"
           />
         </div>
       </template>
@@ -266,6 +307,31 @@ onMounted(refresh)
           <DhButton type="submit" :label="t('agent.browserProfiles.createAction')" :loading="saving" />
         </div>
       </form>
+    </DhModal>
+
+    <DhModal :open="Boolean(repairProfile)" :title="t('agent.browserProfiles.repairTitle')" size="md" @close="repairProfile = null">
+      <div class="grid gap-4">
+        <p class="text-sm leading-relaxed text-[var(--dh-text)]">
+          {{ t('agent.browserProfiles.repairConfirm', { name: repairProfile?.name ?? '' }) }}
+        </p>
+        <p class="text-sm leading-relaxed text-[var(--dh-text-muted)]">
+          {{ t('agent.browserProfiles.repairDescription') }}
+        </p>
+        <div class="flex flex-wrap justify-end gap-2">
+          <DhButton
+            :label="t('agent.actions.cancel')"
+            variant="secondary"
+            :disabled="Boolean(repairingId)"
+            @click="repairProfile = null"
+          />
+          <DhButton
+            :label="t('agent.browserProfiles.repairAction')"
+            :icon="Wrench"
+            :loading="Boolean(repairingId)"
+            @click="confirmRepair"
+          />
+        </div>
+      </div>
     </DhModal>
 
     <DhModal :open="detailOpen" :title="t('agent.browserProfiles.detailTitle')" size="lg" @close="detailOpen = false">
