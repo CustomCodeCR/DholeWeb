@@ -1973,16 +1973,12 @@ function applicableCost(cost: CostSelectDto) {
     return notes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))
       || (Boolean(editingRate.value) && !own)
   })()) && isOwnLclCarrierCatalogCost(cost)) return false
-  // Un costo sin modalidad explícita no puede convertirse automáticamente en
-  // cargo FCL dentro de una cotización consolidada. Las líneas manuales ya
-  // guardadas se preservan; esta validación controla solo el catálogo.
+  // Los costos por contenedor/camión no pertenecen al LCL; para las otras
+  // modalidades consolidadas tampoco aceptar costos sin modalidad definida.
   const mode = shipmentModeForApi.value
-  if ((mode === 'Lcl' || mode === 'Ltl' || mode === 'AirConsol')
-      && (cost.chargeBasis === 'PerContainer' || cost.chargeBasis === 'PerTruck')
-      && !cost.shipmentMode) return false
-  // Ningún cargo basado en contenedor/camión puede provenir del catálogo LCL.
-  if (shipmentModeForApi.value === 'Lcl'
-      && (cost.chargeBasis === 'PerContainer' || cost.chargeBasis === 'PerTruck')) return false
+  const isFullUnitCost = cost.chargeBasis === 'PerContainer' || cost.chargeBasis === 'PerTruck'
+  if (isFullUnitCost && (mode === 'Lcl'
+      || ((mode === 'Ltl' || mode === 'AirConsol') && !cost.shipmentMode))) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
