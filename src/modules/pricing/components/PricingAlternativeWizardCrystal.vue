@@ -1959,7 +1959,22 @@ function costContextLabel(cost: CostSelectDto) {
   return parts.join(' · ') || null
 }
 
+function isLclColoaderCostContext() {
+  if (shipmentModeForApi.value !== 'Lcl') return false
+  if (lclSelectedSource.value?.kind === 'Coloader') return true
+  if (lclSelectedSource.value?.kind === 'Own') return false
+  const savedNotes = editingRate.value?.rateDetails?.map((detail) => String(detail.notes ?? '')) ?? []
+  return savedNotes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))
+}
+
+function isOwnLclCarrierCatalogCost(cost: CostSelectDto) {
+  return Boolean(cost.carrierId || (Array.isArray(cost.carriers) && cost.carriers.length))
+}
+
 function applicableCost(cost: CostSelectDto) {
+  // Un coloader utiliza su propio tarifario, no los cargos de navieras LCL
+  // configurados para consolidaciones propias.
+  if (isLclColoaderCostContext() && isOwnLclCarrierCatalogCost(cost)) return false
   // Un costo sin modalidad explícita no puede convertirse automáticamente en
   // cargo FCL dentro de una cotización consolidada. Las líneas manuales ya
   // guardadas se preservan; esta validación controla solo el catálogo.
