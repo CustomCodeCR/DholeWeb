@@ -29,8 +29,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf .dhole-system
-          git clone --depth 1 --branch master https://github.com/CustomCodeCR/DholeSystem.git .dhole-system
+          # Transient DNS faults on self-hosted runners must not fail deployment immediately.
+          # Do not alter host DNS configuration or fall back to unverified sources.
+          for attempt in 1 2 3 4 5; do
+            if git clone --depth 1 --branch master https://github.com/CustomCodeCR/DholeSystem.git .dhole-system; then
+              break
+            fi
+            rm -rf .dhole-system
+            if (( attempt == 5 )); then
+              echo "::error::Could not clone DholeSystem after 5 attempts. Check DNS and outbound HTTPS on the self-hosted runner."
+              getent ahostsv4 github.com || true
+              cat /etc/resolv.conf || true
+              exit 1
+            fi
+            echo "::warning::DholeSystem clone failed (attempt ${attempt}/5); retrying."
+            sleep $((attempt * 5))
+          done
           test -r /opt/dhole/.env
           echo "DHOLE_ENV_FILE=/opt/dhole/.env" >> "$GITHUB_ENV"
 
