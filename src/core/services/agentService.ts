@@ -398,6 +398,12 @@ const browserProfiles = {
       params: { profileId },
     })
   },
+
+  repairSession(profileId: string): Promise<NoContent> {
+    return callEndpoint<NoContent>(AgentEndpoints.repairBrowserProfileSession, {
+      params: { profileId },
+    })
+  },
 }
 
 const schedules = {
