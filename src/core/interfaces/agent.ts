@@ -462,5 +462,6 @@ export const AGENT_BROWSER_PROFILE_STATUSES = [
   'Expired',
   'Blocked',
   'Error',
+  'ResetRequested',
 ] as const
 
