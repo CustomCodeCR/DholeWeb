@@ -1601,7 +1601,9 @@
       "repairAction": "Repair session",
       "repairTitle": "Prepare session repair",
       "repairConfirm": "Prepare session repair for {name}?",
-      "repairDescription": "Only expired or errored profiles can be repaired. The previous browser profile is preserved as a backup and the next manual execution initializes a clean profile. This does not bypass provider verification."
+      "repairDescription": "Only expired or errored profiles can be repaired. The previous browser profile is preserved as a backup and the next manual execution initializes a clean profile. This does not bypass provider verification.",
+      "blockedHelp": "Maersk requires manual verification. Open noVNC, complete the challenge and reauthenticate; the browser profile will not be rotated automatically.",
+      "pendingHelp": "Pending: start a manual execution to archive the damaged session and initialize a new one."
     },
     "schedules": {
       "title": "Schedules",
