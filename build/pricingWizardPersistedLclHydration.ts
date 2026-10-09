@@ -12,6 +12,11 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 
 function patchWizard(source: string) {
   let code = source
+  code = replaceOne(code,
+    "import { PricingService } from '@/core/services/pricingService'",
+    "import { PricingService } from '@/core/services/pricingService'\nimport { LclRateSourceService } from '@/core/services/lclRateSourceService'",
+    'coloader source import',
+  )
 
   const hydrateAnchor = 'async function hydrateExistingRate() {'
   const helpers = `function extractPersistedLclPickupAddress(value: unknown) {
@@ -48,10 +53,12 @@ function splitPersistedLclTerms(value: unknown) {
     .filter(Boolean)
 }
 
-function hydratePersistedLclSource(rate: RateDto) {
+async function hydratePersistedLclSource(rate: RateDto) {
   if (rate.shipmentMode !== 'Lcl') return
 
-  const notes = rateLines.value.map((line) => String(line.notes ?? '')).join('\\n')
+  // Use the original saved metadata even when an earlier UI filter removed all
+  // line snapshots. The selected coloader's source ID must survive the filter.
+  const notes = (rate.rateDetails ?? []).map((line) => String(line.notes ?? '')).join('\\n')
   const ownMatch = notes.match(/ConsolidadoId:\\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
   const coloaderMatch = notes.match(/LCL\\s+COLOADER\\s*·\\s*RateId:\\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
   // El coloader actual prevalece aunque la tarifa todavía conserve notas
@@ -62,11 +69,62 @@ function hydratePersistedLclSource(rate: RateDto) {
   const kind = coloaderMarker || (isNoCarrierLcl && !ownMarker)
     ? 'Coloader'
     : ownMatch ? 'Own' : null
-  const sourceId = kind === 'Coloader'
+  let sourceId = kind === 'Coloader'
     ? coloaderMatch?.[1] ?? rate.id
     : ownMatch?.[1] ?? null
 
   lclRequestedCbm.value = Math.max(1, Number(rate.chargeableQuantity || 0))
+  if (kind === 'Coloader' && !rateLines.value.some((line) =>
+    /LCL\\s+COLOADER|Fuente LCL:\\s*Coloader/i.test(String(line.notes ?? '')))) {
+    // Earlier builds could empty the entire quote before we recovered its source.
+    // Reload actual rate items from the coloader catalog, never from FCL costs.
+    try {
+      const candidates = await LclRateSourceService.browseColoaders({
+        modality: 'Maritime',
+        polId: rate.polId,
+        poeId: rate.poeId,
+        podId: rate.podId,
+        incotermId: rate.incotermId,
+        quoteDate: String(rate.validFrom ?? '').slice(0, 10),
+      })
+      const matchingProvider = candidates.filter((candidate) =>
+        candidate.lines?.length && rate.agentId && candidate.providerId === rate.agentId)
+      const selected = candidates.find((candidate) =>
+        candidate.id === coloaderMatch?.[1] && candidate.lines?.length)
+        ?? (matchingProvider.length === 1 ? matchingProvider[0] : null)
+      if (selected) {
+        sourceId = selected.id
+        rateLines.value = selected.lines.map((line) => ({
+          key: 'coloader:' + selected.id + ':' + line.id,
+          section: sectionForDetail(line.costDetailType, line.name),
+          name: line.name,
+          costDetailType: line.costDetailType,
+          costType: line.costType,
+          chargeBasis: line.chargeBasis,
+          costId: line.costId,
+          contextLabel: [selected.providerName, selected.rateCode].filter(Boolean).join(' · '),
+          notes: ['LCL COLOADER · RateId: ' + selected.id, line.notes].filter(Boolean).join(' · '),
+          currencyId: line.currencyId,
+          currencyName: line.currencyName,
+          currencyCode: line.currencyCode,
+          amountCurrencyCode: line.currencyCode,
+          costAmount: Number(line.costAmount || 0),
+          saleAmount: Number(line.saleAmount || 0),
+          included: true,
+          optional: line.costType === 'Optional',
+          manual: false,
+          applyDestinationTax: Boolean(line.applyDestinationTax),
+          destinationTaxRate: Number(line.destinationTaxRate || 0),
+        })) as RateLine[]
+        form.carrierId = ''
+        form.freightCost = Number(rateLines.value.find((line) => line.costDetailType === 'Freight')?.costAmount || 0)
+        form.freightSale = Number(rateLines.value.find((line) => line.costDetailType === 'Freight')?.saleAmount || 0)
+      }
+    } catch {
+      // Keep edits read-only from a data-loss perspective: saveRate guards
+      // against an empty LCL quote and asks to reselect the coloader.
+    }
+  }
   if (!kind || !sourceId) return
 
   lclSelectedSourceKey.value = \`\${kind}:\${sourceId}\`
@@ -142,7 +200,7 @@ function hydratePersistedLclSource(rate: RateDto) {
   code = replaceOne(
     code,
     `    if (refreshingDuplicatedRate.value && rate.shipmentMode === 'Fcl') {`,
-    `    hydratePersistedLclSource(rate)
+    `    await hydratePersistedLclSource(rate)
     if (refreshingDuplicatedRate.value && rate.shipmentMode === 'Fcl') {`,
     'persisted LCL source hydration',
   )
