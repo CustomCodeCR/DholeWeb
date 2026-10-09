@@ -1961,8 +1961,8 @@ function costContextLabel(cost: CostSelectDto) {
 
 function isLclColoaderCostContext() {
   if (shipmentModeForApi.value !== 'Lcl') return false
-  if (lclSelectedSource.value?.kind === 'Coloader') return true
-  if (lclSelectedSource.value?.kind === 'Own') return false
+  // La selección LCL se inyecta desde un plugin de Vite y no existe durante vue-tsc.
+  // Para tarifas persistidas inferimos la fuente desde las notas guardadas.
   const savedNotes = editingRate.value?.rateDetails?.map((detail) => String(detail.notes ?? '')) ?? []
   if (savedNotes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))) return true
   // Cotizaciones antiguas no guardaban siempre el marcador de fuente.
