@@ -54,8 +54,17 @@ function hydratePersistedLclSource(rate: RateDto) {
   const notes = rateLines.value.map((line) => String(line.notes ?? '')).join('\\n')
   const ownMatch = notes.match(/ConsolidadoId:\\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
   const coloaderMatch = notes.match(/LCL\\s+COLOADER\\s*·\\s*RateId:\\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
-  const kind = ownMatch ? 'Own' : coloaderMatch ? 'Coloader' : null
-  const sourceId = ownMatch?.[1] ?? coloaderMatch?.[1] ?? null
+  // El coloader actual prevalece aunque la tarifa todavía conserve notas
+  // históricas del consolidado propio y no tenga RateId en los detalles.
+  const coloaderMarker = /Fuente LCL:\\s*Coloader|LCL\\s+COLOADER/i.test(notes)
+  const ownMarker = /Fuente LCL:\\s*Propio|LCL\\s*PROPIO|ConsolidadoId:/i.test(notes)
+  const isNoCarrierLcl = String(rate.carrierCode ?? '').toUpperCase() === 'LCL'
+  const kind = coloaderMarker || (isNoCarrierLcl && !ownMarker)
+    ? 'Coloader'
+    : ownMatch ? 'Own' : null
+  const sourceId = kind === 'Coloader'
+    ? coloaderMatch?.[1] ?? rate.id
+    : ownMatch?.[1] ?? null
 
   lclRequestedCbm.value = Math.max(1, Number(rate.chargeableQuantity || 0))
   if (!kind || !sourceId) return
