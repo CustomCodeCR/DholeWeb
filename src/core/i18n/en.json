@@ -1475,7 +1475,8 @@
       "Authenticated": "Authenticated",
       "Expired": "Expired",
       "Blocked": "Blocked",
-      "Error": "Error"
+      "Error": "Error",
+      "ResetRequested": "Repair requested"
     },
     "fields": {
       "name": "Name",
@@ -1595,7 +1596,12 @@
       "empty": "No web sessions configured.",
       "createTitle": "New web session",
       "detailTitle": "Session details",
-      "createAction": "Create session"
+      "createAction": "Create session",
+      "help": "Valid sessions are reused. For expired or locally damaged sessions, you can request a repair that backs up the previous profile and prepares a clean one during the next manual execution. If Maersk displays a CAPTCHA or blocks access, complete the provider verification using the worker browser (noVNC); it will not be bypassed automatically.",
+      "repairAction": "Repair session",
+      "repairTitle": "Prepare session repair",
+      "repairConfirm": "Prepare session repair for {name}?",
+      "repairDescription": "Only expired or errored profiles can be repaired. The previous browser profile is preserved as a backup and the next manual execution initializes a clean profile. This does not bypass provider verification."
     },
     "schedules": {
       "title": "Schedules",
@@ -1676,6 +1682,7 @@
       "credentialUpdated": "Credential updated",
       "profileCreated": "Browser profile created",
       "authRequested": "Authentication requested",
+      "repairRequested": "Session repair requested. Run a manual execution to complete it.",
       "scheduleCreated": "Schedule created",
       "scheduleUpdated": "Schedule updated",
       "executionStarted": "Execution started",
@@ -1707,6 +1714,7 @@
       "loadProfile": "The profile could not be loaded.",
       "createProfile": "The browser profile could not be created.",
       "authenticateProfile": "Authentication could not be requested.",
+      "repairProfile": "Could not request session repair",
       "loadSchedules": "Schedules could not be loaded.",
       "loadSchedule": "The schedule could not be loaded.",
       "saveSchedule": "The schedule could not be saved.",
