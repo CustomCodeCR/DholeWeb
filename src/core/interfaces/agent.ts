@@ -451,6 +451,7 @@ export type AgentBrowserProfileStatus =
   | 'Expired'
   | 'Blocked'
   | 'Error'
+  | 'ResetRequested'
 
 export const AGENT_BROWSER_PROFILE_STATUSES = [
   'Unknown',
