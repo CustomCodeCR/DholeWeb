@@ -108,6 +108,7 @@ function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
     || notes.some((note) => /Fuente LCL:\\s*Coloader/i.test(note))
     || (Boolean(editingRate.value) && !ownSource)
   const carrierCatalogCost = Boolean(cost.carrierId || (Array.isArray(cost.carriers) && cost.carriers.length))
+  if (lclMode && (cost.chargeBasis === 'PerContainer' || cost.chargeBasis === 'PerTruck')) return false
   if (lclMode && coloaderSource && !ownSource && carrierCatalogCost) return false
   if (cost.costType !== 'Optional') return false
   if (cost.isActive === false) return false
