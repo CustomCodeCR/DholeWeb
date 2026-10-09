@@ -1964,7 +1964,12 @@ function isLclColoaderCostContext() {
   if (lclSelectedSource.value?.kind === 'Coloader') return true
   if (lclSelectedSource.value?.kind === 'Own') return false
   const savedNotes = editingRate.value?.rateDetails?.map((detail) => String(detail.notes ?? '')) ?? []
-  return savedNotes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))
+  if (savedNotes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))) return true
+  // Cotizaciones antiguas no guardaban siempre el marcador de fuente.
+  // Sin consolidado propio identificado, un LCL persistido debe tratarse como
+  // coloader para no añadir cargos de naviera de consolidaciones propias.
+  const own = savedNotes.some((note) => /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(note))
+  return Boolean(editingRate.value && !own)
 }
 
 function isOwnLclCarrierCatalogCost(cost: CostSelectDto) {
@@ -3254,7 +3259,18 @@ async function hydrateExistingRate() {
     form.cargoWidthCm = Number(rate.cargoLines?.[0]?.widthCm ?? 0)
     form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
 
-    rateLines.value = rate.rateDetails.map((detail) => {
+    rateLines.value = rate.rateDetails.filter((detail) => {
+      if (!isLclColoaderCostContext() || !detail.costId) return true
+      // Tarifas LCL coloader históricas pueden contener cargos FCL injertados.
+      // No presentarlos como líneas del coloader ni reintroducirlos al guardar.
+      // Los cargos manuales y los rubros del agente permanecen intactos.
+      const catalogCost = costs.value.find((cost) => cost.id === detail.costId)
+      if (catalogCost && isOwnLclCarrierCatalogCost(catalogCost)) return false
+      if (detail.chargeBasis === 'PerContainer' || detail.chargeBasis === 'PerTruck') return false
+      return !/\bmaersk\b|\bmerchant\b|\bpase vac[ií]o\b/i.test(
+        String(detail.name ?? '') + ' ' + String(detail.notes ?? ''),
+      )
+    }).map((detail) => {
       const configuredCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
       return {
         key: `existing:${detail.id}`,
