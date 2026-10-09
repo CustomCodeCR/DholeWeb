@@ -1959,18 +1959,6 @@ function costContextLabel(cost: CostSelectDto) {
   return parts.join(' · ') || null
 }
 
-function isLclColoaderCostContext() {
-  if (shipmentModeForApi.value !== 'Lcl') return false
-  // La selección LCL se inyecta desde un plugin de Vite y no existe durante vue-tsc.
-  // Para tarifas persistidas inferimos la fuente desde las notas guardadas.
-  const savedNotes = editingRate.value?.rateDetails?.map((detail) => String(detail.notes ?? '')) ?? []
-  if (savedNotes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))) return true
-  // Cotizaciones antiguas no guardaban siempre el marcador de fuente.
-  // Sin consolidado propio identificado, un LCL persistido debe tratarse como
-  // coloader para no añadir cargos de naviera de consolidaciones propias.
-  const own = savedNotes.some((note) => /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(note))
-  return Boolean(editingRate.value && !own)
-}
 
 function isOwnLclCarrierCatalogCost(cost: CostSelectDto) {
   return Boolean(cost.carrierId || (Array.isArray(cost.carriers) && cost.carriers.length))
@@ -1979,7 +1967,12 @@ function isOwnLclCarrierCatalogCost(cost: CostSelectDto) {
 function applicableCost(cost: CostSelectDto) {
   // Un coloader utiliza su propio tarifario, no los cargos de navieras LCL
   // configurados para consolidaciones propias.
-  if (isLclColoaderCostContext() && isOwnLclCarrierCatalogCost(cost)) return false
+  if ((shipmentModeForApi.value === 'Lcl' && (() => {
+    const notes = editingRate.value?.rateDetails?.map((detail) => String(detail.notes ?? '')) ?? []
+    const own = notes.some((note) => /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(note))
+    return notes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))
+      || (Boolean(editingRate.value) && !own)
+  })()) && isOwnLclCarrierCatalogCost(cost)) return false
   // Un costo sin modalidad explícita no puede convertirse automáticamente en
   // cargo FCL dentro de una cotización consolidada. Las líneas manuales ya
   // guardadas se preservan; esta validación controla solo el catálogo.
@@ -3260,7 +3253,12 @@ async function hydrateExistingRate() {
     form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
 
     rateLines.value = rate.rateDetails.filter((detail) => {
-      if (!isLclColoaderCostContext() || !detail.costId) return true
+      if (!(shipmentModeForApi.value === 'Lcl' && (() => {
+    const notes = editingRate.value?.rateDetails?.map((detail) => String(detail.notes ?? '')) ?? []
+    const own = notes.some((note) => /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(note))
+    return notes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))
+      || (Boolean(editingRate.value) && !own)
+  })()) || !detail.costId) return true
       // Tarifas LCL coloader históricas pueden contener cargos FCL injertados.
       // No presentarlos como líneas del coloader ni reintroducirlos al guardar.
       // Los cargos manuales y los rubros del agente permanecen intactos.
