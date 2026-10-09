@@ -237,7 +237,15 @@ onMounted(refresh)
       <template #cell-providerId="{ row }">{{ providerName(row.providerId) }}</template>
       <template #cell-credentialId="{ row }">{{ credentialName(row.credentialId) }}</template>
       <template #cell-status="{ row }">
-        <DhBadge :label="t(`agent.browserStatus.${row.status}`)" :variant="statusVariant(row.status)" />
+        <div class="flex min-w-0 flex-col items-start gap-1.5">
+          <DhBadge :label="t(`agent.browserStatus.${row.status}`)" :variant="statusVariant(row.status)" />
+          <span v-if="row.status === 'Blocked'" class="max-w-[260px] text-xs leading-relaxed text-[var(--dh-text-muted)]">
+            {{ t('agent.browserProfiles.blockedHelp') }}
+          </span>
+          <span v-if="row.status === 'ResetRequested'" class="max-w-[260px] text-xs leading-relaxed text-[var(--dh-text-muted)]">
+            {{ t('agent.browserProfiles.pendingHelp') }}
+          </span>
+        </div>
       </template>
       <template #cell-lastLoginAt="{ row }">{{ formatDate(row.lastLoginAt) }}</template>
       <template #cell-lastUsedAt="{ row }">{{ formatDate(row.lastUsedAt) }}</template>
