@@ -1601,7 +1601,9 @@
       "repairAction": "Reparar sesión",
       "repairTitle": "Preparar reparación de sesión",
       "repairConfirm": "¿Preparar la reparación de la sesión de {name}?",
-      "repairDescription": "Solo aplica a sesiones expiradas o con errores. El perfil anterior se conservará como respaldo y la próxima ejecución manual iniciará un perfil limpio. No evita verificaciones del proveedor."
+      "repairDescription": "Solo aplica a sesiones expiradas o con errores. El perfil anterior se conservará como respaldo y la próxima ejecución manual iniciará un perfil limpio. No evita verificaciones del proveedor.",
+      "blockedHelp": "Maersk requiere verificación manual. Abre noVNC, completa el desafío y vuelve a autenticar; no se renovará el perfil automáticamente.",
+      "pendingHelp": "Pendiente: inicia una ejecución manual para archivar la sesión dañada y crear una nueva."
     },
     "schedules": {
       "title": "Programaciones",
