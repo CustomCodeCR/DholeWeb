@@ -158,6 +158,8 @@ async function loadAllApplicableOptionalCosts() {
 
 async function ensureAllApplicableOptionalCosts() {
   if (props.viewOnly) return
+  // El tarifario del coloader, no el catálogo global, controla sus líneas.
+  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') return
   if (isOwnLclMatrixContext()) return
 
   try {
