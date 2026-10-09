@@ -37,6 +37,8 @@ interface OriginOffice {
   message: string
   schedule?: string
   gcfOnly?: boolean
+  agent?: string
+  agentCode?: string
 }
 
 const route = useRoute()
@@ -65,9 +67,9 @@ const polLocator = computed(() => polValue.value || polCode.value)
 const polDisplay = computed(() => office.value?.polValue || polValue.value || office.value?.polCode || polCode.value)
 const agentCode = computed(() => String(route.query.agentCode ?? '').trim())
 const agentName = computed(() => String(route.query.agent ?? '').trim())
+const agentDisplay = computed(() => office.value?.agent || office.value?.agentCode || agentName.value || agentCode.value || 'Oficina de origen')
 
 const coordinates = computed(() => {
-  if (office.value?.gcfOnly) return ''
   if (office.value?.latitude == null || office.value?.longitude == null) return ''
   return `${office.value.latitude}, ${office.value.longitude}`
 })
@@ -178,7 +180,7 @@ async function load() {
       photos: Array.isArray(resolved.photos) ? resolved.photos : [],
     }
 
-    if (!office.value.gcfOnly && office.value.photos.length) loadPublicPhotos(office.value.photos)
+    if (office.value.photos.length) loadPublicPhotos(office.value.photos)
   } catch {
     failed.value = true
   } finally {
@@ -198,9 +200,8 @@ onBeforeUnmount(revokePhotoObjectUrls)
         <div class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-black uppercase tracking-[.2em] text-red-700">Grupo Castro Fallas</p>
-            <h1 class="mt-2 text-2xl font-black sm:text-3xl">Estos son los datos de Castro Fallas en origen.</h1>
-            <p v-if="office?.gcfOnly" class="mt-2 text-sm font-semibold text-slate-500">Contacto GCF para la coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
-            <p v-else class="mt-2 text-sm font-semibold text-slate-500">Información pública de coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
+            <h1 class="mt-2 text-2xl font-black sm:text-3xl">Datos de contacto en origen: {{ agentDisplay }}</h1>
+            <p class="mt-2 text-sm font-semibold text-slate-500">Oficina {{ office?.name || 'por confirmar' }} correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
           </div>
           <Building2 class="h-12 w-12 text-red-700" />
         </div>
@@ -213,8 +214,8 @@ onBeforeUnmount(revokePhotoObjectUrls)
       </div>
 
       <template v-else>
-        <section :class="office.gcfOnly ? 'mx-auto max-w-2xl' : 'grid gap-4 md:grid-cols-2'">
-          <article v-if="!office.gcfOnly" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section class="grid gap-4 md:grid-cols-2">
+          <article class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Oficina de origen</p>
             <h2 class="mt-2 text-2xl font-black">{{ office.name }}</h2>
             <div class="mt-5 space-y-3 text-sm">
