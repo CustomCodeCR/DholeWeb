@@ -3274,7 +3274,6 @@ async function hydrateExistingRate() {
       // Los cargos manuales y los rubros del agente permanecen intactos.
       const catalogCost = costs.value.find((cost) => cost.id === detail.costId)
       if (catalogCost && isOwnLclCarrierCatalogCost(catalogCost)) return false
-      if (detail.chargeBasis === 'PerContainer' || detail.chargeBasis === 'PerTruck') return false
       return !/\bmaersk\b|\bmerchant\b|\bpase vac[ií]o\b/i.test(
         String(detail.name ?? '') + ' ' + String(detail.notes ?? ''),
       )
