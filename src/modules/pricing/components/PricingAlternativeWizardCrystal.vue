@@ -3237,7 +3237,14 @@ async function hydrateExistingRate() {
     form.freeDays = Number(rate.freeDays || 0)
     form.transitDays = transitDaysFrom(rate.transitTime)
     form.agentId = rate.agentId ?? ''
-    form.carrierId = rate.carrierId ?? ''
+    // Evitar rehidratar la naviera del anterior LCL propio cuando la tarifa
+    // vigente ya es coloader, también para cotizaciones sin marcador antiguo.
+    const sourceNotes = (rate.rateDetails ?? []).map((detail) => String(detail.notes ?? ''))
+    const hasColoaderSource = sourceNotes.some((note) => /Fuente LCL:\s*Coloader|LCL\s+COLOADER/i.test(note))
+    const hasOwnSource = sourceNotes.some((note) => /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(note))
+    const isColoaderRate = String(rate.shipmentMode).toLowerCase() === 'lcl'
+      && (hasColoaderSource || !hasOwnSource)
+    form.carrierId = isColoaderRate ? '' : (rate.carrierId ?? '')
     form.currencyId = rate.currencyId
     await loadApplicableCosts()
     exchangeRatePurchase.value = Number(rate.exchangeRatePurchase || rate.exchangeRateApplied || 0) || null
