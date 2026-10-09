@@ -3265,6 +3265,12 @@ async function hydrateExistingRate() {
     return notes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))
       || (Boolean(editingRate.value) && !own)
   })())) return true
+      // Al convertir un LCL propio a coloader, la edición reemplaza los cargos
+      // anteriores. Solo las líneas de la fuente actual son aplicables.
+      const detailNotes = String(detail.notes ?? '')
+      if (isColoaderRate
+        && /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(detailNotes)
+        && !/Fuente LCL:\s*Coloader|LCL\s+COLOADER/i.test(detailNotes)) return false
       // Las líneas históricas de contenedor en coloader se excluyen incluso
       // cuando CostId es null: no pertenecen a esta modalidad.
       if (detail.chargeBasis === 'PerContainer' || detail.chargeBasis === 'PerTruck') return false
