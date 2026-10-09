@@ -1980,6 +1980,9 @@ function applicableCost(cost: CostSelectDto) {
   if ((mode === 'Lcl' || mode === 'Ltl' || mode === 'AirConsol')
       && (cost.chargeBasis === 'PerContainer' || cost.chargeBasis === 'PerTruck')
       && !cost.shipmentMode) return false
+  // Ningún cargo basado en contenedor/camión puede provenir del catálogo LCL.
+  if (shipmentModeForApi.value === 'Lcl'
+      && (cost.chargeBasis === 'PerContainer' || cost.chargeBasis === 'PerTruck')) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
@@ -3258,7 +3261,11 @@ async function hydrateExistingRate() {
     const own = notes.some((note) => /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(note))
     return notes.some((note) => /Fuente LCL:\s*Coloader/i.test(note))
       || (Boolean(editingRate.value) && !own)
-  })()) || !detail.costId) return true
+  })())) return true
+      // Las líneas históricas de contenedor en coloader se excluyen incluso
+      // cuando CostId es null: no pertenecen a esta modalidad.
+      if (detail.chargeBasis === 'PerContainer' || detail.chargeBasis === 'PerTruck') return false
+      if (!detail.costId) return true
       // Tarifas LCL coloader históricas pueden contener cargos FCL injertados.
       // No presentarlos como líneas del coloader ni reintroducirlos al guardar.
       // Los cargos manuales y los rubros del agente permanecen intactos.
