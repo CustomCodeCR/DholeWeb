@@ -81,6 +81,7 @@ import { pricingConsolidatedHeightLimits20261007 } from './build/pricingConsolid
 import { pricingWizardLtlLclUiParity } from './build/pricingWizardLtlLclUiParity'
 
 import { pricingWizardHaulageComparison20261008 } from './build/pricingWizardHaulageComparison20261008'
+import { pricingLclColoaderAgentCosts20261009 } from './build/pricingLclColoaderAgentCosts20261009'
 
 export default defineConfig({
   plugins: [
@@ -163,6 +164,7 @@ export default defineConfig({
     pricingWizardLtlProviderParity(),
     pricingLtlOptionalEditable(),
     pricingWizardHaulageComparison20261008(),
+    pricingLclColoaderAgentCosts20261009(),
     vue(),
     tailwindcss(),
   ],
