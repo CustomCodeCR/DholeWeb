@@ -1879,7 +1879,22 @@ function lineMatchesPickupCargoCondition(line: RateLine) {
   return pickupCargoConditionsMatch(operationalConditionsForLine(line))
 }
 
+function isFlatPickupLine(line: RateLine) {
+  const normalized = normalizeCatalogValue(line.name)
+  return normalized.startsWith('recolecta')
+    || normalized.startsWith('recoleccion')
+    || normalized.startsWith('pickup')
+    || normalized.startsWith('pick up')
+}
+
+function effectiveChargeBasisForLine(line: RateLine): ChargeBasis {
+  return isFlatPickupLine(line) ? 'PerShipment' : line.chargeBasis
+}
+
 function quantityForRateLine(line: RateLine) {
+  // A recolecta is one flat service, never a CBM/CFT multiple.
+  if (isFlatPickupLine(line)) return 1
+
   const explicitQuantity = number((line as RateLine & { quantityOverride?: number | null }).quantityOverride)
 
   // Only synthetic mixed-FCL freight rows own an explicit quantity. Persisted details
@@ -3911,7 +3926,7 @@ async function saveRate() {
     name: line.name,
     costDetailType: line.costDetailType,
     costType: line.costType,
-    chargeBasis: line.chargeBasis,
+    chargeBasis: effectiveChargeBasisForLine(line),
     currencyId: line.currencyId,
     currencyName: line.currencyName,
     currencyCode: line.currencyCode,
@@ -5131,7 +5146,7 @@ onMounted(async () => {
                   <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
                 </div>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                  Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(line.chargeBasis) }}
+                  Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}
                 </p>
                 <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
                 <button
@@ -5211,7 +5226,7 @@ onMounted(async () => {
                     <DhBadge v-if="line.costType === 'Variable'" variant="warning">Variable</DhBadge>
                   </div>
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                    {{ sectionLabel(line.section) }} · Rubro: {{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}
+                    {{ sectionLabel(line.section) }} · Rubro: {{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}
                   </p>
         <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
         <div v-if="line.notes" class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-left">
@@ -5319,7 +5334,7 @@ onMounted(async () => {
                   >
                     <div class="min-w-0">
                       <strong class="block">{{ line.name }}</strong>
-                      <span class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(line.chargeBasis) }}</span>
+                      <span class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}</span>
                     </div>
                     <strong>{{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), line.currencyCode || line.currencyName || 'USD') }}</strong>
                   </div>
@@ -5603,7 +5618,7 @@ onMounted(async () => {
                       <strong>{{ line.name }}</strong>
                       <p v-if="line.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ line.notes }}</p>
                     </td>
-                    <td class="px-4 py-3">{{ chargeBasisLabel(line.chargeBasis) }}</td>
+                    <td class="px-4 py-3">{{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}</td>
                     <td class="px-4 py-3">{{ quantityForRateLine(line).toLocaleString('es-CR') }}</td>
                     <td class="px-4 py-3 font-black">{{ detailCurrencyValue(line) }}</td>
                     <td class="px-4 py-3 font-semibold">{{ line.billToClient || '—' }}</td>
