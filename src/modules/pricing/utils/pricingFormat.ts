@@ -120,9 +120,18 @@ export function landEquipmentSummary(rate: RateDto) {
 
 export function rateDisplayName(rate: RateDto) {
   const allocations = rate.containers?.filter((item) => item.quantity > 0) ?? []
+  // Miami (and other CFT-billed LCL quotes) must not be labeled CBM in the PDF filename.
+  const cftFreight = rate.shipmentMode === 'Lcl'
+    ? rate.rateDetails?.find((detail) =>
+        detail.costDetailType === 'Freight' &&
+        (detail.chargeBasis === 'PerChargeableCft' || detail.chargeBasis === 'PerCft'))
+    : null
+  const chargeableLabel = cftFreight && Number(cftFreight.quantity) > 0
+    ? `${Number(cftFreight.quantity).toFixed(3)} CFT`
+    : `${Number(rate.chargeableQuantity || 0).toFixed(3)} CBM`
   const shipmentDescription =
     rate.shipmentMode === 'Lcl' || rate.shipmentMode === 'Ltl'
-      ? `${rate.shipmentMode.toUpperCase()} · ${Number(rate.chargeableQuantity || 0).toFixed(3)} CBM cobrables`
+      ? `${rate.shipmentMode.toUpperCase()} · ${chargeableLabel} cobrables`
       : rate.shipmentMode === 'Ftl'
         ? landEquipmentSummary(rate)
         : allocations.length > 0
