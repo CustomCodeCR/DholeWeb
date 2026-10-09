@@ -1022,6 +1022,11 @@ export const AgentEndpoints = {
     path: '/api/agents/browser-profiles/{{profileId}}/authenticate',
     headers: acceptJson,
   },
+  repairBrowserProfileSession: {
+    method: 'POST',
+    path: '/api/agents/browser-profiles/{{profileId}}/repair-session',
+    headers: acceptJson,
+  },
 
   browseSchedules: { method: 'GET', path: '/api/agents/schedules', headers: acceptJson },
   getSchedule: { method: 'GET', path: '/api/agents/schedules/{{scheduleId}}', headers: acceptJson },
