@@ -67,17 +67,15 @@ function patchLclColoaderAgentCosts(source: string) {
   code = lclReplaceOnce(code, 'function rebuildRateLines() {',
     'function rebuildRateLines() {\n  if (isLclColoaderAgentCostContext()) {\n    rebuildLclColoaderAgentLines()\n    return\n  }',
     'LCL rate-line rebuild')
-  const blockedOptionalMerge =
-    "  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') return"
-  const mergeIndex = code.indexOf('function mergeConfiguredOptionalCostsIntoRateLines(')
-  const mergeEnd = code.indexOf('\nfunction ', mergeIndex + 10)
-  if (mergeIndex < 0 || mergeEnd < 0) throw new Error('[lclColoaderAgentCosts] Missing optional merge boundaries')
-  const mergeBody = code.slice(mergeIndex, mergeEnd)
-  if (!mergeBody.includes(blockedOptionalMerge)) throw new Error('[lclColoaderAgentCosts] Missing optional merge guard')
-  code = code.slice(0, mergeIndex)
-    + mergeBody.replace(blockedOptionalMerge,
-      '  if (isLclColoaderAgentCostContext()) {\n    rebuildLclColoaderAgentLines()\n    return\n  }')
-    + code.slice(mergeEnd)
+  // Previous transforms can rewrite the coloader exclusion in the optional merger.
+  // Always intercept at the function entry, before legacy guards.
+  const mergeStart = code.indexOf('function mergeConfiguredOptionalCostsIntoRateLines(')
+  if (mergeStart < 0) throw new Error('[lclColoaderAgentCosts] Missing optional merge function')
+  const mergeOpen = code.indexOf('{', mergeStart)
+  if (mergeOpen < 0) throw new Error('[lclColoaderAgentCosts] Missing optional merge body')
+  code = code.slice(0, mergeOpen + 1)
+    + '\n  if (isLclColoaderAgentCostContext()) {\n    rebuildLclColoaderAgentLines()\n    return\n  }'
+    + code.slice(mergeOpen + 1)
   const restoreCarrier = 'if (!form.carrierId && editingRate.value.carrierId) form.carrierId = editingRate.value.carrierId'
   code = lclReplaceOnce(code, restoreCarrier,
     'if (!isLclColoaderAgentCostContext() && !form.carrierId && editingRate.value.carrierId) form.carrierId = editingRate.value.carrierId',
