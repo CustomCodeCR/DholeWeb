@@ -99,7 +99,16 @@ function finalOptionalTerminalMatches(cost: CostSelectDto) {
 function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
   // Los cargos de naviera LCL corresponden a consolidados propios.
   // Nunca importar esos costos al catálogo opcional de un coloader.
-  if (isLclColoaderCostContext() && isOwnLclCarrierCatalogCost(cost)) return false
+  const lclMode = String(shipmentModeForApi.value ?? '').toLowerCase() === 'lcl'
+  const selectedSource = typeof lclSelectedSource !== 'undefined' ? lclSelectedSource.value : null
+  const notes = editingRate.value?.rateDetails?.map((detail) => String(detail.notes ?? '')) ?? []
+  const ownSource = selectedSource?.kind === 'Own'
+    || notes.some((note) => /Fuente LCL:\\s*Propio|LCL\\s*PROPIO|ConsolidadoId:/i.test(note))
+  const coloaderSource = selectedSource?.kind === 'Coloader'
+    || notes.some((note) => /Fuente LCL:\\s*Coloader/i.test(note))
+    || (Boolean(editingRate.value) && !ownSource)
+  const carrierCatalogCost = Boolean(cost.carrierId || (Array.isArray(cost.carriers) && cost.carriers.length))
+  if (lclMode && coloaderSource && !ownSource && carrierCatalogCost) return false
   if (cost.costType !== 'Optional') return false
   if (cost.isActive === false) return false
   if (!finalOptionalTerminalMatches(cost)) return false
