@@ -108,8 +108,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `    form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)\n\n    rateLines.value = rate.rateDetails.filter((detail) => {`,
-    `    form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)\n    hydrateEditSelectionsFromRate(rate)\n\n    rateLines.value = rate.rateDetails.filter((detail) => {`,
+    `    rateLines.value = rate.rateDetails.filter((detail) => {`,
+    `    hydrateEditSelectionsFromRate(rate)\n\n    rateLines.value = rate.rateDetails.filter((detail) => {`,
     'screen 4 selection hydration',
   )
 
