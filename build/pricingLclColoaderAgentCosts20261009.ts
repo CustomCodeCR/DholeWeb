@@ -76,30 +76,31 @@ function patchLclColoaderAgentCosts(source: string) {
   code = code.slice(0, mergeOpen + 1)
     + '\n  if (isLclColoaderAgentCostContext()) {\n    rebuildLclColoaderAgentLines()\n    return\n  }'
     + code.slice(mergeOpen + 1)
+  // Hydration from an older Own quote must not restore its carrier.
   const restoreCarrier = 'if (!form.carrierId && editingRate.value.carrierId) form.carrierId = editingRate.value.carrierId'
-  code = lclReplaceOnce(code, restoreCarrier,
-    'if (!isLclColoaderAgentCostContext() && !form.carrierId && editingRate.value.carrierId) form.carrierId = editingRate.value.carrierId',
-    'persisted Own carrier recovery')
-  const refreshStart = code.indexOf('function refreshRateLinesForCurrentSource() {')
-  const refreshEnd = code.indexOf('\nfunction ', refreshStart + 10)
-  if (refreshStart < 0 || refreshEnd < 0) throw new Error('[lclColoaderAgentCosts] Missing line refresh function')
-  const refreshBody = code.slice(refreshStart, refreshEnd)
-  const refreshAnchor = '    return\n  }\n\n  // Consolidado propio:'
-  if (!refreshBody.includes(refreshAnchor)) throw new Error('[lclColoaderAgentCosts] Missing coloader refresh guard')
-  code = code.slice(0, refreshStart)
-    + refreshBody.replace(refreshAnchor,
-      '    rebuildLclColoaderAgentLines()\n    return\n  }\n\n  // Consolidado propio:')
-    + code.slice(refreshEnd)
-
-  // A changed Own-to-Coloader source invalidates historic rate-detail IDs.
+  if (code.includes(restoreCarrier)) {
+    code = code.replace(restoreCarrier,
+      'if (!isLclColoaderAgentCostContext() && !form.carrierId && editingRate.value.carrierId) form.carrierId = editingRate.value.carrierId')
+  }
+  const refreshAnchor = 'function refreshRateLinesForCurrentSource() {'
+  if (code.includes(refreshAnchor)) {
+    code = lclReplaceOnce(code, refreshAnchor,
+      refreshAnchor + '\n  if (isLclColoaderAgentCostContext()) {\n    rebuildLclColoaderAgentLines()\n    return\n  }',
+      'LCL coloader refresh')
+  }
+  const ownSnapshot = "editingRate.value?.rateDetails?.some((detail) => /LCL\\s*PROPIO|ConsolidadoId:/i.test(String(detail.notes ?? '')))"
   const relinkAnchor = 'function relinkExistingDetailIdsForEdit() {'
-  code = lclReplaceOnce(code, relinkAnchor,
-    relinkAnchor + '\n  if (isLclColoaderAgentCostContext() && editingRate.value?.rateDetails?.some((detail) => /LCL\\s*PROPIO|ConsolidadoId:/i.test(String(detail.notes ?? \'\')))) return',
-    'historic Own detail ids')
+  if (code.includes(relinkAnchor)) {
+    code = lclReplaceOnce(code, relinkAnchor,
+      relinkAnchor + '\n  if (isLclColoaderAgentCostContext() && ' + ownSnapshot + ') return',
+      'Own detail relinking guard')
+  }
   const preserveAnchor = 'function shouldPreservePersistedEditLines() {'
-  code = lclReplaceOnce(code, preserveAnchor,
-    preserveAnchor + '\n  if (isLclColoaderAgentCostContext() && editingRate.value?.rateDetails?.some((detail) => /LCL\\s*PROPIO|ConsolidadoId:/i.test(String(detail.notes ?? \'\')))) return false',
-    'persisted Own snapshot guard')
+  if (code.includes(preserveAnchor)) {
+    code = lclReplaceOnce(code, preserveAnchor,
+      preserveAnchor + '\n  if (isLclColoaderAgentCostContext() && ' + ownSnapshot + ') return false',
+      'Own snapshot preservation guard')
+  }
   return code
 }
 
