@@ -97,6 +97,9 @@ function finalOptionalTerminalMatches(cost: CostSelectDto) {
 }
 
 function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
+  // Los cargos de naviera LCL corresponden a consolidados propios.
+  // Nunca importar esos costos al catálogo opcional de un coloader.
+  if (isLclColoaderCostContext() && isOwnLclCarrierCatalogCost(cost)) return false
   if (cost.costType !== 'Optional') return false
   if (cost.isActive === false) return false
   if (!finalOptionalTerminalMatches(cost)) return false
