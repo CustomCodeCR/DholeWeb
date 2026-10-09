@@ -1960,6 +1960,13 @@ function costContextLabel(cost: CostSelectDto) {
 }
 
 function applicableCost(cost: CostSelectDto) {
+  // Un costo sin modalidad explícita no puede convertirse automáticamente en
+  // cargo FCL dentro de una cotización consolidada. Las líneas manuales ya
+  // guardadas se preservan; esta validación controla solo el catálogo.
+  const mode = shipmentModeForApi.value
+  if ((mode === 'Lcl' || mode === 'Ltl' || mode === 'AirConsol')
+      && (cost.chargeBasis === 'PerContainer' || cost.chargeBasis === 'PerTruck')
+      && !cost.shipmentMode) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
