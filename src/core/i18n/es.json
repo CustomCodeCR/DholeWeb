@@ -1427,7 +1427,8 @@
       "Authenticated": "Autenticado",
       "Expired": "Expirado",
       "Blocked": "Bloqueado",
-      "Error": "Error"
+      "Error": "Error",
+      "ResetRequested": "Reinicio pendiente"
     },
     "fields": {
       "name": "Nombre",
@@ -1547,7 +1548,12 @@
       "empty": "No hay sesiones web configuradas.",
       "createTitle": "Nueva sesión web",
       "detailTitle": "Detalle de la sesión",
-      "createAction": "Crear sesión"
+      "createAction": "Crear sesión",
+      "help": "Sesiones válidas se reutilizan. Si una sesión expiró o presenta errores locales, puedes solicitar una reparación que respalda el perfil antiguo y prepara uno nuevo durante la próxima ejecución manual. Si Maersk muestra CAPTCHA o bloquea el acceso, completa la verificación legítima en el navegador del worker (noVNC); no se reinicia automáticamente.",
+      "repairAction": "Reparar sesión",
+      "repairTitle": "Preparar reparación de sesión",
+      "repairConfirm": "¿Preparar la reparación de la sesión de {name}?",
+      "repairDescription": "Solo aplica a sesiones expiradas o con errores. El perfil anterior se conservará como respaldo y la próxima ejecución manual iniciará un perfil limpio. No evita verificaciones del proveedor."
     },
     "schedules": {
       "title": "Programaciones",
@@ -1628,6 +1634,7 @@
       "credentialUpdated": "Credencial actualizada",
       "profileCreated": "Perfil de navegador creado",
       "authRequested": "Autenticación solicitada",
+      "repairRequested": "Reparación de sesión solicitada. Inicia una ejecución manual para completarla.",
       "scheduleCreated": "Programación creada",
       "scheduleUpdated": "Programación actualizada",
       "executionStarted": "Ejecución iniciada",
@@ -1659,6 +1666,7 @@
       "loadProfile": "No se pudo cargar el perfil.",
       "createProfile": "No se pudo crear el perfil de navegador.",
       "authenticateProfile": "No se pudo solicitar la autenticación.",
+      "repairProfile": "No se pudo solicitar la reparación de sesión",
       "loadSchedules": "No se pudieron cargar las programaciones.",
       "loadSchedule": "No se pudo cargar la programación.",
       "saveSchedule": "No se pudo guardar la programación.",
