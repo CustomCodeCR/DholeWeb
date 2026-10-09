@@ -45,6 +45,33 @@ function dholeHaulageMatchesSelectedTerminal(cost: { name: string }) {
   return Boolean(routeLabel && routeLabel.includes(terminals[0].value))
 }
 
+// Solo los costos de tipo Optional pueden seleccionar el responsable del
+// inland. "Cargos en destino Línea Naviera" (Fixed) nunca es Carrier Haulage.
+function dholeHaulageOptionalAssociation(cost: {
+  costType?: CostType | null
+  name: string
+  notes?: string | null
+  operationalConditions?: string[] | null
+}): DholeHaulageChoice | null {
+  if (cost.costType !== 'Optional') return null
+
+  const conditions = cost.operationalConditions ?? []
+  const merchant = conditions.includes('MerchantHaulage')
+  const carrier = conditions.includes('CarrierHaulage')
+  if (merchant && carrier) return null // Configuración contradictoria; no elegir ambos.
+  if (merchant) return 'merchant'
+  if (carrier) return 'carrier'
+
+  // Compatibilidad con cargos opcionales históricos sin condición explícita:
+  // solo nombres identificables como servicios de haulage, nunca un cargo
+  // genérico de naviera/destino por mencionar "naviera" en notas.
+  const name = normalizeCatalogValue(cost.name)
+  if (name.includes('merchant')) return 'merchant'
+  if (name.includes('carrier haulage')) return 'carrier'
+  if (name.includes('inland') && name.includes('naviera')) return 'carrier'
+  return null
+}
+
 function dholeHaulageOtherConditionsMatch(cost: CostSelectDto) {
   return (cost.operationalConditions ?? [])
     .filter((condition) => condition !== 'MerchantHaulage' && condition !== 'CarrierHaulage')
@@ -53,7 +80,8 @@ function dholeHaulageOtherConditionsMatch(cost: CostSelectDto) {
 
 function dholeHaulageCostsFor(mode: DholeHaulageChoice) {
   const rows = dholeHaulageContextCosts.value.filter((cost) =>
-    haulageAssociation(cost) === mode
+    cost.costType === 'Optional'
+    && dholeHaulageOptionalAssociation(cost) === mode
     && dholeHaulageOtherConditionsMatch(cost)
     && dholeHaulageMatchesSelectedTerminal(cost),
   )
@@ -111,7 +139,8 @@ function dholeHaulageOptionTotals(mode: DholeHaulageChoice) {
 const dholeBaseCosts = computed(() =>
   dholeHaulageContextCosts.value.filter((cost) =>
     cost.costDetailType !== 'Freight'
-    && haulageAssociation(cost) === null
+    // Los costos fijos pertenecen a ambas alternativas por igual.
+    && (cost.costType !== 'Optional' || dholeHaulageOptionalAssociation(cost) === null)
     && (cost.costType !== 'Optional' || shouldIncludeOptionalCost(cost)),
   ),
 )
@@ -220,7 +249,7 @@ watch(
 const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" class="crystal-soft space-y-4 p-4 md:p-5">
             <div>
               <p class="text-base font-black">Transporte en destino · Naviera o Merchant</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Opciones reales de Costos y recargos para la naviera, agente, ruta e Incoterm seleccionados. Los importes se calculan por su base de cobro.</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">La elección se calcula únicamente con cargos Opcionales de Costos y recargos para esta naviera, ruta y agente. Los cargos fijos son comunes a ambas alternativas.</p>
             </div>
             <p v-if="dholeHaulagePending" class="text-sm font-semibold text-[var(--dh-text-muted)]">Consultando costos y alternativas disponibles…</p>
             <template v-else>
@@ -235,13 +264,13 @@ const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" cl
                 >
                   <span class="flex items-center justify-between gap-2 font-black"><span>Naviera (Carrier Haulage)</span><Check v-if="form.carrierHaulage" class="h-4 w-4" /></span>
                   <span v-if="dholeCarrierAvailable" class="mt-2 block space-y-1 text-xs">
-                    <span class="block">Cargos: {{ dholeCarrierCosts.length }}</span>
+                    <span class="block">Cargos opcionales: {{ dholeCarrierCosts.length }}</span>
                     <span class="block">Costo: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('carrier').cost) }}</strong></span>
                     <span class="block">Venta: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('carrier').sale) }}</strong></span>
                     <span class="block">Margen total estimado: <strong>{{ dholeCarrierEstimate.margin.toFixed(2) }}%</strong></span>
                     <span v-if="dholeHaulageRecommended === 'carrier' && dholeMerchantAvailable" class="block font-black text-[var(--dh-primary)]">Mejor margen estimado</span>
                   </span>
-                  <span v-else class="mt-2 block text-xs">Sin cargos de Naviera configurados para esta selección.</span>
+                  <span v-else class="mt-2 block text-xs">Sin cargos opcionales de Carrier Haulage para esta selección.</span>
                 </button>
                 <button
                   type="button"
@@ -253,13 +282,13 @@ const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" cl
                 >
                   <span class="flex items-center justify-between gap-2 font-black"><span>Merchant Haulage</span><Check v-if="form.merchantHaulage" class="h-4 w-4" /></span>
                   <span v-if="dholeMerchantAvailable" class="mt-2 block space-y-1 text-xs">
-                    <span class="block">Cargos: {{ dholeMerchantCosts.length }}</span>
+                    <span class="block">Cargos opcionales: {{ dholeMerchantCosts.length }}</span>
                     <span class="block">Costo: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('merchant').cost) }}</strong></span>
                     <span class="block">Venta: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('merchant').sale) }}</strong></span>
                     <span class="block">Margen total estimado: <strong>{{ dholeMerchantEstimate.margin.toFixed(2) }}%</strong></span>
                     <span v-if="dholeHaulageRecommended === 'merchant' && dholeCarrierAvailable" class="block font-black text-[var(--dh-primary)]">Mejor margen estimado</span>
                   </span>
-                  <span v-else class="mt-2 block text-xs">Merchant no está disponible para esta naviera y ruta.</span>
+                  <span v-else class="mt-2 block text-xs">Sin cargos opcionales de Merchant Haulage para esta naviera y ruta.</span>
                 </button>
               </div>
               <p v-if="!dholeCarrierAvailable && !dholeMerchantAvailable" class="text-sm font-semibold text-amber-600">No hay cargos de Naviera ni de Merchant aplicables en Costos y recargos. No se agregará transporte interno automáticamente.</p>
@@ -319,17 +348,20 @@ function patchWizard(source: string) {
   if (props.viewOnly && props.rateId) return
 
   rateLines.value.forEach((line) => {
+    // Fixed / Variable cargos (incluido Cargos Línea Naviera) nunca son
+    // controles Merchant/Carrier: conservar su inclusión original.
+    if (!line.optional) return
     const configured = line.costId ? costs.value.find((cost) => cost.id === line.costId) : null
-    const association = haulageAssociation(configured ?? line)
+    const association = dholeHaulageOptionalAssociation(configured ?? line)
     if (association) {
-      const enabled = association === 'merchant' ? form.merchantHaulage : form.carrierHaulage
-      line.included = enabled
-        && dholeHaulageMatchesSelectedTerminal(configured ?? line)
-        && (!configured || dholeHaulageOtherConditionsMatch(configured))
+      const selected = association === 'merchant' ? form.merchantHaulage : form.carrierHaulage
+      const applicable = configured && dholeHaulageCostsFor(association)
+        .some((cost) => cost.id === configured.id)
+      line.included = Boolean(selected && applicable)
       if (!line.included) line.applyDestinationTax = false
       return
     }
-    if (!line.optional || !configured) return
+    if (!configured) return
     line.included = shouldIncludeOptionalCost({ ...configured, costId: line.costId })
     if (!line.included) line.applyDestinationTax = false
   })
@@ -368,7 +400,7 @@ function patchWizard(source: string) {
   if (!optionalBlock.includes(includeAnchor)) throw new Error('[haulage screen6] Missing operational condition evaluation.')
   const updatedOptional = optionalBlock.replace(
     includeAnchor,
-    `  const association = haulageAssociation(line as CostSelectDto)
+    `  const association = dholeHaulageOptionalAssociation(line as CostSelectDto)
   if (association && !dholeHaulageMatchesSelectedTerminal(line as CostSelectDto)) return false
   if (association === 'merchant' && !form.merchantHaulage) return false
   if (association === 'carrier' && !form.carrierHaulage) return false
