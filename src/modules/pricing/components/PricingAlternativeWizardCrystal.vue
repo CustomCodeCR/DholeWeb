@@ -3898,6 +3898,17 @@ async function saveOpenRequest() {
 }
 
 async function saveRate() {
+  // A historical LCL coloader may have been opened by an older build that
+  // incorrectly removed every line. Never overwrite a persisted quote with
+  // zero details; the user must select the correct coloader again.
+  if (shipmentModeForApi.value === 'Lcl' && includedLines.value.length === 0) {
+    step.value = 5
+    toastStore.warning(
+      'Faltan las líneas del coloader',
+      'La tarifa no se guardó. Seleccione nuevamente Pier17 (u otro coloader) en Pantalla 5 para recuperar sus rubros.',
+    )
+    return
+  }
   if (
     !exchangeRatePurchase.value ||
     exchangeRatePurchase.value <= 0 ||
