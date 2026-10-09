@@ -194,41 +194,38 @@ function patchCostForm(source: string) {
     || Array.isArray(props.cost.carriers)
     || Array.isArray(props.cost.agents)
 
-  if (hasEmbeddedSelections) {
-    form.polIds = props.cost.pols?.map((item) => item.id) ?? []
-    form.poeIds = props.cost.poes?.map((item) => item.id) ?? []
-    form.podIds = props.cost.pods?.map((item) => item.id) ?? []
-    form.carrierIds = props.cost.carriers?.map((item) => item.id) ?? []
-    form.agentIds = props.cost.agents?.map((item) => item.id) ?? []
-
-    if (form.agentIds.length) form.associationType = 'Agent'
-    else if (form.carrierIds.length) form.associationType = 'Carrier'
-    else form.associationType = 'None'
-    return
-  }
+  // Las relaciones embebidas pueden ser parciales (por ejemplo, los puertos
+  // llegan pero las navieras no). Consultar siempre la tabla de asociaciones.
+  // Conservar valores existentes si la API todavía no soporta route-ports.
+  const embeddedPolIds = props.cost.pols?.map((item) => item.id) ?? (form.polId ? [form.polId] : [])
+  const embeddedPoeIds = props.cost.poes?.map((item) => item.id) ?? (form.poeId ? [form.poeId] : [])
+  const embeddedPodIds = props.cost.pods?.map((item) => item.id) ?? (form.podId ? [form.podId] : [])
+  const embeddedCarrierIds = props.cost.carriers?.map((item) => item.id) ?? (form.carrierId ? [form.carrierId] : [])
+  const embeddedAgentIds = props.cost.agents?.map((item) => item.id) ?? (form.agentId ? [form.agentId] : [])
+  form.polIds = embeddedPolIds
+  form.poeIds = embeddedPoeIds
+  form.podIds = embeddedPodIds
+  form.carrierIds = embeddedCarrierIds
+  form.agentIds = embeddedAgentIds
 
   try {
     const routePorts = await PricingService.getCostRoutePorts(props.cost.id)
-    form.polIds = routePorts.polIds.length ? [...routePorts.polIds] : (form.polId ? [form.polId] : [])
-    form.poeIds = routePorts.poeIds.length ? [...routePorts.poeIds] : (form.poeId ? [form.poeId] : [])
-    form.podIds = routePorts.podIds.length ? [...routePorts.podIds] : (form.podId ? [form.podId] : [])
-    form.carrierIds = routePorts.carrierIds.length
-      ? [...routePorts.carrierIds]
-      : (form.carrierId ? [form.carrierId] : [])
-    form.agentIds = routePorts.agentIds.length
-      ? [...routePorts.agentIds]
-      : (form.agentId ? [form.agentId] : [])
+    form.polIds = routePorts.polIds.length ? [...routePorts.polIds] : embeddedPolIds
+    form.poeIds = routePorts.poeIds.length ? [...routePorts.poeIds] : embeddedPoeIds
+    form.podIds = routePorts.podIds.length ? [...routePorts.podIds] : embeddedPodIds
+    form.carrierIds = routePorts.carrierIds.length ? [...routePorts.carrierIds] : embeddedCarrierIds
+    form.agentIds = routePorts.agentIds.length ? [...routePorts.agentIds] : embeddedAgentIds
 
     if (form.agentIds.length) form.associationType = 'Agent'
     else if (form.carrierIds.length) form.associationType = 'Carrier'
     else form.associationType = 'None'
   } catch {
     // Backward-compatible fallback while an older Pricing API is being replaced during deploy.
-    form.polIds = form.polId ? [form.polId] : []
-    form.poeIds = form.poeId ? [form.poeId] : []
-    form.podIds = form.podId ? [form.podId] : []
-    form.carrierIds = form.carrierId ? [form.carrierId] : []
-    form.agentIds = form.agentId ? [form.agentId] : []
+    form.polIds = embeddedPolIds
+    form.poeIds = embeddedPoeIds
+    form.podIds = embeddedPodIds
+    form.carrierIds = embeddedCarrierIds
+    form.agentIds = embeddedAgentIds
   }
 })`
   code = replaceOne(code, mountedAnchor, mountedReplacement, 'cost form mounted hydration')
