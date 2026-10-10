@@ -20,16 +20,8 @@ jobs:
         run: corepack enable
       - name: Install
         run: pnpm install --frozen-lockfile
-      - name: SEO tests
-        run: pnpm run test:seo
-      - name: Redirect tests
-        run: pnpm run test:redirects
-      - name: Media library tests
-        run: pnpm run test:media
-      - name: Marketing module tests
-        run: pnpm run test:marketing
-      - name: Marketing AI tests
-        run: pnpm run test:marketing-ai
+      # master does not contain SEO/Marketing modules or their test scripts.
+      # develop continues running their complete suites.
       - name: Agent module tests
         run: pnpm run test:agent
       - name: Type-check and build
