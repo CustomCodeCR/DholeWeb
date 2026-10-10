@@ -850,6 +850,7 @@ export const AiEndpoints = {
   },
 } satisfies Record<string, Endpoint>
 
+
 export const AgentEndpoints = {
   agentHealth: { method: 'GET', path: '/api/health/agent', headers: acceptJson },
   browseProviders: { method: 'GET', path: '/api/agents/providers', headers: acceptJson },
@@ -1017,6 +1018,21 @@ export const AgentEndpoints = {
     method: 'POST',
     path: '/api/agents/maersk/alerts/{{alertId}}/acknowledge',
     headers: acceptJson,
+  },
+  getMaerskProfileHealth: {
+    method: 'GET',
+    path: '/api/agents/maersk/profiles/{{profileId}}/health',
+    headers: acceptJson,
+  },
+  getMaerskWaitingExecutions: {
+    method: 'GET',
+    path: '/api/agents/maersk/executions/waiting',
+    headers: acceptJson,
+  },
+  resumeMaerskExecution: {
+    method: 'POST',
+    path: '/api/agents/maersk/executions/{{executionId}}/resume',
+    headers: jsonHeaders,
   },
   getMaerskOperations: {
     method: 'GET',

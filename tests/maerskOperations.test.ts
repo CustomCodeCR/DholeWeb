@@ -91,3 +91,77 @@ test('Phase 6 has translated severity, alert keys and operator acknowledgement w
     ]) assert.ok(t.codes[code]?.length > 0, `Missing ${code} in translations`)
   }
 })
+
+test('Phase 2 displays Disabled neutrally rather than green Closed when protection is off', async () => {
+  const [types, view] = await Promise.all([
+    source('../src/core/interfaces/agent.ts'),
+    source('../src/modules/agent/views/MaerskOperationsView.vue'),
+  ])
+  assert.match(types, /'Disabled' \| 'Closed'/)
+  assert.match(types, /persistedState/)
+  assert.match(view, /!circuit\?\.featureEnabled/)
+  assert.match(view, /\? 'neutral' : badgeVariant/)
+  assert.match(view, /ShieldCheck v-else-if="circuit\?\.featureEnabled/)
+})
+
+test('Phase 5 profile health and waiting queue are scope-protected and never expose secrets', async () => {
+  const [endpoints, service, types, view] = await Promise.all([
+    source('../src/core/composables/endpoints.ts'),
+    source('../src/core/services/agentService.ts'),
+    source('../src/core/interfaces/agent.ts'),
+    source('../src/modules/agent/views/MaerskOperationsView.vue'),
+  ])
+  for (const path of [
+    '/api/agents/maersk/profiles/{{profileId}}/health',
+    '/api/agents/maersk/executions/waiting',
+    '/api/agents/maersk/executions/{{executionId}}/resume',
+  ]) assert.ok(endpoints.includes(path), `Missing backend path: ${path}`)
+  assert.match(service, /profileHealth\(profileId: string\)/)
+  assert.match(service, /waitingExecutions\(\)/)
+  assert.match(service, /resumeExecution\(executionId: string, reason: string, verifiedWithProvider: boolean\)/)
+  assert.match(types, /interface MaerskProfileHealthDto/)
+  assert.match(types, /interface MaerskWaitingExecutionDto/)
+  assert.match(view, /selectedHealth\.nextAction/)
+  assert.match(view, /waitingExecutions\.value = await AgentService\.maerskOperations\.waitingExecutions\(\)/)
+  assert.match(view, /permissions\.canCreateExecutions\.value/)
+  assert.match(view, /resumeVerified\.value/)
+  assert.match(view, /resumeReason\.value\.trim\(\)\.length >= 12/)
+  assert.equal(view.includes('v-html'), false)
+  for (const secret of ['storagePath', 'inputJson', 'outputJson', 'password', 'cookies']) {
+    assert.equal(view.includes(secret), false, `Sensitive data in console: ${secret}`)
+  }
+})
+
+test('Phase 5 safe recovery actions are translated into both languages', async () => {
+  const [es, en] = await Promise.all([
+    source('../src/core/i18n/es.json'), source('../src/core/i18n/en.json'),
+  ])
+  for (const raw of [es, en]) {
+    const t = JSON.parse(raw).maerskOperations
+    for (const key of [
+      'profileHealth', 'environment', 'nextSafeAction', 'lastSuccess',
+      'manualVerificationNote', 'waitingQueue', 'resume', 'confirmResume',
+      'resumeExplanation', 'resumeFailed', 'resumeSuccess',
+    ]) assert.ok(t[key]?.length > 0, `Missing translation ${key}`)
+    for (const action of [
+      'CircuitNotEnabled', 'VerifyProviderManually', 'AuthenticateOriginalProfile',
+      'ReviewTechnicalRepair', 'WaitForCircuit', 'ReviewWaitingExecution',
+      'SessionRecordedAsAuthenticated', 'ReviewSession',
+    ]) assert.ok(t.actions[action]?.length > 0, `Missing safe action ${action}`)
+  }
+})
+
+test('Phase 5 rollout preserves existing Maersk console before new Agent API is available', async () => {
+  const [view, es, en] = await Promise.all([
+    source('../src/modules/agent/views/MaerskOperationsView.vue'),
+    source('../src/core/i18n/es.json'),
+    source('../src/core/i18n/en.json'),
+  ])
+  assert.match(view, /recoveryApiAvailable\.value = false/)
+  assert.match(view, /recoveryApiAvailable\.value = true/)
+  assert.match(view, /details\.value = await AgentService\.maerskOperations\.get\(\)/)
+  assert.match(view, /v-if="recoveryApiAvailable"/)
+  assert.match(view, /recoveryApiAvailable\.value &&/)
+  assert.ok(JSON.parse(es).maerskOperations.apiUnavailable)
+  assert.ok(JSON.parse(en).maerskOperations.apiUnavailable)
+})
