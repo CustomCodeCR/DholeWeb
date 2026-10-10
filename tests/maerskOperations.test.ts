@@ -150,3 +150,18 @@ test('Phase 5 safe recovery actions are translated into both languages', async (
     ]) assert.ok(t.actions[action]?.length > 0, `Missing safe action ${action}`)
   }
 })
+
+test('Phase 5 rollout preserves existing Maersk console before new Agent API is available', async () => {
+  const [view, es, en] = await Promise.all([
+    source('../src/modules/agent/views/MaerskOperationsView.vue'),
+    source('../src/core/i18n/es.json'),
+    source('../src/core/i18n/en.json'),
+  ])
+  assert.match(view, /recoveryApiAvailable\.value = false/)
+  assert.match(view, /recoveryApiAvailable\.value = true/)
+  assert.match(view, /details\.value = await AgentService\.maerskOperations\.get\(\)/)
+  assert.match(view, /v-if="recoveryApiAvailable"/)
+  assert.match(view, /recoveryApiAvailable\.value &&/)
+  assert.ok(JSON.parse(es).maerskOperations.apiUnavailable)
+  assert.ok(JSON.parse(en).maerskOperations.apiUnavailable)
+})
