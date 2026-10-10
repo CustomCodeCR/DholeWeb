@@ -45,6 +45,7 @@ test('Agent contracts expose the backend enum values without duplicated variants
     'Expired',
     'Blocked',
     'Error',
+    'ResetRequested',
   ])
 })
 
@@ -160,9 +161,15 @@ test('Ocean Freight output renderer recognizes rate fields, legs and charges', a
     assert.ok(rate.toLowerCase().includes(`'${field}'`) || rate.toLowerCase().includes(`"${field}"`), `Missing Ocean Freight field: ${field}`)
   }
   assert.match(rate, /transitTime/)
-  assert.match(rate, /priceBreakdown/)
-  assert.match(rate, /legs/)
-  assert.match(rate, /charges/)
+  // The current rate renderer displays provider offers as a route/equipment
+  // table. Do not demand obsolete `priceBreakdown`, `legs` or `charges`
+  // shapes that the live Maersk contract does not contain.
+  assert.match(rate, /availableOffers/)
+  assert.match(rate, /routeLabel\(route\)/)
+  assert.match(rate, /equipmentLabel\(equipment\)/)
+  assert.match(rate, /get\(offer, 'oceanFreight'\)/)
+  assert.match(rate, /get\(offer, 'allIn'\)/)
+  assert.match(rate, /get\(offer, 'cargoCutoff'\)/)
   assert.match(rate, /<AgentJsonViewer v-else/)
 })
 
