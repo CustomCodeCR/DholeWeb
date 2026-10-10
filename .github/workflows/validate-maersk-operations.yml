@@ -1,0 +1,28 @@
+name: Validate Maersk Operations
+
+on:
+  pull_request:
+    branches: [develop, master]
+
+permissions:
+  contents: read
+
+jobs:
+  maersk-operations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Maersk operations safety and integration tests
+        run: node --test tests/maerskOperations.test.ts
+      - name: Vue TypeScript validation
+        run: pnpm exec vue-tsc --build
+      - name: Frontend build
+        run: pnpm run build-only

@@ -34,6 +34,7 @@ export interface SidebarItem {
   name?: string
   requiredScope?: string
   requiredAnyScopes?: string[]
+  requiredAllScopes?: string[]
   requiredRole?: string
   children?: SidebarItem[]
 }
@@ -245,6 +246,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.auditLogs,
           },
           {
+            labelKey: 'maerskOperations.title',
+            icon: MonitorCog,
+            to: '/agents/maersk',
+            name: 'agent-maersk-operations',
+            requiredAllScopes: ['agent.executions.view', 'agent.browser-profiles.view'],
+          },
+          {
             labelKey: 'sidebar.serviceMonitoring',
             icon: MonitorCog,
             to: '/monitoring/services',
@@ -312,6 +320,10 @@ function mapItem(
   }
 
   if (item.requiredAnyScopes?.length && !item.requiredAnyScopes.some((scope) => authStore.hasScope(scope))) {
+    return null
+  }
+
+  if (item.requiredAllScopes?.some((scope) => !authStore.hasScope(scope))) {
     return null
   }
 

@@ -31,6 +31,13 @@ const sections = [
     visible: permissions.canViewCredentials,
   },
   {
+    title: 'Operación Maersk',
+    description: 'Circuit breaker, colas, perfiles e incidentes de Hermes.',
+    icon: Globe2,
+    path: '/agents/maersk',
+    visible: permissions.canViewMaerskOperations,
+  },
+  {
     title: 'Sesiones web',
     description: 'Browser profiles y estado de autenticación.',
     icon: Globe2,

@@ -30,6 +30,55 @@ export type AgentExecutionStatus =
   | 'Failed'
   | 'Cancelled'
 
+export interface MaerskOperationsDto {
+  providerId: string
+  providerName: string
+  generatedAtUtc: string
+  circuit: {
+    featureEnabled: boolean
+    state: 'Closed' | 'Open' | 'HalfOpen'
+    requiresOperator: boolean
+    reasonCode: string | null
+    openUntilUtc: string | null
+    consecutiveFailures: number
+    probeExecutionId: string | null
+  }
+  counters: {
+    queued: number
+    running: number
+    waitingForAuthentication: number
+    completed: number
+    failed: number
+  }
+  profiles: Array<{
+    id: string
+    name: string
+    status: string
+    lastLoginAt: string | null
+    lastUsedAt: string | null
+    sessionExpiresAt: string | null
+  }>
+  executions: Array<{
+    id: string
+    status: AgentExecutionStatus
+    executionType: string
+    attempt: number
+    maxAttempts: number
+    errorCode: string | null
+    createdAtUtc: string
+    startedAt: string | null
+    completedAt: string | null
+    correlationId: string
+  }>
+  events: Array<{
+    id: string
+    eventType: string
+    reasonCode: string | null
+    actorId: string | null
+    occurredAtUtc: string
+  }>
+}
+
 export interface AgentProviderDto {
   id: string
   code: string
