@@ -8,6 +8,11 @@ import { AgentService } from '@/core/services/agentService'
 import type { MaerskOperationsDto } from '@/core/interfaces/agent'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useToastStore } from '@/core/stores/toastStore'
+import {
+  visibleMaerskAlerts,
+  canAcknowledgeMaerskAlert,
+  canResetMaerskCircuit,
+} from '@/modules/agent/utils/maerskAlertPolicy'
 
 const { t, locale } = useI18n()
 const permissions = useAgentPermissions()
@@ -22,13 +27,13 @@ const verifiedWithProvider = ref(false)
 let poll: ReturnType<typeof setInterval> | undefined
 
 const circuit = computed(() => details.value?.circuit)
-const activeHealthAlerts = computed(() =>
-  details.value?.monitoring?.alerts.filter((alert) => alert.state === 'Active') ?? [],
-)
+const activeHealthAlerts = computed(() => visibleMaerskAlerts(details.value?.monitoring))
 const canReset = computed(() =>
-  permissions.canResetMaerskCircuit.value &&
-  circuit.value?.featureEnabled === true &&
-  (circuit.value.state === 'Open' || circuit.value.state === 'HalfOpen'),
+  canResetMaerskCircuit(
+    permissions.canResetMaerskCircuit.value,
+    circuit.value?.featureEnabled,
+    circuit.value?.state,
+  ),
 )
 const resetValid = computed(() =>
   verifiedWithProvider.value && operatorReason.value.trim().length >= 12 &&
@@ -63,8 +68,10 @@ async function refresh(silent = false) {
 }
 
 async function acknowledgeAlert(alertId: string) {
-  if (!permissions.canResetMaerskCircuit.value || acknowledgingId.value
-      || !details.value?.monitoring?.monitoringEnabled) return
+  const alert = details.value?.monitoring?.alerts.find((item) => item.id === alertId)
+  if (acknowledgingId.value || !canAcknowledgeMaerskAlert(
+    permissions.canResetMaerskCircuit.value, details.value?.monitoring, alert,
+  )) return
   acknowledgingId.value = alertId
   try {
     const result = await AgentService.maerskOperations.acknowledgeAlert(alertId)
@@ -222,7 +229,9 @@ onUnmounted(() => {
               </p>
             </div>
             <DhButton
-              v-if="permissions.canResetMaerskCircuit.value && !alert.acknowledgedAtUtc"
+              v-if="canAcknowledgeMaerskAlert(
+                permissions.canResetMaerskCircuit.value, details.monitoring, alert
+              )"
               :label="t('maerskMonitoring.ack')"
               variant="secondary" size="sm"
               :loading="acknowledgingId === alert.id"
