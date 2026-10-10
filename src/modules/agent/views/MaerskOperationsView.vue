@@ -15,12 +15,16 @@ const toast = useToastStore()
 const details = ref<MaerskOperationsDto | null>(null)
 const loading = ref(false)
 const resetting = ref(false)
+const acknowledgingId = ref<string | null>(null)
 const confirmOpen = ref(false)
 const operatorReason = ref('')
 const verifiedWithProvider = ref(false)
 let poll: ReturnType<typeof setInterval> | undefined
 
 const circuit = computed(() => details.value?.circuit)
+const activeHealthAlerts = computed(() =>
+  details.value?.monitoring?.alerts.filter((alert) => alert.state === 'Active') ?? [],
+)
 const canReset = computed(() =>
   permissions.canResetMaerskCircuit.value &&
   circuit.value?.featureEnabled === true &&
@@ -55,6 +59,22 @@ async function refresh(silent = false) {
     if (!silent) toast.backendError(error, t('maerskOperations.loadFailed'))
   } finally {
     loading.value = false
+  }
+}
+
+async function acknowledgeAlert(alertId: string) {
+  if (!permissions.canResetMaerskCircuit.value || acknowledgingId.value
+      || !details.value?.monitoring?.monitoringEnabled) return
+  acknowledgingId.value = alertId
+  try {
+    const result = await AgentService.maerskOperations.acknowledgeAlert(alertId)
+    if (!result.acknowledged) throw new Error(t('maerskMonitoring.ackFailed'))
+    toast.success(t('maerskMonitoring.ackSuccess'))
+    await refresh()
+  } catch (error) {
+    toast.backendError(error, t('maerskMonitoring.ackFailed'))
+  } finally {
+    acknowledgingId.value = null
   }
 }
 
@@ -144,6 +164,77 @@ onUnmounted(() => {
           <strong class="mt-2 block text-3xl tabular-nums text-[var(--dh-text)]">{{ metric.value }}</strong>
         </div>
       </div>
+
+      <section v-if="details.monitoring"
+        class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-base font-bold text-[var(--dh-text)]">
+            {{ t('maerskMonitoring.title') }}
+          </h2>
+          <DhBadge
+            :label="details.monitoring.monitoringEnabled
+              ? t('maerskMonitoring.active') : t('maerskMonitoring.disabled')"
+            :variant="details.monitoring.monitoringEnabled ? 'success' : 'warning'"
+          />
+        </div>
+        <p v-if="!details.monitoring.monitoringEnabled"
+          class="mt-2 text-sm text-[var(--dh-text-muted)]">
+          {{ t('maerskMonitoring.disabledHelp') }}
+        </p>
+        <dl class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div v-for="metric in [
+            { key: 'failedInWindow', value: details.monitoring.failedInWindow },
+            { key: 'queuedOverThreshold', value: details.monitoring.queuedOverThreshold },
+            { key: 'runningOverThreshold', value: details.monitoring.runningOverThreshold },
+          ]" :key="metric.key" class="rounded-xl border border-[var(--dh-border)] p-3">
+            <dt class="text-xs text-[var(--dh-text-muted)]">{{ t(`maerskMonitoring.${metric.key}`) }}</dt>
+            <dd class="mt-1 text-2xl font-bold tabular-nums text-[var(--dh-text)]">{{ metric.value }}</dd>
+          </div>
+          <div class="rounded-xl border border-[var(--dh-border)] p-3">
+            <dt class="text-xs text-[var(--dh-text-muted)]">{{ t('maerskMonitoring.lastSuccess') }}</dt>
+            <dd class="mt-1 text-sm font-semibold text-[var(--dh-text)]">{{ date(details.monitoring.lastCompletedAtUtc) }}</dd>
+          </div>
+        </dl>
+        <h3 class="mt-5 font-semibold text-[var(--dh-text)]">
+          {{ t('maerskMonitoring.alerts') }} ({{ activeHealthAlerts.length }})
+        </h3>
+        <p v-if="!activeHealthAlerts.length"
+          class="mt-2 text-sm text-[var(--dh-text-muted)]">
+          {{ details.monitoring.monitoringEnabled
+            ? t('maerskMonitoring.none') : t('maerskMonitoring.notMonitoring') }}
+        </p>
+        <div class="mt-2 grid min-w-0 gap-2">
+          <div v-for="alert in activeHealthAlerts" :key="alert.id"
+            class="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <DhBadge :label="t(`maerskMonitoring.severity.${alert.severity}`)"
+                  :variant="alert.severity === 'Critical' ? 'danger' : 'warning'" />
+                <strong class="break-all text-sm text-[var(--dh-text)]">
+                  {{ t(`maerskMonitoring.codes.${alert.key}`) }}
+                </strong>
+              </div>
+              <p class="mt-1 break-all text-xs text-[var(--dh-text-muted)]">
+                {{ alert.code }} · {{ date(alert.firstSeenAtUtc) }}
+              </p>
+              <p v-if="alert.acknowledgedAtUtc" class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                {{ t('maerskMonitoring.acknowledged') }}: {{ date(alert.acknowledgedAtUtc) }}
+              </p>
+            </div>
+            <DhButton
+              v-if="permissions.canResetMaerskCircuit.value && !alert.acknowledgedAtUtc"
+              :label="t('maerskMonitoring.ack')"
+              variant="secondary" size="sm"
+              :loading="acknowledgingId === alert.id"
+              :disabled="Boolean(acknowledgingId)"
+              @click="acknowledgeAlert(alert.id)"
+            />
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+          {{ t('maerskMonitoring.ackNote') }}
+        </p>
+      </section>
 
       <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
