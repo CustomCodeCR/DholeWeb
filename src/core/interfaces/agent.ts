@@ -53,6 +53,42 @@ export interface MaerskMonitoringDto {
   alerts: MaerskHealthAlertDto[]
 }
 
+export interface MaerskProfileHealthDto {
+  environment: string
+  providerId: string
+  profileId: string
+  profileName: string
+  profileStatus: string
+  isActive: boolean
+  circuitState: 'Disabled' | 'Closed' | 'Open' | 'HalfOpen'
+  requiresOperator: boolean
+  errorCode: string | null
+  lastLoginAt: string | null
+  lastUsedAt: string | null
+  sessionExpiresAt: string | null
+  lastSuccessAtUtc: string | null
+  queued: number
+  running: number
+  waitingForAuthentication: number
+  nextAction: 'CircuitNotEnabled' | 'VerifyProviderManually' |
+    'AuthenticateOriginalProfile' | 'ReviewTechnicalRepair' |
+    'WaitForCircuit' | 'ReviewWaitingExecution' |
+    'SessionRecordedAsAuthenticated' | 'ReviewSession'
+}
+
+export interface MaerskWaitingExecutionDto {
+  id: string
+  status: AgentExecutionStatus
+  executionType: string
+  attempt: number
+  maxAttempts: number
+  errorCode: string | null
+  createdAtUtc: string
+  startedAt: string | null
+  completedAt: string | null
+  correlationId: string
+}
+
 export interface MaerskOperationsDto {
   monitoring?: MaerskMonitoringDto
   providerId: string

@@ -1019,6 +1019,21 @@ export const AgentEndpoints = {
     path: '/api/agents/maersk/alerts/{{alertId}}/acknowledge',
     headers: acceptJson,
   },
+  getMaerskProfileHealth: {
+    method: 'GET',
+    path: '/api/agents/maersk/profiles/{{profileId}}/health',
+    headers: acceptJson,
+  },
+  getMaerskWaitingExecutions: {
+    method: 'GET',
+    path: '/api/agents/maersk/executions/waiting',
+    headers: acceptJson,
+  },
+  resumeMaerskExecution: {
+    method: 'POST',
+    path: '/api/agents/maersk/executions/{{executionId}}/resume',
+    headers: jsonHeaders,
+  },
   getMaerskOperations: {
     method: 'GET',
     path: '/api/agents/maersk/operations',

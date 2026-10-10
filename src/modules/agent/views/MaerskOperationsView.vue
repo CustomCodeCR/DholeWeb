@@ -5,7 +5,7 @@ import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, 
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
 import { DhPageHeader, DhModal } from '@/shared/components/organisms'
 import { AgentService } from '@/core/services/agentService'
-import type { MaerskOperationsDto } from '@/core/interfaces/agent'
+import type { MaerskOperationsDto, MaerskProfileHealthDto, MaerskWaitingExecutionDto } from '@/core/interfaces/agent'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useToastStore } from '@/core/stores/toastStore'
 import {
@@ -18,6 +18,14 @@ const { t, locale } = useI18n()
 const permissions = useAgentPermissions()
 const toast = useToastStore()
 const details = ref<MaerskOperationsDto | null>(null)
+const waitingExecutions = ref<MaerskWaitingExecutionDto[]>([])
+const selectedHealth = ref<MaerskProfileHealthDto | null>(null)
+const healthLoading = ref(false)
+const selectedProfileId = ref<string | null>(null)
+const resumeTarget = ref<MaerskWaitingExecutionDto | null>(null)
+const resumeReason = ref('')
+const resumeVerified = ref(false)
+const resuming = ref(false)
 const loading = ref(false)
 const resetting = ref(false)
 const acknowledgingId = ref<string | null>(null)
@@ -39,6 +47,17 @@ const resetValid = computed(() =>
   verifiedWithProvider.value && operatorReason.value.trim().length >= 12 &&
   operatorReason.value.length <= 1000,
 )
+const canResume = computed(() =>
+  permissions.canResetMaerskCircuit.value &&
+  permissions.canCreateExecutions.value &&
+  circuit.value?.featureEnabled === true &&
+  circuit.value?.state === 'Closed' &&
+  !circuit.value?.requiresOperator,
+)
+const resumeValid = computed(() =>
+  canResume.value && resumeVerified.value &&
+  resumeReason.value.trim().length >= 12 && resumeReason.value.trim().length <= 500,
+)
 
 function date(value: string | null | undefined): string {
   if (!value) return '—'
@@ -59,7 +78,12 @@ async function refresh(silent = false) {
   if (loading.value || !permissions.canViewMaerskOperations.value) return
   loading.value = true
   try {
-    details.value = await AgentService.maerskOperations.get()
+    const [overview, waiting] = await Promise.all([
+      AgentService.maerskOperations.get(),
+      AgentService.maerskOperations.waitingExecutions(),
+    ])
+    details.value = overview
+    waitingExecutions.value = waiting
   } catch (error) {
     if (!silent) toast.backendError(error, t('maerskOperations.loadFailed'))
   } finally {
@@ -112,6 +136,47 @@ async function confirmReset() {
   }
 }
 
+async function viewProfileHealth(profileId: string) {
+  if (healthLoading.value || !permissions.canViewMaerskOperations.value) return
+  healthLoading.value = true
+  selectedProfileId.value = profileId
+  selectedHealth.value = null
+  try {
+    selectedHealth.value = await AgentService.maerskOperations.profileHealth(profileId)
+  } catch (error) {
+    toast.backendError(error, t('maerskOperations.healthFailed'))
+  } finally {
+    healthLoading.value = false
+  }
+}
+
+function requestResume(execution: MaerskWaitingExecutionDto) {
+  if (!canResume.value || resuming.value) return
+  resumeTarget.value = execution
+  resumeReason.value = ''
+  resumeVerified.value = false
+}
+
+async function confirmResume() {
+  if (!resumeTarget.value || !resumeValid.value || resuming.value) return
+  resuming.value = true
+  try {
+    const response = await AgentService.maerskOperations.resumeExecution(
+      resumeTarget.value.id, resumeReason.value.trim(), resumeVerified.value,
+    )
+    if (!response.resumed) throw new Error(t('maerskOperations.resumeFailed'))
+    resumeTarget.value = null
+    resumeVerified.value = false
+    resumeReason.value = ''
+    toast.success(t('maerskOperations.resumeSuccess'))
+    await refresh()
+  } catch (error) {
+    toast.backendError(error, t('maerskOperations.resumeFailed'))
+  } finally {
+    resuming.value = false
+  }
+}
+
 function onVisible() {
   if (!document.hidden) void refresh(true)
 }
@@ -119,7 +184,7 @@ function onVisible() {
 onMounted(() => {
   void refresh()
   poll = setInterval(() => {
-    if (!document.hidden && !confirmOpen.value) void refresh(true)
+    if (!document.hidden && !confirmOpen.value && !resumeTarget.value) void refresh(true)
   }, 15000)
   document.addEventListener('visibilitychange', onVisible)
 })
@@ -303,7 +368,32 @@ onUnmounted(() => {
               <p class="break-words text-sm font-semibold text-[var(--dh-text)]">{{ profile.name }}</p>
               <p class="text-xs text-[var(--dh-text-muted)]">{{ t('maerskOperations.lastLogin') }}: {{ date(profile.lastLoginAt) }}</p>
             </div>
-            <DhBadge :label="profile.status" :variant="badgeVariant(profile.status)" />
+            <div class="flex flex-wrap items-center gap-2">
+              <DhBadge :label="profile.status" :variant="badgeVariant(profile.status)" />
+              <DhButton :label="t('maerskOperations.profileHealth')" size="sm" variant="secondary"
+                :disabled="healthLoading" :loading="selectedProfileId === profile.id && healthLoading"
+                @click="viewProfileHealth(profile.id)" />
+            </div>
+          </div>
+          <div v-if="selectedHealth" class="mt-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm">
+            <p class="font-semibold text-[var(--dh-text)]">{{ selectedHealth.profileName }}</p>
+            <dl class="mt-2 grid gap-2 sm:grid-cols-2">
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.environment') }}</dt>
+                <dd>{{ selectedHealth.environment }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.nextSafeAction') }}</dt>
+                <dd>{{ t('maerskOperations.actions.' + selectedHealth.nextAction) }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.lastSuccess') }}</dt>
+                <dd>{{ date(selectedHealth.lastSuccessAtUtc) }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.reason') }}</dt>
+                <dd class="break-all">{{ selectedHealth.errorCode ?? '—' }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.queued') }}</dt>
+                <dd>{{ selectedHealth.queued }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.waitingForAuthentication') }}</dt>
+                <dd>{{ selectedHealth.waitingForAuthentication }}</dd></div>
+            </dl>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+              {{ t('maerskOperations.manualVerificationNote') }}
+            </p>
           </div>
         </section>
         <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
@@ -319,6 +409,31 @@ onUnmounted(() => {
           </div>
         </section>
       </div>
+
+      <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
+        <h2 class="font-bold text-[var(--dh-text)]">
+          {{ t('maerskOperations.waitingQueue') }} ({{ waitingExecutions.length }})
+        </h2>
+        <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+          {{ t('maerskOperations.waitingQueueNote') }}
+        </p>
+        <div v-for="execution in waitingExecutions" :key="execution.id"
+          class="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+          <div class="min-w-0">
+            <p class="text-xs text-[var(--dh-text-muted)]">{{ date(execution.createdAtUtc) }}</p>
+            <RouterLink :to="'/agents/executions/' + execution.id"
+              class="break-all text-sm font-semibold text-[var(--dh-primary)] underline underline-offset-2">
+              {{ execution.id }}
+            </RouterLink>
+            <p class="mt-1 break-all text-xs text-[var(--dh-text-muted)]">
+              {{ execution.errorCode ?? '—' }} · {{ execution.attempt }}/{{ execution.maxAttempts }}
+            </p>
+          </div>
+          <DhButton v-if="canResume" :label="t('maerskOperations.resume')"
+            variant="secondary" size="sm" :disabled="resuming"
+            @click="requestResume(execution)" />
+        </div>
+      </section>
 
       <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -364,6 +479,30 @@ onUnmounted(() => {
     <div v-else class="rounded-2xl border border-[var(--dh-border)] p-6">
       <DhButton :label="t('maerskOperations.retry')" :icon="RefreshCw" @click="refresh()" />
     </div>
+
+    <DhModal :open="Boolean(resumeTarget)" :title="t('maerskOperations.resume')" size="md"
+      @close="resumeTarget = null">
+      <form class="grid gap-4" @submit.prevent="confirmResume">
+        <p class="text-sm text-[var(--dh-text-muted)]">
+          {{ t('maerskOperations.resumeExplanation') }}
+        </p>
+        <p v-if="resumeTarget" class="break-all text-xs text-[var(--dh-text-muted)]">
+          {{ resumeTarget.id }}
+        </p>
+        <DhInput v-model="resumeReason" :label="t('maerskOperations.operatorReason')" :disabled="resuming" />
+        <label class="flex items-start gap-3 text-sm text-[var(--dh-text)]">
+          <input v-model="resumeVerified" type="checkbox" :disabled="resuming"
+            class="mt-1 h-4 w-4 shrink-0 accent-[var(--dh-primary)]" />
+          <span>{{ t('maerskOperations.verified') }}</span>
+        </label>
+        <div class="flex flex-wrap justify-end gap-2">
+          <DhButton :label="t('maerskOperations.cancel')" variant="secondary"
+            :disabled="resuming" @click="resumeTarget = null" />
+          <DhButton type="submit" :label="t('maerskOperations.confirmResume')"
+            variant="danger" :disabled="!resumeValid || resuming" :loading="resuming" />
+        </div>
+      </form>
+    </DhModal>
 
     <DhModal :open="confirmOpen" :title="t('maerskOperations.reset')" size="md"
       @close="confirmOpen = false">
