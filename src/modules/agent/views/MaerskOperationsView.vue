@@ -1,0 +1,287 @@
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-vue-next'
+import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
+import { DhPageHeader, DhModal } from '@/shared/components/organisms'
+import { AgentService } from '@/core/services/agentService'
+import type { MaerskOperationsDto } from '@/core/interfaces/agent'
+import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
+import { useToastStore } from '@/core/stores/toastStore'
+
+const { t, locale } = useI18n()
+const permissions = useAgentPermissions()
+const toast = useToastStore()
+const details = ref<MaerskOperationsDto | null>(null)
+const loading = ref(false)
+const resetting = ref(false)
+const confirmOpen = ref(false)
+const operatorReason = ref('')
+const verifiedWithProvider = ref(false)
+let poll: ReturnType<typeof setInterval> | undefined
+
+const circuit = computed(() => details.value?.circuit)
+const canReset = computed(() =>
+  permissions.canResetMaerskCircuit.value &&
+  circuit.value?.featureEnabled === true &&
+  (circuit.value.state === 'Open' || circuit.value.state === 'HalfOpen'),
+)
+const resetValid = computed(() =>
+  verifiedWithProvider.value && operatorReason.value.trim().length >= 12 &&
+  operatorReason.value.length <= 1000,
+)
+
+function date(value: string | null | undefined): string {
+  if (!value) return '—'
+  const time = Date.parse(value)
+  if (!Number.isFinite(time)) return '—'
+  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'short', timeStyle: 'short' })
+    .format(time)
+}
+
+function badgeVariant(state: string): 'success' | 'danger' | 'warning' | 'neutral' {
+  if (state === 'Closed' || state === 'Authenticated' || state === 'Completed') return 'success'
+  if (state === 'Open' || state === 'Blocked' || state === 'Failed') return 'danger'
+  if (state === 'HalfOpen' || state === 'WaitingForAuthentication' || state === 'Expired') return 'warning'
+  return 'neutral'
+}
+
+async function refresh(silent = false) {
+  if (loading.value || !permissions.canViewMaerskOperations.value) return
+  loading.value = true
+  try {
+    details.value = await AgentService.maerskOperations.get()
+  } catch (error) {
+    if (!silent) toast.backendError(error, t('maerskOperations.loadFailed'))
+  } finally {
+    loading.value = false
+  }
+}
+
+function requestReset() {
+  if (!canReset.value) return
+  operatorReason.value = ''
+  verifiedWithProvider.value = false
+  confirmOpen.value = true
+}
+
+async function confirmReset() {
+  if (!canReset.value || !resetValid.value || !details.value || resetting.value) return
+  resetting.value = true
+  try {
+    const response = await AgentService.maerskOperations.resetCircuit(
+      details.value.providerId, operatorReason.value.trim(), verifiedWithProvider.value,
+    )
+    if (!response.reset) throw new Error(t('maerskOperations.resetFailed'))
+    confirmOpen.value = false
+    verifiedWithProvider.value = false
+    operatorReason.value = ''
+    toast.success(t('maerskOperations.resetSuccess'))
+    await refresh()
+  } catch (error) {
+    toast.backendError(error, t('maerskOperations.resetFailed'))
+  } finally {
+    resetting.value = false
+  }
+}
+
+function onVisible() {
+  if (!document.hidden) void refresh(true)
+}
+
+onMounted(() => {
+  void refresh()
+  poll = setInterval(() => {
+    if (!document.hidden && !confirmOpen.value) void refresh(true)
+  }, 15000)
+  document.addEventListener('visibilitychange', onVisible)
+})
+onUnmounted(() => {
+  if (poll) clearInterval(poll)
+  document.removeEventListener('visibilitychange', onVisible)
+})
+</script>
+
+<template>
+  <section class="grid min-w-0 gap-5 sm:gap-6">
+    <DhPageHeader
+      :title="t('maerskOperations.title')"
+      :subtitle="t('maerskOperations.subtitle')"
+      :icon="Activity"
+    >
+      <template #actions>
+        <DhButton
+          :label="t('maerskOperations.refresh')"
+          :icon="RefreshCw"
+          variant="secondary"
+          :loading="loading"
+          @click="refresh()"
+        />
+      </template>
+    </DhPageHeader>
+
+    <div v-if="!permissions.canViewMaerskOperations.value"
+      class="rounded-2xl border border-[var(--dh-border)] p-5 text-sm text-[var(--dh-text-muted)]">
+      {{ t('maerskOperations.noAccess') }}
+    </div>
+    <template v-else-if="details">
+      <div v-if="!details.circuit.featureEnabled"
+        class="flex items-start gap-3 rounded-2xl border border-amber-500/30 p-4 text-sm text-[var(--dh-text)]">
+        <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+        <span>{{ t('maerskOperations.disabledWarning') }}</span>
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div v-for="metric in [
+          { key: 'queued', value: details.counters.queued },
+          { key: 'running', value: details.counters.running },
+          { key: 'waitingForAuthentication', value: details.counters.waitingForAuthentication },
+          { key: 'completed', value: details.counters.completed },
+          { key: 'failed', value: details.counters.failed },
+        ]" :key="metric.key"
+          class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ t(`maerskOperations.${metric.key}`) }}</p>
+          <strong class="mt-2 block text-3xl tabular-nums text-[var(--dh-text)]">{{ metric.value }}</strong>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-3">
+            <ShieldAlert v-if="circuit?.state === 'Open'" class="h-6 w-6 shrink-0 text-red-500" />
+            <ShieldCheck v-else class="h-6 w-6 shrink-0 text-emerald-600" />
+            <div class="min-w-0">
+              <h2 class="font-bold text-[var(--dh-text)]">{{ t('maerskOperations.circuitTitle') }}</h2>
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ details.providerName }}</p>
+            </div>
+          </div>
+          <DhBadge :label="circuit?.state ?? '—'" :variant="badgeVariant(circuit?.state ?? '')" />
+        </div>
+        <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.reason') }}</dt>
+            <dd class="mt-1 break-all font-semibold text-[var(--dh-text)]">{{ circuit?.reasonCode ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.failures') }}</dt>
+            <dd class="mt-1 font-semibold text-[var(--dh-text)]">{{ circuit?.consecutiveFailures ?? 0 }}</dd>
+          </div>
+          <div>
+            <dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.cooldown') }}</dt>
+            <dd class="mt-1 font-semibold text-[var(--dh-text)]">{{ date(circuit?.openUntilUtc) }}</dd>
+          </div>
+        </dl>
+        <p v-if="circuit?.requiresOperator" class="mt-4 text-sm text-amber-600">
+          {{ t('maerskOperations.operatorRequired') }}
+        </p>
+        <p v-else-if="circuit?.state === 'HalfOpen'" class="mt-4 text-sm text-[var(--dh-text-muted)]">
+          {{ t('maerskOperations.probeInfo') }}
+        </p>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <DhButton v-if="canReset" :label="t('maerskOperations.reset')"
+            :icon="CheckCircle2" variant="secondary" @click="requestReset" />
+          <RouterLink to="/agents/browser-profiles"
+            class="inline-flex min-h-11 items-center rounded-xl border border-[var(--dh-border)] px-4 text-sm font-bold text-[var(--dh-text)]">
+            {{ t('maerskOperations.sessions') }}
+          </RouterLink>
+          <RouterLink to="/agents/executions"
+            class="inline-flex min-h-11 items-center rounded-xl border border-[var(--dh-border)] px-4 text-sm font-bold text-[var(--dh-text)]">
+            {{ t('maerskOperations.allExecutions') }}
+          </RouterLink>
+        </div>
+      </div>
+
+      <div class="grid min-w-0 gap-4 xl:grid-cols-2">
+        <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
+          <h2 class="mb-3 font-bold text-[var(--dh-text)]">{{ t('maerskOperations.sessions') }}</h2>
+          <p v-if="!details.profiles.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('maerskOperations.empty') }}</p>
+          <div v-for="profile in details.profiles" :key="profile.id"
+            class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] py-3 first:border-0">
+            <div class="min-w-0">
+              <p class="break-words text-sm font-semibold text-[var(--dh-text)]">{{ profile.name }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ t('maerskOperations.lastLogin') }}: {{ date(profile.lastLoginAt) }}</p>
+            </div>
+            <DhBadge :label="profile.status" :variant="badgeVariant(profile.status)" />
+          </div>
+        </section>
+        <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
+          <h2 class="mb-3 font-bold text-[var(--dh-text)]">{{ t('maerskOperations.incidents') }}</h2>
+          <p v-if="!details.events.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('maerskOperations.empty') }}</p>
+          <div v-for="event in details.events" :key="event.id"
+            class="flex min-w-0 justify-between gap-3 border-t border-[var(--dh-border)] py-3 first:border-0">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-[var(--dh-text)]">{{ event.eventType }}</p>
+              <p class="break-all text-xs text-[var(--dh-text-muted)]">{{ event.reasonCode ?? '—' }}</p>
+            </div>
+            <time class="shrink-0 text-xs text-[var(--dh-text-muted)]">{{ date(event.occurredAtUtc) }}</time>
+          </div>
+        </section>
+      </div>
+
+      <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="font-bold text-[var(--dh-text)]">{{ t('maerskOperations.recentExecutions') }}</h2>
+          <span class="inline-flex items-center gap-1 text-xs text-[var(--dh-text-muted)]">
+            <Clock3 class="h-4 w-4" />{{ t('maerskOperations.updated') }}: {{ date(details.generatedAtUtc) }}
+          </span>
+        </div>
+        <p v-if="!details.executions.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('maerskOperations.empty') }}</p>
+        <div v-else class="max-w-full overflow-x-auto">
+          <table class="w-full min-w-[650px] text-left text-sm">
+            <thead class="text-xs text-[var(--dh-text-muted)]">
+              <tr>
+                <th class="px-2 py-3">{{ t('maerskOperations.when') }}</th>
+                <th class="px-2 py-3">{{ t('maerskOperations.status') }}</th>
+                <th class="px-2 py-3">{{ t('maerskOperations.attempts') }}</th>
+                <th class="px-2 py-3">{{ t('maerskOperations.reason') }}</th>
+                <th class="px-2 py-3">{{ t('maerskOperations.details') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="execution in details.executions" :key="execution.id"
+                class="border-t border-[var(--dh-border)]">
+                <td class="px-2 py-3 whitespace-nowrap">{{ date(execution.createdAtUtc) }}</td>
+                <td class="px-2 py-3"><DhBadge :label="execution.status" :variant="badgeVariant(execution.status)" /></td>
+                <td class="px-2 py-3 tabular-nums">{{ execution.attempt }}/{{ execution.maxAttempts }}</td>
+                <td class="max-w-[200px] break-all px-2 py-3">{{ execution.errorCode ?? '—' }}</td>
+                <td class="px-2 py-3">
+                  <RouterLink :to="`/agents/executions/${execution.id}`"
+                    class="font-semibold text-[var(--dh-primary)] underline underline-offset-2">
+                    {{ t('maerskOperations.view') }}
+                  </RouterLink>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </template>
+    <div v-else-if="loading" class="rounded-2xl border border-[var(--dh-border)] p-6 text-sm text-[var(--dh-text-muted)]">
+      {{ t('maerskOperations.loading') }}
+    </div>
+    <div v-else class="rounded-2xl border border-[var(--dh-border)] p-6">
+      <DhButton :label="t('maerskOperations.retry')" :icon="RefreshCw" @click="refresh()" />
+    </div>
+
+    <DhModal :open="confirmOpen" :title="t('maerskOperations.reset')" size="md"
+      @close="confirmOpen = false">
+      <form class="grid gap-4" @submit.prevent="confirmReset">
+        <p class="text-sm leading-relaxed text-[var(--dh-text-muted)]">
+          {{ t('maerskOperations.resetExplanation') }}
+        </p>
+        <DhInput v-model="operatorReason" :label="t('maerskOperations.operatorReason')" :disabled="resetting" />
+        <label class="flex items-start gap-3 text-sm text-[var(--dh-text)]">
+          <input v-model="verifiedWithProvider" type="checkbox" :disabled="resetting"
+            class="mt-1 h-4 w-4 shrink-0 accent-[var(--dh-primary)]" />
+          <span>{{ t('maerskOperations.verified') }}</span>
+        </label>
+        <div class="flex flex-wrap justify-end gap-2">
+          <DhButton :label="t('maerskOperations.cancel')" variant="secondary"
+            :disabled="resetting" @click="confirmOpen = false" />
+          <DhButton type="submit" :label="t('maerskOperations.confirmReset')"
+            variant="danger" :disabled="!resetValid || resetting" :loading="resetting" />
+        </div>
+      </form>
+    </DhModal>
+  </section>
+</template>
