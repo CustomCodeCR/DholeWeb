@@ -1754,6 +1754,7 @@
     "pricingSelects": "Selectores de Pricing"
   },
   "maerskOperations": {
+    "apiUnavailable": "La consola básica sigue disponible, pero la API de recuperación aún no está activada en este ambiente. Las acciones de salud y reanudación permanecerán deshabilitadas.",
     "profileHealth": "Ver salud",
     "healthFailed": "No se pudo consultar la salud del perfil",
     "environment": "Ambiente",
