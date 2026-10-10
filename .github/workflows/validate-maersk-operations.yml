@@ -21,7 +21,7 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Maersk operations safety and integration tests
-        run: node --test tests/maerskOperations.test.ts
+        run: pnpm run test:agent
       - name: Vue TypeScript validation
         run: pnpm exec vue-tsc --build
       - name: Frontend build
