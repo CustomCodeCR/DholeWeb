@@ -122,7 +122,7 @@ test('Phase 5 profile health and waiting queue are scope-protected and never exp
   assert.match(types, /interface MaerskProfileHealthDto/)
   assert.match(types, /interface MaerskWaitingExecutionDto/)
   assert.match(view, /selectedHealth\.nextAction/)
-  assert.match(view, /waitingExecutions\.value = waiting/)
+  assert.match(view, /waitingExecutions\.value = await AgentService\.maerskOperations\.waitingExecutions\(\)/)
   assert.match(view, /permissions\.canCreateExecutions\.value/)
   assert.match(view, /resumeVerified\.value/)
   assert.match(view, /resumeReason\.value\.trim\(\)\.length >= 12/)
@@ -149,4 +149,19 @@ test('Phase 5 safe recovery actions are translated into both languages', async (
       'SessionRecordedAsAuthenticated', 'ReviewSession',
     ]) assert.ok(t.actions[action]?.length > 0, `Missing safe action ${action}`)
   }
+})
+
+test('Phase 5 rollout preserves existing Maersk console before new Agent API is available', async () => {
+  const [view, es, en] = await Promise.all([
+    source('../src/modules/agent/views/MaerskOperationsView.vue'),
+    source('../src/core/i18n/es.json'),
+    source('../src/core/i18n/en.json'),
+  ])
+  assert.match(view, /recoveryApiAvailable\.value = false/)
+  assert.match(view, /recoveryApiAvailable\.value = true/)
+  assert.match(view, /details\.value = await AgentService\.maerskOperations\.get\(\)/)
+  assert.match(view, /v-if="recoveryApiAvailable"/)
+  assert.match(view, /recoveryApiAvailable\.value &&/)
+  assert.ok(JSON.parse(es).maerskOperations.apiUnavailable)
+  assert.ok(JSON.parse(en).maerskOperations.apiUnavailable)
 })

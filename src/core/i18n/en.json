@@ -1802,6 +1802,7 @@
     "pricingSelects": "Pricing selectors"
   },
   "maerskOperations": {
+    "apiUnavailable": "The existing console remains available, but the recovery API is not yet deployed in this environment. Health and resume actions are disabled.",
     "profileHealth": "Profile health",
     "healthFailed": "Could not load profile health",
     "environment": "Environment",
