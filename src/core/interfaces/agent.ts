@@ -30,7 +30,31 @@ export type AgentExecutionStatus =
   | 'Failed'
   | 'Cancelled'
 
+export interface MaerskHealthAlertDto {
+  id: string
+  key: string
+  code: string
+  severity: 'Warning' | 'Critical'
+  state: 'Active' | 'Resolved'
+  firstSeenAtUtc: string
+  lastSeenAtUtc: string
+  resolvedAtUtc: string | null
+  acknowledgedAtUtc: string | null
+}
+
+export interface MaerskMonitoringDto {
+  monitoringEnabled: boolean
+  observedAtUtc: string
+  failedInWindow: number
+  queuedOverThreshold: number
+  runningOverThreshold: number
+  oldestQueuedAtUtc: string | null
+  lastCompletedAtUtc: string | null
+  alerts: MaerskHealthAlertDto[]
+}
+
 export interface MaerskOperationsDto {
+  monitoring?: MaerskMonitoringDto
   providerId: string
   providerName: string
   generatedAtUtc: string
