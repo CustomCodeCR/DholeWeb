@@ -54,3 +54,40 @@ test('Maersk console contains localized operational and safety labels', async ()
     }
   }
 })
+
+
+test('Phase 6 monitoring alerts remain separated from circuit reset and require operator scopes', async () => {
+  const [view, endpoints, service, contracts] = await Promise.all([
+    source('../src/modules/agent/views/MaerskOperationsView.vue'),
+    source('../src/core/composables/endpoints.ts'),
+    source('../src/core/services/agentService.ts'),
+    source('../src/core/interfaces/agent.ts'),
+  ])
+  assert.match(contracts, /interface MaerskMonitoringDto/)
+  assert.match(contracts, /interface MaerskHealthAlertDto/)
+  assert.match(endpoints, /\/api\/agents\/maersk\/alerts\/\{\{alertId\}\}\/acknowledge/)
+  assert.match(service, /acknowledgeAlert\(alertId: string\)/)
+  assert.match(view, /permissions\.canResetMaerskCircuit\.value/)
+  assert.match(view, /monitoringEnabled/)
+  assert.match(view, /acknowledgedAtUtc/)
+  assert.match(view, /acknowledgeAlert\(alert\.id\)/)
+  assert.match(view, /activeHealthAlerts/)
+  for (const secret of ['storagePath', 'inputJson', 'outputJson', 'password', 'cookies']) {
+    assert.equal(view.includes(secret), false, `Monitoring console should never expose ${secret}`)
+  }
+})
+
+test('Phase 6 has translated severity, alert keys and operator acknowledgement warning', async () => {
+  const [es, en] = await Promise.all([
+    source('../src/core/i18n/es.json'), source('../src/core/i18n/en.json'),
+  ])
+  for (const file of [es, en]) {
+    const t = JSON.parse(file).maerskMonitoring
+    assert.ok(t.title && t.disabledHelp && t.ackNote && t.ackFailed)
+    assert.deepEqual(Object.keys(t.severity).sort(), ['Critical', 'Warning'])
+    for (const code of [
+      'provider-access', 'half-open-stalled', 'browser-profile-blocked',
+      'queue-backlog', 'running-stalled', 'execution-failure-spike',
+    ]) assert.ok(t.codes[code]?.length > 0, `Missing ${code} in translations`)
+  }
+})
