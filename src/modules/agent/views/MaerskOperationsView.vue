@@ -480,6 +480,30 @@ onUnmounted(() => {
       <DhButton :label="t('maerskOperations.retry')" :icon="RefreshCw" @click="refresh()" />
     </div>
 
+    <DhModal :open="Boolean(resumeTarget)" :title="t('maerskOperations.resume')" size="md"
+      @close="resumeTarget = null">
+      <form class="grid gap-4" @submit.prevent="confirmResume">
+        <p class="text-sm text-[var(--dh-text-muted)]">
+          {{ t('maerskOperations.resumeExplanation') }}
+        </p>
+        <p v-if="resumeTarget" class="break-all text-xs text-[var(--dh-text-muted)]">
+          {{ resumeTarget.id }}
+        </p>
+        <DhInput v-model="resumeReason" :label="t('maerskOperations.operatorReason')" :disabled="resuming" />
+        <label class="flex items-start gap-3 text-sm text-[var(--dh-text)]">
+          <input v-model="resumeVerified" type="checkbox" :disabled="resuming"
+            class="mt-1 h-4 w-4 shrink-0 accent-[var(--dh-primary)]" />
+          <span>{{ t('maerskOperations.verified') }}</span>
+        </label>
+        <div class="flex flex-wrap justify-end gap-2">
+          <DhButton :label="t('maerskOperations.cancel')" variant="secondary"
+            :disabled="resuming" @click="resumeTarget = null" />
+          <DhButton type="submit" :label="t('maerskOperations.confirmResume')"
+            variant="danger" :disabled="!resumeValid || resuming" :loading="resuming" />
+        </div>
+      </form>
+    </DhModal>
+
     <DhModal :open="confirmOpen" :title="t('maerskOperations.reset')" size="md"
       @close="confirmOpen = false">
       <form class="grid gap-4" @submit.prevent="confirmReset">
