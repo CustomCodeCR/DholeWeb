@@ -1841,5 +1841,35 @@
     "resetSuccess": "Circuito liberado; se registró la acción",
     "cancel": "Cancelar",
     "confirmReset": "Confirmar liberación"
+  },
+  "maerskMonitoring": {
+    "title": "Alertas operativas",
+    "active": "Monitor activo",
+    "disabled": "Monitor desactivado",
+    "disabledHelp": "Los indicadores se calculan, pero no se crean ni actualizan alertas hasta habilitar la monitorización en el servidor.",
+    "failedInWindow": "Errores en la última hora",
+    "queuedOverThreshold": "En cola más de 20 minutos",
+    "runningOverThreshold": "En ejecución más de 75 minutos",
+    "lastSuccess": "Última finalización correcta",
+    "alerts": "Alertas activas",
+    "none": "No se detectan alertas activas",
+    "notMonitoring": "No hay monitorización activa; la ausencia de alertas no confirma disponibilidad.",
+    "ack": "Reconocer",
+    "acknowledged": "Reconocida",
+    "ackSuccess": "Alerta reconocida",
+    "ackFailed": "No se pudo reconocer la alerta",
+    "ackNote": "Reconocer registra la revisión del operador; no desbloquea Maersk, no cambia sesiones y no reintenta ejecuciones.",
+    "severity": {
+      "Critical": "Crítica",
+      "Warning": "Advertencia"
+    },
+    "codes": {
+      "provider-access": "Restricción o verificación pendiente del proveedor",
+      "half-open-stalled": "Comprobación técnica HalfOpen prolongada",
+      "browser-profile-blocked": "Perfil de navegador bloqueado",
+      "queue-backlog": "Ejecuciones con demora en cola",
+      "running-stalled": "Ejecución prolongada sin terminar",
+      "execution-failure-spike": "Múltiples ejecuciones fallidas"
+    }
   }
 }
