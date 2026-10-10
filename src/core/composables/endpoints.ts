@@ -1014,6 +1014,11 @@ export const AgentEndpoints = {
     headers: jsonHeaders,
   },
 
+  acknowledgeMaerskAlert: {
+    method: 'POST',
+    path: '/api/agents/maersk/alerts/{{alertId}}/acknowledge',
+    headers: acceptJson,
+  },
   getMaerskOperations: {
     method: 'GET',
     path: '/api/agents/maersk/operations',

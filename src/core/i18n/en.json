@@ -1841,5 +1841,35 @@
     "resetSuccess": "Circuit cleared and action audited",
     "cancel": "Cancel",
     "confirmReset": "Confirm clearance"
+  },
+  "maerskMonitoring": {
+    "title": "Operational alerts",
+    "active": "Monitoring enabled",
+    "disabled": "Monitoring disabled",
+    "disabledHelp": "Current metrics are calculated, but alerts are not created or updated until server-side monitoring is enabled.",
+    "failedInWindow": "Failures during the last hour",
+    "queuedOverThreshold": "Queued over 20 minutes",
+    "runningOverThreshold": "Running over 75 minutes",
+    "lastSuccess": "Last successful completion",
+    "alerts": "Active alerts",
+    "none": "No active alerts detected",
+    "notMonitoring": "Monitoring is disabled. No alerts does not mean the provider is available.",
+    "ack": "Acknowledge",
+    "acknowledged": "Acknowledged",
+    "ackSuccess": "Alert acknowledged",
+    "ackFailed": "Could not acknowledge alert",
+    "ackNote": "Acknowledging records operator review only; it does not unblock Maersk, alter sessions or retry jobs.",
+    "severity": {
+      "Critical": "Critical",
+      "Warning": "Warning"
+    },
+    "codes": {
+      "provider-access": "Provider access restriction or verification required",
+      "half-open-stalled": "HalfOpen diagnostic probe has stalled",
+      "browser-profile-blocked": "Blocked browser profile",
+      "queue-backlog": "Delayed queued executions",
+      "running-stalled": "Long-running execution",
+      "execution-failure-spike": "Repeated execution failures"
+    }
   }
 }
