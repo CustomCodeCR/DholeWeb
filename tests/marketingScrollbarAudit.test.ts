@@ -59,8 +59,8 @@ test('FASE 55 constrains long dropdowns and wide tables without blocking the pag
   assert.match(dropdown, /break-words/)
 
   assert.match(table, /overflow-x-auto/)
-  assert.match(table, /overscroll-behavior-x:\\s*contain;/)
-  assert.match(table, /overscroll-behavior-y:\\s*auto;/)
+  assert.match(table, /overscroll-behavior-x:\s*contain;/)
+  assert.match(table, /overscroll-behavior-y:\s*auto;/)
   assert.match(table, /max-w-full/)
   assert.match(table, /break-words/)
 })
