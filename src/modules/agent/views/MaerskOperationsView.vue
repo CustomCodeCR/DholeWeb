@@ -5,7 +5,7 @@ import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, 
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
 import { DhPageHeader, DhModal } from '@/shared/components/organisms'
 import { AgentService } from '@/core/services/agentService'
-import type { MaerskOperationsDto } from '@/core/interfaces/agent'
+import type { MaerskOperationsDto, MaerskProfileHealthDto, MaerskWaitingExecutionDto } from '@/core/interfaces/agent'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useToastStore } from '@/core/stores/toastStore'
 import {
@@ -18,6 +18,14 @@ const { t, locale } = useI18n()
 const permissions = useAgentPermissions()
 const toast = useToastStore()
 const details = ref<MaerskOperationsDto | null>(null)
+const waitingExecutions = ref<MaerskWaitingExecutionDto[]>([])
+const selectedHealth = ref<MaerskProfileHealthDto | null>(null)
+const healthLoading = ref(false)
+const selectedProfileId = ref<string | null>(null)
+const resumeTarget = ref<MaerskWaitingExecutionDto | null>(null)
+const resumeReason = ref('')
+const resumeVerified = ref(false)
+const resuming = ref(false)
 const loading = ref(false)
 const resetting = ref(false)
 const acknowledgingId = ref<string | null>(null)
@@ -39,6 +47,17 @@ const resetValid = computed(() =>
   verifiedWithProvider.value && operatorReason.value.trim().length >= 12 &&
   operatorReason.value.length <= 1000,
 )
+const canResume = computed(() =>
+  permissions.canResetMaerskCircuit.value &&
+  permissions.canCreateExecutions.value &&
+  circuit.value?.featureEnabled === true &&
+  circuit.value?.state === 'Closed' &&
+  !circuit.value?.requiresOperator,
+)
+const resumeValid = computed(() =>
+  canResume.value && resumeVerified.value &&
+  resumeReason.value.trim().length >= 12 && resumeReason.value.trim().length <= 500,
+)
 
 function date(value: string | null | undefined): string {
   if (!value) return '—'
@@ -59,7 +78,12 @@ async function refresh(silent = false) {
   if (loading.value || !permissions.canViewMaerskOperations.value) return
   loading.value = true
   try {
-    details.value = await AgentService.maerskOperations.get()
+    const [overview, waiting] = await Promise.all([
+      AgentService.maerskOperations.get(),
+      AgentService.maerskOperations.waitingExecutions(),
+    ])
+    details.value = overview
+    waitingExecutions.value = waiting
   } catch (error) {
     if (!silent) toast.backendError(error, t('maerskOperations.loadFailed'))
   } finally {
@@ -112,6 +136,47 @@ async function confirmReset() {
   }
 }
 
+async function viewProfileHealth(profileId: string) {
+  if (healthLoading.value || !permissions.canViewMaerskOperations.value) return
+  healthLoading.value = true
+  selectedProfileId.value = profileId
+  selectedHealth.value = null
+  try {
+    selectedHealth.value = await AgentService.maerskOperations.profileHealth(profileId)
+  } catch (error) {
+    toast.backendError(error, t('maerskOperations.healthFailed'))
+  } finally {
+    healthLoading.value = false
+  }
+}
+
+function requestResume(execution: MaerskWaitingExecutionDto) {
+  if (!canResume.value || resuming.value) return
+  resumeTarget.value = execution
+  resumeReason.value = ''
+  resumeVerified.value = false
+}
+
+async function confirmResume() {
+  if (!resumeTarget.value || !resumeValid.value || resuming.value) return
+  resuming.value = true
+  try {
+    const response = await AgentService.maerskOperations.resumeExecution(
+      resumeTarget.value.id, resumeReason.value.trim(), resumeVerified.value,
+    )
+    if (!response.resumed) throw new Error(t('maerskOperations.resumeFailed'))
+    resumeTarget.value = null
+    resumeVerified.value = false
+    resumeReason.value = ''
+    toast.success(t('maerskOperations.resumeSuccess'))
+    await refresh()
+  } catch (error) {
+    toast.backendError(error, t('maerskOperations.resumeFailed'))
+  } finally {
+    resuming.value = false
+  }
+}
+
 function onVisible() {
   if (!document.hidden) void refresh(true)
 }
@@ -119,7 +184,7 @@ function onVisible() {
 onMounted(() => {
   void refresh()
   poll = setInterval(() => {
-    if (!document.hidden && !confirmOpen.value) void refresh(true)
+    if (!document.hidden && !confirmOpen.value && !resumeTarget.value) void refresh(true)
   }, 15000)
   document.addEventListener('visibilitychange', onVisible)
 })
