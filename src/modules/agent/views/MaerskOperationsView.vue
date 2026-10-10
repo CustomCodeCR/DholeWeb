@@ -19,6 +19,7 @@ const permissions = useAgentPermissions()
 const toast = useToastStore()
 const details = ref<MaerskOperationsDto | null>(null)
 const waitingExecutions = ref<MaerskWaitingExecutionDto[]>([])
+const recoveryApiAvailable = ref(false)
 const selectedHealth = ref<MaerskProfileHealthDto | null>(null)
 const healthLoading = ref(false)
 const selectedProfileId = ref<string | null>(null)
@@ -50,6 +51,7 @@ const resetValid = computed(() =>
 const canResume = computed(() =>
   permissions.canResetMaerskCircuit.value &&
   permissions.canCreateExecutions.value &&
+  recoveryApiAvailable.value &&
   circuit.value?.featureEnabled === true &&
   circuit.value?.state === 'Closed' &&
   !circuit.value?.requiresOperator,
@@ -78,12 +80,18 @@ async function refresh(silent = false) {
   if (loading.value || !permissions.canViewMaerskOperations.value) return
   loading.value = true
   try {
-    const [overview, waiting] = await Promise.all([
-      AgentService.maerskOperations.get(),
-      AgentService.maerskOperations.waitingExecutions(),
-    ])
-    details.value = overview
-    waitingExecutions.value = waiting
+    // Rollout is API-first, but Web staging may deploy independently.
+    // The existing operations overview must stay usable until Agent API
+    // exposes the phase-5 endpoints; never advertise unavailable mutations.
+    details.value = await AgentService.maerskOperations.get()
+    try {
+      waitingExecutions.value = await AgentService.maerskOperations.waitingExecutions()
+      recoveryApiAvailable.value = true
+    } catch {
+      recoveryApiAvailable.value = false
+      waitingExecutions.value = []
+      selectedHealth.value = null
+    }
   } catch (error) {
     if (!silent) toast.backendError(error, t('maerskOperations.loadFailed'))
   } finally {
@@ -222,6 +230,10 @@ onUnmounted(() => {
         <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
         <span>{{ t('maerskOperations.disabledWarning') }}</span>
       </div>
+
+      <p v-if="!recoveryApiAvailable" class="rounded-xl border border-amber-500/30 p-3 text-sm text-amber-600">
+        {{ t('maerskOperations.apiUnavailable') }}
+      </p>
 
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div v-for="metric in [
@@ -370,7 +382,7 @@ onUnmounted(() => {
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <DhBadge :label="profile.status" :variant="badgeVariant(profile.status)" />
-              <DhButton :label="t('maerskOperations.profileHealth')" size="sm" variant="secondary"
+              <DhButton v-if="recoveryApiAvailable" :label="t('maerskOperations.profileHealth')" size="sm" variant="secondary"
                 :disabled="healthLoading" :loading="selectedProfileId === profile.id && healthLoading"
                 @click="viewProfileHealth(profile.id)" />
             </div>
