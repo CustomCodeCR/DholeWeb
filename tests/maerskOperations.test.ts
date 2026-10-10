@@ -122,7 +122,7 @@ test('Phase 5 profile health and waiting queue are scope-protected and never exp
   assert.match(types, /interface MaerskProfileHealthDto/)
   assert.match(types, /interface MaerskWaitingExecutionDto/)
   assert.match(view, /selectedHealth\.nextAction/)
-  assert.match(view, /waitingExecutions\.value = waiting/)
+  assert.match(view, /waitingExecutions\.value = await AgentService\.maerskOperations\.waitingExecutions\(\)/)
   assert.match(view, /permissions\.canCreateExecutions\.value/)
   assert.match(view, /resumeVerified\.value/)
   assert.match(view, /resumeReason\.value\.trim\(\)\.length >= 12/)
