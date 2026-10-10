@@ -60,12 +60,15 @@ export interface MaerskOperationsDto {
   generatedAtUtc: string
   circuit: {
     featureEnabled: boolean
-    state: 'Closed' | 'Open' | 'HalfOpen'
+    state: 'Disabled' | 'Closed' | 'Open' | 'HalfOpen'
     requiresOperator: boolean
     reasonCode: string | null
     openUntilUtc: string | null
     consecutiveFailures: number
     probeExecutionId: string | null
+    updatedAtUtc?: string | null
+    persistedState?: 'Closed' | 'Open' | 'HalfOpen' | null
+    configurationSource?: string
   }
   counters: {
     queued: number
