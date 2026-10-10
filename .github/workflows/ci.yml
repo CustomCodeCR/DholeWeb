@@ -22,8 +22,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       # master does not contain SEO/Marketing modules or their test scripts.
       # develop continues running their complete suites.
-      - name: Market pricing tests
-        run: pnpm run test:market-pricing
       - name: Agent module tests
         run: pnpm run test:agent
       - name: Type-check and build
