@@ -16,6 +16,7 @@ declare module 'vue-router' {
     closable?: boolean
     requiredScope?: string
     requiredAnyScopes?: string[]
+    requiredAllScopes?: string[]
     requiredRole?: string
   }
 }
@@ -509,6 +510,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'agents/maersk',
+          name: 'agent-maersk-operations',
+          component: () => import('@/modules/agent/views/MaerskOperationsView.vue'),
+          meta: {
+            tabTitleKey: 'maerskOperations.title',
+            closable: true,
+            requiredAllScopes: [VIEW_SCOPES.agentExecutions, VIEW_SCOPES.agentBrowserProfiles],
+          },
+        },
+        {
           path: 'agents/executions',
           name: 'agent-executions',
           component: () => import('@/modules/agent/views/AgentExecutionsView.vue'),
@@ -673,6 +684,9 @@ router.beforeEach(async (to) => {
   const requiredAnyScopes = Array.isArray(to.meta.requiredAnyScopes)
     ? to.meta.requiredAnyScopes.filter((scope): scope is string => typeof scope === 'string')
     : []
+  const requiredAllScopes = Array.isArray(to.meta.requiredAllScopes)
+    ? to.meta.requiredAllScopes.filter((scope): scope is string => typeof scope === 'string')
+    : []
   const requiredRole = typeof to.meta.requiredRole === 'string' ? to.meta.requiredRole : null
 
   if (!isPublic && requiredScope && !authStore.hasScope(requiredScope)) {
@@ -684,6 +698,10 @@ router.beforeEach(async (to) => {
     requiredAnyScopes.length > 0 &&
     !requiredAnyScopes.some((scope) => authStore.hasScope(scope))
   ) {
+    return '/home'
+  }
+
+  if (!isPublic && requiredAllScopes.some((scope) => !authStore.hasScope(scope))) {
     return '/home'
   }
 
