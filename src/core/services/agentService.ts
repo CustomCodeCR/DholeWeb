@@ -19,6 +19,7 @@ import type {
   AgentProviderDto,
   AgentScheduleDto,
   BrowserProfileDto,
+  MaerskOperationsDto,
   CreateAgentCredentialRequest,
   CreateAgentDefinitionRequest,
   CreateAgentExecutionRequest,
@@ -377,6 +378,20 @@ const prompts = {
   },
 }
 
+const maerskOperations = {
+  async get(): Promise<MaerskOperationsDto> {
+    const response = await callEndpoint<unknown>(AgentEndpoints.getMaerskOperations)
+    return unwrapApiResponse<MaerskOperationsDto>(response as never)
+  },
+
+  resetCircuit(providerId: string, reason: string, verifiedWithProvider: boolean): Promise<{ reset: boolean }> {
+    return callEndpoint<{ reset: boolean }, { reason: string; verifiedWithProvider: boolean }>(
+      AgentEndpoints.resetMaerskCircuit,
+      { params: { providerId }, body: { reason, verifiedWithProvider } },
+    )
+  },
+}
+
 const browserProfiles = {
   browse(providerId?: string): Promise<BrowserProfileDto[]> {
     return browseList<BrowserProfileDto>(
@@ -494,6 +509,7 @@ export const AgentService = {
   fields,
   prompts,
   browserProfiles,
+  maerskOperations,
   schedules,
   executions,
 
