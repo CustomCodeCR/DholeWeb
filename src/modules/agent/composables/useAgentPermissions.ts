@@ -18,6 +18,13 @@ export function useAgentPermissions() {
     canManageCaptureRules: computed(() => authStore.hasScope(AGENT_SCOPES.captureRules.manage)),
     canManageExtractionFields: computed(() => authStore.hasScope(AGENT_SCOPES.extractionFields.manage)),
     canManagePrompts: computed(() => authStore.hasScope(AGENT_SCOPES.prompts.manage)),
+    canViewMaerskOperations: computed(() =>
+      authStore.hasScope(AGENT_SCOPES.browserProfiles.view) &&
+      authStore.hasScope(AGENT_SCOPES.executions.view),
+    ),
+    canResetMaerskCircuit: computed(() =>
+      authStore.hasScope(AGENT_SCOPES.browserProfiles.authenticate),
+    ),
     canViewBrowserProfiles: computed(() => authStore.hasScope(AGENT_SCOPES.browserProfiles.view)),
     canAuthenticateBrowserProfiles: computed(() =>
       authStore.hasScope(AGENT_SCOPES.browserProfiles.authenticate),
