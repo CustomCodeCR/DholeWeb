@@ -379,6 +379,13 @@ const prompts = {
 }
 
 const maerskOperations = {
+  async acknowledgeAlert(alertId: string): Promise<{ acknowledged: boolean }> {
+    const response = await callEndpoint<unknown>(AgentEndpoints.acknowledgeMaerskAlert, {
+      params: { alertId },
+    })
+    return unwrapApiResponse<{ acknowledged: boolean }>(response as never)
+  },
+
   async get(): Promise<MaerskOperationsDto> {
     const response = await callEndpoint<unknown>(AgentEndpoints.getMaerskOperations)
     return unwrapApiResponse<MaerskOperationsDto>(response as never)
