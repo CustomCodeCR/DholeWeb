@@ -20,6 +20,8 @@ import type {
   AgentScheduleDto,
   BrowserProfileDto,
   MaerskOperationsDto,
+  MaerskProfileHealthDto,
+  MaerskWaitingExecutionDto,
   CreateAgentCredentialRequest,
   CreateAgentDefinitionRequest,
   CreateAgentExecutionRequest,
@@ -379,6 +381,27 @@ const prompts = {
 }
 
 const maerskOperations = {
+  profileHealth(profileId: string): Promise<MaerskProfileHealthDto> {
+    return getOne<MaerskProfileHealthDto>(
+      AgentEndpoints.getMaerskProfileHealth, { profileId },
+    )
+  },
+
+  async waitingExecutions(): Promise<MaerskWaitingExecutionDto[]> {
+    const response = await callEndpoint<unknown>(AgentEndpoints.getMaerskWaitingExecutions)
+    return unwrapListResponse<MaerskWaitingExecutionDto>(response)
+  },
+
+  resumeExecution(executionId: string, reason: string, verifiedWithProvider: boolean) {
+    return callEndpoint<
+      { resumed: boolean; executionId: string; alreadyQueued: boolean },
+      { reason: string; verifiedWithProvider: boolean }
+    >(AgentEndpoints.resumeMaerskExecution, {
+      params: { executionId },
+      body: { reason, verifiedWithProvider },
+    })
+  },
+
   async acknowledgeAlert(alertId: string): Promise<{ acknowledged: boolean }> {
     const response = await callEndpoint<unknown>(AgentEndpoints.acknowledgeMaerskAlert, {
       params: { alertId },
