@@ -368,7 +368,32 @@ onUnmounted(() => {
               <p class="break-words text-sm font-semibold text-[var(--dh-text)]">{{ profile.name }}</p>
               <p class="text-xs text-[var(--dh-text-muted)]">{{ t('maerskOperations.lastLogin') }}: {{ date(profile.lastLoginAt) }}</p>
             </div>
-            <DhBadge :label="profile.status" :variant="badgeVariant(profile.status)" />
+            <div class="flex flex-wrap items-center gap-2">
+              <DhBadge :label="profile.status" :variant="badgeVariant(profile.status)" />
+              <DhButton :label="t('maerskOperations.profileHealth')" size="sm" variant="secondary"
+                :disabled="healthLoading" :loading="selectedProfileId === profile.id && healthLoading"
+                @click="viewProfileHealth(profile.id)" />
+            </div>
+          </div>
+          <div v-if="selectedHealth" class="mt-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm">
+            <p class="font-semibold text-[var(--dh-text)]">{{ selectedHealth.profileName }}</p>
+            <dl class="mt-2 grid gap-2 sm:grid-cols-2">
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.environment') }}</dt>
+                <dd>{{ selectedHealth.environment }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.nextSafeAction') }}</dt>
+                <dd>{{ t('maerskOperations.actions.' + selectedHealth.nextAction) }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.lastSuccess') }}</dt>
+                <dd>{{ date(selectedHealth.lastSuccessAtUtc) }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.reason') }}</dt>
+                <dd class="break-all">{{ selectedHealth.errorCode ?? '—' }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.queued') }}</dt>
+                <dd>{{ selectedHealth.queued }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">{{ t('maerskOperations.waitingForAuthentication') }}</dt>
+                <dd>{{ selectedHealth.waitingForAuthentication }}</dd></div>
+            </dl>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+              {{ t('maerskOperations.manualVerificationNote') }}
+            </p>
           </div>
         </section>
         <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
@@ -384,6 +409,31 @@ onUnmounted(() => {
           </div>
         </section>
       </div>
+
+      <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
+        <h2 class="font-bold text-[var(--dh-text)]">
+          {{ t('maerskOperations.waitingQueue') }} ({{ waitingExecutions.length }})
+        </h2>
+        <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+          {{ t('maerskOperations.waitingQueueNote') }}
+        </p>
+        <div v-for="execution in waitingExecutions" :key="execution.id"
+          class="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+          <div class="min-w-0">
+            <p class="text-xs text-[var(--dh-text-muted)]">{{ date(execution.createdAtUtc) }}</p>
+            <RouterLink :to="'/agents/executions/' + execution.id"
+              class="break-all text-sm font-semibold text-[var(--dh-primary)] underline underline-offset-2">
+              {{ execution.id }}
+            </RouterLink>
+            <p class="mt-1 break-all text-xs text-[var(--dh-text-muted)]">
+              {{ execution.errorCode ?? '—' }} · {{ execution.attempt }}/{{ execution.maxAttempts }}
+            </p>
+          </div>
+          <DhButton v-if="canResume" :label="t('maerskOperations.resume')"
+            variant="secondary" size="sm" :disabled="resuming"
+            @click="requestResume(execution)" />
+        </div>
+      </section>
 
       <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
