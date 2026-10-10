@@ -91,3 +91,15 @@ test('Phase 6 has translated severity, alert keys and operator acknowledgement w
     ]) assert.ok(t.codes[code]?.length > 0, `Missing ${code} in translations`)
   }
 })
+
+test('Phase 2 displays Disabled neutrally rather than green Closed when protection is off', async () => {
+  const [types, view] = await Promise.all([
+    source('../src/core/interfaces/agent.ts'),
+    source('../src/modules/agent/views/MaerskOperationsView.vue'),
+  ])
+  assert.match(types, /'Disabled' \| 'Closed'/)
+  assert.match(types, /persistedState/)
+  assert.match(view, /!circuit\?\.featureEnabled/)
+  assert.match(view, /\? 'neutral' : badgeVariant/)
+  assert.match(view, /ShieldCheck v-else-if="circuit\?\.featureEnabled/)
+})

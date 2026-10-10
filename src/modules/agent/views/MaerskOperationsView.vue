@@ -249,13 +249,14 @@ onUnmounted(() => {
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-3">
             <ShieldAlert v-if="circuit?.state === 'Open'" class="h-6 w-6 shrink-0 text-red-500" />
-            <ShieldCheck v-else class="h-6 w-6 shrink-0 text-emerald-600" />
+            <ShieldCheck v-else-if="circuit?.featureEnabled && circuit?.state === 'Closed'" class="h-6 w-6 shrink-0 text-emerald-600" />
+            <ShieldAlert v-else class="h-6 w-6 shrink-0 text-amber-600" />
             <div class="min-w-0">
               <h2 class="font-bold text-[var(--dh-text)]">{{ t('maerskOperations.circuitTitle') }}</h2>
               <p class="text-xs text-[var(--dh-text-muted)]">{{ details.providerName }}</p>
             </div>
           </div>
-          <DhBadge :label="circuit?.state ?? '—'" :variant="badgeVariant(circuit?.state ?? '')" />
+          <DhBadge :label="!circuit?.featureEnabled ? 'Disabled' : (circuit?.state ?? '—')" :variant="!circuit?.featureEnabled ? 'neutral' : badgeVariant(circuit?.state ?? '')" />
         </div>
         <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
           <div>
@@ -271,7 +272,8 @@ onUnmounted(() => {
             <dd class="mt-1 font-semibold text-[var(--dh-text)]">{{ date(circuit?.openUntilUtc) }}</dd>
           </div>
         </dl>
-        <p v-if="circuit?.requiresOperator" class="mt-4 text-sm text-amber-600">
+        <p v-if="!circuit?.featureEnabled" class="mt-4 text-sm text-amber-600">{{ t('maerskOperations.disabledWarning') }}</p>
+        <p v-else-if="circuit?.requiresOperator" class="mt-4 text-sm text-amber-600">
           {{ t('maerskOperations.operatorRequired') }}
         </p>
         <p v-else-if="circuit?.state === 'HalfOpen'" class="mt-4 text-sm text-[var(--dh-text-muted)]">
