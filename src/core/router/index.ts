@@ -514,7 +514,7 @@ export const router = createRouter({
           name: 'agent-generation-orchestrator',
           component: () => import('@/modules/agent/views/AgentGenerationOrchestratorView.vue'),
           meta: {
-            tabTitleKey: 'sidebar.agentAdvanced',
+            tabTitleKey: 'sidebar.agentGenerations',
             closable: true,
             requiredAllScopes: [VIEW_SCOPES.agentExecutions, VIEW_SCOPES.agentBrowserProfiles],
           },
