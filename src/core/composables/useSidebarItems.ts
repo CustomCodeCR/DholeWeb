@@ -246,6 +246,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.auditLogs,
           },
           {
+            labelKey: 'sidebar.agentAdvanced',
+            icon: MonitorCog,
+            to: '/agents/generations',
+            name: 'agent-generation-orchestrator',
+            requiredAllScopes: ['agent.executions.view', 'agent.browser-profiles.view'],
+          },
+          {
             labelKey: 'maerskOperations.title',
             icon: MonitorCog,
             to: '/agents/maersk',
