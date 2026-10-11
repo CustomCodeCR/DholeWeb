@@ -510,6 +510,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'agents/generations',
+          name: 'agent-generation-orchestrator',
+          component: () => import('@/modules/agent/views/AgentGenerationOrchestratorView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentAdvanced',
+            closable: true,
+            requiredAllScopes: [VIEW_SCOPES.agentExecutions, VIEW_SCOPES.agentBrowserProfiles],
+          },
+        },
+        {
           path: 'agents/maersk',
           name: 'agent-maersk-operations',
           component: () => import('@/modules/agent/views/MaerskOperationsView.vue'),
