@@ -25,6 +25,7 @@ import {
   Palette,
   PanelRightClose,
   ServerCog,
+  Workflow,
   TrendingUp,
   Truck,
   Settings,
@@ -398,6 +399,14 @@ const sidebarItems = computed<SidebarItem[]>(() => {
         label: t('sidebar.agentExecutions'),
         path: '/agents/executions',
         icon: History,
+      })
+    }
+
+    if (canView(VIEW_SCOPES.agentExecutions) && canView(VIEW_SCOPES.agentBrowserProfiles)) {
+      agentChildren.push({
+        label: t('sidebar.agentGenerations'),
+        path: '/agents/generations',
+        icon: Workflow,
       })
     }
 
