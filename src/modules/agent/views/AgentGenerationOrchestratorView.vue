@@ -39,7 +39,10 @@ const loading = ref(false)
 const submitting = ref(false)
 const savingRule = ref<string | null>(null)
 const reason = ref('')
-const target = ref('prod1')
+const target = ref('')
+const newGeneration = ref('')
+const registering = ref(false)
+const validNewGeneration = computed(() => /^prod[1-9][0-9]*$/.test(newGeneration.value) && newGeneration.value.length <= 64)
 const selectedTrigger = ref<TriggerCode>('manual')
 const confirmation = ref('')
 const canView = computed(() => auth.hasScope('agent.executions.view') && auth.hasScope('agent.browser-profiles.view'))
@@ -66,6 +69,23 @@ async function refresh(silent = false) {
   } catch (error) {
     if (!silent) toast.backendError(error, 'No se pudo consultar el estado del orquestador.')
   } finally { loading.value = false }
+}
+
+async function registerGeneration() {
+  if (!canManage.value || !validNewGeneration.value || registering.value) return
+  registering.value = true
+  try {
+    const name = newGeneration.value
+    await callEndpoint<unknown, { name:string }>({
+      method:'POST', path:'/api/agents/runtime-generations/register',
+      headers:{Accept:'application/json','Content-Type':'application/json'}
+    }, {body:{name}})
+    toast.success('Subentorno registrado', `${name} se agregó al inventario. No se crearon ni activaron contenedores.`)
+    newGeneration.value = ''
+    await refresh()
+    target.value = name
+  } catch (error) { toast.backendError(error, 'No se pudo registrar el subentorno.') }
+  finally { registering.value = false }
 }
 
 async function saveRule(rule: Rule) {
@@ -133,6 +153,17 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Perfil Chromium propio, persistente y no compartido. No se copia ni se elimina en una transición.</p>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">MongoDB · PostgreSQL · Redis: datos compartidos</p>
           </div>
+        </div>
+      </section>
+
+      <section v-if="canManage" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-5 space-y-3">
+        <h2 class="font-bold">Registrar nuevo subentorno</h2>
+        <p class="text-sm text-[var(--dh-text-muted)]">Registra cualquier generación positiva: prod1, prod2, prod3... Cada una debe provisionarse con volúmenes propios de navegador, Hermes y Worker. El registro no inicia sesiones.</p>
+        <div class="flex flex-wrap gap-3 items-end">
+          <label class="min-w-52 flex-1 text-sm font-semibold">Nombre
+            <input v-model="newGeneration" maxlength="64" type="text" autocomplete="off" placeholder="prod2" class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
+          </label>
+          <DhButton label="Registrar subentorno" variant="secondary" :disabled="!validNewGeneration || registering" :loading="registering" @click="registerGeneration"/>
         </div>
       </section>
 
