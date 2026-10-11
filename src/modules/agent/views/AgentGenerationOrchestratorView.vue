@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Activity, ArrowRightLeft, RefreshCw, ShieldCheck, Settings2 } from 'lucide-vue-next'
+import {
+  Activity, ArrowRightLeft, CalendarClock, CheckCircle2, History, Plus,
+  RefreshCw, Settings2, ShieldCheck, Workflow,
+} from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -9,219 +12,389 @@ import { DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 
 type TriggerCode = 'manual' | 'scheduled' | 'technical_failure' | 'data_quality'
+type Panel = 'overview' | 'manual' | 'automation'
+
 interface Rule {
   code: TriggerCode
   enabled: boolean
   threshold: number
   scheduleMinutes: number
 }
-interface Event {
+interface Generation {
+  name: string
+  browserState: string
+  sharedDatabases: boolean
+  registeredAtUtc?: string
+}
+interface GenerationEvent {
   id: string
   targetGeneration: string
   trigger: TriggerCode
   status: string
   reason: string
   createdAtUtc: string
-  completedAtUtc: string
-  diagnosticCode: string
+  completedAtUtc?: string
+  diagnosticCode?: string
 }
 interface Snapshot {
   activeGeneration: string
-  generations: Array<{ name: string; browserState: string; sharedDatabases: boolean }>
+  generations: Generation[]
   rules: Rule[]
-  events: Event[]
+  events: GenerationEvent[]
 }
 
 const auth = useAuthStore()
 const toast = useToastStore()
 const state = ref<Snapshot | null>(null)
 const loading = ref(false)
+const registering = ref(false)
 const submitting = ref(false)
 const savingRule = ref<string | null>(null)
-const reason = ref('')
-const target = ref('')
+const panel = ref<Panel>('overview')
 const newGeneration = ref('')
-const registering = ref(false)
-const validNewGeneration = computed(() => /^prod[1-9][0-9]*$/.test(newGeneration.value) && newGeneration.value.length <= 64)
-const selectedTrigger = ref<TriggerCode>('manual')
-const confirmation = ref('')
-const canView = computed(() => auth.hasScope('agent.executions.view') && auth.hasScope('agent.browser-profiles.view'))
+const target = ref('')
+const reason = ref('')
+const reviewed = ref(false)
+const canView = computed(() => auth.hasScope('agent.executions.view') &&
+  auth.hasScope('agent.browser-profiles.view'))
 const canManage = computed(() => auth.hasScope('agent.browser-profiles.authenticate'))
-const targetChoices = computed(() => (state.value?.generations ?? []).filter(item => item.name !== state.value?.activeGeneration))
-const readyToSubmit = computed(() => canManage.value && reason.value.trim().length >= 12 &&
-  reason.value.trim().length <= 500 && confirmation.value === 'SOLICITAR CAMBIO' &&
-  target.value !== state.value?.activeGeneration && Boolean(targetChoices.value.find(x => x.name === target.value)))
-const ruleLabels: Record<TriggerCode, string> = {
+const destinations = computed(() => (state.value?.generations ?? [])
+  .filter(item => item.name !== state.value?.activeGeneration))
+const manualEnabled = computed(() => state.value?.rules.some(rule => rule.code === 'manual' && rule.enabled) ?? false)
+const validGeneration = computed(() => /^prod[1-9][0-9]*$/.test(newGeneration.value) &&
+  newGeneration.value.length <= 64 &&
+  !(state.value?.generations ?? []).some(item => item.name === newGeneration.value))
+const validRequest = computed(() => canManage.value && manualEnabled.value &&
+  destinations.value.some(item => item.name === target.value) &&
+  reason.value.trim().length >= 12 && reason.value.trim().length <= 500 && reviewed.value)
+const automaticRules = computed(() => (state.value?.rules ?? [])
+  .filter(rule => rule.code !== 'manual'))
+const labels: Record<TriggerCode, string> = {
   manual: 'Manual',
-  scheduled: 'Programado',
-  technical_failure: 'Fallo técnico verificado',
-  data_quality: 'Calidad de datos (revisión)',
+  scheduled: 'Por horario',
+  technical_failure: 'Por fallos técnicos',
+  data_quality: 'Por calidad de datos',
 }
-let timer: ReturnType<typeof setInterval> | undefined
+const ruleDescriptions: Record<TriggerCode, string> = {
+  manual: 'Permite solicitar un cambio desde esta página.',
+  scheduled: 'Define cada cuántos minutos evaluar el cambio programado.',
+  technical_failure: 'Define cuántos fallos operativos deben detectarse.',
+  data_quality: 'Define cuántas incidencias de calidad deben detectarse.',
+}
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+
+function dateLabel(value?: string) {
+  if (!value) return ''
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('es-CR')
+}
+
+function selectTarget(name: string) {
+  target.value = name
+  reason.value = ''
+  reviewed.value = false
+  panel.value = 'manual'
+}
 
 async function refresh(silent = false) {
   if (!canView.value || loading.value) return
   loading.value = true
   try {
-    const response = await callEndpoint<unknown>({method:'GET', path:'/api/agents/runtime-generations/',headers:{Accept:'application/json'}})
+    const response = await callEndpoint<unknown>({
+      method: 'GET', path: '/api/agents/runtime-generations/',
+      headers: { Accept: 'application/json' },
+    })
     state.value = unwrapApiResponse<Snapshot>(response as never)
-    if (!targetChoices.value.find(x => x.name === target.value)) target.value = targetChoices.value[0]?.name ?? ''
+    if (!destinations.value.some(item => item.name === target.value)) {
+      target.value = destinations.value[0]?.name ?? ''
+    }
   } catch (error) {
-    if (!silent) toast.backendError(error, 'No se pudo consultar el estado del orquestador.')
-  } finally { loading.value = false }
+    if (!silent) toast.backendError(error, 'No se pudo consultar el orquestador.')
+  } finally {
+    loading.value = false
+  }
 }
 
 async function registerGeneration() {
-  if (!canManage.value || !validNewGeneration.value || registering.value) return
+  if (!canManage.value || !validGeneration.value || registering.value) return
   registering.value = true
   try {
-    const name = newGeneration.value
-    await callEndpoint<unknown, { name:string }>({
-      method:'POST', path:'/api/agents/runtime-generations/register',
-      headers:{Accept:'application/json','Content-Type':'application/json'}
-    }, {body:{name}})
-    toast.success('Subentorno registrado', `${name} se agregó al inventario. No se crearon ni activaron contenedores.`)
+    const name = newGeneration.value.trim()
+    await callEndpoint<unknown, { name: string }>({
+      method: 'POST', path: '/api/agents/runtime-generations/register',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, { body: { name } })
     newGeneration.value = ''
+    toast.success('Entorno registrado', name + ' aparece en la lista. Aún debes prepararlo en el servidor.')
     await refresh()
-    target.value = name
-  } catch (error) { toast.backendError(error, 'No se pudo registrar el subentorno.') }
-  finally { registering.value = false }
+  } catch (error) {
+    toast.backendError(error, 'No se pudo registrar el entorno.')
+  } finally {
+    registering.value = false
+  }
+}
+
+async function requestChange() {
+  if (!validRequest.value || submitting.value) return
+  submitting.value = true
+  try {
+    await callEndpoint<unknown, { targetGeneration: string; trigger: TriggerCode; reason: string }>({
+      method: 'POST', path: '/api/agents/runtime-generations/requests',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, { body: { targetGeneration: target.value, trigger: 'manual', reason: reason.value.trim() } })
+    toast.success('Solicitud guardada', 'Se registró como pendiente. No se han cambiado los contenedores.')
+    reviewed.value = false
+    reason.value = ''
+    panel.value = 'overview'
+    await refresh()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo solicitar el cambio.')
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function saveRule(rule: Rule) {
   if (!canManage.value || savingRule.value) return
+  if (!Number.isInteger(rule.threshold) || rule.threshold < 1 || rule.threshold > 50 ||
+    !Number.isInteger(rule.scheduleMinutes) || rule.scheduleMinutes < 15 ||
+    rule.scheduleMinutes > 10080) {
+    toast.backendError(new Error('Valores fuera de rango'), 'Revisa el umbral y el intervalo.')
+    return
+  }
   savingRule.value = rule.code
   try {
     await callEndpoint<unknown, Rule>({
-      method:'PUT', path:'/api/agents/runtime-generations/rules/{{code}}',
-      headers:{Accept:'application/json','Content-Type':'application/json'}
-    }, {params:{code:rule.code},body:rule})
-    toast.success('Regla guardada', `Se actualizó la regla ${ruleLabels[rule.code]}.`)
+      method: 'PUT', path: '/api/agents/runtime-generations/rules/{{code}}',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, { params: { code: rule.code }, body: rule })
+    toast.success('Regla guardada', 'La preferencia quedó guardada; la ejecución automática aún no está conectada.')
     await refresh()
-  } catch (error) { toast.backendError(error,'No se pudo guardar la regla.') }
-  finally { savingRule.value = null }
+  } catch (error) {
+    toast.backendError(error, 'No se pudo guardar la regla.')
+  } finally {
+    savingRule.value = null
+  }
 }
 
-async function requestChange() {
-  if (!readyToSubmit.value || submitting.value) return
-  submitting.value = true
-  try {
-    await callEndpoint<unknown, { targetGeneration:string;trigger:TriggerCode;reason:string }>({
-      method:'POST', path:'/api/agents/runtime-generations/requests',
-      headers:{Accept:'application/json','Content-Type':'application/json'}
-    }, {body:{targetGeneration:target.value,trigger:selectedTrigger.value,reason:reason.value.trim()}})
-    reason.value = ''
-    confirmation.value = ''
-    toast.success('Solicitud registrada', 'La transición quedó pendiente de las verificaciones del ejecutor; aún no se cambió el entorno.')
-    await refresh()
-  } catch (error) { toast.backendError(error,'No se pudo registrar la solicitud.') }
-  finally { submitting.value = false }
-}
 onMounted(() => {
   void refresh()
-  timer = setInterval(() => { if (!document.hidden) void refresh(true) },15000)
+  refreshTimer = setInterval(() => {
+    if (!document.hidden) void refresh(true)
+  }, 15000)
 })
-onUnmounted(() => { if (timer) clearInterval(timer) })
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
+})
 </script>
 
 <template>
-  <section class="grid gap-5 sm:gap-6 min-w-0">
-    <DhPageHeader title="Orquestador de entornos" subtitle="Generaciones independientes de Hermes y Chromium, con bases de datos compartidas" :icon="Settings2">
-      <template #actions><DhButton label="Actualizar" :icon="RefreshCw" variant="secondary" :loading="loading" @click="refresh()" /></template>
+  <section class="mx-auto grid w-full max-w-6xl min-w-0 gap-5 pb-8">
+    <DhPageHeader
+      title="Orquestador de entornos"
+      subtitle="Consulta el entorno activo, administra los disponibles y solicita cambios"
+      :icon="Workflow"
+    >
+      <template #actions>
+        <DhButton label="Actualizar" :icon="RefreshCw" variant="secondary" :loading="loading" @click="refresh()" />
+      </template>
     </DhPageHeader>
-    <div v-if="!canView" class="rounded-2xl border border-[var(--dh-border)] p-5">
-      No tienes permisos para consultar los entornos del Agent.
+
+    <div v-if="!canView" class="rounded-2xl border border-[var(--dh-border)] p-5 text-sm">
+      No tienes permisos para consultar este módulo. Necesitas acceso a ejecuciones y sesiones web del Agent.
     </div>
+
     <template v-else-if="state">
-      <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-5">
-        <div class="flex flex-wrap justify-between items-center gap-3">
+      <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div class="flex min-w-0 items-center gap-4">
+            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--dh-card)]">
+              <Activity class="h-6 w-6 text-[var(--dh-primary)]" />
+            </div>
+            <div>
+              <p class="text-sm text-[var(--dh-text-muted)]">Entorno activo registrado</p>
+              <p class="text-3xl font-black tracking-tight">{{ state.activeGeneration }}</p>
+            </div>
+          </div>
+          <span class="rounded-full border border-[var(--dh-border)] px-3 py-1.5 text-xs text-[var(--dh-text-muted)]">
+            {{ state.generations.length }} entornos registrados
+          </span>
+        </div>
+        <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+          Este es el estado registrado en el sistema, no una prueba de que el Worker esté saludable.
+        </p>
+      </section>
+
+      <nav class="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Secciones del orquestador">
+        <button type="button" class="flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-bold transition"
+          :class="panel === 'overview' ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-soft)]'"
+          :aria-current="panel === 'overview' ? 'page' : undefined" @click="panel = 'overview'">
+          <Activity class="h-4 w-4" /> 1. Ver entornos
+        </button>
+        <button type="button" class="flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-bold transition"
+          :class="panel === 'manual' ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-soft)]'"
+          :aria-current="panel === 'manual' ? 'page' : undefined" @click="panel = 'manual'">
+          <ArrowRightLeft class="h-4 w-4" /> 2. Solicitar cambio
+        </button>
+        <button type="button" class="flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-bold transition"
+          :class="panel === 'automation' ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-soft)]'"
+          :aria-current="panel === 'automation' ? 'page' : undefined" @click="panel = 'automation'">
+          <CalendarClock class="h-4 w-4" /> 3. Reglas automáticas
+        </button>
+      </nav>
+
+      <template v-if="panel === 'overview'">
+        <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
+          <div class="mb-4">
+            <h2 class="text-lg font-bold">Tus entornos</h2>
+            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
+              Cada entorno conserva su navegador y su sesión. Registrar un nombre no crea ni inicia su contenedor.
+            </p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div v-for="item in state.generations" :key="item.name"
+              class="flex flex-col justify-between gap-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <div>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <strong class="text-xl">{{ item.name }}</strong>
+                  <span v-if="item.name === state.activeGeneration"
+                    class="inline-flex items-center gap-1 text-xs font-bold text-emerald-500">
+                    <CheckCircle2 class="h-3.5 w-3.5" /> Activo registrado
+                  </span>
+                  <span v-else class="text-xs text-[var(--dh-text-muted)]">Registrado</span>
+                </div>
+                <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+                  Sesión del navegador independiente. Preparación y disponibilidad no verificadas aquí.
+                </p>
+              </div>
+              <DhButton v-if="canManage && item.name !== state.activeGeneration" variant="secondary"
+                label="Elegir como destino" :icon="ArrowRightLeft" @click="selectTarget(item.name)" />
+            </div>
+          </div>
+
+          <details v-if="canManage" class="group mt-5 rounded-xl border border-[var(--dh-border)] p-4">
+            <summary class="flex cursor-pointer list-none items-center gap-2 text-sm font-bold">
+              <Plus class="h-4 w-4" /> Agregar otro entorno
+            </summary>
+            <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
+              Puedes crear tantos registros como necesites: prod2, prod3, prod4…
+              Después debes preparar cada entorno en el servidor mediante el proceso autorizado de infraestructura.
+            </p>
+            <div class="mt-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
+              <label class="min-w-0 flex-1 text-sm font-semibold">Nombre del entorno
+                <input v-model.trim="newGeneration" maxlength="64" type="text" autocomplete="off" placeholder="prod2"
+                  class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
+              </label>
+              <DhButton label="Registrar entorno" :icon="Plus" variant="secondary"
+                :disabled="!validGeneration || registering" :loading="registering" @click="registerGeneration" />
+            </div>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+              Esto solo agrega el registro en PostgreSQL. No modifica Chromium ni activa Workers.
+            </p>
+          </details>
+        </section>
+
+        <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
+          <div class="mb-3 flex items-center gap-2">
+            <History class="h-5 w-5" />
+            <h2 class="text-lg font-bold">Últimas solicitudes</h2>
+          </div>
+          <p v-if="!state.events.length" class="text-sm text-[var(--dh-text-muted)]">
+            Todavía no hay solicitudes. Puedes crearlas desde «Solicitar cambio».
+          </p>
+          <div v-for="event in state.events.slice(0, 15)" :key="event.id"
+            class="flex flex-wrap items-start justify-between gap-3 border-t border-[var(--dh-border)] py-3 first:border-t-0">
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-bold">{{ event.targetGeneration }} · {{ labels[event.trigger] ?? event.trigger }}</div>
+              <p class="mt-1 break-words text-sm text-[var(--dh-text-muted)]">{{ event.reason }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ dateLabel(event.createdAtUtc) }}</p>
+            </div>
+            <span class="rounded-full bg-[var(--dh-card)] px-3 py-1 text-xs font-bold">{{ event.status }}</span>
+          </div>
+        </section>
+      </template>
+
+      <section v-else-if="panel === 'manual'"
+        class="max-w-3xl rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-6">
+        <h2 class="text-lg font-bold">Solicitar un cambio de entorno</h2>
+        <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+          Escoge un entorno registrado y explica por qué deseas utilizarlo.
+          La solicitud queda pendiente para su validación: no cambia los contenedores al guardarla.
+        </p>
+        <div v-if="!canManage" class="mt-4 text-sm text-[var(--dh-text-muted)]">
+          No tienes permisos para solicitar cambios.
+        </div>
+        <div v-else-if="!manualEnabled" class="mt-4 text-sm text-[var(--dh-text-muted)]">
+          Los cambios manuales están deshabilitados por la configuración actual del orquestador.
+        </div>
+        <div v-else-if="!destinations.length" class="mt-4 text-sm text-[var(--dh-text-muted)]">
+          No hay otro entorno registrado. Ve a «Ver entornos» para agregar uno.
+        </div>
+        <form v-else class="mt-5 grid gap-4" @submit.prevent="requestChange">
+          <label class="text-sm font-semibold">1. Entorno de destino
+            <select v-model="target" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+              <option v-for="item in destinations" :key="item.name" :value="item.name">{{ item.name }}</option>
+            </select>
+          </label>
+          <label class="text-sm font-semibold">2. Motivo del cambio
+            <textarea v-model="reason" rows="3" maxlength="500"
+              placeholder="Ejemplo: mantenimiento de los servicios del entorno actual"
+              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
+            <span class="mt-1 block text-xs font-normal text-[var(--dh-text-muted)]">Mínimo 12 caracteres.</span>
+          </label>
+          <label class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm">
+            <input v-model="reviewed" type="checkbox" class="mt-1 h-4 w-4 shrink-0" />
+            <span>Comprendo que esto <strong>solo registra una solicitud</strong> y no activa inmediatamente el destino.</span>
+          </label>
           <div>
-            <p class="text-sm text-[var(--dh-text-muted)]">Generación activa registrada</p>
-            <p class="text-3xl font-black text-[var(--dh-text)]">{{ state.activeGeneration }}</p>
-            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">El estado se registra en PostgreSQL; no se infiere de la sesión del navegador.</p>
+            <DhButton label="Registrar solicitud de cambio" :icon="ArrowRightLeft"
+              :disabled="!validRequest || submitting" :loading="submitting" @click="requestChange" />
           </div>
-          <Activity class="h-8 w-8 text-[var(--dh-primary)]" />
+        </form>
+      </section>
+
+      <section v-else class="max-w-4xl rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-6">
+        <div class="flex items-center gap-2">
+          <Settings2 class="h-5 w-5" />
+          <h2 class="text-lg font-bold">Reglas automáticas</h2>
         </div>
-        <div class="mt-4 grid gap-3 sm:grid-cols-2">
-          <div v-for="item in state.generations" :key="item.name" class="rounded-xl border border-[var(--dh-border)] p-4">
-            <div class="flex justify-between">
-              <strong class="text-[var(--dh-text)]">{{ item.name }}</strong>
-              <span class="text-sm font-semibold" :class="item.name === state.activeGeneration ? 'text-emerald-500' : 'text-[var(--dh-text-muted)]'">
-                {{ item.name === state.activeGeneration ? 'Registrado como activo' : 'Alternativo' }}
-              </span>
+        <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+          Configura cuándo debería evaluarse un cambio. Por ahora estas reglas se guardan,
+          pero <strong>no ejecutan cambios automáticamente</strong>: falta conectar el evaluador al ejecutor.
+        </p>
+        <div v-for="rule in automaticRules" :key="rule.code"
+          class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="font-bold">{{ labels[rule.code] }}</h3>
+              <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ ruleDescriptions[rule.code] }}</p>
             </div>
-            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Perfil Chromium propio, persistente y no compartido. No se copia ni se elimina en una transición.</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">MongoDB · PostgreSQL · Redis: datos compartidos</p>
-          </div>
-        </div>
-      </section>
-
-      <section v-if="canManage" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-5 space-y-3">
-        <h2 class="font-bold">Registrar nuevo subentorno</h2>
-        <p class="text-sm text-[var(--dh-text-muted)]">Registra cualquier generación positiva: prod1, prod2, prod3... Cada una debe provisionarse con volúmenes propios de navegador, Hermes y Worker. El registro no inicia sesiones.</p>
-        <div class="flex flex-wrap gap-3 items-end">
-          <label class="min-w-52 flex-1 text-sm font-semibold">Nombre
-            <input v-model="newGeneration" maxlength="64" type="text" autocomplete="off" placeholder="prod2" class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
-          </label>
-          <DhButton label="Registrar subentorno" variant="secondary" :disabled="!validNewGeneration || registering" :loading="registering" @click="registerGeneration"/>
-        </div>
-      </section>
-
-      <div class="grid gap-5 lg:grid-cols-2">
-        <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-5 space-y-4">
-          <div class="flex gap-2 items-center"><ArrowRightLeft class="h-5 w-5" /><h2 class="font-bold">Solicitar cambio manual</h2></div>
-          <p class="text-sm text-[var(--dh-text-muted)]">La solicitud requiere comprobación de destino, ausencia de trabajos activos y validación del circuito. No cambia inmediatamente los contenedores.</p>
-          <label class="block text-sm font-semibold">Generación de destino
-            <select v-model="target" class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
-              <option v-for="item in targetChoices" :key="item.name" :value="item.name">{{ item.name }}</option>
-            </select>
-          </label>
-          <label class="block text-sm font-semibold">Tipo de evento
-            <select v-model="selectedTrigger" class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
-              <option v-for="rule in state.rules.filter(r => r.enabled)" :key="rule.code" :value="rule.code">{{ ruleLabels[rule.code] }}</option>
-            </select>
-          </label>
-          <label class="block text-sm font-semibold">Motivo (12–500 caracteres)
-            <textarea v-model="reason" maxlength="500" rows="3" class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" placeholder="Explica el cambio y la evidencia operativa" />
-          </label>
-          <label class="block text-sm font-semibold">Confirmación
-            <input v-model="confirmation" type="text" autocomplete="off" placeholder="SOLICITAR CAMBIO" class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
-          </label>
-          <DhButton label="Registrar solicitud" :icon="ArrowRightLeft" :disabled="!readyToSubmit || submitting" :loading="submitting" @click="requestChange" />
-          <p v-if="!canManage" class="text-xs text-amber-500">Requiere permiso agent.browser-profiles.authenticate.</p>
-        </section>
-        <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-5">
-          <div class="flex gap-2 items-center mb-4"><ShieldCheck class="h-5 w-5" /><h2 class="font-bold">Disparadores configurables</h2></div>
-          <div v-for="rule in state.rules" :key="rule.code" class="py-3 border-b border-[var(--dh-border)] last:border-0">
-            <div class="flex justify-between gap-3">
-              <label class="font-semibold text-sm">{{ ruleLabels[rule.code] }}</label>
+            <label class="flex items-center gap-2 text-sm font-semibold">
               <input v-model="rule.enabled" type="checkbox" :disabled="!canManage" class="h-5 w-5" />
-            </div>
-            <div class="grid grid-cols-2 gap-3 mt-3">
-              <label class="text-xs text-[var(--dh-text-muted)]">Umbral
-                <input v-model.number="rule.threshold" type="number" min="1" max="50" :disabled="!canManage" class="mt-1 block w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-2" />
-              </label>
-              <label class="text-xs text-[var(--dh-text-muted)]">Intervalo (min)
-                <input v-model.number="rule.scheduleMinutes" type="number" min="15" max="10080" :disabled="!canManage" class="mt-1 block w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-2" />
-              </label>
-            </div>
-            <DhButton v-if="canManage" class="mt-3" label="Guardar regla" size="sm" variant="secondary" :disabled="Boolean(savingRule)" :loading="savingRule === rule.code" @click="saveRule(rule)" />
+              {{ rule.enabled ? 'Preferencia activada' : 'Desactivada' }}
+            </label>
           </div>
-          <p class="mt-4 text-xs text-[var(--dh-text-muted)]">Las reglas de error técnico y datos incorrectos requieren evidencia verificable en el ejecutor; los bloqueos de autenticación permanecen protegidos por el circuit breaker.</p>
-        </section>
-      </div>
-
-      <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-5">
-        <h2 class="font-bold mb-4">Historial y solicitudes pendientes</h2>
-        <p v-if="!state.events.length" class="text-sm text-[var(--dh-text-muted)]">No hay solicitudes registradas.</p>
-        <div v-for="item in state.events" :key="item.id" class="py-3 border-b border-[var(--dh-border)] last:border-0 flex flex-wrap justify-between gap-3">
-          <div><strong>{{ item.targetGeneration }}</strong> · {{ ruleLabels[item.trigger] ?? item.trigger }}
-            <p class="text-sm text-[var(--dh-text-muted)]">{{ item.reason }}</p>
-            <p class="text-xs text-[var(--dh-text-muted)]">{{ item.createdAtUtc }}</p>
+          <div class="mt-4 max-w-xs">
+            <label v-if="rule.code === 'scheduled'" class="text-sm font-semibold">
+              Evaluar cada (minutos)
+              <input v-model.number="rule.scheduleMinutes" type="number" min="15" max="10080" :disabled="!canManage"
+                class="mt-2 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-3" />
+            </label>
+            <label v-else class="text-sm font-semibold">
+              Número de incidencias
+              <input v-model.number="rule.threshold" type="number" min="1" max="50" :disabled="!canManage"
+                class="mt-2 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-3" />
+            </label>
           </div>
-          <span class="font-bold text-sm">{{ item.status }}</span>
+          <DhButton v-if="canManage" class="mt-4" label="Guardar preferencia"
+            variant="secondary" :icon="ShieldCheck" :disabled="Boolean(savingRule)"
+            :loading="savingRule === rule.code" @click="saveRule(rule)" />
         </div>
       </section>
     </template>
+
+    <div v-else-if="loading" class="rounded-2xl border border-[var(--dh-border)] p-6 text-sm text-[var(--dh-text-muted)]">
+      Cargando entornos…
+    </div>
   </section>
 </template>
