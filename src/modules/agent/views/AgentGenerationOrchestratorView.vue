@@ -25,6 +25,7 @@ interface Generation {
   browserState: string
   sharedDatabases: boolean
   registeredAtUtc?: string
+  provisioningStatus?: string
 }
 interface GenerationEvent {
   id: string
@@ -38,6 +39,8 @@ interface GenerationEvent {
 }
 interface Snapshot {
   activeGeneration: string
+  authenticationIncidentCount: number
+  githubDispatcherConfigured: boolean
   generations: Generation[]
   rules: Rule[]
   events: GenerationEvent[]
@@ -125,7 +128,7 @@ async function registerGeneration() {
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     }, { body: { name } })
     newGeneration.value = ''
-    toast.success('Entorno registrado', name + ' aparece en la lista. Aún debes prepararlo en el servidor.')
+    toast.success('Creación solicitada', name + ' fue registrado. El Worker enviará a GitHub la provisión si el despachador está configurado.')
     await refresh()
   } catch (error) {
     toast.backendError(error, 'No se pudo registrar el entorno.')
@@ -142,7 +145,7 @@ async function requestChange() {
       method: 'POST', path: '/api/agents/runtime-generations/requests',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     }, { body: { targetGeneration: target.value, trigger: 'manual', reason: reason.value.trim() } })
-    toast.success('Solicitud guardada', 'Se registró como pendiente. No se han cambiado los contenedores.')
+    toast.success('Solicitud registrada', 'El Worker enviará la solicitud a GitHub si está configurado. La operación conserva las sesiones anteriores.')
     reviewed.value = false
     reason.value = ''
     panel.value = 'overview'
@@ -168,7 +171,7 @@ async function saveRule(rule: Rule) {
       method: 'PUT', path: '/api/agents/runtime-generations/rules/{{code}}',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     }, { params: { code: rule.code }, body: rule })
-    toast.success('Regla guardada', 'La preferencia quedó guardada; la ejecución automática aún no está conectada.')
+    toast.success('Regla guardada', 'El Worker evaluará la regla cuando esté conectado a GitHub y exista un destino autorizado.')
     await refresh()
   } catch (error) {
     toast.backendError(error, 'No se pudo guardar la regla.')
@@ -225,6 +228,21 @@ onUnmounted(() => {
         </p>
       </section>
 
+      <div v-if="!state.githubDispatcherConfigured" class="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+        <strong>Conexión automática pendiente de configurar.</strong>
+        El Worker necesita una credencial de GitHub Actions con permiso de ejecución para procesar las solicitudes.
+        Registrar entornos y reglas sigue guardando los cambios, pero no implica que Docker haya actuado.
+      </div>
+
+      <div v-if="state.authenticationIncidentCount > 0" class="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+        <strong>Incidentes de autenticación: {{ state.authenticationIncidentCount }}</strong>
+        <p class="mt-1">Se detectaron ejecuciones en espera por CAPTCHA o rechazo de acceso (401/403).
+          Estas incidencias requieren verificación de acceso; no activan rotaciones automáticas de sesiones.</p>
+        <RouterLink to="/agents/maersk" class="mt-2 inline-block font-bold underline">
+          Ver operaciones de Maersk
+        </RouterLink>
+      </div>
+
       <nav class="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Secciones del orquestador">
         <button type="button" class="flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-bold transition"
           :class="panel === 'overview' ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-soft)]'"
@@ -261,7 +279,12 @@ onUnmounted(() => {
                     class="inline-flex items-center gap-1 text-xs font-bold text-emerald-500">
                     <CheckCircle2 class="h-3.5 w-3.5" /> Activo registrado
                   </span>
-                  <span v-else class="text-xs text-[var(--dh-text-muted)]">Registrado</span>
+                  <span v-else class="text-xs text-[var(--dh-text-muted)]">
+                    {{ item.provisioningStatus === 'Provisioned' ? 'Infraestructura preparada' :
+                       item.provisioningStatus === 'Dispatched' || item.provisioningStatus === 'Dispatching'
+                         ? 'Creación solicitada a GitHub' :
+                       item.provisioningStatus === 'Failed' ? 'Error de provisión' : 'Registrado' }}
+                  </span>
                 </div>
                 <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
                   Sesión del navegador independiente. Preparación y disponibilidad no verificadas aquí.
@@ -278,7 +301,7 @@ onUnmounted(() => {
             </summary>
             <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
               Puedes crear tantos registros como necesites: prod2, prod3, prod4…
-              Después debes preparar cada entorno en el servidor mediante el proceso autorizado de infraestructura.
+              El Worker solicitará automáticamente a GitHub Actions la preparación de infraestructura cuando tenga acceso configurado.
             </p>
             <div class="mt-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
               <label class="min-w-0 flex-1 text-sm font-semibold">Nombre del entorno
@@ -289,7 +312,8 @@ onUnmounted(() => {
                 :disabled="!validGeneration || registering" :loading="registering" @click="registerGeneration" />
             </div>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
-              Esto solo agrega el registro en PostgreSQL. No modifica Chromium ni activa Workers.
+              El registro genera una solicitud de provisión en PostgreSQL. GitHub crea la infraestructura si está conectado;
+              el Worker alternativo permanece detenido y las sesiones anteriores no se copian.
             </p>
           </details>
         </section>
@@ -319,7 +343,7 @@ onUnmounted(() => {
         <h2 class="text-lg font-bold">Solicitar un cambio de entorno</h2>
         <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
           Escoge un entorno registrado y explica por qué deseas utilizarlo.
-          La solicitud queda pendiente para su validación: no cambia los contenedores al guardarla.
+          El Worker la envía a GitHub cuando esté configurado. El cambio se valida y puede fallar sin alterar el entorno actual.
         </p>
         <div v-if="!canManage" class="mt-4 text-sm text-[var(--dh-text-muted)]">
           No tienes permisos para solicitar cambios.
@@ -344,7 +368,7 @@ onUnmounted(() => {
           </label>
           <label class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm">
             <input v-model="reviewed" type="checkbox" class="mt-1 h-4 w-4 shrink-0" />
-            <span>Comprendo que esto <strong>solo registra una solicitud</strong> y no activa inmediatamente el destino.</span>
+            <span>Comprendo que GitHub realizará validaciones antes del cambio y que un destino no preparado será rechazado.</span>
           </label>
           <div>
             <DhButton label="Registrar solicitud de cambio" :icon="ArrowRightLeft"
@@ -360,7 +384,8 @@ onUnmounted(() => {
         </div>
         <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
           Configura cuándo debería evaluarse un cambio. Por ahora estas reglas se guardan,
-          pero <strong>no ejecutan cambios automáticamente</strong>: falta conectar el evaluador al ejecutor.
+          y el Worker las evalúa cada diez segundos cuando esté configurado. El cambio solo se realiza
+          si GitHub responde, el destino está preparado y la autorización sigue siendo válida.
         </p>
         <div v-for="rule in automaticRules" :key="rule.code"
           class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
