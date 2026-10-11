@@ -246,7 +246,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: VIEW_SCOPES.auditLogs,
           },
           {
-            labelKey: 'sidebar.agentAdvanced',
+            labelKey: 'sidebar.agentGenerations',
             icon: MonitorCog,
             to: '/agents/generations',
             name: 'agent-generation-orchestrator',
