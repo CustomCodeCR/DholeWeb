@@ -34,6 +34,7 @@ const page = ref(1)
 const pageSize = ref(25)
 const total = ref(0)
 const groups = ref<CatalogGroupDto[]>([])
+let lastOpenedGroupId: string | null = null
 
 const canCreate = computed(() => authStore.hasScope(CONFIG_SCOPES.catalogGroups.create))
 const canUpdate = computed(() => authStore.hasScope(CONFIG_SCOPES.catalogGroups.update))
@@ -67,6 +68,12 @@ async function loadCatalogGroups() {
     })
 
     groups.value = result.items
+    const groupId = typeof route.query.recordId === 'string' ? route.query.recordId : ''
+    if (groupId && groupId !== lastOpenedGroupId) {
+      const group = groups.value.find((item) => item.id === groupId) ?? await CatalogGroupsService.getById(groupId)
+      lastOpenedGroupId = group.id
+      openDetailDrawer(group)
+    }
     total.value = result.totalCount ?? result.items.length
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar los catálogos.')
@@ -141,9 +148,10 @@ function confirmDelete(group: CatalogGroupDto) {
 watch([page, pageSize], loadCatalogGroups)
 
 watch(
-  () => route.query.search,
-  (value) => {
-    search.value = typeof value === 'string' ? value : ''
+  () => [route.query.search, route.query.recordId],
+  () => {
+    search.value = typeof route.query.search === 'string' ? route.query.search : ''
+    lastOpenedGroupId = null
     page.value = 1
     void loadCatalogGroups()
   },

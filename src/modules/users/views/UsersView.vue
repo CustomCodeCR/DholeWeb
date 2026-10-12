@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { KeyRound, Pencil, Send, Trash2, Users } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -21,13 +22,15 @@ import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
+const route = useRoute()
 const toastStore = useToastStore()
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const authStore = useAuthStore()
 
 const loading = ref(false)
-const search = ref('')
+const search = ref(typeof route.query.search === 'string' ? route.query.search : '')
+let lastOpenedRecordId: string | null = null
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
@@ -66,10 +69,18 @@ async function loadUsers() {
     loading.value = true
     const result = await UsersService.browsePaged({
       pageNumber: page.value,
-      pageSize: pageSize.value,
+      pageSize: route.query.recordId ? Math.max(100, pageSize.value) : pageSize.value,
       search: search.value || undefined,
     })
     users.value = result.items
+    const requestedId = typeof route.query.recordId === 'string' ? route.query.recordId : ''
+    if (requestedId && lastOpenedRecordId !== requestedId) {
+      const requested = users.value.find((item) => item.id === requestedId)
+      if (requested) {
+        lastOpenedRecordId = requestedId
+        openDetailDrawer(requested)
+      }
+    }
     total.value = result.totalCount ?? result.items.length
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar los usuarios.')
@@ -179,6 +190,15 @@ function confirmDelete(user: UserDto) {
 }
 
 watch([page, pageSize], loadUsers)
+watch(
+  () => [route.query.search, route.query.recordId],
+  () => {
+    search.value = typeof route.query.search === 'string' ? route.query.search : ''
+    lastOpenedRecordId = null
+    page.value = 1
+    void loadUsers()
+  },
+)
 
 useViewShortcuts({
   create: () => {
