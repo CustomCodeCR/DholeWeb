@@ -414,6 +414,13 @@ const maerskOperations = {
     return unwrapApiResponse<MaerskOperationsDto>(response as never)
   },
 
+  verifyOriginalSession(providerId: string, credentialId: string): Promise<{ executionId: string; verificationOnly: boolean; circuit: string }> {
+    return callEndpoint<{ executionId: string; verificationOnly: boolean; circuit: string }, { credentialId: string }>(
+      AgentEndpoints.verifyOriginalMaerskSession,
+      { params: { providerId }, body: { credentialId } },
+    )
+  },
+
   resetCircuit(providerId: string, reason: string, verifiedWithProvider: boolean): Promise<{ reset: boolean }> {
     return callEndpoint<{ reset: boolean }, { reason: string; verifiedWithProvider: boolean }>(
       AgentEndpoints.resetMaerskCircuit,
