@@ -1544,6 +1544,8 @@ function sectionForManual(section: RateSection): CostDetailType {
 }
 
 function defaultChargeBasis(type: CostDetailType): ChargeBasis {
+  // Air LCL freight is billed by weight (KG), never by maritime chargeable CBM.
+  if (type === 'Freight' && form.modality === 'Air' && shipmentModeForApi.value === 'Lcl') return 'PerKg'
   if (type === 'Documentation') return 'PerDocument'
   if (type === 'Freight' || type === 'InlandTransport') {
     if (shipmentModeForApi.value === 'Fcl') return 'PerContainer'
@@ -2739,6 +2741,16 @@ async function applySelectedWarehouse() {
 
 function modalityForRate(rate: RateDto): Modality {
   if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Land'
+  if (rate.shipmentMode === 'Lcl') {
+    // Backend historically saved maritime and air LCL under ShipmentMode.Lcl.
+    // Preserve air context when reopening a quotation, including legacy PDFs.
+    const airFreight = (rate.rateDetails ?? []).some((detail) =>
+      detail.costDetailType === 'Freight' && (detail.chargeBasis === 'PerKg' || detail.chargeBasis === 'Per100Kg'))
+    const cargoText = (rate.cargoLines ?? []).map((line) => line.description ?? '').join(' ')
+    const hasFlightContext = /a[eé]re[ao]|aviaci[oó]n|aeropuerto|airport|vuelos?/i.test(cargoText)
+    const airportRoute = /\([A-Z]{3}\)/.test(rate.polName ?? '') && /\([A-Z]{3}\)/.test(rate.poeName ?? '')
+    if (airFreight || hasFlightContext || airportRoute) return 'Air'
+  }
   if (rate.shipmentMode === 'Fcl' || rate.shipmentMode === 'Lcl') return 'Maritime'
   return 'Multimodal'
 }
@@ -3540,7 +3552,7 @@ async function saveRate() {
 
   const details: CreateRateDetailRequest[] = includedLines.value.map((line) => ({
     costId: line.costId ?? null,
-    name: line.name,
+    name: form.modality === 'Air' && line.costDetailType === 'Freight' ? 'Flete Internacional' : line.name,
     costDetailType: line.costDetailType,
     costType: line.costType,
     chargeBasis: line.chargeBasis,
