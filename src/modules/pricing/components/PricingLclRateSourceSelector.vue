@@ -168,7 +168,7 @@ function n(value: unknown) {
 function money(value: unknown) {
   return n(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
-function coloaderFreightUnitAmount(row: LclColoaderRateDto) {
+function coloaderFreightPerCbm(row: LclColoaderRateDto) {
   const freight = row.lines.find((line) => line.costDetailType === 'Freight')
   return freight ? n(freight.saleAmount || freight.costAmount) : null
 }
@@ -668,7 +668,7 @@ onMounted(load)
   <section class="space-y-4">
     <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_210px_auto] lg:items-end">
       <DhSearchInput v-model="search" placeholder="Buscar consolidado, coloader, naviera, ruta o código..." />
-      <DhInput :model-value="isAir ? requestedWeightKg : requestedCbm" type="number" :label="isAir ? 'Peso cobrable (kg)' : 'CBM cobrable calculado'" :disabled="requestedCbmLocked || isAir" @update:model-value="updateCbm" />
+      <DhInput :model-value="requestedCbm" type="number" label="CBM cobrable calculado" :disabled="requestedCbmLocked" @update:model-value="updateCbm" />
       <DhButton label="Actualizar tarifas" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
     </div>
 
@@ -708,7 +708,7 @@ onMounted(load)
     </div>
 
     <div v-else>
-      <DhDataTable :columns="isAir ? airColoaderColumns : coloaderColumns" :rows="filteredColoaders" :loading="loading" :empty-text="isAir ? 'No hay tarifarios aéreos vigentes para esta ruta.' : 'No hay tarifarios LCL de coloader vigentes para esta ruta.'">
+      <DhDataTable :columns="coloaderColumns" :rows="filteredColoaders" :loading="loading" :empty-text="isAir ? 'No hay tarifarios aéreos vigentes para esta ruta.' : 'No hay tarifarios LCL de coloader vigentes para esta ruta.'">
         <template #cell-source="{ row }">
           <div><p class="font-black">{{ row.providerName || row.providerCode || 'Coloader' }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.rateCode }} · {{ row.carrierName || row.carrierCode || 'Sin naviera' }}</p></div>
         </template>
@@ -717,7 +717,7 @@ onMounted(load)
         <template #cell-sale="{ row }">
           <div class="space-y-0.5 text-right">
             <p class="font-black">
-              <template v-if="coloaderFreightUnitAmount(row) != null">{{ currencyValue(row) }} {{ money(coloaderFreightUnitAmount(row)) }}</template>
+              <template v-if="coloaderFreightPerCbm(row) != null">{{ currencyValue(row) }} {{ money(coloaderFreightPerCbm(row)) }}</template>
               <template v-else>—</template>
             </p>
             <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Total base {{ currencyValue(row) }} {{ money(row.totalSaleAmount) }}</p>
