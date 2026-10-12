@@ -41,21 +41,29 @@ function patchWizard(source: string): string {
     '',
   ].join('\n'), 'service detection')
 
-  code = replaceRequired(
-    code,
-    "const visibleStepTitles = computed(() => props.viewOnly ? [...stepTitles, 'Vista completa'] : stepTitles)\nconst maxStep = computed(() => visibleStepTitles.value.length)",
-    [
-      'const visibleWizardSteps = computed(() => {',
-      '  const steps = hasInternationalTransportService.value',
-      '    ? [1, 2, 3, 4, 5, 6, 7, 8]',
-      '    : [1, 2, 3, 4, 6, 7, 8]',
-      '  return props.viewOnly ? [...steps, 9] : steps',
-      '})',
-      "const visibleStepTitles = computed(() => visibleWizardSteps.value.map((stepNumber) => stepNumber === 9 ? 'Vista completa' : stepTitles[stepNumber - 1]))",
-      'const maxStep = computed(() => props.viewOnly ? 9 : 8)',
-    ].join('\n'),
-    'visible wizard steps',
-  )
+  // The wizard is shared with the four-step Sales request flow.
+  // Preserve the existing LCL/LTL title while hiding only internal Step 5.
+  const titlesStart = code.indexOf('const visibleStepTitles = computed(')
+  const titlesEnd = code.indexOf('\nconst currentCommercialStatus', titlesStart)
+  if (titlesStart < 0 || titlesEnd < 0) {
+    throw new Error('[pricingCustomsOnlyWizard] Visible step title block not found')
+  }
+  const titlesBlock = [
+    'const visibleWizardSteps = computed(() => {',
+    '  if (props.sellerRequestMode) return [1, 2, 3, 4]',
+    '  const steps = hasInternationalTransportService.value',
+    '    ? [1, 2, 3, 4, 5, 6, 7, 8]',
+    '    : [1, 2, 3, 4, 6, 7, 8]',
+    '  return props.viewOnly ? [...steps, 9] : steps',
+    '})',
+    'const visibleStepTitles = computed(() => {',
+    '  const titles = [...stepTitles]',
+    "  if (['LCL', 'LTL'].includes(form.shipmentMode.trim().toUpperCase())) titles[2] = 'Ruta'",
+    "  return visibleWizardSteps.value.map((stepNumber) => stepNumber === 9 ? 'Vista completa' : titles[stepNumber - 1])",
+    '})',
+    'const maxStep = computed(() => props.sellerRequestMode ? 4 : props.viewOnly ? 9 : 8)',
+  ].join('\n')
+  code = code.slice(0, titlesStart) + titlesBlock + code.slice(titlesEnd)
 
   code = replaceRequired(
     code,
@@ -91,7 +99,7 @@ function patchWizard(source: string): string {
   code = replaceRequired(
     code,
     'function goToStep(target: number) {',
-    'function goToStep(target: number) {\n  if (!visibleWizardSteps.value.includes(target)) return',
+    'function goToStep(target: number) {\n  if (!visibleWizardSteps.value.includes(target)) return\n  if (props.rateRequestId && target < (hasInternationalTransportService.value ? 5 : 6)) return',
     'direct navigation guard',
   )
   code = replaceRequired(
@@ -116,7 +124,7 @@ function patchWizard(source: string): string {
   code = replaceRequired(
     code,
     'function previous() {',
-    'function previous() {\n  if (step.value === 6 && !hasInternationalTransportService.value) {\n    step.value = 4\n    return\n  }',
+    'function previous() {\n  if (step.value === 6 && !hasInternationalTransportService.value) {\n    if (props.rateRequestId) return\n    step.value = 4\n    return\n  }',
     'return to cargo',
   )
   code = replaceRequired(
@@ -198,6 +206,17 @@ function patchWizard(source: string): string {
     ),
   )
   code = code.slice(0, screenSixStart) + six + code.slice(screenSixEnd)
+
+  // Sales requests carrying customs-only service must start Pricing at provider,
+  // without querying international maritime tariffs.
+  code = code.replace(
+    '    step.value = 5\n    await searchApprovedRates()',
+    '    step.value = hasInternationalTransportService.value ? 5 : 6\n    if (hasInternationalTransportService.value) await searchApprovedRates()',
+  )
+  code = code.replace(
+    ':disabled="(rateRequestId ? step <= 5 : step === 1) || saving"',
+    ':disabled="(rateRequestId ? step <= (hasInternationalTransportService ? 5 : 6) : step === 1) || saving"',
+  )
 
   // No international-freight metadata should survive in a customs-only quote.
   code = code.replace(
