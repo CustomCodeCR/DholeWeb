@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { CircleDollarSign, FileSpreadsheet, Pencil, Power, PowerOff, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import {
@@ -30,6 +31,7 @@ import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
@@ -38,6 +40,7 @@ const catalogs = usePricingCatalogs()
 const displayCost = (cost: CostDto) => catalogs.resolveCostLabels(cost)
 
 const rows = ref<CostDto[]>([])
+let lastOpenedRecordId: string | null = null
 const loading = ref(false)
 const exporting = ref(false)
 const filtersOpen = ref(false)
@@ -45,7 +48,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const filters = reactive({
-  search: '',
+  search: typeof route.query.search === 'string' ? route.query.search : '',
   costType: [] as string[],
   costDetailType: [] as string[],
   carrierId: [] as string[],
@@ -298,6 +301,14 @@ async function load() {
     })
     const result = unwrapPagedResponse<CostDto>(response)
     rows.value = result.items
+    const requestedId = typeof route.query.recordId === 'string' ? route.query.recordId : ''
+    if (requestedId && lastOpenedRecordId !== requestedId && canUpdate.value) {
+      const selected = rows.value.find((cost) => cost.id === requestedId)
+      if (selected) {
+        lastOpenedRecordId = requestedId
+        openForm(selected)
+      }
+    }
     total.value = result.totalCount ?? result.items.length
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar los costos.')
@@ -366,6 +377,15 @@ function confirmDelete(cost: CostDto) {
 }
 
 watch([page, pageSize], load)
+watch(
+  () => [route.query.search, route.query.recordId],
+  () => {
+    filters.search = typeof route.query.search === 'string' ? route.query.search : ''
+    lastOpenedRecordId = null
+    page.value = 1
+    void load()
+  },
+)
 useViewShortcuts({
   create: () => {
     if (canCreate.value) openForm()
