@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Pencil, Shield, Trash2 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -18,13 +19,15 @@ import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
+const route = useRoute()
 const drawerStore = useDrawerStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
 const authStore = useAuthStore()
 
 const loading = ref(false)
-const search = ref('')
+const search = ref(typeof route.query.search === 'string' ? route.query.search : '')
+let lastOpenedRecordId: string | null = null
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
@@ -53,8 +56,16 @@ const columns = computed<DhTableColumn<RoleDto>[]>(() => {
 async function loadRoles() {
   try {
     loading.value = true
-    const result = await RolesService.browsePaged({ pageNumber: page.value, pageSize: pageSize.value, search: search.value || undefined })
+    const result = await RolesService.browsePaged({ pageNumber: page.value, pageSize: route.query.recordId ? Math.max(100, pageSize.value) : pageSize.value, search: search.value || undefined })
     roles.value = result.items
+    const requestedId = typeof route.query.recordId === 'string' ? route.query.recordId : ''
+    if (requestedId && lastOpenedRecordId !== requestedId) {
+      const requested = roles.value.find((item) => item.id === requestedId)
+      if (requested) {
+        lastOpenedRecordId = requestedId
+        detailRole(requested)
+      }
+    }
     total.value = result.totalCount ?? result.items.length
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar los roles.')
@@ -102,6 +113,15 @@ function confirmDelete(role: RoleDto) {
 }
 
 watch([page, pageSize], loadRoles)
+watch(
+  () => [route.query.search, route.query.recordId],
+  () => {
+    search.value = typeof route.query.search === 'string' ? route.query.search : ''
+    lastOpenedRecordId = null
+    page.value = 1
+    void loadRoles()
+  },
+)
 
 useViewShortcuts({
   create: () => {
