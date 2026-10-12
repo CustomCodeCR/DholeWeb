@@ -25,14 +25,13 @@ function patchWizard(source: string): string {
   if (!match || !match[1]?.includes('SPOT') || !match[1]?.includes('TARIFARIO')) {
     throw new Error('[pricingSellerRequestHideRateType] Cannot locate commercial-type description.')
   }
+  // Other transforms may leave plain text or an interpolation here.
+  // Preserve either variant verbatim instead of parsing its expression.
   const original = match[1].trim()
-  if (!original.startsWith('{{') || !original.endsWith('}}')) {
-    throw new Error('[pricingSellerRequestHideRateType] Unexpected Step 3 description format.')
-  }
-  const originalExpression = original.slice(2, -2).trim()
   step3 = step3.replace(
     description,
-    `<p class="crystal-description">{{ sellerRequestMode ? 'Complete la ruta y los datos del embarque para solicitar la tarifa a Pricing.' : (${originalExpression}) }}</p>`,
+    `<p v-if="sellerRequestMode" class="crystal-description">Complete la ruta y los datos del embarque para solicitar la tarifa a Pricing.</p>
+            <p v-else class="crystal-description">${original}</p>`,
   )
 
   const spotLabel = '<p class="text-base font-black">SPOT</p>'
