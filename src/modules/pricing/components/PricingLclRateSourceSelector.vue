@@ -91,6 +91,7 @@ const props = withDefaults(defineProps<{
   currencyCode: string
   modelValue?: string | null
   requestedCbm?: number
+  requestedWeightKg?: number
   requestedCbmLocked?: boolean
   cargoLines?: OwnLclCargoLineRequest[]
   commercialPlan?: string | null
@@ -113,6 +114,7 @@ const props = withDefaults(defineProps<{
   quoteDate: null,
   modelValue: null,
   requestedCbm: 1,
+  requestedWeightKg: 0,
   requestedCbmLocked: false,
   cargoLines: () => [],
   commercialPlan: null,
@@ -155,6 +157,10 @@ const coloaderColumns: DhTableColumn<LclColoaderRateDto & TableRow>[] = [
   { key: 'sale', label: 'Flete / CBM', align: 'right', width: '160px' },
   { key: 'action', label: '', align: 'right', width: '120px' },
 ]
+
+const airColoaderColumns = coloaderColumns.map((column) =>
+  column.key === 'sale' ? { ...column, label: 'Flete / kg' } : column,
+)
 
 function n(value: unknown) {
   return Number(value ?? 0)
@@ -522,13 +528,14 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
 }
 
 function mapColoaderLine(line: LclColoaderRateLineDto, rate: LclColoaderRateDto): LclNormalizedRateLine {
+  const airVolumeBasis = ['PerCbm', 'PerChargeableCbm', 'PerCft', 'PerChargeableCft'].includes(line.chargeBasis)
   return {
     key: `coloader:${rate.id}:${line.id}`,
     section: sectionForDetail(line.costDetailType, line.name),
-    name: line.name,
+    name: isAir.value && line.costDetailType === 'Freight' ? 'Flete Internacional' : line.name,
     costDetailType: line.costDetailType,
     costType: line.costType,
-    chargeBasis: line.chargeBasis,
+    chargeBasis: isAir.value && (line.costDetailType === 'Freight' || airVolumeBasis) ? 'PerKg' : line.chargeBasis,
     costId: line.costId,
     contextLabel: `${rate.providerName || rate.providerCode || 'Coloader'} · ${rate.rateCode}`,
     notes: [`LCL COLOADER · RateId: ${rate.id}`, line.notes].filter(Boolean).join(' · '),
@@ -566,7 +573,7 @@ function chooseColoader(rate: LclColoaderRateDto) {
     transitDays: Number.parseInt(rate.transitTime || '0', 10) || 0,
     validFrom: rate.validFrom,
     validTo: rate.validTo,
-    includes: splitTerms(rate.includes),
+    includes: splitTerms(rate.includes).map((name) => isAir.value && /^flete\s+internacional(?:\s+mar[ií]timo)?(?:\s+lcl)?$/i.test(name) ? 'Flete Internacional' : name),
     subjectTo: splitTerms(rate.subjectTo),
     excludes: splitTerms(rate.excludes),
     lines: rate.lines.map((line) => mapColoaderLine(line, rate)),
