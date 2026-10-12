@@ -65,7 +65,6 @@ function patchWizard(source: string): string {
 export function pricingSellerRequestHideRateType(): Plugin {
   return {
     name: 'dhole-pricing-seller-request-hide-rate-type',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
