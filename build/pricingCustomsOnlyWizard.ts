@@ -46,13 +46,6 @@ function patchWizard(source: string): string {
     '  }',
     '})',
     '',
-  ].join('\n'), 'service detection')
-
-  // Filtering the visible board is not sufficient: keep edited and restored
-  // drafts free of maritime conditions so they cannot persist in the PDF.
-  const commercialDraftAnchor = 'const draftCommercialTermsInitialized = ref(false)'
-  code = replaceRequired(code, commercialDraftAnchor, commercialDraftAnchor + [
-    '',
     'watch([hasInternationalTransportService, draftCommercialTerms], () => {',
     '  if (hasInternationalTransportService.value) return',
     '  const current = draftCommercialTerms.value',
@@ -64,7 +57,7 @@ function patchWizard(source: string): string {
     '  }',
     '}, { deep: true, flush: \'sync\' })',
     '',
-  ].join('\n'), 'commercial draft scope watcher')
+  ].join('\n'), 'service detection')
 
   // Both places that resolve terms (draft initialization and save) must carry
   // the selected-service flag. Do not rely on transport mode or Incoterm.
