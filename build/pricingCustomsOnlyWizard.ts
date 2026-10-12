@@ -68,7 +68,7 @@ function patchWizard(source: string): string {
 
   // Both places that resolve terms (draft initialization and save) must carry
   // the selected-service flag. Do not rely on transport mode or Incoterm.
-  const termsServiceArguments = /(\n[ \t]*serviceCodes,\n)([ \t]*routeText:)/g
+  const termsServiceArguments = /(\n[ \t]*(?:serviceCodes|serviceCodes: \[\.\.\.serviceCodes\]),\n)([ \t]*routeText:)/g
   const termsArgumentCount = [...code.matchAll(termsServiceArguments)].length
   if (termsArgumentCount < 2) throw new Error('[pricingCustomsOnlyWizard] Missing commercial service resolution calls')
   code = code.replace(termsServiceArguments, (_text, serviceLine: string, routeLine: string) =>
