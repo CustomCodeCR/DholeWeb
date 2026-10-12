@@ -90,7 +90,6 @@ function patchWizard(source: string) {
 export function pricingAirLclFreightPerKg(): Plugin {
   return {
     name: 'dhole-pricing-air-lcl-freight-per-kg',
-    enforce: 'post',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalized = id.replaceAll('\\', '/').split('?')[0]
