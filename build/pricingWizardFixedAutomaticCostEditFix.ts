@@ -19,6 +19,13 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       if (id.includes('?') || !normalizedId.endsWith(WIZARD_PATH)) return null
 
       let code = source
+      const identityImportAnchor = `import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'`
+      code = replaceOne(
+        code,
+        identityImportAnchor,
+        `${identityImportAnchor}\nimport { buildRateUpdateExtraDetails } from '@/modules/pricing/utils/pricingRateUpdateDetails'`,
+        'rate detail identity normalizer import',
+      )
 
       const lineStateAnchor = `const rateLines = ref<RateLine[]>([])`
       code = replaceOne(
@@ -130,10 +137,13 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
           && normalizeCatalogValue(detail.name) === normalizeCatalogValue(line.name),
         )?.id ?? null
       }
-      const extraDetails = createPayload.details.map((detail, index) => ({
-        ...detail,
-        id: persistedDetailIdForLine(includedLines.value[index]),
-      }))`
+      // A cost/name fallback may point two different rows to the same persisted Id.
+      // Match the existing CostId, insert other distinct charges, and dedupe exact retries.
+      const extraDetails = buildRateUpdateExtraDetails(
+        createPayload.details,
+        includedLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) })),
+        editingRate.value!.rateDetails,
+      )`
       code = replaceOne(code, updateExtraDetailsAnchor, updateExtraDetailsReplacement, 'persisted detail id reconciliation')
 
       const detailsMapper = code.includes(
