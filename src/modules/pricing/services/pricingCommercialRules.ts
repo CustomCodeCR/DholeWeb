@@ -1,5 +1,6 @@
 import { callEndpoint } from '@/core/api/callEndpoint'
 import type { CostDetailType, CostType, ShipmentMode } from '@/core/interfaces/pricing'
+import { isInternationalTransportTerm } from './pricingTransportTermScope'
 
 export type PricingModality = 'Maritime' | 'Air' | 'Land' | 'Multimodal'
 export type PricingRateSection =
@@ -86,9 +87,15 @@ export async function resolveCommercialTerms(query: {
   incotermId: string
   incotermCode?: string
   serviceCodes: string[]
+  includesInternationalTransport?: boolean
   routeText?: string
 }): Promise<CommercialTerms> {
   const fallback = buildFallbackCommercialTerms(query)
+  const scope = (terms: CommercialTerms): CommercialTerms => {
+    if (query.includesInternationalTransport !== false) return terms
+    const eligible = (items: CommercialTermItem[]) => items.filter((item) => !isInternationalTransportTerm(item.text))
+    return { includes: eligible(terms.includes), subjectTo: eligible(terms.subjectTo), excludes: eligible(terms.excludes) }
+  }
   const params = new URLSearchParams()
   params.set('transportModality', query.transportModality)
   params.set('shipmentMode', query.shipmentMode)
@@ -103,12 +110,12 @@ export async function resolveCommercialTerms(query: {
       path: `/api/pricing/commercial-terms/resolve?${params.toString()}`,
       headers: { Accept: 'application/json' },
     })
-    return mergeCommercialTerms(fallback, configured)
+    return scope(mergeCommercialTerms(fallback, configured))
   } catch {
     // Las condiciones comerciales no pueden quedar vacías por una caída del resolver.
     // El fallback reproduce las reglas operativas del manual de Pricing; los bloques
     // configurados en Pricing se agregan cuando el endpoint está disponible.
-    return fallback
+    return scope(fallback)
   }
 }
 
