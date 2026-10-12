@@ -1049,6 +1049,11 @@ export const AgentEndpoints = {
     path: '/api/agents/maersk-circuit/{{providerId}}/reset',
     headers: jsonHeaders,
   },
+  verifyOriginalMaerskSession: {
+    method: 'POST',
+    path: '/api/agents/maersk-circuit/{{providerId}}/verify-session',
+    headers: jsonHeaders,
+  },
   browseBrowserProfiles: { method: 'GET', path: '/api/agents/browser-profiles', headers: acceptJson },
   getBrowserProfile: { method: 'GET', path: '/api/agents/browser-profiles/{{profileId}}', headers: acceptJson },
   createBrowserProfile: { method: 'POST', path: '/api/agents/browser-profiles', headers: jsonHeaders },
