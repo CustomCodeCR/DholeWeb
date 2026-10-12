@@ -6,6 +6,7 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { PricingService } from '@/core/services/pricingService'
 import type { RateTermItemDto } from '@/core/interfaces/pricing'
+import { filterTransportOnlyTerms, isInternationalTransportTerm } from '@/modules/pricing/services/pricingTransportTermScope'
 import {
   clearPricingRateComment,
   hydratePricingRateComment,
@@ -25,8 +26,9 @@ const props = withDefaults(
   defineProps<{
     modelValue: CommercialTermsSelection
     disabled?: boolean
+    allowInternationalTransportTerms?: boolean
   }>(),
-  { disabled: false },
+  { disabled: false, allowInternationalTransportTerms: true },
 )
 
 const emit = defineEmits<{
@@ -37,6 +39,9 @@ const loading = ref(false)
 const error = ref('')
 const commentError = ref('')
 const catalogItems = ref<RateTermItemDto[]>([])
+const visibleCatalogItems = computed(() => props.allowInternationalTransportTerms
+  ? catalogItems.value
+  : catalogItems.value.filter((item) => !isInternationalTransportTerm(item.text)))
 const board = ref<Record<string, string[]>>({ Includes: [], SubjectTo: [], Excludes: [] })
 const manualText = ref('')
 const manualCategory = ref<CommercialTermColumn>('Includes')
@@ -80,11 +85,11 @@ function ensureLegacyItems(values: string[]) {
 }
 
 function syncFromProps() {
-  const all = [...props.modelValue.includes, ...props.modelValue.subjectTo, ...props.modelValue.excludes]
+  const all = filterTransportOnlyTerms([...props.modelValue.includes, ...props.modelValue.subjectTo, ...props.modelValue.excludes], props.allowInternationalTransportTerms)
   ensureLegacyItems(all)
-  const byText = new Map(catalogItems.value.map((item) => [key(item.text), item.id]))
+  const byText = new Map(visibleCatalogItems.value.map((item) => [key(item.text), item.id]))
   const used = new Set<string>()
-  const ids = (values: string[]) => unique(values)
+  const ids = (values: string[]) => unique(filterTransportOnlyTerms(values, props.allowInternationalTransportTerms))
     .map((text) => byText.get(key(text)))
     .filter((id): id is string => Boolean(id))
     .filter((id) => {
@@ -106,9 +111,9 @@ function emitBoard(value: Record<string, string[]>) {
     .map((id) => byId.get(id) ?? '')
     .filter(Boolean)
   emit('update:modelValue', {
-    includes: texts('Includes'),
-    subjectTo: texts('SubjectTo'),
-    excludes: texts('Excludes'),
+    includes: filterTransportOnlyTerms(texts('Includes'), props.allowInternationalTransportTerms),
+    subjectTo: filterTransportOnlyTerms(texts('SubjectTo'), props.allowInternationalTransportTerms),
+    excludes: filterTransportOnlyTerms(texts('Excludes'), props.allowInternationalTransportTerms),
   })
 }
 
@@ -118,6 +123,10 @@ function addManualTerm() {
 
   if (!text) {
     manualError.value = 'Escriba el concepto que desea agregar.'
+    return
+  }
+  if (!props.allowInternationalTransportTerms && isInternationalTransportTerm(text)) {
+    manualError.value = 'Este concepto corresponde a Transporte Internacional y no aplica a la tarifa aduanal.'
     return
   }
 
@@ -192,12 +201,13 @@ async function load() {
 }
 
 watch(() => props.modelValue, syncFromProps, { deep: true })
+watch(() => props.allowInternationalTransportTerms, syncFromProps)
 onMounted(() => {
   void load()
   void loadRateComments()
 })
 
-const activeCount = computed(() => catalogItems.value.filter((item) => item.isActive).length)
+const activeCount = computed(() => visibleCatalogItems.value.filter((item) => item.isActive).length)
 const commaPreview = computed(() => ({
   includes: unique(props.modelValue.includes).join(', '),
   subjectTo: unique(props.modelValue.subjectTo).join(', '),
@@ -262,7 +272,7 @@ const commaPreview = computed(() => ({
 
     <PricingTermDragBoard
       v-else
-      :items="catalogItems"
+      :items="visibleCatalogItems"
       :columns="columns"
       :model-value="board"
       :disabled="disabled || loading"

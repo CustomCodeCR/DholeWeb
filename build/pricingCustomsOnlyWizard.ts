@@ -21,6 +21,13 @@ function hideFreightInput(tag: string): string {
 
 function patchWizard(source: string): string {
   let code = source
+  code = replaceRequired(
+    code,
+    "import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'",
+    "import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'\nimport { filterTransportOnlyTermSelection, isInternationalTransportTerm } from '@/modules/pricing/services/pricingTransportTermScope'",
+    'international transport service-scoped terms import',
+  )
+
 
   const serviceAnchor =
     'const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))'
@@ -35,11 +42,44 @@ function patchWizard(source: string): string {
     'watch([hasInternationalTransportService, step], () => {',
     '  if (!hasInternationalTransportService.value && step.value === 5) step.value = 6',
     '  if (!hasInternationalTransportService.value && step.value === 7) {',
-    "    rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight' && line.section !== 'international_freight')",
+    "    rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight' && line.section !== 'international_freight' && !isInternationalTransportTerm(line.name))",
     '  }',
     '})',
     '',
   ].join('\n'), 'service detection')
+
+  // Filtering the visible board is not sufficient: keep edited and restored
+  // drafts free of maritime conditions so they cannot persist in the PDF.
+  const commercialDraftAnchor = 'const draftCommercialTermsInitialized = ref(false)'
+  code = replaceRequired(code, commercialDraftAnchor, commercialDraftAnchor + [
+    '',
+    'watch([hasInternationalTransportService, draftCommercialTerms], () => {',
+    '  if (hasInternationalTransportService.value) return',
+    '  const current = draftCommercialTerms.value',
+    '  const eligible = filterTransportOnlyTermSelection(current, false)',
+    '  if (eligible.includes.length !== current.includes.length',
+    '    || eligible.subjectTo.length !== current.subjectTo.length',
+    '    || eligible.excludes.length !== current.excludes.length) {',
+    '    draftCommercialTerms.value = eligible',
+    '  }',
+    '}, { deep: true, flush: \'sync\' })',
+    '',
+  ].join('\n'), 'commercial draft scope watcher')
+
+  // Both places that resolve terms (draft initialization and save) must carry
+  // the selected-service flag. Do not rely on transport mode or Incoterm.
+  const termsServiceArguments = /(\n[ \t]*(?:serviceCodes|serviceCodes: \[\.\.\.serviceCodes\]),\n)([ \t]*routeText:)/g
+  const termsArgumentCount = [...code.matchAll(termsServiceArguments)].length
+  if (termsArgumentCount < 2) throw new Error('[pricingCustomsOnlyWizard] Missing commercial service resolution calls')
+  code = code.replace(termsServiceArguments, (_text, serviceLine: string, routeLine: string) =>
+    serviceLine + '    includesInternationalTransport: hasInternationalTransportService.value,\n' + routeLine)
+
+  code = replaceRequired(
+    code,
+    '<PricingCommercialTermsSelector v-model="draftCommercialTerms" :disabled="viewOnly" />',
+    '<PricingCommercialTermsSelector v-model="draftCommercialTerms" :allow-international-transport-terms="hasInternationalTransportService" :disabled="viewOnly" />',
+    'terms drag-and-drop service scope',
+  )
 
   // The wizard is shared with the four-step Sales request flow.
   // Preserve the existing LCL/LTL title while hiding only internal Step 5.
@@ -143,7 +183,7 @@ function patchWizard(source: string): string {
   code = replaceRequired(
     code,
     'const includedLines = computed(() => rateLines.value.filter((line) => line.included && lineMatchesPickupCargoCondition(line)))',
-    "const includedLines = computed(() => rateLines.value.filter((line) => (hasInternationalTransportService.value || (line.costDetailType !== 'Freight' && line.section !== 'international_freight')) && line.included && lineMatchesPickupCargoCondition(line)))",
+    "const includedLines = computed(() => rateLines.value.filter((line) => (hasInternationalTransportService.value || (line.costDetailType !== 'Freight' && line.section !== 'international_freight' && !isInternationalTransportTerm(line.name))) && line.included && lineMatchesPickupCargoCondition(line)))",
     'exclude freight from customs rate payload',
   )
 
@@ -157,7 +197,7 @@ function patchWizard(source: string): string {
   code = code.slice(0, rebuildAssignment) + [
     '  if (!hasInternationalTransportService.value) {',
     '    for (let i = lines.length - 1; i >= 0; i -= 1) {',
-    "      if (lines[i]?.costDetailType === 'Freight' || lines[i]?.section === 'international_freight') lines.splice(i, 1)",
+    "      if (lines[i]?.costDetailType === 'Freight' || lines[i]?.section === 'international_freight' || isInternationalTransportTerm(lines[i]?.name ?? '')) lines.splice(i, 1)",
     '    }',
     '  }',
     '',
