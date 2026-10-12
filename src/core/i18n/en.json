@@ -1549,6 +1549,10 @@
       "verifyError": "The credential could not be verified."
     },
     "browserProfiles": {
+      "verifyStart": "Start verification",
+      "verifyQueued": "Maersk verification queued. Open prod1 noVNC to complete authorized sign-in.",
+      "verifyFailed": "Unable to start original Maersk session verification.",
+      "viewVerification": "View authentication execution",
       "title": "Web sessions",
       "subtitle": "Create one browser session per carrier and authenticate it so Hermes can reuse the login.",
       "empty": "No web sessions configured.",
