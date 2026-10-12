@@ -1549,6 +1549,10 @@
       "verifyError": "No se pudo verificar la credencial."
     },
     "browserProfiles": {
+      "verifyStart": "Iniciar verificación",
+      "verifyQueued": "Verificación de Maersk en cola. Abre noVNC de prod1 para completar la autenticación legítima.",
+      "verifyFailed": "No fue posible iniciar la verificación original de Maersk.",
+      "viewVerification": "Ver ejecución de autenticación",
       "title": "Sesiones web",
       "subtitle": "Cree una sesión de navegador por naviera y autentíquela para que Hermes pueda reutilizar el login.",
       "empty": "No hay sesiones web configuradas.",
