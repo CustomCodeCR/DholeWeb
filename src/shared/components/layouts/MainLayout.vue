@@ -53,6 +53,7 @@ import { useThemeStore } from '@/core/stores/themeStore'
 import { useLocale } from '@/core/stores/locale'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
+import { searchGlobalRecords, type GlobalSearchRecord } from '@/core/services/globalSearchService'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dhole.sidebar.collapsed'
 const SPLIT_RATIO_STORAGE_KEY = 'dhole.workspace.splitRatio'
@@ -67,6 +68,11 @@ const tabsStore = useWorkspaceTabsStore()
 
 const commandOpen = ref(false)
 const commandQuery = ref('')
+const recordMatches = ref<GlobalSearchRecord[]>([])
+const searchLoading = ref(false)
+const searchFailures = ref(0)
+let searchTimeout: ReturnType<typeof setTimeout> | undefined
+let searchGeneration = 0
 const mobileSidebarOpen = ref(false)
 const splitViewportReady = ref(false)
 const splitContainerRef = ref<HTMLElement | null>(null)
@@ -489,6 +495,43 @@ const filteredCommands = computed(() => {
   )
 })
 
+const searchItems = computed<CommandItem[]>(() => {
+  const records: CommandItem[] = recordMatches.value.map((record) => ({
+    id: record.path,
+    title: record.title,
+    description: record.description,
+    category: record.category,
+    kind: 'record',
+    icon: ReceiptText,
+  }))
+  const navigation = filteredCommands.value.map((command) => ({ ...command, kind: 'navigation' as const }))
+  return commandQuery.value.trim().length >= 2 ? [...records, ...navigation] : navigation
+})
+
+watch([commandQuery, commandOpen], ([query, isOpen]) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  const generation = ++searchGeneration
+  recordMatches.value = []
+  searchFailures.value = 0
+  searchLoading.value = false
+
+  if (!isOpen || query.trim().length < 2) return
+
+  searchLoading.value = true
+  searchTimeout = setTimeout(async () => {
+    try {
+      const response = await searchGlobalRecords(query, (scope) => authStore.hasScope(scope))
+      if (generation !== searchGeneration || !commandOpen.value) return
+      recordMatches.value = response.records
+      searchFailures.value = response.failedSources
+    } catch {
+      if (generation === searchGeneration) searchFailures.value = 1
+    } finally {
+      if (generation === searchGeneration) searchLoading.value = false
+    }
+  }, 350)
+})
+
 function selectCommand(item: CommandItem) {
   commandOpen.value = false
   commandQuery.value = ''
@@ -647,6 +690,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  ++searchGeneration
+  if (searchTimeout) clearTimeout(searchTimeout)
   splitMediaQuery?.removeEventListener('change', syncSplitViewport)
   splitMediaQuery = null
   stopSplitResize()
@@ -747,7 +792,9 @@ onBeforeUnmount(() => {
     <DhCommandPalette
       v-model:query="commandQuery"
       :open="commandOpen"
-      :items="filteredCommands"
+      :items="searchItems"
+      :loading="searchLoading"
+      :failed-sources="searchFailures"
       @close="commandOpen = false"
       @select="selectCommand"
     />
