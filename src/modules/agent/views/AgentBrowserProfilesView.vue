@@ -23,6 +23,8 @@ const createOpen = ref(false)
 const detailOpen = ref(false)
 const saving = ref(false)
 const authenticatingId = ref<string | null>(null)
+const verifyingProfileId = ref<string | null>(null)
+const verificationExecutionId = ref<string | null>(null)
 const repairingId = ref<string | null>(null)
 const repairProfile = ref<BrowserProfileDto | null>(null)
 const selectedProfile = ref<BrowserProfileDto | null>(null)
@@ -76,6 +78,12 @@ function providerName(id: string) {
 
 function credentialName(id: string) {
   return store.credentials.find((credential) => credential.id === id)?.name ?? id
+}
+
+function isMaerskProfile(row: BrowserProfileDto): boolean {
+  return store.providers.some(
+    (provider) => provider.id === row.providerId && provider.code.toUpperCase() === 'MAERSK',
+  )
 }
 
 function statusVariant(status: string): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
@@ -140,8 +148,23 @@ async function authenticate(row: BrowserProfileDto) {
 
   try {
     authenticatingId.value = row.id
-    await AgentService.authenticateBrowserProfile(row.id)
-    toastStore.success(t('agent.messages.authRequested'), row.name)
+    if (isMaerskProfile(row)) {
+      // Merely setting LoginRequired does not launch Chromium. This dedicated
+      // API queues exactly one operator-initiated authentication-only job in
+      // the original prod1 browser, even while the Maersk circuit is Open.
+      const verification = await AgentService.maerskOperations.verifyOriginalSession(
+        row.providerId, row.credentialId,
+      )
+      if (!verification.verificationOnly || !verification.executionId) {
+        throw new Error(t('agent.browserProfiles.verifyFailed'))
+      }
+      verifyingProfileId.value = row.id
+      verificationExecutionId.value = verification.executionId
+      toastStore.success(t('agent.browserProfiles.verifyQueued'), row.name)
+    } else {
+      await AgentService.authenticateBrowserProfile(row.id)
+      toastStore.success(t('agent.messages.authRequested'), row.name)
+    }
     await store.loadBrowserProfiles()
   } catch (error) {
     toastStore.backendError(error, t('agent.errors.authenticateProfile'))
@@ -262,7 +285,7 @@ onMounted(refresh)
           />
           <DhButton
             v-if="permissions.canAuthenticateBrowserProfiles.value"
-            :label="t('agent.actions.authenticate')"
+            :label="isMaerskProfile(row) ? t('agent.browserProfiles.verifyStart') : t('agent.actions.authenticate')"
             :icon="LogIn"
             variant="secondary"
             size="sm"
@@ -270,6 +293,13 @@ onMounted(refresh)
             :disabled="Boolean(authenticatingId) || row.status === 'ResetRequested'"
             @click="authenticate(row)"
           />
+          <RouterLink
+            v-if="verifyingProfileId === row.id && verificationExecutionId"
+            :to="`/agents/executions/${verificationExecutionId}`"
+            class="inline-flex min-h-9 items-center text-xs font-semibold text-[var(--dh-primary)] underline"
+          >
+            {{ t('agent.browserProfiles.viewVerification') }}
+          </RouterLink>
           <DhButton
             v-if="permissions.canAuthenticateBrowserProfiles.value && canRepair(row)"
             :label="t('agent.browserProfiles.repairAction')"
