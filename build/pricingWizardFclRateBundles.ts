@@ -207,6 +207,8 @@ function chooseFclRateBundle(bundle: FclRateBundle) {
   chooseRate(primary.rate)
   form.freeDays = bundle.freeDays
   form.transitDays = bundle.transitDays
+  // Para varios equipos, aplicar la intersección válida de todos los fletes.
+  if (bundle.validFrom) form.loadDate = bundle.validFrom
   if (bundle.validTo) form.validTo = bundle.validTo
 
   const agent = catalogs.agents.find((item) => item.id === bundle.agentId)
