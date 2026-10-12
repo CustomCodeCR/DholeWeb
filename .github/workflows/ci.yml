@@ -24,5 +24,7 @@ jobs:
       # develop continues running their complete suites.
       - name: Agent module tests
         run: pnpm run test:agent
+      - name: Pricing rate update regression tests
+        run: pnpm run test:pricing-rate-update
       - name: Type-check and build
         run: pnpm run build
