@@ -73,6 +73,26 @@ const validRequest = computed(() => canManage.value && manualEnabled.value &&
   reason.value.trim().length >= 12 && reason.value.trim().length <= 500 && reviewed.value)
 const automaticRules = computed(() => (state.value?.rules ?? [])
   .filter(rule => rule.code !== 'manual'))
+const diagnosticDescriptions: Record<string, string> = {
+  standby_readiness_missing: 'Falta una verificación independiente y reciente del acceso autorizado al proveedor para este entorno.',
+  standby_authorization_unverified: 'La autorización del proveedor todavía no está verificada por un operador.',
+  standby_readiness_expired: 'La última verificación del proveedor venció; debe verificarse nuevamente.',
+  standby_readiness_invalid: 'El registro de autorización no corresponde al entorno solicitado.',
+  standby_services_unhealthy: 'Agent API o Hermes no están saludables en el destino.',
+  standby_worker_not_stopped: 'El Worker alternativo no está en espera.',
+  standby_worker_image_mismatch: 'La imagen Docker del Worker es distinta de la activa.',
+  standby_api_image_mismatch: 'La imagen Docker de Agent API es distinta de la activa.',
+  standby_runtime_configuration_mismatch: 'La configuración PostgreSQL, Redis o de claves no coincide.',
+  standby_circuit_monitoring_mismatch: 'Falta el circuito o la monitorización exigidos.',
+  standby_queue_mode_mismatch: 'Los modos de despacho de la cola son diferentes.',
+  standby_keyring_not_isolated: 'El volumen de claves no es independiente.',
+  standby_browser_volume_not_isolated: 'Los perfiles de Chromium no están aislados.',
+  provider_circuit_or_jobs_blocked: 'El circuito del proveedor está restringido o existen trabajos activos; no es seguro cambiar.',
+  standby_preflight_failed: 'La verificación de cambio falló. Consulta los diagnósticos de GitHub Actions.',
+  manual_request_expired: 'La solicitud venció antes de procesarse. Debes solicitar un nuevo cambio.',
+  destination_not_provisioned: 'El destino todavía no está provisionado.',
+}
+
 const labels: Record<TriggerCode, string> = {
   manual: 'Manual',
   scheduled: 'Por horario',
@@ -338,6 +358,9 @@ onUnmounted(() => {
               <div class="text-sm font-bold">{{ event.targetGeneration }} · {{ labels[event.trigger] ?? event.trigger }}</div>
               <p class="mt-1 break-words text-sm text-[var(--dh-text-muted)]">{{ event.reason }}</p>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ dateLabel(event.createdAtUtc) }}</p>
+              <p v-if="event.diagnosticCode" class="mt-1 text-xs text-[var(--dh-text-muted)]" role="status">
+                {{ diagnosticDescriptions[event.diagnosticCode] ?? ('Diagnóstico: ' + event.diagnosticCode) }}
+              </p>
             </div>
             <span class="rounded-full bg-[var(--dh-card)] px-3 py-1 text-xs font-bold">{{ event.status }}</span>
           </div>
