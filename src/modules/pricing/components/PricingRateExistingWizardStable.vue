@@ -1558,6 +1558,10 @@ function defaultChargeBasis(type: CostDetailType): ChargeBasis {
 }
 
 function quantityForChargeBasis(basis: ChargeBasis) {
+  // The amount shown in Pantalla 7 must match the persisted KG freight
+  // quantity used by Pricing and the PDF renderer.
+  if (form.modality === 'Air' && basis === 'PerKg') return Math.max(0.001, number(form.cargoWeightKg))
+  if (form.modality === 'Air' && basis === 'Per100Kg') return Math.max(0.001, number(form.cargoWeightKg) / 100)
   if (basis === 'PerContainer' || basis === 'PerTruck') {
     return Math.max(1, form.equipmentQuantity)
   }
