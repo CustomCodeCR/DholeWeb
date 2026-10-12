@@ -83,6 +83,20 @@ function patchWizard(source: string) {
     code = code.slice(0, rebuildStart) + source.replace(anchor, preservation) + code.slice(rebuildEnd)
   }
 
+  // Al actualizar una cotización existente, el sincronizador del catálogo
+  // no debe pisar importes cotizados manualmente en un cargo opcional.
+  const persistedSyncStart = code.indexOf('function syncPersistedLinesWithChangedConfiguredCosts() {')
+  const persistedSyncEnd = code.indexOf('\nasync function loadApplicableCosts()', persistedSyncStart)
+  if (persistedSyncStart >= 0 && persistedSyncEnd > persistedSyncStart) {
+    const source = code.slice(persistedSyncStart, persistedSyncEnd)
+    const syncGuard = "    if (!line.costId || line.costDetailType === 'Freight') return"
+    if (!source.includes(syncGuard)) {
+      throw new Error('[pricingLtlOptionalEditable] No se encontró el guard de sincronización de costos.')
+    }
+    code = code.slice(0, persistedSyncStart)
+      + source.replace(syncGuard, "    if (line.optional || line.costType === 'Optional' || !line.costId || line.costDetailType === 'Freight') return")
+      + code.slice(persistedSyncEnd)
+  }
   // El wizard principal regenera las líneas desde la matriz del tarifario LTL.
   // Distinguir el tarifario de origen evita llevar valores de otra tarifa.
   if (code.includes('function syncResolvedLandLtlTariffLines() {')) {
