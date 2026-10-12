@@ -84,7 +84,7 @@ export async function searchGlobalRecords(
           title: [rate.pol, rate.pod].filter(Boolean).join(' → ') || rate.id,
           description: [rate.carrier, rate.agent, rate.importProfileName, rate.commodity].filter(Boolean).join(' · '),
           category: 'Tarifa importada',
-          path: `/pricing/imports?search=${encodeURIComponent(query)}`,
+          path: `/pricing/imports?search=${encodeURIComponent(query)}&recordId=${encodeURIComponent(rate.id)}`,
         }))
       },
     },
