@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { KeyRound } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhBadge } from '@/shared/components/atoms'
@@ -11,9 +12,10 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
+const route = useRoute()
 const toastStore = useToastStore()
 const loading = ref(false)
-const search = ref('')
+const search = ref(typeof route.query.search === 'string' ? route.query.search : '')
 const page = ref(1)
 const pageSize = ref(25)
 const scopes = ref<ScopeSelectDto[]>([])
@@ -39,6 +41,10 @@ async function loadScopes() {
     loading.value = false
   }
 }
+
+watch(() => route.query.search, (value) => {
+  search.value = typeof value === 'string' ? value : ''
+})
 
 useViewShortcuts({ save: loadScopes, refresh: loadScopes })
 
