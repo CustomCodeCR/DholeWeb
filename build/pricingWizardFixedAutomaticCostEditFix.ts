@@ -142,15 +142,18 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
         ? 'normalizedIncludedLines'
         : 'includedLines.value'
 
+      const freightNameLine = code.includes("name: form.modality === 'Air' && line.costDetailType === 'Freight'")
+        ? "    name: form.modality === 'Air' && line.costDetailType === 'Freight' ? 'Flete Internacional' : line.name,"
+        : '    name: line.name,'
       const createDetailsAnchor = `  const details: CreateRateDetailRequest[] = ${detailsMapper}.map((line) => ({
     costId: line.costId ?? null,
-    name: line.name,
+${freightNameLine}
     costDetailType: line.costDetailType,
     costType: line.costType,`
 
       const createDetailsReplacement = `  const details: CreateRateDetailRequest[] = ${detailsMapper}.map((line) => ({
     costId: line.costId ?? null,
-    name: line.name,
+${freightNameLine}
     costDetailType: line.costDetailType,
     // LCL source snapshots can be marked Fixed without belonging to the global
     // Costs master. Backend reserves Fixed for automatic rows backed by CostId.
