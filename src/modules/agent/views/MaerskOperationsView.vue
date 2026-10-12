@@ -5,7 +5,7 @@ import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, 
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
 import { DhPageHeader, DhModal } from '@/shared/components/organisms'
 import { AgentService } from '@/core/services/agentService'
-import type { MaerskOperationsDto, MaerskProfileHealthDto, MaerskWaitingExecutionDto } from '@/core/interfaces/agent'
+import type { AgentCredentialDto, MaerskOperationsDto, MaerskProfileHealthDto, MaerskWaitingExecutionDto } from '@/core/interfaces/agent'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useToastStore } from '@/core/stores/toastStore'
 import {
@@ -29,6 +29,11 @@ const resumeVerified = ref(false)
 const resuming = ref(false)
 const loading = ref(false)
 const resetting = ref(false)
+const verifyOpen = ref(false)
+const verifying = ref(false)
+const availableCredentials = ref<AgentCredentialDto[]>([])
+const selectedCredentialId = ref('')
+const verificationExecutionId = ref<string | null>(null)
 const acknowledgingId = ref<string | null>(null)
 const confirmOpen = ref(false)
 const operatorReason = ref('')
@@ -144,6 +149,44 @@ async function confirmReset() {
   }
 }
 
+async function requestSessionVerification() {
+  if (!details.value || !canReset.value || verifying.value) return
+  verifying.value = true
+  try {
+    availableCredentials.value = (await AgentService.browseCredentials(details.value.providerId))
+      .filter((item) => item.isActive)
+    if (!availableCredentials.value.length) {
+      toast.error(t('maerskOperations.verifyMissingCredential'))
+      return
+    }
+    selectedCredentialId.value = availableCredentials.value[0]?.id ?? ''
+    verifyOpen.value = true
+  } catch (error) {
+    toast.backendError(error, t('maerskOperations.verifyFailed'))
+  } finally {
+    verifying.value = false
+  }
+}
+
+async function confirmSessionVerification() {
+  if (!details.value || !selectedCredentialId.value || verifying.value) return
+  verifying.value = true
+  try {
+    const result = await AgentService.maerskOperations.verifyOriginalSession(
+      details.value.providerId, selectedCredentialId.value,
+    )
+    if (!result.verificationOnly || !result.executionId) throw new Error(t('maerskOperations.verifyFailed'))
+    verificationExecutionId.value = result.executionId
+    verifyOpen.value = false
+    toast.success(t('maerskOperations.verifyQueued'))
+    await refresh()
+  } catch (error) {
+    toast.backendError(error, t('maerskOperations.verifyFailed'))
+  } finally {
+    verifying.value = false
+  }
+}
+
 async function viewProfileHealth(profileId: string) {
   if (healthLoading.value || !permissions.canViewMaerskOperations.value) return
   healthLoading.value = true
@@ -192,7 +235,7 @@ function onVisible() {
 onMounted(() => {
   void refresh()
   poll = setInterval(() => {
-    if (!document.hidden && !confirmOpen.value && !resumeTarget.value) void refresh(true)
+    if (!document.hidden && !confirmOpen.value && !resumeTarget.value && !verifyOpen.value) void refresh(true)
   }, 15000)
   document.addEventListener('visibilitychange', onVisible)
 })
@@ -357,8 +400,17 @@ onUnmounted(() => {
           {{ t('maerskOperations.probeInfo') }}
         </p>
         <div class="mt-4 flex flex-wrap items-center gap-2">
+          <DhButton v-if="canReset && circuit?.requiresOperator"
+            :label="t('maerskOperations.verifyOriginalSession')"
+            :icon="ShieldCheck" variant="secondary" :loading="verifying"
+            :disabled="verifying" @click="requestSessionVerification" />
           <DhButton v-if="canReset" :label="t('maerskOperations.reset')"
             :icon="CheckCircle2" variant="secondary" @click="requestReset" />
+          <RouterLink v-if="verificationExecutionId"
+            :to="'/agents/executions/' + verificationExecutionId"
+            class="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--dh-primary)] underline">
+            {{ t('maerskOperations.viewVerification') }}
+          </RouterLink>
           <RouterLink to="/agents/browser-profiles"
             class="inline-flex min-h-11 items-center rounded-xl border border-[var(--dh-border)] px-4 text-sm font-bold text-[var(--dh-text)]">
             {{ t('maerskOperations.sessions') }}
@@ -512,6 +564,30 @@ onUnmounted(() => {
             :disabled="resuming" @click="resumeTarget = null" />
           <DhButton type="submit" :label="t('maerskOperations.confirmResume')"
             variant="danger" :disabled="!resumeValid || resuming" :loading="resuming" />
+        </div>
+      </form>
+    </DhModal>
+
+    <DhModal :open="verifyOpen" :title="t('maerskOperations.verifyOriginalSession')" size="md"
+      @close="verifyOpen = false">
+      <form class="grid gap-4" @submit.prevent="confirmSessionVerification">
+        <p class="text-sm leading-relaxed text-[var(--dh-text-muted)]">
+          {{ t('maerskOperations.verifyExplanation') }}
+        </p>
+        <label class="grid gap-2 text-sm font-medium text-[var(--dh-text)]">
+          {{ t('maerskOperations.verifyCredential') }}
+          <select v-model="selectedCredentialId" :disabled="verifying"
+            class="min-h-11 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2">
+            <option v-for="credential in availableCredentials" :key="credential.id" :value="credential.id">
+              {{ credential.name }}
+            </option>
+          </select>
+        </label>
+        <div class="flex flex-wrap justify-end gap-2">
+          <DhButton :label="t('maerskOperations.cancel')" variant="secondary"
+            :disabled="verifying" @click="verifyOpen = false" />
+          <DhButton type="submit" :label="t('maerskOperations.verifyStart')"
+            :disabled="!selectedCredentialId || verifying" :loading="verifying" />
         </div>
       </form>
     </DhModal>
