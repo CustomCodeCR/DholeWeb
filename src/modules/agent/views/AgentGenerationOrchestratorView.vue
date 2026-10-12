@@ -62,7 +62,8 @@ const canView = computed(() => auth.hasScope('agent.executions.view') &&
   auth.hasScope('agent.browser-profiles.view'))
 const canManage = computed(() => auth.hasScope('agent.browser-profiles.authenticate'))
 const destinations = computed(() => (state.value?.generations ?? [])
-  .filter(item => item.name !== state.value?.activeGeneration))
+  .filter(item => item.name !== state.value?.activeGeneration &&
+    item.provisioningStatus === 'Provisioned'))
 const manualEnabled = computed(() => state.value?.rules.some(rule => rule.code === 'manual' && rule.enabled) ?? false)
 const validGeneration = computed(() => /^prod[1-9][0-9]*$/.test(newGeneration.value) &&
   newGeneration.value.length <= 64 &&
@@ -290,8 +291,13 @@ onUnmounted(() => {
                   Sesión del navegador independiente. Preparación y disponibilidad no verificadas aquí.
                 </p>
               </div>
-              <DhButton v-if="canManage && item.name !== state.activeGeneration" variant="secondary"
-                label="Elegir como destino" :icon="ArrowRightLeft" @click="selectTarget(item.name)" />
+              <template v-if="canManage && item.name !== state.activeGeneration">
+                <DhButton v-if="item.provisioningStatus === 'Provisioned'" variant="secondary"
+                  label="Solicitar cambio" :icon="ArrowRightLeft" @click="selectTarget(item.name)" />
+                <p v-else class="rounded-lg border border-[var(--dh-border)] p-2 text-xs text-[var(--dh-text-muted)]">
+                  No disponible para cambios: debe completarse y validarse la provisión.
+                </p>
+              </template>
             </div>
           </div>
 
@@ -352,7 +358,7 @@ onUnmounted(() => {
           Los cambios manuales están deshabilitados por la configuración actual del orquestador.
         </div>
         <div v-else-if="!destinations.length" class="mt-4 text-sm text-[var(--dh-text-muted)]">
-          No hay otro entorno registrado. Ve a «Ver entornos» para agregar uno.
+          No hay otro entorno preparado para recibir un cambio. Revisa la provisión y salud de los entornos registrados.
         </div>
         <form v-else class="mt-5 grid gap-4" @submit.prevent="requestChange">
           <label class="text-sm font-semibold">1. Entorno de destino
