@@ -337,7 +337,7 @@ function buildFallbackCommercialTerms(query: {
   }
 
   if (modality === 'Air' && mode === 'Lcl') {
-    add(includes, 'Flete internacional aéreo', 'Manejos', 'HAWB')
+    add(includes, 'Flete Internacional', 'Manejos', 'HAWB')
     if (isImport) {
       add(includes, 'Cargos en destino de la línea aérea')
       add(subjectTo, 'IVA de los cargos en destino', 'Retiro de guía aérea en destino USD 65 + IVA')
