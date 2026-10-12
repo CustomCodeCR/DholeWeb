@@ -2700,6 +2700,12 @@ function chooseRate(rate: ImportRateSelectDto) {
   form.freightSale = number(rate.totalSale ?? rate.freight)
   form.freeDays = number(rate.freeDays)
   form.transitDays = number(rate.transitDays)
+  // La selección del flete internacional define automáticamente la vigencia
+  // comercial; no arrastramos los 30 días predeterminados ni fechas anteriores.
+  const freightValidFrom = String(rate.validFrom ?? '').slice(0, 10)
+  const freightValidTo = String(rate.validTo ?? '').slice(0, 10)
+  if (freightValidFrom) form.loadDate = freightValidFrom
+  if (freightValidTo) form.validTo = freightValidTo
 
   const ratePod = rate.podId
     ? findById(catalogs.pod, rate.podId)
