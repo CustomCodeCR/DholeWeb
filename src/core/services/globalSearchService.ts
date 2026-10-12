@@ -2,6 +2,7 @@ import { VIEW_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
 import { UsersService } from '@/core/services/usersService'
 import { RolesService } from '@/core/services/rolesService'
+import { ScopesService } from '@/core/services/scopesService'
 import { CatalogGroupsService } from '@/core/services/catalogGroupsService'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { ReportsService } from '@/core/services/reportsService'
@@ -112,6 +113,20 @@ export async function searchGlobalRecords(
           category: 'Rol',
           path: `/auth/roles?search=${encodeURIComponent(query)}&recordId=${encodeURIComponent(role.id)}`,
         }))
+      },
+    },
+    {
+      scope: VIEW_SCOPES.scopes,
+      run: async () => {
+        const scopes = await ScopesService.select()
+        return scopes.filter((scope) => matchesQuery(query, scope.code, scope.name))
+          .slice(0, SEARCH_PAGE_SIZE).map((scope) => ({
+            id: `scope:${scope.id}`,
+            title: scope.code,
+            description: scope.name,
+            category: 'Permiso',
+            path: `/auth/scopes?search=${encodeURIComponent(scope.code)}`,
+          }))
       },
     },
     {
