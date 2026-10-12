@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -81,7 +81,7 @@ const totalCount = ref(0)
 const totalPages = ref(1)
 
 const filters = reactive({
-  search: '',
+  search: typeof route.query.search === 'string' ? route.query.search : '',
   sourceType: [] as QueueSource[],
   status: ['Pending', 'PreAuthorized', 'Approved'] as QueueStatus[],
   carrierId: [] as string[],
@@ -476,9 +476,44 @@ async function openReview(row: ReviewQueueItem) {
   }
 }
 
+let lastOpenedImportId: string | null = null
+
+async function openRequestedImport() {
+  const id = typeof route.query.recordId === 'string' ? route.query.recordId : ''
+  if (!id || id === lastOpenedImportId) return
+  try {
+    const detail = await PricingService.getImportRate(id)
+    lastOpenedImportId = id
+    drawerStore.open({
+      title: 'Revisar tarifa recibida',
+      component: PricingImportReviewDrawer,
+      size: 'full',
+      props: {
+        importRate: detail,
+        canApprove: canPreApprove.value && ['Pending', 'PreAuthorized'].includes(detail.status),
+        onSaved: load,
+        onApproved: load,
+      },
+    })
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo abrir la tarifa importada.')
+  }
+}
+
+watch(
+  () => [route.query.recordId, route.query.search],
+  () => {
+    filters.search = typeof route.query.search === 'string' ? route.query.search : ''
+    lastOpenedImportId = null
+    void load()
+    void openRequestedImport()
+  },
+)
+
 onMounted(() => {
   void catalogs.loadAll()
   void load()
+  void openRequestedImport()
 })
 </script>
 
