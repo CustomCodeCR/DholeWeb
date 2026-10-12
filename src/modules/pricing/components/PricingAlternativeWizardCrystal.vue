@@ -1862,6 +1862,10 @@ function pickupQuantityForConditions(conditions: readonly string[] | null | unde
 }
 
 function quantityForChargeBasis(basis: ChargeBasis, conditions: readonly string[] | null | undefined = []) {
+  // The amount shown in Pantalla 7 must match the persisted KG freight
+  // quantity used by Pricing and the PDF renderer.
+  if (form.modality === 'Air' && basis === 'PerKg') return Math.max(0.001, number(form.cargoWeightKg))
+  if (form.modality === 'Air' && basis === 'Per100Kg') return Math.max(0.001, number(form.cargoWeightKg) / 100)
   if (basis === 'PerContainer' || basis === 'PerTruck') return Math.max(1, form.equipmentQuantity)
   if (basis === 'PerTeu') {
     const equipment = `${selectedEquipment.value?.code ?? ''} ${displayValue(selectedEquipment.value)}`
