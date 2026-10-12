@@ -1,7 +1,8 @@
 import type { Plugin } from 'vite'
 
-// Pantalla 7: los opcionales LTL son importes de la cotización, no costos
-// maestros inmutables. Mantener el resto de modalidades sin cambios.
+// Pantalla 7: el precio cotizado de CUALQUIER cargo opcional es editable
+// independientemente de la modalidad, sin modificar los maestros de costos.
+// Los cargos no opcionales conservan sus restricciones anteriores.
 const SUFFIXES = [
   '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue',
   '/src/modules/pricing/existing/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue',
@@ -19,28 +20,83 @@ function replaceRequired(source: string, before: string, after: string, descript
 function patchWizard(source: string) {
   if (source.includes(MARKER)) return source
   let code = source
-  const editableOptionalLtl = "(shipmentModeForApi === 'Ltl' && line.optional && !viewOnly)"
+  const editableOptional = "line.optional && !props.viewOnly"
 
   const standardCostDisabled = `:disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'"`
   const exwCostDisabled = `:disabled="!isEditableExwPickup(line) && (line.costDetailType === 'AgentCharge' || line.costType !== 'Variable')"`
   const standardSaleDisabled = `:disabled="line.costDetailType === 'AgentCharge'"`
   const exwSaleDisabled = `:disabled="line.costDetailType === 'AgentCharge' && !isEditableExwPickup(line)"`
-  const addLtlOverride = (disabled: string) => disabled.slice(0, -1) + ' && !' + editableOptionalLtl + '"'
+  const addOptionalOverride = (disabled: string) => {
+    const expression = disabled.slice(':disabled="'.length, -1)
+    return ':disabled="props.viewOnly || (!(' + editableOptional + ') && (' + expression + '))"'
+  }
 
-  const costDisabled = code.includes(exwCostDisabled) ? exwCostDisabled : standardCostDisabled
-  code = replaceRequired(
-    code,
-    costDisabled,
-    addLtlOverride(costDisabled),
-    'desbloquear costo de opcionales LTL sin alterar la regla EXW',
-  )
-  const saleDisabled = code.includes(exwSaleDisabled) ? exwSaleDisabled : standardSaleDisabled
-  code = replaceRequired(
-    code,
-    saleDisabled,
-    addLtlOverride(saleDisabled),
-    'desbloquear venta de opcionales LTL sin alterar la regla EXW',
-  )
+  // EXW puede reescribir la restricción original. Procesar todas las variantes
+  // (también las líneas inferiores) y envolver los OR originales correctamente:
+  // de lo contrario AgentCharge seguiría bloqueando opcionales.
+  let updatedInputGuards = 0
+  for (const disabled of [
+    exwCostDisabled,
+    standardCostDisabled,
+    exwSaleDisabled,
+    standardSaleDisabled,
+  ]) {
+    if (!code.includes(disabled)) continue
+    code = code.replaceAll(disabled, addOptionalOverride(disabled))
+    updatedInputGuards++
+  }
+  if (updatedInputGuards === 0) {
+    throw new Error('[pricingLtlOptionalEditable] No se encontraron los campos de costo y venta.')
+  }
+
+  // Una reconstrucción de Pantalla 7 no debe reemplazar un importe modificado
+  // con el valor de la matriz del costo. Solo conservar la misma línea opcional
+  // de la misma fuente, sin transportar importes a otros costId.
+  const rebuildStart = code.indexOf('function rebuildRateLines() {')
+  const rebuildEnd = code.indexOf('\nfunction mergeConfiguredOptionalCostsIntoRateLines(', rebuildStart)
+  if (rebuildStart >= 0 && rebuildEnd > rebuildStart) {
+    const source = code.slice(rebuildStart, rebuildEnd)
+    const anchor = [
+      '  lines.forEach((line) => {',
+      '    line.amountCurrencyCode = canonicalCurrencyCode(line)',
+      '    enforceLineCurrency(line)',
+      '  })',
+    ].join('\n')
+    const preservation = [
+      '  const previousOptionalAmounts = new Map(',
+      '    rateLines.value.filter((line) => line.optional)',
+      "      .map((line) => [`${line.key}|${line.costId ?? ''}`, line] as const),",
+      '  )',
+      '  for (const line of lines) {',
+      '    if (!line.optional) continue',
+      "    const previous = previousOptionalAmounts.get(`${line.key}|${line.costId ?? ''}`)",
+      '    if (!previous) continue',
+      '    line.costAmount = previous.costAmount',
+      '    line.saleAmount = previous.saleAmount',
+      '    line.billToClient = previous.billToClient',
+      '  }',
+      anchor,
+    ].join('\n')
+    if (!source.includes(anchor)) {
+      throw new Error('[pricingLtlOptionalEditable] No se encontró el sincronizador de líneas de Pantalla 7.')
+    }
+    code = code.slice(0, rebuildStart) + source.replace(anchor, preservation) + code.slice(rebuildEnd)
+  }
+
+  // Al actualizar una cotización existente, el sincronizador del catálogo
+  // no debe pisar importes cotizados manualmente en un cargo opcional.
+  const persistedSyncStart = code.indexOf('function syncPersistedLinesWithChangedConfiguredCosts() {')
+  const persistedSyncEnd = code.indexOf('\nasync function loadApplicableCosts()', persistedSyncStart)
+  if (persistedSyncStart >= 0 && persistedSyncEnd > persistedSyncStart) {
+    const source = code.slice(persistedSyncStart, persistedSyncEnd)
+    const syncGuard = "    if (!line.costId || line.costDetailType === 'Freight') return"
+    if (!source.includes(syncGuard)) {
+      throw new Error('[pricingLtlOptionalEditable] No se encontró el guard de sincronización de costos.')
+    }
+    code = code.slice(0, persistedSyncStart)
+      + source.replace(syncGuard, "    if (line.optional || line.costType === 'Optional' || !line.costId || line.costDetailType === 'Freight') return")
+      + code.slice(persistedSyncEnd)
+  }
   // El wizard principal regenera las líneas desde la matriz del tarifario LTL.
   // Distinguir el tarifario de origen evita llevar valores de otra tarifa.
   if (code.includes('function syncResolvedLandLtlTariffLines() {')) {
