@@ -74,7 +74,12 @@
     "rowsPerPage": "Registros por página"
   },
   "topbar": {
-    "searchPlaceholder": "Buscar usuarios, roles, permisos, sesiones, catálogos, pricing, reportes, monitoreo o auditoría...",
+    "searchPlaceholder": "Buscar registros, códigos, clientes, usuarios y módulos...",
+    "searchingRecords": "Buscando registros en los módulos disponibles...",
+    "records": "Registros",
+    "navigationResults": "Navegación",
+    "noSearchResults": "No se encontraron coincidencias.",
+    "partialSearchResults": "Algunos módulos no respondieron; los resultados pueden estar incompletos.",
     "theme": "Tema",
     "language": "Idioma",
     "notifications": "Notificaciones",
