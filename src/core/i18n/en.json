@@ -74,7 +74,12 @@
     "rowsPerPage": "Rows per page"
   },
   "topbar": {
-    "searchPlaceholder": "Search users, roles, scopes, sessions, catalogs, pricing, reports, monitoring or audit logs...",
+    "searchPlaceholder": "Search records, codes, customers, users and modules...",
+    "searchingRecords": "Searching available modules...",
+    "records": "Records",
+    "navigationResults": "Navigation",
+    "noSearchResults": "No matches found.",
+    "partialSearchResults": "Some modules did not respond; results may be incomplete.",
     "theme": "Theme",
     "language": "Language",
     "notifications": "Notifications",
