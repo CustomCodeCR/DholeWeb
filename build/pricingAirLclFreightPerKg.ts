@@ -1,6 +1,7 @@
 import type { Plugin } from 'vite'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+const SELECTOR_PATH = '/src/modules/pricing/components/PricingLclRateSourceSelector.vue'
 const MARKER = '// dhole-air-lcl-freight-per-kg-20261012'
 
 function replaceRequired(source: string, anchor: string, replacement: string) {
@@ -87,14 +88,31 @@ function patchWizard(source: string) {
   return code
 }
 
+function patchSelector(source: string) {
+  let code = source
+
+  // Run after the Miami/CFT compatibility plugin; it requires the original
+  // markup as an input anchor and still owns the maritime volume selector.
+  code = replaceRequired(code,
+    '<DhInput :model-value="requestedChargeableDisplay" type="number" :label="requestedChargeableLabel" :disabled="requestedCbmLocked" @update:model-value="updateRequestedChargeableDisplay" />',
+    '<DhInput :model-value="isAir ? requestedWeightKg : requestedChargeableDisplay" type="number" :label="isAir ? \'Peso cobrable (kg)\' : requestedChargeableLabel" :disabled="requestedCbmLocked || isAir" @update:model-value="updateRequestedChargeableDisplay" />',
+  )
+  code = replaceRequired(code, ':columns="coloaderColumns"',
+    ':columns="isAir ? airColoaderColumns : coloaderColumns"')
+  code = code.replaceAll('>Flete / CBM</span>',
+    ">{{ isAir ? 'Flete / kg' : 'Flete / CBM' }}</span>")
+  return code
+}
+
 export function pricingAirLclFreightPerKg(): Plugin {
   return {
     name: 'dhole-pricing-air-lcl-freight-per-kg',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalized = id.replaceAll('\\', '/').split('?')[0]
-      if (!normalized.endsWith(WIZARD_PATH)) return null
-      return { code: patchWizard(source), map: null }
+      if (normalized.endsWith(SELECTOR_PATH)) return { code: patchSelector(source), map: null }
+      if (normalized.endsWith(WIZARD_PATH)) return { code: patchWizard(source), map: null }
+      return null
     },
   }
 }
