@@ -222,7 +222,6 @@ function patchWizard(source: string): string {
 export function pricingCustomsOnlyWizard(): Plugin {
   return {
     name: 'dhole-pricing-customs-only-wizard',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\', '/').split('?')[0]
