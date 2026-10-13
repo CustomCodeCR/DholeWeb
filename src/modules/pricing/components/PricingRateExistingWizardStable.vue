@@ -902,6 +902,15 @@ const fcaLocationReady = computed(() =>
     : Boolean(form.pickupAddress.trim() && pickupCoordinates.value)),
 )
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
+function isStorageService(value: string) {
+  const normalized = normalizeCatalogValue(value)
+  return normalized.includes('almacen') || normalized.includes('deposito fiscal') || normalized.includes('bodega fiscal')
+}
+const storageServiceSelected = computed(() =>
+  selectedServices.value.some((service) =>
+    isStorageService([displayValue(service), service.label, service.code, service.slug].filter(Boolean).join(' ')),
+  ),
+)
 const cargoInsuranceService = computed(() =>
   catalogs.services.find((item) => {
     const value = normalizeCatalogValue(displayValue(item))
@@ -1122,42 +1131,12 @@ const operationType = computed<RateOperationType>(() => {
   return 'TransitDomestic'
 })
 
-const forcedCrcServiceIds = computed(() => {
-  const forcedNames = new Set([
-    'agencia de aduanas crc',
-    'almacenamiento',
-    'embalaje de carga',
-    'picking cargas',
-    'recepcion de carga',
-    'transporte de entrega',
-    'transporte de recoleccion',
-  ])
-  return new Set(
-    catalogs.services
-      .filter((service) => {
-        const values = [displayValue(service), service.label, service.code, service.slug]
-          .map((value) => normalizeCatalogValue(String(value ?? '')))
-        return values.some((value) => forcedNames.has(value))
-      })
-      .map((service) => service.id),
-  )
-})
-// Un POE de Costa Rica o una operación clasificada como importación activa la regla CRC.
-// El OR evita que un catálogo incompleto de país deje una importación CR cobrando en USD.
-const crcImportContext = computed(() => operationType.value === 'Import' || destinationCountryCode.value === 'CR')
-const usdCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'USD') ?? null)
-const crcCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'CRC') ?? null)
 const lineCurrencyOptions = computed(() => {
   const options = catalogs.currencies
     .filter((item) => ['USD', 'CRC'].includes(String(item.code || displayValue(item)).trim().toUpperCase()))
     .map((item) => ({ value: item.id, label: displayValue(item) }))
   return options.length ? options : currencyOptions.value
 })
-
-function isLineCrcForced(line: RateLine) {
-  if (!crcImportContext.value || !line.serviceIds?.length) return false
-  return line.serviceIds.some((id) => forcedCrcServiceIds.value.has(id) && form.serviceIds.includes(id))
-}
 
 function setLineCurrency(line: RateLine, currencyId: string) {
   const currency = findById(catalogs.currencies, currencyId)
@@ -1205,14 +1184,9 @@ function setLineCurrency(line: RateLine, currencyId: string) {
   line.amountCurrencyCode = nextCode
 }
 
-function enforceLineCurrency(line: RateLine) {
-  if (isLineCrcForced(line) && crcCurrency.value) setLineCurrency(line, crcCurrency.value.id)
+function enforceLineCurrency(_line: RateLine) {
+  // Preserva los montos/moneda elegidos sin forzar CRC por importar a Costa Rica.
 }
-
-watch(
-  [crcImportContext, () => form.serviceIds.join('|'), crcCurrency, exchangeRateSale],
-  () => rateLines.value.forEach(enforceLineCurrency),
-)
 
 const incotermResponsibilitySections = computed<RateSection[]>(() => {
   const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
@@ -1642,7 +1616,7 @@ function applicableCost(cost: CostSelectDto) {
   // Fiscal storage days are not freight free days. Require the actual operator
   // measurement before showing any automatically priced warehouse line.
   if (cost.services?.some((service) =>
-    normalizeCatalogValue(`${service.name} ${service.code}`).includes('almacenaje')
+    isStorageService(`${service.name} ${service.code}`)
   ) && !(number(form.storageDays) > 0)) return false
   if (!resolvedConditionalCost(cost)) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
@@ -4264,6 +4238,14 @@ onMounted(async () => {
               search-placeholder="Buscar servicio..."
               :options="serviceOptions"
             />
+            <div v-if="storageServiceSelected" class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <DhInput v-model.number="form.storageDays" type="number" min="1" step="1"
+                label="Días de almacenaje fiscal" placeholder="Ingrese los días en almacén" />
+              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+                Ingrese los días de almacenamiento para calcular los costos y recargos asociados.
+                Estos días son independientes de los días libres de naviera.
+              </p>
+            </div>
           </div>
 
           <div v-if="selectedIncotermCode === 'EXW' || selectedIncotermCode === 'FCA'" class="crystal-soft space-y-4 p-4 md:p-5">
@@ -4595,12 +4577,10 @@ onMounted(async () => {
               <DhInput v-if="shipmentModeForApi !== 'Lcl'"
                 v-model.number="form.cargoWeightKg" type="number" min="0" step="0.01"
                 label="Peso total (kg) · para costos condicionados" />
-              <DhInput v-if="form.serviceIds.some((id) => {
-                  const service = catalogs.services.find((item) => item.id === id)
-                  return service && normalizeCatalogValue(displayValue(service)).includes('almacenaje')
-                })"
-                v-model.number="form.storageDays" type="number" min="0" step="1"
-                label="Días de almacenaje fiscal (no son días libres de naviera)" />
+              <DhInput v-if="storageServiceSelected"
+                v-model.number="form.storageDays" type="number" min="1" step="1"
+                label="Días de almacenaje fiscal"
+                placeholder="Días efectivos en almacén" />
               <DhInput v-model.number="form.cargoPackages" type="number" min="0" step="1"
                 label="Cantidad de bultos"
                 placeholder="0 = no informado" />
@@ -4779,10 +4759,10 @@ onMounted(async () => {
                   :model-value="line.currencyId"
                   label="Divisa"
                   :options="lineCurrencyOptions"
-                  :disabled="isLineCrcForced(line)"
+                  
                   @update:model-value="(value) => setLineCurrency(line, String(value))"
                 />
-                <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · POE Costa Rica / importación</p>
+                
               </div>
               <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
               <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
@@ -4847,10 +4827,10 @@ onMounted(async () => {
                     :model-value="line.currencyId"
                     label="Divisa"
                     :options="lineCurrencyOptions"
-                    :disabled="isLineCrcForced(line)"
+                    
                     @update:model-value="(value) => setLineCurrency(line, String(value))"
                   />
-                  <p v-if="isLineCrcForced(line)" class="mt-1 text-[10px] font-black text-[var(--dh-primary)]">CRC obligatorio · POE Costa Rica / importación</p>
+                  
                 </div>
                 <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
                 <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
