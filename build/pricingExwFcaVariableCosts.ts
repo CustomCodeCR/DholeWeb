@@ -129,7 +129,24 @@ function patchWizard(source: string) {
     "watch(dholeExwFcaContextKey, () => { void dholeExwFcaLoad() }, { flush: 'post', immediate: true })",
     "watch(() => rateLines.value.map((line) => line.key).join('|'), () => dholeExwFcaApply(), { flush: 'post' })",
   ].join('\n')
-  return source.replace(anchor, runtime + '\n\n' + anchor)
+  let code = source.replace(anchor, runtime + '\n\n' + anchor)
+  const supplement = "return rateLines.value.filter((line) => line.manual || line.key === 'cargo-insurance:auto')"
+  if (code.includes(supplement))
+    code = code.replace(supplement,
+      "return rateLines.value.filter((line) => line.manual || line.key === 'cargo-insurance:auto' || String(line.key).startsWith('exw-fca-variable-cost:'))")
+
+  const ownStart = code.indexOf('  const sourceDetails = isOwnLclMatrixContext()')
+  if (ownStart >= 0) {
+    const ownEnd = code.indexOf('  const details: CreateRateDetailRequest[]', ownStart)
+    if (ownEnd < 0) throw new Error('[pricingExwFcaVariableCosts] Own LCL mapper missing')
+    const ownBlock = code.slice(ownStart, ownEnd)
+    const oldFilter = '.filter((line) => !line.costId)'
+    if (!ownBlock.includes(oldFilter)) throw new Error('[pricingExwFcaVariableCosts] Own LCL filter missing')
+    code = code.slice(0, ownStart) +
+      ownBlock.replace(oldFilter, ".filter((line) => !line.costId || String(line.key).startsWith('exw-fca-variable-cost:'))") +
+      code.slice(ownEnd)
+  }
+  return code
 }
 
 export function pricingExwFcaVariableCosts(): Plugin {
