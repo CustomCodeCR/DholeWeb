@@ -60,6 +60,8 @@ const form = ref({
 
 const isEdit = computed(() => Boolean(props.item))
 const isWarehouseGroup = computed(() => props.group.slug === 'pricing-warehouses')
+// A new WHS can be a country-only placeholder, without any geographic details.
+const genericWarehouse = ref(!props.item)
 
 const canCreate = computed(() => authStore.hasScope(CONFIG_SCOPES.catalogItems.create))
 const canUpdate = computed(() => authStore.hasScope(CONFIG_SCOPES.catalogItems.update))
@@ -258,6 +260,7 @@ async function uploadWarehouseImages(entityId: string, metadataJson: string | nu
 function resetCreateForm() {
   const nextSortOrder = Number(form.value.sortOrder || 0) + 1
   clearPendingWarehouseImages()
+  genericWarehouse.value = true
 
   form.value = {
     name: '',
@@ -276,16 +279,29 @@ async function save() {
     return
   }
 
+  const name = form.value.name.trim()
+  if (!name) {
+    toastStore.warning('Nombre requerido', 'Escriba el nombre del WHS.')
+    return
+  }
+
+  const isGeneric = isWarehouseGroup.value && genericWarehouse.value
+  // A generic WHS carries no street address, geocoding, city, photos or contacts.
+  const value = isGeneric ? name : form.value.value || null
+  const metadataJsonForSave = isGeneric ? JSON.stringify({ isGeneric: true }) : form.value.metadataJson
+
   try {
     loading.value = true
 
     if (props.item) {
-      const metadataJson = await uploadWarehouseImages(props.item.id, form.value.metadataJson)
+      const metadataJson = isGeneric
+        ? metadataJsonForSave
+        : await uploadWarehouseImages(props.item.id, metadataJsonForSave)
 
       await CatalogItemsService.update(props.item.id, {
-        name: form.value.name,
-        description: form.value.description || null,
-        value: form.value.value || null,
+        name,
+        description: isGeneric ? null : form.value.description || null,
+        value,
         metadataJson,
         sortOrder: form.value.sortOrder,
       })
@@ -299,21 +315,23 @@ async function save() {
     }
 
     const createdId = await CatalogItemsService.createForGroup(props.group.id, {
-      name: form.value.name,
-      slug: form.value.slug || null,
-      description: form.value.description || null,
-      value: form.value.value || null,
-      metadataJson: form.value.metadataJson,
+      name,
+      slug: isGeneric ? null : form.value.slug || null,
+      description: isGeneric ? null : form.value.description || null,
+      value,
+      metadataJson: metadataJsonForSave,
       sortOrder: form.value.sortOrder,
-      isSystem: form.value.isSystem,
+      isSystem: isGeneric ? false : form.value.isSystem,
     })
 
-    const metadataJson = await uploadWarehouseImages(createdId, form.value.metadataJson)
-    if (metadataJson !== form.value.metadataJson) {
+    const metadataJson = isGeneric
+      ? metadataJsonForSave
+      : await uploadWarehouseImages(createdId, form.value.metadataJson)
+    if (metadataJson !== metadataJsonForSave) {
       await CatalogItemsService.update(createdId, {
-        name: form.value.name,
-        description: form.value.description || null,
-        value: form.value.value || null,
+        name,
+        description: isGeneric ? null : form.value.description || null,
+        value,
         metadataJson,
         sortOrder: form.value.sortOrder,
       })
@@ -348,14 +366,23 @@ onBeforeUnmount(clearPendingWarehouseImages)
       </p>
     </div>
 
+    <section v-if="isWarehouseGroup" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <DhSwitch v-model="genericWarehouse" label="WHS genérico: solo nombre" :disabled="!canSave" />
+      <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+        Al activarlo, escriba únicamente el país o nombre (ej. Alemania). Dirección, coordenadas, ciudad y demás datos no son necesarios.
+      </p>
+    </section>
+
     <div class="grid gap-4 md:grid-cols-2">
       <DhInput
         v-model="form.name"
         :label="t('common.name')"
         :placeholder="t('catalogs.itemNamePlaceholder')"
         :disabled="!canSave"
+        :class="isWarehouseGroup && genericWarehouse ? 'md:col-span-2' : ''"
       />
 
+      <template v-if="!isWarehouseGroup || !genericWarehouse">
       <DhInput
         v-if="!isEdit"
         v-model="form.slug"
@@ -394,10 +421,11 @@ onBeforeUnmount(clearPendingWarehouseImages)
       />
 
       <DhSwitch v-if="!isEdit" v-model="form.isSystem" :label="t('catalogs.systemItem')" />
+      </template>
     </div>
 
     <section
-      v-if="isWarehouseGroup"
+      v-if="isWarehouseGroup && !genericWarehouse"
       class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
     >
       <div class="space-y-4">
@@ -524,7 +552,7 @@ onBeforeUnmount(clearPendingWarehouseImages)
       </div>
     </section>
 
-    <MetadataEditor v-model="form.metadataJson" />
+    <MetadataEditor v-if="!isWarehouseGroup || !genericWarehouse" v-model="form.metadataJson" />
 
     <div class="flex justify-end gap-2">
       <DhButton
