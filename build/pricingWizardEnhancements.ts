@@ -147,13 +147,13 @@ export function pricingWizardEnhancements(): Plugin {
 
       const cargoPersistenceAnchor = `      totalPackages: 0,\n      totalPallets: 0,\n      totalWeightKg: 0,\n      totalVolumeCbm: 0,\n      cargoLines: form.cargoDescription`
       const cargoPersistenceReplacement = `      totalPackages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,\n      totalPallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,\n      totalWeightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,\n      totalVolumeCbm: shipmentModeForApi.value === 'Lcl' ? lclDimensionalCbm.value : 0,\n      kgPerCbm: shipmentModeForApi.value === 'Lcl' ? 500 : undefined,\n      cargoLines: form.cargoDescription || shipmentModeForApi.value === 'Lcl'`
-      if (!code.includes('totalPackages: consolidatedCargoMode.value')) {
+      if (!code.includes('totalPackages: consolidatedCargoMode.value') && !code.includes('totalPackages: number(form.cargoPackages) > 0')) {
         code = replaceOne(code, cargoPersistenceAnchor, cargoPersistenceReplacement, 'LCL cargo persistence')
       }
 
       const cargoLineAnchor = `            packages: 0,\n            pallets: 0,\n            weightKg: 0,\n            lengthCm: 0,\n            widthCm: 0,\n            heightCm: 0,`
       const cargoLineReplacement = `            packages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,\n            pallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,\n            weightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,\n            lengthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoLengthCm)) : 0,\n            widthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWidthCm)) : 0,\n            heightCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoHeightCm)) : 0,`
-      if (!code.includes('packages: consolidatedCargoMode.value')) {
+      if (!code.includes('packages: consolidatedCargoMode.value') && !code.includes('packages: number(form.cargoPackages) > 0')) {
         code = replaceOne(code, cargoLineAnchor, cargoLineReplacement, 'LCL cargo line dimensions')
       }
 

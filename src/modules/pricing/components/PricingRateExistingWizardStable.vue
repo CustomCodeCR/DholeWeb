@@ -44,6 +44,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -312,6 +313,8 @@ const form = reactive({
   cargoObservations: '',
   cargoValue: 0,
   cargoWeightKg: 0,
+  cargoPackages: 0,
+  storageDays: 0,
   cargoPallets: 1,
   cargoLengthCm: 0,
   cargoWidthCm: 0,
@@ -1629,7 +1632,25 @@ function costContextLabel(cost: CostSelectDto) {
   return parts.join(' · ') || null
 }
 
+function resolvedConditionalCost(cost: CostSelectDto) {
+  return resolveCostPricing(cost, {
+    weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : null,
+    storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : null,
+    packages: number(form.cargoPackages) > 0
+      ? Math.trunc(number(form.cargoPackages))
+      : shipmentModeForApi.value === 'Lcl' && number(form.cargoPallets) > 0
+        ? Math.trunc(number(form.cargoPallets)) : null,
+    containerTypeId: selectedEquipment.value?.id ?? null,
+  })
+}
+
 function applicableCost(cost: CostSelectDto) {
+  // Fiscal storage days are not freight free days. Require the actual operator
+  // measurement before showing any automatically priced warehouse line.
+  if (cost.services?.some((service) =>
+    normalizeCatalogValue(`${service.name} ${service.code}`).includes('almacenaje')
+  ) && !(number(form.storageDays) > 0)) return false
+  if (!resolvedConditionalCost(cost)) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
@@ -1920,8 +1941,8 @@ function rebuildRateLines() {
       currencyId: cost.currencyId,
       currencyName: cost.currencyName,
       currencyCode: cost.currencyCode,
-      costAmount: number(cost.costAmount),
-      saleAmount: number(cost.saleAmount),
+      costAmount: resolvedConditionalCost(cost)!.costAmount,
+      saleAmount: resolvedConditionalCost(cost)!.saleAmount,
       included: true,
       optional: cost.costType === 'Optional',
       manual: false,
@@ -2113,8 +2134,8 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
         currencyId: cost.currencyId,
         currencyName: cost.currencyName,
         currencyCode: cost.currencyCode,
-        costAmount: number(cost.costAmount),
-        saleAmount: number(cost.saleAmount),
+        costAmount: resolvedConditionalCost(cost)!.costAmount,
+        saleAmount: resolvedConditionalCost(cost)!.saleAmount,
         included: cost.costType === 'Optional' ? true : includeFixed,
         optional: cost.costType === 'Optional',
         manual: false,
@@ -2886,6 +2907,8 @@ async function hydrateExistingRate() {
     hydratePersistedCargoDescription(rate.cargoLines?.[0]?.description)
     form.cargoWeightKg = Number(rate.cargoLines?.[0]?.weightKg ?? rate.totalWeightKg ?? 0)
     form.cargoPallets = Math.max(1, Number(rate.cargoLines?.[0]?.pallets ?? rate.totalPallets ?? 1))
+    form.cargoPackages = Math.max(0, Number(rate.cargoLines?.[0]?.packages ?? rate.totalPackages ?? 0))
+    form.storageDays = Math.max(0, Number(rate.storageDays ?? 0))
     form.cargoLengthCm = Number(rate.cargoLines?.[0]?.lengthCm ?? 0)
     form.cargoWidthCm = Number(rate.cargoLines?.[0]?.widthCm ?? 0)
     form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
@@ -3475,9 +3498,12 @@ async function saveOpenRequest() {
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
       containers: shipmentModeForApi.value === 'Lcl' ? [] : [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
-      totalPackages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+      storageDays: Math.trunc(number(form.storageDays)) > 0 ? Math.trunc(number(form.storageDays)) : null,
+      totalPackages: number(form.cargoPackages) > 0
+        ? Math.trunc(number(form.cargoPackages))
+        : shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
       totalPallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
-      totalWeightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
+      totalWeightKg: Math.max(0, number(form.cargoWeightKg)),
       totalVolumeCbm: shipmentModeForApi.value === 'Lcl'
         ? lclDimensionalCbm.value
         : shipmentModeForApi.value === 'Ltl' ? 0.001 : 0,
@@ -3489,9 +3515,10 @@ async function saveOpenRequest() {
           form.cargoObservations ? `Observaciones: ${form.cargoObservations}` : '',
           supportText,
         ].filter(Boolean).join(' · '),
-        packages: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
+        packages: number(form.cargoPackages) > 0 ? Math.trunc(number(form.cargoPackages))
+          : shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
         pallets: shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
-        weightKg: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWeightKg)) : 0,
+        weightKg: Math.max(0, number(form.cargoWeightKg)),
         lengthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoLengthCm)) : 0,
         widthCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoWidthCm)) : 0,
         heightCm: shipmentModeForApi.value === 'Lcl' ? Math.max(0, number(form.cargoHeightCm)) : 0,
@@ -3858,6 +3885,8 @@ function resetWizard() {
     cargoObservations: '',
     cargoValue: 0,
     cargoWeightKg: 0,
+  cargoPackages: 0,
+  storageDays: 0,
     cargoPallets: 1,
     cargoLengthCm: 0,
     cargoWidthCm: 0,
@@ -3984,7 +4013,7 @@ watch(() => form.currencyId, () => {
 })
 
 watch(
-  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|')] as const,
+  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,
   () => {
     if (hydratingExistingRate.value || step.value < 7) return
     rebuildRateLines()
@@ -4574,6 +4603,18 @@ onMounted(async () => {
             <div class="grid gap-4 md:grid-cols-2">
               <DhInput v-model="cargoDescriptionModel" label="Descripción de la carga (opcional)" />
               <DhInput v-model.number="form.cargoValue" type="number" min="0" step="0.01" label="Valor de la carga (si aplica)" />
+              <DhInput v-if="shipmentModeForApi !== 'Lcl'"
+                v-model.number="form.cargoWeightKg" type="number" min="0" step="0.01"
+                label="Peso total (kg) · para costos condicionados" />
+              <DhInput v-if="form.serviceIds.some((id) => {
+                  const service = catalogs.services.find((item) => item.id === id)
+                  return service && normalizeCatalogValue(displayValue(service)).includes('almacenaje')
+                })"
+                v-model.number="form.storageDays" type="number" min="0" step="1"
+                label="Días de almacenaje fiscal (no son días libres de naviera)" />
+              <DhInput v-model.number="form.cargoPackages" type="number" min="0" step="1"
+                label="Cantidad de bultos"
+                placeholder="0 = no informado" />
             </div>
 
             <div v-if="shipmentModeForApi === 'Lcl'" class="space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
