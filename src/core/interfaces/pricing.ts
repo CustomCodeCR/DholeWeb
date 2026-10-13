@@ -166,6 +166,11 @@ export interface ReviewCompetitorRateObservationRequest extends Record<string, u
   validTo: string
 }
 
+export interface SetCompetitorTariffRoutesRequest extends Record<string, unknown> {
+  polIds: string[]
+  poeId: string
+}
+
 export interface ImportCompetitorTariffRequest {
   id: string
   competitorCompanyName: string
