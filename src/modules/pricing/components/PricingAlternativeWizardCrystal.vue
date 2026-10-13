@@ -46,6 +46,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -1970,7 +1971,16 @@ function isOwnLclCarrierCatalogCost(cost: CostSelectDto) {
   return Boolean(cost.carrierId || (Array.isArray(cost.carriers) && cost.carriers.length))
 }
 
+function resolvedConditionalCost(cost: CostSelectDto) {
+  return resolveCostPricing(cost, {
+    weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : null,
+    packages: number(form.cargoPallets) > 0 ? Math.trunc(number(form.cargoPallets)) : null,
+    containerTypeId: selectedEquipment.value?.id ?? null,
+  })
+}
+
 function applicableCost(cost: CostSelectDto) {
+  if (!resolvedConditionalCost(cost)) return false
   // Un coloader utiliza su propio tarifario, no los cargos de navieras LCL
   // configurados para consolidaciones propias.
   if ((shipmentModeForApi.value === 'Lcl' && (() => {
@@ -2276,8 +2286,8 @@ function rebuildRateLines() {
       currencyId: cost.currencyId,
       currencyName: cost.currencyName,
       currencyCode: cost.currencyCode,
-      costAmount: number(cost.costAmount),
-      saleAmount: number(cost.saleAmount),
+      costAmount: resolvedConditionalCost(cost)!.costAmount,
+      saleAmount: resolvedConditionalCost(cost)!.saleAmount,
       included:
         cost.costType !== 'Optional' ||
         (!ltlCargoMode.value && form.dangerousCargo && isDangerousCargoCost(cost)) ||
@@ -2474,8 +2484,8 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
         currencyId: cost.currencyId,
         currencyName: cost.currencyName,
         currencyCode: cost.currencyCode,
-        costAmount: number(cost.costAmount),
-        saleAmount: number(cost.saleAmount),
+        costAmount: resolvedConditionalCost(cost)!.costAmount,
+        saleAmount: resolvedConditionalCost(cost)!.saleAmount,
         included: includeFixed && cost.costType !== 'Optional',
         optional: cost.costType === 'Optional',
         manual: false,
