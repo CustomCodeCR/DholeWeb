@@ -4440,7 +4440,7 @@ watch(() => form.currencyId, () => {
 })
 
 watch(
-  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|')] as const,
+  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.equipmentId] as const,
   () => {
     if (hydratingExistingRate.value || step.value < 7) return
     rebuildRateLines()
