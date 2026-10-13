@@ -25,6 +25,7 @@ import type {
   MarketBenchmarkObservationDto,
 } from '@/core/interfaces/marketPricing'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 
 interface MarketPricingContext {
   incotermId?: string | null
@@ -67,6 +68,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+const pricingCatalogs = usePricingCatalogs()
 
 const benchmark = ref<MarketBenchmarkDto | null>(null)
 const calculation = ref<AutoPricingCalculationDto | null>(null)
@@ -143,12 +145,53 @@ watch(
 
 const activeDecisionId = computed(() => calculation.value?.decisionId ?? decision.value?.id ?? null)
 
-const marketObservations = computed<MarketBenchmarkObservationDto[]>(() =>
-  calculation.value?.benchmark.observations
-  ?? benchmark.value?.observations
-  ?? decision.value?.observations
-  ?? [],
-)
+function localTodayIso() {
+  const now = new Date()
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+const marketReferenceDay = computed(() => {
+  const selected = props.context.referenceDate?.slice(0, 10) || ''
+  const today = localTodayIso()
+  return selected > today ? selected : today
+})
+
+const marketUpcomingCutoff = computed(() => {
+  const date = new Date(marketReferenceDay.value + 'T12:00:00')
+  date.setDate(date.getDate() + 7)
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+})
+
+function observationIncotermValue(observation: MarketBenchmarkObservationDto) {
+  const incoterm = pricingCatalogs.incoterms.value.find(item =>
+    (observation.incotermId && item.id === observation.incotermId)
+    || (observation.incotermCode && item.code.toUpperCase() === observation.incotermCode.toUpperCase()),
+  )
+  // Codes are internal identifiers (e.g. INC-2026-004), not business values.
+  return incoterm?.value || '—'
+}
+
+const marketObservations = computed<MarketBenchmarkObservationDto[]>(() => {
+  const rows = calculation.value?.benchmark.observations
+    ?? benchmark.value?.observations
+    ?? decision.value?.observations
+    ?? []
+  return rows.filter(observation => {
+    const from = observation.validFrom?.slice(0, 10)
+    const to = observation.validTo?.slice(0, 10)
+    return Boolean(from && to
+      && to >= marketReferenceDay.value
+      && from <= marketUpcomingCutoff.value)
+  })
+})
 
 const marketStats = computed(() => {
   const source = calculation.value?.benchmark ?? benchmark.value
@@ -776,7 +819,10 @@ watch(
   },
 )
 
-onMounted(() => void initialize())
+onMounted(() => {
+  void pricingCatalogs.loadAll().catch(() => {})
+  void initialize()
+})
 </script>
 
 <template>
@@ -1123,7 +1169,7 @@ onMounted(() => void initialize())
         <div class="border-b border-[var(--dh-border)] px-4 py-3">
           <h4 class="font-black">Competitor Observations</h4>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Cada fila conserva match, peso y motivo de exclusión para auditoría.
+            Solo se muestran vigencias activas o que comienzan durante los próximos 7 días. Tarifas vencidas no participan en el promedio.
           </p>
         </div>
         <div class="overflow-x-auto">
@@ -1152,7 +1198,7 @@ onMounted(() => void initialize())
                 class="border-t border-[var(--dh-border)]"
               >
                 <td class="px-3 py-3 font-bold">{{ observation.competitorCompanyName || '—' }}</td>
-                <td class="px-3 py-3">{{ observation.incotermCode || '—' }}</td>
+                <td class="px-3 py-3">{{ observationIncotermValue(observation) }}</td>
                 <td class="px-3 py-3">{{ observation.polName || observation.polCode || '—' }}</td>
                 <td class="px-3 py-3">{{ observation.poeName || observation.poeCode || '—' }}</td>
                 <td class="px-3 py-3">{{ observation.podName || observation.podCode || '—' }}</td>
