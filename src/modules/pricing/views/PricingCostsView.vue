@@ -594,7 +594,7 @@ onMounted(async () => {
                 class="mt-1 truncate text-xs font-black"
                 :class="row.utilityAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'"
               >
-                {{ formatMoney(row.utilityAmount, displayCost(row).currencyName) }}
+                {{ pricingBandLabel(row) ? 'Según tramo' : formatMoney(row.utilityAmount, displayCost(row).currencyName) }}
               </p>
             </div>
           </div>
