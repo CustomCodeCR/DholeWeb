@@ -9,6 +9,7 @@ export interface CostPricingRule {
   containerTypeId: string | null
   costAmount: number
   saleAmount: number
+  calculationMode?: 'Flat' | 'PerKg'
 }
 
 export interface CostCargoContext {
@@ -37,6 +38,8 @@ export function validateCostPricingRules(rules: CostPricingRule[]): string | nul
   const dimension = rules[0]!.dimension
   for (const rule of rules) {
     if (rule.dimension !== dimension) return 'Todas las filas deben utilizar la misma condición.'
+    if (rule.calculationMode && !['Flat', 'PerKg'].includes(rule.calculationMode)) return 'Modo de cálculo no válido.'
+    if (rule.calculationMode === 'PerKg' && dimension !== 'WeightKg') return 'El cálculo por kilogramo solo aplica a los rangos de peso.'
     if (!Number.isFinite(rule.costAmount) || rule.costAmount < 0
       || !Number.isFinite(rule.saleAmount) || rule.saleAmount < 0) {
       return 'Indique montos positivos o cero para costo y venta.'
@@ -89,5 +92,7 @@ export function resolveCostPricing(
       && value >= (rule.minValue ?? -Infinity)
       && value <= (rule.maxValue ?? Infinity)
   })
-  return matched ? { costAmount: Number(matched.costAmount), saleAmount: Number(matched.saleAmount) } : null
+  if (!matched) return null
+  const multiplier = matched.calculationMode === 'PerKg' ? Number(cargo.weightKg) : 1
+  return { costAmount: Number(matched.costAmount) * multiplier, saleAmount: Number(matched.saleAmount) * multiplier }
 }
