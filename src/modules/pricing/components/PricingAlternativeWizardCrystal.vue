@@ -2281,6 +2281,9 @@ function rebuildRateLines() {
 
   const configuredCosts = applicableConfiguredCosts()
   configuredCosts.forEach((cost) => {
+    const resolvedAmount = resolvedConditionalCost(cost)
+    // Un costo por tramos sin peso/bultos/equipo coincidente no es cobrable.
+    if (!resolvedAmount) return
     const section = sectionForCost(cost)
     if (!visible.has(section)) return
     if (cost.costDetailType === 'Freight' && lines.some((line) => line.costDetailType === 'Freight')) return
@@ -2299,8 +2302,8 @@ function rebuildRateLines() {
       currencyId: cost.currencyId,
       currencyName: cost.currencyName,
       currencyCode: cost.currencyCode,
-      costAmount: resolvedConditionalCost(cost)!.costAmount,
-      saleAmount: resolvedConditionalCost(cost)!.saleAmount,
+      costAmount: resolvedAmount.costAmount,
+      saleAmount: resolvedAmount.saleAmount,
       included:
         cost.costType !== 'Optional' ||
         (!ltlCargoMode.value && form.dangerousCargo && isDangerousCargoCost(cost)) ||
@@ -2479,6 +2482,8 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
   applicableConfiguredCosts()
     .filter((cost) => includeFixed ? cost.costDetailType !== 'Freight' : cost.costType === 'Optional')
     .forEach((cost) => {
+      const resolvedAmount = resolvedConditionalCost(cost)
+      if (!resolvedAmount) return
       const section = sectionForCost(cost)
       const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`
       if (!visible.has(section) || existingCostIds.has(cost.id) || existingKeys.has(equivalentKey)) return
@@ -2497,8 +2502,8 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
         currencyId: cost.currencyId,
         currencyName: cost.currencyName,
         currencyCode: cost.currencyCode,
-        costAmount: resolvedConditionalCost(cost)!.costAmount,
-        saleAmount: resolvedConditionalCost(cost)!.saleAmount,
+        costAmount: resolvedAmount.costAmount,
+        saleAmount: resolvedAmount.saleAmount,
         included: includeFixed && cost.costType !== 'Optional',
         optional: cost.costType === 'Optional',
         manual: false,
