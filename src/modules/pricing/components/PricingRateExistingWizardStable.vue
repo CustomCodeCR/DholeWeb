@@ -314,6 +314,7 @@ const form = reactive({
   cargoValue: 0,
   cargoWeightKg: 0,
   cargoPackages: 0,
+  storageDays: 0,
   cargoPallets: 1,
   cargoLengthCm: 0,
   cargoWidthCm: 0,
@@ -1628,6 +1629,7 @@ function costContextLabel(cost: CostSelectDto) {
 function resolvedConditionalCost(cost: CostSelectDto) {
   return resolveCostPricing(cost, {
     weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : null,
+    storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : null,
     packages: number(form.cargoPackages) > 0
       ? Math.trunc(number(form.cargoPackages))
       : shipmentModeForApi.value === 'Lcl' && number(form.cargoPallets) > 0
@@ -2885,6 +2887,7 @@ async function hydrateExistingRate() {
     form.cargoWeightKg = Number(rate.cargoLines?.[0]?.weightKg ?? rate.totalWeightKg ?? 0)
     form.cargoPallets = Math.max(1, Number(rate.cargoLines?.[0]?.pallets ?? rate.totalPallets ?? 1))
     form.cargoPackages = Math.max(0, Number(rate.cargoLines?.[0]?.packages ?? rate.totalPackages ?? 0))
+    form.storageDays = Math.max(0, Number(rate.storageDays ?? 0))
     form.cargoLengthCm = Number(rate.cargoLines?.[0]?.lengthCm ?? 0)
     form.cargoWidthCm = Number(rate.cargoLines?.[0]?.widthCm ?? 0)
     form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
@@ -3474,6 +3477,7 @@ async function saveOpenRequest() {
       services: effectiveServices.value.map((service) => ({ id: service.id, name: displayValue(service) || service.label, code: String(service.code ?? displayValue(service)).trim() })),
       shipmentMode: shipmentModeForApi.value,
       containers: shipmentModeForApi.value === 'Lcl' ? [] : [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
+      storageDays: Math.trunc(number(form.storageDays)) > 0 ? Math.trunc(number(form.storageDays)) : null,
       totalPackages: number(form.cargoPackages) > 0
         ? Math.trunc(number(form.cargoPackages))
         : shipmentModeForApi.value === 'Lcl' ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
@@ -3861,6 +3865,7 @@ function resetWizard() {
     cargoValue: 0,
     cargoWeightKg: 0,
   cargoPackages: 0,
+  storageDays: 0,
     cargoPallets: 1,
     cargoLengthCm: 0,
     cargoWidthCm: 0,
@@ -3987,7 +3992,7 @@ watch(() => form.currencyId, () => {
 })
 
 watch(
-  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.equipmentId] as const,
+  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,
   () => {
     if (hydratingExistingRate.value || step.value < 7) return
     rebuildRateLines()
@@ -4580,6 +4585,12 @@ onMounted(async () => {
               <DhInput v-if="shipmentModeForApi !== 'Lcl'"
                 v-model.number="form.cargoWeightKg" type="number" min="0" step="0.01"
                 label="Peso total (kg) · para costos condicionados" />
+              <DhInput v-if="form.serviceIds.some((id) => {
+                  const service = catalogs.services.find((item) => item.id === id)
+                  return service && normalizeCatalogValue(displayValue(service)).includes('almacenaje')
+                })"
+                v-model.number="form.storageDays" type="number" min="0" step="1"
+                label="Días de almacenaje fiscal (no son días libres de naviera)" />
               <DhInput v-model.number="form.cargoPackages" type="number" min="0" step="1"
                 label="Cantidad de bultos"
                 placeholder="0 = no informado" />
