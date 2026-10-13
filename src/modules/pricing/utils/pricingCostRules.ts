@@ -9,13 +9,15 @@ export interface CostPricingRule {
   containerTypeId: string | null
   costAmount: number
   saleAmount: number
-  calculationMode?: 'Flat' | 'PerKg'
+  calculationMode?: 'Flat' | 'PerKg' | 'PerExtraDay'
+  includedStorageDays?: number | null
 }
 
 export interface CostCargoContext {
   weightKg?: number | null
   packages?: number | null
   containerTypeId?: string | null
+  storageDays?: number | null
 }
 
 export function readCostPricingRules(json: string | null | undefined): CostPricingRule[] {
@@ -38,7 +40,9 @@ export function validateCostPricingRules(rules: CostPricingRule[]): string | nul
   const dimension = rules[0]!.dimension
   for (const rule of rules) {
     if (rule.dimension !== dimension) return 'Todas las filas deben utilizar la misma condición.'
-    if (rule.calculationMode && !['Flat', 'PerKg'].includes(rule.calculationMode)) return 'Modo de cálculo no válido.'
+    if (rule.calculationMode && !['Flat', 'PerKg', 'PerExtraDay'].includes(rule.calculationMode)) return 'Modo de cálculo no válido.'
+    if (rule.calculationMode === 'PerExtraDay' && (rule.includedStorageDays == null || !Number.isInteger(rule.includedStorageDays) || rule.includedStorageDays < 0)) return 'Indique la cantidad de días de almacenaje incluidos.'
+    if (rule.calculationMode !== 'PerExtraDay' && rule.includedStorageDays != null) return 'Los días incluidos solo se permiten en cargos diarios.'
     if (rule.calculationMode === 'PerKg' && dimension !== 'WeightKg') return 'El cálculo por kilogramo solo aplica a los rangos de peso.'
     if (!Number.isFinite(rule.costAmount) || rule.costAmount < 0
       || !Number.isFinite(rule.saleAmount) || rule.saleAmount < 0) {
@@ -93,6 +97,11 @@ export function resolveCostPricing(
       && value <= (rule.maxValue ?? Infinity)
   })
   if (!matched) return null
-  const multiplier = matched.calculationMode === 'PerKg' ? Number(cargo.weightKg) : 1
+  if (matched.calculationMode === 'PerExtraDay' && cargo.storageDays == null) return null
+  const multiplier = matched.calculationMode === 'PerKg' ? Number(cargo.weightKg)
+    : matched.calculationMode === 'PerExtraDay'
+      ? Math.max(0, Number(cargo.storageDays) - Number(matched.includedStorageDays))
+      : 1
+  if (matched.calculationMode === 'PerExtraDay' && multiplier <= 0) return null
   return { costAmount: Number(matched.costAmount) * multiplier, saleAmount: Number(matched.saleAmount) * multiplier }
 }
