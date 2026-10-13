@@ -21,9 +21,14 @@ function patchWizard(source: string) {
   code = code.replace(variableBadge, groupButton)
 
   const manualButton = '<button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>'
-  code = replaceOnce(code, manualButton,
-    '<button v-if="canRemoveScreen7Line(line)" type="button" class="h-10 px-2 text-xs font-black text-red-500" :aria-label="\'Eliminar línea \' + line.name" @click="removeScreen7Line(line)">Eliminar</button>',
-    'manual Screen 7 line button')
+  const deleteButton = '<button v-if="canRemoveScreen7Line(line)" type="button" class="h-10 px-2 text-xs font-black text-red-500" :aria-label="\'Eliminar línea \' + line.name" @click="removeScreen7Line(line)">Eliminar</button>'
+  if (code.includes(manualButton)) {
+    code = code.replace(manualButton, deleteButton)
+  } else {
+    const manualBadge = '<DhBadge v-if="line.manual" variant="primary">Manual</DhBadge>'
+    if (!code.includes(manualBadge)) throw new Error('[pricingScreen7RemoveVariableLines] Manual line badge missing')
+    code = code.replace(manualBadge, manualBadge + '\\n                  ' + deleteButton)
+  }
 
   code = replaceOnce(code,
     '    rateLines: JSON.parse(JSON.stringify(rateLines.value)),',
