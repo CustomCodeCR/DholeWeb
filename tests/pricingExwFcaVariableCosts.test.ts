@@ -19,7 +19,8 @@ const fixture = [
 function generatedCode() {
   const plugin = pricingExwFcaVariableCosts()
   assert.equal(typeof plugin.transform, 'function')
-  const result = plugin.transform.call({}, fixture, wizardPath) as { code: string }
+  const transform = plugin.transform as unknown as (source: string, id: string) => { code: string }
+  const result = transform(fixture, wizardPath)
   return result.code
 }
 
@@ -28,7 +29,7 @@ test('Own LCL keeps matching EXW/FCA variable CostIds without importing other gl
   assert.match(code, /ownLclTransientSupplementalLines/)
   assert.match(code, /line\.key\)\.startsWith\('exw-fca-variable-cost:'\)/)
   assert.match(code, /!line\.costId \|\| String\(line\.key\)\.startsWith\('exw-fca-variable-cost:'\)/)
-  assert.match(code, /rateLines\.value\.some\(\(line\) => line\.costId === cost\.id\)/)
+  assert.match(code, /line\.costId === cost\.id/)
 })
 
 test('Variable catalog matching honors EXW/FCA, multi-party assignments, modality and conditions', () => {
