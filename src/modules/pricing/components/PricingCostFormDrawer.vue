@@ -228,8 +228,8 @@ function addPricingRule() {
     containerTypeId: '',
     calculationMode: 'Flat',
     includedStorageDays: '',
-    costAmount: '0',
-    saleAmount: '0',
+    costAmount: '',
+    saleAmount: '',
   })
 }
 
@@ -247,11 +247,17 @@ function pricingRulesPayload(): CostPricingRule[] {
   }))
 }
 
-const pricingRulesError = computed(() =>
-  form.pricingDimension
-    ? (!form.serviceIds.length ? 'Seleccione el servicio al que pertenece este costo.' : !form.pricingRows.length ? 'Agregue al menos un rango.' : validateCostPricingRules(pricingRulesPayload()))
-    : null,
-)
+const pricingRulesError = computed(() => {
+  if (!form.pricingDimension) return null
+  if (!form.serviceIds.length) return 'Seleccione el servicio al que pertenece este costo.'
+  if (!form.pricingRows.length) return 'Agregue al menos un rango.'
+  if (form.pricingRows.some((row) =>
+    row.costAmount.trim() === '' || (!isAgentSaleDisabled.value && row.saleAmount.trim() === ''),
+  )) {
+    return 'Ingrese manualmente el costo y la venta de cada tramo (puede indicar 0 expresamente).'
+  }
+  return validateCostPricingRules(pricingRulesPayload())
+})
 
 watch(() => form.pricingDimension, () => {
   form.pricingRows = []
@@ -655,13 +661,15 @@ onMounted(catalogs.loadAll)
           <PricingMultiSelect
             v-model="form.serviceIds"
             :options="catalogs.serviceOptions.value"
-            label="Servicios de Pricing asociados"
-            placeholder="Aplica a cualquier servicio"
+            label="Servicios que activan este costo"
+            :placeholder="form.pricingDimension ? 'Seleccione un servicio' : 'Aplica a cualquier servicio'"
             empty-text="No hay servicios activos en pricing-services."
             search-placeholder="Buscar servicio..."
           />
           <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Si selecciona servicios, este costo o recargo solo se ofrecerá cuando la tarifa incluya al menos uno de ellos.
+            Seleccione los servicios reales de Config (por ejemplo, agenciamiento, almacenaje o transporte terrestre).
+            No es obligatorio asociarlo al servicio de Transporte Internacional.
+            Si agrega reglas por condiciones, debe elegir al menos un servicio.
           </p>
         </div>
         <div class="md:col-span-2">
@@ -715,9 +723,9 @@ onMounted(catalogs.loadAll)
       <div class="mb-4">
         <h3 class="font-black text-[var(--dh-text)]">Reglas de costos por condiciones</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          Configure un servicio de Pricing en «Relaciones operativas» y los tramos que definen su importe.
-          Si el usuario no contrata ese servicio, el rubro no se agrega. La base de cobro determina
-          la cantidad cobrable por separado, y los días fiscales no son días libres de naviera.
+          Agregue manualmente cada condición y su costo/venta. No se incluyen importes precargados
+          ni se consultan las fotografías. Solo se aplica cuando el servicio contratado y el tramo coinciden.
+          Los días de almacenaje fiscal son distintos de los días libres de naviera.
         </p>
       </div>
       <DhSelect
@@ -758,13 +766,17 @@ onMounted(catalogs.loadAll)
             <DhInput v-if="rule.calculationMode === 'PerExtraDay'" v-model="rule.includedStorageDays"
               type="number" min="0" step="1" label="Días incluidos sin recargo" />
             <DhInput v-model="rule.costAmount" type="number" min="0" step="any"
+              placeholder="Ingrese el costo"
+              :error="form.submitted && rule.costAmount.trim() === '' ? 'Indique el costo.' : undefined"
               :label="rule.calculationMode === 'PerKg' && form.pricingDimension === 'WeightKg' ? 'Costo por kg' : 'Costo del tramo'" />
             <DhInput v-model="rule.saleAmount" type="number" min="0" step="any"
+              placeholder="Ingrese la venta"
+              :error="form.submitted && !isAgentSaleDisabled && rule.saleAmount.trim() === '' ? 'Indique la venta.' : undefined"
               :label="rule.calculationMode === 'PerKg' && form.pricingDimension === 'WeightKg' ? 'Venta por kg' : 'Venta del tramo'"
               :disabled="isAgentSaleDisabled" />
           </div>
         </div>
-        <p v-if="form.submitted && pricingRulesError" class="text-sm text-red-500">
+        <p v-if="pricingRulesError && form.submitted" class="text-sm text-red-500">
           {{ pricingRulesError }}
         </p>
         <p v-if="form.pricingDimension === 'WeightKg'" class="text-xs text-[var(--dh-text-muted)]">
