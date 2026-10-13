@@ -1002,7 +1002,15 @@ onMounted(async () => {
           >
             Lista para Average
           </span>
-          <div v-else class="flex flex-col items-center gap-1">
+          <DhButton
+            v-if="row.isUsable && canUpdate"
+            label="Corregir vigencia"
+            :icon="Pencil"
+            size="sm"
+            variant="ghost"
+            @click="openReview(row)"
+          />
+          <div v-if="!row.isUsable" class="flex flex-col items-center gap-1">
             <DhButton
               v-if="canUpdate"
               label="Revisar"
