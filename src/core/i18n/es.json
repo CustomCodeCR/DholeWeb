@@ -1549,8 +1549,11 @@
       "verifyError": "No se pudo verificar la credencial."
     },
     "browserProfiles": {
-      "verifyStart": "Iniciar verificación",
-      "verifyQueued": "Verificación de Maersk en cola. Abre noVNC de prod1 para completar la autenticación legítima.",
+      "verifyStart": "Abrir perfil original en noVNC",
+      "verifyQueued": "Verificación manual iniciada. Abre noVNC por el túnel SSH: el navegador original estará disponible hasta 7 minutos.",
+      "manualSessionTitle": "Verificación manual de Maersk en curso",
+      "manualSessionGuide": "Mantén activo el túnel SSH hacia prod1 (puerto local 6080 al puerto 6082 del servidor). Abre noVNC y autentícate únicamente en el navegador original durante los próximos 7 minutos; entra a /book y comprueba que tu cuenta esté visible. No se reinician cookies ni se reintentan búsquedas. Si noVNC está vacío, revisa el estado de la ejecución. Si Maersk deniega el acceso, contacta al proveedor.",
+      "openLocalNovnc": "Abrir noVNC local",
       "verifyFailed": "No fue posible iniciar la verificación original de Maersk.",
       "viewVerification": "Ver ejecución de autenticación",
       "title": "Sesiones web",
