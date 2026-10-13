@@ -126,3 +126,31 @@ test('missing cargo band never dereferences null in either quotation wizard', as
   assert.match(exwTransform, /if \(!resolvedConditionalCost\(cost\)\) return false/)
   assert.match(exwTransform, /costAmount: resolvedAmount\.costAmount/)
 })
+
+test('storage days appear on screen 3 for Almacenamiento and the recorded days drive storage charges', async () => {
+  for (const file of [
+    '../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue',
+    '../src/modules/pricing/components/PricingRateExistingWizardStable.vue',
+  ]) {
+    const source = await readFile(new URL(file, import.meta.url), 'utf8')
+    assert.match(source, /return normalized\.includes\('almacen'\)/)
+    assert.match(source, /const storageServiceSelected = computed/)
+    assert.match(source, /v-model="form\.serviceIds"[\s\S]*?v-if="storageServiceSelected"[\s\S]*?v-model\.number="form\.storageDays"/)
+    assert.match(source, /storageDays: Math\.trunc\(number\(form\.storageDays\)\) > 0/)
+    assert.match(source, /form\.storageDays = Math\.max\(0, Number\(rate\.storageDays \?\? 0\)\)/)
+  }
+})
+
+test('cost lines no longer force CRC on importation or Costa Rica POE', async () => {
+  for (const file of [
+    '../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue',
+    '../src/modules/pricing/components/PricingRateExistingWizardStable.vue',
+  ]) {
+    const source = await readFile(new URL(file, import.meta.url), 'utf8')
+    assert.doesNotMatch(source, /CRC obligatorio · POE Costa Rica/)
+    assert.doesNotMatch(source, /isLineCrcForced\(/)
+    assert.doesNotMatch(source, /forcedCrcServiceIds/)
+    assert.match(source, /function setLineCurrency\(line: RateLine, currencyId: string\)/)
+    assert.match(source, /function enforceLineCurrency\(_line: RateLine\)/)
+  }
+})
