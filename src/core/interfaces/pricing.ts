@@ -798,6 +798,7 @@ export interface RateDto extends Record<string, unknown> {
   shipmentMode: ShipmentMode
   operationType: RateOperationType
   totalPackages: number
+  storageDays?: number | null
   totalPallets: number
   totalWeightKg: number
   totalVolumeCbm: number
@@ -938,6 +939,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   containers?: CreateRateContainerRequest[]
   shipmentMode?: ShipmentMode
   totalPackages?: number
+  storageDays?: number | null
   totalPallets?: number
   totalWeightKg?: number
   totalVolumeCbm?: number
