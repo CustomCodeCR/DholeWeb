@@ -136,6 +136,7 @@ test('storage days appear on screen 3 for Almacenamiento and the recorded days d
     assert.match(source, /return normalized\.includes\('almacen'\)/)
     assert.match(source, /const storageServiceSelected = computed/)
     assert.match(source, /v-model="form\.serviceIds"[\s\S]*?v-if="storageServiceSelected"[\s\S]*?v-model\.number="form\.storageDays"/)
+    assert.match(source, /v-else-if="step === 7"[\s\S]*?v-if="storageServiceSelected"[\s\S]*?v-model\.number="form\.storageDays"/)
     assert.match(source, /storageDays: Math\.trunc\(number\(form\.storageDays\)\) > 0/)
     assert.match(source, /form\.storageDays = Math\.max\(0, Number\(rate\.storageDays \?\? 0\)\)/)
   }
