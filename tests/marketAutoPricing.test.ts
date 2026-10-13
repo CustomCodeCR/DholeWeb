@@ -32,7 +32,7 @@ test('Pantalla 7 exposes Average suggestion before the final draft and keeps cos
   assert.doesNotMatch(wizard, /state\.line\.costAmount\s*=/)
 
   for (const label of [
-    'IA + Average',
+    'Average · precio automático',
     'Market Position',
     'Suggested Price',
     'Confidence',
@@ -46,6 +46,21 @@ test('Pantalla 7 exposes Average suggestion before the final draft and keeps cos
   ]) {
     assert.ok(panel.includes(label), `Missing Market Pricing UI label: ${label}`)
   }
+})
+
+test('Average computes the draft price automatically without waiting for AI inference', async () => {
+  const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
+  const draftMethod = panel.split('async function calculateDraftBenchmark() {')[1]
+    ?.split('async function calculateAutoPricing(')[0] || ''
+
+  assert.match(draftMethod, /await MarketPricingService\.calculateMarketBenchmark/)
+  assert.match(draftMethod, /benchmark\.value = nextBenchmark/)
+  assert.doesNotMatch(draftMethod, /analyzeDraftMarketWithAi\s*\(/)
+  assert.match(panel, /@click="analyzeDraftMarketWithAi"/)
+  assert.match(panel, /draftBenchmarkRequestId/)
+  assert.match(panel, /setTimeout\(/)
+  assert.match(panel, /draftSuggestedSalePrice = computed/)
+  assert.match(panel, /canCalculateBenchmark\.value && canDraftBenchmark\.value/)
 })
 
 test('Market result is presented as range, target, ceiling, confidence and sample instead of one exact value', async () => {
