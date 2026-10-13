@@ -844,7 +844,11 @@ function metadataNumber(item: CatalogItemSelectDto | null | undefined, ...keys: 
 
 function warehouseAddress(item: CatalogItemSelectDto | null | undefined) {
   const meta = metadata(item)
-  return String(meta?.address ?? displayValue(item) ?? item?.label ?? '').trim()
+  const configuredAddress = String(meta?.address ?? '').trim()
+  if (configuredAddress) return configuredAddress
+  // A country-only WHS is valid for FCA, but its name is not a street address.
+  if (meta?.countryCode) return ''
+  return String(displayValue(item) ?? item?.label ?? '').trim()
 }
 
 function resolvePersistedWarehouseId(rate: RateDto) {
@@ -3114,6 +3118,16 @@ function selectRecommendedPort(polId: string) {
   toastStore.success(`POL actualizado a ${displayValue(port) || port.label || port.code}.`)
 }
 
+async function refreshWarehouseCatalog() {
+  try {
+    // Pickers can stay open across a Config deploy; refresh just this catalog on focus.
+    const updatedWarehouses = await CatalogItemsService.select({ catalogGroupSlug: 'pricing-warehouses' })
+    if (updatedWarehouses.length) catalogs.warehouses = updatedWarehouses
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo actualizar el listado de WHS.')
+  }
+}
+
 async function applySelectedWarehouse() {
   const warehouse = selectedWarehouse.value
   if (!warehouse) return
@@ -4692,6 +4706,7 @@ onMounted(async () => {
               v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length"
               v-model="form.warehouseId"
               label="WHS global"
+              @open="refreshWarehouseCatalog"
               placeholder="Buscar o seleccionar WHS"
               search-placeholder="Buscar WHS, país, ciudad, código o iniciales…"
               terminal-type="WHS"
@@ -4797,7 +4812,7 @@ onMounted(async () => {
               v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length > warehouseMapMarkers.length"
               class="text-[11px] font-bold text-amber-600"
             >
-              Algunos WHS todavía no tienen coordenadas configuradas; siguen disponibles en la lista y se ubican al seleccionarlos.
+              Algunos WHS no tienen ubicación exacta configurada. Siguen disponibles en la lista, pero no se colocan en el mapa sin coordenadas.
             </p>
             <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
               Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
