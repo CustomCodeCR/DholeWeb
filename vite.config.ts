@@ -85,6 +85,7 @@ import { pricingWizardHaulageComparison20261008 } from './build/pricingWizardHau
 import { pricingLclColoaderAgentCosts20261009 } from './build/pricingLclColoaderAgentCosts20261009'
 import { pricingAirLclFreightPerKg } from './build/pricingAirLclFreightPerKg'
 import { pricingSellerRequestHideRateType } from './build/pricingSellerRequestHideRateType'
+import { pricingExwFcaVariableCosts } from './build/pricingExwFcaVariableCosts'
 
 export default defineConfig({
   plugins: [
@@ -171,6 +172,7 @@ export default defineConfig({
     pricingAirLclFreightPerKg(),
     pricingSellerRequestHideRateType(),
     pricingCustomsOnlyWizard(),
+    pricingExwFcaVariableCosts(),
     vue(),
     tailwindcss(),
   ],
