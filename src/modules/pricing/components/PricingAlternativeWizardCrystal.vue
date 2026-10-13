@@ -103,6 +103,7 @@ interface CatalogMetadata {
   costFactor?: number
   costMinimumUsd?: number
   countryCode?: string
+  isGeneric?: boolean
   taxRate?: number | string
   vatRate?: number | string
   address?: string
@@ -848,7 +849,7 @@ function warehouseAddress(item: CatalogItemSelectDto | null | undefined) {
   const configuredAddress = String(meta?.address ?? '').trim()
   if (configuredAddress) return configuredAddress
   // A country-only WHS is valid for FCA, but its name is not a street address.
-  if (meta?.countryCode || (meta as Record<string, unknown> | null)?.isGeneric === true) return ''
+  if (meta?.countryCode || meta?.isGeneric === true) return ''
   return String(displayValue(item) ?? item?.label ?? '').trim()
 }
 
