@@ -17,7 +17,8 @@ function patchWizard(source: string) {
 
   const variableBadge = '<DhBadge v-if="line.costType === \'Variable\'" variant="warning">Variable</DhBadge>'
   const groupButton = variableBadge + '\n                  <button v-if="canRemoveScreen7Line(line)" type="button" class="ml-auto rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-black text-red-500 hover:bg-red-500/10" :aria-label="\'Eliminar línea \' + line.name" @click="removeScreen7Line(line)">Eliminar</button>'
-  code = replaceOnce(code, variableBadge, groupButton, 'standard Screen 7 line badge')
+  if (!code.includes(variableBadge)) throw new Error('[pricingScreen7RemoveVariableLines] Group variable badge missing')
+  code = code.replace(variableBadge, groupButton)
 
   const manualButton = '<button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>'
   code = replaceOnce(code, manualButton,
