@@ -1251,6 +1251,10 @@ const operationType = computed<RateOperationType>(() => {
   return 'TransitDomestic'
 })
 
+// Se usa como moneda disponible para operaciones que la requieren; no bloquea las líneas.
+const usdCurrency = computed(() => catalogs.currencies.find(
+  (item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'USD',
+) ?? null)
 const lineCurrencyOptions = computed(() => {
   const options = catalogs.currencies
     .filter((item) => ['USD', 'CRC'].includes(String(item.code || displayValue(item)).trim().toUpperCase()))
