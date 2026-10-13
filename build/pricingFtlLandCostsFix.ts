@@ -139,6 +139,9 @@ function costMatchesHardRouteContext(cost: CostSelectDto) {
 }
 
 function applicableCost(cost: CostSelectDto) {
+  // Context matching alone is not enough: weight, bultos or equipment
+  // may have no configured price band. Exclude rather than dereference null.
+  if (!resolvedConditionalCost(cost)) return false
   const backendContextMatched = costResolvedByBackendContext(cost)
 
   // /costs/select is authoritative when it resolved the complete pricing context.
