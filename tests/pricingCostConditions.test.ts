@@ -60,7 +60,7 @@ test('Pricing wizards re-evaluate tiers when weight, pieces, or equipment change
   ]) {
     const source = await readFile(new URL(file, import.meta.url), 'utf8')
     assert.match(source, /resolvedConditionalCost\(cost\)/)
-    assert.match(source, /form\.cargoWeightKg, form\.cargoPallets, form\.equipmentId/)
+    assert.match(source, /form\.cargoWeightKg, form\.cargoPallets, form\.cargoPackages, form\.equipmentId/)
     assert.match(source, /if \(!resolvedConditionalCost\(cost\)\) return false/)
   }
 })
