@@ -5186,6 +5186,19 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 7" class="crystal-lines-stage space-y-6">
+          <div v-if="storageServiceSelected" class="crystal-soft p-4">
+            <div class="grid gap-3 md:grid-cols-2 md:items-center">
+              <div>
+                <p class="text-sm font-black">Días de almacenaje fiscal</p>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                  Ingrese o ajuste los días para actualizar los cargos de almacenamiento.
+                  No son días libres de naviera.
+                </p>
+              </div>
+              <DhInput v-model.number="form.storageDays" type="number" min="1" step="1"
+                label="Días de almacenaje fiscal" placeholder="Días efectivos" />
+            </div>
+          </div>
           <div class="crystal-lines-header flex flex-wrap items-end justify-between gap-4">
             <div>
               <p class="crystal-kicker">Pantalla 7</p>
