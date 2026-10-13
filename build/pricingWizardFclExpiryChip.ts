@@ -50,7 +50,7 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `<strong class="text-sm text-[var(--dh-primary)]">{{ formatMoney(line.totalCost, bundle.currency) }}</strong>`,
-    `<div class="flex shrink-0 flex-col items-end gap-2">\n                        <DhBadge :variant="fclDaysUntilExpiry(line.rate.validTo) <= 3 ? 'danger' : fclDaysUntilExpiry(line.rate.validTo) <= 7 ? 'warning' : 'success'">{{ fclExpiryLabel(line.rate.validTo) }}</DhBadge>\n                        <strong class="text-sm text-[var(--dh-primary)]">{{ formatMoney(line.totalCost, bundle.currency) }}</strong>\n                      </div>`,
+    `<div class="flex shrink-0 flex-col items-end gap-2">\n                        <DhBadge :variant="fclExpiryTone(line.rate.validTo)">{{ fclExpiryLabel(line.rate.validTo) }}</DhBadge>\n                        <strong class="text-sm text-[var(--dh-primary)]">{{ formatMoney(line.totalCost, bundle.currency) }}</strong>\n                      </div>`,
     'per-line FCL expiry chip',
   )
 
