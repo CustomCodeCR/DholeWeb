@@ -816,6 +816,7 @@ function metadataNumber(item: CatalogItemSelectDto | null | undefined, ...keys: 
   const meta = metadata(item)
   for (const key of keys) {
     const raw = meta?.[key]
+    if (raw === null || raw === undefined || raw === '') continue
     const parsed = Number(raw)
     if (Number.isFinite(parsed)) return parsed
   }
@@ -827,7 +828,7 @@ function warehouseAddress(item: CatalogItemSelectDto | null | undefined) {
   const configuredAddress = String(meta?.address ?? '').trim()
   if (configuredAddress) return configuredAddress
   // A country-only WHS is valid for FCA, but its name is not a street address.
-  if (meta?.countryCode) return ''
+  if (meta?.countryCode || (meta as Record<string, unknown> | null)?.isGeneric === true) return ''
   return String(displayValue(item) ?? item?.label ?? '').trim()
 }
 
