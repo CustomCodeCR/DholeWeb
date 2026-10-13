@@ -349,10 +349,8 @@ function rebuildRateLines`,
   // por Incoterm y puede contradecir una asociación explícita del costo maestro.
   code = replaceRegexOne(
     code,
-    /const configuredCosts = applicableConfiguredCosts\(\)\n  configuredCosts\.forEach\(\(cost\) => \{\n    const section = sectionForCost\(cost\)\n    if \(!visible\.has\(section\)\) return/,
-    `const configuredCosts = applicableConfiguredCosts()
-  configuredCosts.forEach((cost) => {
-    const section = sectionForCost(cost)`,
+    /(const configuredCosts = applicableConfiguredCosts\(\)\n  configuredCosts\.forEach\(\(cost\) => \{[\s\S]*?\n    const section = sectionForCost\(cost\))\n    if \(!visible\.has\(section\)\) return/,
+    '$1',
     'configured cost visual-section filter',
   )
 
