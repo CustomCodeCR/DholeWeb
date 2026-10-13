@@ -30,6 +30,7 @@ import PricingMultiSelect from '@/modules/pricing/components/PricingMultiSelect.
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { readCostPricingRules } from '@/modules/pricing/utils/pricingCostRules'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -38,6 +39,7 @@ const modalStore = useModalStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
 const displayCost = (cost: CostDto) => catalogs.resolveCostLabels(cost)
+const pricingBandLabel = (cost: CostDto) => cost.pricingRulesJson ? `${readCostPricingRules(cost.pricingRulesJson).length} tramos` : null
 
 const rows = ref<CostDto[]>([])
 let lastOpenedRecordId: string | null = null
@@ -580,11 +582,11 @@ onMounted(async () => {
           <div class="mt-2 grid grid-cols-3 gap-2">
             <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2">
               <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo</p>
-              <p class="mt-1 truncate text-xs font-black">{{ formatMoney(row.costAmount, displayCost(row).currencyName) }}</p>
+              <p class="mt-1 truncate text-xs font-black">{{ pricingBandLabel(row) ?? formatMoney(row.costAmount, displayCost(row).currencyName) }}</p>
             </div>
             <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2">
               <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Venta</p>
-              <p class="mt-1 truncate text-xs font-black">{{ formatMoney(row.saleAmount, displayCost(row).currencyName) }}</p>
+              <p class="mt-1 truncate text-xs font-black">{{ pricingBandLabel(row) ? "Por tramo" : formatMoney(row.saleAmount, displayCost(row).currencyName) }}</p>
             </div>
             <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2">
               <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Utilidad</p>
@@ -735,12 +737,12 @@ onMounted(async () => {
           </template>
           <template #cell-costAmount="{ row }"
             ><span class="whitespace-nowrap font-black">{{
-              formatMoney(row.costAmount, displayCost(row).currencyName)
+              pricingBandLabel(row) ?? formatMoney(row.costAmount, displayCost(row).currencyName)
             }}</span></template
           >
           <template #cell-saleAmount="{ row }"
             ><span class="whitespace-nowrap font-black">{{
-              formatMoney(row.saleAmount, displayCost(row).currencyName)
+              pricingBandLabel(row) ? "Por tramo" : formatMoney(row.saleAmount, displayCost(row).currencyName)
             }}</span></template
           >
           <template #cell-utilityAmount="{ row }"
@@ -749,7 +751,7 @@ onMounted(async () => {
               :class="
                 row.utilityAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
               "
-              >{{ formatMoney(row.utilityAmount, displayCost(row).currencyName) }}</span
+              >{{ pricingBandLabel(row) ? "Según tramo" : formatMoney(row.utilityAmount, displayCost(row).currencyName) }}</span
             ></template
           >
           <template #cell-chargeBasis="{ row }"
