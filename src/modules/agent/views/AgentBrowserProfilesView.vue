@@ -251,6 +251,29 @@ onMounted(refresh)
       {{ t('agent.browserProfiles.help') }}
     </p>
 
+    <section
+      v-if="verificationExecutionId"
+      class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-4 py-3 text-sm leading-relaxed"
+      role="status"
+    >
+      <p class="font-bold text-[var(--dh-text)]">{{ t('agent.browserProfiles.manualSessionTitle') }}</p>
+      <p class="mt-1 text-[var(--dh-text-muted)]">
+        {{ t('agent.browserProfiles.manualSessionGuide') }}
+      </p>
+      <div class="mt-2 flex flex-wrap items-center gap-3">
+        <a
+          href="http://localhost:6080/vnc.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="font-semibold text-[var(--dh-primary)] underline"
+        >{{ t('agent.browserProfiles.openLocalNovnc') }}</a>
+        <RouterLink
+          :to="`/agents/executions/${verificationExecutionId}`"
+          class="font-semibold text-[var(--dh-primary)] underline"
+        >{{ t('agent.browserProfiles.viewVerification') }}</RouterLink>
+      </div>
+    </section>
+
     <DhDataTable
       :columns="columns"
       :rows="store.browserProfiles"
