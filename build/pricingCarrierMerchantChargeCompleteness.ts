@@ -22,30 +22,33 @@ export function restoreCarrierMerchantCostLines(source: string): string {
     '      normalizeCatalogValue(line.name) === normalizeCatalogValue(name),',
     '    )',
   ].join('\n')
-  if (!rebuild.includes(oldDuplicate) ||
-      !rebuild.includes('if (hasEquivalent(cost.name, cost.costDetailType)) return')) {
-    throw new Error('[pricingCarrierMerchantChargeCompleteness] Rebuild identity anchors changed')
+  // Older wizard sources still contain name-based deduplication; the newer
+  // Screen4 plugin has already removed it. Both states are supported.
+  if (rebuild.includes(oldDuplicate)) {
+    if (!rebuild.includes('if (hasEquivalent(cost.name, cost.costDetailType)) return')) {
+      throw new Error('[pricingCarrierMerchantChargeCompleteness] Rebuild guard changed')
+    }
+    rebuild = rebuild.replace(oldDuplicate,
+      '  const hasEquivalent = (costId: string) => lines.some((line) => line.costId === costId)')
+    rebuild = rebuild.replace('if (hasEquivalent(cost.name, cost.costDetailType)) return',
+      'if (hasEquivalent(cost.id)) return')
+  } else if (rebuild.includes('if (hasEquivalent(cost.name, cost.costDetailType)) return')) {
+    throw new Error('[pricingCarrierMerchantChargeCompleteness] Rebuild mismatch')
   }
-  rebuild = rebuild.replace(oldDuplicate,
-    '  const hasEquivalent = (costId: string) => lines.some((line) => line.costId === costId)')
-  rebuild = rebuild.replace('if (hasEquivalent(cost.name, cost.costDetailType)) return',
-    'if (hasEquivalent(cost.id)) return')
 
   let merge = source.slice(mergeStart, addManualStart)
-  if (!merge.includes('existingKeys.has(equivalentKey)') ||
-      !merge.includes('existingCostIds.has(cost.id)')) {
-    throw new Error('[pricingCarrierMerchantChargeCompleteness] Optional merge identity anchors changed')
-  }
-  merge = merge.replace(/\n  const existingKeys = new Set\([\s\S]*?\n  \)\n/, '\n')
-  merge = merge.replace(/\n\s+const equivalentKey = [^\n]+\n/, '\n')
-  // The service validated this configured row; an Incoterm section label must
-  // not discard a valid carrier surcharge or Merchant charge in Screen 7.
-  merge = merge.replace(
-    /if \(!visible\.has\(section\) \|\| existingCostIds\.has\(cost\.id\) \|\| existingKeys\.has\(equivalentKey\)\) return/,
-    'if (existingCostIds.has(cost.id)) return',
-  )
   if (merge.includes('existingKeys.has(equivalentKey)')) {
-    throw new Error('[pricingCarrierMerchantChargeCompleteness] Optional guard was not updated')
+    merge = merge.replace(/\n  const existingKeys = new Set\([\s\S]*?\n  \)\n/, '\n')
+    merge = merge.replace(/\n\s+const equivalentKey = [^\n]+\n/, '\n')
+    merge = merge.replace(
+      /if \(!visible\.has\(section\) \|\| existingCostIds\.has\(cost\.id\) \|\| existingKeys\.has\(equivalentKey\)\) return/,
+      'if (existingCostIds.has(cost.id)) return',
+    )
+    if (merge.includes('existingKeys.has(equivalentKey)')) {
+      throw new Error('[pricingCarrierMerchantChargeCompleteness] Optional guard not updated')
+    }
+  } else if (!merge.includes('existingCostIds.has(cost.id)')) {
+    throw new Error('[pricingCarrierMerchantChargeCompleteness] Missing CostId dedupe in merge')
   }
   if (!/\bvisible\b/.test(merge.replace('  const visible = new Set(visibleSections.value)', ''))) {
     merge = merge.replace('  const visible = new Set(visibleSections.value)\n', '')
