@@ -197,6 +197,17 @@ const routeSelectionValid = computed(() => {
   return true
 })
 
+// The same cost rules must resolve both maritime container-types and land FTL
+// equipment IDs used by the quotation wizard.
+const conditionalEquipmentOptions = computed(() => {
+  const items = [
+    ...catalogs.containerTypes.value.map((item) => ({ label: `Marítimo · ${item.name}`, value: item.id })),
+    ...catalogs.landEquipmentTypes.value.map((item) => ({ label: `Terrestre · ${item.name}`, value: item.id })),
+    ...catalogs.landEquipmentSizes.value.map((item) => ({ label: `Terrestre · ${item.name}`, value: item.id })),
+  ]
+  return items.filter((item, index) => items.findIndex((other) => other.value === item.value) === index)
+})
+
 const pricingCalculationOptions = [
   { label: 'Monto fijo por tramo', value: 'Flat' },
   { label: 'Monto por cada kilogramo', value: 'PerKg' },
@@ -731,7 +742,7 @@ onMounted(catalogs.loadAll)
             <template v-if="form.pricingDimension === 'ContainerType'">
               <div class="md:col-span-2">
                 <DhSelect v-model="rule.containerTypeId" label="Tipo y tamaño de contenedor"
-                  placeholder="Seleccione un equipo" :options="catalogs.containerOptions.value" />
+                  placeholder="Seleccione un equipo" :options="conditionalEquipmentOptions" />
               </div>
             </template>
             <template v-else>
