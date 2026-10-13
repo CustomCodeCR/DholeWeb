@@ -86,6 +86,7 @@ import { pricingWizardLtlLclUiParity } from './build/pricingWizardLtlLclUiParity
 import { pricingWizardHaulageComparison20261008 } from './build/pricingWizardHaulageComparison20261008'
 import { pricingLclColoaderAgentCosts20261009 } from './build/pricingLclColoaderAgentCosts20261009'
 import { pricingSellerRequestHideRateType } from './build/pricingSellerRequestHideRateType'
+import { pricingExwFcaVariableCosts } from './build/pricingExwFcaVariableCosts'
 
 export default defineConfig({
   plugins: [
@@ -170,6 +171,7 @@ export default defineConfig({
     pricingLclColoaderAgentCosts20261009(),
     pricingSellerRequestHideRateType(),
     pricingCustomsOnlyWizard(),
+    pricingExwFcaVariableCosts(),
     vue(),
     tailwindcss(),
   ],
