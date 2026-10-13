@@ -92,7 +92,8 @@ function airLclConfiguredModeMatches(cost: CostSelectDto) {
       : []
 
   if (!configuredModes.length) return true
-  return configuredModes.includes('airconsol') || configuredModes.includes('any')
+  // Older agent matrices can store air LCL charges under the generic Lcl mode.
+  return configuredModes.some((mode) => ['airconsol', 'lcl', 'any'].includes(mode))
 }
 
 function airLclLegacyPortMatches(cost: CostSelectDto) {
@@ -121,6 +122,9 @@ function airLclLegacyPortMatches(cost: CostSelectDto) {
 function airLclCostMatchesCurrentContext(cost: CostSelectDto) {
   if (!isAirLclPricingContext()) return false
   if (!airLclConfiguredModeMatches(cost)) return false
+  // A coloader must not inherit charges from a previously selected ocean carrier.
+  if (lclSelectedSource.value?.kind === 'Coloader'
+      && (cost.carrierId || (Array.isArray(cost.carriers) && cost.carriers.length > 0))) return false
 
   if (!airLclRelationMatches(
     cost.pols,
@@ -187,15 +191,11 @@ async function ensureAirLclApplicableCosts() {
   if (!isAirLclPricingContext() || props.viewOnly) return
 
   try {
-    // shipmentMode intentionally bypasses the general select cache. Pricing's general
-    // select endpoint returns the active catalog here; the browser applies the exact
-    // AirConsol + route + agent context below.
-    const freshCosts = await PricingService.selectCosts({
-      shipmentMode: 'AirConsol',
-      isActive: true,
-    })
-
+    // Load active costs across AirConsol, legacy Lcl and unrestricted entries.
+    // The client matcher applies the selected air route, provider and incoterm.
     const contextKey = dholeRuntimeCostContextKey()
+    const freshCosts = await PricingService.selectCosts({ isActive: true })
+    if (!isAirLclPricingContext() || dholeRuntimeCostContextKey() !== contextKey) return
     const matchingCosts = freshCosts
       .filter(airLclCostMatchesCurrentContext)
       .map((cost) => ({
@@ -203,9 +203,8 @@ async function ensureAirLclApplicableCosts() {
         __dholePricingContextKey: contextKey,
       }))
 
-    // For Air LCL the broad AirConsol query is intentional: imported tariff provider
-    // snapshots can have a different Guid than the current Config agent. The matcher
-    // above resolves route/provider by id first and then by name/code.
+    // Imported provider snapshots can have an outdated Config Guid. Resolve
+    // route/provider by id, and then by name/code, after loading the active catalog.
     costs.value = matchingCosts
 
     const allMerged = new Map(allCosts.value.map((cost) => [cost.id, cost]))
