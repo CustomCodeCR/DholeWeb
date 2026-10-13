@@ -538,7 +538,18 @@ async function loadLatestDecision(silent = true) {
 
   try {
     loading.value = true
-    decision.value = await MarketPricingService.getAutoPricing(props.rateId)
+    const savedDecision = await MarketPricingService.getAutoPricing(props.rateId)
+    const savedRows = savedDecision?.observations ?? []
+    const includesStaleRate = savedRows.some(row =>
+      row.wasIncluded
+      && (
+        (row.validTo && row.validTo.slice(0, 10) < marketReferenceDay.value)
+        || (row.validFrom && row.validFrom.slice(0, 10) > marketUpcomingCutoff.value)
+      ),
+    )
+    // Old persisted benchmarks can contain quotations that have since expired.
+    // Recalculate them instead of showing stale market targets and percentiles.
+    decision.value = includesStaleRate ? null : savedDecision
   } catch (error) {
     decision.value = null
     if (!silent) {
