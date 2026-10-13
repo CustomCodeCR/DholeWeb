@@ -27,7 +27,7 @@ function patchWizard(source: string) {
   } else {
     const manualBadge = '<DhBadge v-if="line.manual" variant="primary">Manual</DhBadge>'
     if (!code.includes(manualBadge)) throw new Error('[pricingScreen7RemoveVariableLines] Manual line badge missing')
-    code = code.replace(manualBadge, manualBadge + '\\n                  ' + deleteButton)
+    code = code.replace(manualBadge, manualBadge + '\n                  ' + deleteButton)
   }
 
   code = replaceOnce(code,
