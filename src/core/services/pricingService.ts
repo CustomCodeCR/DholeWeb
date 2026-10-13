@@ -238,6 +238,17 @@ export const PricingService = {
     return unwrapApiResponse<CompetitorTariffDto>(response as never)
   },
 
+  async setCompetitorTariffRoutes(
+    competitorTariffId: string,
+    payload: SetCompetitorTariffRoutesRequest,
+  ): Promise<void> {
+    const response = await callEndpoint<unknown, SetCompetitorTariffRoutesRequest>(
+      Endpoints.setCompetitorTariffRoutes,
+      { params: { competitorTariffId }, body: payload },
+    )
+    unwrapApiResponse(response as never)
+  },
+
   async getCompetitorTariffObservations(
     competitorTariffId: string,
   ): Promise<CompetitorRateObservationDto[]> {
