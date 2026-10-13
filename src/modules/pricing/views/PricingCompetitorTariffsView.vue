@@ -60,6 +60,10 @@ const observationsLoading = ref(false)
 const observations = ref<CompetitorRateObservationDto[]>([])
 const observationTariff = ref<CompetitorTariffDto | null>(null)
 
+const routeOpen = ref(false)
+const routeSaving = ref(false)
+const routeForm = reactive({ polIds: [] as string[], poeId: '' })
+
 const reviewOpen = ref(false)
 const reviewSaving = ref(false)
 const reviewTarget = ref<CompetitorRateObservationDto | null>(null)
@@ -285,6 +289,66 @@ function statusClasses(value?: string | null) {
       return 'border-sky-500/30 bg-sky-500/10 text-sky-300'
     default:
       return 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-muted)]'
+  }
+}
+
+function normalizePortLabel(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function openRouteEditor() {
+  if (!observationTariff.value || observations.value.length === 0) return
+
+  const existingPolIds = [...new Set(
+    observations.value.map(row => row.polId).filter((id): id is string => Boolean(id)),
+  )]
+  routeForm.polIds = existingPolIds
+  routeForm.poeId = observations.value[0]?.poeId || ''
+
+  // Only suggest these six commercially configured origins for the named
+  // IMP863 quotation. The source PDF itself specifies Ningbo only.
+  if (
+    observationTariff.value.originalFileName?.toUpperCase().includes('IMP863-1210')
+    && existingPolIds.length <= 1
+  ) {
+    const preferred = ['shanghai', 'ningbo', 'shenzhen', 'xiamen', 'hongkong', 'qingdao']
+    routeForm.polIds = preferred.flatMap(name => {
+      const option = catalogs.polOptions.value.find(item =>
+        normalizePortLabel(item.label).includes(name),
+      )
+      return option ? [option.value] : []
+    })
+    const caldera = catalogs.poeOptions.value.find(item =>
+      normalizePortLabel(item.label).includes('caldera'),
+    )
+    if (caldera) routeForm.poeId = caldera.value
+  }
+  routeOpen.value = true
+}
+
+async function saveRouteEditor() {
+  if (!observationTariff.value) return
+  if (routeForm.polIds.length === 0 || !routeForm.poeId) {
+    toastStore.error('Ruta incompleta', 'Seleccione al menos un POL y el POE.')
+    return
+  }
+  routeSaving.value = true
+  try {
+    await PricingService.setCompetitorTariffRoutes(observationTariff.value.id, {
+      polIds: [...new Set(routeForm.polIds)],
+      poeId: routeForm.poeId,
+    })
+    const tariffId = observationTariff.value.id
+    observations.value = await PricingService.getCompetitorTariffObservations(tariffId)
+    observationTariff.value = await PricingService.getCompetitorTariff(tariffId)
+    routeOpen.value = false
+    await load()
+    toastStore.success('Rutas actualizadas', 'Se guardaron los POL seleccionados con el POE indicado y sin POD.')
+  } catch (error) {
+    toastStore.backendError(error, 'No fue posible actualizar los POL y el POE.')
+  } finally {
+    routeSaving.value = false
   }
 }
 
@@ -886,6 +950,10 @@ onMounted(async () => {
         </div>
       </div>
 
+      <div v-if="observationTariff && observations.length > 0 && canUpdate" class="flex justify-end">
+        <DhButton label="Editar POL / POE" :icon="Pencil" variant="secondary" @click="openRouteEditor" />
+      </div>
+
       <DhDataTable
         :columns="observationColumns"
         :rows="observations"
@@ -955,6 +1023,32 @@ onMounted(async () => {
           </div>
         </template>
       </DhDataTable>
+    </div>
+  </DhModal>
+
+  <DhModal
+    :open="routeOpen"
+    title="Modificar rutas comerciales de Average"
+    size="xl"
+    @close="routeOpen = false"
+  >
+    <div class="space-y-4">
+      <p class="text-sm text-[var(--dh-text-muted)]">
+        Seleccione todos los POL que deben aplicar comercialmente a esta cotización. El documento
+        original no se altera. Se crea una observación comparable por POL, todas vinculadas
+        al mismo respaldo. El POD queda vacío y el POE es el puerto de entrada.
+      </p>
+      <DhMultiSelect v-model="routeForm.polIds" label="POL aplicables" :options="catalogs.polOptions.value" />
+      <DhSelect v-model="routeForm.poeId" label="POE" :options="catalogs.poeOptions.value" />
+      <div class="text-sm font-bold text-[var(--dh-text-muted)]">POD: Sin POD</div>
+      <p v-if="observationTariff?.originalFileName?.toUpperCase().includes('IMP863-1210')" class="text-xs text-[var(--dh-text-muted)]">
+        El PDF IMP863-1210 solo declara Ningbo. Los demás orígenes se registran como
+        ampliación comercial solicitada, no como datos extraídos del archivo.
+      </p>
+      <div class="flex justify-end gap-2">
+        <DhButton label="Cancelar" variant="secondary" @click="routeOpen = false" />
+        <DhButton label="Guardar rutas" :loading="routeSaving" @click="saveRouteEditor" />
+      </div>
     </div>
   </DhModal>
 
