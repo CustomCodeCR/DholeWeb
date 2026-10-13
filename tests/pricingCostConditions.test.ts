@@ -106,3 +106,23 @@ test('context transform retains conditional-cost helper and other wizard functio
   assert.match(transformed, /function costContextLabel\(cost: CostSelectDto\)/)
   assert.match(transformed, /function resolvedConditionalCost[\s\S]*?function applicableCost/)
 })
+
+test('missing cargo band never dereferences null in either quotation wizard', async () => {
+  // The selected services may contain costs with unmatched weight, package, or
+  // container bands, e.g. customs + warehouse-only tariffs on an FCL quote.
+  for (const file of [
+    '../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue',
+    '../src/modules/pricing/components/PricingRateExistingWizardStable.vue',
+  ]) {
+    const source = await readFile(new URL(file, import.meta.url), 'utf8')
+    assert.doesNotMatch(source, /resolvedConditionalCost\(cost\)!\.(?:costAmount|saleAmount)/)
+    assert.match(source, /const resolvedAmount = resolvedConditionalCost\(cost\)\s*if \(!resolvedAmount\) return/)
+    assert.match(source, /costAmount: resolvedAmount\.costAmount/)
+    assert.match(source, /saleAmount: resolvedAmount\.saleAmount/)
+  }
+  const landTransform = await readFile(new URL('../build/pricingFtlLandCostsFix.ts', import.meta.url), 'utf8')
+  assert.match(landTransform, /function applicableCost\(cost: CostSelectDto\) \{\s*\/\/[^]*?if \(!resolvedConditionalCost\(cost\)\) return false/)
+  const exwTransform = await readFile(new URL('../build/pricingExwFcaVariableCosts.ts', import.meta.url), 'utf8')
+  assert.match(exwTransform, /if \(!resolvedConditionalCost\(cost\)\) return false/)
+  assert.match(exwTransform, /costAmount: resolvedAmount\.costAmount/)
+})
