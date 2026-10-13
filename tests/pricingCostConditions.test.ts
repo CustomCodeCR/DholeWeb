@@ -18,25 +18,25 @@ test('Weight: 500 belongs to the first band and 500.01 to the next band', () => 
   assert.equal(resolveCostPricing(cost, { weightKg: 1600 }), null)
 })
 
-test('Consolidated land freight supports a fixed minimum band and per-KG bands', () => {
+test('Manually configured fixed and per-unit bands are calculated without any seeded tariffs', () => {
   const item = makeCost(json([
-    { dimension: 'WeightKg', minValue: 1, maxValue: 500, containerTypeId: null, costAmount: 180, saleAmount: 180, calculationMode: 'Flat' },
-    { dimension: 'WeightKg', minValue: 501, maxValue: 3000, containerTypeId: null, costAmount: .2, saleAmount: .2, calculationMode: 'PerKg' },
-    { dimension: 'WeightKg', minValue: 3001, maxValue: null, containerTypeId: null, costAmount: .18, saleAmount: .18, calculationMode: 'PerKg' },
+    { dimension: 'WeightKg', minValue: 1, maxValue: 10, containerTypeId: null, costAmount: 9, saleAmount: 12, calculationMode: 'Flat' },
+    { dimension: 'WeightKg', minValue: 11, maxValue: 20, containerTypeId: null, costAmount: 3, saleAmount: 4, calculationMode: 'PerKg' },
+    { dimension: 'WeightKg', minValue: 21, maxValue: null, containerTypeId: null, costAmount: 2, saleAmount: 5, calculationMode: 'PerKg' },
   ]))
-  assert.deepEqual(resolveCostPricing(item, { weightKg: 500 }), { costAmount: 180, saleAmount: 180 })
-  assert.deepEqual(resolveCostPricing(item, { weightKg: 2000 }), { costAmount: 400, saleAmount: 400 })
-  assert.deepEqual(resolveCostPricing(item, { weightKg: 3500 }), { costAmount: 630, saleAmount: 630 })
+  assert.deepEqual(resolveCostPricing(item, { weightKg: 10 }), { costAmount: 9, saleAmount: 12 })
+  assert.deepEqual(resolveCostPricing(item, { weightKg: 15 }), { costAmount: 45, saleAmount: 60 })
+  assert.deepEqual(resolveCostPricing(item, { weightKg: 25 }), { costAmount: 50, saleAmount: 125 })
 })
 
-test('Fiscal storage daily overage needs explicit days and never uses shipping free days', () => {
+test('Fiscal storage extra days are only calculated from explicitly entered values', () => {
   const item = makeCost(json([
-    { dimension: 'Packages', minValue: 1, maxValue: 3, containerTypeId: null,
-      costAmount: 1500, saleAmount: 1500, calculationMode: 'PerExtraDay', includedStorageDays: 5 },
+    { dimension: 'Packages', minValue: 1, maxValue: 2, containerTypeId: null,
+      costAmount: 2, saleAmount: 3, calculationMode: 'PerExtraDay', includedStorageDays: 3 },
   ]))
   assert.equal(resolveCostPricing(item, { packages: 2 }), null)
-  assert.equal(resolveCostPricing(item, { packages: 2, storageDays: 5 }), null)
-  assert.deepEqual(resolveCostPricing(item, { packages: 2, storageDays: 7 }), { costAmount: 3000, saleAmount: 3000 })
+  assert.equal(resolveCostPricing(item, { packages: 2, storageDays: 3 }), null)
+  assert.deepEqual(resolveCostPricing(item, { packages: 2, storageDays: 5 }), { costAmount: 4, saleAmount: 6 })
 })
 
 test('Package and container bands select only the matching tier', () => {
@@ -84,4 +84,11 @@ test('Pricing wizards re-evaluate tiers when weight, pieces, or equipment change
     assert.match(source, /form\.cargoWeightKg, form\.cargoPallets, form\.cargoPackages, form\.storageDays, form\.equipmentId/)
     assert.match(source, /if \(!resolvedConditionalCost\(cost\)\) return false/)
   }
+})
+
+test('New cost tiers do not prefill prices and require manual amounts and a service', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingCostFormDrawer.vue', import.meta.url), 'utf8')
+  assert.match(source, /costAmount: '',\s*saleAmount: '',/)
+  assert.match(source, /Seleccione el servicio al que pertenece este costo/)
+  assert.match(source, /Ingrese manualmente el costo y la venta de cada tramo/)
 })
