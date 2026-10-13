@@ -69,17 +69,37 @@ function compareFclCandidateRates(left: ImportRateSelectDto, right: ImportRateSe
     code,
     `const fclRateBundles = computed<FclRateBundle[]>(() => {`,
     `const fclCarrierFilterOptions = computed(() => {`,
-    `function fclDaysUntilExpiry(validTo: string) {
-  if (!validTo) return 0
-  const end = new Date(\`${'${String(validTo).slice(0, 10)}'}T12:00:00\`)
-  const today = new Date(\`${'${todayIso()}'}T12:00:00\`)
-  return Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86_400_000))
+    `function fclCalendarDay(value: string): number | null {
+  const isoDate = String(value ?? '').trim().slice(0, 10)
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(isoDate)) return null
+  const [year, month, day] = isoDate.split('-').map(Number)
+  const timestamp = Date.UTC(year, month - 1, day)
+  const parsed = new Date(timestamp)
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) return null
+  return timestamp
+}
+
+function fclDaysUntilExpiry(validTo: string): number | null {
+  const end = fclCalendarDay(validTo)
+  const today = fclCalendarDay(todayIso())
+  if (end === null || today === null) return null
+  return Math.round((end - today) / 86_400_000)
 }
 
 function fclExpiryLabel(validTo: string) {
   const days = fclDaysUntilExpiry(validTo)
+  if (days === null) return 'Fecha de vencimiento no disponible'
+  if (days < 0) return 'Venció hace ' + Math.abs(days) + (days === -1 ? ' día' : ' días')
   if (days === 0) return 'Vence hoy'
-  return \`Vence en ${'${days}'} día${'${days === 1 ? \'\' : \'s\'}'}\`
+  return 'Vence en ' + days + (days === 1 ? ' día' : ' días')
+}
+
+function fclExpiryTone(validTo: string): 'neutral' | 'danger' | 'warning' | 'success' {
+  const days = fclDaysUntilExpiry(validTo)
+  if (days === null) return 'neutral'
+  if (days <= 3) return 'danger'
+  if (days <= 7) return 'warning'
+  return 'success'
 }
 
 function compareFclCombinations(left: ImportRateSelectDto[], right: ImportRateSelectDto[]) {
