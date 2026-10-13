@@ -2,8 +2,11 @@ import type { Plugin } from 'vite'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 
-function patchWizard(source: string) {
-  const pattern = /function costContextLabel\(cost: CostSelectDto\) \{[\s\S]*?\n\}\n\nfunction applicableCost/
+// Replace only the costContextLabel function. The old regex matched up to
+// applicableCost and accidentally deleted intervening helpers, including
+// resolvedConditionalCost. Builds succeeded but runtime threw ReferenceError.
+export function patchPricingCostSelectedPartyContext(source: string) {
+  const pattern = /function costContextLabel\(cost: CostSelectDto\) \{[\s\S]*?\n\}/
   const matches = source.match(new RegExp(pattern.source, 'g'))
   if ((matches?.length ?? 0) !== 1) {
     throw new Error(
@@ -46,7 +49,7 @@ function patchWizard(source: string) {
   return parts.join(' · ') || null
 }
 
-function applicableCost`,
+`,
   )
 }
 
@@ -57,7 +60,7 @@ export function pricingCostSelectedPartyContext(): Plugin {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
       if (!normalizedId.endsWith(WIZARD_PATH)) return null
-      return { code: patchWizard(source), map: null }
+      return { code: patchPricingCostSelectedPartyContext(source), map: null }
     },
   }
 }

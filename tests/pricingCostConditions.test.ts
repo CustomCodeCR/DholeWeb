@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
+import { patchPricingCostSelectedPartyContext } from '../build/pricingCostSelectedPartyContext.ts'
 import { resolveCostPricing, readCostPricingRules, validateCostPricingRules } from '../src/modules/pricing/utils/pricingCostRules.ts'
 
 const makeCost = (pricingRulesJson: string | null) =>
@@ -91,4 +92,17 @@ test('New cost tiers do not prefill prices and require manual amounts and a serv
   assert.match(source, /costAmount: '',\s*saleAmount: '',/)
   assert.match(source, /Seleccione el servicio al que pertenece este costo/)
   assert.match(source, /Ingrese manualmente el costo y la venta de cada tramo/)
+})
+
+test('context transform retains conditional-cost helper and other wizard functions', async () => {
+  const source = await readFile(
+    new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url),
+    'utf8',
+  )
+  const transformed = patchPricingCostSelectedPartyContext(source)
+  assert.match(transformed, /function resolvedConditionalCost\(cost: CostSelectDto\)/)
+  assert.match(transformed, /function isOwnLclCarrierCatalogCost\(cost: CostSelectDto\)/)
+  assert.match(transformed, /function applicableCost\(cost: CostSelectDto\)/)
+  assert.match(transformed, /function costContextLabel\(cost: CostSelectDto\)/)
+  assert.match(transformed, /function resolvedConditionalCost[\s\S]*?function applicableCost/)
 })
