@@ -34,7 +34,7 @@ export function readCostPricingRules(json: string | null | undefined): CostPrici
 export function validateCostPricingRules(rules: CostPricingRule[]): string | null {
   if (rules.length > 100) return 'Puede configurar hasta 100 reglas.'
   if (!rules.length) return null
-  const dimension = rules[0].dimension
+  const dimension = rules[0]!.dimension
   for (const rule of rules) {
     if (rule.dimension !== dimension) return 'Todas las filas deben utilizar la misma condición.'
     if (!Number.isFinite(rule.costAmount) || rule.costAmount < 0
@@ -60,8 +60,8 @@ export function validateCostPricingRules(rules: CostPricingRule[]): string | nul
   }
   for (let i = 0; i < rules.length; i++) {
     for (let j = i + 1; j < rules.length; j++) {
-      const a = rules[i]
-      const b = rules[j]
+      const a = rules[i]!
+      const b = rules[j]!
       const overlap = dimension === 'ContainerType'
         ? a.containerTypeId === b.containerTypeId
         : (a.minValue ?? -Infinity) <= (b.maxValue ?? Infinity)
