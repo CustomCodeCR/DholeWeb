@@ -83,11 +83,14 @@ let catalogMarkers: Array<{ id: string; marker: LeafletMarker }> = []
 let resizeObserver: ResizeObserver | null = null
 
 function isLatitude(value: unknown): value is number {
+  // Number(null) and Number('') are zero, not valid configured coordinates.
+  if (value === null || value === undefined || value === '') return false
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed >= -90 && parsed <= 90
 }
 
 function isLongitude(value: unknown): value is number {
+  if (value === null || value === undefined || value === '') return false
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed >= -180 && parsed <= 180
 }
