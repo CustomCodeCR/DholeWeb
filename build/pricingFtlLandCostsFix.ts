@@ -139,6 +139,9 @@ function costMatchesHardRouteContext(cost: CostSelectDto) {
 }
 
 function applicableCost(cost: CostSelectDto) {
+  // Context matching alone is not enough: weight, bultos or equipment
+  // may have no configured price band. Exclude rather than dereference null.
+  if (!resolvedConditionalCost(cost)) return false
   const backendContextMatched = costResolvedByBackendContext(cost)
 
   // /costs/select is authoritative when it resolved the complete pricing context.
@@ -346,10 +349,8 @@ function rebuildRateLines`,
   // por Incoterm y puede contradecir una asociación explícita del costo maestro.
   code = replaceRegexOne(
     code,
-    /const configuredCosts = applicableConfiguredCosts\(\)\n  configuredCosts\.forEach\(\(cost\) => \{\n    const section = sectionForCost\(cost\)\n    if \(!visible\.has\(section\)\) return/,
-    `const configuredCosts = applicableConfiguredCosts()
-  configuredCosts.forEach((cost) => {
-    const section = sectionForCost(cost)`,
+    /(const configuredCosts = applicableConfiguredCosts\(\)\n  configuredCosts\.forEach\(\(cost\) => \{[\s\S]*?\n    const section = sectionForCost\(cost\))\n    if \(!visible\.has\(section\)\) return/,
+    '$1',
     'configured cost visual-section filter',
   )
 
