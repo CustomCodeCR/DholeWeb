@@ -238,7 +238,7 @@ function pricingRulesPayload(): CostPricingRule[] {
 
 const pricingRulesError = computed(() =>
   form.pricingDimension
-    ? (!form.pricingRows.length ? 'Agregue al menos un rango.' : validateCostPricingRules(pricingRulesPayload()))
+    ? (!form.serviceIds.length ? 'Seleccione el servicio al que pertenece este costo.' : !form.pricingRows.length ? 'Agregue al menos un rango.' : validateCostPricingRules(pricingRulesPayload()))
     : null,
 )
 
@@ -704,8 +704,9 @@ onMounted(catalogs.loadAll)
       <div class="mb-4">
         <h3 class="font-black text-[var(--dh-text)]">Reglas de costos por condiciones</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          Cada tramo tiene su propio costo y venta. Si no coincide un tramo, el rubro no se agregará
-          automáticamente. La base de cobro sigue definiendo la cantidad facturable.
+          Configure un servicio de Pricing en «Relaciones operativas» y los tramos que definen su importe.
+          Si el usuario no contrata ese servicio, el rubro no se agrega. La base de cobro determina
+          la cantidad cobrable por separado, y los días fiscales no son días libres de naviera.
         </p>
       </div>
       <DhSelect
