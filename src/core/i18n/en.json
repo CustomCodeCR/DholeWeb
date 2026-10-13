@@ -1549,8 +1549,11 @@
       "verifyError": "The credential could not be verified."
     },
     "browserProfiles": {
-      "verifyStart": "Start verification",
-      "verifyQueued": "Maersk verification queued. Open prod1 noVNC to complete authorized sign-in.",
+      "verifyStart": "Open original profile in noVNC",
+      "verifyQueued": "Manual verification started. Open noVNC through your SSH tunnel: the original browser is available for up to 7 minutes.",
+      "manualSessionTitle": "Manual Maersk verification running",
+      "manualSessionGuide": "Keep the SSH tunnel to prod1 active (local port 6080 to server port 6082). Open noVNC and sign in to the original browser within 7 minutes; navigate to /book and confirm the account control is visible. Cookies are not cleared and rate searches are not retried. If noVNC is empty, review execution status. If access is denied, contact the provider.",
+      "openLocalNovnc": "Open local noVNC",
       "verifyFailed": "Unable to start original Maersk session verification.",
       "viewVerification": "View authentication execution",
       "title": "Web sessions",
