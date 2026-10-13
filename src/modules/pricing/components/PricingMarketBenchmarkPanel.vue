@@ -94,6 +94,7 @@ const aiDraftAnalyzing = ref(false)
 const aiDraftAnalysisError = ref('')
 
 const selectedEquipmentId = ref<string | null>(props.context.containerTypeId ?? null)
+let draftBenchmarkRequestId = 0
 
 const canViewBenchmark = computed(() => authStore.hasScope(PRICING_SCOPES.marketBenchmark.view))
 const canCalculateBenchmark = computed(() => authStore.hasScope(PRICING_SCOPES.marketBenchmark.calculate))
@@ -562,10 +563,11 @@ async function loadLatestDecision(silent = true) {
 
 async function calculateDraftBenchmark() {
   if (!canCalculateBenchmark.value || !canDraftBenchmark.value) return
+  const requestId = ++draftBenchmarkRequestId
 
   try {
     action.value = 'benchmark'
-    benchmark.value = await MarketPricingService.calculateMarketBenchmark({
+    const nextBenchmark = await MarketPricingService.calculateMarketBenchmark({
       incotermId: props.context.incotermId!,
       polId: props.context.polId!,
       poeId: props.context.poeId || null,
@@ -578,11 +580,16 @@ async function calculateDraftBenchmark() {
       targetPercentile: 40,
       competitiveCeilingPercentile: 65,
     })
-    await analyzeDraftMarketWithAi()
+    if (requestId !== draftBenchmarkRequestId) return
+    benchmark.value = nextBenchmark
+    // The deterministic benchmark is the immediate recommendation.
+    // AI is opt-in only and cannot delay a quote.
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo calcular el benchmark de mercado.')
+    if (requestId === draftBenchmarkRequestId) {
+      toastStore.backendError(error, 'No se pudo calcular el benchmark de mercado.')
+    }
   } finally {
-    action.value = ''
+    if (requestId === draftBenchmarkRequestId) action.value = ''
   }
 }
 
@@ -830,6 +837,31 @@ watch(
   },
 )
 
+watch(
+  () => [
+    props.context.incotermId,
+    props.context.polId,
+    props.context.poeId,
+    props.context.podId,
+    props.context.mode,
+    props.context.carrierId,
+    props.context.referenceDate,
+  ].join('|'),
+  (_value, _oldValue, onCleanup) => {
+    if (props.rateId) return
+    draftBenchmarkRequestId += 1
+    benchmark.value = null
+    aiDraftSuggestion.value = null
+    aiDraftAnalysisError.value = ''
+    const handle = setTimeout(() => {
+      if (canCalculateBenchmark.value && canDraftBenchmark.value) {
+        void calculateDraftBenchmark()
+      }
+    }, 180)
+    onCleanup(() => clearTimeout(handle))
+  },
+)
+
 onMounted(() => {
   void pricingCatalogs.loadAll().catch(() => {})
   void initialize()
@@ -844,7 +876,7 @@ onMounted(() => {
           <span class="market-icon"><BarChart3 class="h-5 w-5" /></span>
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dh-text-muted)]">
-              IA + Average
+              Average · precio automático
             </p>
             <h3 class="mt-1 text-lg font-black text-[var(--dh-text)]">
               Sugerencia comercial contra mercado comparable
@@ -931,10 +963,10 @@ onMounted(() => {
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">
-            Análisis IA de venta
+            Análisis IA opcional
           </p>
           <p v-if="aiDraftAnalyzing" class="mt-1 text-sm font-bold">
-            Analizando Average y tarifas comparables…
+            Analizando con IA sin detener el cálculo de Average…
           </p>
           <template v-else-if="aiDraftSuggestion">
             <p class="mt-1 text-lg font-black">
@@ -1107,6 +1139,15 @@ onMounted(() => {
         >
           <WandSparkles class="h-4 w-4" />
           Aplicar sugerencia solo a ventas
+        </DhButton>
+        <DhButton
+          v-if="!rateId && benchmark && canExecuteMarketAi && !viewOnly"
+          variant="secondary"
+          size="sm"
+          :disabled="working || aiDraftAnalyzing"
+          @click="analyzeDraftMarketWithAi"
+        >
+          <WandSparkles class="h-4 w-4" /> {{ aiDraftAnalyzing ? 'Analizando con IA…' : 'Análisis IA opcional' }}
         </DhButton>
         <DhButton variant="secondary" size="sm" @click="showObservations = !showObservations">
           <Eye class="h-4 w-4" /> Ver tarifas utilizadas
