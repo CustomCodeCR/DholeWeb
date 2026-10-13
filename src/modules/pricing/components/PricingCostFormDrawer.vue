@@ -83,6 +83,7 @@ type RuleFormRow = {
   minValue: string
   maxValue: string
   containerTypeId: string
+  calculationMode: 'Flat' | 'PerKg'
   costAmount: string
   saleAmount: string
 }
@@ -102,6 +103,7 @@ const form = reactive({
     minValue: String(rule.minValue ?? ''),
     maxValue: String(rule.maxValue ?? ''),
     containerTypeId: rule.containerTypeId ?? '',
+    calculationMode: rule.calculationMode ?? 'Flat',
     costAmount: String(rule.costAmount),
     saleAmount: String(rule.saleAmount),
   })),
@@ -193,6 +195,11 @@ const routeSelectionValid = computed(() => {
   return true
 })
 
+const pricingCalculationOptions = [
+  { label: 'Monto fijo por tramo', value: 'Flat' },
+  { label: 'Monto por cada kilogramo', value: 'PerKg' },
+]
+
 const pricingDimensionOptions = [
   { label: 'Sin reglas · Monto fijo', value: '' },
   { label: 'Por rango de peso (kg)', value: 'WeightKg' },
@@ -205,6 +212,7 @@ function addPricingRule() {
     minValue: '',
     maxValue: '',
     containerTypeId: '',
+    calculationMode: 'Flat',
     costAmount: '0',
     saleAmount: '0',
   })
@@ -217,6 +225,7 @@ function pricingRulesPayload(): CostPricingRule[] {
     minValue: row.minValue === '' ? null : Number(row.minValue),
     maxValue: row.maxValue === '' ? null : Number(row.maxValue),
     containerTypeId: form.pricingDimension === 'ContainerType' ? row.containerTypeId || null : null,
+    calculationMode: form.pricingDimension === 'WeightKg' ? row.calculationMode : 'Flat',
     costAmount: Number(row.costAmount),
     saleAmount: isAgentSaleDisabled.value ? 0 : Number(row.saleAmount),
   }))
@@ -727,13 +736,21 @@ onMounted(catalogs.loadAll)
                 :label="form.pricingDimension === 'WeightKg' ? 'Hasta (kg) · incluido' : 'Hasta (bultos) · incluido'"
                 placeholder="Sin máximo" />
             </template>
-            <DhInput v-model="rule.costAmount" type="number" min="0" step="any" label="Costo del tramo" />
-            <DhInput v-model="rule.saleAmount" type="number" min="0" step="any" label="Venta del tramo"
+            <DhSelect v-if="form.pricingDimension === 'WeightKg'" v-model="rule.calculationMode"
+              label="Cómo se calcula el monto" :options="pricingCalculationOptions" />
+            <DhInput v-model="rule.costAmount" type="number" min="0" step="any"
+              :label="rule.calculationMode === 'PerKg' && form.pricingDimension === 'WeightKg' ? 'Costo por kg' : 'Costo del tramo'" />
+            <DhInput v-model="rule.saleAmount" type="number" min="0" step="any"
+              :label="rule.calculationMode === 'PerKg' && form.pricingDimension === 'WeightKg' ? 'Venta por kg' : 'Venta del tramo'"
               :disabled="isAgentSaleDisabled" />
           </div>
         </div>
         <p v-if="form.submitted && pricingRulesError" class="text-sm text-red-500">
           {{ pricingRulesError }}
+        </p>
+        <p v-if="form.pricingDimension === 'WeightKg'" class="text-xs text-[var(--dh-text-muted)]">
+          Para fletes consolidados puede combinar un importe fijo de 1 a 500 kg con importes por kg
+          para los rangos mayores. Use la base de cobro «Por embarque» para no multiplicar nuevamente el peso.
         </p>
         <DhButton type="button" variant="secondary" label="Agregar tramo" :icon="Plus" @click="addPricingRule" />
       </div>
