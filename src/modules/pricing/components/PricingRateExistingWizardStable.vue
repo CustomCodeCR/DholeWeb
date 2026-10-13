@@ -1639,6 +1639,11 @@ function resolvedConditionalCost(cost: CostSelectDto) {
 }
 
 function applicableCost(cost: CostSelectDto) {
+  // Fiscal storage days are not freight free days. Require the actual operator
+  // measurement before showing any automatically priced warehouse line.
+  if (cost.services?.some((service) =>
+    normalizeCatalogValue(`${service.name} ${service.code}`).includes('almacenaje')
+  ) && !(number(form.storageDays) > 0)) return false
   if (!resolvedConditionalCost(cost)) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
