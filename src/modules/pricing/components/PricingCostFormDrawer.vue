@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, watch } from 'vue'
-import { BadgeDollarSign, Info, Save } from 'lucide-vue-next'
+import { BadgeDollarSign, Info, Save, Plus, Trash2 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useDrawerStore } from '@/core/stores/drawerStore'
@@ -18,6 +18,7 @@ import type {
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import PricingMultiSelect from './PricingMultiSelect.vue'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { readCostPricingRules, validateCostPricingRules, type CostPricingRule, type CostRuleDimension } from '@/modules/pricing/utils/pricingCostRules'
 
 type CostShipmentMode = ShipmentMode | 'Any'
 
@@ -78,6 +79,15 @@ function initialChargeBasis(cost?: CostDto): ChargeBasis {
   return cost.chargeBasis ?? 'PerShipment'
 }
 
+type RuleFormRow = {
+  minValue: string
+  maxValue: string
+  containerTypeId: string
+  costAmount: string
+  saleAmount: string
+}
+const configuredPricingRules = readCostPricingRules(props.cost?.pricingRulesJson)
+
 const form = reactive({
   name: props.cost?.name ?? '',
   costType: (props.cost?.costType ?? 'Fixed') as CostType,
@@ -87,6 +97,14 @@ const form = reactive({
   minimumCostAmount: String(props.cost?.minimumCostAmount ?? ''),
   minimumSaleAmount: String(props.cost?.minimumSaleAmount ?? ''),
   kgPerCbm: String(props.cost?.kgPerCbm ?? ''),
+  pricingDimension: (configuredPricingRules[0]?.dimension ?? '') as CostRuleDimension | '',
+  pricingRows: configuredPricingRules.map((rule): RuleFormRow => ({
+    minValue: String(rule.minValue ?? ''),
+    maxValue: String(rule.maxValue ?? ''),
+    containerTypeId: rule.containerTypeId ?? '',
+    costAmount: String(rule.costAmount),
+    saleAmount: String(rule.saleAmount),
+  })),
   associationType: (props.cost?.agentId ? 'Agent' : props.cost?.carrierId ? 'Carrier' : 'None') as
     | 'None'
     | 'Agent'
@@ -173,6 +191,46 @@ const routeSelectionValid = computed(() => {
   if (scopeIncludes('Poe') && !form.poeId) return false
   if (scopeIncludes('Pod') && !form.podId) return false
   return true
+})
+
+const pricingDimensionOptions = [
+  { label: 'Sin reglas · Monto fijo', value: '' },
+  { label: 'Por rango de peso (kg)', value: 'WeightKg' },
+  { label: 'Por cantidad de bultos', value: 'Packages' },
+  { label: 'Por tipo y tamaño de contenedor', value: 'ContainerType' },
+]
+
+function addPricingRule() {
+  form.pricingRows.push({
+    minValue: '',
+    maxValue: '',
+    containerTypeId: '',
+    costAmount: '0',
+    saleAmount: '0',
+  })
+}
+
+function pricingRulesPayload(): CostPricingRule[] {
+  if (!form.pricingDimension) return []
+  return form.pricingRows.map((row) => ({
+    dimension: form.pricingDimension as CostRuleDimension,
+    minValue: row.minValue === '' ? null : Number(row.minValue),
+    maxValue: row.maxValue === '' ? null : Number(row.maxValue),
+    containerTypeId: form.pricingDimension === 'ContainerType' ? row.containerTypeId || null : null,
+    costAmount: Number(row.costAmount),
+    saleAmount: isAgentSaleDisabled.value ? 0 : Number(row.saleAmount),
+  }))
+}
+
+const pricingRulesError = computed(() =>
+  form.pricingDimension
+    ? (!form.pricingRows.length ? 'Agregue al menos un rango.' : validateCostPricingRules(pricingRulesPayload()))
+    : null,
+)
+
+watch(() => form.pricingDimension, () => {
+  form.pricingRows = []
+  if (form.pricingDimension) addPricingRule()
 })
 
 const costTypeOptions = [
@@ -380,6 +438,8 @@ async function submit() {
   )
     return
 
+  if (pricingRulesError.value) return
+
   const shipmentModes = concreteShipmentModes.value
 
   const payload: CreateCostRequest = {
@@ -423,6 +483,7 @@ async function submit() {
     minimumCostAmount: form.minimumCostAmount === '' ? null : Number(form.minimumCostAmount),
     minimumSaleAmount: form.minimumSaleAmount === '' ? null : Number(form.minimumSaleAmount),
     kgPerCbm: form.kgPerCbm === '' ? null : Number(form.kgPerCbm),
+    pricingRulesJson: form.pricingDimension ? JSON.stringify(pricingRulesPayload()) : null,
   }
 
   try {
@@ -622,6 +683,59 @@ onMounted(catalogs.loadAll)
           de botones seleccionadas arriba controlan su preselección automática en Pantalla 7.
         </p>
         <p v-else>Este rubro queda disponible como plantilla ajustable para la cotización.</p>
+      </div>
+    </section>
+
+    <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <div class="mb-4">
+        <h3 class="font-black text-[var(--dh-text)]">Reglas de costos por condiciones</h3>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+          Cada tramo tiene su propio costo y venta. Si no coincide un tramo, el rubro no se agregará
+          automáticamente. La base de cobro sigue definiendo la cantidad facturable.
+        </p>
+      </div>
+      <DhSelect
+        v-model="form.pricingDimension"
+        label="Determinar el monto según"
+        :options="pricingDimensionOptions"
+      />
+      <div v-if="form.pricingDimension" class="mt-4 space-y-3">
+        <div
+          v-for="(rule, index) in form.pricingRows"
+          :key="index"
+          class="rounded-2xl border border-[var(--dh-border)] p-3"
+        >
+          <div class="mb-3 flex items-center justify-between">
+            <p class="text-xs font-bold">Tramo {{ index + 1 }}</p>
+            <button type="button" class="text-red-500" :aria-label="`Eliminar tramo ${index + 1}`"
+              @click="form.pricingRows.splice(index, 1)">
+              <Trash2 class="h-4 w-4" />
+            </button>
+          </div>
+          <div class="grid gap-3 md:grid-cols-2">
+            <template v-if="form.pricingDimension === 'ContainerType'">
+              <div class="md:col-span-2">
+                <DhSelect v-model="rule.containerTypeId" label="Tipo y tamaño de contenedor"
+                  placeholder="Seleccione un equipo" :options="catalogs.containerOptions.value" />
+              </div>
+            </template>
+            <template v-else>
+              <DhInput v-model="rule.minValue" type="number" min="0" step="any"
+                :label="form.pricingDimension === 'WeightKg' ? 'Desde (kg) · incluido' : 'Desde (bultos) · incluido'"
+                placeholder="Sin mínimo" />
+              <DhInput v-model="rule.maxValue" type="number" min="0" step="any"
+                :label="form.pricingDimension === 'WeightKg' ? 'Hasta (kg) · incluido' : 'Hasta (bultos) · incluido'"
+                placeholder="Sin máximo" />
+            </template>
+            <DhInput v-model="rule.costAmount" type="number" min="0" step="any" label="Costo del tramo" />
+            <DhInput v-model="rule.saleAmount" type="number" min="0" step="any" label="Venta del tramo"
+              :disabled="isAgentSaleDisabled" />
+          </div>
+        </div>
+        <p v-if="form.submitted && pricingRulesError" class="text-sm text-red-500">
+          {{ pricingRulesError }}
+        </p>
+        <DhButton type="button" variant="secondary" label="Agregar tramo" :icon="Plus" @click="addPricingRule" />
       </div>
     </section>
 
