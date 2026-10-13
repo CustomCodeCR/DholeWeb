@@ -12,6 +12,7 @@ import type {
   CompetitorRateObservationDto,
   ImportCompetitorTariffRequest,
   ReviewCompetitorRateObservationRequest,
+  SetCompetitorTariffRoutesRequest,
   UpsertCompetitorTariffRequest,
   AssignImportRatePoeRequest,
   BrowseImportRatesQuery,
