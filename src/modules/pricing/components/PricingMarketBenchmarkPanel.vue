@@ -95,6 +95,7 @@ const aiDraftAnalysisError = ref('')
 
 const selectedEquipmentId = ref<string | null>(props.context.containerTypeId ?? null)
 let draftBenchmarkRequestId = 0
+let aiDraftRequestId = 0
 
 const canViewBenchmark = computed(() => authStore.hasScope(PRICING_SCOPES.marketBenchmark.view))
 const canCalculateBenchmark = computed(() => authStore.hasScope(PRICING_SCOPES.marketBenchmark.calculate))
@@ -305,6 +306,7 @@ async function analyzeDraftMarketWithAi() {
     return
   }
 
+  const aiRequestId = ++aiDraftRequestId
   aiDraftAnalyzing.value = true
   try {
     const included = marketObservations.value
@@ -389,6 +391,7 @@ async function analyzeDraftMarketWithAi() {
     const rawSuggestion = Number(parsed.suggestedSaleTotalUsd)
     if (!Number.isFinite(rawSuggestion) || rawSuggestion <= 0) return
 
+    if (aiRequestId !== aiDraftRequestId) return
     aiDraftSuggestion.value = {
       suggestedSaleTotalUsd: clampDraftAiSuggestion(rawSuggestion),
       reason: String(parsed.reason || '').trim()
@@ -397,11 +400,12 @@ async function analyzeDraftMarketWithAi() {
       modelName: result.modelName,
     }
   } catch {
+    if (aiRequestId !== aiDraftRequestId) return
     // Average sigue siendo el fallback autoritativo si IA no está disponible.
     aiDraftAnalysisError.value =
       'IA no disponible; la sugerencia se calculó de forma determinística con Average.'
   } finally {
-    aiDraftAnalyzing.value = false
+    if (aiRequestId === aiDraftRequestId) aiDraftAnalyzing.value = false
   }
 }
 
@@ -850,6 +854,8 @@ watch(
   (_value, _oldValue, onCleanup) => {
     if (props.rateId) return
     draftBenchmarkRequestId += 1
+    aiDraftRequestId += 1
+    aiDraftAnalyzing.value = false
     benchmark.value = null
     aiDraftSuggestion.value = null
     aiDraftAnalysisError.value = ''
