@@ -263,6 +263,7 @@ export interface CostDto extends Record<string, unknown> {
   minimumCostAmount?: number | null
   minimumSaleAmount?: number | null
   kgPerCbm?: number | null
+  pricingRulesJson?: string | null
 }
 
 // Select responses expose the same commercial fields; IsActive is omitted by
@@ -309,6 +310,7 @@ export interface CreateCostRequest extends Record<string, unknown> {
   minimumCostAmount?: number | null
   minimumSaleAmount?: number | null
   kgPerCbm?: number | null
+  pricingRulesJson?: string | null
 }
 
 export type UpdateCostRequest = CreateCostRequest
@@ -794,6 +796,7 @@ export interface RateDto extends Record<string, unknown> {
   shipmentMode: ShipmentMode
   operationType: RateOperationType
   totalPackages: number
+  storageDays?: number | null
   totalPallets: number
   totalWeightKg: number
   totalVolumeCbm: number
@@ -934,6 +937,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   containers?: CreateRateContainerRequest[]
   shipmentMode?: ShipmentMode
   totalPackages?: number
+  storageDays?: number | null
   totalPallets?: number
   totalWeightKg?: number
   totalVolumeCbm?: number
