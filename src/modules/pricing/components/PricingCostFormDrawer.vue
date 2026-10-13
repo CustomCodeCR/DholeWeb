@@ -83,7 +83,8 @@ type RuleFormRow = {
   minValue: string
   maxValue: string
   containerTypeId: string
-  calculationMode: 'Flat' | 'PerKg'
+  calculationMode: 'Flat' | 'PerKg' | 'PerExtraDay'
+  includedStorageDays: string
   costAmount: string
   saleAmount: string
 }
@@ -104,6 +105,7 @@ const form = reactive({
     maxValue: String(rule.maxValue ?? ''),
     containerTypeId: rule.containerTypeId ?? '',
     calculationMode: rule.calculationMode ?? 'Flat',
+    includedStorageDays: String(rule.includedStorageDays ?? ''),
     costAmount: String(rule.costAmount),
     saleAmount: String(rule.saleAmount),
   })),
@@ -198,6 +200,7 @@ const routeSelectionValid = computed(() => {
 const pricingCalculationOptions = [
   { label: 'Monto fijo por tramo', value: 'Flat' },
   { label: 'Monto por cada kilogramo', value: 'PerKg' },
+  { label: 'Monto por día adicional de almacenaje', value: 'PerExtraDay' },
 ]
 
 const pricingDimensionOptions = [
@@ -213,6 +216,7 @@ function addPricingRule() {
     maxValue: '',
     containerTypeId: '',
     calculationMode: 'Flat',
+    includedStorageDays: '',
     costAmount: '0',
     saleAmount: '0',
   })
@@ -225,7 +229,8 @@ function pricingRulesPayload(): CostPricingRule[] {
     minValue: row.minValue === '' ? null : Number(row.minValue),
     maxValue: row.maxValue === '' ? null : Number(row.maxValue),
     containerTypeId: form.pricingDimension === 'ContainerType' ? row.containerTypeId || null : null,
-    calculationMode: form.pricingDimension === 'WeightKg' ? row.calculationMode : 'Flat',
+    calculationMode: row.calculationMode === 'PerKg' && form.pricingDimension !== 'WeightKg' ? 'Flat' : row.calculationMode,
+    includedStorageDays: row.calculationMode === 'PerExtraDay' && row.includedStorageDays !== '' ? Number(row.includedStorageDays) : null,
     costAmount: Number(row.costAmount),
     saleAmount: isAgentSaleDisabled.value ? 0 : Number(row.saleAmount),
   }))
@@ -736,8 +741,10 @@ onMounted(catalogs.loadAll)
                 :label="form.pricingDimension === 'WeightKg' ? 'Hasta (kg) · incluido' : 'Hasta (bultos) · incluido'"
                 placeholder="Sin máximo" />
             </template>
-            <DhSelect v-if="form.pricingDimension === 'WeightKg'" v-model="rule.calculationMode"
-              label="Cómo se calcula el monto" :options="pricingCalculationOptions" />
+            <DhSelect v-model="rule.calculationMode"
+              label="Cómo se calcula el monto" :options="form.pricingDimension === 'WeightKg' ? pricingCalculationOptions : pricingCalculationOptions.filter((item) => item.value !== 'PerKg')" />
+            <DhInput v-if="rule.calculationMode === 'PerExtraDay'" v-model="rule.includedStorageDays"
+              type="number" min="0" step="1" label="Días incluidos sin recargo" />
             <DhInput v-model="rule.costAmount" type="number" min="0" step="any"
               :label="rule.calculationMode === 'PerKg' && form.pricingDimension === 'WeightKg' ? 'Costo por kg' : 'Costo del tramo'" />
             <DhInput v-model="rule.saleAmount" type="number" min="0" step="any"
