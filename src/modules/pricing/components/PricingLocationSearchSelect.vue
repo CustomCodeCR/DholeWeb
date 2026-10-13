@@ -25,7 +25,7 @@ const props = withDefaults(defineProps<{
   disabled: false,
 })
 
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string]; open: [] }>()
 
 const root = ref<HTMLElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
@@ -68,9 +68,13 @@ function selectedText() {
 
 function openSearch() {
   if (props.disabled) return
-  open.value = true
-  typing.value = false
-  query.value = selectedText()
+  if (!open.value) {
+    open.value = true
+    typing.value = false
+    query.value = selectedText()
+    // The parent may refresh this catalog when an existing wizard is reopened.
+    emit('open')
+  }
   void nextTick(() => input.value?.select())
 }
 
@@ -213,14 +217,18 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .pricing-location-menu {
-  background-color: #ffffff;
-  color: #030202;
+  background-color: var(--dh-card-solid, #ffffff);
+  color: var(--dh-text, #030202);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
+.pricing-location-option {
+  color: inherit;
+}
+
 .pricing-location-option:hover {
-  background-color: #f3f4f6;
+  background-color: var(--dh-card-hover, #f3f4f6);
 }
 
 .pricing-location-option--selected {
@@ -228,8 +236,8 @@ onBeforeUnmount(() => {
 }
 
 :global(.dark) .pricing-location-menu {
-  background-color: #18181b;
-  color: #ffffff;
+  background-color: var(--dh-card-solid, #18181b);
+  color: var(--dh-text, #ffffff);
 }
 
 :global(.dark) .pricing-location-option:hover {
