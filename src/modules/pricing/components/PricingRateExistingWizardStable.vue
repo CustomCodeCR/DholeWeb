@@ -44,6 +44,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -1623,7 +1624,16 @@ function costContextLabel(cost: CostSelectDto) {
   return parts.join(' · ') || null
 }
 
+function resolvedConditionalCost(cost: CostSelectDto) {
+  return resolveCostPricing(cost, {
+    weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : null,
+    packages: number(form.cargoPallets) > 0 ? Math.trunc(number(form.cargoPallets)) : null,
+    containerTypeId: selectedEquipment.value?.id ?? null,
+  })
+}
+
 function applicableCost(cost: CostSelectDto) {
+  if (!resolvedConditionalCost(cost)) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
@@ -1914,8 +1924,8 @@ function rebuildRateLines() {
       currencyId: cost.currencyId,
       currencyName: cost.currencyName,
       currencyCode: cost.currencyCode,
-      costAmount: number(cost.costAmount),
-      saleAmount: number(cost.saleAmount),
+      costAmount: resolvedConditionalCost(cost)!.costAmount,
+      saleAmount: resolvedConditionalCost(cost)!.saleAmount,
       included: true,
       optional: cost.costType === 'Optional',
       manual: false,
@@ -2107,8 +2117,8 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
         currencyId: cost.currencyId,
         currencyName: cost.currencyName,
         currencyCode: cost.currencyCode,
-        costAmount: number(cost.costAmount),
-        saleAmount: number(cost.saleAmount),
+        costAmount: resolvedConditionalCost(cost)!.costAmount,
+        saleAmount: resolvedConditionalCost(cost)!.saleAmount,
         included: cost.costType === 'Optional' ? true : includeFixed,
         optional: cost.costType === 'Optional',
         manual: false,
