@@ -111,7 +111,10 @@ test('multi-agent/port restrictions and coloader carrier isolation remain enforc
   assert.equal(match({ ...cost, pols: [], polId: 'COLON_FREE_ZONE' }), false,
     'Legacy single-POL costs remain restricted')
   state.incotermResponsibilitySections.value = ['destination_charges']
-  assert.equal(match(cost), false, 'FOB-style scope excludes origin costs')
+  assert.equal(match(cost), true,
+    'An applicable Pier17 OriginCharge must not be removed by display-only Incoterm sections')
+  assert.equal(match({ ...cost, incoterms: [{ id: 'DIFFERENT_TERM' }] }), false,
+    'Explicit Incoterm restrictions on the cost must still be respected')
 })
 
 test('screen 7 includes fixed charges exactly once alongside destination charges', () => {
@@ -163,4 +166,62 @@ test('incoterm responsibility uses normalized EXW/FCA/FOB value, not opaque conf
     'utf8',
   )
   assert.match(wizard, /incotermRateSections\(selectedIncotermCode\.value, configured\)/)
+})
+
+test('real Pier17 contextual response: all 8 costs survive FOB-style display section filtering', async () => {
+  const { load, rebuild, state } = createHarness()
+  // Exact values from /api/pricing/costs/select on 2026-10-14.
+  const pier17 = 'f52257f5-a5ed-4f00-87e8-688296e2289e'
+  const colonContainer = '1147bec1-d3c1-5c03-9782-ce61eec633a9'
+  const colonFreeZone = 'c2600000-0000-4000-8000-000000000010'
+  state.form.agentId = pier17
+  state.form.originId = colonContainer
+  state.form.destinationId = 'dd567784-6acc-4663-8d1c-b6cc2ec96056'
+  state.form.incotermId = 'cb540bc7-56c9-435d-a400-c4e07a8562e9'
+  state.form.serviceIds = ['c2300000-0000-4000-8000-000000000001']
+  // Simulates the restrictive Incoterm section list that used to silently
+  // discard every OriginCharge even after Pricing returned it as applicable.
+  state.incotermResponsibilitySections.value = ['international_freight', 'destination_charges']
+
+  const originRows = [
+    ['4d136754-86c4-4b3d-a5a9-852af8a7215e', 'Agency Fee', 3, 5],
+    ['002992ba-2c75-47ee-8b8a-ea77072509a1', 'AMS', 25, 30],
+    ['9f6ee3a9-b956-41d5-b7f7-243d17fdca20', 'BL', 45, 50],
+    ['23176dbc-f11d-412e-b99d-0aa4fbb0aa7a', 'EFS', 10, 15],
+    ['be028d6c-5927-42ab-bb39-0d1a4a800ae5', 'FAS', 30, 35],
+  ] as const
+  const destinationRows = [
+    ['edc568a0-3cc1-44f8-9ad4-c7f2481d2fd1', 'Handling', 50, 0],
+    ['7d6de231-8b59-489c-a69a-50159a3bffcf', 'HBL', 0, 50],
+    ['e5b98707-6f1f-4772-b178-e440be0887fa', 'Manejos', 0, 55],
+  ] as const
+  const originCosts = originRows.map(([id, name, costAmount, saleAmount]) => ({
+    ...origin(id, name), costAmount, saleAmount,
+    agentId: pier17, agents: [{ id: pier17 }],
+    polId: colonFreeZone,
+    pols: [{ id: colonContainer }, { id: colonFreeZone }],
+    incoterms: [], services: [],
+  }))
+  const destinationCosts = destinationRows.map(([id, name, costAmount, saleAmount]) => ({
+    ...origin(id, name), costAmount, saleAmount,
+    agentId: pier17, agents: [{ id: pier17 }],
+    costDetailType: 'DestinationCharge',
+    polId: null, pols: [], incoterms: [], services: [],
+  }))
+  state.PricingService.selectCosts = async () => [...originCosts, ...destinationCosts]
+
+  await load()
+  assert.equal(state.costs.value.length, 8, 'API costs must remain intact after eligibility checks')
+  rebuild()
+  assert.equal(state.rateLines.value.length, 9, '8 master costs plus international freight')
+  for (const [id, name, costAmount, saleAmount] of [...originRows, ...destinationRows]) {
+    const line = state.rateLines.value.filter((entry) => entry.costId === id)
+    assert.equal(line.length, 1, name + ' should appear exactly once on Screen 7')
+    assert.equal(line[0]?.name, name)
+    assert.equal(line[0]?.costAmount, costAmount)
+    assert.equal(line[0]?.saleAmount, saleAmount)
+    assert.equal(line[0]?.included, true)
+  }
+  rebuild()
+  assert.equal(state.rateLines.value.length, 9, 'Repeated rendering must not create duplicates')
 })
