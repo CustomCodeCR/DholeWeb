@@ -10,6 +10,10 @@ import { useToastStore } from '@/core/stores/toastStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
+// La vista de administrador es de solo lectura: el servidor valida SuperUsuario/view-all.
+const props = withDefaults(defineProps<{ adminPreview?: boolean }>(), { adminPreview: false })
+const selectedSellerId = ref('')
+
 interface SellerRateRequestDto {
   id: string
   priority: 'Green' | 'Yellow' | 'Red'
@@ -18,6 +22,8 @@ interface SellerRateRequestDto {
   dueAtUtc: string
   completedAtUtc?: string | null
   rateId?: string | null
+  sellerUserId?: string | null
+  sellerName?: string | null
   clientName?: string | null
   executiveName?: string | null
   shipmentMode?: string | null
@@ -34,7 +40,21 @@ const toast = useToastStore()
 const loading = ref(false)
 const hasLoaded = ref(false)
 const loadError = ref(false)
-const requests = ref<SellerRateRequestDto[]>([])
+const allRequests = ref<SellerRateRequestDto[]>([])
+const requests = computed(() => props.adminPreview && selectedSellerId.value
+  ? allRequests.value.filter((request) => request.sellerUserId === selectedSellerId.value)
+  : allRequests.value,
+)
+
+const sellerOptions = computed(() => {
+  const sellers = new Map<string, string>()
+  for (const request of allRequests.value) {
+    if (!request.sellerUserId) continue
+    sellers.set(request.sellerUserId, request.sellerName?.trim() || request.sellerUserId)
+  }
+  return Array.from(sellers, ([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+})
 const rates = ref<RateDto[]>([])
 
 
@@ -73,7 +93,13 @@ function statusVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutr
   return 'neutral'
 }
 
-const myRates = computed(() => [...new Map(rates.value.map((rate) => [rate.id, rate])).values()])
+const myRates = computed(() => {
+  const allowedRateIds = props.adminPreview && selectedSellerId.value
+    ? new Set(requests.value.map((request) => request.rateId).filter(Boolean))
+    : null
+  return [...new Map(rates.value.map((rate) => [rate.id, rate])).values()]
+    .filter((rate) => !allowedRateIds || allowedRateIds.has(rate.id))
+})
 const pendingRequests = computed(() => requests.value.filter((request) => !request.rateId).length)
 const countStatus = (status: SellerCommercialStatus) =>
   myRates.value.filter((rate) => commercialStatus(rate) === status).length
@@ -145,7 +171,7 @@ const pagedRates = computed(() => filteredRates.value.slice(
   (currentPage.value - 1) * pageSize,
   currentPage.value * pageSize,
 ))
-watch([search, statusFilter], () => { currentPage.value = 1 })
+watch([search, statusFilter, selectedSellerId], () => { currentPage.value = 1 })
 
 function currencyOf(rate: RateDto) {
   const name = String(rate.currencyName || rate.currencyCode || '').trim().toUpperCase()
@@ -240,6 +266,7 @@ function canRespondToRate(rate: RateDto) {
 }
 
 function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
+  if (props.adminPreview) return
   modalStore.open({
     title: decision === 'AcceptedByClient'
       ? 'Registrar aceptación del cliente'
@@ -259,10 +286,18 @@ async function load() {
     loading.value = true
     loadError.value = false
     const [requestResponse, rateResponse] = await Promise.all([
-      callEndpoint<unknown>({ method: 'GET', path: '/api/pricing/rate-requests/mine', headers: { Accept: 'application/json' } }),
-      callEndpoint<unknown>({ method: 'GET', path: '/api/pricing/seller-rates', headers: { Accept: 'application/json' } }),
+      callEndpoint<unknown>({
+        method: 'GET',
+        path: props.adminPreview ? '/api/pricing/rate-requests/dashboard' : '/api/pricing/rate-requests/mine',
+        headers: { Accept: 'application/json' },
+      }),
+      callEndpoint<unknown>({
+        method: 'GET',
+        path: props.adminPreview ? '/api/pricing/seller-rates/dashboard' : '/api/pricing/seller-rates',
+        headers: { Accept: 'application/json' },
+      }),
     ])
-    requests.value = unwrapListResponse<SellerRateRequestDto>(requestResponse)
+    allRequests.value = unwrapListResponse<SellerRateRequestDto>(requestResponse)
     rates.value = unwrapListResponse<RateDto>(rateResponse)
   } catch (error) {
     loadError.value = true
@@ -281,13 +316,34 @@ onMounted(load)
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">Dashboard por rol</p>
-        <h2 class="mt-1 text-2xl font-black text-[var(--dh-text)]">Mi gestión comercial</h2>
+        <h2 class="mt-1 text-2xl font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Dashboard de Ventas' : 'Mi gestión comercial' }}</h2>
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-          Seguimiento de mis solicitudes, cotizaciones y resultados con clientes.
+          {{ props.adminPreview
+            ? 'Vista administrativa del equipo comercial. Seleccione un vendedor para revisar sus indicadores.'
+            : 'Seguimiento de solicitudes, cotizaciones y resultados con clientes.' }}
         </p>
       </div>
       <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
     </div>
+
+    <section v-if="props.adminPreview" class="flex flex-col gap-3 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="text-sm font-black text-[var(--dh-text)]">Vista de supervisión comercial</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+          Datos de todas las solicitudes de vendedores o de un vendedor seleccionado. Solo lectura; no modifica su identidad ni permite aceptar o rechazar tarifas ajenas.
+        </p>
+      </div>
+      <select
+        v-model="selectedSellerId"
+        aria-label="Seleccionar vendedor"
+        class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm font-semibold text-[var(--dh-text)] sm:w-72"
+      >
+        <option value="">Todos los vendedores</option>
+        <option v-for="seller in sellerOptions" :key="seller.id" :value="seller.id">
+          {{ seller.name }}
+        </option>
+      </select>
+    </section>
 
     <div v-if="loading && !hasLoaded" class="rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-10 text-center text-sm font-bold text-[var(--dh-text-muted)]">
       Cargando mi gestión comercial...
@@ -409,9 +465,9 @@ onMounted(load)
       <section class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
         <div class="flex flex-col gap-3 border-b border-[var(--dh-border)] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 class="font-black text-[var(--dh-text)]">Mis tarifas y seguimiento de ventas</h3>
+            <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Tarifas del equipo y seguimiento de ventas' : 'Mis tarifas y seguimiento de ventas' }}</h3>
             <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-              Se muestran todas las tarifas vinculadas a sus solicitudes, no solo las recientes.
+              {{ props.adminPreview ? 'Tarifas vinculadas a las solicitudes de vendedores, filtradas por persona.' : 'Se muestran todas las tarifas vinculadas a sus solicitudes, no solo las recientes.' }}
             </p>
           </div>
           <div class="flex flex-col gap-2 sm:flex-row">
@@ -459,7 +515,7 @@ onMounted(load)
                 <span class="text-xs text-[var(--dh-text-muted)]">Vigencia hasta {{ formatDate(rate.validTo) }}</span>
                 <strong class="text-sm text-[var(--dh-text)]">{{ money(rate.totalSaleAmount, currencyOf(rate)) }}</strong>
               </div>
-              <div v-if="canRespondToRate(rate)" class="mt-3 flex gap-2">
+              <div v-if="!props.adminPreview && canRespondToRate(rate)" class="mt-3 flex gap-2">
                 <DhButton label="Aceptar" size="sm" @click="openCustomerDecision(rate, 'AcceptedByClient')" />
                 <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
               </div>
@@ -492,7 +548,7 @@ onMounted(load)
                   <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ formatDate(rate.validTo) }}</td>
                   <td class="px-4 py-3"><DhBadge :label="statusLabel(commercialStatus(rate))" :variant="statusVariant(rate)" /></td>
                   <td class="px-4 py-3">
-                    <div v-if="canRespondToRate(rate)" class="flex gap-1.5">
+                    <div v-if="!props.adminPreview && canRespondToRate(rate)" class="flex gap-1.5">
                       <DhButton label="Aceptar" size="sm" @click="openCustomerDecision(rate, 'AcceptedByClient')" />
                       <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
                     </div>
@@ -514,8 +570,8 @@ onMounted(load)
 
       <section class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
         <div class="border-b border-[var(--dh-border)] px-4 py-3.5">
-          <h3 class="font-black text-[var(--dh-text)]">Mis solicitudes recientes a Pricing</h3>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Estado de los requerimientos que envió al equipo de Pricing.</p>
+          <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Solicitudes recientes a Pricing' : 'Mis solicitudes recientes a Pricing' }}</h3>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Estado de los requerimientos enviados al equipo de Pricing.</p>
         </div>
         <p v-if="!latestRequests.length" class="p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
           Todavía no hay solicitudes registradas.
