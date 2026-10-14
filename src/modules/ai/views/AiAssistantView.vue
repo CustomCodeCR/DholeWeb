@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { getApiErrorMessage } from '@/core/api/apiErrorHandler'
+import { getApiErrorMessage, NetworkError } from '@/core/api/apiErrorHandler'
 import {
   Bot,
   Download,
@@ -176,7 +176,9 @@ async function sendMessage() {
     messages.value = messages.value.filter((message) => message.id !== userMessageId)
     if (!prompt.value.trim()) prompt.value = content
     selectedFile.value = file
-    sendError.value = getApiErrorMessage(error, 'El asistente no pudo procesar la consulta o el archivo.')
+    sendError.value = error instanceof NetworkError
+      ? 'No se pudo establecer conexión con el servicio de IA. La red o el servidor interrumpió la solicitud. Puede volver a intentarlo sin perder su mensaje.'
+      : getApiErrorMessage(error, 'El asistente no pudo procesar la consulta o el archivo.')
     persist()
   } finally {
     sending.value = false
