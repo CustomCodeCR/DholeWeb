@@ -1316,7 +1316,9 @@ function enforceLineCurrency(_line: RateLine) {
 
 const incotermResponsibilitySections = computed<RateSection[]>(() => {
   const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
-  return incotermRateSections(selectedIncoterm.value?.code, configured) as RateSection[]
+  // Config's `code` can be an opaque catalog identifier. Use the normalized
+  // EXW/FCA/FOB term resolved from its display value instead.
+  return incotermRateSections(selectedIncotermCode.value, configured) as RateSection[]
 })
 
 const visibleSections = computed<RateSection[]>(() => {
