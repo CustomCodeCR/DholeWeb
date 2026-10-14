@@ -29,7 +29,7 @@ import {
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
 
-type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient'
+type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient' | 'Cancelled'
 type CommercialRateStatusFilter = CommercialRateStatus | ''
 
 const commercialStatuses = new Set<CommercialRateStatus>([
@@ -39,6 +39,7 @@ const commercialStatuses = new Set<CommercialRateStatus>([
   'Expired',
   'AcceptedByClient',
   'RejectedByClient',
+  'Cancelled',
 ])
 
 function normalizeCommercialStatus(value: unknown): CommercialRateStatusFilter {
@@ -329,6 +330,7 @@ const statusOptions: Array<{ label: string; value: CommercialRateStatusFilter }>
   { label: 'Vencidas', value: 'Expired' },
   { label: 'Aceptadas', value: 'AcceptedByClient' },
   { label: 'No aceptadas', value: 'RejectedByClient' },
+  { label: 'Canceladas', value: 'Cancelled' },
 ]
 
 const quickStatusOptions = statusOptions
@@ -357,6 +359,7 @@ function statusLabel(status: string) {
         AcceptedByClient: 'Aceptada',
         RejectedByClient: 'No aceptada',
         Closed: 'No aceptada',
+        Cancelled: 'Cancelada',
         Expired: 'Vencida',
       } as Record<string, string>
     )[status] ?? status

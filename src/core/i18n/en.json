@@ -715,6 +715,7 @@
       "Sent": "Sent",
       "AcceptedByClient": "Accepted by client",
       "RejectedByClient": "Rejected by client",
+      "Cancelled": "Cancelled",
       "RequestedByClient": "Requested by client",
       "Closed": "Closed",
       "Expired": "Expired"
