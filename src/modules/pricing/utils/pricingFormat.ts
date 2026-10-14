@@ -56,6 +56,7 @@ export function statusTone(status: RateStatus | string) {
   if (status === 'Sent') return 'primary' as const
   if (status === 'RequestedByClient') return 'warning' as const
   if (status === 'Closed') return 'neutral' as const
+  if (status === 'Cancelled') return 'danger' as const
   if (status === 'Pending' || status === 'PendingApproval') return 'warning' as const
   if (
     status === 'Rejected' ||

@@ -56,6 +56,7 @@ export type RateStatus =
   | 'RejectedByClient'
   | 'RequestedByClient'
   | 'Closed'
+  | 'Cancelled'
   | 'Expired'
 
 export interface CostIncotermDto {
@@ -998,7 +999,7 @@ export interface GenerateRateDocumentRequest extends Record<string, unknown> {
 export interface SetRateStatusRequest extends Record<string, unknown> {
   status: Extract<
     RateStatus,
-    'Open' | 'Sent' | 'RequestedByClient' | 'AcceptedByClient' | 'RejectedByClient' | 'Closed'
+    'Open' | 'Sent' | 'RequestedByClient' | 'AcceptedByClient' | 'RejectedByClient' | 'Closed' | 'Cancelled'
   >
   reason?: string | null
   idtraNumber?: string | null

@@ -82,6 +82,7 @@ const statusCards = computed(() => {
     { label: 'Vencidas', value: data.expiredCount, status: 'Expired' as RateStatus, icon: TimerOff },
     { label: 'Aceptadas', value: data.acceptedByClientCount, status: 'AcceptedByClient' as RateStatus, icon: BadgeCheck },
     { label: 'No aceptadas', value: data.rejectedCount, status: 'RejectedByClient' as RateStatus, icon: XCircle },
+    { label: 'Canceladas', value: data.statuses.find((entry) => entry.status === 'Cancelled')?.count ?? 0, status: 'Cancelled' as RateStatus, icon: XCircle },
   ]
 })
 
@@ -142,6 +143,7 @@ function statusLabel(status: RateStatus) {
       Expired: 'Vencida',
       AcceptedByClient: 'Aceptada',
       RejectedByClient: 'No aceptada',
+      Cancelled: 'Cancelada',
     } as Record<string, string>
   )[commercialStatus(status)] ?? 'Abierta'
 }
