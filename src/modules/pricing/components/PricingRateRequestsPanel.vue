@@ -46,15 +46,17 @@ const now = ref(Date.now())
 let timer: number | undefined
 
 const sortedRequests = computed(() => {
-  const order: Record<Priority, number> = { Green: 0, Yellow: 1, Red: 2 }
+  // Urgentes primero. Dentro de una prioridad, FIFO por fecha de recepción.
+  const order: Record<Priority, number> = { Red: 0, Yellow: 1, Green: 2 }
   return [...requests.value].sort((left, right) =>
     order[left.priority] - order[right.priority]
-    || new Date(left.dueAtUtc).getTime() - new Date(right.dueAtUtc).getTime()
+    || new Date(left.requestedAtUtc).getTime() - new Date(right.requestedAtUtc).getTime()
+    || left.id.localeCompare(right.id)
   )
 })
 
 function priorityLabel(priority: Priority) {
-  return priority === 'Green' ? 'Verde · 24 h' : priority === 'Yellow' ? 'Amarillo · 48 h' : 'Rojo · 72 h'
+  return priority === 'Green' ? 'Verde · Regular' : priority === 'Yellow' ? 'Amarillo · Prioritario' : 'Rojo · Urgente'
 }
 
 function priorityVariant(priority: Priority): 'success' | 'warning' | 'danger' {
@@ -209,6 +211,7 @@ onBeforeUnmount(() => {
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
           Pricing ve POL, POE y POD definidos por Ventas antes de continuar la tarifa.
         </p>
+        <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">Orden de atención: <span class="text-red-500">Rojo · Urgente</span> → <span class="text-amber-500">Amarillo · Prioritario</span> → <span class="text-emerald-500">Verde · Regular</span>. Primero las solicitudes más antiguas de cada prioridad.</p>
       </div>
       <DhButton variant="secondary" :disabled="loading" @click="load">
         <RefreshCcw class="h-4 w-4" /> Actualizar
@@ -233,7 +236,7 @@ onBeforeUnmount(() => {
             <th class="px-4 py-3">POL</th>
             <th class="px-4 py-3">POE</th>
             <th class="px-4 py-3">POD</th>
-            <th class="px-4 py-3">Tipo</th>
+            <th class="px-4 py-3">Prioridad</th>
             <th class="px-4 py-3">Incoterm</th>
             <th class="px-4 py-3">Tiempo</th>
             <th class="px-4 py-3">Límite</th>
@@ -241,7 +244,7 @@ onBeforeUnmount(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="request in sortedRequests" :key="request.id" class="border-t border-[var(--dh-border)]">
+          <tr v-for="request in sortedRequests" :key="request.id" class="border-t border-[var(--dh-border)]" :class="request.priority === 'Red' ? 'bg-red-500/10' : request.priority === 'Yellow' ? 'bg-amber-500/10' : 'bg-emerald-500/5'">
             <td class="px-4 py-3"><strong>{{ request.executiveName || request.sellerName || 'Vendedor' }}</strong></td>
             <td class="px-4 py-3"><strong>{{ request.clientName || 'Cliente sin definir' }}</strong></td>
             <td class="px-4 py-3"><strong>{{ equipmentLabel(request) }}</strong></td>
@@ -253,9 +256,9 @@ onBeforeUnmount(() => {
               <DhBadge v-if="!podMissing(request)" :label="podLabel(request)" variant="primary" />
               <DhBadge v-else label="POD no indicado" variant="danger" />
             </td>
-            <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
+            <td class="border-l-4 px-4 py-3" :class="request.priority === 'Red' ? 'border-red-500' : request.priority === 'Yellow' ? 'border-amber-500' : 'border-emerald-500'"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
             <td class="px-4 py-3 font-bold">{{ incotermLabel(request) }}</td>
-            <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong></td>
+            <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong><p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Recibida: {{ new Date(request.requestedAtUtc).toLocaleString('es-CR') }}</p></td>
             <td class="px-4 py-3">
               <strong :class="isOverdue(request) ? 'text-red-600 dark:text-red-300' : 'text-[var(--dh-text)]'">{{ remaining(request) }}</strong>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ new Date(request.dueAtUtc).toLocaleString('es-CR') }}</p>
