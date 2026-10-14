@@ -59,7 +59,7 @@ const rates = ref<RateDto[]>([])
 
 
 // El endpoint seller-rates determina la propiedad por SellerUserId del token, no por texto del vendedor.
-type SellerCommercialStatus = 'Open' | 'Sent' | 'AcceptedByClient' | 'RejectedByClient' | 'Expired'
+type SellerCommercialStatus = 'Open' | 'Sent' | 'AcceptedByClient' | 'RejectedByClient' | 'Cancelled' | 'Expired'
 type SellerStatusFilter = 'All' | SellerCommercialStatus
 const search = ref('')
 const statusFilter = ref<SellerStatusFilter>('All')
@@ -68,6 +68,7 @@ const pageSize = 10
 
 function commercialStatus(rate: RateDto): SellerCommercialStatus {
   if (rate.status === 'AcceptedByClient') return 'AcceptedByClient'
+  if (rate.status === 'Cancelled') return 'Cancelled'
   if (rate.status === 'RejectedByClient' || rate.status === 'Closed') return 'RejectedByClient'
   if (rate.status === 'Expired') return 'Expired'
   if (rate.status === 'Sent' || rate.status === 'RequestedByClient') return 'Sent'
@@ -80,6 +81,7 @@ function statusLabel(status: SellerCommercialStatus) {
     Sent: 'Enviada · Esperando cliente',
     AcceptedByClient: 'Aceptada',
     RejectedByClient: 'Rechazada',
+    Cancelled: 'Cancelada',
     Expired: 'Vencida',
   }
   return labels[status]
@@ -88,7 +90,7 @@ function statusLabel(status: SellerCommercialStatus) {
 function statusVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutral' {
   const status = commercialStatus(rate)
   if (status === 'AcceptedByClient') return 'success'
-  if (status === 'RejectedByClient' || status === 'Expired') return 'danger'
+  if (status === 'RejectedByClient' || status === 'Cancelled' || status === 'Expired') return 'danger'
   if (status === 'Sent') return 'warning'
   return 'neutral'
 }
@@ -108,6 +110,7 @@ const openRates = computed(() => countStatus('Open'))
 const sentRates = computed(() => countStatus('Sent'))
 const acceptedRates = computed(() => countStatus('AcceptedByClient'))
 const rejectedRates = computed(() => countStatus('RejectedByClient'))
+const cancelledRates = computed(() => countStatus('Cancelled'))
 const expiredRates = computed(() => countStatus('Expired'))
 const totalRates = computed(() => myRates.value.length)
 
@@ -127,6 +130,7 @@ const statusCards = computed(() => [
   { label: 'Enviadas', count: sentRates.value, filter: 'Sent' as SellerStatusFilter, icon: Send },
   { label: 'Aceptadas', count: acceptedRates.value, filter: 'AcceptedByClient' as SellerStatusFilter, icon: CheckCircle2 },
   { label: 'Rechazadas', count: rejectedRates.value, filter: 'RejectedByClient' as SellerStatusFilter, icon: XCircle },
+  { label: 'Canceladas', count: cancelledRates.value, filter: 'Cancelled' as SellerStatusFilter, icon: XCircle },
   { label: 'Vencidas', count: expiredRates.value, filter: 'Expired' as SellerStatusFilter, icon: TimerOff },
 ])
 
@@ -491,6 +495,7 @@ onMounted(load)
               <option value="Sent">Enviadas</option>
               <option value="AcceptedByClient">Aceptadas</option>
               <option value="RejectedByClient">Rechazadas</option>
+              <option value="Cancelled">Canceladas</option>
               <option value="Expired">Vencidas</option>
             </select>
           </div>

@@ -205,9 +205,11 @@ const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
-const commercialAction = ref<'accept' | 'reject' | null>(null)
+const commercialAction = ref<'accept' | 'reject' | 'cancel' | null>(null)
 const commercialIdtra = ref('')
 const commercialRejectionReason = ref('')
+const commercialCancellationReason = ref('')
+const commercialCancellationKind = ref<'Cancelled' | 'RejectedByClient'>('Cancelled')
 const commercialStatusSaving = ref(false)
 const commercialActionError = ref('')
 const downloadingQuote = ref(false)
@@ -399,6 +401,11 @@ const canAcceptOrReject = computed(() => {
 
   return regularDecision || privilegedDecision
 })
+const canCancelAccepted = computed(() =>
+  canUpdateRateStatus.value
+  && !isMasterTariff.value
+  && currentCommercialStatus.value === 'AcceptedByClient',
+)
 
 const modalityOptions: Array<{ value: Modality; label: string; caption: string }> = [
   { value: 'Maritime', label: 'Marítimo', caption: 'FCL y LCL' },
@@ -2846,6 +2853,8 @@ async function hydrateExistingRate() {
     commercialIdtra.value = rate.idtraNumber ?? ''
     commercialRejectionReason.value = rate.status === 'RejectedByClient' ? rate.closedReason ?? '' : ''
     commercialAction.value = null
+    commercialCancellationReason.value = ''
+    commercialCancellationKind.value = 'Cancelled'
     commercialActionError.value = ''
     form.pickupAddress = rate.pickupAddress ?? ''
     form.pickupLatitude = rate.pickupLatitude ?? null
@@ -2938,6 +2947,7 @@ function commercialStatusLabel(status: string) {
     RejectedByClient: 'Rechazada',
     RequestedByClient: 'Solicitada por cliente',
     Closed: 'Cerrada',
+    Cancelled: 'Cancelada',
     Expired: 'Vencida',
   } as Record<string, string>)[status] ?? status
 }
@@ -3008,6 +3018,46 @@ function startCommercialDecision(action: 'accept' | 'reject') {
   commercialActionError.value = ''
   if (action === 'accept') commercialIdtra.value = editingRate.value?.idtraNumber ?? form.idtraNumber ?? ''
   if (action === 'reject') commercialRejectionReason.value = ''
+}
+
+function startAcceptedRateCancellation() {
+  if (!editingRate.value || !canCancelAccepted.value || commercialStatusSaving.value) return
+  commercialAction.value = 'cancel'
+  commercialCancellationKind.value = 'Cancelled'
+  commercialCancellationReason.value = ''
+  commercialActionError.value = ''
+}
+
+async function submitAcceptedRateCancellation() {
+  if (!editingRate.value || !canCancelAccepted.value || commercialStatusSaving.value || commercialAction.value !== 'cancel') return
+  const reason = commercialCancellationReason.value.trim()
+  if (!reason) {
+    commercialActionError.value = 'Debe indicar el motivo de la cancelación o rechazo.'
+    return
+  }
+  if (reason.length > 1000) {
+    commercialActionError.value = 'El motivo no puede superar los 1000 caracteres.'
+    return
+  }
+
+  try {
+    commercialStatusSaving.value = true
+    commercialActionError.value = ''
+    await PricingService.setRateStatus(editingRate.value.id, {
+      status: commercialCancellationKind.value,
+      reason,
+    })
+    toastStore.success(
+      commercialCancellationKind.value === 'Cancelled' ? 'Cotización cancelada' : 'Cotización rechazada',
+      'La decisión y su motivo quedaron registrados sin eliminar la cotización.',
+    )
+    await hydrateExistingRate()
+  } catch (error) {
+    commercialActionError.value = 'No se pudo cancelar la cotización aceptada.'
+    toastStore.backendError(error, commercialActionError.value)
+  } finally {
+    commercialStatusSaving.value = false
+  }
 }
 
 async function submitCommercialDecision() {
@@ -5105,16 +5155,19 @@ onMounted(async () => {
                   </span>
                 </template>
                 <template v-else>
-                  <DhButton size="sm" variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
-                  <DhButton size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
-                  <DhButton size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
+                  <DhButton v-if="!canCancelAccepted" size="sm" variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
+                  <DhButton v-if="!canCancelAccepted" size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
+                  <DhButton v-if="!canCancelAccepted" size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
+                  <DhButton v-if="canCancelAccepted" size="sm" variant="danger" :disabled="commercialStatusSaving" @click="startAcceptedRateCancellation">Cancelar cotización</DhButton>
                 </template>
               </div>
             </div>
             <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
               {{ isMasterTariff
                 ? 'El tarifario maestro permanece reutilizable durante su vigencia. Aplicarlo crea una nueva QUO del cliente; la aceptación o rechazo se registra únicamente sobre esa QUO hija.'
-                : canApproveLowMargin && currentCommercialStatus === 'Open'
+                : currentCommercialStatus === 'AcceptedByClient'
+                  ? 'La tarifa fue aceptada. Si el cliente cancela o retira su aceptación, use Cancelar cotización e indique el motivo.'
+                  : canApproveLowMargin && currentCommercialStatus === 'Open'
                   ? 'Con el permiso Aprobar margen bajo puede registrar la tarifa como Aceptada o Rechazada directamente desde Abierta, sin marcarla primero como Enviada.'
                   : 'Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.' }}
             </p>
@@ -5139,9 +5192,23 @@ onMounted(async () => {
               </div>
             </div>
 
+            <div v-if="commercialAction === 'cancel' && canCancelAccepted" class="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4">
+              <p class="text-sm font-black">Cancelar cotización aceptada</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione si se canceló la operación o si el cliente retiró su aceptación. El estado anterior quedará en auditoría y se conservarán QUO, IDTRA y revisiones.</p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <DhButton size="sm" :variant="commercialCancellationKind === 'Cancelled' ? 'danger' : 'secondary'" :disabled="commercialStatusSaving" @click="commercialCancellationKind = 'Cancelled'">Cancelada</DhButton>
+                <DhButton size="sm" :variant="commercialCancellationKind === 'RejectedByClient' ? 'danger' : 'secondary'" :disabled="commercialStatusSaving" @click="commercialCancellationKind = 'RejectedByClient'">Rechazada por cliente</DhButton>
+              </div>
+              <DhTextarea v-model="commercialCancellationReason" class="mt-3" label="Motivo obligatorio" placeholder="Explique por qué se canceló o rechazó después de aceptar" :rows="4" />
+              <div class="mt-3 flex flex-wrap justify-end gap-2">
+                <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Volver</DhButton>
+                <DhButton variant="danger" :loading="commercialStatusSaving" :disabled="commercialStatusSaving || !commercialCancellationReason.trim() || commercialCancellationReason.trim().length > 1000" @click="submitAcceptedRateCancellation">Confirmar decisión</DhButton>
+              </div>
+            </div>
+
             <p v-if="commercialActionError" class="mt-3 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-black text-red-600 dark:text-red-300">{{ commercialActionError }}</p>
-            <div v-if="editingRate.status === 'RejectedByClient' && editingRate.closedReason" class="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4">
-              <p class="text-[10px] font-black uppercase tracking-[0.14em] text-red-600 dark:text-red-300">Motivo de rechazo</p>
+            <div v-if="['RejectedByClient', 'Cancelled'].includes(editingRate.status) && editingRate.closedReason" class="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4">
+              <p class="text-[10px] font-black uppercase tracking-[0.14em] text-red-600 dark:text-red-300">{{ editingRate.status === 'Cancelled' ? 'Motivo de cancelación' : 'Motivo de rechazo' }}</p>
               <p class="mt-2 whitespace-pre-wrap text-sm font-bold">{{ editingRate.closedReason }}</p>
             </div>
           </div>

@@ -83,6 +83,7 @@ function statusLabel(status: string) {
     AcceptedByClient: 'Aceptada',
     RejectedByClient: 'No aceptada',
     Closed: 'Cerrada',
+    Cancelled: 'Cancelada',
     Expired: 'Vencida',
   }
   return labels[status] ?? status
