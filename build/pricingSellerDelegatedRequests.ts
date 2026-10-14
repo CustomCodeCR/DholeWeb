@@ -14,10 +14,10 @@ function patchWizard(source: string) {
   let code = source
 
   const priorityState = `const rateRequestPriorityOptions = [
-  { value: 'Green', label: 'Verde · máximo 24 horas' },
-  { value: 'Yellow', label: 'Amarillo · máximo 48 horas' },
-  { value: 'Red', label: 'Rojo · máximo 72 horas' },
-]`
+  { value: 'Green', label: 'Verde · Requerimiento regular' },
+  { value: 'Yellow', label: 'Amarillo · Requerimiento prioritario' },
+  { value: 'Red', label: 'Rojo · Urgente (atención inmediata)' },
+] as const`
 
   code = replaceOne(
     code,
