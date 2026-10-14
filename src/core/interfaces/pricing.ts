@@ -449,6 +449,16 @@ export interface PricingRateCurrencySummaryDto extends Record<string, unknown> {
   averageMarginPercentage: number
 }
 
+export interface PricingAcceptedModeSummaryDto extends Record<string, unknown> {
+  shipmentMode: 'Fcl' | 'Lcl' | 'Ftl' | 'Ltl' | 'Air'
+  currencyCode: string
+  currencyName: string
+  rateCount: number
+  totalCostAmount: number
+  totalSaleAmount: number
+  totalUtilityAmount: number
+}
+
 export interface PricingRateDashboardItemDto extends Record<string, unknown> {
   id: string
   rateCode: string
@@ -489,6 +499,7 @@ export interface PricingRateDashboardDto extends Record<string, unknown> {
   statuses: PricingRateStatusSummaryDto[]
   financials: PricingRateCurrencySummaryDto[]
   recentRates: PricingRateDashboardItemDto[]
+  acceptedByMode: PricingAcceptedModeSummaryDto[]
 }
 
 export interface CatalogSnapshotRequest extends Record<string, unknown> {
