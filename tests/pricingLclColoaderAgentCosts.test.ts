@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
+import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
 import { pricingLclColoaderAgentCosts20261009 } from '../build/pricingLclColoaderAgentCosts20261009.ts'
 
@@ -18,7 +19,7 @@ function createHarness() {
     (source: string, id: string) => { code: string }
   const code = transform(fixture, wizardPath).code
   const start = code.indexOf('// dhole-lcl-coloader-agent-costs-20261009')
-  const end = code.indexOf('async function loadApplicableCosts() {', start)
+  const end = code.indexOf('function applicableConfiguredCosts() {', start)
   assert.ok(start >= 0 && end > start, 'LCL Coloader patch is installed')
   const script = ts.transpileModule(code.slice(start, end), {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
@@ -45,6 +46,9 @@ function createHarness() {
     catalogs: { currencies: [{ id: 'USD', code: 'USD', label: 'USD' }] },
     selectedCurrency: { value: { id: 'USD', code: 'USD', label: 'USD' } },
     rateLines: { value: [] as Record<string, unknown>[] },
+    PricingService: { selectCosts: async (_query: { applicableToContext?: boolean }) => [] as Record<string, unknown>[] },
+    toastStore: { backendError: (error: unknown) => { throw error } },
+    costContextAgentId: () => state.form.agentId,
     costs: { value: [] as Record<string, unknown>[] },
     number: (value: unknown) => Number(value) || 0,
     normalizeCatalogValue: (value: unknown) => String(value ?? '').toLowerCase(),
@@ -57,11 +61,12 @@ function createHarness() {
     airLclCostMatchesCurrentContext: () => false,
   }
   const methods = vm.runInNewContext(
-    script + '\n({ match: dholeLclColoaderAgentCostMatches, rebuild: rebuildLclColoaderAgentLines })',
+    script + '\n({ match: dholeLclColoaderAgentCostMatches, rebuild: rebuildLclColoaderAgentLines, load: loadApplicableCosts })',
     state,
   ) as {
     match: (cost: Record<string, unknown>) => boolean
     rebuild: () => void
+    load: () => Promise<void>
   }
   return { ...methods, state }
 }
@@ -126,4 +131,36 @@ test('screen 7 includes fixed charges exactly once alongside destination charges
   }
   rebuild()
   assert.equal(state.rateLines.value.length, 9, 'Rebuilding must not duplicate 8 charges + freight')
+})
+
+
+test('LCL coloader loader supplements contextual response with missing Pier17 origin costs', async () => {
+  const { load, rebuild, state } = createHarness()
+  const names = ['Agency Fee', 'AMS', 'BL', 'EFS', 'FAS']
+  const originCosts = names.map((name, index) => origin(String(index + 1), name))
+  const destinationCosts = ['Handling', 'HBL', 'Manejos'].map((name, index) => ({
+    ...origin('destination-' + index, name),
+    pols: [], polId: null, costDetailType: 'DestinationCharge',
+  }))
+  const requests: Array<{ applicableToContext?: boolean }> = []
+  state.PricingService.selectCosts = async (query) => {
+    requests.push(query)
+    return query.applicableToContext ? destinationCosts : [...originCosts, ...destinationCosts]
+  }
+  await load()
+  rebuild()
+  assert.equal(requests.length, 2, 'Both contextual and complete catalog are read')
+  assert.equal(state.costs.value.length, 8, 'All eight costs are reconciled')
+  assert.equal(state.rateLines.value.length, 9, 'Eight fixed charges + one freight line are displayed')
+  for (const cost of originCosts) {
+    assert.equal(state.rateLines.value.filter((line) => line.name === cost.name).length, 1, cost.name)
+  }
+})
+
+test('incoterm responsibility uses normalized EXW/FCA/FOB value, not opaque config CODE', async () => {
+  const wizard = await readFile(
+    new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(wizard, /incotermRateSections\(selectedIncotermCode\.value, configured\)/)
 })
