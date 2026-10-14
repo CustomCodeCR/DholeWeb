@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CircleDollarSign,
   Clock3,
+  Download,
   FileCheck2,
   RefreshCw,
   Send,
@@ -168,6 +169,62 @@ function currencyDisplayValue(currencyCode?: string | null) {
   return summary?.currencyName || currencyCode
 }
 
+const acceptedModeDefinitions = [
+  { key: 'Fcl', label: 'Marítimo completo', shortLabel: 'FCL' },
+  { key: 'Lcl', label: 'Marítimo consolidado', shortLabel: 'LCL' },
+  { key: 'Ftl', label: 'Terrestre completo', shortLabel: 'FTL' },
+  { key: 'Ltl', label: 'Terrestre consolidado', shortLabel: 'LTL' },
+  { key: 'Air', label: 'Aéreo', shortLabel: 'AIR' },
+] as const
+
+const acceptedModeRows = computed(() => dashboard.value?.acceptedByMode ?? [])
+const acceptedModeCards = computed(() => acceptedModeDefinitions.map((mode) => ({
+  ...mode,
+  rateCount: acceptedModeRows.value
+    .filter((row) => row.shipmentMode === mode.key)
+    .reduce((total, row) => total + row.rateCount, 0),
+})))
+
+function acceptedModeLabel(shipmentMode: string) {
+  return acceptedModeDefinitions.find((mode) => mode.key === shipmentMode)?.label ?? shipmentMode
+}
+
+function acceptedModeMargin(totalSale: number, totalUtility: number) {
+  return totalSale > 0 ? `${(totalUtility * 100 / totalSale).toFixed(2)}%` : '—'
+}
+
+function downloadAcceptedModeReport() {
+  if (!acceptedModeRows.value.length) return
+
+  // CSV con separador punto y coma para Excel; nunca mezclar importes de divisas distintas.
+  const lines: Array<Array<string | number>> = [
+    ['Modalidad', 'Moneda', 'Tarifas aceptadas', 'Costo', 'Venta', 'Utilidad', 'Margen (%)'],
+    ...acceptedModeRows.value.map((item) => [
+      acceptedModeLabel(item.shipmentMode),
+      item.currencyCode,
+      item.rateCount,
+      item.totalCostAmount,
+      item.totalSaleAmount,
+      item.totalUtilityAmount,
+      item.totalSaleAmount > 0 ? (item.totalUtilityAmount * 100 / item.totalSaleAmount).toFixed(2) : '',
+    ]),
+  ]
+  const escapeCsv = (value: string | number) => {
+    const text = String(value)
+    const safe = /^[=+@\\-]/.test(text) ? `'${text}` : text
+    return `"${safe.replaceAll('"', '""')}"`
+  }
+  const csv = '\\uFEFF' + lines.map((line) => line.map(escapeCsv).join(';')).join('\\r\\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `dhole-tarifas-aceptadas-por-modalidad-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 onMounted(loadDashboard)
 </script>
 
@@ -262,6 +319,77 @@ onMounted(loadDashboard)
           </p>
         </button>
       </div>
+
+      <section
+        v-if="dashboard.acceptedByMode"
+        class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]"
+      >
+        <div class="flex flex-col gap-3 border-b border-[var(--dh-border)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex min-w-0 items-center gap-2">
+            <BadgeCheck class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+            <div class="min-w-0">
+              <h3 class="font-black text-[var(--dh-text)]">Reporte de tarifas aceptadas por modalidad</h3>
+              <p class="mt-0.5 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Solo aceptadas por el cliente. Aéreo incluye Air y AirConsol. Aplican los filtros del dashboard.
+              </p>
+            </div>
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center gap-2">
+            <DhBadge :label="`${dashboard.acceptedByClientCount} aceptadas`" variant="success" />
+            <DhButton
+              label="Exportar CSV"
+              :icon="Download"
+              variant="secondary"
+              size="sm"
+              :disabled="!acceptedModeRows.length"
+              @click="downloadAcceptedModeReport"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5 p-3 md:grid-cols-3 xl:grid-cols-5">
+          <article
+            v-for="mode in acceptedModeCards"
+            :key="mode.key"
+            class="min-w-0 rounded-[18px] bg-[var(--dh-input)] p-3"
+          >
+            <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ mode.shortLabel }}</p>
+            <p class="mt-1 text-xs font-bold text-[var(--dh-text)]">{{ mode.label }}</p>
+            <p class="mt-3 text-2xl font-black tabular-nums text-[var(--dh-text)]">{{ mode.rateCount }}</p>
+            <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">tarifas aceptadas</p>
+          </article>
+        </div>
+
+        <div v-if="acceptedModeRows.length" class="overflow-x-auto border-t border-[var(--dh-border)]">
+          <table class="w-full min-w-[790px] text-left text-xs">
+            <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">
+              <tr>
+                <th class="px-4 py-3">Modalidad</th>
+                <th class="px-4 py-3">Moneda</th>
+                <th class="px-4 py-3 text-right">Aceptadas</th>
+                <th class="px-4 py-3 text-right">Costo</th>
+                <th class="px-4 py-3 text-right">Venta</th>
+                <th class="px-4 py-3 text-right">Utilidad</th>
+                <th class="px-4 py-3 text-right">Margen</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--dh-border)]">
+              <tr v-for="(item, index) in acceptedModeRows" :key="`${item.shipmentMode}:${item.currencyCode}:${index}`">
+                <td class="px-4 py-3 font-bold text-[var(--dh-text)]">{{ acceptedModeLabel(item.shipmentMode) }}</td>
+                <td class="px-4 py-3 font-semibold text-[var(--dh-text-muted)]">{{ item.currencyCode }}</td>
+                <td class="px-4 py-3 text-right font-black tabular-nums text-[var(--dh-text)]">{{ item.rateCount }}</td>
+                <td class="px-4 py-3 text-right tabular-nums text-[var(--dh-text)]">{{ formatMoney(item.totalCostAmount, item.currencyCode) }}</td>
+                <td class="px-4 py-3 text-right tabular-nums text-[var(--dh-text)]">{{ formatMoney(item.totalSaleAmount, item.currencyCode) }}</td>
+                <td class="px-4 py-3 text-right font-bold tabular-nums text-green-600 dark:text-green-400">{{ formatMoney(item.totalUtilityAmount, item.currencyCode) }}</td>
+                <td class="px-4 py-3 text-right font-bold tabular-nums text-[var(--dh-text)]">{{ acceptedModeMargin(item.totalSaleAmount, item.totalUtilityAmount) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="border-t border-[var(--dh-border)] p-5 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
+          No hay tarifas aceptadas dentro de los filtros seleccionados.
+        </p>
+      </section>
 
       <section class="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]">
         <div class="min-w-0 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
