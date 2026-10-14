@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
@@ -56,6 +56,13 @@ const canUsePricing = computed(
 const canManageSellerRequests = computed(() =>
   !isSellerUser.value && authStore.hasScope(PRICING_SCOPES.rates.update),
 )
+
+// El selector altera sólo la vista; nunca cambia la sesión ni sus permisos.
+type DashboardRole = 'pricing' | 'seller'
+const selectedDashboardRole = ref<DashboardRole>('pricing')
+const activeDashboardRole = computed<DashboardRole>(() =>
+  isSuperUser() ? selectedDashboardRole.value : (isSellerUser.value ? 'seller' : 'pricing'),
+)
 </script>
 
 <template>
@@ -71,7 +78,44 @@ const canManageSellerRequests = computed(() =>
       </div>
     </section>
 
-    <SellerRoleDashboard v-if="isSellerUser" />
+    <section
+      v-if="isSuperUser()"
+      class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
+    >
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-sm font-black text-[var(--dh-text)]">Dashboard por rol</h2>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Seleccione la vista que desea consultar. No cambia su sesión ni los permisos de su cuenta.
+          </p>
+        </div>
+        <div class="flex w-full gap-2 sm:w-auto" role="group" aria-label="Seleccionar dashboard por rol">
+          <button
+            type="button"
+            :aria-pressed="activeDashboardRole === 'pricing'"
+            class="flex-1 rounded-xl border px-4 py-2.5 text-sm font-black transition sm:flex-none"
+            :class="activeDashboardRole === 'pricing'
+              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+              : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]'"
+            @click="selectedDashboardRole = 'pricing'"
+          >Pricing</button>
+          <button
+            type="button"
+            :aria-pressed="activeDashboardRole === 'seller'"
+            class="flex-1 rounded-xl border px-4 py-2.5 text-sm font-black transition sm:flex-none"
+            :class="activeDashboardRole === 'seller'
+              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+              : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]'"
+            @click="selectedDashboardRole = 'seller'"
+          >Vendedor</button>
+        </div>
+      </div>
+    </section>
+
+    <SellerRoleDashboard
+      v-if="activeDashboardRole === 'seller'"
+      :admin-preview="isSuperUser()"
+    />
 
     <template v-else-if="canUsePricing">
       <PricingRateRequestsPanel v-if="canManageSellerRequests" />
