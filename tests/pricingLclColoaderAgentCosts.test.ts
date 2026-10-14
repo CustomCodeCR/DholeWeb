@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { pricingLclColoaderAgentCosts20261009 } from '../build/pricingLclColoaderAgentCosts20261009'
+import { pricingLclColoaderAgentCosts20261009 } from '../build/pricingLclColoaderAgentCosts20261009.ts'
 
 const wizardPath = '/project/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 const fixture = [
