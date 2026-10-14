@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import PricingRoleDashboard from '@/modules/dashboard/components/PricingRoleDashboard.vue'
@@ -68,46 +69,30 @@ const activeDashboardRole = computed<DashboardRole>(() =>
 <template>
   <section class="space-y-6">
     <section class="dh-glass dh-liquid rounded-[36px] p-6">
-      <div>
-        <p class="text-sm font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">
-          Bienvenido
-        </p>
-        <h1 class="mt-3 text-3xl font-black tracking-tight text-[var(--dh-text)] md:text-5xl">
-          {{ authStore.userDisplayName || t('dashboard.operator') }}
-        </h1>
-      </div>
-    </section>
-
-    <section
-      v-if="isSuperUser()"
-      class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
-    >
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="text-sm font-black text-[var(--dh-text)]">Dashboard por rol</h2>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Seleccione la vista que desea consultar. No cambia su sesión ni los permisos de su cuenta.
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+          <p class="text-sm font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">
+            Bienvenido
           </p>
+          <h1 class="mt-3 break-words text-3xl font-black tracking-tight text-[var(--dh-text)] md:text-5xl">
+            {{ authStore.userDisplayName || t('dashboard.operator') }}
+          </h1>
         </div>
-        <div class="flex w-full gap-2 sm:w-auto" role="group" aria-label="Seleccionar dashboard por rol">
-          <button
-            type="button"
-            :aria-pressed="activeDashboardRole === 'pricing'"
-            class="flex-1 rounded-xl border px-4 py-2.5 text-sm font-black transition sm:flex-none"
-            :class="activeDashboardRole === 'pricing'
-              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-              : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]'"
-            @click="selectedDashboardRole = 'pricing'"
-          >Pricing</button>
-          <button
-            type="button"
-            :aria-pressed="activeDashboardRole === 'seller'"
-            class="flex-1 rounded-xl border px-4 py-2.5 text-sm font-black transition sm:flex-none"
-            :class="activeDashboardRole === 'seller'
-              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-              : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]'"
-            @click="selectedDashboardRole = 'seller'"
-          >Vendedor</button>
+        <div v-if="isSuperUser()" class="w-full shrink-0 sm:w-56">
+          <label for="role-dashboard-selector" class="mb-1.5 block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+            Dashboard por rol
+          </label>
+          <div class="relative">
+            <select
+              id="role-dashboard-selector"
+              v-model="selectedDashboardRole"
+              class="w-full appearance-none rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] py-2.5 pl-3.5 pr-10 text-sm font-bold text-[var(--dh-text)] outline-none transition hover:border-[var(--dh-primary)] focus:border-[var(--dh-primary)] focus:ring-2 focus:ring-[rgb(var(--dh-primary-rgb)/0.2)]"
+            >
+              <option value="pricing">Pricing</option>
+              <option value="seller">Vendedor</option>
+            </select>
+            <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]" />
+          </div>
         </div>
       </div>
     </section>
