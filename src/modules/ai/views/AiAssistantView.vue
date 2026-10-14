@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
+import { getApiErrorMessage } from '@/core/api/apiErrorHandler'
 import {
   Bot,
   Download,
@@ -37,6 +38,7 @@ const prompt = ref('')
 const selectedFile = ref<File | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const sending = ref(false)
+const sendError = ref<string | null>(null)
 const conversation = ref<HTMLElement | null>(null)
 
 const canSend = computed(() => Boolean(prompt.value.trim() && !sending.value))
@@ -104,8 +106,12 @@ async function sendMessage() {
   const file = selectedFile.value
   const previousHistory = buildAiChatHistory(messages.value)
 
+  const userMessageId = createUuid()
+  sendError.value = null
+  sending.value = true
+
   messages.value.push({
-    id: createUuid(),
+    id: userMessageId,
     role: 'user',
     content,
     attachmentName: file?.name,
@@ -116,8 +122,6 @@ async function sendMessage() {
   await scrollToBottom()
 
   try {
-    sending.value = true
-
     if (file) {
       const result = await AiService.executeFileChat({
         profileKey: PROFILE_KEY,
@@ -126,6 +130,10 @@ async function sendMessage() {
         messages: previousHistory,
         correlationId: createUuid(),
       })
+
+      if (!result.chat?.content?.trim()) {
+        throw new Error('El modelo no devolvió una respuesta. Inténtelo nuevamente.')
+      }
 
       messages.value.push({
         id: result.chat.executionId,
@@ -150,6 +158,10 @@ async function sendMessage() {
         correlationId: createUuid(),
       })
 
+      if (!result?.content?.trim()) {
+        throw new Error('El modelo no devolvió una respuesta. Inténtelo nuevamente.')
+      }
+
       messages.value.push({
         id: result.executionId,
         role: 'assistant',
@@ -161,7 +173,11 @@ async function sendMessage() {
 
     persist()
   } catch (error) {
-    toastStore.backendError(error, 'El asistente no pudo procesar la consulta o el archivo.')
+    messages.value = messages.value.filter((message) => message.id !== userMessageId)
+    if (!prompt.value.trim()) prompt.value = content
+    selectedFile.value = file
+    sendError.value = getApiErrorMessage(error, 'El asistente no pudo procesar la consulta o el archivo.')
+    persist()
   } finally {
     sending.value = false
     await scrollToBottom()
@@ -170,6 +186,7 @@ async function sendMessage() {
 
 function clearConversation() {
   messages.value = []
+  sendError.value = null
   clearSelectedFile()
   localStorage.removeItem(STORAGE_KEY)
 }
@@ -300,6 +317,11 @@ onMounted(async () => {
             <UserRound class="h-4 w-4" />
           </div>
         </article>
+
+        <div v-if="sendError" role="alert" class="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-[var(--dh-text)]">
+          <p class="mb-2 whitespace-pre-wrap break-words">{{ sendError }}</p>
+          <button type="button" class="font-bold text-[var(--dh-primary)] underline disabled:opacity-50" :disabled="!canSend" @click="sendMessage">Reintentar</button>
+        </div>
 
         <div
           v-if="sending"
