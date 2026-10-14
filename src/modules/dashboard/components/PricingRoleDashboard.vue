@@ -201,7 +201,7 @@ function downloadAcceptedModeReport() {
     ['Modalidad', 'Moneda', 'Tarifas aceptadas', 'Costo', 'Venta', 'Utilidad', 'Margen (%)'],
     ...acceptedModeRows.value.map((item) => [
       acceptedModeLabel(item.shipmentMode),
-      item.currencyCode,
+      item.currencyName,
       item.rateCount,
       item.totalCostAmount,
       item.totalSaleAmount,
@@ -377,11 +377,11 @@ onMounted(loadDashboard)
             <tbody class="divide-y divide-[var(--dh-border)]">
               <tr v-for="(item, index) in acceptedModeRows" :key="`${item.shipmentMode}:${item.currencyCode}:${index}`">
                 <td class="px-4 py-3 font-bold text-[var(--dh-text)]">{{ acceptedModeLabel(item.shipmentMode) }}</td>
-                <td class="px-4 py-3 font-semibold text-[var(--dh-text-muted)]">{{ item.currencyCode }}</td>
+                <td class="px-4 py-3 font-semibold text-[var(--dh-text-muted)]">{{ item.currencyName }}</td>
                 <td class="px-4 py-3 text-right font-black tabular-nums text-[var(--dh-text)]">{{ item.rateCount }}</td>
-                <td class="px-4 py-3 text-right tabular-nums text-[var(--dh-text)]">{{ formatMoney(item.totalCostAmount, item.currencyCode) }}</td>
-                <td class="px-4 py-3 text-right tabular-nums text-[var(--dh-text)]">{{ formatMoney(item.totalSaleAmount, item.currencyCode) }}</td>
-                <td class="px-4 py-3 text-right font-bold tabular-nums text-green-600 dark:text-green-400">{{ formatMoney(item.totalUtilityAmount, item.currencyCode) }}</td>
+                <td class="px-4 py-3 text-right tabular-nums text-[var(--dh-text)]">{{ formatMoney(item.totalCostAmount, item.currencyName) }}</td>
+                <td class="px-4 py-3 text-right tabular-nums text-[var(--dh-text)]">{{ formatMoney(item.totalSaleAmount, item.currencyName) }}</td>
+                <td class="px-4 py-3 text-right font-bold tabular-nums text-green-600 dark:text-green-400">{{ formatMoney(item.totalUtilityAmount, item.currencyName) }}</td>
                 <td class="px-4 py-3 text-right font-bold tabular-nums text-[var(--dh-text)]">{{ acceptedModeMargin(item.totalSaleAmount, item.totalUtilityAmount) }}</td>
               </tr>
             </tbody>
