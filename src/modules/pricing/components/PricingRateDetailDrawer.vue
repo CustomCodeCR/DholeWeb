@@ -153,6 +153,7 @@ function statusLabel(status: string) {
         AcceptedByClient: 'Aceptada',
         RejectedByClient: 'No aceptada',
         Closed: 'No aceptada',
+        Cancelled: 'Cancelada',
         Expired: 'Vencida',
       } as Record<string, string>
     )[status] ?? status
