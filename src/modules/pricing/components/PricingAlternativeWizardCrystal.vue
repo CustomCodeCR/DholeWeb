@@ -5686,12 +5686,14 @@ onMounted(async () => {
                   </span>
                 </template>
                 <template v-else>
-                  <DhButton v-if="!canCancelAccepted" size="sm" variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
-                  <DhButton v-if="!canCancelAccepted" size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
-                  <DhButton v-if="!canCancelAccepted" size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
-                  <DhButton v-if="canCancelAccepted" size="sm" variant="danger" :disabled="commercialStatusSaving" @click="startAcceptedRateCancellation">Cancelar cotización</DhButton>
+                  <DhButton size="sm" variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
+                  <DhButton size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
+                  <DhButton size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
                 </template>
               </div>
+            </div>
+            <div v-if="canCancelAccepted" class="mt-3 flex flex-wrap justify-end">
+              <DhButton size="sm" variant="danger" :disabled="commercialStatusSaving" @click="startAcceptedRateCancellation">Cancelar cotización</DhButton>
             </div>
             <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
               {{ isMasterTariff
