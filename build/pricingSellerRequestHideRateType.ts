@@ -50,14 +50,15 @@ function patchWizard(source: string): string {
   }
   step3 = step3.replace(tariffHint, 'v-if="!sellerRequestMode && form.rateType === \'Tariff\'"')
 
-  const sellerPriorityText = 'Esta prioridad es independiente de si la solicitud será SPOT o TARIFARIO.'
-  if (!step3.includes(sellerPriorityText)) {
-    throw new Error('[pricingSellerRequestHideRateType] Cannot locate seller priority help.')
+  // La descripción de prioridad puede cambiar sin afectar al flujo de solicitud.
+  // Solo se reemplaza el texto legado cuando todavía exista.
+  const legacySellerPriorityText = 'Esta prioridad es independiente de si la solicitud será SPOT o TARIFARIO.'
+  if (step3.includes(legacySellerPriorityText)) {
+    step3 = step3.replace(
+      legacySellerPriorityText,
+      'El plazo máximo de atención depende de la prioridad seleccionada.',
+    )
   }
-  step3 = step3.replace(
-    sellerPriorityText,
-    'El plazo máximo de atención depende de la prioridad seleccionada.',
-  )
 
   return source.slice(0, start) + step3 + source.slice(end)
 }
