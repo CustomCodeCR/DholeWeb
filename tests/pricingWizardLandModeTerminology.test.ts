@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { patchPricingWizardLandModeTerminology } from '../build/pricingWizardLandModeTerminology.ts'
 
@@ -28,6 +29,7 @@ const sellerCard = [
 const wizard = [
   '<script setup lang="ts">',
   "import { computed, onMounted, reactive, ref, watch } from 'vue'",
+  "import { useRouter } from 'vue-router'",
   'const supportDocuments = ref<SupportDocument[]>([])',
   'async function hydrateRateRequest() {',
   '    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)',
@@ -100,9 +102,18 @@ test('fails on unexpected wizard structure rather than silently diverging', () =
 
 test('resume shows original Sales snapshot and downloadable documents instead of editable steps', () => {
   const output = patchPricingWizardLandModeTerminology(wizard)
-  assert.match(output, /Información enviada por Ventas/)
+  assert.match(output, /PricingSellerHandoffPreview/)
+  assert.match(output, /:service-labels/)
+  assert.match(output, /@download="downloadSellerHandoffFile"/)
   assert.match(output, /sellerHandoffSnapshot/)
-  assert.match(output, /cargoObservations/)
+  const childComponent = readFileSync(
+    new URL('../src/modules/pricing/components/PricingSellerHandoffPreview.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(childComponent, /cargoObservations/)
+  assert.match(childComponent, /pickupCards/)
+  assert.match(childComponent, /emit\('download', document\)/)
+  assert.doesNotMatch(childComponent, /JSON\.stringify\(/)
   assert.match(output, /pickupLocations/)
   assert.match(output, /downloadSellerHandoffFile/)
   assert.match(output, /StorageService.downloadFile/)
