@@ -87,7 +87,9 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `const canNext = computed(() => {`,
-    `function selectedSellerRequestExecutiveName() {\n  const selected = sellerRequestOwnerOptions.value.find((option) => option.value === sellerRequestOwnerId.value)\n  return String(selected?.label || '').trim()\n}\n\nwatch(\n  () => [props.sellerRequestMode, sellerRequestOwnerId.value, sellerRequestOwnerOptions.value] as const,\n  ([sellerMode, sellerId]) => {\n    if (!sellerMode) return\n    form.executiveId = sellerId || ''\n    form.executiveName = selectedSellerRequestExecutiveName()\n  },\n  { immediate: true },\n)\n\nconst canNext = computed(() => {\n  if (step.value === 3) {\n    if (!form.clientName.trim()) return false\n    if (props.sellerRequestMode) {\n      if (!sellerRequestOwnerId.value || !form.executiveName.trim()) return false\n    } else if (!hasSalesExecutiveSelection(form.executiveId, form.executiveName)) {\n      return false\n    }\n  }`,
+    `function selectedSellerRequestExecutiveName() {\n  const selected = sellerRequestOwnerOptions.value.find((option) => option.value === sellerRequestOwnerId.value)\n  return String(selected?.label || '').trim()\n}\n\nwatch(\n  () => [props.sellerRequestMode, sellerRequestOwnerId.value, sellerRequestOwnerOptions.value] as const,\n  ([sellerMode, sellerId]) => {\n    if (!sellerMode) return\n    form.executiveId = sellerId || ''\n    form.executiveName = selectedSellerRequestExecutiveName()\n  },\n  { immediate: true },\n)\n\nconst canNext = computed(() => {\n  if (step.value === 3) {\n    if (!form.clientName.trim()) return false\n    if (props.sellerRequestMode) {\n      // Validate against the real selected seller option rather than a watcher
+      // copy of executiveName, which may be one render behind.
+      if (!selectedSellerRequestExecutiveName()) return false\n    } else if (!hasSalesExecutiveSelection(form.executiveId, form.executiveName)) {\n      return false\n    }\n  }`,
     'canNext commercial validation',
   )
 
@@ -101,7 +103,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {`,
-    `  if (props.sellerRequestMode) {\n    if (!sellerRequestOwnerId.value) {\n      step.value = 3\n      toastStore.error('Seleccione el ejecutivo comercial de la solicitud.')\n      return\n    }\n    form.executiveId = sellerRequestOwnerId.value\n    form.executiveName = selectedSellerRequestExecutiveName()`,
+    `  if (props.sellerRequestMode) {\n    if (!selectedSellerRequestExecutiveName()) {\n      step.value = 3\n      toastStore.error('Seleccione el ejecutivo comercial de la solicitud.')\n      return\n    }\n    form.executiveId = sellerRequestOwnerId.value\n    form.executiveName = selectedSellerRequestExecutiveName()`,
     'seller request executive save enforcement',
   )
 
