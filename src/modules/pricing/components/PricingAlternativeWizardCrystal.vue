@@ -189,11 +189,13 @@ const props = withDefaults(defineProps<{
   viewOnly?: boolean
   sellerRequestMode?: boolean
   rateRequestId?: string | null
+  sellerEditRequestId?: string | null
 }>(), {
   rateId: null,
   viewOnly: false,
   sellerRequestMode: false,
   rateRequestId: null,
+  sellerEditRequestId: null,
 })
 
 const router = useRouter()
