@@ -33,6 +33,7 @@ const wizard = [
   'const supportDocuments = ref<SupportDocument[]>([])',
   'async function hydrateRateRequest() {',
   '    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)',
+  '    if (request.payload?.form) Object.assign(form, request.payload.form)',
   '}',
   'async function saveRate() {',
   '}',
@@ -122,6 +123,34 @@ test('resume shows original Sales snapshot and downloadable documents instead of
   assert.match(output, /pickupLocations/)
   assert.match(output, /downloadSellerHandoffFile/)
   assert.match(output, /StorageService.downloadFile/)
+})
+
+test('consolidated cargo is restored after loading the seller form, including older requests', () => {
+  const output = patchPricingWizardLandModeTerminology(wizard)
+  const formAssign = output.indexOf('if (request.payload?.form) Object.assign(form, request.payload.form)')
+  const restoreCall = output.indexOf('if (request.payload?.form) restoreSellerConsolidatedCargo(')
+  assert.ok(formAssign >= 0 && restoreCall > formAssign)
+  assert.match(output, /function restoreSellerConsolidatedCargo\(/)
+  assert.match(output, /context\?\.consolidatedCargoLines/)
+  assert.match(output, /sourceForm\.cargoLengthCm/)
+  assert.match(output, /sourceForm\.cargoPallets/)
+  assert.match(output, /cargoDimensionUnit\.value === 'in'/)
+})
+
+test('LCL quantity basis multiplies physical CBM and chargeable CBM separately', () => {
+  const enhanced = readFileSync(
+    new URL('../build/pricingWizardEnhancements.ts', import.meta.url),
+    'utf8',
+  )
+  assert.match(enhanced, /basis === 'PerCbm'[\s\S]*?lclPhysicalCbm\.value/)
+  assert.match(enhanced, /basis === 'PerChargeableCbm'[\s\S]*?lclChargeableCbm\.value/)
+  assert.doesNotMatch(enhanced, /return Math\.max\(1, number\(lclChargeableCbm\.value\)\)/)
+  const consolidated = readFileSync(
+    new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url),
+    'utf8',
+  )
+  assert.match(consolidated, /consolidatedCargoLines\.value\.reduce\(\(sum, line\) => sum \+ cargoLinePhysicalCbm\(line\)/)
+  assert.match(consolidated, /cargoLineQuantity\(line\)/)
 })
 
 test('GAM pickup is required in LTL lines before a rate can be saved', () => {
