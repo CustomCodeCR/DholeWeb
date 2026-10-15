@@ -237,6 +237,18 @@ const costs = ref<CostSelectDto[]>([])
 const allCosts = ref<CostSelectDto[]>([])
 const cabysResults = ref<CabysItem[]>([])
 const rateLines = ref<RateLine[]>([])
+// Preserve the values visible when the quote was opened. Catalog refreshes must
+// not overwrite a manual adjustment made by Pricing during the current edit.
+const persistedRateLineBaselines = new Map<string, string>()
+
+function rateLineEditableSignature(line: RateLine) {
+  return JSON.stringify([
+    line.name, line.costId, line.costDetailType, line.costType, line.chargeBasis,
+    line.currencyId, line.currencyCode, number(line.costAmount), number(line.saleAmount),
+    Boolean(line.applyDestinationTax), number(line.destinationTaxRate),
+    line.notes ?? null, line.billToClient ?? null,
+  ])
+}
 const billToBatchByGroup = ref<Record<string, string>>({})
 const locatingPickup = ref(false)
 const recommendingPorts = ref(false)
@@ -2178,6 +2190,13 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
   rateLines.value.forEach((line) => {
     if (!line.costId || line.costDetailType === 'Freight') return
 
+    // Manual edits (including destination charges, VAT and notes) win over
+    // automatic catalog re-hydration. Only untouched lines may be refreshed.
+    if (line.detailId) {
+      const baseline = persistedRateLineBaselines.get(line.detailId)
+      if (baseline !== undefined && baseline !== rateLineEditableSignature(line)) return
+    }
+
     const configured = resolveCurrentConfiguredCost(line)
     if (!configured) return
 
@@ -3380,6 +3399,10 @@ async function hydrateExistingRate() {
     })
     if (!props.viewOnly) syncPersistedLinesWithChangedConfiguredCosts()
     mergeConfiguredOptionalCostsIntoRateLines()
+    persistedRateLineBaselines.clear()
+    for (const line of rateLines.value) {
+      if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
+    }
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
@@ -4301,6 +4324,44 @@ async function saveRate() {
         removedExtraDetailIds,
       } as UpdateRateRequest
       await PricingService.updateRate(editingRate.value.id, updatePayload)
+      // A successful HTTP status is not enough: edited prices must be readable
+      // from the persisted quotation, otherwise don't show a false success toast.
+      const persistedRate = await PricingService.getRate(editingRate.value.id)
+      const savedDetailsById = new Map(persistedRate.rateDetails.map((detail) => [detail.id, detail] as const))
+      const previousDetailsById = new Map(editingRate.value.rateDetails.map((detail) => [detail.id, detail] as const))
+      const unchangedContext = (
+        String(editingRate.value.agentId ?? '') === String(updatePayload.agentId ?? '')
+        && String(editingRate.value.carrierId ?? '') === String(updatePayload.carrierId ?? '')
+        && String(editingRate.value.polId ?? '') === String(updatePayload.polId ?? '')
+        && String(editingRate.value.poeId ?? '') === String(updatePayload.poeId ?? '')
+        && String(editingRate.value.podId ?? '') === String(updatePayload.podId ?? '')
+        && String(editingRate.value.incotermId ?? '') === String(updatePayload.incotermId ?? '')
+      )
+      if (unchangedContext) {
+        const missingChanges = updatePayload.extraDetails.filter((detail) => {
+          if (!detail.id) return false
+          const original = previousDetailsById.get(detail.id)
+          if (!original) return false
+          const edited = number(original.costAmount) !== number(detail.costAmount)
+            || number(original.saleAmount) !== number(detail.saleAmount)
+            || Boolean(original.applyDestinationTax) !== Boolean(detail.applyDestinationTax)
+            || number(original.destinationTaxRate) !== number(detail.destinationTaxRate)
+          if (!edited) return false
+          const saved = savedDetailsById.get(detail.id)
+          return !saved
+            || Math.abs(number(saved.costAmount) - number(detail.costAmount)) > 0.009
+            || Math.abs(number(saved.saleAmount) - number(detail.saleAmount)) > 0.009
+            || Boolean(saved.applyDestinationTax) !== Boolean(detail.applyDestinationTax)
+            || Math.abs(number(saved.destinationTaxRate) - number(detail.destinationTaxRate)) > 0.009
+        })
+        if (missingChanges.length > 0) {
+          throw new Error(
+            'El servidor respondió al guardado, pero los cambios en '
+            + missingChanges.map((detail) => detail.name).join(', ')
+            + ' no aparecen en la tarifa persistida. Revise los importes antes de reenviarla.',
+          )
+        }
+      }
       rateId = editingRate.value.id
       const nextRevision = editingRate.value.status === 'AcceptedByClient'
         ? (editingRate.value.revisionNumber || 1) + 1
