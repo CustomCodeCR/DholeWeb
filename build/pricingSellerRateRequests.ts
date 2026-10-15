@@ -25,7 +25,7 @@ function patchWizard(source: string) {
   const typedWizardProps = "const props = withDefaults(defineProps<{\n  rateId?: string | null\n  viewOnly?: boolean\n  sellerRequestMode?: boolean\n  rateRequestId?: string | null\n}>(), {\n  rateId: null,\n  viewOnly: false,\n  sellerRequestMode: false,\n  rateRequestId: null,\n})"
   if (code.includes(legacyWizardProps)) {
     code = replaceOne(code, legacyWizardProps, typedWizardProps, 'wizard props')
-  } else if (!code.includes(typedWizardProps)) {
+  } else if (!code.includes(typedWizardProps) && !code.includes('sellerEditRequestId?: string | null')) {
     throw new Error('[pricingSellerRateRequests] Expected typed seller request wizard props.')
   }
 
