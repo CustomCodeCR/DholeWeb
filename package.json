@@ -13,7 +13,7 @@
     "type-check": "vue-tsc --build",
     "test:agent": "node --test tests/agentModule.test.ts tests/agentRouteForm.test.ts tests/maerskOperations.test.ts tests/maerskPhase7Acceptance.test.ts",
     "test:market-pricing": "node --test tests/marketAutoPricing.test.ts",
-    "test:pricing-rate-update": "node --test tests/pricingRateUpdateDetails.test.ts tests/pricingTransportTermScope.test.ts tests/pricingCustomsWizardInit.test.ts tests/pricingCostConditions.test.ts tests/pricingLclColoaderAgentCosts.test.ts tests/pricingWizardLandModeTerminology.test.ts",
+    "test:pricing-rate-update": "node --test tests/pricingRateUpdateDetails.test.ts tests/pricingTransportTermScope.test.ts tests/pricingCustomsWizardInit.test.ts tests/pricingCostConditions.test.ts tests/pricingLclColoaderAgentCosts.test.ts tests/pricingWizardLandModeTerminology.test.ts tests/ltlGamRouting.test.ts",
     "format": "prettier --write --experimental-cli src/",
     "audit:ui": "node scripts/audit-ui-quality.mjs",
     "audit:i18n": "node scripts/audit-ui-quality.mjs --strict-i18n"
