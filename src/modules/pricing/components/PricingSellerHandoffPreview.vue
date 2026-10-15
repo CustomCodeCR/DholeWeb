@@ -100,7 +100,16 @@ const selectedCargoOptions = computed(() => ([
 const cargoVolume = computed(() => {
   if (!isConsolidated.value) return null
   const context = props.snapshot.sellerContext
-  const unit = context.cargoVolumeUnit === 'CFT' ? 'CFT' : 'CBM'
+  // Compatibilidad con solicitudes anteriores que no guardaban la unidad de volumen.
+  const origin = [
+    props.snapshot.originName,
+    props.originLabel,
+    props.snapshot.context.originCountryName,
+    props.snapshot.context.originCountryCode,
+  ].filter((value) => typeof value === 'string').join(' ')
+  const legacyUsOrigin = /\b(miami|usa|united states|estados unidos)\b/i.test(origin)
+  const unit = context.cargoVolumeUnit === 'CFT' || (!context.cargoVolumeUnit && legacyUsOrigin)
+    ? 'CFT' : 'CBM'
   const factor = unit === 'CFT' ? 35.31466672148859 : 1
   const positive = (value: unknown): number => {
     const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : 0
