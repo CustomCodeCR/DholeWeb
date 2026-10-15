@@ -129,7 +129,7 @@ function addSellerHandoffPreview(source: string): string {
     "  }",
     "}",
   ].join('\n')
-  const importAnchor = "import { useRouter } from 'vue-router'"
+  const importAnchor = '<script setup lang="ts">'
   if (!source.includes(importAnchor)) {
     throw new Error('[pricingWizardLandModeTerminology] Missing Vue router import for Sales preview')
   }
