@@ -56,7 +56,7 @@ const sortedRequests = computed(() => {
 })
 
 function priorityLabel(priority: Priority) {
-  return priority === 'Green' ? 'Verde · Regular' : priority === 'Yellow' ? 'Amarillo · Prioritario' : 'Rojo · Urgente'
+  return priority === 'Green' ? 'Verde · Regular (48–72 h)' : priority === 'Yellow' ? 'Amarillo · Prioritario (24–48 h)' : 'Rojo · Urgente (0–24 h)'
 }
 
 function priorityVariant(priority: Priority): 'success' | 'warning' | 'danger' {
@@ -211,7 +211,7 @@ onBeforeUnmount(() => {
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
           Pricing ve POL, POE y POD definidos por Ventas antes de continuar la tarifa.
         </p>
-        <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">Orden de atención: <span class="text-red-500">Rojo · Urgente</span> → <span class="text-amber-500">Amarillo · Prioritario</span> → <span class="text-emerald-500">Verde · Regular</span>. Primero las solicitudes más antiguas de cada prioridad.</p>
+        <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">Orden de atención: <span class="text-red-500">Rojo · Urgente (0–24 h)</span> → <span class="text-amber-500">Amarillo · Prioritario (24–48 h)</span> → <span class="text-emerald-500">Verde · Regular (48–72 h)</span>. Primero las solicitudes más antiguas de cada prioridad.</p>
       </div>
       <DhButton variant="secondary" :disabled="loading" @click="load">
         <RefreshCcw class="h-4 w-4" /> Actualizar
