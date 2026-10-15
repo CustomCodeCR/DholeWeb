@@ -234,7 +234,7 @@ function addSellerHandoffPreview(source: string): string {
   }
   let code = source.replace(
     importAnchor,
-    importAnchor + "\nimport PricingSellerHandoffPreview from '@/modules/pricing/components/PricingSellerHandoffPreview.vue'",
+    importAnchor + "\nimport { nextTick } from 'vue'\nimport PricingSellerHandoffPreview from '@/modules/pricing/components/PricingSellerHandoffPreview.vue'",
   ).replace(stateAnchor, stateLines)
   const hydrateLines = [
     hydrateAnchor,
@@ -247,10 +247,14 @@ function addSellerHandoffPreview(source: string): string {
   }
   code = code.replace(restoreAnchor, [
     restoreAnchor,
-    "    if (request.payload?.form) restoreSellerConsolidatedCargo(",
-    "      request.payload.form as Record<string, unknown>,",
-    "      (request.payload as { sellerContext?: Record<string, unknown> }).sellerContext,",
-    "    )",
+    "    if (request.payload?.form) {",
+    "      // Esperar a que el selector de origen termine su cambio de unidad cm/pulgadas.",
+    "      await nextTick()",
+    "      restoreSellerConsolidatedCargo(",
+    "        request.payload.form as Record<string, unknown>,",
+    "        (request.payload as { sellerContext?: Record<string, unknown> }).sellerContext,",
+    "      )",
+    "    }",
   ].join('\n'))
   return code.replace(templateAnchor, SALES_READ_ONLY_PREVIEW + '\n' + templateAnchor)
 }
