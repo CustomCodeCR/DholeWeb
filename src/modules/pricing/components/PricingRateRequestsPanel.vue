@@ -127,13 +127,25 @@ function stringValue(request: RateRequestDto, ...keys: string[]) {
   return ''
 }
 
+function shipmentMode(request: RateRequestDto): string {
+  return (request.shipmentMode?.trim() || stringValue(request, 'shipmentMode')).toUpperCase()
+}
+
+function isConsolidated(request: RateRequestDto): boolean {
+  return ['LCL', 'LTL'].includes(shipmentMode(request))
+}
+
 function equipmentLabel(request: RateRequestDto) {
+  if (isConsolidated(request)) {
+    return shipmentMode(request) === 'LTL' ? 'LTL · Consolidado terrestre' : 'LCL · Consolidado'
+  }
   return request.equipmentType?.trim()
     || stringValue(request, 'equipmentType', 'equipmentSize')
-    || (request.shipmentMode?.toUpperCase() === 'LCL' ? 'LCL' : 'Sin definir')
+    || 'Sin definir'
 }
 
 function equipmentQuantity(request: RateRequestDto) {
+  if (isConsolidated(request)) return '—'
   const raw = objectValue(request, 'equipmentQuantity')
   const value = Number(raw)
   return Number.isFinite(value) && value > 0 ? value : 1
@@ -284,8 +296,8 @@ onBeforeUnmount(() => {
             <th class="px-4 py-3">Estado</th>
             <th class="px-4 py-3">Vendedor</th>
             <th class="px-4 py-3">Cliente</th>
-            <th class="px-4 py-3">Contenedor</th>
-            <th class="px-4 py-3">Cantidad</th>
+            <th class="px-4 py-3">Embarque / equipo</th>
+            <th class="px-4 py-3">Cant. equipos</th>
             <th class="px-4 py-3">Modalidad</th>
             <th class="px-4 py-3">POL</th>
             <th class="px-4 py-3">POE</th>
