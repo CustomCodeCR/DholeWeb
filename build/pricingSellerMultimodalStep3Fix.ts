@@ -111,7 +111,7 @@ ${nextAnchor}`,
   )
 
   // También se valida al enviar: no permitir POST sin clasificación.
-  const submitAnchor = 'async function saveOpenRequest() {\n  if (props.sellerRequestMode) {'
+  const submitAnchor = 'async function saveOpenRequest() {'
   if (!code.includes(submitAnchor)) throw new Error('[pricingSellerMultimodalStep3Fix] Missing submit guard anchor')
   code = code.replace(submitAnchor, [
     'async function saveOpenRequest() {',
@@ -119,7 +119,6 @@ ${nextAnchor}`,
     "    toastStore.error('Condición de carga obligatoria', 'Seleccione carga fiscal o nacionalizada antes de enviar la solicitud.')",
     '    return',
     '  }',
-    '  if (props.sellerRequestMode) {',
   ].join('\n'))
 
   return code
