@@ -57,7 +57,12 @@ export function matchesLandLtlEndpoint(
   const requestedValues = [requested.name, requested.code].map(normalizeLandLocation).filter(Boolean)
   if (!rowValues.length || !requestedValues.length) return false
 
-  const canonical = (s: string) => isLtlCfzLocation(s) ? 'cfz panama' : s
+  const canonical = (s: string) => {
+    if (isLtlCfzLocation(s)) return 'cfz panama'
+    // The GCF tariff matrix uses "Ciudad Guatemala" while Config uses
+    // "Ciudad de Guatemala". Neither is a different destination.
+    return s.replace(/\b(?:ciudad de guatemala|guatemala city)\b/g, 'ciudad guatemala')
+  }
   for (const rowValue of rowValues) {
     for (const reqValue of requestedValues) {
       // CFZ represents a specific free-zone origin, not all of Panamá.
