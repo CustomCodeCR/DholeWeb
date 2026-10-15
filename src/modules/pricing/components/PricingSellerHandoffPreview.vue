@@ -95,6 +95,9 @@ const equipmentSize = computed(() => {
   }
   return firstProvided(...candidates)
 })
+const isExw = computed(() =>
+  /^EXW(?:$|\W)/.test(firstProvided(label('incotermCode'), props.incotermLabel).toUpperCase().trim()),
+)
 const cargoCondition = computed(() => {
   const format = (value: unknown) => value === 'FiscalCargo' ? 'Carga fiscal'
     : value === 'NationalizedCargo' ? 'Carga nacionalizada' : ''
@@ -184,7 +187,7 @@ function fileKind(fileName: string): string {
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isConsolidated ? 'Operación' : 'Equipo' }}</dt><dd class="font-bold">{{ equipment }}</dd></div>
             <div v-if="!isConsolidated"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isLand ? 'Tamaño de furgón' : 'Tamaño de contenedor' }}</dt><dd class="font-bold">{{ equipmentSize }}</dd></div>
             <div v-if="!isConsolidated"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Cantidad</dt><dd class="font-bold">{{ label('equipmentQuantity') }}</dd></div>
-            <div class="sm:col-span-2"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Condición aduanera de la carga</dt><dd class="font-bold text-[var(--dh-text)]">{{ cargoCondition }}</dd></div>
+            <div v-if="isExw" class="sm:col-span-2"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Condición aduanera de la carga</dt><dd class="font-bold text-[var(--dh-text)]">{{ cargoCondition }}</dd></div>
             <div class="sm:col-span-2"><dt class="mb-2 text-xs font-semibold text-[var(--dh-text-muted)]">Servicios solicitados</dt><dd class="flex flex-wrap gap-2"><span v-for="service in serviceList" :key="service" class="rounded-full border border-[rgb(var(--dh-primary-rgb)/0.2)] bg-[rgb(var(--dh-primary-rgb)/0.06)] px-3 py-1 text-xs font-bold">{{ service }}</span><span v-if="!serviceList.length" class="text-xs text-[var(--dh-text-muted)]">No indicados</span></dd></div>
           </dl>
         </section>
@@ -236,7 +239,7 @@ function fileKind(fileName: string): string {
       </div>
 
       <div class="grid gap-4 xl:grid-cols-2">
-        <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+        <section v-if="isExw" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
           <div class="mb-3 flex items-center gap-2"><MapPin class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Puntos de recolecta</h3><span class="rounded-full bg-[var(--dh-card)] px-2 py-0.5 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ pickupCards.length }}</span></div>
           <div v-if="pickupCards.length" class="grid gap-2 md:grid-cols-2">
             <div v-for="pickup in pickupCards" :key="pickup.index" class="min-w-0 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
