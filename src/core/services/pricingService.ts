@@ -479,11 +479,15 @@ export const PricingService = {
     return unwrapApiResponse<ManualImportExtractionJobDto>(response as never)
   },
 
-  async awaitManualImportExtraction(jobId: string): Promise<ExtractImportRatesResultDto> {
+  async awaitManualImportExtraction(
+    jobId: string,
+    onStatus?: (status: ManualImportExtractionJobDto['status']) => void,
+  ): Promise<ExtractImportRatesResultDto> {
     // 202 + separate short status requests: Cloudflare never needs to hold
     // the connection open while PDF/OCR/AI is working in Pricing.
     for (let attempt = 0; attempt < 600; attempt += 1) {
       const job = await this.getManualImportExtractionJob(jobId)
+      onStatus?.(job.status)
       if (job.status === 'Failed') {
         localStorage.removeItem('dhole:pricing:import-extraction-job')
         throw new Error(job.errorMessage || job.extractionResult?.errorMessage || 'No se pudo extraer el archivo.')
