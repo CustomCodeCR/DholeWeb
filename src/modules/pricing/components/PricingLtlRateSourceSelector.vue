@@ -62,7 +62,7 @@ const ownColumns: DhTableColumn<OwnRow>[] = [
 ]
 
 const coloaderColumns: DhTableColumn<ColoaderRow>[] = [
-  { key: 'source', label: 'Proveedor LTL / importación', width: '220px' },
+  { key: 'source', label: 'Proveedor LTL coloader', width: '220px' },
   { key: 'route', label: 'Ruta' },
   { key: 'validity', label: 'Vigencia', width: '190px' },
   { key: 'sale', label: 'Flete terrestre / CBM', align: 'right', width: '220px' },
@@ -159,6 +159,25 @@ const filteredOwn = computed(() => {
   )
 })
 
+const ownEmptyText = computed(() => {
+  const base = ownRows.value
+  if (!base.length) return 'No hay tarifarios LTL propios registrados en Pricing. Revise las tarifas terrestres LTL o la carga de la matriz oficial.'
+  const applicable = base.filter((row) => row.isActive
+    && String(row.shipmentMode).toLowerCase() === 'ltl'
+    && isValidOn(row.validFrom, row.validTo))
+  if (!applicable.length) return 'Hay ' + base.length + ' tarifas LTL registradas, pero ninguna activa y vigente para la fecha de carga.'
+  const matchingOrigin = applicable.filter((row) => matchesLandLtlEndpoint(
+    { id: row.originId, ids: row.applicableOriginIds, name: row.originName, code: row.originCode },
+    { id: props.originId, name: props.originName, code: props.originCode },
+    'origin',
+  ))
+  if (!matchingOrigin.length) return 'Hay ' + applicable.length + ' tarifas LTL vigentes, pero ninguna corresponde al origen ' + (props.originName || props.originCode || 'seleccionado') + '. Revise los tarifarios terrestres.'
+  if (!matchingOrigin.some(ownMatchesRoute)) return 'Hay ' + matchingOrigin.length + ' tarifas LTL vigentes para este origen, pero ninguna corresponde al destino ' + (props.destinationName || props.destinationCode || 'seleccionado') + '. Revise las rutas registradas.'
+  return search.value.trim()
+    ? 'Existen tarifas LTL para esta ruta, pero ninguna coincide con la búsqueda. Limpie el buscador.'
+    : 'No hay tarifas LTL disponibles para esta combinación.'
+})
+
 const filteredColoaders = computed(() => {
   const q = normalize(search.value)
   return coloaderRows.value.filter((row) =>
@@ -191,7 +210,7 @@ async function load() {
     if (mastersResult.status === 'rejected') {
       error.value = 'No fue posible cargar los tarifarios propios LTL. Intente actualizar.'
     } else if (importsResult.status === 'rejected') {
-      error.value = 'Los tarifarios LTL propios están disponibles, pero no se pudieron consultar los terceros.'
+      error.value = 'Los tarifarios LTL propios están disponibles, pero no se pudieron consultar los LTL coloaders.'
     }
 
     if (!filteredOwn.value.length && filteredColoaders.value.length) tab.value = 'Coloader'
@@ -269,7 +288,7 @@ watch(
         @click="tab = 'Coloader'"
       >
         <Building2 class="h-4 w-4" />
-        LTL de terceros
+        LTL coloaders
         <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ filteredColoaders.length }}</span>
       </button>
     </div>
@@ -283,7 +302,7 @@ watch(
         :columns="ownColumns"
         :rows="filteredOwn"
         :loading="loading"
-        empty-text="No se encontraron tarifas LTL propias vigentes para esta ruta y fecha. Se aceptan orígenes CFZ (Panamá) y GAM (Costa Rica); las recolectas desde Alajuela, Heredia y Coyol pueden usar San José como base."
+        :empty-text="ownEmptyText"
       >
         <template #cell-source="{ row }">
           <div>
@@ -345,7 +364,7 @@ watch(
         :columns="coloaderColumns"
         :rows="filteredColoaders"
         :loading="loading"
-        empty-text="No hay tarifas LTL de terceros vigentes para esta ruta en Revisar importaciones."
+        empty-text="No hay tarifas LTL coloaders vigentes para esta ruta en Revisar importaciones."
       >
         <template #cell-source="{ row }">
           <div>
