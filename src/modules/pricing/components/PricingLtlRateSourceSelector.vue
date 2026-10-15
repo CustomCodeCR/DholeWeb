@@ -53,18 +53,18 @@ const coloaderRows = ref<ColoaderRow[]>([])
 const error = ref('')
 
 const ownColumns: DhTableColumn<OwnRow>[] = [
-  { key: 'source', label: 'Tarifario propio', width: '220px' },
+  { key: 'source', label: 'Tarifario LTL propio', width: '220px' },
   { key: 'route', label: 'Ruta' },
   { key: 'validity', label: 'Vigencia', width: '190px' },
-  { key: 'sale', label: 'Flete / CBM', align: 'right', width: '220px' },
+  { key: 'sale', label: 'Flete terrestre / CBM', align: 'right', width: '220px' },
   { key: 'action', label: '', align: 'right', width: '130px' },
 ]
 
 const coloaderColumns: DhTableColumn<ColoaderRow>[] = [
-  { key: 'source', label: 'Coloader / importación', width: '220px' },
+  { key: 'source', label: 'Proveedor LTL / importación', width: '220px' },
   { key: 'route', label: 'Ruta' },
   { key: 'validity', label: 'Vigencia', width: '190px' },
-  { key: 'sale', label: 'Flete / CBM', align: 'right', width: '220px' },
+  { key: 'sale', label: 'Flete terrestre / CBM', align: 'right', width: '220px' },
   { key: 'action', label: '', align: 'right', width: '130px' },
 ]
 
@@ -272,8 +272,8 @@ watch(
 <template>
   <section class="space-y-4">
     <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_210px_auto] lg:items-end">
-      <DhSearchInput v-model="search" placeholder="Buscar tarifario, coloader, ruta o código..." />
-      <DhInput :model-value="requestedCbm" type="number" label="CBM cobrable calculado" disabled />
+      <DhSearchInput v-model="search" placeholder="Buscar tarifa LTL, proveedor, origen o destino..." />
+      <DhInput :model-value="requestedCbm" type="number" label="Volumen LTL cobrable (CBM)" disabled />
       <DhButton label="Actualizar tarifas" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
     </div>
 
@@ -285,7 +285,7 @@ watch(
         @click="tab = 'Own'"
       >
         <Truck class="h-4 w-4" />
-        Consolidados propios
+        Tarifarios LTL propios
         <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ filteredOwn.length }}</span>
       </button>
 
@@ -296,7 +296,7 @@ watch(
         @click="tab = 'Coloader'"
       >
         <Building2 class="h-4 w-4" />
-        Coloader
+        LTL de terceros
         <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ filteredColoaders.length }}</span>
       </button>
     </div>
@@ -310,7 +310,7 @@ watch(
         :columns="ownColumns"
         :rows="filteredOwn"
         :loading="loading"
-        empty-text="No hay tarifarios propios LTL vigentes para esta ruta."
+        empty-text="No hay tarifas terrestres LTL propias vigentes para esta ruta."
       >
         <template #cell-source="{ row }">
           <div>
@@ -372,7 +372,7 @@ watch(
         :columns="coloaderColumns"
         :rows="filteredColoaders"
         :loading="loading"
-        empty-text="No hay LTL aprobados o preautorizados en Revisar importaciones para esta ruta."
+        empty-text="No hay tarifas LTL de terceros vigentes para esta ruta en Revisar importaciones."
       >
         <template #cell-source="{ row }">
           <div>
