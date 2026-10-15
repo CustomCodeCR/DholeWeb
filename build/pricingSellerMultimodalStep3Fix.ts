@@ -55,7 +55,9 @@ function syncSellerMultimodalExecutiveSelection() {
   const byName = name
     ? options.find((option) => normalizeCatalogValue(option.label) === name)
     : undefined
-  const selected = byOwnerId ?? byFormId ?? byName
+  // The API can return multiple sellers. Default to its first option if a
+  // preselected value was not hydrated yet; preserve any explicit selection.
+  const selected = byOwnerId ?? byFormId ?? byName ?? options[0]
   if (!selected?.value || !String(selected.label ?? '').trim()) return false
 
   // These fields must stay aligned for screen 4, submission and sellerUserId.
@@ -79,7 +81,7 @@ function continueSellerMultimodalStep3() {
   if (!form.loadDate) missing.push('Fecha de carga lista')
   if (!exwLocationReady.value) missing.push('Ubicación de recolecta EXW')
   if (!fcaLocationReady.value) missing.push('Ubicación de WHS FCA')
-  if (!sellerCargoConditionReady.value) missing.push('Carga fiscal o nacionalizada')
+  if (selectedIncotermCode.value === 'EXW' && !sellerCargoConditionReady.value) missing.push('Carga fiscal o nacionalizada en cada recolecta')
   if (!landEquipmentSelectionValid.value) missing.push('Distribución de equipo')
 
   if (missing.length) {
@@ -115,11 +117,31 @@ ${nextAnchor}`,
   if (!code.includes(submitAnchor)) throw new Error('[pricingSellerMultimodalStep3Fix] Missing submit guard anchor')
   code = code.replace(submitAnchor, [
     'async function saveOpenRequest() {',
-    '  if (props.sellerRequestMode && !sellerCargoConditionReady.value) {',
-    "    toastStore.error('Condición de carga obligatoria', 'Seleccione carga fiscal o nacionalizada antes de enviar la solicitud.')",
+    "  if (props.sellerRequestMode && selectedIncotermCode.value === 'EXW' && !sellerCargoConditionReady.value) {",
+    "    toastStore.error('Condición de carga obligatoria', 'Seleccione carga fiscal o nacionalizada para cada recolecta EXW antes de enviar la solicitud.')",
     '    return',
     '  }',
   ].join('\n'))
+
+  // In seller requests, fiscal/nationalized cargo classification belongs to
+  // EXW pickup locations only. Other Incoterms must not require a global
+  // cargoCondition field, and should not display its old selector.
+  const cargoReadyAnchor = `  if (selectedIncotermCode.value === 'EXW') {
+    return pickupLocations.value.length > 0 && pickupLocations.value.every((pickup) => valid(pickup.cargoCondition))
+  }
+  return valid(form.cargoCondition)`
+  if (!code.includes(cargoReadyAnchor)) {
+    throw new Error('[pricingSellerMultimodalStep3Fix] Missing EXW cargo readiness anchor.')
+  }
+  code = code.replace(cargoReadyAnchor, `  if (selectedIncotermCode.value !== 'EXW') return true
+  return pickupLocations.value.length > 0 && pickupLocations.value.every((pickup) => valid(pickup.cargoCondition))`)
+
+  const nonExwConditionSelect = /\\s*<DhSelect\\s+v-if="sellerRequestMode && selectedIncotermCode !== 'EXW'"[\\s\\S]*?:options="pickupCargoConditionOptions"\\s*\\/>/
+  const nonExwMatches = [...code.matchAll(new RegExp(nonExwConditionSelect.source, 'g'))]
+  if (nonExwMatches.length !== 1) {
+    throw new Error(`[pricingSellerMultimodalStep3Fix] Expected one non-EXW seller cargo selector, found ${nonExwMatches.length}.`)
+  }
+  code = code.replace(nonExwConditionSelect, '')
 
   return code
 }
