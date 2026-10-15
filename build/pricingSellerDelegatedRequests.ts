@@ -14,9 +14,9 @@ function patchWizard(source: string) {
   let code = source
 
   const priorityState = `const rateRequestPriorityOptions = [
-  { value: 'Green', label: 'Verde · Requerimiento regular' },
-  { value: 'Yellow', label: 'Amarillo · Requerimiento prioritario' },
-  { value: 'Red', label: 'Rojo · Urgente (atención inmediata)' },
+  { value: 'Green', label: 'Verde · Regular (48–72 h)' },
+  { value: 'Yellow', label: 'Amarillo · Prioritario (24–48 h)' },
+  { value: 'Red', label: 'Rojo · Urgente (0–24 h)' },
 ] as const`
 
   code = replaceOne(
