@@ -74,9 +74,79 @@ function addSharedCommercialValidity(source: string): string {
   return source.slice(0, point) + '\n' + inputs + source.slice(point)
 }
 
+const SALES_READ_ONLY_PREVIEW = "    <details v-if=\"rateRequestId && sellerHandoffSnapshot && step >= 5\" open class=\"rounded-[24px] border border-[rgb(var(--dh-primary-rgb)/0.3)] bg-[var(--dh-card)] p-4 md:p-5\">\n      <summary class=\"cursor-pointer text-sm font-black text-[var(--dh-text)]\">Información enviada por Ventas · pantallas 1–4 · ver datos, comentarios y adjuntos</summary>\n      <p class=\"mt-2 text-xs font-semibold text-[var(--dh-text-muted)]\">Registro original de la solicitud. La información se consulta sin modificarla; Pricing continúa cotizando en las mismas pantallas 5–8 de Crear tarifa.</p>\n      <div class=\"mt-4 grid gap-4 lg:grid-cols-2\">\n        <section class=\"space-y-2 rounded-xl border border-[var(--dh-border)] p-4\">\n          <p class=\"text-xs font-black uppercase text-[var(--dh-primary)]\">Pantalla 1 · Modalidad</p>\n          <p><strong>Modalidad:</strong> {{ sellerContextValue('modality') }}</p>\n          <p><strong>Tipo de embarque:</strong> {{ sellerContextValue('shipmentMode') }}</p>\n          <p><strong>Cliente:</strong> {{ sellerHandoffSnapshot.clientName || 'No indicado' }}</p>\n          <p><strong>Ejecutivo:</strong> {{ sellerHandoffSnapshot.executiveName || 'No indicado' }}</p>\n          <p><strong>Prioridad:</strong> {{ sellerHandoffSnapshot.priority }}</p>\n        </section>\n        <section class=\"space-y-2 rounded-xl border border-[var(--dh-border)] p-4\">\n          <p class=\"text-xs font-black uppercase text-[var(--dh-primary)]\">Pantalla 2 · Embarque</p>\n          <p><strong>Tipo de carga:</strong> {{ sellerContextValue('shipmentMode') }}</p>\n          <p><strong>Equipo:</strong> {{ displayValue(selectedEquipment) || sellerContextValue('equipmentType') }}</p>\n          <p><strong>Tamaño:</strong> {{ sellerContextValue('equipmentSize') }}</p>\n          <p><strong>Cantidad de equipos:</strong> {{ sellerContextValue('equipmentQuantity') }}</p>\n          <p><strong>Servicios:</strong> {{ selectedServices.length ? selectedServices.map((service) => displayValue(service)).join(', ') : sellerContextValue('serviceIds') }}</p>\n        </section>\n        <section class=\"space-y-2 rounded-xl border border-[var(--dh-border)] p-4\">\n          <p class=\"text-xs font-black uppercase text-[var(--dh-primary)]\">Pantalla 3 · Ruta e Incoterm</p>\n          <p><strong>Origen:</strong> {{ sellerHandoffSnapshot.originName || displayValue(selectedOrigin) || 'No indicado' }}</p>\n          <p><strong>Destino terrestre / POE:</strong> {{ sellerHandoffSnapshot.poeName || sellerHandoffSnapshot.destinationName || displayValue(selectedDestination) || 'No indicado' }}</p>\n          <p v-if=\"form.modality !== 'Land'\"><strong>POD / destino final:</strong> {{ sellerHandoffSnapshot.podName || displayValue(selectedPod) || 'No indicado' }}</p>\n          <p><strong>Incoterm:</strong> {{ displayValue(selectedIncoterm) || sellerContextValue('incotermId') }}</p>\n          <p><strong>Carga lista:</strong> {{ sellerContextValue('cargoReadyDate') !== 'No indicado' ? sellerContextValue('cargoReadyDate') : sellerContextValue('loadDate') }}</p>\n          <p><strong>Dirección de recolecta:</strong> {{ sellerContextValue('pickupAddress') }}</p>\n          <p><strong>Almacén / WHS:</strong> {{ sellerContextValue('warehouseId') }}</p>\n          <p v-if=\"form.modality !== 'Land'\"><strong>Muellaje:</strong> {{ sellerContextValue('portHandlingMode') }}</p>\n          <p v-if=\"sellerHandoffSnapshot.pickupLocations.length\" class=\"font-black\">Puntos de recolecta indicados por Ventas:</p>\n          <ul v-if=\"sellerHandoffSnapshot.pickupLocations.length\" class=\"list-disc space-y-1 pl-5 text-xs\">\n            <li v-for=\"(pickup, index) in sellerHandoffSnapshot.pickupLocations\" :key=\"index\">{{ JSON.stringify(pickup) }}</li>\n          </ul>\n        </section>\n        <section class=\"space-y-2 rounded-xl border border-[var(--dh-border)] p-4\">\n          <p class=\"text-xs font-black uppercase text-[var(--dh-primary)]\">Pantalla 4 · Carga y comentarios</p>\n          <p><strong>Descripción:</strong> {{ sellerContextValue('cargoDescription') }}</p>\n          <p class=\"whitespace-pre-wrap\"><strong>Observaciones del vendedor:</strong> {{ sellerContextValue('cargoObservations') }}</p>\n          <p><strong>Bultos:</strong> {{ sellerContextValue('cargoPackages') }} · <strong>Tarimas:</strong> {{ sellerContextValue('cargoPallets') }}</p>\n          <p><strong>Peso total:</strong> {{ sellerContextValue('cargoWeightKg') }} kg</p>\n          <p><strong>Medidas (cm):</strong> {{ sellerContextValue('cargoLengthCm') }} × {{ sellerContextValue('cargoWidthCm') }} × {{ sellerContextValue('cargoHeightCm') }}</p>\n          <p><strong>Valor de carga:</strong> {{ sellerContextValue('cargoValue') }} · <strong>CABYS:</strong> {{ sellerContextValue('cabysCode') }}</p>\n          <p><strong>Carga peligrosa:</strong> {{ sellerContextValue('dangerousCargo') }} · <strong>No estibable:</strong> {{ sellerContextValue('nonStackable') }}</p>\n          <p><strong>Sobrepeso:</strong> {{ sellerContextValue('overweight') }} · <strong>Almacenaje (días):</strong> {{ sellerContextValue('storageDays') }}</p>\n          <p v-if=\"sellerContextValue('notes') !== 'No indicado'\" class=\"whitespace-pre-wrap\"><strong>Notas:</strong> {{ sellerContextValue('notes') }}</p>\n          <p v-if=\"sellerContextValue('comments') !== 'No indicado'\" class=\"whitespace-pre-wrap\"><strong>Comentarios adicionales:</strong> {{ sellerContextValue('comments') }}</p>\n        </section>\n      </div>\n      <section class=\"mt-4 rounded-xl border border-[var(--dh-border)] p-4\">\n        <p class=\"text-xs font-black uppercase text-[var(--dh-primary)]\">Adjuntos originales de Ventas ({{ sellerHandoffSnapshot.documents.length }})</p>\n        <div v-if=\"sellerHandoffSnapshot.documents.length\" class=\"mt-3 grid gap-2 md:grid-cols-2\">\n          <div v-for=\"document in sellerHandoffSnapshot.documents\" :key=\"document.id\" class=\"flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-xs\">\n            <span class=\"min-w-0\"><strong class=\"block\">{{ document.categoryLabel }}</strong><span class=\"break-all\">{{ document.fileName }}</span></span>\n            <DhButton variant=\"secondary\" size=\"sm\" @click=\"downloadSellerHandoffFile(document)\">Descargar</DhButton>\n          </div>\n        </div>\n        <p v-else class=\"mt-2 text-xs font-semibold text-[var(--dh-text-muted)]\">Ventas no adjuntó documentos a esta solicitud.</p>\n      </section>\n    </details>"
+
+function addSellerHandoffPreview(source: string): string {
+  const stateAnchor = 'const supportDocuments = ref<SupportDocument[]>([])'
+  const hydrateAnchor = '    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)'
+  const templateAnchor = '    <div class="crystal-stepbar'
+  if (!source.includes(stateAnchor) || !source.includes(hydrateAnchor) || !source.includes(templateAnchor)) {
+    throw new Error('[pricingWizardLandModeTerminology] Cannot place read-only Sales context')
+  }
+  const stateLines = [
+    stateAnchor,
+    "type SellerHandoffSnapshot = {",
+    "  form: Record<string, unknown>",
+    "  context: Record<string, unknown>",
+    "  sellerContext: Record<string, unknown>",
+    "  pickupLocations: RatePickupLocationDto[]",
+    "  documents: SupportDocument[]",
+    "  clientName: string",
+    "  executiveName: string",
+    "  originName: string",
+    "  destinationName: string",
+    "  poeName: string",
+    "  podName: string",
+    "  priority: string",
+    "}",
+    "const sellerHandoffSnapshot = ref<SellerHandoffSnapshot | null>(null)",
+    "function sellerContextValue(key: string): string {",
+    "  const data = sellerHandoffSnapshot.value",
+    "  const value = data?.form[key] ?? data?.context[key] ?? data?.sellerContext[key]",
+    "  if (value == null || value === '') return 'No indicado'",
+    "  if (typeof value === 'boolean') return value ? 'Sí' : 'No'",
+    "  if (Array.isArray(value)) return value.map((item) => typeof item === 'string' ? item : JSON.stringify(item)).join(', ') || 'No indicado'",
+    "  return String(value)",
+    "}",
+    "async function downloadSellerHandoffFile(document: SupportDocument) {",
+    "  try {",
+    "    await StorageService.downloadFile({ id: document.id, fileName: document.fileName })",
+    "  } catch (error) {",
+    "    toastStore.backendError(error, 'No se pudo descargar el respaldo enviado por Ventas.')",
+    "  }",
+    "}",
+  ].join('\n')
+  let code = source.replace(stateAnchor, stateLines)
+  const hydrateLines = [
+    hydrateAnchor,
+    "    const sellerPayload = (request.payload ?? {}) as Record<string, unknown>",
+    "    const sellerTyped = request as unknown as Record<string, unknown>",
+    "    const sellerForm = (request.payload?.form ?? {}) as Record<string, unknown>",
+    "    const originalContext = sellerPayload.requestContext",
+    "    const originalSellerContext = sellerPayload.sellerContext",
+    "    sellerHandoffSnapshot.value = {",
+    "      form: { ...sellerForm },",
+    "      context: originalContext && typeof originalContext === 'object' ? { ...(originalContext as Record<string, unknown>) } : {},",
+    "      sellerContext: originalSellerContext && typeof originalSellerContext === 'object' ? { ...(originalSellerContext as Record<string, unknown>) } : {},",
+    "      pickupLocations: Array.isArray(request.payload?.pickupLocations) ? request.payload.pickupLocations.map((location) => ({ ...location })) : [],",
+    "      documents: Array.isArray(request.payload?.supportDocuments) ? request.payload.supportDocuments.map((document) => ({ ...document })) : [],",
+    "      clientName: String(sellerTyped.clientName ?? sellerForm.clientName ?? ''),",
+    "      executiveName: String(sellerTyped.executiveName ?? sellerForm.executiveName ?? ''),",
+    "      originName: String(sellerTyped.originName ?? originalContext && (originalContext as Record<string, unknown>).originName ?? ''),",
+    "      destinationName: String(sellerTyped.destinationName ?? sellerTyped.poeName ?? ''),",
+    "      poeName: String(sellerTyped.poeName ?? ''),",
+    "      podName: String(sellerTyped.podName ?? ''),",
+    "      priority: String(request.priority ?? ''),",
+    "    }",
+  ].join('\n')
+  code = code.replace(hydrateAnchor, hydrateLines)
+  return code.replace(templateAnchor, SALES_READ_ONLY_PREVIEW + '\n' + templateAnchor)
+}
+
 export function patchPricingWizardLandModeTerminology(source: string): string {
   const commonWizard = removeRequestSpecificScreenFiveCard(source)
-  return addSharedCommercialValidity(patchStepFiveHelp(patchStepThreeForLand(commonWizard)))
+  const shared = addSharedCommercialValidity(patchStepFiveHelp(patchStepThreeForLand(commonWizard)))
+  return addSellerHandoffPreview(shared)
 }
 
 export function pricingWizardLandModeTerminology(): Plugin {
