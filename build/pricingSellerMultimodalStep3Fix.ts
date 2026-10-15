@@ -44,10 +44,31 @@ const sellerMultimodalSellerStep3 = computed(() =>
   && isMultimodalViaPanama(findById(catalogs.poe, form.destinationId)),
 )
 
+// Resolve the actual DhSelect option instead of trusting a watcher-populated
+// form.executiveName. A selected salesperson can already be visible while that
+// mirrored string is still empty (e.g. after draft hydration or impersonation).
+function syncSellerMultimodalExecutiveSelection() {
+  const options = sellerRequestOwnerOptions.value
+  const byOwnerId = options.find((option) => option.value === sellerRequestOwnerId.value)
+  const byFormId = options.find((option) => option.value === form.executiveId)
+  const name = normalizeCatalogValue(String(form.executiveName ?? ''))
+  const byName = name
+    ? options.find((option) => normalizeCatalogValue(option.label) === name)
+    : undefined
+  const selected = byOwnerId ?? byFormId ?? byName
+  if (!selected?.value || !String(selected.label ?? '').trim()) return false
+
+  // These fields must stay aligned for screen 4, submission and sellerUserId.
+  sellerRequestOwnerId.value = selected.value
+  form.executiveId = selected.value
+  form.executiveName = String(selected.label).trim()
+  return true
+}
+
 function continueSellerMultimodalStep3() {
   const missing: string[] = []
   if (!form.clientName.trim()) missing.push('Nombre del cliente')
-  if (!sellerRequestOwnerId.value || !form.executiveName.trim()) missing.push('Ejecutivo comercial')
+  if (!syncSellerMultimodalExecutiveSelection()) missing.push('Ejecutivo comercial')
   if (!selectedOrigin.value) missing.push('Origen (POL)')
   if (!selectedDestination.value) missing.push('Multimodal vía Panamá (POE)')
   if (!selectedPod.value) missing.push('Destino final (POD)')
