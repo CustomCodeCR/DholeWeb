@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { patchPricingWizardLandModeTerminology } from '../build/pricingWizardLandModeTerminology.ts'
 
@@ -105,7 +106,14 @@ test('resume shows original Sales snapshot and downloadable documents instead of
   assert.match(output, /:service-labels/)
   assert.match(output, /@download="downloadSellerHandoffFile"/)
   assert.match(output, /sellerHandoffSnapshot/)
-  assert.match(output, /cargoObservations/)
+  const childComponent = readFileSync(
+    new URL('../src/modules/pricing/components/PricingSellerHandoffPreview.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(childComponent, /cargoObservations/)
+  assert.match(childComponent, /pickupCards/)
+  assert.match(childComponent, /emit\('download', document\)/)
+  assert.doesNotMatch(childComponent, /JSON\.stringify\(/)
   assert.match(output, /pickupLocations/)
   assert.match(output, /downloadSellerHandoffFile/)
   assert.match(output, /StorageService.downloadFile/)
