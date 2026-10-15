@@ -21,12 +21,13 @@ function replaceBetween(source: string, start: string, end: string, replacement:
 function patchWizard(source: string) {
   let code = source
 
-  code = replaceOne(
-    code,
-    `const props = withDefaults(defineProps<{ rateId?: string | null; viewOnly?: boolean }>(), {\n  rateId: null,\n  viewOnly: false,\n})`,
-    `const props = withDefaults(defineProps<{\n  rateId?: string | null\n  viewOnly?: boolean\n  sellerRequestMode?: boolean\n  rateRequestId?: string | null\n}>(), {\n  rateId: null,\n  viewOnly: false,\n  sellerRequestMode: false,\n  rateRequestId: null,\n})`,
-    'wizard props',
-  )
+  const legacyWizardProps = "const props = withDefaults(defineProps<{ rateId?: string | null; viewOnly?: boolean }>(), {\n  rateId: null,\n  viewOnly: false,\n})"
+  const typedWizardProps = "const props = withDefaults(defineProps<{\n  rateId?: string | null\n  viewOnly?: boolean\n  sellerRequestMode?: boolean\n  rateRequestId?: string | null\n}>(), {\n  rateId: null,\n  viewOnly: false,\n  sellerRequestMode: false,\n  rateRequestId: null,\n})"
+  if (code.includes(legacyWizardProps)) {
+    code = replaceOne(code, legacyWizardProps, typedWizardProps, 'wizard props')
+  } else if (!code.includes(typedWizardProps)) {
+    throw new Error('[pricingSellerRateRequests] Expected typed seller request wizard props.')
+  }
 
   code = replaceOne(
     code,
