@@ -21,6 +21,7 @@ import { pricingWizardLclOptionalWeight } from './build/pricingWizardLclOptional
 import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
+import { pricingSellerRequestEdit } from './build/pricingSellerRequestEdit'
 import { pricingSellerDelegatedRequests } from './build/pricingSellerDelegatedRequests'
 import { pricingSellerRateRequestResponsibilities } from './build/pricingSellerRateRequestResponsibilities'
 import { pricingWizardStep5RateFilter } from './build/pricingWizardStep5RateFilter'
@@ -181,6 +182,7 @@ export default defineConfig({
     pricingCarrierMerchantChargeCompleteness(),
     pricingWizardLandModeTerminology(),
     pricingSellerMultimodalStep3Fix(),
+    pricingSellerRequestEdit(),
     vue(),
     tailwindcss(),
   ],
