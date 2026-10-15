@@ -169,12 +169,13 @@ const dholeSelectedHaulageCosts = computed(() =>
 const dholeHaulageRecommended = computed<DholeHaulageChoice | null>(() => {
   if (!dholeMerchantAvailable.value) return dholeCarrierAvailable.value ? 'carrier' : null
   if (!dholeCarrierAvailable.value) return 'merchant'
-  const merchant = dholeMerchantEstimate.value
-  const carrier = dholeCarrierEstimate.value
-  if (!Number.isFinite(merchant.margin) || !Number.isFinite(carrier.margin)) return null
-  if (merchant.margin !== carrier.margin) return merchant.margin > carrier.margin ? 'merchant' : 'carrier'
-  if (merchant.cost !== carrier.cost) return merchant.cost < carrier.cost ? 'merchant' : 'carrier'
-  return 'carrier'
+  // Compare the real optional transport costs in the selected currency.
+  // Fixed charges and freight apply equally to both alternatives.
+  const merchantCost = dholeHaulageOptionTotals('merchant').cost
+  const carrierCost = dholeHaulageOptionTotals('carrier').cost
+  if (!Number.isFinite(merchantCost) || !Number.isFinite(carrierCost)) return null
+  // On equal costs, keep Carrier Haulage as the stable default.
+  return merchantCost < carrierCost ? 'merchant' : 'carrier'
 })
 
 function dholeHaulageMoney(value: number) {
@@ -227,7 +228,7 @@ watch(
 
       if (!validCurrent) {
         // If only one transport modality exists, select it automatically.
-        // When both are available default to the higher estimated margin.
+        // When both are available default to the lowest applicable transport cost.
         const mode = merchant && carrier
           ? dholeHaulageRecommended.value
           : merchant ? 'merchant' : carrier ? 'carrier' : null
@@ -249,7 +250,7 @@ watch(
 const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" class="crystal-soft space-y-4 p-4 md:p-5">
             <div>
               <p class="text-base font-black">Transporte en destino · Naviera o Merchant</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">La elección se calcula únicamente con cargos Opcionales de Costos y recargos para esta naviera, ruta y agente. Los cargos fijos son comunes a ambas alternativas.</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se recomienda automáticamente el menor costo de los cargos opcionales aplicables a la naviera, ruta y agente. Los cargos fijos son comunes a ambas alternativas; puede seleccionar otra opción.</p>
             </div>
             <p v-if="dholeHaulagePending" class="text-sm font-semibold text-[var(--dh-text-muted)]">Consultando costos y alternativas disponibles…</p>
             <template v-else>
@@ -268,7 +269,7 @@ const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" cl
                     <span class="block">Costo: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('carrier').cost) }}</strong></span>
                     <span class="block">Venta: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('carrier').sale) }}</strong></span>
                     <span class="block">Margen total estimado: <strong>{{ dholeCarrierEstimate.margin.toFixed(2) }}%</strong></span>
-                    <span v-if="dholeHaulageRecommended === 'carrier' && dholeMerchantAvailable" class="block font-black text-[var(--dh-primary)]">Mejor margen estimado</span>
+                    <span v-if="dholeHaulageRecommended === 'carrier' && dholeMerchantAvailable" class="block font-black text-[var(--dh-primary)]">Menor costo estimado</span>
                   </span>
                   <span v-else class="mt-2 block text-xs">Sin cargos opcionales de Carrier Haulage para esta selección.</span>
                 </button>
@@ -286,7 +287,7 @@ const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" cl
                     <span class="block">Costo: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('merchant').cost) }}</strong></span>
                     <span class="block">Venta: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('merchant').sale) }}</strong></span>
                     <span class="block">Margen total estimado: <strong>{{ dholeMerchantEstimate.margin.toFixed(2) }}%</strong></span>
-                    <span v-if="dholeHaulageRecommended === 'merchant' && dholeCarrierAvailable" class="block font-black text-[var(--dh-primary)]">Mejor margen estimado</span>
+                    <span v-if="dholeHaulageRecommended === 'merchant' && dholeCarrierAvailable" class="block font-black text-[var(--dh-primary)]">Menor costo estimado</span>
                   </span>
                   <span v-else class="mt-2 block text-xs">Sin cargos opcionales de Merchant Haulage para esta naviera y ruta.</span>
                 </button>
