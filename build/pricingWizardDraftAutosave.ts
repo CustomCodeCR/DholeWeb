@@ -192,7 +192,7 @@ async function restorePricingDraft() {
     const minimumStep = props.rateRequestId ? 5 : 1
     const maximumStep = props.sellerRequestMode ? 4 : maxStep.value
     const restoredStep = Math.trunc(Number(draft.step || minimumStep))
-    step.value = Math.min(maximumStep, Math.max(minimumStep, restoredStep))
+    step.value = props.sellerEditRequestId ? 4 : Math.min(maximumStep, Math.max(minimumStep, restoredStep))
 
     if (availableRates.value.length) {
       await loadImportSources(availableRates.value)
