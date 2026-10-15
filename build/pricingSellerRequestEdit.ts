@@ -101,10 +101,16 @@ function patchWizard(source: string) {
     "{{ saving ? 'Guardando…' : sellerEditRequestId ? 'Guardar cambios' : 'Enviar solicitud a Pricing' }}",
     'seller edit button label')
 
-  code = replaceOnce(code,
-    ':disabled="sellerRequestOwnersLoading || !sellerRequestOwnerOptions.length"',
-    ':disabled="sellerRequestOwnersLoading || !sellerRequestOwnerOptions.length || !!sellerEditRequestId"',
-    'locked seller owner')
+  // Some later pricing plugins rewrite the executive selector. Keep the
+  // server-side owner check authoritative and lock the UI when the selector is present.
+  const ownerSelect = /<DhSelect[^>]*v-model="sellerRequestOwnerId"[^>]*\/>/s
+  const ownerMatch = code.match(ownerSelect)
+  if (ownerMatch && ownerMatch[0].includes(':disabled="')) {
+    code = code.replace(ownerMatch[0], ownerMatch[0].replace(
+      /:disabled="([^"]*)"/,
+      ':disabled="$1 || !!sellerEditRequestId"',
+    ))
+  }
 
   code = replaceOnce(code,
     'Cargando tarifa completa…',
