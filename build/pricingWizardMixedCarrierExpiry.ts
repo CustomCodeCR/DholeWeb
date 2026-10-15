@@ -245,7 +245,6 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
     })
   })
   return [
-    { value: '', label: 'Todas las navieras' },
     ...[...carriers.entries()]
       .sort((left, right) => left[1].localeCompare(right[1], 'es'))
       .map(([value, label]) => ({ value, label })),
@@ -254,8 +253,8 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
 
 const visibleFclRateBundles = computed(() =>
   fclRateBundles.value.filter(
-    (bundle) => !rateCarrierFilter.value
-      || bundle.lines.some((line) => fclRateCarrierFilterKey(line.rate) === rateCarrierFilter.value),
+    (bundle) => !rateCarrierFilters.value.length
+      || bundle.lines.every((line) => rateCarrierFilters.value.includes(fclRateCarrierFilterKey(line.rate))),
   ),
 )
 
@@ -273,7 +272,7 @@ const visibleFclRateBundles = computed(() =>
   code = replaceRequired(
     code,
     `No hay una combinación completa para la naviera seleccionada`,
-    `No hay una combinación completa que incluya la naviera seleccionada`,
+    `No hay combinaciones completas para las navieras seleccionadas`,
     'carrier-filter empty state',
   )
 
