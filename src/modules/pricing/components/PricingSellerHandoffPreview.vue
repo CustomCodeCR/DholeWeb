@@ -80,8 +80,11 @@ const readyDate = computed(() => firstProvided(label('cargoReadyDate'), label('l
 const remarks = computed(() => label('cargoObservations'))
 const description = computed(() => label('cargoDescription'))
 const notes = computed(() => firstProvided(label('notes'), label('comments')))
-const isLtl = computed(() => props.isLand && shipment.value.trim().toUpperCase() === 'LTL')
-const equipment = computed(() => isLtl.value ? 'Furgón compartido (LTL)' : firstProvided(props.equipmentLabel, label('equipmentType')))
+const shipmentMode = computed(() => shipment.value.trim().toUpperCase())
+const isConsolidated = computed(() => ['LCL', 'LTL'].includes(shipmentMode.value))
+const equipment = computed(() =>
+  isConsolidated.value ? 'Carga consolidada' : firstProvided(props.equipmentLabel, label('equipmentType')),
+)
 const equipmentSize = computed(() => {
   const candidates = [label('equipmentSize'), label('equipmentType'), props.equipmentLabel]
   if (props.isLand) {
@@ -178,9 +181,9 @@ function fileKind(fileName: string): string {
           </div>
           <dl class="grid gap-3 p-4 text-sm sm:grid-cols-2">
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Tipo de carga</dt><dd class="font-bold">{{ shipment }}</dd></div>
-            <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Equipo</dt><dd class="font-bold">{{ equipment }}</dd></div>
-            <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isLand ? 'Tamaño de furgón' : 'Tamaño' }}</dt><dd class="font-bold">{{ equipmentSize }}</dd></div>
-            <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Cantidad</dt><dd class="font-bold">{{ label('equipmentQuantity') }}</dd></div>
+            <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isConsolidated ? 'Operación' : 'Equipo' }}</dt><dd class="font-bold">{{ equipment }}</dd></div>
+            <div v-if="!isConsolidated"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isLand ? 'Tamaño de furgón' : 'Tamaño de contenedor' }}</dt><dd class="font-bold">{{ equipmentSize }}</dd></div>
+            <div v-if="!isConsolidated"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Cantidad</dt><dd class="font-bold">{{ label('equipmentQuantity') }}</dd></div>
             <div class="sm:col-span-2"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Condición aduanera de la carga</dt><dd class="font-bold text-[var(--dh-text)]">{{ cargoCondition }}</dd></div>
             <div class="sm:col-span-2"><dt class="mb-2 text-xs font-semibold text-[var(--dh-text-muted)]">Servicios solicitados</dt><dd class="flex flex-wrap gap-2"><span v-for="service in serviceList" :key="service" class="rounded-full border border-[rgb(var(--dh-primary-rgb)/0.2)] bg-[rgb(var(--dh-primary-rgb)/0.06)] px-3 py-1 text-xs font-bold">{{ service }}</span><span v-if="!serviceList.length" class="text-xs text-[var(--dh-text-muted)]">No indicados</span></dd></div>
           </dl>
