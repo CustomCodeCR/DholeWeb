@@ -138,6 +138,8 @@ const variableCostPageSize = ref(10)
 
 const selectedFile = ref<File | null>(null)
 const extractionResult = ref<ExtractImportFclRatesResultDto | null>(null)
+const extractionProgress = ref('')
+const MANUAL_IMPORT_JOB_KEY = 'dhole:pricing:import-extraction-job'
 const selectedImport = ref<ImportFclRateDto | null>(null)
 const selectedRate = ref<RateHeaderDto | null>(null)
 const selectedImportIds = ref<string[]>([])
@@ -1666,14 +1668,41 @@ function handleFileDrop(event: DragEvent) {
   setSelectedFile(event.dataTransfer?.files?.[0] ?? null)
 }
 
-async function extractFile() {
-  if (!selectedFile.value) return
+async function resumeImportFileJob(jobId: string) {
   uploading.value = true
+  extractionResult.value = null
+  extractionProgress.value = 'Consultando el estado de la extracción...'
   try {
-    extractionResult.value = await PricingService.extractImportRates(selectedFile.value)
+    extractionResult.value = await PricingService.awaitManualImportExtraction(jobId, (status) => {
+      extractionProgress.value = status === 'Pending'
+        ? 'Archivo recibido. Esperando turno para extraer tarifas.'
+        : status === 'Processing'
+          ? 'Extrayendo tarifas con DataExtraction e IA. Puede volver a esta pantalla más tarde.'
+          : ''
+    })
+    extractionProgress.value = ''
     toastStore.success(t('pricing.messages.extractionSuccess'))
     await loadImports()
   } catch (error) {
+    extractionProgress.value = localStorage.getItem(MANUAL_IMPORT_JOB_KEY)
+      ? 'No se pudo consultar el resultado; la extracción continúa en el servidor. Regrese para retomarla.'
+      : ''
+    toastStore.backendError(error, t('pricing.messages.extractionError'))
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function extractFile() {
+  if (!selectedFile.value || uploading.value) return
+  uploading.value = true
+  extractionProgress.value = 'Registrando el archivo para extracción...'
+  try {
+    const accepted = await PricingService.enqueueImportRateExtraction(selectedFile.value)
+    localStorage.setItem(MANUAL_IMPORT_JOB_KEY, accepted.jobId)
+    await resumeImportFileJob(accepted.jobId)
+  } catch (error) {
+    extractionProgress.value = ''
     toastStore.backendError(error, t('pricing.messages.extractionError'))
   } finally {
     uploading.value = false
@@ -2495,7 +2524,14 @@ useViewShortcuts({
   refresh: refreshAll,
 })
 
-onMounted(refreshAll)
+onMounted(() => {
+  void refreshAll()
+  const existingJob = localStorage.getItem(MANUAL_IMPORT_JOB_KEY)
+  if (existingJob) {
+    uploadModalOpen.value = true
+    void resumeImportFileJob(existingJob)
+  }
+})
 </script>
 
 <template>
@@ -3319,6 +3355,9 @@ onMounted(refreshAll)
           </div>
         </button>
 
+        <p v-if="extractionProgress" role="status" class="rounded-xl bg-[var(--dh-card)] p-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ extractionProgress }}
+        </p>
         <div
           v-if="extractionResult"
           class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
