@@ -482,41 +482,47 @@ export const PricingService = {
   async awaitManualImportExtraction(
     jobId: string,
     onStatus?: (status: ManualImportExtractionJobDto['status']) => void,
+    signal?: AbortSignal,
   ): Promise<ExtractImportRatesResultDto> {
-    // 202 + separate short status requests: Cloudflare never needs to hold
-    // the connection open while PDF/OCR/AI is working in Pricing.
+    // The upload returns 202 Accepted. Only a terminal job response represents
+    // an extraction result; Pending/Processing must never be shown as an error.
     for (let attempt = 0; attempt < 600; attempt += 1) {
+      if (signal?.aborted) throw new Error('La consulta fue interrumpida; la extracción continúa en el servidor.')
       const job = await this.getManualImportExtractionJob(jobId)
+      if (signal?.aborted) throw new Error('La consulta fue interrumpida; la extracción continúa en el servidor.')
       onStatus?.(job.status)
-      if (job.status === 'Failed') {
-        localStorage.removeItem('dhole:pricing:import-extraction-job')
-        throw new Error(job.errorMessage || job.extractionResult?.errorMessage || 'No se pudo extraer el archivo.')
-      }
-      if (job.status === 'Completed') {
+
+      if (job.status === 'Failed' || job.status === 'Completed') {
         localStorage.removeItem('dhole:pricing:import-extraction-job')
         const extracted = job.extractionResult
-        if (!extracted?.success) throw new Error(extracted?.errorMessage || 'No se extrajeron tarifas válidas.')
+        const issues = extracted?.issues || []
+        const succeeded = job.status === 'Completed' && extracted?.success === true
+        const created = extracted?.persistedRows ?? 0
+        const skipped = extracted?.skippedRows ?? 0
         return {
-          success: true,
+          success: succeeded,
           pricingImportId: jobId,
           correlationId: '',
-          totalRows: extracted.persistedRows + extracted.skippedRows,
-          validRows: extracted.persistedRows,
-          warningRows: 0,
-          invalidRows: extracted.skippedRows,
-          createdRows: extracted.persistedRows,
-          skippedRows: extracted.skippedRows,
-          hasIssues: Boolean(extracted.issues?.length),
+          totalRows: created + skipped,
+          validRows: created,
+          warningRows: issues.filter((issue) => !issue.isBlocking).length,
+          invalidRows: issues.filter((issue) => issue.isBlocking).length,
+          createdRows: created,
+          skippedRows: skipped,
+          hasIssues: issues.length > 0,
           importFclRateIds: [],
-          issues: extracted.issues || [],
-          errorCode: extracted.errorCode,
-          errorMessage: extracted.errorMessage,
+          issues,
+          errorCode: extracted?.errorCode,
+          errorMessage: succeeded ? null
+            : (job.errorMessage || extracted?.errorMessage || 'No se pudo completar la extracción.'),
         }
       }
+
       await new Promise<void>((resolve) => setTimeout(resolve, 3000))
     }
-    // Work continues on the server. Keep the id so it can be resumed on retry.
-    throw new Error('La extracción sigue procesándose. Regrese para consultar el resultado.')
+
+    // The job is still persisted on the server and can be resumed after reopening.
+    throw new Error('La extracción continúa en segundo plano. Puede volver a esta pantalla para consultar su estado.')
   },
 
   async extractImportRates(
