@@ -131,3 +131,17 @@ test('GAM pickup is required in LTL lines before a rate can be saved', () => {
   assert.match(output, /Number\(line.saleAmount\) > 0/)
   assert.match(output, /step.value = 7/)
 })
+
+test('pricing dashboard shows LCL/LTL as consolidated without container or trailer quantities', () => {
+  const source = readFileSync(
+    new URL('../src/modules/pricing/components/PricingRateRequestsPanel.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(source, /function isConsolidated\(request: RateRequestDto\): boolean \{[\s\S]*?\['LCL', 'LTL'\]\.includes\(shipmentMode\(request\)\)/)
+  assert.match(source, /function equipmentLabel\(request: RateRequestDto\) \{\s*if \(isConsolidated\(request\)\) \{/)
+  assert.match(source, /LTL · Consolidado terrestre/)
+  assert.match(source, /LCL · Consolidado/)
+  assert.match(source, /function equipmentQuantity\(request: RateRequestDto\) \{\s*if \(isConsolidated\(request\)\) return '—'/)
+  assert.match(source, />Embarque \/ equipo<\/th>/)
+  assert.match(source, />Cant\. equipos<\/th>/)
+})
