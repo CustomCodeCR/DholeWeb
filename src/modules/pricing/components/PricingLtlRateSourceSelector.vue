@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isLtlGamPickupLocation, matchesLandLtlEndpoint } from '@/modules/pricing/utils/ltlGamRouting'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Building2, Check, RefreshCcw, Truck } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
@@ -90,41 +91,6 @@ function normalize(value: unknown) {
     .trim()
 }
 
-function routeKey(value: unknown) {
-  const normalized = normalize(value)
-  if (
-    normalized.includes('cfz')
-    || normalized.includes('colon free zone')
-    || normalized.includes('zona libre colon')
-  ) return 'cfz panama'
-  return normalized
-}
-
-function endpointMatches(
-  rowId: string | null,
-  applicableIds: string[] | null | undefined,
-  rowName: string | null,
-  rowCode: string | null,
-  selectedId: string | null | undefined,
-  selectedName: string | null | undefined,
-  selectedCode: string | null | undefined,
-) {
-  const ids = new Set([rowId, ...(applicableIds ?? [])].filter(Boolean).map(String))
-  if (selectedId && ids.has(String(selectedId))) return true
-
-  const selected = [selectedName, selectedCode].map(routeKey).filter(Boolean)
-  const configured = [rowName, rowCode].map(routeKey).filter(Boolean)
-  if (!selected.length || !configured.length) return !selectedId
-
-  return selected.some((left) =>
-    configured.some((right) =>
-      left === right
-      || (left.length >= 5 && right.includes(left))
-      || (right.length >= 5 && left.includes(right)),
-    ),
-  )
-}
-
 function isValidOn(validFrom: string | null | undefined, validTo: string | null | undefined) {
   const date = String(props.quoteDate ?? '').slice(0, 10)
   if (!date) return true
@@ -136,24 +102,20 @@ function isValidOn(validFrom: string | null | undefined, validTo: string | null 
 }
 
 function ownMatchesRoute(row: FtlTariffDto) {
-  return endpointMatches(
-    row.originId,
-    row.applicableOriginIds,
-    row.originName,
-    row.originCode,
-    props.originId,
-    props.originName,
-    props.originCode,
-  ) && endpointMatches(
-    row.destinationId,
-    row.applicableDestinationIds,
-    row.destinationName,
-    row.destinationCode,
-    props.destinationId,
-    props.destinationName,
-    props.destinationCode,
+  return matchesLandLtlEndpoint(
+    { id: row.originId, ids: row.applicableOriginIds, name: row.originName, code: row.originCode },
+    { id: props.originId, name: props.originName, code: props.originCode },
+    'origin',
+  ) && matchesLandLtlEndpoint(
+    { id: row.destinationId, ids: row.applicableDestinationIds, name: row.destinationName, code: row.destinationCode },
+    { id: props.destinationId, name: props.destinationName, code: props.destinationCode },
+    'destination',
   )
 }
+
+const pickupRequired = computed(() =>
+  isLtlGamPickupLocation([props.originName, props.originCode].filter(Boolean).join(' ')),
+)
 
 function searchableOwn(row: FtlTariffDto) {
   return [
@@ -209,7 +171,7 @@ async function load() {
   try {
     loading.value = true
     error.value = ''
-    const [masters, imports] = await Promise.all([
+    const [mastersResult, importsResult] = await Promise.allSettled([
       FtlTariffService.browse('Ltl'),
       PricingService.selectImportRates({
         shipmentMode: 'Ltl',
@@ -219,11 +181,18 @@ async function load() {
       }),
     ])
 
-    // Regla de negocio:
-    // FinalClient y NVOCC administrados en Tarifas terrestres son ambos tarifarios propios.
-    // Solamente los LTL provenientes de Revisar importaciones se consideran Coloaders.
-    ownRows.value = masters.map((row) => ({ ...row }))
-    coloaderRows.value = imports.map((row) => ({ ...row }))
+    // Own land LTL tariffs must remain visible even if the imports/coloader API fails.
+    ownRows.value = mastersResult.status === 'fulfilled'
+      ? mastersResult.value.map((row) => ({ ...row }))
+      : []
+    coloaderRows.value = importsResult.status === 'fulfilled'
+      ? importsResult.value.map((row) => ({ ...row }))
+      : []
+    if (mastersResult.status === 'rejected') {
+      error.value = 'No fue posible cargar los tarifarios propios LTL. Intente actualizar.'
+    } else if (importsResult.status === 'rejected') {
+      error.value = 'Los tarifarios LTL propios están disponibles, pero no se pudieron consultar los terceros.'
+    }
 
     if (!filteredOwn.value.length && filteredColoaders.value.length) tab.value = 'Coloader'
   } catch (e) {
@@ -264,7 +233,7 @@ function importedCost(row: ImportRateSelectDto) {
 onMounted(load)
 
 watch(
-  () => [props.originId, props.destinationId, props.quoteDate],
+  () => [props.originId, props.originName, props.originCode, props.destinationId, props.destinationName, props.destinationCode, props.quoteDate],
   () => { void load() },
 )
 </script>
@@ -276,6 +245,10 @@ watch(
       <DhInput :model-value="requestedCbm" type="number" label="Volumen LTL cobrable (CBM)" disabled />
       <DhButton label="Actualizar tarifas" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
     </div>
+
+    <p v-if="pickupRequired" class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
+      Recolecta requerida para Alajuela, Heredia o Coyol. Puede usar un tarifario LTL consolidado de San José como base, pero debe añadir el importe de recolecta en Líneas antes de guardar.
+    </p>
 
     <div class="flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
       <button
@@ -310,7 +283,7 @@ watch(
         :columns="ownColumns"
         :rows="filteredOwn"
         :loading="loading"
-        empty-text="No hay tarifas terrestres LTL propias vigentes para esta ruta."
+        empty-text="No se encontraron tarifas LTL propias vigentes para el origen y destino seleccionados. Revise origen, fecha y destino; las rutas GAM desde San José aceptan recolecta adicional."
       >
         <template #cell-source="{ row }">
           <div>
