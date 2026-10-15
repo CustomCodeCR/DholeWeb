@@ -136,7 +136,7 @@ ${nextAnchor}`,
   code = code.replace(cargoReadyAnchor, `  if (selectedIncotermCode.value !== 'EXW') return true
   return pickupLocations.value.length > 0 && pickupLocations.value.every((pickup) => valid(pickup.cargoCondition))`)
 
-  const nonExwConditionSelect = /\\s*<DhSelect\\s+v-if="sellerRequestMode && selectedIncotermCode !== 'EXW'"[\\s\\S]*?:options="pickupCargoConditionOptions"\\s*\\/>/
+  const nonExwConditionSelect = /\s*<DhSelect\s+v-if="sellerRequestMode && selectedIncotermCode !== 'EXW'"[\s\S]*?:options="pickupCargoConditionOptions"\s*\/>/
   const nonExwMatches = [...code.matchAll(new RegExp(nonExwConditionSelect.source, 'g'))]
   if (nonExwMatches.length !== 1) {
     throw new Error(`[pricingSellerMultimodalStep3Fix] Expected one non-EXW seller cargo selector, found ${nonExwMatches.length}.`)
