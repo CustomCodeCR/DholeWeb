@@ -28,6 +28,7 @@ const sellerCard = [
 const wizard = [
   '<script setup lang="ts">',
   "import { computed, onMounted, reactive, ref, watch } from 'vue'",
+  "import { useRouter } from 'vue-router'",
   'const supportDocuments = ref<SupportDocument[]>([])',
   'async function hydrateRateRequest() {',
   '    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)',
@@ -100,7 +101,9 @@ test('fails on unexpected wizard structure rather than silently diverging', () =
 
 test('resume shows original Sales snapshot and downloadable documents instead of editable steps', () => {
   const output = patchPricingWizardLandModeTerminology(wizard)
-  assert.match(output, /Información enviada por Ventas/)
+  assert.match(output, /PricingSellerHandoffPreview/)
+  assert.match(output, /:service-labels/)
+  assert.match(output, /@download="downloadSellerHandoffFile"/)
   assert.match(output, /sellerHandoffSnapshot/)
   assert.match(output, /cargoObservations/)
   assert.match(output, /pickupLocations/)
