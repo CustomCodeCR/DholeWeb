@@ -111,10 +111,44 @@ function persistedRateLineForEdit(detail: RateDto['rateDetails'][number]): RateL
 function syncPersistedFreightLineForEdit() {
   const freight = rateLines.value.find((line) => line.costDetailType === 'Freight')
   if (freight) {
-    // Si se escogió otro flete de la misma ruta/naviera/agente, solo cambia el
-    // flete. chooseRate protege costo/venta cuando se reelige el source original.
-    freight.costAmount = number(form.freightCost)
-    freight.saleAmount = number(form.freightSale)
+    if (shipmentModeForApi.value === 'Ltl') {
+      // RateDetail.costAmount/saleAmount son precios UNITARIOS para PerChargeableCbm.
+      // El selector terrestre usa importes TOTALES en form.freightCost/Sale.
+      // Nunca copiar esos totales directamente al precio unitario de Pantalla 7.
+      if (step.value === 6) {
+        const tariff = resolvedFtlTariff.value
+        if (tariff) {
+          const cbm = Math.max(1, number(landLtlBillableCbm(tariff)))
+          const panamaSurcharge = isPanamaLandLtlTariff(tariff)
+            ? number(tariff.panamaCostSurchargePerCbm ?? 9)
+            : 0
+          freight.costAmount = Math.max(0, number(tariff.costPerCbm) + panamaSurcharge)
+          freight.saleAmount = Math.max(
+            0,
+            number(tariff.priceAmount),
+            number(tariff.minimumAmount) / cbm,
+          )
+          // Preserve custom notes; update only the auto-generated LTL minimum label.
+          if (/^Tarifa LTL por CBM cobrable/i.test(String(freight.notes ?? ''))) {
+            freight.notes = number(tariff.minimumAmount) > number(tariff.priceAmount) * cbm
+              ? 'Tarifa LTL por CBM cobrable con mínimo aplicado.'
+              : 'Tarifa LTL por CBM cobrable.'
+          }
+        } else {
+          // Tarifa manual o histórica sin fuente: los detalles persistidos ya
+          // contienen valores unitarios. Nunca dividirlos de nuevo por el CBM.
+          freight.costAmount = number(form.freightCost)
+          freight.saleAmount = number(form.freightSale)
+        }
+        freight.chargeBasis = 'PerChargeableCbm'
+      }
+      // En Pantalla 7/8, conservar los precios que el vendedor editó manualmente.
+    } else {
+      // Si se escogió otro flete de la misma ruta/naviera/agente, solo cambia
+      // el flete. chooseRate protege valores al reelegir el source original.
+      freight.costAmount = number(form.freightCost)
+      freight.saleAmount = number(form.freightSale)
+    }
   }
   relinkExistingDetailIdsForEdit()
 }
