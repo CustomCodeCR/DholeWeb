@@ -28,9 +28,16 @@ export function isLtlGamPickupLocation(value: unknown): boolean {
   return gamLtlOrigin(value)?.pickup === true
 }
 
+/** CFZ and its common Spanish/English names refer to the same LTL origin. */
+export function isLtlCfzLocation(value: unknown): boolean {
+  const location = normalizeLandLocation(value)
+  return /\bcfz\b|\bcolon free zone\b|\b(?:zona libre|zona franca)(?: de)? colon\b|\bcolon zona (?:libre|franca)\b/.test(location)
+    || location === 'colon panama'
+}
+
 function locationCountry(value: string): string {
   const s = normalizeLandLocation(value)
-  if (/cfz|panama|zona libre colon|colon free zone/.test(s)) return 'PA'
+  if (isLtlCfzLocation(s) || /panama/.test(s)) return 'PA'
   if (/costa rica|san jose|alajuela|heredia|coyol/.test(s)) return 'CR'
   if (/nicaragua|managua/.test(s)) return 'NI'
   if (/honduras|san pedro sula|tegucigalpa/.test(s)) return 'HN'
@@ -50,7 +57,7 @@ export function matchesLandLtlEndpoint(
   const requestedValues = [requested.name, requested.code].map(normalizeLandLocation).filter(Boolean)
   if (!rowValues.length || !requestedValues.length) return false
 
-  const canonical = (s: string) => /cfz|colon free zone|zona libre colon/.test(s) ? 'cfz panama' : s
+  const canonical = (s: string) => isLtlCfzLocation(s) ? 'cfz panama' : s
   for (const rowValue of rowValues) {
     for (const reqValue of requestedValues) {
       const row = canonical(rowValue)
