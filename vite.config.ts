@@ -82,6 +82,7 @@ import { pricingOptionalChargesFinalGuard } from './build/pricingOptionalCharges
 import { pricingConsolidatedCargo20261001 } from './build/pricingConsolidatedCargo20261001'
 import { pricingMiamiLclRules20261002 } from './build/pricingMiamiLclRules20261002'
 import { pricingConsolidatedHeightLimits20261007 } from './build/pricingConsolidatedHeightLimits20261007'
+import { pricingConsolidatedUnitConversions20261015 } from './build/pricingConsolidatedUnitConversions20261015'
 import { pricingWizardLtlLclUiParity } from './build/pricingWizardLtlLclUiParity'
 
 import { pricingWizardHaulageComparison20261008 } from './build/pricingWizardHaulageComparison20261008'
@@ -167,6 +168,7 @@ export default defineConfig({
     pricingConsolidatedCargo20261001(),
     pricingMiamiLclRules20261002(),
     pricingConsolidatedHeightLimits20261007(),
+    pricingConsolidatedUnitConversions20261015(),
     pricingWizardRuntimeReferenceGuard(),
     pricingAirLclCostFinalGuard(),
     pricingWizardLtlLclUiParity(),
