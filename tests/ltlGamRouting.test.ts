@@ -82,3 +82,31 @@ test('CFZ tariff is not applicable to GAM or a generic Panamá origin', () => {
   ), false)
   assert.equal(isLtlCfzLocation('Ciudad de Panamá'), false)
 })
+
+test('CFZ own tariffs recognize the actual wizard route to Ciudad de Guatemala', () => {
+  assert.equal(matchesLandLtlEndpoint(
+    { name: 'CFZ Panamá', code: 'CFZ' },
+    { name: 'Colon Free Zone, Panama', code: 'PA-CFZ' },
+    'origin',
+  ), true)
+  assert.equal(matchesLandLtlEndpoint(
+    { name: 'Ciudad Guatemala, Guatemala' },
+    { name: 'Ciudad de Guatemala, Guatemala' },
+    'destination',
+  ), true)
+  assert.equal(matchesLandLtlEndpoint(
+    { name: 'Guatemala City, Guatemala' },
+    { name: 'Ciudad de Guatemala, Guatemala' },
+    'destination',
+  ), true)
+  assert.equal(matchesLandLtlEndpoint(
+    { name: 'Ciudad Guatemala, Guatemala' },
+    { name: 'Quetzaltenango, Guatemala' },
+    'destination',
+  ), false)
+  assert.equal(matchesLandLtlEndpoint(
+    { name: 'CFZ Panamá' },
+    { name: 'San José, Costa Rica' },
+    'origin',
+  ), false)
+})
