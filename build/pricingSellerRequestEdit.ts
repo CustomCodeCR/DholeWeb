@@ -54,6 +54,7 @@ function patchWizard(source: string) {
     "      sellerContext?: { portHandlingMode?: SellerPortHandlingMode | null; cargoReadyDate?: string | null }",
     '    }',
     "    sellerPortHandlingMode.value = details.sellerContext?.portHandlingMode || ''",
+    "    await nextTick()",
     "    restoreSellerConsolidatedCargo(",
     "      request.payload.form as Record<string, unknown>,",
     "      details.sellerContext as Record<string, unknown> | undefined,",
