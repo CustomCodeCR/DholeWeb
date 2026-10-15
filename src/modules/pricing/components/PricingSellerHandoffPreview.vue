@@ -116,7 +116,10 @@ const cargoVolume = computed(() => {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   }
   const lines = Array.isArray(context.consolidatedCargoLines) ? context.consolidatedCargoLines : []
-  const inchToCm = unit === 'CFT' ? 2.54 : 1
+  // La unidad mostrada (CBM/CFT) no siempre coincide con la unidad interna de medidas.
+  // En Miami se pueden mostrar CBM aunque las líneas se almacenen en pulgadas.
+  const inchToCm = context.cargoDimensionStorageUnit === 'in'
+    || (!context.cargoDimensionStorageUnit && legacyUsOrigin) ? 2.54 : 1
   let physicalCbm = 0
   let billableCbm = 0
   if (lines.length) {
