@@ -79,7 +79,7 @@ const SALES_READ_ONLY_PREVIEW = [
   '      v-if="rateRequestId && sellerHandoffSnapshot && step >= 5"',
   '      :snapshot="sellerHandoffSnapshot"',
   '      :equipment-label="selectedEquipment ? displayValue(selectedEquipment) : \'\'"',
-  '      :service-label="selectedServices.map((service) => displayValue(service)).join(\', \')"',
+  '      :service-labels="selectedServices.map((service) => displayValue(service)).join(\', \')"',
   '      :origin-label="selectedOrigin ? displayValue(selectedOrigin) : \'\'"',
   '      :destination-label="selectedDestination ? displayValue(selectedDestination) : \'\'"',
   '      :pod-label="selectedPod ? displayValue(selectedPod) : \'\'"',
