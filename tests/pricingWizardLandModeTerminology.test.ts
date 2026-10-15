@@ -111,6 +111,11 @@ test('resume shows original Sales snapshot and downloadable documents instead of
     'utf8',
   )
   assert.match(childComponent, /cargoObservations/)
+  // Consolidated LCL/LTL cargo must not inherit a full container or trailer size.
+  assert.match(childComponent, /const isConsolidated = computed\(\(\) => \['LCL', 'LTL'\]\.includes\(shipmentMode\.value\)\)/)
+  assert.match(childComponent, /v-if="!isConsolidated"><dt[^>]*>\{\{ isLand \? 'Tamaño de furgón' : 'Tamaño de contenedor' \}\}/)
+  assert.match(childComponent, /v-if="!isConsolidated"><dt[^>]*>Cantidad<\/dt>/)
+  assert.match(childComponent, /isConsolidated\.value \? 'Carga consolidada'/)
   assert.match(childComponent, /pickupCards/)
   assert.match(childComponent, /emit\('download', document\)/)
   assert.doesNotMatch(childComponent, /JSON\.stringify\(/)
