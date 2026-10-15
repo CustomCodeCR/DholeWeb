@@ -184,9 +184,16 @@ interface RateLine {
   detailId?: string | null
 }
 
-const props = withDefaults(defineProps<{ rateId?: string | null; viewOnly?: boolean }>(), {
+const props = withDefaults(defineProps<{
+  rateId?: string | null
+  viewOnly?: boolean
+  sellerRequestMode?: boolean
+  rateRequestId?: string | null
+}>(), {
   rateId: null,
   viewOnly: false,
+  sellerRequestMode: false,
+  rateRequestId: null,
 })
 
 const router = useRouter()
