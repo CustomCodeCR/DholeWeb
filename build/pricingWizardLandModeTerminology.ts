@@ -79,7 +79,7 @@ const SALES_READ_ONLY_PREVIEW = "    <details v-if=\"rateRequestId && sellerHand
 function addSellerHandoffPreview(source: string): string {
   const stateAnchor = 'const supportDocuments = ref<SupportDocument[]>([])'
   const hydrateAnchor = '    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)'
-  const templateAnchor = '    <div class="crystal-stepbar'
+  const templateAnchor = '    <section class="crystal-panel'
   if (!source.includes(stateAnchor) || !source.includes(hydrateAnchor) || !source.includes(templateAnchor)) {
     throw new Error('[pricingWizardLandModeTerminology] Cannot place read-only Sales context')
   }
