@@ -62,7 +62,7 @@ const wizard = [
   '</div>',
   '<div v-else-if="step === 4" class="space-y-6"></div>',
   '<div v-else-if="step === 7" class="space-y-6"></div>',
-  '<div class="crystal-stepbar grid grid-cols-2"></div>',
+  '    <div class="crystal-stepbar grid grid-cols-2"></div>',
   "<p>{{ form.modality === 'Air' ? 'Aéreo' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>",
 ].join('\n')
 
