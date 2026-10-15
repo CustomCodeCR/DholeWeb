@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, UploadCloud } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
@@ -19,6 +19,11 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const file = ref<File | null>(null)
 const result = ref<CompatibleExtractionResult | null>(null)
 const form = reactive({ submitted: false, saving: false, dragging: false })
+const jobStatus = ref<'Pending' | 'Processing' | 'Completed' | 'Failed' | null>(null)
+const activeJobId = ref<string | null>(null)
+const JOB_STORAGE_KEY = 'dhole:pricing:import-extraction-job'
+let activePoll: AbortController | null = null
+let unmounted = false
 
 const createdRows = computed(() =>
   Number(result.value?.createdRows ?? result.value?.persistedRows ?? 0),
@@ -47,8 +52,10 @@ const hasIssues = computed(() =>
 const extractionSucceeded = computed(() => result.value?.success === true && createdRows.value > 0)
 
 function chooseFile(files: FileList | null) {
+  if (form.saving) return
   file.value = files?.[0] ?? null
   result.value = null
+  jobStatus.value = null
   form.submitted = false
 }
 
@@ -66,42 +73,83 @@ function extractionFailureMessage(response: CompatibleExtractionResult): string 
   return 'DataExtraction no produjo tarifas utilizables. Revise los detalles de la extracción.'
 }
 
+async function followJob(jobId: string) {
+  activePoll?.abort()
+  activePoll = new AbortController()
+  activeJobId.value = jobId
+  jobStatus.value = 'Pending'
+  form.saving = true
+  result.value = null
+
+  try {
+    // Poll the status endpoint; only a Completed or Failed job may display
+    // a final result. A 202 Pending response is NOT a failed extraction.
+    const extraction = await PricingService.awaitManualImportExtraction(
+      jobId,
+      (status) => { if (!unmounted) jobStatus.value = status },
+      activePoll.signal,
+    )
+    if (unmounted) return
+    result.value = extraction
+    jobStatus.value = extraction.success ? 'Completed' : 'Failed'
+
+    if (!extraction.success) {
+      toastStore.warning('No se pudo importar el tarifario', extractionFailureMessage(extraction))
+    } else if (createdRows.value <= 0) {
+      toastStore.warning(
+        'No se crearon tarifas',
+        'El archivo terminó de procesarse, pero ninguna fila pudo convertirse en una tarifa.',
+      )
+    } else {
+      toastStore.success(
+        'Archivo procesado',
+        String(createdRows.value) + ' tarifas importadas correctamente.',
+      )
+      await props.onSaved?.()
+    }
+  } catch (error) {
+    if (unmounted) return
+    // Leave the persisted job id untouched on transient connection failures.
+    // Reopening the drawer resumes the job without resubmitting the file.
+    toastStore.backendError(error, 'No se pudo consultar la extracción. Puede reabrir esta pantalla.')
+  } finally {
+    if (!unmounted) form.saving = false
+    activePoll = null
+  }
+}
+
 async function submit() {
   form.submitted = true
   if (!file.value || form.saving) return
 
+  form.saving = true
+  result.value = null
+  jobStatus.value = 'Pending'
   try {
-    form.saving = true
-    const response = (await PricingService.extractImportRates(
+    const accepted = await PricingService.enqueueImportRateExtraction(
       file.value,
       createCorrelationId(),
-    )) as CompatibleExtractionResult
-    result.value = response
-
-    if (!response.success) {
-      toastStore.warning('No se pudo importar el tarifario', extractionFailureMessage(response))
-      return
-    }
-
-    if (createdRows.value <= 0) {
-      toastStore.warning(
-        'No se crearon tarifas',
-        'El archivo fue procesado, pero ninguna fila pudo convertirse en una tarifa importada.',
-      )
-      return
-    }
-
-    toastStore.success(
-      'Archivo procesado',
-      `${createdRows.value} tarifa${createdRows.value === 1 ? '' : 's'} importada${createdRows.value === 1 ? '' : 's'} fueron creadas.`,
     )
-    await props.onSaved?.()
+    if (!accepted.jobId) throw new Error('Pricing no devolvió un identificador de extracción.')
+    // Save immediately so closing the browser never loses track of the job.
+    localStorage.setItem(JOB_STORAGE_KEY, accepted.jobId)
+    await followJob(accepted.jobId)
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo extraer el tarifario.')
+    toastStore.backendError(error, 'No fue posible registrar el archivo para extracción.')
   } finally {
-    form.saving = false
+    if (!unmounted) form.saving = false
   }
 }
+
+onMounted(() => {
+  const pendingJob = localStorage.getItem(JOB_STORAGE_KEY)
+  if (pendingJob) void followJob(pendingJob)
+})
+
+onUnmounted(() => {
+  unmounted = true
+  activePoll?.abort()
+})
 </script>
 
 <template>
@@ -115,7 +163,7 @@ async function submit() {
             ? 'border-[var(--dh-primary)] dh-bg-primary-soft'
             : 'border-[var(--dh-border-strong)] hover:border-[var(--dh-primary)] hover:bg-[var(--dh-card-hover)]'
         "
-        @click="fileInput?.click()"
+        @click="!form.saving && fileInput?.click()"
         @dragover.prevent="form.dragging = true"
         @dragleave.prevent="form.dragging = false"
         @drop.prevent="drop"
@@ -149,6 +197,28 @@ async function submit() {
       <p v-if="form.submitted && !file" class="mt-2 text-xs font-semibold text-red-500">
         Seleccione un archivo.
       </p>
+    </section>
+
+    <section
+      v-if="jobStatus === 'Pending' || jobStatus === 'Processing'"
+      role="status"
+      aria-live="polite"
+      class="rounded-[26px] border border-amber-500/20 bg-amber-500/10 p-5"
+    >
+      <div class="flex items-start gap-3">
+        <UploadCloud class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+        <div>
+          <p class="font-black text-[var(--dh-text)]">
+            {{ jobStatus === 'Pending' ? 'Tarifario recibido, en espera de procesamiento' : 'Extrayendo tarifas en segundo plano' }}
+          </p>
+          <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
+            El archivo está registrado. Puede cerrar esta ventana; al volver se recuperará el resultado.
+          </p>
+          <p v-if="activeJobId" class="mt-2 break-all text-xs text-[var(--dh-text-muted)]">
+            Trabajo: {{ activeJobId }}
+          </p>
+        </div>
+      </div>
     </section>
 
     <section
@@ -215,11 +285,10 @@ async function submit() {
       <DhButton
         :label="result ? 'Cerrar' : 'Cancelar'"
         variant="secondary"
-        :disabled="form.saving"
         @click="drawerStore.close()"
       />
       <DhButton
-        v-if="!extractionSucceeded"
+        v-if="!extractionSucceeded && !form.saving"
         :label="result ? 'Reintentar extracción' : 'Extraer tarifas'"
         :icon="UploadCloud"
         :loading="form.saving"
