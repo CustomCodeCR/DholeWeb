@@ -281,12 +281,15 @@ function patchWizard(source: string) {
     'FCL edit and equipment replacement watches',
   )
 
-  code = replaceRequired(
-    code,
-    "watch(\n  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,\n  () => {\n    if (hydratingExistingRate.value || step.value < 7) return\n    rebuildRateLines()\n  },\n)",
-    "watch(\n  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,\n  (current, previous) => {\n    if (hydratingExistingRate.value || step.value < 7) return\n    if (editingRate.value && shipmentModeForApi.value === 'Fcl' && previous) {\n      const onlyFreightOrEquipmentChanged = current.every((value, index) =>\n        index === 1 || index === 7 || value === previous[index],\n      )\n      if (onlyFreightOrEquipmentChanged) {\n        // A freight/equipment edit must not replace manual or persisted charges.\n        reconcileFclFreightLines()\n        return\n      }\n    }\n    rebuildRateLines()\n  },\n)",
-    'preserve unrelated rate lines on FCL freight edit',
-  )
+  // Earlier Vite plugins may rewrite this watcher. It is an optional
+  // compatibility improvement, not a reason to prevent production deployment.
+  const existingFclEditWatcher = "watch(\n  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,\n  () => {\n    if (hydratingExistingRate.value || step.value < 7) return\n    rebuildRateLines()\n  },\n)"
+  if (code.includes(existingFclEditWatcher)) {
+    code = code.replace(
+      existingFclEditWatcher,
+      "watch(\n  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,\n  (current, previous) => {\n    if (hydratingExistingRate.value || step.value < 7) return\n    if (editingRate.value && shipmentModeForApi.value === 'Fcl' && previous) {\n      const onlyFreightOrEquipmentChanged = current.every((value, index) =>\n        index === 1 || index === 7 || value === previous[index],\n      )\n      if (onlyFreightOrEquipmentChanged) {\n        reconcileFclFreightLines()\n        return\n      }\n    }\n    rebuildRateLines()\n  },\n)",
+    )
+  }
 
   return code
 }
