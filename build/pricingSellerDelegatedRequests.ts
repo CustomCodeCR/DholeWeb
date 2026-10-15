@@ -51,14 +51,21 @@ async function loadSellerRequestOwnerOptions() {
     })
     const visibility = unwrapApiResponse<SellerRequestOwnerResponse>(response as never)
     sellerRequestCurrentUserId.value = visibility.viewerUserId
-    sellerRequestOwnerOptions.value = (visibility.sellers ?? []).map((seller) => ({
-      value: seller.userId,
-      label: String(seller.displayName || seller.userName || seller.email || seller.userId).trim(),
-    }))
-    const current = visibility.sellers?.find((seller) => seller.isCurrent)
-    sellerRequestOwnerId.value = current?.userId
-      || visibility.sellers?.[0]?.userId
-      || visibility.viewerUserId
+    sellerRequestOwnerOptions.value = (visibility.sellers ?? [])
+      .filter((seller) => Boolean(String(seller.userId || '').trim()))
+      .map((seller) => ({
+        value: seller.userId,
+        label: String(seller.displayName || seller.userName || seller.email || seller.userId).trim(),
+      }))
+    // The first available option is the default for a new seller request.
+    // Preserve the submitted owner when editing an existing open request.
+    const savedSelection = props.sellerEditRequestId
+      ? sellerRequestOwnerOptions.value.find((option) => option.value === sellerRequestOwnerId.value)
+      : undefined
+    const selected = savedSelection ?? sellerRequestOwnerOptions.value[0]
+    sellerRequestOwnerId.value = selected?.value ?? ''
+    form.executiveId = selected?.value ?? ''
+    form.executiveName = selected?.label ?? ''
   } catch (error) {
     sellerRequestOwnerId.value = ''
     sellerRequestOwnerOptions.value = []
@@ -90,7 +97,9 @@ onMounted(async () => {
     rateRequestPriority.value = 'Green'`,
     `    resetWizard()
     rateRequestPriority.value = 'Green'
-    sellerRequestOwnerId.value = sellerRequestCurrentUserId.value || sellerRequestOwnerId.value`,
+    sellerRequestOwnerId.value = sellerRequestOwnerOptions.value[0]?.value ?? ''
+    form.executiveId = sellerRequestOwnerId.value
+    form.executiveName = sellerRequestOwnerOptions.value[0]?.label ?? ''`,
     'delegated seller reset',
   )
 
