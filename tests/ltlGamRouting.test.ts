@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   GAM_LTL_ORIGINS,
   gamLtlOrigin,
+  isLtlCfzLocation,
   isLtlGamPickupLocation,
   matchesLandLtlEndpoint,
 } from '../src/modules/pricing/utils/ltlGamRouting.ts'
@@ -52,4 +53,32 @@ test('route ID and configured applicable ID match independently of display names
     { id: 'origin-id', name: 'Other alias' },
     'origin',
   ), true)
+})
+
+test('CFZ aliases match LTL origin across different catalogue IDs', () => {
+  const cfzMaster = { id: 'master-cfz', name: 'CFZ, Panamá', code: 'CFZ' }
+  for (const name of [
+    'Zona Libre de Colón, Panamá',
+    'Zona Libre Colón',
+    'Zona Franca de Colón',
+    'Colon Free Zone, Panama',
+    'Colón, Panamá',
+  ]) {
+    assert.equal(isLtlCfzLocation(name), true)
+    assert.equal(matchesLandLtlEndpoint(cfzMaster, { id: 'other-catalog-id', name }, 'origin'), true)
+    assert.equal(matchesLandLtlEndpoint({ name }, { name: 'CFZ, Panamá' }, 'origin'), true)
+  }
+})
+
+test('CFZ tariff is not applicable to GAM or a generic Panamá origin', () => {
+  const cfz = { name: 'CFZ, Panamá', code: 'CFZ' }
+  for (const name of ['San José, Costa Rica', 'Alajuela, Costa Rica', 'Panamá']) {
+    assert.equal(matchesLandLtlEndpoint(cfz, { name }, 'origin'), false)
+  }
+  assert.equal(matchesLandLtlEndpoint(
+    { name: 'San José, Costa Rica' },
+    { name: 'Zona Libre de Colón, Panamá' },
+    'origin',
+  ), false)
+  assert.equal(isLtlCfzLocation('Ciudad de Panamá'), false)
 })
