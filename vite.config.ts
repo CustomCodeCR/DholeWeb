@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import { pricingCustomsOnlyWizard } from './build/pricingCustomsOnlyWizard'
+import { pricingSellerMultimodalStep3Fix } from './build/pricingSellerMultimodalStep3Fix'
 import { pricingWizardLandModeTerminology } from './build/pricingWizardLandModeTerminology'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
@@ -178,6 +179,7 @@ export default defineConfig({
     pricingScreen7RemoveVariableLines(),
     pricingCarrierMerchantChargeCompleteness(),
     pricingWizardLandModeTerminology(),
+    pricingSellerMultimodalStep3Fix(),
     vue(),
     tailwindcss(),
   ],
