@@ -290,6 +290,7 @@ const form = reactive({
   equipmentId: '',
   equipmentQuantity: 1,
   incotermId: '',
+  cargoCondition: '' as PickupCargoCondition | '',
   serviceIds: [] as string[],
   loadDate: todayIso(),
   validTo: addDaysIso(todayIso(), 30),
@@ -924,6 +925,10 @@ function resetPickupEditor() {
 }
 
 function savePickupLocation() {
+  if (props.sellerRequestMode && !pickupCargoCondition.value) {
+    toastStore.warning('Condición de carga obligatoria', 'Seleccione carga fiscal o nacionalizada en cada recolecta.')
+    return
+  }
   const address = form.pickupAddress.trim()
   if (!address) {
     toastStore.warning('Dirección requerida', 'Indique la dirección de esta recolecta.')
@@ -942,6 +947,7 @@ function savePickupLocation() {
 
   if (editingPickupIndex.value == null) pickupLocations.value.push(pickup)
   else pickupLocations.value.splice(editingPickupIndex.value, 1, pickup)
+  if (props.sellerRequestMode) form.cargoCondition = pickupLocations.value[0]?.cargoCondition ?? ''
   resetPickupEditor()
 }
 
@@ -958,6 +964,7 @@ function editPickupLocation(index: number) {
 
 function removePickupLocation(index: number) {
   pickupLocations.value.splice(index, 1)
+  if (props.sellerRequestMode) form.cargoCondition = pickupLocations.value[0]?.cargoCondition ?? ''
   if (editingPickupIndex.value === index) resetPickupEditor()
   else if (editingPickupIndex.value != null && editingPickupIndex.value > index) editingPickupIndex.value -= 1
 }
@@ -1697,6 +1704,17 @@ function validityTone(validTo: string) {
   return 'success'
 }
 
+// Ventas debe indicar la condición aduanera antes de avanzar.
+const sellerCargoConditionReady = computed(() => {
+  if (!props.sellerRequestMode) return true
+  const valid = (value: PickupCargoCondition | null | undefined | '') =>
+    value === 'FiscalCargo' || value === 'NationalizedCargo'
+  if (selectedIncotermCode.value === 'EXW') {
+    return pickupLocations.value.length > 0 && pickupLocations.value.every((pickup) => valid(pickup.cargoCondition))
+  }
+  return valid(form.cargoCondition)
+})
+
 const canNext = computed(() => {
   if (step.value === 1) return Boolean(form.modality)
   if (step.value === 2) return Boolean(form.shipmentMode)
@@ -1710,7 +1728,8 @@ const canNext = computed(() => {
       form.serviceIds.length &&
       form.loadDate &&
       exwLocationReady.value &&
-      fcaLocationReady.value,
+      fcaLocationReady.value &&
+      sellerCargoConditionReady.value,
     )
   }
   if (step.value === 4) {
@@ -4312,6 +4331,7 @@ function resetWizard() {
     equipmentId: '',
     equipmentQuantity: 1,
     incotermId: '',
+    cargoCondition: '',
     serviceIds: [],
     loadDate: todayIso(),
     validTo: addDaysIso(todayIso(), 30),
@@ -4722,6 +4742,13 @@ onMounted(async () => {
             <!-- Fila 4: Incoterm y fecha de carga lista. -->
             <div class="grid gap-4 md:grid-cols-2">
               <DhSelect v-model="form.incotermId" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
+              <DhSelect
+                v-if="sellerRequestMode && selectedIncotermCode !== 'EXW'"
+                v-model="form.cargoCondition"
+                label="Condición de carga (obligatoria)"
+                placeholder="Seleccione carga fiscal o nacionalizada"
+                :options="pickupCargoConditionOptions"
+              />
               <DhInput v-model="form.loadDate" type="date" :label="form.rateType === 'Tariff' ? 'Vigente desde' : 'Vigente desde / carga lista'" />
               <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />
             </div>
@@ -4798,9 +4825,9 @@ onMounted(async () => {
             <DhSelect
               v-if="selectedIncotermCode === 'EXW'"
               v-model="pickupCargoCondition"
-              label="Tipo de carga en esta recolecta (opcional)"
+              :label="sellerRequestMode ? 'Tipo de carga en esta recolecta (obligatorio)' : 'Tipo de carga en esta recolecta (opcional)'"
               :options="pickupCargoConditionOptions"
-              placeholder="Sin clasificar / seleccione solo si aplica"
+              :placeholder="sellerRequestMode ? 'Seleccione carga fiscal o nacionalizada' : 'Sin clasificar / seleccione solo si aplica'"
             />
 
             <DhInput
@@ -4828,7 +4855,7 @@ onMounted(async () => {
               </DhButton>
               <DhButton
                 v-if="selectedIncotermCode === 'EXW'"
-                :disabled="!form.pickupAddress.trim() || !pickupCoordinates"
+                :disabled="!form.pickupAddress.trim() || !pickupCoordinates || (sellerRequestMode && !pickupCargoCondition)"
                 @click="savePickupLocation"
               >
                 {{ editingPickupIndex == null ? 'Agregar recolecta' : 'Actualizar recolecta' }}
