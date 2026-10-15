@@ -28,6 +28,7 @@ import type {
   GenerateRateDocumentRequest,
   ImportRateBatchRequest,
   ImportRateDto,
+  ManualImportExtractionJobDto,
   ImportRateSelectDto,
   ImportStatus,
   PricingDecisionDashboardDto,
@@ -456,20 +457,76 @@ export const PricingService = {
     return unwrapApiResponse<string>(response as never)
   },
 
-  async extractImportRates(
+  async enqueueImportRateExtraction(
     file: File,
     correlationId?: string,
-  ): Promise<ExtractImportRatesResultDto> {
+  ): Promise<{ jobId: string; status: string }> {
     const formData = new FormData()
     formData.append('file', file)
     if (correlationId) formData.append('correlationId', correlationId)
-
     const response = await callEndpoint<unknown, FormData>(Endpoints.extractImportRates, {
       body: formData,
       isFormData: true,
     })
+    return unwrapApiResponse<{ jobId: string; status: string }>(response as never)
+  },
 
-    return unwrapApiResponse<ExtractImportRatesResultDto>(response as never)
+  async getManualImportExtractionJob(jobId: string): Promise<ManualImportExtractionJobDto> {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: `/api/pricing/import-rates/extract/jobs/${encodeURIComponent(jobId)}`,
+    })
+    return unwrapApiResponse<ManualImportExtractionJobDto>(response as never)
+  },
+
+  async awaitManualImportExtraction(jobId: string): Promise<ExtractImportRatesResultDto> {
+    // 202 + separate short status requests: Cloudflare never needs to hold
+    // the connection open while PDF/OCR/AI is working in Pricing.
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      const job = await this.getManualImportExtractionJob(jobId)
+      if (job.status === 'Failed') {
+        localStorage.removeItem('dhole:pricing:import-extraction-job')
+        throw new Error(job.errorMessage || job.extractionResult?.errorMessage || 'No se pudo extraer el archivo.')
+      }
+      if (job.status === 'Completed') {
+        localStorage.removeItem('dhole:pricing:import-extraction-job')
+        const extracted = job.extractionResult
+        if (!extracted?.success) throw new Error(extracted?.errorMessage || 'No se extrajeron tarifas válidas.')
+        return {
+          success: true,
+          pricingImportId: jobId,
+          correlationId: '',
+          totalRows: extracted.persistedRows + extracted.skippedRows,
+          validRows: extracted.persistedRows,
+          warningRows: 0,
+          invalidRows: extracted.skippedRows,
+          createdRows: extracted.persistedRows,
+          skippedRows: extracted.skippedRows,
+          hasIssues: Boolean(extracted.issues?.length),
+          importFclRateIds: [],
+          issues: extracted.issues || [],
+          errorCode: extracted.errorCode,
+          errorMessage: extracted.errorMessage,
+        }
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 3000))
+    }
+    // Work continues on the server. Keep the id so it can be resumed on retry.
+    throw new Error('La extracción sigue procesándose. Regrese para consultar el resultado.')
+  },
+
+  async extractImportRates(
+    file: File,
+    correlationId?: string,
+  ): Promise<ExtractImportRatesResultDto> {
+    const storageKey = 'dhole:pricing:import-extraction-job'
+    let jobId = localStorage.getItem(storageKey)
+    if (!jobId) {
+      const accepted = await this.enqueueImportRateExtraction(file, correlationId)
+      jobId = accepted.jobId
+      localStorage.setItem(storageKey, jobId)
+    }
+    return this.awaitManualImportExtraction(jobId)
   },
 
   approveImportRates(ids: string[]): Promise<NoContent> {
