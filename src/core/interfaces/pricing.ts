@@ -589,6 +589,24 @@ export interface ExtractImportRatesIssueDto extends Record<string, unknown> {
   rawValue?: string | null
 }
 
+export interface ManualImportExtractionJobDto extends Record<string, unknown> {
+  jobId: string
+  status: 'Pending' | 'Processing' | 'Completed' | 'Failed'
+  errorMessage?: string | null
+  extractionResult?: {
+    success: boolean
+    extractionExecutionId?: string | null
+    persistedRows: number
+    skippedRows: number
+    issues?: ExtractImportRatesIssueDto[]
+    errorCode?: string | null
+    errorMessage?: string | null
+  } | null
+}
+
+// Backward compatibility for older pricing views still using the FCL DTO alias.
+export type ExtractImportFclRatesResultDto = ExtractImportRatesResultDto
+
 export interface ExtractImportRatesResultDto extends Record<string, unknown> {
   success: boolean
   pricingImportId: string
