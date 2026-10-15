@@ -87,12 +87,6 @@ function patchWizard(source: string) {
     "const scope = props.sellerEditRequestId\n    ? 'seller:edit:' + props.sellerEditRequestId\n    : props.rateId\n      ? 'rate:' + props.rateId",
     'isolated edit draft')
 
-  // A saved browser draft must not navigate an existing seller request back to screen 1.
-  code = replaceOnce(code,
-    'step.value = Math.min(maximumStep, Math.max(minimumStep, restoredStep))',
-    'step.value = props.sellerEditRequestId ? 4 : Math.min(maximumStep, Math.max(minimumStep, restoredStep))',
-    'restore existing seller request on screen 4')
-
   code = replaceOnce(code,
     "method: 'POST', path: '/api/pricing/rate-requests', headers: { Accept: 'application/json' }",
     "method: props.sellerEditRequestId ? 'PUT' : 'POST', path: props.sellerEditRequestId ? '/api/pricing/rate-requests/mine/' + props.sellerEditRequestId : '/api/pricing/rate-requests', headers: { Accept: 'application/json' }",
