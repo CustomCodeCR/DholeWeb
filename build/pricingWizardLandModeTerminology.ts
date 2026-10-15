@@ -241,21 +241,31 @@ function addSellerHandoffPreview(source: string): string {
     "    captureSellerHandoffSnapshot(request)",
   ].join('\n')
   code = code.replace(hydrateAnchor, hydrateLines)
-  const restoreAnchor = "    if (request.payload?.form) Object.assign(form, request.payload.form)"
-  if (code.split(restoreAnchor).length !== 2) {
-    throw new Error('[pricingWizardLandModeTerminology] Missing unique seller request form hydration.')
+  // Earlier plugins wrap form hydration to restore FCL/POD details.
+  // Inject at the stable continuation step rather than searching for its old literal.
+  const hydrationStart = code.indexOf('async function hydrateRateRequest() {')
+  const hydrationEnd = hydrationStart >= 0 ? code.indexOf('\n}\n\nfunction modalityForRate', hydrationStart) : -1
+  if (hydrationStart < 0 || hydrationEnd < 0) {
+    throw new Error('[pricingWizardLandModeTerminology] Missing rate-request hydration function.')
   }
-  code = code.replace(restoreAnchor, [
-    restoreAnchor,
-    "    if (request.payload?.form) {",
-    "      // Esperar a que el selector de origen termine su cambio de unidad cm/pulgadas.",
-    "      await nextTick()",
-    "      restoreSellerConsolidatedCargo(",
-    "        request.payload.form as Record<string, unknown>,",
-    "        (request.payload as { sellerContext?: Record<string, unknown> }).sellerContext,",
-    "      )",
-    "    }",
-  ].join('\n'))
+  const stepAnchor = '    step.value = 5'
+  const hydrationBlock = code.slice(hydrationStart, hydrationEnd)
+  if (hydrationBlock.split(stepAnchor).length !== 2) {
+    throw new Error('[pricingWizardLandModeTerminology] Missing unique rate-request continuation step.')
+  }
+  const restoreLines = [
+    '    if (request.payload?.form) {',
+    '      // Wait for origin and unit watchers to settle before reconstructing LCL/LTL lines.',
+    '      await nextTick()',
+    '      restoreSellerConsolidatedCargo(',
+    '        request.payload.form as Record<string, unknown>,',
+    '        (request.payload as { sellerContext?: Record<string, unknown> }).sellerContext,',
+    '      )',
+    '    }',
+    '',
+  ].join('\n')
+  const restoredBlock = hydrationBlock.replace(stepAnchor, restoreLines + stepAnchor)
+  code = code.slice(0, hydrationStart) + restoredBlock + code.slice(hydrationEnd)
   return code.replace(templateAnchor, SALES_READ_ONLY_PREVIEW + '\n' + templateAnchor)
 }
 
