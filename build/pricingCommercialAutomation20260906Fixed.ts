@@ -221,9 +221,48 @@ watch(
     'FCL quantity basis',
   )
 
+  // A quote without a confirmed port maneuver must disclose both possible charges
+  // under "Sujeta a". The seller's selection takes precedence in request handoffs.
+  const portHandlingHelper = `function reconcilePendingPortHandling(subjectTo: string[]) {
+  if (
+    shipmentModeForApi.value !== 'Fcl'
+    || form.modality !== 'Maritime'
+    || !normalizeCatalogValue(direction.value).includes('importacion')
+  ) return subjectTo
+
+  const selectedMode = rateRequestId.value
+    ? requestedPortHandlingMode.value
+    : form.portHandlingMode
+  const isAlternative = (term: string) => {
+    const normalized = normalizeCatalogValue(term)
+    return normalized.includes('anticipado') && normalized.includes('redestino')
+  }
+
+  // Once the seller or Pricing has selected a maneuver, the alternative charge
+  // must not remain in the conditional commercial terms.
+  if (selectedMode) return subjectTo.filter((term) => !isAlternative(term))
+  if (subjectTo.some(isAlternative)) return subjectTo
+
+  const route = normalizeCatalogValue([
+    displayValue(selectedOrigin.value),
+    displayValue(selectedDestination.value),
+    displayValue(resolvePodForDestination()),
+  ].filter(Boolean).join(' '))
+  const pendingCharge = route.includes('moin')
+    ? 'Anticipado USD 125 + IVA o Redestino USD 65 + IVA'
+    : 'Anticipado USD 150 + IVA o Redestino USD 65 + IVA'
+  return [...subjectTo, pendingCharge]
+}`
+  code = replaceOne(
+    code,
+    'async function saveRate() {',
+    portHandlingHelper + '\n\nasync function saveRate() {',
+    'pending FCL port handling terms helper',
+  )
+
   // Terms follow the real charge lines plus the exact free days from the selected rate.
   const draftAssignmentAnchor = `  draftCommercialTerms.value = { includes, subjectTo, excludes }\n  draftCommercialTermsInitialized.value = true`
-  const draftAssignmentReplacement = `  const linkedIncludes = uniqueCommercialTerms([\n    ...includes.filter((text) => !isFreeDayCommercialTerm(text)),\n    ...includedLines.value.map((line) => line.name),\n  ]).filter((text) => !isFreeDayCommercialTerm(text))\n  const linkedIncludeKeys = new Set(linkedIncludes.map((text) => commercialTermKey(text) || normalizeCatalogValue(text)))\n  const linkedExcludedOptionalKeys = new Set(\n    rateLines.value\n      .filter((line) => line.optional && !line.included)\n      .map((line) => commercialTermKey(line.name) || normalizeCatalogValue(line.name)),\n  )\n  const linkedSubjectTo = uniqueCommercialTerms([\n    ...subjectTo.filter((text) => !isFreeDayCommercialTerm(text)),\n  ]).filter((text) => {\n    const key = commercialTermKey(text) || normalizeCatalogValue(text)\n    return !linkedIncludeKeys.has(key) && !linkedExcludedOptionalKeys.has(key) && !isFreeDayCommercialTerm(text)\n  })\n  if (shipmentModeForApi.value === 'Fcl' && number(form.freeDays) > 0) {\n    linkedSubjectTo.push(Math.trunc(number(form.freeDays)) + ' días libres de contenedor')\n  }\n  const linkedSubjectKeys = new Set(linkedSubjectTo.map((text) => commercialTermKey(text) || normalizeCatalogValue(text)))\n  const linkedExcludes = uniqueCommercialTerms(excludes)\n    .filter((text) => !isFreeDayCommercialTerm(text))\n    .filter((text) => {\n      const key = commercialTermKey(text) || normalizeCatalogValue(text)\n      return !linkedIncludeKeys.has(key) && !linkedSubjectKeys.has(key)\n    })\n  draftCommercialTerms.value = { includes: linkedIncludes, subjectTo: linkedSubjectTo, excludes: linkedExcludes }\n  draftCommercialTermsInitialized.value = true`
+  const draftAssignmentReplacement = `  const linkedIncludes = uniqueCommercialTerms([\n    ...includes.filter((text) => !isFreeDayCommercialTerm(text)),\n    ...includedLines.value.map((line) => line.name),\n  ]).filter((text) => !isFreeDayCommercialTerm(text))\n  const linkedIncludeKeys = new Set(linkedIncludes.map((text) => commercialTermKey(text) || normalizeCatalogValue(text)))\n  const linkedExcludedOptionalKeys = new Set(\n    rateLines.value\n      .filter((line) => line.optional && !line.included)\n      .map((line) => commercialTermKey(line.name) || normalizeCatalogValue(line.name)),\n  )\n  const linkedSubjectTo = uniqueCommercialTerms([\n    ...subjectTo.filter((text) => !isFreeDayCommercialTerm(text)),\n  ]).filter((text) => {\n    const key = commercialTermKey(text) || normalizeCatalogValue(text)\n    return !linkedIncludeKeys.has(key) && !linkedExcludedOptionalKeys.has(key) && !isFreeDayCommercialTerm(text)\n  })\n  linkedSubjectTo.splice(0, linkedSubjectTo.length, ...reconcilePendingPortHandling(linkedSubjectTo))\n  if (shipmentModeForApi.value === 'Fcl' && number(form.freeDays) > 0) {\n    linkedSubjectTo.push(Math.trunc(number(form.freeDays)) + ' días libres de contenedor')\n  }\n  const linkedSubjectKeys = new Set(linkedSubjectTo.map((text) => commercialTermKey(text) || normalizeCatalogValue(text)))\n  const linkedExcludes = uniqueCommercialTerms(excludes)\n    .filter((text) => !isFreeDayCommercialTerm(text))\n    .filter((text) => {\n      const key = commercialTermKey(text) || normalizeCatalogValue(text)\n      return !linkedIncludeKeys.has(key) && !linkedSubjectKeys.has(key)\n    })\n  draftCommercialTerms.value = { includes: linkedIncludes, subjectTo: linkedSubjectTo, excludes: linkedExcludes }\n  draftCommercialTermsInitialized.value = true`
   code = replaceOne(code, draftAssignmentAnchor, draftAssignmentReplacement, 'dynamic draft commercial terms')
 
   const includeTermsAnchor = `  const includeTerms = uniqueTermLines([\n    ...commercialTerms.includes.map((item) => item.text),\n    ...(lclSelectedSource.value?.includes ?? []),\n  ])`
@@ -231,7 +270,7 @@ watch(
   code = replaceOne(code, includeTermsAnchor, includeTermsReplacement, 'persist linked includes')
 
   const subjectTermsAnchor = `  const subjectTerms = uniqueTermLines([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    ...(lclSelectedSource.value?.subjectTo ?? []),\n    !ltlCargoMode.value && form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    !ltlCargoMode.value && form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => !includeKeys.has(commercialTermKey(text)))`
-  const subjectTermsReplacement = `  const subjectTerms = uniqueTermLines([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    ...(lclSelectedSource.value?.subjectTo ?? []),\n    !ltlCargoMode.value && form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    !ltlCargoMode.value && form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => {\n    const key = commercialTermKey(text)\n    return !includeKeys.has(key) && !excludedOptionalTermKeys.has(key) && !isFreeDayCommercialTerm(text)\n  })\n  if (shipmentModeForApi.value === 'Fcl' && number(form.freeDays) > 0) {\n    subjectTerms.push(Math.trunc(number(form.freeDays)) + ' días libres de contenedor')\n  }`
+  const subjectTermsReplacement = `  const subjectTerms = uniqueTermLines([\n    ...commercialTerms.subjectTo.map((item) => item.text),\n    ...(lclSelectedSource.value?.subjectTo ?? []),\n    !ltlCargoMode.value && form.dangerousCargo ? 'Carga peligrosa' : null,\n    form.nonStackable ? 'Carga no estibable' : null,\n    !ltlCargoMode.value && form.overweight ? 'Sobrepeso' : null,\n  ]).filter((text) => {\n    const key = commercialTermKey(text)\n    return !includeKeys.has(key) && !excludedOptionalTermKeys.has(key) && !isFreeDayCommercialTerm(text)\n  })\n  subjectTerms.splice(0, subjectTerms.length, ...reconcilePendingPortHandling(subjectTerms))\n  if (shipmentModeForApi.value === 'Fcl' && number(form.freeDays) > 0) {\n    subjectTerms.push(Math.trunc(number(form.freeDays)) + ' días libres de contenedor')\n  }`
   code = replaceOne(code, subjectTermsAnchor, subjectTermsReplacement, 'persist dynamic subject terms')
 
   const excludeFilterAnchor = `  ]).filter((text) => {\n    const key = commercialTermKey(text)\n    return !includeKeys.has(key) && !subjectKeys.has(key)\n  })`
