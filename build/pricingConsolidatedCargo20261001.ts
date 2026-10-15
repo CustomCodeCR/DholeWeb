@@ -138,6 +138,12 @@ function patchWizard(source: string) {
 
   code = patchPayloads(code)
 
+  const resetAnchor = 'function resetWizard() {'
+  if (code.split(resetAnchor).length !== 2) {
+    throw new Error('[pricingConsolidatedCargo20261001] Expected one wizard reset.')
+  }
+  code = code.replace(resetAnchor, resetAnchor + '\n  consolidatedCargoLines.value = [createConsolidatedCargoLine()]')
+
   code = code.replaceAll(
     'form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)',
     "form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)\n    hydrateConsolidatedCargoLines(rate)",
