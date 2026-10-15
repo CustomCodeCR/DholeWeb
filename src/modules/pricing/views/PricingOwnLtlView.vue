@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { GAM_LTL_ORIGINS, gamLtlOrigin, isLtlGamPickupLocation, normalizeLandLocation } from '@/modules/pricing/utils/ltlGamRouting'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ChevronLeft, Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
@@ -225,7 +226,7 @@ function countryName(code: string) {
 
 function originLabel(code: string) {
   if (code === 'PA') return 'CFZ, Panamá'
-  if (code === 'CR') return 'San José, Costa Rica'
+  if (code === 'CR') return 'GAM, Costa Rica'
   return countryName(code)
 }
 
@@ -241,7 +242,7 @@ function isAllowedLtlOriginRow(row: FtlTariffDto) {
   }
 
   if (country === 'CR') {
-    return value.includes('san jose')
+    return gamLtlOrigin(value) !== null
   }
 
   return false
@@ -263,7 +264,7 @@ function isAllowedLtlOriginItem(item: PricingCatalogItem) {
   }
 
   if (country === 'CR') {
-    return value.includes('san jose')
+    return gamLtlOrigin(value) !== null
   }
 
   return false
@@ -350,6 +351,10 @@ function routeSnapshot(value: string, role: 'origin' | 'destination') {
     }
   }
 
+  if (role === 'origin' && value.startsWith('__gam_origin:')) {
+    const gam = GAM_LTL_ORIGINS.find((location) => location.key === value.slice('__gam_origin:'.length))
+    return gam ? { id: null, name: gam.name, code: null } : null
+  }
   const list = role === 'origin' ? landOrigins.value : landDestinations.value
   const item = list.find((candidate) => candidate.id === value)
   return item ? { id: item.id, name: item.name, code: item.code } : null
@@ -369,6 +374,16 @@ function optionsForCountry(role: 'origin' | 'destination', countryCode: string) 
 
 const originLocationOptions = computed(() => {
   const options = optionsForCountry('origin', selectedOriginCountry.value)
+  if (selectedOriginCountry.value === 'CR') {
+    for (const location of GAM_LTL_ORIGINS) {
+      if (options.some((option) => gamLtlOrigin(normalizeLandLocation(option.label))?.key === location.key)) continue
+      options.push({
+        value: '__gam_origin:' + location.key,
+        label: location.name,
+        searchText: location.name + ' GAM Costa Rica',
+      })
+    }
+  }
 
   if (selected.value && !selected.value.originId) {
     options.unshift({
@@ -748,7 +763,7 @@ onMounted(load)
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">1. Origen</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El LTL solo puede salir desde CFZ, Panamá o San José, Costa Rica.</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El LTL sale de CFZ, Panamá o de la GAM (San José, Alajuela, Heredia y Coyol). Alajuela, Heredia y Coyol requieren recolecta; San José no.</p>
             </div>
             <DhButton
               v-if="selectedOriginCountry"
@@ -944,7 +959,13 @@ onMounted(load)
               <DhInput v-model="form.validTo" type="date" label="Vigencia hasta" :disabled="readOnly" />
             </div>
 
-            <div class="mt-4">
+            <p v-if="formOrigin && isLtlGamPickupLocation(formOrigin.name)" class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                Origen en la GAM fuera de San José: cobrar Recolecta como cargo adicional. El importe debe configurarse en la tarifa o completarse en Líneas, no se suma un precio supuesto al flete por CBM.
+              </p>
+              <p v-else-if="formOrigin && gamLtlOrigin(formOrigin.name)?.key === 'san-jose'" class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Origen San José: no requiere recolecta GAM adicional.
+              </p>
+              <div class="mt-4">
               <DhTextarea v-model="form.notes" label="Notas" :rows="3" :disabled="readOnly" />
             </div>
 
