@@ -145,3 +145,16 @@ test('pricing dashboard shows LCL/LTL as consolidated without container or trail
   assert.match(source, />Embarque \/ equipo<\/th>/)
   assert.match(source, />Cant\. equipos<\/th>/)
 })
+
+test('original Sales information stays visible during screen 5 even before its snapshot loads', () => {
+  const output = patchPricingWizardLandModeTerminology(wizard)
+  assert.match(output, /v-if="props\.rateRequestId && step >= 5"/)
+  assert.match(output, /:snapshot="sellerHandoffSnapshot \|\| sellerHandoffFallback"/)
+  assert.match(output, /watch\(\(\) => props\.rateRequestId,/)
+  assert.match(output, /async function reloadSellerHandoffSnapshot\(\)/)
+  assert.match(output, /captureSellerHandoffSnapshot\(request\)/)
+  assert.match(output, /request\.payload\?\.supportDocuments/)
+  assert.match(output, /request\.payload\?\.pickupLocations/)
+  assert.match(output, /@click="reloadSellerHandoffSnapshot"/)
+  assert.equal(output.match(/<PricingSellerHandoffPreview/g)?.length, 1)
+})
