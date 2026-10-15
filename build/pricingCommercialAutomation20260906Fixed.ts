@@ -230,9 +230,7 @@ watch(
     || !normalizeCatalogValue(direction.value).includes('importacion')
   ) return subjectTo
 
-  const selectedMode = rateRequestId.value
-    ? requestedPortHandlingMode.value
-    : form.portHandlingMode
+  const selectedMode = (props.rateRequestId ? requestedPortHandlingMode.value : '') || form.portHandlingMode
   const isAlternative = (term: string) => {
     const normalized = normalizeCatalogValue(term)
     return normalized.includes('anticipado') && normalized.includes('redestino')
