@@ -732,6 +732,8 @@ export interface RateContainerDto extends Record<string, unknown> {
   containerTypeName: string
   containerTypeCode: string
   quantity: number
+  unitWeightsKg?: number[]
+  overweightUnitCount?: number
 }
 
 export interface RateCargoLineDto extends Record<string, unknown> {
