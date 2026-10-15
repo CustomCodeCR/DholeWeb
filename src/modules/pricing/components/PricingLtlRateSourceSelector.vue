@@ -283,7 +283,7 @@ watch(
         :columns="ownColumns"
         :rows="filteredOwn"
         :loading="loading"
-        empty-text="No se encontraron tarifas LTL propias vigentes para el origen y destino seleccionados. Revise origen, fecha y destino; las rutas GAM desde San José aceptan recolecta adicional."
+        empty-text="No se encontraron tarifas LTL propias vigentes para esta ruta y fecha. Se aceptan orígenes CFZ (Panamá) y GAM (Costa Rica); las recolectas desde Alajuela, Heredia y Coyol pueden usar San José como base."
       >
         <template #cell-source="{ row }">
           <div>
