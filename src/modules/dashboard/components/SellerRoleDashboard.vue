@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -35,6 +36,7 @@ interface SellerRateRequestDto {
   destinationName?: string | null
 }
 
+const router = useRouter()
 const modalStore = useModalStore()
 const toast = useToastStore()
 const loading = ref(false)
@@ -219,8 +221,7 @@ function money(amount: number, currency: string) {
 }
 
 const latestRequests = computed(() => [...requests.value]
-  .sort((a, b) => Date.parse(b.requestedAtUtc) - Date.parse(a.requestedAtUtc))
-  .slice(0, 8))
+  .sort((a, b) => Date.parse(b.requestedAtUtc) - Date.parse(a.requestedAtUtc)))
 
 function modalityLabel(mode: RateDto['shipmentMode']) {
   const labels: Record<string, string> = {
@@ -242,12 +243,29 @@ function equipmentLabel(rate: RateDto) {
 
 function priorityLabel(priority: SellerRateRequestDto['priority']) {
   if (priority === 'Green') return 'Verde · 48–72 h'
-  if (priority === 'Yellow') return 'Amarillo · 48 h'
+  if (priority === 'Yellow') return 'Amarillo · 24–48 h'
   return 'Rojo · 0–24 h'
 }
 
 function priorityVariant(priority: SellerRateRequestDto['priority']): 'success' | 'warning' | 'danger' {
   return priority === 'Green' ? 'success' : priority === 'Yellow' ? 'warning' : 'danger'
+}
+
+function requestEquipmentLabel(request: SellerRateRequestDto) {
+  const mode = String(request.shipmentMode || '').toLowerCase()
+  if (mode === 'lcl') return 'LCL · Consolidado marítimo'
+  if (mode === 'ltl') return 'LTL · Consolidado terrestre'
+  if (mode === 'air' || mode === 'airconsol') return 'Aéreo consolidado'
+  return (request.equipmentQuantity || 1) + ' × ' + (request.equipmentType || request.shipmentMode || 'Equipo')
+}
+
+function canEditRequest(request: SellerRateRequestDto) {
+  return !props.adminPreview && request.status === 'Open' && !request.rateId
+}
+
+function editRequest(request: SellerRateRequestDto) {
+  if (!canEditRequest(request)) return
+  void router.push({ name: 'pricing-seller-rate-request-edit', params: { requestId: request.id } })
 }
 
 function requestState(request: SellerRateRequestDto) {
@@ -575,7 +593,7 @@ onMounted(load)
 
       <section class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
         <div class="border-b border-[var(--dh-border)] px-4 py-3.5">
-          <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Solicitudes recientes a Pricing' : 'Mis solicitudes recientes a Pricing' }}</h3>
+          <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Solicitudes a Pricing' : 'Mis solicitudes a Pricing' }}</h3>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Estado de los requerimientos enviados al equipo de Pricing.</p>
         </div>
         <p v-if="!latestRequests.length" class="p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
@@ -584,16 +602,26 @@ onMounted(load)
         <div v-else class="overflow-x-auto">
           <table class="w-full min-w-[820px] text-left text-xs">
             <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">
-              <tr><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Origen → Destino</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Solicitada</th><th class="px-4 py-3">Estado</th></tr>
+              <tr><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Origen → Destino</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Solicitada</th><th class="px-4 py-3">Estado</th><th v-if="!props.adminPreview" class="px-4 py-3">Acción</th></tr>
             </thead>
             <tbody class="divide-y divide-[var(--dh-border)]">
               <tr v-for="request in latestRequests" :key="request.id">
                 <td class="px-4 py-3 font-bold text-[var(--dh-text)]">{{ request.clientName || 'Sin cliente' }}</td>
                 <td class="px-4 py-3 text-[var(--dh-text)]">{{ request.originName || 'Origen' }} → {{ request.destinationName || 'Destino' }}</td>
-                <td class="px-4 py-3 text-[var(--dh-text)]">{{ request.equipmentQuantity || 1 }} × {{ request.equipmentType || request.shipmentMode || 'Equipo' }}</td>
+                <td class="px-4 py-3 text-[var(--dh-text)]">{{ requestEquipmentLabel(request) }}</td>
                 <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
                 <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ new Date(request.requestedAtUtc).toLocaleDateString('es-CR') }}</td>
                 <td class="px-4 py-3"><DhBadge :label="requestState(request)" :variant="requestStateVariant(request)" /></td>
+                <td v-if="!props.adminPreview" class="px-4 py-3">
+                  <DhButton
+                    v-if="canEditRequest(request)"
+                    label="Editar solicitud"
+                    size="sm"
+                    variant="secondary"
+                    @click="editRequest(request)"
+                  />
+                  <span v-else class="text-[11px] text-[var(--dh-text-muted)]">Solo lectura</span>
+                </td>
               </tr>
             </tbody>
           </table>
