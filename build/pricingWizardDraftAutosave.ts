@@ -72,6 +72,7 @@ function pricingDraftPayload() {
     savedAt: new Date().toISOString(),
     step: step.value,
     form: JSON.parse(JSON.stringify(form)),
+    consolidatedCargoLines: JSON.parse(JSON.stringify(consolidatedCargoLines.value)),
     supportEntityId: supportEntityId.value,
     supportDocuments: JSON.parse(JSON.stringify(supportDocuments.value)),
     rateLines: JSON.parse(JSON.stringify(rateLines.value)),
@@ -165,6 +166,14 @@ async function restorePricingDraft() {
 
     pricingDraftRestoring.value = true
     if (draft.form && typeof draft.form === 'object') Object.assign(form, draft.form)
+    await nextTick()
+    if (Array.isArray(draft.consolidatedCargoLines) && draft.consolidatedCargoLines.length) {
+      consolidatedCargoLines.value = draft.consolidatedCargoLines.map((line: ConsolidatedCargoLineUi) => ({
+        ...createConsolidatedCargoLine(), ...line, key: crypto.randomUUID(),
+      }))
+    } else if (draft.form && typeof draft.form === 'object') {
+      restoreSellerConsolidatedCargo(draft.form)
+    }
     if (Array.isArray(draft.supportDocuments)) supportDocuments.value = draft.supportDocuments
     if (typeof draft.supportEntityId === 'string' && draft.supportEntityId) supportEntityId.value = draft.supportEntityId
     if (Array.isArray(draft.rateLines)) rateLines.value = draft.rateLines
@@ -262,6 +271,7 @@ watch(
     () => step.value,
     form,
     supportDocuments,
+    consolidatedCargoLines,
     rateLines,
     availableRates,
     fclExtraContainers,
