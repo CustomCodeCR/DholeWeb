@@ -145,9 +145,9 @@ function addSellerHandoffPreview(source: string): string {
 
 
 function addGamPickupRequirement(source: string): string {
-  const vueImport = "import { computed, onMounted, reactive, ref, watch } from 'vue'"
+  const vueImport = '<script setup lang="ts">'
   const saveAnchor = 'async function saveRate() {'
-  const screenSeven = '<div v-else-if="step === 7" class="space-y-6">'
+  const screenSeven = '<div v-else-if="step === 7"'
   if (!source.includes(vueImport) || !source.includes(saveAnchor) || !source.includes(screenSeven)) {
     throw new Error('[pricingWizardLandModeTerminology] Missing pickup validation anchors')
   }
@@ -184,12 +184,16 @@ function addGamPickupRequirement(source: string): string {
     '  }',
   ].join('\n')
   code = code.replace(saveAnchor, validation)
-  return code.replace(screenSeven, screenSeven + [
+  const stepSevenStart = code.indexOf(screenSeven)
+  const stepSevenOpenEnd = code.indexOf('>', stepSevenStart)
+  if (stepSevenStart < 0 || stepSevenOpenEnd < 0) throw new Error('[pricingWizardLandModeTerminology] Missing step 7 opening tag')
+  return code.slice(0, stepSevenOpenEnd + 1) + [
+
     '',
     '          <div v-if="landLtlPickupRequired" class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-300">',
     '            Recolecta obligatoria para origen Alajuela, Heredia o Coyol. Complete costo y precio de venta del cargo Recolecta; el flete LTL de San José permanece separado. No se aplica ningún importe supuesto.',
     '          </div>',
-  ].join('\n'))
+  ].join('\n') + code.slice(stepSevenOpenEnd + 1)
 }
 
 export function patchPricingWizardLandModeTerminology(source: string): string {
