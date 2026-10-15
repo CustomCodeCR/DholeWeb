@@ -79,6 +79,7 @@ function continueSellerMultimodalStep3() {
   if (!form.loadDate) missing.push('Fecha de carga lista')
   if (!exwLocationReady.value) missing.push('Ubicación de recolecta EXW')
   if (!fcaLocationReady.value) missing.push('Ubicación de WHS FCA')
+  if (!sellerCargoConditionReady.value) missing.push('Carga fiscal o nacionalizada')
   if (!landEquipmentSelectionValid.value) missing.push('Distribución de equipo')
 
   if (missing.length) {
@@ -108,6 +109,17 @@ ${nextAnchor}`,
     (_full, prefix: string, disabled: string) =>
       `${prefix}:disabled="sellerMultimodalSellerStep3 ? saving : (${disabled})" @click="sellerMultimodalSellerStep3 ? continueSellerMultimodalStep3() : next()">Continuar`,
   )
+
+  // También se valida al enviar: no permitir POST sin clasificación.
+  const submitAnchor = 'async function saveOpenRequest() {'
+  if (!code.includes(submitAnchor)) throw new Error('[pricingSellerMultimodalStep3Fix] Missing submit guard anchor')
+  code = code.replace(submitAnchor, [
+    'async function saveOpenRequest() {',
+    '  if (props.sellerRequestMode && !sellerCargoConditionReady.value) {',
+    "    toastStore.error('Condición de carga obligatoria', 'Seleccione carga fiscal o nacionalizada antes de enviar la solicitud.')",
+    '    return',
+    '  }',
+  ].join('\n'))
 
   return code
 }
