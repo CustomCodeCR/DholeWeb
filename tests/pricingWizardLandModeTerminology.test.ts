@@ -37,8 +37,9 @@ const wizard = [
   '      Object.assign(form, request.payload.form)',
   '      restoreRequestedFclContainers((request.payload.form as Record<string, unknown>).fclContainers)',
   '    }',
-  '    step.value = 5',
-  '    await searchApprovedRates()',
+  '    rateRequestPriority.value = request.priority',
+  '    step.value = hasInternationalTransportService.value ? 5 : 6',
+  '    if (hasInternationalTransportService.value) await searchApprovedRates()',
   '}',
   'async function saveRate() {',
   '}',
@@ -130,19 +131,30 @@ test('resume shows original Sales snapshot and downloadable documents instead of
   assert.match(output, /StorageService.downloadFile/)
 })
 
-test('consolidated cargo is restored after transformed FCL form hydration', () => {
-  const output = patchPricingWizardLandModeTerminology(wizard)
-  const formAssign = output.indexOf('Object.assign(form, request.payload.form)')
-  const fclRestore = output.indexOf('restoreRequestedFclContainers(', formAssign)
-  const cargoRestore = output.indexOf('      restoreSellerConsolidatedCargo(', formAssign)
-  const continuation = output.indexOf('    step.value = 5', formAssign)
-  assert.ok(formAssign >= 0 && fclRestore > formAssign)
-  assert.ok(cargoRestore > fclRestore && continuation > cargoRestore)
-  assert.match(output, /function restoreSellerConsolidatedCargo\(/)
-  assert.match(output, /context\?\.consolidatedCargoLines/)
-  assert.match(output, /sourceForm\.cargoLengthCm/)
-  assert.match(output, /sourceForm\.cargoPallets/)
-  assert.match(output, /cargoDimensionUnit\.value === 'in'/)
+test('consolidated lines restore after seller and FCL hydration for customs-only and international quotes', () => {
+  for (const continuation of [
+    'step.value = hasInternationalTransportService.value ? 5 : 6',
+    'step.value = 5',
+  ]) {
+    const source = wizard.replace(
+      'step.value = hasInternationalTransportService.value ? 5 : 6',
+      continuation,
+    )
+    const output = patchPricingWizardLandModeTerminology(source)
+    const formAssign = output.indexOf('Object.assign(form, request.payload.form)')
+    const fclRestore = output.indexOf('restoreRequestedFclContainers(', formAssign)
+    const priority = output.indexOf('rateRequestPriority.value = request.priority', formAssign)
+    const cargoRestore = output.indexOf('restoreSellerConsolidatedCargo(', priority)
+    const continuationPos = output.indexOf(continuation, priority)
+    assert.ok(formAssign >= 0 && fclRestore > formAssign)
+    assert.ok(priority > fclRestore && cargoRestore > priority)
+    assert.ok(continuationPos > cargoRestore)
+    assert.match(output, /function restoreSellerConsolidatedCargo\(/)
+    assert.match(output, /context\?\.consolidatedCargoLines/)
+    assert.match(output, /sourceForm\.cargoLengthCm/)
+    assert.match(output, /sourceForm\.cargoPallets/)
+    assert.match(output, /cargoDimensionUnit\.value === 'in'/)
+  }
 })
 
 test('LCL quantity basis multiplies physical CBM and chargeable CBM separately', () => {
