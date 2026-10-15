@@ -33,7 +33,12 @@ const wizard = [
   'const supportDocuments = ref<SupportDocument[]>([])',
   'async function hydrateRateRequest() {',
   '    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)',
-  '    if (request.payload?.form) Object.assign(form, request.payload.form)',
+  '    if (request.payload?.form) {',
+  '      Object.assign(form, request.payload.form)',
+  '      restoreRequestedFclContainers((request.payload.form as Record<string, unknown>).fclContainers)',
+  '    }',
+  '    step.value = 5',
+  '    await searchApprovedRates()',
   '}',
   'async function saveRate() {',
   '}',
@@ -125,11 +130,14 @@ test('resume shows original Sales snapshot and downloadable documents instead of
   assert.match(output, /StorageService.downloadFile/)
 })
 
-test('consolidated cargo is restored after loading the seller form, including older requests', () => {
+test('consolidated cargo is restored after transformed FCL form hydration', () => {
   const output = patchPricingWizardLandModeTerminology(wizard)
-  const formAssign = output.indexOf('if (request.payload?.form) Object.assign(form, request.payload.form)')
-  const restoreCall = output.indexOf('if (request.payload?.form) restoreSellerConsolidatedCargo(')
-  assert.ok(formAssign >= 0 && restoreCall > formAssign)
+  const formAssign = output.indexOf('Object.assign(form, request.payload.form)')
+  const fclRestore = output.indexOf('restoreRequestedFclContainers(', formAssign)
+  const cargoRestore = output.indexOf('      restoreSellerConsolidatedCargo(', formAssign)
+  const continuation = output.indexOf('    step.value = 5', formAssign)
+  assert.ok(formAssign >= 0 && fclRestore > formAssign)
+  assert.ok(cargoRestore > fclRestore && continuation > cargoRestore)
   assert.match(output, /function restoreSellerConsolidatedCargo\(/)
   assert.match(output, /context\?\.consolidatedCargoLines/)
   assert.match(output, /sourceForm\.cargoLengthCm/)
