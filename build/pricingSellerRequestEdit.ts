@@ -12,14 +12,7 @@ function replaceOnce(source: string, anchor: string, replacement: string, label:
 function patchWizard(source: string) {
   let code = source
 
-  code = replaceOnce(code,
-    '  rateRequestId?: string | null\n}>(), {',
-    '  rateRequestId?: string | null\n  sellerEditRequestId?: string | null\n}>(), {',
-    'wizard prop type')
-  code = replaceOnce(code,
-    '  rateRequestId: null,\n})',
-    '  rateRequestId: null,\n  sellerEditRequestId: null,\n})',
-    'wizard prop default')
+
 
   code = replaceOnce(code,
     "? 'Solicitud de tarifa para Pricing'",
