@@ -143,10 +143,59 @@ function addSellerHandoffPreview(source: string): string {
   return code.replace(templateAnchor, SALES_READ_ONLY_PREVIEW + '\n' + templateAnchor)
 }
 
+
+function addGamPickupRequirement(source: string): string {
+  const vueImport = "import { computed, onMounted, reactive, ref, watch } from 'vue'"
+  const saveAnchor = 'async function saveRate() {'
+  const screenSeven = '<div v-else-if="step === 7" class="space-y-6">'
+  if (!source.includes(vueImport) || !source.includes(saveAnchor) || !source.includes(screenSeven)) {
+    throw new Error('[pricingWizardLandModeTerminology] Missing pickup validation anchors')
+  }
+  let code = source.replace(
+    vueImport,
+    vueImport + "\nimport { isLtlGamPickupLocation } from '@/modules/pricing/utils/ltlGamRouting'",
+  )
+  const scriptEnd = code.lastIndexOf('</script>')
+  if (scriptEnd < 0) throw new Error('[pricingWizardLandModeTerminology] Missing script end')
+  const pickupComputed = [
+    'const landLtlPickupRequired = computed(() =>',
+    "  shipmentModeForApi.value === 'Ltl'",
+    '  && isLtlGamPickupLocation([',
+    "    selectedOrigin.value ? displayValue(selectedOrigin.value) : '',",
+    "    selectedOrigin.value?.code ?? '',",
+    "  ].join(' ')),",
+    ')',
+    '',
+  ].join('\n')
+  code = code.slice(0, scriptEnd) + pickupComputed + code.slice(scriptEnd)
+  const validation = [
+    saveAnchor,
+    '  if (landLtlPickupRequired.value) {',
+    "    const pickup = rateLines.value.find((line) =>",
+    "      /recolecta|recoleccion|pickup|pick up/i.test(String(line.name ?? '') + ' ' + String(line.key ?? ''))",
+    '      && line.included',
+    '      && Number(line.saleAmount) > 0,',
+    '    )',
+    '    if (!pickup) {',
+    '      step.value = 7',
+    "      toastStore.error('Recolecta obligatoria: Alajuela, Heredia y Coyol requieren un cargo de recolecta con precio de venta mayor que cero. Configure el importe en Líneas antes de guardar.')",
+    '      return',
+    '    }',
+    '  }',
+  ].join('\n')
+  code = code.replace(saveAnchor, validation)
+  return code.replace(screenSeven, screenSeven + [
+    '',
+    '          <div v-if="landLtlPickupRequired" class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-300">',
+    '            Recolecta obligatoria para origen Alajuela, Heredia o Coyol. Complete costo y precio de venta del cargo Recolecta; el flete LTL de San José permanece separado. No se aplica ningún importe supuesto.',
+    '          </div>',
+  ].join('\n'))
+}
+
 export function patchPricingWizardLandModeTerminology(source: string): string {
   const commonWizard = removeRequestSpecificScreenFiveCard(source)
   const shared = addSharedCommercialValidity(patchStepFiveHelp(patchStepThreeForLand(commonWizard)))
-  return addSellerHandoffPreview(shared)
+  return addGamPickupRequirement(addSellerHandoffPreview(shared))
 }
 
 export function pricingWizardLandModeTerminology(): Plugin {
