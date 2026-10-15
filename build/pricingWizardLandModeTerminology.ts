@@ -132,17 +132,47 @@ function addSellerHandoffPreview(source: string): string {
     "  podName: selectedPod.value ? displayValue(selectedPod.value) : '',",
     "  priority: rateRequestPriority.value,",
     "}))",
+    "function restoreSellerConsolidatedCargo(sourceForm: Record<string, unknown>, context?: Record<string, unknown>) {",
+    "  const mode = String(sourceForm.shipmentMode ?? form.shipmentMode ?? '').toUpperCase()",
+    "  if (mode !== 'LCL' && mode !== 'LTL') return",
+    "  const persisted = Array.isArray(context?.consolidatedCargoLines) ? context.consolidatedCargoLines : []",
+    "  if (persisted.length) {",
+    "    const validLines = persisted.filter((item): item is Record<string, unknown> =>",
+    "      item != null && typeof item === 'object' && !Array.isArray(item))",
+    "    if (validLines.length) {",
+    "      consolidatedCargoLines.value = validLines.map((item) => ({",
+    "        ...createConsolidatedCargoLine(),",
+    "        ...item,",
+    "        key: crypto.randomUUID(),",
+    "      })) as ConsolidatedCargoLineUi[]",
+    "      return",
+    "    }",
+    "  }",
+    "  // Solicitudes anteriores guardaban las medidas solamente en form.",
+    "  // Reconstruir la primera línea sin inventar cantidades ni duplicar los bultos.",
+    "  const lengthCm = Math.max(0, number(sourceForm.cargoLengthCm))",
+    "  const widthCm = Math.max(0, number(sourceForm.cargoWidthCm))",
+    "  const heightCm = Math.max(0, number(sourceForm.cargoHeightCm))",
+    "  if (!lengthCm || !widthCm || !heightCm) return",
+    "  const fromCm = (value: number) => cargoDimensionUnit.value === 'in' ? value / 2.54 : value",
+    "  consolidatedCargoLines.value = [{",
+    "    ...createConsolidatedCargoLine(),",
+    "    description: String(sourceForm.cargoDescription ?? ''),",
+    "    quantity: Math.max(1, Math.trunc(number(sourceForm.cargoPallets) || 1)),",
+    "    weightKg: Math.max(0, number(sourceForm.cargoWeightKg)),",
+    "    length: fromCm(lengthCm),",
+    "    width: fromCm(widthCm),",
+    "    height: fromCm(heightCm),",
+    "    isStackable: sourceForm.nonStackable !== true && heightCm < 177.8,",
+    "  }]",
+    "}",
     "function captureSellerHandoffSnapshot(request: SellerRateRequestDto) {",
     "  const sellerPayload = (request.payload ?? {}) as Record<string, unknown>",
     "  const sellerTyped = request as unknown as Record<string, unknown>",
     "  const sellerForm = (request.payload?.form ?? {}) as Record<string, unknown>",
     "  const originalContext = sellerPayload.requestContext",
     "  const originalSellerContext = sellerPayload.sellerContext",
-    "  const savedCargoLines = originalSellerContext && typeof originalSellerContext === 'object'",
-    "    ? (originalSellerContext as { consolidatedCargoLines?: ConsolidatedCargoLineUi[] }).consolidatedCargoLines : undefined",
-    "  if (consolidatedCargoMode.value && Array.isArray(savedCargoLines) && savedCargoLines.length) {",
-    "    consolidatedCargoLines.value = savedCargoLines.map((line) => ({ ...createConsolidatedCargoLine(), ...line, key: crypto.randomUUID() }))",
-    "  }",
+
     "  sellerHandoffSnapshot.value = {",
     "    form: { ...sellerForm },",
     "    context: originalContext && typeof originalContext === 'object' ? { ...(originalContext as Record<string, unknown>) } : {},",
@@ -204,13 +234,28 @@ function addSellerHandoffPreview(source: string): string {
   }
   let code = source.replace(
     importAnchor,
-    importAnchor + "\nimport PricingSellerHandoffPreview from '@/modules/pricing/components/PricingSellerHandoffPreview.vue'",
+    importAnchor + "\nimport { nextTick } from 'vue'\nimport PricingSellerHandoffPreview from '@/modules/pricing/components/PricingSellerHandoffPreview.vue'",
   ).replace(stateAnchor, stateLines)
   const hydrateLines = [
     hydrateAnchor,
     "    captureSellerHandoffSnapshot(request)",
   ].join('\n')
   code = code.replace(hydrateAnchor, hydrateLines)
+  const restoreAnchor = "    if (request.payload?.form) Object.assign(form, request.payload.form)"
+  if (code.split(restoreAnchor).length !== 2) {
+    throw new Error('[pricingWizardLandModeTerminology] Missing unique seller request form hydration.')
+  }
+  code = code.replace(restoreAnchor, [
+    restoreAnchor,
+    "    if (request.payload?.form) {",
+    "      // Esperar a que el selector de origen termine su cambio de unidad cm/pulgadas.",
+    "      await nextTick()",
+    "      restoreSellerConsolidatedCargo(",
+    "        request.payload.form as Record<string, unknown>,",
+    "        (request.payload as { sellerContext?: Record<string, unknown> }).sellerContext,",
+    "      )",
+    "    }",
+  ].join('\n'))
   return code.replace(templateAnchor, SALES_READ_ONLY_PREVIEW + '\n' + templateAnchor)
 }
 
