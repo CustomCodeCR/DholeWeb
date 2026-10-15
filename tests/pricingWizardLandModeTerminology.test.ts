@@ -26,6 +26,15 @@ const sellerCard = [
 ].join('\n')
 
 const wizard = [
+  '<script setup lang="ts">',
+  "import { computed, onMounted, reactive, ref, watch } from 'vue'",
+  'const supportDocuments = ref<SupportDocument[]>([])',
+  'async function hydrateRateRequest() {',
+  '    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)',
+  '}',
+  'async function saveRate() {',
+  '}',
+  '</script>',
   '<div v-else-if="step === 3">',
   '  <PricingLocationSearchSelect',
   '                label="Origen (POL)"',
@@ -52,6 +61,8 @@ const wizard = [
   '          <div>Proveedor y flete</div>',
   '</div>',
   '<div v-else-if="step === 4" class="space-y-6"></div>',
+  '<div v-else-if="step === 7" class="space-y-6"></div>',
+  '<div class="crystal-stepbar grid grid-cols-2"></div>',
   "<p>{{ form.modality === 'Air' ? 'Aéreo' : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>",
 ].join('\n')
 
@@ -85,4 +96,22 @@ test('terrestrial route does not inherit maritime port names', () => {
 
 test('fails on unexpected wizard structure rather than silently diverging', () => {
   assert.throws(() => patchPricingWizardLandModeTerminology('<div></div>'), /Expected one seller handoff/)
+})
+
+test('resume shows original Sales snapshot and downloadable documents instead of editable steps', () => {
+  const output = patchPricingWizardLandModeTerminology(wizard)
+  assert.match(output, /Información enviada por Ventas/)
+  assert.match(output, /sellerHandoffSnapshot/)
+  assert.match(output, /cargoObservations/)
+  assert.match(output, /pickupLocations/)
+  assert.match(output, /downloadSellerHandoffFile/)
+  assert.match(output, /StorageService.downloadFile/)
+})
+
+test('GAM pickup is required in LTL lines before a rate can be saved', () => {
+  const output = patchPricingWizardLandModeTerminology(wizard)
+  assert.match(output, /landLtlPickupRequired/)
+  assert.match(output, /Recolecta obligatoria/)
+  assert.match(output, /Number\(line.saleAmount\) > 0/)
+  assert.match(output, /step.value = 7/)
 })
