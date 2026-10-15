@@ -3398,11 +3398,11 @@ async function hydrateExistingRate() {
       } as RateLine
     })
     if (!props.viewOnly) syncPersistedLinesWithChangedConfiguredCosts()
-    mergeConfiguredOptionalCostsIntoRateLines()
     persistedRateLineBaselines.clear()
     for (const line of rateLines.value) {
       if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
     }
+    mergeConfiguredOptionalCostsIntoRateLines()
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
