@@ -257,10 +257,6 @@ function approvedCbm(row: OwnLclConsolidationDto) {
   return Math.max(0, n(row.approvedCbm))
 }
 
-function exceedsApprovalCapacity(row: OwnLclConsolidationDto) {
-  return requested() > remainingCbm(row)
-}
-
 const chinaOwnLclOrigins = new Set([
   'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',
   'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',
@@ -682,7 +678,6 @@ onMounted(load)
           <div class="space-y-0.5 text-right">
             <p class="whitespace-nowrap font-black">{{ remainingCbm(row).toFixed(2) }} CBM disponibles</p>
             <p class="whitespace-nowrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ approvedCbm(row).toFixed(2) }} aprobados / {{ n(row.maximumCbm).toFixed(2) }} totales</p>
-            <p v-if="exceedsApprovalCapacity(row)" class="text-[10px] font-black text-amber-600 dark:text-amber-300">Se puede cotizar; excede el cupo para aprobación</p>
           </div>
         </template>
         <template #cell-cost="{ row }"><span class="font-black">USD {{ money((n(row.oceanFreight) + n(row.carrierDestinationCostTotal)) / Math.max(n(row.maximumCbm), 1)) }}</span></template>
