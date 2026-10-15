@@ -20,7 +20,9 @@ function pendingPortHandling(overrides: {
   const helper = patchSource.match(/const portHandlingHelper = `([\s\S]*?)`\s*code = replaceOne/)
   assert.ok(helper, 'the wizard patch must supply the port-handling helper')
 
-  const source = helper[1].replace('subjectTo: string[]', 'subjectTo')
+  const source = helper[1]
+    .replace('subjectTo: string[]', 'subjectTo')
+    .replace('term: string', 'term')
   const context = {
     shipmentModeForApi: { value: overrides.shipmentMode ?? 'Fcl' },
     form: {
