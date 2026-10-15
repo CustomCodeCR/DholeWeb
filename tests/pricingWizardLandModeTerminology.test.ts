@@ -137,6 +137,22 @@ test('consolidated cargo is restored after loading the seller form, including ol
   assert.match(output, /cargoDimensionUnit\.value === 'in'/)
 })
 
+test('LCL quantity basis multiplies physical CBM and chargeable CBM separately', () => {
+  const enhanced = readFileSync(
+    new URL('../build/pricingWizardEnhancements.ts', import.meta.url),
+    'utf8',
+  )
+  assert.match(enhanced, /basis === 'PerCbm'[\\s\\S]*?lclPhysicalCbm\\.value/)
+  assert.match(enhanced, /basis === 'PerChargeableCbm'[\\s\\S]*?lclChargeableCbm\\.value/)
+  assert.doesNotMatch(enhanced, /return Math\\.max\\(1, number\\(lclChargeableCbm\\.value\\)\\)/)
+  const consolidated = readFileSync(
+    new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url),
+    'utf8',
+  )
+  assert.match(consolidated, /consolidatedCargoLines\\.value\\.reduce\\(\\(sum, line\\) => sum \\+ cargoLinePhysicalCbm\\(line\\)/)
+  assert.match(consolidated, /cargoLineQuantity\\(line\\)/)
+})
+
 test('GAM pickup is required in LTL lines before a rate can be saved', () => {
   const output = patchPricingWizardLandModeTerminology(wizard)
   assert.match(output, /landLtlPickupRequired/)
