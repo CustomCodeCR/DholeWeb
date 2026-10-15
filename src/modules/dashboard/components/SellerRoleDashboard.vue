@@ -241,9 +241,9 @@ function equipmentLabel(rate: RateDto) {
 }
 
 function priorityLabel(priority: SellerRateRequestDto['priority']) {
-  if (priority === 'Green') return 'Verde · 24 h'
+  if (priority === 'Green') return 'Verde · 48–72 h'
   if (priority === 'Yellow') return 'Amarillo · 48 h'
-  return 'Rojo · 72 h'
+  return 'Rojo · 0–24 h'
 }
 
 function priorityVariant(priority: SellerRateRequestDto['priority']): 'success' | 'warning' | 'danger' {
