@@ -60,6 +60,8 @@ export function matchesLandLtlEndpoint(
   const canonical = (s: string) => isLtlCfzLocation(s) ? 'cfz panama' : s
   for (const rowValue of rowValues) {
     for (const reqValue of requestedValues) {
+      // CFZ represents a specific free-zone origin, not all of Panamá.
+      if (role === 'origin' && isLtlCfzLocation(rowValue) !== isLtlCfzLocation(reqValue)) continue
       const row = canonical(rowValue)
       const request = canonical(reqValue)
       if (row === request || (row.length >= 5 && request.includes(row)) || (request.length >= 5 && row.includes(request))) return true
