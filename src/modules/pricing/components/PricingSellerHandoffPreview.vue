@@ -80,6 +80,67 @@ const readyDate = computed(() => firstProvided(label('cargoReadyDate'), label('l
 const remarks = computed(() => label('cargoObservations'))
 const description = computed(() => label('cargoDescription'))
 const notes = computed(() => firstProvided(label('notes'), label('comments')))
+const portHandling = computed(() => {
+  const selected = props.snapshot.sellerContext.portHandlingMode
+  const value = typeof selected === 'string' && selected.trim() ? selected : raw('portHandlingMode')
+  return value === 'Anticipado' || value === 'Redestino' ? value : ''
+})
+const selectedCargoOptions = computed(() => ([
+  { key: 'dangerousCargo', name: 'Carga peligrosa' },
+  { key: 'overweight', name: 'Sobrepeso' },
+  { key: 'nonStackable', name: 'No estibable' },
+  { key: 'emptyReturn', name: 'Retiro de vacío' },
+  { key: 'electronicSeal', name: 'Marchamo electrónico' },
+  { key: 'merchantHaulage', name: 'Merchant' },
+  { key: 'carrierHaulage', name: 'Naviera' },
+]).filter((option) => raw(option.key) === true))
+
+// Las líneas originales son la fuente para solicitudes LCL/LTL con múltiples bultos.
+// Los totales persistidos evitan volver a calcular el volumen con solo la primera línea.
+const cargoVolume = computed(() => {
+  if (!isConsolidated.value) return null
+  const context = props.snapshot.sellerContext
+  const unit = context.cargoVolumeUnit === 'CFT' ? 'CFT' : 'CBM'
+  const factor = unit === 'CFT' ? 35.31466672148859 : 1
+  const positive = (value: unknown): number => {
+    const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : 0
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  }
+  const lines = Array.isArray(context.consolidatedCargoLines) ? context.consolidatedCargoLines : []
+  const inchToCm = unit === 'CFT' ? 2.54 : 1
+  let physicalCbm = 0
+  let billableCbm = 0
+  if (lines.length) {
+    for (const item of lines) {
+      if (!item || typeof item !== 'object') continue
+      const line = item as Record<string, unknown>
+      const quantity = Math.max(1, Math.trunc(positive(line.quantity)))
+      const length = positive(line.length) * inchToCm
+      const width = positive(line.width) * inchToCm
+      const height = positive(line.height) * inchToCm
+      if (!length || !width || !height) continue
+      physicalCbm += quantity * length * width * height / 1_000_000
+      const stackable = line.isStackable !== false && height < 177.8
+      billableCbm += quantity * length * width * (stackable ? height : Math.max(266, height)) / 1_000_000
+    }
+  } else {
+    const length = positive(raw('cargoLengthCm'))
+    const width = positive(raw('cargoWidthCm'))
+    const height = positive(raw('cargoHeightCm'))
+    const quantity = Math.max(1, Math.trunc(positive(raw('cargoPallets'))))
+    physicalCbm = quantity * length * width * height / 1_000_000
+    billableCbm = physicalCbm
+  }
+  physicalCbm = positive(context.physicalVolumeCbm) || physicalCbm
+  billableCbm = positive(context.billableVolumeCbm) || billableCbm
+  const weightCbm = positive(raw('cargoWeightKg')) / (shipmentMode.value === 'LTL' ? 330 : 500)
+  const chargeableCbm = positive(context.chargeableVolumeCbm)
+    || (Math.max(billableCbm, weightCbm) > 0 ? Math.max(1, billableCbm, weightCbm) : 0)
+  const format = (cbm: number) => cbm > 0
+    ? (cbm * factor).toLocaleString('es-CR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' ' + unit
+    : 'No indicado'
+  return { physical: format(physicalCbm), chargeable: format(chargeableCbm) }
+})
 const shipmentMode = computed(() => shipment.value.trim().toUpperCase())
 const isConsolidated = computed(() => ['LCL', 'LTL'].includes(shipmentMode.value))
 const equipment = computed(() =>
@@ -208,7 +269,7 @@ function fileKind(fileName: string): string {
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Dirección de recolecta</dt><dd class="break-words font-semibold">{{ label('pickupAddress') }}</dd></div>
             <div><dt class="mb-1 flex items-center gap-1 text-xs font-semibold text-[var(--dh-text-muted)]"><Warehouse class="h-3.5 w-3.5" /> Almacén / WHS</dt><dd class="font-semibold">{{ firstProvided(label('warehouseName'), label('warehouseLabel')) }}</dd></div>
             <div v-if="!isLand"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Destino final (POD)</dt><dd class="font-semibold">{{ firstProvided(snapshot.podName, podLabel) }}</dd></div>
-            <div v-if="!isLand"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Muellaje</dt><dd class="font-semibold">{{ label('portHandlingMode') }}</dd></div>
+            <div v-if="!isLand"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Muellaje</dt><dd class="font-semibold">{{ portHandling || 'No indicado' }}</dd></div>
           </dl>
         </section>
 
@@ -223,9 +284,21 @@ function fileKind(fileName: string): string {
               <p class="whitespace-pre-wrap break-words text-sm leading-relaxed">{{ remarks }}</p>
             </div>
             <p v-if="description !== 'No indicado'" class="text-sm"><span class="font-black">Descripción: </span>{{ description }}</p>
+            <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+              <p class="mb-2 text-xs font-black text-[var(--dh-text)]">Opciones seleccionadas en Pantalla 4</p>
+              <div v-if="portHandling || selectedCargoOptions.length" class="flex flex-wrap gap-2">
+                <span v-if="portHandling" class="rounded-full border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[rgb(var(--dh-primary-rgb)/0.08)] px-3 py-1 text-xs font-bold text-[var(--dh-primary)]">{{ portHandling }}</span>
+                <span v-for="option in selectedCargoOptions" :key="option.key" class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-1 text-xs font-semibold">{{ option.name }}</span>
+              </div>
+              <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin opciones adicionales seleccionadas.</p>
+            </div>
             <dl class="grid gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm sm:grid-cols-2">
               <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Package class="h-3.5 w-3.5" /> Bultos</dt><dd class="font-bold">{{ label('cargoPackages') }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Tarimas</dt><dd class="font-bold">{{ label('cargoPallets') }}</dd></div>
+              <template v-if="isConsolidated && cargoVolume">
+                <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen físico</dt><dd class="font-black text-[var(--dh-text)]">{{ cargoVolume.physical }}</dd></div>
+                <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen cobrable</dt><dd class="font-black text-[var(--dh-primary)]">{{ cargoVolume.chargeable }}</dd></div>
+              </template>
               <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Weight class="h-3.5 w-3.5" /> Peso</dt><dd class="font-bold">{{ label('cargoWeightKg') }} kg</dd></div>
               <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Ruler class="h-3.5 w-3.5" /> Medidas</dt><dd class="font-bold">{{ measurements }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Valor de la carga</dt><dd class="font-semibold">{{ label('cargoValue') }}</dd></div>
