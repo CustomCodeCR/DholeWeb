@@ -244,7 +244,7 @@ function addSellerHandoffPreview(source: string): string {
   // Earlier plugins wrap form hydration to restore FCL/POD details.
   // Inject at the stable continuation step rather than searching for its old literal.
   const hydrationStart = code.indexOf('async function hydrateRateRequest() {')
-  const hydrationEnd = hydrationStart >= 0 ? code.indexOf('\n}\n\nfunction modalityForRate', hydrationStart) : -1
+  const hydrationEnd = hydrationStart >= 0 ? code.indexOf('\n}\n', hydrationStart) : -1
   if (hydrationStart < 0 || hydrationEnd < 0) {
     throw new Error('[pricingWizardLandModeTerminology] Missing rate-request hydration function.')
   }
