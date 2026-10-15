@@ -132,7 +132,7 @@ function addSellerHandoffPreview(source: string): string {
     "      documents: Array.isArray(request.payload?.supportDocuments) ? request.payload.supportDocuments.map((document) => ({ ...document })) : [],",
     "      clientName: String(sellerTyped.clientName ?? sellerForm.clientName ?? ''),",
     "      executiveName: String(sellerTyped.executiveName ?? sellerForm.executiveName ?? ''),",
-    "      originName: String(sellerTyped.originName ?? originalContext && (originalContext as Record<string, unknown>).originName ?? ''),",
+    "      originName: String(sellerTyped.originName ?? (originalContext && (originalContext as Record<string, unknown>).originName) ?? ''),",
     "      destinationName: String(sellerTyped.destinationName ?? sellerTyped.poeName ?? ''),",
     "      poeName: String(sellerTyped.poeName ?? ''),",
     "      podName: String(sellerTyped.podName ?? ''),",
