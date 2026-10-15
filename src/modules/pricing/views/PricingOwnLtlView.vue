@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GAM_LTL_ORIGINS, gamLtlOrigin, isLtlGamPickupLocation, normalizeLandLocation } from '@/modules/pricing/utils/ltlGamRouting'
+import { GAM_LTL_ORIGINS, gamLtlOrigin, isLtlCfzLocation, isLtlGamPickupLocation, normalizeLandLocation } from '@/modules/pricing/utils/ltlGamRouting'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ChevronLeft, Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
@@ -235,10 +235,7 @@ function isAllowedLtlOriginRow(row: FtlTariffDto) {
   const country = rowCountryCode(row, 'origin')
 
   if (country === 'PA') {
-    return value.includes('cfz')
-      || value.includes('colon free zone')
-      || value.includes('zona libre de colon')
-      || value.includes('zona libre colon')
+    return isLtlCfzLocation(value)
   }
 
   if (country === 'CR') {
@@ -257,10 +254,7 @@ function isAllowedLtlOriginItem(item: PricingCatalogItem) {
   const country = locationCountryCode(item)
 
   if (country === 'PA') {
-    return value.includes('cfz')
-      || value.includes('colon free zone')
-      || value.includes('zona libre de colon')
-      || value.includes('zona libre colon')
+    return isLtlCfzLocation(value)
   }
 
   if (country === 'CR') {
