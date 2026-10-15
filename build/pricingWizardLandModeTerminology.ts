@@ -241,31 +241,33 @@ function addSellerHandoffPreview(source: string): string {
     "    captureSellerHandoffSnapshot(request)",
   ].join('\n')
   code = code.replace(hydrateAnchor, hydrateLines)
-  // Earlier plugins wrap form hydration to restore FCL/POD details.
-  // Inject at the stable continuation step rather than searching for its old literal.
+  // Other plugins replace the continuation step (5 for international freight,
+  // 6 for customs-only). Hook the end of the Sales form hydration instead of
+  // relying on any screen number or exact form-assignment statement.
   const hydrationStart = code.indexOf('async function hydrateRateRequest() {')
   const hydrationEnd = hydrationStart >= 0 ? code.indexOf('\n}\n', hydrationStart) : -1
   if (hydrationStart < 0 || hydrationEnd < 0) {
     throw new Error('[pricingWizardLandModeTerminology] Missing rate-request hydration function.')
   }
-  const stepAnchor = '    step.value = 5'
   const hydrationBlock = code.slice(hydrationStart, hydrationEnd)
-  if (hydrationBlock.split(stepAnchor).length !== 2) {
-    throw new Error('[pricingWizardLandModeTerminology] Missing unique rate-request continuation step.')
+  const afterSalesForm = '    rateRequestPriority.value = request.priority'
+  if (hydrationBlock.split(afterSalesForm).length !== 2) {
+    throw new Error('[pricingWizardLandModeTerminology] Missing seller request hydration completion.')
   }
   const restoreLines = [
+    afterSalesForm,
     '    if (request.payload?.form) {',
-    '      // Wait for origin and unit watchers to settle before reconstructing LCL/LTL lines.',
+    '      // Await route and unit watchers before restoring saved LCL/LTL cargo.',
     '      await nextTick()',
     '      restoreSellerConsolidatedCargo(',
     '        request.payload.form as Record<string, unknown>,',
     '        (request.payload as { sellerContext?: Record<string, unknown> }).sellerContext,',
     '      )',
     '    }',
-    '',
   ].join('\n')
-  const restoredBlock = hydrationBlock.replace(stepAnchor, restoreLines + stepAnchor)
-  code = code.slice(0, hydrationStart) + restoredBlock + code.slice(hydrationEnd)
+  code = code.slice(0, hydrationStart)
+    + hydrationBlock.replace(afterSalesForm, restoreLines)
+    + code.slice(hydrationEnd)
   return code.replace(templateAnchor, SALES_READ_ONLY_PREVIEW + '\n' + templateAnchor)
 }
 
