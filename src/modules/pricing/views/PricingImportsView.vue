@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -29,6 +29,7 @@ import PricingReasonModal from '@/modules/pricing/components/PricingReasonModal.
 import PricingUploadDrawer from '@/modules/pricing/components/PricingUploadDrawer.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import type { ManualImportExtractionJobDto } from '@/core/interfaces/pricing'
 
 type QueueStatus =
   | 'Pending'
@@ -74,6 +75,11 @@ const route = useRoute()
 const rows = ref<ReviewQueueItem[]>([])
 const selectedIds = ref<string[]>([])
 const loading = ref(false)
+const manualImportJob = ref<ManualImportExtractionJobDto | null>(null)
+const manualImportJobError = ref('')
+const MANUAL_IMPORT_JOB_KEY = 'dhole:pricing:import-extraction-job'
+let manualJobTimer: ReturnType<typeof setInterval> | null = null
+let manualJobRefreshing = false
 const processing = ref(false)
 const pageNumber = ref(1)
 const pageSize = ref('25')
@@ -317,6 +323,31 @@ async function load() {
   }
 }
 
+async function refreshManualImportJob() {
+  if (manualJobRefreshing) return
+  const jobId = localStorage.getItem(MANUAL_IMPORT_JOB_KEY)
+  if (!jobId) {
+    manualImportJob.value = null
+    return
+  }
+
+  manualJobRefreshing = true
+  try {
+    const job = await PricingService.getManualImportExtractionJob(jobId)
+    const previouslyCompleted = manualImportJob.value?.status === 'Completed'
+    manualImportJob.value = job
+    manualImportJobError.value = ''
+    if (job.status === 'Completed' || job.status === 'Failed') {
+      localStorage.removeItem(MANUAL_IMPORT_JOB_KEY)
+      if (job.status === 'Completed' && !previouslyCompleted) await load()
+    }
+  } catch (error) {
+    manualImportJobError.value = error instanceof Error ? error.message : 'No se pudo consultar el trabajo.'
+  } finally {
+    manualJobRefreshing = false
+  }
+}
+
 function applyFilters() {
   pageNumber.value = 1
   void load()
@@ -514,6 +545,13 @@ onMounted(() => {
   void catalogs.loadAll()
   void load()
   void openRequestedImport()
+  void refreshManualImportJob()
+  manualJobTimer = setInterval(() => { void refreshManualImportJob() }, 5000)
+})
+
+onUnmounted(() => {
+  if (manualJobTimer) clearInterval(manualJobTimer)
+  manualJobTimer = null
 })
 </script>
 
@@ -534,6 +572,46 @@ onMounted(() => {
         </DhButton>
       </template>
     </DhPageHeader>
+
+    <section
+      v-if="manualImportJob"
+      role="status"
+      class="rounded-2xl border p-4"
+      :class="manualImportJob.status === 'Failed'
+        ? 'border-red-500/20 bg-red-500/10'
+        : manualImportJob.status === 'Completed'
+          ? 'border-emerald-500/20 bg-emerald-500/10'
+          : 'border-amber-500/20 bg-amber-500/10'"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="space-y-1">
+          <p class="font-bold text-[var(--dh-text)]">
+            {{
+              manualImportJob.status === 'Pending' ? 'Tarifario en cola de extracción'
+              : manualImportJob.status === 'Processing' ? 'Procesando tarifario en segundo plano'
+              : manualImportJob.status === 'Completed' ? 'Tarifario procesado'
+              : 'La importación del tarifario falló'
+            }}
+          </p>
+          <p class="text-sm text-[var(--dh-text-muted)]">
+            {{
+              manualImportJob.status === 'Completed'
+                ? `${manualImportJob.extractionResult?.persistedRows ?? 0} tarifas guardadas.`
+                : manualImportJob.status === 'Failed'
+                  ? (manualImportJob.errorMessage || manualImportJob.extractionResult?.errorMessage || 'Revise el resultado.')
+                  : `Intentos: ${manualImportJob.attemptCount ?? 0}. Aún no hay registros importados hasta completar la extracción.`
+            }}
+          </p>
+          <p class="break-all text-xs text-[var(--dh-text-muted)]">Trabajo: {{ manualImportJob.jobId }}</p>
+        </div>
+        <DhButton variant="secondary" @click="refreshManualImportJob">
+          <RefreshCw class="h-4 w-4" /> Consultar estado
+        </DhButton>
+      </div>
+    </section>
+    <p v-if="manualImportJobError" class="text-sm text-red-500">
+      No se pudo comprobar la importación: {{ manualImportJobError }}
+    </p>
 
     <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
