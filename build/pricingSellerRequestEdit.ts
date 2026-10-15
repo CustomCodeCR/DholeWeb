@@ -60,7 +60,8 @@ function patchWizard(source: string) {
     '    if (requestWithOwner.poeId) form.destinationId = requestWithOwner.poeId',
     '    if (requestWithOwner.podId) form.podId = requestWithOwner.podId',
     '    rateRequestPriority.value = request.priority',
-    '    step.value = 1',
+    '    // Open the last seller screen; previous screens remain available for corrections.',
+    '    step.value = 4',
     '  } catch (error) {',
     "    toastStore.backendError(error, 'No se pudo cargar la solicitud para edición.')",
     "    await router.replace('/home')",
@@ -85,6 +86,12 @@ function patchWizard(source: string) {
     "const scope = props.rateId\n    ? 'rate:' + props.rateId",
     "const scope = props.sellerEditRequestId\n    ? 'seller:edit:' + props.sellerEditRequestId\n    : props.rateId\n      ? 'rate:' + props.rateId",
     'isolated edit draft')
+
+  // A saved browser draft must not navigate an existing seller request back to screen 1.
+  code = replaceOnce(code,
+    'step.value = Math.min(maximumStep, Math.max(minimumStep, restoredStep))',
+    'step.value = props.sellerEditRequestId ? 4 : Math.min(maximumStep, Math.max(minimumStep, restoredStep))',
+    'restore existing seller request on screen 4')
 
   code = replaceOnce(code,
     "method: 'POST', path: '/api/pricing/rate-requests', headers: { Accept: 'application/json' }",
