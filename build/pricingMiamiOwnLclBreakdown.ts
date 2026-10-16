@@ -22,12 +22,16 @@ const miamiOwnLclBreakdownRows = computed(() => {
     line.included && (number(line.saleAmount) !== 0 || number(line.costAmount) !== 0),
   ).map((line) => {
     const quantity = Math.max(0, number(quantityForRateLine(line)))
+    const appliedFixedQuantity = String(line.notes ?? '').match(/cantidad aplicada:\s*(\d+(?:\.\d+)?)/i)
+    const displayQuantity = appliedFixedQuantity && !/Cbm|Cft/i.test(line.chargeBasis)
+      ? Math.max(1, number(appliedFixedQuantity[1]))
+      : quantity
     return {
       key: line.key,
       name: line.name,
       freight: line.costDetailType === 'Freight',
       basis: chargeBasisLabel(line.chargeBasis),
-      quantity,
+      quantity: displayQuantity,
       cost: number(line.costAmount) * quantity,
       sale: number(line.saleAmount) * quantity,
     }
