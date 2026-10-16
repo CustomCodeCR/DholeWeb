@@ -366,13 +366,13 @@ export function patchFclMultiCarrierCosts(source: string): string {
   if (!preview.includes(headerStart)) throw new Error('[multiCarrierCosts] Screen 8 table header missing')
   preview = preview.replace(headerStart,
     '<th class="px-4 py-3">Rubro</th><th v-if="fclScreen8HasMultipleUnits" class="px-4 py-3">Naviera / equipo</th><th class="px-4 py-3">Base</th>')
-  const firstCell = '<strong>{{ line.name }}</strong>'
-  const rowStart = '<tr v-for="line in includedLines" :key="line.key"'
-  const rowIndex = preview.indexOf(rowStart)
-  if (rowIndex < 0) throw new Error('[multiCarrierCosts] Screen 8 table body missing')
-  const firstCellIndex = preview.indexOf(firstCell, rowIndex)
+  // Work off the specific Screen 8 "Rubro" header: upstream wizard plugins
+  // may rewrite the v-for expression on this table.
+  const previewTableIndex = preview.indexOf('<th class="px-4 py-3">Rubro</th>')
+  const firstCellIndex = preview.indexOf('<td class="px-4 py-3">', previewTableIndex)
   const lastCellIndex = preview.indexOf('</td>', firstCellIndex)
-  if (firstCellIndex < 0 || lastCellIndex < 0) throw new Error('[multiCarrierCosts] Screen 8 rubro cell missing')
+  if (previewTableIndex < 0 || firstCellIndex < 0 || lastCellIndex < 0)
+    throw new Error('[multiCarrierCosts] Screen 8 cost row missing')
   preview = preview.slice(0, lastCellIndex + 5)
     + '\n                    <td v-if="fclScreen8HasMultipleUnits" class="px-4 py-3 align-top">'
     + '<span class="block text-[11px] font-bold" :class="fclScreen8LineCarrier(line).kind === \'unknown\' ? \'text-amber-600\' : \'text-[var(--dh-text)]\'">{{ fclScreen8LineCarrier(line).title }}</span>'
