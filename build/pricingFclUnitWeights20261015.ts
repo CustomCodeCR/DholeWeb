@@ -182,36 +182,9 @@ watch(
   const primaryFclWeights = "<div class=\"min-w-0\">\n                    <div class=\"flex flex-col gap-1.5\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))\" :key=\"'primary-weight:' + unitNumber\" class=\"min-w-0\">\n                        <DhInput :model-value=\"fclUnitWeight(form.equipmentId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"Number(form.equipmentQuantity) > 1 ? 'Unidad ' + unitNumber + ' · kg *' : 'Peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))\" />\n                        <p v-if=\"fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1))\" class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n                      </div>\n                    </div>\n                  </div>"
   const additionalFclWeights = "<div class=\"min-w-0\">\n                    <div class=\"flex flex-col gap-1.5\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(row.quantity)))\" :key=\"'additional-weight:' + unitNumber\" class=\"min-w-0\">\n                        <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"Number(row.quantity) > 1 ? 'Unidad ' + unitNumber + ' · kg *' : 'Peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))\" />\n                        <p v-if=\"fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1))\" class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n                      </div>\n                    </div>\n                  </div>"
 
-  // El peso FCL se muestra en la tarjeta roja de cada contenedor. FTL mantiene su bloque propio.
-  const weightUi = `
-            <section v-if="shipmentModeForApi === 'Ftl'" class="space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 md:p-5">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 class="font-black">Peso individual de los furgones</h3>
-                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Registre el peso de cada furgón. Sobrepeso: más de 21.500 kg cuando el POE es Centroamérica, excepto Panamá.</p>
-                </div>
-                <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-black">{{ fclOverweightUnitCount }} con sobrepeso</span>
-              </div>
-              <div v-if="landEquipmentAllocations.length" class="space-y-3">
-                <div v-for="group in landEquipmentAllocations" :key="'ftl:' + group.containerTypeId" class="rounded-xl border border-[var(--dh-border)] p-3">
-                  <p class="mb-3 text-sm font-bold">{{ group.quantity }} × {{ group.containerTypeName }}</p>
-                  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    <div v-for="unitNumber in group.quantity" :key="'ftl-weight:' + group.containerTypeId + ':' + unitNumber" class="rounded-xl border border-[var(--dh-border)] p-3">
-                      <DhInput :model-value="fclUnitWeight(group.containerTypeId, unitNumber - 1)" type="number" min="0" step="1" :label="'Furgón ' + unitNumber + ' · peso (kg) *'" @update:model-value="(value) => setFclUnitWeight(group.containerTypeId, unitNumber - 1, Number(value))" />
-                      <p class="mt-2 text-xs font-bold" :class="fclUnitIsOverweight(fclUnitWeight(group.containerTypeId, unitNumber - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'">{{ fclUnitIsOverweight(fclUnitWeight(group.containerTypeId, unitNumber - 1)) ? 'Con sobrepeso' : 'Sin sobrepeso' }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p v-if="fclMissingUnitCount > 0" class="text-xs font-bold text-[var(--dh-primary)]">Pendientes de peso: {{ fclMissingUnitCount }} equipos.</p>
-            </section>
-
-`
+  // Pesos FCL y FTL integrados en sus respectivas tarjetas de equipo.
   const row4 = '<!-- Fila 4: Incoterm y fecha de carga lista. -->'
   if (!code.includes(row4)) throw new Error('[pricingFclUnitWeights] No se encontró la posición de los pesos en pantalla 3.')
-
-  // Solo el terrestre usa un panel separado; FCL se integra en sus tarjetas rojas.
-  code = code.replace(row4, weightUi + row4)
 
   const fclHeading = code.indexOf('Distribución de contenedores FCL')
   const row4Position = code.indexOf(row4, fclHeading)
@@ -270,6 +243,43 @@ watch(
   addWeightControls('form.equipmentQuantity', primaryFclWeights)
   addWeightControls('row.quantity', additionalFclWeights)
   code = code.slice(0, fclHeading) + distribution + code.slice(distributionEnd)
+
+  // FTL: el peso se registra junto al tamaño y la cantidad dentro de cada tarjeta.
+  // Cada unidad física tiene un input propio, incluso cuando hay varios furgones iguales.
+  const primaryFtlWeights = `<div class="min-w-0">
+                    <div class="flex flex-col gap-1.5">
+                      <div v-for="unitNumber in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))" :key="'ftl-primary-weight:' + unitNumber" class="min-w-0">
+                        <DhInput :model-value="fclUnitWeight(form.equipmentId, unitNumber - 1)" type="number" min="0" step="1" :label="Number(form.equipmentQuantity) > 1 ? 'Furgón ' + unitNumber + ' · kg *' : 'Peso (kg) *'" @update:model-value="(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))" />
+                        <p v-if="fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1))" class="mt-1 text-[11px] font-semibold text-[var(--dh-primary)]">Sobrepeso</p>
+                      </div>
+                    </div>
+                  </div>`
+  const additionalFtlWeights = `<div class="min-w-0">
+                    <div class="flex flex-col gap-1.5">
+                      <div v-for="unitNumber in Math.max(1, Math.trunc(Number(row.quantity)))" :key="'ftl-additional-weight:' + row.key + ':' + unitNumber" class="min-w-0">
+                        <DhInput :model-value="fclUnitWeight(row.containerTypeId, unitNumber - 1)" type="number" min="0" step="1" :label="Number(row.quantity) > 1 ? 'Furgón ' + unitNumber + ' · kg *' : 'Peso (kg) *'" @update:model-value="(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))" />
+                        <p v-if="fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1))" class="mt-1 text-[11px] font-semibold text-[var(--dh-primary)]">Sobrepeso</p>
+                      </div>
+                    </div>
+                  </div>`
+  const ftlHeading = code.indexOf('Distribución de furgones FTL', fclHeading)
+  const ftlDistributionEnd = code.indexOf(row4, ftlHeading)
+  if (ftlHeading < 0 || ftlDistributionEnd < 0) {
+    throw new Error('[pricingFclUnitWeights] No se encontró la distribución terrestre.')
+  }
+  distribution = code.slice(ftlHeading, ftlDistributionEnd)
+  addWeightControls('form.equipmentQuantity', primaryFtlWeights)
+  addWeightControls('row.quantity', additionalFtlWeights)
+  code = code.slice(0, ftlHeading) + distribution + code.slice(ftlDistributionEnd)
+
+  // Los indicadores permanecen dentro de la distribución, sin crear un panel aparte.
+  const ftlSummaryAnchor = '<strong class="text-sm text-[var(--dh-primary)]">Total: {{ landEquipmentTotal }} furgón{{ landEquipmentTotal === 1 ? \'\' : \'es\' }}</strong>'
+  if (!code.includes(ftlSummaryAnchor)) {
+    throw new Error('[pricingFclUnitWeights] No se encontró el resumen terrestre.')
+  }
+  code = code.replace(ftlSummaryAnchor, ftlSummaryAnchor + `
+                  <span v-if="fclOverweightUnitCount > 0" class="text-xs font-semibold text-[var(--dh-primary)]">{{ fclOverweightUnitCount }} con sobrepeso</span>
+                  <span v-if="fclMissingUnitCount > 0" class="text-xs font-semibold text-[var(--dh-primary)]">Pendientes de peso: {{ fclMissingUnitCount }}</span>`)
 
   const freightUi = `
           <div v-if="shipmentModeForApi === 'Fcl' && fclContainerAllocations.length > 1" class="crystal-soft space-y-3 p-4 md:p-5">
