@@ -22,10 +22,15 @@ function patchWizard(source: string): string {
   if (!source.includes('const fclContainerAllocations = computed(')) return source
   if (source.includes('const fclUnitWeightsKg = ref<')) return source
   let code = source
+  // This ref must exist before the draft autosave watch([...]) source list is evaluated.
+  // Injecting it at the end of <script setup> produces a TDZ ReferenceError and a blank wizard.
+  const stateAnchor = 'const fclContainerAllocations = computed('
+  if (!code.includes(stateAnchor)) throw new Error('[pricingFclUnitWeights] No se encontró la distribución FCL.')
+  code = code.replace(stateAnchor,
+    'const fclUnitWeightsKg = ref<Record<string, number[]>>({})\\n\\n' + stateAnchor)
+
 
   const script = `
-const fclUnitWeightsKg = ref<Record<string, number[]>>({})
-
 function fclUnitWeight(typeId: string, index: number) {
   const saved = fclUnitWeightsKg.value[typeId]?.[index]
   if (saved !== undefined) return Math.max(0, number(saved))
