@@ -27,6 +27,17 @@ interface Generation {
   registeredAtUtc?: string
   provisioningStatus?: string
 }
+interface StandbyAuthSession {
+  generation: string
+  status: 'Requested' | 'Preparing' | 'Ready' | 'Finishing' | 'Verified' | 'Expired' | 'Failed'
+  diagnosticCode?: string
+  requestedAtUtc: string
+  updatedAtUtc: string
+}
+interface MaerskCredential {
+  id: string
+  name: string
+}
 interface GenerationEvent {
   id: string
   targetGeneration: string
@@ -53,6 +64,11 @@ const loading = ref(false)
 const registering = ref(false)
 const submitting = ref(false)
 const savingRule = ref<string | null>(null)
+const standbyAuthentications = ref<StandbyAuthSession[]>([])
+const maerskCredentials = ref<MaerskCredential[]>([])
+const selectedCredential = ref('')
+const standbyBusy = ref<string | null>(null)
+const independentlyVerified = ref<Record<string, boolean>>({})
 const panel = ref<Panel>('overview')
 const newGeneration = ref('')
 const target = ref('')
@@ -113,6 +129,63 @@ function dateLabel(value?: string) {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('es-CR')
 }
 
+function standbySession(name: string) {
+  return standbyAuthentications.value.find(item => item.generation === name)
+}
+function standbyPorts(name: string) {
+  const index = Number(name.substring(4))
+  if (!/^prod([2-9]|[1-9][0-9]{1,2})$/.test(name) || index > 200) return null
+  return { local: 16080 + index, remote: 6081 + index }
+}
+async function refreshStandbyAuthentication() {
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET', path: '/api/agents/runtime-generations/authentication/',
+      headers: { Accept: 'application/json' },
+    })
+    standbyAuthentications.value = unwrapApiResponse<StandbyAuthSession[]>(response as never)
+  } catch {
+    // A separate auth endpoint may deploy later than the main dashboard.
+  }
+}
+async function prepareStandby(name: string) {
+  if (!canManage.value || !selectedCredential.value || standbyBusy.value) return
+  standbyBusy.value = name
+  try {
+    await callEndpoint<unknown, { credentialId: string }>({
+      method: 'POST',
+      path: '/api/agents/runtime-generations/authentication/{{generation}}/prepare',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, { params: { generation: name }, body: { credentialId: selectedCredential.value } })
+    toast.success('Preparación solicitada', 'Se abrirá un Chromium aislado. prod1 continuará ejecutando la cola.')
+    await refreshStandbyAuthentication()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo preparar el navegador independiente.')
+  } finally {
+    standbyBusy.value = null
+  }
+}
+async function completeStandby(name: string) {
+  if (!canManage.value || !independentlyVerified.value[name] || standbyBusy.value) return
+  standbyBusy.value = name
+  try {
+    await callEndpoint<unknown, { confirmation: string }>({
+      method: 'POST',
+      path: '/api/agents/runtime-generations/authentication/{{generation}}/complete',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, {
+      params: { generation: name },
+      body: { confirmation: 'I_VERIFIED_AUTHORIZED_MAERSK_ACCESS_IN_THIS_STANDBY' },
+    })
+    independentlyVerified.value[name] = false
+    toast.success('Verificación enviada', 'Se cerrará solo el visor temporal y se comprobará la autorización antes del cambio.')
+    await refreshStandbyAuthentication()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo finalizar la verificación del entorno.')
+  } finally {
+    standbyBusy.value = null
+  }
+}
 function selectTarget(name: string) {
   target.value = name
   reason.value = ''
@@ -129,6 +202,7 @@ async function refresh(silent = false) {
       headers: { Accept: 'application/json' },
     })
     state.value = unwrapApiResponse<Snapshot>(response as never)
+    await refreshStandbyAuthentication()
     if (!destinations.value.some(item => item.name === target.value)) {
       target.value = destinations.value[0]?.name ?? ''
     }
@@ -203,6 +277,15 @@ async function saveRule(rule: Rule) {
 
 onMounted(() => {
   void refresh()
+  if (canManage.value) {
+    void callEndpoint<unknown>({
+      method: 'GET', path: '/api/agents/runtime-generations/authentication/credentials',
+      headers: { Accept: 'application/json' },
+    }).then(response => {
+      maerskCredentials.value = unwrapApiResponse<MaerskCredential[]>(response as never)
+      selectedCredential.value = maerskCredentials.value[0]?.id ?? ''
+    }).catch(() => undefined)
+  }
   refreshTimer = setInterval(() => {
     if (!document.hidden) void refresh(true)
   }, 15000)
@@ -309,6 +392,57 @@ onUnmounted(() => {
                 </div>
                 <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
                   Sesión del navegador independiente. Preparación y disponibilidad no verificadas aquí.
+                </p>
+              </div>
+              <div
+                v-if="canManage && item.name !== state.activeGeneration &&
+                  item.provisioningStatus === 'Provisioned' && standbyPorts(item.name)"
+                class="space-y-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs"
+              >
+                <p class="font-semibold">Autenticación de Maersk en {{ item.name }}</p>
+                <p class="text-[var(--dh-text-muted)]">
+                  {{ standbySession(item.name)?.status ?? 'Sin preparar' }}.
+                  Este paso abre solo el navegador; el Worker de prod1 sigue activo.
+                </p>
+                <template v-if="standbySession(item.name)?.status === 'Ready'">
+                  <p class="text-[var(--dh-text-muted)]">En tu computadora ejecuta:</p>
+                  <code class="block break-all select-all rounded bg-[var(--dh-surface)] p-2">ssh -N -L {{ standbyPorts(item.name)?.local }}:127.0.0.1:{{ standbyPorts(item.name)?.remote }} dhole-server</code>
+                  <a
+                    :href="`http://localhost:${standbyPorts(item.name)?.local}/vnc.html`"
+                    target="_blank" rel="noopener noreferrer"
+                    class="inline-block font-semibold text-[var(--dh-primary)] underline"
+                  >Abrir noVNC de {{ item.name }}</a>
+                  <label class="flex items-start gap-2">
+                    <input v-model="independentlyVerified[item.name]" type="checkbox" class="mt-0.5" />
+                    Confirmo que inicié sesión legítimamente en Maersk dentro de este navegador y comprobé el acceso a la cuenta. No hay CAPTCHA ni acceso denegado.
+                  </label>
+                  <DhButton label="Finalizar y verificar acceso" :icon="ShieldCheck"
+                    :disabled="!independentlyVerified[item.name] || standbyBusy !== null"
+                    :loading="standbyBusy === item.name" variant="secondary"
+                    @click="completeStandby(item.name)" />
+                </template>
+                <template v-else-if="standbySession(item.name)?.status === 'Requested' ||
+                  standbySession(item.name)?.status === 'Preparing' ||
+                  standbySession(item.name)?.status === 'Finishing'">
+                  <p>GitHub Actions está procesando la solicitud. Actualiza para consultar el estado.</p>
+                </template>
+                <template v-else-if="standbySession(item.name)?.status === 'Verified'">
+                  <p class="font-semibold text-emerald-500">Acceso verificado. Ya puedes solicitar el cambio de Worker.</p>
+                </template>
+                <template v-else>
+                  <label class="block font-semibold">Credencial Maersk autorizada
+                    <select v-model="selectedCredential"
+                      class="mt-1 block w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-surface)] p-2">
+                      <option v-for="credential in maerskCredentials" :key="credential.id"
+                        :value="credential.id">{{ credential.name }}</option>
+                    </select>
+                  </label>
+                  <DhButton label="Preparar sesión independiente" :icon="ShieldCheck" variant="secondary"
+                    :disabled="!selectedCredential || standbyBusy !== null"
+                    :loading="standbyBusy === item.name" @click="prepareStandby(item.name)" />
+                </template>
+                <p v-if="standbySession(item.name)?.diagnosticCode" class="text-[var(--dh-text-muted)]">
+                  {{ standbySession(item.name)?.diagnosticCode }}
                 </p>
               </div>
               <template v-if="canManage && item.name !== state.activeGeneration">
