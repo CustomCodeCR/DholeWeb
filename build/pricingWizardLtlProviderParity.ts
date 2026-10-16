@@ -17,7 +17,7 @@ function patchStepSixTemplate(source: string) {
 
   block = block.replace(
     `<p class="crystal-description">{{ form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
-    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? (form.manualRate && landLtlCommercialProfile === 'Nvocc' ? 'Tarifa LTL coloader manual: ingrese moneda, costo y venta. LTL no utiliza agente, naviera ni días libres.' : 'La tarifa LTL seleccionada en Pantalla 5 se carga automáticamente. LTL no utiliza agente, naviera ni días libres.') : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
+    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? (form.manualRate && landLtlCommercialProfile === 'Nvocc' ? 'Tarifa LTL coloader manual: seleccione el agente, moneda, costo y venta. LTL no utiliza naviera ni días libres.' : 'La tarifa LTL seleccionada en Pantalla 5 se carga automáticamente. LTL no utiliza agente, naviera ni días libres.') : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
   )
 
   const gridAnchor = '          <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">'
@@ -267,6 +267,25 @@ function patchWizard(source: string) {
     ].join('\n'))
   }
 
+  // Rehydrate the actual agent for saved manual coloaders on LTL.
+  code = code.replace(
+    "    form.agentId = rate.agentId ?? ''",
+    `    form.agentId = rate.agentId ?? ''
+    if (rate.shipmentMode === 'Ltl' && !rate.sourceImportFclRateId
+      && catalogs.agents.some((agent) => agent.id === form.agentId)) {
+      landLtlCommercialProfile.value = 'Nvocc'
+    }`,
+  )
+
+  // Prevent a manual LTL coloader from saving without its actual provider.
+  code = code.replace(
+    "  if (!origin) missing.push('origen')",
+    `  if (shipmentModeForApi.value === 'Ltl' && form.manualRate
+    && landLtlCommercialProfile.value === 'Nvocc'
+    && !catalogs.agents.some((agent) => agent.id === form.agentId)) missing.push('agente del coloader')
+  if (!origin) missing.push('origen')`,
+  )
+
   // LTL has its own selection model: commercial profile + resolved master tariff.
   code = code.replace(
     'const canNext = computed(() => {',
@@ -279,6 +298,7 @@ function patchWizard(source: string) {
     const manualColoader = landLtlCommercialProfile.value === 'Nvocc' && form.manualRate
     return Boolean(
       (resolvedFtlTariff.value || manualColoader)
+      && (!manualColoader || catalogs.agents.some((agent) => agent.id === form.agentId))
       && form.currencyId
       && number(form.freightCost) >= 0
       && number(form.freightSale) >= 0
