@@ -24,6 +24,7 @@ import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerRequestEdit } from './build/pricingSellerRequestEdit'
 import { pricingFclUnitWeights20261015 } from './build/pricingFclUnitWeights20261015'
 import { pricingFclMultiCarrierCosts20261015 } from './build/pricingFclMultiCarrierCosts20261015'
+import { pricingFclInlandPerCarrier20261016 } from './build/pricingFclInlandPerCarrier20261016'
 import { pricingSellerDelegatedRequests } from './build/pricingSellerDelegatedRequests'
 import { pricingSellerRateRequestResponsibilities } from './build/pricingSellerRateRequestResponsibilities'
 import { pricingWizardStep5RateFilter } from './build/pricingWizardStep5RateFilter'
@@ -188,6 +189,7 @@ export default defineConfig({
     pricingSellerRequestEdit(),
     pricingFclUnitWeights20261015(),
     pricingFclMultiCarrierCosts20261015(),
+    pricingFclInlandPerCarrier20261016(),
     vue(),
     tailwindcss(),
   ],
