@@ -199,16 +199,24 @@ export function patchFclMultiCarrierCosts(source: string): string {
     'function chooseFclRateBundle(bundle: FclRateBundle) {\n  fclCarrierOverrides.value = {}')
   code = swap(code, 'function resetWizard() {',
     'function resetWizard() {\n  fclCarrierOverrides.value = {}\n  fclSavedCarrierLookup.value = {}')
-  // Previous visual plugins can reorder attributes and rename the field labels.
-  // Hide only the original single-carrier inputs when the equipment cards are present.
-  code = code.replace(
-    /<DhSelect(?=[\s>])(?=[^>]*v-model="form\.carrierId")/,
-    '<DhSelect v-show="shipmentModeForApi !== \'Fcl\' || fclContainerAllocations.length <= 1"',
-  )
+  // Reuse any v-if previously inserted by visual/pricing transforms.
+  // Adding another v-if creates a Vue "Duplicate attribute" build error.
+  const hideOriginalFieldForMixedFcl = (input: string, component: string, fieldName: string) => {
+    const regex = new RegExp(
+      '<' + component + '(?=[\\s>])(?=[^>]*v-model(?:\\.number)?="form\\.' + fieldName + '")[^>]*>',
+    )
+    const matched = input.match(regex)?.[0]
+    if (!matched) return input
+    const condition = "shipmentModeForApi !== 'Fcl' || fclContainerAllocations.length <= 1"
+    const current = matched.match(/\bv-if="([^"]*)"/)
+    const updated = current
+      ? matched.replace(current[0], 'v-if="(' + current[1] + ') && (' + condition + ')"')
+      : matched.replace('<' + component, '<' + component + ' v-if="' + condition + '"')
+    return input.replace(matched, updated)
+  }
+  code = hideOriginalFieldForMixedFcl(code, 'DhSelect', 'carrierId')
   for (const field of ['freightCost', 'freightSale']) {
-    const expression = new RegExp('<DhInput(?=[\\s>])(?=[^>]*v-model(?:\\.number)?="form\\.' + field + '")')
-    code = code.replace(expression,
-      '<DhInput v-show="shipmentModeForApi !== \'Fcl\' || fclContainerAllocations.length <= 1"')
+    code = hideOriginalFieldForMixedFcl(code, 'DhInput', field)
   }
   code = replaceFreightPanel(code)
   const scriptEnd = code.lastIndexOf('</script>')
