@@ -214,9 +214,9 @@ ${functionAnchor}`,
       '  step.value = 6',
       '}',
       '',
-      'function continueManualOwnLandLtlTariff() {',
+      'function continueManualColoaderLandLtlTariff() {',
       '  resolvedFtlTariff.value = null',
-      "  landLtlCommercialProfile.value = 'FinalClient'",
+      "  landLtlCommercialProfile.value = 'Nvocc'",
       '  availableRates.value = []',
       "  form.selectedImportRateId = ''",
       '  form.manualRate = true',
@@ -226,6 +226,7 @@ ${functionAnchor}`,
       '  form.freightCost = 0',
       '  form.freightSale = 0',
       '  form.transitDays = 0',
+      "  rateLines.value = rateLines.value.filter((line) => !String(line.key ?? '').startsWith('ltl-tariff:'))",
       '  step.value = 6',
       '}',
       '',
@@ -255,7 +256,7 @@ ${functionAnchor}`,
               :selected-import-id="form.selectedImportRateId || null"
               @select-own="selectAndContinueOwnLandLtlTariff"
               @select-coloader="selectAndContinueImportedLandLtlTariff"
-              @manual-own="continueManualOwnLandLtlTariff"
+              @manual-coloader="continueManualColoaderLandLtlTariff"
             />
 
             <template v-else>
