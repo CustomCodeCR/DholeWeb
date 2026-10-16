@@ -33,6 +33,10 @@ interface StandbyAuthSession {
   diagnosticCode?: string
   requestedAtUtc: string
   updatedAtUtc: string
+  accountName?: string
+  accountUsername?: string
+  accountCustomerId?: string
+  accountVerifiedAtUtc?: string
 }
 interface MaerskCredential {
   id: string
@@ -122,6 +126,7 @@ const ruleDescriptions: Record<TriggerCode, string> = {
   data_quality: 'Define cuántas incidencias de calidad deben detectarse.',
 }
 let refreshTimer: ReturnType<typeof setInterval> | undefined
+const lastAutomaticInspection = new Map<string, number>()
 
 function dateLabel(value?: string) {
   if (!value) return ''
@@ -144,6 +149,17 @@ async function refreshStandbyAuthentication() {
       headers: { Accept: 'application/json' },
     })
     standbyAuthentications.value = unwrapApiResponse<StandbyAuthSession[]>(response as never)
+    // Poll provider identity conservatively while an operator is using the
+    // isolated viewer. Never accept mere viewer readiness as authenticated.
+    if (canManage.value && !document.hidden && !standbyBusy.value) {
+      for (const session of standbyAuthentications.value) {
+        if (session.status !== 'Ready' || session.accountVerifiedAtUtc ||
+            Date.now() - (lastAutomaticInspection.get(session.generation) ?? 0) < 120_000) continue
+        lastAutomaticInspection.set(session.generation, Date.now())
+        void inspectStandby(session.generation, true)
+        break
+      }
+    }
   } catch {
     // A separate auth endpoint may deploy later than the main dashboard.
   }
@@ -161,6 +177,45 @@ async function prepareStandby(name: string) {
     await refreshStandbyAuthentication()
   } catch (error) {
     toast.backendError(error, 'No se pudo preparar el navegador independiente.')
+  } finally {
+    standbyBusy.value = null
+  }
+}
+async function inspectStandby(name: string, silent = false) {
+  if (!canManage.value || standbyBusy.value) return
+  standbyBusy.value = name
+  try {
+    await callEndpoint<unknown>({
+      method: 'POST',
+      path: '/api/agents/runtime-generations/authentication/{{generation}}/inspect',
+      headers: { Accept: 'application/json' },
+    }, { params: { generation: name } })
+    if (!silent) {
+      toast.success('Verificación de cuenta solicitada',
+        'Dhole consultará el panel Account del navegador de ' + name + '. Mantén abierto ese panel.')
+    }
+    await refreshStandbyAuthentication()
+  } catch (error) {
+    if (!silent) toast.backendError(error, 'No se pudo consultar la cuenta de Maersk.')
+  } finally {
+    standbyBusy.value = null
+  }
+}
+async function restartStandby(name: string) {
+  if (!canManage.value || standbyBusy.value) return
+  standbyBusy.value = name
+  try {
+    await callEndpoint<unknown>({
+      method: 'POST',
+      path: '/api/agents/runtime-generations/authentication/{{generation}}/restart',
+      headers: { Accept: 'application/json' },
+    }, { params: { generation: name } })
+    independentlyVerified.value[name] = false
+    toast.success('Reapertura solicitada', 'Se reiniciará solo el visor de ' + name +
+      ', conservando su perfil Chromium y sin arrancar el Worker.')
+    await refreshStandbyAuthentication()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo reabrir el visor independiente.')
   } finally {
     standbyBusy.value = null
   }
@@ -412,12 +467,34 @@ onUnmounted(() => {
                     target="_blank" rel="noopener noreferrer"
                     class="inline-block font-semibold text-[var(--dh-primary)] underline"
                   >Abrir noVNC de {{ item.name }}</a>
+                  <div v-if="standbySession(item.name)?.accountVerifiedAtUtc"
+                    class="space-y-1 rounded-lg border border-emerald-500/40 p-3">
+                    <p class="font-bold text-emerald-500">Cuenta Maersk detectada en {{ item.name }}</p>
+                    <p><strong>Nombre:</strong> {{ standbySession(item.name)?.accountName }}</p>
+                    <p><strong>Usuario:</strong> {{ standbySession(item.name)?.accountUsername }}</p>
+                    <p><strong>Customer ID:</strong> {{ standbySession(item.name)?.accountCustomerId }}</p>
+                    <p class="text-[var(--dh-text-muted)]">
+                      Verificación: {{ dateLabel(standbySession(item.name)?.accountVerifiedAtUtc) }}
+                    </p>
+                  </div>
+                  <p v-else class="text-[var(--dh-text-muted)]">
+                    Abre el menú Account en Maersk. Después pulsa «Detectar cuenta» para
+                    verificar nombre, usuario y Customer ID desde el navegador de este entorno.
+                  </p>
+                  <div class="flex flex-wrap gap-2">
+                    <DhButton label="Detectar cuenta" :icon="ShieldCheck" variant="secondary"
+                      :disabled="standbyBusy !== null" :loading="standbyBusy === item.name"
+                      @click="inspectStandby(item.name)" />
+                    <DhButton label="Reabrir visor conservando sesión" :icon="RefreshCw"
+                      variant="secondary" :disabled="standbyBusy !== null"
+                      @click="restartStandby(item.name)" />
+                  </div>
                   <label class="flex items-start gap-2">
                     <input v-model="independentlyVerified[item.name]" type="checkbox" class="mt-0.5" />
                     Confirmo que inicié sesión legítimamente en Maersk dentro de este navegador y comprobé el acceso a la cuenta. No hay CAPTCHA ni acceso denegado.
                   </label>
                   <DhButton label="Finalizar y verificar acceso" :icon="ShieldCheck"
-                    :disabled="!independentlyVerified[item.name] || standbyBusy !== null"
+                     :disabled="!independentlyVerified[item.name] || !standbySession(item.name)?.accountVerifiedAtUtc || standbyBusy !== null"
                     :loading="standbyBusy === item.name" variant="secondary"
                     @click="completeStandby(item.name)" />
                 </template>
@@ -428,6 +505,9 @@ onUnmounted(() => {
                 </template>
                 <template v-else-if="standbySession(item.name)?.status === 'Verified'">
                   <p class="font-semibold text-emerald-500">Acceso verificado. Ya puedes solicitar el cambio de Worker.</p>
+                  <p><strong>Nombre:</strong> {{ standbySession(item.name)?.accountName }}</p>
+                  <p><strong>Usuario:</strong> {{ standbySession(item.name)?.accountUsername }}</p>
+                  <p><strong>Customer ID:</strong> {{ standbySession(item.name)?.accountCustomerId }}</p>
                 </template>
                 <template v-else>
                   <label class="block font-semibold">Credencial Maersk autorizada
