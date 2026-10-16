@@ -94,10 +94,14 @@ function patch(code: string) {
     }
     section = section.replace(regex, '<template v-if="!showMiamiOwnLclBreakdown">$1</template>')
   }
-  const summary = '<div class="crystal-route-summary grid gap-3 md:grid-cols-4">'
-  if (!section.includes(summary)) throw new Error('[pricingMiamiOwnLclBreakdown] Missing summary')
-  section = section.replace(summary,
-    '<div v-if="!showMiamiOwnLclBreakdown" class="crystal-route-summary grid gap-3 md:grid-cols-4">')
+  const summary = /<div(?: v-if="([^"]+)")? class="crystal-route-summary grid gap-3 md:grid-cols-4">/g
+  if ([...section.matchAll(summary)].length !== 1) {
+    throw new Error('[pricingMiamiOwnLclBreakdown] Missing provider summary')
+  }
+  section = section.replace(summary, (_tag, priorCondition: string | undefined) =>
+    '<div v-if="' + (priorCondition ? '(' + priorCondition + ') && ' : '')
+      + '!showMiamiOwnLclBreakdown" class="crystal-route-summary grid gap-3 md:grid-cols-4">',
+  )
   const close = /\n        <\/div>\s*$/.exec(section)
   if (!close) throw new Error('[pricingMiamiOwnLclBreakdown] Missing closing step 6 tag')
   section = section.slice(0, close.index) + '\n' + TEMPLATE + section.slice(close.index)
