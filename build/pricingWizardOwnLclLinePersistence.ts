@@ -73,17 +73,25 @@ function patchWizard(source: string) {
     'agent/carrier line refresh',
   )
 
+  // Earlier versions of the wizard have no edit guard. Newer versions must
+  // keep that guard so changing header currency does not reset saved sales.
+  const legacyCurrencyWatcher = `watch(() => form.currencyId, () => {\n  if (hydratingExistingRate.value) return\n  if (step.value === 7) rebuildRateLines()\n})`
+  const preservedCurrencyWatcher = `watch(() => form.currencyId, () => {\n  // A saved quotation already has individually priced currencies and sales.\n  // Rebuilding its lines from the tariff catalog discards edit IDs/overrides.\n  if (hydratingExistingRate.value || editingRate.value) return\n  if (step.value === 7) rebuildRateLines()\n})`
+  const currencyWatcher = code.includes(preservedCurrencyWatcher) ? preservedCurrencyWatcher : legacyCurrencyWatcher
   code = replaceOne(
     code,
-    `watch(() => form.currencyId, () => {\n  if (hydratingExistingRate.value) return\n  if (step.value === 7) rebuildRateLines()\n})`,
-    `watch(() => form.currencyId, () => {\n  if (hydratingExistingRate.value) return\n  if (step.value === 7) refreshRateLinesForCurrentSource()\n})`,
+    currencyWatcher,
+    currencyWatcher.replace('if (step.value === 7) rebuildRateLines()', 'if (step.value === 7) refreshRateLinesForCurrentSource()'),
     'currency line refresh',
   )
 
+  const legacyCargoWatcher = `watch(\n  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,\n  () => {\n    if (hydratingExistingRate.value || step.value < 7) return\n    rebuildRateLines()\n  },\n)`
+  const preservedCargoWatcher = `watch(\n  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,\n  () => {\n    // Editing Screen 3/4 cargo parameters must not replace the Screen 7\n    // persisted details with new catalog rows (which lose edited sales).\n    if (hydratingExistingRate.value || step.value < 7 || editingRate.value) return\n    rebuildRateLines()\n  },\n)`
+  const cargoWatcher = code.includes(preservedCargoWatcher) ? preservedCargoWatcher : legacyCargoWatcher
   code = replaceOne(
     code,
-    `watch(\n  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,\n  () => {\n    if (hydratingExistingRate.value || step.value < 7) return\n    rebuildRateLines()\n  },\n)`,
-    `watch(\n  () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,\n  () => {\n    if (hydratingExistingRate.value || step.value < 7) return\n    refreshRateLinesForCurrentSource()\n  },\n)`,
+    cargoWatcher,
+    cargoWatcher.replace('    rebuildRateLines()\n  },\n)', '    refreshRateLinesForCurrentSource()\n  },\n)'),
     'cargo/service line refresh',
   )
 
