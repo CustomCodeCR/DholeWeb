@@ -145,7 +145,8 @@ function fclSyncInlandPerCarrier() {
 watch(
   () => [step.value, form.carrierHaulage, form.merchantHaulage,
     fclCarriersByEquipment.value.map((unit) => unit.containerTypeId + ':' + unit.id + ':' + unit.quantity).join('|'),
-    fclInlandCarrierRows.value.map((row) => row.typeId + ':' + row.cost.id).join('|')].join('~'),
+    fclInlandCarrierRows.value.map((row) => row.typeId + ':' + row.cost.id).join('|'),
+    rateLines.value.map((line) => line.key + ':' + (line.costId ?? '')).join('|')].join('~'),
   () => {
     if ([6, 7, 8].includes(step.value)) fclSyncInlandPerCarrier()
   },
