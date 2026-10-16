@@ -47,6 +47,7 @@ import type {
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
+import { buildRateUpdateExtraDetails } from '@/modules/pricing/utils/pricingRateUpdateDetails'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -4295,10 +4296,14 @@ async function saveRate() {
       const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
       const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
-      const extraDetails = createPayload.details.map((detail, index) => ({
-        ...detail,
-        id: includedLines.value[index]?.detailId ?? null,
-      }))
+      // Assign persisted IDs by the original CostId, not by position alone.
+      // Two carriers or charge rows may legitimately share a legacy detail ID.
+      // Every edited sale must reach its own persisted row.
+      const extraDetails = buildRateUpdateExtraDetails(
+        createPayload.details,
+        normalizedIncludedLines,
+        editingRate.value.rateDetails,
+      )
       const { sourceImportFclRateId: _sourceImportFclRateId, details: _details, ...baseUpdate } = createPayload
       const updatePayload = {
         ...baseUpdate,
@@ -4556,14 +4561,18 @@ watch(
 )
 
 watch(() => form.currencyId, () => {
-  if (hydratingExistingRate.value) return
+  // A saved quotation already has individually priced currencies and sales.
+  // Rebuilding its lines from the tariff catalog discards edit IDs/overrides.
+  if (hydratingExistingRate.value || editingRate.value) return
   if (step.value === 7) rebuildRateLines()
 })
 
 watch(
   () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,
   () => {
-    if (hydratingExistingRate.value || step.value < 7) return
+    // Editing Screen 3/4 cargo parameters must not replace the Screen 7
+    // persisted details with new catalog rows (which lose edited sales).
+    if (hydratingExistingRate.value || step.value < 7 || editingRate.value) return
     rebuildRateLines()
   },
 )
