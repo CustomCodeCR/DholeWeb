@@ -47,7 +47,6 @@ import type {
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
-import { buildRateUpdateExtraDetails } from '@/modules/pricing/utils/pricingRateUpdateDetails'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -4304,14 +4303,10 @@ async function saveRate() {
       const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
       const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
-      // Assign persisted IDs by the original CostId, not by position alone.
-      // Two carriers or charge rows may legitimately share a legacy detail ID.
-      // Every edited sale must reach its own persisted row.
-      const extraDetails = buildRateUpdateExtraDetails(
-        createPayload.details,
-        normalizedIncludedLines,
-        editingRate.value.rateDetails,
-      )
+      const extraDetails = createPayload.details.map((detail, index) => ({
+        ...detail,
+        id: includedLines.value[index]?.detailId ?? null,
+      }))
       const { sourceImportFclRateId: _sourceImportFclRateId, details: _details, ...baseUpdate } = createPayload
       const updatePayload = {
         ...baseUpdate,
