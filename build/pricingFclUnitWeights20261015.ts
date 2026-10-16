@@ -209,15 +209,15 @@ watch(
   }
   let distribution = code.slice(fclHeading, row4Position)
 
-  const primaryAnchor = '<DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />\\n                  </div>\\n                </div>'
-  const secondaryAnchor = '<DhInput v-model.number="row.quantity" type="number" min="1" label="Cantidad" />\\n                  </div>\\n                </div>'
+  const primaryAnchor = '<DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                </div>'
+  const secondaryAnchor = '<DhInput v-model.number="row.quantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                </div>'
   if (distribution.split(primaryAnchor).length !== 2 || distribution.split(secondaryAnchor).length !== 2)
     throw new Error('[pricingFclUnitWeights] Los campos de cantidad FCL cambiaron y no es seguro integrar los pesos.')
 
   distribution = distribution.replace(primaryAnchor,
-    '<DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />\\n                  </div>\\n                  ' + primaryFclWeights + '\\n                </div>')
+    '<DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                  ' + primaryFclWeights + '\n                </div>')
   distribution = distribution.replace(secondaryAnchor,
-    '<DhInput v-model.number="row.quantity" type="number" min="1" label="Cantidad" />\\n                  </div>\\n                  ' + additionalFclWeights + '\\n                </div>')
+    '<DhInput v-model.number="row.quantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                  ' + additionalFclWeights + '\n                </div>')
   code = code.slice(0, fclHeading) + distribution + code.slice(row4Position)
 
   const freightUi = `
