@@ -276,10 +276,10 @@ export function patchFclMultiCarrierCosts(source: string): string {
   const detailsEnd = '  const includedNameKeys = new Set('
   if (!code.includes(detailsEnd)) throw new Error('[multiCarrierCosts] Missing rate detail serialization')
   code = code.replace(detailsEnd,
-    '  details.forEach((detail, index) => {\\n'
-    + '    const line = normalizedIncludedLines[index]\\n'
-    + '    if (line) detail.notes = fclPersistCarrierNote(line, detail.notes)\\n'
-    + '  })\\n\\n' + detailsEnd)
+    '  details.forEach((detail, index) => {\n'
+    + '    const line = normalizedIncludedLines[index]\n'
+    + '    if (line) detail.notes = fclPersistCarrierNote(line, detail.notes)\n'
+    + '  })\n\n' + detailsEnd)
   code = replaceFreightPanel(code)
   const scriptEnd = code.lastIndexOf('</script>')
   if (scriptEnd < 0) throw new Error('[multiCarrierCosts] Missing script end')
