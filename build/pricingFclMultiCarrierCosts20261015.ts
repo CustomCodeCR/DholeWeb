@@ -199,12 +199,16 @@ export function patchFclMultiCarrierCosts(source: string): string {
     'function chooseFclRateBundle(bundle: FclRateBundle) {\n  fclCarrierOverrides.value = {}')
   code = swap(code, 'function resetWizard() {',
     'function resetWizard() {\n  fclCarrierOverrides.value = {}\n  fclSavedCarrierLookup.value = {}')
-  code = swap(code, '<DhSelect v-model="form.carrierId" label="Naviera / proveedor"',
-    '<DhSelect v-if="shipmentModeForApi !== \'Fcl\' || fclContainerAllocations.length <= 1" v-model="form.carrierId" label="Naviera / proveedor"')
+  // Previous visual plugins can reorder attributes and rename the field labels.
+  // Hide only the original single-carrier inputs when the equipment cards are present.
+  code = code.replace(
+    /<DhSelect(?=[\s>])(?=[^>]*v-model="form\.carrierId")/,
+    '<DhSelect v-if="shipmentModeForApi !== \'Fcl\' || fclContainerAllocations.length <= 1"',
+  )
   for (const field of ['freightCost', 'freightSale']) {
-    const previous = '<DhInput v-model.number="form.' + field + '"'
-    code = swap(code, previous,
-      '<DhInput v-if="shipmentModeForApi !== \'Fcl\' || fclContainerAllocations.length <= 1" v-model.number="form.' + field + '"')
+    const expression = new RegExp('<DhInput(?=[\\s>])(?=[^>]*v-model(?:\\.number)?="form\\.' + field + '")')
+    code = code.replace(expression,
+      '<DhInput v-if="shipmentModeForApi !== \'Fcl\' || fclContainerAllocations.length <= 1"')
   }
   code = replaceFreightPanel(code)
   const scriptEnd = code.lastIndexOf('</script>')
