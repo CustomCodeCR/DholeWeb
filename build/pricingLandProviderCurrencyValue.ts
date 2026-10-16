@@ -22,7 +22,14 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))`,
-    `const landAgentPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c42',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-agent',\n} as CatalogItemSelectDto\nconst landCarrierPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c43',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-carrier',\n} as CatalogItemSelectDto\nconst selectedAgent = computed(() => form.modality === 'Land' ? landAgentPlaceholder : findById(catalogs.agents, form.agentId))`,
+    `const landAgentPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c42',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-agent',\n} as CatalogItemSelectDto\nconst landCarrierPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c43',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-carrier',\n} as CatalogItemSelectDto\nconst selectedAgent = computed(() =>
+  form.modality === 'Land'
+    && !(shipmentModeForApi.value === 'Ltl'
+      && form.manualRate
+      && landLtlCommercialProfile.value === 'Nvocc')
+    ? landAgentPlaceholder
+    : findById(catalogs.agents, form.agentId),
+)`,
     'selected agent',
   )
   code = replaceRequired(
@@ -51,12 +58,12 @@ function patchWizard(source: string) {
   if (code.includes(`<DhSelect v-else v-model="form.agentId"`)) {
     code = code.replace(
       `<DhSelect v-else v-model="form.agentId"`,
-      `<DhSelect v-else-if="form.modality !== 'Land'" v-model="form.agentId"`,
+      `<DhSelect v-else-if="form.modality !== 'Land' || (shipmentModeForApi === 'Ltl' && form.manualRate && landLtlCommercialProfile === 'Nvocc')" v-model="form.agentId"`,
     )
   } else if (code.includes(`<DhSelect v-model="form.agentId"`)) {
     code = code.replace(
       `<DhSelect v-model="form.agentId"`,
-      `<DhSelect v-if="form.modality !== 'Land'" v-model="form.agentId"`,
+      `<DhSelect v-if="form.modality !== 'Land' || (shipmentModeForApi === 'Ltl' && form.manualRate && landLtlCommercialProfile === 'Nvocc')" v-model="form.agentId"`,
     )
   }
 
@@ -81,7 +88,7 @@ function patchWizard(source: string) {
   )
   code = code.replace(
     `<p class="crystal-description">Los selects muestran el Value configurado en Config.</p>`,
-    `<p class="crystal-description">{{ form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
+    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' && form.manualRate && landLtlCommercialProfile === 'Nvocc' ? 'Seleccione el agente del coloader y defina el flete LTL manual. No se requiere naviera.' : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
   )
 
   // Earlier LCL transforms own this block. Add Land as an explicit no-provider path.
