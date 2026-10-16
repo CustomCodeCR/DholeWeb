@@ -359,7 +359,7 @@ export function patchFclMultiCarrierCosts(source: string): string {
   // replacements were not sufficient: persisted and catalog-backed lines need
   // an independent association lookup, and unmatched lines need a visible status.
   const previewStart = code.indexOf('<div v-else-if="step === 8"')
-  const previewEnd = previewStart >= 0 ? code.indexOf('<div v-else-if="step === 9"', previewStart) : -1
+  const previewEnd = previewStart >= 0 ? code.indexOf('<div v-else-if="step === 9', previewStart) : -1
   if (previewStart < 0 || previewEnd < 0) throw new Error('[multiCarrierCosts] Screen 8 preview boundaries missing')
   let preview = code.slice(previewStart, previewEnd)
   const headerStart = '<th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th>'
