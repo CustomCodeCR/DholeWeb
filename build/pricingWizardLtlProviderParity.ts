@@ -17,7 +17,7 @@ function patchStepSixTemplate(source: string) {
 
   block = block.replace(
     `<p class="crystal-description">{{ form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
-    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? (form.manualRate && landLtlCommercialProfile === 'FinalClient' ? 'Tarifa LTL propia manual: ingrese moneda, costo y venta. LTL no utiliza agente, naviera ni días libres.' : 'La tarifa LTL seleccionada en Pantalla 5 se carga automáticamente. LTL no utiliza agente, naviera ni días libres.') : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
+    `<p class="crystal-description">{{ shipmentModeForApi === 'Ltl' ? (form.manualRate && landLtlCommercialProfile === 'Nvocc' ? 'Tarifa LTL coloader manual: ingrese moneda, costo y venta. LTL no utiliza agente, naviera ni días libres.' : 'La tarifa LTL seleccionada en Pantalla 5 se carga automáticamente. LTL no utiliza agente, naviera ni días libres.') : form.modality === 'Land' ? 'Para terrestre no se requiere agente ni naviera. La moneda muestra el Value configurado en Config.' : 'Los selects muestran el Value configurado en Config.' }}</p>`,
   )
 
   const gridAnchor = '          <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">'
@@ -272,13 +272,13 @@ function patchWizard(source: string) {
     'const canNext = computed(() => {',
     `const canNext = computed(() => {
   if (step.value === 5 && shipmentModeForApi.value === 'Ltl') {
-    const manualClient = landLtlCommercialProfile.value === 'FinalClient' && form.manualRate
-    return Boolean(landLtlCommercialProfile.value && (resolvedFtlTariff.value || manualClient))
+    const manualColoader = landLtlCommercialProfile.value === 'Nvocc' && form.manualRate
+    return Boolean(landLtlCommercialProfile.value && (resolvedFtlTariff.value || manualColoader))
   }
   if (step.value === 6 && shipmentModeForApi.value === 'Ltl') {
-    const manualClient = landLtlCommercialProfile.value === 'FinalClient' && form.manualRate
+    const manualColoader = landLtlCommercialProfile.value === 'Nvocc' && form.manualRate
     return Boolean(
-      (resolvedFtlTariff.value || manualClient)
+      (resolvedFtlTariff.value || manualColoader)
       && form.currencyId
       && number(form.freightCost) >= 0
       && number(form.freightSale) >= 0
@@ -297,7 +297,7 @@ function patchWizard(source: string) {
       `function continueWithManualLandLtlTariff() {
   if (
     shipmentModeForApi.value !== 'Ltl'
-    || landLtlCommercialProfile.value !== 'FinalClient'
+    || landLtlCommercialProfile.value !== 'Nvocc'
   ) return
 
   resolvedFtlTariff.value = null
