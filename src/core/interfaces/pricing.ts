@@ -118,6 +118,8 @@ export interface CompetitorTariffDto extends Record<string, unknown> {
   observationCount: number
   reviewCount: number
   importStatus: CompetitorTariffImportStatus | string
+  importErrorCode?: string | null
+  importErrorMessage?: string | null
   importedAtUtc: string
 }
 
