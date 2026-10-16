@@ -23,7 +23,7 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       code = replaceOne(
         code,
         identityImportAnchor,
-        `${identityImportAnchor}\nimport { buildRateUpdateExtraDetails } from '@/modules/pricing/utils/pricingRateUpdateDetails'`,
+        `${identityImportAnchor}\nimport { buildRateUpdateExtraDetails, stalePersistedFclFreightDetailIds } from '@/modules/pricing/utils/pricingRateUpdateDetails'`,
         'rate detail identity normalizer import',
       )
 
@@ -100,12 +100,15 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
           ),
         )
 
-      // Un cambio de equipo, cantidad, moneda, vigencia o source de flete NO puede
-      // convertir una ausencia temporal de UI en una eliminación. Solo se elimina:
-      // 1) una línea que el usuario quitó explícitamente; 2) una línea todavía presente
-      // pero desmarcada; o 3) una línea que dejó de pertenecer al contexto real de costos.
+      // Keep unrelated saved costs when context is unchanged, but a freight
+      // line no longer included in the current FCL equipment distribution is
+      // obsolete (e.g. replacing 40HC + 40NOR with two 40NOR containers).
+      const staleFclFreightIds = stalePersistedFclFreightDetailIds(
+        shipmentModeForApi.value, existingRateDetails, includedLines.value,
+      )
       const removedExtraDetailIds = existingRateDetails
         .filter((detail) => {
+          if (staleFclFreightIds.has(detail.id)) return true
           if (explicitlyRemovedPersistedDetailIds.value.has(detail.id)) return true
 
           const currentLine = persistedLineForDetail(detail)
