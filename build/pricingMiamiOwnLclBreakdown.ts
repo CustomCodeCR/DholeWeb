@@ -1,117 +1,130 @@
 import type { Plugin } from 'vite'
+
+// Miami LCL commercial breakdown belongs in Pantalla 8, not Pantalla 6.
+// This transform runs after the other pricing wizard UI transforms.
 const WIZARD = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
-const MARKER = '// miami-own-lcl-breakdown-20261016'
+const MARKER = '// miami-own-lcl-breakdown-screen8-20261016'
 const HELPERS = String.raw`
-// miami-own-lcl-breakdown-20261016
+// miami-own-lcl-breakdown-screen8-20261016
 const showMiamiOwnLclBreakdown = computed(() =>
-  isMiamiLcl.value && isOwnLclMatrixContext() && shipmentModeForApi.value === 'Lcl',
+  isMiamiLcl.value && shipmentModeForApi.value === 'Lcl' && isOwnLclMatrixContext(),
 )
 const miamiOwnLclBreakdownRows = computed(() => {
   if (!showMiamiOwnLclBreakdown.value) return []
-  const source = lclSelectedSource.value
-  const sourceId = source?.kind === 'Own' ? String(source.id ?? '') : ''
-  const matching = rateLines.value.some((line) => {
-    const notes = String(line.notes ?? '')
-    return sourceId
-      ? notes.includes('ConsolidadoId: ' + sourceId)
-      : /LCL\s*PROPIO|ConsolidadoId:/i.test(notes)
-  })
-  const lines = matching ? rateLines.value
-    : source?.kind === 'Own' ? (source.lines as RateLine[]) : []
-  return lines.filter((line) =>
-    line.included && (number(line.saleAmount) !== 0 || number(line.costAmount) !== 0),
-  ).map((line) => {
+  // Exactly the same included lines and quantities used by the save payload
+  // and by the existing Pantalla 8 totals; no extra synthetic freight/sales.
+  return includedLines.value.map((line) => {
     const quantity = Math.max(0, number(quantityForRateLine(line)))
-    const appliedFixedQuantity = String(line.notes ?? '').match(/cantidad aplicada:\s*(\d+(?:\.\d+)?)/i)
-    const displayQuantity = appliedFixedQuantity && !/Cbm|Cft/i.test(line.chargeBasis)
-      ? Math.max(1, number(appliedFixedQuantity[1]))
+    const fixedQty = String(line.notes ?? '').match(/cantidad aplicada:\s*(\d+(?:\.\d+)?)/i)
+    const displayQuantity = fixedQty && !/Per(?:Chargeable)?(?:Cbm|Cft)/i.test(line.chargeBasis)
+      ? Math.max(1, number(fixedQty[1]))
       : quantity
     return {
       key: line.key,
       name: line.name,
       freight: line.costDetailType === 'Freight',
-      basis: chargeBasisLabel(line.chargeBasis),
+      basis: chargeBasisLabel(effectiveChargeBasisForLine(line)),
       quantity: displayQuantity,
+      currency: canonicalCurrencyCode(line),
       cost: number(line.costAmount) * quantity,
-      sale: number(line.saleAmount) * quantity,
+      subtotal: number(line.saleAmount) * quantity,
+      tax: lineTaxTotalAmount(line),
+      total: lineSaleWithTax(line) * quantity,
     }
   })
 })
-const miamiOwnLclBreakdownCost = computed(() =>
-  miamiOwnLclBreakdownRows.value.reduce((sum, line) => sum + line.cost, 0),
-)
-const miamiOwnLclBreakdownSale = computed(() =>
-  miamiOwnLclBreakdownRows.value.reduce((sum, line) => sum + line.sale, 0),
-)
 const miamiOwnLclFreightBasis = computed(() => {
   const rate = miamiCommercialRate.value
-  if (rate.little) return 'Tarifa escalonada CARGAS LITTLE'
-  const unit = 'Tarifa USD ' + rate.salePerCft.toFixed(2) + ' / CFT'
+  if (rate.little) return 'Venta según escala CARGAS LITTLE'
+  const unit = 'Tarifa comercial: USD ' + rate.salePerCft.toFixed(2) + '/CFT'
   return miamiFreightCalculated.value < rate.minimumFreightSale
-    ? unit + ' · mínimo aplicado USD ' + rate.minimumFreightSale.toFixed(2)
+    ? unit + ' · mínimo de flete aplicado: USD ' + rate.minimumFreightSale.toFixed(2)
     : unit
 })
 `;
 const TEMPLATE = String.raw`
-          <section v-if="showMiamiOwnLclBreakdown" class="crystal-soft space-y-3 p-4 md:p-5">
-            <div>
-              <h3 class="text-base font-black">Desglose de venta · LCL propio Miami</h3>
+          <section v-if="showMiamiOwnLclBreakdown" class="crystal-soft overflow-hidden p-0">
+            <div class="border-b border-[var(--dh-border)] px-5 py-4">
+              <h3 class="text-base font-black">Desglose final de venta · LCL propio Miami</h3>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ miamiCommercialRate.label }} · Flete por CFT con mínimo comercial y cargos adicionales separados.
+                {{ miamiCommercialRate.label }} · Cada concepto se factura por separado; el mínimo del flete no modifica la tarifa comercial por CFT.
               </p>
             </div>
-            <div v-if="miamiOwnLclBreakdownRows.length" class="overflow-x-auto rounded-xl border border-[var(--dh-border)]">
-              <table class="w-full min-w-[620px] text-xs">
-                <thead class="bg-[var(--dh-input)] text-left text-[10px] font-black uppercase tracking-wide text-[var(--dh-text-muted)]">
-                  <tr><th class="px-3 py-3">Concepto</th><th class="px-3 py-3 text-right">Cantidad / base</th><th class="px-3 py-3 text-right">Costo</th><th class="px-3 py-3 text-right">Venta</th></tr>
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[980px] text-left text-xs">
+                <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
+                  <tr>
+                    <th class="px-4 py-3">Concepto</th>
+                    <th class="px-4 py-3">Base</th>
+                    <th class="px-4 py-3 text-right">Cantidad</th>
+                    <th class="px-4 py-3">Divisa</th>
+                    <th class="px-4 py-3 text-right">Costo total</th>
+                    <th class="px-4 py-3 text-right">Venta subtotal</th>
+                    <th class="px-4 py-3 text-right">IVA</th>
+                    <th class="px-4 py-3 text-right">Venta total</th>
+                  </tr>
                 </thead>
                 <tbody>
                   <tr v-for="line in miamiOwnLclBreakdownRows" :key="line.key" class="border-t border-[var(--dh-border)]">
-                    <td class="px-3 py-3">
-                      <p class="font-bold">{{ line.name }}</p>
-                      <p v-if="line.freight" class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ miamiOwnLclFreightBasis }}</p>
+                    <td class="px-4 py-3">
+                      <strong class="block">{{ line.name }}</strong>
+                      <span v-if="line.freight" class="mt-1 block text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ miamiOwnLclFreightBasis }}</span>
                     </td>
-                    <td class="px-3 py-3 text-right">{{ line.quantity.toFixed(line.freight ? 2 : 0) }} · {{ line.basis }}</td>
-                    <td class="px-3 py-3 text-right">{{ formatMoney(line.cost, 'USD') }}</td>
-                    <td class="px-3 py-3 text-right font-black">{{ formatMoney(line.sale, 'USD') }}</td>
+                    <td class="px-4 py-3">{{ line.basis }}</td>
+                    <td class="px-4 py-3 text-right">{{ line.quantity.toLocaleString('es-CR', { maximumFractionDigits: 3 }) }}</td>
+                    <td class="px-4 py-3 font-bold">{{ line.currency }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(line.cost, line.currency) }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(line.subtotal, line.currency) }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(line.tax, line.currency) }}</td>
+                    <td class="px-4 py-3 text-right font-black">{{ formatMoney(line.total, line.currency) }}</td>
                   </tr>
                 </tbody>
-                <tfoot class="border-t border-[var(--dh-border)] bg-[var(--dh-input)] font-black">
-                  <tr><td class="px-3 py-3" colspan="2">Total de conceptos</td><td class="px-3 py-3 text-right">{{ formatMoney(miamiOwnLclBreakdownCost, 'USD') }}</td><td class="px-3 py-3 text-right">{{ formatMoney(miamiOwnLclBreakdownSale, 'USD') }}</td></tr>
-                </tfoot>
               </table>
             </div>
-            <p v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Seleccione el consolidado Miami para visualizar los conceptos.</p>
+            <div class="border-t border-[var(--dh-border)] bg-[var(--dh-input)] px-5 py-4">
+              <p class="text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Totales de los conceptos</p>
+              <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                <div><span class="text-[11px] font-semibold">Venta sin IVA (USD)</span><strong class="block text-base">{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></div>
+                <div><span class="text-[11px] font-semibold">IVA (USD)</span><strong class="block text-base">{{ formatMoney(totalTaxUsd, 'USD') }}</strong></div>
+                <div><span class="text-[11px] font-semibold">Total final (USD)</span><strong class="block text-base">{{ formatMoney(totalSaleUsd, 'USD') }}</strong></div>
+              </div>
+              <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">Los importes CRC equivalentes se muestran en Totales de la oferta. Los cargos adicionales y el seguro se incluyen únicamente cuando corresponden.</p>
+            </div>
           </section>
 `;
 function patch(code: string) {
   if (code.includes(MARKER)) return code
-  const start = code.indexOf('<div v-else-if="step === 6" class="space-y-6">')
-  const end = code.indexOf('<div v-else-if="step === 4" class="space-y-6">', start)
-  if (start < 0 || end < start) throw new Error('[pricingMiamiOwnLclBreakdown] Missing step 6 section')
+  const start = code.indexOf('<div v-else-if="step === 8" class="space-y-6">')
+  const end = code.indexOf('<div v-else-if="step === 9', start)
+  if (start < 0 || end <= start) {
+    throw new Error('[pricingMiamiOwnLclBreakdown] Pantalla 8 anchors missing')
+  }
   const original = code.slice(start, end)
-  let section = original
-  for (const field of ['freightCost', 'freightSale']) {
-    const regex = new RegExp('(<DhInput\\b[^>]*v-model\\.number="form\\.' + field + '"[^>]*\\/>)', 'g')
-    if ([...section.matchAll(regex)].length !== 1) {
-      throw new Error('[pricingMiamiOwnLclBreakdown] Expected one input ' + field)
-    }
-    section = section.replace(regex, '<template v-if="!showMiamiOwnLclBreakdown">$1</template>')
+  let screen = original
+
+  // Replace the generalized sale presentation with the line-by-line breakdown.
+  // Keep all customer details, commercial conditions, totals and other sections.
+  const generalPanel = '<div class="crystal-soft p-5">'
+  if (screen.split(generalPanel).length < 2) {
+    throw new Error('[pricingMiamiOwnLclBreakdown] General sale panel not found')
   }
-  const summary = /<div(?: v-if="([^"]+)")? class="crystal-route-summary grid gap-3 md:grid-cols-4">/g
-  if ([...section.matchAll(summary)].length !== 1) {
-    throw new Error('[pricingMiamiOwnLclBreakdown] Missing provider summary')
+  screen = screen.replace(generalPanel,
+    TEMPLATE + '\n          <div v-if="!showMiamiOwnLclBreakdown" class="crystal-soft p-5">')
+
+  // The old full-lines table is already superseded by this detailed Miami table,
+  // so do not duplicate it; preserve the following commercial terms selector.
+  const standardTable = /<section class="crystal-soft overflow-hidden p-0">(?=[\s\S]{0,1200}Líneas (?:completas|comerciales) de la tarifa)/g
+  if (standardTable.test(screen)) {
+    screen = screen.replace(standardTable,
+      '<section v-if="!showMiamiOwnLclBreakdown" class="crystal-soft overflow-hidden p-0">')
   }
-  section = section.replace(summary, (_tag, priorCondition: string | undefined) =>
-    '<div v-if="' + (priorCondition ? '(' + priorCondition + ') && ' : '')
-      + '!showMiamiOwnLclBreakdown" class="crystal-route-summary grid gap-3 md:grid-cols-4">',
-  )
-  const close = /\n        <\/div>\s*$/.exec(section)
-  if (!close) throw new Error('[pricingMiamiOwnLclBreakdown] Missing closing step 6 tag')
-  section = section.slice(0, close.index) + '\n' + TEMPLATE + section.slice(close.index)
+
   const helperAnchor = 'const providerCost = computed(() =>'
-  if (code.split(helperAnchor).length !== 2) throw new Error('[pricingMiamiOwnLclBreakdown] Missing helper anchor')
-  return code.replace(helperAnchor, HELPERS + '\n' + helperAnchor).replace(original, section)
+  if (code.split(helperAnchor).length !== 2) {
+    throw new Error('[pricingMiamiOwnLclBreakdown] Missing computed anchor')
+  }
+  return code.replace(helperAnchor, HELPERS + '\n' + helperAnchor)
+    .replace(original, screen)
 }
 export function pricingMiamiOwnLclBreakdown(): Plugin {
   return {
