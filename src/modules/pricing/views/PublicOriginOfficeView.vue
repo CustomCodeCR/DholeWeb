@@ -37,6 +37,8 @@ interface OriginOffice {
   message: string
   schedule?: string
   gcfOnly?: boolean
+  agent?: string
+  agentCode?: string
 }
 
 const route = useRoute()
@@ -65,6 +67,19 @@ const polLocator = computed(() => polValue.value || polCode.value)
 const polDisplay = computed(() => office.value?.polValue || polValue.value || office.value?.polCode || polCode.value)
 const agentCode = computed(() => String(route.query.agentCode ?? '').trim())
 const agentName = computed(() => String(route.query.agent ?? '').trim())
+// Legacy maritime own LCL PDFs carry GCF as their commercial source; the
+// contact agent in origin is RS. Preserve the other shipment modes.
+const legacyOwnLclLink = computed(() =>
+  String(route.query.shipmentMode ?? '').trim().toLowerCase() === 'lcl'
+  && String(route.query.modality ?? '').trim().toLowerCase() !== 'air'
+  && (
+    agentCode.value.toUpperCase() === 'GCF'
+    || ['GCF', 'GRUPO CASTRO FALLAS'].includes(agentName.value.toUpperCase())
+  ),
+)
+const originAgentCode = computed(() => legacyOwnLclLink.value ? 'RS' : agentCode.value)
+const originAgentName = computed(() => legacyOwnLclLink.value ? 'RS' : agentName.value)
+const agentDisplay = computed(() => office.value?.agent || office.value?.agentCode || originAgentName.value || originAgentCode.value || 'Oficina de origen')
 
 const coordinates = computed(() => {
   if (office.value?.gcfOnly) return ''
@@ -157,8 +172,8 @@ async function load() {
     query.set('pol', polLocator.value)
     if (shipmentMode) query.set('shipmentMode', shipmentMode)
     if (routeKey) query.set('route', routeKey)
-    if (agentCode.value) query.set('agentCode', agentCode.value)
-    if (agentName.value) query.set('agent', agentName.value)
+    if (originAgentCode.value) query.set('agentCode', originAgentCode.value)
+    if (originAgentName.value) query.set('agent', originAgentName.value)
 
     const endpoint = gatewayUrl(`/api/config/public/pricing-warehouses/resolve?${query.toString()}`)
     const response = await fetch(endpoint, {
@@ -198,7 +213,7 @@ onBeforeUnmount(revokePhotoObjectUrls)
         <div class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-black uppercase tracking-[.2em] text-red-700">Grupo Castro Fallas</p>
-            <h1 class="mt-2 text-2xl font-black sm:text-3xl">Estos son los datos de Castro Fallas en origen.</h1>
+            <h1 class="mt-2 text-2xl font-black sm:text-3xl">Datos de contacto en origen: {{ agentDisplay }}</h1>
             <p v-if="office?.gcfOnly" class="mt-2 text-sm font-semibold text-slate-500">Contacto GCF para la coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
             <p v-else class="mt-2 text-sm font-semibold text-slate-500">Información pública de coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
           </div>
