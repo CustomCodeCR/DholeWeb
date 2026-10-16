@@ -96,12 +96,18 @@ function restoreFclUnitWeights(value: Array<{ containerTypeId: string; unitWeigh
   ]))
 }
 
+// Use the individual unit weights as the single source of truth for FCL/FTL.
+// Draft hydration and rate revisions may assign form.overweight after this watch
+// has run. Observing the stored flag too prevents stale manual/legacy selections
+// from enabling "Sobrepeso · 3 ejes" when no single unit is overweight.
 watch(
-  () => [shipmentModeForApi.value, fclOverweightUnitCount.value] as const,
-  ([mode, count]) => {
-    if (mode === 'Fcl' || mode === 'Ftl') form.overweight = count > 0
+  () => [shipmentModeForApi.value, fclOverweightUnitCount.value, form.overweight] as const,
+  ([mode, count, selected]) => {
+    if (mode !== 'Fcl' && mode !== 'Ftl') return
+    const shouldApply = count > 0
+    if (selected !== shouldApply) form.overweight = shouldApply
   },
-  { immediate: true },
+  { immediate: true, flush: 'sync' },
 )
 
 watch(
