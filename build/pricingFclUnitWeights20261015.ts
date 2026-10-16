@@ -30,7 +30,8 @@ function fclUnitWeight(typeId: string, index: number) {
   const saved = fclUnitWeightsKg.value[typeId]?.[index]
   if (saved !== undefined) return Math.max(0, number(saved))
   // Las cotizaciones anteriores de una sola unidad tenían solo peso total.
-  if (form.equipmentId === typeId && Math.trunc(number(form.equipmentQuantity)) === 1)
+  if (form.equipmentId === typeId && Math.trunc(number(form.equipmentQuantity)) === 1
+    && (shipmentModeForApi.value === 'Ftl' || fclContainerTotal.value === 1))
     return Math.max(0, number(form.cargoWeightKg))
   return 0
 }
@@ -228,7 +229,6 @@ watch(
 export function pricingFclUnitWeights20261015(): Plugin {
   return {
     name: 'dhole-pricing-fcl-unit-weights-20261015',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalizedId = id.replaceAll('\\\\', '/').split('?')[0]
