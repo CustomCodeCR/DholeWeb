@@ -209,15 +209,33 @@ watch(
   }
   let distribution = code.slice(fclHeading, row4Position)
 
-  const primaryAnchor = '<DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                </div>'
-  const secondaryAnchor = '<DhInput v-model.number="row.quantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                </div>'
-  if (distribution.split(primaryAnchor).length !== 2 || distribution.split(secondaryAnchor).length !== 2)
-    throw new Error('[pricingFclUnitWeights] Los campos de cantidad FCL cambiaron y no es seguro integrar los pesos.')
-
-  distribution = distribution.replace(primaryAnchor,
-    '<DhInput v-model.number="form.equipmentQuantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                  ' + primaryFclWeights + '\n                </div>')
-  distribution = distribution.replace(secondaryAnchor,
-    '<DhInput v-model.number="row.quantity" type="number" min="1" label="Cantidad" />\n                  </div>\n                  ' + additionalFclWeights + '\n                </div>')
+  // Anclar los campos debajo de la fila de cantidad del contenedor correspondiente.
+  // Los plugins anteriores pueden cambiar clases, identación y atributos de DhInput.
+  const addWeightControls = (model: string, markup: string) => {
+    const tokens = [`v-model.number="${model}"`, `v-model="${model}"`]
+    const occurrences = tokens.flatMap((token) => {
+      const positions: number[] = []
+      let pos = distribution.indexOf(token)
+      while (pos >= 0) {
+        positions.push(pos)
+        pos = distribution.indexOf(token, pos + token.length)
+      }
+      return positions
+    })
+    if (occurrences.length !== 1) {
+      throw new Error('[pricingFclUnitWeights] No se encontró una única cantidad para ' + model + '.')
+    }
+    const inputPos = occurrences[0]!
+    const endOfInput = distribution.indexOf('/>', inputPos)
+    const endOfQuantityGrid = distribution.indexOf('</div>', endOfInput + 2)
+    if (endOfInput < 0 || endOfQuantityGrid < 0 || endOfQuantityGrid - endOfInput > 500) {
+      throw new Error('[pricingFclUnitWeights] No se encontró el cierre de la fila de ' + model + '.')
+    }
+    const insertAt = endOfQuantityGrid + '</div>'.length
+    distribution = distribution.slice(0, insertAt) + '\n' + markup + distribution.slice(insertAt)
+  }
+  addWeightControls('form.equipmentQuantity', primaryFclWeights)
+  addWeightControls('row.quantity', additionalFclWeights)
   code = code.slice(0, fclHeading) + distribution + code.slice(row4Position)
 
   const freightUi = `
