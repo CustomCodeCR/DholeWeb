@@ -21,42 +21,129 @@ function fclInlandIsCarrierCost(cost: CostSelectDto) {
   return name.includes('naviera') && !name.includes('merchant')
 }
 
+
+type FclInlandUnitCost = { cost: CostSelectDto; unitId: string; context: string }
+const fclInlandDirectCosts = ref<FclInlandUnitCost[]>([])
+const fclInlandLookupPending = ref(false)
+const fclInlandLookupErrors = ref<Record<string, string>>({})
+let fclInlandLookupSerial = 0
+
+// The standard wizard queries the primary carrier's context. Request each FCL
+// carrier independently so prices restricted to the second carrier/size survive.
+watch(
+  () => [
+    step.value, fclInlandPerCarrier.value, form.originId, costContextPoeId(),
+    form.podId, form.incotermId, costContextAgentId(),
+    [...form.serviceIds].sort().join(','),
+    fclCarriersByEquipment.value.map((unit) => unit.containerTypeId + ':' + unit.id).join('|'),
+  ].join('~'),
+  async () => {
+    const serial = ++fclInlandLookupSerial
+    if (!fclInlandPerCarrier.value || props.viewOnly || ![6, 7, 8].includes(step.value)) {
+      fclInlandDirectCosts.value = []
+      fclInlandLookupErrors.value = {}
+      fclInlandLookupPending.value = false
+      return
+    }
+    fclInlandLookupPending.value = true
+    const units = fclCarriersByEquipment.value.filter((unit) => Boolean(unit.id))
+    const results = await Promise.allSettled(units.map(async (unit) => {
+      const rows = await PricingService.selectCosts({
+        carrierId: unit.id,
+        agentId: costContextAgentId() || undefined,
+        polId: form.originId || undefined,
+        poeId: costContextPoeId() || undefined,
+        podId: form.podId || undefined,
+        incotermId: form.incotermId || undefined,
+        shipmentMode: costShipmentModeForApi(),
+        isActive: true,
+        applicableToContext: true,
+        serviceIds: form.serviceIds.join(',') || undefined,
+        importRateId: fclSelectedImportRateIds.value[unit.containerTypeId] || undefined,
+      })
+      return { unitId: unit.containerTypeId, rows }
+    }))
+    if (serial !== fclInlandLookupSerial) return
+    const found: FclInlandUnitCost[] = []
+    const errors: Record<string, string> = {}
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        for (const cost of result.value.rows) {
+          if (!fclInlandIsCarrierCost(cost)) continue
+          // Backend /select applies route and service constraints; still reject
+          // costs explicitly belonging to a different carrier.
+          if (!maritimeFclRelationMatches(cost.carriers, cost.carrierId, units[index].id)) continue
+          found.push({ cost, unitId: result.value.unitId, context: units[index].id })
+        }
+      } else {
+        errors[units[index].containerTypeId] = 'No fue posible consultar los cargos de ' + units[index].name
+      }
+    })
+    fclInlandDirectCosts.value = found
+    fclInlandLookupErrors.value = errors
+    fclInlandLookupPending.value = false
+  },
+  { immediate: true, flush: 'post' },
+)
+
+function fclInlandPriceForEquipment(cost: CostSelectDto, equipmentId: string) {
+  return resolveCostPricing(cost, {
+    weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : null,
+    storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : null,
+    packages: number(form.cargoPackages) > 0
+      ? Math.trunc(number(form.cargoPackages))
+      : consolidatedCargoMode.value && number(form.cargoPallets) > 0
+        ? Math.trunc(number(form.cargoPallets)) : null,
+    containerTypeId: equipmentId,
+  })
+}
+
 const fclInlandCarrierRows = computed(() => {
   if (!fclInlandPerCarrier.value) return [] as Array<{
     typeId: string; carrierId: string; carrierName: string; quantity: number
-    equipment: string; cost: CostSelectDto
+    equipment: string; cost: CostSelectDto; pricedCost: number; pricedSale: number
   }>
-  const catalog = new Map<string, CostSelectDto>()
-  // Full catalogue is a fallback for historic /costs/select single-carrier
-  // results, but still enforce the actual route, services, incoterm and carrier.
+  const fullCatalog = new Map<string, CostSelectDto>()
   ;[...allCosts.value, ...costs.value]
     .filter((cost) => fclInlandIsCarrierCost(cost)
       && maritimeFclCostMatchesCurrentContext(cost)
-      && Boolean(resolvedConditionalCost(cost))
       && dholeHaulageOtherConditionsMatch(cost)
       && dholeHaulageMatchesSelectedTerminal(cost))
-    .forEach((cost) => catalog.set(cost.id, cost))
+    .forEach((cost) => fullCatalog.set(cost.id, cost))
   return fclCarriersByEquipment.value.flatMap((unit) => {
     if (!unit.id) return []
     const equipment = fclContainerAllocations.value
       .find((allocation) => allocation.containerTypeId === unit.containerTypeId)?.containerTypeName ?? ''
-    const matches = [...catalog.values()].filter((cost) =>
-      maritimeFclRelationMatches(cost.carriers, cost.carrierId, unit.id))
-    const selected = matches.filter((cost) => {
+    const allMatched = new Map<string, CostSelectDto>()
+    // Direct /select responses carry an authoritative per-carrier context.
+    for (const { cost, unitId } of fclInlandDirectCosts.value) {
+      if (unitId === unit.containerTypeId) allMatched.set(cost.id, cost)
+    }
+    for (const cost of fullCatalog.values()) {
+      if (maritimeFclRelationMatches(cost.carriers, cost.carrierId, unit.id)
+        && !allMatched.has(cost.id)) allMatched.set(cost.id, cost)
+    }
+    const matched = [...allMatched.values()].filter((cost) =>
+      Boolean(fclInlandPriceForEquipment(cost, unit.containerTypeId)))
+    const chosen = matched.filter((cost) => {
       if (cost.carrierId || cost.carriers?.length) return true
-      // Do not charge generic and carrier-specific equivalents twice.
-      return !matches.some((specific) => specific.id !== cost.id
+      return !matched.some((specific) => specific.id !== cost.id
         && (specific.carrierId || specific.carriers?.length)
         && normalizeCatalogValue(specific.name) === normalizeCatalogValue(cost.name))
     })
-    return selected.map((cost) => ({
-      typeId: unit.containerTypeId,
-      carrierId: unit.id,
-      carrierName: unit.name,
-      quantity: unit.quantity,
-      equipment,
-      cost,
-    }))
+    return chosen.map((cost) => {
+      const pricing = fclInlandPriceForEquipment(cost, unit.containerTypeId)
+      return {
+        typeId: unit.containerTypeId,
+        carrierId: unit.id,
+        carrierName: unit.name,
+        quantity: unit.quantity,
+        equipment,
+        cost,
+        pricedCost: number(pricing?.costAmount ?? cost.costAmount),
+        pricedSale: number(pricing?.saleAmount ?? cost.saleAmount),
+      }
+    })
   })
 })
 
@@ -77,7 +164,6 @@ function fclInlandMakeLine(
   saved: RateLine | undefined,
 ): RateLine {
   const { cost } = row
-  const resolved = resolvedConditionalCost(cost)
   const noteParts = String(saved?.notes ?? cost.notes ?? '').split(/\s+·\s+/)
     .filter((part) => !/^(?:Naviera|Equipo)\s*:/i.test(part.trim()))
   noteParts.push('Naviera: ' + row.carrierName)
@@ -97,8 +183,8 @@ function fclInlandMakeLine(
     currencyId: saved?.currencyId ?? cost.currencyId,
     currencyName: saved?.currencyName ?? cost.currencyName,
     currencyCode: saved?.currencyCode ?? cost.currencyCode,
-    costAmount: saved ? number(saved.costAmount) : number(resolved?.costAmount ?? cost.costAmount),
-    saleAmount: saved ? number(saved.saleAmount) : number(resolved?.saleAmount ?? cost.saleAmount),
+    costAmount: saved ? number(saved.costAmount) : row.pricedCost,
+    saleAmount: saved ? number(saved.saleAmount) : row.pricedSale,
     included: Boolean(form.carrierHaulage),
     optional: cost.costType === 'Optional',
     manual: false,
@@ -114,7 +200,7 @@ function fclInlandMakeLine(
 function fclSyncInlandPerCarrier() {
   if (!fclInlandPerCarrier.value || props.viewOnly || props.sellerRequestMode) return
   if (!costs.value.length && !allCosts.value.length) return
-  const catalog = new Map([...allCosts.value, ...costs.value].map((cost) => [cost.id, cost]))
+  const catalog = new Map([...allCosts.value, ...costs.value, ...fclInlandDirectCosts.value.map((entry) => entry.cost)].map((cost) => [cost.id, cost]))
   const isOldInland = (line: RateLine) =>
     String(line.key ?? '').startsWith('fcl-inland:')
     || Boolean(line.costId && catalog.has(line.costId)
@@ -145,7 +231,7 @@ function fclSyncInlandPerCarrier() {
 watch(
   () => [step.value, form.carrierHaulage, form.merchantHaulage,
     fclCarriersByEquipment.value.map((unit) => unit.containerTypeId + ':' + unit.id + ':' + unit.quantity).join('|'),
-    fclInlandCarrierRows.value.map((row) => row.typeId + ':' + row.cost.id).join('|'),
+    fclInlandCarrierRows.value.map((row) => row.typeId + ':' + row.cost.id + ':' + row.pricedCost + ':' + row.pricedSale).join('|'),
     rateLines.value.map((line) => line.key + ':' + (line.costId ?? '')).join('|')].join('~'),
   () => {
     if ([6, 7, 8].includes(step.value)) fclSyncInlandPerCarrier()
@@ -157,15 +243,17 @@ watch(
 const UNIT_PANEL = String.raw`
               <div v-if="fclInlandPerCarrier && form.carrierHaulage" class="space-y-2">
                 <p class="text-sm font-black">Inland por naviera y contenedor</p>
+                <p v-if="fclInlandLookupPending" class="text-xs text-[var(--dh-text-muted)]">Consultando cargos por naviera...</p>
+                <p v-for="message in Object.values(fclInlandLookupErrors)" :key="message" class="text-xs font-bold text-amber-600">{{ message }}</p>
                 <div v-for="row in fclInlandCarrierRows" :key="row.typeId + ':' + row.cost.id"
                   class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs">
                   <span><strong>{{ row.carrierName }} · {{ row.quantity }} × {{ row.equipment }}</strong> · {{ row.cost.name }}</span>
-                  <span>Costo: <strong>{{ dholeHaulageMoney(dholeHaulageConverted(number(row.cost.costAmount) * fclInlandUnitQuantity(row.cost, row.quantity), canonicalCurrencyCode(row.cost))) }}</strong>
-                    · Venta: <strong>{{ dholeHaulageMoney(dholeHaulageConverted(number(row.cost.saleAmount) * fclInlandUnitQuantity(row.cost, row.quantity), canonicalCurrencyCode(row.cost))) }}</strong></span>
+                  <span>Costo: <strong>{{ dholeHaulageMoney(dholeHaulageConverted(row.pricedCost * fclInlandUnitQuantity(row.cost, row.quantity), canonicalCurrencyCode(row.cost))) }}</strong>
+                    · Venta: <strong>{{ dholeHaulageMoney(dholeHaulageConverted(row.pricedSale * fclInlandUnitQuantity(row.cost, row.quantity), canonicalCurrencyCode(row.cost))) }}</strong></span>
                 </div>
                 <p v-for="unit in fclInlandUnpricedCarriers" :key="'missing-inland:' + unit.containerTypeId"
                   class="text-xs font-bold text-amber-600">
-                  Falta configurar Inland para {{ unit.name }}. No se utilizará el precio de otra naviera.
+                  No hay tarifa Inland aplicable para {{ unit.name }} y su equipo. Revise Costos y recargos; no se copiará el precio de otra naviera.
                 </p>
               </div>
 `
@@ -219,7 +307,7 @@ export function patchFclInlandPerCarrier(source: string) {
     const total = (field: 'costAmount' | 'saleAmount') =>
       dholeHaulageSum(otherCosts, field)
         + fclInlandCarrierRows.value.reduce((sum, row) => sum +
-          dholeHaulageConverted(number(row.cost[field]) * fclInlandUnitQuantity(row.cost, row.quantity),
+          dholeHaulageConverted(number(field === 'costAmount' ? row.pricedCost : row.pricedSale) * fclInlandUnitQuantity(row.cost, row.quantity),
             canonicalCurrencyCode(row.cost)), 0)
     return { cost: total('costAmount'), sale: total('saleAmount') }
   }
