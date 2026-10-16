@@ -295,12 +295,20 @@ watch(
     '    }',
   ].join('\n'))
 
-  const draftWatchAnchor = '    fclExtraContainers,\n    fclRatesByContainer,'
-  if (!code.includes(draftWatchAnchor)) {
+  // Requirements may add landExtraEquipment between the watched refs.
+  const draftWatchStart = code.indexOf('watch(\n  [\n    () => step.value,')
+  const draftWatchEnd = code.indexOf('  () => schedulePricingDraftSave()', draftWatchStart)
+  if (draftWatchStart < 0 || draftWatchEnd < 0) {
     throw new Error('[pricingFclUnitWeights] No se encontró el autosave reactivo de pesos.')
   }
-  code = code.replace(draftWatchAnchor,
-    '    fclExtraContainers,\n    fclUnitWeightsKg,\n    fclRatesByContainer,')
+  const draftWatchSection = code.slice(draftWatchStart, draftWatchEnd)
+  if (!draftWatchSection.includes('    fclExtraContainers,\n')) {
+    throw new Error('[pricingFclUnitWeights] No se observa la distribución FCL en el autosave.')
+  }
+  code = code.slice(0, draftWatchStart)
+    + draftWatchSection.replace('    fclExtraContainers,\n',
+      '    fclExtraContainers,\n    fclUnitWeightsKg,\n')
+    + code.slice(draftWatchEnd)
 
   // Requests created by Sales keep the full per-unit distribution as well.
   const requestFormAnchor = 'fclContainers: fclContainerAllocations.value, landContainers: landEquipmentAllocations.value'
