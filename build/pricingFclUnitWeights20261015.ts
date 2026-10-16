@@ -282,9 +282,9 @@ watch(
     draftWeightsAnchor + '\n    fclUnitWeightsKg: JSON.parse(JSON.stringify(fclUnitWeightsKg.value)),',
   )
 
-  const draftRestoreAnchor = "    if (typeof draft.rateCarrierFilter === 'string') rateCarrierFilter.value = draft.rateCarrierFilter"
+  const draftRestoreAnchor = '    fclExtraContainers.value = sanitizeDraftFclExtraContainers(draft.fclExtraContainers)'
   if (!code.includes(draftRestoreAnchor)) {
-    throw new Error('[pricingFclUnitWeights] No se encontró la restauración del borrador.')
+    throw new Error('[pricingFclUnitWeights] No se encontró la restauración segura del borrador.')
   }
   code = code.replace(draftRestoreAnchor, draftRestoreAnchor + '\n' + [
     '    if (draft.fclUnitWeightsKg && typeof draft.fclUnitWeightsKg === "object" && !Array.isArray(draft.fclUnitWeightsKg)) {',
