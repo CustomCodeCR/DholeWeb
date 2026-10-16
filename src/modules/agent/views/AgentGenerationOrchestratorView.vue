@@ -126,6 +126,7 @@ const ruleDescriptions: Record<TriggerCode, string> = {
   data_quality: 'Define cuántas incidencias de calidad deben detectarse.',
 }
 let refreshTimer: ReturnType<typeof setInterval> | undefined
+const lastAutomaticInspection = new Map<string, number>()
 
 function dateLabel(value?: string) {
   if (!value) return ''
@@ -148,6 +149,17 @@ async function refreshStandbyAuthentication() {
       headers: { Accept: 'application/json' },
     })
     standbyAuthentications.value = unwrapApiResponse<StandbyAuthSession[]>(response as never)
+    // Poll provider identity conservatively while an operator is using the
+    // isolated viewer. Never accept mere viewer readiness as authenticated.
+    if (canManage.value && !document.hidden && !standbyBusy.value) {
+      for (const session of standbyAuthentications.value) {
+        if (session.status !== 'Ready' || session.accountVerifiedAtUtc ||
+            Date.now() - (lastAutomaticInspection.get(session.generation) ?? 0) < 120_000) continue
+        lastAutomaticInspection.set(session.generation, Date.now())
+        void inspectStandby(session.generation, true)
+        break
+      }
+    }
   } catch {
     // A separate auth endpoint may deploy later than the main dashboard.
   }
@@ -169,7 +181,7 @@ async function prepareStandby(name: string) {
     standbyBusy.value = null
   }
 }
-async function inspectStandby(name: string) {
+async function inspectStandby(name: string, silent = false) {
   if (!canManage.value || standbyBusy.value) return
   standbyBusy.value = name
   try {
@@ -178,11 +190,13 @@ async function inspectStandby(name: string) {
       path: '/api/agents/runtime-generations/authentication/{{generation}}/inspect',
       headers: { Accept: 'application/json' },
     }, { params: { generation: name } })
-    toast.success('Verificación de cuenta solicitada',
-      'Dhole consultará el panel Account del navegador original de ' + name + '. Mantén abierto ese panel.')
+    if (!silent) {
+      toast.success('Verificación de cuenta solicitada',
+        'Dhole consultará el panel Account del navegador de ' + name + '. Mantén abierto ese panel.')
+    }
     await refreshStandbyAuthentication()
   } catch (error) {
-    toast.backendError(error, 'No se pudo consultar la cuenta de Maersk.')
+    if (!silent) toast.backendError(error, 'No se pudo consultar la cuenta de Maersk.')
   } finally {
     standbyBusy.value = null
   }
