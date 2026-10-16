@@ -173,18 +173,18 @@ export function patchFclMultiCarrierCosts(source: string): string {
   if (code.includes('finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId)'))
     code = swap(code, 'finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId)',
       "(shipmentModeForApi.value === 'Fcl' && fclContainerAllocations.value.length > 1 ? fclMatchesCarrierSet(cost.carriers, cost.carrierId) : finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId))")
-  code = editFn(code, 'function quantityForRateLine(line: RateLine) {', (s) =>
-    swap(s, '  return quantityForChargeBasis(line.chargeBasis)',
-      `  if (shipmentModeForApi.value === 'Fcl' && fclContainerAllocations.value.length > 1
+  code = swap(code, 'function quantityForRateLine(line: RateLine) {',
+    `function quantityForRateLine(line: RateLine) {
+  if (shipmentModeForApi.value === 'Fcl' && fclContainerAllocations.value.length > 1
     && line.costId && line.costDetailType !== 'Freight'
+    && !/sobrepeso|overweight/.test(normalizeCatalogValue(line.name))
     && (line.chargeBasis === 'PerContainer' || line.chargeBasis === 'PerTruck')) {
     const configured = costs.value.find((item) => item.id === line.costId)
     if (configured) {
       const quantity = fclCostCarrierQuantity(configured)
       if (quantity !== null) return quantity
     }
-  }
-  return quantityForChargeBasis(line.chargeBasis)`))
+  }`)
   code = editFn(code, 'function reconcileFclFreightLines() {', (s) => {
     let result = swap(s, '!/^Tarifa importada:/i.test(part)',
       '!/^Tarifa importada:/i.test(part) && !/^NavieraId:/i.test(part) && !/^Naviera:/i.test(part)')
