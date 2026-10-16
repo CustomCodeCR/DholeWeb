@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { BarChart3, Eye, FilePlus2, Pencil, Trash2, Upload } from 'lucide-vue-next'
+import { BarChart3, Eye, FilePlus2, Pencil, RefreshCw, Trash2, Upload } from 'lucide-vue-next'
 import { DhButton, DhInput, DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import { DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
@@ -54,6 +54,7 @@ const formOpen = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedStorageId = ref<string | null>(null)
 const deleteTarget = ref<CompetitorTariffDto | null>(null)
+const retryTarget = ref<CompetitorTariffDto | null>(null)
 
 const observationsOpen = ref(false)
 const observationsLoading = ref(false)
@@ -152,8 +153,25 @@ function resetForm() {
 }
 
 function openCreate() {
+  retryTarget.value = null
   resetForm()
   formOpen.value = true
+}
+
+function openRetry(row: CompetitorTariffDto) {
+  resetForm()
+  retryTarget.value = row
+  form.competitorCompanyName = row.competitorCompanyName
+  form.incotermId = row.incotermId ?? ''
+  form.shipmentMode = row.shipmentMode
+  form.validFrom = row.validFrom?.slice(0, 10) ?? ''
+  form.validTo = row.validTo?.slice(0, 10) ?? ''
+  formOpen.value = true
+}
+
+function importFailureMessage(row: CompetitorTariffDto) {
+  return [row.importErrorCode, row.importErrorMessage].filter(Boolean).join(' — ')
+    || 'DataExtraction no logró completar la extracción. Adjunte nuevamente el PDF para reintentar.'
 }
 
 function onFileSelected(event: Event) {
@@ -451,7 +469,7 @@ async function monitorImport(competitorTariffId: string) {
       if (detail.importStatus === 'Failed') {
         toastStore.error(
           'No se pudo procesar el tarifario',
-          'El archivo sí fue recibido, pero DataExtraction no pudo completar la extracción. Puede revisar el registro o volver a intentarlo.',
+          importFailureMessage(detail),
         )
         return
       }
@@ -479,7 +497,8 @@ async function importTariff() {
   if (!validateForm() || !form.file) return
 
   saving.value = true
-  const id = crypto.randomUUID()
+  const id = retryTarget.value?.id ?? crypto.randomUUID()
+  const retrying = retryTarget.value !== null
   const requestSnapshot = {
     competitorCompanyName: form.competitorCompanyName.trim(),
     incotermId: form.incotermId,
@@ -488,10 +507,11 @@ async function importTariff() {
     validTo: form.validTo || undefined,
     file: form.file,
   }
-  let storageId = ''
+  let storageId = retryTarget.value?.storageId ?? ''
 
   async function acceptImport(result: CompetitorTariffDto, recovered = false) {
     formOpen.value = false
+    retryTarget.value = null
     resetForm()
     await load()
 
@@ -518,18 +538,20 @@ async function importTariff() {
   }
 
   try {
-    const stored = await StorageService.uploadFile({
-      file: requestSnapshot.file,
-      sourceService: 'DholePricingService',
-      entityType: 'CompetitorTariff',
-      entityId: id,
-      metadataJson: JSON.stringify({
-        purpose: 'competitor-tariff',
-        competitorCompanyName: requestSnapshot.competitorCompanyName,
-        shipmentMode: requestSnapshot.shipmentMode,
-      }),
-    })
-    storageId = stored.id
+    if (!retrying) {
+      const stored = await StorageService.uploadFile({
+        file: requestSnapshot.file,
+        sourceService: 'DholePricingService',
+        entityType: 'CompetitorTariff',
+        entityId: id,
+        metadataJson: JSON.stringify({
+          purpose: 'competitor-tariff',
+          competitorCompanyName: requestSnapshot.competitorCompanyName,
+          shipmentMode: requestSnapshot.shipmentMode,
+        }),
+      })
+      storageId = stored.id
+    }
 
     const result = await PricingService.importCompetitorTariff({
       id,
@@ -799,13 +821,13 @@ onMounted(async () => {
         <div class="text-center">
           <p class="text-lg font-black">{{ row.observationCount ?? 0 }}</p>
           <p
-            v-if="row.reviewCount"
+            v-if="row.reviewCount && row.importStatus !== 'Failed'"
             class="text-xs font-bold text-amber-300"
           >
             {{ row.reviewCount }} por revisar
           </p>
           <p v-else class="text-xs font-semibold text-[var(--dh-text-muted)]">
-            observaciones
+            {{ row.importStatus === 'Failed' ? 'extracción fallida' : 'observaciones' }}
           </p>
         </div>
       </template>
@@ -817,6 +839,11 @@ onMounted(async () => {
         >
           {{ statusLabel(row.importStatus) }}
         </span>
+        <p v-if="row.importStatus === 'Failed' && (row.importErrorCode || row.importErrorMessage)"
+           class="mt-1 max-w-[280px] break-words text-xs text-red-300"
+           :title="importFailureMessage(row)">
+          {{ importFailureMessage(row) }}
+        </p>
       </template>
 
       <template #cell-validity="{ row }">
@@ -840,6 +867,14 @@ onMounted(async () => {
             @click="selectedStorageId = row.storageId"
           />
           <DhButton
+            v-if="canCreate && (row.importStatus === 'Failed' || row.importStatus === 'Processing')"
+            label="Reintentar"
+            :icon="RefreshCw"
+            size="sm"
+            variant="secondary"
+            @click="openRetry(row)"
+          />
+          <DhButton
             v-if="canDelete"
             :icon="Trash2"
             size="sm"
@@ -855,7 +890,7 @@ onMounted(async () => {
 
   <DhModal
     :open="formOpen"
-    title="Importar tarifario de competencia"
+    :title="retryTarget ? 'Reintentar extracción · ' + retryTarget.competitorCompanyName : 'Importar tarifario de competencia'"
     size="xl"
     @close="formOpen = false"
   >
@@ -917,7 +952,7 @@ onMounted(async () => {
       <div class="flex justify-end gap-2">
         <DhButton label="Cancelar" variant="secondary" @click="formOpen = false" />
         <DhButton
-          label="Importar y extraer"
+          :label="retryTarget ? 'Reintentar extracción' : 'Importar y extraer'"
           :loading="saving"
           @click="importTariff"
         />
