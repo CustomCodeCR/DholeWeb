@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Clock3, FileDown, PlayCircle, RefreshCcw } from 'lucide-vue-next'
+import { CheckCircle2, Clock3, FileDown, PlayCircle, RefreshCcw } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { fetchBlobClient } from '@/core/api/fetchBlobClient'
@@ -47,6 +47,7 @@ const authStore = useAuthStore()
 const toast = useToastStore()
 const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
+const completingRequestId = ref<string | null>(null)
 const exporting = ref(false)
 const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
@@ -235,6 +236,24 @@ function continueRequest(request: RateRequestDto) {
   router.push({ name: 'pricing-rate-request-resume', params: { requestId: request.id } })
 }
 
+async function completeRequest(request: RateRequestDto) {
+  if (request.status !== 'Open' || completingRequestId.value) return
+  try {
+    completingRequestId.value = request.id
+    await callEndpoint<unknown>({
+      method: 'POST',
+      path: '/api/pricing/rate-requests/' + request.id + '/complete',
+      headers: { Accept: 'application/json' },
+    })
+    toast.success('Solicitud marcada como completada.')
+    await load()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo marcar la solicitud como completada.')
+  } finally {
+    completingRequestId.value = null
+  }
+}
+
 function handleRealtimeNotification(event: Event) {
   const notification = (event as CustomEvent<SystemNotificationPush>).detail
   if (!['pricing.rate-request.created', 'pricing.rate-request.sla-overdue'].includes(notification?.notificationType ?? '')) return
@@ -331,7 +350,12 @@ onBeforeUnmount(() => {
               <p v-if="request.status === 'Open'" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ new Date(request.dueAtUtc).toLocaleString('es-CR') }}</p>
             </td>
             <td class="px-4 py-3 text-right">
-              <DhButton v-if="request.status === 'Open'" @click="continueRequest(request)"><PlayCircle class="h-4 w-4" /> Continuar tarifa</DhButton>
+              <div v-if="request.status === 'Open'" class="flex items-center justify-end gap-2">
+                <DhButton @click="continueRequest(request)"><PlayCircle class="h-4 w-4" /> Continuar tarifa</DhButton>
+                <DhButton variant="secondary" :disabled="Boolean(completingRequestId)" @click="completeRequest(request)">
+                  <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : 'Marcar completada' }}
+                </DhButton>
+              </div>
               <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Sin acción pendiente</span>
             </td>
           </tr>
