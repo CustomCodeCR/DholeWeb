@@ -40,3 +40,27 @@ export function buildRateUpdateExtraDetails<T extends { costId?: string | null }
     return [{ ...detail, id: originalId }]
   })
 }
+
+/**
+ * The FCL equipment distribution is authoritative for Freight. A prior
+ * equipment's freight must not remain billable after that equipment is removed.
+ * Never infer removals of non-freight charges from a transient UI rebuild.
+ */
+export function stalePersistedFclFreightDetailIds(
+  shipmentMode: string,
+  persistedDetails: Array<{ id: string; costDetailType: string }>,
+  includedLines: Array<{ detailId?: string | null; costDetailType: string }>,
+): Set<string> {
+  if (shipmentMode.toLowerCase() !== 'fcl') return new Set<string>()
+
+  const retainedFreightIds = new Set(
+    includedLines
+      .filter((line) => line.costDetailType === 'Freight' && line.detailId)
+      .map((line) => line.detailId as string),
+  )
+  return new Set(
+    persistedDetails
+      .filter((detail) => detail.costDetailType === 'Freight' && !retainedFreightIds.has(detail.id))
+      .map((detail) => detail.id),
+  )
+}

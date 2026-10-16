@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { buildRateUpdateExtraDetails } from '../src/modules/pricing/utils/pricingRateUpdateDetails.ts'
+import { buildRateUpdateExtraDetails, stalePersistedFclFreightDetailIds } from '../src/modules/pricing/utils/pricingRateUpdateDetails.ts'
 
 test('two different HBL costs with the same persisted ID remain distinct', () => {
   const rows = buildRateUpdateExtraDetails(
@@ -31,4 +31,38 @@ test('manual lines with different amounts are not silently merged', () => {
   )
   assert.deepEqual(rows.map((row) => row.id), ['detail-1', null])
   assert.deepEqual(rows.map((row) => row.saleAmount), [50, 80])
+})
+
+test('replacing 40HC and 40NOR by two 40NOR removes only the obsolete freight', () => {
+  const removed = stalePersistedFclFreightDetailIds(
+    'Fcl',
+    [
+      { id: 'freight-40hc', costDetailType: 'Freight' },
+      { id: 'freight-40nor', costDetailType: 'Freight' },
+      { id: 'destination-charge', costDetailType: 'CarrierCharge' },
+    ],
+    [
+      { detailId: 'freight-40nor', costDetailType: 'Freight' },
+      { detailId: 'destination-charge', costDetailType: 'CarrierCharge' },
+    ],
+  )
+  assert.deepEqual([...removed], ['freight-40hc'])
+})
+
+test('equipment replacement with a new freight row removes its former freight', () => {
+  const removed = stalePersistedFclFreightDetailIds(
+    'Fcl',
+    [{ id: 'freight-old', costDetailType: 'Freight' }],
+    [{ detailId: null, costDetailType: 'Freight' }],
+  )
+  assert.deepEqual([...removed], ['freight-old'])
+})
+
+test('non-FCL updates never infer equipment freight deletions', () => {
+  const removed = stalePersistedFclFreightDetailIds(
+    'Lcl',
+    [{ id: 'freight-old', costDetailType: 'Freight' }],
+    [],
+  )
+  assert.equal(removed.size, 0)
 })
