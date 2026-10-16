@@ -143,7 +143,7 @@ watch(
   // La hidratación de una tarifa FTL también debe restaurar sus pesos por equipo.
   const hydrate = '    const restoredMixedFclFreight = restorePersistedFclDistribution(rate)'
   if (code.includes(hydrate))
-    code = code.replace(hydrate, '    restoreFclUnitWeights((rate.containers ?? []).filter((container) => number(container.quantity) > 0))\\n' + hydrate)
+    code = code.replace(hydrate, '    restoreFclUnitWeights((rate.containers ?? []).filter((container) => number(container.quantity) > 0))\n' + hydrate)
 
   const requestRows = '  const rows = value as Array<Record<string, unknown>>'
   if (code.includes(requestRows))
