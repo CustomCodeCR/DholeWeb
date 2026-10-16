@@ -291,6 +291,45 @@ function patchWizard(source: string) {
     )
   }
 
+  // Pantalla 7 edits RateLine.saleAmount, while the mixed-FCL preview and
+  // persistence reconcile freight from fclContainerAllocations. Keep the
+  // per-equipment source values in sync BEFORE the step 7 -> 8 watcher runs.
+  // Otherwise the preview silently rolls user-entered sales back to tariff values.
+  const screen7SaleSyncWatcher = `watch(
+  () => rateLines.value
+    .filter((line) => line.costDetailType === 'Freight' && line.included)
+    .map((line) => [line.key, line.saleAmount].join(':')).join('|'),
+  () => {
+    if (hydratingExistingRate.value || props.viewOnly
+      || shipmentModeForApi.value !== 'Fcl' || step.value !== 7) return
+    const allocations = fclContainerAllocations.value
+    for (const line of rateLines.value) {
+      if (!line.included || line.costDetailType !== 'Freight') continue
+      const allocation = allocations.find((row) => fclFreightLineMatchesAllocation(line, row))
+      if (!allocation) continue
+      const sale = Math.max(0, number(line.saleAmount))
+      if (allocation.containerTypeId === form.equipmentId) {
+        if (number(form.freightSale) !== sale) form.freightSale = sale
+      } else {
+        const extra = fclExtraContainers.value.find((row) => row.containerTypeId === allocation.containerTypeId)
+        if (extra && number(extra.freightSaleAmount) !== sale) {
+          extra.freightSaleAmount = sale
+          extra.freightTouched = true
+        }
+      }
+    }
+  },
+  { flush: 'sync' },
+)
+
+`;
+  code = replaceRequired(
+    code,
+    "watch(\n  () => [step.value, fclContainerAllocations.value.map((row) =>",
+    screen7SaleSyncWatcher + "watch(\n  () => [step.value, fclContainerAllocations.value.map((row) =>",
+    'Screen 7 mixed-FCL unit sale synchronization',
+  )
+
   return code
 }
 
