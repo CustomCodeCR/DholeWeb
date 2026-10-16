@@ -27,7 +27,7 @@ function patchWizard(source: string): string {
   const stateAnchor = 'const fclContainerAllocations = computed('
   if (!code.includes(stateAnchor)) throw new Error('[pricingFclUnitWeights] No se encontró la distribución FCL.')
   code = code.replace(stateAnchor,
-    'const fclUnitWeightsKg = ref<Record<string, number[]>>({})\\n\\n' + stateAnchor)
+    'const fclUnitWeightsKg = ref<Record<string, number[]>>({})\n\n' + stateAnchor)
 
 
   const script = `
