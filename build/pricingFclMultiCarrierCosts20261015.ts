@@ -13,7 +13,7 @@ function editFn(s: string, signature: string, edit: (s: string) => string): stri
   return s.slice(0, i) + edit(s.slice(i, j + 2)) + s.slice(j + 2)
 }
 
-const STATE = `
+const STATE = String.raw`
 // dhole-fcl-multi-carrier-costs-20261015
 type CarrierForUnit = { id: string; name: string }
 const fclCarrierOverrides = ref<Record<string, string>>({})
