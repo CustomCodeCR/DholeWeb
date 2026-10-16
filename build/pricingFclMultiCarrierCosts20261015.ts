@@ -161,6 +161,83 @@ function fclPersistCarrierNote(line: RateLine, notes: string | null | undefined)
 
 `
 
+const SCREEN8_HELPER = String.raw`
+// Screen 8 must resolve the carrier from the actual CostId / imported equipment.
+// Never infer every charge from the single carrier stored on RateHeader.
+const fclScreen8HasMultipleUnits = computed(() =>
+  shipmentModeForApi.value === 'Fcl' &&
+  (fclContainerAllocations.value.length > 1 || (editingRate.value?.containers?.length ?? 0) > 1),
+)
+
+function fclScreen8LineCarrier(line: RateLine): { title: string; equipment: string; kind: 'carrier' | 'general' | 'unknown' } {
+  const notes = String(line.notes ?? '')
+  const saved = editingRate.value?.rateDetails?.find((detail) =>
+    Boolean(line.detailId) && detail.id === line.detailId)
+  const noteValue = (input: string, key: string) => {
+    const found = input.match(new RegExp('(?:^|·)\\s*' + key + ':\\s*([^·\\r\\n]+)', 'i'))
+    return found?.[1]?.trim() ?? ''
+  }
+  const noteCarrier = noteValue(notes, 'Naviera') || noteValue(String(saved?.notes ?? ''), 'Naviera')
+  const noteEquipment = noteValue(notes, 'Equipo') || noteValue(String(saved?.notes ?? ''), 'Equipo')
+  const catalog = [...costs.value, ...allCosts.value]
+  let configured = catalog.find((cost) => cost.id === line.costId)
+
+  // Historical saved details sometimes lose CostId during migration. Match
+  // by exact name AND prices, not by name alone, so COSCO/MSC charges cannot cross.
+  if (!configured && line.costDetailType !== 'Freight') {
+    const matches = catalog.filter((cost) =>
+      normalizeCatalogValue(cost.name) === normalizeCatalogValue(line.name)
+      && Math.abs(number(cost.costAmount) - number(line.costAmount)) < 0.005
+      && Math.abs(number(cost.saleAmount) - number(line.saleAmount)) < 0.005,
+    )
+    if (matches.length === 1) configured = matches[0]
+  }
+
+  const selected = fclCarriersByEquipment.value.filter((unit) => Boolean(unit.id))
+  const carrierName = (id: string, fallback: string) =>
+    selected.find((unit) => unit.id === id)?.name
+    || (catalogs.carriers.find((item) => item.id === id)
+      ? displayValue(catalogs.carriers.find((item) => item.id === id)!) : fallback)
+  const equipmentFor = (units: typeof fclCarriersByEquipment.value) =>
+    units.map((unit) => {
+      const allocation = fclContainerAllocations.value.find((row) => row.containerTypeId === unit.containerTypeId)
+      return allocation ? unit.quantity + ' × ' + allocation.containerTypeName : ''
+    }).filter(Boolean).join(' + ')
+
+  if (line.costDetailType === 'Freight') {
+    const freightUnits = selected.filter((unit) => {
+      const allocation = fclContainerAllocations.value.find((row) => row.containerTypeId === unit.containerTypeId)
+      return allocation && fclFreightLineMatchesAllocation(line, allocation)
+    })
+    if (freightUnits.length === 1) {
+      const unit = freightUnits[0]
+      return { title: 'Naviera: ' + carrierName(unit.id, unit.name),
+        equipment: equipmentFor(freightUnits), kind: 'carrier' }
+    }
+    if (noteCarrier) return { title: 'Naviera: ' + noteCarrier, equipment: noteEquipment, kind: 'carrier' }
+    return { title: 'Naviera pendiente de identificar', equipment: '', kind: 'unknown' }
+  }
+
+  if (configured && (configured.carrierId || configured.carriers?.length)) {
+    const matched = selected.filter((unit) =>
+      maritimeFclRelationMatches(configured!.carriers, configured!.carrierId, unit.id))
+    if (matched.length) {
+      const carriers = [...new Set(matched.map((unit) => carrierName(unit.id, unit.name)).filter(Boolean))]
+      return { title: 'Naviera: ' + carriers.join(' + '),
+        equipment: equipmentFor(matched), kind: 'carrier' }
+    }
+    // A removed/changed selection is not permission to attribute a cost to
+    // an unrelated carrier in the quote.
+    if (noteCarrier) return { title: 'Naviera: ' + noteCarrier, equipment: noteEquipment, kind: 'carrier' }
+    return { title: 'Naviera sin asociar a los contenedores', equipment: '', kind: 'unknown' }
+  }
+  if (noteCarrier) return { title: 'Naviera: ' + noteCarrier, equipment: noteEquipment, kind: 'carrier' }
+
+  // This is an independent shipment-level cost, not an MSC/COSCO cost.
+  return { title: 'Cargo general', equipment: 'Sin naviera específica', kind: 'general' }
+}
+`
+
 const FREIGHT = `
           <div v-if="shipmentModeForApi === 'Fcl' && fclContainerAllocations.length > 1" class="crystal-soft space-y-3 p-4 md:p-5">
             <div class="flex flex-wrap items-center justify-between gap-2">
@@ -268,8 +345,6 @@ export function patchFclMultiCarrierCosts(source: string): string {
   const label = '<p v-if="fclCarrierLabelForLine(line)" class="mt-1 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ fclCarrierLabelForLine(line) }}</p>'
   code = code.replaceAll('<p class="font-bold">{{ line.name }}</p>',
     '<p class="font-bold">{{ line.name }}</p>' + label)
-  code = code.replaceAll('<strong>{{ line.name }}</strong>',
-    '<strong>{{ line.name }}</strong>' + label)
 
   // The same association is saved per detail, not only in the single carrier
   // field of the quotation header, and is therefore available to the PDF.
@@ -280,10 +355,35 @@ export function patchFclMultiCarrierCosts(source: string): string {
     + '    const line = normalizedIncludedLines[index]\n'
     + '    if (line) detail.notes = fclPersistCarrierNote(line, detail.notes)\n'
     + '  })\n\n' + detailsEnd)
+  // Patch the actual Screen 8 preview table explicitly. Previous generic
+  // replacements were not sufficient: persisted and catalog-backed lines need
+  // an independent association lookup, and unmatched lines need a visible status.
+  const previewStart = code.indexOf('<div v-else-if="step === 8"')
+  const previewEnd = previewStart >= 0 ? code.indexOf('<div v-else-if="step === 9"', previewStart) : -1
+  if (previewStart < 0 || previewEnd < 0) throw new Error('[multiCarrierCosts] Screen 8 preview boundaries missing')
+  let preview = code.slice(previewStart, previewEnd)
+  const headerStart = '<th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th>'
+  if (!preview.includes(headerStart)) throw new Error('[multiCarrierCosts] Screen 8 table header missing')
+  preview = preview.replace(headerStart,
+    '<th class="px-4 py-3">Rubro</th><th v-if="fclScreen8HasMultipleUnits" class="px-4 py-3">Naviera / equipo</th><th class="px-4 py-3">Base</th>')
+  const firstCell = '<strong>{{ line.name }}</strong>'
+  const rowStart = '<tr v-for="line in includedLines" :key="line.key"'
+  const rowIndex = preview.indexOf(rowStart)
+  if (rowIndex < 0) throw new Error('[multiCarrierCosts] Screen 8 table body missing')
+  const firstCellIndex = preview.indexOf(firstCell, rowIndex)
+  const lastCellIndex = preview.indexOf('</td>', firstCellIndex)
+  if (firstCellIndex < 0 || lastCellIndex < 0) throw new Error('[multiCarrierCosts] Screen 8 rubro cell missing')
+  preview = preview.slice(0, lastCellIndex + 5)
+    + '\n                    <td v-if="fclScreen8HasMultipleUnits" class="px-4 py-3 align-top">'
+    + '<span class="block text-[11px] font-bold" :class="fclScreen8LineCarrier(line).kind === \'unknown\' ? \'text-amber-600\' : \'text-[var(--dh-text)]\'">{{ fclScreen8LineCarrier(line).title }}</span>'
+    + '<span v-if="fclScreen8LineCarrier(line).equipment" class="mt-1 block text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ fclScreen8LineCarrier(line).equipment }}</span>'
+    + '</td>'
+    + preview.slice(lastCellIndex + 5)
+  code = code.slice(0, previewStart) + preview + code.slice(previewEnd)
   code = replaceFreightPanel(code)
   const scriptEnd = code.lastIndexOf('</script>')
   if (scriptEnd < 0) throw new Error('[multiCarrierCosts] Missing script end')
-  return code.slice(0, scriptEnd) + '\n' + STATE + code.slice(scriptEnd)
+  return code.slice(0, scriptEnd) + '\n' + STATE + '\n' + SCREEN8_HELPER + code.slice(scriptEnd)
 }
 
 export function pricingFclMultiCarrierCosts20261015(): Plugin {
