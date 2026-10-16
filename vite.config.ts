@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import { pricingCustomsOnlyWizard } from './build/pricingCustomsOnlyWizard'
 import { pricingSellerMultimodalStep3Fix } from './build/pricingSellerMultimodalStep3Fix'
 import { pricingWizardLandModeTerminology } from './build/pricingWizardLandModeTerminology'
+import { pricingMiamiOwnLclBreakdown } from './build/pricingMiamiOwnLclBreakdown'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { pricingRateUpdateWorkflow } from './build/pricingRateUpdateWorkflow'
@@ -190,6 +191,7 @@ export default defineConfig({
     pricingFclUnitWeights20261015(),
     pricingFclMultiCarrierCosts20261015(),
     pricingFclInlandPerCarrier20261016(),
+    pricingMiamiOwnLclBreakdown(),
     vue(),
     tailwindcss(),
   ],
