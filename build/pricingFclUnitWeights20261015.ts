@@ -207,7 +207,13 @@ watch(
   if (fclHeading < 0 || row4Position < 0) {
     throw new Error('[pricingFclUnitWeights] No se encontró la distribución FCL.')
   }
-  let distribution = code.slice(fclHeading, row4Position)
+  // Después de FCL también se renderiza la distribución terrestre, que utiliza
+  // los mismos v-model de cantidad; limitar el alcance a los contenedores marítimos.
+  const landHeading = code.indexOf('Distribución de furgones', fclHeading)
+  const distributionEnd = landHeading > fclHeading && landHeading < row4Position
+    ? landHeading
+    : row4Position
+  let distribution = code.slice(fclHeading, distributionEnd)
 
   // Anclar los campos debajo de la fila de cantidad del contenedor correspondiente.
   // Los plugins anteriores pueden cambiar clases, identación y atributos de DhInput.
@@ -236,7 +242,7 @@ watch(
   }
   addWeightControls('form.equipmentQuantity', primaryFclWeights)
   addWeightControls('row.quantity', additionalFclWeights)
-  code = code.slice(0, fclHeading) + distribution + code.slice(row4Position)
+  code = code.slice(0, fclHeading) + distribution + code.slice(distributionEnd)
 
   const freightUi = `
           <div v-if="shipmentModeForApi === 'Fcl' && fclContainerAllocations.length > 1" class="crystal-soft space-y-3 p-4 md:p-5">
