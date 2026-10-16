@@ -116,7 +116,6 @@ function patch(code: string) {
 export function pricingMiamiOwnLclBreakdown(): Plugin {
   return {
     name: 'dhole-pricing-miami-own-lcl-breakdown',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?') || !id.replace(/\\/g, '/').endsWith(WIZARD)) return null
       return { code: patch(source), map: null }
