@@ -42,7 +42,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'select-own': [tariff: FtlTariffDto]
   'select-coloader': [rate: ImportRateSelectDto]
-  'manual-own': []
+  'manual-coloader': []
 }>()
 
 const loading = ref(false)
@@ -348,15 +348,6 @@ watch(
         </template>
       </DhDataTable>
 
-      <div class="mt-4 flex flex-col gap-3 rounded-[22px] border border-dashed border-[rgb(var(--dh-primary-rgb)/0.35)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="font-black">Tarifa LTL propia manual</p>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Puede crearla aunque exista un tarifario Cliente o NVOCC vigente para esta ruta.
-          </p>
-        </div>
-        <DhButton class="shrink-0" label="Crear tarifa manual" variant="secondary" @click="emit('manual-own')" />
-      </div>
     </div>
 
     <div v-else>
@@ -409,6 +400,16 @@ watch(
           </div>
         </template>
       </DhDataTable>
+
+      <div class="mt-4 flex flex-col gap-3 rounded-[22px] border border-dashed border-[rgb(var(--dh-primary-rgb)/0.35)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="font-black">Tarifa LTL coloader manual</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Puede crear una tarifa manual cuando no exista un coloader vigente o necesite ingresar sus propios importes.
+          </p>
+        </div>
+        <DhButton class="shrink-0" label="Crear tarifa manual" variant="secondary" @click="emit('manual-coloader')" />
+      </div>
     </div>
   </section>
 </template>
