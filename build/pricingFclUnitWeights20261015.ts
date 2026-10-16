@@ -173,8 +173,8 @@ watch(
     ':disabled="shipmentModeForApi === \'Fcl\' || shipmentModeForApi === \'Ftl\'" @click="form.overweight = !form.overweight"',
   )
 
-  const primaryFclWeights = "<div class=\"mt-2 rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.12)] bg-[rgb(var(--dh-primary-rgb)/0.02)] px-3 py-2\">\n                    <div class=\"mb-2 flex flex-wrap items-center justify-between gap-2\">\n                      <div>\n                        <p class=\"text-xs font-black uppercase tracking-wider text-[var(--dh-text)]\">Peso por unidad (kg)</p>\n                        \n                      </div>\n                      <span v-if=\"fclGroupOverweightUnits(form.equipmentId, form.equipmentQuantity)\" class=\"rounded-full border border-[rgb(var(--dh-primary-rgb)/0.35)] px-2.5 py-1 text-xs font-bold text-[var(--dh-primary)]\">{{ fclGroupOverweightUnits(form.equipmentId, form.equipmentQuantity) }} con sobrepeso</span>\n                    </div>\n                    <div class=\"grid gap-2 sm:grid-cols-2 xl:grid-cols-4\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))\" :key=\"'primary-weight:' + unitNumber\" class=\"rounded-md border border-[var(--dh-border)] bg-transparent px-2 py-1.5\">\n                        <DhInput :model-value=\"fclUnitWeight(form.equipmentId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"'Unidad ' + unitNumber + ' · peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))\" />\n                        <p class=\"mt-1 text-[11px] font-medium\" :class=\"fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'\">{{ fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1)) ? 'Con sobrepeso' : fclUnitWeight(form.equipmentId, unitNumber - 1) > 0 ? 'Sin sobrepeso' : 'Peso pendiente' }}</p>\n                      </div>\n                    </div>\n                  </div>"
-  const additionalFclWeights = "<div class=\"mt-2 rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.12)] bg-[rgb(var(--dh-primary-rgb)/0.02)] px-3 py-2\">\n                    <div class=\"mb-2 flex flex-wrap items-center justify-between gap-2\">\n                      <div>\n                        <p class=\"text-xs font-black uppercase tracking-wider text-[var(--dh-text)]\">Peso por unidad (kg)</p>\n                        \n                      </div>\n                      <span v-if=\"fclGroupOverweightUnits(row.containerTypeId, row.quantity)\" class=\"rounded-full border border-[rgb(var(--dh-primary-rgb)/0.35)] px-2.5 py-1 text-xs font-bold text-[var(--dh-primary)]\">{{ fclGroupOverweightUnits(row.containerTypeId, row.quantity) }} con sobrepeso</span>\n                    </div>\n                    <div class=\"grid gap-2 sm:grid-cols-2 xl:grid-cols-4\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(row.quantity)))\" :key=\"'additional-weight:' + unitNumber\" class=\"rounded-md border border-[var(--dh-border)] bg-transparent px-2 py-1.5\">\n                        <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"'Unidad ' + unitNumber + ' · peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))\" />\n                        <p class=\"mt-1 text-[11px] font-medium\" :class=\"fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'\">{{ fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1)) ? 'Con sobrepeso' : fclUnitWeight(row.containerTypeId, unitNumber - 1) > 0 ? 'Sin sobrepeso' : 'Peso pendiente' }}</p>\n                      </div>\n                    </div>\n                  </div>"
+  const primaryFclWeights = "<div class=\"min-w-0\">\n                    <div class=\"flex flex-col gap-1.5\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))\" :key=\"'primary-weight:' + unitNumber\" class=\"min-w-0\">\n                        <DhInput :model-value=\"fclUnitWeight(form.equipmentId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"Number(form.equipmentQuantity) > 1 ? 'Unidad ' + unitNumber + ' · kg *' : 'Peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))\" />\n                        <p v-if=\"fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1))\" class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n                      </div>\n                    </div>\n                  </div>"
+  const additionalFclWeights = "<div class=\"min-w-0\">\n                    <div class=\"flex flex-col gap-1.5\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(row.quantity)))\" :key=\"'additional-weight:' + unitNumber\" class=\"min-w-0\">\n                        <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"Number(row.quantity) > 1 ? 'Unidad ' + unitNumber + ' · kg *' : 'Peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))\" />\n                        <p v-if=\"fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1))\" class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n                      </div>\n                    </div>\n                  </div>"
 
   // El peso FCL se muestra en la tarjeta roja de cada contenedor. FTL mantiene su bloque propio.
   const weightUi = `
@@ -220,8 +220,8 @@ watch(
     : row4Position
   let distribution = code.slice(fclHeading, distributionEnd)
 
-  // Anclar los campos debajo de la fila de cantidad del contenedor correspondiente.
-  // Los plugins anteriores pueden cambiar clases, identación y atributos de DhInput.
+  // Place a compact weight column inside the SAME responsive grid as
+  // container size/type and quantity. Each physical unit retains its weight.
   const addWeightControls = (model: string, markup: string) => {
     const tokens = [`v-model.number="${model}"`, `v-model="${model}"`]
     const occurrences = tokens.flatMap((token) => {
@@ -234,16 +234,32 @@ watch(
       return positions
     })
     if (occurrences.length !== 1) {
-      throw new Error('[pricingFclUnitWeights] No se encontró una única cantidad para ' + model + '.')
+      throw new Error('[pricingFclUnitWeights] Cantidad de contenedor ambigua: ' + model)
     }
     const inputPos = occurrences[0]!
-    const endOfInput = distribution.indexOf('/>', inputPos)
-    const endOfQuantityGrid = distribution.indexOf('</div>', endOfInput + 2)
-    if (endOfInput < 0 || endOfQuantityGrid < 0 || endOfQuantityGrid - endOfInput > 500) {
-      throw new Error('[pricingFclUnitWeights] No se encontró el cierre de la fila de ' + model + '.')
+    const inputEnd = distribution.indexOf('/>', inputPos)
+    const gridStart = distribution.lastIndexOf('<div class="grid ', inputPos)
+    const gridEnd = distribution.indexOf('>', gridStart)
+    if (inputEnd < 0 || gridStart < 0 || gridEnd < 0
+      || gridEnd >= inputPos || inputPos - gridEnd > 750) {
+      throw new Error('[pricingFclUnitWeights] No se encontró la fila de contenedor para ' + model)
     }
-    const insertAt = endOfQuantityGrid + '</div>'.length
-    distribution = distribution.slice(0, insertAt) + '\n' + markup + distribution.slice(insertAt)
+    const originalGrid = distribution.slice(gridStart, gridEnd + 1)
+    const targetGrid = originalGrid.replace(
+      'lg:grid-cols-[minmax(0,1fr)_160px]',
+      'lg:grid-cols-[minmax(0,1fr)_120px_180px] xl:grid-cols-[minmax(0,1fr)_135px_210px]',
+    )
+    if (originalGrid === targetGrid) {
+      throw new Error('[pricingFclUnitWeights] Cambió la grilla para ' + model)
+    }
+    // Inject after the quantity input but BEFORE the grid closes. Alter the
+    // grid markup only after insertion, so positions remain valid.
+    distribution = distribution.slice(0, inputEnd + 2)
+      + '\n                    ' + markup
+      + distribution.slice(inputEnd + 2)
+    distribution = distribution.slice(0, gridStart)
+      + targetGrid
+      + distribution.slice(gridEnd + 1)
   }
   addWeightControls('form.equipmentQuantity', primaryFclWeights)
   addWeightControls('row.quantity', additionalFclWeights)
