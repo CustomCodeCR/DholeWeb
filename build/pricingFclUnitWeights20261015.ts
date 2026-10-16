@@ -67,8 +67,9 @@ const fclOverweightUnitCount = computed(() => {
   if (shipmentModeForApi.value === 'Fcl')
     return fclContainerAllocations.value.reduce((total, row) =>
       total + fclGroupOverweightUnits(row.containerTypeId, row.quantity), 0)
-  if (shipmentModeForApi.value === 'Ftl' && form.equipmentId)
-    return fclGroupOverweightUnits(form.equipmentId, form.equipmentQuantity)
+  if (shipmentModeForApi.value === 'Ftl')
+    return landEquipmentAllocations.value.reduce((sum, row) =>
+      sum + fclGroupOverweightUnits(row.containerTypeId, row.quantity), 0)
   return 0
 })
 
@@ -76,8 +77,9 @@ const fclMissingUnitCount = computed(() => {
   if (shipmentModeForApi.value === 'Fcl')
     return fclContainerAllocations.value.reduce((total, row) =>
       total + fclUnitWeightsFor(row.containerTypeId, row.quantity).filter((kg) => kg <= 0).length, 0)
-  if (shipmentModeForApi.value === 'Ftl' && form.equipmentId)
-    return fclUnitWeightsFor(form.equipmentId, form.equipmentQuantity).filter((kg) => kg <= 0).length
+  if (shipmentModeForApi.value === 'Ftl')
+    return landEquipmentAllocations.value.reduce((sum, row) =>
+      sum + fclUnitWeightsFor(row.containerTypeId, row.quantity).filter((kg) => kg <= 0).length, 0)
   return 0
 })
 
@@ -103,7 +105,7 @@ watch(
     if (mode !== 'Fcl' && mode !== 'Ftl') return
     const weights = mode === 'Fcl'
       ? fclContainerAllocations.value.flatMap((row) => fclUnitWeightsFor(row.containerTypeId, row.quantity))
-      : fclUnitWeightsFor(form.equipmentId, form.equipmentQuantity)
+      : landEquipmentAllocations.value.flatMap((row) => fclUnitWeightsFor(row.containerTypeId, row.quantity))
     // No sobrescribir el dato agregado de un registro antiguo mientras no se indiquen pesos por unidad.
     if (weights.some((kg) => kg > 0))
       form.cargoWeightKg = weights.reduce((sum, kg) => sum + kg, 0)
@@ -138,6 +140,11 @@ watch(
     if (at >= 0)
       code = code.slice(0, at + line.length) + '\n  restoreFclUnitWeights(allocations)' + code.slice(at + line.length)
   }
+  // La hidratación de una tarifa FTL también debe restaurar sus pesos por equipo.
+  const hydrate = '    const restoredMixedFclFreight = restorePersistedFclDistribution(rate)'
+  if (code.includes(hydrate))
+    code = code.replace(hydrate, '    restoreFclUnitWeights((rate.containers ?? []).filter((container) => number(container.quantity) > 0))\\n' + hydrate)
+
   const requestRows = '  const rows = value as Array<Record<string, unknown>>'
   if (code.includes(requestRows))
     code = code.replace(requestRows, requestRows + '\n  restoreFclUnitWeights(rows.map((row) => ({ containerTypeId: String(row.containerTypeId ?? ""), unitWeightsKg: Array.isArray(row.unitWeightsKg) ? row.unitWeightsKg.map((kg) => number(kg)) : [] })))')
@@ -181,10 +188,15 @@ watch(
                   </div>
                 </div>
               </div>
-              <div v-else-if="form.equipmentId" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <div v-for="n in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))" :key="'ftl-weight:' + n" class="rounded-xl border border-[var(--dh-border)] p-3">
-                  <DhInput :model-value="fclUnitWeight(form.equipmentId, n - 1)" type="number" min="0" step="1" :label="'Furgón ' + n + ' · peso (kg) *'" @update:model-value="(value) => setFclUnitWeight(form.equipmentId, n - 1, Number(value))" />
-                  <p class="mt-2 text-xs font-bold" :class="fclUnitIsOverweight(fclUnitWeight(form.equipmentId, n - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'">{{ fclUnitIsOverweight(fclUnitWeight(form.equipmentId, n - 1)) ? 'Con sobrepeso' : 'Sin sobrepeso' }}</p>
+              <div v-else-if="landEquipmentAllocations.length" class="space-y-3">
+                <div v-for="group in landEquipmentAllocations" :key="'ftl:' + group.containerTypeId" class="rounded-xl border border-[var(--dh-border)] p-3">
+                  <p class="mb-3 text-sm font-bold">{{ group.quantity }} × {{ group.containerTypeName }}</p>
+                  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div v-for="n in group.quantity" :key="'ftl-weight:' + group.containerTypeId + ':' + n" class="rounded-xl border border-[var(--dh-border)] p-3">
+                      <DhInput :model-value="fclUnitWeight(group.containerTypeId, n - 1)" type="number" min="0" step="1" :label="'Furgón ' + n + ' · peso (kg) *'" @update:model-value="(value) => setFclUnitWeight(group.containerTypeId, n - 1, Number(value))" />
+                      <p class="mt-2 text-xs font-bold" :class="fclUnitIsOverweight(fclUnitWeight(group.containerTypeId, n - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'">{{ fclUnitIsOverweight(fclUnitWeight(group.containerTypeId, n - 1)) ? 'Con sobrepeso' : 'Sin sobrepeso' }}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
               <p v-if="fclMissingUnitCount > 0" class="text-xs font-bold text-[var(--dh-primary)]">Pendientes de peso: {{ fclMissingUnitCount }} equipos.</p>
