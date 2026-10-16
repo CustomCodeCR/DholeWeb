@@ -67,7 +67,20 @@ const polLocator = computed(() => polValue.value || polCode.value)
 const polDisplay = computed(() => office.value?.polValue || polValue.value || office.value?.polCode || polCode.value)
 const agentCode = computed(() => String(route.query.agentCode ?? '').trim())
 const agentName = computed(() => String(route.query.agent ?? '').trim())
-const agentDisplay = computed(() => office.value?.agent || office.value?.agentCode || agentName.value || agentCode.value || 'Oficina de origen')
+// Legacy PDFs for maritime own LCL were published with GCF as the agent.
+// The consolidated rate stays sourced from GCF, but its origin contacts are RS.
+const legacyOwnLclLink = computed(() =>
+  String(route.query.shipmentMode ?? '').trim().toLowerCase() === 'lcl'
+  && String(route.query.modality ?? '').trim().toLowerCase() !== 'air'
+  && (
+    agentCode.value.toUpperCase() === 'GCF'
+    || ['GCF', 'GRUPO CASTRO FALLAS'].includes(agentName.value.toUpperCase())
+  ),
+)
+const originAgentCode = computed(() => legacyOwnLclLink.value ? 'RS' : agentCode.value)
+const originAgentName = computed(() => legacyOwnLclLink.value ? 'RS' : agentName.value)
+
+const agentDisplay = computed(() => office.value?.agent || office.value?.agentCode || originAgentName.value || originAgentCode.value || 'Oficina de origen')
 
 const coordinates = computed(() => {
   if (office.value?.latitude == null || office.value?.longitude == null) return ''
@@ -159,8 +172,8 @@ async function load() {
     query.set('pol', polLocator.value)
     if (shipmentMode) query.set('shipmentMode', shipmentMode)
     if (routeKey) query.set('route', routeKey)
-    if (agentCode.value) query.set('agentCode', agentCode.value)
-    if (agentName.value) query.set('agent', agentName.value)
+    if (originAgentCode.value) query.set('agentCode', originAgentCode.value)
+    if (originAgentName.value) query.set('agent', originAgentName.value)
 
     const endpoint = gatewayUrl(`/api/config/public/pricing-warehouses/resolve?${query.toString()}`)
     const response = await fetch(endpoint, {
