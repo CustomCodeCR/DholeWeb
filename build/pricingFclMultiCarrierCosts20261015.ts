@@ -114,6 +114,51 @@ watch(() => [step.value, fclCarriersByEquipment.value.map((r) => r.containerType
       || fclContainerAllocations.value.length <= 1 || hydratingExistingRate.value) return
     await loadApplicableCosts()
   }, { flush: 'post' })
+
+function fclCarrierLabelForLine(line: RateLine): string {
+  if (shipmentModeForApi.value !== 'Fcl' || fclContainerAllocations.value.length < 2) return ''
+  let matches: typeof fclCarriersByEquipment.value = []
+  if (line.costDetailType === 'Freight') {
+    matches = fclCarriersByEquipment.value.filter((unit) => {
+      const allocation = fclContainerAllocations.value.find((row) => row.containerTypeId === unit.containerTypeId)
+      return allocation && fclFreightLineMatchesAllocation(line, allocation)
+    })
+  } else if (line.costId) {
+    const configured = costs.value.find((cost) => cost.id === line.costId)
+    if (configured && (configured.carrierId || configured.carriers?.length)) {
+      matches = fclCarriersByEquipment.value.filter((unit) =>
+        Boolean(unit.id) && maritimeFclRelationMatches(configured.carriers, configured.carrierId, unit.id),
+      )
+    }
+  }
+  if (matches.length) {
+    const carriers = [...new Set(matches.map((unit) => unit.name).filter((name) => name && name !== 'Seleccione naviera'))]
+    if (!carriers.length) return ''
+    const names = matches.map((unit) => {
+      const allocation = fclContainerAllocations.value.find((row) => row.containerTypeId === unit.containerTypeId)
+      return allocation ? String(unit.quantity) + ' × ' + allocation.containerTypeName : ''
+    }).filter(Boolean)
+    return 'Naviera: ' + carriers.join(' + ') + (names.length ? ' · Equipo: ' + names.join(' + ') : '')
+  }
+  // Existing persisted quotes may have saved carrier annotations but their
+  // configured cost is no longer active. Do not silently drop that snapshot.
+  const notes = String(line.notes ?? '')
+  const carrier = notes.match(/(?:^|·)\s*Naviera:\s*([^·\r\n]+)/i)?.[1]?.trim()
+  const equipment = notes.match(/(?:^|·)\s*Equipo:\s*([^·\r\n]+)/i)?.[1]?.trim()
+  return carrier ? 'Naviera: ' + carrier + (equipment ? ' · Equipo: ' + equipment : '') : ''
+}
+
+function fclPersistCarrierNote(line: RateLine, notes: string | null | undefined): string | null {
+  if (shipmentModeForApi.value !== 'Fcl' || fclContainerAllocations.value.length < 2)
+    return notes || null
+  // Replace the old displayed assignment, leaving the original commercial
+  // comment and freight's technical rate-source identifier untouched.
+  const original = String(notes ?? '').split(/\s+·\s+/).filter((part) =>
+    !/^(?:Naviera|Equipo)\s*:/i.test(part.trim())).join(' · ').trim()
+  const assignment = fclCarrierLabelForLine(line)
+  return [original, assignment].filter(Boolean).join(' · ') || null
+}
+
 `
 
 const FREIGHT = `
@@ -218,6 +263,23 @@ export function patchFclMultiCarrierCosts(source: string): string {
   for (const field of ['freightCost', 'freightSale']) {
     code = hideOriginalFieldForMixedFcl(code, 'DhInput', field)
   }
+  // Add a compact visual association to the editable lines and final preview,
+  // without widening the cost table or changing the underlying CostId.
+  const label = '<p v-if="fclCarrierLabelForLine(line)" class="mt-1 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ fclCarrierLabelForLine(line) }}</p>'
+  code = code.replaceAll('<p class="font-bold">{{ line.name }}</p>',
+    '<p class="font-bold">{{ line.name }}</p>' + label)
+  code = code.replaceAll('<strong>{{ line.name }}</strong>',
+    '<strong>{{ line.name }}</strong>' + label)
+
+  // The same association is saved per detail, not only in the single carrier
+  // field of the quotation header, and is therefore available to the PDF.
+  const detailsEnd = '  const includedNameKeys = new Set('
+  if (!code.includes(detailsEnd)) throw new Error('[multiCarrierCosts] Missing rate detail serialization')
+  code = code.replace(detailsEnd,
+    '  details.forEach((detail, index) => {\\n'
+    + '    const line = normalizedIncludedLines[index]\\n'
+    + '    if (line) detail.notes = fclPersistCarrierNote(line, detail.notes)\\n'
+    + '  })\\n\\n' + detailsEnd)
   code = replaceFreightPanel(code)
   const scriptEnd = code.lastIndexOf('</script>')
   if (scriptEnd < 0) throw new Error('[multiCarrierCosts] Missing script end')
