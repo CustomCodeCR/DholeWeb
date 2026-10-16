@@ -168,8 +168,8 @@ watch(
     ':disabled="shipmentModeForApi === \'Fcl\' || shipmentModeForApi === \'Ftl\'" @click="form.overweight = !form.overweight"',
   )
 
-  const primaryFclWeights = "<div class=\"mt-4 rounded-xl border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.035)] p-3 md:p-4\">\n                    <div class=\"mb-3 flex flex-wrap items-center justify-between gap-2\">\n                      <div>\n                        <p class=\"text-xs font-black uppercase tracking-wider text-[var(--dh-text)]\">Peso por unidad (kg)</p>\n                        <p class=\"mt-1 text-xs text-[var(--dh-text-muted)]\">Sobrepeso cuando supera 21.500 kg en Centroamérica, excepto Panamá.</p>\n                      </div>\n                      <span v-if=\"fclGroupOverweightUnits(form.equipmentId, form.equipmentQuantity)\" class=\"rounded-full border border-[rgb(var(--dh-primary-rgb)/0.35)] px-2.5 py-1 text-xs font-bold text-[var(--dh-primary)]\">{{ fclGroupOverweightUnits(form.equipmentId, form.equipmentQuantity) }} con sobrepeso</span>\n                    </div>\n                    <div class=\"grid gap-3 sm:grid-cols-2 xl:grid-cols-3\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))\" :key=\"'primary-weight:' + unitNumber\" class=\"rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3\">\n                        <DhInput :model-value=\"fclUnitWeight(form.equipmentId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"'Unidad ' + unitNumber + ' · peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))\" />\n                        <p class=\"mt-2 text-xs font-bold\" :class=\"fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'\">{{ fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1)) ? 'Con sobrepeso' : fclUnitWeight(form.equipmentId, unitNumber - 1) > 0 ? 'Sin sobrepeso' : 'Peso pendiente' }}</p>\n                      </div>\n                    </div>\n                  </div>"
-  const additionalFclWeights = "<div class=\"mt-4 rounded-xl border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.035)] p-3 md:p-4\">\n                    <div class=\"mb-3 flex flex-wrap items-center justify-between gap-2\">\n                      <div>\n                        <p class=\"text-xs font-black uppercase tracking-wider text-[var(--dh-text)]\">Peso por unidad (kg)</p>\n                        <p class=\"mt-1 text-xs text-[var(--dh-text-muted)]\">Sobrepeso cuando supera 21.500 kg en Centroamérica, excepto Panamá.</p>\n                      </div>\n                      <span v-if=\"fclGroupOverweightUnits(row.containerTypeId, row.quantity)\" class=\"rounded-full border border-[rgb(var(--dh-primary-rgb)/0.35)] px-2.5 py-1 text-xs font-bold text-[var(--dh-primary)]\">{{ fclGroupOverweightUnits(row.containerTypeId, row.quantity) }} con sobrepeso</span>\n                    </div>\n                    <div class=\"grid gap-3 sm:grid-cols-2 xl:grid-cols-3\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(row.quantity)))\" :key=\"'additional-weight:' + unitNumber\" class=\"rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3\">\n                        <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"'Unidad ' + unitNumber + ' · peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))\" />\n                        <p class=\"mt-2 text-xs font-bold\" :class=\"fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'\">{{ fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1)) ? 'Con sobrepeso' : fclUnitWeight(row.containerTypeId, unitNumber - 1) > 0 ? 'Sin sobrepeso' : 'Peso pendiente' }}</p>\n                      </div>\n                    </div>\n                  </div>"
+  const primaryFclWeights = "<div class=\"mt-2 rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.12)] bg-[rgb(var(--dh-primary-rgb)/0.02)] px-3 py-2\">\n                    <div class=\"mb-2 flex flex-wrap items-center justify-between gap-2\">\n                      <div>\n                        <p class=\"text-xs font-black uppercase tracking-wider text-[var(--dh-text)]\">Peso por unidad (kg)</p>\n                        \n                      </div>\n                      <span v-if=\"fclGroupOverweightUnits(form.equipmentId, form.equipmentQuantity)\" class=\"rounded-full border border-[rgb(var(--dh-primary-rgb)/0.35)] px-2.5 py-1 text-xs font-bold text-[var(--dh-primary)]\">{{ fclGroupOverweightUnits(form.equipmentId, form.equipmentQuantity) }} con sobrepeso</span>\n                    </div>\n                    <div class=\"grid gap-2 sm:grid-cols-2 xl:grid-cols-4\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))\" :key=\"'primary-weight:' + unitNumber\" class=\"rounded-md border border-[var(--dh-border)] bg-transparent px-2 py-1.5\">\n                        <DhInput :model-value=\"fclUnitWeight(form.equipmentId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"'Unidad ' + unitNumber + ' · peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))\" />\n                        <p class=\"mt-1 text-[11px] font-medium\" :class=\"fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'\">{{ fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1)) ? 'Con sobrepeso' : fclUnitWeight(form.equipmentId, unitNumber - 1) > 0 ? 'Sin sobrepeso' : 'Peso pendiente' }}</p>\n                      </div>\n                    </div>\n                  </div>"
+  const additionalFclWeights = "<div class=\"mt-2 rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.12)] bg-[rgb(var(--dh-primary-rgb)/0.02)] px-3 py-2\">\n                    <div class=\"mb-2 flex flex-wrap items-center justify-between gap-2\">\n                      <div>\n                        <p class=\"text-xs font-black uppercase tracking-wider text-[var(--dh-text)]\">Peso por unidad (kg)</p>\n                        \n                      </div>\n                      <span v-if=\"fclGroupOverweightUnits(row.containerTypeId, row.quantity)\" class=\"rounded-full border border-[rgb(var(--dh-primary-rgb)/0.35)] px-2.5 py-1 text-xs font-bold text-[var(--dh-primary)]\">{{ fclGroupOverweightUnits(row.containerTypeId, row.quantity) }} con sobrepeso</span>\n                    </div>\n                    <div class=\"grid gap-2 sm:grid-cols-2 xl:grid-cols-4\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(row.quantity)))\" :key=\"'additional-weight:' + unitNumber\" class=\"rounded-md border border-[var(--dh-border)] bg-transparent px-2 py-1.5\">\n                        <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"'Unidad ' + unitNumber + ' · peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))\" />\n                        <p class=\"mt-1 text-[11px] font-medium\" :class=\"fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1)) ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'\">{{ fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1)) ? 'Con sobrepeso' : fclUnitWeight(row.containerTypeId, unitNumber - 1) > 0 ? 'Sin sobrepeso' : 'Peso pendiente' }}</p>\n                      </div>\n                    </div>\n                  </div>"
 
   // El peso FCL se muestra en la tarjeta roja de cada contenedor. FTL mantiene su bloque propio.
   const weightUi = `
@@ -271,6 +271,54 @@ watch(
           </div>
 `
   code = replaceDivBlock(code, 'Flete internacional por tipo de contenedor', freightUi)
+  // Keep the individual weight map in the browser's automatic draft save/restore.
+  // This must be separate from cargoWeightKg (the aggregate weight).
+  const draftWeightsAnchor = '    fclExtraContainers: JSON.parse(JSON.stringify(fclExtraContainers.value)),'
+  if (!code.includes(draftWeightsAnchor)) {
+    throw new Error('[pricingFclUnitWeights] No se encontró el guardado de pesos en borrador.')
+  }
+  code = code.replace(
+    draftWeightsAnchor,
+    draftWeightsAnchor + '\n    fclUnitWeightsKg: JSON.parse(JSON.stringify(fclUnitWeightsKg.value)),',
+  )
+
+  const draftRestoreAnchor = "    if (typeof draft.rateCarrierFilter === 'string') rateCarrierFilter.value = draft.rateCarrierFilter"
+  if (!code.includes(draftRestoreAnchor)) {
+    throw new Error('[pricingFclUnitWeights] No se encontró la restauración del borrador.')
+  }
+  code = code.replace(draftRestoreAnchor, draftRestoreAnchor + '\n' + [
+    '    if (draft.fclUnitWeightsKg && typeof draft.fclUnitWeightsKg === "object" && !Array.isArray(draft.fclUnitWeightsKg)) {',
+    '      restoreFclUnitWeights(Object.entries(draft.fclUnitWeightsKg).map(([containerTypeId, weights]) => ({',
+    '        containerTypeId,',
+    '        unitWeightsKg: Array.isArray(weights) ? weights.map((weight) => Math.max(0, Math.min(100000, number(weight)))) : [],',
+    '      })))',
+    '    }',
+  ].join('\n'))
+
+  const draftWatchAnchor = '    fclExtraContainers,\n    fclRatesByContainer,'
+  if (!code.includes(draftWatchAnchor)) {
+    throw new Error('[pricingFclUnitWeights] No se encontró el autosave reactivo de pesos.')
+  }
+  code = code.replace(draftWatchAnchor,
+    '    fclExtraContainers,\n    fclUnitWeightsKg,\n    fclRatesByContainer,')
+
+  // Requests created by Sales keep the full per-unit distribution as well.
+  const requestFormAnchor = 'fclContainers: fclContainerAllocations.value, landContainers: landEquipmentAllocations.value'
+  if (!code.includes(requestFormAnchor)) {
+    throw new Error('[pricingFclUnitWeights] No se encontró la persistencia de contenedores en solicitudes.')
+  }
+  code = code.replace(requestFormAnchor, [
+    'fclContainers: fclContainerAllocations.value.map((row) => ({',
+    '  ...row, unitWeightsKg: fclUnitWeightsFor(row.containerTypeId, row.quantity),',
+    '})), landContainers: landEquipmentAllocations.value.map((row) => ({',
+    '  ...row, unitWeightsKg: fclUnitWeightsFor(row.containerTypeId, row.quantity),',
+    '}))',
+  ].join('\n'))
+
+  // Preserve individual weights for saved rate create/update and request context.
+  if (!code.includes('unitWeightsKg: fclUnitWeightsFor(row.containerTypeId, row.quantity)')) {
+    throw new Error('[pricingFclUnitWeights] No se incluyeron los pesos por unidad en el payload.')
+  }
   return code
 }
 
