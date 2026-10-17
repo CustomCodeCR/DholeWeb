@@ -880,8 +880,8 @@ onMounted(async () => {
             @click="selectedStorageId = row.storageId"
           />
           <DhButton
-            v-if="canCreate && (row.importStatus === 'Failed' || row.importStatus === 'Processing')"
-            label="Reintentar"
+            v-if="canCreate && (row.importStatus === 'Failed' || row.importStatus === 'Processing' || (row.importStatus === 'ReviewRequired' && row.reviewCount === row.observationCount && row.observationCount > 0))"
+            :label="row.importStatus === 'ReviewRequired' ? 'Reextraer' : 'Reintentar'"
             :icon="RefreshCw"
             size="sm"
             variant="secondary"
@@ -903,7 +903,7 @@ onMounted(async () => {
 
   <DhModal
     :open="formOpen"
-    :title="retryTarget ? 'Reintentar extracción · ' + retryTarget.competitorCompanyName : 'Importar tarifario de competencia'"
+    :title="retryTarget ? 'Reextraer tarifas · ' + retryTarget.competitorCompanyName : 'Importar tarifario de competencia'"
     size="xl"
     @close="formOpen = false"
   >
