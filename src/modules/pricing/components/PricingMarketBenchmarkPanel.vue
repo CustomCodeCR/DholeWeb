@@ -85,6 +85,7 @@ const loading = ref(false)
 const action = ref('')
 const showObservations = ref(false)
 const showDraftSuggestionConfirmation = ref(false)
+const hasAutoOpenedDraftSuggestion = ref(false)
 const sourceStorageId = ref<string | null>(null)
 const sourceFileLoadingId = ref<string | null>(null)
 let sourceFileRequestId = 0
@@ -587,6 +588,27 @@ const canDraftBenchmark = computed(() =>
 )
 
 const working = computed(() => loading.value || Boolean(action.value))
+
+// Pantalla 7 creates this component on entry. Wait for the asynchronous
+// Average calculation to finish before opening the confirmation. Once dismissed
+// or accepted, never reopen automatically during the same visit; the button
+// remains available for an explicit manual review.
+watch(
+  [draftSaleComparison, working],
+  ([comparison, isWorking]) => {
+    if (
+      hasAutoOpenedDraftSuggestion.value
+      || props.rateId
+      || props.viewOnly
+      || isWorking
+      || !comparison
+    ) return
+
+    hasAutoOpenedDraftSuggestion.value = true
+    showDraftSuggestionConfirmation.value = true
+  },
+  { immediate: true, flush: 'post' },
+)
 
 function money(value?: number | null) {
   return value == null ? '—' : formatMoney(value, 'USD')
