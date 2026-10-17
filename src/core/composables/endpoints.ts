@@ -678,6 +678,11 @@ export const PricingEndpoints = {
     path: '/api/pricing/market-benchmark/calculate',
     headers: jsonHeaders,
   },
+  diagnoseMarketCoverage: {
+    method: 'POST',
+    path: '/api/pricing/market-benchmark/coverage',
+    headers: jsonHeaders,
+  },
   getRateMarketBenchmark: {
     method: 'GET',
     path: '/api/pricing/rates/{{rateId}}/market-benchmark',
