@@ -323,8 +323,10 @@ function findUniquePortOption(source: string, options: { value: string; label: s
   // spelling similarities; two terminals matching the same origin is ambiguous.
   const candidates = options.filter(option => {
     const label = normalizePortLabel(option.label)
+    const words = option.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
     return label === target || label.startsWith(target)
-      || label.includes(target) && source.length >= 5
+      || words.some((_, i) => normalizePortLabel(words.slice(i).join(' ')).startsWith(target))
   })
   return candidates.length === 1 ? candidates[0].value : null
 }
