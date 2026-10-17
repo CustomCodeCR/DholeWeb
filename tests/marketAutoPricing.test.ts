@@ -175,6 +175,35 @@ test('Average shows only included tariffs and opens the correct source document'
   assert.match(fileModal, /<StorageFileViewer/)
 })
 
+test('Applying Average sale requires a margin comparison confirmation for both increases and decreases', async () => {
+  const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
+
+  assert.match(panel, /const hasAvailableAverage = computed/)
+  assert.match(panel, /marketStats\.value\.observationCount > 0/)
+  assert.match(panel, /marketObservations\.value\.length > 0/)
+  assert.match(panel, /if \(!hasAvailableAverage\.value \|\| suggestedSale == null/)
+  assert.match(panel, /const currentMargin = currentSale > 0/)
+  assert.match(panel, /const suggestedMargin = suggestedSale > 0/)
+  assert.match(panel, /const marginDifference = suggestedMargin - currentMargin/)
+  assert.match(panel, /direction: marginDifference > 0\.005 \? 'higher' : marginDifference < -0\.005 \? 'lower'/)
+  assert.match(panel, /v-if="!rateId && !viewOnly && draftSaleComparison"/)
+  assert.match(panel, /@click="applyDraftSuggestedPrice"/)
+  assert.match(panel, /showDraftSuggestionConfirmation\.value = true/)
+  assert.match(panel, /title="Confirmar venta sugerida por Average"/)
+  assert.match(panel, /El margen de utilidad aumentará/)
+  assert.match(panel, /El margen de utilidad disminuirá/)
+  assert.match(panel, /Mantener venta actual/)
+  assert.match(panel, /@click="confirmDraftSuggestedPrice"/)
+  assert.match(panel, /emit\('applyDraftSuggestion', target\)/)
+  assert.match(panel, /Costo sin cambios/)
+  assert.match(panel, /La aplicación no omite las aprobaciones de Pricing/)
+
+  const openHandler = panel.split('function applyDraftSuggestedPrice() {')[1]
+    ?.split('function confirmDraftSuggestedPrice() {')[0] ?? ''
+  assert.doesNotMatch(openHandler, /emit\('applyDraftSuggestion'/)
+  assert.match(openHandler, /!draftSaleComparison\.value/)
+})
+
 test('Manual override never submits fixed charges and requires an audit reason', async () => {
   const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
 
