@@ -64,7 +64,6 @@ const observationTariff = ref<CompetitorTariffDto | null>(null)
 const routeOpen = ref(false)
 const routeSaving = ref(false)
 const routeForm = reactive({ polIds: [] as string[], poeIds: [] as string[] })
-const unmatchedSourcePols = ref<string[]>([])
 
 const reviewOpen = ref(false)
 const reviewSaving = ref(false)
@@ -331,21 +330,32 @@ function findUniquePortOption(source: string, options: { value: string; label: s
   return candidates.length === 1 ? candidates[0]?.value ?? null : null
 }
 
+// Recompute after every user selection. A valid manual Config choice must
+// clear the warning even when the automatic matching was ambiguous.
+const unmatchedSourcePols = computed(() => {
+  const selectedOptions = catalogs.polOptions.value.filter(option =>
+    routeForm.polIds.includes(option.value))
+  const unmatched = observations.value
+    .filter(row => row.sourcePol && !(
+      (row.polId && routeForm.polIds.includes(row.polId))
+      || findUniquePortOption(row.sourcePol, selectedOptions)
+    ))
+    .map(row => row.sourcePol!)
+  return [...new Set(unmatched)].sort()
+})
+
 function openRouteEditor() {
   if (!observationTariff.value || observations.value.length === 0) return
 
   const detectedPolIds = new Set(
     observations.value.map(row => row.polId).filter((id): id is string => Boolean(id)),
   )
-  const unmatched = new Set<string>()
   for (const row of observations.value) {
     if (!row.sourcePol) continue
     const match = findUniquePortOption(row.sourcePol, catalogs.polOptions.value)
     if (match) detectedPolIds.add(match)
-    else if (!row.polId) unmatched.add(row.sourcePol)
   }
   routeForm.polIds = [...detectedPolIds]
-  unmatchedSourcePols.value = [...unmatched].sort()
   const detectedPoeIds = new Set(
     observations.value.map(row => row.poeId).filter((id): id is string => Boolean(id)),
   )
@@ -375,7 +385,10 @@ async function saveRouteEditor() {
     observationTariff.value = await PricingService.getCompetitorTariff(tariffId)
     routeOpen.value = false
     await load()
-    toastStore.success('Rutas actualizadas', 'Se guardaron los orígenes del archivo y los POE seleccionados, sin POD.')
+    const pendingPols = observations.value.filter(row => !row.polId).length
+    toastStore.success('Rutas actualizadas', pendingPols > 0
+      ? `${pendingPols} observaciones siguen sin POL normalizado y requieren revisión.`
+      : 'Los POL se vincularon a sus filas originales y se guardaron los POE, sin POD.')
   } catch (error) {
     toastStore.backendError(error, 'No fue posible actualizar los POL y el POE.')
   } finally {
@@ -1099,8 +1112,8 @@ onMounted(async () => {
       <DhMultiSelect v-model="routeForm.poeIds" label="POE aplicables" :options="catalogs.poeOptions.value" />
       <p class="text-xs text-[var(--dh-text-muted)]">Los POL detectados se preseleccionan automáticamente desde las observaciones del documento.</p>
       <p v-if="unmatchedSourcePols.length" class="text-xs text-amber-300">
-        POL presentes en el PDF sin coincidencia inequívoca en Config: {{ unmatchedSourcePols.join(', ') }}.
-        Sus filas se conservan, pero no se inventa un puerto.
+        POL del PDF pendientes de asociar con los seleccionados en Config: {{ unmatchedSourcePols.join(', ') }}.
+        Seleccione el puerto correcto; las filas sin coincidencia se conservarán para revisión.
       </p>
       <div class="text-sm font-bold text-[var(--dh-text-muted)]">POD: Sin POD</div>
       <p v-if="observationTariff?.originalFileName?.toUpperCase().includes('IMP863-1210')" class="text-xs text-[var(--dh-text-muted)]">
