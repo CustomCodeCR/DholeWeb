@@ -154,6 +154,8 @@ export interface CompetitorRateObservationDto extends Record<string, unknown> {
   normalizationConfidence: number
   isUsable: boolean
   needsReview: boolean
+  sourcePol?: string | null
+  sourcePoe?: string | null
 }
 
 export interface ReviewCompetitorRateObservationRequest extends Record<string, unknown> {
@@ -171,7 +173,7 @@ export interface ReviewCompetitorRateObservationRequest extends Record<string, u
 
 export interface SetCompetitorTariffRoutesRequest extends Record<string, unknown> {
   polIds: string[]
-  poeId: string
+  poeIds: string[]
 }
 
 export interface ImportCompetitorTariffRequest {
