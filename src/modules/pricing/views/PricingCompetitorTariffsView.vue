@@ -328,7 +328,7 @@ function findUniquePortOption(source: string, options: { value: string; label: s
     return label === target || label.startsWith(target)
       || words.some((_, i) => normalizePortLabel(words.slice(i).join(' ')).startsWith(target))
   })
-  return candidates.length === 1 ? candidates[0].value : null
+  return candidates.length === 1 ? candidates[0]?.value ?? null : null
 }
 
 function openRouteEditor() {
