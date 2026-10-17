@@ -12,6 +12,7 @@ import {
   WandSparkles,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhTextarea } from '@/shared/components/atoms'
+import { DhModal } from '@/shared/components/organisms'
 import { AI_SCOPES, PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -83,6 +84,7 @@ const decision = ref<AutoPricingDecisionDto | null>(null)
 const loading = ref(false)
 const action = ref('')
 const showObservations = ref(false)
+const showDraftSuggestionConfirmation = ref(false)
 const sourceStorageId = ref<string | null>(null)
 const sourceFileLoadingId = ref<string | null>(null)
 let sourceFileRequestId = 0
@@ -297,6 +299,41 @@ const draftSuggestedSalePrice = computed(() => {
   // suggestion beyond competitor reality. Never recommend a loss, but keep the
   // price as close as possible to the comparable market.
   return Math.max(draftCostFloorPrice.value, marketSuggestion)
+})
+
+
+const hasAvailableAverage = computed(() =>
+  Boolean(
+    !props.rateId
+    && benchmark.value
+    && marketStats.value.observationCount > 0
+    && marketObservations.value.length > 0,
+  ),
+)
+
+// Compare the same fixed cost against current and suggested SALE (without IVA).
+// The 12% threshold is informative; it must never inflate Average's sale target.
+const draftSaleComparison = computed(() => {
+  const cost = draftCostFloorPrice.value
+  const currentSale = Math.max(0, Number(props.draftSaleTotalUsd || 0))
+  const suggestedSale = draftSuggestedSalePrice.value
+  if (!hasAvailableAverage.value || suggestedSale == null || !Number.isFinite(suggestedSale)) {
+    return null
+  }
+
+  const currentMargin = currentSale > 0 ? ((currentSale - cost) / currentSale) * 100 : 0
+  const suggestedMargin = suggestedSale > 0 ? ((suggestedSale - cost) / suggestedSale) * 100 : 0
+  const marginDifference = suggestedMargin - currentMargin
+  return {
+    cost,
+    currentSale,
+    suggestedSale,
+    currentMargin,
+    suggestedMargin,
+    marginDifference,
+    saleDifference: suggestedSale - currentSale,
+    direction: marginDifference > 0.005 ? 'higher' : marginDifference < -0.005 ? 'lower' : 'equal',
+  } as const
 })
 
 const draftSuggestionSource = computed(() =>
@@ -626,6 +663,7 @@ async function calculateDraftBenchmark() {
     const nextBenchmark = await MarketPricingService.calculateMarketBenchmark(payload)
     if (requestId !== draftBenchmarkRequestId) return
     benchmark.value = nextBenchmark
+    showDraftSuggestionConfirmation.value = false
     marketCoverage.value = null
     marketCoverageError.value = ''
     // No silent zero: list which recently imported source documents were
@@ -688,16 +726,23 @@ async function calculateAutoPricing(recalculate = false) {
 }
 
 function applyDraftSuggestedPrice() {
-  if (
-    props.rateId
-    || props.viewOnly
-    || !draftSuggestedSalePrice.value
-  ) return
+  // When there is no real Average sample, there is nothing to confirm or apply.
+  if (props.rateId || props.viewOnly || !draftSaleComparison.value || working.value) return
+  showDraftSuggestionConfirmation.value = true
+}
 
-  emit('applyDraftSuggestion', draftSuggestedSalePrice.value)
+function confirmDraftSuggestedPrice() {
+  if (props.rateId || props.viewOnly || working.value || !draftSaleComparison.value) {
+    showDraftSuggestionConfirmation.value = false
+    return
+  }
+
+  const target = draftSaleComparison.value.suggestedSale
+  showDraftSuggestionConfirmation.value = false
+  emit('applyDraftSuggestion', target)
   toastStore.success(
     'Sugerencia aplicada a ventas',
-    `Venta objetivo ${money(draftSuggestedSalePrice.value)}. Los costos no fueron modificados.`,
+    `Venta objetivo ${money(target)}. Los costos no fueron modificados.`,
   )
 }
 
@@ -869,6 +914,7 @@ watch(
     calculation.value = null
     decision.value = null
     benchmark.value = null
+    showDraftSuggestionConfirmation.value = false
 
     if (props.rateId) {
       if (!props.viewOnly && canCalculateAutoPricing.value) {
@@ -914,6 +960,7 @@ watch(
     aiDraftRequestId += 1
     aiDraftAnalyzing.value = false
     benchmark.value = null
+    showDraftSuggestionConfirmation.value = false
     marketCoverage.value = null
     marketCoverageError.value = ''
     marketCoverageLoading.value = false
@@ -1265,7 +1312,7 @@ onMounted(() => {
 
       <div class="flex flex-wrap gap-2">
         <DhButton
-          v-if="!rateId && !viewOnly && draftSuggestedSalePrice"
+          v-if="!rateId && !viewOnly && draftSaleComparison"
           :disabled="working"
           @click="applyDraftSuggestedPrice"
         >
@@ -1543,6 +1590,74 @@ onMounted(() => {
       </p>
     </div>
   </section>
+  <DhModal
+    :open="showDraftSuggestionConfirmation && Boolean(draftSaleComparison)"
+    title="Confirmar venta sugerida por Average"
+    size="lg"
+    @close="showDraftSuggestionConfirmation = false"
+  >
+    <div v-if="draftSaleComparison" class="space-y-5">
+      <p class="text-sm font-semibold text-[var(--dh-text-muted)]">
+        Revise la venta recomendada antes de aplicarla a los rubros de la cotización.
+        El costo permanece fijo y no se modifica ningún monto sin su confirmación.
+      </p>
+
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+          <p class="text-[10px] font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Venta actual</p>
+          <strong class="mt-2 block text-xl">{{ money(draftSaleComparison.currentSale) }}</strong>
+          <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">Margen actual</p>
+          <strong class="mt-1 block text-lg">{{ percentage(draftSaleComparison.currentMargin) }}</strong>
+        </div>
+        <div class="rounded-2xl border border-[var(--dh-border-strong)] bg-[var(--dh-card-hover)] p-4">
+          <p class="text-[10px] font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Venta sugerida · {{ draftSuggestionSource }}</p>
+          <strong class="mt-2 block text-xl text-[var(--dh-primary)]">{{ money(draftSaleComparison.suggestedSale) }}</strong>
+          <p class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">Margen sugerido</p>
+          <strong class="mt-1 block text-lg text-[var(--dh-primary)]">{{ percentage(draftSaleComparison.suggestedMargin) }}</strong>
+        </div>
+      </div>
+
+      <div
+        class="rounded-xl border p-4 text-sm font-semibold"
+        :class="draftSaleComparison.direction === 'lower'
+          ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+          : draftSaleComparison.direction === 'higher'
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+            : 'border-[var(--dh-border)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]'"
+      >
+        <p v-if="draftSaleComparison.direction === 'higher'">
+          El margen de utilidad aumentará {{ percentage(draftSaleComparison.marginDifference) }} (puntos porcentuales).
+        </p>
+        <p v-else-if="draftSaleComparison.direction === 'lower'">
+          El margen de utilidad disminuirá {{ percentage(Math.abs(draftSaleComparison.marginDifference)) }} (puntos porcentuales).
+          Confirme si desea aceptar una venta con menor margen.
+        </p>
+        <p v-else>El margen de utilidad prácticamente no cambia.</p>
+        <p class="mt-2 text-xs">
+          Variación de venta: {{ draftSaleComparison.saleDifference >= 0 ? '+' : '−' }}{{ money(Math.abs(draftSaleComparison.saleDifference)) }}.
+          Costo sin cambios: {{ money(draftSaleComparison.cost) }}.
+        </p>
+      </div>
+
+      <p
+        v-if="draftSaleComparison.suggestedMargin + 0.0001 < minimumMarginPercentage"
+        class="text-xs font-bold text-amber-700 dark:text-amber-300"
+      >
+        Atención: el margen sugerido es inferior al mínimo de {{ percentage(minimumMarginPercentage) }}.
+        La aplicación no omite las aprobaciones de Pricing.
+      </p>
+
+      <div class="flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] pt-4">
+        <DhButton variant="secondary" @click="showDraftSuggestionConfirmation = false">
+          Mantener venta actual
+        </DhButton>
+        <DhButton :disabled="working || !draftSaleComparison" @click="confirmDraftSuggestedPrice">
+          Confirmar y aplicar venta sugerida
+        </DhButton>
+      </div>
+    </div>
+  </DhModal>
+
   <PricingCompetitorTariffFileModal
     :open="Boolean(sourceStorageId)"
     :storage-id="sourceStorageId"
