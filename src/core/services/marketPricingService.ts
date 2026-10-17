@@ -14,6 +14,7 @@ import type {
   CalculateMarketBenchmarkRequest,
   MarketBenchmarkAmountKind,
   MarketBenchmarkDto,
+  MarketCoverageDto,
   OverrideAutoPricingRequest,
 } from '@/core/interfaces/marketPricing'
 
@@ -38,6 +39,16 @@ export const MarketPricingService = {
       { body: payload },
     )
     return unwrapApiResponse<MarketBenchmarkDto>(response as never)
+  },
+
+  async diagnoseMarketCoverage(
+    payload: CalculateMarketBenchmarkRequest,
+  ): Promise<MarketCoverageDto> {
+    const response = await callEndpoint<unknown, CalculateMarketBenchmarkRequest>(
+      Endpoints.diagnoseMarketCoverage,
+      { body: payload },
+    )
+    return unwrapApiResponse<MarketCoverageDto>(response as never)
   },
 
   async getRateMarketBenchmark(
