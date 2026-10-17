@@ -16,6 +16,8 @@ import { AI_SCOPES, PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { MarketPricingService } from '@/core/services/marketPricingService'
+import { PricingService } from '@/core/services/pricingService'
+import PricingCompetitorTariffFileModal from '@/modules/pricing/components/PricingCompetitorTariffFileModal.vue'
 import { AiService } from '@/core/services/aiService'
 import type { RateDto, ShipmentMode } from '@/core/interfaces/pricing'
 import type {
@@ -81,6 +83,9 @@ const decision = ref<AutoPricingDecisionDto | null>(null)
 const loading = ref(false)
 const action = ref('')
 const showObservations = ref(false)
+const sourceStorageId = ref<string | null>(null)
+const sourceFileLoadingId = ref<string | null>(null)
+let sourceFileRequestId = 0
 const showCalculation = ref(false)
 const showAdjustments = ref(false)
 const showOverride = ref(false)
@@ -191,14 +196,36 @@ const marketObservations = computed<MarketBenchmarkObservationDto[]>(() => {
     ?? benchmark.value?.observations
     ?? decision.value?.observations
     ?? []
-  return rows.filter(observation => {
-    const from = observation.validFrom?.slice(0, 10)
-    const to = observation.validTo?.slice(0, 10)
-    return Boolean(from && to
-      && to >= marketReferenceDay.value
-      && from <= marketUpcomingCutoff.value)
-  })
+  // The backend inclusion flag is authoritative: no excluded or outlier
+  // observation should appear in the tariffs actually used by Average.
+  return rows.filter(observation => observation.wasIncluded && !observation.isOutlier)
 })
+
+async function openCompetitorSource(observation: MarketBenchmarkObservationDto) {
+  const tariffId = observation.competitorTariffId
+  if (!tariffId) {
+    toastStore.error('Documento no disponible', 'Esta observación no tiene un tarifario de origen asociado.')
+    return
+  }
+
+  const requestId = ++sourceFileRequestId
+  sourceFileLoadingId.value = observation.competitorRateObservationId
+  try {
+    const tariff = await PricingService.getCompetitorTariff(tariffId)
+    if (requestId !== sourceFileRequestId) return
+    if (!tariff.storageId) {
+      toastStore.error('Documento no disponible', 'El tarifario no tiene un archivo original asociado.')
+      return
+    }
+    sourceStorageId.value = tariff.storageId
+  } catch (error) {
+    if (requestId === sourceFileRequestId) {
+      toastStore.backendError(error, 'No se pudo abrir el archivo original de la tarifa.')
+    }
+  } finally {
+    if (requestId === sourceFileRequestId) sourceFileLoadingId.value = null
+  }
+}
 
 const marketStats = computed(() => {
   const source = calculation.value?.benchmark ?? benchmark.value
@@ -1326,7 +1353,7 @@ onMounted(() => {
         <div class="border-b border-[var(--dh-border)] px-4 py-3">
           <h4 class="font-black">Competitor Observations</h4>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Solo se muestran vigencias activas o que comienzan durante los próximos 7 días. Tarifas vencidas no participan en el promedio.
+            Solo se muestran las tarifas que realmente fueron incluidas en el cálculo del Average.
           </p>
         </div>
         <div class="overflow-x-auto">
@@ -1354,7 +1381,17 @@ onMounted(() => {
                 :key="observation.competitorRateObservationId"
                 class="border-t border-[var(--dh-border)]"
               >
-                <td class="px-3 py-3 font-bold">{{ observation.competitorCompanyName || '—' }}</td>
+                <td class="px-3 py-3">
+                  <button
+                    type="button"
+                    class="text-left font-bold text-sky-700 underline decoration-dotted underline-offset-4 hover:text-sky-600 focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 disabled:cursor-wait disabled:opacity-60 dark:text-sky-300 dark:hover:text-sky-200"
+                    :disabled="Boolean(sourceFileLoadingId)"
+                    :aria-label="`Abrir archivo original de ${observation.competitorCompanyName || 'la tarifa'}`"
+                    @click="openCompetitorSource(observation)"
+                  >
+                    {{ sourceFileLoadingId === observation.competitorRateObservationId ? 'Abriendo…' : (observation.competitorCompanyName || '—') }}
+                  </button>
+                </td>
                 <td class="px-3 py-3">{{ observationIncotermValue(observation) }}</td>
                 <td class="px-3 py-3">{{ observation.polName || observation.polCode || '—' }}</td>
                 <td class="px-3 py-3">{{ observation.poeName || observation.poeCode || '—' }}</td>
@@ -1506,6 +1543,11 @@ onMounted(() => {
       </p>
     </div>
   </section>
+  <PricingCompetitorTariffFileModal
+    :open="Boolean(sourceStorageId)"
+    :storage-id="sourceStorageId"
+    @close="sourceStorageId = null"
+  />
 </template>
 
 <style scoped>
