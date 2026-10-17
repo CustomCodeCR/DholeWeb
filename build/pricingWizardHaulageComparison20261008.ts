@@ -49,26 +49,36 @@ function dholeHaulageMatchesSelectedTerminal(cost: { name: string }) {
 // inland. "Cargos en destino Línea Naviera" (Fixed) nunca es Carrier Haulage.
 function dholeHaulageOptionalAssociation(cost: {
   costType?: CostType | null
+  costDetailType?: CostDetailType | null
+  carrierId?: string | null
+  carriers?: Array<{ id: string }> | null
   name: string
   notes?: string | null
   operationalConditions?: string[] | null
 }): DholeHaulageChoice | null {
+  // Fixed charges remain common to both alternatives; never reclassify them
+  // merely because they are associated with COSCO or another carrier.
   if (cost.costType !== 'Optional') return null
 
   const conditions = cost.operationalConditions ?? []
   const merchant = conditions.includes('MerchantHaulage')
   const carrier = conditions.includes('CarrierHaulage')
-  if (merchant && carrier) return null // Configuración contradictoria; no elegir ambos.
+  if (merchant && carrier) return null
   if (merchant) return 'merchant'
   if (carrier) return 'carrier'
 
-  // Compatibilidad con cargos opcionales históricos sin condición explícita:
-  // solo nombres identificables como servicios de haulage, nunca un cargo
-  // genérico de naviera/destino por mencionar "naviera" en notas.
   const name = normalizeCatalogValue(cost.name)
   if (name.includes('merchant')) return 'merchant'
   if (name.includes('carrier haulage')) return 'carrier'
   if (name.includes('inland') && name.includes('naviera')) return 'carrier'
+
+  // Older Caldera charges often have an InlandTransport type and an explicit
+  // carrier relationship but no "CarrierHaulage" flag in the display name.
+  // CarrierId represents only the FIRST carrier in legacy multi-select costs.
+  // Accept the hydrated list as evidence of carrier association as well.
+  const belongsToCarrier = Boolean(cost.carrierId)
+    || (Array.isArray(cost.carriers) && cost.carriers.length > 0)
+  if (cost.costDetailType === 'InlandTransport' && belongsToCarrier) return 'carrier'
   return null
 }
 
