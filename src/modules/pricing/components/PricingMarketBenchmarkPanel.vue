@@ -23,6 +23,8 @@ import type {
   AutoPricingDecisionDto,
   MarketBenchmarkDto,
   MarketBenchmarkObservationDto,
+  MarketCoverageDto,
+  CalculateMarketBenchmarkRequest,
 } from '@/core/interfaces/marketPricing'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -71,6 +73,9 @@ const toastStore = useToastStore()
 const pricingCatalogs = usePricingCatalogs()
 
 const benchmark = ref<MarketBenchmarkDto | null>(null)
+const marketCoverage = ref<MarketCoverageDto | null>(null)
+const marketCoverageLoading = ref(false)
+const marketCoverageError = ref('')
 const calculation = ref<AutoPricingCalculationDto | null>(null)
 const decision = ref<AutoPricingDecisionDto | null>(null)
 const loading = ref(false)
@@ -222,6 +227,13 @@ const marketStats = computed(() => {
     algorithmVersion: source?.algorithmVersion ?? decision.value?.algorithmVersion ?? '',
   }
 })
+
+const marketCoverageRows = computed(() =>
+  [...(marketCoverage.value?.documents ?? [])]
+    .sort((a, b) => b.matchingPolCount - a.matchingPolCount
+      || b.eligibleCount - a.eligibleCount)
+    .slice(0, 12),
+)
 
 const draftLowMarketTarget = computed(() => {
   if (props.rateId) return null
@@ -571,7 +583,7 @@ async function calculateDraftBenchmark() {
 
   try {
     action.value = 'benchmark'
-    const nextBenchmark = await MarketPricingService.calculateMarketBenchmark({
+    const payload: CalculateMarketBenchmarkRequest = {
       incotermId: props.context.incotermId!,
       polId: props.context.polId!,
       poeId: props.context.poeId || null,
@@ -583,9 +595,27 @@ async function calculateDraftBenchmark() {
       amountKind: 'AllIn',
       targetPercentile: 40,
       competitiveCeilingPercentile: 65,
-    })
+    }
+    const nextBenchmark = await MarketPricingService.calculateMarketBenchmark(payload)
     if (requestId !== draftBenchmarkRequestId) return
     benchmark.value = nextBenchmark
+    marketCoverage.value = null
+    marketCoverageError.value = ''
+    // No silent zero: list which recently imported source documents were
+    // rejected by market filtering, without using them for automatic pricing.
+    if (nextBenchmark.observationCount === 0) {
+      marketCoverageLoading.value = true
+      try {
+        const result = await MarketPricingService.diagnoseMarketCoverage(payload)
+        if (requestId === draftBenchmarkRequestId) marketCoverage.value = result
+      } catch {
+        if (requestId === draftBenchmarkRequestId) {
+          marketCoverageError.value = 'No se pudo consultar el estado de las tarifas cargadas.'
+        }
+      } finally {
+        if (requestId === draftBenchmarkRequestId) marketCoverageLoading.value = false
+      }
+    }
     // The deterministic benchmark is the immediate recommendation.
     // AI is opt-in only and cannot delay a quote.
   } catch (error) {
@@ -857,6 +887,9 @@ watch(
     aiDraftRequestId += 1
     aiDraftAnalyzing.value = false
     benchmark.value = null
+    marketCoverage.value = null
+    marketCoverageError.value = ''
+    marketCoverageLoading.value = false
     aiDraftSuggestion.value = null
     aiDraftAnalysisError.value = ''
     const handle = setTimeout(() => {
@@ -1023,6 +1056,72 @@ onMounted(() => {
             La referencia puede revisarse manualmente, pero Dhole no debe inventar un precio de alta confianza.
           </p>
         </div>
+      </div>
+
+      <div
+        v-if="!rateId && benchmark && marketStats.observationCount === 0"
+        class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-4"
+      >
+        <p class="text-xs font-black uppercase tracking-wide text-[var(--dh-text)]">
+          Diagnóstico de tarifas de competencia
+        </p>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+          Se revisan los documentos importados y se indica por qué sus filas no participan en Average. No se inventan rutas ni precios.
+        </p>
+        <p v-if="marketCoverageLoading" class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+          Revisando registros importados…
+        </p>
+        <p v-else-if="marketCoverageError" class="mt-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
+          {{ marketCoverageError }}
+        </p>
+        <template v-else-if="marketCoverage">
+          <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+            {{ marketCoverage.documentsExamined }} archivos revisados ·
+            {{ marketCoverage.eligibleObservations }} observaciones que superan el diagnóstico de elegibilidad.
+            Fecha de comparación: {{ formatDate(marketCoverage.referenceDate) }}.
+          </p>
+          <div v-if="marketCoverageRows.length" class="mt-3 overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="border-b border-[var(--dh-border)] text-[var(--dh-text-muted)]">
+                  <th class="px-2 py-2">Tarifario</th>
+                  <th class="px-2 py-2">Estado</th>
+                  <th class="px-2 py-2 text-right">POL</th>
+                  <th class="px-2 py-2 text-right">Elegibles</th>
+                  <th class="px-2 py-2">Motivo principal</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="item in marketCoverageRows"
+                  :key="item.competitorTariffId"
+                  class="border-b border-[var(--dh-border)]"
+                >
+                  <td class="max-w-44 px-2 py-2">
+                    <span class="block font-bold">{{ item.competitorCompanyName }}</span>
+                    <span class="block truncate text-[var(--dh-text-muted)]" :title="item.originalFileName">
+                      {{ item.originalFileName }}
+                    </span>
+                  </td>
+                  <td class="px-2 py-2">{{ item.importStatus }}</td>
+                  <td class="px-2 py-2 text-right">{{ item.matchingPolCount }}</td>
+                  <td class="px-2 py-2 text-right">{{ item.eligibleCount }}</td>
+                  <td class="px-2 py-2">{{ item.mainReason || 'Sin bloqueos detectados' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="mt-3 text-xs text-[var(--dh-text-muted)]">
+            No hay tarifarios recientes de esta modalidad registrados en Pricing.
+          </p>
+          <p
+            v-if="marketCoverage.eligibleObservations > 0"
+            class="mt-3 text-xs font-bold text-amber-700 dark:text-amber-300"
+          >
+            Existen observaciones aparentemente elegibles, pero Average devuelve cero:
+            se requiere revisar los filtros finales del benchmark.
+          </p>
+        </template>
       </div>
 
       <div
