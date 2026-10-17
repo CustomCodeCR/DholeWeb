@@ -204,6 +204,35 @@ test('Applying Average sale requires a margin comparison confirmation for both i
   assert.match(openHandler, /!draftSaleComparison\.value/)
 })
 
+test('Pantalla 7 opens the Average sale confirmation automatically once after valid data loads', async () => {
+  const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
+  const wizard = await source('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+
+  // The wizard mounts a fresh market panel upon entering step 7.
+  const step7 = wizard.indexOf('v-else-if="step === 7"')
+  const marketPanel = wizard.indexOf('<PricingMarketBenchmarkPanel', step7)
+  const step8 = wizard.indexOf('v-else-if="step === 8"')
+  assert.ok(step7 >= 0 && marketPanel > step7 && step8 > marketPanel)
+
+  assert.match(panel, /const hasAutoOpenedDraftSuggestion = ref\(false\)/)
+  assert.match(panel, /watch\(\s*\[draftSaleComparison, working\]/)
+  assert.match(panel, /hasAutoOpenedDraftSuggestion\.value\s*\|\| props\.rateId/)
+  assert.match(panel, /\|\| props\.viewOnly/)
+  assert.match(panel, /\|\| isWorking/)
+  assert.match(panel, /\|\| !comparison/)
+  assert.match(panel, /hasAutoOpenedDraftSuggestion\.value = true/)
+  assert.match(panel, /showDraftSuggestionConfirmation\.value = true/)
+  assert.match(panel, /\{ immediate: true, flush: 'post' \}/)
+  assert.match(panel, /@close="showDraftSuggestionConfirmation = false"/)
+  assert.match(panel, /@click="applyDraftSuggestedPrice"/)
+  assert.match(panel, /marketStats\.value\.observationCount > 0/)
+  assert.match(panel, /marketObservations\.value\.length > 0/)
+
+  const automatic = panel.split('[draftSaleComparison, working],')[1]
+    ?.split("{ immediate: true, flush: 'post' }")[0] || ''
+  assert.doesNotMatch(automatic, /emit\('applyDraftSuggestion'/)
+})
+
 test('Manual override never submits fixed charges and requires an audit reason', async () => {
   const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
 
