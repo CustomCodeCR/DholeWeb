@@ -161,6 +161,20 @@ test('Competitor observations expose traceability fields, weights and inclusion 
   assert.match(panel, /observation\.exclusionReason/)
 })
 
+test('Average shows only included tariffs and opens the correct source document', async () => {
+  const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
+  const contracts = await source('../src/core/interfaces/marketPricing.ts')
+  const fileModal = await source('../src/modules/pricing/components/PricingCompetitorTariffFileModal.vue')
+
+  assert.match(panel, /rows\.filter\(observation => observation\.wasIncluded && !observation\.isOutlier\)/)
+  assert.match(panel, /@click="openCompetitorSource\(observation\)"/)
+  assert.match(panel, /PricingService\.getCompetitorTariff\(tariffId\)/)
+  assert.match(panel, /sourceStorageId\.value = tariff\.storageId/)
+  assert.match(panel, /<PricingCompetitorTariffFileModal/)
+  assert.match(contracts, /competitorTariffId\?: string \| null/)
+  assert.match(fileModal, /<StorageFileViewer/)
+})
+
 test('Manual override never submits fixed charges and requires an audit reason', async () => {
   const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
 
