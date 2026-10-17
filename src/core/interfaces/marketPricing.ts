@@ -4,6 +4,7 @@ export type MarketBenchmarkAmountKind = 'AllIn' | 'OceanFreight' | 'NormalizedAm
 
 export interface MarketBenchmarkObservationDto {
   competitorRateObservationId: string
+  competitorTariffId?: string | null
   competitorCompanyId?: string | null
   competitorCompanyName: string
   incotermId?: string | null
