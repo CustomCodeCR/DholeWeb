@@ -37,6 +37,27 @@ export interface MarketBenchmarkObservationDto {
   outlierReason?: string | null
 }
 
+export interface MarketCoverageDocumentDto {
+  competitorTariffId: string
+  competitorCompanyName: string
+  originalFileName: string
+  importStatus: string
+  observationCount: number
+  matchingPolCount: number
+  eligibleCount: number
+  mainReason?: string | null
+}
+
+export interface MarketCoverageDto {
+  referenceDate: string
+  selectedPolId: string
+  selectedPoeId?: string | null
+  selectedEquipmentId?: string | null
+  documentsExamined: number
+  eligibleObservations: number
+  documents: MarketCoverageDocumentDto[]
+}
+
 export interface MarketBenchmarkDto {
   candidateCount: number
   observationCount: number
