@@ -243,10 +243,16 @@ ${optionalSelectorAnchor}`,
 function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
   if (cost.isActive === false) return false
 
+  // 'Any' is a valid wildcard for legacy costs (e.g. COSCO/Caldera
+  // Carrier Haulage). An empty shipmentModes array must not cause the old
+  // shipmentMode='Any' snapshot to reject an otherwise matching FCL charge.
   const modes = Array.isArray(cost.shipmentModes) && cost.shipmentModes.length
     ? cost.shipmentModes
     : cost.shipmentMode ? [cost.shipmentMode] : []
-  if (modes.length > 0 && !modes.some((mode) => String(mode).toLowerCase() === 'fcl')) return false
+  if (modes.length > 0 && !modes.some((mode) => {
+    const value = String(mode ?? '').trim().toLowerCase()
+    return value === 'fcl' || value === 'any'
+  })) return false
 
   if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId)) return false
   if (cost.services?.length && !cost.services.some((item) => form.serviceIds.includes(item.id))) return false
