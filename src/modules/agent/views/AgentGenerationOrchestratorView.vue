@@ -5,6 +5,7 @@ import {
   RefreshCw, Settings2, ShieldCheck, Workflow,
 } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { ApiError } from '@/core/api/apiErrorHandler'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -276,7 +277,8 @@ async function completeStandby(name: string) {
   if (!canManage.value || !independentlyVerified.value[name] || standbyBusy.value) return
   standbyBusy.value = name
   try {
-    await callEndpoint<unknown, { confirmation: string }>({
+    const response = await callEndpoint<{ status?: string; alreadyProcessing?: boolean },
+      { confirmation: string }>({
       method: 'POST',
       path: '/api/agents/runtime-generations/authentication/{{generation}}/complete',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -285,10 +287,43 @@ async function completeStandby(name: string) {
       body: { confirmation: 'I_VERIFIED_AUTHORIZED_MAERSK_ACCESS_IN_THIS_STANDBY' },
     })
     independentlyVerified.value[name] = false
-    toast.success('Verificación enviada', 'Se cerrará solo el visor temporal y se comprobará la autorización antes del cambio.')
+    if (response.status === 'Verified') {
+      toast.success('Autorización ya verificada',
+        'El acceso de ' + name + ' ya está registrado. No se repetirá el cierre del visor.')
+    } else if (response.alreadyProcessing) {
+      toast.info('Finalización en curso',
+        'Dhole ya está cerrando la autorización de ' + name + '. Esperá a que cambie el estado.')
+    } else {
+      toast.success('Finalización solicitada',
+        'Dhole comprobará nuevamente el Hub, realizará las validaciones y actualizará el estado.')
+    }
     await refreshStandbyAuthentication()
   } catch (error) {
-    toast.backendError(error, 'No se pudo finalizar la verificación del entorno.')
+    const code = error instanceof ApiError ? error.code : undefined
+    switch (code) {
+      case 'standby_hub_proof_expired':
+      case 'standby_hub_not_verified':
+        toast.warning('Verificación del Hub vencida',
+          'El Hub debe haberse comprobado hace menos de cinco minutos. Pulsá «Comprobar ahora», esperá la verificación y volvé a finalizar.')
+        break
+      case 'standby_auth_session_expired':
+      case 'standby_authentication_not_ready':
+        toast.warning('Preparación no vigente',
+          'La solicitud de autenticación ya no está lista. Prepará otra sesión desde esta pantalla; no es necesario borrar el perfil.')
+        break
+      case 'standby_auth_session_not_ready_or_wrong_operator':
+        toast.warning('Finalización rechazada por el servidor',
+          'La API todavía aplica la validación antigua del operador o el estado cambió. Actualizá la pantalla y solicitá la actualización de Agent API.')
+        break
+      case 'standby_authentication_failed':
+      case 'standby_completion_state_changed':
+        toast.warning('Estado de autenticación actualizado',
+          'La operación ya no corresponde al estado actual. Actualizá el entorno para consultar qué paso falta.')
+        break
+      default:
+        toast.backendError(error, 'No se pudo finalizar la verificación del entorno.')
+    }
+    await refreshStandbyAuthentication()
   } finally {
     standbyBusy.value = null
   }
