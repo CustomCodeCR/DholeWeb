@@ -144,7 +144,7 @@ function standbyStatusLabel(status?: StandbyAuthSession['status']) {
   return ({
     Requested: 'Solicitud recibida', Preparing: 'Preparando navegador',
     Ready: 'Navegador listo', Finishing: 'Finalizando verificación',
-    Verified: 'Cuenta verificada', Expired: 'Solicitud vencida',
+    Verified: 'Hub de Maersk verificado', Expired: 'Solicitud vencida',
     Failed: 'La preparación necesita atención',
   } as Record<string, string>)[status ?? ''] ?? 'Sin preparar'
 }
@@ -157,7 +157,7 @@ const standbyDiagnosticLabels: Record<string, string> = {
   standby_auth_session_verified: 'La cuenta ya figura como verificada.',
   standby_auth_schema_missing: 'El servicio debe actualizar su estructura de datos. Contacta al administrador.',
   postgres_operation_failed: 'No se pudo actualizar el estado de autenticación. Contacta al administrador.',
-  standby_account_not_visible_in_official_menu: 'No se pudo confirmar la cuenta en el Hub. Abre Account y vuelve a detectar.',
+  standby_hub_not_authenticated: 'El Hub autenticado todavía no está visible. Ingresa al Hub completo y vuelve a comprobar.',
 }
 async function refreshStandbyAuthentication() {
   try {
@@ -228,12 +228,12 @@ async function inspectStandby(name: string, silent = false) {
       headers: { Accept: 'application/json' },
     }, { params: { generation: name } })
     if (!silent) {
-      toast.success('Verificación de cuenta solicitada',
-        'Dhole consultará el panel Account del navegador de ' + name + '. Mantén abierto ese panel.')
+      toast.success('Comprobación del Hub solicitada',
+        'Dhole comprobará el Hub de Maersk en el navegador de ' + name + '. No se necesitan datos de usuario.')
     }
     await refreshStandbyAuthentication()
   } catch (error) {
-    if (!silent) toast.backendError(error, 'No se pudo consultar la cuenta de Maersk.')
+    if (!silent) toast.backendError(error, 'No se pudo comprobar el Hub autenticado de Maersk.')
   } finally {
     standbyBusy.value = null
   }
@@ -506,20 +506,17 @@ onUnmounted(() => {
                   </p>
                   <div v-if="standbySession(item.name)?.accountVerifiedAtUtc"
                     class="space-y-1 rounded-lg border border-emerald-500/40 p-3">
-                    <p class="font-bold text-emerald-500">Cuenta Maersk detectada en {{ item.name }}</p>
-                    <p><strong>Nombre:</strong> {{ standbySession(item.name)?.accountName }}</p>
-                    <p><strong>Usuario:</strong> {{ standbySession(item.name)?.accountUsername }}</p>
-                    <p><strong>Customer ID:</strong> {{ standbySession(item.name)?.accountCustomerId }}</p>
+                    <p class="font-bold text-emerald-500">Hub autenticado detectado en {{ item.name }}</p>
                     <p class="text-[var(--dh-text-muted)]">
                       Verificación: {{ dateLabel(standbySession(item.name)?.accountVerifiedAtUtc) }}
                     </p>
                   </div>
                   <p v-else class="text-[var(--dh-text-muted)]">
-                    Abre el menú Account en Maersk. Después pulsa «Detectar cuenta» para
-                    verificar nombre, usuario y Customer ID desde el navegador de este entorno.
+                    Ingresá al Hub de Maersk dentro de este navegador. Después pulsá «Comprobar Hub».
+                    No necesitás proporcionar nombre, usuario ni Customer ID.
                   </p>
                   <div class="flex flex-wrap gap-2">
-                    <DhButton label="Detectar cuenta" :icon="ShieldCheck" variant="secondary"
+                    <DhButton label="Comprobar Hub" :icon="ShieldCheck" variant="secondary"
                       :disabled="standbyBusy !== null" :loading="standbyBusy === item.name"
                       @click="inspectStandby(item.name)" />
                     <DhButton label="Reabrir visor conservando sesión" :icon="RefreshCw"
@@ -528,7 +525,7 @@ onUnmounted(() => {
                   </div>
                   <label class="flex items-start gap-2">
                     <input v-model="independentlyVerified[item.name]" type="checkbox" class="mt-0.5" />
-                    Confirmo que inicié sesión legítimamente en Maersk dentro de este navegador y comprobé el acceso a la cuenta. No hay CAPTCHA ni acceso denegado.
+                    Confirmo que ingresé legítimamente al Hub de Maersk en este navegador aislado. No hay CAPTCHA ni acceso denegado.
                   </label>
                   <DhButton label="Finalizar y verificar acceso" :icon="ShieldCheck"
                      :disabled="!independentlyVerified[item.name] || !standbySession(item.name)?.accountVerifiedAtUtc || standbyBusy !== null"
@@ -541,10 +538,7 @@ onUnmounted(() => {
                   <p>Dhole está procesando la solicitud automáticamente. El estado se actualizará aquí.</p>
                 </template>
                 <template v-else-if="standbySession(item.name)?.status === 'Verified'">
-                  <p class="font-semibold text-emerald-500">Acceso verificado. Ya puedes solicitar el cambio de Worker.</p>
-                  <p><strong>Nombre:</strong> {{ standbySession(item.name)?.accountName }}</p>
-                  <p><strong>Usuario:</strong> {{ standbySession(item.name)?.accountUsername }}</p>
-                  <p><strong>Customer ID:</strong> {{ standbySession(item.name)?.accountCustomerId }}</p>
+                  <p class="font-semibold text-emerald-500">Hub de Maersk verificado. Ya podés solicitar el cambio de Worker.</p>
                 </template>
                 <template v-else>
                   <label class="block font-semibold">Credencial Maersk autorizada
@@ -709,11 +703,11 @@ onUnmounted(() => {
         <div class="text-sm font-semibold">
           Maersk · {{ activeStandbyViewer.generation }} · Navegador independiente
           <p class="text-xs font-normal text-[var(--dh-text-muted)]">
-            Abre el menú de usuario de Maersk para que Dhole pueda comprobar la cuenta.
+            Ingresá al Hub de Maersk. Dhole comprobará que está abierto y autenticado, sin pedir datos de cuenta.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <DhButton label="Detectar cuenta" :icon="ShieldCheck"
+          <DhButton label="Comprobar Hub" :icon="ShieldCheck"
             variant="secondary" :loading="standbyBusy === activeStandbyViewer.generation"
             :disabled="standbyBusy !== null"
             @click="inspectStandby(activeStandbyViewer.generation)" />
