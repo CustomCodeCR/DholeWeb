@@ -47,6 +47,13 @@ test('all new generations authenticate by Hub without collecting account details
   assert.match(view, /validStandbyName\(item.name\)/)
 })
 
+test('standby finalization handles current state and expired Hub proof', () => {
+  assert.match(view, /response.status === 'Verified'/)
+  assert.match(view, /response.alreadyProcessing/)
+  assert.match(view, /standby_hub_proof_expired/)
+  assert.match(view, /standby_auth_session_expired/)
+})
+
 test('browser sessions distinguish prod1 original from isolated prod2 authorization', () => {
   assert.match(profileView, /Sesiones independientes de Maersk/)
   assert.match(profileView, /\/runtime-generations\/authentication\//)
