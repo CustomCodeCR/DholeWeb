@@ -321,6 +321,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/commercial-report',
+          name: 'pricing-commercial-report',
+          component: () => import('@/modules/pricing/views/PricingCommercialReportView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.commercialReport',
+            closable: true,
+            requiredAllScopes: [VIEW_SCOPES.pricingRates, 'pricing.rate-request.view-all'],
+          },
+        },
+        {
           path: 'pricing/seller-visibility',
           name: 'pricing-seller-visibility',
           component: () => import('@/modules/pricing/views/PricingSellerVisibilityView.vue'),
