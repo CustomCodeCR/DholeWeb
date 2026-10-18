@@ -1128,14 +1128,14 @@ function agentMatchesSelectedPol(agent: CatalogItemSelectDto) {
   if (!form.originId) return true
   const originCountries = countryTokens(selectedOrigin.value)
   if (!originCountries.size) return false
-  const agentCountries = countryTokens(agent)
+  const agentCountries = countryTokens(agent, false)
   return [...originCountries].some((country) => agentCountries.has(country))
 }
 
 const eligibleAgents = computed(() => catalogs.agents.filter(agentMatchesSelectedPol))
 const agentOptions = computed(() => eligibleAgents.value.map((item) => ({ value: item.id, label: displayValue(item) })))
 
-function countryTokens(item: CatalogItemSelectDto | null | undefined) {
+function countryTokens(item: CatalogItemSelectDto | null | undefined, includeLabelFallback = true) {
   const tokens = new Set<string>()
   if (!item) return tokens
 
@@ -1155,10 +1155,12 @@ function countryTokens(item: CatalogItemSelectDto | null | undefined) {
     'originCountryCode', 'originCountry', 'iso2', 'iso3', 'countries', 'countryCodes',
   ]) add(meta[key])
 
-  for (const raw of [item.value, item.label]) {
-    const text = String(raw ?? '').trim()
-    if (!text.includes(',')) continue
-    add(text.split(',').at(-1))
+  if (includeLabelFallback) {
+    for (const raw of [item.value, item.label]) {
+      const text = String(raw ?? '').trim()
+      if (!text.includes(',')) continue
+      add(text.split(',').at(-1))
+    }
   }
 
   return tokens
@@ -1172,7 +1174,7 @@ function resolveAgentForOrigin() {
   let best: CatalogItemSelectDto | null = null
   let bestScore = 0
   for (const agent of eligibleAgents.value) {
-    const agentTokens = countryTokens(agent)
+    const agentTokens = countryTokens(agent, false)
     const searchText = normalizeCatalogValue(
       [agent.code, agent.value, agent.label, agent.metadataJson].filter(Boolean).join(' '),
     )
