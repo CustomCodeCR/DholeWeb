@@ -512,11 +512,11 @@ onUnmounted(() => {
                     </p>
                   </div>
                   <p v-else class="text-[var(--dh-text-muted)]">
-                    Ingresá al Hub de Maersk dentro de este navegador. Después pulsá «Comprobar Hub».
+                    Ingresá al Hub de Maersk dentro de este navegador. Dhole detecta y registra el acceso automáticamente; «Comprobar ahora» es opcional.
                     No necesitás proporcionar nombre, usuario ni Customer ID.
                   </p>
                   <div class="flex flex-wrap gap-2">
-                    <DhButton label="Comprobar Hub" :icon="ShieldCheck" variant="secondary"
+                    <DhButton label="Comprobar ahora" :icon="ShieldCheck" variant="secondary"
                       :disabled="standbyBusy !== null" :loading="standbyBusy === item.name"
                       @click="inspectStandby(item.name)" />
                     <DhButton label="Reabrir visor conservando sesión" :icon="RefreshCw"
@@ -703,11 +703,11 @@ onUnmounted(() => {
         <div class="text-sm font-semibold">
           Maersk · {{ activeStandbyViewer.generation }} · Navegador independiente
           <p class="text-xs font-normal text-[var(--dh-text-muted)]">
-            Ingresá al Hub de Maersk. Dhole comprobará que está abierto y autenticado, sin pedir datos de cuenta.
+            Ingresá al Hub de Maersk. Dhole comprobará automáticamente que esté abierto y autenticado, sin pedir datos de cuenta.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <DhButton label="Comprobar Hub" :icon="ShieldCheck"
+          <DhButton label="Comprobar ahora" :icon="ShieldCheck"
             variant="secondary" :loading="standbyBusy === activeStandbyViewer.generation"
             :disabled="standbyBusy !== null"
             @click="inspectStandby(activeStandbyViewer.generation)" />
