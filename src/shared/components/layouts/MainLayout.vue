@@ -252,7 +252,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     children.push({ label: t('sidebar.ftlTariffs'), path: '/pricing/ftl-tariffs', icon: Truck })
   }
 
-  if (canView(VIEW_SCOPES.pricingRates) && canView('pricing.rate-request.view-all')) {
+  if (canView('pricing.rate-request.view-all')) {
     children.push({ label: t('sidebar.commercialReport'), path: '/pricing/commercial-report', icon: FileText })
   }
 

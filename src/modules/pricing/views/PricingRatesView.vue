@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Copy, Edit3, Eye, ReceiptText, Trash2 } from 'lucide-vue-next'
+import { Copy, Edit3, Eye, FileSpreadsheet, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhCrudToolbar, DhPagination } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -610,7 +610,16 @@ onMounted(async () => {
       title="Tarifas"
       subtitle="Seguimiento por Pendientes de aprobación, Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."
       :icon="ReceiptText"
-    />
+    >
+      <template #actions>
+        <DhButton
+          v-if="authStore.hasScope('pricing.rate-request.view-all')"
+          label="Reporte de cotizaciones"
+          :icon="FileSpreadsheet"
+          @click="router.push({ name: 'pricing-commercial-report' })"
+        />
+      </template>
+    </DhPageHeader>
 
     <section class="dh-glass dh-liquid rounded-[24px] p-3 sm:rounded-[32px] sm:p-5">
       <DhCrudToolbar
