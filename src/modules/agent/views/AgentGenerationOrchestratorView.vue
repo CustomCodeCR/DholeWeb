@@ -72,6 +72,7 @@ const standbyAuthentications = ref<StandbyAuthSession[]>([])
 const maerskCredentials = ref<MaerskCredential[]>([])
 const selectedCredential = ref('')
 const standbyBusy = ref<string | null>(null)
+const activeStandbyViewer = ref<{ generation: string; url: string } | null>(null)
 const independentlyVerified = ref<Record<string, boolean>>({})
 const panel = ref<Panel>('overview')
 const newGeneration = ref('')
@@ -190,15 +191,6 @@ async function prepareStandby(name: string) {
 }
 async function openStandbyViewer(name: string) {
   if (!canManage.value || standbyBusy.value) return
-  // Open synchronously with the click to avoid popup blockers while the
-  // scoped Agent API issues a short-lived, HttpOnly viewer cookie.
-  const viewer = window.open('about:blank', '_blank')
-  if (!viewer) {
-    toast.backendError(new Error('Ventana emergente bloqueada'),
-      'Permite abrir ventanas de Dhole para visualizar el navegador.')
-    return
-  }
-  viewer.opener = null
   standbyBusy.value = name
   try {
     const result = await callEndpoint<{ url: string; expiresAtUtc: string }>({
@@ -214,12 +206,13 @@ async function openStandbyViewer(name: string) {
           name + '/viewer/')) {
       throw new Error('La dirección del visor no es válida')
     }
-    viewer.location.replace(destination.href)
-    toast.success('Visor abierto', 'Inicia sesión en Maersk dentro del navegador de ' + name +
-      '. Después vuelve a Dhole y selecciona «Detectar cuenta».')
+    // Keep the viewer inside Dhole's top-level browsing context so its
+    // HttpOnly, partitioned cross-origin cookie remains available to Firefox.
+    // Never put bearer credentials into the viewer URL.
+    activeStandbyViewer.value = { generation: name, url: destination.href }
   } catch (error) {
-    viewer.close()
-    toast.backendError(error, 'No se pudo abrir el navegador. Comprueba que esté listo y vuelve a intentar.')
+    toast.backendError(error,
+      'No se pudo abrir el navegador. Confirma que prod2 esté listo e inténtalo nuevamente.')
   } finally {
     standbyBusy.value = null
   }
@@ -508,8 +501,8 @@ onUnmounted(() => {
                     variant="secondary" :disabled="standbyBusy !== null"
                     :loading="standbyBusy === item.name" @click="openStandbyViewer(item.name)" />
                   <p class="text-[var(--dh-text-muted)]">
-                    El navegador se abre en otra pestaña de forma protegida.
-                    No necesitas utilizar SSH ni GitHub Actions.
+                    El navegador se abre aquí dentro de Dhole de forma protegida.
+                    No necesitás utilizar SSH ni GitHub Actions.
                   </p>
                   <div v-if="standbySession(item.name)?.accountVerifiedAtUtc"
                     class="space-y-1 rounded-lg border border-emerald-500/40 p-3">
@@ -705,6 +698,33 @@ onUnmounted(() => {
         </div>
       </section>
     </template>
+
+    <div v-if="activeStandbyViewer"
+      class="fixed inset-0 z-[100] flex flex-col bg-[var(--dh-surface)]"
+      role="dialog" aria-modal="true" aria-label="Navegador independiente de Maersk">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-3">
+        <div class="text-sm font-semibold">
+          Maersk · {{ activeStandbyViewer.generation }} · Navegador independiente
+          <p class="text-xs font-normal text-[var(--dh-text-muted)]">
+            Abre el menú de usuario de Maersk para que Dhole pueda comprobar la cuenta.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <DhButton label="Detectar cuenta" :icon="ShieldCheck"
+            variant="secondary" :loading="standbyBusy === activeStandbyViewer.generation"
+            :disabled="standbyBusy !== null"
+            @click="inspectStandby(activeStandbyViewer.generation)" />
+          <DhButton label="Cerrar visor" variant="secondary"
+            @click="activeStandbyViewer = null" />
+        </div>
+      </div>
+      <iframe :src="activeStandbyViewer.url"
+        class="min-h-0 w-full flex-1 border-0"
+        title="Navegador aislado de Maersk"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
+        referrerpolicy="no-referrer"
+        allow="clipboard-read; clipboard-write" />
+    </div>
 
     <div v-else-if="loading" class="rounded-2xl border border-[var(--dh-border)] p-6 text-sm text-[var(--dh-text-muted)]">
       Cargando entornos…
