@@ -182,6 +182,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
           },
           {
+            labelKey: 'sidebar.commercialReport',
+            icon: FileText,
+            to: '/pricing/commercial-report',
+            name: 'pricing-commercial-report',
+            requiredAllScopes: [VIEW_SCOPES.pricingRates, 'pricing.rate-request.view-all'],
+          },
+          {
             labelKey: 'sidebar.sellerVisibility',
             icon: Users,
             to: '/pricing/seller-visibility',
