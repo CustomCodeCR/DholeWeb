@@ -58,6 +58,7 @@ const sellerOptions = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
 })
 const rates = ref<RateDto[]>([])
+const receivingIds = ref<string[]>([])
 
 
 // El endpoint seller-rates determina la propiedad por SellerUserId del token, no por texto del vendedor.
@@ -87,6 +88,12 @@ function statusLabel(status: SellerCommercialStatus) {
     Expired: 'Vencida',
   }
   return labels[status]
+}
+
+function sellerStatusLabel(rate: RateDto) {
+  return commercialStatus(rate) === 'Sent' && rate.sellerReceivedAtUtc
+    ? 'Recibida · Esperando cliente'
+    : statusLabel(commercialStatus(rate))
 }
 
 function statusVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutral' {
@@ -285,6 +292,38 @@ function routeLabel(rate: RateDto) {
 
 function canRespondToRate(rate: RateDto) {
   return ['Sent', 'RequestedByClient'].includes(rate.status)
+}
+
+function canMarkReceived(rate: RateDto) {
+  return !props.adminPreview
+    && ['Sent', 'RequestedByClient'].includes(rate.status)
+    && !rate.sellerReceivedAtUtc
+    && !!rate.executiveName?.trim()
+    && rate.executiveName.trim().toLowerCase() !== 'castro fallas'
+}
+
+async function markReceived(rate: RateDto) {
+  if (!canMarkReceived(rate) || receivingIds.value.includes(rate.id)) return
+  receivingIds.value = [...receivingIds.value, rate.id]
+  try {
+    await callEndpoint<unknown>({
+      method: 'PATCH',
+      path: `/api/pricing/seller-rates/${rate.id}/received`,
+      headers: { Accept: 'application/json' },
+    })
+    toast.success('Tarifa recibida', 'Se guardó su confirmación de recepción.')
+    await load()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo confirmar la recepción de la tarifa.')
+  } finally {
+    receivingIds.value = receivingIds.value.filter((id) => id !== rate.id)
+  }
+}
+
+function openSellerRate(rate: RateDto) {
+  if (!props.adminPreview) {
+    void router.push({ name: 'pricing-seller-rate-detail', params: { rateId: rate.id } })
+  }
 }
 
 function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
@@ -530,7 +569,7 @@ onMounted(load)
                   <p class="break-all text-xs font-black text-[var(--dh-text)]">{{ rate.quoNumber || rate.rateCode }}</p>
                   <p class="mt-1 text-sm font-bold text-[var(--dh-text)]">{{ rate.clientName || 'Cliente sin definir' }}</p>
                 </div>
-                <DhBadge :label="statusLabel(commercialStatus(rate))" :variant="statusVariant(rate)" />
+                <DhBadge :label="sellerStatusLabel(rate)" :variant="statusVariant(rate)" />
               </div>
               <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">{{ routeLabel(rate) }}</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ equipmentLabel(rate) }}</p>
@@ -538,9 +577,14 @@ onMounted(load)
                 <span class="text-xs text-[var(--dh-text-muted)]">Vigencia hasta {{ formatDate(rate.validTo) }}</span>
                 <strong class="text-sm text-[var(--dh-text)]">{{ money(rate.totalSaleAmount, currencyOf(rate)) }}</strong>
               </div>
-              <div v-if="!props.adminPreview && canRespondToRate(rate)" class="mt-3 flex gap-2">
+              <div v-if="!props.adminPreview" class="mt-3 flex flex-wrap gap-2">
+                <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
+                <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
+                  :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
+                <template v-if="canRespondToRate(rate)">
                 <DhButton label="Aceptar" size="sm" @click="openCustomerDecision(rate, 'AcceptedByClient')" />
                 <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
+                </template>
               </div>
             </article>
           </div>
@@ -569,11 +613,16 @@ onMounted(load)
                     {{ money(rate.totalSaleAmount, currencyOf(rate)) }}
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ formatDate(rate.validTo) }}</td>
-                  <td class="px-4 py-3"><DhBadge :label="statusLabel(commercialStatus(rate))" :variant="statusVariant(rate)" /></td>
+                  <td class="px-4 py-3"><DhBadge :label="sellerStatusLabel(rate)" :variant="statusVariant(rate)" /></td>
                   <td class="px-4 py-3">
-                    <div v-if="!props.adminPreview && canRespondToRate(rate)" class="flex gap-1.5">
+                    <div v-if="!props.adminPreview" class="flex flex-wrap gap-1.5">
+                      <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
+                      <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
+                        :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
+                      <template v-if="canRespondToRate(rate)">
                       <DhButton label="Aceptar" size="sm" @click="openCustomerDecision(rate, 'AcceptedByClient')" />
                       <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
+                      </template>
                     </div>
                     <span v-else class="whitespace-nowrap text-[11px] text-[var(--dh-text-muted)]">Sin acción pendiente</span>
                   </td>
