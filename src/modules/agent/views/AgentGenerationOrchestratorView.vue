@@ -504,7 +504,7 @@ onUnmounted(() => {
                   El acceso se administra desde Dhole. El Worker de prod1 sigue activo.
                 </p>
                 <template v-if="standbySession(item.name)?.status === 'Ready'">
-                  <DhButton label="Abrir navegador de {{ item.name }}" :icon="ShieldCheck"
+                  <DhButton :label="'Abrir navegador de ' + item.name" :icon="ShieldCheck"
                     variant="secondary" :disabled="standbyBusy !== null"
                     :loading="standbyBusy === item.name" @click="openStandbyViewer(item.name)" />
                   <p class="text-[var(--dh-text-muted)]">
