@@ -348,3 +348,31 @@ export async function fetchClient<T>(
     throw new NetworkError(endpoint, options.method, error as Error)
   }
 }
+
+/**
+ * Download an authenticated binary document without putting bearer tokens in a URL.
+ * Uses the same token refresh rules as fetchClient, including impersonation isolation.
+ */
+export async function fetchProtectedBlob(endpoint: string): Promise<Blob> {
+  const startedWithTransientToken = hasTransientAccessToken()
+  let token = await getUsableAccessToken(endpoint)
+  const request = (bearer: string | null) => fetch(`${BASE_URL}${endpoint}`, {
+    method: 'GET',
+    headers: bearer ? { Authorization: `Bearer ${bearer}` } : {},
+  })
+
+  let response = await request(token)
+  if (response.status === 401 && startedWithTransientToken) {
+    clearTransientAccessToken()
+    emitImpersonationExpired()
+  } else if (response.status === 401 && await refreshStoredSession()) {
+    token = getAccessToken()
+    response = await request(token)
+  }
+
+  if (!response.ok) {
+    throw new Error(`No se pudo descargar el archivo (HTTP ${response.status}).`)
+  }
+
+  return response.blob()
+}
