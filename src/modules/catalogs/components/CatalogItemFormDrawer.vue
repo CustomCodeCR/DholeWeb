@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DhButton, DhInput, DhSelect, DhSwitch } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSwitch } from '@/shared/components/atoms'
 import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -96,68 +96,120 @@ function parseMetadataJson(value?: string | null): WarehouseImageMetadata {
 const isAgentGroup = computed(() => props.group.slug === 'agents')
 type AgentCountry = { name: string; code: string }
 const polCountries = ref<AgentCountry[]>([])
-
-function countryNameFromMetadata(meta: Record<string, unknown>) {
-  const countries = Array.isArray(meta.countries) ? meta.countries : []
-  return String(meta.countryName || meta.country || countries[0] || meta.countryCode || '').trim()
-}
+const agentCountrySearch = ref('')
 
 function normalizedCountry(value: string) {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
-const agentCountryOptions = computed(() => {
-  const countries = [...polCountries.value]
-  const meta = parseMetadataJson(form.value.metadataJson)
-  const currentName = countryNameFromMetadata(meta)
-  const currentCode = String(meta.countryCode ?? '').trim().toUpperCase()
-  if (currentName && !countries.some((country) =>
-    normalizedCountry(country.name) === normalizedCountry(currentName)
-    || Boolean(currentCode && country.code === currentCode)
-  )) countries.push({ name: currentName, code: currentCode })
+function listCountryNames(meta: Record<string, unknown>) {
+  const countries = Array.isArray(meta.countries) ? meta.countries : []
+  const names = countries
+    .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+    .map((value) => value.trim())
 
-  return countries
-    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
-    .map((country) => ({ value: country.name, label: country.name }))
-})
+  if (!names.length) {
+    const legacyName = String(
+      meta.countryName || meta.country || meta.originCountry || '',
+    ).trim()
+    if (legacyName) names.push(legacyName)
+  }
 
-const agentCountry = computed<string>({
-  get() {
-    const meta = parseMetadataJson(form.value.metadataJson)
-    const name = countryNameFromMetadata(meta)
-    const code = String(meta.countryCode ?? '').trim().toUpperCase()
-    const matching = polCountries.value.find((country) =>
-      normalizedCountry(country.name) === normalizedCountry(name)
-      || Boolean(code && country.code === code)
+  const rawCodes = Array.isArray(meta.countryCodes) ? meta.countryCodes : []
+  const codes = [...rawCodes, meta.countryCode, meta.originCountryCode]
+    .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+  for (const code of codes) {
+    const known = polCountries.value.find((country) =>
+      Boolean(country.code) && country.code.toUpperCase() === code.toUpperCase(),
     )
-    return matching?.name ?? name
-  },
-  set(name) {
-    const metadata = parseMetadataJson(form.value.metadataJson)
-    const countryName = String(name ?? '').trim()
-    const choice = polCountries.value.find((country) =>
-      normalizedCountry(country.name) === normalizedCountry(countryName)
-    )
-    // El agente tiene un país asignado: evitar alias heredados de otros países.
-    for (const key of [
-      'country', 'countryName', 'countryCode', 'countryIso2', 'countryIso3',
-      'originCountry', 'originCountryCode', 'iso2', 'iso3', 'countries', 'countryCodes',
-    ]) delete metadata[key]
-    if (countryName) {
-      metadata.country = choice?.name ?? countryName
-      metadata.countryName = choice?.name ?? countryName
-      metadata.countries = [choice?.name ?? countryName]
-      if (choice?.code) {
-        metadata.countryCode = choice.code
-        metadata.countryCodes = [choice.code]
-      } else {
-        delete metadata.countryCode
-        delete metadata.countryCodes
-      }
+    // Compatibilidad con agentes cuya única metadata anterior era countryCode.
+    if (known && !names.some((name) => normalizedCountry(name) === normalizedCountry(known.name))) {
+      names.push(known.name)
+    } else if (!known && names.length === 0) {
+      names.push(code)
     }
-    form.value.metadataJson = Object.keys(metadata).length ? JSON.stringify(metadata) : null
-  },
+  }
+
+  const unique = new Map<string, string>()
+  names.forEach((name) => {
+    const known = polCountries.value.find((country) =>
+      normalizedCountry(country.name) === normalizedCountry(name)
+      || Boolean(country.code && country.code.toUpperCase() === name.toUpperCase()),
+    )
+    const displayName = known?.name ?? name
+    unique.set(normalizedCountry(displayName), displayName)
+  })
+  return [...unique.values()]
+}
+
+const selectedAgentCountries = computed(() => listCountryNames(parseMetadataJson(form.value.metadataJson)))
+const agentCountryOptions = computed(() => {
+  const names = new Map<string, AgentCountry>()
+  for (const country of [...polCountries.value, ...selectedAgentCountries.value.map((name) => ({ name, code: '' }))]) {
+    const key = normalizedCountry(country.name)
+    const current = names.get(key)
+    if (!current || (!current.code && country.code)) names.set(key, country)
+  }
+  return [...names.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'))
 })
+const filteredAgentCountryOptions = computed(() => {
+  const search = normalizedCountry(agentCountrySearch.value)
+  return agentCountryOptions.value.filter((country) =>
+    !search || normalizedCountry(country.name).includes(search) || country.code.toLowerCase().includes(search),
+  )
+})
+const canAddCustomCountry = computed(() => {
+  const search = normalizedCountry(agentCountrySearch.value)
+  return Boolean(search) && !agentCountryOptions.value.some((country) => normalizedCountry(country.name) === search)
+})
+
+function agentCountrySelected(name: string) {
+  return selectedAgentCountries.value.some((selected) => normalizedCountry(selected) === normalizedCountry(name))
+}
+
+function setAgentCountries(names: string[]) {
+  const metadata = parseMetadataJson(form.value.metadataJson)
+  const canonical = new Map<string, AgentCountry>()
+  for (const value of names) {
+    const known = polCountries.value.find((country) =>
+      normalizedCountry(country.name) === normalizedCountry(value)
+      || Boolean(country.code && country.code.toLowerCase() === value.toLowerCase()),
+    )
+    const name = (known?.name ?? value).trim()
+    if (name) canonical.set(normalizedCountry(name), { name, code: known?.code ?? '' })
+  }
+  const countries = [...canonical.values()]
+  // Los campos singulares conservan compatibilidad con lectores anteriores.
+  // Los plurales son la fuente para los agentes que trabajan en varios países.
+  for (const key of [
+    'country', 'countryName', 'countryCode', 'countryIso2', 'countryIso3',
+    'originCountry', 'originCountryCode', 'iso2', 'iso3', 'countries', 'countryCodes',
+  ]) delete metadata[key]
+  if (countries.length) {
+    metadata.countries = countries.map((country) => country.name)
+    metadata.country = countries[0]!.name
+    metadata.countryName = countries[0]!.name
+    if (countries[0]!.code) metadata.countryCode = countries[0]!.code
+    const codes = [...new Set(countries.map((country) => country.code).filter(Boolean))]
+    if (codes.length) metadata.countryCodes = codes
+  }
+  form.value.metadataJson = Object.keys(metadata).length ? JSON.stringify(metadata) : null
+}
+
+function toggleAgentCountry(name: string) {
+  if (!canSave.value) return
+  const selected = selectedAgentCountries.value
+  setAgentCountries(agentCountrySelected(name)
+    ? selected.filter((value) => normalizedCountry(value) !== normalizedCountry(name))
+    : [...selected, name])
+}
+
+function addCustomAgentCountry() {
+  if (!canSave.value || !canAddCustomCountry.value) return
+  setAgentCountries([...selectedAgentCountries.value, agentCountrySearch.value.trim()])
+  agentCountrySearch.value = ''
+}
 
 async function loadAgentCountries() {
   if (!isAgentGroup.value) return
@@ -166,19 +218,27 @@ async function loadAgentCountries() {
     const countries = new Map<string, AgentCountry>()
     for (const port of ports) {
       const meta = parseMetadataJson(port.metadataJson)
-      const display = String(port.value || port.label || '')
-      const suffix = display.includes(',') ? display.split(',').at(-1)?.trim() : ''
-      const name = String(meta.countryName || meta.country || meta.originCountry || suffix || meta.countryCode || '').trim()
-      if (!name) continue
-      const rawCode = String(meta.countryCode ?? '').trim().toUpperCase()
-      const code = /^[A-Z]{2}$/.test(rawCode) ? rawCode : ''
-      const key = normalizedCountry(name)
-      const previous = countries.get(key)
-      if (!previous || (!previous.code && code)) countries.set(key, { name, code })
+      const raw = String(port.value || port.label || '')
+      const suffix = raw.includes(',') ? raw.split(',').at(-1)?.trim() : ''
+      const names = [
+        meta.countryName, meta.country, meta.originCountry,
+        ...(Array.isArray(meta.countries) ? meta.countries : []),
+        suffix, meta.countryCode,
+      ].filter((name): name is string => typeof name === 'string' && Boolean(name.trim()))
+      const code = String(meta.countryCode ?? '').trim().toUpperCase()
+      for (const name of names) {
+        // No mostrar códigos ISO como países duplicados cuando también existe un nombre.
+        if (/^[A-Z]{2}$/.test(name) && names.some((value) => value.length > 2)) continue
+        const key = normalizedCountry(name)
+        const existing = countries.get(key)
+        if (!existing || (!existing.code && /^[A-Z]{2}$/.test(code))) {
+          countries.set(key, { name: name.trim(), code: /^[A-Z]{2}$/.test(code) ? code : '' })
+        }
+      }
     }
     polCountries.value = [...countries.values()]
   } catch {
-    // Permitir capturar el país manualmente cuando los POL no estén disponibles.
+    // Todavía se puede registrar un país manualmente cuando no cargue el catálogo POL.
   }
 }
 
@@ -378,7 +438,7 @@ async function save() {
     return
   }
 
-  if (isAgentGroup.value && !agentCountry.value) {
+  if (isAgentGroup.value && !selectedAgentCountries.value.length) {
     toastStore.warning('País requerido', 'Seleccione el país que corresponde a este agente.')
     return
   }
@@ -650,24 +710,62 @@ onBeforeUnmount(clearPendingWarehouseImages)
       </div>
     </section>
 
-    <section v-if="isAgentGroup" class="space-y-2 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-      <DhSelect
-        v-if="agentCountryOptions.length"
-        v-model="agentCountry"
-        label="País del agente *"
-        :options="agentCountryOptions"
-        placeholder="Seleccione el país del POL"
-        :disabled="!canSave"
-      />
+    <section v-if="isAgentGroup" class="space-y-3 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <span class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Países del agente *</span>
+        <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ selectedAgentCountries.length }} seleccionados</span>
+      </div>
+      <div v-if="selectedAgentCountries.length" class="flex flex-wrap gap-2">
+        <span
+          v-for="country in selectedAgentCountries"
+          :key="normalizedCountry(country)"
+          class="inline-flex items-center gap-2 rounded-full border border-[var(--dh-border)] bg-[var(--dh-primary-soft)] px-3 py-1 text-xs font-bold text-[var(--dh-text)]"
+        >
+          {{ country }}
+          <button
+            type="button"
+            class="text-[var(--dh-primary)] hover:opacity-70 disabled:opacity-40"
+            :aria-label="'Quitar ' + country"
+            :disabled="!canSave"
+            @click="toggleAgentCountry(country)"
+          >×</button>
+        </span>
+      </div>
       <DhInput
-        v-else
-        v-model="agentCountry"
-        label="País del agente *"
-        placeholder="Ej. China"
+        v-model="agentCountrySearch"
+        label="Buscar y seleccionar países"
+        placeholder="Buscar país (ej. China, Brasil, India)"
         :disabled="!canSave"
       />
-      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-        Se guarda en la metadata del agente y determina en qué POL aparece dentro del cotizador.
+      <div class="max-h-44 space-y-1 overflow-y-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-2">
+        <label
+          v-for="country in filteredAgentCountryOptions"
+          :key="normalizedCountry(country.name)"
+          class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-[var(--dh-text)] hover:bg-[var(--dh-primary-soft)]"
+        >
+          <input
+            type="checkbox"
+            class="h-4 w-4 accent-[var(--dh-primary)]"
+            :checked="agentCountrySelected(country.name)"
+            :disabled="!canSave"
+            @change="toggleAgentCountry(country.name)"
+          />
+          <span>{{ country.name }}</span>
+          <span v-if="country.code" class="ml-auto text-xs text-[var(--dh-text-muted)]">{{ country.code }}</span>
+        </label>
+        <p v-if="!filteredAgentCountryOptions.length" class="p-2 text-xs text-[var(--dh-text-muted)]">
+          No hay países que coincidan con la búsqueda.
+        </p>
+      </div>
+      <button
+        v-if="canAddCustomCountry"
+        type="button"
+        class="text-left text-sm font-bold text-[var(--dh-primary)] disabled:opacity-50"
+        :disabled="!canSave"
+        @click="addCustomAgentCountry"
+      >+ Agregar país «{{ agentCountrySearch.trim() }}»</button>
+      <p class="text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
+        Seleccione todos los países donde opera el agente. Se guardan en metadata.countries y se comparan con el país del POL en Pricing.
       </p>
     </section>
 
