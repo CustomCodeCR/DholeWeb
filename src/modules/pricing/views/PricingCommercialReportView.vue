@@ -23,7 +23,7 @@ interface Quote {
   podName?: string | null
   containerTypeName?: string | null
   containerQuantity: number
-  currencyCode: string
+  currencyValue: string
   totalSaleAmount: number
   totalCostAmount: number
   totalUtilityAmount: number
@@ -64,7 +64,7 @@ const filterOptions = computed(() => [
 const totals = computed(() => {
   const values = new Map<string, number>()
   for (const row of filtered.value) {
-    const currency = row.currencyCode?.trim().toUpperCase() || 'SIN MONEDA'
+    const currency = row.currencyValue?.trim().toUpperCase() || 'SIN MONEDA'
     values.set(currency, (values.get(currency) ?? 0) + Number(row.totalSaleAmount || 0))
   }
   return [...values].sort(([a], [b]) => a.localeCompare(b))
@@ -131,6 +131,7 @@ onMounted(load)
       title="Reporte de cotizaciones"
       subtitle="Todas las cotizaciones comerciales del sistema: enviadas, aceptadas y no aceptadas. Los importes se mantienen separados por moneda."
       :icon="FileSpreadsheet"
+      :hide-excel-export="true"
     >
       <template #actions>
         <div class="flex flex-wrap gap-2">
@@ -199,8 +200,8 @@ onMounted(load)
                 <span class="text-xs text-[var(--dh-text-muted)]">{{ row.shipmentMode }} · {{ row.containerQuantity }} × {{ row.containerTypeName }}</span>
               </td>
               <td class="px-3 py-3">{{ date(row.createdAtUtc) }}</td>
-              <td class="px-3 py-3 font-bold">{{ amount(row.totalSaleAmount, row.currencyCode) }}</td>
-              <td class="px-3 py-3">{{ amount(row.totalUtilityAmount, row.currencyCode) }}</td>
+              <td class="px-3 py-3 font-bold">{{ amount(row.totalSaleAmount, row.currencyValue) }}</td>
+              <td class="px-3 py-3">{{ amount(row.totalUtilityAmount, row.currencyValue) }}</td>
               <td class="px-3 py-3 font-bold">{{ labels[row.status] }}</td>
             </tr>
             <tr v-if="!loading && !filtered.length">

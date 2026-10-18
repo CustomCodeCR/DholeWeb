@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { DhButton } from '@/shared/components/atoms'
 import { downloadVisibleTablesAsExcel, hasVisibleExcelTables } from '@/core/utils/excel'
 
-const props = defineProps<{ title: string; subtitle?: string; icon?: Component }>()
+const props = defineProps<{ title: string; subtitle?: string; icon?: Component; hideExcelExport?: boolean }>()
 const { t } = useI18n()
 const hasExcelTables = ref(false)
 let observer: MutationObserver | null = null
@@ -66,11 +66,11 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      v-if="$slots.actions || hasExcelTables"
+      v-if="$slots.actions || (hasExcelTables && !props.hideExcelExport)"
       class="dh-page-header-actions flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end"
     >
       <DhButton
-        v-if="hasExcelTables"
+        v-if="hasExcelTables && !props.hideExcelExport"
         :label="t('common.exportExcel')"
         :icon="FileSpreadsheet"
         variant="secondary"
