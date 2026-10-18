@@ -18,10 +18,18 @@ const selected = computed(() => documents.value.find((item) => item.id === selec
 const loading = ref(false)
 const uploading = ref(false)
 const previewLoading = ref(false)
-const previewUrl = ref('')
-function clearPreview() {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-  previewUrl.value = ''
+const previewHtml = ref('')
+const previewFrame = ref<HTMLIFrameElement | null>(null)
+let lastPostedVersion = -1
+function clearPreview() { previewHtml.value = '' }
+function onViewerLoad() {
+  if (!previewHtml.value || !previewFrame.value?.contentWindow
+    || lastPostedVersion === previewVersion) return
+  lastPostedVersion = previewVersion
+  previewFrame.value.contentWindow.postMessage({
+    type: 'dhole:competitor-analysis:render',
+    html: previewHtml.value,
+  }, '*') // The iframe has an opaque sandbox origin, so targetOrigin must be '*'.
 }
 const fullscreen = ref(false)
 const validFrom = ref('')
@@ -115,9 +123,7 @@ async function openDocument(document: CompetitorAnalysisDocument) {
     if (!/<html[\s>]|<!doctype\s+html/i.test(html)) {
       throw new Error('El archivo guardado no contiene un documento HTML válido.')
     }
-    const url = URL.createObjectURL(new Blob([sandboxedHtml(html)], { type: 'text/html;charset=utf-8' }))
-    if (version !== previewVersion) URL.revokeObjectURL(url)
-    else previewUrl.value = url
+    previewHtml.value = sandboxedHtml(html)
   } catch (error) {
     if (version === previewVersion) {
       toast.backendError(error, 'No fue posible abrir el HTML almacenado.')
@@ -287,9 +293,11 @@ onBeforeUnmount(() => { ++previewVersion; clearPreview() })
         </div>
         <div v-if="previewLoading" class="p-8 text-center text-[var(--dh-text-muted)]" role="status">Cargando visualización HTML...</div>
         <iframe
-          v-else-if="previewUrl"
+          v-else-if="previewHtml"
           :key="selectedId ?? undefined"
-          :src="previewUrl"
+          ref="previewFrame"
+          src="/competitor-analysis-viewer.html"
+          @load="onViewerLoad"
           title="Análisis interactivo de la competencia"
           sandbox="allow-scripts allow-downloads allow-modals"
           referrerpolicy="no-referrer"
