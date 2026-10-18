@@ -261,6 +261,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/seller-rates/:rateId',
+          name: 'pricing-seller-rate-detail',
+          component: () => import('@/modules/pricing/views/PricingSellerRateDetailView.vue'),
+          meta: {
+            tabTitle: 'Cotización del vendedor',
+            closable: true,
+            requiredScope: 'pricing.rate-request.create',
+          },
+        },
+        {
           path: 'pricing/rates/:rateId/wizard',
           name: 'pricing-rate-wizard',
           component: () => import('@/modules/pricing/views/PricingOverviewView.vue'),
