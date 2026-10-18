@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 const view = readFileSync(new URL('../src/modules/agent/views/AgentGenerationOrchestratorView.vue', import.meta.url), 'utf8')
+const profileView = readFileSync(new URL('../src/modules/agent/views/AgentBrowserProfilesView.vue', import.meta.url), 'utf8')
 const callEndpoint = readFileSync(new URL('../src/core/api/callEndpoint.ts', import.meta.url), 'utf8')
 const fetchConfig = readFileSync(new URL('../src/core/api/fetchConfig.ts', import.meta.url), 'utf8')
 
@@ -30,4 +31,12 @@ test('status rendering is actionable and does not silently dispatch inspections'
   assert.match(view, /La preparación necesita atención/)
   assert.match(view, /standbyDiagnosticLabels/)
   assert.doesNotMatch(view, /lastAutomaticInspection/)
+})
+
+test('browser sessions distinguish prod1 original from isolated prod2 authorization', () => {
+  assert.match(profileView, /Sesiones independientes de Maersk/)
+  assert.match(profileView, /\/runtime-generations\/authentication\//)
+  assert.match(profileView, /puerto 6080 corresponde al perfil original de prod1/)
+  assert.match(profileView, /to="\/agents\/generations"/)
+  assert.match(profileView, /entry\.accountVerifiedAtUtc/)
 })
