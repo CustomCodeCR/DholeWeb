@@ -18,7 +18,11 @@ const selected = computed(() => documents.value.find((item) => item.id === selec
 const loading = ref(false)
 const uploading = ref(false)
 const previewLoading = ref(false)
-const previewHtml = ref('')
+const previewUrl = ref('')
+function clearPreview() {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = ''
+}
 const fullscreen = ref(false)
 const validFrom = ref('')
 const validTo = ref('')
@@ -57,7 +61,7 @@ async function removeSelected() {
     deleteConfirm.value = false
     fullscreen.value = false
     selectedId.value = null
-    previewHtml.value = ''
+    clearPreview()
     await loadDocuments()
     toast.success('Análisis eliminado', 'Se retiró el reporte del listado.')
   } catch (error) {
@@ -80,7 +84,7 @@ function formatSize(bytes: number) {
 function sandboxedHtml(html: string) {
   const policy = [
     "default-src 'none'",
-    "script-src 'unsafe-inline'",
+    "script-src 'unsafe-inline' 'unsafe-eval' blob:",
     "style-src 'unsafe-inline'",
     'img-src data: blob:',
     'font-src data:',
@@ -102,7 +106,7 @@ async function openDocument(document: CompetitorAnalysisDocument) {
   validTo.value = dateInput(document.validToUtc)
   deleteConfirm.value = false
   const version = ++previewVersion
-  previewHtml.value = ''
+  clearPreview()
   previewLoading.value = true
   try {
     const blob = await StorageService.getContent(document.storageId)
@@ -111,7 +115,9 @@ async function openDocument(document: CompetitorAnalysisDocument) {
     if (!/<html[\s>]|<!doctype\s+html/i.test(html)) {
       throw new Error('El archivo guardado no contiene un documento HTML válido.')
     }
-    previewHtml.value = sandboxedHtml(html)
+    const url = URL.createObjectURL(new Blob([sandboxedHtml(html)], { type: 'text/html;charset=utf-8' }))
+    if (version !== previewVersion) URL.revokeObjectURL(url)
+    else previewUrl.value = url
   } catch (error) {
     if (version === previewVersion) {
       toast.backendError(error, 'No fue posible abrir el HTML almacenado.')
@@ -131,13 +137,13 @@ async function loadDocuments(selectId?: string) {
     if (target) await openDocument(target)
     else {
       selectedId.value = null
-      previewHtml.value = ''
+      clearPreview()
       ++previewVersion
     }
   } catch (error) {
     documents.value = []
     selectedId.value = null
-    previewHtml.value = ''
+    clearPreview()
     ++previewVersion
     toast.backendError(error, 'No se pudieron cargar los análisis de la competencia.')
   } finally {
@@ -195,7 +201,7 @@ async function downloadSelected() {
 }
 
 onMounted(() => void loadDocuments())
-onBeforeUnmount(() => { ++previewVersion })
+onBeforeUnmount(() => { ++previewVersion; clearPreview() })
 </script>
 
 <template>
@@ -266,7 +272,7 @@ onBeforeUnmount(() => { ++previewVersion })
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-4">
           <div class="min-w-0">
             <h2 class="truncate font-black text-[var(--dh-text)]">{{ selected?.originalFileName || 'Vista previa del análisis' }}</h2>
-            <p class="text-xs text-[var(--dh-text-muted)]">Documento HTML interactivo · ejecución aislada del sistema</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">Documento HTML, CSS y JavaScript interactivo · ejecución aislada de Dhole</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <DhButton v-if="selected" label="Descargar HTML" :icon="Download" variant="secondary" @click="downloadSelected" />
@@ -281,9 +287,9 @@ onBeforeUnmount(() => { ++previewVersion })
         </div>
         <div v-if="previewLoading" class="p-8 text-center text-[var(--dh-text-muted)]" role="status">Cargando visualización HTML...</div>
         <iframe
-          v-else-if="previewHtml"
+          v-else-if="previewUrl"
           :key="selectedId ?? undefined"
-          :srcdoc="previewHtml"
+          :src="previewUrl"
           title="Análisis interactivo de la competencia"
           sandbox="allow-scripts allow-downloads allow-modals"
           referrerpolicy="no-referrer"
