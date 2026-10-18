@@ -4,6 +4,7 @@ import type { Component } from 'vue'
 
 import {
   CircleDollarSign,
+  BarChart3,
   BookOpen,
   ClipboardList,
   KeyRound,
@@ -193,6 +194,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             to: '/pricing/competition',
             name: 'pricing-competition',
             requiredScope: VIEW_SCOPES.pricingCompetition,
+          },
+          {
+            labelKey: 'sidebar.competitorAnalysis',
+            icon: BarChart3,
+            to: '/pricing/competition/analysis',
+            name: 'pricing-competitor-analysis',
+            requiredScope: VIEW_SCOPES.pricingCompetitorAnalysis,
           },
           {
             labelKey: 'sidebar.rateTerms',

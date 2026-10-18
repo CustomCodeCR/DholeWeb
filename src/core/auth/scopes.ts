@@ -76,6 +76,10 @@ export const AUDITLOGS_SCOPES = {
 } as const
 
 export const PRICING_SCOPES = {
+  competitorAnalysis: {
+    manage: 'pricing.competitor-analysis.manage',
+  },
+
   workspace: {
     access: 'pricing.workspace.access',
   },
@@ -402,6 +406,7 @@ export const VIEW_SCOPES = {
   pricingImports: PRICING_SCOPES.importFclRates.review,
   pricingDecisions: PRICING_SCOPES.workspace.access,
   pricingCompetition: PRICING_SCOPES.rates.view,
+  pricingCompetitorAnalysis: PRICING_SCOPES.competitorAnalysis.manage,
   pricingCosts: PRICING_SCOPES.costs.view,
   pricingRateTerms: PRICING_SCOPES.rateTerms.view,
   pricingSellerAssignment: PRICING_SCOPES.sellerAssignments.manage,

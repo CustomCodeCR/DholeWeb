@@ -783,6 +783,15 @@ onMounted(async () => {
       </template>
     </DhPageHeader>
 
+    <nav v-if="authStore.hasScope(PRICING_SCOPES.competitorAnalysis.manage)" class="flex flex-wrap gap-2 border-b border-[var(--dh-border)] pb-3" aria-label="Pestañas de competencia">
+      <RouterLink to="/pricing/competition" aria-current="page" class="rounded-xl bg-[var(--dh-primary)] px-4 py-2 text-sm font-bold text-white">
+        Tarifas competencia
+      </RouterLink>
+      <RouterLink to="/pricing/competition/analysis" class="rounded-xl px-4 py-2 text-sm font-bold text-[var(--dh-text-muted)] hover:bg-[var(--dh-card)]">
+        Análisis de la competencia
+      </RouterLink>
+    </nav>
+
     <section
       v-if="filtersOpen"
       class="relative z-10 grid gap-3 rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)] md:grid-cols-2 xl:grid-cols-4"

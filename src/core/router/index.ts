@@ -341,6 +341,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/competition/analysis',
+          name: 'pricing-competitor-analysis',
+          component: () => import('@/modules/pricing/views/PricingCompetitorAnalysisView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.competitorAnalysis',
+            closable: true,
+            requiredScope: VIEW_SCOPES.pricingCompetitorAnalysis,
+          },
+        },
+        {
           path: 'pricing/costs',
           name: 'pricing-costs',
           component: () => import('@/modules/pricing/views/PricingCostsView.vue'),
