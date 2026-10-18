@@ -73,6 +73,8 @@ const maerskCredentials = ref<MaerskCredential[]>([])
 const selectedCredential = ref('')
 const standbyBusy = ref<string | null>(null)
 const activeStandbyViewer = ref<{ generation: string; url: string } | null>(null)
+const automaticHubInspectionAttempts = new Map<string, number>()
+const automaticHubInspectionIntervalMs = 180_000
 const independentlyVerified = ref<Record<string, boolean>>({})
 const panel = ref<Panel>('overview')
 const newGeneration = ref('')
@@ -166,8 +168,21 @@ async function refreshStandbyAuthentication() {
       headers: { Accept: 'application/json' },
     })
     standbyAuthentications.value = unwrapApiResponse<StandbyAuthSession[]>(response as never)
-    // The operator initiates identity inspection explicitly. Polling state
-    // must not dispatch repeated authentication jobs in the background.
+    // Poll only API-authorized, active Ready sessions. No browser credentials
+    // or identity fields are read; the trusted runner verifies the real Hub.
+    // Throttle dispatch to avoid queueing multiple GitHub jobs.
+    if (canManage.value && !document.hidden && !standbyBusy.value) {
+      const now = Date.now()
+      const candidate = standbyAuthentications.value.find(session =>
+        session.status === 'Ready' && !session.accountVerifiedAtUtc &&
+        validStandbyName(session.generation) &&
+        now - (automaticHubInspectionAttempts.get(session.generation) ?? 0) >=
+          automaticHubInspectionIntervalMs)
+      if (candidate) {
+        automaticHubInspectionAttempts.set(candidate.generation, now)
+        void inspectStandby(candidate.generation, true)
+      }
+    }
   } catch {
     // A separate auth endpoint may deploy later than the main dashboard.
   }
