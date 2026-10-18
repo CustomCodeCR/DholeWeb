@@ -108,7 +108,7 @@ const diagnosticDescriptions: Record<string, string> = {
   standby_keyring_not_isolated: 'El volumen de claves no es independiente.',
   standby_browser_volume_not_isolated: 'Los perfiles de Chromium no están aislados.',
   provider_circuit_or_jobs_blocked: 'El circuito del proveedor está restringido o existen trabajos activos; no es seguro cambiar.',
-  standby_preflight_failed: 'La verificación de cambio falló. Consulta los diagnósticos de GitHub Actions.',
+  standby_preflight_failed: 'La comprobación automática del cambio no se completó. Revisa el estado y vuelve a intentarlo.',
   manual_request_expired: 'La solicitud venció antes de procesarse. Debes solicitar un nuevo cambio.',
   destination_not_provisioned: 'El destino todavía no está provisionado.',
 }
@@ -126,7 +126,6 @@ const ruleDescriptions: Record<TriggerCode, string> = {
   data_quality: 'Define cuántas incidencias de calidad deben detectarse.',
 }
 let refreshTimer: ReturnType<typeof setInterval> | undefined
-const lastAutomaticInspection = new Map<string, number>()
 
 function dateLabel(value?: string) {
   if (!value) return ''
@@ -137,10 +136,27 @@ function dateLabel(value?: string) {
 function standbySession(name: string) {
   return standbyAuthentications.value.find(item => item.generation === name)
 }
-function standbyPorts(name: string) {
-  const index = Number(name.substring(4))
-  if (!/^prod([2-9]|[1-9][0-9]{1,2})$/.test(name) || index > 200) return null
-  return { local: 16080 + index, remote: 6081 + index }
+function validStandbyName(name: string) {
+  return /^prod([2-9]|[1-9][0-9]{1,2})$/.test(name) && Number(name.substring(4)) <= 200
+}
+function standbyStatusLabel(status?: StandbyAuthSession['status']) {
+  return ({
+    Requested: 'Solicitud recibida', Preparing: 'Preparando navegador',
+    Ready: 'Navegador listo', Finishing: 'Finalizando verificación',
+    Verified: 'Cuenta verificada', Expired: 'Solicitud vencida',
+    Failed: 'La preparación necesita atención',
+  } as Record<string, string>)[status ?? ''] ?? 'Sin preparar'
+}
+const standbyDiagnosticLabels: Record<string, string> = {
+  github_dispatch_failed: 'No se pudo iniciar el proceso automático. Vuelve a intentar desde esta pantalla.',
+  standby_auth_workflow_failed: 'Falló la preparación. Vuelve a intentarlo desde aquí.',
+  operator_session_expired: 'La autorización venció; puedes iniciar una nueva sin borrar el perfil del navegador.',
+  standby_auth_session_expired: 'La solicitud venció. Inicia una nueva preparación desde esta pantalla.',
+  standby_auth_transition_not_allowed: 'El estado actual no admite esta operación. Actualiza y vuelve a preparar si es necesario.',
+  standby_auth_session_verified: 'La cuenta ya figura como verificada.',
+  standby_auth_schema_missing: 'El servicio debe actualizar su estructura de datos. Contacta al administrador.',
+  postgres_operation_failed: 'No se pudo actualizar el estado de autenticación. Contacta al administrador.',
+  standby_account_not_visible_in_official_menu: 'No se pudo confirmar la cuenta en el Hub. Abre Account y vuelve a detectar.',
 }
 async function refreshStandbyAuthentication() {
   try {
@@ -149,17 +165,8 @@ async function refreshStandbyAuthentication() {
       headers: { Accept: 'application/json' },
     })
     standbyAuthentications.value = unwrapApiResponse<StandbyAuthSession[]>(response as never)
-    // Poll provider identity conservatively while an operator is using the
-    // isolated viewer. Never accept mere viewer readiness as authenticated.
-    if (canManage.value && !document.hidden && !standbyBusy.value) {
-      for (const session of standbyAuthentications.value) {
-        if (session.status !== 'Ready' || session.accountVerifiedAtUtc ||
-            Date.now() - (lastAutomaticInspection.get(session.generation) ?? 0) < 120_000) continue
-        lastAutomaticInspection.set(session.generation, Date.now())
-        void inspectStandby(session.generation, true)
-        break
-      }
-    }
+    // The operator initiates identity inspection explicitly. Polling state
+    // must not dispatch repeated authentication jobs in the background.
   } catch {
     // A separate auth endpoint may deploy later than the main dashboard.
   }
@@ -181,6 +188,43 @@ async function prepareStandby(name: string) {
     standbyBusy.value = null
   }
 }
+async function openStandbyViewer(name: string) {
+  if (!canManage.value || standbyBusy.value) return
+  // Open synchronously with the click to avoid popup blockers while the
+  // scoped Agent API issues a short-lived, HttpOnly viewer cookie.
+  const viewer = window.open('about:blank', '_blank')
+  if (!viewer) {
+    toast.backendError(new Error('Ventana emergente bloqueada'),
+      'Permite abrir ventanas de Dhole para visualizar el navegador.')
+    return
+  }
+  viewer.opener = null
+  standbyBusy.value = name
+  try {
+    const result = await callEndpoint<{ url: string; expiresAtUtc: string }>({
+      method: 'POST',
+      path: '/api/agents/runtime-generations/authentication/{{generation}}/viewer/access',
+      headers: { Accept: 'application/json' },
+    }, { params: { generation: name }, credentials: 'include' })
+    const base = new URL(String(import.meta.env.VITE_API_URL || window.location.origin),
+      window.location.origin)
+    const destination = new URL(result.url, base)
+    if (destination.origin !== base.origin ||
+        !destination.pathname.startsWith('/api/agents/runtime-generations/authentication/' +
+          name + '/viewer/')) {
+      throw new Error('La dirección del visor no es válida')
+    }
+    viewer.location.replace(destination.href)
+    toast.success('Visor abierto', 'Inicia sesión en Maersk dentro del navegador de ' + name +
+      '. Después vuelve a Dhole y selecciona «Detectar cuenta».')
+  } catch (error) {
+    viewer.close()
+    toast.backendError(error, 'No se pudo abrir el navegador. Comprueba que esté listo y vuelve a intentar.')
+  } finally {
+    standbyBusy.value = null
+  }
+}
+
 async function inspectStandby(name: string, silent = false) {
   if (!canManage.value || standbyBusy.value) return
   standbyBusy.value = name
@@ -441,7 +485,7 @@ onUnmounted(() => {
                   <span v-else class="text-xs text-[var(--dh-text-muted)]">
                     {{ item.provisioningStatus === 'Provisioned' ? 'Infraestructura preparada' :
                        item.provisioningStatus === 'Dispatched' || item.provisioningStatus === 'Dispatching'
-                         ? 'Creación solicitada a GitHub' :
+                         ? 'Preparando infraestructura' :
                        item.provisioningStatus === 'Failed' ? 'Error de provisión' : 'Registrado' }}
                   </span>
                 </div>
@@ -451,22 +495,22 @@ onUnmounted(() => {
               </div>
               <div
                 v-if="canManage && item.name !== state.activeGeneration &&
-                  item.provisioningStatus === 'Provisioned' && standbyPorts(item.name)"
+                  item.provisioningStatus === 'Provisioned' && validStandbyName(item.name)"
                 class="space-y-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs"
               >
                 <p class="font-semibold">Autenticación de Maersk en {{ item.name }}</p>
                 <p class="text-[var(--dh-text-muted)]">
-                  {{ standbySession(item.name)?.status ?? 'Sin preparar' }}.
-                  Este paso abre solo el navegador; el Worker de prod1 sigue activo.
+                  {{ standbyStatusLabel(standbySession(item.name)?.status) }}.
+                  El acceso se administra desde Dhole. El Worker de prod1 sigue activo.
                 </p>
                 <template v-if="standbySession(item.name)?.status === 'Ready'">
-                  <p class="text-[var(--dh-text-muted)]">En tu computadora ejecuta:</p>
-                  <code class="block break-all select-all rounded bg-[var(--dh-surface)] p-2">ssh -N -L {{ standbyPorts(item.name)?.local }}:127.0.0.1:{{ standbyPorts(item.name)?.remote }} dhole-server</code>
-                  <a
-                    :href="`http://localhost:${standbyPorts(item.name)?.local}/vnc.html`"
-                    target="_blank" rel="noopener noreferrer"
-                    class="inline-block font-semibold text-[var(--dh-primary)] underline"
-                  >Abrir noVNC de {{ item.name }}</a>
+                  <DhButton label="Abrir navegador de {{ item.name }}" :icon="ShieldCheck"
+                    variant="secondary" :disabled="standbyBusy !== null"
+                    :loading="standbyBusy === item.name" @click="openStandbyViewer(item.name)" />
+                  <p class="text-[var(--dh-text-muted)]">
+                    El navegador se abre en otra pestaña de forma protegida.
+                    No necesitas utilizar SSH ni GitHub Actions.
+                  </p>
                   <div v-if="standbySession(item.name)?.accountVerifiedAtUtc"
                     class="space-y-1 rounded-lg border border-emerald-500/40 p-3">
                     <p class="font-bold text-emerald-500">Cuenta Maersk detectada en {{ item.name }}</p>
@@ -501,7 +545,7 @@ onUnmounted(() => {
                 <template v-else-if="standbySession(item.name)?.status === 'Requested' ||
                   standbySession(item.name)?.status === 'Preparing' ||
                   standbySession(item.name)?.status === 'Finishing'">
-                  <p>GitHub Actions está procesando la solicitud. Actualiza para consultar el estado.</p>
+                  <p>Dhole está procesando la solicitud automáticamente. El estado se actualizará aquí.</p>
                 </template>
                 <template v-else-if="standbySession(item.name)?.status === 'Verified'">
                   <p class="font-semibold text-emerald-500">Acceso verificado. Ya puedes solicitar el cambio de Worker.</p>
@@ -522,7 +566,8 @@ onUnmounted(() => {
                     :loading="standbyBusy === item.name" @click="prepareStandby(item.name)" />
                 </template>
                 <p v-if="standbySession(item.name)?.diagnosticCode" class="text-[var(--dh-text-muted)]">
-                  {{ standbySession(item.name)?.diagnosticCode }}
+                  {{ standbyDiagnosticLabels[standbySession(item.name)?.diagnosticCode ?? ''] ??
+                    'No se completó la operación. Actualiza e inténtalo nuevamente desde Dhole.' }}
                 </p>
               </div>
               <template v-if="canManage && item.name !== state.activeGeneration">
