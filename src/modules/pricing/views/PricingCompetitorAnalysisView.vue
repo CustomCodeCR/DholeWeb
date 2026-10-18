@@ -208,7 +208,7 @@ onBeforeUnmount(() => { ++previewVersion })
         <div v-if="previewLoading" class="p-8 text-center text-[var(--dh-text-muted)]" role="status">Cargando visualización HTML...</div>
         <iframe
           v-else-if="previewHtml"
-          :key="selectedId"
+          :key="selectedId ?? undefined"
           :srcdoc="previewHtml"
           title="Análisis interactivo de la competencia"
           sandbox="allow-scripts allow-downloads allow-modals"
