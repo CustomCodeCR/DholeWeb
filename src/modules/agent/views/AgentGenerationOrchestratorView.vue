@@ -699,6 +699,9 @@ onUnmounted(() => {
       </section>
     </template>
 
+    <div v-else-if="loading" class="rounded-2xl border border-[var(--dh-border)] p-6 text-sm text-[var(--dh-text-muted)]">
+      Cargando entornos…
+    </div>
     <div v-if="activeStandbyViewer"
       class="fixed inset-0 z-[100] flex flex-col bg-[var(--dh-surface)]"
       role="dialog" aria-modal="true" aria-label="Navegador independiente de Maersk">
@@ -726,8 +729,5 @@ onUnmounted(() => {
         allow="clipboard-read; clipboard-write" />
     </div>
 
-    <div v-else-if="loading" class="rounded-2xl border border-[var(--dh-border)] p-6 text-sm text-[var(--dh-text-muted)]">
-      Cargando entornos…
-    </div>
   </section>
 </template>
