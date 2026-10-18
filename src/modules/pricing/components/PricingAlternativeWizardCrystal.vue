@@ -1122,7 +1122,18 @@ const originOptions = computed(() => catalogs.pol.map((item) => ({ value: item.i
 const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))
 const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
 const incotermOptions = computed(() => catalogs.incoterms.map((item) => ({ value: item.id, label: displayValue(item) })))
-const agentOptions = computed(() => catalogs.agents.map((item) => ({ value: item.id, label: displayValue(item) })))
+function agentMatchesSelectedPol(agent: CatalogItemSelectDto) {
+  // Sin un POL elegido se conserva el catálogo completo. Cuando existe un POL,
+  // los agentes sin país o asociados a otro país no deben aparecer.
+  if (!form.originId) return true
+  const originCountries = countryTokens(selectedOrigin.value)
+  if (!originCountries.size) return false
+  const agentCountries = countryTokens(agent)
+  return [...originCountries].some((country) => agentCountries.has(country))
+}
+
+const eligibleAgents = computed(() => catalogs.agents.filter(agentMatchesSelectedPol))
+const agentOptions = computed(() => eligibleAgents.value.map((item) => ({ value: item.id, label: displayValue(item) })))
 
 function countryTokens(item: CatalogItemSelectDto | null | undefined) {
   const tokens = new Set<string>()
@@ -1160,7 +1171,7 @@ function resolveAgentForOrigin() {
 
   let best: CatalogItemSelectDto | null = null
   let bestScore = 0
-  for (const agent of catalogs.agents) {
+  for (const agent of eligibleAgents.value) {
     const agentTokens = countryTokens(agent)
     const searchText = normalizeCatalogValue(
       [agent.code, agent.value, agent.label, agent.metadataJson].filter(Boolean).join(' '),
@@ -1180,8 +1191,11 @@ function resolveAgentForOrigin() {
 
 function assignAgentForOrigin() {
   if (hydratingExistingRate.value || !form.originId) return
+  // Si el agente anterior sigue siendo válido, no cambiar una selección manual.
+  if (form.agentId && eligibleAgents.value.some((agent) => agent.id === form.agentId)) return
   const agent = resolveAgentForOrigin()
-  if (agent && form.agentId !== agent.id) form.agentId = agent.id
+  // No arrastrar un agente de un país anterior cuando el POL cambia.
+  form.agentId = agent?.id ?? ''
 }
 const carrierOptions = computed(() => catalogs.carriers.map((item) => ({ value: item.id, label: displayValue(item) })))
 const currencyOptions = computed(() => catalogs.currencies.map((item) => ({ value: item.id, label: displayValue(item) })))
@@ -5161,6 +5175,9 @@ onMounted(async () => {
 
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
             <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />
+            <p v-if="form.originId && !agentOptions.length" class="text-xs font-semibold text-amber-500 md:col-span-2 xl:col-span-3">
+              No hay agentes asociados al país de este POL. Revise la metadata del POL y configure el país en Config &gt; Catálogos &gt; Agentes.
+            </p>
             <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
             <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
             <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
