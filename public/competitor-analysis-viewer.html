@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="referrer" content="no-referrer">
+  <title>Visor aislado de análisis de la competencia</title>
+</head>
+<body>
+  <p>Preparando el reporte interactivo...</p>
+  <script>
+    // This document is served with a dedicated CSP and loaded inside an iframe
+    // sandbox WITHOUT allow-same-origin. The parent never relaxes its own CSP.
+    (() => {
+      let loaded = false;
+      const loadReport = (event) => {
+        if (loaded || event.source !== window.parent) return;
+        const payload = event.data;
+        if (!payload || payload.type !== 'dhole:competitor-analysis:render'
+          || typeof payload.html !== 'string' || payload.html.length > 15 * 1024 * 1024) return;
+        loaded = true;
+        window.removeEventListener('message', loadReport);
+        document.open();
+        document.write(payload.html);
+        document.close();
+      };
+      window.addEventListener('message', loadReport);
+    })();
+  </script>
+</body>
+</html>
