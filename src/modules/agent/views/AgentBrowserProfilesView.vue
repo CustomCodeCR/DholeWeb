@@ -44,9 +44,9 @@ const generationSessionsAvailable = ref(true)
 const standbyAuthLabels: Record<GenerationBrowserAuth['status'], string> = {
   Requested: 'Solicitud recibida',
   Preparing: 'Preparando navegador',
-  Ready: 'Navegador preparado — falta verificar cuenta',
+  Ready: 'Navegador preparado — falta comprobar Hub',
   Finishing: 'Finalizando verificación',
-  Verified: 'Autenticación verificada',
+  Verified: 'Hub de Maersk verificado',
   Failed: 'Error durante la preparación',
   Expired: 'Autorización vencida',
 }
@@ -345,14 +345,14 @@ onMounted(refresh)
             {{ standbyAuthLabels[entry.status] ?? 'Estado desconocido' }}
           </p>
           <p v-if="entry.accountVerifiedAtUtc" class="text-xs text-[var(--dh-text-muted)]">
-            Identidad detectada: {{ entry.accountName || entry.accountUsername || 'Cuenta validada' }}.
+            Acceso al Hub confirmado, sin recopilar datos de la cuenta.
           </p>
           <p v-else class="text-xs text-[var(--dh-text-muted)]">
-            Un Hub abierto no confirma por sí solo que se haya registrado la identidad.
+            Entrá al Hub y utilizá «Comprobar Hub» desde el Orquestador para registrar su acceso.
           </p>
           <p v-if="entry.diagnosticCode" class="text-xs text-[var(--dh-text-muted)]">
-            {{ entry.diagnosticCode === 'standby_account_not_visible_in_official_menu'
-              ? 'No se reconoció la cuenta. Abre el menú de perfil en Maersk y vuelve a detectar desde el Orquestador.'
+            {{ entry.diagnosticCode === 'standby_hub_not_authenticated'
+              ? 'El Hub de Maersk aún no se ha podido verificar. Ingresá al Hub completo y comprobalo desde el Orquestador.'
               : 'La última verificación requiere atención. Consulta el Orquestador.' }}
           </p>
         </div>
