@@ -50,7 +50,7 @@ const filtered = computed(() => {
     (status.value === 'All' || status.value === row.status) &&
     (!needle || [
       row.rateCode, row.quoNumber, row.idtraNumber, row.clientName, row.executiveName,
-      row.shipmentMode, row.polName, row.poeName, row.podName, row.containerTypeName,
+      row.polName, row.poeName, row.podName, row.containerTypeName,
     ].filter(Boolean).join(' ').toLocaleLowerCase('es').includes(needle)),
   )
 })
