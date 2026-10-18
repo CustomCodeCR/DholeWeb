@@ -175,7 +175,7 @@ onMounted(() => { void load() })
               <tr><th class="py-2">Concepto</th><th class="py-2">Cantidad</th><th class="py-2 text-right">Venta</th></tr>
             </thead>
             <tbody class="divide-y divide-[var(--dh-border)]">
-              <tr v-for="line in rate.rateDetails.filter(item => item.billToClient !== false)" :key="line.id">
+              <tr v-for="line in rate.rateDetails.filter(item => Number(item.saleAmount) > 0)" :key="line.id">
                 <td class="py-3 font-semibold text-[var(--dh-text)]">{{ line.name }}</td>
                 <td class="py-3 text-[var(--dh-text-muted)]">{{ line.quantity }}</td>
                 <td class="py-3 text-right font-bold text-[var(--dh-text)]">{{ money(line.saleAmount, line.currencyCode) }}</td>
