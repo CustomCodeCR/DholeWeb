@@ -138,6 +138,11 @@ const agentCountry = computed<string>({
     const choice = polCountries.value.find((country) =>
       normalizedCountry(country.name) === normalizedCountry(countryName)
     )
+    // El agente tiene un país asignado: evitar alias heredados de otros países.
+    for (const key of [
+      'country', 'countryName', 'countryCode', 'countryIso2', 'countryIso3',
+      'originCountry', 'originCountryCode', 'iso2', 'iso3', 'countries', 'countryCodes',
+    ]) delete metadata[key]
     if (countryName) {
       metadata.country = choice?.name ?? countryName
       metadata.countryName = choice?.name ?? countryName
@@ -148,10 +153,6 @@ const agentCountry = computed<string>({
       } else {
         delete metadata.countryCode
         delete metadata.countryCodes
-      }
-    } else {
-      for (const key of ['country', 'countryName', 'countryCode', 'countries', 'countryCodes']) {
-        delete metadata[key]
       }
     }
     form.value.metadataJson = Object.keys(metadata).length ? JSON.stringify(metadata) : null
