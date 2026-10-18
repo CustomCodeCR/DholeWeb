@@ -588,7 +588,8 @@ onUnmounted(() => {
                   <p>Dhole está procesando la solicitud automáticamente. El estado se actualizará aquí.</p>
                 </template>
                 <template v-else-if="standbySession(item.name)?.status === 'Verified'">
-                  <p class="font-semibold text-emerald-500">Hub de Maersk verificado. Ya podés solicitar el cambio de Worker.</p>
+                  <p class="font-semibold text-emerald-500">Autenticación del Hub de Maersk verificada.</p>
+                  <p class="text-[var(--dh-text-muted)]">Esto no autoriza todavía el cambio de Worker. La preparación técnica, la salud de los contenedores y el estado del circuit breaker se evalúan por separado antes de cualquier cambio.</p>
                 </template>
                 <template v-else>
                   <label class="block font-semibold">Credencial Maersk autorizada
