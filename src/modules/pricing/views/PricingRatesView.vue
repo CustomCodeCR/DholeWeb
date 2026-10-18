@@ -282,6 +282,7 @@ const isSellerUser = computed(() => {
 
   const sellerCapability = sellerRole || authStore.hasScope('pricing.rate-request.create')
   return sellerCapability && !hasPricingOperatorAccess.value
+    && !authStore.hasScope('pricing.rate-request.view-all')
 })
 
 const canCreate = computed(() =>
