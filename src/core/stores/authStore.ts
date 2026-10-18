@@ -290,7 +290,7 @@ export const useAuthStore = defineStore('auth', () => {
       'http://schemas.microsoft.com/ws/2008/06/identity/claims/role',
     ])
 
-    scopes.value = readClaimArray(payload, ['scopes', 'scope'])
+    scopes.value = readClaimArray(payload, ['scopes', 'scope', 'scp'])
   }
 
   function persistSession() {
