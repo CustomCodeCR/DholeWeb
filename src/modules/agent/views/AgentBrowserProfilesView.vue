@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Eye, Globe2, LogIn, Plus, RefreshCw, Wrench } from 'lucide-vue-next'
+import { Eye, Globe2, LogIn, Plus, RefreshCw, ShieldCheck, Wrench } from 'lucide-vue-next'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { DhBadge, DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
@@ -28,6 +30,42 @@ const verificationExecutionId = ref<string | null>(null)
 const repairingId = ref<string | null>(null)
 const repairProfile = ref<BrowserProfileDto | null>(null)
 const selectedProfile = ref<BrowserProfileDto | null>(null)
+
+interface GenerationBrowserAuth {
+  generation: string
+  status: 'Requested' | 'Preparing' | 'Ready' | 'Finishing' | 'Verified' | 'Failed' | 'Expired'
+  diagnosticCode?: string | null
+  accountName?: string | null
+  accountUsername?: string | null
+  accountVerifiedAtUtc?: string | null
+}
+const generationSessions = ref<GenerationBrowserAuth[]>([])
+const generationSessionsAvailable = ref(true)
+const standbyAuthLabels: Record<GenerationBrowserAuth['status'], string> = {
+  Requested: 'Solicitud recibida',
+  Preparing: 'Preparando navegador',
+  Ready: 'Navegador preparado — falta verificar cuenta',
+  Finishing: 'Finalizando verificación',
+  Verified: 'Autenticación verificada',
+  Failed: 'Error durante la preparación',
+  Expired: 'Autorización vencida',
+}
+
+async function loadGenerationSessions() {
+  if (!permissions.canViewBrowserProfiles.value) return
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/agents/runtime-generations/authentication/',
+      headers: { Accept: 'application/json' },
+    })
+    generationSessions.value = unwrapApiResponse<GenerationBrowserAuth[]>(response as never)
+      .filter((entry) => /^prod(?:[2-9]|[1-9][0-9]{1,2})$/.test(entry.generation))
+    generationSessionsAvailable.value = true
+  } catch {
+    generationSessionsAvailable.value = false
+  }
+}
 
 const form = reactive({
   providerId: '',
@@ -214,6 +252,7 @@ async function refresh() {
       store.loadProviders(),
       store.loadCredentials(),
       store.loadBrowserProfiles(),
+      loadGenerationSessions(),
     ])
   } catch (error) {
     toastStore.backendError(error, t('agent.errors.loadProfiles'))
@@ -272,6 +311,60 @@ onMounted(refresh)
           class="font-semibold text-[var(--dh-primary)] underline"
         >{{ t('agent.browserProfiles.viewVerification') }}</RouterLink>
       </div>
+    </section>
+
+    <section v-if="permissions.canViewBrowserProfiles.value"
+      class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="flex items-center gap-2 text-base font-bold"><ShieldCheck class="h-5 w-5" />
+            Sesiones independientes de Maersk
+          </h2>
+          <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
+            prod1 utiliza su perfil original, mostrado en la tabla inferior.
+            Los navegadores de prod2 y posteriores tienen perfiles aislados.
+          </p>
+        </div>
+        <RouterLink to="/agents/generations"
+          class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-sm font-semibold text-[var(--dh-primary)]">
+          Administrar autenticaciones
+        </RouterLink>
+      </div>
+      <p v-if="!generationSessionsAvailable" class="mt-3 text-sm text-[var(--dh-text-muted)]">
+        El estado de las sesiones independientes no está disponible por el momento.
+      </p>
+      <p v-else-if="!generationSessions.length" class="mt-3 text-sm text-[var(--dh-text-muted)]">
+        No hay sesiones independientes registradas. Puedes preparar prod2 desde
+        «Orquestador de entornos».
+      </p>
+      <div v-for="entry in generationSessions" :key="entry.generation"
+        class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--dh-border)] p-3">
+        <div>
+          <p class="font-bold">{{ entry.generation }} · Maersk</p>
+          <p class="text-sm text-[var(--dh-text-muted)]">
+            {{ standbyAuthLabels[entry.status] ?? 'Estado desconocido' }}
+          </p>
+          <p v-if="entry.accountVerifiedAtUtc" class="text-xs text-[var(--dh-text-muted)]">
+            Identidad detectada: {{ entry.accountName || entry.accountUsername || 'Cuenta validada' }}.
+          </p>
+          <p v-else class="text-xs text-[var(--dh-text-muted)]">
+            Un Hub abierto no confirma por sí solo que se haya registrado la identidad.
+          </p>
+          <p v-if="entry.diagnosticCode" class="text-xs text-[var(--dh-text-muted)]">
+            {{ entry.diagnosticCode === 'standby_account_not_visible_in_official_menu'
+              ? 'No se reconoció la cuenta. Abre el menú de perfil en Maersk y vuelve a detectar desde el Orquestador.'
+              : 'La última verificación requiere atención. Consulta el Orquestador.' }}
+          </p>
+        </div>
+        <RouterLink to="/agents/generations"
+          class="text-sm font-semibold text-[var(--dh-primary)] underline">
+          Abrir autenticación de {{ entry.generation }}
+        </RouterLink>
+      </div>
+      <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+        El visor local en el puerto 6080 corresponde al perfil original de prod1.
+        Abre prod2 siempre desde «Orquestador de entornos».
+      </p>
     </section>
 
     <DhDataTable
