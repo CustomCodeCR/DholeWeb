@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Eye, Globe2, LogIn, Plus, RefreshCw, ShieldCheck, Wrench } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -41,6 +41,8 @@ interface GenerationBrowserAuth {
 }
 const generationSessions = ref<GenerationBrowserAuth[]>([])
 const generationSessionsAvailable = ref(true)
+const hubInspectionAttempts = new Map<string, number>()
+let standbyPollTimer: ReturnType<typeof setInterval> | null = null
 const standbyAuthLabels: Record<GenerationBrowserAuth['status'], string> = {
   Requested: 'Solicitud recibida',
   Preparing: 'Preparando navegador',
@@ -62,6 +64,22 @@ async function loadGenerationSessions() {
     generationSessions.value = unwrapApiResponse<GenerationBrowserAuth[]>(response as never)
       .filter((entry) => /^prod(?:[2-9]|[1-9][0-9]{1,2})$/.test(entry.generation))
     generationSessionsAvailable.value = true
+    // The browser sessions page must work without having to visit the
+    // Orchestrator. Only an API-approved Ready standby session is eligible.
+    if (permissions.canAuthenticateBrowserProfiles.value && !document.hidden) {
+      const now = Date.now()
+      const candidate = generationSessions.value.find(entry =>
+        entry.status === 'Ready' && !entry.accountVerifiedAtUtc &&
+        now - (hubInspectionAttempts.get(entry.generation) ?? 0) >= 180_000)
+      if (candidate) {
+        hubInspectionAttempts.set(candidate.generation, now)
+        void callEndpoint<unknown>({
+          method: 'POST',
+          path: '/api/agents/runtime-generations/authentication/{{generation}}/inspect',
+          headers: { Accept: 'application/json' },
+        }, { params: { generation: candidate.generation } }).catch(() => undefined)
+      }
+    }
   } catch {
     generationSessionsAvailable.value = false
   }
@@ -259,7 +277,15 @@ async function refresh() {
   }
 }
 
-onMounted(refresh)
+onMounted(() => {
+  void refresh()
+  standbyPollTimer = setInterval(() => {
+    if (!document.hidden) void loadGenerationSessions()
+  }, 30_000)
+})
+onUnmounted(() => {
+  if (standbyPollTimer) clearInterval(standbyPollTimer)
+})
 </script>
 
 <template>
