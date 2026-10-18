@@ -36,6 +36,16 @@ test('status rendering is actionable and does not silently dispatch inspections'
   assert.doesNotMatch(view, /lastAutomaticInspection/)
 })
 
+test('all new generations authenticate by Hub without collecting account details', () => {
+  assert.match(view, /Hub autenticado detectado/)
+  assert.match(view, /Comprobar Hub/)
+  assert.match(view, /No necesitás proporcionar nombre, usuario ni Customer ID/)
+  assert.doesNotMatch(view, /<strong>Customer ID:<\/strong>/)
+  assert.doesNotMatch(view, /<strong>Usuario:<\/strong>/)
+  assert.match(profileView, /Acceso al Hub confirmado, sin recopilar datos de la cuenta/)
+  assert.match(view, /validStandbyName\(item.name\)/)
+})
+
 test('browser sessions distinguish prod1 original from isolated prod2 authorization', () => {
   assert.match(profileView, /Sesiones independientes de Maersk/)
   assert.match(profileView, /\/runtime-generations\/authentication\//)
