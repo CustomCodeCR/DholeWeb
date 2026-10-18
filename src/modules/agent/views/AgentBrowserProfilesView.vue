@@ -342,7 +342,9 @@ onMounted(refresh)
         <div>
           <p class="font-bold">{{ entry.generation }} · Maersk</p>
           <p class="text-sm text-[var(--dh-text-muted)]">
-            {{ standbyAuthLabels[entry.status] ?? 'Estado desconocido' }}
+            {{ entry.accountVerifiedAtUtc
+              ? (entry.status === 'Verified' ? 'Autorización finalizada' : 'Hub autenticado — pendiente de finalizar')
+              : (standbyAuthLabels[entry.status] ?? 'Estado desconocido') }}
           </p>
           <p v-if="entry.accountVerifiedAtUtc" class="text-xs text-[var(--dh-text-muted)]">
             Acceso al Hub confirmado, sin recopilar datos de la cuenta.
