@@ -103,6 +103,23 @@ function normalizedCountry(value: string) {
     .replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
+function canonicalCountryName(value: string) {
+  // Los POL pueden tener un sufijo de código de puerto: "Estados Unidos (ABQ)".
+  // No es otro país; este sufijo se elimina solo para clasificar países.
+  return value.trim().replace(/\s*\([A-Z0-9]{2,6}\)\s*$/i, '').trim()
+}
+
+function countryIdentity(name: string, code = '') {
+  const canonical = canonicalCountryName(name)
+  const iso = code.trim().toUpperCase()
+  const known = polCountries.value.find((country) =>
+    normalizedCountry(country.name) === normalizedCountry(canonical)
+    || Boolean(country.code && (country.code.toUpperCase() === iso || country.code.toUpperCase() === canonical.toUpperCase())),
+  )
+  const matchedCode = known?.code || (/^[A-Z]{2}$/.test(iso) ? iso : '')
+  return matchedCode ? `code:${matchedCode.toUpperCase()}` : `name:${normalizedCountry(canonical)}`
+}
+
 function listCountryNames(meta: Record<string, unknown>) {
   const countries = Array.isArray(meta.countries) ? meta.countries : []
   const names = countries
@@ -133,12 +150,13 @@ function listCountryNames(meta: Record<string, unknown>) {
 
   const unique = new Map<string, string>()
   names.forEach((name) => {
+    const canonical = canonicalCountryName(name)
     const known = polCountries.value.find((country) =>
-      normalizedCountry(country.name) === normalizedCountry(name)
-      || Boolean(country.code && country.code.toUpperCase() === name.toUpperCase()),
+      normalizedCountry(country.name) === normalizedCountry(canonical)
+      || Boolean(country.code && country.code.toUpperCase() === canonical.toUpperCase()),
     )
-    const displayName = known?.name ?? name
-    unique.set(normalizedCountry(displayName), displayName)
+    const displayName = known?.name ?? canonical
+    unique.set(countryIdentity(displayName), displayName)
   })
   return [...unique.values()]
 }
@@ -147,7 +165,7 @@ const selectedAgentCountries = computed(() => listCountryNames(parseMetadataJson
 const agentCountryOptions = computed(() => {
   const names = new Map<string, AgentCountry>()
   for (const country of [...polCountries.value, ...selectedAgentCountries.value.map((name) => ({ name, code: '' }))]) {
-    const key = normalizedCountry(country.name)
+    const key = countryIdentity(country.name, country.code)
     const current = names.get(key)
     if (!current || (!current.code && country.code)) names.set(key, country)
   }
@@ -162,24 +180,26 @@ const filteredAgentCountryOptions = computed(() => {
 const canAddCustomCountry = computed(() => {
   const search = normalizedCountry(agentCountrySearch.value)
   return Boolean(search) && !agentCountryOptions.value.some((country) =>
-    normalizedCountry(country.name) === search || Boolean(country.code && country.code.toLowerCase() === search),
+    countryIdentity(country.name, country.code) === countryIdentity(agentCountrySearch.value)
+    || Boolean(country.code && country.code.toLowerCase() === search),
   )
 })
 
 function agentCountrySelected(name: string) {
-  return selectedAgentCountries.value.some((selected) => normalizedCountry(selected) === normalizedCountry(name))
+  return selectedAgentCountries.value.some((selected) => countryIdentity(selected) === countryIdentity(name))
 }
 
 function setAgentCountries(names: string[]) {
   const metadata = parseMetadataJson(form.value.metadataJson)
   const canonical = new Map<string, AgentCountry>()
   for (const value of names) {
+    const normalizedValue = canonicalCountryName(value)
     const known = polCountries.value.find((country) =>
-      normalizedCountry(country.name) === normalizedCountry(value)
-      || Boolean(country.code && country.code.toLowerCase() === value.toLowerCase()),
+      normalizedCountry(country.name) === normalizedCountry(normalizedValue)
+      || Boolean(country.code && country.code.toLowerCase() === normalizedValue.toLowerCase()),
     )
-    const name = (known?.name ?? value).trim()
-    if (name) canonical.set(normalizedCountry(name), { name, code: known?.code ?? '' })
+    const name = known?.name ?? normalizedValue
+    if (name) canonical.set(countryIdentity(name, known?.code), { name, code: known?.code ?? '' })
   }
   const countries = [...canonical.values()]
   // Los campos singulares conservan compatibilidad con lectores anteriores.
@@ -203,7 +223,7 @@ function toggleAgentCountry(name: string) {
   if (!canSave.value) return
   const selected = selectedAgentCountries.value
   setAgentCountries(agentCountrySelected(name)
-    ? selected.filter((value) => normalizedCountry(value) !== normalizedCountry(name))
+    ? selected.filter((value) => countryIdentity(value) !== countryIdentity(name))
     : [...selected, name])
 }
 
@@ -218,6 +238,7 @@ async function loadAgentCountries() {
   try {
     const ports = await CatalogItemsService.select({ catalogGroupSlug: 'pol' })
     const countries = new Map<string, AgentCountry>()
+    const codeKeys = new Map<string, string>()
     for (const port of ports) {
       const meta = parseMetadataJson(port.metadataJson)
       const portNames = [port.label, port.value].map((value) => String(value ?? '').trim())
@@ -229,17 +250,24 @@ async function loadAgentCountries() {
         suffix, meta.countryCode,
       ].filter((name): name is string => typeof name === 'string' && Boolean(name.trim()))
       const code = String(meta.countryCode ?? '').trim().toUpperCase()
-      for (const name of names) {
-        // No mostrar el código ISO como país duplicado si ya existe el nombre completo.
-        if (name.trim().toUpperCase() === code && names.some((value) =>
-          value !== name && normalizedCountry(value) !== normalizedCountry(code),
+      const isoCode = /^[A-Z]{2}$/.test(code) ? code : ''
+      for (const rawName of names) {
+        const name = canonicalCountryName(rawName)
+        if (!name) continue
+        // "US" no se muestra como una segunda opción si ya existe "Estados Unidos".
+        if (isoCode && name.toUpperCase() === isoCode && names.some((value) =>
+          canonicalCountryName(value).toUpperCase() !== isoCode,
         )) continue
-        const key = normalizedCountry(name)
+
+        // Agrupar por ISO y por país normalizado, nunca por código/nombre del puerto.
+        const normalizedName = normalizedCountry(name)
+        const key = (isoCode && codeKeys.get(isoCode)) || normalizedName
         const existing = countries.get(key)
-        const isoCode = /^[A-Z]{2,3}$/.test(code) ? code : ''
-        if (!existing || (!existing.code && isoCode)) {
-          countries.set(key, { name: name.trim(), code: isoCode })
+        const chooseReadableName = existing && /^[A-Z]{2}$/.test(existing.name) && name.length > 2
+        if (!existing || chooseReadableName || (!existing.code && isoCode)) {
+          countries.set(key, { name: chooseReadableName || !existing ? name : existing.name, code: isoCode || existing?.code || '' })
         }
+        if (isoCode) codeKeys.set(isoCode, key)
       }
     }
     polCountries.value = [...countries.values()]
