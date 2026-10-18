@@ -825,6 +825,8 @@ export interface RateDto extends Record<string, unknown> {
   executiveName?: string | null
   idtraNumber?: string | null
   quoNumber?: string | null
+  sellerReceivedAtUtc?: string | null
+  sellerReceivedBy?: string | null
   includes?: string | null
   subjectTo?: string | null
   excludes?: string | null
