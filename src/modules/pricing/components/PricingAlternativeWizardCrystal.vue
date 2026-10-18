@@ -5750,6 +5750,7 @@ onMounted(async () => {
                     :variant="isMasterTariff ? 'primary' : isClientTariff ? 'success' : 'warning'"
                   />
                   <DhBadge :label="commercialStatusLabel(editingRate.status)" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : editingRate.status === 'RejectedByClient' ? 'danger' : 'neutral'" />
+                  <DhBadge v-if="editingRate.sellerReceivedAtUtc" label="Recibida por vendedor" variant="success" />
                   <DhBadge :label="`REV ${editingRate.revisionNumber || 1}`" variant="neutral" />
                   <DhBadge v-if="editingRate.idtraNumber" :label="`IDTRA ${editingRate.idtraNumber}`" variant="primary" />
                 </div>
