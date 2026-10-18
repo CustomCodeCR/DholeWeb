@@ -348,7 +348,7 @@ onMounted(refresh)
             Acceso al Hub confirmado, sin recopilar datos de la cuenta.
           </p>
           <p v-else class="text-xs text-[var(--dh-text-muted)]">
-            Entrá al Hub y utilizá «Comprobar Hub» desde el Orquestador para registrar su acceso.
+            Entrá al Hub en el navegador independiente. Dhole registrará automáticamente el acceso; podés comprobarlo desde el Orquestador.
           </p>
           <p v-if="entry.diagnosticCode" class="text-xs text-[var(--dh-text-muted)]">
             {{ entry.diagnosticCode === 'standby_hub_not_authenticated'
