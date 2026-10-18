@@ -186,7 +186,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
             icon: FileText,
             to: '/pricing/commercial-report',
             name: 'pricing-commercial-report',
-            requiredAllScopes: [VIEW_SCOPES.pricingRates, 'pricing.rate-request.view-all'],
+            requiredScope: 'pricing.rate-request.view-all',
           },
           {
             labelKey: 'sidebar.sellerVisibility',

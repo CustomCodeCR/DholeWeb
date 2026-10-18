@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock } from 'lucide-vue-next'
+import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock, FileSpreadsheet } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto } from '@/core/interfaces/pricing'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
@@ -37,6 +38,7 @@ interface SellerRateRequestDto {
 }
 
 const router = useRouter()
+const authStore = useAuthStore()
 const modalStore = useModalStore()
 const toast = useToastStore()
 const loading = ref(false)
@@ -384,7 +386,15 @@ onMounted(load)
             : 'Seguimiento de solicitudes, cotizaciones y resultados con clientes.' }}
         </p>
       </div>
-      <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
+      <div class="flex flex-wrap items-center gap-2">
+        <DhButton
+          v-if="authStore.hasScope('pricing.rate-request.view-all')"
+          label="Reporte de cotizaciones"
+          :icon="FileSpreadsheet"
+          @click="router.push({ name: 'pricing-commercial-report' })"
+        />
+        <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
+      </div>
     </div>
 
     <section v-if="props.adminPreview" class="flex flex-col gap-3 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:flex-row sm:items-center sm:justify-between">

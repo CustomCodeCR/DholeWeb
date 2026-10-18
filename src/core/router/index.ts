@@ -327,7 +327,7 @@ export const router = createRouter({
           meta: {
             tabTitleKey: 'sidebar.commercialReport',
             closable: true,
-            requiredAllScopes: [VIEW_SCOPES.pricingRates, 'pricing.rate-request.view-all'],
+            requiredScope: 'pricing.rate-request.view-all',
           },
         },
         {

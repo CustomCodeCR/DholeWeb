@@ -32,8 +32,7 @@ const hasPricingOperatorAccess = computed(() =>
 )
 
 const canViewAllCommercialRates = computed(() =>
-  authStore.hasScope('pricing.rate-request.view-all')
-  && authStore.hasScope(PRICING_SCOPES.rates.view),
+  authStore.hasScope('pricing.rate-request.view-all'),
 )
 
 const isSellerUser = computed(() => {
