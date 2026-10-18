@@ -38,8 +38,8 @@ test('status rendering is actionable and does not silently dispatch inspections'
 
 test('all new generations authenticate by Hub without collecting account details', () => {
   assert.match(view, /Hub autenticado detectado/)
-  assert.match(view, /Comprobar Hub/)
-  assert.match(view, /No necesitás proporcionar nombre, usuario ni Customer ID/)
+  assert.match(view, /Comprobar ahora/)
+  assert.match(view, /No necesitás proporcionar nombre, usuario ni Customer ID/)\n  assert.match(view, /Dhole detecta y registra el acceso automáticamente/)
   assert.doesNotMatch(view, /<strong>Customer ID:<\/strong>/)
   assert.doesNotMatch(view, /<strong>Usuario:<\/strong>/)
   assert.match(profileView, /Acceso al Hub confirmado, sin recopilar datos de la cuenta/)
