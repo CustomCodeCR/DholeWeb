@@ -284,6 +284,7 @@ function buildRequestConfig(options: RequestOptions, token: string | null): Requ
   return {
     method: options.method,
     headers,
+    ...(options.credentials ? { credentials: options.credentials } : {}),
     body:
       options.body === undefined
         ? undefined
