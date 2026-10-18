@@ -5,4 +5,5 @@ export interface RequestOptions {
   body?: unknown
   headers?: HeadersInit
   isFormData?: boolean
+  credentials?: RequestCredentials
 }
