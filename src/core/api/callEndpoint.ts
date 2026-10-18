@@ -164,6 +164,7 @@ export async function callEndpoint<TResponse, TBody = unknown>(
     isFormData?: boolean
     extraHeaders?: Record<string, string>
     idempotencyKey?: string
+    credentials?: RequestCredentials
   },
 ): Promise<TResponse> {
   const finalPath = args?.params ? replaceEndpointParams(endpoint.path, args.params) : endpoint.path
@@ -195,6 +196,7 @@ export async function callEndpoint<TResponse, TBody = unknown>(
     headers,
     ...(normalizedBody !== undefined ? { body: normalizedBody } : {}),
     ...(args?.isFormData ? { isFormData: true } : {}),
+    ...(args?.credentials ? { credentials: args.credentials } : {}),
   }
 
   const response = await fetchClient<TResponse>(finalPath, options, endpoint.baseUrl)
