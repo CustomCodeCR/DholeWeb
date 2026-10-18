@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { BarChart3, FileUp, RefreshCw, Download } from 'lucide-vue-next'
+import { BarChart3, FileUp, RefreshCw, Download, Maximize2, Minimize2, Trash2, Save } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { StorageService } from '@/core/services/storageService'
@@ -19,6 +19,52 @@ const loading = ref(false)
 const uploading = ref(false)
 const previewLoading = ref(false)
 const previewHtml = ref('')
+const fullscreen = ref(false)
+const validFrom = ref('')
+const validTo = ref('')
+const validitySaving = ref(false)
+const deleting = ref(false)
+const deleteConfirm = ref(false)
+const previewFrame = ref<HTMLIFrameElement | null>(null)
+function toUtc(value: string) { return value ? new Date(`${value}T00:00:00.000Z`).toISOString() : null }
+function dateInput(value: string | null) { return value?.slice(0, 10) ?? '' }
+function validityLabel(document: CompetitorAnalysisDocument) {
+  if (!document.validFromUtc && !document.validToUtc) return 'Sin vigencia definida'
+  const today = new Date().toISOString().slice(0, 10)
+  if (document.validToUtc && document.validToUtc.slice(0, 10) < today) return 'Vencido'
+  if (document.validFromUtc && document.validFromUtc.slice(0, 10) > today) return 'Próximo'
+  return 'Vigente'
+}
+async function saveValidity() {
+  if (!selected.value) return
+  if (validFrom.value && validTo.value && validFrom.value > validTo.value) {
+    toast.error('Vigencia inválida', 'La fecha final debe ser igual o posterior a la inicial.')
+    return
+  }
+  validitySaving.value = true
+  try {
+    const updated = await CompetitorAnalysisService.updateValidity(selected.value.id, toUtc(validFrom.value), toUtc(validTo.value))
+    documents.value = documents.value.map(item => item.id === updated.id ? updated : item)
+    toast.success('Vigencia guardada', 'Se actualizó la vigencia del análisis.')
+  } catch (error) {
+    toast.backendError(error, 'No se pudo actualizar la vigencia.')
+  } finally { validitySaving.value = false }
+}
+async function removeSelected() {
+  if (!selected.value) return
+  deleting.value = true
+  try {
+    await CompetitorAnalysisService.remove(selected.value.id)
+    deleteConfirm.value = false
+    fullscreen.value = false
+    selectedId.value = null
+    previewHtml.value = ''
+    await loadDocuments()
+    toast.success('Análisis eliminado', 'Se retiró el reporte del listado.')
+  } catch (error) {
+    toast.backendError(error, 'No se pudo eliminar el análisis.')
+  } finally { deleting.value = false }
+}
 let previewVersion = 0
 
 const maxBytes = 10 * 1024 * 1024
@@ -53,6 +99,9 @@ function sandboxedHtml(html: string) {
 
 async function openDocument(document: CompetitorAnalysisDocument) {
   selectedId.value = document.id
+  validFrom.value = dateInput(document.validFromUtc)
+  validTo.value = dateInput(document.validToUtc)
+  deleteConfirm.value = false
   const version = ++previewVersion
   previewHtml.value = ''
   previewLoading.value = true
@@ -118,6 +167,8 @@ async function uploadFile(event: Event) {
       metadataJson: JSON.stringify({ category: 'competitor-analysis', contentType: 'text/html' }),
     })
     const created = await CompetitorAnalysisService.register({
+      validFromUtc: toUtc(validFrom.value),
+      validToUtc: toUtc(validTo.value),
       id,
       storageId: stored.id,
       originalFileName: file.name,
@@ -171,6 +222,17 @@ onBeforeUnmount(() => { ++previewVersion })
       </RouterLink>
     </nav>
 
+    <div class="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+      <label class="text-sm text-[var(--dh-text)]">Vigente desde
+        <input v-model="validFrom" type="date" class="mt-1 block rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-2" />
+      </label>
+      <label class="text-sm text-[var(--dh-text)]">Vigente hasta
+        <input v-model="validTo" type="date" class="mt-1 block rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-2" />
+      </label>
+      <DhButton v-if="selected" label="Guardar vigencia" :icon="Save" variant="secondary" :disabled="validitySaving" @click="saveValidity" />
+      <span class="text-xs text-[var(--dh-text-muted)]">Las fechas se aplican al subir un nuevo HTML o al guardar cambios del seleccionado.</span>
+    </div>
+
     <p v-if="uploading" role="status" class="text-sm font-semibold text-[var(--dh-text-muted)]">Subiendo y registrando HTML...</p>
 
     <div class="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
@@ -191,29 +253,41 @@ onBeforeUnmount(() => { ++previewVersion })
           @click="openDocument(document)"
         >
           <span class="block break-words text-sm font-bold text-[var(--dh-text)]">{{ document.originalFileName }}</span>
+          <span class="mt-1 block text-xs font-semibold text-[var(--dh-text)]">{{ validityLabel(document) }} · {{ dateInput(document.validFromUtc) || "—" }} a {{ dateInput(document.validToUtc) || "—" }}</span>
           <span class="mt-2 block text-xs text-[var(--dh-text-muted)]">
             {{ formatDate(document.createdAtUtc) }} · {{ formatSize(document.sizeInBytes) }}
           </span>
         </button>
       </aside>
 
-      <section class="min-w-0 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+      <section class="min-w-0 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]"
+        :class="fullscreen ? 'fixed inset-0 z-[9999] flex flex-col rounded-none bg-white' : ''">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-4">
           <div class="min-w-0">
             <h2 class="truncate font-black text-[var(--dh-text)]">{{ selected?.originalFileName || 'Vista previa del análisis' }}</h2>
             <p class="text-xs text-[var(--dh-text-muted)]">Documento HTML interactivo · ejecución aislada del sistema</p>
           </div>
-          <DhButton v-if="selected" label="Descargar HTML" :icon="Download" variant="secondary" @click="downloadSelected" />
+          <div class="flex flex-wrap items-center gap-2">
+            <DhButton v-if="selected" label="Descargar HTML" :icon="Download" variant="secondary" @click="downloadSelected" />
+            <DhButton v-if="selected" :label="fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'" :icon="fullscreen ? Minimize2 : Maximize2" variant="secondary" @click="fullscreen = !fullscreen" />
+            <DhButton v-if="selected" label="Eliminar" :icon="Trash2" variant="secondary" @click="deleteConfirm = true" />
+          </div>
+        </div>
+        <div v-if="deleteConfirm" class="flex flex-wrap items-center gap-3 border-b border-[var(--dh-border)] p-4">
+          <span class="text-sm font-semibold">¿Eliminar este análisis del listado? Esta acción no se puede deshacer.</span>
+          <DhButton label="Confirmar eliminación" :icon="Trash2" :disabled="deleting" @click="removeSelected" />
+          <DhButton label="Cancelar" variant="secondary" @click="deleteConfirm = false" />
         </div>
         <div v-if="previewLoading" class="p-8 text-center text-[var(--dh-text-muted)]" role="status">Cargando visualización HTML...</div>
         <iframe
           v-else-if="previewHtml"
+          ref="previewFrame"
           :key="selectedId ?? undefined"
           :srcdoc="previewHtml"
           title="Análisis interactivo de la competencia"
           sandbox="allow-scripts allow-downloads allow-modals"
           referrerpolicy="no-referrer"
-          class="block h-[75vh] min-h-[600px] w-full border-0 bg-white"
+          class="block min-h-[700px] w-full border-0 bg-white" :class="fullscreen ? 'min-h-0 flex-1' : 'h-[85vh]'"
         />
         <div v-else class="p-10 text-center text-sm text-[var(--dh-text-muted)]">
           Seleccione un HTML almacenado para visualizarlo.
