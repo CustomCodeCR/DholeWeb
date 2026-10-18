@@ -8,8 +8,10 @@ import {
   type SellerAssignmentOptionDto,
 } from '@/core/services/sellerVisibilityService'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useAuthStore } from '@/core/stores/authStore'
 
 const toastStore = useToastStore()
+const authStore = useAuthStore()
 const users = ref<SellerAssignmentOptionDto[]>([])
 const viewerUserId = ref('')
 const sellerSearch = ref('')
@@ -60,6 +62,9 @@ async function loadUsers() {
   try {
     loadingUsers.value = true
     users.value = await SellerVisibilityService.options()
+    if (!viewerUserId.value && authStore.userId && users.value.some((user) => user.userId === authStore.userId)) {
+      viewerUserId.value = authStore.userId
+    }
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron cargar los vendedores habilitados para Pricing.')
   } finally {
@@ -109,7 +114,7 @@ onMounted(loadUsers)
 <template>
   <section class="space-y-5">
     <DhPageHeader
-      title="Visibilidad comercial"
+      title="Asignar vendedores"
       subtitle="Asigne vendedores a supervisores o asistentes. Esta administración requiere el permiso específico Asignar vendedores."
       :icon="UsersRound"
     >
