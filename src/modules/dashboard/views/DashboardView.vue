@@ -31,6 +31,11 @@ const hasPricingOperatorAccess = computed(() =>
   || authStore.hasScope(PRICING_SCOPES.importFclRates.createAsRate),
 )
 
+const canViewAllCommercialRates = computed(() =>
+  authStore.hasScope('pricing.rate-request.view-all')
+  && authStore.hasScope(PRICING_SCOPES.rates.view),
+)
+
 const isSellerUser = computed(() => {
   const roleSeller = authStore.roles.some((role) => {
     const value = role.trim().toLowerCase()
@@ -42,7 +47,7 @@ const isSellerUser = computed(() => {
   })
 
   const sellerCapability = roleSeller || authStore.hasScope('pricing.rate-request.create')
-  return sellerCapability && !hasPricingOperatorAccess.value
+  return sellerCapability && !hasPricingOperatorAccess.value && !canViewAllCommercialRates.value
 })
 
 const canUsePricing = computed(
@@ -62,7 +67,7 @@ const canManageSellerRequests = computed(() =>
 type DashboardRole = 'pricing' | 'seller'
 const selectedDashboardRole = ref<DashboardRole>('pricing')
 const activeDashboardRole = computed<DashboardRole>(() =>
-  isSuperUser() ? selectedDashboardRole.value : (isSellerUser.value ? 'seller' : 'pricing'),
+  isSuperUser() ? selectedDashboardRole.value : (canViewAllCommercialRates.value || isSellerUser.value ? 'seller' : 'pricing'),
 )
 </script>
 
@@ -99,7 +104,7 @@ const activeDashboardRole = computed<DashboardRole>(() =>
 
     <SellerRoleDashboard
       v-if="activeDashboardRole === 'seller'"
-      :admin-preview="isSuperUser()"
+      :admin-preview="isSuperUser() || canViewAllCommercialRates"
     />
 
     <template v-else-if="canUsePricing">
