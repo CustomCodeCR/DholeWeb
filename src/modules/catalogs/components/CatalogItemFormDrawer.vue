@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DhButton, DhInput, DhSwitch } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSelect, DhSwitch } from '@/shared/components/atoms'
 import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -60,6 +60,7 @@ const form = ref({
 
 const isEdit = computed(() => Boolean(props.item))
 const isWarehouseGroup = computed(() => props.group.slug === 'pricing-warehouses')
+
 // A new WHS can be a country-only placeholder, without any geographic details.
 const genericWarehouse = ref(!props.item)
 
@@ -90,6 +91,97 @@ function parseMetadataJson(value?: string | null): WarehouseImageMetadata {
     return {}
   }
 }
+
+
+const isAgentGroup = computed(() => props.group.slug === 'agents')
+type AgentCountry = { name: string; code: string }
+const polCountries = ref<AgentCountry[]>([])
+
+function countryNameFromMetadata(meta: Record<string, unknown>) {
+  const countries = Array.isArray(meta.countries) ? meta.countries : []
+  return String(meta.countryName || meta.country || countries[0] || meta.countryCode || '').trim()
+}
+
+function normalizedCountry(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+}
+
+const agentCountryOptions = computed(() => {
+  const countries = [...polCountries.value]
+  const meta = parseMetadataJson(form.value.metadataJson)
+  const currentName = countryNameFromMetadata(meta)
+  const currentCode = String(meta.countryCode ?? '').trim().toUpperCase()
+  if (currentName && !countries.some((country) =>
+    normalizedCountry(country.name) === normalizedCountry(currentName)
+    || Boolean(currentCode && country.code === currentCode)
+  )) countries.push({ name: currentName, code: currentCode })
+
+  return countries
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    .map((country) => ({ value: country.name, label: country.name }))
+})
+
+const agentCountry = computed<string>({
+  get() {
+    const meta = parseMetadataJson(form.value.metadataJson)
+    const name = countryNameFromMetadata(meta)
+    const code = String(meta.countryCode ?? '').trim().toUpperCase()
+    const matching = polCountries.value.find((country) =>
+      normalizedCountry(country.name) === normalizedCountry(name)
+      || Boolean(code && country.code === code)
+    )
+    return matching?.name ?? name
+  },
+  set(name) {
+    const metadata = parseMetadataJson(form.value.metadataJson)
+    const countryName = String(name ?? '').trim()
+    const choice = polCountries.value.find((country) =>
+      normalizedCountry(country.name) === normalizedCountry(countryName)
+    )
+    if (countryName) {
+      metadata.country = choice?.name ?? countryName
+      metadata.countryName = choice?.name ?? countryName
+      metadata.countries = [choice?.name ?? countryName]
+      if (choice?.code) {
+        metadata.countryCode = choice.code
+        metadata.countryCodes = [choice.code]
+      } else {
+        delete metadata.countryCode
+        delete metadata.countryCodes
+      }
+    } else {
+      for (const key of ['country', 'countryName', 'countryCode', 'countries', 'countryCodes']) {
+        delete metadata[key]
+      }
+    }
+    form.value.metadataJson = Object.keys(metadata).length ? JSON.stringify(metadata) : null
+  },
+})
+
+async function loadAgentCountries() {
+  if (!isAgentGroup.value) return
+  try {
+    const ports = await CatalogItemsService.select({ catalogGroupSlug: 'pol' })
+    const countries = new Map<string, AgentCountry>()
+    for (const port of ports) {
+      const meta = parseMetadataJson(port.metadataJson)
+      const display = String(port.value || port.label || '')
+      const suffix = display.includes(',') ? display.split(',').at(-1)?.trim() : ''
+      const name = String(meta.countryName || meta.country || meta.originCountry || suffix || meta.countryCode || '').trim()
+      if (!name) continue
+      const rawCode = String(meta.countryCode ?? '').trim().toUpperCase()
+      const code = /^[A-Z]{2}$/.test(rawCode) ? rawCode : ''
+      const key = normalizedCountry(name)
+      const previous = countries.get(key)
+      if (!previous || (!previous.code && code)) countries.set(key, { name, code })
+    }
+    polCountries.value = [...countries.values()]
+  } catch {
+    // Permitir capturar el país manualmente cuando los POL no estén disponibles.
+  }
+}
+
+onMounted(() => { void loadAgentCountries() })
 
 function storedWarehouseImages(metadata: WarehouseImageMetadata): WarehouseStoredImage[] {
   const images: WarehouseStoredImage[] = []
@@ -282,6 +374,11 @@ async function save() {
   const name = form.value.name.trim()
   if (!name) {
     toastStore.warning('Nombre requerido', 'Escriba el nombre del WHS.')
+    return
+  }
+
+  if (isAgentGroup.value && !agentCountry.value) {
+    toastStore.warning('País requerido', 'Seleccione el país que corresponde a este agente.')
     return
   }
 
@@ -550,6 +647,27 @@ onBeforeUnmount(clearPendingWarehouseImages)
           {{ activeWarehouseImage.fileName }}
         </p>
       </div>
+    </section>
+
+    <section v-if="isAgentGroup" class="space-y-2 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <DhSelect
+        v-if="agentCountryOptions.length"
+        v-model="agentCountry"
+        label="País del agente *"
+        :options="agentCountryOptions"
+        placeholder="Seleccione el país del POL"
+        :disabled="!canSave"
+      />
+      <DhInput
+        v-else
+        v-model="agentCountry"
+        label="País del agente *"
+        placeholder="Ej. China"
+        :disabled="!canSave"
+      />
+      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+        Se guarda en la metadata del agente y determina en qué POL aparece dentro del cotizador.
+      </p>
     </section>
 
     <MetadataEditor v-if="!isWarehouseGroup || !genericWarehouse" v-model="form.metadataJson" />
