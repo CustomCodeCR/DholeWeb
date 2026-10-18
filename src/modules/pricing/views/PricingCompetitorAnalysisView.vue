@@ -25,7 +25,6 @@ const validTo = ref('')
 const validitySaving = ref(false)
 const deleting = ref(false)
 const deleteConfirm = ref(false)
-const previewFrame = ref<HTMLIFrameElement | null>(null)
 function toUtc(value: string) { return value ? new Date(`${value}T00:00:00.000Z`).toISOString() : null }
 function dateInput(value: string | null) { return value?.slice(0, 10) ?? '' }
 function validityLabel(document: CompetitorAnalysisDocument) {
@@ -235,18 +234,19 @@ onBeforeUnmount(() => { ++previewVersion })
 
     <p v-if="uploading" role="status" class="text-sm font-semibold text-[var(--dh-text-muted)]">Subiendo y registrando HTML...</p>
 
-    <div class="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+    <div class="grid min-w-0 gap-4">
       <aside class="min-w-0 space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
         <h2 class="font-black text-[var(--dh-text)]">HTML almacenados</h2>
         <p v-if="loading" class="text-sm text-[var(--dh-text-muted)]">Cargando análisis...</p>
         <p v-else-if="!documents.length" class="text-sm text-[var(--dh-text-muted)]">
           Aún no hay análisis registrados. Suba un HTML para comenzar.
         </p>
+        <div class="flex gap-3 overflow-x-auto pb-2">
         <button
           v-for="document in documents"
           :key="document.id"
           type="button"
-          class="w-full rounded-xl border p-3 text-left transition-colors"
+          class="min-w-[240px] max-w-[320px] flex-1 rounded-xl border p-3 text-left transition-colors"
           :class="selectedId === document.id
             ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10'
             : 'border-[var(--dh-border)] hover:bg-[var(--dh-hover)]'"
@@ -258,6 +258,7 @@ onBeforeUnmount(() => { ++previewVersion })
             {{ formatDate(document.createdAtUtc) }} · {{ formatSize(document.sizeInBytes) }}
           </span>
         </button>
+        </div>
       </aside>
 
       <section class="min-w-0 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]"
@@ -281,7 +282,6 @@ onBeforeUnmount(() => { ++previewVersion })
         <div v-if="previewLoading" class="p-8 text-center text-[var(--dh-text-muted)]" role="status">Cargando visualización HTML...</div>
         <iframe
           v-else-if="previewHtml"
-          ref="previewFrame"
           :key="selectedId ?? undefined"
           :srcdoc="previewHtml"
           title="Análisis interactivo de la competencia"
