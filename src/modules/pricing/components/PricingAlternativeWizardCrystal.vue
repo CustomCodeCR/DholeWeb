@@ -1122,14 +1122,37 @@ const originOptions = computed(() => catalogs.pol.map((item) => ({ value: item.i
 const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))
 const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
 const incotermOptions = computed(() => catalogs.incoterms.map((item) => ({ value: item.id, label: displayValue(item) })))
+function countryPhraseContained(text: string, phrase: string) {
+  const normalizedText = normalizeCatalogValue(text)
+  const normalizedPhrase = normalizeCatalogValue(phrase)
+  // Contains de palabras/frases completas para evitar China ~ Indochina o IN ~ Ningbo.
+  return Boolean(normalizedPhrase) && (' ' + normalizedText + ' ').includes(' ' + normalizedPhrase + ' ')
+}
+
 function agentMatchesSelectedPol(agent: CatalogItemSelectDto) {
-  // Sin un POL elegido se conserva el catálogo completo. Cuando existe un POL,
-  // los agentes sin país o asociados a otro país no deben aparecer.
   if (!form.originId) return true
-  const originCountries = countryTokens(selectedOrigin.value)
-  if (!originCountries.size) return false
+  const origin = selectedOrigin.value
+  if (!origin) return false
+
   const agentCountries = countryTokens(agent, false)
-  return [...originCountries].some((country) => agentCountries.has(country))
+  if (!agentCountries.size) return false
+
+  const originCountries = countryTokens(origin)
+  const originText = [origin.value, origin.label, origin.slug, origin.code].filter(Boolean).join(' ')
+
+  return [...agentCountries].some((country) => {
+    // Coincidencia por countryCode, countryName, countries o countryCodes.
+    if (originCountries.has(country)) return true
+    // El nombre del POL puede traer el país sin metadata: "Ningbo, China".
+    if (countryPhraseContained(originText, country)) return true
+
+    // También vincular alias de nombre/código cuando algún POL configura ambos.
+    // Por ejemplo, origen countryCode=CN y agente countries=["China"].
+    return catalogs.pol.some((port) => {
+      const aliases = countryTokens(port)
+      return aliases.has(country) && [...originCountries].some((originCountry) => aliases.has(originCountry))
+    })
+  })
 }
 
 const eligibleAgents = computed(() => catalogs.agents.filter(agentMatchesSelectedPol))
@@ -1168,27 +1191,13 @@ function countryTokens(item: CatalogItemSelectDto | null | undefined, includeLab
 
 function resolveAgentForOrigin() {
   const origin = selectedOrigin.value
+  if (!origin || !eligibleAgents.value.length) return null
   const originTokens = countryTokens(origin)
-  if (!origin || !originTokens.size) return null
-
-  let best: CatalogItemSelectDto | null = null
-  let bestScore = 0
-  for (const agent of eligibleAgents.value) {
-    const agentTokens = countryTokens(agent, false)
-    const searchText = normalizeCatalogValue(
-      [agent.code, agent.value, agent.label, agent.metadataJson].filter(Boolean).join(' '),
-    )
-    let score = 0
-    for (const token of originTokens) {
-      if (agentTokens.has(token)) score = Math.max(score, token.length <= 3 ? 100 : 90)
-      else if (token.length >= 4 && searchText.includes(token)) score = Math.max(score, 60)
-    }
-    if (score > bestScore) {
-      best = agent
-      bestScore = score
-    }
-  }
-  return best
+  // Preferir el país explícito del POL; si solamente coincide por contains,
+  // mantener disponible el primer agente válido para la selección automática.
+  return eligibleAgents.value.find((agent) =>
+    [...countryTokens(agent, false)].some((country) => originTokens.has(country)),
+  ) ?? eligibleAgents.value[0] ?? null
 }
 
 function assignAgentForOrigin() {
@@ -4518,6 +4527,14 @@ watch(
 watch(
   () => form.originId,
   () => assignAgentForOrigin(),
+)
+
+// Revalidar también al cargar o actualizar el catálogo (incluida la restauración de borradores).
+watch(
+  () => eligibleAgents.value.map((agent) => agent.id).join('|'),
+  () => {
+    if (!hydratingExistingRate.value && form.originId) assignAgentForOrigin()
+  },
 )
 
 watch(
