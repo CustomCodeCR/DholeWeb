@@ -161,7 +161,9 @@ const filteredAgentCountryOptions = computed(() => {
 })
 const canAddCustomCountry = computed(() => {
   const search = normalizedCountry(agentCountrySearch.value)
-  return Boolean(search) && !agentCountryOptions.value.some((country) => normalizedCountry(country.name) === search)
+  return Boolean(search) && !agentCountryOptions.value.some((country) =>
+    normalizedCountry(country.name) === search || Boolean(country.code && country.code.toLowerCase() === search),
+  )
 })
 
 function agentCountrySelected(name: string) {
@@ -218,8 +220,9 @@ async function loadAgentCountries() {
     const countries = new Map<string, AgentCountry>()
     for (const port of ports) {
       const meta = parseMetadataJson(port.metadataJson)
-      const raw = String(port.value || port.label || '')
-      const suffix = raw.includes(',') ? raw.split(',').at(-1)?.trim() : ''
+      const portNames = [port.label, port.value].map((value) => String(value ?? '').trim())
+      const routeWithCountry = portNames.find((name) => name.includes(',')) ?? ''
+      const suffix = routeWithCountry ? routeWithCountry.split(',').at(-1)?.trim() : ''
       const names = [
         meta.countryName, meta.country, meta.originCountry,
         ...(Array.isArray(meta.countries) ? meta.countries : []),
@@ -227,12 +230,15 @@ async function loadAgentCountries() {
       ].filter((name): name is string => typeof name === 'string' && Boolean(name.trim()))
       const code = String(meta.countryCode ?? '').trim().toUpperCase()
       for (const name of names) {
-        // No mostrar códigos ISO como países duplicados cuando también existe un nombre.
-        if (/^[A-Z]{2}$/.test(name) && names.some((value) => value.length > 2)) continue
+        // No mostrar el código ISO como país duplicado si ya existe el nombre completo.
+        if (name.trim().toUpperCase() === code && names.some((value) =>
+          value !== name && normalizedCountry(value) !== normalizedCountry(code),
+        )) continue
         const key = normalizedCountry(name)
         const existing = countries.get(key)
-        if (!existing || (!existing.code && /^[A-Z]{2}$/.test(code))) {
-          countries.set(key, { name: name.trim(), code: /^[A-Z]{2}$/.test(code) ? code : '' })
+        const isoCode = /^[A-Z]{2,3}$/.test(code) ? code : ''
+        if (!existing || (!existing.code && isoCode)) {
+          countries.set(key, { name: name.trim(), code: isoCode })
         }
       }
     }
