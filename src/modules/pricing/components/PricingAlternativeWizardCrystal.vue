@@ -1135,7 +1135,9 @@ function agentMatchesSelectedPol(agent: CatalogItemSelectDto) {
   if (!origin) return false
 
   const agentCountries = countryTokens(agent, false)
-  if (!agentCountries.size) return false
+  // Los agentes sin país asignado son generales y deben estar disponibles
+  // para cualquier POL. Los agentes con país conservan el filtro por origen.
+  if (!agentCountries.size) return true
 
   const originCountries = countryTokens(origin)
   const originText = [origin.value, origin.label, origin.slug, origin.code].filter(Boolean).join(' ')
@@ -1193,11 +1195,12 @@ function resolveAgentForOrigin() {
   const origin = selectedOrigin.value
   if (!origin || !eligibleAgents.value.length) return null
   const originTokens = countryTokens(origin)
-  // Preferir el país explícito del POL; si solamente coincide por contains,
-  // mantener disponible el primer agente válido para la selección automática.
+  // Primero los agentes asignados al país del POL (incluso si hacen
+  // match por alias/contains); los agentes sin país son una alternativa general.
   return eligibleAgents.value.find((agent) =>
     [...countryTokens(agent, false)].some((country) => originTokens.has(country)),
-  ) ?? eligibleAgents.value[0] ?? null
+  ) ?? eligibleAgents.value.find((agent) => countryTokens(agent, false).size > 0)
+    ?? eligibleAgents.value[0] ?? null
 }
 
 function assignAgentForOrigin() {
@@ -5187,7 +5190,7 @@ onMounted(async () => {
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
             <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />
             <p v-if="form.originId && !agentOptions.length" class="text-xs font-semibold text-amber-500 md:col-span-2 xl:col-span-3">
-              No hay agentes asociados al país de este POL. Revise la metadata del POL y configure el país en Config &gt; Catálogos &gt; Agentes.
+              No hay agentes disponibles para este POL. Revise la metadata en Config &gt; Catálogos &gt; Agentes.
             </p>
             <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
             <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
