@@ -74,17 +74,29 @@ test('generation guide tracks six distinct stages and retains server-confirmed c
   assert.match(view, /Paso 6 — Confirmar el resultado real/)
   assert.match(view, /providerReadinessStatus === 'Verified'/)
   assert.match(view, /guideRequest\?\.status === 'Completed' && state\.activeGeneration === guideTarget/)
-  assert.match(view, /guideConfirmedTarget\.value === guideTarget\.value/)
-  assert.match(view, /guideSubmittedId\.value = response\.id/)
+  assert.match(view, /guidePreflightReady\.value && !actionPending\('switch'\)/)
+  assert.match(view, /guideSubmittedId\.value = id/)
 })
 
 test('generation guide delegates Docker operations to protected GitHub Actions', () => {
   assert.match(view, /production-generation-actions\.yml/)
-  assert.match(view, /operator-verify-standby-readiness\.yml/)
-  assert.match(view, /operation=<strong>preflight<\/strong>/)
+  assert.match(view, /async function runWebAction\(operation: WebActionOperation\)/)
+  assert.match(view, /Ejecutar preflight con Actions/)
   assert.match(view, /guideAuthorized\.value && manualEnabled\.value/)
   assert.match(view, /state\.value\?\.githubDispatcherConfigured/)
-  assert.match(view, /trigger: 'manual'/)
+  assert.match(view, /\/api\/agents\/runtime-generations\/actions\//)
   assert.match(view, /El entorno activo mostrado es el registro de PostgreSQL/)
   assert.doesNotMatch(view, /docker compose down -v/)
+})
+
+test('operator controls all protected generation actions without opening GitHub', () => {
+  for (const operation of ['provision-check', 'provision', 'attest', 'preflight', 'switch']) {
+    assert.match(view, new RegExp('runWebAction\\(\\x27' + operation + '\\x27\\)'))
+  }
+  assert.match(view, /webActionsAvailable/)
+  assert.match(view, /guideHubProofFresh/)
+  assert.match(view, /actionPending\\('switch'\\)/)
+  assert.match(view, /confirmedProviderAccess/)
+  assert.match(view, /confirmedHandoff/)
+  assert.doesNotMatch(view, /Abrir Actions de verificación/)
 })
