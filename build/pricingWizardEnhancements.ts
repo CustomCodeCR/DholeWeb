@@ -180,10 +180,17 @@ export function pricingWizardEnhancements(): Plugin {
         `watch(step, (value) => {\n  if (value === 7) {\n    void loadHaciendaExchangeRate(false)\n    syncDeclaredCargoInsuranceOnEdit()\n  }\n})`,
       ]
       const matchingStepWatchAnchors = stepWatchAnchors.filter((anchor) => code.includes(anchor))
-      if (matchingStepWatchAnchors.length !== 1) {
-        throw new Error(`[pricingWizardEnhancements] Expected one supported Pantalla 8 commercial terms initializer watcher, found ${matchingStepWatchAnchors.length}.`)
+      // Other scoped transforms may add more statements to this watcher before us.
+      // Preserve the original watcher and append initialization, rather than
+      // disabling the required commercial terms behavior.
+      const candidateWatchers = matchingStepWatchAnchors.length === 1
+        ? matchingStepWatchAnchors
+        : (code.match(/watch\(step,\s*\(value\)\s*=>\s*\{[\s\S]{0,1600}?\n\}\)/g) ?? [])
+            .filter((watcher) => watcher.includes('loadHaciendaExchangeRate(false)'))
+      if (candidateWatchers.length !== 1) {
+        throw new Error(`[pricingWizardEnhancements] Expected exactly one step watcher with Hacienda initialization, found ${candidateWatchers.length}.`)
       }
-      const stepWatchAnchor = matchingStepWatchAnchors[0]!
+      const stepWatchAnchor = candidateWatchers[0]!
       const stepWatchInitializer = `\n  if (value === 8) {\n    void initializeDraftCommercialTerms().catch(() => {\n      draftCommercialTerms.value = { includes: [], subjectTo: [], excludes: [] }\n      draftCommercialTermsInitialized.value = true\n    })\n  }`
       const stepWatchReplacement = stepWatchAnchor.replace('\n})', stepWatchInitializer + '\n})')
       code = replaceOne(code, stepWatchAnchor, stepWatchReplacement, 'Pantalla 8 commercial terms initializer')
