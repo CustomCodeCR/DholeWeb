@@ -155,6 +155,16 @@ const guideHubProofFresh = computed(() =>
   !!guideSession.value.accountVerifiedAtUtc &&
   Date.now() - new Date(guideSession.value.accountVerifiedAtUtc).getTime() < 5 * 60_000)
 const guidePreflightReady = computed(() => recentActionSuccess('preflight'))
+const guideCanAdvance = computed(() => {
+  switch (guideStep.value) {
+    case 1: return Boolean(guideGeneration.value)
+    case 2: return guideProvisioned.value
+    case 3: return guideSession.value?.status === 'Verified'
+    case 4: return guideAuthorized.value
+    case 5: return Boolean(guideSubmittedId.value)
+    default: return false
+  }
+})
 const guideCanSubmit = computed(() =>
   canManage.value && guideGenerationValid.value && guideProvisioned.value &&
   guideAuthorized.value && manualEnabled.value && !!state.value?.githubDispatcherConfigured &&
@@ -659,6 +669,10 @@ onUnmounted(() => {
             las comprobaciones de Docker y el relevo los ejecuta el runner protegido de GitHub Actions.
             Nunca se interpreta «solicitud enviada» como «Worker cambiado».
           </p>
+          <p v-if="!webActionsAvailable" class="mt-3 text-sm text-amber-500" role="alert">
+            Agent API todavía no responde al control de GitHub Actions desde Dhole.
+            Los botones quedarán limitados hasta que el despliegue del backend esté completo.
+          </p>
           <div class="mt-4 flex flex-wrap gap-2" role="group" aria-label="Pasos del cambio">
             <button v-for="(label, index) in [
                 'Destino', 'Infraestructura', 'Acceso', 'Autorización',
@@ -795,6 +809,15 @@ onUnmounted(() => {
               </template>
               <template v-else-if="guideSession?.status === 'Verified'">
                 <p class="text-sm text-emerald-500">El Hub figura verificado. Continuá al paso 4.</p>
+                <div v-if="!guideHubProofFresh" class="grid gap-2 rounded-xl border border-[var(--dh-border)] p-3">
+                  <p class="text-xs text-amber-500">
+                    La evidencia anterior venció para la autorización de relevo. Renovala
+                    desde este botón conservando los volúmenes y las demás generaciones.
+                  </p>
+                  <DhButton label="Renovar sesión de verificación" variant="secondary" :icon="RefreshCw"
+                    :disabled="!selectedCredential || standbyBusy !== null"
+                    :loading="standbyBusy === guideTarget" @click="prepareStandby(guideTarget)" />
+                </div>
               </template>
               <template v-else-if="guideSession?.status === 'Requested' ||
                   guideSession?.status === 'Preparing' || guideSession?.status === 'Finishing'">
@@ -844,8 +867,8 @@ onUnmounted(() => {
             <div class="mt-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-4">
               <p class="text-sm" role="status">Ejecución de Actions: <strong>{{ actionStatusLabel('attest') }}</strong></p>
               <p v-if="!guideHubProofFresh && !guideAuthorized" class="text-xs text-amber-500">
-                La comprobación del Hub debe ser reciente (menos de 5 minutos).
-                Volvé al paso 3 y realizá una nueva verificación cuando sea posible.
+                El Hub debe estar verificado en los últimos 5 minutos. Volvé al paso 3
+                y renová la sesión autorizada si la comprobación anterior venció.
               </p>
               <label class="flex items-start gap-2 text-sm">
                 <input v-model="guideAttestConsent" type="checkbox" class="mt-1" />
@@ -953,7 +976,7 @@ onUnmounted(() => {
             <div class="flex items-center gap-2">
               <DhButton label="Actualizar estados" :icon="RefreshCw" variant="secondary"
                 :loading="loading" @click="refresh()" />
-              <DhButton label="Siguiente paso" :disabled="guideStep === 6"
+              <DhButton label="Siguiente paso" :disabled="guideStep === 6 || !guideCanAdvance"
                 @click="guideStep = Math.min(6, guideStep + 1)" />
             </div>
           </div>
