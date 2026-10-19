@@ -1195,7 +1195,7 @@ const forcedCrcServiceIds = computed(() => {
 })
 // Un POE de Costa Rica o una operación clasificada como importación activa la regla CRC.
 // El OR evita que un catálogo incompleto de país deje una importación CR cobrando en USD.
-const crcImportContext = computed(() => operationType.value === 'Import' || destinationCountryCode.value === 'CR')
+const crcImportContext = computed(() => operationType.value === 'Import' || isCostaRica(selectedDestination.value))
 const usdCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'USD') ?? null)
 const crcCurrency = computed(() => catalogs.currencies.find((item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'CRC') ?? null)
 const lineCurrencyOptions = computed(() => {
