@@ -58,11 +58,14 @@ const DEFAULT_PANAMA_SURCHARGE_PER_CBM = 9
 
 function canonicalLtlCharges(profile: LandCommercialProfile): EditableLtlCharge[] {
   const isNvocc = profile === 'Nvocc'
+  const cartaPorteSale = isNvocc ? '35' : '45'
   return [
     { key: 'dua', name: 'DUA', costDetailType: 'CustomsCharge', chargeBasis: 'PerDocument', section: 'origin_charges', costAmount: '50', saleAmount: '60', isFlat: true },
+    { key: 'impuesto-dua', name: 'Impuesto DUA', costDetailType: 'CustomsCharge', chargeBasis: 'PerDocument', section: 'origin_charges', costAmount: '28', saleAmount: '28', isFlat: true },
     { key: 'duca-t', name: 'DUCA-T', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '30', saleAmount: isNvocc ? '30' : '35', isFlat: true },
     { key: 'stuffing', name: 'Stuffing', costDetailType: 'OriginCharge', chargeBasis: 'PerChargeableCbm', section: 'origin_charges', costAmount: String(DEFAULT_STUFFING_COST_PER_CBM), saleAmount: '10', isFlat: true },
-    { key: 'carta-porte', name: 'Carta Porte', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '0', saleAmount: isNvocc ? '35' : '45', isFlat: true },
+    { key: 'carta-porte', name: 'Carta Porte', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '0', saleAmount: cartaPorteSale, isFlat: true },
+    { key: 'manifiesto', name: 'Manifiesto', costDetailType: 'Documentation', chargeBasis: 'PerDocument', section: 'international_freight', costAmount: '0', saleAmount: cartaPorteSale, isFlat: true },
     { key: 'manejos', name: 'Manejos', costDetailType: 'OriginCharge', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '0', saleAmount: isNvocc ? '25' : '45', isFlat: true },
     { key: 'seguro', name: 'Seguro', costDetailType: 'Insurance', chargeBasis: 'PerShipment', section: 'origin_charges', costAmount: '', saleAmount: '', isFlat: false },
     { key: 'recolecta', name: 'Recolecta', costDetailType: 'OriginCharge', chargeBasis: 'PerShipment', section: 'pickup_origin', costAmount: '', saleAmount: '', isFlat: false },
@@ -96,6 +99,13 @@ function hydrateLtlCharges(
       saleAmount: incoming.saleAmount == null ? '' : String(incoming.saleAmount),
     }
   })
+}
+
+function flatLtlSale(row: FtlTariffDto, key: string) {
+  const charge = row.ltlChargeItems?.find((item) => item.key === key)
+  if (charge?.saleAmount != null) return charge.saleAmount
+  return canonicalLtlCharges(row.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient')
+    .find((item) => item.key === key)?.saleAmount ?? '0'
 }
 
 function ltlChargeBasisLabel(value: string) {
@@ -431,7 +441,9 @@ const effectiveCostPerCbm = computed(() =>
 )
 
 const documentCostTotal = computed(() =>
-  Math.max(Number(form.duaCost || 0), 0) + Math.max(Number(form.ducaTCost || 0), 0),
+  Math.max(Number(form.duaCost || 0), 0)
+  + Math.max(Number(form.ducaTCost || 0), 0)
+  + Math.max(Number(form.ltlCharges.find((charge) => charge.key === 'impuesto-dua')?.costAmount || 0), 0),
 )
 
 const variableCostPerCbm = computed(() =>
@@ -859,6 +871,8 @@ onMounted(load)
                   <td class="px-4 py-3 text-right text-xs font-bold">
                     <p>DUA {{ money(row.duaCost ?? DEFAULT_DUA_COST) }}</p>
                     <p class="text-[var(--dh-text-muted)]">DUCA-T {{ money(row.ducaTCost ?? DEFAULT_DUCA_T_COST) }}</p>
+                    <p class="text-[var(--dh-text-muted)]">Impuesto DUA (venta) {{ money(flatLtlSale(row, 'impuesto-dua')) }}</p>
+                    <p class="text-[var(--dh-text-muted)]">Manifiesto (venta) {{ money(flatLtlSale(row, 'manifiesto')) }}</p>
                   </td>
                   <td class="px-4 py-3 text-center font-bold">{{ row.transitDays == null ? '—' : row.transitDays + ' días' }}</td>
                   <td class="px-4 py-3 text-center">
@@ -1036,6 +1050,9 @@ onMounted(load)
                   <tr v-for="charge in form.ltlCharges" :key="charge.key" class="border-t border-[var(--dh-border)]">
                     <td class="px-4 py-3">
                       <p class="font-black">{{ charge.name }}</p>
+                      <p v-if="charge.key === 'manifiesto'" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">
+                        Mismo precio de venta que Carta Porte.
+                      </p>
                       <p v-if="charge.key === 'stuffing'" class="mt-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">
                         Costo por CBM = USD 550 ÷ 60. Venta = USD 10 / CBM.
                       </p>
