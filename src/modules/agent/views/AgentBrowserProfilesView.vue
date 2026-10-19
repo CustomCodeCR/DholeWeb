@@ -44,8 +44,12 @@ const generationSessionsAvailable = ref(true)
 const activeGeneration = ref<string | null>(null)
 const activeGenerationSession = computed(() => generationSessions.value.find(
   entry => entry.generation === activeGeneration.value) ?? null)
-const historicGenerationSessions = computed(() => generationSessions.value.filter(
-  entry => entry.generation !== activeGeneration.value))
+// Only future standbys remain visible; retired generations are excluded.
+const historicGenerationSessions = computed(() => {
+  const current = Number(activeGeneration.value?.replace(/^prod/, '') || '0')
+  return generationSessions.value.filter(entry =>
+    Number(entry.generation.replace(/^prod/, '') || '0') > current)
+})
 async function loadActiveGeneration() {
   try {
     const response = await callEndpoint<unknown>({
@@ -366,8 +370,8 @@ onUnmounted(() => {
           </h2>
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
             Generación activa: <strong>{{ activeGeneration ?? 'No confirmada' }}</strong>.
-            Cada generación tiene almacenamiento Chromium aislado. El listado inferior es de
-            perfiles registrados en la base compartida; sus nombres no identifican el Worker actual.
+            Cada generación tiene almacenamiento Chromium aislado. La tabla inferior
+            muestra únicamente los perfiles pertenecientes a la generación activa.
           </p>
         </div>
         <RouterLink to="/agents/generations"
@@ -416,27 +420,26 @@ onUnmounted(() => {
         </RouterLink>
       </div>
       <h3 v-if="historicGenerationSessions.length" class="mt-5 text-sm font-semibold">
-        Verificaciones de otras generaciones (histórico)
+        Autenticaciones de próximas generaciones
       </h3>
       <div v-for="entry in historicGenerationSessions" :key="entry.generation"
         class="mt-2 rounded-lg border border-[var(--dh-border)] p-3 opacity-75">
         <p class="font-semibold">{{ entry.generation }} — {{ entry.status }}</p>
         <p class="text-xs text-[var(--dh-text-muted)]">
-          No es el Worker activo. Su verificación no prueba el acceso de {{ activeGeneration ?? 'producción' }}.
+          Es una generación preparada que todavía no es la activa.
         </p>
       </div>
       <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
         Para abrir el navegador de la generación activa utilizá «Orquestador de entornos».
-        No confundás el túnel del perfil original con el navegador de {{ activeGeneration ?? 'producción' }}.
+        Las sesiones y los datos de generaciones retiradas no se reutilizan.
       </p>
     </section>
 
     <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
-      <h2 class="font-bold">Registros globales de perfiles</h2>
+      <h2 class="font-bold">Perfiles de {{ activeGeneration ?? 'la generación activa' }}</h2>
       <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
-        Estos perfiles pertenecen a PostgreSQL compartido. El registro con nombre «prod1»
-        es histórico y su estado no demuestra que el navegador de {{ activeGeneration ?? 'producción' }}
-        esté bloqueado ni autenticado. Las comprobaciones independientes están arriba.
+        Solo se muestran los perfiles que corresponden al Worker activo.
+        Los perfiles retirados no afectan la autenticación de esta generación.
       </p>
     </section>
     <DhDataTable
@@ -448,11 +451,6 @@ onUnmounted(() => {
       <template #cell-name="{ row }">
         <div>
           {{ row.name }}
-          <p v-if="isMaerskProfile(row) && activeGeneration && activeGeneration !== 'prod1'
-            && /prod1|original/i.test(row.name + ' ' + row.profileKey)"
-            class="mt-1 text-xs text-[var(--dh-text-muted)]">
-            Nombre histórico · registro global; no es la sesión Chromium de {{ activeGeneration }}
-          </p>
         </div>
       </template>
       <template #cell-providerId="{ row }">{{ providerName(row.providerId) }}</template>
