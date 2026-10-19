@@ -5,6 +5,8 @@ import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, 
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
 import { DhPageHeader, DhModal } from '@/shared/components/organisms'
 import { AgentService } from '@/core/services/agentService'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { ApiError } from '@/core/api/apiErrorHandler'
 import type { AgentCredentialDto, MaerskOperationsDto, MaerskProfileHealthDto, MaerskWaitingExecutionDto } from '@/core/interfaces/agent'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
@@ -19,6 +21,32 @@ const { t, locale } = useI18n()
 const permissions = useAgentPermissions()
 const toast = useToastStore()
 const details = ref<MaerskOperationsDto | null>(null)
+const activeGeneration = ref<string | null>(null)
+const activeGenerationAuth = ref<{
+  generation: string; status: string; accountVerifiedAtUtc?: string | null
+} | null>(null)
+async function refreshGenerationContext() {
+  try {
+    const [ownerResponse, authResponse] = await Promise.all([
+      callEndpoint<unknown>({
+        method: 'GET', path: '/api/agents/runtime-generations/',
+        headers: { Accept: 'application/json' },
+      }),
+      callEndpoint<unknown>({
+        method: 'GET', path: '/api/agents/runtime-generations/authentication/',
+        headers: { Accept: 'application/json' },
+      }),
+    ])
+    activeGeneration.value = unwrapApiResponse<{ activeGeneration: string }>(ownerResponse as never).activeGeneration
+    const auth = unwrapApiResponse<Array<{
+      generation: string; status: string; accountVerifiedAtUtc?: string | null
+    }>>(authResponse as never)
+    activeGenerationAuth.value = auth.find(x => x.generation === activeGeneration.value) ?? null
+  } catch {
+    activeGeneration.value = null
+    activeGenerationAuth.value = null
+  }
+}
 const waitingExecutions = ref<MaerskWaitingExecutionDto[]>([])
 const recoveryApiAvailable = ref(false)
 const selectedHealth = ref<MaerskProfileHealthDto | null>(null)
@@ -98,6 +126,7 @@ async function refresh(silent = false) {
     // The existing operations overview must stay usable until Agent API
     // exposes the phase-5 endpoints; never advertise unavailable mutations.
     details.value = await AgentService.maerskOperations.get()
+    await refreshGenerationContext()
     try {
       waitingExecutions.value = await AgentService.maerskOperations.waitingExecutions()
       recoveryApiAvailable.value = true
@@ -397,10 +426,30 @@ onUnmounted(() => {
             <ShieldAlert v-else class="h-6 w-6 shrink-0 text-amber-600" />
             <div class="min-w-0">
               <h2 class="font-bold text-[var(--dh-text)]">{{ t('maerskOperations.circuitTitle') }}</h2>
-              <p class="text-xs text-[var(--dh-text-muted)]">{{ details.providerName }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">
+                {{ details.providerName }} · Circuito global del proveedor
+              </p>
             </div>
           </div>
           <DhBadge :label="!circuit?.featureEnabled ? 'Disabled' : (circuit?.state ?? '—')" :variant="!circuit?.featureEnabled ? 'neutral' : badgeVariant(circuit?.state ?? '')" />
+        </div>
+        <div class="mt-3 rounded-lg border border-[var(--dh-border)] p-3 text-sm">
+          <p><strong>Worker activo registrado:</strong> {{ activeGeneration ?? 'No disponible' }}</p>
+          <p v-if="activeGenerationAuth" class="mt-1 text-[var(--dh-text-muted)]">
+            Verificación independiente de {{ activeGeneration }}:
+            {{ activeGenerationAuth.status }}
+            <span v-if="activeGenerationAuth.accountVerifiedAtUtc">
+              · {{ date(activeGenerationAuth.accountVerifiedAtUtc) }}
+            </span>
+            (registro de comprobación, no estado en tiempo real de Chromium)
+          </p>
+          <p v-else class="mt-1 text-[var(--dh-text-muted)]">
+            No hay comprobación independiente disponible para el Worker actual.
+          </p>
+          <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+            El motivo del breaker pertenece a Maersk globalmente. Un perfil histórico
+            nombrado «prod1» no identifica el contenedor que generó el incidente.
+          </p>
         </div>
         <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
           <div>
@@ -429,8 +478,9 @@ onUnmounted(() => {
             Antes de liberar el circuito: verificar la sesión original
           </p>
           <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
-            Aunque prod2 haya pasado su verificación independiente, el circuito de Maersk
-            todavía exige que un perfil original activo se autentique después de la restricción.
+            Aunque {{ activeGeneration ?? 'la generación activa' }} tenga una verificación independiente,
+            el circuito global de Maersk conserva su propia restricción. La sesión de otro
+            entorno no equivale a una autenticación original comprobada.
             Marcar «Verificado con proveedor» no sustituye ese resultado.
           </p>
           <p v-if="!details.profiles.length" class="mt-2 text-sm text-amber-600">
@@ -442,10 +492,14 @@ onUnmounted(() => {
             Hace falta una autenticación satisfactoria.
           </p>
           <div v-if="originalProfilesNeedingReview.length" class="mt-3 text-sm">
-            <p class="font-semibold text-amber-600">Perfiles que requieren revisión:</p>
+            <p class="font-semibold text-amber-600">Registros globales que requieren revisión:</p>
             <p v-for="profile in originalProfilesNeedingReview" :key="profile.id"
               class="mt-1 text-[var(--dh-text-muted)]">
               {{ profile.name }} — {{ profile.status }}
+              <span v-if="activeGeneration && activeGeneration !== 'prod1' &&
+                /prod1|original/i.test(profile.name)">
+                (nombre legado; no demuestra que el navegador de {{ activeGeneration }} esté bloqueado)
+              </span>
             </p>
             <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
               El servidor distingue perfiles activos e inactivos; este listado es
@@ -499,7 +553,12 @@ onUnmounted(() => {
 
       <div class="grid min-w-0 gap-4 xl:grid-cols-2">
         <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
-          <h2 class="mb-3 font-bold text-[var(--dh-text)]">{{ t('maerskOperations.sessions') }}</h2>
+          <h2 class="mb-3 font-bold text-[var(--dh-text)]">Perfiles globales registrados (histórico compartido)</h2>
+          <p class="mb-3 text-xs text-[var(--dh-text-muted)]">
+            Este listado viene de PostgreSQL compartido. Los nombres «prod1» corresponden
+            a registros históricos; la autenticación del navegador de {{ activeGeneration ?? 'producción' }}
+            se consulta por separado arriba.
+          </p>
           <p v-if="!details.profiles.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('maerskOperations.empty') }}</p>
           <div v-for="profile in details.profiles" :key="profile.id"
             class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] py-3 first:border-0">
