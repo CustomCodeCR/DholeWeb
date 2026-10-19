@@ -10,6 +10,7 @@ import type { SystemNotificationPush } from '@/core/realtime/notificationRealtim
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
+import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 
 type Priority = 'Green' | 'Yellow' | 'Red'
 type RequestStatus = 'Open' | 'Completed' | 'Cancelled'
@@ -25,6 +26,9 @@ interface RateRequestDto {
   status: RequestStatus
   requestedAtUtc: string
   dueAtUtc: string
+  lockedByUserId?: string | null
+  lockedByName?: string | null
+  lockExpiresAtUtc?: string | null
   completedAtUtc?: string | null
   rateId?: string | null
   sellerName?: string | null
@@ -48,6 +52,7 @@ const toast = useToastStore()
 const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
 const completingRequestId = ref<string | null>(null)
+const claimingRequestId = ref<string | null>(null)
 const exporting = ref(false)
 const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
@@ -231,25 +236,38 @@ async function exportRequestedRates() {
   }
 }
 
-function continueRequest(request: RateRequestDto) {
+function isLocked(request: RateRequestDto): boolean {
+  return Boolean(request.lockedByUserId && request.lockExpiresAtUtc
+    && new Date(request.lockExpiresAtUtc).getTime() > now.value)
+}
+
+async function continueRequest(request: RateRequestDto) {
   if (request.status !== 'Open') return
-  router.push({ name: 'pricing-rate-request-resume', params: { requestId: request.id } })
+  if (claimingRequestId.value || isLocked(request)) return
+  claimingRequestId.value = request.id
+  try {
+    await RateRequestLeaseService.claim(request.id)
+    await router.push({ name: 'pricing-rate-request-resume', params: { requestId: request.id } })
+  } catch (error) {
+    toast.backendError(error, 'La solicitud ya está siendo atendida por otra persona.')
+    await load()
+  } finally {
+    claimingRequestId.value = null
+  }
 }
 
 async function completeRequest(request: RateRequestDto) {
-  if (request.status !== 'Open' || completingRequestId.value) return
+  if (request.status !== 'Open' || completingRequestId.value || isLocked(request)) return
   try {
     completingRequestId.value = request.id
-    await callEndpoint<unknown>({
-      method: 'POST',
-      path: '/api/pricing/rate-requests/' + request.id + '/complete',
-      headers: { Accept: 'application/json' },
-    })
+    await RateRequestLeaseService.claim(request.id)
+    await RateRequestLeaseService.complete(request.id)
     toast.success('Solicitud marcada como completada.')
     await load()
   } catch (error) {
     toast.backendError(error, 'No se pudo marcar la solicitud como completada.')
   } finally {
+    await RateRequestLeaseService.release(request.id).catch(() => undefined)
     completingRequestId.value = null
   }
 }
@@ -268,7 +286,10 @@ onMounted(async () => {
     load(),
   ])
   window.addEventListener('dhole:notification:received', handleRealtimeNotification)
-  timer = window.setInterval(() => { now.value = Date.now() }, 30000)
+  timer = window.setInterval(() => {
+    now.value = Date.now()
+    if (!loading.value) void load()
+  }, 15000)
 })
 
 onBeforeUnmount(() => {
@@ -322,6 +343,7 @@ onBeforeUnmount(() => {
             <th class="px-4 py-3">POE</th>
             <th class="px-4 py-3">POD</th>
             <th class="px-4 py-3">Prioridad</th>
+            <th class="px-4 py-3">Atendida por</th>
             <th class="px-4 py-3">Incoterm</th>
             <th class="px-4 py-3">Tiempo</th>
             <th class="px-4 py-3">Límite</th>
@@ -343,6 +365,13 @@ onBeforeUnmount(() => {
               <DhBadge v-else label="POD no indicado" variant="danger" />
             </td>
             <td class="border-l-4 px-4 py-3" :class="request.priority === 'Red' ? 'border-red-500' : request.priority === 'Yellow' ? 'border-amber-500' : 'border-emerald-500'"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
+            <td class="px-4 py-3">
+              <span v-if="isLocked(request)" class="font-bold text-amber-600 dark:text-amber-300">
+                {{ request.lockedByName || 'Otro usuario' }}
+                <span class="block text-xs font-medium">En proceso · Bloqueada</span>
+              </span>
+              <span v-else class="font-semibold text-emerald-600 dark:text-emerald-400">Disponible</span>
+            </td>
             <td class="px-4 py-3 font-bold">{{ incotermLabel(request) }}</td>
             <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong><p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Recibida: {{ new Date(request.requestedAtUtc).toLocaleString('es-CR') }}</p></td>
             <td class="px-4 py-3">
@@ -351,8 +380,11 @@ onBeforeUnmount(() => {
             </td>
             <td class="px-4 py-3 text-right">
               <div v-if="request.status === 'Open'" class="flex items-center justify-end gap-2">
-                <DhButton @click="continueRequest(request)"><PlayCircle class="h-4 w-4" /> Continuar tarifa</DhButton>
-                <DhButton variant="secondary" :disabled="Boolean(completingRequestId)" @click="completeRequest(request)">
+                <DhButton :disabled="isLocked(request) || Boolean(claimingRequestId)" @click="continueRequest(request)">
+                  <PlayCircle class="h-4 w-4" />
+                  {{ isLocked(request) ? 'En proceso' : claimingRequestId === request.id ? 'Reservando…' : 'Continuar tarifa' }}
+                </DhButton>
+                <DhButton variant="secondary" :disabled="isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId)" @click="completeRequest(request)">
                   <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : 'Marcar completada' }}
                 </DhButton>
               </div>

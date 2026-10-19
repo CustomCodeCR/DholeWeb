@@ -46,6 +46,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
@@ -4016,6 +4017,9 @@ async function saveOpenRequest() {
         notes: supportText || 'Solicitud abierta pendiente de completar costos y proveedor.',
       }],
     })
+    if (props.rateRequestId) {
+      await RateRequestLeaseService.attachRate(props.rateRequestId, rateId)
+    }
     // CreateRate puede devolver la solicitud ya Open cuando el usuario tiene
     // permiso de aprobación. No enviamos Open -> Open porque esa transición era la
     // causa del RateInvalidStatus al crear.
@@ -4396,6 +4400,9 @@ async function saveRate() {
       toastStore.success('Tarifa creada correctamente.')
     }
     createdRateId.value = rateId
+    if (props.rateRequestId) {
+      await RateRequestLeaseService.attachRate(props.rateRequestId, rateId)
+    }
     await router.push({ name: 'pricing-rates' })
   } catch (error) {
     toastStore.backendError(error, isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.')
