@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   Activity, ArrowRightLeft, CalendarClock, CheckCircle2, History, Plus,
-  RefreshCw, Settings2, ShieldCheck, Workflow,
+  RefreshCw, Settings2, ShieldCheck, Workflow, ExternalLink, ListChecks,
 } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { ApiError } from '@/core/api/apiErrorHandler'
@@ -13,7 +13,7 @@ import { DhButton } from '@/shared/components/atoms'
 import { DhPageHeader } from '@/shared/components/organisms'
 
 type TriggerCode = 'manual' | 'scheduled' | 'technical_failure' | 'data_quality'
-type Panel = 'overview' | 'manual' | 'automation'
+type Panel = 'guide' | 'overview' | 'manual' | 'automation'
 
 interface Rule {
   code: TriggerCode
@@ -27,6 +27,7 @@ interface Generation {
   sharedDatabases: boolean
   registeredAtUtc?: string
   provisioningStatus?: string
+  providerReadinessStatus?: 'Missing' | 'Unverified' | 'Expired' | 'Verified'
 }
 interface StandbyAuthSession {
   generation: string
@@ -77,7 +78,7 @@ const activeStandbyViewer = ref<{ generation: string; url: string } | null>(null
 const automaticHubInspectionAttempts = new Map<string, number>()
 const automaticHubInspectionIntervalMs = 180_000
 const independentlyVerified = ref<Record<string, boolean>>({})
-const panel = ref<Panel>('overview')
+const panel = ref<Panel>('guide')
 const newGeneration = ref('')
 const target = ref('')
 const reason = ref('')
@@ -95,6 +96,38 @@ const validGeneration = computed(() => /^prod[1-9][0-9]*$/.test(newGeneration.va
 const validRequest = computed(() => canManage.value && manualEnabled.value &&
   destinations.value.some(item => item.name === target.value) &&
   reason.value.trim().length >= 12 && reason.value.trim().length <= 500 && reviewed.value)
+const generationActionsUrl = 'https://github.com/CustomCodeCR/DholeAgentService/actions/workflows/production-generation-actions.yml'
+const generationReadinessUrl = 'https://github.com/CustomCodeCR/DholeAgentService/actions/workflows/operator-verify-standby-readiness.yml'
+const guideTarget = ref('prod2')
+const guideStep = ref(1)
+const guidePreflightConfirmed = ref(false)
+const guideConfirmedTarget = ref('')
+const guideReason = ref('Cambio controlado por mantenimiento técnico y validación del entorno de destino')
+const guideReviewed = ref(false)
+const guideSubmittedId = ref<string | null>(null)
+const guideGenerationValid = computed(() =>
+  /^prod[1-9][0-9]*$/.test(guideTarget.value) &&
+  guideTarget.value.length <= 64 && guideTarget.value !== state.value?.activeGeneration)
+const guideGeneration = computed(() =>
+  state.value?.generations.find(item => item.name === guideTarget.value))
+const guideProvisioned = computed(() => guideGeneration.value?.provisioningStatus === 'Provisioned')
+const guideSession = computed(() => standbySession(guideTarget.value))
+const guideAuthorized = computed(() => guideGeneration.value?.providerReadinessStatus === 'Verified')
+const guideRequest = computed(() =>
+  state.value?.events.find(event => event.id === guideSubmittedId.value))
+const guideCanSubmit = computed(() =>
+  canManage.value && guideGenerationValid.value && guideProvisioned.value &&
+  guideAuthorized.value && manualEnabled.value && !!state.value?.githubDispatcherConfigured &&
+  guidePreflightConfirmed.value && guideConfirmedTarget.value === guideTarget.value &&
+  guideReviewed.value && guideReason.value.trim().length >= 12 &&
+  guideReason.value.trim().length <= 500 && guideSubmittedId.value === null)
+watch(guideTarget, () => {
+  guidePreflightConfirmed.value = false
+  guideConfirmedTarget.value = ''
+  guideReviewed.value = false
+  guideSubmittedId.value = null
+})
+
 const automaticRules = computed(() => (state.value?.rules ?? [])
   .filter(rule => rule.code !== 'manual'))
 const diagnosticDescriptions: Record<string, string> = {
@@ -417,6 +450,42 @@ async function saveRule(rule: Rule) {
   }
 }
 
+
+async function registerGuidedTarget() {
+  if (!canManage.value || !guideGenerationValid.value || guideGeneration.value) return
+  newGeneration.value = guideTarget.value
+  await registerGeneration()
+}
+
+async function requestGuidedChange() {
+  if (!guideCanSubmit.value || submitting.value) return
+  submitting.value = true
+  try {
+    const response = await callEndpoint<{ id: string; status: string; executed: boolean },
+      { targetGeneration: string; trigger: TriggerCode; reason: string }>({
+      method: 'POST', path: '/api/agents/runtime-generations/requests',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, {
+      body: { targetGeneration: guideTarget.value, trigger: 'manual', reason: guideReason.value.trim() },
+    })
+    if (!response.id) throw new Error('El servidor no devolvió el identificador de la solicitud.')
+    guideSubmittedId.value = response.id
+    guideReviewed.value = false
+    guideStep.value = 6
+    toast.success('Solicitud enviada a la cola', 'GitHub Actions realizará las validaciones. Este mensaje no confirma el cambio.')
+    await refresh()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo registrar el relevo.')
+  } finally {
+    submitting.value = false
+  }
+}
+
+function confirmGuidedPreflight(value: boolean) {
+  guidePreflightConfirmed.value = value
+  guideConfirmedTarget.value = value ? guideTarget.value : ''
+}
+
 onMounted(() => {
   void refresh()
   if (canManage.value) {
@@ -441,7 +510,7 @@ onUnmounted(() => {
   <section class="mx-auto grid w-full max-w-6xl min-w-0 gap-5 pb-8">
     <DhPageHeader
       title="Orquestador de entornos"
-      subtitle="Consulta el entorno activo, administra los disponibles y solicita cambios"
+      subtitle="Prepará, verificá y cambiá generaciones de producción paso a paso"
       :icon="Workflow"
     >
       <template #actions>
@@ -489,25 +558,297 @@ onUnmounted(() => {
         </RouterLink>
       </div>
 
-      <nav class="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Secciones del orquestador">
+      <nav class="grid grid-cols-1 gap-2 sm:grid-cols-4" aria-label="Secciones del orquestador">
+        <button type="button" class="flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-bold transition"
+          :class="panel === 'guide' ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-soft)]'"
+          :aria-current="panel === 'guide' ? 'page' : undefined" @click="panel = 'guide'">
+          <ListChecks class="h-4 w-4" /> Asistente guiado
+        </button>
         <button type="button" class="flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-bold transition"
           :class="panel === 'overview' ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-soft)]'"
           :aria-current="panel === 'overview' ? 'page' : undefined" @click="panel = 'overview'">
-          <Activity class="h-4 w-4" /> 1. Ver entornos
+          <Activity class="h-4 w-4" /> Ver entornos
         </button>
         <button type="button" class="flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-bold transition"
           :class="panel === 'manual' ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-soft)]'"
           :aria-current="panel === 'manual' ? 'page' : undefined" @click="panel = 'manual'">
-          <ArrowRightLeft class="h-4 w-4" /> 2. Solicitar cambio
+          <ArrowRightLeft class="h-4 w-4" /> Solicitar cambio
         </button>
         <button type="button" class="flex items-center gap-2 rounded-xl border px-4 py-3 text-left text-sm font-bold transition"
           :class="panel === 'automation' ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-surface)] text-[var(--dh-text-soft)]'"
           :aria-current="panel === 'automation' ? 'page' : undefined" @click="panel = 'automation'">
-          <CalendarClock class="h-4 w-4" /> 3. Reglas automáticas
+          <CalendarClock class="h-4 w-4" /> Reglas automáticas
         </button>
       </nav>
 
-      <template v-if="panel === 'overview'">
+
+      <section v-if="panel === 'guide'" class="grid gap-4" aria-label="Asistente de cambio de entorno">
+        <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-6">
+          <h2 class="text-lg font-bold">Cambio de entorno guiado</h2>
+          <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+            Seguí los seis pasos en orden. Dhole consulta el inventario y la autorización del Agent API;
+            las comprobaciones de Docker y el relevo los ejecuta el runner protegido de GitHub Actions.
+            Nunca se interpreta «solicitud enviada» como «Worker cambiado».
+          </p>
+          <div class="mt-4 flex flex-wrap gap-2" role="group" aria-label="Pasos del cambio">
+            <button v-for="(label, index) in [
+                'Destino', 'Infraestructura', 'Acceso', 'Autorización',
+                'Preflight y relevo', 'Resultado'
+              ]" :key="index" type="button" @click="guideStep = index + 1"
+              :aria-current="guideStep === index + 1 ? 'step' : undefined"
+              class="rounded-xl border px-3 py-2 text-xs font-semibold transition"
+              :class="guideStep === index + 1
+                ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)] text-[var(--dh-text)]'
+                : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+              {{ index + 1 }}. {{ label }}
+            </button>
+          </div>
+          <p class="mt-4 text-sm">
+            Origen registrado: <strong>{{ state.activeGeneration }}</strong>
+            <span class="mx-2 text-[var(--dh-text-muted)]">→</span>
+            Destino: <strong>{{ guideTarget || 'sin elegir' }}</strong>
+          </p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+            El entorno activo mostrado es el registro de PostgreSQL. La confirmación física exige
+            una ejecución exitosa de Actions y la reconciliación con Docker.
+          </p>
+        </div>
+
+        <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-6">
+          <template v-if="guideStep === 1">
+            <h3 class="text-lg font-bold">Paso 1 — Elegir o registrar el destino</h3>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+              Indicá la generación que debe recibir el trabajo. Si ya existe, la seleccionamos;
+              si no existe, la registramos primero. Registrar no crea contenedores.
+            </p>
+            <label class="mt-4 block max-w-md text-sm font-semibold">
+              Generación de destino
+              <input v-model.trim="guideTarget" list="generation-guide-options" maxlength="64"
+                autocomplete="off" placeholder="prod2"
+                class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
+              <datalist id="generation-guide-options">
+                <option v-for="generation in state.generations.filter(item => item.name !== state.activeGeneration)"
+                  :key="generation.name" :value="generation.name" />
+              </datalist>
+            </label>
+            <p v-if="!guideGenerationValid" class="mt-3 text-sm text-amber-500" role="status">
+              Usá un nombre prodN válido, distinto del entorno activo; por ejemplo prod2.
+            </p>
+            <p v-else-if="guideGeneration" class="mt-3 text-sm" role="status">
+              {{ guideTarget }} está registrado. Provisión: <strong>{{ guideGeneration.provisioningStatus ?? 'Desconocida' }}</strong>.
+            </p>
+            <div v-else class="mt-4 space-y-2">
+              <p class="text-sm text-[var(--dh-text-muted)]">Este nombre todavía no está registrado en Dhole.</p>
+              <DhButton label="Registrar entorno en Dhole" :icon="Plus" variant="secondary"
+                :disabled="!canManage || !guideGenerationValid || registering"
+                :loading="registering" @click="registerGuidedTarget" />
+            </div>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+              La cuenta debe tener el scope agent.browser-profiles.authenticate para registrar y ejecutar cambios.
+            </p>
+          </template>
+
+          <template v-else-if="guideStep === 2">
+            <h3 class="text-lg font-bold">Paso 2 — Preparar la infraestructura</h3>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+              GitHub Actions debe preparar API, Hermes, volúmenes persistentes independientes y un Worker detenido.
+              No se tocan los datos ni las sesiones del entorno anterior.
+            </p>
+            <div class="mt-4 rounded-xl border border-[var(--dh-border)] p-3 text-sm" role="status">
+              Estado de {{ guideTarget }}: <strong>{{ guideGeneration?.provisioningStatus ?? 'No registrado' }}</strong>
+              <span v-if="guideProvisioned" class="ml-2 text-emerald-500">Infraestructura registrada como preparada</span>
+            </div>
+            <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
+              Si figura como Pending o Dispatched, pulsá «Actualizar» para consultar el resultado.
+              Si no se provisiona automáticamente, abrí Actions, seleccioná la rama master,
+              operation=<strong>provision-check</strong> primero y luego
+              operation=<strong>provision</strong>, generation=<strong>{{ guideTarget }}</strong>.
+              Confirmación: <code>PROVISION_INDEPENDENT_GENERATION</code>.
+            </p>
+            <a :href="generationActionsUrl" target="_blank" rel="noopener noreferrer"
+              class="mt-3 inline-flex items-center gap-2 font-semibold text-[var(--dh-primary)] underline">
+              Abrir Actions de generaciones <ExternalLink class="h-4 w-4" />
+            </a>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+              El estado Provisioned procede del servidor, pero no garantiza acceso autenticado al proveedor.
+            </p>
+          </template>
+
+          <template v-else-if="guideStep === 3">
+            <h3 class="text-lg font-bold">Paso 3 — Verificar acceso autorizado al proveedor</h3>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+              Prepará y abrí el navegador independiente de {{ guideTarget }}. Ingresá a Maersk
+              por el flujo autorizado, pulsá «Comprobar ahora» y finalizá solamente si el Hub
+              está accesible sin CAPTCHA ni denegación. No copies sesiones de otra generación.
+            </p>
+            <div class="mt-4 rounded-xl border border-[var(--dh-border)] p-3 text-sm" role="status">
+              Estado de la sesión: <strong>{{ standbyStatusLabel(guideSession?.status) }}</strong>.
+            </div>
+            <div v-if="canManage && guideProvisioned && validStandbyName(guideTarget)" class="mt-4 grid gap-3">
+              <template v-if="guideSession?.status === 'Ready'">
+                <DhButton label="Abrir navegador aislado" variant="secondary" :icon="ShieldCheck"
+                  :disabled="standbyBusy !== null" :loading="standbyBusy === guideTarget"
+                  @click="openStandbyViewer(guideTarget)" />
+                <DhButton label="Comprobar ahora" variant="secondary" :icon="RefreshCw"
+                  :disabled="standbyBusy !== null" :loading="standbyBusy === guideTarget"
+                  @click="inspectStandby(guideTarget)" />
+                <p v-if="guideSession.accountVerifiedAtUtc" class="text-xs text-emerald-500">
+                  Hub comprobado: {{ dateLabel(guideSession.accountVerifiedAtUtc) }}
+                </p>
+                <label class="flex items-start gap-2 text-sm">
+                  <input v-model="independentlyVerified[guideTarget]" type="checkbox" class="mt-1" />
+                  Verifiqué personalmente que {{ guideTarget }} tiene acceso legítimo al Hub
+                  y no existe CAPTCHA ni acceso denegado.
+                </label>
+                <DhButton label="Finalizar verificación" variant="secondary" :icon="CheckCircle2"
+                  :disabled="!independentlyVerified[guideTarget] || !guideSession.accountVerifiedAtUtc || standbyBusy !== null"
+                  :loading="standbyBusy === guideTarget" @click="completeStandby(guideTarget)" />
+              </template>
+              <template v-else-if="guideSession?.status === 'Verified'">
+                <p class="text-sm text-emerald-500">El Hub figura verificado. Continuá al paso 4.</p>
+              </template>
+              <template v-else-if="guideSession?.status === 'Requested' ||
+                  guideSession?.status === 'Preparing' || guideSession?.status === 'Finishing'">
+                <p class="text-sm text-[var(--dh-text-muted)]">
+                  Preparación en curso. Actualizá para consultar el siguiente estado.
+                </p>
+              </template>
+              <template v-else>
+                <label class="text-sm font-semibold">
+                  Credencial autorizada
+                  <select v-model="selectedCredential"
+                    class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                    <option v-for="credential in maerskCredentials" :key="credential.id"
+                      :value="credential.id">{{ credential.name }}</option>
+                  </select>
+                </label>
+                <DhButton label="Preparar navegador independiente" variant="secondary" :icon="ShieldCheck"
+                  :disabled="!selectedCredential || standbyBusy !== null"
+                  :loading="standbyBusy === guideTarget" @click="prepareStandby(guideTarget)" />
+              </template>
+              <p v-if="guideSession?.diagnosticCode" class="text-xs text-[var(--dh-text-muted)]">
+                {{ standbyDiagnosticLabels[guideSession.diagnosticCode] ?? guideSession.diagnosticCode }}
+              </p>
+            </div>
+            <p v-else class="mt-3 text-sm text-amber-500">
+              El destino debe estar provisionado y requiere permisos de operador antes de abrir la sesión.
+            </p>
+          </template>
+
+          <template v-else-if="guideStep === 4">
+            <h3 class="text-lg font-bold">Paso 4 — Registrar la autorización independiente</h3>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+              Una sesión del Hub verificada no equivale a una autorización de relevo. Un operador
+              debe confirmar el acceso legítimo en el workflow protegido de Actions.
+            </p>
+            <div class="mt-4 rounded-xl border border-[var(--dh-border)] p-3 text-sm" role="status">
+              Estado oficial del destino: <strong>{{ guideGeneration?.providerReadinessStatus ?? 'Missing' }}</strong>
+              <p v-if="guideAuthorized" class="mt-1 text-emerald-500">
+                El servidor registra una autorización vigente para {{ guideTarget }}.
+              </p>
+            </div>
+            <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
+              En Actions, ejecutá <strong>Operator-verify standby provider readiness</strong>
+              en la rama <strong>master</strong>, generation=<strong>{{ guideTarget }}</strong>,
+              y confirmá solamente después de comprobar el acceso real. El workflow exige
+              <code>I_INDEPENDENTLY_VERIFIED_AUTHORIZED_PROVIDER_ACCESS</code>.
+            </p>
+            <a :href="generationReadinessUrl" target="_blank" rel="noopener noreferrer"
+              class="mt-3 inline-flex items-center gap-2 font-semibold text-[var(--dh-primary)] underline">
+              Abrir Actions de verificación <ExternalLink class="h-4 w-4" />
+            </a>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+              Esta autorización caduca a los 60 minutos. Si vence, repetí este paso.
+            </p>
+          </template>
+
+          <template v-else-if="guideStep === 5">
+            <h3 class="text-lg font-bold">Paso 5 — Preflight y solicitud de relevo</h3>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+              Primero usá Actions con operation=<strong>preflight</strong>, rama
+              <strong>master</strong> y generation=<strong>{{ guideTarget }}</strong>.
+              Solo si esa ejecución finaliza en Success continuá. El preflight comprueba
+              salud, imágenes, volúmenes, Workers, trabajos activos y circuit breaker.
+            </p>
+            <a :href="generationActionsUrl" target="_blank" rel="noopener noreferrer"
+              class="mt-3 inline-flex items-center gap-2 font-semibold text-[var(--dh-primary)] underline">
+              Abrir Actions para preflight <ExternalLink class="h-4 w-4" />
+            </a>
+            <div class="mt-4 grid gap-3">
+              <label class="flex items-start gap-2 text-sm">
+                <input :checked="guidePreflightConfirmed && guideConfirmedTarget === guideTarget"
+                  type="checkbox" class="mt-1"
+                  @change="confirmGuidedPreflight(($event.target as HTMLInputElement).checked)" />
+                Revisé en GitHub que <strong>preflight</strong> terminó en Success para {{ guideTarget }}.
+                Esta casilla no sustituye la validación que hará el servidor al ejecutar.
+              </label>
+              <label class="text-sm font-semibold">
+                Motivo documentado
+                <textarea v-model="guideReason" rows="3" maxlength="500"
+                  class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
+              </label>
+              <label class="flex items-start gap-2 text-sm">
+                <input v-model="guideReviewed" type="checkbox" class="mt-1" />
+                Comprendo que el relevo se envía a GitHub Actions y puede ser rechazado si
+                la autorización venció, el circuito está bloqueado o existe trabajo activo.
+              </label>
+              <p v-if="!state.githubDispatcherConfigured" class="text-sm text-amber-500" role="status">
+                El dispatcher de GitHub Actions no está configurado. No es posible enviar el cambio desde Dhole.
+              </p>
+              <p v-else-if="!guideAuthorized" class="text-sm text-amber-500" role="status">
+                El destino todavía no tiene una autorización independiente vigente.
+              </p>
+              <p v-else-if="!manualEnabled" class="text-sm text-amber-500" role="status">
+                La regla de cambios manuales está deshabilitada.
+              </p>
+              <DhButton label="Solicitar relevo a través de Actions" :icon="ArrowRightLeft"
+                :disabled="!guideCanSubmit || submitting"
+                :loading="submitting" @click="requestGuidedChange" />
+            </div>
+          </template>
+
+          <template v-else>
+            <h3 class="text-lg font-bold">Paso 6 — Confirmar el resultado real</h3>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+              La solicitud no implica éxito. Actualizá hasta ver Completed y verificá
+              que el entorno activo registrado sea {{ guideTarget }}.
+              Revisá el run correspondiente de GitHub Actions para comprobar la ejecución real.
+            </p>
+            <div class="mt-4 grid gap-2 rounded-xl border border-[var(--dh-border)] p-4 text-sm" role="status">
+              <p>ID de esta solicitud: <strong>{{ guideSubmittedId ?? 'Todavía no enviada' }}</strong></p>
+              <p>Estado de la solicitud: <strong>{{ guideRequest?.status ?? 'Sin confirmación del servidor' }}</strong></p>
+              <p>Entorno activo registrado: <strong>{{ state.activeGeneration }}</strong></p>
+              <p v-if="guideRequest?.diagnosticCode" class="text-amber-500">
+                {{ diagnosticDescriptions[guideRequest.diagnosticCode] ?? guideRequest.diagnosticCode }}
+              </p>
+              <p v-if="guideRequest?.status === 'Completed' && state.activeGeneration === guideTarget"
+                class="font-semibold text-emerald-500">
+                Dhole registró el relevo como completado. Confirmá también el Worker único desde Actions.
+              </p>
+              <p v-else class="text-[var(--dh-text-muted)]">
+                Pendiente de confirmación. No se considera activo el nuevo Worker todavía.
+              </p>
+            </div>
+            <a :href="generationActionsUrl" target="_blank" rel="noopener noreferrer"
+              class="mt-3 inline-flex items-center gap-2 font-semibold text-[var(--dh-primary)] underline">
+              Revisar ejecuciones de Actions <ExternalLink class="h-4 w-4" />
+            </a>
+          </template>
+
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--dh-border)] pt-4">
+            <DhButton label="Paso anterior" variant="secondary" :disabled="guideStep === 1"
+              @click="guideStep = Math.max(1, guideStep - 1)" />
+            <div class="flex items-center gap-2">
+              <DhButton label="Actualizar estados" :icon="RefreshCw" variant="secondary"
+                :loading="loading" @click="refresh()" />
+              <DhButton label="Siguiente paso" :disabled="guideStep === 6"
+                @click="guideStep = Math.min(6, guideStep + 1)" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <template v-else-if="panel === 'overview'">
         <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
           <div class="mb-4">
             <h2 class="text-lg font-bold">Tus entornos</h2>
