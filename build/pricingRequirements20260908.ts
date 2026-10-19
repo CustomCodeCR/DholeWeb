@@ -232,12 +232,26 @@ function patchWizard(source: string) {
   code = replaceAllRequired(code, `:disabled="!canNext || (loadingRates && shipmentModeForApi === 'Fcl')"`, `:disabled="!canNext || !requirements20260908Ready || (loadingRates && shipmentModeForApi === 'Fcl')"`, 'continue requirements button')
   code = replaceRequired(code, `:disabled="saving || !canNext" @click="saveOpenRequest"`, `:disabled="saving || !canNext || !requirements20260908Ready" @click="saveOpenRequest"`, 'seller submit requirements button')
 
-  code = replaceRequired(
-    code,
-    `async function saveOpenRequest() {\n  const origin = selectedOrigin.value`,
-    `async function saveOpenRequest() {\n  if (!form.clientId && !form.clientName.trim()) {\n    toastStore.error('Seleccione el cliente antes de enviar la solicitud a Pricing.')\n    return\n  }\n  if (form.dangerousCargo && !hasDangerousTechSheet.value) {\n    toastStore.error('La ficha técnica / MSDS es obligatoria para carga peligrosa.')\n    return\n  }\n  if (!landEquipmentSelectionValid.value) {\n    toastStore.error('Complete todos los furgones y cantidades antes de enviar la solicitud.')\n    return\n  }\n  const origin = selectedOrigin.value`,
-    'seller request mandatory fields',
-  )
+  // Insert the same validation into the existing seller-request wizard regardless
+  // of earlier Vite plugins adding their own preamble at the top of saveOpenRequest.
+  const saveRequestStart = 'async function saveOpenRequest() {'
+  const sellerRequestValidation = `
+  if (!form.clientId && !form.clientName.trim()) {
+    toastStore.error('Seleccione el cliente antes de enviar la solicitud a Pricing.')
+    return
+  }
+  if (form.dangerousCargo && !hasDangerousTechSheet.value) {
+    toastStore.error('La ficha técnica / MSDS es obligatoria para carga peligrosa.')
+    return
+  }
+  if (!landEquipmentSelectionValid.value) {
+    toastStore.error('Complete todos los furgones y cantidades antes de enviar la solicitud.')
+    return
+  }`
+  if (!code.includes("toastStore.error('Seleccione el cliente antes de enviar la solicitud a Pricing.')")) {
+    code = replaceRequired(code, saveRequestStart,
+      saveRequestStart + sellerRequestValidation, 'seller request mandatory fields')
+  }
   code = replaceRequired(
     code,
     `<button v-if="!ltlCargoMode" type="button" class="crystal-flag" :class="form.dangerousCargo ? 'crystal-flag--active' : ''" @click="form.dangerousCargo = !form.dangerousCargo">\n              <Check v-if="form.dangerousCargo" class="h-4 w-4" /> Carga peligrosa\n            </button>`,
