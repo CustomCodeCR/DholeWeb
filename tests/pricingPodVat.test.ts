@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { resolvePodCountryCode, resolvePodVatRate } from '../src/modules/pricing/utils/pricingPodVat.ts'
+import { resolvePodCountryCode, resolvePodVatRate, stripGeneratedPodVatNotes } from '../src/modules/pricing/utils/pricingPodVat.ts'
 import type { CatalogItemSelectDto } from '../src/core/interfaces/catalogs'
 
 function item(code: string, value: string, metadata: Record<string, unknown> = {}): CatalogItemSelectDto {
@@ -53,6 +53,12 @@ test('Can identify the POD country through countryId or name', () => {
 test('Does not fall back to POE or stale VAT when the POD is absent or unknown', () => {
   assert.equal(resolvePodVatRate(null, countries), 0)
   assert.equal(resolvePodVatRate(item('UNKNOWN', 'Puerto sin país'), countries), 0)
+})
+
+test('Old POE VAT notes are replaced without losing legitimate charge comments', () => {
+  const notes = 'Cargo manual agregado desde Pricing · IVA 7%: 3.50; venta total: 53.50 · IVA 13%: 6.50; venta total: 56.50'
+  assert.equal(stripGeneratedPodVatNotes(notes), 'Cargo manual agregado desde Pricing')
+  assert.equal(stripGeneratedPodVatNotes('Comentario original'), 'Comentario original')
 })
 
 test('Both pricing wizards offer the IVA checkbox on every rate line and recalculate it from POD', () => {
