@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock, FileSpreadsheet } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -69,7 +69,6 @@ type SellerStatusFilter = 'All' | SellerCommercialStatus
 const search = ref('')
 const statusFilter = ref<SellerStatusFilter>('All')
 const currentPage = ref(1)
-const ratesSection = ref<HTMLElement | null>(null)
 const pageSize = 10
 
 function commercialStatus(rate: RateDto): SellerCommercialStatus {
@@ -189,13 +188,12 @@ const pagedRates = computed(() => filteredRates.value.slice(
 ))
 watch([search, statusFilter, selectedSellerId], () => { currentPage.value = 1 })
 
-// Las tarjetas de estado deben llevar a los resultados que filtran, también en supervisión.
-async function selectStatus(filter: SellerStatusFilter) {
-  search.value = ''
-  statusFilter.value = filter
-  currentPage.value = 1
-  await nextTick()
-  ratesSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+// Misma navegación que el dashboard de Pricing: abre la página Tarifas con el estado seleccionado.
+function openStatusRates(filter: SellerStatusFilter) {
+  void router.push({
+    name: 'pricing-rates',
+    ...(filter === 'All' ? {} : { query: { status: filter } }),
+  })
 }
 
 function currencyOf(rate: RateDto) {
@@ -442,9 +440,8 @@ onMounted(load)
           type="button"
           class="group min-w-0 rounded-[20px] border bg-[var(--dh-card)] p-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--dh-primary)]"
           :class="statusFilter === card.filter ? 'border-[var(--dh-primary)] shadow-md' : 'border-[var(--dh-border)]'"
-          :aria-pressed="statusFilter === card.filter"
-          aria-controls="seller-rates-section"
-          @click="selectStatus(card.filter)"
+          :aria-label="`Ver ${card.label.toLowerCase()} en Tarifas`"
+          @click="openStatusRates(card.filter)"
         >
           <div class="flex items-center justify-between gap-2">
             <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.1)] text-[var(--dh-primary)]">
@@ -544,7 +541,7 @@ onMounted(load)
         </article>
       </section>
 
-      <section id="seller-rates-section" ref="ratesSection" class="scroll-mt-24 overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+      <section class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
         <div class="flex flex-col gap-3 border-b border-[var(--dh-border)] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Tarifas del equipo y seguimiento de ventas' : 'Mis tarifas y seguimiento de ventas' }}</h3>
