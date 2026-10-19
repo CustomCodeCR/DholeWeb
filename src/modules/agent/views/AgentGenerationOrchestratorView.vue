@@ -111,7 +111,7 @@ const guideGenerationValid = computed(() =>
 const guideGeneration = computed(() =>
   state.value?.generations.find(item => item.name === guideTarget.value))
 const guideOptions = computed(() =>
-  (state.value?.generations ?? []).filter(item => item.name !== state.value?.activeGeneration)
+  (state.value?.generations ?? []).filter(item => item.name !== state.value?.activeGeneration))
 const guideProvisioned = computed(() => guideGeneration.value?.provisioningStatus === 'Provisioned')
 const guideSession = computed(() => standbySession(guideTarget.value))
 const guideAuthorized = computed(() => guideGeneration.value?.providerReadinessStatus === 'Verified')
