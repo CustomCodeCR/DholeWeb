@@ -96,12 +96,43 @@ const validGeneration = computed(() => /^prod[1-9][0-9]*$/.test(newGeneration.va
 const validRequest = computed(() => canManage.value && manualEnabled.value &&
   destinations.value.some(item => item.name === target.value) &&
   reason.value.trim().length >= 12 && reason.value.trim().length <= 500 && reviewed.value)
+type WebActionOperation = 'inspect' | 'reconcile' | 'provision-check' | 'provision' | 'attest' | 'preflight' | 'switch'
+interface GenerationWebAction {
+  id: string
+  generation: string
+  operation: WebActionOperation
+  status: 'Pending' | 'Dispatched' | 'Running' | 'Completed' | 'Rejected' | 'Failed'
+  diagnosticCode?: string
+  createdAtUtc: string
+  completedAtUtc?: string
+}
 const generationActionsUrl = 'https://github.com/CustomCodeCR/DholeAgentService/actions/workflows/production-generation-actions.yml'
-const generationReadinessUrl = 'https://github.com/CustomCodeCR/DholeAgentService/actions/workflows/operator-verify-standby-readiness.yml'
+const webActions = ref<GenerationWebAction[]>([])
+const webActionBusy = ref<WebActionOperation | null>(null)
+const webActionsAvailable = ref(true)
+const actionFor = (operation: WebActionOperation) =>
+  webActions.value.find(item => item.generation === guideTarget.value && item.operation === operation)
+const actionPending = (operation: WebActionOperation) =>
+  ['Pending', 'Dispatched', 'Running'].includes(actionFor(operation)?.status ?? '')
+const recentActionSuccess = (operation: WebActionOperation, maxMinutes = 10) => {
+  const action = actionFor(operation)
+  return action?.status === 'Completed' && !!action.completedAtUtc &&
+    Date.now() - new Date(action.completedAtUtc).getTime() < maxMinutes * 60_000
+}
+const actionStatusLabel = (operation: WebActionOperation) => {
+  const action = actionFor(operation)
+  if (!action) return 'Sin ejecutar'
+  return ({
+    Pending: 'Solicitud registrada', Dispatched: 'Enviada a Actions',
+    Running: 'Ejecutándose en Argos', Completed: 'Completada',
+    Rejected: 'Rechazada', Failed: 'Fallida',
+  } as Record<string, string>)[action.status] ?? action.status
+}
+const actionDiagnostic = (operation: WebActionOperation) =>
+  actionFor(operation)?.diagnosticCode ?? ''
+
 const guideTarget = ref('prod2')
 const guideStep = ref(1)
-const guidePreflightConfirmed = ref(false)
-const guideConfirmedTarget = ref('')
 const guideReason = ref('Cambio controlado por mantenimiento técnico y validación del entorno de destino')
 const guideReviewed = ref(false)
 const guideSubmittedId = ref<string | null>(null)
@@ -116,16 +147,20 @@ const guideProvisioned = computed(() => guideGeneration.value?.provisioningStatu
 const guideSession = computed(() => standbySession(guideTarget.value))
 const guideAuthorized = computed(() => guideGeneration.value?.providerReadinessStatus === 'Verified')
 const guideRequest = computed(() =>
-  state.value?.events.find(event => event.id === guideSubmittedId.value))
+  webActions.value.find(event => event.id === guideSubmittedId.value) ??
+  actionFor('switch'))
+const guideHubProofFresh = computed(() =>
+  guideSession.value?.status === 'Verified' &&
+  !!guideSession.value.accountVerifiedAtUtc &&
+  Date.now() - new Date(guideSession.value.accountVerifiedAtUtc).getTime() < 5 * 60_000)
+const guidePreflightReady = computed(() => recentActionSuccess('preflight'))
 const guideCanSubmit = computed(() =>
   canManage.value && guideGenerationValid.value && guideProvisioned.value &&
   guideAuthorized.value && manualEnabled.value && !!state.value?.githubDispatcherConfigured &&
-  guidePreflightConfirmed.value && guideConfirmedTarget.value === guideTarget.value &&
+  guidePreflightReady.value && !actionPending('switch') &&
   guideReviewed.value && guideReason.value.trim().length >= 12 &&
   guideReason.value.trim().length <= 500 && guideSubmittedId.value === null)
 watch(guideTarget, () => {
-  guidePreflightConfirmed.value = false
-  guideConfirmedTarget.value = ''
   guideReviewed.value = false
   guideSubmittedId.value = null
 })
@@ -380,6 +415,7 @@ async function refresh(silent = false) {
     })
     state.value = unwrapApiResponse<Snapshot>(response as never)
     await refreshStandbyAuthentication()
+    await refreshWebActions()
     if (!destinations.value.some(item => item.name === target.value)) {
       target.value = destinations.value[0]?.name ?? ''
     }
@@ -453,6 +489,49 @@ async function saveRule(rule: Rule) {
 }
 
 
+async function refreshWebActions() {
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET', path: '/api/agents/runtime-generations/actions/',
+      headers: { Accept: 'application/json' },
+    })
+    webActions.value = unwrapApiResponse<GenerationWebAction[]>(response as never)
+    webActionsAvailable.value = true
+  } catch {
+    webActionsAvailable.value = false
+  }
+}
+
+async function runWebAction(operation: WebActionOperation) {
+  if (!canManage.value || !guideGenerationValid.value || webActionBusy.value ||
+      actionPending(operation) || !state.value?.githubDispatcherConfigured) return null
+  if (operation === 'attest' && !guideHubProofFresh.value) return null
+  if (operation === 'switch' && !guideCanSubmit.value) return null
+  webActionBusy.value = operation
+  try {
+    const response = await callEndpoint<{ id: string },
+      { operation: WebActionOperation; generation: string; confirmedProviderAccess: boolean;
+        confirmedHandoff: boolean; reason: string }>({
+      method: 'POST', path: '/api/agents/runtime-generations/actions/',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, { body: {
+      operation, generation: guideTarget.value,
+      confirmedProviderAccess: operation === 'attest' && !!independentlyVerified.value[guideTarget.value],
+      confirmedHandoff: operation === 'switch' && guideReviewed.value,
+      reason: guideReason.value.trim(),
+    } })
+    if (!response.id) throw new Error('El servidor no confirmó el identificador de Actions.')
+    toast.success('Action solicitada', operation + ': solicitud recibida. Esperá la confirmación del runner.')
+    await refreshWebActions()
+    return response.id
+  } catch (error) {
+    toast.backendError(error, 'No se pudo iniciar la operación ' + operation + ' en Actions.')
+    return null
+  } finally {
+    webActionBusy.value = null
+  }
+}
+
 async function registerGuidedTarget() {
   if (!canManage.value || !guideGenerationValid.value || guideGeneration.value) return
   newGeneration.value = guideTarget.value
@@ -463,29 +542,15 @@ async function requestGuidedChange() {
   if (!guideCanSubmit.value || submitting.value) return
   submitting.value = true
   try {
-    const response = await callEndpoint<{ id: string; status: string; executed: boolean },
-      { targetGeneration: string; trigger: TriggerCode; reason: string }>({
-      method: 'POST', path: '/api/agents/runtime-generations/requests',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    }, {
-      body: { targetGeneration: guideTarget.value, trigger: 'manual', reason: guideReason.value.trim() },
-    })
-    if (!response.id) throw new Error('El servidor no devolvió el identificador de la solicitud.')
-    guideSubmittedId.value = response.id
-    guideReviewed.value = false
-    guideStep.value = 6
-    toast.success('Solicitud enviada a la cola', 'GitHub Actions realizará las validaciones. Este mensaje no confirma el cambio.')
-    await refresh()
-  } catch (error) {
-    toast.backendError(error, 'No se pudo registrar el relevo.')
+    const id = await runWebAction('switch')
+    if (id) {
+      guideSubmittedId.value = id
+      guideReviewed.value = false
+      guideStep.value = 6
+    }
   } finally {
     submitting.value = false
   }
-}
-
-function confirmGuidedPreflight(value: boolean) {
-  guidePreflightConfirmed.value = value
-  guideConfirmedTarget.value = value ? guideTarget.value : ''
 }
 
 onMounted(() => {
