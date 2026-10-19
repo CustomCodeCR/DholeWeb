@@ -232,7 +232,7 @@ async function applyPricingModification() {
   // Never import financial fields from the seller payload, nor save automatically.
   for (const key of modificationKeys) {
     if (Object.prototype.hasOwnProperty.call(proposal, key))
-      (form as unknown as Record<string, unknown>)[key] = structuredClone(proposal[key])
+      (form as unknown as Record<string, unknown>)[key] = JSON.parse(JSON.stringify(proposal[key] ?? null))
   }
   const equipment = [...catalogs.containers, ...catalogs.landEquipmentSizes, ...catalogs.landEquipmentTypes]
     .find(item => item.id === form.equipmentId)
