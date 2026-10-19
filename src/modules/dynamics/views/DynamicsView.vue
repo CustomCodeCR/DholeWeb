@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { Activity, Database, CheckCircle2, RefreshCw, ShieldCheck, Link2, AlertCircle } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { fetchClient } from '@/core/api/fetchConfig'
 
@@ -32,6 +33,8 @@ const form = reactive({
   code: '', dataverseUrl: '', tenantId: '', clientId: '', clientSecret: '', defaultCurrencyId: '',
 })
 const editing = ref(false)
+const rotationCode = ref('')
+const rotationSecret = ref('')
 const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const secureHostPattern = /^https:\/\/[a-z0-9-]+\.crm[0-9]*\.dynamics\.com\/?$/i
 
@@ -52,6 +55,7 @@ function clearForm() {
 async function refreshConnections() {
   loading.value = true
   error.value = ''
+  connections.value = []
   try {
     connections.value = await request<Connection[]>('/api/dynamics-admin/connections')
   } catch (reason) { error.value = readableError(reason) }
@@ -106,18 +110,18 @@ async function testConnection(code: string) {
   } catch(reason) { testResults[code] = 'Falló: ' + readableError(reason) }
 }
 async function rotateSecret(code: string) {
-  // Secret is prompted just in time and never written to the DOM or logs.
-  const secret = window.prompt('Nuevo Client Secret VALUE para ' + code + ' (evitá hacerlo en un equipo compartido):')
-  if (secret === null) return
-  if (!secret.trim()) { error.value = 'El secreto no puede estar vacío.'; return }
+  if (!rotationSecret.value.trim()) { error.value = 'El secreto no puede estar vacío.'; return }
   saving.value = true
   error.value = ''
+  notice.value = ''
   try {
-    await request('/api/dynamics-admin/connections/' + encodeURIComponent(code) + '/secret', 'PUT', {clientSecret: secret})
-    notice.value = 'Se rotó el secreto de ' + code + '.'
+    await request('/api/dynamics-admin/connections/' + encodeURIComponent(code) + '/secret', 'PUT', {clientSecret: rotationSecret.value})
+    notice.value = 'El secreto se actualizó correctamente.'
+    rotationCode.value = ''
   } catch(reason) { error.value = readableError(reason) }
-  finally { saving.value = false }
+  finally { rotationSecret.value = ''; saving.value = false }
 }
+
 async function loadOperational(kind: 'overview'|'jobs'|'audit') {
   error.value = ''
   selectedOperation.value = kind
@@ -136,107 +140,169 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
 </script>
 
 <template>
-  <div class="space-y-6 pb-10">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-semibold text-[var(--dh-text-primary,#142233)]">Dynamics 365</h1>
-        <p class="mt-1 text-sm opacity-70">Administración de conexiones a Microsoft Dataverse desde DholeSystem.</p>
+  <main class="dynamics-page">
+    <section class="dynamics-hero">
+      <div class="dynamics-hero-icon"><Database :size="26" :stroke-width="1.75" /></div>
+      <div class="dynamics-hero-copy">
+        <p class="dynamics-eyebrow">INTEGRACIONES · MICROSOFT DATAVERSE</p>
+        <h1>Dynamics 365</h1>
+        <p>Administrá conexiones, verificá el acceso y consultá la actividad de la integración.</p>
       </div>
-      <span class="rounded-full border px-3 py-1 text-xs font-semibold">{{ canSecurity ? 'Administrador de seguridad' : 'Administrador Dynamics' }}</span>
-    </div>
+      <div class="dynamics-hero-status"><ShieldCheck :size="16" /> {{ canSecurity ? 'Administración de seguridad' : 'Administración' }}</div>
+    </section>
 
-    <p v-if="!canAdmin" role="alert" class="rounded-lg border border-red-300 p-4 text-red-700">
-      No tenés el scope dynamics.admin ni dynamics.security.admin.
-    </p>
-    <template v-else>
-      <nav aria-label="Secciones de Dynamics" class="flex flex-wrap gap-2 border-b pb-3">
-        <button v-for="tab in (['connections','operations','audit'] as Tab[])" :key="tab"
-          type="button" :aria-current="activeTab===tab ? 'page' : undefined"
-          class="rounded-md border px-4 py-2 text-sm font-medium"
-          :class="activeTab===tab ? 'bg-slate-800 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800'"
-          @click="activeTab=tab; if(tab!=='connections') loadOperational(tab==='audit' ? 'audit' : 'overview')">
-          {{ tab==='connections' ? 'Conexiones' : tab==='operations' ? 'Operación' : 'Auditoría' }}
-        </button>
-      </nav>
-
-      <div v-if="error" role="alert" class="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{{ error }}</div>
-      <div v-if="notice" role="status" class="rounded-lg border border-green-300 bg-green-50 p-3 text-sm text-green-900">{{ notice }}</div>
-
-      <template v-if="activeTab==='connections'">
-        <section class="rounded-xl border p-5">
-          <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold">Conexiones configuradas</h2>
-            <button type="button" :disabled="loading" class="rounded-md border px-3 py-2 text-sm" @click="refreshConnections">
-              {{ loading ? 'Cargando...' : 'Actualizar' }}
-            </button>
-          </div>
-          <p v-if="!loading && !connections.length" class="mt-4 text-sm opacity-70">No hay conexiones registradas todavía.</p>
-          <div class="mt-4 grid gap-3">
-            <article v-for="item in connections" :key="item.id" class="rounded-lg border p-4">
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 class="font-semibold">{{ item.code }}</h3>
-                  <p class="break-all text-sm opacity-75">{{ item.dataverseUrl }}</p>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <button type="button" class="rounded border px-3 py-1.5 text-sm" @click="edit(item)">Editar</button>
-                  <button type="button" class="rounded border px-3 py-1.5 text-sm" :disabled="saving" @click="rotateSecret(item.code)">Rotar secreto</button>
-                  <button type="button" class="rounded bg-slate-800 px-3 py-1.5 text-sm text-white" @click="testConnection(item.code)">Probar conexión</button>
-                </div>
-              </div>
-              <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                <div><dt class="font-medium opacity-70">Tenant ID</dt><dd class="break-all">{{ item.tenantId }}</dd></div>
-                <div><dt class="font-medium opacity-70">Client ID</dt><dd class="break-all">{{ item.clientId }}</dd></div>
-                <div><dt class="font-medium opacity-70">Moneda predeterminada</dt><dd>{{ item.defaultCurrencyId || 'Sin asignar' }}</dd></div>
-              </dl>
-              <p v-if="testResults[item.code]" role="status" class="mt-3 rounded bg-slate-100 p-2 text-sm text-slate-900">{{ testResults[item.code] }}</p>
-            </article>
-          </div>
-        </section>
-
-        <section id="dynamics-connection-form" class="rounded-xl border p-5">
-          <div class="flex items-center justify-between gap-2">
-            <h2 class="text-lg font-semibold">{{ editing ? 'Actualizar conexión' : 'Registrar conexión de Dataverse' }}</h2>
-            <button v-if="editing" type="button" class="rounded border px-3 py-1.5 text-sm" @click="clearForm">Nueva conexión</button>
-          </div>
-          <p class="my-3 text-sm opacity-75">Los ID se guardan en dhole_dynamics_connector. El secreto se cifra y nunca se vuelve a mostrar.</p>
-          <form class="grid gap-4 md:grid-cols-2" autocomplete="off" @submit.prevent="save">
-            <label class="grid gap-1 text-sm">Código
-              <input v-model="form.code" required maxlength="64" :readonly="editing" class="rounded-md border bg-transparent p-2" placeholder="principal">
-            </label>
-            <label class="grid gap-1 text-sm">URL de Dataverse
-              <input v-model="form.dataverseUrl" type="url" required class="rounded-md border bg-transparent p-2" placeholder="https://empresa.crm.dynamics.com">
-            </label>
-            <label class="grid gap-1 text-sm">Tenant ID (Directory ID)
-              <input v-model="form.tenantId" required class="rounded-md border bg-transparent p-2" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-            </label>
-            <label class="grid gap-1 text-sm">Client ID (Application ID)
-              <input v-model="form.clientId" required class="rounded-md border bg-transparent p-2" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-            </label>
-            <label class="grid gap-1 text-sm">Client Secret VALUE
-              <input v-model="form.clientSecret" type="password" required autocomplete="new-password" class="rounded-md border bg-transparent p-2" placeholder="Valor secreto, no Secret ID">
-            </label>
-            <label class="grid gap-1 text-sm">Default Currency ID (opcional)
-              <input v-model="form.defaultCurrencyId" class="rounded-md border bg-transparent p-2" placeholder="GUID de moneda">
-            </label>
-            <div class="flex justify-end md:col-span-2">
-              <button type="submit" :disabled="saving" class="rounded-md bg-slate-800 px-5 py-2.5 font-medium text-white disabled:opacity-50">
-                {{ saving ? 'Guardando...' : 'Guardar conexión' }}
-              </button>
-            </div>
-          </form>
-        </section>
-      </template>
-
-      <section v-else class="rounded-xl border p-5">
-        <div class="flex flex-wrap gap-2">
-          <button type="button" class="rounded border px-3 py-2 text-sm" @click="loadOperational('overview')">Resumen</button>
-          <button type="button" class="rounded border px-3 py-2 text-sm" @click="loadOperational('jobs')">Trabajos</button>
-          <button type="button" class="rounded border px-3 py-2 text-sm" @click="loadOperational('audit')">Auditoría</button>
+    <section class="dynamics-quick-info" aria-label="Estado de integración">
+      <div class="dynamics-mini-card">
+        <span class="dynamics-mini-icon"><Link2 :size="18" /></span>
+        <div><span class="dynamics-mini-caption">Conexiones configuradas</span>
+          <strong>{{ error ? 'Sin verificar' : loading ? 'Consultando...' : connections.length }}</strong>
         </div>
-        <p v-if="loading" class="mt-4 text-sm opacity-70">Cargando datos...</p>
-        <pre v-else class="mt-4 max-h-[65vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{{ output || 'Sin datos disponibles.' }}</pre>
-      </section>
+      </div>
+      <div class="dynamics-mini-card">
+        <span class="dynamics-mini-icon"><ShieldCheck :size="18" /></span>
+        <div><span class="dynamics-mini-caption">Acceso administrativo</span>
+          <strong>{{ canAdmin ? 'Autorizado en Dhole' : 'No autorizado' }}</strong>
+        </div>
+      </div>
+      <div class="dynamics-mini-card">
+        <span class="dynamics-mini-icon"><Activity :size="18" /></span>
+        <div><span class="dynamics-mini-caption">Modo de producción</span>
+          <strong>Escrituras de Dataverse bloqueadas</strong>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="!canAdmin" class="dynamics-feedback dynamics-feedback-error" role="alert">
+      <AlertCircle :size="20" /> Tu usuario necesita el scope dynamics.admin o dynamics.security.admin.
+    </section>
+
+    <template v-else>
+      <div class="dynamics-workspace">
+        <nav class="dynamics-nav" aria-label="Secciones de Dynamics">
+          <button v-for="tab in (['connections','operations','audit'] as Tab[])" :key="tab" type="button"
+            class="dynamics-nav-button" :class="{ active: activeTab === tab }" :aria-current="activeTab === tab ? 'page' : undefined"
+            @click="activeTab=tab; if (tab!=='connections') loadOperational(tab==='audit' ? 'audit' : 'overview')">
+            <Database v-if="tab==='connections'" :size="16" />
+            <Activity v-else-if="tab==='operations'" :size="16" />
+            <ShieldCheck v-else :size="16" />
+            {{ tab==='connections' ? 'Conexiones' : tab==='operations' ? 'Operación' : 'Auditoría' }}
+          </button>
+        </nav>
+
+        <div v-if="error" class="dynamics-feedback dynamics-feedback-error" role="alert">
+          <AlertCircle :size="19" />
+          <span>{{ error }}</span>
+          <button type="button" class="dynamics-text-action" @click="refreshConnections">Reintentar</button>
+        </div>
+        <div v-if="notice" class="dynamics-feedback dynamics-feedback-success" role="status">
+          <CheckCircle2 :size="19" /> {{ notice }}
+        </div>
+
+        <template v-if="activeTab==='connections'">
+          <div class="dynamics-layout">
+            <section class="dynamics-panel dynamics-connections">
+              <div class="dynamics-panel-header">
+                <div>
+                  <p class="dynamics-section-label">01 / CONEXIONES</p>
+                  <h2>Organizaciones vinculadas</h2>
+                  <p class="dynamics-subtitle">Aplicaciones registradas para acceder a Dataverse.</p>
+                </div>
+                <button type="button" class="dynamics-outline-button" :disabled="loading" @click="refreshConnections">
+                  <RefreshCw :size="16" :class="{ 'animate-spin': loading }" /> Actualizar
+                </button>
+              </div>
+              <div v-if="loading" class="dynamics-empty"><RefreshCw class="animate-spin" :size="24" /><strong>Consultando conexiones</strong><span>Estamos verificando las conexiones de Dynamics.</span></div>
+              <div v-else-if="!error && !connections.length" class="dynamics-empty">
+                <div class="dynamics-empty-icon"><Database :size="28" /></div>
+                <strong>Todavía no hay conexiones</strong>
+                <span>Registrá tu organización de Microsoft Dataverse en el formulario.</span>
+              </div>
+              <div v-if="connections.length" class="dynamics-connection-grid">
+                <article v-for="item in connections" :key="item.id" class="dynamics-connection-card">
+                  <div class="dynamics-connection-top">
+                    <span class="dynamics-connection-avatar"><Database :size="19" /></span>
+                    <div class="dynamics-connection-title"><strong>{{ item.code }}</strong><span>{{ item.dataverseUrl }}</span></div>
+                  </div>
+                  <dl class="dynamics-identifiers">
+                    <div><dt>Tenant ID</dt><dd :title="item.tenantId">{{ item.tenantId }}</dd></div>
+                    <div><dt>Client ID</dt><dd :title="item.clientId">{{ item.clientId }}</dd></div>
+                    <div><dt>Moneda predeterminada</dt><dd>{{ item.defaultCurrencyId || 'Sin asignar' }}</dd></div>
+                  </dl>
+                  <p v-if="testResults[item.code]" class="dynamics-inline-message" role="status">{{ testResults[item.code] }}</p>
+                  <form v-if="rotationCode===item.code" class="dynamics-rotation" autocomplete="off" @submit.prevent="rotateSecret(item.code)">
+                    <label class="dynamics-field"><span>Nuevo Client Secret VALUE</span>
+                      <input v-model="rotationSecret" type="password" autocomplete="new-password" required placeholder="Ingresar secreto nuevo">
+                    </label>
+                    <div class="dynamics-actions">
+                      <button type="button" class="dynamics-outline-button" @click="rotationCode='';rotationSecret=''">Cancelar</button>
+                      <button type="submit" class="dynamics-primary-button" :disabled="saving">Actualizar secreto</button>
+                    </div>
+                  </form>
+                  <div v-else class="dynamics-actions">
+                    <button type="button" class="dynamics-outline-button" @click="edit(item)">Editar</button>
+                    <button type="button" class="dynamics-outline-button" @click="rotationCode=item.code;rotationSecret=''">Rotar secreto</button>
+                    <button type="button" class="dynamics-primary-button" @click="testConnection(item.code)">Probar conexión</button>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section id="dynamics-connection-form" class="dynamics-panel dynamics-form-panel">
+              <div class="dynamics-panel-header">
+                <div><p class="dynamics-section-label">02 / CONFIGURACIÓN</p>
+                  <h2>{{ editing ? 'Editar conexión' : 'Nueva conexión' }}</h2>
+                  <p class="dynamics-subtitle">Credenciales de aplicación Microsoft Entra.</p>
+                </div>
+                <button v-if="editing" type="button" class="dynamics-outline-button" @click="clearForm">Cancelar edición</button>
+              </div>
+              <div class="dynamics-security-note"><ShieldCheck :size="18" />
+                <span>Los ID se almacenan en PostgreSQL. El secreto se cifra y nunca se devuelve en las consultas.</span>
+              </div>
+              <form class="dynamics-form" autocomplete="off" @submit.prevent="save">
+                <label class="dynamics-field"><span>Código de conexión <em>*</em></span>
+                  <input v-model="form.code" required maxlength="64" :readonly="editing" placeholder="principal">
+                </label>
+                <label class="dynamics-field"><span>URL de Dataverse <em>*</em></span>
+                  <input v-model="form.dataverseUrl" type="url" required placeholder="https://empresa.crm.dynamics.com">
+                </label>
+                <label class="dynamics-field"><span>Tenant ID <em>*</em> <small>(Directory ID)</small></span>
+                  <input v-model="form.tenantId" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false">
+                </label>
+                <label class="dynamics-field"><span>Client ID <em>*</em> <small>(Application ID)</small></span>
+                  <input v-model="form.clientId" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false">
+                </label>
+                <label class="dynamics-field"><span>Client Secret VALUE <em>*</em></span>
+                  <input v-model="form.clientSecret" type="password" required autocomplete="new-password" placeholder="Valor del secreto (no Secret ID)">
+                </label>
+                <label class="dynamics-field"><span>Moneda predeterminada <small>(opcional)</small></span>
+                  <input v-model="form.defaultCurrencyId" placeholder="GUID de moneda en Dataverse" spellcheck="false">
+                </label>
+                <button type="submit" :disabled="saving" class="dynamics-primary-button dynamics-submit">
+                  {{ saving ? 'Guardando conexión...' : editing ? 'Actualizar conexión' : 'Guardar conexión' }}
+                </button>
+                <p class="dynamics-footnote">No se habilitan escrituras de negocio en Dynamics 365 al guardar una conexión.</p>
+              </form>
+            </section>
+          </div>
+        </template>
+
+        <section v-else class="dynamics-panel dynamics-operation-panel">
+          <div class="dynamics-panel-header"><div>
+            <p class="dynamics-section-label">MONITOREO</p>
+            <h2>{{ activeTab==='audit' ? 'Auditoría de Dynamics' : 'Operación del conector' }}</h2>
+            <p class="dynamics-subtitle">Consultá el estado de las operaciones y los registros de auditoría.</p>
+          </div></div>
+          <div class="dynamics-actions">
+            <button v-if="activeTab!=='audit'" type="button" class="dynamics-outline-button" @click="loadOperational('overview')">Resumen</button>
+            <button v-if="activeTab!=='audit'" type="button" class="dynamics-outline-button" @click="loadOperational('jobs')">Trabajos</button>
+            <button type="button" class="dynamics-outline-button" @click="loadOperational('audit')">Auditoría</button>
+          </div>
+          <p v-if="loading" class="dynamics-subtitle">Consultando...</p>
+          <pre v-else class="dynamics-json">{{ output || 'Todavía no hay información disponible.' }}</pre>
+        </section>
+      </div>
     </template>
-  </div>
+  </main>
 </template>
+
+<style scoped src="./dynamics.css"></style>
