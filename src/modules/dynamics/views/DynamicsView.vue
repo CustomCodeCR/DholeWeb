@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Activity, Database, CheckCircle2, RefreshCw, ShieldCheck, Link2, AlertCircle } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { fetchClient } from '@/core/api/fetchConfig'
+import { ApiError, NetworkError } from '@/core/api/apiErrorHandler'
 
 type Connection = {
   id: string
@@ -26,6 +27,7 @@ const saving = ref(false)
 const error = ref('')
 const notice = ref('')
 const testResults = reactive<Record<string, string>>({})
+const connectionTesting = reactive<Record<string, boolean>>({})
 const diagnostics = ref<unknown>(null)
 const records = ref<unknown>(null)
 const selectedOperation = ref<'overview' | 'jobs' | 'audit'>('overview')
@@ -100,14 +102,32 @@ async function save() {
   finally { form.clientSecret = ''; saving.value = false }
 }
 async function testConnection(code: string) {
+  if (connectionTesting[code]) return
   error.value = ''
-  testResults[code] = 'Comprobando acceso a Dataverse...'
+  connectionTesting[code] = true
+  testResults[code] = 'Comprobando la identidad de Microsoft y los permisos de lectura en Dataverse...'
   try {
     const result = await request<DataverseHealth>('/api/dynamics-admin/connections/' + encodeURIComponent(code) + '/test', 'POST')
     testResults[code] = result.connected
-      ? 'Conectado. Usuario: ' + result.applicationUserId + ' · Leer cotizaciones: ' + (result.canReadQuotes ? 'Sí' : 'No')
-      : 'La aplicación no pudo conectar.'
-  } catch(reason) { testResults[code] = 'Falló: ' + readableError(reason) }
+      ? 'Conectado. Usuario de aplicación: ' + result.applicationUserId
+        + ' · Permiso para consultar cotizaciones: ' + (result.canReadQuotes ? 'Sí' : 'No')
+      : 'Microsoft Dataverse no confirmó esta conexión.'
+  } catch (reason) {
+    const diagnostics = reason instanceof ApiError && typeof reason.data === 'object' && reason.data !== null
+      ? reason.data as Record<string, unknown> : null
+    const correlation = typeof diagnostics?.correlationId === 'string'
+      ? ' · Diagnóstico: ' + diagnostics.correlationId : ''
+    if (reason instanceof NetworkError) {
+      testResults[code] = 'No se pudo leer la respuesta del API Gateway. '
+        + 'Comprobá Estados de servicios → Dynamics 365 Connector e intentá nuevamente. '
+        + 'Si continúa, revisá la solicitud POST en la pestaña Red del navegador.'
+    } else {
+      const status = reason instanceof ApiError && reason.status ? 'HTTP ' + reason.status + ': ' : ''
+      testResults[code] = 'Falló: ' + status + readableError(reason) + correlation
+    }
+  } finally {
+    connectionTesting[code] = false
+  }
 }
 async function rotateSecret(code: string) {
   if (!rotationSecret.value.trim()) { error.value = 'El secreto no puede estar vacío.'; return }
@@ -241,7 +261,9 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
                   <div v-else class="dynamics-actions">
                     <button type="button" class="dynamics-outline-button" @click="edit(item)">Editar</button>
                     <button type="button" class="dynamics-outline-button" @click="rotationCode=item.code;rotationSecret=''">Rotar secreto</button>
-                    <button type="button" class="dynamics-primary-button" @click="testConnection(item.code)">Probar conexión</button>
+                    <button type="button" class="dynamics-primary-button" :disabled="connectionTesting[item.code]" @click="testConnection(item.code)">
+                      {{ connectionTesting[item.code] ? 'Comprobando...' : 'Probar conexión' }}
+                    </button>
                   </div>
                 </article>
               </div>
