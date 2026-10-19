@@ -4026,7 +4026,7 @@ async function saveOpenRequest() {
       }],
     })
     if (props.rateRequestId) {
-      await RateRequestLeaseService.attachRate(props.rateRequestId, rateId)
+      await RateRequestLeaseService.completeRate(props.rateRequestId, rateId)
     }
     // CreateRate puede devolver la solicitud ya Open cuando el usuario tiene
     // permiso de aprobación. No enviamos Open -> Open porque esa transición era la
@@ -4409,7 +4409,7 @@ async function saveRate() {
     }
     createdRateId.value = rateId
     if (props.rateRequestId) {
-      await RateRequestLeaseService.attachRate(props.rateRequestId, rateId)
+      await RateRequestLeaseService.completeRate(props.rateRequestId, rateId)
     }
     await router.push({ name: 'pricing-rates' })
   } catch (error) {
