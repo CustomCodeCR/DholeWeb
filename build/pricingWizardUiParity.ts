@@ -82,7 +82,7 @@ export function pricingWizardUiParity(): Plugin {
       // Preserve cargo value when reopening an existing insured rate without adding
       // any build-time enable/disable state.
       const hydrationAnchor = `    form.cargoDescription = rate.cargoLines?.[0]?.description ?? ''`
-      const hydrationReplacement = `${hydrationAnchor}\n    const persistedInsurance = rate.rateDetails.find((detail) => detail.costDetailType === 'Insurance')\n    if (persistedInsurance) {\n      const cargoValueMatch = String(persistedInsurance.notes ?? '').match(/valor (?:carga|FOB) USD\\s+([0-9]+(?:\\.[0-9]+)?)/i)\n      if (cargoValueMatch?.[1]) form.cargoValue = Number(cargoValueMatch[1])\n    }`
+      const hydrationReplacement = `${hydrationAnchor}\n    const persistedInsurance = rate.rateDetails.find((detail) => detail.costDetailType === 'Insurance')\n    if (persistedInsurance && !(Number(rate.cargoValue) > 0)) {\n      const cargoValueMatch = String(persistedInsurance.notes ?? '').match(/valor (?:carga|FOB) USD\\s+([0-9]+(?:\\.[0-9]+)?)/i)\n      if (cargoValueMatch?.[1]) form.cargoValue = Number(cargoValueMatch[1])\n    }`
       code = replaceOne(code, hydrationAnchor, hydrationReplacement, 'existing rate insurance hydration')
 
       const resetAnchor = `  draftCommercialTerms.value = { includes: [], subjectTo: [], excludes: [] }\n  draftCommercialTermsInitialized.value = false\n  supportEntityId.value = crypto.randomUUID()`
