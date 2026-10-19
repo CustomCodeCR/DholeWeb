@@ -46,7 +46,7 @@ async function begin(id: string) {
         error.value = 'Se perdió la reserva de esta solicitud. Ya no puede editarla. Regrese al dashboard.'
         if (heartbeatTimer) window.clearInterval(heartbeatTimer)
         heartbeatTimer = undefined
-        sessionStorage.removeItem(`dhole:pricing:rate-request:lease:${id}`)
+        // Conserve the original tab token so a reconnect can renew its own lease.
       })
     }, 20000)
   } catch (cause) {
