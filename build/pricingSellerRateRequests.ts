@@ -84,7 +84,7 @@ function patchWizard(source: string) {
     'save open request',
   )
 
-  if (!code.includes("RateRequestLeaseService.attachRate(props.rateRequestId, rateId)")) {
+  if (!code.includes("RateRequestLeaseService.completeRate(props.rateRequestId, rateId)") && !code.includes("RateRequestLeaseService.attachRate(props.rateRequestId, rateId)")) {
   code = replaceOne(
     code,
     `    createdRateId.value = rateId\n    await router.push({ name: 'pricing-rates' })`,
