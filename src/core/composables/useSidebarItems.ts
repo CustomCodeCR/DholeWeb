@@ -24,6 +24,7 @@ import {
   BellRing,
   Truck,
   PackagePlus,
+  Database,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
@@ -63,6 +64,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         icon: LayoutDashboard,
         to: '/home',
         name: 'dashboard',
+      },
+      {
+        labelKey: 'sidebar.dynamics',
+        icon: Database,
+        to: '/dynamics',
+        name: 'dynamics-connections',
+        requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'],
       },
       {
         labelKey: 'sidebar.security',

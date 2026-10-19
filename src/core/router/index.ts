@@ -72,6 +72,17 @@ export const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         {
+          path: 'dynamics',
+          name: 'dynamics-connections',
+          component: () => import('@/modules/dynamics/views/DynamicsView.vue'),
+          meta: {
+            tabTitle: 'Dynamics 365',
+            closable: true,
+            requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'],
+          },
+        },
+
+        {
           path: 'home',
           name: 'dashboard',
           component: () => import('@/modules/dashboard/views/DashboardView.vue'),

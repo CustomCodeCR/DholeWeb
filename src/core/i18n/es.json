@@ -99,6 +99,7 @@
     "viewPrevious": "Ver anteriores"
   },
   "sidebar": {
+    "dynamics": "Dynamics 365",
     "dashboard": "Dashboard",
     "security": "Seguridad",
     "users": "Usuarios",
