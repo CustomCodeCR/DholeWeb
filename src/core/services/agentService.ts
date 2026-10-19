@@ -421,6 +421,18 @@ const maerskOperations = {
     )
   },
 
+  async closeCircuitAdministratively(providerId: string, reason: string): Promise<{
+    reset: boolean; administrativeClosed: boolean; state: string; providerAccessBlocked: boolean
+  }> {
+    return callEndpoint<{
+      reset: boolean; administrativeClosed: boolean; state: string; providerAccessBlocked: boolean
+    }, { reason: string; verifiedWithProvider: boolean }>({
+      method: 'POST',
+      path: '/api/agents/maersk-circuit/{{providerId}}/administrative-close',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    }, { params: { providerId }, body: { reason, verifiedWithProvider: false } })
+  },
+
   resetCircuit(providerId: string, reason: string, verifiedWithProvider: boolean): Promise<{ reset: boolean }> {
     return callEndpoint<{ reset: boolean }, { reason: string; verifiedWithProvider: boolean }>(
       AgentEndpoints.resetMaerskCircuit,
