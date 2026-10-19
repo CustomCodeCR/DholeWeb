@@ -93,12 +93,32 @@ const reviewed = ref(false)
 const canView = computed(() => auth.hasScope('agent.executions.view') &&
   auth.hasScope('agent.browser-profiles.view'))
 const canManage = computed(() => auth.hasScope('agent.browser-profiles.authenticate'))
+// Generation succession is strictly increasing; retired environments are
+// still visible for audit but never become selectable standby destinations.
+const generationOrdinal = (value: string): bigint | null => {
+  if (value === 'prod') return 0n
+  return /^prod[1-9][0-9]*$/.test(value) && value.length <= 64
+    ? BigInt(value.slice(4)) : null
+}
+const isFutureGeneration = (candidate: string) => {
+  const current = generationOrdinal(state.value?.activeGeneration ?? '')
+  const next = generationOrdinal(candidate)
+  return current !== null && next !== null && next > current
+}
+const isRetiredGeneration = (candidate: string) => {
+  const current = generationOrdinal(state.value?.activeGeneration ?? '')
+  const rank = generationOrdinal(candidate)
+  return current !== null && rank !== null && rank < current
+}
 const destinations = computed(() => (state.value?.generations ?? [])
-  .filter(item => item.name !== state.value?.activeGeneration &&
-    item.provisioningStatus === 'Provisioned'))
+  .filter(item => isFutureGeneration(item.name) && item.provisioningStatus === 'Provisioned'))
+const availableGenerations = computed(() => (state.value?.generations ?? [])
+  .filter(item => item.name === state.value?.activeGeneration ||
+    (isFutureGeneration(item.name) && item.provisioningStatus === 'Provisioned')))
+const unavailableGenerations = computed(() => (state.value?.generations ?? [])
+  .filter(item => !availableGenerations.value.some(available => available.name === item.name)))
 const manualEnabled = computed(() => state.value?.rules.some(rule => rule.code === 'manual' && rule.enabled) ?? false)
-const validGeneration = computed(() => /^prod[1-9][0-9]*$/.test(newGeneration.value) &&
-  newGeneration.value.length <= 64 &&
+const validGeneration = computed(() => isFutureGeneration(newGeneration.value) &&
   !(state.value?.generations ?? []).some(item => item.name === newGeneration.value))
 const validRequest = computed(() => canManage.value && manualEnabled.value &&
   destinations.value.some(item => item.name === target.value) &&
@@ -138,19 +158,18 @@ const actionStatusLabel = (operation: WebActionOperation) => {
 const actionDiagnostic = (operation: WebActionOperation) =>
   actionFor(operation)?.diagnosticCode ?? ''
 
-const guideTarget = ref('prod2')
+const guideTarget = ref('')
 const guideStep = ref(1)
 const guideReason = ref('Cambio controlado por mantenimiento técnico y validación del entorno de destino')
 const guideReviewed = ref(false)
 const guideAttestConsent = ref(false)
 const guideSubmittedId = ref<string | null>(null)
 const guideGenerationValid = computed(() =>
-  /^prod[1-9][0-9]*$/.test(guideTarget.value) &&
-  guideTarget.value.length <= 64 && guideTarget.value !== state.value?.activeGeneration)
+  isFutureGeneration(guideTarget.value))
 const guideGeneration = computed(() =>
   state.value?.generations.find(item => item.name === guideTarget.value))
 const guideOptions = computed(() =>
-  (state.value?.generations ?? []).filter(item => item.name !== state.value?.activeGeneration))
+  (state.value?.generations ?? []).filter(item => isFutureGeneration(item.name)))
 const guideProvisioned = computed(() => guideGeneration.value?.provisioningStatus === 'Provisioned')
 const latestInfrastructureAction = computed(() =>
   [actionFor('provision-check'), actionFor('provision')]
@@ -188,7 +207,7 @@ const guideHubProofFresh = computed(() =>
 const guidePreflightReady = computed(() => recentActionSuccess('preflight'))
 const guideCanAdvance = computed(() => {
   switch (guideStep.value) {
-    case 1: return Boolean(guideGeneration.value)
+    case 1: return guideGenerationValid.value && Boolean(guideGeneration.value)
     case 2: return guideInfrastructureReady.value
     case 3: return guideSession.value?.status === 'Verified'
     case 4: return guideAuthorized.value
@@ -468,6 +487,15 @@ async function refresh(silent = false) {
     if (!destinations.value.some(item => item.name === target.value)) {
       target.value = destinations.value[0]?.name ?? ''
     }
+    if (!guideGenerationValid.value) {
+      guideTarget.value = destinations.value[0]?.name ??
+        (state.value?.generations ?? []).find(item => isFutureGeneration(item.name))?.name ??
+        (() => {
+          const rank = generationOrdinal(state.value?.activeGeneration ?? '')
+          return rank === null ? '' : 'prod' + (rank + 1n).toString()
+        })()
+      guideStep.value = 1
+    }
   } catch (error) {
     if (!silent) toast.backendError(error, 'No se pudo consultar el orquestador.')
   } finally {
@@ -552,7 +580,7 @@ async function refreshWebActions() {
 }
 
 async function runWebAction(operation: WebActionOperation) {
-  const validName = /^prod[1-9][0-9]*$/.test(guideTarget.value) && guideTarget.value.length <= 64
+  const validName = generationOrdinal(guideTarget.value) !== null
   if (!canManage.value || !validName || webActionBusy.value ||
       (!['inspect', 'reconcile'].includes(operation) && !guideGenerationValid.value) ||
       actionPending(operation) || !state.value?.githubDispatcherConfigured) return null
@@ -1104,13 +1132,17 @@ onUnmounted(() => {
       <template v-else-if="panel === 'overview'">
         <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
           <div class="mb-4">
-            <h2 class="text-lg font-bold">Tus entornos</h2>
+            <h2 class="text-lg font-bold">Entornos disponibles y no disponibles</h2>
             <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
               Cada entorno conserva su navegador y su sesión. Registrar un nombre no crea ni inicia su contenedor.
             </p>
           </div>
+          <h3 class="mb-3 text-base font-bold">Entornos disponibles ({{ availableGenerations.length }})</h3>
+          <p v-if="!availableGenerations.length" class="mb-3 text-sm text-[var(--dh-text-muted)]">
+            No hay entornos listos para recibir trabajo; prepará el siguiente prodN.
+          </p>
           <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div v-for="item in state.generations" :key="item.name"
+            <div v-for="item in availableGenerations" :key="item.name"
               class="flex flex-col justify-between gap-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
               <div>
                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -1138,7 +1170,7 @@ onUnmounted(() => {
                 <p class="font-semibold">Autenticación de Maersk en {{ item.name }}</p>
                 <p class="text-[var(--dh-text-muted)]">
                   {{ standbyStatusLabel(standbySession(item.name)?.status) }}.
-                  El acceso se administra desde Dhole. El Worker de prod1 sigue activo.
+                  El acceso se administra desde Dhole. Worker activo registrado: {{ state.activeGeneration }}.
                 </p>
                 <template v-if="standbySession(item.name)?.status === 'Ready'">
                   <DhButton :label="'Abrir navegador de ' + item.name" :icon="ShieldCheck"
@@ -1211,18 +1243,42 @@ onUnmounted(() => {
               </template>
             </div>
           </div>
+          <h3 class="mb-3 mt-7 text-base font-bold">Entornos no disponibles ({{ unavailableGenerations.length }})</h3>
+          <p class="mb-3 text-xs text-[var(--dh-text-muted)]">
+            Las generaciones anteriores son históricas y nunca pueden volver a seleccionarse.
+            Los entornos nuevos que todavía no están provisionados permanecerán aquí hasta estar listos.
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div v-for="item in unavailableGenerations" :key="item.name"
+              class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 opacity-75">
+              <div class="flex items-center justify-between gap-2">
+                <strong class="text-lg">{{ item.name }}</strong>
+                <span class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                  {{ isRetiredGeneration(item.name) ? 'Retirado' : 'Sin preparar' }}
+                </span>
+              </div>
+              <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+                {{ isRetiredGeneration(item.name)
+                  ? 'Generación anterior: no se puede reactivar ni seleccionar como destino.'
+                  : 'Pendiente de completar la provisión de infraestructura.' }}
+              </p>
+              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+                {{ item.provisioningStatus ?? 'Registrado' }}
+              </p>
+            </div>
+          </div>
 
           <details v-if="canManage" class="group mt-5 rounded-xl border border-[var(--dh-border)] p-4">
             <summary class="flex cursor-pointer list-none items-center gap-2 text-sm font-bold">
               <Plus class="h-4 w-4" /> Agregar otro entorno
             </summary>
             <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
-              Puedes crear tantos registros como necesites: prod2, prod3, prod4…
+              Podés registrar nuevos entornos con un número mayor al activo. Los anteriores quedan retirados.
               El Worker solicitará automáticamente a GitHub Actions la preparación de infraestructura cuando tenga acceso configurado.
             </p>
             <div class="mt-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
               <label class="min-w-0 flex-1 text-sm font-semibold">Nombre del entorno
-                <input v-model.trim="newGeneration" maxlength="64" type="text" autocomplete="off" placeholder="prod2"
+                <input v-model.trim="newGeneration" maxlength="64" type="text" autocomplete="off" :placeholder="'prod' + ((generationOrdinal(state.activeGeneration) ?? 0n) + 1n).toString()"
                   class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
               </label>
               <DhButton label="Registrar entorno" :icon="Plus" variant="secondary"
