@@ -25,6 +25,7 @@ import {
   Palette,
   PanelRightClose,
   ServerCog,
+  Database,
   Workflow,
   TrendingUp,
   Truck,
@@ -383,6 +384,15 @@ const sidebarItems = computed<SidebarItem[]>(() => {
 
   if (securityChildren.value.length > 0) {
     items.push({ label: t('sidebar.security'), icon: LockKeyhole, children: securityChildren.value })
+  }
+
+  // MainLayout owns the visible navigation; useSidebarItems alone does not render.
+  if (canView('dynamics.admin') || canView('dynamics.security.admin')) {
+    items.push({
+      label: t('sidebar.dynamics'),
+      path: '/dynamics',
+      icon: Database,
+    })
   }
 
 
