@@ -110,6 +110,8 @@ const guideGenerationValid = computed(() =>
   guideTarget.value.length <= 64 && guideTarget.value !== state.value?.activeGeneration)
 const guideGeneration = computed(() =>
   state.value?.generations.find(item => item.name === guideTarget.value))
+const guideOptions = computed(() =>
+  (state.value?.generations ?? []).filter(item => item.name !== state.value?.activeGeneration)
 const guideProvisioned = computed(() => guideGeneration.value?.provisioningStatus === 'Provisioned')
 const guideSession = computed(() => standbySession(guideTarget.value))
 const guideAuthorized = computed(() => guideGeneration.value?.providerReadinessStatus === 'Verified')
@@ -627,7 +629,7 @@ onUnmounted(() => {
                 autocomplete="off" placeholder="prod2"
                 class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" />
               <datalist id="generation-guide-options">
-                <option v-for="generation in state.generations.filter(item => item.name !== state.activeGeneration)"
+                <option v-for="generation in guideOptions"
                   :key="generation.name" :value="generation.name" />
               </datalist>
             </label>
