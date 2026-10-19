@@ -10,7 +10,7 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
-import SellerRateModificationModal from './SellerRateModificationModal.vue'
+
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
 // La vista de administrador es de solo lectura: el servidor valida SuperUsuario/view-all.
@@ -323,11 +323,9 @@ function canRequestModification(rate: RateDto): boolean {
 
 function openModification(rate: RateDto) {
   if (!canRequestModification(rate) || pendingModification(rate)) return
-  modalStore.open({
-    title: 'Solicitar modificación de tarifa',
-    component: SellerRateModificationModal,
-    size: 'xl',
-    props: { rate, onSaved: load },
+  void router.push({
+    name: 'pricing-seller-rate-request',
+    query: { modifyRateId: rate.id },
   })
 }
 

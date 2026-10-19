@@ -9,14 +9,18 @@ import PricingAlternativeWizardCrystal from '@/modules/pricing/components/Pricin
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 
 const route = useRoute()
-type ModificationItem = { action: 'Add' | 'Change' | 'Remove'; field: string; details: string }
 type WorkRequest = {
   id: string
   kind?: 'Modification' | 'New'
   rateId?: string | null
   payload?: {
     kind?: string
-    modification?: { sourceRevisionNumber?: number; items?: ModificationItem[]; notes?: string }
+    modification?: {
+      sourceRevisionNumber?: number
+      changes?: Array<{ field: string; action: string; original: string; requested: string }>
+      quote?: string
+      notes?: string
+    }
   }
 }
 const router = useRouter()
@@ -26,13 +30,14 @@ const finishing = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
-function actionName(action: ModificationItem['action']) {
-  return action === 'Add' ? 'Agregar' : action === 'Remove' ? 'Eliminar' : 'Modificar'
-}
 function openRateEditor() {
   const rateId = workRequest.value?.rateId
   if (!rateId) return
-  const href = router.resolve({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'edit' } }).href
+  const href = router.resolve({
+    name: 'pricing-rate-wizard',
+    params: { rateId },
+    query: { mode: 'edit', modificationRequestId: requestId.value },
+  }).href
   window.open(href, '_blank', 'noopener,noreferrer')
 }
 async function completeModification() {
@@ -162,11 +167,21 @@ onBeforeUnmount(() => {
           Revise cada cambio, abra la tarifa original en una pestaña nueva y guarde una nueva revisión.
           Mantenga abierta esta pantalla para conservar la reserva de trabajo.
         </p>
-        <p class="mt-2 text-sm font-bold">Tarifa: {{ workRequest?.rateId }} · Revisión de origen: {{ workRequest?.payload?.modification?.sourceRevisionNumber }}</p>
+        <p class="mt-2 text-sm font-bold">Tarifa: {{ workRequest?.payload?.modification?.quote || workRequest?.rateId }} · Revisión de origen: {{ workRequest?.payload?.modification?.sourceRevisionNumber }}</p>
       </div>
-      <div v-for="(item, index) in workRequest?.payload?.modification?.items ?? []" :key="index" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">
-        <strong>{{ index + 1 }}. {{ actionName(item.action) }} · {{ item.field }}</strong>
-        <p class="mt-1 whitespace-pre-wrap text-[var(--dh-text-muted)]">{{ item.details }}</p>
+      <div class="overflow-x-auto rounded-xl border border-[var(--dh-border)]">
+        <table class="w-full min-w-[660px] text-left text-sm">
+          <thead class="bg-[var(--dh-card-hover)] text-xs uppercase text-[var(--dh-text-muted)]">
+            <tr><th class="p-3">Cambio</th><th class="p-3">Original (Pricing)</th><th class="p-3">Solicitado (Ventas)</th></tr>
+          </thead>
+          <tbody class="divide-y divide-[var(--dh-border)]">
+            <tr v-for="(change, index) in workRequest?.payload?.modification?.changes ?? []" :key="index">
+              <td class="p-3 font-bold">{{ change.action }} · {{ change.field }}</td>
+              <td class="p-3 whitespace-pre-wrap text-[var(--dh-text-muted)]">{{ change.original }}</td>
+              <td class="p-3 whitespace-pre-wrap font-semibold text-[var(--dh-text)]">{{ change.requested }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <p v-if="workRequest?.payload?.modification?.notes" class="whitespace-pre-wrap text-sm">Observaciones: {{ workRequest?.payload?.modification?.notes }}</p>
       <div class="flex flex-wrap gap-2">

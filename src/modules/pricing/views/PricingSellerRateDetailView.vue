@@ -13,7 +13,7 @@ import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import SellerRateDecisionModal from '@/modules/dashboard/components/SellerRateDecisionModal.vue'
-import SellerRateModificationModal from '@/modules/dashboard/components/SellerRateModificationModal.vue'
+
 
 const route = useRoute()
 const router = useRouter()
@@ -40,11 +40,9 @@ const canRequestModification = computed(() => Boolean(rate.value
 
 function requestModification() {
   if (!rate.value || !canRequestModification.value || pendingModification.value) return
-  modal.open({
-    title: 'Solicitar modificación de tarifa',
-    component: SellerRateModificationModal,
-    size: 'xl',
-    props: { rate: rate.value, onSaved: load },
+  void router.push({
+    name: 'pricing-seller-rate-request',
+    query: { modifyRateId: rate.value.id },
   })
 }
 
