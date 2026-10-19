@@ -388,8 +388,8 @@ function patchWizard(source: string) {
     code,
     'canApplyDestinationTax',
     [
-      "function canApplyDestinationTax(line: RateLine) {",
-      "  return line.section === 'destination_charges' && line.costDetailType !== 'AgentCharge'",
+      "function canApplyDestinationTax(_line: RateLine) {",
+      "  return true",
       "}",
     ].join('\n'),
     missingRuntimeDefinitions,
@@ -399,9 +399,8 @@ function patchWizard(source: string) {
     code,
     'lineDestinationTaxRate',
     [
-      "function lineDestinationTaxRate(line: RateLine) {",
-      "  const persistedRate = number(line.destinationTaxRate)",
-      "  return persistedRate > 0 ? persistedRate : destinationTaxRate.value",
+      "function lineDestinationTaxRate(_line: RateLine) {",
+      "  return destinationTaxRate.value",
       "}",
     ].join('\n'),
     missingRuntimeDefinitions,
@@ -448,7 +447,7 @@ function patchWizard(source: string) {
     'setLineDestinationTax',
     [
       "function setLineDestinationTax(line: RateLine, enabled: boolean) {",
-      "  const active = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0",
+      "  const active = Boolean(enabled) && destinationTaxRate.value > 0",
       "  line.applyDestinationTax = active",
       "  line.destinationTaxRate = active ? destinationTaxRate.value : 0",
       "}",
