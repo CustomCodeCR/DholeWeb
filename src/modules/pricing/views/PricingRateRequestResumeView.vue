@@ -15,6 +15,9 @@ const ownerName = ref('')
 let heartbeatTimer: number | undefined
 let currentId = ''
 let generation = 0
+let lastInteractionAt = Date.now()
+const idleTimeoutMs = 15 * 60 * 1000
+function recordActivity() { if (ready.value) lastInteractionAt = Date.now() }
 
 async function begin(id: string) {
   const version = ++generation
@@ -29,8 +32,14 @@ async function begin(id: string) {
     }
     currentId = id
     ownerName.value = lease.ownerName
+    lastInteractionAt = Date.now()
     ready.value = true
     heartbeatTimer = window.setInterval(() => {
+      if (Date.now() - lastInteractionAt >= idleTimeoutMs) {
+        stop()
+        error.value = 'La reserva se liberó tras 15 minutos de inactividad. Puede volver a intentar tomarla.'
+        return
+      }
       void RateRequestLeaseService.heartbeat(id).catch(() => {
         if (version !== generation) return
         ready.value = false
@@ -59,13 +68,23 @@ function stop() {
   if (id) void RateRequestLeaseService.release(id).catch(() => undefined)
 }
 
-onMounted(() => { void begin(requestId.value) })
+onMounted(() => {
+  window.addEventListener('pointerdown', recordActivity)
+  window.addEventListener('keydown', recordActivity)
+  window.addEventListener('wheel', recordActivity)
+  void begin(requestId.value)
+})
 watch(requestId, (next, previous) => {
   if (next === previous) return
   stop()
   void begin(next)
 })
-onBeforeUnmount(stop)
+onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', recordActivity)
+  window.removeEventListener('keydown', recordActivity)
+  window.removeEventListener('wheel', recordActivity)
+  stop()
+})
 </script>
 
 <template>
