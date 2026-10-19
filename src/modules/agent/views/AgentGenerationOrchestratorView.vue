@@ -5,6 +5,7 @@ import {
   RefreshCw, Settings2, ShieldCheck, Workflow, ExternalLink, ListChecks,
 } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { AgentService } from '@/core/services/agentService'
 import { ApiError } from '@/core/api/apiErrorHandler'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -73,6 +74,12 @@ const savingRule = ref<string | null>(null)
 const standbyAuthentications = ref<StandbyAuthSession[]>([])
 const maerskCredentials = ref<MaerskCredential[]>([])
 const selectedCredential = ref('')
+const originalVerificationBusy = ref(false)
+const originalVerificationExecutionId = ref<string | null>(null)
+const maerskCircuit = ref<{ state: string; requiresOperator: boolean; reasonCode: string | null } | null>(null)
+const providerAccessRestricted = computed(() =>
+  maerskCircuit.value !== null &&
+  (maerskCircuit.value.state !== 'Closed' || maerskCircuit.value.requiresOperator))
 const standbyBusy = ref<string | null>(null)
 const activeStandbyViewer = ref<{ generation: string; url: string } | null>(null)
 const automaticHubInspectionAttempts = new Map<string, number>()
@@ -452,6 +459,12 @@ async function refresh(silent = false) {
     state.value = unwrapApiResponse<Snapshot>(response as never)
     await refreshStandbyAuthentication()
     await refreshWebActions()
+    try {
+      maerskCircuit.value = (await AgentService.maerskOperations.get()).circuit
+    } catch {
+      // Unknown circuit state is not approval; Agent API still validates the operation.
+      maerskCircuit.value = null
+    }
     if (!destinations.value.some(item => item.name === target.value)) {
       target.value = destinations.value[0]?.name ?? ''
     }
@@ -567,6 +580,27 @@ async function runWebAction(operation: WebActionOperation) {
     return null
   } finally {
     webActionBusy.value = null
+  }
+}
+
+async function requestOriginalSessionVerification() {
+  if (!canManage.value || originalVerificationBusy.value || !selectedCredential.value) return
+  originalVerificationBusy.value = true
+  try {
+    const operations = await AgentService.maerskOperations.get()
+    maerskCircuit.value = operations.circuit
+    const result = await AgentService.maerskOperations.verifyOriginalSession(
+      operations.providerId, selectedCredential.value,
+    )
+    if (!result.verificationOnly || !result.executionId)
+      throw new Error('La API no devolvió una ejecución de verificación válida.')
+    originalVerificationExecutionId.value = result.executionId
+    toast.success('Verificación original solicitada',
+      'La ejecución utiliza el perfil persistente original. Esperá el resultado real antes de intentar liberar el circuito.')
+  } catch (error) {
+    toast.backendError(error, 'No se pudo iniciar la comprobación del perfil original.')
+  } finally {
+    originalVerificationBusy.value = false
   }
 }
 
@@ -901,10 +935,39 @@ onUnmounted(() => {
                 El servidor registra una autorización vigente para {{ guideTarget }}.
               </p>
             </div>
+            <div v-if="providerAccessRestricted" class="mt-4 rounded-xl border border-amber-600/40 p-4" role="status">
+              <p class="text-sm font-semibold text-amber-500">
+                El breaker de Maersk continúa {{ maerskCircuit?.state }}.
+              </p>
+              <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+                La sesión independiente de {{ guideTarget }} no reemplaza la verificación
+                del perfil original. Antes de autorizar un relevo debés confirmar que
+                Maersk volvió a permitir el acceso original y completar la verificación.
+              </p>
+              <label class="mt-3 block text-sm font-semibold">
+                Credencial del perfil original de Maersk
+                <select v-model="selectedCredential"
+                  class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                  <option v-for="credential in maerskCredentials" :key="credential.id"
+                    :value="credential.id">{{ credential.name }}</option>
+                </select>
+              </label>
+              <DhButton label="Verificar sesión original" variant="secondary" :icon="ShieldCheck"
+                :disabled="!selectedCredential || !canManage || originalVerificationBusy"
+                :loading="originalVerificationBusy" @click="requestOriginalSessionVerification" />
+              <RouterLink v-if="originalVerificationExecutionId"
+                :to="'/agents/executions/' + originalVerificationExecutionId"
+                class="mt-3 block text-sm font-semibold text-[var(--dh-primary)] underline">
+                Consultar resultado de la verificación original
+              </RouterLink>
+              <RouterLink to="/agents/maersk-operations"
+                class="mt-3 block text-sm font-semibold text-[var(--dh-primary)] underline">
+                Revisar perfiles y liberar el circuito cuando esté autorizado
+              </RouterLink>
+            </div>
             <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
-              El botón siguiente ejecuta el workflow de autorización desde Dhole. El runner
-              verifica una comprobación reciente del Hub de este mismo entorno y valida
-              que Maersk no tenga restricciones activas.
+              El botón siguiente solicita la autorización desde Dhole. La ejecución validará
+              la comprobación reciente del Hub y el estado real del circuito.
             </p>
             <div class="mt-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-4">
               <p class="text-sm" role="status">Ejecución de Actions: <strong>{{ actionStatusLabel('attest') }}</strong></p>
@@ -919,7 +982,8 @@ onUnmounted(() => {
               </label>
               <DhButton label="Registrar autorización con Actions" variant="secondary" :icon="ShieldCheck"
                 :disabled="!canManage || guideAuthorized || !guideProvisioned ||
-                  !guideHubProofFresh || !guideAttestConsent || !state.githubDispatcherConfigured ||
+                  providerAccessRestricted || !guideHubProofFresh || !guideAttestConsent ||
+                  !state.githubDispatcherConfigured ||
                   !!webActionBusy || actionPending('attest')"
                 :loading="webActionBusy === 'attest'" @click="runWebAction('attest')" />
               <p v-if="actionDiagnostic('attest')" class="text-xs text-[var(--dh-text-muted)]">
