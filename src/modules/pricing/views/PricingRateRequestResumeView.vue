@@ -2,11 +2,53 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { DhButton } from '@/shared/components/atoms'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapApiResponse } from '@/core/api/apiResponse'
+import { useToastStore } from '@/core/stores/toastStore'
 import PricingAlternativeWizardCrystal from '@/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 
 const route = useRoute()
+type ModificationItem = { action: 'Add' | 'Change' | 'Remove'; field: string; details: string }
+type WorkRequest = {
+  id: string
+  kind?: 'Modification' | 'New'
+  rateId?: string | null
+  payload?: {
+    kind?: string
+    modification?: { sourceRevisionNumber?: number; items?: ModificationItem[]; notes?: string }
+  }
+}
 const router = useRouter()
+const toast = useToastStore()
+const workRequest = ref<WorkRequest | null>(null)
+const finishing = ref(false)
+const isModification = computed(() =>
+  workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
+)
+function actionName(action: ModificationItem['action']) {
+  return action === 'Add' ? 'Agregar' : action === 'Remove' ? 'Eliminar' : 'Modificar'
+}
+function openRateEditor() {
+  const rateId = workRequest.value?.rateId
+  if (!rateId) return
+  const href = router.resolve({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'edit' } }).href
+  window.open(href, '_blank', 'noopener,noreferrer')
+}
+async function completeModification() {
+  const rateId = workRequest.value?.rateId
+  if (!rateId || finishing.value) return
+  finishing.value = true
+  try {
+    await RateRequestLeaseService.completeRate(requestId.value, rateId)
+    toast.success('Modificación completada', 'Se generó la revisión y se notificó al vendedor con el PDF actualizado.')
+    await router.push('/home')
+  } catch (error) {
+    toast.backendError(error, 'Primero guarde una revisión nueva y luego vuelva a enviar la tarifa.')
+  } finally {
+    finishing.value = false
+  }
+}
 const requestId = computed(() => String(route.params.requestId ?? ''))
 const ready = ref(false)
 const checking = ref(false)
@@ -31,6 +73,11 @@ async function begin(id: string) {
       return
     }
     currentId = id
+    const response = await callEndpoint<unknown>({
+      method: 'GET', path: `/api/pricing/rate-requests/${encodeURIComponent(id)}`,
+      headers: { Accept: 'application/json' },
+    })
+    workRequest.value = unwrapApiResponse<WorkRequest>(response as never)
     ownerName.value = lease.ownerName
     lastInteractionAt = Date.now()
     ready.value = true
@@ -51,6 +98,10 @@ async function begin(id: string) {
     }, 20000)
   } catch (cause) {
     if (version !== generation) return
+    if (currentId === id) {
+      await RateRequestLeaseService.release(id).catch(() => undefined)
+      currentId = ''
+    }
     const serverMessage = (cause as { message?: string })?.message
     error.value = serverMessage || 'Otro usuario está atendiendo esta solicitud.'
   } finally {
@@ -63,6 +114,7 @@ function stop() {
   if (heartbeatTimer) window.clearInterval(heartbeatTimer)
   heartbeatTimer = undefined
   ready.value = false
+  workRequest.value = null
   const id = currentId
   currentId = ''
   if (id) void RateRequestLeaseService.release(id).catch(() => undefined)
@@ -103,6 +155,27 @@ onBeforeUnmount(() => {
     <div class="mb-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold">
       Solicitud reservada para {{ ownerName }}. Nadie más puede trabajar esta solicitud mientras esté activa.
     </div>
-    <PricingAlternativeWizardCrystal :rate-request-id="requestId" />
+    <section v-if="isModification" class="mb-4 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <div>
+        <h2 class="text-lg font-black">Solicitud de modificación de tarifa</h2>
+        <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
+          Revise cada cambio, abra la tarifa original en una pestaña nueva y guarde una nueva revisión.
+          Mantenga abierta esta pantalla para conservar la reserva de trabajo.
+        </p>
+        <p class="mt-2 text-sm font-bold">Tarifa: {{ workRequest?.rateId }} · Revisión de origen: {{ workRequest?.payload?.modification?.sourceRevisionNumber }}</p>
+      </div>
+      <div v-for="(item, index) in workRequest?.payload?.modification?.items ?? []" :key="index" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">
+        <strong>{{ index + 1 }}. {{ actionName(item.action) }} · {{ item.field }}</strong>
+        <p class="mt-1 whitespace-pre-wrap text-[var(--dh-text-muted)]">{{ item.details }}</p>
+      </div>
+      <p v-if="workRequest?.payload?.modification?.notes" class="whitespace-pre-wrap text-sm">Observaciones: {{ workRequest.payload.modification.notes }}</p>
+      <div class="flex flex-wrap gap-2">
+        <DhButton label="Abrir tarifa para modificar" @click="openRateEditor" />
+        <DhButton label="Enviar revisión al vendedor" :loading="finishing" variant="secondary" @click="completeModification" />
+        <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
+      </div>
+      <p class="text-xs text-[var(--dh-text-muted)]">Solo podrá finalizar después de que la tarifa tenga una revisión mayor que la indicada. El envío adjunta el PDF y conserva el historial.</p>
+    </section>
+    <PricingAlternativeWizardCrystal v-else :rate-request-id="requestId" />
   </div>
 </template>

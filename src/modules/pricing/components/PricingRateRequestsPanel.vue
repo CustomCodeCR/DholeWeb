@@ -12,7 +12,10 @@ import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestL
 
 type Priority = 'Green' | 'Yellow' | 'Red'
 
+type ModificationItem = { action: 'Add' | 'Change' | 'Remove'; field: string; details: string }
 type RequestPayload = {
+  kind?: string
+  modification?: { sourceRevisionNumber?: number; items?: ModificationItem[]; notes?: string }
   form?: Record<string, unknown>
   requestContext?: Record<string, unknown>
 }
@@ -20,6 +23,7 @@ type RequestPayload = {
 interface RateRequestDto {
   id: string
   priority: Priority
+  kind?: 'New' | 'Modification'
   status: 'Open' | 'Completed' | 'Cancelled'
   requestedAtUtc: string
   dueAtUtc: string
@@ -191,6 +195,17 @@ async function load() {
   }
 }
 
+function isModification(request: RateRequestDto): boolean {
+  return request.kind === 'Modification' || request.payload?.kind === 'Modification'
+}
+
+function modificationItems(request: RateRequestDto): ModificationItem[] {
+  return request.payload?.modification?.items ?? []
+}
+function actionLabel(action: ModificationItem['action']) {
+  return action === 'Add' ? 'Agregar' : action === 'Remove' ? 'Eliminar' : 'Modificar'
+}
+
 function isLocked(request: RateRequestDto): boolean {
   return Boolean(request.lockedByUserId && request.lockExpiresAtUtc
     && new Date(request.lockExpiresAtUtc).getTime() > now.value)
@@ -215,8 +230,13 @@ async function completeRequest(request: RateRequestDto) {
   try {
     completingRequestId.value = request.id
     await RateRequestLeaseService.claim(request.id)
-    await RateRequestLeaseService.complete(request.id)
-    toast.success('Solicitud marcada como completada.')
+    if (isModification(request) && request.rateId) {
+      await RateRequestLeaseService.completeRate(request.id, request.rateId)
+      toast.success('Revisión enviada', 'Se notificó al vendedor y se entregó el PDF actualizado.')
+    } else {
+      await RateRequestLeaseService.complete(request.id)
+      toast.success('Solicitud marcada como completada.')
+    }
     await load()
   } catch (error) {
     toast.backendError(error, 'No se pudo marcar la solicitud como completada.')
@@ -299,7 +319,16 @@ onBeforeUnmount(() => {
         <tbody>
           <tr v-for="request in sortedRequests" :key="request.id" class="border-t border-[var(--dh-border)]" :class="request.priority === 'Red' ? 'bg-red-500/10' : request.priority === 'Yellow' ? 'bg-amber-500/10' : 'bg-emerald-500/5'">
             <td class="px-4 py-3"><strong>{{ request.executiveName || request.sellerName || 'Vendedor' }}</strong></td>
-            <td class="px-4 py-3"><strong>{{ request.clientName || 'Cliente sin definir' }}</strong></td>
+            <td class="px-4 py-3">
+              <strong>{{ request.clientName || 'Cliente sin definir' }}</strong>
+              <div v-if="isModification(request)" class="mt-1 text-xs">
+                <DhBadge :label="`Modificación de REV ${request.payload?.modification?.sourceRevisionNumber || 1}`" variant="warning" />
+                <div v-for="(item, index) in modificationItems(request).slice(0, 3)" :key="index" class="mt-1 max-w-72 whitespace-normal text-[var(--dh-text-muted)]">
+                  {{ actionLabel(item.action) }} · {{ item.field }}: {{ item.details }}
+                </div>
+                <p v-if="modificationItems(request).length > 3" class="mt-1">+ {{ modificationItems(request).length - 3 }} cambios</p>
+              </div>
+            </td>
             <td class="px-4 py-3"><strong>{{ equipmentLabel(request) }}</strong></td>
             <td class="px-4 py-3 font-black">{{ equipmentQuantity(request) }}</td>
             <td class="px-4 py-3 font-bold">{{ modalityLabel(request) }}</td>
@@ -327,10 +356,10 @@ onBeforeUnmount(() => {
               <div class="flex items-center justify-end gap-2">
                 <DhButton :disabled="isLocked(request) || Boolean(claimingRequestId)" @click="continueRequest(request)">
                   <PlayCircle class="h-4 w-4" />
-                  {{ isLocked(request) ? 'En proceso' : claimingRequestId === request.id ? 'Reservando…' : 'Continuar tarifa' }}
+                  {{ isLocked(request) ? 'En proceso' : claimingRequestId === request.id ? 'Reservando…' : isModification(request) ? 'Revisar cambios' : 'Continuar tarifa' }}
                 </DhButton>
                 <DhButton variant="secondary" :disabled="isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId)" @click="completeRequest(request)">
-                  <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : 'Marcar completada' }}
+                  <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : isModification(request) ? 'Enviar revisión' : 'Marcar completada' }}
                 </DhButton>
               </div>
             </td>
