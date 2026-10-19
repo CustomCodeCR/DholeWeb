@@ -15,6 +15,7 @@ import {
   type LclColoaderRateLineDto,
 } from '@/core/services/lclRateSourceService'
 import type { ChargeBasis, CostDetailType, CostType } from '@/core/interfaces/pricing'
+import { isBalboaOwnLclPoe } from '@/modules/pricing/utils/ownLclPoeEligibility'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
@@ -81,6 +82,8 @@ const props = withDefaults(defineProps<{
   polCode?: string | null
   polName?: string | null
   poeId?: string | null
+  poeCode?: string | null
+  poeName?: string | null
   podId?: string | null
   incotermId?: string | null
   incotermCode?: string | null
@@ -106,6 +109,8 @@ const props = withDefaults(defineProps<{
   polCode: null,
   polName: null,
   poeId: null,
+  poeCode: null,
+  poeName: null,
   podId: null,
   incotermId: null,
   incotermCode: 'FOB',
@@ -139,6 +144,7 @@ const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
 const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isAir = computed(() => props.modality === 'Air')
+const ownPoeEligible = computed(() => !isAir.value && isBalboaOwnLclPoe(props.poeCode, props.poeName))
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
   { key: 'source', label: 'Consolidado', width: '220px' },
@@ -348,15 +354,25 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
     && [...requestedOrigins].some((origin) => chinaOwnLclOrigins.has(origin))
 }
 
+function ownConsolidationSupportsPoe(row: OwnLclConsolidationDto) {
+  // Algunos registros heredados no indican POE, pero solo pueden usarse
+  // cuando el POE elegido para la cotización sea Balboa.
+  if (!ownPoeEligible.value) return false
+  if (!row.poeId && !row.poeCode && !row.poeName) return true
+  if (props.poeId && row.poeId && String(props.poeId) === String(row.poeId)) return true
+  return isBalboaOwnLclPoe(row.poeCode, row.poeName)
+}
+
 const filteredOwn = computed(() => {
   // Los consolidados propios actuales son marítimos (China/Miami). Nunca deben
   // aparecer dentro de una cotización aérea aunque la ciudad del APT coincida.
-  if (isAir.value) return []
+  if (!ownPoeEligible.value) return []
   const q = normalize(search.value)
   return ownRows.value.filter((row) => {
     if (!row.isActive || normalize(row.status) === 'closed') return false
     if (row.etd && row.etd.slice(0, 10) <= costaRicaTodayIso()) return false
     if (!ownConsolidationSupportsPol(row)) return false
+    if (!ownConsolidationSupportsPoe(row)) return false
     if (!q) return true
     return [row.name, row.booking, row.carrierName, row.carrierCode, row.polName, row.polCode, row.containerName, row.containerCode, row.etd]
       .some((value) => normalize(value).includes(q))
@@ -376,7 +392,7 @@ async function load() {
     loading.value = true
     error.value = ''
     const [own, coloaders] = await Promise.all([
-      isAir.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse(),
+      !ownPoeEligible.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse(),
       LclRateSourceService.browseColoaders({
         modality: props.modality,
         polId: props.polId,
@@ -390,6 +406,7 @@ async function load() {
     ])
     ownRows.value = own.map((row) => ({ ...row }))
     coloaderRows.value = coloaders.map((row) => ({ ...row }))
+    if (!ownPoeEligible.value) tab.value = 'Coloader'
     if (isAir.value || (!filteredOwn.value.length && filteredColoaders.value.length)) tab.value = 'Coloader'
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'No fue posible consultar las fuentes LCL.'
@@ -445,6 +462,10 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateL
 }
 
 async function chooseOwn(row: OwnLclConsolidationDto) {
+  if (!ownPoeEligible.value || !ownConsolidationSupportsPoe(row) || !ownConsolidationSupportsPol(row)) {
+    error.value = 'El consolidado propio solo está disponible para cotizaciones con POE Balboa, Panamá.'
+    return
+  }
   const destination = destinationCode()
   if (!destination) {
     error.value = 'El destino seleccionado no está soportado por la matriz del consolidado propio.'
@@ -502,6 +523,8 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       meetsMinimumMargin: calculation.meetsMinimumMargin,
       matrixVersion: calculation.matrixVersion,
     }
+    // Una selección asíncrona no puede aplicar una fuente si el POE cambió.
+    if (!ownPoeEligible.value || !ownConsolidationSupportsPoe(row)) return
     // Hydrate the wizard first; changing modelValue can advance/unmount Pantalla 5.
     emit('select', selection)
     emit('update:modelValue', `Own:${row.id}`)
@@ -644,6 +667,15 @@ watch(
   },
   { deep: true },
 )
+watch(ownPoeEligible, (eligible, previous) => {
+  if (!eligible) {
+    tab.value = 'Coloader'
+    ownRows.value = []
+  } else if (previous === false) {
+    // El catálogo puede resolver el nombre de Balboa después del ID.
+    void load()
+  }
+}, { immediate: true })
 onMounted(load)
 </script>
 
@@ -656,7 +688,7 @@ onMounted(load)
     </div>
 
     <div class="flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
-      <button v-if="!isAir" type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Own' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Own'">
+      <button v-if="ownPoeEligible" type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Own' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Own'">
         <Ship class="h-4 w-4" /> Consolidados propios <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ filteredOwn.length }}</span>
       </button>
       <button type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Coloader' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Coloader'">
