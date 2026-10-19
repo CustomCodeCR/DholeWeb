@@ -60,7 +60,7 @@ import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
-import { resolvePodVatRate } from '@/modules/pricing/utils/pricingPodVat'
+import { resolvePodVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
   calculateCargoInsurance,
@@ -3656,12 +3656,16 @@ async function saveRate() {
         ? lineDestinationTaxRate(line)
         : 0,
     notes: line.costDetailType === 'Insurance'
-      ? [line.notes, cargoInsuranceNote(form.cargoValue, form.freightCost)].filter(Boolean).join(' · ')
+      ? [
+          stripGeneratedPodVatNotes(line.notes),
+          cargoInsuranceNote(form.cargoValue, form.freightCost),
+          line.applyDestinationTax ? `IVA ${lineDestinationTaxRate(line)}%: ${lineTaxAmount(line).toFixed(2)}; venta total: ${lineSaleWithTax(line).toFixed(2)}` : null,
+        ].filter(Boolean).join(' · ')
       : line.applyDestinationTax
-        ? [line.notes, `IVA ${lineDestinationTaxRate(line)}%: ${lineTaxAmount(line).toFixed(2)}; venta total: ${lineSaleWithTax(line).toFixed(2)}`].filter(Boolean).join(' · ')
+        ? [stripGeneratedPodVatNotes(line.notes), `IVA ${lineDestinationTaxRate(line)}%: ${lineTaxAmount(line).toFixed(2)}; venta total: ${lineSaleWithTax(line).toFixed(2)}`].filter(Boolean).join(' · ')
       : line.manual
-        ? line.notes || 'Cargo manual agregado desde el wizard de Pricing.'
-        : line.notes || null,
+        ? stripGeneratedPodVatNotes(line.notes) || 'Cargo manual agregado desde el wizard de Pricing.'
+        : stripGeneratedPodVatNotes(line.notes) || null,
   }))
 
   const includedNameKeys = new Set(
