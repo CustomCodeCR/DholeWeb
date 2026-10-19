@@ -135,6 +135,7 @@ const guideTarget = ref('prod2')
 const guideStep = ref(1)
 const guideReason = ref('Cambio controlado por mantenimiento técnico y validación del entorno de destino')
 const guideReviewed = ref(false)
+const guideAttestConsent = ref(false)
 const guideSubmittedId = ref<string | null>(null)
 const guideGenerationValid = computed(() =>
   /^prod[1-9][0-9]*$/.test(guideTarget.value) &&
@@ -162,6 +163,7 @@ const guideCanSubmit = computed(() =>
   guideReason.value.trim().length <= 500 && guideSubmittedId.value === null)
 watch(guideTarget, () => {
   guideReviewed.value = false
+  guideAttestConsent.value = false
   guideSubmittedId.value = null
 })
 
@@ -516,7 +518,7 @@ async function runWebAction(operation: WebActionOperation) {
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     }, { body: {
       operation, generation: guideTarget.value,
-      confirmedProviderAccess: operation === 'attest' && !!independentlyVerified.value[guideTarget.value],
+      confirmedProviderAccess: operation === 'attest' && guideAttestConsent.value,
       confirmedHandoff: operation === 'switch' && guideReviewed.value,
       reason: guideReason.value.trim(),
     } })
@@ -726,18 +728,38 @@ onUnmounted(() => {
               <span v-if="guideProvisioned" class="ml-2 text-emerald-500">Infraestructura registrada como preparada</span>
             </div>
             <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
-              Si figura como Pending o Dispatched, pulsá «Actualizar» para consultar el resultado.
-              Si no se provisiona automáticamente, abrí Actions, seleccioná la rama master,
-              operation=<strong>provision-check</strong> primero y luego
-              operation=<strong>provision</strong>, generation=<strong>{{ guideTarget }}</strong>.
-              Confirmación: <code>PROVISION_INDEPENDENT_GENERATION</code>.
+              Primero comprobá la infraestructura. Después pulsá «Preparar {{ guideTarget }}».
+              Dhole solicita el workflow y consulta su resultado automáticamente; no necesitás abrir GitHub.
             </p>
-            <a :href="generationActionsUrl" target="_blank" rel="noopener noreferrer"
-              class="mt-3 inline-flex items-center gap-2 font-semibold text-[var(--dh-primary)] underline">
-              Abrir Actions de generaciones <ExternalLink class="h-4 w-4" />
-            </a>
+            <div class="mt-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-4">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-sm font-semibold">2.1 Comprobación de infraestructura</span>
+                <span class="text-xs" role="status">{{ actionStatusLabel('provision-check') }}</span>
+              </div>
+              <DhButton label="Comprobar infraestructura con Actions" variant="secondary" :icon="ShieldCheck"
+                :disabled="!canManage || !guideGeneration || !guideGenerationValid ||
+                  !state.githubDispatcherConfigured || !!webActionBusy || actionPending('provision-check')"
+                :loading="webActionBusy === 'provision-check'" @click="runWebAction('provision-check')" />
+              <p v-if="actionDiagnostic('provision-check')" class="text-xs text-[var(--dh-text-muted)]">
+                Diagnóstico: {{ actionDiagnostic('provision-check') }}
+              </p>
+              <div class="border-t border-[var(--dh-border)] pt-3">
+                <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-sm font-semibold">2.2 Crear o reparar el entorno detenido</span>
+                  <span class="text-xs" role="status">{{ actionStatusLabel('provision') }}</span>
+                </div>
+                <DhButton :label="'Preparar ' + guideTarget + ' con Actions'" variant="secondary" :icon="Plus"
+                  :disabled="!canManage || !guideGeneration || guideProvisioned ||
+                    !recentActionSuccess('provision-check', 30) || !state.githubDispatcherConfigured ||
+                    !!webActionBusy || actionPending('provision')"
+                  :loading="webActionBusy === 'provision'" @click="runWebAction('provision')" />
+                <p v-if="actionDiagnostic('provision')" class="mt-2 text-xs text-[var(--dh-text-muted)]">
+                  Diagnóstico: {{ actionDiagnostic('provision') }}
+                </p>
+              </div>
+            </div>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
-              El estado Provisioned procede del servidor, pero no garantiza acceso autenticado al proveedor.
+              El estado Provisioned procede del servidor. No implica acceso autenticado al proveedor.
             </p>
           </template>
 
@@ -815,15 +837,30 @@ onUnmounted(() => {
               </p>
             </div>
             <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
-              En Actions, ejecutá <strong>Operator-verify standby provider readiness</strong>
-              en la rama <strong>master</strong>, generation=<strong>{{ guideTarget }}</strong>,
-              y confirmá solamente después de comprobar el acceso real. El workflow exige
-              <code>I_INDEPENDENTLY_VERIFIED_AUTHORIZED_PROVIDER_ACCESS</code>.
+              El botón siguiente ejecuta el workflow de autorización desde Dhole. El runner
+              verifica una comprobación reciente del Hub de este mismo entorno y valida
+              que Maersk no tenga restricciones activas.
             </p>
-            <a :href="generationReadinessUrl" target="_blank" rel="noopener noreferrer"
-              class="mt-3 inline-flex items-center gap-2 font-semibold text-[var(--dh-primary)] underline">
-              Abrir Actions de verificación <ExternalLink class="h-4 w-4" />
-            </a>
+            <div class="mt-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-4">
+              <p class="text-sm" role="status">Ejecución de Actions: <strong>{{ actionStatusLabel('attest') }}</strong></p>
+              <p v-if="!guideHubProofFresh && !guideAuthorized" class="text-xs text-amber-500">
+                La comprobación del Hub debe ser reciente (menos de 5 minutos).
+                Volvé al paso 3 y realizá una nueva verificación cuando sea posible.
+              </p>
+              <label class="flex items-start gap-2 text-sm">
+                <input v-model="guideAttestConsent" type="checkbox" class="mt-1" />
+                Confirmo que comprobé personalmente el acceso autorizado al Hub de Maersk
+                de {{ guideTarget }} y no hay CAPTCHA ni denegación de acceso.
+              </label>
+              <DhButton label="Registrar autorización con Actions" variant="secondary" :icon="ShieldCheck"
+                :disabled="!canManage || guideAuthorized || !guideProvisioned ||
+                  !guideHubProofFresh || !guideAttestConsent || !state.githubDispatcherConfigured ||
+                  !!webActionBusy || actionPending('attest')"
+                :loading="webActionBusy === 'attest'" @click="runWebAction('attest')" />
+              <p v-if="actionDiagnostic('attest')" class="text-xs text-[var(--dh-text-muted)]">
+                Diagnóstico: {{ actionDiagnostic('attest') }}
+              </p>
+            </div>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
               Esta autorización caduca a los 60 minutos. Si vence, repetí este paso.
             </p>
@@ -832,23 +869,28 @@ onUnmounted(() => {
           <template v-else-if="guideStep === 5">
             <h3 class="text-lg font-bold">Paso 5 — Preflight y solicitud de relevo</h3>
             <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
-              Primero usá Actions con operation=<strong>preflight</strong>, rama
-              <strong>master</strong> y generation=<strong>{{ guideTarget }}</strong>.
-              Solo si esa ejecución finaliza en Success continuá. El preflight comprueba
-              salud, imágenes, volúmenes, Workers, trabajos activos y circuit breaker.
+              Primero ejecutá la validación técnica desde acá. El servidor confirmará
+              las imágenes, volúmenes, salud, exclusividad del Worker y circuit breaker.
+              Solo cuando el resultado sea <strong>Completada</strong> se habilitará el relevo.
             </p>
-            <a :href="generationActionsUrl" target="_blank" rel="noopener noreferrer"
-              class="mt-3 inline-flex items-center gap-2 font-semibold text-[var(--dh-primary)] underline">
-              Abrir Actions para preflight <ExternalLink class="h-4 w-4" />
-            </a>
+            <div class="mt-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-4">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <strong class="text-sm">5.1 Validación de seguridad y salud</strong>
+                <span class="text-xs" role="status">{{ actionStatusLabel('preflight') }}</span>
+              </div>
+              <DhButton label="Ejecutar preflight con Actions" variant="secondary" :icon="ShieldCheck"
+                :disabled="!canManage || !guideAuthorized || !guideProvisioned ||
+                  !state.githubDispatcherConfigured || !!webActionBusy || actionPending('preflight')"
+                :loading="webActionBusy === 'preflight'" @click="runWebAction('preflight')" />
+              <p v-if="actionDiagnostic('preflight')" class="text-xs text-[var(--dh-text-muted)]">
+                Diagnóstico: {{ actionDiagnostic('preflight') }}
+              </p>
+              <p v-if="guidePreflightReady" class="text-xs font-semibold text-emerald-500">
+                Validación completada. Podés solicitar el cambio durante los próximos minutos.
+              </p>
+            </div>
             <div class="mt-4 grid gap-3">
-              <label class="flex items-start gap-2 text-sm">
-                <input :checked="guidePreflightConfirmed && guideConfirmedTarget === guideTarget"
-                  type="checkbox" class="mt-1"
-                  @change="confirmGuidedPreflight(($event.target as HTMLInputElement).checked)" />
-                Revisé en GitHub que <strong>preflight</strong> terminó en Success para {{ guideTarget }}.
-                Esta casilla no sustituye la validación que hará el servidor al ejecutar.
-              </label>
+              <h4 class="text-sm font-semibold">5.2 Relevo controlado</h4>
               <label class="text-sm font-semibold">
                 Motivo documentado
                 <textarea v-model="guideReason" rows="3" maxlength="500"
@@ -868,9 +910,12 @@ onUnmounted(() => {
               <p v-else-if="!manualEnabled" class="text-sm text-amber-500" role="status">
                 La regla de cambios manuales está deshabilitada.
               </p>
-              <DhButton label="Solicitar relevo a través de Actions" :icon="ArrowRightLeft"
-                :disabled="!guideCanSubmit || submitting"
-                :loading="submitting" @click="requestGuidedChange" />
+              <DhButton label="Cambiar Worker a destino con Actions" :icon="ArrowRightLeft"
+                :disabled="!guideCanSubmit || submitting || !!webActionBusy"
+                :loading="submitting || webActionBusy === 'switch'" @click="requestGuidedChange" />
+              <p v-if="actionDiagnostic('switch')" class="text-xs text-[var(--dh-text-muted)]">
+                Diagnóstico del relevo: {{ actionDiagnostic('switch') }}
+              </p>
             </div>
           </template>
 
