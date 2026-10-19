@@ -93,7 +93,7 @@ test('operator controls all protected generation actions without opening GitHub'
   }
   assert.match(view, /webActionsAvailable/)
   assert.match(view, /guideHubProofFresh/)
-  assert.match(view, /actionPending\\('switch'\\)/)
+  assert.match(view, /actionPending\('switch'\)/)
   assert.match(view, /confirmedProviderAccess/)
   assert.match(view, /confirmedHandoff/)
   assert.doesNotMatch(view, /Abrir Actions de verificación/)
