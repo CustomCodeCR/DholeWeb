@@ -173,8 +173,19 @@ export function pricingWizardEnhancements(): Plugin {
       const incotermWatchReplacement = "watch(\n  () => selectedIncotermCode.value,\n  (code) => {\n    nearestPortRecommendations.value = []\n    draftCommercialTermsInitialized.value = false\n    lclSelectedSource.value = null\n    lclSelectedSourceKey.value = ''\n    if (code === 'FOB') {\n      pickupLocations.value = []\n      pickupCargoCondition.value = ''\n      editingPickupIndex.value = null\n      void applyAutomaticFobWarehouse()\n      return\n    }\n    if (code !== 'FCA') form.warehouseId = ''\n    if (code !== 'EXW') {\n      pickupLocations.value = []\n      pickupCargoCondition.value = ''\n      editingPickupIndex.value = null\n    }\n    if (code !== 'EXW' && code !== 'FCA') {\n      form.pickupAddress = ''\n      form.pickupLatitude = null\n      form.pickupLongitude = null\n    }\n  },\n)\n\nwatch(\n  () => form.originId,\n  () => {\n    draftCommercialTermsInitialized.value = false\n    lclSelectedSource.value = null\n    lclSelectedSourceKey.value = ''\n    if (selectedIncotermCode.value === 'FOB') void applyAutomaticFobWarehouse()\n  },\n)\n\nwatch(\n  () => form.destinationId,\n  () => {\n    lclSelectedSource.value = null\n    lclSelectedSourceKey.value = ''\n  },\n)\n\nwatch(\n  () => form.warehouseId,\n  () => {\n    if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()\n  },\n)"
       code = replaceOne(code, incotermWatchAnchor, incotermWatchReplacement, 'route and Incoterm source reset watchers')
 
-      const stepWatchAnchor = `watch(step, (value) => {\n  if (value === 7) void loadHaciendaExchangeRate(false)\n})`
-      const stepWatchReplacement = `watch(step, (value) => {\n  if (value === 7) void loadHaciendaExchangeRate(false)\n  if (value === 8) {\n    void initializeDraftCommercialTerms().catch(() => {\n      draftCommercialTerms.value = { includes: [], subjectTo: [], excludes: [] }\n      draftCommercialTermsInitialized.value = true\n    })\n  }\n})`
+      // The rate-edit wizard also recalculates cargo insurance when entering Screen 7.
+      // Preserve that watcher body rather than relying on only its older exact shape.
+      const stepWatchAnchors = [
+        `watch(step, (value) => {\n  if (value === 7) void loadHaciendaExchangeRate(false)\n})`,
+        `watch(step, (value) => {\n  if (value === 7) {\n    void loadHaciendaExchangeRate(false)\n    syncDeclaredCargoInsuranceOnEdit()\n  }\n})`,
+      ]
+      const matchingStepWatchAnchors = stepWatchAnchors.filter((anchor) => code.includes(anchor))
+      if (matchingStepWatchAnchors.length !== 1) {
+        throw new Error(`[pricingWizardEnhancements] Expected one supported Pantalla 8 commercial terms initializer watcher, found ${matchingStepWatchAnchors.length}.`)
+      }
+      const stepWatchAnchor = matchingStepWatchAnchors[0]!
+      const stepWatchInitializer = `\n  if (value === 8) {\n    void initializeDraftCommercialTerms().catch(() => {\n      draftCommercialTerms.value = { includes: [], subjectTo: [], excludes: [] }\n      draftCommercialTermsInitialized.value = true\n    })\n  }`
+      const stepWatchReplacement = stepWatchAnchor.replace('\n})', stepWatchInitializer + '\n})')
       code = replaceOne(code, stepWatchAnchor, stepWatchReplacement, 'Pantalla 8 commercial terms initializer')
 
       const routeSummaryAnchor = '          <div v-if="selectedEquipment || direction" class="crystal-route-summary">'
