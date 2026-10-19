@@ -40,12 +40,16 @@ source = replaceOnce(
   'detección Multimodal Via Panamá',
 )
 
+// POD-based VAT is now implemented directly in the wizard.
+// Do not inject the historical POE / Panama-only country resolver over it.
+if (!source.includes('resolvePodVatRate(resolvePodForDestination(), catalogs.countries)')) {
 source = replaceOnce(
   source,
   `const destinationCountryCode = computed(() => {\n  const configured = String(metadata(selectedDestination.value)?.countryCode ?? '').trim().toUpperCase()\n  if (configured) return configured\n  if (isCostaRica(selectedDestination.value)) return 'CR'\n  const destination = normalizeCatalogValue([\n    displayValue(selectedDestination.value),\n    selectedDestination.value?.label,\n    selectedDestination.value?.code,\n    selectedDestination.value?.slug,\n  ].filter(Boolean).join(' '))\n  if (destination.includes('panama')) return 'PA'\n  if (destination.includes('guatemala')) return 'GT'\n  return ''\n})`,
   `const destinationTaxLocation = computed(() =>\n  isPanamaMultimodal.value && selectedPod.value ? selectedPod.value : selectedDestination.value,\n)\nconst destinationCountryCode = computed(() => {\n  const target = destinationTaxLocation.value\n  const configured = String(metadata(target)?.countryCode ?? '').trim().toUpperCase()\n  if (configured) return configured\n  if (isCostaRica(target)) return 'CR'\n  const destination = normalizeCatalogValue([\n    displayValue(target),\n    target?.label,\n    target?.code,\n    target?.slug,\n  ].filter(Boolean).join(' '))\n  if (destination.includes('panama')) return 'PA'\n  if (destination.includes('guatemala')) return 'GT'\n  if (destination.includes('honduras')) return 'HN'\n  if (destination.includes('salvador')) return 'SV'\n  if (destination.includes('nicaragua')) return 'NI'\n  return ''\n})`,
   'país final para IVA',
 )
+}
 
 source = replaceOnce(
   source,
