@@ -61,7 +61,8 @@ const pricingModificationApplied = ref(false)
 const modificationKeys = [
   'modality', 'shipmentMode', 'originId', 'destinationId', 'podId', 'equipmentId',
   'equipmentQuantity', 'incotermId', 'serviceIds', 'loadDate', 'validTo',
-  'clientName', 'cargoValue', 'cargoWeightKg', 'cargoPackages', 'cargoPallets',
+  'clientName', 'cargoCondition', 'dangerousCargo', 'nonStackable', 'overweight',
+  'cargoValue', 'cargoWeightKg', 'cargoPackages', 'cargoPallets',
   'cargoLengthCm', 'cargoWidthCm', 'cargoHeightCm', 'storageDays',
   'cargoDescription', 'pickupAddress', 'warehouseId',
 ] as const
@@ -70,7 +71,9 @@ const modificationFieldLabels: Record<string, string> = {
   destinationId: 'POE / Destino', podId: 'POD', equipmentId: 'Tipo de equipo',
   equipmentQuantity: 'Cantidad de equipos', incotermId: 'Incoterm',
   serviceIds: 'Servicios', loadDate: 'Carga lista', validTo: 'Vigencia',
-  clientName: 'Cliente', cargoValue: 'Valor de la carga',
+  clientName: 'Cliente', cargoCondition: 'Condición de carga',
+  dangerousCargo: 'Mercancía peligrosa', nonStackable: 'Carga no estibable',
+  overweight: 'Sobrepeso', cargoValue: 'Valor de la carga',
   cargoWeightKg: 'Peso (kg)', cargoPackages: 'Bultos', cargoPallets: 'Tarimas',
   cargoLengthCm: 'Largo (cm)', cargoWidthCm: 'Ancho (cm)',
   cargoHeightCm: 'Alto (cm)', storageDays: 'Almacenaje',
