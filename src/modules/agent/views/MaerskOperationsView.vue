@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isGenerationProfileName } from '@/modules/agent/utils/maerskGenerationProfileFilter'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-vue-next'
@@ -85,9 +86,11 @@ const resetValid = computed(() =>
   verifiedWithProvider.value && operatorReason.value.trim().length >= 12 &&
   operatorReason.value.length <= 1000,
 )
-const originalProfilesNeedingReview = computed(() => (details.value?.profiles ?? [])
+const activeProfiles = computed(() => (details.value?.profiles ?? [])
+  .filter(profile => isGenerationProfileName(profile.name, activeGeneration.value)))
+const originalProfilesNeedingReview = computed(() => activeProfiles.value
   .filter(profile => ['Blocked', 'Expired', 'ResetRequested'].includes(profile.status)))
-const visibleAuthenticatedProfiles = computed(() => (details.value?.profiles ?? [])
+const visibleAuthenticatedProfiles = computed(() => activeProfiles.value
   .filter(profile => profile.status === 'Authenticated' &&
     (!profile.sessionExpiresAt || Date.parse(profile.sessionExpiresAt) > Date.now())))
 const resetHelpVisible = computed(() =>
@@ -485,7 +488,7 @@ onUnmounted(() => {
             entorno no equivale a una autenticación original comprobada.
             Marcar «Verificado con proveedor» no sustituye ese resultado.
           </p>
-          <p v-if="!details.profiles.length" class="mt-2 text-sm text-amber-600">
+          <p v-if="!activeProfiles.length" class="mt-2 text-sm text-amber-600">
             No hay perfiles originales registrados en el listado. Usá «Verificar sesión original»
             para preparar una verificación con la credencial autorizada.
           </p>
@@ -555,8 +558,8 @@ onUnmounted(() => {
             Se muestran únicamente perfiles de {{ activeGeneration ?? 'la generación activa' }}.
             Los perfiles de generaciones retiradas no se reutilizan.
           </p>
-          <p v-if="!details.profiles.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('maerskOperations.empty') }}</p>
-          <div v-for="profile in details.profiles" :key="profile.id"
+          <p v-if="!activeProfiles.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('maerskOperations.empty') }}</p>
+          <div v-for="profile in activeProfiles" :key="profile.id"
             class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] py-3 first:border-0">
             <div class="min-w-0">
               <p class="break-words text-sm font-semibold text-[var(--dh-text)]">{{ profile.name }}</p>
