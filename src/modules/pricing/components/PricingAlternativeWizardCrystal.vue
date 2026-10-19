@@ -2503,6 +2503,52 @@ if (insuranceRequested && visible.has('destination_charges')) {
   rateLines.value = lines
 }
 
+function syncDeclaredCargoInsuranceOnEdit() {
+  // Do not reconstruct persisted charge lines: their IDs and edited prices matter.
+  if (props.viewOnly || hydratingExistingRate.value || !editingRate.value) return
+  const declaredValue = Math.max(0, number(form.cargoValue))
+  const existing = rateLines.value.find((line) => line.costDetailType === 'Insurance')
+  if (declaredValue <= 0) {
+    if (existing && (existing.key === 'cargo-insurance:auto' || /valor (?:carga|FOB) USD/i.test(existing.notes ?? ''))) {
+      existing.costAmount = 0
+      existing.saleAmount = 0
+      existing.included = false
+    }
+    return
+  }
+  if (!visibleSections.value.includes('destination_charges')) return
+  const calculated = calculateCargoInsurance(declaredValue, number(form.freightCost))
+  if (existing) {
+    existing.section = 'destination_charges'
+    existing.costType = 'Optional'
+    existing.chargeBasis = 'PerShipment'
+    existing.optional = true
+    existing.included = true
+    existing.costAmount = calculated.cost
+    existing.saleAmount = calculated.sale
+    return
+  }
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!currency) return
+  rateLines.value = [...rateLines.value, {
+    key: 'cargo-insurance:auto',
+    section: 'destination_charges',
+    name: 'Seguro de carga',
+    costDetailType: 'Insurance',
+    costType: 'Optional',
+    chargeBasis: 'PerShipment',
+    contextLabel: 'Calculado automáticamente sobre el valor declarado de la carga.',
+    currencyId: currency.id,
+    currencyName: displayValue(currency),
+    currencyCode: currency.code,
+    costAmount: calculated.cost,
+    saleAmount: calculated.sale,
+    included: true,
+    optional: true,
+    manual: false,
+  }]
+}
+
 function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
   // Una tarifa persistida en modo vista es un snapshot autoritativo del response.
   // No mezclar aquí costos/opcionales del catálogo porque pueden no formar parte
@@ -3329,7 +3375,7 @@ async function hydrateExistingRate() {
     // dirección/coordenadas evita que una revisión FCA pierda el WHS seleccionado.
     form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
     form.freeDays = Number(rate.freeDays || 0)
-    form.transitDays = transitDaysFrom(rate.transitTime)
+    form.transitDays = Math.max(0, Math.trunc(number(rate.transitDays ?? transitDaysFrom(rate.transitTime))))
     form.agentId = rate.agentId ?? ''
     // Evitar rehidratar la naviera del anterior LCL propio cuando la tarifa
     // vigente ya es coloader, también para cotizaciones sin marcador antiguo.
@@ -3348,6 +3394,7 @@ async function hydrateExistingRate() {
     const freight = rate.rateDetails.find((detail) => detail.costDetailType === 'Freight')
     form.freightCost = Number(freight?.costAmount || 0)
     form.freightSale = Number(freight?.saleAmount || 0)
+    form.cargoValue = Math.max(0, number(rate.cargoValue))
     form.cargoDescription = rate.cargoLines?.[0]?.description ?? ''
     hydratePersistedCargoDescription(rate.cargoLines?.[0]?.description)
     form.cargoWeightKg = Number(rate.cargoLines?.[0]?.weightKg ?? rate.totalWeightKg ?? 0)
@@ -3968,6 +4015,7 @@ async function saveOpenRequest() {
       shipmentMode: shipmentModeForApi.value,
       containers: consolidatedCargoMode.value ? [] : [{ containerTypeId: equipment.id, containerTypeName: equipmentName, containerTypeCode: equipment.code, quantity: form.equipmentQuantity }],
       storageDays: Math.trunc(number(form.storageDays)) > 0 ? Math.trunc(number(form.storageDays)) : null,
+      cargoValue: Math.max(0, number(form.cargoValue)),
       totalPackages: number(form.cargoPackages) > 0
         ? Math.trunc(number(form.cargoPackages))
         : consolidatedCargoMode.value ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
@@ -4026,6 +4074,9 @@ async function saveOpenRequest() {
 }
 
 async function saveRate() {
+  if (editingRate.value && number(form.cargoValue) > 0 && !rateLines.value.some((line) => line.costDetailType === 'Insurance')) {
+    syncDeclaredCargoInsuranceOnEdit()
+  }
   // A historical LCL coloader may have been opened by an older build that
   // incorrectly removed every line. Never overwrite a persisted quote with
   // zero details; the user must select the correct coloader again.
@@ -4280,13 +4331,15 @@ async function saveRate() {
               quantity: form.equipmentQuantity,
             },
           ],
-      transitTime: form.transitDays > 0 ? `${form.transitDays} días` : null,
+      transitDays: Math.max(0, Math.trunc(number(form.transitDays))),
+      transitTime: number(form.transitDays) > 0 ? `${Math.trunc(number(form.transitDays))} días` : null,
       useAllInPresentation: multimodalAllInPresentation.value,
       finalBackupStorageIds: finalBackupDocuments.value.map((document) => document.id),
       includes: includeTerms.join('\n') || null,
       subjectTo: subjectTerms.join('\n') || null,
       excludes: excludeTerms.join('\n') || null,
       storageDays: Math.trunc(number(form.storageDays)) > 0 ? Math.trunc(number(form.storageDays)) : null,
+      cargoValue: Math.max(0, number(form.cargoValue)),
       totalPackages: number(form.cargoPackages) > 0
         ? Math.trunc(number(form.cargoPackages))
         : consolidatedCargoMode.value ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,
@@ -4598,6 +4651,11 @@ watch(() => form.currencyId, () => {
 })
 
 watch(
+  () => [form.cargoValue, form.freightCost] as const,
+  () => syncDeclaredCargoInsuranceOnEdit(),
+)
+
+watch(
   () => [form.cargoValue, form.freightCost, form.serviceIds.join('|'), form.cargoWeightKg, form.cargoPallets, form.cargoPackages, form.storageDays, form.equipmentId] as const,
   () => {
     // Editing Screen 3/4 cargo parameters must not replace the Screen 7
@@ -4608,7 +4666,10 @@ watch(
 )
 
 watch(step, (value) => {
-  if (value === 7) void loadHaciendaExchangeRate(false)
+  if (value === 7) {
+    void loadHaciendaExchangeRate(false)
+    syncDeclaredCargoInsuranceOnEdit()
+  }
 })
 
 onMounted(async () => {
