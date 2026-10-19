@@ -84,12 +84,14 @@ function patchWizard(source: string) {
     'save open request',
   )
 
+  if (!code.includes("RateRequestLeaseService.attachRate(props.rateRequestId, rateId)")) {
   code = replaceOne(
     code,
     `    createdRateId.value = rateId\n    await router.push({ name: 'pricing-rates' })`,
     `    if (props.rateRequestId && !editingRate.value) {\n      await callEndpoint<unknown, { rateId: string }>(\n        { method: 'POST', path: '/api/pricing/rate-requests/' + props.rateRequestId + '/attach-rate', headers: { Accept: 'application/json' } },\n        { body: { rateId } },\n      )\n    }\n    createdRateId.value = rateId\n    await router.push({ name: 'pricing-rates' })`,
     'attach created rate',
   )
+  }
 
   code = replaceOne(
     code,
