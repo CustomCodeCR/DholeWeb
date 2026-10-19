@@ -168,7 +168,7 @@ onBeforeUnmount(() => {
         <strong>{{ index + 1 }}. {{ actionName(item.action) }} · {{ item.field }}</strong>
         <p class="mt-1 whitespace-pre-wrap text-[var(--dh-text-muted)]">{{ item.details }}</p>
       </div>
-      <p v-if="workRequest?.payload?.modification?.notes" class="whitespace-pre-wrap text-sm">Observaciones: {{ workRequest.payload.modification.notes }}</p>
+      <p v-if="workRequest?.payload?.modification?.notes" class="whitespace-pre-wrap text-sm">Observaciones: {{ workRequest?.payload?.modification?.notes }}</p>
       <div class="flex flex-wrap gap-2">
         <DhButton label="Abrir tarifa para modificar" @click="openRateEditor" />
         <DhButton label="Enviar revisión al vendedor" :loading="finishing" variant="secondary" @click="completeModification" />
