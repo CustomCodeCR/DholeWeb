@@ -5,6 +5,9 @@ import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { fetchProtectedBlob } from '@/core/api/fetchConfig'
 import type { RateDto } from '@/core/interfaces/pricing'
+import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import { sellerRateCurrencyValue, type SellerRateCurrency } from '@/modules/pricing/utils/sellerRateCurrency'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -17,6 +20,7 @@ const toast = useToastStore()
 
 const rateId = computed(() => String(route.params.rateId || ''))
 const rate = ref<RateDto | null>(null)
+const currencies = ref<CatalogItemSelectDto[]>([])
 const loading = ref(false)
 const receiving = ref(false)
 const downloading = ref(false)
@@ -36,7 +40,22 @@ const statusText = computed(() => {
   return isReceived.value ? 'Recibida por vendedor' : isSent.value ? 'Enviada al vendedor' : 'En preparación'
 })
 const formattedRoute = computed(() => [rate.value?.polName, rate.value?.poeName, rate.value?.podName].filter(Boolean).join(' → '))
-const money = (amount: number, currency: string) => formatMoney(Number(amount) || 0, currency || 'USD')
+const money = (amount: number, currency: SellerRateCurrency) => {
+  const currencyValue = sellerRateCurrencyValue(currency, currencies.value)
+  const numericAmount = Number(amount) || 0
+  return currencyValue
+    ? formatMoney(numericAmount, currencyValue)
+    : `${numericAmount.toLocaleString('es-CR', { maximumFractionDigits: 2 })} (moneda sin identificar)`
+}
+
+async function loadCurrencies() {
+  try {
+    currencies.value = await CatalogItemsService.select({ catalogGroupSlug: 'currencies' })
+  } catch {
+    // The saved currency name can still supply a valid ISO fallback.
+    currencies.value = []
+  }
+}
 
 async function load() {
   if (!rateId.value) return
@@ -106,7 +125,7 @@ function clientDecision(decision: 'AcceptedByClient' | 'RejectedByClient') {
 }
 
 watch(rateId, () => { void load() })
-onMounted(() => { void load() })
+onMounted(() => { void load(); void loadCurrencies() })
 </script>
 
 <template>
@@ -163,7 +182,7 @@ onMounted(() => { void load() })
         </div>
         <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
           <p class="text-xs font-bold uppercase text-[var(--dh-text-muted)]">Venta total cotizada</p>
-          <p class="mt-2 text-lg font-black text-[var(--dh-text)]">{{ money(rate.totalSaleAmount, rate.currencyCode) }}</p>
+          <p class="mt-2 text-lg font-black text-[var(--dh-text)]">{{ money(rate.totalSaleAmount, rate) }}</p>
         </div>
       </div>
 
@@ -178,7 +197,7 @@ onMounted(() => { void load() })
               <tr v-for="line in rate.rateDetails.filter(item => Number(item.saleAmount) > 0)" :key="line.id">
                 <td class="py-3 font-semibold text-[var(--dh-text)]">{{ line.name }}</td>
                 <td class="py-3 text-[var(--dh-text-muted)]">{{ line.quantity }}</td>
-                <td class="py-3 text-right font-bold text-[var(--dh-text)]">{{ money(line.saleAmount, line.currencyCode) }}</td>
+                <td class="py-3 text-right font-bold text-[var(--dh-text)]">{{ money(line.saleAmount, line) }}</td>
               </tr>
             </tbody>
           </table>
