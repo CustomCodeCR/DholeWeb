@@ -449,8 +449,8 @@ onUnmounted(() => {
             No hay comprobación independiente disponible para el Worker actual.
           </p>
           <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
-            El motivo del breaker pertenece a Maersk globalmente. Un perfil histórico
-            nombrado «prod1» no identifica el contenedor que generó el incidente.
+            El circuito protege las restricciones del proveedor, mientras que el navegador
+            y la autenticación se administran exclusivamente por generación.
           </p>
         </div>
         <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
@@ -494,18 +494,13 @@ onUnmounted(() => {
             Hace falta una autenticación satisfactoria.
           </p>
           <div v-if="originalProfilesNeedingReview.length" class="mt-3 text-sm">
-            <p class="font-semibold text-amber-600">Registros globales que requieren revisión:</p>
+            <p class="font-semibold text-amber-600">Perfiles de la generación activa que requieren revisión:</p>
             <p v-for="profile in originalProfilesNeedingReview" :key="profile.id"
               class="mt-1 text-[var(--dh-text-muted)]">
               {{ profile.name }} — {{ profile.status }}
-              <span v-if="activeGeneration && activeGeneration !== 'prod1' &&
-                /prod1|original/i.test(profile.name)">
-                (nombre legado; no demuestra que el navegador de {{ activeGeneration }} esté bloqueado)
-              </span>
             </p>
             <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
-              El servidor distingue perfiles activos e inactivos; este listado es
-              orientativo. Revisá los perfiles activos antes de solicitar el reset.
+              El backend comprueba solamente los perfiles de la generación activa.
             </p>
           </div>
           <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
@@ -555,11 +550,10 @@ onUnmounted(() => {
 
       <div class="grid min-w-0 gap-4 xl:grid-cols-2">
         <section class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
-          <h2 class="mb-3 font-bold text-[var(--dh-text)]">Perfiles globales registrados (histórico compartido)</h2>
+          <h2 class="mb-3 font-bold text-[var(--dh-text)]">Perfiles de la generación activa</h2>
           <p class="mb-3 text-xs text-[var(--dh-text-muted)]">
-            Este listado viene de PostgreSQL compartido. Los nombres «prod1» corresponden
-            a registros históricos; la autenticación del navegador de {{ activeGeneration ?? 'producción' }}
-            se consulta por separado arriba.
+            Se muestran únicamente perfiles de {{ activeGeneration ?? 'la generación activa' }}.
+            Los perfiles de generaciones retiradas no se reutilizan.
           </p>
           <p v-if="!details.profiles.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('maerskOperations.empty') }}</p>
           <div v-for="profile in details.profiles" :key="profile.id"
