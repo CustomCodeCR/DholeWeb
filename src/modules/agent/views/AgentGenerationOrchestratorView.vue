@@ -145,6 +145,30 @@ const guideGeneration = computed(() =>
 const guideOptions = computed(() =>
   (state.value?.generations ?? []).filter(item => item.name !== state.value?.activeGeneration))
 const guideProvisioned = computed(() => guideGeneration.value?.provisioningStatus === 'Provisioned')
+const latestInfrastructureAction = computed(() =>
+  [actionFor('provision-check'), actionFor('provision')]
+    .filter((action): action is GenerationWebAction => Boolean(action))
+    .sort((a, b) => Date.parse(b.createdAtUtc) - Date.parse(a.createdAtUtc))[0])
+const guideInfrastructureReady = computed(() =>
+  guideProvisioned.value && latestInfrastructureAction.value?.status === 'Completed')
+const guideInfrastructureRepairNeeded = computed(() =>
+  guideProvisioned.value && latestInfrastructureAction.value?.status === 'Failed')
+const infrastructureDiagnostics: Record<string, string> = {
+  generation_api_config_incomplete: 'Falta configuración JWT o de base de datos en el entorno temporal. Volvé a comprobar con el workflow corregido.',
+  generation_existing_incomplete: 'Falta un contenedor obligatorio del entorno registrado. Es necesario revisar o reparar su infraestructura.',
+  generation_hermes_not_running: 'Hermes existe, pero no está ejecutándose. Hay que recuperar su servicio sin tocar los perfiles.',
+  generation_required_service_missing: 'Falta un servicio Docker obligatorio; el entorno no está listo.',
+  generation_worker_persistence_missing: 'El Worker detenido no tiene todos sus volúmenes persistentes. No se permite activarlo.',
+  generation_worker_novnc_config_missing: 'El Worker no tiene la configuración noVNC requerida.',
+  generation_insufficient_root_space: 'Argos no tiene el espacio libre mínimo para realizar la operación.',
+  generation_infrastructure_health_failed: 'La comprobación de salud de Agent API o Hermes no fue satisfactoria.',
+  generation_active_standby_worker_refused: 'Existe un Worker alternativo activo; la protección impide modificarlo.',
+  guarded_command_failed: 'El runner detuvo una validación. Reintentá la comprobación con el diagnóstico actualizado.',
+}
+const infrastructureDiagnostic = (operation: WebActionOperation) => {
+  const code = actionDiagnostic(operation)
+  return infrastructureDiagnostics[code] ?? (code ? 'Código técnico: ' + code : '')
+}
 const guideSession = computed(() => standbySession(guideTarget.value))
 const guideAuthorized = computed(() => guideGeneration.value?.providerReadinessStatus === 'Verified')
 const guideRequest = computed(() =>
@@ -158,7 +182,7 @@ const guidePreflightReady = computed(() => recentActionSuccess('preflight'))
 const guideCanAdvance = computed(() => {
   switch (guideStep.value) {
     case 1: return Boolean(guideGeneration.value)
-    case 2: return guideProvisioned.value
+    case 2: return guideInfrastructureReady.value
     case 3: return guideSession.value?.status === 'Verified'
     case 4: return guideAuthorized.value
     case 5: return Boolean(guideSubmittedId.value)
@@ -753,7 +777,8 @@ onUnmounted(() => {
             </p>
             <div class="mt-4 rounded-xl border border-[var(--dh-border)] p-3 text-sm" role="status">
               Estado de {{ guideTarget }}: <strong>{{ guideGeneration?.provisioningStatus ?? 'No registrado' }}</strong>
-              <span v-if="guideProvisioned" class="ml-2 text-emerald-500">Infraestructura registrada como preparada</span>
+              <span v-if="guideInfrastructureReady" class="ml-2 text-emerald-500">Infraestructura comprobada por Actions</span>
+              <span v-else-if="guideProvisioned" class="ml-2 text-amber-500">Registrada, pendiente de comprobación física</span>
             </div>
             <p class="mt-3 text-sm text-[var(--dh-text-muted)]">
               Primero comprobá la infraestructura. Después pulsá «Preparar {{ guideTarget }}».
@@ -769,20 +794,23 @@ onUnmounted(() => {
                   !state.githubDispatcherConfigured || !!webActionBusy || actionPending('provision-check')"
                 :loading="webActionBusy === 'provision-check'" @click="runWebAction('provision-check')" />
               <p v-if="actionDiagnostic('provision-check')" class="text-xs text-[var(--dh-text-muted)]">
-                Diagnóstico: {{ actionDiagnostic('provision-check') }}
+                {{ infrastructureDiagnostic('provision-check') }}
               </p>
               <div class="border-t border-[var(--dh-border)] pt-3">
                 <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span class="text-sm font-semibold">2.2 Crear o reparar el entorno detenido</span>
                   <span class="text-xs" role="status">{{ actionStatusLabel('provision') }}</span>
                 </div>
-                <DhButton :label="'Preparar ' + guideTarget + ' con Actions'" variant="secondary" :icon="Plus"
-                  :disabled="!canManage || !guideGeneration || guideProvisioned ||
-                    !recentActionSuccess('provision-check', 30) || !state.githubDispatcherConfigured ||
-                    !!webActionBusy || actionPending('provision')"
+                <DhButton
+                  :label="(guideInfrastructureRepairNeeded ? 'Reparar ' : 'Preparar ') + guideTarget + ' con Actions'"
+                  variant="secondary" :icon="Plus"
+                  :disabled="!canManage || !guideGeneration ||
+                    (guideProvisioned && !guideInfrastructureRepairNeeded) ||
+                    (!recentActionSuccess('provision-check', 30) && !guideInfrastructureRepairNeeded) ||
+                    !state.githubDispatcherConfigured || !!webActionBusy || actionPending('provision')"
                   :loading="webActionBusy === 'provision'" @click="runWebAction('provision')" />
                 <p v-if="actionDiagnostic('provision')" class="mt-2 text-xs text-[var(--dh-text-muted)]">
-                  Diagnóstico: {{ actionDiagnostic('provision') }}
+                  {{ infrastructureDiagnostic('provision') }}
                 </p>
               </div>
             </div>
