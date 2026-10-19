@@ -23,6 +23,7 @@ import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerRequestEdit } from './build/pricingSellerRequestEdit'
+import { pricingSellerModificationWizard } from './build/pricingSellerModificationWizard'
 import { pricingFclUnitWeights20261015 } from './build/pricingFclUnitWeights20261015'
 import { pricingFclMultiCarrierCosts20261015 } from './build/pricingFclMultiCarrierCosts20261015'
 import { pricingFclInlandPerCarrier20261016 } from './build/pricingFclInlandPerCarrier20261016'
@@ -189,6 +190,7 @@ export default defineConfig({
     pricingWizardLandModeTerminology(),
     pricingSellerMultimodalStep3Fix(),
     pricingSellerRequestEdit(),
+    pricingSellerModificationWizard(),
     pricingFclUnitWeights20261015(),
     pricingFclMultiCarrierCosts20261015(),
     pricingFclInlandPerCarrier20261016(),
