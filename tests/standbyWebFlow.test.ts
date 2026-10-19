@@ -61,3 +61,28 @@ test('browser sessions distinguish prod1 original from isolated prod2 authorizat
   assert.match(profileView, /to="\/agents\/generations"/)
   assert.match(profileView, /entry\.accountVerifiedAtUtc/)
 })
+
+test('generation guide tracks six distinct stages and retains server-confirmed completion', () => {
+  assert.match(view, /panel === 'guide'/)
+  assert.match(view, /Paso 1 — Elegir o registrar el destino/)
+  assert.match(view, /Paso 2 — Preparar la infraestructura/)
+  assert.match(view, /Paso 3 — Verificar acceso autorizado al proveedor/)
+  assert.match(view, /Paso 4 — Registrar la autorización independiente/)
+  assert.match(view, /Paso 5 — Preflight y solicitud de relevo/)
+  assert.match(view, /Paso 6 — Confirmar el resultado real/)
+  assert.match(view, /providerReadinessStatus === 'Verified'/)
+  assert.match(view, /guideRequest\?\.status === 'Completed' && state\.activeGeneration === guideTarget/)
+  assert.match(view, /guideConfirmedTarget\.value === guideTarget\.value/)
+  assert.match(view, /guideSubmittedId\.value = response\.id/)
+})
+
+test('generation guide delegates Docker operations to protected GitHub Actions', () => {
+  assert.match(view, /production-generation-actions\.yml/)
+  assert.match(view, /operator-verify-standby-readiness\.yml/)
+  assert.match(view, /operation=<strong>preflight<\/strong>/)
+  assert.match(view, /guideAuthorized\.value && manualEnabled\.value/)
+  assert.match(view, /state\.value\?\.githubDispatcherConfigured/)
+  assert.match(view, /trigger: 'manual'/)
+  assert.match(view, /El entorno activo mostrado es el registro de PostgreSQL/)
+  assert.doesNotMatch(view, /docker compose down -v/)
+})
