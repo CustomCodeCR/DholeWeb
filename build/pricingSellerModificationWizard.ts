@@ -35,6 +35,10 @@ interface SellerModificationSource {
   form: Record<string, unknown>
   pickupLocations?: RatePickupLocationDto[]
   names?: Record<string, unknown>
+  priority?: SellerRateRequestPriority
+  supportEntityId?: string | null
+  supportDocuments?: SupportDocument[]
+  sellerContext?: { portHandlingMode?: string | null; cargoReadyDate?: string | null }
 }
 interface SellerModificationComparison {
   field: string
@@ -140,6 +144,16 @@ async function hydrateSellerModificationSource() {
     sellerModificationSource.value = source
     // Seller receives ONLY the four commercial screens, never Pricing's cost/sale amounts.
     Object.assign(form, source.form)
+    // Hydrate exactly as the existing "Editar mi solicitud" flow, including
+    // priority, pickup locations, attached files and requested cargo context.
+    if (source.priority && ['Green', 'Yellow', 'Red'].includes(source.priority))
+      rateRequestPriority.value = source.priority
+    if (source.supportEntityId) supportEntityId.value = source.supportEntityId
+    supportDocuments.value = Array.isArray(source.supportDocuments)
+      ? source.supportDocuments.map(item => ({ ...item })) : []
+    sellerPortHandlingMode.value = source.sellerContext?.portHandlingMode === 'Anticipado'
+      || source.sellerContext?.portHandlingMode === 'Redestino'
+      ? source.sellerContext.portHandlingMode : ''
     const equipment = [...catalogs.containers, ...catalogs.landEquipmentSizes, ...catalogs.landEquipmentTypes]
       .find(item => item.id === form.equipmentId)
     const meta = metadata(equipment)
@@ -160,9 +174,12 @@ async function hydrateSellerModificationSource() {
 async function submitSellerModification() {
   const source = sellerModificationSource.value
   if (!source || saving.value) return
+  const originalDocumentIds = (source.supportDocuments ?? []).map(document => document.id).sort().join('|')
+  const requestedDocumentIds = supportDocuments.value.map(document => document.id).sort().join('|')
+  const changedHandling = sellerPortHandlingMode.value !== (source.sellerContext?.portHandlingMode || '')
   if (!sellerModificationPreview.value.length
-    && !supportDocuments.value.length && !sellerPortHandlingMode.value
-    && JSON.stringify(pickupLocations.value) === JSON.stringify(source.pickupLocations ?? [])) {
+    && originalDocumentIds === requestedDocumentIds && !changedHandling
+    && JSON.stringify(pickupLocationsPayload()) === JSON.stringify(source.pickupLocations ?? [])) {
     toastStore.warning('Sin cambios', 'Modifique algún dato de las pantallas 1 a 4 antes de solicitar una revisión.')
     return
   }
@@ -275,25 +292,6 @@ onMounted(() => { void loadPricingModificationWorkItem() })
     'seller save button')
 
   const comparisonPanel = `
-    <section v-if="sellerModificationRateId && sellerModificationSource" class="crystal-soft space-y-3 p-4 md:p-5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p class="font-black">Modificación de {{ sellerModificationSource.reference }} · REV {{ sellerModificationSource.revisionNumber }}</p>
-          <p class="text-xs text-[var(--dh-text-muted)]">Está trabajando en una copia. La tarifa original no cambiará hasta que Pricing guarde una revisión.</p>
-        </div>
-        <DhBadge :label="sellerModificationPreview.length + ' diferencias'" variant="warning" />
-      </div>
-      <div v-if="sellerModificationPreview.length" class="max-h-56 overflow-auto rounded-xl border border-[var(--dh-border)]">
-        <table class="w-full min-w-[560px] text-left text-xs">
-          <thead><tr><th class="p-2">Campo</th><th class="p-2">Tarifa original</th><th class="p-2">Solicitado</th></tr></thead>
-          <tbody><tr v-for="change in sellerModificationPreview" :key="change.field" class="border-t border-[var(--dh-border)]">
-            <td class="p-2 font-bold">{{ change.action }} · {{ change.field }}</td>
-            <td class="p-2 text-[var(--dh-text-muted)]">{{ change.original }}</td>
-            <td class="p-2 font-semibold">{{ change.requested }}</td>
-          </tr></tbody>
-        </table>
-      </div>
-    </section>
     <section v-if="pricingModificationWorkItem" class="crystal-soft space-y-3 border border-amber-400/30 p-4 md:p-5">
       <h3 class="font-black">Comparativo de la solicitud de Ventas</h3>
       <p class="text-xs text-[var(--dh-text-muted)]">Revisión original: {{ pricingModificationWorkItem.payload?.modification?.sourceRevisionNumber }}. Los valores del vendedor no están aplicados todavía.</p>
