@@ -11,6 +11,81 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
   return source.replace(anchor, replacement)
 }
 
+
+/**
+ * The wizard now supplies poe-code/poe-name for the Balboa-only own-LCL rule.
+ * Keep them untouched while adding the text labels used by coloader filtering.
+ */
+export function patchLclWizardColoaderRouteLabels(source: string): string {
+  const poeAwareAnchor = `            :poe-id="selectedDestination?.id ?? null"
+            :poe-code="selectedDestination?.code ?? null"
+            :poe-name="displayValue(selectedDestination)"
+            :pod-id="selectedPod?.id ?? null"`
+  const legacyAnchor = `            :poe-id="selectedDestination?.id ?? null"
+            :pod-id="selectedPod?.id ?? null"`
+
+  const poeAwareReplacement = `            :poe-id="selectedDestination?.id ?? null"
+            :poe-code="selectedDestination?.code ?? null"
+            :poe-name="displayValue(selectedDestination)"
+            :poe-label="displayValue(selectedDestination)"
+            :pod-id="selectedPod?.id ?? null"
+            :pod-label="selectedPod ? displayValue(selectedPod) : null"`
+  const legacyReplacement = `            :poe-id="selectedDestination?.id ?? null"
+            :poe-label="displayValue(selectedDestination)"
+            :pod-id="selectedPod?.id ?? null"
+            :pod-label="selectedPod ? displayValue(selectedPod) : null"`
+
+  if (source.includes(poeAwareAnchor)) {
+    return replaceOne(source, poeAwareAnchor, poeAwareReplacement, 'LCL coloader route labels with Balboa POE')
+  }
+  return replaceOne(source, legacyAnchor, legacyReplacement, 'LCL coloader route labels')
+}
+
+/** Preserve poeCode/poeName when the Balboa filtering feature is enabled. */
+export function patchLclSelectorRouteLabels(source: string): string {
+  const poeAwareProps = `  poeId?: string | null
+  poeCode?: string | null
+  poeName?: string | null
+  podId?: string | null`
+  const legacyProps = `  poeId?: string | null
+  podId?: string | null`
+  const poeAwareDefaults = `  poeId: null,
+  poeCode: null,
+  poeName: null,
+  podId: null,`
+  const legacyDefaults = `  poeId: null,
+  podId: null,`
+
+  if (source.includes(poeAwareProps)) {
+    source = replaceOne(source, poeAwareProps, `  poeId?: string | null
+  poeCode?: string | null
+  poeName?: string | null
+  poeLabel?: string | null
+  podId?: string | null
+  podLabel?: string | null`, 'LCL selector Balboa-aware route label props')
+  } else {
+    source = replaceOne(source, legacyProps, `  poeId?: string | null
+  poeLabel?: string | null
+  podId?: string | null
+  podLabel?: string | null`, 'LCL selector legacy route label props')
+  }
+
+  if (source.includes(poeAwareDefaults)) {
+    source = replaceOne(source, poeAwareDefaults, `  poeId: null,
+  poeCode: null,
+  poeName: null,
+  poeLabel: null,
+  podId: null,
+  podLabel: null,`, 'LCL selector Balboa-aware route label defaults')
+  } else {
+    source = replaceOne(source, legacyDefaults, `  poeId: null,
+  poeLabel: null,
+  podId: null,
+  podLabel: null,`, 'LCL selector legacy route label defaults')
+  }
+  return source
+}
+
 function patchWizard(source: string) {
   let code = source
 
@@ -140,12 +215,7 @@ function resolveWarehouseForOriginPol() {
   )
 
   // Coloader filtering uses the same FCL context: POL + POE + optional POD + date.
-  code = replaceOne(
-    code,
-    `            :poe-id="selectedDestination?.id ?? null"\n            :pod-id="selectedPod?.id ?? null"`,
-    `            :poe-id="selectedDestination?.id ?? null"\n            :poe-label="displayValue(selectedDestination)"\n            :pod-id="selectedPod?.id ?? null"\n            :pod-label="selectedPod ? displayValue(selectedPod) : null"`,
-    'LCL coloader route labels',
-  )
+  code = patchLclWizardColoaderRouteLabels(code)
 
   return code
 }
@@ -153,19 +223,7 @@ function resolveWarehouseForOriginPol() {
 function patchSelector(source: string) {
   let code = source
 
-  code = replaceOne(
-    code,
-    `  poeId?: string | null\n  podId?: string | null`,
-    `  poeId?: string | null\n  poeLabel?: string | null\n  podId?: string | null\n  podLabel?: string | null`,
-    'LCL selector route label props',
-  )
-
-  code = replaceOne(
-    code,
-    `  poeId: null,\n  podId: null,`,
-    `  poeId: null,\n  poeLabel: null,\n  podId: null,\n  podLabel: null,`,
-    'LCL selector route label defaults',
-  )
+  code = patchLclSelectorRouteLabels(code)
 
   const legacyColoaderQueryAnchor = `        polId: props.polId,\n        poeId: props.poeId,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,`
   const routeAwareColoaderQueryAnchor = `        modality: props.modality,\n        polId: props.polId,\n        pol: props.polName || props.polCode || undefined,\n        poeId: props.poeId,\n        poe: isAir.value ? props.destinationLabel || undefined : undefined,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,`
