@@ -415,7 +415,8 @@ async function load() {
         quoteDate: props.quoteDate,
       }),
     ])
-    ownRows.value = own.map((row) => ({ ...row }))
+    // Revalidar al resolver: un cambio de POE durante la petición no debe reintroducir propios.
+    ownRows.value = ownPoeEligible.value ? own.map((row) => ({ ...row })) : []
     coloaderRows.value = coloaders.map((row) => ({ ...row }))
     if (!ownPoeEligible.value) tab.value = 'Coloader'
     if (isAir.value || (!filteredOwn.value.length && filteredColoaders.value.length)) tab.value = 'Coloader'
