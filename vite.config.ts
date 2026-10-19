@@ -23,6 +23,7 @@ import { pricingWizardLclFinalGuard } from './build/pricingWizardLclFinalGuard'
 import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix'
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerRequestEdit } from './build/pricingSellerRequestEdit'
+import { pricingSellerModificationWizard } from './build/pricingSellerModificationWizard'
 import { pricingFclUnitWeights20261015 } from './build/pricingFclUnitWeights20261015'
 import { pricingFclMultiCarrierCosts20261015 } from './build/pricingFclMultiCarrierCosts20261015'
 import { pricingFclInlandPerCarrier20261016 } from './build/pricingFclInlandPerCarrier20261016'
@@ -38,10 +39,7 @@ import { pricingWizardFclSplitSelector } from './build/pricingWizardFclSplitSele
 import { pricingWizardFclDistributionOnly } from './build/pricingWizardFclDistributionOnly'
 import { pricingSellerPodIntegrity } from './build/pricingSellerPodIntegrity'
 import { pricingWizardFclRateBundles } from './build/pricingWizardFclRateBundles'
-import {
-  pricingWizardFclRateBundlesPreCompat,
-  pricingWizardFclRateBundlesPostCompat,
-} from './build/pricingWizardFclRateBundlesCompat'
+import { pricingWizardFclRateBundlesPreCompat, pricingWizardFclRateBundlesPostCompat } from './build/pricingWizardFclRateBundlesCompat'
 import { pricingWizardDraftAutosave } from './build/pricingWizardDraftAutosave'
 import { pricingWizardDraftEquipmentRestoreFix } from './build/pricingWizardDraftEquipmentRestoreFix'
 import { pricingWizardDraftRestoreGuard } from './build/pricingWizardDraftRestoreGuard'
@@ -61,10 +59,10 @@ import { pricingWizardLandScreen4Cleanup } from './build/pricingWizardLandScreen
 import { pricingFtlTariffMaster } from './build/pricingFtlTariffMaster'
 import { pricingSellerVisibilityProduction } from './build/pricingSellerVisibilityProduction'
 import { pricingRateRequestReporting } from './build/pricingRateRequestReporting'
+import { pricingLandProviderCurrencyValue } from './build/pricingLandProviderCurrencyValue'
 import { pricingFtlLandCostsFix } from './build/pricingFtlLandCostsFix'
 import { pricingCommercialIdentityFields } from './build/pricingCommercialIdentityFields'
 import { pricingCurrencyValueGuard } from './build/pricingCurrencyValueGuard'
-import { pricingWizardPanamaContextFix } from './build/pricingWizardPanamaContextFix'
 import { pricingRateEditCreateParity } from './build/pricingRateEditCreateParity'
 import { pricingRateUpdateSourceParity } from './build/pricingRateUpdateSourceParity'
 import { pricingWizardSavedManualRates } from './build/pricingWizardSavedManualRates'
@@ -73,6 +71,7 @@ import { pricingWizardManualRatesVisibilityFix } from './build/pricingWizardManu
 import { pricingWizardStep4NavigationHardFix } from './build/pricingWizardStep4NavigationHardFix'
 import { pricingWizardManualFreightFinalUx } from './build/pricingWizardManualFreightFinalUx'
 import { pricingApprovalWorkflowStable } from './build/pricingApprovalWorkflowStable'
+import { pricingWizardPanamaContinuationCompat } from './build/pricingWizardPanamaContinuationCompat'
 import { pricingWizardPanamaContinuation } from './build/pricingWizardPanamaContinuation'
 import { pricingDuplicateRateRefreshWorkflow } from './build/pricingDuplicateRateRefreshWorkflow'
 import { pricingWizardMixedFclFreightFix } from './build/pricingWizardMixedFclFreightFix'
@@ -93,6 +92,7 @@ import { pricingWizardLtlLclUiParity } from './build/pricingWizardLtlLclUiParity
 
 import { pricingWizardHaulageComparison20261008 } from './build/pricingWizardHaulageComparison20261008'
 import { pricingLclColoaderAgentCosts20261009 } from './build/pricingLclColoaderAgentCosts20261009'
+import { pricingAirLclFreightPerKg } from './build/pricingAirLclFreightPerKg'
 import { pricingSellerRequestHideRateType } from './build/pricingSellerRequestHideRateType'
 import { pricingExwFcaVariableCosts } from './build/pricingExwFcaVariableCosts'
 import { pricingScreen7RemoveVariableLines } from './build/pricingScreen7RemoveVariableLines'
@@ -147,10 +147,10 @@ export default defineConfig({
     pricingFtlTariffMaster(),
     pricingSellerVisibilityProduction(),
     pricingRateRequestReporting(),
+    pricingLandProviderCurrencyValue(),
     pricingFtlLandCostsFix(),
     pricingCommercialIdentityFields(),
     pricingCurrencyValueGuard(),
-    pricingWizardPanamaContextFix(),
     pricingRateEditCreateParity(),
     pricingRateUpdateSourceParity(),
     pricingWizardSavedManualRates(),
@@ -159,6 +159,7 @@ export default defineConfig({
     pricingWizardStep4NavigationHardFix(),
     pricingWizardManualFreightFinalUx(),
     pricingApprovalWorkflowStable(),
+    pricingWizardPanamaContinuationCompat(),
     pricingWizardPanamaContinuation(),
     pricingDuplicateRateRefreshWorkflow(),
     pricingWizardMixedFclFreightFix(),
@@ -180,6 +181,7 @@ export default defineConfig({
     pricingLtlOptionalEditable(),
     pricingWizardHaulageComparison20261008(),
     pricingLclColoaderAgentCosts20261009(),
+    pricingAirLclFreightPerKg(),
     pricingSellerRequestHideRateType(),
     pricingCustomsOnlyWizard(),
     pricingExwFcaVariableCosts(),
@@ -188,6 +190,7 @@ export default defineConfig({
     pricingWizardLandModeTerminology(),
     pricingSellerMultimodalStep3Fix(),
     pricingSellerRequestEdit(),
+    pricingSellerModificationWizard(),
     pricingFclUnitWeights20261015(),
     pricingFclMultiCarrierCosts20261015(),
     pricingFclInlandPerCarrier20261016(),
@@ -195,22 +198,7 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
-
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-  },
-
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
-  },
-
-  preview: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
-  },
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  server: { host: '0.0.0.0', port: 5173, strictPort: true },
+  preview: { host: '0.0.0.0', port: 5173, strictPort: true },
 })
