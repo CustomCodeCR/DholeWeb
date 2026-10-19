@@ -557,6 +557,19 @@ function confirmDelete() {
 }
 
 watch([page, pageSize], load)
+
+// La vista puede permanecer montada en una pestaña al navegar desde el dashboard.
+// Actualizar el filtro cuando cambie ?status= evita mostrar tarifas del estado anterior.
+watch(
+  () => route.query.status,
+  (value) => {
+    const nextStatus = normalizeCommercialStatus(value)
+    if (filters.status === nextStatus) return
+    filters.status = nextStatus
+    applyFilters()
+  },
+)
+
 async function openRequestedRate() {
   const rateId = typeof route.query.rateId === 'string' ? route.query.rateId.trim() : ''
   if (!rateId) return
