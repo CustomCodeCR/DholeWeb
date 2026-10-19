@@ -59,6 +59,7 @@ import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTa
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
 import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
+import { resolvePodVatRate } from '@/modules/pricing/utils/pricingPodVat'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
   calculateCargoInsurance,
@@ -934,29 +935,8 @@ const effectiveServices = computed(() => {
 const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))
 const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))
 const selectedCurrency = computed(() => findById(catalogs.currencies, form.currencyId))
-const destinationCountryCode = computed(() => {
-  const configured = String(metadata(selectedDestination.value)?.countryCode ?? '').trim().toUpperCase()
-  if (configured) return configured
-  if (isCostaRica(selectedDestination.value)) return 'CR'
-  const destination = normalizeCatalogValue([
-    displayValue(selectedDestination.value),
-    selectedDestination.value?.label,
-    selectedDestination.value?.code,
-    selectedDestination.value?.slug,
-  ].filter(Boolean).join(' '))
-  if (destination.includes('panama')) return 'PA'
-  if (destination.includes('guatemala')) return 'GT'
-  return ''
-})
-const destinationTaxRate = computed(() => {
-  const country = catalogs.countries.find((item) => {
-    const code = String(item.code ?? metadata(item)?.countryCode ?? '').trim().toUpperCase()
-    return code === destinationCountryCode.value
-  })
-  const configured = metadataNumber(country, 'vatRate', 'taxRate')
-  if (configured != null && configured > 0) return configured
-  return ({ CR: 13, PA: 7, GT: 15 } as Record<string, number>)[destinationCountryCode.value] ?? 0
-})
+// The fiscal country is the POD (final delivery port), never the transit POE.
+const destinationTaxRate = computed(() => resolvePodVatRate(resolvePodForDestination(), catalogs.countries))
 const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
 
 function resolvedImportSource(rate: ImportRateSelectDto) {
@@ -1313,13 +1293,13 @@ const providerUtility = computed(() => providerSale.value - providerCost.value)
 const providerMarginPercentage = computed(() =>
   providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
 )
-function canApplyDestinationTax(line: RateLine) {
-  // IVA destino solo pertenece a cargos de destino. Recolecta, origen y costos de agente no llevan IVA.
-  return line.section === 'destination_charges' && line.costDetailType !== 'AgentCharge'
+function canApplyDestinationTax(_line: RateLine) {
+  // The VAT option is available for every rate item; the percentage belongs to the POD.
+  return true
 }
-function lineDestinationTaxRate(line: RateLine) {
-  const persistedRate = number(line.destinationTaxRate)
-  return persistedRate > 0 ? persistedRate : destinationTaxRate.value
+function lineDestinationTaxRate(_line: RateLine) {
+  // Recalculate from POD, including on edit: an old POE-based percentage is not authoritative.
+  return destinationTaxRate.value
 }
 function lineTaxAmount(line: RateLine) {
   const taxRate = lineDestinationTaxRate(line)
@@ -1334,7 +1314,7 @@ function lineSaleWithTax(line: RateLine) {
   return number(line.saleAmount) + lineTaxAmount(line)
 }
 function setLineDestinationTax(line: RateLine, enabled: boolean) {
-  const active = Boolean(enabled) && canApplyDestinationTax(line) && destinationTaxRate.value > 0
+  const active = Boolean(enabled) && destinationTaxRate.value > 0
   line.applyDestinationTax = active
   line.destinationTaxRate = active ? destinationTaxRate.value : 0
 }
@@ -4827,10 +4807,10 @@ onMounted(async () => {
                 autocomplete="off"
                 @update:model-value="(value) => { line.billToClient = String(value ?? '') }"
               />
-              <div v-if="canApplyDestinationTax(line)" class="crystal-line-vat">
+              <div class="crystal-line-vat">
                 <DhCheckbox
                   :model-value="Boolean(line.applyDestinationTax)"
-                  :label="`IVA destino (${destinationTaxRate}%)`"
+                  :label="destinationTaxRate > 0 ? `IVA POD (${destinationTaxRate}%)` : 'IVA POD (seleccione un POD con IVA configurado)'"
                   :disabled="destinationTaxRate <= 0"
                   @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                 />
@@ -4895,15 +4875,14 @@ onMounted(async () => {
                 autocomplete="off"
                 @update:model-value="(value) => { line.billToClient = String(value ?? '') }"
               />
-                <div v-if="canApplyDestinationTax(line)" class="crystal-line-vat">
+                <div class="crystal-line-vat">
                   <DhCheckbox
                     :model-value="Boolean(line.applyDestinationTax)"
-                    :label="`IVA destino (${destinationTaxRate}%)`"
+                    :label="destinationTaxRate > 0 ? `IVA POD (${destinationTaxRate}%)` : 'IVA POD (seleccione un POD con IVA configurado)'"
                     :disabled="destinationTaxRate <= 0"
                     @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                   />
                 </div>
-                <span v-else />
                 <button v-if="line.manual" type="button" class="h-10 px-2 text-xs font-black text-red-500" @click="rateLines = rateLines.filter((item) => item.key !== line.key)">Eliminar</button>
                 <span v-else />
               </div>
