@@ -11,6 +11,7 @@ import type { BrowserProfileDto } from '@/core/interfaces/agent'
 import { AgentService } from '@/core/services/agentService'
 import { useToastStore } from '@/core/stores/toastStore'
 import AgentStatusBadge from '@/modules/agent/components/AgentStatusBadge.vue'
+import { belongsToMaerskGeneration } from '@/modules/agent/utils/maerskGenerationProfileFilter'
 import { useAgentFormatting } from '@/modules/agent/composables/useAgentFormatting'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
@@ -163,7 +164,14 @@ function isMaerskProfile(row: BrowserProfileDto): boolean {
   )
 }
 
-function statusVariant(status: string): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
+// Defence in depth: the Agent API may be upgraded later than the web client.
+ // Never present a legacy prod1 row as a live prod2 browser session.
+ const visibleBrowserProfiles = computed(() => store.browserProfiles.filter(profile =>
+   !isMaerskProfile(profile) ||
+   belongsToMaerskGeneration(profile.profileKey, activeGeneration.value),
+ ))
+ 
+ function statusVariant(status: string): 'primary' | 'success' | 'warning' | 'danger' | 'neutral' {
   if (status === 'Authenticated' || status === 'Ready') return 'success'
   if (status === 'Authenticating') return 'primary'
   if (status === 'LoginRequired' || status === 'Expired' || status === 'ResetRequested') return 'warning'
@@ -444,9 +452,9 @@ onUnmounted(() => {
     </section>
     <DhDataTable
       :columns="columns"
-      :rows="store.browserProfiles"
+      :rows="visibleBrowserProfiles"
       :loading="store.loading"
-      :empty-text="t('agent.browserProfiles.empty')"
+      :empty-text="activeGeneration ? 'No hay perfiles de navegador registrados para ' + activeGeneration : 'No se pudo comprobar la generación activa'"
     >
       <template #cell-name="{ row }">
         <div>
