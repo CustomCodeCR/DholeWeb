@@ -5,6 +5,7 @@ import { Activity, AlertTriangle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, 
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
 import { DhPageHeader, DhModal } from '@/shared/components/organisms'
 import { AgentService } from '@/core/services/agentService'
+import { ApiError } from '@/core/api/apiErrorHandler'
 import type { AgentCredentialDto, MaerskOperationsDto, MaerskProfileHealthDto, MaerskWaitingExecutionDto } from '@/core/interfaces/agent'
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -38,6 +39,7 @@ const acknowledgingId = ref<string | null>(null)
 const confirmOpen = ref(false)
 const operatorReason = ref('')
 const verifiedWithProvider = ref(false)
+const resetProfileConflict = ref(false)
 let poll: ReturnType<typeof setInterval> | undefined
 
 const circuit = computed(() => details.value?.circuit)
@@ -53,6 +55,13 @@ const resetValid = computed(() =>
   verifiedWithProvider.value && operatorReason.value.trim().length >= 12 &&
   operatorReason.value.length <= 1000,
 )
+const originalProfilesNeedingReview = computed(() => (details.value?.profiles ?? [])
+  .filter(profile => ['Blocked', 'Expired', 'ResetRequested'].includes(profile.status)))
+const visibleAuthenticatedProfiles = computed(() => (details.value?.profiles ?? [])
+  .filter(profile => profile.status === 'Authenticated' &&
+    (!profile.sessionExpiresAt || Date.parse(profile.sessionExpiresAt) > Date.now())))
+const resetHelpVisible = computed(() =>
+  circuit.value?.requiresOperator === true || resetProfileConflict.value)
 const canResume = computed(() =>
   permissions.canResetMaerskCircuit.value &&
   permissions.canCreateExecutions.value &&
@@ -129,6 +138,11 @@ function requestReset() {
   confirmOpen.value = true
 }
 
+async function verifyFromReset() {
+  confirmOpen.value = false
+  await requestSessionVerification()
+}
+
 async function confirmReset() {
   if (!canReset.value || !resetValid.value || !details.value || resetting.value) return
   resetting.value = true
@@ -143,7 +157,17 @@ async function confirmReset() {
     toast.success(t('maerskOperations.resetSuccess'))
     await refresh()
   } catch (error) {
-    toast.backendError(error, t('maerskOperations.resetFailed'))
+    if (error instanceof ApiError && error.status === 409 &&
+      ['maersk_circuit_reset_verification_pending', 'maersk_circuit_reset_profile_missing'].includes(
+        error.code ?? (error.data as { code?: string } | null)?.code ?? '',
+      )) {
+      resetProfileConflict.value = true
+      confirmOpen.value = false
+      toast.error('No se puede liberar todavía: falta comprobar el perfil original de Maersk o revisar un perfil registrado como bloqueado.')
+      await refresh()
+    } else {
+      toast.backendError(error, t('maerskOperations.resetFailed'))
+    }
   } finally {
     resetting.value = false
   }
@@ -399,6 +423,57 @@ onUnmounted(() => {
         <p v-else-if="circuit?.state === 'HalfOpen'" class="mt-4 text-sm text-[var(--dh-text-muted)]">
           {{ t('maerskOperations.probeInfo') }}
         </p>
+        <div v-if="resetHelpVisible"
+          class="mt-4 rounded-xl border border-amber-600/40 bg-[var(--dh-card)] p-4" role="status">
+          <p class="text-sm font-semibold text-[var(--dh-text)]">
+            Antes de liberar el circuito: verificar la sesión original
+          </p>
+          <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+            Aunque prod2 haya pasado su verificación independiente, el circuito de Maersk
+            todavía exige que un perfil original activo se autentique después de la restricción.
+            Marcar «Verificado con proveedor» no sustituye ese resultado.
+          </p>
+          <p v-if="!details.profiles.length" class="mt-2 text-sm text-amber-600">
+            No hay perfiles originales registrados en el listado. Usá «Verificar sesión original»
+            para preparar una verificación con la credencial autorizada.
+          </p>
+          <p v-else-if="visibleAuthenticatedProfiles.length === 0" class="mt-2 text-sm text-amber-600">
+            Ningún perfil del listado figura actualmente como Authenticated y con sesión vigente.
+            Hace falta una autenticación satisfactoria.
+          </p>
+          <div v-if="originalProfilesNeedingReview.length" class="mt-3 text-sm">
+            <p class="font-semibold text-amber-600">Perfiles que requieren revisión:</p>
+            <p v-for="profile in originalProfilesNeedingReview" :key="profile.id"
+              class="mt-1 text-[var(--dh-text-muted)]">
+              {{ profile.name }} — {{ profile.status }}
+            </p>
+            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+              El servidor distingue perfiles activos e inactivos; este listado es
+              orientativo. Revisá los perfiles activos antes de solicitar el reset.
+            </p>
+          </div>
+          <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+            Incluso si un perfil figura como Authenticated, el backend debe verificar que
+            su último inicio de sesión sea posterior al bloqueo. No se libera el circuito
+            si otro perfil original activo permanece bloqueado o vencido.
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <DhButton v-if="canReset" label="Verificar sesión original ahora"
+              :icon="ShieldCheck" variant="secondary" :disabled="verifying"
+              :loading="verifying" @click="requestSessionVerification" />
+            <RouterLink to="/agents/browser-profiles"
+              class="inline-flex min-h-11 items-center rounded-xl border border-[var(--dh-border)] px-3 py-2 text-sm font-semibold text-[var(--dh-text)]">
+              Revisar perfiles registrados
+            </RouterLink>
+            <DhButton label="Actualizar estado" :icon="RefreshCw"
+              variant="secondary" :disabled="loading" :loading="loading"
+              @click="refresh()" />
+          </div>
+          <RouterLink v-if="verificationExecutionId" :to="'/agents/executions/' + verificationExecutionId"
+            class="mt-3 inline-block text-sm font-semibold text-[var(--dh-primary)] underline">
+            Consultar resultado de la verificación original
+          </RouterLink>
+        </div>
         <div class="mt-4 flex flex-wrap items-center gap-2">
           <DhButton v-if="canReset && circuit?.requiresOperator"
             :label="t('maerskOperations.verifyOriginalSession')"
@@ -598,6 +673,13 @@ onUnmounted(() => {
         <p class="text-sm leading-relaxed text-[var(--dh-text-muted)]">
           {{ t('maerskOperations.resetExplanation') }}
         </p>
+        <p v-if="circuit?.requiresOperator" class="text-sm text-amber-600">
+          Este cambio solo funciona después de comprobar una sesión original de
+          Maersk posterior al bloqueo y corregir los perfiles activos no autorizados.
+        </p>
+        <DhButton v-if="circuit?.requiresOperator" label="Comprobar perfil original primero"
+          :icon="ShieldCheck" variant="secondary" :disabled="resetting || verifying"
+          @click="verifyFromReset" />
         <DhInput v-model="operatorReason" :label="t('maerskOperations.operatorReason')" :disabled="resetting" />
         <label class="flex items-start gap-3 text-sm text-[var(--dh-text)]">
           <input v-model="verifiedWithProvider" type="checkbox" :disabled="resetting"
