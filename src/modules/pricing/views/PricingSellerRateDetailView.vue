@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapListResponse } from '@/core/api/apiResponse'
 import { fetchProtectedBlob } from '@/core/api/fetchConfig'
 import type { RateDto } from '@/core/interfaces/pricing'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -12,6 +13,7 @@ import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import SellerRateDecisionModal from '@/modules/dashboard/components/SellerRateDecisionModal.vue'
+import SellerRateModificationModal from '@/modules/dashboard/components/SellerRateModificationModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,11 +27,26 @@ const loading = ref(false)
 const receiving = ref(false)
 const downloading = ref(false)
 const loadError = ref('')
+const pendingModification = ref(false)
 
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
 const isCastroFallas = computed(() => rate.value?.executiveName?.trim().toLocaleLowerCase() === 'castro fallas')
 const canReceive = computed(() => isSent.value && !isReceived.value && !isCastroFallas.value)
+const canRequestModification = computed(() => Boolean(rate.value
+  && rate.value.status !== 'Closed' && rate.value.status !== 'Cancelled'
+  && (rate.value.sellerReceivedAtUtc
+    || ['Sent', 'RequestedByClient', 'AcceptedByClient', 'RejectedByClient', 'Expired'].includes(rate.value.status))))
+
+function requestModification() {
+  if (!rate.value || !canRequestModification.value || pendingModification.value) return
+  modal.open({
+    title: 'Solicitar modificación de tarifa',
+    component: SellerRateModificationModal,
+    size: 'xl',
+    props: { rate: rate.value, onSaved: load },
+  })
+}
 
 const statusText = computed(() => {
   if (!rate.value) return ''
@@ -67,6 +84,21 @@ async function load() {
       path: `/api/pricing/seller-rates/${encodeURIComponent(rateId.value)}`,
       headers: { Accept: 'application/json' },
     })
+    try {
+      const response = await callEndpoint<unknown>({
+        method: 'GET',
+        path: '/api/pricing/rate-requests/mine',
+        headers: { Accept: 'application/json' },
+      })
+      pendingModification.value = unwrapListResponse<{
+        rateId?: string | null
+        kind?: string
+        status: string
+      }>(response).some(request => request.rateId === rateId.value
+        && request.kind === 'Modification' && request.status === 'Open')
+    } catch {
+      pendingModification.value = false
+    }
   } catch (error) {
     rate.value = null
     loadError.value = 'No fue posible abrir esta tarifa. Verifique que esté asignada a su usuario.'
@@ -157,12 +189,14 @@ onMounted(() => { void load(); void loadCurrencies() })
               <DhBadge :label="statusText" :variant="isReceived ? 'success' : 'warning'" />
               <DhBadge v-if="isReceived" label="Recepción confirmada" variant="success" />
             </div>
+            <p v-if="pendingModification" class="text-xs font-bold text-amber-500">Pricing tiene una solicitud de modificación pendiente para esta tarifa.</p>
             <p v-if="rate.sellerReceivedAtUtc" class="text-xs text-[var(--dh-text-muted)]">
               Confirmación: {{ new Date(rate.sellerReceivedAtUtc).toLocaleString('es-CR') }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
             <DhButton label="Descargar PDF" variant="secondary" :loading="downloading" @click="downloadPdf" />
+            <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
             <DhButton v-if="canReceive" label="Marcar como recibida" :loading="receiving" @click="markReceived" />
           </div>
         </div>

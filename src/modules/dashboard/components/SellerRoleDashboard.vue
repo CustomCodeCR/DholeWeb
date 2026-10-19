@@ -10,6 +10,7 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
+import SellerRateModificationModal from './SellerRateModificationModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
 // La vista de administrador es de solo lectura: el servidor valida SuperUsuario/view-all.
@@ -24,6 +25,7 @@ interface SellerRateRequestDto {
   dueAtUtc: string
   completedAtUtc?: string | null
   rateId?: string | null
+  kind?: 'New' | 'Modification'
   sellerUserId?: string | null
   sellerName?: string | null
   clientName?: string | null
@@ -113,7 +115,8 @@ const myRates = computed(() => {
   return [...new Map(rates.value.map((rate) => [rate.id, rate])).values()]
     .filter((rate) => !allowedRateIds || allowedRateIds.has(rate.id))
 })
-const pendingRequests = computed(() => requests.value.filter((request) => !request.rateId).length)
+const pendingRequests = computed(() => requests.value.filter((request) =>
+  request.status === 'Open' && (!request.rateId || request.kind === 'Modification')).length)
 const countStatus = (status: SellerCommercialStatus) =>
   myRates.value.filter((rate) => commercialStatus(rate) === status).length
 
@@ -286,12 +289,15 @@ function editRequest(request: SellerRateRequestDto) {
 }
 
 function requestState(request: SellerRateRequestDto) {
+  if (request.kind === 'Modification')
+    return request.status === 'Completed' ? 'Modificación atendida' : 'Modificación pendiente'
   if (request.rateId) return 'Tarifa creada'
   if (new Date(request.dueAtUtc).getTime() < Date.now()) return 'Fuera de tiempo'
   return 'En Pricing'
 }
 
 function requestStateVariant(request: SellerRateRequestDto): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (request.kind === 'Modification') return request.status === 'Completed' ? 'success' : 'warning'
   if (request.rateId) return 'success'
   return new Date(request.dueAtUtc).getTime() < Date.now() ? 'danger' : 'warning'
 }
@@ -302,6 +308,27 @@ function routeLabel(rate: RateDto) {
 
 function canRespondToRate(rate: RateDto) {
   return ['Sent', 'RequestedByClient'].includes(rate.status)
+}
+
+function pendingModification(rate: RateDto): boolean {
+  return requests.value.some(request => request.rateId === rate.id
+    && request.kind === 'Modification' && request.status === 'Open')
+}
+
+function canRequestModification(rate: RateDto): boolean {
+  if (props.adminPreview || ['Cancelled', 'Closed'].includes(rate.status)) return false
+  return Boolean(rate.sellerReceivedAtUtc)
+    || ['Sent', 'RequestedByClient', 'AcceptedByClient', 'RejectedByClient', 'Expired'].includes(rate.status)
+}
+
+function openModification(rate: RateDto) {
+  if (!canRequestModification(rate) || pendingModification(rate)) return
+  modalStore.open({
+    title: 'Solicitar modificación de tarifa',
+    component: SellerRateModificationModal,
+    size: 'xl',
+    props: { rate, onSaved: load },
+  })
 }
 
 function canMarkReceived(rate: RateDto) {
@@ -597,6 +624,7 @@ onMounted(load)
               </div>
               <div v-if="!props.adminPreview" class="mt-3 flex flex-wrap gap-2">
                 <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
+                <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
                 <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
                   :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
                 <template v-if="canRespondToRate(rate)">
@@ -635,6 +663,7 @@ onMounted(load)
                   <td class="px-4 py-3">
                     <div v-if="!props.adminPreview" class="flex flex-wrap gap-1.5">
                       <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
+                      <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
                       <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
                         :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
                       <template v-if="canRespondToRate(rate)">
@@ -673,7 +702,7 @@ onMounted(load)
             </thead>
             <tbody class="divide-y divide-[var(--dh-border)]">
               <tr v-for="request in latestRequests" :key="request.id">
-                <td class="px-4 py-3 font-bold text-[var(--dh-text)]">{{ request.clientName || 'Sin cliente' }}</td>
+                <td class="px-4 py-3 font-bold text-[var(--dh-text)]">{{ request.clientName || 'Sin cliente' }}<span v-if="request.kind === 'Modification'" class="mt-1 block text-xs text-amber-500">Modificación de tarifa</span></td>
                 <td class="px-4 py-3 text-[var(--dh-text)]">{{ request.originName || 'Origen' }} → {{ request.destinationName || 'Destino' }}</td>
                 <td class="px-4 py-3 text-[var(--dh-text)]">{{ requestEquipmentLabel(request) }}</td>
                 <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
