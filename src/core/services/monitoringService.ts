@@ -84,6 +84,13 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     critical: false,
   },
   {
+    key: 'dynamics-connector',
+    name: 'Dynamics 365 Connector',
+    description: 'Integración con Microsoft Dataverse, API administrativa y operaciones de Dynamics.',
+    url: buildGatewayHealthUrl('dynamics-connector'),
+    critical: true,
+  },
+  {
     key: 'reports',
     name: 'Reports Service',
     nameKey: 'monitoring.services.reports.name',
