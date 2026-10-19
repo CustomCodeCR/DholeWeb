@@ -57,12 +57,12 @@ const statusText = computed(() => {
   return isReceived.value ? 'Recibida por vendedor' : isSent.value ? 'Enviada al vendedor' : 'En preparación'
 })
 const formattedRoute = computed(() => [rate.value?.polName, rate.value?.poeName, rate.value?.podName].filter(Boolean).join(' → '))
-const money = (amount: number, currency: SellerRateCurrency) => {
-  const currencyValue = sellerRateCurrencyValue(currency, currencies.value)
+const money = (amount: number, currency: SellerRateCurrency, fallbackCurrency?: SellerRateCurrency) => {
+  const currencyValue = sellerRateCurrencyValue(currency, currencies.value, fallbackCurrency)
   const numericAmount = Number(amount) || 0
   return currencyValue
     ? formatMoney(numericAmount, currencyValue)
-    : `${numericAmount.toLocaleString('es-CR', { maximumFractionDigits: 2 })} (moneda sin identificar)`
+    : numericAmount.toLocaleString('es-CR', { maximumFractionDigits: 2 })
 }
 
 async function loadCurrencies() {
@@ -231,7 +231,7 @@ onMounted(() => { void load(); void loadCurrencies() })
               <tr v-for="line in rate.rateDetails.filter(item => Number(item.saleAmount) > 0)" :key="line.id">
                 <td class="py-3 font-semibold text-[var(--dh-text)]">{{ line.name }}</td>
                 <td class="py-3 text-[var(--dh-text-muted)]">{{ line.quantity }}</td>
-                <td class="py-3 text-right font-bold text-[var(--dh-text)]">{{ money(line.saleAmount, line) }}</td>
+                <td class="py-3 text-right font-bold text-[var(--dh-text)]">{{ money(line.saleAmount, line, rate) }}</td>
               </tr>
             </tbody>
           </table>
