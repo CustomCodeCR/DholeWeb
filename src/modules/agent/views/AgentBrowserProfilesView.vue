@@ -41,6 +41,23 @@ interface GenerationBrowserAuth {
 }
 const generationSessions = ref<GenerationBrowserAuth[]>([])
 const generationSessionsAvailable = ref(true)
+const activeGeneration = ref<string | null>(null)
+const activeGenerationSession = computed(() => generationSessions.value.find(
+  entry => entry.generation === activeGeneration.value) ?? null)
+const historicGenerationSessions = computed(() => generationSessions.value.filter(
+  entry => entry.generation !== activeGeneration.value))
+async function loadActiveGeneration() {
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/agents/runtime-generations/',
+      headers: { Accept: 'application/json' },
+    })
+    activeGeneration.value = unwrapApiResponse<{ activeGeneration: string }>(response as never).activeGeneration
+  } catch {
+    activeGeneration.value = null
+  }
+}
 const hubInspectionAttempts = new Map<string, number>()
 let standbyPollTimer: ReturnType<typeof setInterval> | null = null
 const standbyAuthLabels: Record<GenerationBrowserAuth['status'], string> = {
@@ -207,7 +224,7 @@ async function authenticate(row: BrowserProfileDto) {
     if (isMaerskProfile(row)) {
       // Merely setting LoginRequired does not launch Chromium. This dedicated
       // API queues exactly one operator-initiated authentication-only job in
-      // the original prod1 browser, even while the Maersk circuit is Open.
+      // the registered original profile, even if its legacy name contains prod1.
       const verification = await AgentService.maerskOperations.verifyOriginalSession(
         row.providerId, row.credentialId,
       )
@@ -271,6 +288,7 @@ async function refresh() {
       store.loadCredentials(),
       store.loadBrowserProfiles(),
       loadGenerationSessions(),
+      loadActiveGeneration(),
     ])
   } catch (error) {
     toastStore.backendError(error, t('agent.errors.loadProfiles'))
@@ -347,8 +365,9 @@ onUnmounted(() => {
             Sesiones independientes de Maersk
           </h2>
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
-            prod1 utiliza su perfil original, mostrado en la tabla inferior.
-            Los navegadores de prod2 y posteriores tienen perfiles aislados.
+            Generación activa: <strong>{{ activeGeneration ?? 'No confirmada' }}</strong>.
+            Cada generación tiene almacenamiento Chromium aislado. El listado inferior es de
+            perfiles registrados en la base compartida; sus nombres no identifican el Worker actual.
           </p>
         </div>
         <RouterLink to="/agents/generations"
@@ -360,20 +379,27 @@ onUnmounted(() => {
         El estado de las sesiones independientes no está disponible por el momento.
       </p>
       <p v-else-if="!generationSessions.length" class="mt-3 text-sm text-[var(--dh-text-muted)]">
-        No hay sesiones independientes registradas. Puedes preparar prod2 desde
-        «Orquestador de entornos».
+        No hay verificaciones independientes registradas. Consultá «Orquestador de entornos».
       </p>
-      <div v-for="entry in generationSessions" :key="entry.generation"
+      <p v-if="activeGeneration && !activeGenerationSession" class="mt-3 text-sm text-amber-500">
+        {{ activeGeneration }} no tiene un comprobante de autenticación independiente en el registro.
+        Esto no demuestra que el navegador esté autenticado.
+      </p>
+      <h3 v-if="activeGenerationSession" class="mt-4 text-sm font-semibold">
+        Sesión de la generación activa: {{ activeGeneration }}
+      </h3>
+      <div v-for="entry in activeGenerationSession ? [activeGenerationSession] : []"
+        :key="entry.generation"
         class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--dh-border)] p-3">
         <div>
           <p class="font-bold">{{ entry.generation }} · Maersk</p>
           <p class="text-sm text-[var(--dh-text-muted)]">
             {{ entry.accountVerifiedAtUtc
-              ? (entry.status === 'Verified' ? 'Autorización finalizada' : 'Hub autenticado — pendiente de finalizar')
+              ? (entry.status === 'Verified' ? 'Hub verificado previamente' : 'Hub verificado — pendiente de finalizar')
               : (standbyAuthLabels[entry.status] ?? 'Estado desconocido') }}
           </p>
           <p v-if="entry.accountVerifiedAtUtc" class="text-xs text-[var(--dh-text-muted)]">
-            Acceso al Hub confirmado, sin recopilar datos de la cuenta.
+            Última verificación: {{ entry.accountVerifiedAtUtc }}. No garantiza que la sesión siga abierta ahora.
           </p>
           <p v-else class="text-xs text-[var(--dh-text-muted)]">
             Entrá al Hub en el navegador independiente. Dhole registrará automáticamente el acceso; podés comprobarlo desde el Orquestador.
@@ -389,18 +415,46 @@ onUnmounted(() => {
           Abrir autenticación de {{ entry.generation }}
         </RouterLink>
       </div>
+      <h3 v-if="historicGenerationSessions.length" class="mt-5 text-sm font-semibold">
+        Verificaciones de otras generaciones (histórico)
+      </h3>
+      <div v-for="entry in historicGenerationSessions" :key="entry.generation"
+        class="mt-2 rounded-lg border border-[var(--dh-border)] p-3 opacity-75">
+        <p class="font-semibold">{{ entry.generation }} — {{ entry.status }}</p>
+        <p class="text-xs text-[var(--dh-text-muted)]">
+          No es el Worker activo. Su verificación no prueba el acceso de {{ activeGeneration ?? 'producción' }}.
+        </p>
+      </div>
       <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
-        El visor local en el puerto 6080 corresponde al perfil original de prod1.
-        Abre prod2 siempre desde «Orquestador de entornos».
+        Para abrir el navegador de la generación activa utilizá «Orquestador de entornos».
+        No confundás el túnel del perfil original con el navegador de {{ activeGeneration ?? 'producción' }}.
       </p>
     </section>
 
+    <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4">
+      <h2 class="font-bold">Registros globales de perfiles</h2>
+      <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
+        Estos perfiles pertenecen a PostgreSQL compartido. El registro con nombre «prod1»
+        es histórico y su estado no demuestra que el navegador de {{ activeGeneration ?? 'producción' }}
+        esté bloqueado ni autenticado. Las comprobaciones independientes están arriba.
+      </p>
+    </section>
     <DhDataTable
       :columns="columns"
       :rows="store.browserProfiles"
       :loading="store.loading"
       :empty-text="t('agent.browserProfiles.empty')"
     >
+      <template #cell-name="{ row }">
+        <div>
+          {{ row.name }}
+          <p v-if="isMaerskProfile(row) && activeGeneration && activeGeneration !== 'prod1'
+            && /prod1|original/i.test(row.name + ' ' + row.profileKey)"
+            class="mt-1 text-xs text-[var(--dh-text-muted)]">
+            Nombre histórico · registro global; no es la sesión Chromium de {{ activeGeneration }}
+          </p>
+        </div>
+      </template>
       <template #cell-providerId="{ row }">{{ providerName(row.providerId) }}</template>
       <template #cell-credentialId="{ row }">{{ credentialName(row.credentialId) }}</template>
       <template #cell-status="{ row }">
