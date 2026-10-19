@@ -515,7 +515,9 @@ async function refreshWebActions() {
 }
 
 async function runWebAction(operation: WebActionOperation) {
-  if (!canManage.value || !guideGenerationValid.value || webActionBusy.value ||
+  const validName = /^prod[1-9][0-9]*$/.test(guideTarget.value) && guideTarget.value.length <= 64
+  if (!canManage.value || !validName || webActionBusy.value ||
+      (!['inspect', 'reconcile'].includes(operation) && !guideGenerationValid.value) ||
       actionPending(operation) || !state.value?.githubDispatcherConfigured) return null
   if (operation === 'attest' && !guideHubProofFresh.value) return null
   if (operation === 'switch' && !guideCanSubmit.value) return null
@@ -725,6 +727,18 @@ onUnmounted(() => {
               <DhButton label="Registrar entorno en Dhole" :icon="Plus" variant="secondary"
                 :disabled="!canManage || !guideGenerationValid || registering"
                 :loading="registering" @click="registerGuidedTarget" />
+            </div>
+            <div class="mt-4 grid gap-2 rounded-xl border border-[var(--dh-border)] p-4">
+              <strong class="text-sm">1.1 Diagnóstico real en Argos</strong>
+              <p class="text-sm text-[var(--dh-text-muted)]">
+                Comprobá el Worker único, el estado de los componentes y las restricciones
+                antes de continuar. GitHub Actions ejecuta el diagnóstico desde Dhole.
+              </p>
+              <p class="text-xs" role="status">{{ actionStatusLabel('inspect') }}</p>
+              <DhButton label="Comprobar estado en Argos" :icon="RefreshCw" variant="secondary"
+                :disabled="!canManage || !state.githubDispatcherConfigured ||
+                  !!webActionBusy || actionPending('inspect')"
+                :loading="webActionBusy === 'inspect'" @click="runWebAction('inspect')" />
             </div>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
               La cuenta debe tener el scope agent.browser-profiles.authenticate para registrar y ejecutar cambios.
@@ -964,9 +978,21 @@ onUnmounted(() => {
                 Pendiente de confirmación. No se considera activo el nuevo Worker todavía.
               </p>
             </div>
+            <div class="mt-4 grid gap-2 rounded-xl border border-[var(--dh-border)] p-4">
+              <strong class="text-sm">6.1 Comprobar el Worker real</strong>
+              <p class="text-xs text-[var(--dh-text-muted)]">
+                Si el registro de PostgreSQL tarda en actualizarse, ejecutá la
+                conciliación. El runner verificará que exactamente un Worker esté activo.
+              </p>
+              <p class="text-xs" role="status">{{ actionStatusLabel('reconcile') }}</p>
+              <DhButton label="Sincronizar estado con Docker" :icon="RefreshCw" variant="secondary"
+                :disabled="!canManage || !state.githubDispatcherConfigured ||
+                  !!webActionBusy || actionPending('reconcile')"
+                :loading="webActionBusy === 'reconcile'" @click="runWebAction('reconcile')" />
+            </div>
             <a :href="generationActionsUrl" target="_blank" rel="noopener noreferrer"
-              class="mt-3 inline-flex items-center gap-2 font-semibold text-[var(--dh-primary)] underline">
-              Revisar ejecuciones de Actions <ExternalLink class="h-4 w-4" />
+              class="mt-3 inline-flex items-center gap-2 text-xs text-[var(--dh-text-muted)] underline">
+              Ver registro técnico en GitHub (opcional) <ExternalLink class="h-4 w-4" />
             </a>
           </template>
 
