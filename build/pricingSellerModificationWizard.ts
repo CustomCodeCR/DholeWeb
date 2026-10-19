@@ -47,6 +47,9 @@ interface PricingModificationWorkItem {
   kind?: string
   payload?: {
     form?: Record<string, unknown>
+    pickupLocations?: RatePickupLocationDto[]
+    supportDocuments?: SupportDocument[]
+    sellerContext?: { portHandlingMode?: string | null }
     modification?: {
       changes?: SellerModificationComparison[]
       sourceRevisionNumber?: number
@@ -238,6 +241,11 @@ async function applyPricingModification() {
   form.equipmentType = equipmentHasSizes.value ? String(meta?.kind ?? '') : form.equipmentId
   await nextTick()
   form.equipmentId = String(proposal.equipmentId ?? form.equipmentId)
+  const workPayload = pricingModificationWorkItem.value?.payload
+  if (Array.isArray(workPayload?.pickupLocations))
+    pickupLocations.value = workPayload.pickupLocations.map(pickup => ({ ...pickup }))
+  if (Array.isArray(workPayload?.supportDocuments))
+    supportDocuments.value = workPayload.supportDocuments.map(document => ({ ...document }))
   pricingModificationApplied.value = true
   toastStore.info('Propuesta aplicada en pantalla',
     'Revise todos los proveedores, costos y recargos antes de guardar la nueva revisión. Aún no se modificó la tarifa persistida.')
@@ -302,6 +310,7 @@ onMounted(() => { void loadPricingModificationWorkItem() })
       <DhButton variant="secondary" :disabled="pricingModificationApplied" @click="applyPricingModification">
         {{ pricingModificationApplied ? 'Datos cargados en el formulario' : 'Cargar datos solicitados en el wizard' }}
       </DhButton>
+      <p v-if="pricingModificationWorkItem.payload?.sellerContext?.portHandlingMode" class="text-sm font-semibold">Muellaje solicitado por Ventas: {{ pricingModificationWorkItem.payload.sellerContext.portHandlingMode }}</p>
       <p class="text-xs text-amber-700 dark:text-amber-300">Compruebe importes, recargos, proveedores y términos. Guardar una nueva revisión y reenviarla al vendedor son pasos separados.</p>
     </section>
 `
