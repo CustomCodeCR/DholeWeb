@@ -5,6 +5,7 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import type { RateDto } from '@/core/interfaces/pricing'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { createUuid } from '@/core/utils/id'
 
 type ModificationAction = 'Add' | 'Change' | 'Remove'
 type ModificationItem = { id: number; action: ModificationAction; field: string; details: string }
@@ -17,6 +18,7 @@ const items = ref<ModificationItem[]>([{ id: 1, action: 'Change', field: '', det
 const submitting = ref(false)
 const attempted = ref(false)
 let nextId = 2
+const requestKey = createUuid()
 
 const actionOptions = [
   { label: 'Agregar', value: 'Add' },
@@ -59,6 +61,7 @@ async function submit() {
           details: item.details.trim(),
         })),
       },
+      extraHeaders: { 'Idempotency-Key': requestKey },
     })
     toast.success('Modificación enviada a Pricing', 'Se creó una solicitud vinculada a esta tarifa. Pricing preparará una nueva revisión.')
     modal.close()
