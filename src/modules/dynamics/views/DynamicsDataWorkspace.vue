@@ -72,7 +72,10 @@ const info = ref('')
 const snapshot = ref<Snapshot | null>(null)
 const policies = ref<Policies>({ entities: [], fields: [] })
 const diff = ref<Record<string, unknown> | null>(null)
-const metadataJob = ref<MetadataJob | null>(null)
+const metadataJobs = ref<Record<string, MetadataJob>>({})
+const metadataJob = computed(() => Object.values(metadataJobs.value).find(j =>
+  j.status === 'running' || j.status === 'pending') ?? null)
+const tableJob = (name: string) => metadataJobs.value[name]
 const monitoring = ref(false)
 let monitorInterval: ReturnType<typeof setInterval> | null = null
 const publicOrigin = ref('')
@@ -299,48 +302,63 @@ async function reload() {
 async function refreshMetadata(targetTable: string | null = null) {
   await run(async () => {
     if (!canSecurity.value) throw new Error('Se requiere dynamics.security.admin para solicitar un refresco.')
-    // The durable queue responds immediately; Dataverse discovery is never tied to the browser timeout.
+    const table = targetTable ?? ''
     const active = (await api<MetadataJob[]>('operations/jobs?connectionCode=' +
-      encodeURIComponent(code.value) + '&limit=50'))
-      .find(j => j.kind === 'metadata_refresh' && j.resourceKey === (targetTable ?? '') &&
+      encodeURIComponent(code.value) + '&limit=100'))
+      .find(j => j.kind === 'metadata_refresh' && j.resourceKey === table &&
         ['pending', 'running'].includes(j.status))
-    metadataJob.value = active ?? await api<MetadataJob>('operations/jobs/' + encodeURIComponent(code.value),
+    const job = active ?? await api<MetadataJob>('operations/jobs/' + encodeURIComponent(code.value),
       'POST', { kind: 'metadata_refresh', entityName: targetTable,
         dedupeKey: 'metadata-ui-' + crypto.randomUUID().replaceAll('-', '') })
-    info.value = active ? 'Ya se está descubriendo ' + (targetTable || 'el índice de tablas') + '.' :
-      'Descubrimiento de ' + (targetTable || 'tablas') + ' en segundo plano. Podés continuar usando Dhole.'
+    metadataJobs.value[table] = job
+    info.value = (active ? 'El trabajo ya está activo: ' : 'Se inició el descubrimiento de ') +
+      (targetTable ? 'campos de ' + targetTable : 'las tablas') + '. Podés continuar usando Dhole.'
   })
 }
+function openTable(table: Table) {
+  const closing = expanded.value === table.logicalName
+  expanded.value = closing ? '' : table.logicalName
+  if (!closing && table.columns.length === 0 && canSecurity.value &&
+      !['pending', 'running'].includes(tableJob(table.logicalName)?.status ?? ''))
+    void refreshMetadata(table.logicalName)
+}
 async function pollMetadataJob() {
-  const current = metadataJob.value
-  if (!current || monitoring.value || !code.value) return
+  if (monitoring.value || !code.value ||
+      !Object.values(metadataJobs.value).some(j => j.status === 'pending' || j.status === 'running'))
+    return
   monitoring.value = true
   try {
-    const latest = await api<MetadataJob>('operations/jobs/' + encodeURIComponent(code.value) +
-      '/' + encodeURIComponent(current.id))
-    if (current.id !== metadataJob.value?.id) return
-    metadataJob.value = latest
-    if (latest.status === 'completed') {
-      metadataJob.value = null
-      await run(async () => {
-        await reload()
-        info.value = 'Catálogo actualizado correctamente. Snapshot ' + (snapshot.value?.version ?? '?') + '.'
-      })
-    } else if (latest.status === 'dead') {
-      metadataJob.value = null
-      error.value = 'No se completó la actualización (' + (latest.lastErrorCode ?? 'sin detalle') +
-        '). Se conserva el último catálogo válido.'
+    const items = await api<MetadataJob[]>('operations/jobs?connectionCode=' +
+      encodeURIComponent(code.value) + '&limit=100')
+    let completed = false
+    for (const [key, oldJob] of Object.entries(metadataJobs.value)) {
+      if (oldJob.status !== 'pending' && oldJob.status !== 'running') continue
+      const next = items.find(j => j.id === oldJob.id)
+      if (!next) continue
+      metadataJobs.value[key] = next
+      if (next.status === 'completed') completed = true
+      if (next.status === 'dead') error.value =
+        'No se pudieron descubrir los campos de ' + (key || 'el catálogo') + ' (' +
+        (next.lastErrorCode ?? 'error del proveedor') + '). Podés volver a intentar.'
     }
+    if (completed) await run(async () => {
+      await reload()
+      info.value = 'Metadatos actualizados. Abrí la tabla para revisar y habilitar sus campos.'
+    })
   } catch {
-    // Temporary connectivity issues must not generate another refresh job.
+    // An intermittent status request must not create a duplicate metadata job.
   } finally { monitoring.value = false }
 }
 async function resumeMetadataJob() {
   if (!code.value || !canSecurity.value) return
   const items = await api<MetadataJob[]>('operations/jobs?connectionCode=' +
-    encodeURIComponent(code.value) + '&limit=25')
-  metadataJob.value = items.find(j => j.kind === 'metadata_refresh' &&
-    ['pending', 'running'].includes(j.status)) ?? null
+    encodeURIComponent(code.value) + '&limit=100')
+  const byTable: Record<string, MetadataJob> = {}
+  for (const job of items) {
+    if (job.kind !== 'metadata_refresh') continue
+    if (byTable[job.resourceKey] === undefined) byTable[job.resourceKey] = job
+  }
+  metadataJobs.value = byTable
 }
 async function toggleEntity(t: Table) {
   await run(async () => {
@@ -657,7 +675,10 @@ watch(() => props.connections, list => {
   if (!list.some(c => c.code === code.value))
     code.value = list.find(c => c.code.toLowerCase() === 'principal')?.code ?? list[0]?.code ?? ''
 }, { immediate: true, deep: true })
-watch(code, () => { if (code.value) void run(reload) }, { immediate: true })
+watch(code, () => {
+  metadataJobs.value = {}
+  if (code.value) void run(reload)
+}, { immediate: true })
 watch(() => props.section, section => {
   if (!code.value || busy.value) return
   if (section === 'query' || section === 'integrations') void run(async () => {
@@ -699,7 +720,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
     <div v-if="!code" class="dynamics-empty">Seleccioná una conexión para continuar.</div>
     <template v-else-if="section === 'catalog'">
       <div class="dynamics-tools">
-        <button type="button" class="dynamics-primary-button"  :disabled="busy || (metadataJob?.resourceKey === '' && ['pending','running'].includes(metadataJob.status)) || !canSecurity" @click="refreshMetadata()"><RefreshCw :size="15" /> {{ metadataJob?.resourceKey === '' ? 'Actualizando índice' : 'Actualizar catálogo' }}</button>
+        <button type="button" class="dynamics-primary-button"  :disabled="busy || ['pending','running'].includes(tableJob('')?.status ?? '') || !canSecurity" @click="refreshMetadata()"><RefreshCw :size="15" /> {{ ['pending','running'].includes(tableJob('')?.status ?? '') ? 'Actualizando índice' : 'Actualizar catálogo' }}</button>
         <span class="dynamics-subtitle">Snapshot {{ snapshot?.version ?? 'sin generar' }} · {{ snapshot?.capturedAt ? new Date(snapshot.capturedAt).toLocaleString('es-CR') : 'Pendiente de descubrimiento' }}</span>
       </div>
       <p v-if="metadataJob" class="dynamics-feedback" role="status">
@@ -725,14 +746,28 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             </div>
             <div class="dynamics-actions">
               <button v-if="!table.columns.length" class="dynamics-outline-button" type="button"
-                :disabled="busy || !canSecurity || (metadataJob?.resourceKey === table.logicalName && ['pending','running'].includes(metadataJob.status))"
+                :disabled="busy || !canSecurity || ['pending','running'].includes(tableJob(table.logicalName)?.status ?? '')"
                 @click="refreshMetadata(table.logicalName)">Descubrir campos</button>
               <button class="dynamics-outline-button" type="button" :disabled="busy || !table.columns.length" @click="toggleEntity(table)">{{ entityEnabled(table.logicalName) ? 'Deshabilitar' : 'Habilitar' }}</button>
-              <button class="dynamics-outline-button" type="button" @click="expanded=expanded === table.logicalName ? '' : table.logicalName">{{ expanded===table.logicalName ? 'Cerrar' : 'Campos' }}</button>
+              <button class="dynamics-outline-button" type="button" @click="openTable(table)">{{ expanded===table.logicalName ? 'Cerrar' : 'Campos' }}</button>
             </div>
           </div>
+          <p v-if="tableJob(table.logicalName)?.status === 'pending' || tableJob(table.logicalName)?.status === 'running'"
+            class="dynamics-subtitle" role="status">
+            Descubriendo campos de {{ table.logicalName }} · intento {{ tableJob(table.logicalName)?.attempts }}/{{ tableJob(table.logicalName)?.maxAttempts }}. No necesitás esperar en esta pantalla.
+          </p>
+          <p v-else-if="tableJob(table.logicalName)?.status === 'dead' && !table.columns.length"
+            class="dynamics-feedback dynamics-feedback-error" role="alert">
+            No se pudieron obtener los campos ({{ tableJob(table.logicalName)?.lastErrorCode ?? 'error del proveedor' }}).
+            <button type="button" class="dynamics-outline-button" :disabled="busy" @click="refreshMetadata(table.logicalName)">Reintentar</button>
+          </p>
           <div v-if="expanded === table.logicalName" class="dynamics-scroll">
-            <p v-if="!entityEnabled(table.logicalName)" class="dynamics-subtitle">Habilitá primero la tabla para administrar sus columnas.</p>
+            <p v-if="!table.columns.length" class="dynamics-subtitle">
+              {{ ['pending','running'].includes(tableJob(table.logicalName)?.status ?? '') ?
+                'Consultando campos reales de Dataverse. Se mostrarán aquí al finalizar.' :
+                'Esta tabla no tiene columnas descubiertas. Abrí Campos para solicitarlas automáticamente.' }}
+            </p>
+            <p v-else-if="!entityEnabled(table.logicalName)" class="dynamics-subtitle">Habilitá primero la tabla para administrar sus columnas.</p>
             <table class="dynamics-data-table">
               <thead><tr><th>Campo</th><th>Tipo</th><th>Habilitado</th><th>Leer</th><th>Crear</th><th>Editar</th><th></th></tr></thead>
               <tbody>
