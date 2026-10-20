@@ -1444,6 +1444,11 @@ onUnmounted(() => {
               variant="secondary" :loading="standbyBusy === activeStandbyViewer.generation"
               :disabled="standbyBusy !== null"
               @click="inspectStandby(activeStandbyViewer.generation)" />
+            <a :href="activeStandbyViewer.url" target="_blank" rel="noopener noreferrer"
+              class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+              <ExternalLink :size="16" />
+              Abrir noVNC en otra pestaña
+            </a>
             <DhButton label="Cerrar visor" variant="secondary"
               @click="activeStandbyViewer = null" />
           </div>
@@ -1451,6 +1456,7 @@ onUnmounted(() => {
         <p class="border-b border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-xs text-[var(--dh-text-muted)]"
           role="status" aria-live="polite">
           {{ standbyInspectionMessage(activeStandbyViewer.generation) }}
+          Si no ves el escritorio o no responde el teclado, usá «Abrir noVNC en otra pestaña» para controlar el mismo Chromium de {{ activeStandbyViewer.generation }} directamente.
         </p>
         <iframe :src="activeStandbyViewer.url"
           class="min-h-0 w-full flex-1 border-0 bg-[var(--dh-surface)]"
