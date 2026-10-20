@@ -23,8 +23,6 @@ export function dedupeEquivalentReleaseLines<T extends ComparableRateCharge>(lin
     if (normalized(line.name) !== 'release') return true
     const currency = normalized(line.currencyCode) || normalized(line.currencyId)
     const key = JSON.stringify([
-      normalized(line.costDetailType),
-      normalized(line.costType),
       normalized(line.chargeBasis),
       currency,
       Number(line.costAmount ?? 0),
