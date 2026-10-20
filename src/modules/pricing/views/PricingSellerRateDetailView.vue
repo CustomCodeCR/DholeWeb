@@ -30,11 +30,12 @@ const loadError = ref('')
 const pendingModification = ref(false)
 
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
+const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
 const isCastroFallas = computed(() => rate.value?.executiveName?.trim().toLocaleLowerCase() === 'castro fallas')
-const canReceive = computed(() => isSent.value && !isReceived.value && !isCastroFallas.value)
+const canReceive = computed(() => isSent.value && !revisionPending.value && !isReceived.value && !isCastroFallas.value)
 const canRequestModification = computed(() => Boolean(rate.value
-  && rate.value.status !== 'Closed' && rate.value.status !== 'Cancelled'
+  && !revisionPending.value && rate.value.status !== 'Closed' && rate.value.status !== 'Cancelled'
   && (rate.value.sellerReceivedAtUtc
     || ['Sent', 'RequestedByClient', 'AcceptedByClient', 'RejectedByClient', 'Expired'].includes(rate.value.status))))
 
@@ -48,6 +49,7 @@ function requestModification() {
 
 const statusText = computed(() => {
   if (!rate.value) return ''
+  if (revisionPending.value) return 'En modificación por Pricing'
   if (rate.value.status === 'AcceptedByClient') return 'Aceptada por cliente'
   if (rate.value.status === 'RejectedByClient') return 'No aceptada por cliente'
   if (rate.value.status === 'Cancelled') return 'Cancelada'
@@ -145,7 +147,7 @@ async function downloadPdf() {
 }
 
 function clientDecision(decision: 'AcceptedByClient' | 'RejectedByClient') {
-  if (!rate.value || !isSent.value) return
+  if (!rate.value || !isSent.value || revisionPending.value) return
   modal.open({
     title: decision === 'AcceptedByClient' ? 'Registrar aceptación del cliente' : 'Registrar rechazo del cliente',
     component: SellerRateDecisionModal,
@@ -187,13 +189,14 @@ onMounted(() => { void load(); void loadCurrencies() })
               <DhBadge :label="statusText" :variant="isReceived ? 'success' : 'warning'" />
               <DhBadge v-if="isReceived" label="Recepción confirmada" variant="success" />
             </div>
+            <p v-if="revisionPending" class="text-xs font-bold text-amber-500">Pricing está preparando una nueva revisión. Se muestra la última cotización enviada, no los precios del borrador.</p>
             <p v-if="pendingModification" class="text-xs font-bold text-amber-500">Pricing tiene una solicitud de modificación pendiente para esta tarifa.</p>
             <p v-if="rate.sellerReceivedAtUtc" class="text-xs text-[var(--dh-text-muted)]">
               Confirmación: {{ new Date(rate.sellerReceivedAtUtc).toLocaleString('es-CR') }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <DhButton label="Descargar PDF" variant="secondary" :loading="downloading" @click="downloadPdf" />
+            <DhButton label="Descargar PDF" variant="secondary" :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
             <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
             <DhButton v-if="canReceive" label="Marcar como recibida" :loading="receiving" @click="markReceived" />
           </div>
@@ -247,7 +250,7 @@ onMounted(() => { void load(); void loadCurrencies() })
           <p class="mt-2 whitespace-pre-line text-sm text-[var(--dh-text-muted)]">{{ term.text || 'No indicado' }}</p>
         </div>
       </section>
-      <div v-if="isSent" class="flex flex-wrap items-center gap-2">
+      <div v-if="isSent && !revisionPending" class="flex flex-wrap items-center gap-2">
         <p class="w-full text-xs text-[var(--dh-text-muted)]">Solo registre una decisión cuando el cliente responda a la cotización.</p>
         <DhButton label="Aceptada por cliente" @click="clientDecision('AcceptedByClient')" />
         <DhButton label="Rechazada por cliente" variant="danger" @click="clientDecision('RejectedByClient')" />
