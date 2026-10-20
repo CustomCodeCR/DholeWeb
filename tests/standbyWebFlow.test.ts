@@ -4,6 +4,8 @@ import { test } from 'node:test'
 
 const view = readFileSync(new URL('../src/modules/agent/views/AgentGenerationOrchestratorView.vue', import.meta.url), 'utf8')
 const profileView = readFileSync(new URL('../src/modules/agent/views/AgentBrowserProfilesView.vue', import.meta.url), 'utf8')
+const maerskOperationsView = readFileSync(new URL('../src/modules/agent/views/MaerskOperationsView.vue', import.meta.url), 'utf8')
+const agentService = readFileSync(new URL('../src/core/services/agentService.ts', import.meta.url), 'utf8')
 const callEndpoint = readFileSync(new URL('../src/core/api/callEndpoint.ts', import.meta.url), 'utf8')
 const fetchConfig = readFileSync(new URL('../src/core/api/fetchConfig.ts', import.meta.url), 'utf8')
 
@@ -54,10 +56,13 @@ test('standby finalization handles current state and expired Hub proof', () => {
   assert.match(view, /standby_auth_session_expired/)
 })
 
-test('browser sessions distinguish prod1 original from isolated prod2 authorization', () => {
+test('browser sessions use active Maersk generation and its protected noVNC viewer', () => {
   assert.match(profileView, /Sesiones independientes de Maersk/)
   assert.match(profileView, /\/runtime-generations\/authentication\//)
-  assert.match(profileView, /puerto 6080 corresponde al perfil original de prod1/)
+  assert.match(profileView, /Puerto interno noVNC/)
+  assert.match(profileView, /openVerificationViewer/)
+  assert.match(profileView, /verificationGeneration/)
+  assert.doesNotMatch(profileView, /href="http:\/\/localhost:6080\/vnc.html"/)
   assert.match(profileView, /to="\/agents\/generations"/)
   assert.match(profileView, /entry\.accountVerifiedAtUtc/)
 })
@@ -97,4 +102,15 @@ test('operator controls all protected generation actions without opening GitHub'
   assert.match(view, /confirmedProviderAccess/)
   assert.match(view, /confirmedHandoff/)
   assert.doesNotMatch(view, /Abrir Actions de verificación/)
+})
+
+test('breaker verification displays actual active Worker generation and authenticated noVNC port', () => {
+  assert.match(maerskOperationsView, /verificationGeneration/)
+  assert.match(maerskOperationsView, /verificationNoVncPort/)
+  assert.match(maerskOperationsView, /openVerificationViewer/)
+  assert.match(maerskOperationsView, /activeVerificationViewer/)
+  assert.match(maerskOperationsView, /noVNC del Worker activo/)
+  assert.match(agentService, /openActiveViewer/)
+  assert.match(agentService, /\/maersk-circuit\/\{\{providerId\}\}\/viewer\/access/)
+  assert.doesNotMatch(maerskOperationsView, /el navegador persistente original de prod1/)
 })
