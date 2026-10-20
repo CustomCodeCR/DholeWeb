@@ -504,52 +504,61 @@ onBeforeUnmount(() => {
         </tbody>
       </table>
     </div>
-    <div
-      v-if="cancellationTarget"
-      class="fixed inset-0 z-[150] flex items-center justify-center bg-black/65 p-4"
-      @click.self="closeCancellation"
-    >
-      <div role="dialog" aria-modal="true" aria-labelledby="cancel-rate-request-title"
-        class="dh-glass dh-liquid w-full max-w-lg rounded-[28px] border border-[var(--dh-border)] p-6 shadow-2xl">
-        <div class="flex items-center gap-3">
-          <Ban class="h-6 w-6 text-red-500" />
-          <h3 id="cancel-rate-request-title" class="text-xl font-black">Cancelar solicitud de tarifa</h3>
-        </div>
-        <p class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">
-          {{ cancellationTarget.clientName || 'Cliente sin definir' }} ·
-          {{ cancellationTarget.originName || 'Origen' }} →
-          {{ cancellationTarget.podName || cancellationTarget.destinationName || 'Destino' }}
-        </p>
-        <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
-          La solicitud dejará de estar pendiente. No se eliminará ninguna cotización ya generada.
-        </p>
-        <label for="rate-request-cancel-reason" class="mt-5 block text-sm font-bold">
-          Motivo de cancelación <span class="text-red-500">*</span>
-        </label>
-        <select id="rate-request-cancel-reason" v-model="cancellationReason"
-          :disabled="Boolean(cancellingRequestId)"
-          class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm font-semibold text-[var(--dh-text)]">
-          <option v-for="reason in cancellationReasons" :key="reason.value" :value="reason.value">{{ reason.label }}</option>
-        </select>
-        <label for="rate-request-cancel-details" class="mt-4 block text-sm font-bold">
-          Observación {{ cancellationReason === 'Other' ? '(obligatoria)' : '(opcional)' }}
-        </label>
-        <textarea id="rate-request-cancel-details" v-model="cancellationDetails"
-          :disabled="Boolean(cancellingRequestId)" maxlength="500" rows="3"
-          placeholder="Indique más información para el historial…"
-          class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm text-[var(--dh-text)]"
-        />
-        <div class="mt-6 flex flex-wrap justify-end gap-2">
-          <DhButton variant="secondary" :disabled="Boolean(cancellingRequestId)" @click="closeCancellation">Volver</DhButton>
-          <DhButton
-            class="!bg-red-600 !text-white hover:!bg-red-700"
-            :disabled="Boolean(cancellingRequestId) || (cancellationReason === 'Other' && !cancellationDetails.trim())"
-            @click="confirmCancellation"
-          >
-            <Ban class="h-4 w-4" /> {{ cancellingRequestId ? 'Cancelando…' : 'Confirmar cancelación' }}
-          </DhButton>
+    <Teleport to="body">
+      <div
+        v-if="cancellationTarget"
+        data-dh-overlay="modal"
+        class="fixed inset-0 z-[150] flex items-center justify-center bg-black/65 p-2 sm:p-4"
+        @click.self="closeCancellation"
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancel-rate-request-title"
+          class="dh-glass dh-liquid flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
+        >
+          <div class="dh-scrollbar min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
+            <div class="flex items-center gap-3">
+              <Ban class="h-6 w-6 text-red-500" />
+              <h3 id="cancel-rate-request-title" class="text-xl font-black">Cancelar solicitud de tarifa</h3>
+            </div>
+            <p class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+              {{ cancellationTarget.clientName || 'Cliente sin definir' }} ·
+              {{ cancellationTarget.originName || 'Origen' }} →
+              {{ cancellationTarget.podName || cancellationTarget.destinationName || 'Destino' }}
+            </p>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+              La solicitud dejará de estar pendiente. No se eliminará ninguna cotización ya generada.
+            </p>
+            <label for="rate-request-cancel-reason" class="mt-5 block text-sm font-bold">
+              Motivo de cancelación <span class="text-red-500">*</span>
+            </label>
+            <select id="rate-request-cancel-reason" v-model="cancellationReason"
+              :disabled="Boolean(cancellingRequestId)"
+              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm font-semibold text-[var(--dh-text)]">
+              <option v-for="reason in cancellationReasons" :key="reason.value" :value="reason.value">{{ reason.label }}</option>
+            </select>
+            <label for="rate-request-cancel-details" class="mt-4 block text-sm font-bold">
+              Observación {{ cancellationReason === 'Other' ? '(obligatoria)' : '(opcional)' }}
+            </label>
+            <textarea id="rate-request-cancel-details" v-model="cancellationDetails"
+              :disabled="Boolean(cancellingRequestId)" maxlength="500" rows="3"
+              placeholder="Indique más información para el historial…"
+              class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm text-[var(--dh-text)]"
+            />
+            <div class="mt-6 flex flex-wrap justify-end gap-2">
+              <DhButton variant="secondary" :disabled="Boolean(cancellingRequestId)" @click="closeCancellation">Volver</DhButton>
+              <DhButton
+                class="!bg-red-600 !text-white hover:!bg-red-700"
+                :disabled="Boolean(cancellingRequestId) || (cancellationReason === 'Other' && !cancellationDetails.trim())"
+                @click="confirmCancellation"
+              >
+                <Ban class="h-4 w-4" /> {{ cancellingRequestId ? 'Cancelando…' : 'Confirmar cancelación' }}
+              </DhButton>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </section>
 </template>
