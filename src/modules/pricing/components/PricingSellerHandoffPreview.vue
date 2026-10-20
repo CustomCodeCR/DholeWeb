@@ -64,6 +64,22 @@ const modality = computed(() => {
   return value
 })
 
+const clientType = computed(() => {
+  // Respetar la clasificación elegida al solicitar la tarifa, sin asumir
+  // un tipo por defecto ni deducirlo del nombre del cliente.
+  const value = [
+    'clientType', 'customerType', 'clientCategory', 'miamiCommercialPlan', 'commercialPlan',
+  ].map((key) => raw(key)).find((item) => typeof item === 'string' && item.trim())
+  if (typeof value !== 'string') return 'No indicado'
+  const selected = value.trim()
+  const labels: Record<string, string> = {
+    A: 'Cliente A', B: 'Cliente B', C: 'Cliente C', D: 'Cliente D',
+    'NVOCC-A': 'Cliente NVOCC-A', 'NVOCC-B': 'Cliente NVOCC-B',
+    LITTLE: 'CARGAS LITTLE', FINALCLIENT: 'Cliente final', NVOCC: 'NVOCC',
+  }
+  return labels[selected.toUpperCase()] ?? selected
+})
+
 const shipment = computed(() => label('shipmentMode'))
 const priorityText = computed(() => ({
   Red: 'Urgente', Yellow: 'Prioritario', Green: 'Regular',
@@ -299,6 +315,7 @@ function fileKind(fileName: string): string {
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Modalidad</dt><dd class="font-bold">{{ modality }}</dd></div>
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Tipo de embarque</dt><dd><span class="inline-flex rounded-lg border border-[var(--dh-border)] px-2 py-0.5 text-xs font-black">{{ shipment }}</span></dd></div>
             <div class="sm:col-span-2"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Cliente</dt><dd class="break-words font-bold">{{ snapshot.clientName || 'No indicado' }}</dd></div>
+            <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Tipo de cliente</dt><dd class="font-bold">{{ clientType }}</dd></div>
             <div><dt class="mb-1 flex items-center gap-1 text-xs font-semibold text-[var(--dh-text-muted)]"><UserRound class="h-3.5 w-3.5" /> Ejecutivo</dt><dd class="font-bold">{{ snapshot.executiveName || 'No indicado' }}</dd></div>
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Prioridad</dt><dd><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-black" :class="priorityClasses"><Flag class="h-3.5 w-3.5" />{{ priorityText }}</span></dd></div>
           </dl>
