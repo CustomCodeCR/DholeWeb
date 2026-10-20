@@ -503,7 +503,7 @@ watch(() => props.connections, list => {
   if (!list.some(c => c.code === code.value))
     code.value = list.find(c => c.code.toLowerCase() === 'principal')?.code ?? list[0]?.code ?? ''
 }, { immediate: true, deep: true })
-watch(code, () => { void run(reload) })
+watch(code, () => { if (code.value) void run(reload) }, { immediate: true })
 watch(() => props.section, section => {
   if (!code.value || busy.value) return
   if (section === 'query') void run(async () => { await loadSaved() })
