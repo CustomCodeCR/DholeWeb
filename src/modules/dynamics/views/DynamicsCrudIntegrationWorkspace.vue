@@ -5,9 +5,10 @@ import { fetchClient } from '@/core/api/fetchConfig'
 import { useAuthStore } from '@/core/stores/authStore'
 
 type Connection = { code: string }
+type Choice = { value: number; labels: Record<string,string> }
 type Field = { logicalName: string; type: string; canRead: boolean; canCreate: boolean
   canUpdate: boolean; isCalculated: boolean; requiredLevel?: string | null
-  labels: Record<string,string>; lookupTargets: string[] }
+  labels: Record<string,string>; lookupTargets: string[]; choices: Choice[] }
 type Table = { logicalName: string; entitySetName: string; labels: Record<string,string>
   primaryIdAttribute: string; columns: Field[]
   alternateKeys?: Array<{ logicalName: string; attributes: string[] }> }
@@ -37,6 +38,7 @@ const step=ref<1|2|3|4>(1)
 const operation=ref<Operation>('create')
 const entity=ref('')
 const selected=ref<string[]>([])
+const exampleOptions=ref<Record<string,number|string>>({})
 const fieldSearch=ref('')
 const keyName=ref('')
 const endpointName=ref('crear_oferta')
@@ -87,6 +89,22 @@ const eligibleFields=computed(()=>table.value?.columns.filter(f=>{
 })??[])
 const filteredFields=computed(()=>eligibleFields.value.filter(f=>
   (display(f.labels,f.logicalName)+' '+f.logicalName).toLowerCase().includes(fieldSearch.value.toLowerCase())))
+const entityNameOptions=computed(()=>(snapshot.value?.catalog.tables??[])
+  .map(t=>({ value:t.logicalName,label:display(t.labels,t.logicalName) }))
+  .sort((a,b)=>a.label.localeCompare(b.label,'es')))
+const optionFields=computed(()=>selectedFields.value.filter(f=>
+  ['Picklist','State','Status','EntityName'].includes(f.type)))
+const metadataChoicesMissing=computed(()=>optionFields.value.filter(f=>
+  f.type!=='EntityName' && !(f.choices?.length) ||
+  f.type==='EntityName' && !entityNameOptions.value.length))
+const choicesFor=(f:Field):Array<{ value:number|string;label:string }> =>
+  f.type==='EntityName'?entityNameOptions.value:
+  (f.choices??[]).map(c=>({value:c.value,label:display(c.labels,String(c.value))}))
+const chosenValue=(f:Field):string|number|undefined=>{
+  const options=choicesFor(f)
+  const chosen=exampleOptions.value[f.logicalName]
+  return options.some(o=>o.value===chosen)?chosen:options[0]?.value
+}
 const eligibleKeys=computed(()=>table.value?.alternateKeys??[])
 const selectedKey=computed(()=>eligibleKeys.value.find(k=>k.logicalName===keyName.value))
 const selectedFields=computed(()=>eligibleFields.value.filter(f=>selected.value.includes(f.logicalName)))
@@ -103,6 +121,7 @@ const definition=computed<Definition>(()=>({
 const nameValid=computed(()=>/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(endpointName.value))
 const configValid=computed(()=>!!table.value&&nameValid.value&&
   (operation.value==='delete'||selectedFields.value.length>0)&&
+  metadataChoicesMissing.value.length===0 &&
   (operation.value!=='upsert'||!!selectedKey.value))
 const selectedTemplate=computed(()=>definitions.value.find(t=>t.name===endpointName.value))
 const hasCurrentVersion=computed(()=>!!createdVersion.value&&selectedTemplate.value?.history.some(h=>
@@ -118,8 +137,11 @@ const exampleBody=computed(()=>{
   const inputs:Record<string,unknown>={}
   for(const f of selectedFields.value) {
     const kind=fieldType(f)
-    inputs[f.logicalName]=kind==='integer'||kind==='decimal'?0:
-      kind==='boolean'?false:kind==='guid'?'00000000-0000-0000-0000-000000000001':
+    inputs[f.logicalName]=['Picklist','State','Status','EntityName'].includes(f.type)
+      ?chosenValue(f)??null:
+      kind==='integer'||kind==='decimal'?0:
+      kind==='boolean'?false:
+      kind==='guid'?'GUID_REAL_OBTENIDO_CON_QUERY_BUILDER':
       kind==='datetime'?'2026-10-20T12:00:00Z':'VALOR'
   }
   const body:Record<string,unknown>={connectionCode:connection.value,inputs}
@@ -138,6 +160,12 @@ const exampleBody=computed(()=>{
   return body
 })
 const endpoint=computed(()=>base+'/api/dynamics-connector/keyed/templates/'+encodeURIComponent(endpointName.value)+'/execute')
+const schemaEndpoint=computed(()=>base+'/api/dynamics-connector/keyed/templates/'+
+  encodeURIComponent(endpointName.value)+'/schema?connectionCode='+encodeURIComponent(connection.value))
+const schemaCurl=computed(()=>[
+  'curl -X GET '+JSON.stringify(schemaEndpoint.value),
+  "  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>'"
+].join(' \\\n'))
 const sampleCurl=computed(()=>[
   'curl -X POST '+JSON.stringify(endpoint.value),
   "  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>'",
@@ -147,15 +175,19 @@ const sampleCurl=computed(()=>[
 ].join(' \\\n'))
 async function copy(value:string){await navigator.clipboard.writeText(value);success.value='Copiado al portapapeles.'}
 function chooseOperation(op:Operation){
-  if(operation.value!==op){operation.value=op;selected.value=[];keyName.value='';createdVersion.value=null}
+  if(operation.value!==op){operation.value=op;selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null}
 }
-function changeTable(){selected.value=[];keyName.value='';createdVersion.value=null}
+function changeTable(){selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null}
 function back(){if(step.value>1)step.value=(step.value-1) as 1|2|3|4}
 function forward(){
   error.value=''
   if(step.value===1&&!table.value){error.value='Primero seleccioná una tabla habilitada en Catálogo.';return}
   if(step.value===2&&operation.value!=='delete'&&selectedFields.value.length===0){
     error.value='Elegí al menos un campo autorizado.';return
+  }
+  if(step.value===2&&metadataChoicesMissing.value.length){
+    error.value='Primero actualizá Catálogo para descubrir las opciones de: '+
+      metadataChoicesMissing.value.map(f=>f.logicalName).join(', ');return
   }
   if(step.value===2&&operation.value==='upsert'&&!selectedKey.value){
     error.value='Seleccioná una clave alternativa descubierta en Dataverse.';return
@@ -175,7 +207,10 @@ async function refresh(){
     ])
     snapshot.value=meta;policies.value=policy
     definitions.value=summaries;keys.value=keyList
-    if(!tables.value.some(t=>t.logicalName===entity.value))entity.value=tables.value[0]?.logicalName??''
+    if(!tables.value.some(t=>t.logicalName===entity.value)){
+      entity.value=tables.value[0]?.logicalName??''
+      selected.value=[];exampleOptions.value={};createdVersion.value=null
+    }
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo cargar el catálogo.'}
   finally{busy.value=false}
 }
@@ -237,6 +272,7 @@ function inspect(t:Summary){
   endpointName.value=t.name;operation.value=version.definition.operation as Operation
   entity.value=version.definition.entityName
   selected.value=version.definition.mappings.map(m=>m.target)
+  exampleOptions.value={}
   createdVersion.value=version.version
   step.value=4;issued.value=null
 }
@@ -319,6 +355,34 @@ onMounted(refresh)
               <div v-if="!eligibleFields.length" class="crud-info">No existen campos autorizados y compatibles con esta operación.
                 Revisá sus permisos CREATE/UPDATE en Catálogo.</div>
             </div>
+            <div v-if="optionFields.length" class="crud-options-panel">
+              <h4>Opciones reales de Dynamics — sin buscar IDs</h4>
+              <p>Seleccioná la opción por su nombre. Dhole utiliza automáticamente el valor técnico al generar el ejemplo de solicitud.</p>
+              <div class="crud-options-grid">
+                <label v-for="field in optionFields" :key="field.logicalName" class="crud-field">
+                  <span>{{ display(field.labels,field.logicalName) }} · {{ field.type }}</span>
+                  <select :value="chosenValue(field)" @change="event => {
+                    const raw=(event.target as HTMLSelectElement).value;
+                    exampleOptions[field.logicalName]=field.type==='EntityName'?raw:Number(raw)
+                  }">
+                    <option v-for="opt in choicesFor(field)" :key="opt.value" :value="opt.value">
+                      {{ opt.label }}
+                    </option>
+                  </select>
+                  <small v-if="field.type==='EntityName'">
+                    Se envía el nombre lógico de la tabla, no un GUID de registro.
+                  </small>
+                  <small v-else>
+                    Se envía el valor numérico de esta lista de opciones de Dataverse.
+                    {{ choicesFor(field).length }} opciones descubiertas.
+                  </small>
+                </label>
+              </div>
+              <p v-if="metadataChoicesMissing.length" class="crud-error">
+                No se encontraron opciones para {{ metadataChoicesMissing.map(f=>f.logicalName).join(', ') }}.
+                Actualizá los metadatos de esas tablas en Catálogo antes de guardar la API.
+              </p>
+            </div>
             <label v-if="operation==='upsert'" class="crud-field">Clave alternativa de Dataverse
               <select v-model="keyName"><option value="">Seleccionar clave</option>
                 <option v-for="key in eligibleKeys" :key="key.logicalName" :value="key.logicalName">
@@ -337,8 +401,19 @@ onMounted(refresh)
             <small>Ejemplo: crear_oferta. Se usa en la URL; no incluye contraseñas.</small></label>
           <div class="crud-info">Operación <strong>{{ operation.toUpperCase() }}</strong> ·
             Tabla <strong>{{ entity }}</strong> · {{ selectedFields.length }} campos de escritura.</div>
+          <div v-if="optionFields.length" class="crud-info">
+            Las Picklist tienen códigos propios por campo; EntityName utiliza nombres lógicos.
+            Los ejemplos de abajo usan opciones reales del catálogo, nunca IDs inventados.
+          </div>
           <details open class="crud-details">
-            <summary>Esquema de entradas que recibirá la aplicación externa</summary>
+            <summary>Ejemplo de JSON con las opciones que seleccionaste</summary>
+            <pre>{{ JSON.stringify(exampleBody,null,2) }}</pre>
+            <button type="button" class="crud-secondary" @click="copy(JSON.stringify(exampleBody,null,2))">
+              <Copy :size="14"/> Copiar JSON
+            </button>
+          </details>
+          <details class="crud-details">
+            <summary>Ver definición técnica del comando</summary>
             <pre>{{ JSON.stringify(definition,null,2) }}</pre>
           </details>
           <div class="crud-note"><ShieldCheck :size="17"/>
@@ -386,14 +461,30 @@ onMounted(refresh)
             <h4>URL HTTP para Pangolin o cualquier otra aplicación</h4>
             <code class="crud-secret">{{ endpoint }}</code>
             <button type="button" class="crud-secondary" @click="copy(endpoint)"><Copy :size="15"/> Copiar URL</button>
-            <p>La API se consume mediante POST, enviando las cabeceras X-Dhole-Api-Key e Idempotency-Key.</p>
+            <p>La API se consume mediante POST, enviando las cabeceras X-Dhole-Api-Key e Idempotency-Key.
+              Los valores Picklist y EntityName del ejemplo se toman de los metadatos reales.</p>
+            <div class="crud-options-panel">
+              <h4>Consultar opciones desde otra aplicación</h4>
+              <p>Pangolin u otro sistema puede obtener los nombres y los valores permitidos
+                mediante este endpoint GET protegido con la misma clave, sin tener que conocer los IDs.</p>
+              <code class="crud-secret">{{ schemaEndpoint }}</code>
+              <div class="crud-actions">
+                <button type="button" class="crud-secondary" @click="copy(schemaEndpoint)">
+                  <Copy :size="14"/> Copiar URL de opciones
+                </button>
+                <button type="button" class="crud-secondary" @click="copy(schemaCurl)">
+                  <Copy :size="14"/> Copiar cURL de opciones
+                </button>
+              </div>
+            </div>
             <details class="crud-details">
               <summary>Ver y copiar ejemplo cURL (sin secretos reales)</summary>
               <pre>{{ sampleCurl }}</pre>
               <button type="button" class="crud-secondary" @click="copy(sampleCurl)">Copiar cURL</button>
             </details>
             <p v-if="operation==='update'||operation==='delete'">
-              El consumidor debe obtener primero el GUID y ETag actuales del registro.
+              Para UPDATE y DELETE se obtiene el GUID y ETag actuales desde una consulta de lectura
+              (Query Builder); no hay que adivinar el ID del registro.
               La API rechaza una versión desactualizada o un borrado sin motivo.
             </p>
           </div>
@@ -456,6 +547,11 @@ onMounted(refresh)
 .crud-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}.crud-check-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:420px;overflow:auto}
 .crud-check-list label{display:flex;gap:10px;align-items:flex-start;padding:12px;background:var(--dh-card);border:1px solid var(--dh-border);border-radius:10px;cursor:pointer}
 .crud-check-list label:has(input:checked){border-color:var(--dh-primary)}.crud-check-list input{margin-top:3px}.crud-check-list small{display:block;color:var(--dh-text-muted);margin-top:4px}
+.crud-options-panel{margin:16px 0;padding:16px;background:var(--dh-card);border:1px solid var(--dh-border);border-radius:11px}
+.crud-options-panel h4{font-size:14px;margin:0 0 7px}
+.crud-options-panel p{color:var(--dh-text-muted);line-height:1.6}
+.crud-options-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(max-width:700px){.crud-options-grid{grid-template-columns:1fr}}
 .crud-primary,.crud-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 13px;border:1px solid var(--dh-border-strong);border-radius:10px;color:var(--dh-text);background:var(--dh-card);font-weight:750;font-size:11px}
 .crud-primary{background:var(--dh-primary);border-color:var(--dh-primary);color:white}.crud-primary:disabled,.crud-secondary:disabled{opacity:.5;cursor:not-allowed}
 .crud-link{border:0;background:transparent;text-decoration:underline;color:var(--dh-primary);cursor:pointer;font-weight:700}.crud-details{margin:13px 0;padding:14px;border:1px solid var(--dh-border);border-radius:10px}
