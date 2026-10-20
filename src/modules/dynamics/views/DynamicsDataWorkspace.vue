@@ -11,7 +11,7 @@ type Choice = { value: number; labels: Record<string, string> }
 type Column = {
   logicalName: string; type: string; canRead: boolean; canCreate: boolean
   canUpdate: boolean; isCalculated: boolean; labels: Record<string, string>
-  choices: Choice[]; lookupTargets: string[]
+  choices: Choice[]; lookupTargets: string[]; requiredLevel?: string | null
 }
 type Relation = {
   schemaName: string; kind: string; referencedEntity: string | null
@@ -63,6 +63,7 @@ type ApiGrant = { id: string; apiClientId: string; connectionId: string; entityS
   allowedFields: string[]; maxRequestsPerMinute: number; enabled: boolean }
 
 const props = defineProps<{ section: Section; connections: Connection[] }>()
+const emit = defineEmits<{ navigate: [section: Section] }>()
 const auth = useAuthStore()
 const canSecurity = computed(() => auth.hasScope('dynamics.security.admin'))
 const code = ref('')
@@ -102,8 +103,19 @@ const page = ref<Page | null>(null)
 const lastQuery = ref<Query | null>(null)
 const saved = ref<Saved[]>([])
 const savedName = ref('')
-const paramName = ref('value')
+const paramName = ref('valor')
+const saveAsParameter = ref(false)
+const queryStep = ref<1 | 2 | 3 | 4>(1)
+const queryFieldSearch = ref('')
+const queryNameVisible = ref(false)
+const querySteps = ['Tabla', 'Columnas', 'Filtros', 'Revisar y ejecutar'] as const
 const crudMode = ref<'create' | 'update' | 'delete'>('create')
+const crudStep = ref<1 | 2 | 3 | 4>(1)
+const crudFieldSearch = ref('')
+const crudSteps = computed(() => [
+  'Operación', crudMode.value === 'create' ? 'Tabla y campos' : 'Identificar registro',
+  crudMode.value === 'delete' ? 'Revisar borrado' : 'Completar datos', 'Confirmar',
+])
 const recordId = ref('')
 const etag = ref('')
 const writeFields = ref<string[]>([])
@@ -134,6 +146,33 @@ const matchedTables = computed(() => tables.value.filter(t => (
 ).toLowerCase().includes(tableSearch.value.trim().toLowerCase())).slice(0, 200))
 const canWrite = computed(() => canSecurity.value && diagnostics.value !== null && diagnostics.value.productionWritesApproved)
 const canDelete = computed(() => canWrite.value && diagnostics.value?.productionDeletesApproved === true)
+const visibleQueryFields = computed(() => approvedFields.value.filter(f =>
+  (label(f.labels) + ' ' + f.logicalName).toLowerCase().includes(queryFieldSearch.value.trim().toLowerCase())))
+const visibleWriteFields = computed(() => writableFields.value.filter(f =>
+  (label(f.labels) + ' ' + f.logicalName).toLowerCase().includes(crudFieldSearch.value.trim().toLowerCase())))
+const queryReady = computed(() => !!entity.value && columns.value.length > 0 &&
+  columns.value.every(n => approvedFields.value.some(f => f.logicalName === n)))
+const querySummary = computed(() => [
+  (label(activeTable.value?.labels) || activeTable.value?.logicalName || 'Sin tabla'),
+  columns.value.length + ' columnas',
+  filters.value.length ? filters.value.length + ' condiciones (' + (join.value === 'and' ? 'todas' : 'cualquiera') + ')' : 'Sin condiciones',
+  pageSize.value + ' registros por página',
+])
+const queryPreview = computed(() => {
+  try { return { valid: true, data: buildQuery(), error: '' } }
+  catch (e) { return { valid: false, data: null, error: e instanceof Error ? e.message : 'Consulta incompleta.' } }
+})
+const crudPreview = computed(() => {
+  if (crudMode.value === 'delete') return null
+  try { return valuesToWrite() }
+  catch (e) { return { aviso: e instanceof Error ? e.message : 'Campos incompletos.' } }
+})
+const crudSelectedCount = computed(() => writeFields.value.length)
+const canFinishWrite = computed(() =>
+  canWrite.value && !busy.value && !lockedWrite.value && !!activeTable.value &&
+  (crudMode.value === 'create' || (!!etag.value && validGuid(recordId.value))) &&
+  (crudMode.value !== 'delete' || (canDelete.value && !!deletePolicy.value?.enabled &&
+    confirmed.value && deletePhrase.value === 'ELIMINAR' && deleteReason.value.trim().length >= 10)))
 const publicEndpoint = computed(() => {
   const origin = publicOrigin.value.trim().replace(/\/+$/, '')
   const base = origin + '/api/dynamics-connector'
@@ -262,8 +301,51 @@ function resetQuery() {
   columns.value = approvedFields.value.slice(0, 5).map(f => f.logicalName)
   filters.value = []; page.value = null; lastQuery.value = null
   orderField.value = ''; descending.value = false
+  queryStep.value = 1; queryFieldSearch.value = ''; queryNameVisible.value = false
 }
-function changeEntity() { resetQuery(); resetRecord(); void readDeletePolicy() }
+function changeEntity() {
+  resetQuery(); resetRecord()
+  crudStep.value = 1; crudFieldSearch.value = ''
+  void readDeletePolicy()
+}
+function changeCrudMode() { resetRecord(); crudStep.value = 1; crudFieldSearch.value = '' }
+function chooseSuggestedFields() {
+  columns.value = approvedFields.value.slice(0, 5).map(f => f.logicalName)
+}
+function chooseAllReadFields() {
+  columns.value = approvedFields.value.slice(0, 30).map(f => f.logicalName)
+}
+function nextQueryStep() {
+  error.value = ''
+  if (queryStep.value === 1 && !activeTable.value) { error.value = 'Elegí una tabla habilitada.'; return }
+  if (queryStep.value === 2 && !queryReady.value) { error.value = 'Seleccioná al menos una columna autorizada.'; return }
+  if (queryStep.value === 3 && !queryPreview.value.valid) { error.value = queryPreview.value.error; return }
+  if (queryStep.value < 4) queryStep.value = (queryStep.value + 1) as 1 | 2 | 3 | 4
+}
+function nextCrudStep() {
+  error.value = ''
+  if (!activeTable.value) { error.value = 'Elegí una tabla autorizada.'; return }
+  if (crudStep.value === 2 && crudMode.value === 'create' && !writeFields.value.length) {
+    error.value = 'Elegí al menos un campo con permiso de creación.'; return
+  }
+  if (crudStep.value === 2 && crudMode.value !== 'create' && (!etag.value || !validGuid(recordId.value))) {
+    error.value = 'Primero cargá un registro válido para obtener su ETag.'; return
+  }
+  if (crudStep.value === 3 && crudMode.value !== 'delete' && !writeFields.value.length) {
+    error.value = 'Elegí los campos que querés escribir.'; return
+  }
+  if (crudStep.value < 4) crudStep.value = (crudStep.value + 1) as 1 | 2 | 3 | 4
+}
+function addWriteField(name: string) {
+  if (writableFields.value.some(f => f.logicalName === name) && !writeFields.value.includes(name))
+    writeFields.value = [...writeFields.value, name]
+}
+function removeWriteField(name: string) {
+  writeFields.value = writeFields.value.filter(n => n !== name)
+  delete writeValues.value[name]
+  delete navByField.value[name]
+}
+
 async function reload() {
   snapshot.value = null; policies.value = { entities: [], fields: [] }
   page.value = null; saved.value = []; diff.value = null
@@ -468,6 +550,10 @@ function applySaved(item: Saved) {
   const clauses = predicate?.children ?? (predicate?.field ? [predicate as { field: string; op: string; value?: unknown; parameter?: string }] : [])
   filters.value = clauses.map(f => ({ id: ++nextId.value, field: f.field, op: f.op,
     value: f.value === undefined ? '' : String(f.value) }))
+  saveAsParameter.value = item.parameters.length > 0
+  queryNameVisible.value = true
+  savedName.value = item.name
+  queryStep.value = 3
   info.value = 'Consulta cargada. Ingresá los parámetros o filtros antes de ejecutar.'
   error.value = ''
 }
@@ -478,11 +564,11 @@ async function saveQuery() {
     const clauses = filters.value
     const first = clauses[0]
     const field = approvedFields.value.find(f => f.logicalName === first?.field)
-    const param = first && field ? [{
+    const param = saveAsParameter.value && first && field ? [{
       name: paramName.value, type: kind(field), required: true,
     }] : []
-    if (first && !/^[a-z][a-z0-9_]{0,39}$/.test(paramName.value)) throw new Error('Nombre de parámetro inválido.')
-    if (first) {
+    if (param.length && !/^[a-z][a-z0-9_]{0,39}$/.test(paramName.value)) throw new Error('Nombre de parámetro inválido.')
+    if (first && param.length) {
       const predicate = { field: first.field, op: first.op, parameter: paramName.value }
       const more = clauses.slice(1).map(f => {
         const col = approvedFields.value.find(x => x.logicalName === f.field)!
@@ -543,7 +629,8 @@ async function loadRecord() {
       if (value != null && !['Lookup', 'Customer', 'Owner'].includes(f.type))
         writeValues.value[f.logicalName] = String(value)
     }
-    info.value = etag.value ? 'Registro cargado con ETag para control de concurrencia.' : 'Dataverse no devolvió ETag; no se permite modificarlo.'
+    info.value = etag.value ? 'Registro encontrado. El control de versiones ETag está listo.' : 'Dataverse no devolvió ETag; no se permite modificarlo.'
+    if (etag.value) crudStep.value = 3
   })
 }
 async function submitWrite() {
