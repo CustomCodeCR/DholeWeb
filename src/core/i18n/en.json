@@ -1819,6 +1819,14 @@
     "pricingSelects": "Pricing selectors"
   },
   "maerskOperations": {
+    "verifyOriginalSession": "Verify active session",
+    "verifyExplanation": "Verification uses only the persistent Maersk browser of the active generation, never retired prod1. Dhole will show noVNC’s internal port and offer a protected viewer. No rate searches or automatic circuit reset are performed.",
+    "verifyCredential": "Maersk credential",
+    "verifyStart": "Start verification",
+    "viewVerification": "View verification execution",
+    "verifyQueued": "Verification queued. Review its execution and complete sign-in through noVNC.",
+    "verifyFailed": "Original-session verification could not be started.",
+    "verifyMissingCredential": "There is no active Maersk credential.",
     "apiUnavailable": "The existing console remains available, but the recovery API is not yet deployed in this environment. Health and resume actions are disabled.",
     "profileHealth": "Profile health",
     "healthFailed": "Could not load profile health",
