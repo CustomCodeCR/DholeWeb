@@ -6,7 +6,7 @@ import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
 
 type Section = 'catalog' | 'query' | 'crud' | 'security'
-type Connection = { code: string }
+type Connection = { code: string; id?: string }
 type Choice = { value: number; labels: Record<string, string> }
 type Column = {
   logicalName: string; type: string; canRead: boolean; canCreate: boolean
@@ -98,6 +98,7 @@ const writeResult = ref<WriteResult | null>(null)
 const lockedWrite = ref(false)
 const clients = ref<ApiClient[]>([])
 const grants = ref<ApiGrant[]>([])
+const clientForm = ref({ issuer: '', clientId: '', displayName: '', enabled: false })
 const grantClient = ref('')
 const grantOperation = ref<'read' | 'create' | 'update' | 'delete' | 'upsert'>('read')
 const grantFields = ref<string[]>([])
@@ -485,6 +486,26 @@ function editGrant(grant: ApiGrant) {
   grantQuota.value = grant.maxRequestsPerMinute
   grantEnabled.value = grant.enabled
 }
+async function registerClient() {
+  await run(async () => {
+    const x = clientForm.value
+    if (!/^https:\/\//i.test(x.issuer) || !x.clientId.trim() || !x.displayName.trim())
+      throw new Error('Indicá issuer HTTPS, ID del cliente OAuth y nombre.')
+    await api('clients', 'POST', {
+      issuer: x.issuer.trim(), clientId: x.clientId.trim(),
+      displayName: x.displayName.trim(), enabled: x.enabled,
+    })
+    await loadGrants()
+    clientForm.value = { issuer: '', clientId: '', displayName: '', enabled: false }
+    info.value = 'Aplicación M2M registrada. Configurá sus grants antes de habilitar el acceso.'
+  })
+}
+function editClient(client: ApiClient) {
+  clientForm.value = {
+    issuer: client.issuer, clientId: client.clientId,
+    displayName: client.displayName, enabled: client.enabled,
+  }
+}
 async function saveGrant() {
   await run(async () => {
     if (!canSecurity.value || !validGuid(grantClient.value) || !entity.value)
@@ -713,10 +734,23 @@ watch(() => props.section, section => {
           </div>
           <p class="dynamics-subtitle">Una política habilitada no omite la aprobación de producción, los permisos del usuario ni el ETag.</p>
         </div>
+        <div class="dynamics-data-card">
+          <strong>Registrar o modificar cliente OAuth M2M</strong>
+          <div class="dynamics-form-grid">
+            <label class="dynamics-field"><span>Issuer de Microsoft Entra (HTTPS)</span><input v-model.trim="clientForm.issuer" placeholder="https://login.microsoftonline.com/tenant/v2.0"></label>
+            <label class="dynamics-field"><span>Client ID de la aplicación</span><input v-model.trim="clientForm.clientId" placeholder="GUID del cliente OAuth"></label>
+            <label class="dynamics-field"><span>Nombre de la aplicación</span><input v-model.trim="clientForm.displayName" placeholder="Integración de cotizaciones" maxlength="120"></label>
+            <label class="dynamics-check"><input v-model="clientForm.enabled" type="checkbox"> Cliente habilitado</label>
+          </div>
+          <div class="dynamics-tools"><button class="dynamics-primary-button" type="button" :disabled="busy || !clientForm.clientId" @click="registerClient">Guardar cliente M2M</button>
+            <button class="dynamics-outline-button" type="button" @click="clientForm={ issuer:'', clientId:'', displayName:'', enabled:false }">Limpiar</button></div>
+          <p class="dynamics-subtitle">El issuer debe coincidir exactamente con el proveedor OAuth configurado en el conector. Las credenciales se administran en Microsoft Entra, no en el navegador.</p>
+        </div>
         <div class="dynamics-data-card"><div class="dynamics-data-card-top"><strong>Aplicaciones M2M registradas</strong><button class="dynamics-outline-button" type="button" :disabled="busy" @click="run(loadGrants)">Actualizar</button></div>
           <p v-if="!clients.length" class="dynamics-subtitle">No hay aplicaciones M2M registradas. Registralas con el administrador del conector antes de asignar grants.</p>
           <div v-for="client in clients" :key="client.id" class="dynamics-saved-row">
             <div><strong>{{ client.displayName }}</strong><p class="dynamics-subtitle">{{ client.clientId }} · {{ client.enabled ? 'Habilitada' : 'Deshabilitada' }}</p></div>
+            <button type="button" class="dynamics-outline-button" @click="editClient(client)">Editar</button>
           </div>
         </div>
         <div class="dynamics-data-card">
@@ -741,7 +775,7 @@ watch(() => props.section, section => {
           <p class="dynamics-subtitle">Los grants M2M también requieren scopes OAuth válidos y no conceden permisos administrativos de DholeAuth.</p>
         </div>
         <div class="dynamics-data-card"><strong>Grants existentes</strong>
-          <div v-for="grant in grants" :key="grant.id" class="dynamics-saved-row">
+          <div v-for="grant in grants.filter(g => !connections.find(c => c.code === code)?.id || g.connectionId === connections.find(c => c.code === code)?.id)" :key="grant.id" class="dynamics-saved-row">
             <div><strong>{{ grant.entitySet }} · {{ grant.operation.toUpperCase() }}</strong>
               <p class="dynamics-subtitle">{{ grant.allowedFields.join(', ') }} · {{ grant.maxRequestsPerMinute }}/min · {{ grant.enabled ? 'Activo' : 'Inactivo' }}</p></div>
             <button class="dynamics-outline-button" type="button" @click="editGrant(grant)">Editar</button>
