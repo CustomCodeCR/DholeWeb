@@ -1036,8 +1036,10 @@ const inlandDeliveryServiceSelected = computed(() => selectedServices.value.some
   /transporte.*entrega|entrega.*transporte|delivery/.test(inlandServiceName(service)),
 ))
 const inlandServiceLocationsReady = computed(() =>
-  (!inlandPickupServiceSelected.value || Boolean(form.inlandPickupLocation?.address?.trim()))
-  && (!inlandDeliveryServiceSelected.value || Boolean(form.inlandDeliveryLocation?.address?.trim())),
+  (!inlandPickupServiceSelected.value || Boolean(form.inlandPickupLocation?.address?.trim()
+    && form.inlandPickupLocation.latitude != null && form.inlandPickupLocation.longitude != null))
+  && (!inlandDeliveryServiceSelected.value || Boolean(form.inlandDeliveryLocation?.address?.trim()
+    && form.inlandDeliveryLocation.latitude != null && form.inlandDeliveryLocation.longitude != null)),
 )
 function isStorageService(value: string) {
   const normalized = normalizeCatalogValue(value)
