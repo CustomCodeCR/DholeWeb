@@ -6,6 +6,10 @@ const sellerDashboard = readFileSync(
   new URL('../src/modules/dashboard/components/SellerRoleDashboard.vue', import.meta.url),
   'utf8',
 )
+const dashboardView = readFileSync(
+  new URL('../src/modules/dashboard/views/DashboardView.vue', import.meta.url),
+  'utf8',
+)
 const pricingDashboard = readFileSync(
   new URL('../src/modules/dashboard/components/PricingRoleDashboard.vue', import.meta.url),
   'utf8',
@@ -36,8 +40,14 @@ test('Pricing rates page handles status query changes when the view is reused', 
   assert.match(ratesView, /filters\.status = nextStatus\s+applyFilters\(\)/)
 })
 
-test('seller supervision remains read-only and driven by the selected seller', () => {
+test('supervision allows own seller actions without allowing actions on other sellers quotations', () => {
+  assert.match(dashboardView, /:enable-seller-actions="!isSuperUser\(\) && authStore\.hasScope\('pricing\.rate-request\.create'\)"/)
   assert.match(sellerDashboard, /props\.adminPreview && selectedSellerId\.value/)
-  assert.match(sellerDashboard, /v-if="!props\.adminPreview"/)
   assert.match(sellerDashboard, /\/api\/pricing\/seller-rates\/dashboard/)
+  assert.match(sellerDashboard, /\/api\/pricing\/seller-rates'/)
+  assert.match(sellerDashboard, /ownRatesById\.value\.has\(rate\.id\)/)
+  assert.match(sellerDashboard, /ownRequestIds\.value\.has\(request\.id\)/)
+  assert.match(sellerDashboard, /v-if="canActOnRate\(rate\)"/)
+  assert.match(sellerDashboard, /if \(!canActOnRate\(rate\)\) return/)
+  assert.match(sellerDashboard, /Promise\.allSettled/)
 })
