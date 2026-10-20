@@ -14,7 +14,7 @@ import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
 // La vista de administrador es de solo lectura: el servidor valida SuperUsuario/view-all.
-const props = withDefaults(defineProps<{ adminPreview?: boolean }>(), { adminPreview: false })
+const props = withDefaults(defineProps<{ adminPreview?: boolean; enableSellerActions?: boolean }>(), { adminPreview: false, enableSellerActions: false })
 const selectedSellerId = ref('')
 
 interface SellerRateRequestDto {
@@ -62,7 +62,17 @@ const sellerOptions = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
 })
 const rates = ref<RateDto[]>([])
+// En supervisión conservamos la visibilidad global y consultamos por separado
+// las tarifas/solicitudes autorizadas para operar con la identidad actual.
+const ownRates = ref<RateDto[]>([])
+const ownRequests = ref<SellerRateRequestDto[]>([])
+const ownRatesById = computed(() => new Map(ownRates.value.map(rate => [rate.id, rate])))
+const ownRequestIds = computed(() => new Set(ownRequests.value.map(request => request.id)))
 const receivingIds = ref<string[]>([])
+
+function canActOnRate(rate: RateDto): boolean {
+  return !props.adminPreview || (props.enableSellerActions && ownRatesById.value.has(rate.id))
+}
 
 
 // El endpoint seller-rates determina la propiedad por SellerUserId del token, no por texto del vendedor.
@@ -113,7 +123,7 @@ const myRates = computed(() => {
   const allowedRateIds = props.adminPreview && selectedSellerId.value
     ? new Set(requests.value.map((request) => request.rateId).filter(Boolean))
     : null
-  return [...new Map(rates.value.map((rate) => [rate.id, rate])).values()]
+  return [...new Map(rates.value.map((rate) => [rate.id, ownRatesById.value.get(rate.id) ?? rate])).values()]
     .filter((rate) => !allowedRateIds || allowedRateIds.has(rate.id))
 })
 const pendingRequests = computed(() => requests.value.filter((request) =>
@@ -281,7 +291,8 @@ function requestEquipmentLabel(request: SellerRateRequestDto) {
 }
 
 function canEditRequest(request: SellerRateRequestDto) {
-  return !props.adminPreview && request.status === 'Open' && !request.rateId
+  return (!props.adminPreview || (props.enableSellerActions && ownRequestIds.value.has(request.id)))
+    && request.status === 'Open' && !request.rateId
 }
 
 function editRequest(request: SellerRateRequestDto) {
@@ -308,7 +319,7 @@ function routeLabel(rate: RateDto) {
 }
 
 function canRespondToRate(rate: RateDto) {
-  return !rate.revisionPending && ['Sent', 'RequestedByClient'].includes(rate.status)
+  return canActOnRate(rate) && !rate.revisionPending && ['Sent', 'RequestedByClient'].includes(rate.status)
 }
 
 function pendingModification(rate: RateDto): boolean {
@@ -317,7 +328,7 @@ function pendingModification(rate: RateDto): boolean {
 }
 
 function canRequestModification(rate: RateDto): boolean {
-  if (props.adminPreview || rate.revisionPending || ['Cancelled', 'Closed'].includes(rate.status)) return false
+  if (!canActOnRate(rate) || rate.revisionPending || ['Cancelled', 'Closed'].includes(rate.status)) return false
   return Boolean(rate.sellerReceivedAtUtc)
     || ['Sent', 'RequestedByClient', 'AcceptedByClient', 'RejectedByClient', 'Expired'].includes(rate.status)
 }
@@ -331,7 +342,7 @@ function openModification(rate: RateDto) {
 }
 
 function canMarkReceived(rate: RateDto) {
-  return !props.adminPreview
+  return canActOnRate(rate)
     && !rate.revisionPending
     && ['Sent', 'RequestedByClient'].includes(rate.status)
     && !rate.sellerReceivedAtUtc
@@ -358,13 +369,12 @@ async function markReceived(rate: RateDto) {
 }
 
 function openSellerRate(rate: RateDto) {
-  if (!props.adminPreview) {
-    void router.push({ name: 'pricing-seller-rate-detail', params: { rateId: rate.id } })
-  }
+  if (!canActOnRate(rate)) return
+  void router.push({ name: 'pricing-seller-rate-detail', params: { rateId: rate.id } })
 }
 
 function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
-  if (props.adminPreview) return
+  if (!canActOnRate(rate)) return
   modalStore.open({
     title: decision === 'AcceptedByClient'
       ? 'Registrar aceptación del cliente'
@@ -397,6 +407,23 @@ async function load() {
     ])
     allRequests.value = unwrapListResponse<SellerRateRequestDto>(requestResponse)
     rates.value = unwrapListResponse<RateDto>(rateResponse)
+    if (props.adminPreview && props.enableSellerActions) {
+      // La API de supervisión no incluye los datos de recepción ni acredita
+      // titularidad. La API personal resuelve ambas cosas en el servidor.
+      const [ownRequestResult, ownRateResult] = await Promise.allSettled([
+        callEndpoint<unknown>({ method: 'GET', path: '/api/pricing/rate-requests/mine', headers: { Accept: 'application/json' } }),
+        callEndpoint<unknown>({ method: 'GET', path: '/api/pricing/seller-rates', headers: { Accept: 'application/json' } }),
+      ])
+      ownRequests.value = ownRequestResult.status === 'fulfilled'
+        ? unwrapListResponse<SellerRateRequestDto>(ownRequestResult.value) : []
+      ownRates.value = ownRateResult.status === 'fulfilled'
+        ? unwrapListResponse<RateDto>(ownRateResult.value) : []
+      if (ownRequestResult.status === 'rejected' || ownRateResult.status === 'rejected')
+        toast.info('Acciones comerciales limitadas', 'No se pudieron verificar todas sus asignaciones. Intente actualizar el dashboard.')
+    } else {
+      ownRequests.value = props.adminPreview ? [] : allRequests.value
+      ownRates.value = props.adminPreview ? [] : rates.value
+    }
   } catch (error) {
     loadError.value = true
     toast.backendError(error, 'No se pudo cargar el seguimiento comercial del vendedor.')
@@ -622,7 +649,7 @@ onMounted(load)
                 <span class="text-xs text-[var(--dh-text-muted)]">Vigencia hasta {{ formatDate(rate.validTo) }}</span>
                 <strong class="text-sm text-[var(--dh-text)]">{{ money(rate.totalSaleAmount, currencyOf(rate)) }}</strong>
               </div>
-              <div v-if="!props.adminPreview" class="mt-3 flex flex-wrap gap-2">
+              <div v-if="canActOnRate(rate)" class="mt-3 flex flex-wrap gap-2">
                 <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
                 <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
                 <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
@@ -661,7 +688,7 @@ onMounted(load)
                   <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ formatDate(rate.validTo) }}</td>
                   <td class="px-4 py-3"><DhBadge :label="sellerStatusLabel(rate)" :variant="statusVariant(rate)" /></td>
                   <td class="px-4 py-3">
-                    <div v-if="!props.adminPreview" class="flex flex-wrap gap-1.5">
+                    <div v-if="canActOnRate(rate)" class="flex flex-wrap gap-1.5">
                       <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
                       <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
                       <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
@@ -671,7 +698,7 @@ onMounted(load)
                       <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
                       </template>
                     </div>
-                    <span v-else class="whitespace-nowrap text-[11px] text-[var(--dh-text-muted)]">Sin acción pendiente</span>
+                    <span v-else class="whitespace-nowrap text-[11px] text-[var(--dh-text-muted)]">Solo lectura</span>
                   </td>
                 </tr>
               </tbody>
@@ -698,7 +725,7 @@ onMounted(load)
         <div v-else class="overflow-x-auto">
           <table class="w-full min-w-[820px] text-left text-xs">
             <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">
-              <tr><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Origen → Destino</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Solicitada</th><th class="px-4 py-3">Estado</th><th v-if="!props.adminPreview" class="px-4 py-3">Acción</th></tr>
+              <tr><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Origen → Destino</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Solicitada</th><th class="px-4 py-3">Estado</th><th v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">Acción</th></tr>
             </thead>
             <tbody class="divide-y divide-[var(--dh-border)]">
               <tr v-for="request in latestRequests" :key="request.id">
@@ -708,7 +735,7 @@ onMounted(load)
                 <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
                 <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ new Date(request.requestedAtUtc).toLocaleDateString('es-CR') }}</td>
                 <td class="px-4 py-3"><DhBadge :label="requestState(request)" :variant="requestStateVariant(request)" /></td>
-                <td v-if="!props.adminPreview" class="px-4 py-3">
+                <td v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">
                   <DhButton
                     v-if="canEditRequest(request)"
                     label="Editar solicitud"
