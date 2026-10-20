@@ -185,6 +185,27 @@ const serviceList = computed(() => {
   const names = props.serviceLabels.split(',').map((v) => v.trim()).filter(Boolean)
   return names.length ? names : []
 })
+function inlandLocation(kind: 'pickup' | 'delivery') {
+  const enabled = serviceList.value.some(name => kind === 'pickup'
+    ? /transporte.*recole|recole.*transporte|pickup/i.test(name)
+    : /transporte.*entrega|entrega.*transporte|delivery/i.test(name))
+  if (!enabled) return null
+  const saved = raw(kind === 'pickup' ? 'inlandPickupLocation' : 'inlandDeliveryLocation')
+  if (!saved || typeof saved !== 'object') return null
+  const location = saved as Record<string, unknown>
+  const address = String(location.address ?? '').trim()
+  if (!address) return null
+  const latitude = typeof location.latitude === 'number' && Number.isFinite(location.latitude)
+    ? location.latitude : null
+  const longitude = typeof location.longitude === 'number' && Number.isFinite(location.longitude)
+    ? location.longitude : null
+  return {
+    address,
+    coordinates: latitude != null && longitude != null ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` : '',
+  }
+}
+const inlandPickup = computed(() => inlandLocation('pickup'))
+const inlandDelivery = computed(() => inlandLocation('delivery'))
 // Las magnitudes del formulario se conservan normalizadas para los cálculos,
  // pero Ventas debe ver las unidades elegidas al registrar la solicitud.
 const cargoWeightUnit = computed(() => {
@@ -311,7 +332,9 @@ function fileKind(fileName: string): string {
           <dl class="grid gap-3 px-4 pb-4 text-sm sm:grid-cols-2">
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incoterm</dt><dd class="font-bold">{{ incotermLabel || label('incotermCode') }}</dd></div>
             <div><dt class="mb-1 flex items-center gap-1 text-xs font-semibold text-[var(--dh-text-muted)]"><CalendarDays class="h-3.5 w-3.5" /> Carga lista</dt><dd class="font-bold">{{ readyDate }}</dd></div>
-            <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Dirección de recolecta</dt><dd class="break-words font-semibold">{{ label('pickupAddress') }}</dd></div>
+            <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Dirección de recolecta EXW / FCA</dt><dd class="break-words font-semibold">{{ label('pickupAddress') }}</dd></div>
+            <div v-if="inlandPickup"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Transporte de recolección · Ubicación</dt><dd class="break-words font-semibold">{{ inlandPickup.address }}<span v-if="inlandPickup.coordinates" class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ inlandPickup.coordinates }}</span></dd></div>
+            <div v-if="inlandDelivery"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Transporte de entrega · Ubicación</dt><dd class="break-words font-semibold">{{ inlandDelivery.address }}<span v-if="inlandDelivery.coordinates" class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ inlandDelivery.coordinates }}</span></dd></div>
             <div><dt class="mb-1 flex items-center gap-1 text-xs font-semibold text-[var(--dh-text-muted)]"><Warehouse class="h-3.5 w-3.5" /> Almacén / WHS</dt><dd class="font-semibold">{{ firstProvided(label('warehouseName'), label('warehouseLabel')) }}</dd></div>
             <div v-if="!isLand"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Destino final (POD)</dt><dd class="font-semibold">{{ firstProvided(snapshot.podName, podLabel) }}</dd></div>
             <div v-if="!isLand"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Muellaje</dt><dd class="font-semibold">{{ portHandling || 'No indicado' }}</dd></div>
