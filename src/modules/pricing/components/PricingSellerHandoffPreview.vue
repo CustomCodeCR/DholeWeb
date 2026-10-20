@@ -185,9 +185,42 @@ const serviceList = computed(() => {
   const names = props.serviceLabels.split(',').map((v) => v.trim()).filter(Boolean)
   return names.length ? names : []
 })
+// Las magnitudes del formulario se conservan normalizadas para los cálculos,
+ // pero Ventas debe ver las unidades elegidas al registrar la solicitud.
+const cargoWeightUnit = computed(() => {
+  if (!isConsolidated.value) return 'kg'
+  const saved = props.snapshot.sellerContext.cargoWeightInputUnit
+    ?? props.snapshot.form.miamiWeightInputUnit
+  return saved === 'lb' ? 'lb' : 'kg'
+})
+const cargoDimensionInputUnit = computed(() => {
+  if (!isConsolidated.value) return 'cm'
+  const saved = props.snapshot.sellerContext.cargoDimensionInputUnit
+    ?? props.snapshot.form.miamiDimensionInputUnit
+  return saved === 'mm' || saved === 'm' || saved === 'in' ? saved : 'cm'
+})
+function cargoNumericValue(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+function cargoDisplayNumber(value: number): string {
+  return value.toLocaleString('es-CR', { maximumFractionDigits: 4 })
+}
+const cargoWeight = computed(() => {
+  const weightKg = cargoNumericValue(raw('cargoWeightKg'))
+  if (weightKg === null) return 'No indicado'
+  const value = cargoWeightUnit.value === 'lb' ? weightKg * 2.2046226218 : weightKg
+  return cargoDisplayNumber(value) + ' ' + cargoWeightUnit.value
+})
 const measurements = computed(() => {
-  const parts = ['cargoLengthCm', 'cargoWidthCm', 'cargoHeightCm'].map(label)
-  return parts.every((part) => part !== 'No indicado') ? parts.join(' × ') + ' cm' : 'No indicado'
+  const valuesCm = ['cargoLengthCm', 'cargoWidthCm', 'cargoHeightCm']
+    .map((key) => cargoNumericValue(raw(key)))
+  if (valuesCm.some((value) => value === null)) return 'No indicado'
+  const unit = cargoDimensionInputUnit.value
+  const convert = (cm: number) => unit === 'in' ? cm / 2.54
+    : unit === 'm' ? cm / 100 : unit === 'mm' ? cm * 10 : cm
+  return valuesCm.map((value) => cargoDisplayNumber(convert(value!))).join(' × ') + ' ' + unit
 })
 const pickupCards = computed(() => props.snapshot.pickupLocations.map((item, index) => {
   const point = item && typeof item === 'object' ? item as Record<string, unknown> : {}
@@ -311,7 +344,7 @@ function fileKind(fileName: string): string {
                 <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen físico</dt><dd class="font-black text-[var(--dh-text)]">{{ cargoVolume.physical }}</dd></div>
                 <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen cobrable</dt><dd class="font-black text-[var(--dh-primary)]">{{ cargoVolume.chargeable }}</dd></div>
               </template>
-              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Weight class="h-3.5 w-3.5" /> Peso</dt><dd class="font-bold">{{ label('cargoWeightKg') }} kg</dd></div>
+              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Weight class="h-3.5 w-3.5" /> Peso</dt><dd class="font-bold">{{ cargoWeight }}</dd></div>
               <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Ruler class="h-3.5 w-3.5" /> Medidas</dt><dd class="font-bold">{{ measurements }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Valor de la carga</dt><dd class="font-semibold">{{ label('cargoValue') }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">CABYS</dt><dd class="font-semibold">{{ label('cabysCode') }}</dd></div>
