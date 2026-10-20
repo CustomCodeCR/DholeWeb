@@ -10,6 +10,8 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
+import { PricingService } from '@/core/services/pricingService'
+import type { RateDto } from '@/core/interfaces/pricing'
 
 type Priority = 'Green' | 'Yellow' | 'Red'
 type CancellationReason = 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'
@@ -62,6 +64,12 @@ const cancellationReason = ref<CancellationReason>('Duplicate')
 const cancellationDetails = ref('')
 const cancellingRequestId = ref<string | null>(null)
 const claimingRequestId = ref<string | null>(null)
+const recoveryTarget = ref<RateRequestDto | null>(null)
+const recoverySearch = ref('')
+const recoveryRates = ref<RateDto[]>([])
+const recoveryRateId = ref('')
+const recoveryLoading = ref(false)
+const recoverySaving = ref(false)
 const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
 let timer: number | undefined
@@ -263,6 +271,76 @@ async function completeRequest(request: RateRequestDto) {
   }
 }
 
+function openRecovery(request: RateRequestDto) {
+  if (request.status !== 'Open' || isModification(request)
+    || (isLocked(request) && !isOwnLock(request))) return
+  recoveryTarget.value = request
+  recoverySearch.value = ''
+  recoveryRates.value = []
+  recoveryRateId.value = ''
+}
+
+function closeRecovery() {
+  if (recoverySaving.value) return
+  recoveryTarget.value = null
+}
+
+async function searchExistingRates() {
+  if (!recoveryTarget.value || recoveryLoading.value) return
+  const search = recoverySearch.value.trim()
+  if (search.length < 3) {
+    toast.error('Búsqueda requerida', 'Indique al menos tres caracteres del código de la tarifa existente.')
+    return
+  }
+  recoveryLoading.value = true
+  recoveryRateId.value = ''
+  recoveryRates.value = []
+  try {
+    const result = await PricingService.browseRates({ search, pageNumber: 1, pageSize: 20 })
+    recoveryRates.value = result.items || []
+    if (!recoveryRates.value.length) {
+      toast.warning('Sin resultados', 'No se encontraron tarifas. Busque por el código QUO completo.')
+    }
+  } catch (error) {
+    toast.backendError(error, 'No se pudieron consultar las tarifas existentes.')
+  } finally {
+    recoveryLoading.value = false
+  }
+}
+
+function normalizeClient(value?: string | null) {
+  return (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+}
+
+async function confirmRecovery() {
+  const request = recoveryTarget.value
+  const rate = recoveryRates.value.find(candidate => candidate.id === recoveryRateId.value)
+  if (!request || !rate || recoverySaving.value) return
+  if (normalizeClient(request.clientName) && normalizeClient(rate.clientName)
+    && normalizeClient(request.clientName) !== normalizeClient(rate.clientName)) {
+    toast.error('Cliente diferente', 'La tarifa seleccionada pertenece a otro cliente. No se vinculó la solicitud.')
+    return
+  }
+
+  recoverySaving.value = true
+  try {
+    await RateRequestLeaseService.claim(request.id, { recoverOwnLease: isOwnLock(request) })
+    // complete-rate both associates an approved quote and delivers its PDF.
+    // Pending-approval quotes are linked and finalized automatically when approved.
+    await RateRequestLeaseService.completeRate(request.id, rate.id)
+    recoveryTarget.value = null
+    toast.success('Solicitud vinculada', 'Se recuperó la tarifa existente sin crear una cotización duplicada.')
+    await load()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo vincular la tarifa existente. La solicitud no se completó.')
+    await load()
+  } finally {
+    await RateRequestLeaseService.release(request.id).catch(() => undefined)
+    recoverySaving.value = false
+  }
+}
+
 const cancellationReasons: { value: CancellationReason; label: string }[] = [
   { value: 'Duplicate', label: 'Solicitud duplicada' },
   { value: 'CustomerCancelled', label: 'Cancelada por el cliente' },
@@ -426,6 +504,11 @@ onBeforeUnmount(() => {
                   <PlayCircle class="h-4 w-4" />
                   {{ claimingRequestId === request.id ? 'Abriendo…' : isOwnLock(request) ? 'Retomar mi trabajo' : isLocked(request) ? 'En proceso' : isModification(request) ? 'Revisar cambios' : 'Continuar tarifa' }}
                 </DhButton>
+                <DhButton v-if="!isModification(request) && !request.rateId" variant="secondary"
+                  :disabled="(isLocked(request) && !isOwnLock(request)) || Boolean(completingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)"
+                  @click="openRecovery(request)">
+                  Vincular existente
+                </DhButton>
                 <DhButton variant="secondary" :disabled="isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="completeRequest(request)">
                   <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : isModification(request) ? 'Enviar revisión' : 'Marcar completada' }}
                 </DhButton>
@@ -493,6 +576,52 @@ onBeforeUnmount(() => {
                 @click="confirmCancellation"
               >
                 <Ban class="h-4 w-4" /> {{ cancellingRequestId ? 'Cancelando…' : 'Confirmar cancelación' }}
+              </DhButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    <Teleport to="body">
+      <div v-if="recoveryTarget" data-dh-overlay="modal"
+        class="fixed inset-0 z-[150] flex items-center justify-center bg-black/65 p-2 sm:p-4"
+        @click.self="closeRecovery">
+        <div role="dialog" aria-modal="true" aria-labelledby="recover-rate-request-title"
+          class="dh-glass dh-liquid flex max-h-[calc(100dvh-1rem)] w-full max-w-xl flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] shadow-2xl">
+          <div class="dh-scrollbar min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6">
+            <h3 id="recover-rate-request-title" class="text-xl font-black">Vincular una tarifa ya creada</h3>
+            <p class="text-sm text-[var(--dh-text-muted)]">
+              Solicitud de <strong>{{ recoveryTarget.clientName }}</strong>.
+              Busque la tarifa existente por su código QUO y verifique el cliente y la ruta antes de vincularla.
+              No se creará una segunda cotización.
+            </p>
+            <div class="flex gap-2">
+              <input v-model="recoverySearch" type="search" placeholder="Ej. QUO-00000-000319"
+                class="min-w-0 flex-1 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm text-[var(--dh-text)]"
+                :disabled="recoveryLoading || recoverySaving" @keydown.enter.prevent="searchExistingRates" />
+              <DhButton :disabled="recoveryLoading || recoverySaving" @click="searchExistingRates">
+                {{ recoveryLoading ? 'Buscando…' : 'Buscar' }}
+              </DhButton>
+            </div>
+            <div v-if="recoveryRates.length" class="max-h-64 space-y-2 overflow-y-auto">
+              <label v-for="rate in recoveryRates" :key="rate.id"
+                class="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm">
+                <input v-model="recoveryRateId" type="radio" :value="rate.id" name="recovery-rate"
+                  :disabled="recoverySaving" class="mt-1" />
+                <span class="min-w-0">
+                  <strong class="block">{{ rate.quoNumber || rate.rateCode }}</strong>
+                  <span class="block">{{ rate.clientName || 'Cliente sin definir' }}</span>
+                  <span class="block text-xs text-[var(--dh-text-muted)]">
+                    {{ rate.status }} · {{ rate.originName || rate.polName || 'Origen' }} →
+                    {{ rate.poeName || rate.destinationName || 'Destino' }}
+                  </span>
+                </span>
+              </label>
+            </div>
+            <div class="flex flex-wrap justify-end gap-2">
+              <DhButton variant="secondary" :disabled="recoverySaving" @click="closeRecovery">Cancelar</DhButton>
+              <DhButton :disabled="!recoveryRateId || recoverySaving || recoveryLoading" @click="confirmRecovery">
+                {{ recoverySaving ? 'Vinculando…' : 'Confirmar vinculación' }}
               </DhButton>
             </div>
           </div>
