@@ -94,6 +94,7 @@ const modificationKeys = [
   'cargoValue', 'cargoWeightKg', 'cargoPackages', 'cargoPallets',
   'cargoLengthCm', 'cargoWidthCm', 'cargoHeightCm', 'storageDays',
   'cargoDescription', 'pickupAddress', 'warehouseId',
+  'inlandPickupLocation', 'inlandDeliveryLocation',
 ] as const
 const modificationFieldLabels: Record<string, string> = {
   modality: 'Modalidad', shipmentMode: 'Tipo de embarque', originId: 'POL / Origen',
@@ -107,13 +108,33 @@ const modificationFieldLabels: Record<string, string> = {
   cargoLengthCm: 'Largo (cm)', cargoWidthCm: 'Ancho (cm)',
   cargoHeightCm: 'Alto (cm)', storageDays: 'Almacenaje',
   cargoDescription: 'Descripción', pickupAddress: 'Recolección', warehouseId: 'Bodega',
+  inlandPickupLocation: 'Ubicación transporte de recolección',
+  inlandDeliveryLocation: 'Ubicación transporte de entrega',
 }
 function modificationComparable(value: unknown) {
   if (value == null) return ''
   if (Array.isArray(value)) return [...value].map(String).sort().join('|')
+  if (typeof value === 'object') {
+    const location = value as { address?: string; latitude?: number | null; longitude?: number | null }
+    if (!location.address?.trim() && location.latitude == null && location.longitude == null) return ''
+    return JSON.stringify({
+      address: String(location.address ?? '').trim(),
+      latitude: location.latitude ?? null,
+      longitude: location.longitude ?? null,
+    })
+  }
   return String(value).trim()
 }
 function modificationDisplay(key: string, value: unknown, isOriginal: boolean) {
+  if ((key === 'inlandPickupLocation' || key === 'inlandDeliveryLocation')
+    && value && typeof value === 'object') {
+    const location = value as { address?: string; latitude?: number | null; longitude?: number | null }
+    const address = String(location.address ?? '').trim()
+    if (!address) return '—'
+    return location.latitude != null && location.longitude != null
+      ? `${address} (${Number(location.latitude).toFixed(5)}, ${Number(location.longitude).toFixed(5)})`
+      : address
+  }
   const raw = modificationComparable(value)
   if (!raw) return '—'
   const names = isOriginal ? sellerModificationSource.value?.names : undefined
