@@ -1819,6 +1819,14 @@
     "pricingSelects": "Selectores de Pricing"
   },
   "maerskOperations": {
+    "verifyOriginalSession": "Verificar sesión activa",
+    "verifyExplanation": "La verificación usa exclusivamente el navegador persistente de la generación activa de Maersk; nunca utiliza prod1 si está retirado. Al iniciar, Dhole mostrará el puerto interno de noVNC y permitirá abrir el visor protegido. No consulta tarifas ni libera automáticamente el circuito.",
+    "verifyCredential": "Credencial de Maersk",
+    "verifyStart": "Iniciar verificación",
+    "viewVerification": "Ver ejecución de verificación",
+    "verifyQueued": "Verificación iniciada. Revise la ejecución y complete el acceso en noVNC.",
+    "verifyFailed": "No se pudo iniciar la verificación de la sesión activa.",
+    "verifyMissingCredential": "No hay credenciales activas para Maersk.",
     "apiUnavailable": "La consola básica sigue disponible, pero la API de recuperación aún no está activada en este ambiente. Las acciones de salud y reanudación permanecerán deshabilitadas.",
     "profileHealth": "Ver salud",
     "healthFailed": "No se pudo consultar la salud del perfil",
