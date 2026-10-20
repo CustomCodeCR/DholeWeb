@@ -250,7 +250,7 @@ async function submitSellerModification() {
   if (!inlandServiceLocationsReady.value) {
     step.value = 3
     toastStore.error('Ubicación de transporte requerida',
-      'Complete la dirección y seleccione el punto en el mapa para los servicios de recolección y entrega.')
+      'Complete la dirección de los servicios de recolección y entrega. Ubicarlos en el mapa es opcional.')
     return
   }
   const originalDocumentIds = (source.supportDocuments ?? []).map(document => document.id).sort().join('|')
