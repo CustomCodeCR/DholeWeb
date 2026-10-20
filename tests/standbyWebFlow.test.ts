@@ -114,3 +114,13 @@ test('breaker verification displays actual active Worker generation and authenti
   assert.match(agentService, /\/maersk-circuit\/\{\{providerId\}\}\/viewer\/access/)
   assert.doesNotMatch(maerskOperationsView, /el navegador persistente original de prod1/)
 })
+
+test('standby viewer is teleported above the app with asynchronous inspection feedback', () => {
+  assert.match(view, /<Teleport to="body">/)
+  assert.match(view, /z-\[9999\]/)
+  assert.match(view, /standbyInspectionMessage\(activeStandbyViewer\.generation\)/)
+  assert.match(view, /lastStandbyInspectionAt/)
+  assert.match(view, /Comprobación enviada/)
+  assert.match(view, /standby_hub_not_authenticated/)
+  assert.match(view, /if \(canManage\.value && !document\.hidden && !standbyBusy\.value && !activeStandbyViewer\.value\)/)
+})
