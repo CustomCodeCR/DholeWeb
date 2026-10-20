@@ -87,7 +87,7 @@ async function save(){
       body:{name:name.value,triggerCode:trigger.value,templateName:templateName.value,
         mappings:preview.value.map(v=>({inputName:v.input,pricingField:v.from}))}
     })
-    existing.value=await fetchClient<Automation[]>(url('/event-automations'))
+    existing.value=await fetchClient<Automation[]>(url('/event-automations'), { method: 'GET' })
     info.value='Regla guardada como borrador. No se ha activado ni enviado ninguna escritura a Dynamics.'
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo guardar el borrador.'}
   finally{busy.value=false}
