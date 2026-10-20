@@ -40,23 +40,63 @@ const loading = ref(false)
 const exporting = ref(false)
 const search = ref('')
 const status = ref<StatusFilter>('All')
+const month = ref('')
+const seller = ref('')
+const unassignedSeller = '__unassigned__'
 const labels: Record<CommercialStatus, string> = {
   Sent: 'Enviadas', AcceptedByClient: 'Aceptadas', RejectedByClient: 'No aceptadas',
 }
 const statuses: CommercialStatus[] = ['Sent', 'AcceptedByClient', 'RejectedByClient']
-const filtered = computed(() => {
+const monthOptions = computed(() =>
+  [...new Set(rows.value
+    .map((row) => row.createdAtUtc?.slice(0, 7))
+    .filter((value): value is string => Boolean(value && /^\d{4}-\d{2}$/.test(value))))]
+    .sort((a, b) => b.localeCompare(a))
+    .map((value) => ({
+      value,
+      label: new Intl.DateTimeFormat('es-CR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+        .format(new Date(`${value}-01T12:00:00Z`)),
+    })),
+)
+const sellerOptions = computed(() => {
+  const sellers = new Map<string, string>()
+  for (const row of rows.value) {
+    const name = row.executiveName?.trim()
+    if (name) sellers.set(name.toLocaleLowerCase('es'), name)
+  }
+  return [...sellers.values()].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
+})
+const hasUnassignedSeller = computed(() => rows.value.some((row) => !row.executiveName?.trim()))
+const filteredWithoutStatus = computed(() => {
   const needle = search.value.trim().toLocaleLowerCase('es')
+  const selectedSeller = seller.value.toLocaleLowerCase('es')
   return rows.value.filter((row) =>
-    (status.value === 'All' || status.value === row.status) &&
+    (!month.value || row.createdAtUtc?.slice(0, 7) === month.value) &&
+    (!selectedSeller ||
+      (selectedSeller === unassignedSeller
+        ? !row.executiveName?.trim()
+        : row.executiveName?.trim().toLocaleLowerCase('es') === selectedSeller)) &&
     (!needle || [
       row.rateCode, row.quoNumber, row.idtraNumber, row.clientName, row.executiveName,
       row.polName, row.poeName, row.podName, row.containerTypeName,
     ].filter(Boolean).join(' ').toLocaleLowerCase('es').includes(needle)),
   )
 })
+const filtered = computed(() => filteredWithoutStatus.value.filter((row) =>
+  status.value === 'All' || status.value === row.status,
+))
 const count = (state: StatusFilter) => state === 'All'
-  ? rows.value.length
-  : rows.value.filter((row) => row.status === state).length
+  ? filteredWithoutStatus.value.length
+  : filteredWithoutStatus.value.filter((row) => row.status === state).length
+const hasActiveFilters = computed(() =>
+  Boolean(month.value || seller.value || search.value.trim() || status.value !== 'All'),
+)
+function clearFilters() {
+  month.value = ''
+  seller.value = ''
+  status.value = 'All'
+  search.value = ''
+}
 const filterOptions = computed(() => [
   { key: 'All' as StatusFilter, label: 'Todas', count: count('All') },
   ...statuses.map((key) => ({ key: key as StatusFilter, label: labels[key], count: count(key) })),
@@ -74,11 +114,13 @@ const amount = (value: number, currency: string) =>
 function date(value?: string | null) {
   if (!value) return '—'
   const timestamp = new Date(value)
-  return Number.isNaN(timestamp.getTime()) ? value : new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium' }).format(timestamp)
+  return Number.isNaN(timestamp.getTime()) ? value : new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeZone: 'UTC' }).format(timestamp)
 }
 function reportQuery() {
   const params = new URLSearchParams()
   if (status.value !== 'All') params.set('status', status.value)
+  if (month.value) params.set('month', month.value)
+  if (seller.value) params.set('seller', seller.value)
   if (search.value.trim()) params.set('search', search.value.trim())
   const query = params.toString()
   return query ? '?' + query : ''
@@ -154,7 +196,40 @@ onMounted(load)
     </div>
 
     <section class="rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
+          Mes
+          <select
+            v-model="month"
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+          >
+            <option value="">Todos los meses</option>
+            <option v-for="item in monthOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
+          Vendedor
+          <select
+            v-model="seller"
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+          >
+            <option value="">Todos los vendedores</option>
+            <option v-for="name in sellerOptions" :key="name" :value="name">{{ name }}</option>
+            <option v-if="hasUnassignedSeller" :value="unassignedSeller">Sin vendedor indicado</option>
+          </select>
+        </label>
+        <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
+          Estado
+          <select
+            v-model="status"
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+          >
+            <option value="All">Todos los estados</option>
+            <option v-for="state in statuses" :key="state" :value="state">{{ labels[state] }}</option>
+          </select>
+        </label>
+      </div>
+      <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <label class="flex min-w-0 flex-1 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
           Buscar por cotización, cliente, vendedor o ruta
           <input
@@ -162,7 +237,16 @@ onMounted(load)
             class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
           />
         </label>
-        <p class="text-sm font-bold text-[var(--dh-text-muted)]">{{ filtered.length }} cotizaciones</p>
+        <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+          <button
+            type="button" :disabled="!hasActiveFilters"
+            class="rounded-xl border border-[var(--dh-border)] px-3 py-2.5 text-sm font-semibold text-[var(--dh-text)] transition hover:border-[var(--dh-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+            @click="clearFilters"
+          >
+            Limpiar filtros
+          </button>
+          <p class="whitespace-nowrap text-sm font-bold text-[var(--dh-text-muted)]">{{ filtered.length }} cotizaciones</p>
+        </div>
       </div>
 
       <div v-if="totals.length" class="mt-4 flex flex-wrap gap-3">
