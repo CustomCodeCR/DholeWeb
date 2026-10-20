@@ -28,6 +28,11 @@ const saving = ref(false)
 const authenticatingId = ref<string | null>(null)
 const verifyingProfileId = ref<string | null>(null)
 const verificationExecutionId = ref<string | null>(null)
+const verificationGeneration = ref<string | null>(null)
+const verificationNoVncPort = ref<number | null>(null)
+const verificationProviderId = ref<string | null>(null)
+const verificationViewer = ref<{ generation: string; url: string; internalPort: number } | null>(null)
+const viewerLoading = ref(false)
 const repairingId = ref<string | null>(null)
 const repairProfile = ref<BrowserProfileDto | null>(null)
 const selectedProfile = ref<BrowserProfileDto | null>(null)
@@ -235,8 +240,8 @@ async function authenticate(row: BrowserProfileDto) {
     authenticatingId.value = row.id
     if (isMaerskProfile(row)) {
       // Merely setting LoginRequired does not launch Chromium. This dedicated
-      // API queues exactly one operator-initiated authentication-only job in
-      // the registered original profile, even if its legacy name contains prod1.
+      // The API queues a manual authentication-only job in the registered
+      // profile of the active generation. Retired generations are never reused.
       const verification = await AgentService.maerskOperations.verifyOriginalSession(
         row.providerId, row.credentialId,
       )
@@ -245,6 +250,10 @@ async function authenticate(row: BrowserProfileDto) {
       }
       verifyingProfileId.value = row.id
       verificationExecutionId.value = verification.executionId
+      verificationGeneration.value = verification.activeGeneration
+      verificationNoVncPort.value = verification.noVncPort
+      verificationProviderId.value = row.providerId
+      verificationViewer.value = null
       toastStore.success(t('agent.browserProfiles.verifyQueued'), row.name)
     } else {
       await AgentService.authenticateBrowserProfile(row.id)
@@ -255,6 +264,34 @@ async function authenticate(row: BrowserProfileDto) {
     toastStore.backendError(error, t('agent.errors.authenticateProfile'))
   } finally {
     authenticatingId.value = null
+  }
+}
+
+async function openVerificationViewer() {
+  if (!verificationProviderId.value || !verificationExecutionId.value ||
+      !verificationGeneration.value || viewerLoading.value) return
+  viewerLoading.value = true
+  try {
+    const access = await AgentService.maerskOperations.openActiveViewer(
+      verificationProviderId.value, verificationExecutionId.value,
+    )
+    if (access.generation !== verificationGeneration.value ||
+        (activeGeneration.value && access.generation !== activeGeneration.value))
+      throw new Error('La generación activa cambió. Iniciá una nueva verificación.')
+
+    const base = new URL(String(import.meta.env.VITE_API_URL || window.location.origin), window.location.origin)
+    const destination = new URL(access.url, base)
+    if (destination.origin !== base.origin ||
+        !destination.pathname.startsWith('/api/agents/runtime-generations/authentication/' +
+          access.generation + '/viewer/'))
+      throw new Error('La dirección del visor no es válida.')
+    verificationViewer.value = {
+      generation: access.generation, url: destination.href, internalPort: access.internalPort,
+    }
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo abrir noVNC de la generación activa.')
+  } finally {
+    viewerLoading.value = false
   }
 }
 
@@ -354,14 +391,16 @@ onUnmounted(() => {
       <p class="font-bold text-[var(--dh-text)]">{{ t('agent.browserProfiles.manualSessionTitle') }}</p>
       <p class="mt-1 text-[var(--dh-text-muted)]">
         {{ t('agent.browserProfiles.manualSessionGuide') }}
+        Generación: <strong>{{ verificationGeneration }}</strong>.
+        Puerto interno noVNC: <strong>{{ verificationNoVncPort ?? 'No disponible' }}</strong>.
+        No está publicado en el host; el acceso se realiza mediante el visor protegido de Dhole.
       </p>
       <div class="mt-2 flex flex-wrap items-center gap-3">
-        <a
-          href="http://localhost:6080/vnc.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="font-semibold text-[var(--dh-primary)] underline"
-        >{{ t('agent.browserProfiles.openLocalNovnc') }}</a>
+        <DhButton
+          :label="'Abrir noVNC de ' + (verificationGeneration ?? 'la generación activa')"
+          variant="secondary" :loading="viewerLoading" :disabled="viewerLoading"
+          @click="openVerificationViewer"
+        />
         <RouterLink
           :to="`/agents/executions/${verificationExecutionId}`"
           class="font-semibold text-[var(--dh-primary)] underline"
@@ -595,5 +634,18 @@ onUnmounted(() => {
         </div>
       </dl>
     </DhModal>
+    <div v-if="verificationViewer" class="fixed inset-0 z-[100] flex flex-col bg-[var(--dh-surface)]">
+      <div class="flex items-center justify-between gap-4 border-b border-[var(--dh-border)] p-3">
+        <div class="text-sm font-semibold">
+          Maersk · {{ verificationViewer.generation }} · noVNC puerto interno {{ verificationViewer.internalPort }}
+          <p class="text-xs font-normal text-[var(--dh-text-muted)]">
+            Ventana autorizada de verificación de la sesión activa; no libera automáticamente el breaker.
+          </p>
+        </div>
+        <DhButton label="Cerrar visor" variant="secondary" @click="verificationViewer = null" />
+      </div>
+      <iframe :src="verificationViewer.url" title="noVNC del Worker Maersk activo"
+        class="min-h-0 w-full flex-1 border-0" />
+    </div>
   </div>
 </template>
