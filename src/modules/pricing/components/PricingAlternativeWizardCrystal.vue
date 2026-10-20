@@ -3497,11 +3497,11 @@ async function hydrateExistingRate() {
     for (const line of rateLines.value) {
       if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
     }
-    mergeConfiguredOptionalCostsIntoRateLines()
     // The same Release can arrive twice from different catalog CostIds.
-    // Keep a single identical line in the wizard and omit the redundant persisted
-    // detail on the next edit/save (removedExtraDetailIds uses the original snapshot).
+    // Omitting an equivalent persisted row from rateLines causes edit/save to
+    // remove the redundant detail via removedExtraDetailIds.
     rateLines.value = dedupeEquivalentReleaseLines(rateLines.value)
+    mergeConfiguredOptionalCostsIntoRateLines()
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
