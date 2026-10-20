@@ -52,3 +52,17 @@ test('saved request and modification review preserve the inland addresses', () =
   assert.match(amendments, /'inlandPickupLocation', 'inlandDeliveryLocation'/)
   assert.match(amendments, /Ubicación transporte de entrega/)
 })
+
+
+test('EXW pickup action appears before a separate optional map toolbar', () => {
+  const exwSection = wizard.slice(wizard.indexOf('v-model="form.pickupAddress"'))
+  const addAction = exwSection.indexOf('@click="savePickupLocation"')
+  const mapSection = exwSection.indexOf('Ubicación en mapa (opcional)')
+  const geocodeAction = exwSection.indexOf('@click="geocodePickupAddress')
+  const map = exwSection.indexOf('<PricingInteractiveOsmMap')
+  assert.ok(addAction >= 0 && mapSection > addAction)
+  assert.ok(geocodeAction > mapSection && map > geocodeAction)
+  assert.match(exwSection.slice(0, mapSection), /Agregar la recolecta es obligatorio para continuar/)
+  assert.match(exwSection.slice(mapSection, map), /No es necesario usar el mapa para agregar la recolecta/)
+  assert.match(exwSection.slice(mapSection, map), /@click="useCurrentLocation"/)
+})
