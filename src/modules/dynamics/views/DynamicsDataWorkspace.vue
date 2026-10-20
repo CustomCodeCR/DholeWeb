@@ -119,7 +119,9 @@ const grantAllowedFields = computed(() => {
   if (grantOperation.value === 'delete') return [activeTable.value.primaryIdAttribute]
   if (grantOperation.value === 'upsert')
     return activeTable.value.columns.filter(f => fieldAllowed(f, 'create') && fieldAllowed(f, 'update')).map(f => f.logicalName)
-  return activeTable.value.columns.filter(f => fieldAllowed(f, grantOperation.value)).map(f => f.logicalName)
+  const operation: 'read' | 'create' | 'update' =
+    grantOperation.value === 'create' ? 'create' : grantOperation.value === 'update' ? 'update' : 'read'
+  return activeTable.value.columns.filter(f => fieldAllowed(f, operation)).map(f => f.logicalName)
 })
 
 function label(labels: Record<string, string> | undefined) {
