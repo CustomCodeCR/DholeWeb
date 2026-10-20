@@ -366,6 +366,22 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   }`,
     'discard incomplete legacy amendment drafts')
 
+  // When updating an already-generated quote for a reserved modification,
+  // stay in the wizard instead of redirecting to the rate list. The worker
+  // must still complete the linked request from the comparison screen.
+  const saveRateStart = code.indexOf('async function saveRate() {')
+  const savedRateNavigation = saveRateStart >= 0
+    ? code.indexOf("    await router.push({ name: 'pricing-rates' })", saveRateStart) : -1
+  if (savedRateNavigation < 0) throw new Error('[pricingSellerModificationWizard] Rate save navigation not found')
+  const stayInRevision = `
+    if (props.rateId && new URLSearchParams(window.location.search).has('modificationRequestId')) {
+      toastStore.success('Tarifa guardada', 'La nueva revisión está guardada. Regrese al comparativo para enviar la revisión al vendedor.')
+      await hydrateExistingRate()
+      return
+    }
+`
+  code = code.slice(0, savedRateNavigation) + stayInRevision + code.slice(savedRateNavigation)
+
   const comparisonPanel = `
     <section v-if="pricingModificationWorkItem" class="crystal-soft space-y-3 border border-amber-400/30 p-4 md:p-5">
       <h3 class="font-black">Comparativo de la solicitud de Ventas</h3>
