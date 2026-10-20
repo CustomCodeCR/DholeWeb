@@ -472,6 +472,12 @@ export interface PricingRateDashboardItemDto extends Record<string, unknown> {
   createdByUserId?: string | null
   createdByUserName?: string | null
   createdByDisplayName?: string | null
+  reviewedByUserId?: string | null
+  reviewedByUserName?: string | null
+  reviewedByDisplayName?: string | null
+  lastModifiedByUserId?: string | null
+  lastModifiedByUserName?: string | null
+  lastModifiedByDisplayName?: string | null
   clientName?: string | null
   executiveName?: string | null
   carrierName?: string | null
@@ -868,6 +874,12 @@ export interface RateDto extends Record<string, unknown> {
   createdByUserId?: string | null
   createdByUserName?: string | null
   createdByDisplayName?: string | null
+  reviewedByUserId?: string | null
+  reviewedByUserName?: string | null
+  reviewedByDisplayName?: string | null
+  lastModifiedByUserId?: string | null
+  lastModifiedByUserName?: string | null
+  lastModifiedByDisplayName?: string | null
   closedReason?: string | null
   closedAtUtc?: string | null
   closedBy?: string | null
