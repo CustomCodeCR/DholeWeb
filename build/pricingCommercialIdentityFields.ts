@@ -119,8 +119,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `      rateId = await PricingService.createRate(createPayload)\n      toastStore.success('Tarifa creada correctamente.')`,
-    `      rateId = await PricingService.createRate(createPayload)\n      await verifyCreatedRatePersistence(rateId, createPayload)\n      toastStore.success('Tarifa creada correctamente.')`,
+    `      rateId = await PricingService.createRate(createPayload)`,
+    `      rateId = await PricingService.createRate(createPayload)\n      await verifyCreatedRatePersistence(rateId, createPayload)`,
     'created rate persistence verification',
   )
 
