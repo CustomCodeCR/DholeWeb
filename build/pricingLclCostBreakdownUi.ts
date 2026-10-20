@@ -10,6 +10,25 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
   return source.replace(anchor, replacement)
 }
 
+/**
+ * Preserve all route dependencies, including Miami/Moín's poeCode/poeName.
+ * The watcher can evolve without breaking the Vite build on exact text anchors.
+ */
+export function patchOwnLclRoutePreviewWatcher(source: string): string {
+  const watchers = [...source.matchAll(/watch\(\s*\(\)\s*=>\s*\[([^\]\n]*)\],\s*\(\)\s*=>\s*void load\(\),\s*\)/g)]
+  if (watchers.length !== 1) {
+    throw new Error('[pricingLclCostBreakdownUi] Expected exactly one own-LCL route preview watcher anchor, found ' + watchers.length + '.')
+  }
+
+  const original = watchers[0][0]
+  const dependencies = watchers[0][1].split(',').map((value) => value.trim()).filter(Boolean)
+  for (const required of ['props.chargeableVolumeUnit', 'props.incotermCode', 'props.requestedCbm']) {
+    if (!dependencies.includes(required)) dependencies.push(required)
+  }
+  const replacement = 'watch(\n  () => [' + dependencies.join(', ') + '],\n  () => void load(),\n)'
+  return replaceOne(source, original, replacement, 'own-LCL route preview watcher')
+}
+
 export function pricingLclCostBreakdownUi(): Plugin {
   return {
     name: 'dhole-pricing-lcl-cost-breakdown-ui',
@@ -76,25 +95,7 @@ export function pricingLclCostBreakdownUi(): Plugin {
       const cellReplacement = `<template #cell-cost="{ row }">\n          <div v-if="ownPreview(row)" class="space-y-0.5 text-right">\n            <p class="font-black">Costo flete USD {{ money(ownFreightRateDisplay(row, ownPreview(row)?.freightCostPerCbm)) }} / {{ ownFreightUnit(row) }}</p>\n            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Ocean {{ money(ownFreightRateDisplay(row, ownPreview(row)?.baseOceanCostPerCbm)) }} / {{ ownFreightUnit(row) }} · Origen +{{ money(ownFreightRateDisplay(row, ownPreview(row)?.originSurchargePerCbm)) }}</p>\n            <p v-if="isMiamiOwnLclRow(row)" class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Matriz Miami: Manejos, Forwarding, HBL, Bunker y THC/D se agregan como cargos separados del flete marítimo.</p>\n            <p v-else-if="ownPreview(row)?.destinationCode === 'CR'" class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Ruta CR incluida en flete: Destino {{ money(ownPreview(row)?.destinationCostPerCbm) }} · Traslado {{ money(ownPreview(row)?.routeTransferCostPerCbm) }}</p>\n            <p v-else-if="ownPreview(row)?.destinationCode !== 'PA'" class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Cargos de destino separados; no forman parte del costo del flete marítimo.</p>\n            <p v-else class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Destination Charge y cargos Panamá se agregan por separado.</p>\n            <p class="text-[10px] font-black text-[var(--dh-primary)]">Venta flete USD {{ money(ownFreightRateDisplay(row, ownPreview(row)?.recommendedSalePerCbm)) }} / {{ ownFreightUnit(row) }}</p>\n          </div>\n          <div v-else class="space-y-0.5 text-right">\n            <p class="font-black">Ocean USD {{ money(n(row.oceanFreight) / Math.max(n(row.maximumCbm), 1)) }}</p>\n            <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Calculando flete para la ruta seleccionada…</p>\n          </div>\n        </template>`
       code = replaceOne(code, cellAnchor, cellReplacement, 'selected own-LCL route breakdown')
 
-      const legacyRouteWatcherAnchor = `watch(() => [props.polId, props.poeId, props.podId, props.incotermId, props.quoteDate], () => void load())`
-      const routeAwareWatcherAnchor = `watch(
-  () => [props.modality, props.polId, props.polCode, props.polName, props.poeId, props.podId, props.incotermId, props.destinationLabel, props.quoteDate],
-  () => void load(),
-)`
-      const routeWatcherReplacement = `watch(
-  () => [props.modality, props.chargeableVolumeUnit, props.polId, props.polCode, props.polName, props.poeId, props.podId, props.destinationLabel, props.incotermId, props.incotermCode, props.quoteDate, props.requestedCbm],
-  () => void load(),
-)`
-      if (code.includes(routeAwareWatcherAnchor)) {
-        code = code.replace(routeAwareWatcherAnchor, routeWatcherReplacement)
-      } else {
-        code = replaceOne(
-          code,
-          legacyRouteWatcherAnchor,
-          routeWatcherReplacement,
-          'own-LCL route preview watcher',
-        )
-      }
+      code = patchOwnLclRoutePreviewWatcher(code)
 
       code = replaceOne(
         code,
