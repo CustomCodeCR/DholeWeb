@@ -338,6 +338,34 @@ onMounted(() => { void loadPricingModificationWorkItem() })
     "{{ saving ? 'Guardando…' : sellerModificationRateId ? 'Solicitar modificación a Pricing' : sellerEditRequestId ? 'Guardar cambios' : 'Enviar solicitud a Pricing' }}",
     'seller save button')
 
+  // Older browser drafts were saved with a single empty cargo placeholder.
+  // Reject those drafts so they cannot overwrite the original LTL/LCL rows
+  // just hydrated from Pricing when the amendment page opens.
+  code = once(code,
+    'async function restorePricingDraft() {\\n  if (!pricingDraftEnabled.value) return'.replace('\\n', '\n'),
+    `async function restorePricingDraft() {
+  if (!pricingDraftEnabled.value) return
+  if (props.sellerModificationRateId && consolidatedCargoMode.value) {
+    try {
+      const raw = localStorage.getItem(pricingDraftStorageKey.value)
+      if (raw) {
+        const draft = JSON.parse(raw) as { consolidatedCargoLines?: ConsolidatedCargoLineUi[] }
+        const stored = sellerModificationSource.value?.sellerContext?.consolidatedCargoLines ?? []
+        const lines = draft.consolidatedCargoLines ?? []
+        if (stored.length && (!lines.length || !lines.some(line =>
+          Number(line.length) > 0 || Number(line.width) > 0
+          || Number(line.height) > 0 || Number(line.weightKg) > 0))) {
+          clearPricingDraft(false)
+          return
+        }
+      }
+    } catch {
+      clearPricingDraft(false)
+      return
+    }
+  }`,
+    'discard incomplete legacy amendment drafts')
+
   const comparisonPanel = `
     <section v-if="pricingModificationWorkItem" class="crystal-soft space-y-3 border border-amber-400/30 p-4 md:p-5">
       <h3 class="font-black">Comparativo de la solicitud de Ventas</h3>
