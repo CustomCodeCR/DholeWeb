@@ -411,7 +411,7 @@ onMounted(() => { void loadPricingModificationWorkItem() })
       <div class="max-h-80 overflow-auto rounded-xl border border-[var(--dh-border)]">
         <table class="w-full min-w-[660px] text-left text-sm">
           <thead><tr><th class="p-3">Cambio</th><th class="p-3">Cotización original</th><th class="p-3">Solicitado por Ventas</th></tr></thead>
-          <tbody><tr v-for="(change, index) in pricingModificationChanges :key="index" class="border-t border-[var(--dh-border)]">
+          <tbody><tr v-for="(change, index) in pricingModificationChanges" :key="index" class="border-t border-[var(--dh-border)]">
             <td class="p-3 font-bold">{{ change.action }} · {{ change.field }}</td>
             <td class="p-3 text-[var(--dh-text-muted)]">{{ change.original }}</td>
             <td class="p-3 font-semibold">{{ change.requested }}</td>
