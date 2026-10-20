@@ -1,5 +1,8 @@
 import { VIEW_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapListResponse } from '@/core/api/apiResponse'
+import type { RateDto } from '@/core/interfaces/pricing'
 import { UsersService } from '@/core/services/usersService'
 import { RolesService } from '@/core/services/rolesService'
 import { ScopesService } from '@/core/services/scopesService'
@@ -49,7 +52,45 @@ export async function searchGlobalRecords(
   if (query.length < 2) return { records: [], failedSources: 0 }
 
   const page = { pageNumber: 1, pageSize: SEARCH_PAGE_SIZE, search: query }
+  const hasSellerAccess = hasScope('pricing.rate-request.create')
+  const hasPricingOperatorAccess = [
+    'pricing.rate.create',
+    'pricing.rate.update',
+    'pricing.rate.delete',
+    'pricing.rate.approve-low-margin',
+    'pricing.rate.approve-freight',
+    'pricing.import-fcl-rate.review',
+    'pricing.import-fcl-rate.approve',
+    'pricing.import-fcl-rate.reject',
+    'pricing.import-fcl-rate.create-as-rate',
+  ].some(hasScope)
+  const restrictedSeller = hasSellerAccess && !hasPricingOperatorAccess
+    && !hasScope('pricing.rate-request.view-all')
   const sources: SearchSource[] = [
+    // Sellers do not have access to the generic /pricing/rates browse endpoint.
+    // Their issued quotes must be searchable through the owner-scoped API.
+    {
+      scope: 'pricing.rate-request.create',
+      run: async () => {
+        const response = await callEndpoint<unknown>({
+          method: 'GET',
+          path: '/api/pricing/seller-rates',
+          headers: { Accept: 'application/json' },
+        })
+        return unwrapListResponse<RateDto>(response)
+          .filter((rate) => matchesQuery(query,
+            rate.quoNumber, rate.idtraNumber, rate.rateCode,
+            rate.clientName, rate.executiveName, rate.polName, rate.poeName, rate.podName))
+          .slice(0, SEARCH_PAGE_SIZE)
+          .map((rate) => ({
+            id: `rate:${rate.id}`,
+            title: rate.quoNumber || rate.rateCode,
+            description: [rate.clientName, rate.polName, rate.poeName, rate.podName].filter(Boolean).join(' · '),
+            category: rate.revisionPending ? 'Tarifa en modificación' : 'Tarifa / cotización',
+            path: `/pricing/seller-rates/${encodeURIComponent(rate.id)}`,
+          }))
+      },
+    },
     {
       scope: VIEW_SCOPES.pricingRates,
       run: async () => {
@@ -216,7 +257,8 @@ export async function searchGlobalRecords(
     },
   ]
 
-  const permitted = sources.filter((source) => hasScope(source.scope))
+  const permitted = sources.filter((source) => hasScope(source.scope)
+    && !(restrictedSeller && source.scope === VIEW_SCOPES.pricingRates))
   const settled = await Promise.allSettled(permitted.map((source) => source.run()))
   let failedSources = 0
   const records: GlobalSearchRecord[] = []
