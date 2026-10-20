@@ -146,7 +146,7 @@ const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
 const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isAir = computed(() => props.modality === 'Air')
-const ownPoeEligible = computed(() => !isAir.value && isBalboaOwnLclPoe(props.poeCode, props.poeName))
+const ownPoeEligible = computed(() => !isAir.value && (isBalboaOwnLclPoe(props.poeCode, props.poeName) || [props.polCode, props.polName].some((value) => /^(?:USMIA|MIA|MIAMI)$/i.test(String(value ?? '').trim()))))
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
   { key: 'source', label: 'Consolidado', width: '220px' },
@@ -369,6 +369,7 @@ function ownConsolidationSupportsPoe(row: OwnLclConsolidationDto) {
   // Algunos registros heredados no indican POE, pero solo pueden usarse
   // cuando el POE elegido para la cotización sea Balboa.
   if (!ownPoeEligible.value) return false
+  if ([row.polCode, row.polName].some((value) => canonicalOwnLclOrigin(value) === 'miami')) return true
   if (!row.poeId && !row.poeCode && !row.poeName) return true
   if (props.poeId && row.poeId && String(props.poeId) === String(row.poeId)) return true
   return isBalboaOwnLclPoe(row.poeCode, row.poeName)
@@ -475,7 +476,7 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateL
 
 async function chooseOwn(row: OwnLclConsolidationDto) {
   if (!ownPoeEligible.value || !ownConsolidationSupportsPoe(row) || !ownConsolidationSupportsPol(row)) {
-    error.value = 'El consolidado propio solo está disponible para cotizaciones con POE Balboa, Panamá.'
+    error.value = 'El consolidado propio no corresponde al origen o ruta seleccionados.'
     return
   }
   const destination = destinationCode()
@@ -654,7 +655,7 @@ function updateCbm(value: string | number | null) {
 }
 
 watch(
-  () => [props.modality, props.polId, props.polCode, props.polName, props.poeId, props.podId, props.incotermId, props.destinationLabel, props.quoteDate],
+  () => [props.modality, props.polId, props.polCode, props.polName, props.poeId, props.poeCode, props.poeName, props.podId, props.incotermId, props.destinationLabel, props.quoteDate],
   () => void load(),
 )
 
