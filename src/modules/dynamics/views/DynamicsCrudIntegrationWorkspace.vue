@@ -106,7 +106,11 @@ const configValid=computed(()=>!!table.value&&nameValid.value&&
   (operation.value!=='upsert'||!!selectedKey.value))
 const selectedTemplate=computed(()=>definitions.value.find(t=>t.name===endpointName.value))
 const hasCurrentVersion=computed(()=>!!createdVersion.value&&selectedTemplate.value?.history.some(h=>
-  h.version===createdVersion.value && JSON.stringify(h.definition)===JSON.stringify(definition.value)))
+  h.version===createdVersion.value &&
+  h.definition.entityName===definition.value.entityName &&
+  h.definition.operation===definition.value.operation &&
+  JSON.stringify(h.definition.inputs)===JSON.stringify(definition.value.inputs) &&
+  JSON.stringify(h.definition.mappings)===JSON.stringify(definition.value.mappings)))
 const active=computed(()=>hasCurrentVersion.value&&selectedTemplate.value?.activeVersion===createdVersion.value)
 const exampleBody=computed(()=>{
   const inputs:Record<string,unknown>={}
@@ -132,14 +136,16 @@ const exampleBody=computed(()=>{
   return body
 })
 const endpoint=computed(()=>base+'/api/dynamics-connector/keyed/templates/'+encodeURIComponent(endpointName.value)+'/execute')
-const sampleCurl=computed(()=>'curl -X POST \\\n  '+JSON.stringify(endpoint.value)+' \\\n'+
-  "  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>' \\\n"+
-  "  -H 'Idempotency-Key: <IDENTIFICADOR_UNICO_POR_OPERACION>' \\\n"+
-  "  -H 'Content-Type: application/json' \\\n"+
-  "  --data '"+JSON.stringify(exampleBody.value)+"'")
+const sampleCurl=computed(()=>[
+  'curl -X POST '+JSON.stringify(endpoint.value),
+  "  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>'",
+  "  -H 'Idempotency-Key: <IDENTIFICADOR_UNICO_POR_OPERACION>'",
+  "  -H 'Content-Type: application/json'",
+  "  --data '"+JSON.stringify(exampleBody.value)+"'"
+].join(' \\\n'))
 async function copy(value:string){await navigator.clipboard.writeText(value);success.value='Copiado al portapapeles.'}
 function chooseOperation(op:Operation){
-  if(operation.value!==op){operation.value=op;selected.value=[];keyName='';createdVersion.value=null}
+  if(operation.value!==op){operation.value=op;selected.value=[];keyName.value='';createdVersion.value=null}
 }
 function changeTable(){selected.value=[];keyName.value='';createdVersion.value=null}
 function back(){if(step.value>1)step.value=(step.value-1) as 1|2|3|4}
