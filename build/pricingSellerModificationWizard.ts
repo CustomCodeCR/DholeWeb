@@ -247,6 +247,12 @@ async function hydrateSellerModificationSource() {
 async function submitSellerModification() {
   const source = sellerModificationSource.value
   if (!source || saving.value) return
+  if (!inlandServiceLocationsReady.value) {
+    step.value = 3
+    toastStore.error('Ubicación de transporte requerida',
+      'Complete la dirección y seleccione el punto en el mapa para los servicios de recolección y entrega.')
+    return
+  }
   const originalDocumentIds = (source.supportDocuments ?? []).map(document => document.id).sort().join('|')
   const requestedDocumentIds = supportDocuments.value.map(document => document.id).sort().join('|')
   const changedHandling = sellerPortHandlingMode.value !== (source.sellerContext?.portHandlingMode || '')
