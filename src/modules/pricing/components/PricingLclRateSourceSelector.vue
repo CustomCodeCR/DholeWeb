@@ -15,7 +15,7 @@ import {
   type LclColoaderRateLineDto,
 } from '@/core/services/lclRateSourceService'
 import type { ChargeBasis, CostDetailType, CostType } from '@/core/interfaces/pricing'
-import { isBalboaOwnLclPoe } from '@/modules/pricing/utils/ownLclPoeEligibility'
+import { isBalboaOwnLclPoe, isMiamiOwnLclPol, isMoinOwnLclPoe, isOwnLclPoeEligible } from '@/modules/pricing/utils/ownLclPoeEligibility'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
@@ -146,7 +146,7 @@ const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
 const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isAir = computed(() => props.modality === 'Air')
-const ownPoeEligible = computed(() => !isAir.value && (isBalboaOwnLclPoe(props.poeCode, props.poeName) || [props.polCode, props.polName].some((value) => /^(?:USMIA|MIA|MIAMI)$/i.test(String(value ?? '').trim()))))
+const ownPoeEligible = computed(() => !isAir.value && isOwnLclPoeEligible(props.polCode, props.polName, props.poeCode, props.poeName))
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
   { key: 'source', label: 'Consolidado', width: '220px' },
@@ -366,10 +366,15 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
 }
 
 function ownConsolidationSupportsPoe(row: OwnLclConsolidationDto) {
-  // Algunos registros heredados no indican POE, pero solo pueden usarse
-  // cuando el POE elegido para la cotización sea Balboa.
   if (!ownPoeEligible.value) return false
-  if ([row.polCode, row.polName].some((value) => canonicalOwnLclOrigin(value) === 'miami')) return true
+  // La matriz Miami utiliza Moín; algunos consolidados conservan el POE
+  // operativo anterior. Validar el POE solicitado antes de ofrecerlos.
+  if (isMiamiOwnLclPol(row.polCode, row.polName)) {
+    return isMiamiOwnLclPol(props.polCode, props.polName)
+      && isMoinOwnLclPoe(props.poeCode, props.poeName)
+  }
+  // China mantiene su regla exclusiva de Balboa.
+  if (!isBalboaOwnLclPoe(props.poeCode, props.poeName)) return false
   if (!row.poeId && !row.poeCode && !row.poeName) return true
   if (props.poeId && row.poeId && String(props.poeId) === String(row.poeId)) return true
   return isBalboaOwnLclPoe(row.poeCode, row.poeName)
