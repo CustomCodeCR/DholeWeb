@@ -168,9 +168,15 @@ const crudPreview = computed(() => {
   catch (e) { return { aviso: e instanceof Error ? e.message : 'Campos incompletos.' } }
 })
 const crudSelectedCount = computed(() => writeFields.value.length)
+const crudPreviewValid = computed(() => {
+  if (crudMode.value === 'delete') return true
+  try { valuesToWrite(); return true }
+  catch { return false }
+})
 const canFinishWrite = computed(() =>
   canWrite.value && !busy.value && !lockedWrite.value && !!activeTable.value &&
   (crudMode.value === 'create' || (!!etag.value && validGuid(recordId.value))) &&
+  (crudMode.value === 'delete' || (writeFields.value.length > 0 && crudPreviewValid.value)) &&
   (crudMode.value !== 'delete' || (canDelete.value && !!deletePolicy.value?.enabled &&
     confirmed.value && deletePhrase.value === 'ELIMINAR' && deleteReason.value.trim().length >= 10)))
 const publicEndpoint = computed(() => {
@@ -499,6 +505,27 @@ function parseValue(f: Column, raw: string): unknown {
     return date.toISOString()
   }
   return raw
+}
+function filterInputType(fieldName: string): 'text' | 'number' | 'datetime-local' {
+  const field = approvedFields.value.find(f => f.logicalName === fieldName)
+  if (!field) return 'text'
+  const type = kind(field)
+  return type === 'datetime' ? 'datetime-local' : type === 'integer' || type === 'decimal' ? 'number' : 'text'
+}
+function filterOperators(fieldName: string) {
+  const field = approvedFields.value.find(f => f.logicalName === fieldName)
+  const type = field ? kind(field) : 'string'
+  return type === 'string'
+    ? [{ value: 'eq', label: 'Es igual a' }, { value: 'ne', label: 'Es diferente de' },
+       { value: 'contains', label: 'Contiene' }]
+    : type === 'boolean' || type === 'guid'
+      ? [{ value: 'eq', label: 'Es igual a' }, { value: 'ne', label: 'Es diferente de' }]
+      : [{ value: 'eq', label: 'Es igual a' }, { value: 'ne', label: 'Es diferente de' },
+         { value: 'gt', label: 'Es mayor que' }, { value: 'ge', label: 'Es mayor o igual que' },
+         { value: 'lt', label: 'Es menor que' }, { value: 'le', label: 'Es menor o igual que' }]
+}
+function filterFieldChanged(f: Filter) {
+  f.op = 'eq'; f.value = ''
 }
 function validGuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
