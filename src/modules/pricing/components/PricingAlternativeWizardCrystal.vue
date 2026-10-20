@@ -358,6 +358,7 @@ const form = reactive({
   carrierHaulage: false,
   manualName: '',
   manualSection: 'destination_charges' as RateSection,
+  manualChargeBasis: '' as ChargeBasis | '',
 })
 
 const pickupLocations = ref<RatePickupLocationDto[]>([])
@@ -1945,12 +1946,12 @@ function isFlatPickupLine(line: RateLine) {
 }
 
 function effectiveChargeBasisForLine(line: RateLine): ChargeBasis {
-  return isFlatPickupLine(line) ? 'PerShipment' : line.chargeBasis
+  return !line.manual && isFlatPickupLine(line) ? 'PerShipment' : line.chargeBasis
 }
 
 function quantityForRateLine(line: RateLine) {
   // A recolecta is one flat service, never a CBM/CFT multiple.
-  if (isFlatPickupLine(line)) return 1
+  if (!line.manual && isFlatPickupLine(line)) return 1
 
   const explicitQuantity = number((line as RateLine & { quantityOverride?: number | null }).quantityOverride)
 
@@ -2001,6 +2002,26 @@ function chargeBasisLabel(basis: ChargeBasis) {
     PerDocument: 'Por documento',
   } as Record<ChargeBasis, string>)[basis]
 }
+
+const manualChargeBasisOptions = ([
+  'PerShipment',
+  'PerService',
+  'PerContainer',
+  'PerTruck',
+  'PerTeu',
+  'PerPickup',
+  'PerCbm',
+  'PerChargeableCbm',
+  'PerCft',
+  'PerChargeableCft',
+  'PerKg',
+  'Per100Kg',
+  'PerTon',
+  'PerPallet',
+  'PerPackage',
+  'PerDocument',
+] as ChargeBasis[]).map((value) => ({ value, label: chargeBasisLabel(value) }))
+
 
 function costContextLabel(cost: CostSelectDto) {
   const parts: string[] = []
@@ -2620,7 +2641,8 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
 function addManualCharge() {
   const name = form.manualName.trim()
   const currency = selectedCurrency.value
-  if (!name || !currency) return
+  const chargeBasis = form.manualChargeBasis
+  if (!name || !currency || !chargeBasis) return
   const detailType = sectionForManual(form.manualSection)
   rateLines.value.push({
     key: `manual:${crypto.randomUUID()}`,
@@ -2628,7 +2650,7 @@ function addManualCharge() {
     name,
     costDetailType: detailType,
     costType: 'Variable',
-    chargeBasis: defaultChargeBasis(detailType),
+    chargeBasis,
     currencyId: currency.id,
     currencyName: displayValue(currency),
     currencyCode: currency.code,
@@ -2639,6 +2661,7 @@ function addManualCharge() {
     manual: true,
   })
   form.manualName = ''
+  form.manualChargeBasis = ''
 }
 
 function selectDefaultService() {
@@ -4540,6 +4563,7 @@ function resetWizard() {
     carrierHaulage: false,
     manualName: '',
     manualSection: 'destination_charges',
+    manualChargeBasis: '',
   })
 }
 
@@ -5546,6 +5570,7 @@ onMounted(async () => {
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                   Rubro: {{ detailTypeLabel(line.costDetailType) }} · Moneda: {{ line.currencyName }} · {{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}
                 </p>
+                <DhSelect v-if="line.manual" v-model="line.chargeBasis" class="mt-2" label="Base de cobro" :options="manualChargeBasisOptions" />
                 <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
                 <button
                   v-if="group.key === 'freight' && selectedImportRate"
@@ -5626,6 +5651,7 @@ onMounted(async () => {
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                     {{ sectionLabel(line.section) }} · Rubro: {{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}
                   </p>
+                  <DhSelect v-if="line.manual" v-model="line.chargeBasis" class="mt-2" label="Base de cobro" :options="manualChargeBasisOptions" />
         <p v-if="line.contextLabel" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ line.contextLabel }}</p>
         <div v-if="line.notes" class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-left">
           <span class="block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Comentario de Costos y recargos</span>
@@ -5668,10 +5694,11 @@ onMounted(async () => {
 
             <div>
               <p class="mb-3 text-sm font-black">Agregar rubro manual</p>
-              <div class="grid gap-3 md:grid-cols-[1fr_220px_auto]">
+              <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_200px_210px_auto]">
                 <DhInput v-model="form.manualName" label="Nombre del rubro" />
                 <DhSelect v-model="form.manualSection" label="Etapa" :options="visibleSections.map((value) => ({ value, label: sectionLabel(value) }))" />
-                <DhButton class="md:mt-6" variant="secondary" :disabled="!form.manualName.trim()" @click="addManualCharge"><Plus class="h-4 w-4" /> Añadir rubro</DhButton>
+                <DhSelect v-model="form.manualChargeBasis" label="Base de cobro" placeholder="Seleccione la base" :options="manualChargeBasisOptions" />
+                <DhButton class="md:mt-6" variant="secondary" :disabled="!form.manualName.trim() || !form.manualChargeBasis" @click="addManualCharge"><Plus class="h-4 w-4" /> Añadir rubro</DhButton>
               </div>
             </div>
           </div>
