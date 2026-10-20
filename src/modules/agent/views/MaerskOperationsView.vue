@@ -41,6 +41,11 @@ async function refreshGenerationContext() {
       }),
     ])
     activeGeneration.value = unwrapApiResponse<{ activeGeneration: string }>(ownerResponse as never).activeGeneration
+    if (verificationGeneration.value && verificationGeneration.value !== activeGeneration.value) {
+      verificationExecutionId.value = null
+      verificationGeneration.value = null
+      activeVerificationViewer.value = null
+    }
     const auth = unwrapApiResponse<Array<{
       generation: string; status: string; accountVerifiedAtUtc?: string | null
     }>>(authResponse as never)
@@ -66,6 +71,10 @@ const verifying = ref(false)
 const availableCredentials = ref<AgentCredentialDto[]>([])
 const selectedCredentialId = ref('')
 const verificationExecutionId = ref<string | null>(null)
+const verificationGeneration = ref<string | null>(null)
+const verificationNoVncPort = ref<number | null>(null)
+const activeVerificationViewer = ref<{ generation: string; url: string; internalPort: number } | null>(null)
+const viewerLoading = ref(false)
 const acknowledgingId = ref<string | null>(null)
 const confirmOpen = ref(false)
 const operatorReason = ref('')
@@ -197,7 +206,7 @@ async function confirmReset() {
       )) {
       resetProfileConflict.value = true
       confirmOpen.value = false
-      toast.error('No se puede liberar todavía: falta comprobar el perfil original de Maersk o revisar un perfil registrado como bloqueado.')
+      toast.error('No se puede liberar todavía: la generación activa no tiene una sesión de Maersk verificada después del bloqueo, o existe un perfil activo bloqueado.')
       await refresh()
     } else {
       toast.backendError(error, t('maerskOperations.resetFailed'))
@@ -235,6 +244,9 @@ async function confirmSessionVerification() {
     )
     if (!result.verificationOnly || !result.executionId) throw new Error(t('maerskOperations.verifyFailed'))
     verificationExecutionId.value = result.executionId
+    verificationGeneration.value = result.activeGeneration
+    verificationNoVncPort.value = result.noVncPort
+    activeVerificationViewer.value = null
     verifyOpen.value = false
     toast.success(t('maerskOperations.verifyQueued'))
     await refresh()
@@ -242,6 +254,34 @@ async function confirmSessionVerification() {
     toast.backendError(error, t('maerskOperations.verifyFailed'))
   } finally {
     verifying.value = false
+  }
+}
+
+async function openVerificationViewer() {
+  if (!details.value || !verificationExecutionId.value || !verificationGeneration.value || viewerLoading.value) return
+  viewerLoading.value = true
+  try {
+    const access = await AgentService.maerskOperations.openActiveViewer(
+      details.value.providerId, verificationExecutionId.value,
+    )
+    if (access.generation !== verificationGeneration.value ||
+        (activeGeneration.value && access.generation !== activeGeneration.value)) {
+      throw new Error('La generación activa cambió. Iniciá una nueva verificación antes de abrir noVNC.')
+    }
+    const base = new URL(String(import.meta.env.VITE_API_URL || window.location.origin), window.location.origin)
+    const destination = new URL(access.url, base)
+    if (destination.origin !== base.origin ||
+        !destination.pathname.startsWith('/api/agents/runtime-generations/authentication/' +
+          access.generation + '/viewer/')) {
+      throw new Error('La dirección de noVNC no es válida.')
+    }
+    activeVerificationViewer.value = {
+      generation: access.generation, url: destination.href, internalPort: access.internalPort,
+    }
+  } catch (error) {
+    toast.backendError(error, 'No se pudo abrir noVNC del Worker activo. Revisá el estado de la ejecución.')
+  } finally {
+    viewerLoading.value = false
   }
 }
 
@@ -480,16 +520,15 @@ onUnmounted(() => {
         <div v-if="resetHelpVisible"
           class="mt-4 rounded-xl border border-amber-600/40 bg-[var(--dh-card)] p-4" role="status">
           <p class="text-sm font-semibold text-[var(--dh-text)]">
-            Antes de liberar el circuito: verificar la sesión original
+            Antes de liberar el circuito: verificar la generación activa
           </p>
           <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
-            Aunque {{ activeGeneration ?? 'la generación activa' }} tenga una verificación independiente,
-            el circuito global de Maersk conserva su propia restricción. La sesión de otro
-            entorno no equivale a una autenticación original comprobada.
-            Marcar «Verificado con proveedor» no sustituye ese resultado.
+            La verificación debe ejecutarse únicamente en {{ activeGeneration ?? 'el Worker activo' }}.
+            No se utilizan perfiles de generaciones retiradas. La sesión debe autenticarse
+            después del bloqueo y confirmar el acceso autorizado con Maersk.
           </p>
           <p v-if="!activeProfiles.length" class="mt-2 text-sm text-amber-600">
-            No hay perfiles originales registrados en el listado. Usá «Verificar sesión original»
+            No hay perfiles de la generación activa registrados. Usá «Verificar sesión activa»
             para preparar una verificación con la credencial autorizada.
           </p>
           <p v-else-if="visibleAuthenticatedProfiles.length === 0" class="mt-2 text-sm text-amber-600">
@@ -509,10 +548,10 @@ onUnmounted(() => {
           <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
             Incluso si un perfil figura como Authenticated, el backend debe verificar que
             su último inicio de sesión sea posterior al bloqueo. No se libera el circuito
-            si otro perfil original activo permanece bloqueado o vencido.
+            si otro perfil de la generación activa permanece bloqueado o vencido.
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <DhButton v-if="canReset" label="Verificar sesión original ahora"
+            <DhButton v-if="canReset" label="Verificar sesión activa ahora"
               :icon="ShieldCheck" variant="secondary" :disabled="verifying"
               :loading="verifying" @click="requestSessionVerification" />
             <RouterLink to="/agents/browser-profiles"
@@ -525,8 +564,19 @@ onUnmounted(() => {
           </div>
           <RouterLink v-if="verificationExecutionId" :to="'/agents/executions/' + verificationExecutionId"
             class="mt-3 inline-block text-sm font-semibold text-[var(--dh-primary)] underline">
-            Consultar resultado de la verificación original
+            Consultar resultado de la verificación activa
           </RouterLink>
+        </div>
+        <div v-if="verificationExecutionId" class="mt-4 rounded-xl border border-[var(--dh-border)] p-3 text-sm">
+          <strong>noVNC del Worker activo: {{ verificationGeneration }}</strong>
+          <p class="mt-1 text-[var(--dh-text-muted)]">
+            Puerto interno noVNC: <strong>{{ verificationNoVncPort ?? 'No disponible' }}</strong>.
+            Este puerto no está publicado directamente en el host; ingresá mediante el visor protegido de Dhole.
+            La ventana de autenticación es temporal y no libera el breaker automáticamente.
+          </p>
+          <DhButton label="Abrir noVNC de la generación activa" :icon="ShieldCheck"
+            variant="secondary" :loading="viewerLoading" :disabled="viewerLoading"
+            @click="openVerificationViewer" />
         </div>
         <div class="mt-4 flex flex-wrap items-center gap-2">
           <DhButton v-if="canReset && circuit?.requiresOperator"
@@ -732,10 +782,10 @@ onUnmounted(() => {
           {{ t('maerskOperations.resetExplanation') }}
         </p>
         <p v-if="circuit?.requiresOperator" class="text-sm text-amber-600">
-          Este cambio solo funciona después de comprobar una sesión original de
+          Este cambio solo funciona después de comprobar la sesión del Worker activo de
           Maersk posterior al bloqueo y corregir los perfiles activos no autorizados.
         </p>
-        <DhButton v-if="circuit?.requiresOperator" label="Comprobar perfil original primero"
+        <DhButton v-if="circuit?.requiresOperator" label="Comprobar generación activa primero"
           :icon="ShieldCheck" variant="secondary" :disabled="resetting || verifying"
           @click="verifyFromReset" />
         <DhInput v-model="operatorReason" :label="t('maerskOperations.operatorReason')" :disabled="resetting" />
@@ -752,5 +802,18 @@ onUnmounted(() => {
         </div>
       </form>
     </DhModal>
+    <div v-if="activeVerificationViewer" class="fixed inset-0 z-[100] flex flex-col bg-[var(--dh-surface)]">
+      <div class="flex items-center justify-between gap-4 border-b border-[var(--dh-border)] p-3">
+        <div class="text-sm font-semibold">
+          Maersk · {{ activeVerificationViewer.generation }} · noVNC puerto interno {{ activeVerificationViewer.internalPort }}
+          <p class="text-xs font-normal text-[var(--dh-text-muted)]">
+            Sesión protegida del Worker activo. Ingresá legítimamente a Maersk; no se omiten controles del proveedor.
+          </p>
+        </div>
+        <DhButton label="Cerrar visor" variant="secondary" @click="activeVerificationViewer = null" />
+      </div>
+      <iframe :src="activeVerificationViewer.url" title="noVNC Maersk del Worker activo"
+        class="min-h-0 w-full flex-1 border-0" />
+    </div>
   </section>
 </template>
