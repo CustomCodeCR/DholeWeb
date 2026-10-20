@@ -65,6 +65,11 @@ type ApiOperation = 'saved' | 'search' | 'get' | 'create' | 'update' | 'delete' 
 type ApiClient = { id: string; issuer: string; clientId: string; displayName: string; enabled: boolean }
 type ApiGrant = { id: string; apiClientId: string; connectionId: string; entitySet: string; operation: string;
   allowedFields: string[]; maxRequestsPerMinute: number; enabled: boolean }
+type IntegrationKeyInfo = {
+  id: string; queryName: string; label: string; enabled: boolean; expiresAt: string
+  maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null
+}
+type IntegrationKeyIssued = { key: IntegrationKeyInfo; apiKey: string }
 
 const props = defineProps<{ section: Section; connections: Connection[] }>()
 const emit = defineEmits<{ navigate: [section: Section] }>()
@@ -85,6 +90,10 @@ const monitoring = ref(false)
 let monitorInterval: ReturnType<typeof setInterval> | null = null
 const publicOrigin = ref((import.meta.env.VITE_API_URL || 'https://api.logisticacastrofallas.com').trim().replace(/\/+$/, ''))
 const publicOperation = ref<ApiOperation>('saved')
+const publicAuthMode = ref<'api-key' | 'oauth'>('api-key')
+const integrationKeys = ref<IntegrationKeyInfo[]>([])
+const integrationKeyForm = ref({ label: 'Pangolin', expiresInDays: 30, maxRequestsPerMinute: 60 })
+const issuedIntegrationKey = ref<IntegrationKeyIssued | null>(null)
 const publicSavedName = ref('')
 const publicRecordId = ref('')
 const publicKey = ref('')
@@ -189,6 +198,10 @@ const publicEndpoint = computed(() => {
   const base = origin + '/api/dynamics-connector'
   const table = encodeURIComponent(entity.value || '{table}')
   const id = publicRecordId.value ? encodeURIComponent(publicRecordId.value) : '{record-guid}'
+  if (publicAuthMode.value === 'api-key') {
+    return base + '/keyed/saved-queries/' + (publicSavedName.value
+      ? encodeURIComponent(publicSavedName.value) : '{query-name}') + '/execute'
+  }
   if (publicOperation.value === 'saved')
     return base + '/saved-queries/' + (publicSavedName.value ? encodeURIComponent(publicSavedName.value) : '{query-name}') + '/execute'
   if (publicOperation.value === 'search') return base + '/records/' + table + '/search'
@@ -203,7 +216,7 @@ const publicEndpoint = computed(() => {
 })
 const publicReady = computed(() => {
   if (!validApiOrigin.value || !code.value) return false
-  if (publicOperation.value === 'saved')
+  if (publicAuthMode.value === 'api-key' || publicOperation.value === 'saved')
     return !!publicSavedName.value && !!saved.value.find(q => q.name === publicSavedName.value && q.enabled)
   if (!activeTable.value || !entityEnabled(activeTable.value.logicalName)) return false
   if (publicOperation.value === 'get' || publicOperation.value === 'update' || publicOperation.value === 'delete')
@@ -237,12 +250,14 @@ const publicBody = computed(() => {
   return { connectionCode: code.value, values: { '<campo-habilitado>': '<valor>' } }
 })
 const publicCurl = computed(() => {
-  const headers = ["-H 'Authorization: Bearer <ACCESS_TOKEN>'"]
+  const headers = [publicAuthMode.value === 'api-key'
+    ? "-H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>'"
+    : "-H 'Authorization: Bearer <ACCESS_TOKEN>'"]
   if (publicBody.value) headers.push("-H 'Content-Type: application/json'")
-  if (publicOperation.value === 'create' || publicOperation.value === 'update' ||
-      publicOperation.value === 'delete' || publicOperation.value === 'upsert')
+  if (publicAuthMode.value === 'oauth' && (publicOperation.value === 'create' || publicOperation.value === 'update' ||
+      publicOperation.value === 'delete' || publicOperation.value === 'upsert'))
     headers.push("-H 'Idempotency-Key: replace-with-unique-operation-key'")
-  if (publicOperation.value === 'update' || publicOperation.value === 'delete')
+  if (publicAuthMode.value === 'oauth' && (publicOperation.value === 'update' || publicOperation.value === 'delete'))
     headers.push("-H 'If-Match: <ETAG_FROM_DATAVERSE>'")
   const body = publicBody.value ? " \\\n  --data '" + JSON.stringify(publicBody.value, null, 2).replaceAll("'", "'\\''") + "'" : ''
   return "curl -X " + publicMethod.value + " '" + publicEndpoint.value + "' \\\n  " + headers.join(" \\\n  ") + body
@@ -259,6 +274,34 @@ const validApiOrigin = computed(() => {
         (url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)))
   } catch { return false }
 })
+async function loadIntegrationKeys() {
+  if (!code.value || !canSecurity.value) return
+  integrationKeys.value = await api<IntegrationKeyInfo[]>(connectionPath('integration-keys'))
+}
+async function createIntegrationKey() {
+  await run(async () => {
+    if (!canSecurity.value || !publicSavedName.value ||
+        !saved.value.some(q => q.name === publicSavedName.value && q.enabled))
+      throw new Error('Elegí una consulta guardada y habilitada.')
+    const issued = await api<IntegrationKeyIssued>(connectionPath('integration-keys'), 'POST', {
+      queryName: publicSavedName.value,
+      label: integrationKeyForm.value.label.trim(),
+      expiresInDays: integrationKeyForm.value.expiresInDays,
+      maxRequestsPerMinute: integrationKeyForm.value.maxRequestsPerMinute,
+    })
+    issuedIntegrationKey.value = issued
+    await loadIntegrationKeys()
+    info.value = 'Clave generada. Copiala ahora: solo se muestra una vez.'
+  })
+}
+async function revokeIntegrationKey(id: string) {
+  await run(async () => {
+    await api(connectionPath('integration-keys/' + encodeURIComponent(id)), 'DELETE')
+    if (issuedIntegrationKey.value?.key.id === id) issuedIntegrationKey.value = null
+    await loadIntegrationKeys()
+    info.value = 'Clave revocada. Esa aplicación ya no puede utilizarla.'
+  })
+}
 async function copyApi(value: string) {
   if (!validApiOrigin.value) {
     error.value = 'Usá el dominio público HTTPS del gateway (o localhost para desarrollo).'
@@ -401,6 +444,7 @@ async function reload() {
   if (entity.value) await readDeletePolicy()
   if (props.section === 'query' || props.section === 'integrations') await loadSaved()
   if ((props.section === 'security' || props.section === 'integrations') && canSecurity.value) await loadGrants()
+  if (props.section === 'integrations' && canSecurity.value) await loadIntegrationKeys()
   if (props.section === 'catalog') await resumeMetadataJob()
 }
 async function refreshMetadata(targetTable: string | null = null) {
@@ -852,13 +896,18 @@ watch(() => props.connections, list => {
 }, { immediate: true, deep: true })
 watch(code, () => {
   metadataJobs.value = {}
+  issuedIntegrationKey.value = null
+  integrationKeys.value = []
   if (code.value) void run(reload)
 }, { immediate: true })
 watch(() => props.section, section => {
   if (!code.value || busy.value) return
   if (section === 'query' || section === 'integrations') void run(async () => {
     await loadSaved()
-    if (section === 'integrations' && canSecurity.value) await loadGrants()
+    if (section === 'integrations' && canSecurity.value) {
+      await loadGrants()
+      await loadIntegrationKeys()
+    }
   })
   if (section === 'security' && canSecurity.value) void run(async () => { await loadGrants(); await readDeletePolicy() })
   if (section === 'catalog' && canSecurity.value) void resumeMetadataJob()
