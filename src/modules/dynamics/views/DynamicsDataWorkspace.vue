@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AlertTriangle, Database, RefreshCw, Search, ShieldCheck } from 'lucide-vue-next'
 import { fetchClient } from '@/core/api/fetchConfig'
 import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
 
-type Section = 'catalog' | 'query' | 'crud' | 'security'
+type Section = 'catalog' | 'query' | 'crud' | 'security' | 'integrations'
 type Connection = { code: string; id?: string }
 type Choice = { value: number; labels: Record<string, string> }
 type Column = {
@@ -51,6 +51,12 @@ type WriteResult = {
 }
 type Diagnostics = { environment: string; productionWritesApproved: boolean; productionDeletesApproved: boolean }
 type DeletePolicy = { entity: string; enabled: boolean; minAgeDays: number }
+type MetadataJob = {
+  id: string; connectionId: string; kind: string; resourceKey: string
+  status: 'pending' | 'running' | 'completed' | 'dead'; lastErrorCode: string | null
+  attempts: number; createdAt: string
+}
+type ApiOperation = 'saved' | 'search' | 'get' | 'create' | 'update' | 'delete' | 'upsert'
 type ApiClient = { id: string; issuer: string; clientId: string; displayName: string; enabled: boolean }
 type ApiGrant = { id: string; apiClientId: string; connectionId: string; entitySet: string; operation: string;
   allowedFields: string[]; maxRequestsPerMinute: number; enabled: boolean }
@@ -65,6 +71,15 @@ const info = ref('')
 const snapshot = ref<Snapshot | null>(null)
 const policies = ref<Policies>({ entities: [], fields: [] })
 const diff = ref<Record<string, unknown> | null>(null)
+const metadataJob = ref<MetadataJob | null>(null)
+const monitoring = ref(false)
+let monitorInterval: ReturnType<typeof setInterval> | null = null
+const publicOrigin = ref('')
+const publicOperation = ref<ApiOperation>('saved')
+const publicSavedName = ref('')
+const publicRecordId = ref('')
+const publicKey = ref('')
+const copied = ref(false)
 const diagnostics = ref<Diagnostics | null>(null)
 const schedule = ref({ enabled: false, intervalMinutes: 1440 })
 const tableSearch = ref('')
@@ -115,6 +130,53 @@ const matchedTables = computed(() => tables.value.filter(t => (
 ).toLowerCase().includes(tableSearch.value.trim().toLowerCase())).slice(0, 200))
 const canWrite = computed(() => canSecurity.value && diagnostics.value !== null && diagnostics.value.productionWritesApproved)
 const canDelete = computed(() => canWrite.value && diagnostics.value?.productionDeletesApproved === true)
+const publicEndpoint = computed(() => {
+  const origin = publicOrigin.value.trim().replace(/\/+$/, '')
+  const base = origin + '/api/dynamics-connector'
+  const table = encodeURIComponent(entity.value || '{table}')
+  const id = encodeURIComponent(publicRecordId.value || '{record-guid}')
+  if (publicOperation.value === 'saved')
+    return base + '/saved-queries/' + encodeURIComponent(publicSavedName.value || '{query-name}') + '/execute'
+  if (publicOperation.value === 'search') return base + '/records/' + table + '/search'
+  if (publicOperation.value === 'upsert') return base + '/records/' + table + '/by-key'
+  if (publicOperation.value === 'create') return base + '/records/' + table
+  return base + '/records/' + table + '/' + id
+})
+const publicMethod = computed(() => ({
+  saved: 'POST', search: 'POST', get: 'GET', create: 'POST', update: 'PATCH', delete: 'DELETE',
+  upsert: 'PUT',
+})[publicOperation.value])
+const publicBody = computed(() => {
+  if (publicOperation.value === 'saved') {
+    const selected = saved.value.find(s => s.name === publicSavedName.value)
+    return { connectionCode: code.value, parameters: Object.fromEntries(
+      (selected?.parameters ?? []).map(p => [p.name, '<' + p.type + '>']),
+    ) }
+  }
+  if (publicOperation.value === 'search')
+    return { connectionCode: code.value, query: lastQuery.value ?? {
+      select: approvedFields.value.slice(0, 5).map(f => f.logicalName), pageSize: 25, count: false,
+    } }
+  if (publicOperation.value === 'get') return null
+  if (publicOperation.value === 'delete')
+    return { connectionCode: code.value, confirm: true, reason: 'Razón de eliminación (10 caracteres mínimo)' }
+  if (publicOperation.value === 'upsert')
+    return { connectionCode: code.value,
+      keys: { [publicKey.value || '<clave-alternativa>']: '<valor>' },
+      values: { '<campo-habilitado>': '<valor>' } }
+  return { connectionCode: code.value, values: { '<campo-habilitado>': '<valor>' } }
+})
+const publicCurl = computed(() => {
+  const headers = ["-H 'Authorization: Bearer <ACCESS_TOKEN>'"]
+  if (publicBody.value) headers.push("-H 'Content-Type: application/json'")
+  if (publicOperation.value === 'create' || publicOperation.value === 'update' ||
+      publicOperation.value === 'delete' || publicOperation.value === 'upsert')
+    headers.push("-H 'Idempotency-Key: replace-with-unique-operation-key'")
+  if (publicOperation.value === 'update' || publicOperation.value === 'delete')
+    headers.push("-H 'If-Match: <ETAG_FROM_DATAVERSE>'")
+  const body = publicBody.value ? " \\\n  --data '" + JSON.stringify(publicBody.value, null, 2).replaceAll("'", "'\\''") + "'" : ''
+  return "curl -X " + publicMethod.value + " '" + publicEndpoint.value + "' \\\n  " + headers.join(" \\\n  ") + body
+})
 const grantAllowedFields = computed(() => {
   if (!activeTable.value) return []
   if (grantOperation.value === 'delete') return [activeTable.value.primaryIdAttribute]
@@ -203,13 +265,53 @@ async function reload() {
   resetQuery(); resetRecord()
   if (entity.value) await readDeletePolicy()
   if (props.section === 'query') await loadSaved()
-  if (props.section === 'security' && canSecurity.value) await loadGrants()
+  if ((props.section === 'security' || props.section === 'integrations') && canSecurity.value) await loadGrants()
+  if (props.section === 'catalog') await resumeMetadataJob()
 }
 async function refreshMetadata() {
   await run(async () => {
-    await api(connectionPath('metadata/refresh'), 'POST')
-    await reload(); info.value = 'Catálogo actualizado. Revisá los cambios antes de habilitar campos.'
+    if (!canSecurity.value) throw new Error('Se requiere dynamics.security.admin para solicitar un refresco.')
+    // The durable queue responds immediately; Dataverse discovery is never tied to the browser timeout.
+    const active = (await api<MetadataJob[]>('operations/jobs?connectionCode=' +
+      encodeURIComponent(code.value) + '&limit=25'))
+      .find(j => j.kind === 'metadata_refresh' && ['pending', 'running'].includes(j.status))
+    metadataJob.value = active ?? await api<MetadataJob>('operations/jobs/' + encodeURIComponent(code.value),
+      'POST', { kind: 'metadata_refresh', entityName: null,
+        dedupeKey: 'metadata-ui-' + crypto.randomUUID().replaceAll('-', '') })
+    info.value = active ? 'Ya hay una actualización activa. Podés continuar usando Dhole.' :
+      'Actualización enviada. Podés salir de esta sección; se procesará sin mantener abierta la conexión.'
   })
+}
+async function pollMetadataJob() {
+  const current = metadataJob.value
+  if (!current || monitoring.value || !code.value) return
+  monitoring.value = true
+  try {
+    const latest = await api<MetadataJob>('operations/jobs/' + encodeURIComponent(code.value) +
+      '/' + encodeURIComponent(current.id))
+    if (current.id !== metadataJob.value?.id) return
+    metadataJob.value = latest
+    if (latest.status === 'completed') {
+      metadataJob.value = null
+      await run(async () => {
+        await reload()
+        info.value = 'Catálogo actualizado correctamente. Snapshot ' + (snapshot.value?.version ?? '?') + '.'
+      })
+    } else if (latest.status === 'dead') {
+      metadataJob.value = null
+      error.value = 'No se completó la actualización (' + (latest.lastErrorCode ?? 'sin detalle') +
+        '). Se conserva el último catálogo válido.'
+    }
+  } catch {
+    // Temporary connectivity issues must not generate another refresh job.
+  } finally { monitoring.value = false }
+}
+async function resumeMetadataJob() {
+  if (!code.value || !canSecurity.value) return
+  const items = await api<MetadataJob[]>('operations/jobs?connectionCode=' +
+    encodeURIComponent(code.value) + '&limit=25')
+  metadataJob.value = items.find(j => j.kind === 'metadata_refresh' &&
+    ['pending', 'running'].includes(j.status)) ?? null
 }
 async function toggleEntity(t: Table) {
   await run(async () => {
@@ -529,9 +631,18 @@ watch(() => props.connections, list => {
 watch(code, () => { if (code.value) void run(reload) }, { immediate: true })
 watch(() => props.section, section => {
   if (!code.value || busy.value) return
-  if (section === 'query') void run(async () => { await loadSaved() })
+  if (section === 'query' || section === 'integrations') void run(async () => {
+    await loadSaved()
+    if (section === 'integrations' && canSecurity.value) await loadGrants()
+  })
   if (section === 'security' && canSecurity.value) void run(async () => { await loadGrants(); await readDeletePolicy() })
+  if (section === 'catalog' && canSecurity.value) void resumeMetadataJob()
 })
+onMounted(() => {
+  publicOrigin.value = window.location.origin
+  monitorInterval = setInterval(() => { void pollMetadataJob() }, 4000)
+})
+onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
 </script>
 
 <template>
@@ -539,7 +650,7 @@ watch(() => props.section, section => {
     <div class="dynamics-panel-header">
       <div>
         <p class="dynamics-section-label">DYNAMICS 365 · DATAVERSE</p>
-        <h2>{{ { catalog: 'Catálogo de Dataverse', query: 'Query Builder', crud: 'Editor de registros', security: 'Seguridad y políticas' }[section] }}</h2>
+        <h2>{{ { catalog: 'Catálogo de Dataverse', query: 'Query Builder', crud: 'Editor de registros', security: 'Seguridad y políticas', integrations: 'Publicar API e integraciones' }[section] }}</h2>
         <p class="dynamics-subtitle">Los cambios quedan sujetos a metadatos, permisos y auditoría del conector.</p>
       </div>
       <button class="dynamics-outline-button" type="button" :disabled="busy || !code" @click="run(reload)">
@@ -559,9 +670,12 @@ watch(() => props.section, section => {
     <div v-if="!code" class="dynamics-empty">Seleccioná una conexión para continuar.</div>
     <template v-else-if="section === 'catalog'">
       <div class="dynamics-tools">
-        <button type="button" class="dynamics-primary-button" :disabled="busy" @click="refreshMetadata"><RefreshCw :size="15" /> Actualizar catálogo</button>
+        <button type="button" class="dynamics-primary-button" :disabled="busy || !!metadataJob || !canSecurity" @click="refreshMetadata"><RefreshCw :size="15" /> {{ metadataJob ? 'Actualización en curso' : 'Actualizar catálogo' }}</button>
         <span class="dynamics-subtitle">Snapshot {{ snapshot?.version ?? 'sin generar' }} · {{ snapshot?.capturedAt ? new Date(snapshot.capturedAt).toLocaleString('es-CR') : 'Pendiente de descubrimiento' }}</span>
       </div>
+      <p v-if="metadataJob" class="dynamics-feedback" role="status">
+        <RefreshCw :size="15" /> {{ metadataJob.status === 'pending' ? 'Actualización en cola' : 'Consultando Dataverse en segundo plano' }} · intento {{ metadataJob.attempts }}/{{ 3 }}. Podés utilizar el resto del sistema.
+      </p>
       <div class="dynamics-tools">
         <label class="dynamics-field"><span>Actualización automática (60–10080 minutos)</span><input v-model.number="schedule.intervalMinutes" type="number" min="60" max="10080"></label>
         <label class="dynamics-check"><input v-model="schedule.enabled" type="checkbox"> Programada</label>
