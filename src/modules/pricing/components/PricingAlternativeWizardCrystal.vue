@@ -4462,15 +4462,23 @@ async function saveRate() {
       )
     } else {
       rateId = await PricingService.createRate(createPayload)
-      toastStore.success('Tarifa creada correctamente.')
     }
     createdRateId.value = rateId
     if (props.rateRequestId) {
+      // The quote may exist before its PDF can be issued (low-margin approval).
+      // The backend links that quote immediately and completes delivery on approval.
       await RateRequestLeaseService.completeRate(props.rateRequestId, rateId)
+    }
+    if (!editingRate.value) {
+      toastStore.success('Tarifa creada correctamente.', props.rateRequestId
+        ? 'La solicitud quedó vinculada. Si el margen requiere aprobación, se finalizará automáticamente al autorizar la tarifa.'
+        : undefined)
     }
     await router.push({ name: 'pricing-rates' })
   } catch (error) {
-    toastStore.backendError(error, isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.')
+    toastStore.backendError(error, createdRateId.value && props.rateRequestId
+      ? 'La tarifa ya existe, pero no se pudo vincular la solicitud. No cree otra; recupere la tarifa existente desde el dashboard.'
+      : isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.')
   } finally {
     saving.value = false
   }
