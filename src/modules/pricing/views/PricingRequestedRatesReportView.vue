@@ -59,6 +59,16 @@ function statusLabel(value: string) {
   return labels[value] ?? value
 }
 
+function cancellationLabel(reason?: string | null) {
+  const values: Record<string, string> = {
+    Duplicate: 'Solicitud duplicada',
+    CustomerCancelled: 'Cancelada por el cliente',
+    SellerCancelled: 'Cancelada por Ventas',
+    Other: 'Otro motivo',
+  }
+  return reason ? (values[reason] ?? reason) : 'Sin motivo'
+}
+
 function priorityLabel(value: string) {
   const labels: Record<string, string> = {
     Normal: 'Normal',
@@ -221,6 +231,11 @@ onMounted(load)
               </span>
             </div>
 
+            <p v-if="row.status === 'Cancelled'" class="mt-3 rounded-xl bg-red-500/10 p-3 text-xs font-semibold text-[var(--dh-text)]">
+              {{ cancellationLabel(row.cancellationReason) }}
+              <span v-if="row.cancellationDetails"> · {{ row.cancellationDetails }}</span>
+              <span v-if="row.cancelledByName"> · Por {{ row.cancelledByName }}</span>
+            </p>
             <dl class="mt-4 grid min-w-0 grid-cols-2 gap-x-3 gap-y-3 text-xs">
               <div class="min-w-0">
                 <dt class="font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Vendedor</dt>
@@ -265,6 +280,7 @@ onMounted(load)
               <tr class="bg-black/[0.035] dark:bg-white/[0.045]">
                 <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Fecha</th>
                 <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Estado</th>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Motivo / cancelada por</th>
                 <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Prioridad</th>
                 <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Vendedor</th>
                 <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Cliente</th>
@@ -285,6 +301,15 @@ onMounted(load)
               >
                 <td class="whitespace-nowrap px-3 py-3 font-semibold text-[var(--dh-text-soft)]">{{ formatDate(row.requestedAtUtc) }}</td>
                 <td class="px-3 py-3 font-black text-[var(--dh-text)]">{{ statusLabel(row.status) }}</td>
+                <td class="max-w-[260px] px-3 py-3 text-xs font-semibold text-[var(--dh-text-soft)]">
+                  <template v-if="row.status === 'Cancelled'">
+                    <strong>{{ cancellationLabel(row.cancellationReason) }}</strong>
+                    <p v-if="row.cancellationDetails" class="mt-1 whitespace-normal">{{ row.cancellationDetails }}</p>
+                    <p v-if="row.cancelledByName" class="mt-1">Por: {{ row.cancelledByName }}</p>
+                    <p v-if="row.cancelledAtUtc" class="mt-1">{{ formatDate(row.cancelledAtUtc) }}</p>
+                  </template>
+                  <span v-else>—</span>
+                </td>
                 <td class="px-3 py-3 font-semibold text-[var(--dh-text-soft)]">{{ priorityLabel(row.priority) }}</td>
                 <td class="px-3 py-3">
                   <p class="font-black text-[var(--dh-text)]">{{ row.sellerName || row.executiveName || '—' }}</p>

@@ -68,6 +68,15 @@ export const RateRequestLeaseService = {
       extraHeaders: { 'X-Rate-Request-Lease': token },
     })
   },
+  async cancel(id: string, payload: { reason: 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'; details?: string }): Promise<void> {
+    const token = this.tokenFor(id)
+    if (!token) throw new Error('No existe una reserva vigente para cancelar la solicitud.')
+    await callEndpoint<unknown, typeof payload>({
+      method: 'POST',
+      path: path(id, 'cancel'),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, { body: payload, extraHeaders: { 'X-Rate-Request-Lease': token } })
+  },
   async complete(id: string): Promise<void> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('No existe una reserva vigente para completar la solicitud.')
