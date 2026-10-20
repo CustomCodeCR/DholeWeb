@@ -5031,30 +5031,44 @@ onMounted(async () => {
               :disabled="selectedIncotermCode === 'FCA' && warehouseOptions.length > 0"
             />
 
-            <div class="flex flex-wrap gap-2">
+            <div v-if="selectedIncotermCode === 'EXW'" class="flex flex-wrap items-center gap-3">
               <DhButton
-                variant="secondary"
-                :disabled="locatingPickup || !form.pickupAddress.trim()"
-                @click="geocodePickupAddress(selectedIncotermCode === 'EXW')"
-              >
-                <Waypoints class="h-4 w-4" /> {{ locatingPickup ? 'Ubicando…' : 'Ubicar en mapa (opcional)' }}
-              </DhButton>
-              <DhButton
-                v-if="selectedIncotermCode === 'EXW'"
-                variant="ghost"
-                :disabled="locatingPickup"
-                @click="useCurrentLocation"
-              >
-                Usar mi ubicación
-              </DhButton>
-              <DhButton
-                v-if="selectedIncotermCode === 'EXW'"
                 :disabled="!form.pickupAddress.trim() || (sellerRequestMode && !pickupCargoCondition)"
                 @click="savePickupLocation"
               >
                 {{ editingPickupIndex == null ? 'Agregar recolecta' : 'Actualizar recolecta' }}
               </DhButton>
+              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                Agregar la recolecta es obligatorio para continuar.
+              </p>
             </div>
+
+            <div class="space-y-3 rounded-2xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] p-4 md:p-5">
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p class="text-sm font-black">Ubicación en mapa (opcional)</p>
+                  <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                    No es necesario usar el mapa para agregar la recolecta. Úselo solamente si desea precisar el punto.
+                  </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <DhButton
+                    variant="secondary"
+                    :disabled="locatingPickup || !form.pickupAddress.trim()"
+                    @click="geocodePickupAddress(selectedIncotermCode === 'EXW')"
+                  >
+                    <Waypoints class="h-4 w-4" /> {{ locatingPickup ? 'Ubicando…' : 'Ubicar en mapa (opcional)' }}
+                  </DhButton>
+                  <DhButton
+                    v-if="selectedIncotermCode === 'EXW'"
+                    variant="ghost"
+                    :disabled="locatingPickup"
+                    @click="useCurrentLocation"
+                  >
+                    Usar mi ubicación
+                  </DhButton>
+                </div>
+              </div>
 
             <PricingInteractiveOsmMap
               v-if="selectedIncotermCode === 'EXW'"
@@ -5089,6 +5103,8 @@ onMounted(async () => {
             <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
               Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
             </p>
+
+            </div>
 
             <div v-if="selectedIncotermCode === 'EXW'" class="space-y-2">
               <div
