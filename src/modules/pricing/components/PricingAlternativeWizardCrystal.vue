@@ -48,6 +48,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
+import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -3497,6 +3498,10 @@ async function hydrateExistingRate() {
       if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
     }
     mergeConfiguredOptionalCostsIntoRateLines()
+    // The same Release can arrive twice from different catalog CostIds.
+    // Keep a single identical line in the wizard and omit the redundant persisted
+    // detail on the next edit/save (removedExtraDetailIds uses the original snapshot).
+    rateLines.value = dedupeEquivalentReleaseLines(rateLines.value)
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
