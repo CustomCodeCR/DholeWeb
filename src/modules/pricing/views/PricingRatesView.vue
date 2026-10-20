@@ -496,7 +496,12 @@ function toggleSelection(id: string) {
 }
 
 function openDetail(rate: RateDto) {
-  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'view' } })
+  if (isSellerUser.value) {
+    // Sellers must never open Pricing's internal wizard or unpublished price details.
+    void router.push({ name: 'pricing-seller-rate-detail', params: { rateId: rate.id } })
+    return
+  }
+  void router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'view' } })
 }
 
 function openEdit(rate: RateDto) {
@@ -822,7 +827,7 @@ onMounted(async () => {
                     :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
                   />
                   <span data-mobile-rate-status class="inline-flex">
-                    <DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)" />
+                    <DhBadge :label="row.revisionPending ? 'En modificación' : statusLabel(row.status)" :variant="row.revisionPending ? 'warning' : statusTone(row.status)" />
                   </span>
                 </div>
 
@@ -1031,7 +1036,7 @@ onMounted(async () => {
 
                 <td class="px-3 py-4 text-center align-top">
                   <div class="flex justify-center whitespace-nowrap">
-                    <DhBadge :label="statusLabel(row.status)" :variant="statusTone(row.status)" />
+                    <DhBadge :label="row.revisionPending ? 'En modificación' : statusLabel(row.status)" :variant="row.revisionPending ? 'warning' : statusTone(row.status)" />
                   </div>
                 </td>
 
