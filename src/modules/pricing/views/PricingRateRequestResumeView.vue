@@ -203,7 +203,7 @@ onBeforeUnmount(() => {
             <tr><th class="p-3">Cambio</th><th class="p-3">Original (Pricing)</th><th class="p-3">Solicitado (Ventas)</th></tr>
           </thead>
           <tbody class="divide-y divide-[var(--dh-border)]">
-            <tr v-for="(change, index) in modificationChanges :key="index">
+            <tr v-for="(change, index) in modificationChanges" :key="index">
               <td class="p-3 font-bold">{{ change.action }} · {{ change.field }}</td>
               <td class="p-3 whitespace-pre-wrap text-[var(--dh-text-muted)]">{{ change.original }}</td>
               <td class="p-3 whitespace-pre-wrap font-semibold text-[var(--dh-text)]">{{ change.requested }}</td>
