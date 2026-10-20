@@ -20,6 +20,7 @@ type Relation = {
 type Table = {
   logicalName: string; entitySetName: string; primaryIdAttribute: string
   labels: Record<string, string>; columns: Column[]; relationships: Relation[]
+  alternateKeys?: Array<{ logicalName: string; attributes: string[] }>
 }
 type Snapshot = { version: number; capturedAt: string; catalog: { tables: Table[] } }
 type FieldPolicy = {
@@ -138,6 +139,11 @@ const publicEndpoint = computed(() => {
   if (publicOperation.value === 'saved')
     return base + '/saved-queries/' + encodeURIComponent(publicSavedName.value || '{query-name}') + '/execute'
   if (publicOperation.value === 'search') return base + '/records/' + table + '/search'
+  if (publicOperation.value === 'get') {
+    const fields = approvedFields.value.slice(0, 5).map(f => f.logicalName).join(',')
+    return base + '/records/' + table + '/' + id + '?connectionCode=' +
+      encodeURIComponent(code.value) + '&select=' + encodeURIComponent(fields || '{approved-fields}')
+  }
   if (publicOperation.value === 'upsert') return base + '/records/' + table + '/by-key'
   if (publicOperation.value === 'create') return base + '/records/' + table
   return base + '/records/' + table + '/' + id
@@ -177,6 +183,28 @@ const publicCurl = computed(() => {
   const body = publicBody.value ? " \\\n  --data '" + JSON.stringify(publicBody.value, null, 2).replaceAll("'", "'\\''") + "'" : ''
   return "curl -X " + publicMethod.value + " '" + publicEndpoint.value + "' \\\n  " + headers.join(" \\\n  ") + body
 })
+
+const publicScope = computed(() => 'dynamics.records.' +
+  (publicOperation.value === 'saved' || publicOperation.value === 'search' ||
+    publicOperation.value === 'get' ? 'read' : publicOperation.value))
+const validApiOrigin = computed(() => {
+  try {
+    const url = new URL(publicOrigin.value.trim())
+    return !url.username && !url.password && !url.search && !url.hash &&
+      url.pathname === '/' && (url.protocol === 'https:' ||
+        (url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)))
+  } catch { return false }
+})
+async function copyApi(value: string) {
+  if (!validApiOrigin.value) {
+    error.value = 'Usá el dominio público HTTPS del gateway (o localhost para desarrollo).'
+    return
+  }
+  await navigator.clipboard.writeText(value)
+  copied.value = true
+  info.value = 'Copiado al portapapeles.'
+}
+
 const grantAllowedFields = computed(() => {
   if (!activeTable.value) return []
   if (grantOperation.value === 'delete') return [activeTable.value.primaryIdAttribute]
@@ -264,7 +292,7 @@ async function reload() {
     entity.value = enabledTables.value[0]?.logicalName ?? ''
   resetQuery(); resetRecord()
   if (entity.value) await readDeletePolicy()
-  if (props.section === 'query') await loadSaved()
+  if (props.section === 'query' || props.section === 'integrations') await loadSaved()
   if ((props.section === 'security' || props.section === 'integrations') && canSecurity.value) await loadGrants()
   if (props.section === 'catalog') await resumeMetadataJob()
 }
@@ -834,6 +862,67 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
         <pre v-if="writeResult" class="dynamics-json">{{ JSON.stringify(writeResult, null, 2) }}</pre>
       </template>
     </template>
+    <template v-else-if="section === 'integrations'">
+      <div class="dynamics-security-note"><ShieldCheck :size="18" />
+        <span>Publicá operaciones mediante las rutas protegidas del API Gateway de Dhole. No se crean endpoints anónimos ni tokens en una URL; cada aplicación debe obtener su token OAuth2 y tener un grant de acceso.</span>
+      </div>
+      <div class="dynamics-data-card">
+        <strong>1. Configurá la URL de tu integración</strong>
+        <div class="dynamics-form-grid">
+          <label class="dynamics-field"><span>Dominio público del gateway (HTTPS)</span>
+            <input v-model.trim="publicOrigin" placeholder="https://sistema.tudominio.com"></label>
+          <label class="dynamics-field"><span>Operación</span><select v-model="publicOperation">
+            <option value="saved">Ejecutar consulta guardada</option>
+            <option value="search">Consulta estructurada</option>
+            <option value="get">Obtener registro por GUID</option>
+            <option value="create">Crear registro</option>
+            <option value="update">Actualizar registro</option>
+            <option value="delete">Eliminar registro</option>
+            <option value="upsert">UPSERT por clave alternativa</option>
+          </select></label>
+          <label v-if="publicOperation === 'saved'" class="dynamics-field"><span>Consulta guardada</span>
+            <select v-model="publicSavedName"><option value="">Seleccionar consulta</option>
+              <option v-for="item in saved" :key="item.id" :value="item.name">{{ item.name }} ({{ item.enabled ? 'habilitada' : 'deshabilitada' }})</option>
+            </select>
+          </label>
+          <label v-else class="dynamics-field"><span>Tabla Dataverse</span><select v-model="entity" @change="changeEntity">
+            <option v-for="item in enabledTables" :key="item.logicalName" :value="item.logicalName">{{ item.logicalName }}</option>
+          </select></label>
+          <label v-if="['get','update','delete'].includes(publicOperation)" class="dynamics-field"><span>GUID del registro o plantilla</span><input v-model.trim="publicRecordId" placeholder="{record-guid}"></label>
+          <label v-if="publicOperation === 'upsert'" class="dynamics-field"><span>Campo de clave alternativa</span>
+            <select v-model="publicKey"><option value="">Elegir clave</option>
+              <option v-for="key in activeTable?.alternateKeys ?? []" :key="key.logicalName" :value="key.attributes[0]">{{ key.logicalName }} · {{ key.attributes.join(', ') }}</option>
+            </select>
+          </label>
+        </div>
+        <p v-if="!validApiOrigin" class="dynamics-feedback dynamics-feedback-error">Para compartir una ruta usá un origen HTTPS válido sin path ni credenciales.</p>
+        <p v-if="publicOperation === 'saved' && saved.find(s => s.name === publicSavedName)?.enabled === false" class="dynamics-feedback dynamics-feedback-error">
+          Esta consulta está deshabilitada. Activala en Query Builder antes de consumirla desde una aplicación externa.
+        </p>
+      </div>
+      <div class="dynamics-data-card">
+        <strong>2. URL de tu API</strong>
+        <div class="dynamics-tools"><span class="dynamics-api-method">{{ publicMethod }}</span>
+          <code class="dynamics-api-url">{{ publicEndpoint }}</code>
+          <button class="dynamics-outline-button" type="button" :disabled="!validApiOrigin" @click="copyApi(publicEndpoint)">Copiar URL</button>
+        </div>
+        <p class="dynamics-subtitle">Permiso OAuth requerido: <strong>{{ publicScope }}</strong>. Además se requiere cliente OAuth registrado, grant por conexión, tabla, operación y campos, y políticas de Dataverse. Para CREATE, UPDATE y DELETE, también las aprobaciones de producción.</p>
+        <strong>Ejemplo de solicitud HTTP (sin credenciales reales)</strong>
+        <pre class="dynamics-json">{{ publicCurl }}</pre>
+        <div class="dynamics-tools"><button type="button" class="dynamics-primary-button" :disabled="!validApiOrigin" @click="copyApi(publicCurl)">Copiar cURL</button>
+          <span v-if="copied" class="dynamics-subtitle">Ejemplo copiado</span>
+        </div>
+      </div>
+      <div class="dynamics-data-card">
+        <strong>3. Consumir desde Pangolin u otra aplicación</strong>
+        <p class="dynamics-subtitle">Configurá un recurso HTTPS de Pangolin que apunte al API Gateway de Dhole o consumí directamente el dominio autorizado. El cliente obtiene un access token OAuth2 desde Microsoft Entra y envía Authorization: Bearer en cada petición. Pangolin no sustituye los permisos de Dataverse ni los scopes del conector.</p>
+        <p class="dynamics-subtitle">Si usás el dominio publicado por Pangolin, reemplazá arriba el origen por ese dominio HTTPS. Nunca agregués un client secret, access token o clave en parámetros de URL.</p>
+        <div class="dynamics-actions">
+          <button type="button" class="dynamics-outline-button" @click="copyApi('Authorization: Bearer <ACCESS_TOKEN>')">Copiar cabecera OAuth</button>
+          <button type="button" class="dynamics-outline-button" @click="run(loadSaved)">Recargar consultas</button>
+        </div>
+      </div>
+    </template>
     <template v-else>
       <div class="dynamics-security-note"><ShieldCheck :size="18" /><span>Los scopes dynamics.admin y dynamics.security.admin se asignan por usuario o rol en DholeAuth. Las políticas siguientes se aplican adicionalmente por conexión y tabla.</span></div>
       <div v-if="!canSecurity" class="dynamics-feedback dynamics-feedback-error">Requiere dynamics.security.admin.</div>
@@ -923,6 +1012,8 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
 .dynamics-security-note svg{flex:none}.dynamics-empty{display:flex;align-items:center;justify-content:center;gap:9px;border:1px dashed var(--dh-border-strong);border-radius:13px;background:var(--dh-surface);padding:25px;color:var(--dh-text-muted);font-size:12px;text-align:center}
 .dynamics-json{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid var(--dh-border);border-radius:11px;background:var(--dh-surface);padding:13px;color:var(--dh-text-soft);font-size:11px;line-height:1.55}
 
+.dynamics-api-url{font-size:12px;overflow-wrap:anywhere;word-break:break-all;flex:1 1 400px}
+.dynamics-api-method{font-size:11px;font-weight:800;color:var(--dh-primary);padding:9px 12px;background:var(--dh-surface-strong);border-radius:8px}
 .dynamics-data-panel{min-height:390px}.dynamics-connection-select{max-width:460px;margin-bottom:19px}
 .dynamics-field select,.dynamics-field textarea,.dynamics-filter-row select,.dynamics-filter-row input,.dynamics-tools select{
   background:var(--dh-input);color:var(--dh-text);border:1px solid var(--dh-border-strong);
