@@ -90,6 +90,7 @@ const eligibleFields=computed(()=>table.value?.columns.filter(f=>{
 const filteredFields=computed(()=>eligibleFields.value.filter(f=>
   (display(f.labels,f.logicalName)+' '+f.logicalName).toLowerCase().includes(fieldSearch.value.toLowerCase())))
 const entityNameOptions=computed(()=>(snapshot.value?.catalog.tables??[])
+  .filter(t=>policies.value.entities.some(p=>p.logicalName===t.logicalName&&p.enabled))
   .map(t=>({ value:t.logicalName,label:display(t.labels,t.logicalName) }))
   .sort((a,b)=>a.label.localeCompare(b.label,'es')))
 const optionFields=computed(()=>selectedFields.value.filter(f=>
@@ -104,6 +105,9 @@ const chosenValue=(f:Field):string|number|undefined=>{
   const options=choicesFor(f)
   const chosen=exampleOptions.value[f.logicalName]
   return options.some(o=>o.value===chosen)?chosen:options[0]?.value
+}
+function setExampleOption(field:Field,value:string) {
+  exampleOptions.value[field.logicalName]=field.type==='EntityName'?value:Number(value)
 }
 const eligibleKeys=computed(()=>table.value?.alternateKeys??[])
 const selectedKey=computed(()=>eligibleKeys.value.find(k=>k.logicalName===keyName.value))
@@ -146,7 +150,7 @@ const exampleBody=computed(()=>{
   }
   const body:Record<string,unknown>={connectionCode:connection.value,inputs}
   if(operation.value==='update'||operation.value==='delete'){
-    body.recordId='00000000-0000-0000-0000-000000000001'
+    body.recordId='GUID_REAL_OBTENIDO_CON_QUERY_BUILDER'
     body.eTag='W/"VERSION_REAL_DEL_REGISTRO"'
   }
   if(operation.value==='upsert'){
@@ -361,10 +365,7 @@ onMounted(refresh)
               <div class="crud-options-grid">
                 <label v-for="field in optionFields" :key="field.logicalName" class="crud-field">
                   <span>{{ display(field.labels,field.logicalName) }} · {{ field.type }}</span>
-                  <select :value="chosenValue(field)" @change="event => {
-                    const raw=(event.target as HTMLSelectElement).value;
-                    exampleOptions[field.logicalName]=field.type==='EntityName'?raw:Number(raw)
-                  }">
+                  <select :value="chosenValue(field)" @change="setExampleOption(field,($event.target as HTMLSelectElement).value)">
                     <option v-for="opt in choicesFor(field)" :key="opt.value" :value="opt.value">
                       {{ opt.label }}
                     </option>
