@@ -52,6 +52,10 @@ type WriteResult = {
 }
 type Diagnostics = { environment: string; productionWritesApproved: boolean; productionDeletesApproved: boolean }
 type DeletePolicy = { entity: string; enabled: boolean; minAgeDays: number }
+type MetadataBulkFieldResult = {
+  snapshotVersion: number; enabledFields: number; readFields: number;
+  createFields: number; updateFields: number; includeWrite: boolean
+}
 type MetadataJob = {
   id: string; connectionId: string; kind: string; resourceKey: string
   status: 'pending' | 'running' | 'completed' | 'dead'; lastErrorCode: string | null
@@ -404,6 +408,50 @@ async function refreshMetadata(targetTable: string | null = null) {
       (targetTable ? 'campos de ' + targetTable : 'las tablas') + '. Podés continuar usando Dhole.'
   })
 }
+
+const bulkTable = ref('')
+const bulkIncludeWrite = ref(false)
+const bulkConfirmed = ref(false)
+const bulkPreview = computed(() => {
+  const table = tables.value.find(t => t.logicalName === bulkTable.value)
+  const fields = table?.columns ?? []
+  return {
+    total: fields.filter(f => f.canRead || (bulkIncludeWrite.value && !f.isCalculated &&
+      (f.canCreate || f.canUpdate))).length,
+    read: fields.filter(f => f.canRead).length,
+    create: bulkIncludeWrite.value ? fields.filter(f => f.canCreate && !f.isCalculated).length : 0,
+    update: bulkIncludeWrite.value ? fields.filter(f => f.canUpdate && !f.isCalculated).length : 0,
+  }
+})
+function openBulkApproval(table: Table) {
+  bulkTable.value = bulkTable.value === table.logicalName ? '' : table.logicalName
+  bulkIncludeWrite.value = false
+  bulkConfirmed.value = false
+  expanded.value = table.logicalName
+}
+async function enableBulkFields(table: Table) {
+  await run(async () => {
+    if (!canSecurity.value || !entityEnabled(table.logicalName) || !snapshot.value ||
+        bulkTable.value !== table.logicalName || !bulkConfirmed.value)
+      throw new Error('Habilitá la tabla y confirmá los permisos antes de continuar.')
+    if (bulkPreview.value.total === 0)
+      throw new Error('Esta tabla no contiene campos que se puedan habilitar.')
+    const response = await api<MetadataBulkFieldResult>(
+      connectionPath('metadata/entities/' + encodeURIComponent(table.logicalName) + '/fields/bulk-enable'),
+      'PUT', {
+        snapshotVersion: snapshot.value.version,
+        includeWrite: bulkIncludeWrite.value,
+        confirm: true,
+      })
+    await reload()
+    bulkTable.value = ''
+    bulkConfirmed.value = false
+    info.value = 'Se habilitaron ' + response.enabledFields + ' campos para ' + table.logicalName +
+      ': ' + response.readFields + ' de lectura, ' + response.createFields +
+      ' de creación y ' + response.updateFields + ' de edición aprobados en esta operación.'
+  })
+}
+
 function openTable(table: Table) {
   const closing = expanded.value === table.logicalName
   expanded.value = closing ? '' : table.logicalName
@@ -865,6 +913,9 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
                 :disabled="busy || !canSecurity || ['pending','running'].includes(tableJob(table.logicalName)?.status ?? '')"
                 @click="refreshMetadata(table.logicalName)">Descubrir campos</button>
               <button class="dynamics-outline-button" type="button" :disabled="busy || !table.columns.length" @click="toggleEntity(table)">{{ entityEnabled(table.logicalName) ? 'Deshabilitar' : 'Habilitar' }}</button>
+              <button v-if="entityEnabled(table.logicalName) && table.columns.length"
+                class="dynamics-outline-button" type="button" :disabled="busy || !canSecurity"
+                @click="openBulkApproval(table)">Habilitar todos</button>
               <button class="dynamics-outline-button" type="button" @click="openTable(table)">{{ expanded===table.logicalName ? 'Cerrar' : 'Campos' }}</button>
             </div>
           </div>
@@ -877,6 +928,44 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             No se pudieron obtener los campos ({{ tableJob(table.logicalName)?.lastErrorCode ?? 'error del proveedor' }}).
             <button type="button" class="dynamics-outline-button" :disabled="busy" @click="refreshMetadata(table.logicalName)">Reintentar</button>
           </p>
+          <div v-if="bulkTable === table.logicalName" class="dynamics-bulk-panel">
+            <div class="dynamics-data-card-top">
+              <div><strong>Habilitar campos de {{ label(table.labels) || table.logicalName }}</strong>
+                <p class="dynamics-subtitle">Aplicá permisos a los campos descubiertos en una sola operación. No es necesario guardarlos uno por uno.</p>
+              </div>
+              <button type="button" class="dynamics-outline-button" @click="bulkTable=''; bulkConfirmed=false">Cancelar</button>
+            </div>
+            <div class="dynamics-bulk-options">
+              <label class="dynamics-bulk-option" :class="{ selected: !bulkIncludeWrite }">
+                <input v-model="bulkIncludeWrite" type="radio" :value="false" @change="bulkConfirmed=false">
+                <span><strong>Solo lectura · Query Builder y SELECT</strong>
+                  <small>Habilita para lectura todos los campos que Dataverse permite consultar. Conserva los permisos de escritura que ya estuvieran aprobados.</small></span>
+              </label>
+              <label class="dynamics-bulk-option" :class="{ selected: bulkIncludeWrite }">
+                <input v-model="bulkIncludeWrite" type="radio" :value="true" @change="bulkConfirmed=false">
+                <span><strong>Lectura y escritura · Queries y Commands</strong>
+                  <small>Incluye permisos para CREATE y UPDATE solamente en los campos que Dataverse identifica como editables. Nunca habilita DELETE ni modifica registros.</small></span>
+              </label>
+            </div>
+            <div class="dynamics-bulk-counts">
+              <span><strong>{{ bulkPreview.total }}</strong> campos a habilitar</span>
+              <span>{{ bulkPreview.read }} legibles</span>
+              <span>{{ bulkPreview.create }} para crear</span>
+              <span>{{ bulkPreview.update }} para editar</span>
+            </div>
+            <p class="dynamics-subtitle">Estos permisos son exclusivos de la conexión {{ code }} y la tabla {{ table.logicalName }}. Las aplicaciones externas siguen necesitando un grant específico; los cambios reales en producción continúan sujetos a sus aprobaciones.</p>
+            <label class="dynamics-check">
+              <input v-model="bulkConfirmed" type="checkbox">
+              Confirmo que quiero habilitar los permisos indicados para todos los campos elegibles de esta tabla.
+            </label>
+            <div class="dynamics-tools">
+              <button type="button" class="dynamics-primary-button"
+                :disabled="busy || !bulkConfirmed || !bulkPreview.total" @click="enableBulkFields(table)">
+                Habilitar {{ bulkPreview.total }} campos
+              </button>
+              <span class="dynamics-subtitle">Versión de metadatos {{ snapshot?.version }} · con auditoría</span>
+            </div>
+          </div>
           <div v-if="expanded === table.logicalName" class="dynamics-scroll">
             <p v-if="!table.columns.length" class="dynamics-subtitle">
               {{ ['pending','running'].includes(tableJob(table.logicalName)?.status ?? '') ?
@@ -1471,6 +1560,17 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
 .dynamics-operation-choice{min-height:92px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px;border:1px solid var(--dh-border);border-radius:13px;text-align:left;background:var(--dh-card);color:var(--dh-text)}
 .dynamics-operation-choice strong{font-size:13px;font-weight:800}.dynamics-operation-choice small{font-size:11px;line-height:1.5;color:var(--dh-text-muted)}
 .dynamics-operation-choice.selected{border:1.5px solid var(--dh-primary);background:color-mix(in srgb,var(--dh-primary) 8%,var(--dh-card))}
+.dynamics-bulk-panel{padding:17px;margin:12px 0;border:1px solid var(--dh-border-strong);border-radius:14px;background:var(--dh-card)}
+.dynamics-bulk-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:15px 0}
+.dynamics-bulk-option{display:flex;gap:10px;padding:14px;border:1px solid var(--dh-border);border-radius:11px;cursor:pointer;line-height:1.5}
+.dynamics-bulk-option.selected{border-color:var(--dh-primary);background:color-mix(in srgb,var(--dh-primary) 7%,var(--dh-card))}
+.dynamics-bulk-option input{flex-shrink:0;margin-top:3px}.dynamics-bulk-option span{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.dynamics-bulk-option small{font-size:11px;color:var(--dh-text-muted)}
+.dynamics-bulk-counts{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0;font-size:12px}
+.dynamics-bulk-counts span{background:var(--dh-surface);border:1px solid var(--dh-border);border-radius:10px;padding:10px}
+.dynamics-bulk-counts strong{font-size:14px}
+@media(max-width:760px){.dynamics-bulk-options{grid-template-columns:1fr}}
+
 .dynamics-write-field-card{border:1px solid var(--dh-border);border-radius:12px;background:var(--dh-card);padding:15px;margin:11px 0}
 @media(max-width:850px){.dynamics-wizard-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.dynamics-friendly-filter{grid-template-columns:repeat(2,minmax(0,1fr))}.dynamics-operation-choices{grid-template-columns:1fr}}
 @media(max-width:590px){.dynamics-wizard-steps,.dynamics-choice-list,.dynamics-review-grid,.dynamics-friendly-filter{grid-template-columns:1fr}.dynamics-wizard-pane{padding:15px}.dynamics-wizard-footer-right{width:100%;justify-content:space-between}.dynamics-wizard-step{font-size:11px}}
