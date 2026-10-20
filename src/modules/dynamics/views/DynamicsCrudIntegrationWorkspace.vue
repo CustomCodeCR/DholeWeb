@@ -109,8 +109,10 @@ const hasCurrentVersion=computed(()=>!!createdVersion.value&&selectedTemplate.va
   h.version===createdVersion.value &&
   h.definition.entityName===definition.value.entityName &&
   h.definition.operation===definition.value.operation &&
-  JSON.stringify(h.definition.inputs)===JSON.stringify(definition.value.inputs) &&
-  JSON.stringify(h.definition.mappings)===JSON.stringify(definition.value.mappings)))
+  JSON.stringify(h.definition.inputs.map(i=>({name:i.name,type:i.type,required:i.required})))===
+    JSON.stringify(definition.value.inputs) &&
+  JSON.stringify(h.definition.mappings.map(m=>({target:m.target,source:m.source})))===
+    JSON.stringify(definition.value.mappings)))
 const active=computed(()=>hasCurrentVersion.value&&selectedTemplate.value?.activeVersion===createdVersion.value)
 const exampleBody=computed(()=>{
   const inputs:Record<string,unknown>={}
