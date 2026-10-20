@@ -329,7 +329,7 @@ async function prepareStandby(name: string) {
       path: '/api/agents/runtime-generations/authentication/{{generation}}/prepare',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     }, { params: { generation: name }, body: { credentialId: selectedCredential.value } })
-    toast.success('Preparación solicitada', 'Se abrirá un Chromium aislado. prod1 continuará ejecutando la cola.')
+    toast.success('Preparación solicitada', 'Se abrirá un Chromium aislado. La generación actualmente activa continuará ejecutando la cola.')
     await refreshStandbyAuthentication()
   } catch (error) {
     toast.backendError(error, 'No se pudo preparar el navegador independiente.')
@@ -623,10 +623,10 @@ async function requestOriginalSessionVerification() {
     if (!result.verificationOnly || !result.executionId)
       throw new Error('La API no devolvió una ejecución de verificación válida.')
     originalVerificationExecutionId.value = result.executionId
-    toast.success('Verificación original solicitada',
-      'La ejecución utiliza el perfil persistente original. Esperá el resultado real antes de intentar liberar el circuito.')
+    toast.success('Verificación de la generación activa solicitada',
+      'La ejecución utiliza el perfil persistente de ' + result.activeGeneration + ' y noVNC escucha en el puerto interno ' + result.noVncPort + '. Abrí el visor desde Operación Maersk o Sesiones; no libera el breaker automáticamente.')
   } catch (error) {
-    toast.backendError(error, 'No se pudo iniciar la comprobación del perfil original.')
+    toast.backendError(error, 'No se pudo iniciar la comprobación de la generación activa.')
   } finally {
     originalVerificationBusy.value = false
   }
@@ -969,24 +969,27 @@ onUnmounted(() => {
               </p>
               <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
                 La sesión independiente de {{ guideTarget }} no reemplaza la verificación
-                del perfil original. Antes de autorizar un relevo debés confirmar que
+                de la generación activa. Antes de autorizar un relevo debés confirmar que
                 Maersk volvió a permitir el acceso original y completar la verificación.
               </p>
               <label class="mt-3 block text-sm font-semibold">
-                Credencial del perfil original de Maersk
+                Credencial de Maersk para el Worker activo
                 <select v-model="selectedCredential"
                   class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
                   <option v-for="credential in maerskCredentials" :key="credential.id"
                     :value="credential.id">{{ credential.name }}</option>
                 </select>
               </label>
-              <DhButton label="Verificar sesión original" variant="secondary" :icon="ShieldCheck"
+              <DhButton label="Verificar sesión activa" variant="secondary" :icon="ShieldCheck"
                 :disabled="!selectedCredential || !canManage || originalVerificationBusy"
                 :loading="originalVerificationBusy" @click="requestOriginalSessionVerification" />
+              <p v-if="originalVerificationExecutionId" class="text-xs text-[var(--dh-text-muted)]">
+                noVNC utiliza el puerto interno 6080 en la generación activa; abrí el visor protegido desde Operación Maersk.
+              </p>
               <RouterLink v-if="originalVerificationExecutionId"
                 :to="'/agents/executions/' + originalVerificationExecutionId"
                 class="mt-3 block text-sm font-semibold text-[var(--dh-primary)] underline">
-                Consultar resultado de la verificación original
+                Consultar resultado de la verificación activa
               </RouterLink>
               <RouterLink to="/agents/maersk-operations"
                 class="mt-3 block text-sm font-semibold text-[var(--dh-primary)] underline">
