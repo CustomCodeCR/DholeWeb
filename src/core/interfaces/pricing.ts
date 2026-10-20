@@ -830,6 +830,7 @@ export interface RateDto extends Record<string, unknown> {
   quoNumber?: string | null
   sellerReceivedAtUtc?: string | null
   sellerReceivedBy?: string | null
+  revisionPending?: boolean
   includes?: string | null
   subjectTo?: string | null
   excludes?: string | null
