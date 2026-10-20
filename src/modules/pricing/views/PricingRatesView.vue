@@ -46,7 +46,7 @@ function normalizeCommercialStatus(value: unknown): CommercialRateStatusFilter {
   const status = typeof value === 'string' ? value : ''
   if (commercialStatuses.has(status as CommercialRateStatus)) return status as CommercialRateStatus
   if (status === 'RejectedByClient' || status === 'Closed') return 'RejectedByClient'
-  if (status === 'Sent') return 'Sent'
+  if (status === 'Sent' || status === 'RequestedByClient') return 'Sent'
   if (status === 'Expired') return 'Expired'
   if (status === 'AcceptedByClient') return 'AcceptedByClient'
   return ''
@@ -228,6 +228,7 @@ function creatorUserName(rate: RateDto) {
 }
 const selectedIds = ref<string[]>([])
 const loading = ref(false)
+const loadError = ref(false)
 const filtersOpen = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
@@ -361,6 +362,7 @@ function statusLabel(status: string) {
 async function load() {
   try {
     loading.value = true
+    loadError.value = false
 
     if (isSellerUser.value) {
       const response = await callEndpoint<unknown>({
@@ -447,6 +449,7 @@ async function load() {
   } catch (error) {
     rows.value = []
     total.value = 0
+    loadError.value = true
     toastStore.backendError(error, 'No se pudieron cargar las tarifas.')
   } finally {
     loading.value = false
@@ -772,6 +775,12 @@ onMounted(async () => {
           </div>
 
           <div
+            v-else-if="loadError"
+            class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+          >
+            No se pudieron cargar las tarifas. Intente nuevamente desde Actualizar.
+          </div>
+          <div
             v-else-if="rows.length === 0"
             class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
           >
@@ -933,6 +942,9 @@ onMounted(async () => {
             <tbody>
               <tr v-if="loading">
                 <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('common.loading') }}</td>
+              </tr>
+              <tr v-else-if="loadError">
+                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No se pudieron cargar las tarifas. Intente nuevamente desde Actualizar.</td>
               </tr>
               <tr v-else-if="rows.length === 0">
                 <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.noMatch') }}</td>
