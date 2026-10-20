@@ -127,6 +127,11 @@ ${nextAnchor}`,
     "    toastStore.error('Condición de carga obligatoria', 'Seleccione carga fiscal o nacionalizada para cada recolecta EXW antes de enviar la solicitud.')",
     '    return',
     '  }',
+    "  if (props.sellerRequestMode && !inlandServiceLocationsReady.value) {",
+    "    step.value = 3",
+    "    toastStore.error('Ubicación de transporte requerida', 'Complete la dirección y seleccione el punto en el mapa para los servicios de recolección y entrega.')",
+    '    return',
+    '  }',
   ].join('\n'))
 
   // In seller requests, fiscal/nationalized cargo classification belongs to
