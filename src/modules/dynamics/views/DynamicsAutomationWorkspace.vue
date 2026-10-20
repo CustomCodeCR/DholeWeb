@@ -49,13 +49,14 @@ const selectedVersion=computed(()=>selectedTemplate.value?.history.find(x=>
   selectedTemplate.value?.history[0])
 const inputs=computed(()=>selectedVersion.value?.definition.inputs ?? [])
 const availableFields=(input:TemplateInput)=>Object.entries(pricingFields.value)
-  .filter(([,kind])=>kind===input.type)
+  .filter(([field,kind])=>kind===input.type &&
+    (field!=='rateId' || ['rateId','dholeRateId','rate_id','dhole_rate_id'].includes(input.name)))
   .sort(([a],[b])=>a.localeCompare(b))
 const mappedFields=computed(()=>inputs.value.filter(i=>!!mapping.value[i.name]).length)
 const unmappedRequired=computed(()=>inputs.value.filter(i=>i.required&&!mapping.value[i.name]))
 const canSave=computed(()=>canManage.value&&!busy.value&&!!selectedTemplate.value&&
   name.value.length>0&&/^[a-z][a-z0-9_-]{0,79}$/.test(name.value)&&
-  !unmappedRequired.value.length&&mappedFields.value>0)
+  true)
 const preview=computed(()=>inputs.value.filter(i=>mapping.value[i.name]).map(i=>({
   input:i.name,type:i.type,from:mapping.value[i.name]
 })))
@@ -184,7 +185,7 @@ onMounted(load)
               </select>
             </label>
           </div>
-          <p v-if="unmappedRequired.length" class="dyn-auto-warning">Faltan {{ unmappedRequired.length }} entradas obligatorias: {{ unmappedRequired.map(i=>i.name).join(', ') }}. Requieren relacionar entidades o ajustar la plantilla antes de ejecutar automáticamente.</p>
+          <p v-if="unmappedRequired.length" class="dyn-auto-warning">Faltan {{ unmappedRequired.length }} entradas obligatorias: {{ unmappedRequired.map(i=>i.name).join(', ') }}. Podés guardar un borrador y completar luego las referencias de Dynamics antes de habilitar la ejecución.</p>
         </template>
         <template v-else>
           <p class="dyn-auto-eyebrow">PASO 4 · REVISIÓN</p>
@@ -199,7 +200,7 @@ onMounted(load)
             <div v-for="entry in preview" :key="entry.input"><code>{{ entry.input }}</code><ArrowRight :size="14"/><code>Pricing.{{ entry.from }}</code></div>
             <p v-if="!preview.length">Todavía no hay datos relacionados.</p>
           </div>
-          <div v-if="unmappedRequired.length" class="dyn-auto-warning">No podés guardar todavía: faltan datos obligatorios.</div>
+          <div v-if="unmappedRequired.length" class="dyn-auto-warning">Faltan datos obligatorios. Podés guardar este borrador, pero no podrá activarse ni ejecutar acciones hasta completar las referencias de clientes, monedas y demás campos requeridos.</div>
           <div class="dyn-auto-note"><ShieldCheck :size="17"/>
             <p>Esta acción se guardará en estado <strong>Borrador · Inactiva</strong>. Nunca se ejecutará una escritura por guardar o avanzar en el asistente. La activación automática requiere completar la conexión de eventos, autorizaciones y pruebas en staging.</p>
           </div>
