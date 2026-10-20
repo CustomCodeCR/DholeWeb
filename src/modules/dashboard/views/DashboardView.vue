@@ -104,6 +104,7 @@ const activeDashboardRole = computed<DashboardRole>(() =>
     <SellerRoleDashboard
       v-if="activeDashboardRole === 'seller'"
       :admin-preview="isSuperUser() || canViewAllCommercialRates"
+      :enable-seller-actions="!isSuperUser() && authStore.hasScope('pricing.rate-request.create')"
     />
 
     <template v-else-if="canUsePricing">
