@@ -171,9 +171,25 @@ async function hydrateSellerModificationSource() {
     // On LTL/LCL the line editor is the source of truth for totals.
     // Object.assign(form) alone loses saved lines because the cargo deep watcher
     // immediately derives the totals from an initial, empty placeholder row.
+    const cargoContext = source.sellerContext
+    const savedUnit = cargoContext?.cargoDimensionStorageUnit
+    const currentUnit = cargoDimensionUnit.value
+    const lineScale = savedUnit === 'cm' && currentUnit === 'in' ? 1 / 2.54
+      : savedUnit === 'in' && currentUnit === 'cm' ? 2.54 : 1
+    const hydratedContext = lineScale !== 1 && Array.isArray(cargoContext?.consolidatedCargoLines)
+      ? {
+          ...cargoContext,
+          consolidatedCargoLines: cargoContext.consolidatedCargoLines.map(line => ({
+            ...line,
+            length: Number(line.length || 0) * lineScale,
+            width: Number(line.width || 0) * lineScale,
+            height: Number(line.height || 0) * lineScale,
+          })),
+        }
+      : cargoContext
     restoreSellerConsolidatedCargo(
       source.form,
-      source.sellerContext as Record<string, unknown> | undefined,
+      hydratedContext as Record<string, unknown> | undefined,
     )
     await nextTick()
     form.equipmentId = String(source.form.equipmentId ?? '')
