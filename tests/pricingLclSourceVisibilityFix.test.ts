@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { patchIndependentLclSourceLoading } from '../build/pricingLclSourceVisibilityFix.ts'
+import { patchOwnLclRoutePreviewWatcher } from '../build/pricingLclCostBreakdownUi.ts'
 
 const selector = readFileSync(
   new URL('../src/modules/pricing/components/PricingLclRateSourceSelector.vue', import.meta.url),
@@ -45,4 +46,29 @@ test('legacy own-LCL loading is still patched without depending on a specific qu
 
 test('unexpected selector layouts fail fast instead of silently disabling route filtering', () => {
   assert.throws(() => patchIndependentLclSourceLoading('unrelated source'), /independent LCL source loading/)
+})
+
+
+test('own-LCL preview watcher preserves Miami/Moín route props and chargeable dependencies', () => {
+  const transformed = patchOwnLclRoutePreviewWatcher(selector)
+  const watchers = [...transformed.matchAll(/watch\(\s*\(\)\s*=>\s*\[([^\]\n]*)\],\s*\(\)\s*=>\s*void load\(\),\s*\)/g)]
+  assert.equal(watchers.length, 1)
+  const dependencies = watchers[0][1].split(',').map((value) => value.trim())
+  for (const field of [
+    'props.poeId', 'props.poeCode', 'props.poeName',
+    'props.polId', 'props.polCode', 'props.polName',
+    'props.chargeableVolumeUnit', 'props.incotermCode', 'props.requestedCbm',
+  ]) {
+    assert.equal(dependencies.filter((dependency) => dependency === field).length, 1, 'missing or duplicate watcher dependency: ' + field)
+  }
+})
+
+test('own-LCL watcher patch accepts legacy route fields and fails fast on missing/ambiguous anchors', () => {
+  const legacy = 'watch(() => [props.polId, props.poeId, props.podId, props.quoteDate], () => void load())'
+  const result = patchOwnLclRoutePreviewWatcher(legacy)
+  for (const field of ['props.polId', 'props.poeId', 'props.podId', 'props.quoteDate', 'props.chargeableVolumeUnit']) {
+    assert.ok(result.includes(field))
+  }
+  assert.throws(() => patchOwnLclRoutePreviewWatcher('unrelated file'), /route preview watcher anchor, found 0/)
+  assert.throws(() => patchOwnLclRoutePreviewWatcher(legacy + '\n' + legacy), /route preview watcher anchor, found 2/)
 })
