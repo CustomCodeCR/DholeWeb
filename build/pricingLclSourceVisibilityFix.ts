@@ -10,6 +10,52 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
   return source.replace(anchor, replacement)
 }
 
+/**
+ * Make the independent LCL sources resilient without rewriting their filters.
+ * In particular, !ownPoeEligible must remain on the own browse request AND on
+ * the assignment, so a stale request cannot reveal incompatible consolidations.
+ */
+export function patchIndependentLclSourceLoading(source: string): string {
+  let code = replaceOne(
+    source,
+    '    const [own, coloaders] = await Promise.all([',
+    '    const [ownResult, coloaderResult] = await Promise.allSettled([',
+    'independent LCL source loading',
+  )
+
+  const balboaGuardedRows = '    ownRows.value = ownPoeEligible.value ? own.map((row) => ({ ...row })) : []'
+  const legacyRows = '    ownRows.value = own.map((row) => ({ ...row }))'
+  const guardedReplacement = `    ownRows.value = ownResult.status === 'fulfilled' && ownPoeEligible.value
+      ? ownResult.value.map((row) => ({ ...row }))
+      : []`
+  const legacyReplacement = `    ownRows.value = ownResult.status === 'fulfilled'
+      ? ownResult.value.map((row) => ({ ...row }))
+      : []`
+
+  if (code.includes(balboaGuardedRows)) {
+    code = replaceOne(code, balboaGuardedRows, guardedReplacement, 'Balboa-gated own LCL rows')
+  } else {
+    code = replaceOne(code, legacyRows, legacyReplacement, 'legacy own LCL rows')
+  }
+
+  const coloaderRows = '    coloaderRows.value = coloaders.map((row) => ({ ...row }))'
+  const independentResult = `    coloaderRows.value = coloaderResult.status === 'fulfilled'
+      ? coloaderResult.value.map((row) => ({ ...row }))
+      : []
+
+    const sourceErrors = [
+      ownResult.status === 'rejected' ? ownResult.reason : null,
+      coloaderResult.status === 'rejected' ? coloaderResult.reason : null,
+    ].filter(Boolean)
+    if (sourceErrors.length) {
+      error.value = sourceErrors
+        .map((value) => value instanceof Error ? value.message : String(value))
+        .join(' · ')
+    }`
+  code = replaceOne(code, coloaderRows, independentResult, 'independent coloader response')
+  return code
+}
+
 export function pricingLclSourceVisibilityFix(): Plugin {
   return {
     name: 'dhole-pricing-lcl-source-visibility-fix',
@@ -27,20 +73,10 @@ export function pricingLclSourceVisibilityFix(): Plugin {
       const activeFilterReplacement = `    if (row.isActive === false || normalize(row.status) === 'closed') return false`
       code = replaceOne(code, activeFilterAnchor, activeFilterReplacement, 'own LCL active filter')
 
-      // Own consolidations and coloader rates are independent sources. A failure
-      // in one source must never erase the other source from Pantalla 5.
-      // Air never queries the maritime own-consolidation source.
-      const legacyLoadAnchor = `    const [own, coloaders] = await Promise.all([\n      OwnLclConsolidationService.browse(),\n      LclRateSourceService.browseColoaders({\n        polId: props.polId,\n        poeId: props.poeId,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,\n      }),\n    ])\n    ownRows.value = own.map((row) => ({ ...row }))\n    coloaderRows.value = coloaders.map((row) => ({ ...row }))`
-      const modalityLoadAnchor = `    const [own, coloaders] = await Promise.all([\n      isAir.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse(),\n      LclRateSourceService.browseColoaders({\n        modality: props.modality,\n        polId: props.polId,\n        poeId: props.poeId,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,\n      }),\n    ])\n    ownRows.value = own.map((row) => ({ ...row }))\n    coloaderRows.value = coloaders.map((row) => ({ ...row }))`
-      const routeAwareLoadAnchor = `    const [own, coloaders] = await Promise.all([\n      isAir.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse(),\n      LclRateSourceService.browseColoaders({\n        modality: props.modality,\n        polId: props.polId,\n        pol: props.polName || props.polCode || undefined,\n        poeId: props.poeId,\n        poe: isAir.value ? props.destinationLabel || undefined : undefined,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,\n      }),\n    ])\n    ownRows.value = own.map((row) => ({ ...row }))\n    coloaderRows.value = coloaders.map((row) => ({ ...row }))`
-      const loadReplacement = `    const [ownResult, coloaderResult] = await Promise.allSettled([\n      isAir.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse(),\n      LclRateSourceService.browseColoaders({\n        modality: props.modality,\n        polId: props.polId,\n        pol: props.polName || props.polCode || undefined,\n        poeId: props.poeId,\n        poe: isAir.value ? props.destinationLabel || undefined : undefined,\n        podId: props.podId,\n        incotermId: props.incotermId,\n        quoteDate: props.quoteDate,\n      }),\n    ])\n\n    ownRows.value = ownResult.status === 'fulfilled'\n      ? ownResult.value.map((row) => ({ ...row }))\n      : []\n    coloaderRows.value = coloaderResult.status === 'fulfilled'\n      ? coloaderResult.value.map((row) => ({ ...row }))\n      : []\n\n    const sourceErrors = [\n      ownResult.status === 'rejected' ? ownResult.reason : null,\n      coloaderResult.status === 'rejected' ? coloaderResult.reason : null,\n    ].filter(Boolean)\n    if (sourceErrors.length) {\n      error.value = sourceErrors\n        .map((value) => value instanceof Error ? value.message : String(value))\n        .join(' · ')\n    }`
-      if (code.includes(routeAwareLoadAnchor)) {
-        code = code.replace(routeAwareLoadAnchor, loadReplacement)
-      } else if (code.includes(modalityLoadAnchor)) {
-        code = code.replace(modalityLoadAnchor, loadReplacement)
-      } else {
-        code = replaceOne(code, legacyLoadAnchor, loadReplacement, 'independent LCL source loading')
-      }
+      // Browse own consolidations and coloaders independently. Preserve each source's
+      // original query and guards (including the POE Balboa condition) instead of
+      // duplicating a fragile, exact source-code block in this Vite plugin.
+      code = patchIndependentLclSourceLoading(code)
 
       return { code, map: null }
     },
