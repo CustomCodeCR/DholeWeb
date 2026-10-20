@@ -225,12 +225,12 @@ const publicReady = computed(() => {
     return !!publicKey.value && !!activeTable.value.alternateKeys?.some(k => k.attributes.includes(publicKey.value))
   return true
 })
-const publicMethod = computed(() => ({
+const publicMethod = computed(() => publicAuthMode.value === 'api-key' ? 'POST' : ({
   saved: 'POST', search: 'POST', get: 'GET', create: 'POST', update: 'PATCH', delete: 'DELETE',
   upsert: 'PUT',
 })[publicOperation.value])
 const publicBody = computed(() => {
-  if (publicOperation.value === 'saved') {
+  if (publicAuthMode.value === 'api-key' || publicOperation.value === 'saved') {
     const selected = saved.value.find(s => s.name === publicSavedName.value)
     return { connectionCode: code.value, parameters: Object.fromEntries(
       (selected?.parameters ?? []).map(p => [p.name, '<' + p.type + '>']),
@@ -1422,15 +1422,27 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
     </template>
     <template v-else-if="section === 'integrations'">
       <div class="dynamics-security-note"><ShieldCheck :size="18" />
-        <span>Publicá operaciones mediante las rutas protegidas del API Gateway de Dhole. No se crean endpoints anónimos ni tokens en una URL; cada aplicación debe obtener su token OAuth2 y tener un grant de acceso.</span>
+        <span>Podés conectar Pangolin sin tokens OAuth usando una clave de API propia de Dhole. La clave se envía como cabecera HTTPS, vence automáticamente y solo ejecuta la consulta guardada seleccionada. La API no es pública ni permite escrituras anónimas.</span>
       </div>
       <div class="dynamics-data-card">
-        <strong>1. Configurá la URL de tu integración</strong>
+        <strong>1. Elegí cómo conectar tu aplicación</strong>
+        <div class="dynamics-bulk-options">
+          <label class="dynamics-bulk-option" :class="{ selected: publicAuthMode === 'api-key' }">
+            <input v-model="publicAuthMode" type="radio" value="api-key" @change="publicOperation='saved'">
+            <span><strong>Clave de API de Dhole (recomendado para Pangolin)</strong>
+              <small>Sin Microsoft Entra ni tokens de sesión. Generás una clave por aplicación para una consulta guardada, con caducidad y límite de peticiones.</small></span>
+          </label>
+          <label class="dynamics-bulk-option" :class="{ selected: publicAuthMode === 'oauth' }">
+            <input v-model="publicAuthMode" type="radio" value="oauth">
+            <span><strong>OAuth2 de aplicación (avanzado)</strong>
+              <small>Para quienes ya utilizan Microsoft Entra. Requiere el cliente M2M, audiencia, permisos y grants de operación y campos.</small></span>
+          </label>
+        </div>
         <div class="dynamics-form-grid">
           <label class="dynamics-field"><span>API Gateway de Dhole (no el sitio web)</span>
             <input :value="publicOrigin" readonly aria-label="URL base del gateway, tomada de la configuración de API">
             <small class="dynamics-subtitle">La dirección la establece VITE_API_URL del entorno. No se usan enlaces del frontend.</small></label>
-          <label class="dynamics-field"><span>Operación</span><select v-model="publicOperation">
+          <label v-if="publicAuthMode === 'oauth'" class="dynamics-field"><span>Operación</span><select v-model="publicOperation">
             <option value="saved">Ejecutar consulta guardada</option>
             <option value="search">Consulta estructurada</option>
             <option value="get">Obtener registro por GUID</option>
@@ -1439,7 +1451,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             <option value="delete">Eliminar registro</option>
             <option value="upsert">UPSERT por clave alternativa</option>
           </select></label>
-          <label v-if="publicOperation === 'saved'" class="dynamics-field"><span>Consulta guardada</span>
+          <label v-if="publicAuthMode === 'api-key' || publicOperation === 'saved'" class="dynamics-field"><span>Consulta guardada</span>
             <select v-model="publicSavedName"><option value="">Seleccionar consulta</option>
               <option v-for="item in saved" :key="item.id" :value="item.name">{{ item.name }} ({{ item.enabled ? 'habilitada' : 'deshabilitada' }})</option>
             </select>
@@ -1447,15 +1459,15 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
           <label v-else class="dynamics-field"><span>Tabla Dataverse</span><select v-model="entity" @change="changeEntity">
             <option v-for="item in enabledTables" :key="item.logicalName" :value="item.logicalName">{{ item.logicalName }}</option>
           </select></label>
-          <label v-if="['get','update','delete'].includes(publicOperation)" class="dynamics-field"><span>GUID del registro o plantilla</span><input v-model.trim="publicRecordId" placeholder="{record-guid}"></label>
-          <label v-if="publicOperation === 'upsert'" class="dynamics-field"><span>Campo de clave alternativa</span>
+          <label v-if="publicAuthMode === 'oauth' && ['get','update','delete'].includes(publicOperation)" class="dynamics-field"><span>GUID del registro o plantilla</span><input v-model.trim="publicRecordId" placeholder="{record-guid}"></label>
+          <label v-if="publicAuthMode === 'oauth' && publicOperation === 'upsert'" class="dynamics-field"><span>Campo de clave alternativa</span>
             <select v-model="publicKey"><option value="">Elegir clave</option>
               <option v-for="key in activeTable?.alternateKeys ?? []" :key="key.logicalName" :value="key.attributes[0]">{{ key.logicalName }} · {{ key.attributes.join(', ') }}</option>
             </select>
           </label>
         </div>
         <p v-if="!validApiOrigin" class="dynamics-feedback dynamics-feedback-error">La URL del API Gateway está mal configurada. Revisá VITE_API_URL del despliegue.</p>
-        <p v-if="diagnostics && !diagnostics.m2mConfigured" class="dynamics-feedback dynamics-feedback-error" role="alert">
+        <p v-if="publicAuthMode === 'oauth' && diagnostics && !diagnostics.m2mConfigured" class="dynamics-feedback dynamics-feedback-error" role="alert">
           El conector todavía no tiene habilitado OAuth2 M2M en este entorno: se requieren M2m:Authority y M2m:Audience en el backend antes de que una aplicación externa pueda autenticarse.
         </p>
         <p v-if="!publicReady" class="dynamics-subtitle">Elegí una consulta habilitada, una tabla autorizada y, cuando corresponda, un GUID o una clave alternativa para generar una URL lista para usar.</p>
@@ -1463,26 +1475,73 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
           Esta consulta está deshabilitada. Activala en Query Builder antes de consumirla desde una aplicación externa.
         </p>
       </div>
+      <div v-if="publicAuthMode === 'api-key'" class="dynamics-data-card">
+        <strong>2. Crear una clave para Pangolin u otra aplicación</strong>
+        <p class="dynamics-subtitle">Cada clave solo puede ejecutar la consulta guardada seleccionada para la conexión {{ code }}. Se mostrará una sola vez. Si cambiás o desactivás la consulta, deberás generar otra clave.</p>
+        <div v-if="!canSecurity" class="dynamics-feedback dynamics-feedback-error">Se requiere el permiso dynamics.security.admin para generar claves.</div>
+        <template v-else>
+          <div class="dynamics-form-grid">
+            <label class="dynamics-field"><span>Nombre de la aplicación</span>
+              <input v-model.trim="integrationKeyForm.label" maxlength="120" placeholder="Pangolin"></label>
+            <label class="dynamics-field"><span>Validez en días (1–90)</span>
+              <input v-model.number="integrationKeyForm.expiresInDays" type="number" min="1" max="90"></label>
+            <label class="dynamics-field"><span>Solicitudes por minuto (1–120)</span>
+              <input v-model.number="integrationKeyForm.maxRequestsPerMinute" type="number" min="1" max="120"></label>
+          </div>
+          <button type="button" class="dynamics-primary-button"
+            :disabled="busy || !publicReady || !integrationKeyForm.label.trim() ||
+              integrationKeyForm.expiresInDays < 1 || integrationKeyForm.expiresInDays > 90 ||
+              integrationKeyForm.maxRequestsPerMinute < 1 || integrationKeyForm.maxRequestsPerMinute > 120"
+            @click="createIntegrationKey">Generar clave de API</button>
+          <div v-if="issuedIntegrationKey" class="dynamics-bulk-panel" role="status">
+            <strong>Clave recién generada · {{ issuedIntegrationKey.key.label }}</strong>
+            <p class="dynamics-diff-note">Copiala ahora y guardala únicamente en las variables secretas del servidor de Pangolin. No volverá a mostrarse.</p>
+            <code class="dynamics-api-url">{{ issuedIntegrationKey.apiKey }}</code>
+            <div class="dynamics-tools">
+              <button type="button" class="dynamics-primary-button"
+                @click="copyApi(issuedIntegrationKey.apiKey)">Copiar clave</button>
+              <button type="button" class="dynamics-outline-button" @click="issuedIntegrationKey=null">Ya guardé la clave · Ocultarla</button>
+            </div>
+          </div>
+          <div v-if="integrationKeys.length" class="dynamics-data-card">
+            <strong>Claves existentes (sin mostrar secretos)</strong>
+            <div v-for="key in integrationKeys" :key="key.id" class="dynamics-saved-row">
+              <div><strong>{{ key.label }}</strong>
+                <p class="dynamics-subtitle">Consulta {{ key.queryName }} · {{ key.enabled ? 'Habilitada' : 'Revocada' }} · vence {{ new Date(key.expiresAt).toLocaleDateString('es-CR') }}</p>
+              </div>
+              <button v-if="key.enabled" type="button" class="dynamics-outline-button"
+                :disabled="busy" @click="revokeIntegrationKey(key.id)">Revocar acceso</button>
+            </div>
+          </div>
+        </template>
+      </div>
       <div class="dynamics-data-card">
-        <strong>2. URL de tu API</strong>
+        <strong>{{ publicAuthMode === 'api-key' ? '3. URL de consulta para Pangolin' : '2. URL de tu API' }}</strong>
         <div class="dynamics-tools"><span class="dynamics-api-method">{{ publicMethod }}</span>
           <code class="dynamics-api-url">{{ publicEndpoint }}</code>
           <button class="dynamics-outline-button" type="button" :disabled="!publicReady" @click="copyApi(publicEndpoint)">Copiar URL</button>
         </div>
-        <p class="dynamics-subtitle">Permiso OAuth requerido: <strong>{{ publicScope }}</strong>. Además se requiere cliente OAuth registrado, grant por conexión, tabla, operación y campos, y políticas de Dataverse. Para CREATE, UPDATE y DELETE, también las aprobaciones de producción.</p>
+        <p v-if="publicAuthMode === 'api-key'" class="dynamics-subtitle">Se requiere una clave activa y no caducada de la consulta seleccionada, enviada en <code>X-Dhole-Api-Key</code>. El servidor aplicará los permisos de lectura vigentes de Dataverse. No se puede utilizar para CREATE, UPDATE ni DELETE.</p>
+        <p v-else class="dynamics-subtitle">Permiso OAuth requerido: <strong>{{ publicScope }}</strong>. Además se requiere cliente OAuth registrado, grant por conexión, tabla, operación y campos, y políticas de Dataverse. Para CREATE, UPDATE y DELETE, también las aprobaciones de producción.</p>
         <strong>Ejemplo de solicitud HTTP (sin credenciales reales)</strong>
         <pre class="dynamics-json">{{ publicCurl }}</pre>
         <div class="dynamics-tools"><button type="button" class="dynamics-primary-button" :disabled="!publicReady" @click="copyApi(publicCurl)">Copiar cURL</button>
-          <span v-if="copied" class="dynamics-subtitle">Ejemplo copiado · requiere token OAuth de aplicación</span>
+          <span v-if="copied" class="dynamics-subtitle">{{ publicAuthMode === 'api-key' ? 'Ejemplo copiado · agregá tu clave API' : 'Ejemplo copiado · requiere token OAuth de aplicación' }}</span>
         </div>
       </div>
       <div class="dynamics-data-card">
-        <strong>3. Consumir desde Pangolin u otra aplicación</strong>
+        <strong>{{ publicAuthMode === 'api-key' ? '4. Consumir desde Pangolin' : '3. Consumir desde Pangolin u otra aplicación' }}</strong>
+        <template v-if="publicAuthMode === 'api-key'">
+          <p class="dynamics-subtitle">Desde el backend de Pangolin realizá una solicitud <strong>POST</strong> a la URL indicada, con <code>Content-Type: application/json</code> y <code>X-Dhole-Api-Key</code> en las cabeceras. El cuerpo debe contener <code>connectionCode</code> y <code>parameters</code>. No necesitás acceder a Dhole ni a Microsoft Entra desde esa aplicación.</p>
+          <p class="dynamics-subtitle">Nunca pongás la clave en la URL, en JavaScript del navegador ni en un repositorio. Si Pangolin es un proxy inverso, configurá un cliente/backend que envíe la cabecera a este gateway, sin redirigir a la página web.</p>
+        </template>
+        <template v-else>
         <p class="dynamics-subtitle"><strong>Si Pangolin es el sistema que consume los datos:</strong> configurá una llamada HTTP saliente a {{ publicOrigin }}. No lo apuntés a sistema.logisticacastrofallas.com y no abras el enlace como una página. El backend de Pangolin obtiene un token OAuth2 app-only de Microsoft Entra y lo envía con la cabecera Authorization: Bearer.</p>
         <p class="dynamics-subtitle"><strong>Configuración requerida:</strong> (1) crear una aplicación cliente en Entra y asignarle un rol de aplicación dynamics.records.read (u otra operación autorizada) sobre el recurso de API; (2) configurar el issuer y audience M2M del conector; (3) registrar el Client ID y su issuer en la sección Seguridad de Dhole; (4) crear un grant habilitado para conexión {{ code }}, tabla, operación y columnas; (5) consumir mediante HTTPS con JSON.</p>
         <p class="dynamics-subtitle"><strong>Si Pangolin solo funciona como proxy/túnel:</strong> conservá este gateway como destino; el proxy debe reenviar método, cuerpo y Authorization sin convertir la solicitud en una navegación del frontend. No coloqués secretos en la URL ni guardés el client secret en código del navegador.</p>
+        </template>
         <div class="dynamics-actions">
-          <button type="button" class="dynamics-outline-button" @click="copyApi('Authorization: Bearer <ACCESS_TOKEN>')">Copiar cabecera OAuth</button>
+          <button v-if="publicAuthMode === 'oauth'" type="button" class="dynamics-outline-button" @click="copyApi('Authorization: Bearer <ACCESS_TOKEN>')">Copiar cabecera OAuth</button>
           <button type="button" class="dynamics-outline-button" @click="run(loadSaved)">Recargar consultas</button>
         </div>
       </div>
