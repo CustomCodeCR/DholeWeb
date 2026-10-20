@@ -163,7 +163,9 @@ async function hydrateSellerModificationSource() {
       ? source.pickupLocations.map(item => ({ ...item })) : []
     await nextTick()
     form.equipmentId = String(source.form.equipmentId ?? '')
-    step.value = 1
+    // The source quote already establishes modalidad and shipment mode.
+    // Start amendments in Pantalla 3; previous screens remain available using Atrás.
+    step.value = 3
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la cotización original para modificación.')
     await router.replace('/home')
