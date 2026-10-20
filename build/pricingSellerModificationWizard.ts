@@ -43,6 +43,8 @@ interface SellerModificationSource {
     cargoReadyDate?: string | null
     consolidatedCargoLines?: Array<Record<string, unknown>>
     cargoDimensionStorageUnit?: 'in' | 'cm' | null
+    cargoDimensionInputUnit?: 'mm' | 'cm' | 'm' | 'in' | null
+    cargoWeightInputUnit?: 'kg' | 'lb' | null
     cargoVolumeUnit?: 'CFT' | 'CBM' | null
   }
 }
@@ -186,6 +188,10 @@ async function hydrateSellerModificationSource() {
     // Object.assign(form) alone loses saved lines because the cargo deep watcher
     // immediately derives the totals from an initial, empty placeholder row.
     const cargoContext = source.sellerContext
+    const selectedUnit = String(cargoContext?.cargoDimensionInputUnit ?? source.form.miamiDimensionInputUnit ?? '')
+    if (['mm', 'cm', 'm', 'in'].includes(selectedUnit)) selectConsolidatedDimensionUnit(selectedUnit)
+    form.miamiWeightInputUnit = cargoContext?.cargoWeightInputUnit === 'lb'
+      || (!cargoContext?.cargoWeightInputUnit && source.form.miamiWeightInputUnit === 'lb') ? 'lb' : 'kg'
     const savedUnit = cargoContext?.cargoDimensionStorageUnit
     const currentUnit = cargoDimensionUnit.value
     const lineScale = savedUnit === 'cm' && currentUnit === 'in' ? 1 / 2.54
@@ -252,6 +258,8 @@ async function submitSellerModification() {
           consolidatedCargoLines: consolidatedCargoMode.value
             ? consolidatedCargoLines.value.map(line => ({ ...line })) : [],
           cargoVolumeUnit: consolidatedCargoMode.value ? cargoVolumeUnit.value : null,
+          cargoWeightInputUnit: consolidatedCargoMode.value ? form.miamiWeightInputUnit : null,
+          cargoDimensionInputUnit: consolidatedCargoMode.value ? form.miamiDimensionInputUnit : null,
           cargoDimensionStorageUnit: consolidatedCargoMode.value
             ? (isUnitedStatesPol.value ? 'in' : 'cm') : null,
           physicalVolumeCbm: consolidatedCargoMode.value ? lclPhysicalCbm.value : null,
