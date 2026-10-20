@@ -31,6 +31,22 @@ const showRateEditor = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
+// Pricing guardó solicitudes anteriores con PascalCase (Field/Action/Original/Requested).
+// Normalize in the UI: the already submitted quote must not need resubmitting.
+const modificationChanges = computed(() =>
+  (workRequest.value?.payload?.modification?.changes ?? [])
+    .map(raw => {
+      const row = raw as Record<string, unknown>
+      const value = (camel: string, pascal: string) => String(row[camel] ?? row[pascal] ?? '').trim()
+      return {
+        field: value('field', 'Field'),
+        action: value('action', 'Action'),
+        original: value('original', 'Original'),
+        requested: value('requested', 'Requested'),
+      }
+    })
+    .filter(change => change.field || change.action || change.original || change.requested)
+)
 async function openRateEditor() {
   if (!workRequest.value?.rateId) return
   if (showRateEditor.value) {
@@ -187,11 +203,12 @@ onBeforeUnmount(() => {
             <tr><th class="p-3">Cambio</th><th class="p-3">Original (Pricing)</th><th class="p-3">Solicitado (Ventas)</th></tr>
           </thead>
           <tbody class="divide-y divide-[var(--dh-border)]">
-            <tr v-for="(change, index) in workRequest?.payload?.modification?.changes ?? []" :key="index">
+            <tr v-for="(change, index) in modificationChanges :key="index">
               <td class="p-3 font-bold">{{ change.action }} · {{ change.field }}</td>
               <td class="p-3 whitespace-pre-wrap text-[var(--dh-text-muted)]">{{ change.original }}</td>
               <td class="p-3 whitespace-pre-wrap font-semibold text-[var(--dh-text)]">{{ change.requested }}</td>
             </tr>
+            <tr v-if="!modificationChanges.length"><td colspan="3" class="p-4 text-center text-[var(--dh-text-muted)]">No hay diferencias disponibles para mostrar.</td></tr>
           </tbody>
         </table>
       </div>
