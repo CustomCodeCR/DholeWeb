@@ -388,13 +388,6 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   }`,
     'discard incomplete legacy amendment drafts')
 
-  // Start on the same pricing stages as the normal "Continuar tarifa" flow.
-  // The original quote remains editable on all wizard screens.
-  code = once(code,
-    'step.value = props.viewOnly ? 9 : 8',
-    'step.value = props.viewOnly ? 9 : props.modificationRequestId ? 5 : 8',
-    'pricing modification initial wizard screen')
-
   // When updating an already-generated quote for a reserved modification,
   // stay in the wizard instead of redirecting to the rate list. The worker
   // must still complete the linked request from the comparison screen.
