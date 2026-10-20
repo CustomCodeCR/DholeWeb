@@ -38,7 +38,13 @@ interface SellerModificationSource {
   priority?: SellerRateRequestPriority
   supportEntityId?: string | null
   supportDocuments?: SupportDocument[]
-  sellerContext?: { portHandlingMode?: string | null; cargoReadyDate?: string | null }
+  sellerContext?: {
+    portHandlingMode?: string | null
+    cargoReadyDate?: string | null
+    consolidatedCargoLines?: Array<Record<string, unknown>>
+    cargoDimensionStorageUnit?: 'in' | 'cm' | null
+    cargoVolumeUnit?: 'CFT' | 'CBM' | null
+  }
 }
 interface SellerModificationComparison {
   field: string
@@ -162,6 +168,14 @@ async function hydrateSellerModificationSource() {
     pickupLocations.value = Array.isArray(source.pickupLocations)
       ? source.pickupLocations.map(item => ({ ...item })) : []
     await nextTick()
+    // On LTL/LCL the line editor is the source of truth for totals.
+    // Object.assign(form) alone loses saved lines because the cargo deep watcher
+    // immediately derives the totals from an initial, empty placeholder row.
+    restoreSellerConsolidatedCargo(
+      source.form,
+      source.sellerContext as Record<string, unknown> | undefined,
+    )
+    await nextTick()
     form.equipmentId = String(source.form.equipmentId ?? '')
     // The source quote already establishes modalidad and shipment mode.
     // Start amendments in Pantalla 3; previous screens remain available using Atrás.
@@ -187,6 +201,11 @@ async function submitSellerModification() {
   }
   try {
     saving.value = true
+    if (consolidatedCargoMode.value && !consolidatedCargoLinesReady.value) {
+      step.value = 4
+      toastStore.error('Complete las medidas de todas las líneas de carga antes de solicitar la modificación.')
+      return
+    }
     const body = {
       priority: rateRequestPriority.value,
       payload: {
@@ -198,6 +217,16 @@ async function submitSellerModification() {
         sellerContext: {
           cargoReadyDate: form.loadDate,
           portHandlingMode: sellerPortHandlingMode.value || null,
+          // The same payload as a normal seller request: preserve each package,
+          // normalized kilogram weights, saved input dimensions and stackability.
+          consolidatedCargoLines: consolidatedCargoMode.value
+            ? consolidatedCargoLines.value.map(line => ({ ...line })) : [],
+          cargoVolumeUnit: consolidatedCargoMode.value ? cargoVolumeUnit.value : null,
+          cargoDimensionStorageUnit: consolidatedCargoMode.value
+            ? (isUnitedStatesPol.value ? 'in' : 'cm') : null,
+          physicalVolumeCbm: consolidatedCargoMode.value ? lclPhysicalCbm.value : null,
+          billableVolumeCbm: consolidatedCargoMode.value ? lclDimensionalCbm.value : null,
+          chargeableVolumeCbm: consolidatedCargoMode.value ? lclChargeableCbm.value : null,
         },
         requestContext: {
           originName: displayValue(selectedOrigin.value),
