@@ -16,7 +16,7 @@ type Connection = {
   updatedAt: string
 }
 type DataverseHealth = { connected: boolean; applicationUserId: string; canReadQuotes: boolean }
-type Tab = 'connections' | 'catalog' | 'query' | 'crud' | 'security' | 'operations' | 'audit'
+type Tab = 'connections' | 'catalog' | 'query' | 'crud' | 'security' | 'integrations' | 'operations' | 'audit'
 
 const auth = useAuthStore()
 const canAdmin = computed(() => auth.hasScope('dynamics.admin') || auth.hasScope('dynamics.security.admin'))
@@ -200,16 +200,17 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
     <template v-else>
       <div class="dynamics-workspace">
         <nav class="dynamics-nav" aria-label="Secciones de Dynamics">
-          <button v-for="tab in (['connections','catalog','query','crud','security','operations','audit'] as Tab[])" :key="tab" v-show="tab!=='security' || canSecurity" type="button"
+          <button v-for="tab in (['connections','catalog','query','crud','integrations','security','operations','audit'] as Tab[])" :key="tab" v-show="tab!=='security' || canSecurity" type="button"
             class="dynamics-nav-button" :class="{ active: activeTab === tab }" :aria-current="activeTab === tab ? 'page' : undefined"
             @click="activeTab=tab; if (tab==='operations' || tab==='audit') loadOperational(tab==='audit' ? 'audit' : 'overview')">
             <Database v-if="tab==='connections'" :size="16" />
             <Search v-else-if="tab==='query'" :size="16" />
             <PenLine v-else-if="tab==='crud'" :size="16" />
+            <Link2 v-else-if="tab==='integrations'" :size="16" />
             <LockKeyhole v-else-if="tab==='security'" :size="16" />
             <Activity v-else-if="tab==='operations'" :size="16" />
             <ShieldCheck v-else :size="16" />
-            {{ { connections:'Conexiones', catalog:'Catálogo', query:'Query Builder', crud:'CRUD', security:'Seguridad', operations:'Operación', audit:'Auditoría' }[tab] }}
+            {{ { connections:'Conexiones', catalog:'Catálogo', query:'Query Builder', crud:'CRUD', integrations:'API / Integraciones', security:'Seguridad', operations:'Operación', audit:'Auditoría' }[tab] }}
           </button>
         </nav>
 
@@ -326,7 +327,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
           <p v-if="loading" class="dynamics-subtitle">Consultando...</p>
           <pre v-else class="dynamics-json">{{ output || 'Todavía no hay información disponible.' }}</pre>
         </section>
-        <DynamicsDataWorkspace v-else :section="activeTab as 'catalog' | 'query' | 'crud' | 'security'" :connections="connections" />
+        <DynamicsDataWorkspace v-else :section="activeTab as 'catalog' | 'query' | 'crud' | 'security' | 'integrations' :connections="connections" />
       </div>
     </template>
   </main>
