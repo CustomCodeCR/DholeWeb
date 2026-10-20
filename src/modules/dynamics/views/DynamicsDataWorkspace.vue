@@ -751,6 +751,28 @@ watch(() => props.section, section => {
 </template>
 
 <style scoped>
+
+/* Workspace styles are self-contained: scoped styles in the parent view
+   do not reach nested controls in this component. */
+.dynamics-panel{min-width:0;border:1px solid var(--dh-border);border-radius:22px;background:var(--dh-card);box-shadow:var(--dh-shadow-sm);padding:24px;color:var(--dh-text)}
+.dynamics-panel-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.dynamics-panel-header h2{font-size:19px;line-height:1.3;font-weight:850}
+.dynamics-section-label{font-size:10px;letter-spacing:.07em;font-weight:800;color:var(--dh-primary);margin-bottom:5px}
+.dynamics-subtitle{margin:7px 0;color:var(--dh-text-muted);font-size:12px;line-height:1.55}
+.dynamics-field{display:flex;flex-direction:column;gap:7px;min-width:0}.dynamics-field>span{font-size:11px;font-weight:750;color:var(--dh-text-soft)}
+.dynamics-field input{width:100%;height:42px;min-width:0;padding:9px 11px;outline:none;border:1px solid var(--dh-border-strong);border-radius:11px;color:var(--dh-text);background:var(--dh-input);font-size:12px}
+.dynamics-field input:focus,.dynamics-field select:focus,.dynamics-field textarea:focus{outline:2px solid var(--dh-primary);outline-offset:1px}
+.dynamics-primary-button,.dynamics-outline-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:9px 13px;border-radius:10px;font-size:11px;font-weight:750;white-space:nowrap}
+.dynamics-primary-button{background:var(--dh-primary);color:white}.dynamics-outline-button{border:1px solid var(--dh-border-strong);background:var(--dh-surface);color:var(--dh-text)}
+.dynamics-primary-button:disabled,.dynamics-outline-button:disabled{cursor:not-allowed;opacity:.5}
+.dynamics-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.dynamics-feedback{display:flex;align-items:center;gap:9px;margin:12px 0;padding:12px 14px;border:1px solid var(--dh-border);border-radius:11px;font-size:12px;overflow-wrap:anywhere}
+.dynamics-feedback-error{border-color:#ef4444;background:color-mix(in srgb,#ef4444 8%,var(--dh-card))}
+.dynamics-feedback-success{border-color:#10b981;background:color-mix(in srgb,#10b981 8%,var(--dh-card))}
+.dynamics-security-note{display:flex;gap:10px;padding:13px;margin:12px 0;border-radius:12px;border:1px solid var(--dh-border);color:var(--dh-text-soft);background:var(--dh-surface);font-size:12px}
+.dynamics-security-note svg{flex:none}.dynamics-empty{display:flex;align-items:center;justify-content:center;gap:9px;border:1px dashed var(--dh-border-strong);border-radius:13px;background:var(--dh-surface);padding:25px;color:var(--dh-text-muted);font-size:12px;text-align:center}
+.dynamics-json{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid var(--dh-border);border-radius:11px;background:var(--dh-surface);padding:13px;color:var(--dh-text-soft);font-size:11px;line-height:1.55}
+
 .dynamics-data-panel{min-height:390px}.dynamics-connection-select{max-width:460px;margin-bottom:19px}
 .dynamics-field select,.dynamics-field textarea,.dynamics-filter-row select,.dynamics-filter-row input,.dynamics-tools select{
   background:var(--dh-input);color:var(--dh-text);border:1px solid var(--dh-border-strong);
