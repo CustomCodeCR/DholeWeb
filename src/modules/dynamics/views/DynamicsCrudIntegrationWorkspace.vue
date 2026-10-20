@@ -413,7 +413,7 @@ onMounted(refresh)
                   </small>
                 </label>
               </div>
-              <p v-if="metadataChoicesMissing.length" class="crud-error">
+              <p v-if="metadataChoicesMissing.length && !choicesLoading && !choiceError" class="crud-error">
                 No se encontraron opciones para {{ metadataChoicesMissing.map(f=>f.logicalName).join(', ') }}.
                 Consultá las opciones de nuevo; no se publicará una API con valores inventados.
               </p>
