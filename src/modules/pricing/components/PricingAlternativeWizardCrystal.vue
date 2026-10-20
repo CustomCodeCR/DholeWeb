@@ -960,10 +960,6 @@ function savePickupLocation() {
     toastStore.warning('Dirección requerida', 'Indique la dirección de esta recolecta.')
     return
   }
-  if (!pickupCoordinates.value) {
-    toastStore.warning('Ubicación requerida', 'Ubique la recolecta en el mapa antes de agregarla.')
-    return
-  }
   const pickup: RatePickupLocationDto = {
     address,
     latitude: form.pickupLatitude,
@@ -1022,7 +1018,7 @@ const fcaLocationReady = computed(() =>
   selectedIncotermCode.value !== 'FCA' ||
   (catalogs.warehouses.length
     ? Boolean(form.warehouseId)
-    : Boolean(form.pickupAddress.trim() && pickupCoordinates.value)),
+    : Boolean(form.pickupAddress.trim())),
 )
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
 // These services can be requested with any Incoterm; they are independent of EXW/FCA.
@@ -1036,10 +1032,8 @@ const inlandDeliveryServiceSelected = computed(() => selectedServices.value.some
   /transporte.*entrega|entrega.*transporte|delivery/.test(inlandServiceName(service)),
 ))
 const inlandServiceLocationsReady = computed(() =>
-  (!inlandPickupServiceSelected.value || Boolean(form.inlandPickupLocation?.address?.trim()
-    && form.inlandPickupLocation.latitude != null && form.inlandPickupLocation.longitude != null))
-  && (!inlandDeliveryServiceSelected.value || Boolean(form.inlandDeliveryLocation?.address?.trim()
-    && form.inlandDeliveryLocation.latitude != null && form.inlandDeliveryLocation.longitude != null)),
+  (!inlandPickupServiceSelected.value || Boolean(form.inlandPickupLocation?.address?.trim()))
+  && (!inlandDeliveryServiceSelected.value || Boolean(form.inlandDeliveryLocation?.address?.trim())),
 )
 function isStorageService(value: string) {
   const normalized = normalizeCatalogValue(value)
@@ -3690,20 +3684,18 @@ async function downloadRateLinesExcel() {
 }
 
 async function next() {
-  if (props.rateId) {
-    if (step.value < maxStep.value) step.value += 1
+  if (step.value === 3 && selectedIncotermCode.value === 'EXW' && !props.viewOnly
+    && (!pickupLocations.value.length || form.pickupAddress.trim())) {
+    toastStore.warning(
+      'Recolecta pendiente de agregar',
+      'Presione Agregar recolecta para registrar la dirección antes de continuar. Ubicarla en el mapa es opcional.',
+    )
     return
   }
 
-  // EXW/FCA: escribir la ubicación y presionar Continuar debe bastar. Primero
-  // intentamos resolver coordenadas; solo después evaluamos canNext.
-  if (
-    step.value === 3 &&
-    ['EXW', 'FCA'].includes(selectedIncotermCode.value) &&
-    form.pickupAddress.trim() &&
-    !pickupCoordinates.value
-  ) {
-    await geocodePickupAddress(false)
+  if (props.rateId) {
+    if (step.value < maxStep.value) step.value += 1
+    return
   }
 
   if (!canNext.value) return
@@ -4977,7 +4969,7 @@ onMounted(async () => {
               <p class="font-black">{{ selectedIncotermCode === 'EXW' ? 'Lugar de recolección EXW' : 'WHS de entrega FCA' }}</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                 {{ selectedIncotermCode === 'EXW'
-                  ? nearbyOriginCopy.description
+                  ? 'Escriba la dirección y presione Agregar recolecta. Ubicarla en el mapa es opcional y ayuda a buscar terminales cercanas.'
                   : 'Seleccione uno de los WHS globales configurados. Su ubicación se refleja en el mapa.' }}
               </p>
             </div>
@@ -5045,7 +5037,7 @@ onMounted(async () => {
                 :disabled="locatingPickup || !form.pickupAddress.trim()"
                 @click="geocodePickupAddress(selectedIncotermCode === 'EXW')"
               >
-                <Waypoints class="h-4 w-4" /> {{ locatingPickup ? 'Ubicando…' : 'Ubicar en mapa' }}
+                <Waypoints class="h-4 w-4" /> {{ locatingPickup ? 'Ubicando…' : 'Ubicar en mapa (opcional)' }}
               </DhButton>
               <DhButton
                 v-if="selectedIncotermCode === 'EXW'"
@@ -5057,7 +5049,7 @@ onMounted(async () => {
               </DhButton>
               <DhButton
                 v-if="selectedIncotermCode === 'EXW'"
-                :disabled="!form.pickupAddress.trim() || !pickupCoordinates || (sellerRequestMode && !pickupCargoCondition)"
+                :disabled="!form.pickupAddress.trim() || (sellerRequestMode && !pickupCargoCondition)"
                 @click="savePickupLocation"
               >
                 {{ editingPickupIndex == null ? 'Agregar recolecta' : 'Actualizar recolecta' }}
@@ -5073,7 +5065,7 @@ onMounted(async () => {
               :interactive-selection="true"
               :initial-zoom="11"
               :selection-zoom="13"
-              hint="Arrastre para explorar y toque el mapa para fijar el punto exacto de recolección. Los puertos encontrados se muestran como marcadores."
+              hint="Opcional: toque el mapa para fijar el punto exacto de recolección. Los puertos encontrados se muestran como marcadores."
               @select-point="selectPickupFromMap"
             />
             <PricingInteractiveOsmMap
@@ -5122,7 +5114,7 @@ onMounted(async () => {
                 </div>
               </div>
               <p v-if="!pickupLocations.length" class="text-[11px] font-bold text-amber-600">
-                Agregue al menos una recolecta. La clasificación fiscal/nacionalizada es opcional.
+                Agregue al menos una recolecta con dirección para continuar. Marcarla en el mapa es opcional.
               </p>
             </div>
 
