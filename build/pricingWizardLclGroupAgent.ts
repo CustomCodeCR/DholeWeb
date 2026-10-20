@@ -20,6 +20,11 @@ function patchWizard(source: string) {
     'catalog selector')
 
   code = replaceOne(code,
+    "    agentId: '',\\n    carrierId: '',",
+    "    agentId: '',\\n    lclGroupAgentId: '',\\n    carrierId: '',",
+    'reset new rate')
+
+  code = replaceOne(code,
     "    form.agentId = rate.agentId ?? ''",
     "    form.agentId = rate.agentId ?? ''\n    form.lclGroupAgentId = rate.lclGroupAgentId ?? ''",
     'rate hydration')
@@ -67,7 +72,7 @@ function patchWizard(source: string) {
 export function pricingWizardLclGroupAgent(): Plugin {
   return {
     name: 'dhole-pricing-lcl-group-agent',
-    enforce: 'pre',
+    // Ejecutar después de las transformaciones de pantalla 6 y antes de Vue.
     transform(source, id) {
       if (id.includes('?')) return null
       if (!id.replace(/\\/g, '/').endsWith(WIZARD_PATH)) return null
