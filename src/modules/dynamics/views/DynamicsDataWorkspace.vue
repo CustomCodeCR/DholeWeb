@@ -1089,53 +1089,186 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
     </template>
     <template v-else-if="section === 'crud'">
       <div class="dynamics-security-note"><AlertTriangle :size="17" />
-        <span>{{ canWrite ? 'Escrituras autorizadas para este entorno. Todas requieren confirmación de Dataverse.' : 'CREATE, UPDATE y DELETE están bloqueados en este entorno o no se pudo verificar su aprobación.' }}</span>
+        <span>{{ canWrite ? 'Este entorno permite operaciones autorizadas. Los cambios requieren validación y confirmación.' : 'Modo protegido: podés preparar y revisar una operación, pero las escrituras permanecerán bloqueadas hasta que exista aprobación válida.' }}</span>
       </div>
-      <div v-if="!canSecurity" class="dynamics-feedback dynamics-feedback-error">Requiere dynamics.security.admin.</div>
+      <div v-if="!canSecurity" class="dynamics-feedback dynamics-feedback-error">Necesitás el permiso dynamics.security.admin para administrar registros.</div>
       <template v-else>
-        <div class="dynamics-form-grid">
-          <label class="dynamics-field"><span>Tabla aprobada</span><select v-model="entity" @change="changeEntity"><option v-for="t in enabledTables" :key="t.logicalName" :value="t.logicalName">{{ t.logicalName }}</option></select></label>
-          <label class="dynamics-field"><span>Operación</span><select v-model="crudMode" @change="resetRecord"><option value="create">CREATE · nuevo registro</option><option value="update">UPDATE · editar</option><option value="delete">DELETE · eliminar</option></select></label>
-        </div>
-        <div v-if="crudMode !== 'create'" class="dynamics-data-card">
-          <div class="dynamics-tools">
-            <label class="dynamics-field"><span>GUID del registro</span><input v-model.trim="recordId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label>
-            <button class="dynamics-outline-button" type="button" :disabled="busy || !recordId" @click="loadRecord">Cargar registro y ETag</button>
-            <label class="dynamics-field"><span>ETag (solo lectura)</span><input :value="etag" readonly placeholder="Se obtiene de Dataverse"></label>
+        <nav class="dynamics-wizard-steps" aria-label="Pasos para operar sobre registros">
+          <button v-for="(name, index) in crudSteps" :key="name" type="button"
+            class="dynamics-wizard-step" :class="{ active: crudStep === index + 1, done: crudStep > index + 1 }"
+            :disabled="index + 1 > crudStep" :aria-current="crudStep === index + 1 ? 'step' : undefined"
+            @click="crudStep = (index + 1) as 1 | 2 | 3 | 4">
+            <span class="dynamics-step-index">{{ index + 1 }}</span><span>{{ name }}</span>
+          </button>
+        </nav>
+        <div v-if="crudStep === 1" class="dynamics-wizard-pane">
+          <p class="dynamics-wizard-kicker">PASO 1 · ¿QUÉ QUERÉS HACER?</p>
+          <h3>Elegí una operación</h3>
+          <div class="dynamics-operation-choices">
+            <button type="button" class="dynamics-operation-choice" :class="{ selected: crudMode === 'create' }"
+              @click="crudMode='create'; changeCrudMode()"><strong>Crear registro</strong><small>Agregar información nueva a Dataverse.</small></button>
+            <button type="button" class="dynamics-operation-choice" :class="{ selected: crudMode === 'update' }"
+              @click="crudMode='update'; changeCrudMode()"><strong>Modificar registro</strong><small>Buscar un registro y editar campos permitidos.</small></button>
+            <button type="button" class="dynamics-operation-choice" :class="{ selected: crudMode === 'delete' }"
+              @click="crudMode='delete'; changeCrudMode()"><strong>Eliminar registro</strong><small>Solo con permisos, política y confirmación especial.</small></button>
+          </div>
+          <div class="dynamics-form-grid">
+            <label class="dynamics-field"><span>¿En qué tabla?</span>
+              <select v-model="entity" @change="changeEntity">
+                <option v-for="t in enabledTables" :key="t.logicalName" :value="t.logicalName">{{ label(t.labels) || t.logicalName }} ({{ t.logicalName }})</option>
+              </select>
+            </label>
+            <div class="dynamics-explainer">
+              <strong>{{ label(activeTable?.labels) || activeTable?.logicalName || 'Sin tabla aprobada' }}</strong>
+              <p>{{ writableFields.length }} campos autorizados para {{ crudMode === 'create' ? 'creación' : 'edición' }}.</p>
+              <button v-if="!enabledTables.length" type="button" class="dynamics-outline-button" @click="emit('navigate', 'catalog')">Ir al Catálogo</button>
+            </div>
           </div>
         </div>
-        <template v-if="crudMode !== 'delete'">
-          <p class="dynamics-subtitle">Solo se muestran campos con permisos de {{ crudMode === 'create' ? 'creación' : 'edición' }}. Vacío significa NULL en campos opcionales.</p>
-          <div class="dynamics-check-grid"><label v-for="f in writableFields" :key="f.logicalName" class="dynamics-check"><input v-model="writeFields" type="checkbox" :value="f.logicalName">{{ label(f.labels) || f.logicalName }}</label></div>
-          <div v-for="name in writeFields" :key="name" class="dynamics-data-card">
-            <template v-if="writableFields.find(f => f.logicalName === name)">
-              <label class="dynamics-field">
-                <span>{{ name }} ({{ writableFields.find(f => f.logicalName === name)?.type }})</span>
-                <select v-if="writableFields.find(f => f.logicalName === name)?.choices.length" v-model="writeValues[name]">
-                  <option value="">Seleccionar opción</option><option v-for="option in writableFields.find(f => f.logicalName === name)?.choices" :key="option.value" :value="String(option.value)">{{ label(option.labels) || option.value }}</option>
-                </select>
-                <select v-else-if="writableFields.find(f => f.logicalName === name)?.type === 'Boolean'" v-model="writeValues[name]"><option value="">Seleccionar</option><option value="true">Verdadero</option><option value="false">Falso</option></select>
-                <input v-else v-model="writeValues[name]" :placeholder="['Lookup','Customer','Owner'].includes(writableFields.find(f => f.logicalName === name)?.type ?? '') ? 'GUID de referencia' : 'Valor del campo'">
+        <div v-else-if="crudStep === 2" class="dynamics-wizard-pane">
+          <p class="dynamics-wizard-kicker">PASO 2 · {{ crudMode === 'create' ? 'CAMPOS' : 'BUSCAR REGISTRO' }}</p>
+          <template v-if="crudMode !== 'create'">
+            <h3>Identificá el registro {{ crudMode === 'update' ? 'a modificar' : 'a eliminar' }}</h3>
+            <p class="dynamics-subtitle">Ingresá el identificador GUID de Dataverse. Lo cargaremos antes de permitir una modificación.</p>
+            <div class="dynamics-form-grid">
+              <label class="dynamics-field"><span>Identificador del registro (GUID)</span>
+                <input v-model.trim="recordId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false">
               </label>
-              <label v-if="lookupRelations(writableFields.find(f => f.logicalName === name)!).length" class="dynamics-field"><span>Relación de Dataverse</span>
-                <select v-model="navByField[name]"><option value="">Seleccionar relación</option>
-                  <option v-for="relation in lookupRelations(writableFields.find(f => f.logicalName === name)!)" :key="relation.schemaName" :value="relation.referencingNavigation ?? ''">{{ relation.referencingNavigation }} · {{ relation.referencedEntity }}</option>
-                </select></label>
-            </template>
+              <div class="dynamics-explainer">
+                <strong>Protección frente a cambios simultáneos</strong>
+                <p>Comprobaremos la versión ETag antes de actualizar o borrar.</p>
+              </div>
+            </div>
+            <button type="button" class="dynamics-primary-button" :disabled="busy || !validGuid(recordId)"
+              @click="loadRecord">Buscar y cargar registro</button>
+            <p v-if="etag && recordId === loadedRecordId" class="dynamics-feedback dynamics-feedback-success">Registro encontrado. ETag cargado; podés continuar.</p>
+          </template>
+          <template v-else>
+            <h3>Elegí los campos que tendrá el nuevo registro</h3>
+            <p class="dynamics-subtitle">Solo mostramos los campos que tu conexión permite crear. Seleccioná los que necesitás.</p>
+            <div class="dynamics-tools">
+              <label class="dynamics-field dynamics-search-field"><span>Buscar campo</span>
+                <input v-model="crudFieldSearch" placeholder="Nombre, cliente, fecha…">
+              </label>
+            </div>
+            <div v-if="!writableFields.length" class="dynamics-empty-state">
+              <strong>No hay campos autorizados para crear</strong>
+              <p>Los campos de esta tabla necesitan permisos de creación en el Catálogo.</p>
+              <button type="button" class="dynamics-outline-button" @click="emit('navigate', 'catalog')">Autorizar campos</button>
+            </div>
+            <div v-else class="dynamics-choice-list">
+              <label v-for="field in visibleWriteFields" :key="field.logicalName" class="dynamics-choice-row">
+                <input v-model="writeFields" type="checkbox" :value="field.logicalName">
+                <span><strong>{{ label(field.labels) || field.logicalName }}</strong>
+                  <small>{{ field.logicalName }} · {{ field.type }}{{ field.requiredLevel?.includes('Required') ? ' · Obligatorio en Dataverse' : '' }}</small></span>
+              </label>
+            </div>
+            <p class="dynamics-selection-count">{{ crudSelectedCount }} campos seleccionados</p>
+          </template>
+        </div>
+        <div v-else-if="crudStep === 3" class="dynamics-wizard-pane">
+          <p class="dynamics-wizard-kicker">PASO 3 · {{ crudMode === 'delete' ? 'ELIMINACIÓN' : 'DATOS' }}</p>
+          <template v-if="crudMode === 'delete'">
+            <h3>Revisá las consecuencias del borrado</h3>
+            <div class="dynamics-feedback dynamics-feedback-error">
+              Eliminar es irreversible. Debe estar habilitada la política de borrado y se debe confirmar explícitamente.
+            </div>
+            <p v-if="!deletePolicy?.enabled" class="dynamics-subtitle">La política de eliminación de esta tabla no está habilitada.</p>
+            <label class="dynamics-check"><input v-model="confirmed" type="checkbox"> Confirmo que quiero eliminar este registro</label>
+            <div class="dynamics-form-grid">
+              <label class="dynamics-field"><span>Escribí ELIMINAR para confirmar</span><input v-model="deletePhrase" placeholder="ELIMINAR"></label>
+              <label class="dynamics-field"><span>Motivo (mínimo 10 caracteres)</span>
+                <textarea v-model="deleteReason" rows="3" placeholder="Explicá por qué es necesario eliminarlo"></textarea>
+              </label>
+            </div>
+          </template>
+          <template v-else>
+            <h3>{{ crudMode === 'create' ? 'Completá los datos del nuevo registro' : 'Elegí qué campos querés cambiar' }}</h3>
+            <p class="dynamics-subtitle">Solo se enviarán los campos seleccionados. Los valores vacíos se guardan como NULL cuando el campo lo permita.</p>
+            <div v-if="crudMode === 'update'" class="dynamics-data-card">
+              <label class="dynamics-field dynamics-search-field"><span>Agregar un campo</span>
+                <input v-model="crudFieldSearch" placeholder="Buscar por nombre…">
+              </label>
+              <div class="dynamics-choice-list dynamics-choice-compact">
+                <label v-for="field in visibleWriteFields" :key="field.logicalName" class="dynamics-choice-row">
+                  <input v-model="writeFields" type="checkbox" :value="field.logicalName">
+                  <span>{{ label(field.labels) || field.logicalName }}<small>{{ field.logicalName }}</small></span>
+                </label>
+              </div>
+            </div>
+            <div v-if="!writeFields.length" class="dynamics-empty-state">
+              <strong>Seleccioná los campos que querés {{ crudMode === 'create' ? 'crear' : 'modificar' }}</strong>
+              <p>{{ crudMode === 'create' ? 'Volvé al paso anterior para seleccionar los campos.' : 'Agregá al menos un campo autorizado arriba.' }}</p>
+            </div>
+            <div v-for="name in writeFields" :key="name" class="dynamics-write-field-card">
+              <template v-if="writableFields.find(f => f.logicalName === name)">
+                <div class="dynamics-data-card-top">
+                  <div><strong>{{ label(writableFields.find(f => f.logicalName === name)?.labels) || name }}</strong>
+                    <p class="dynamics-subtitle">{{ name }} · {{ writableFields.find(f => f.logicalName === name)?.type }}</p></div>
+                  <button type="button" class="dynamics-outline-button" @click="removeWriteField(name)">Quitar campo</button>
+                </div>
+                <label class="dynamics-field"><span>Valor</span>
+                  <select v-if="writableFields.find(f => f.logicalName === name)?.choices.length" v-model="writeValues[name]">
+                    <option value="">Seleccionar</option>
+                    <option v-for="option in writableFields.find(f => f.logicalName === name)?.choices" :key="option.value" :value="String(option.value)">{{ label(option.labels) || option.value }}</option>
+                  </select>
+                  <select v-else-if="writableFields.find(f => f.logicalName === name)?.type === 'Boolean'" v-model="writeValues[name]">
+                    <option value="">Seleccionar</option><option value="true">Sí</option><option value="false">No</option>
+                  </select>
+                  <input v-else v-model="writeValues[name]"
+                    :type="writableFields.find(f => f.logicalName === name)?.type === 'DateTime' ? 'datetime-local' :
+                      ['Integer','BigInt','Money','Decimal','Double'].includes(writableFields.find(f => f.logicalName === name)?.type ?? '') ? 'number' : 'text'"
+                    :step="['Money','Decimal','Double'].includes(writableFields.find(f => f.logicalName === name)?.type ?? '') ? 'any' : undefined"
+                    :placeholder="['Lookup','Customer','Owner'].includes(writableFields.find(f => f.logicalName === name)?.type ?? '') ? 'GUID de referencia' : 'Ingresá el valor del campo'">
+                </label>
+                <label v-if="lookupRelations(writableFields.find(f => f.logicalName === name)!).length" class="dynamics-field">
+                  <span>Relación de Dataverse</span>
+                  <select v-model="navByField[name]"><option value="">Seleccionar relación</option>
+                    <option v-for="relation in lookupRelations(writableFields.find(f => f.logicalName === name)!)" :key="relation.schemaName"
+                      :value="relation.referencingNavigation ?? ''">{{ relation.referencingNavigation }} · {{ relation.referencedEntity }}</option>
+                  </select>
+                </label>
+                <p v-else-if="['Lookup','Customer','Owner'].includes(writableFields.find(f => f.logicalName === name)?.type ?? '')"
+                  class="dynamics-subtitle">Esta referencia necesita una relación autorizada del catálogo antes de poder escribirse.</p>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div v-else class="dynamics-wizard-pane">
+          <p class="dynamics-wizard-kicker">PASO 4 · REVISIÓN FINAL</p>
+          <h3>Confirmá tu operación antes de enviarla</h3>
+          <div class="dynamics-review-grid">
+            <div class="dynamics-review-item"><strong>Acción</strong>{{ crudMode === 'create' ? 'Crear' : crudMode === 'update' ? 'Modificar' : 'Eliminar' }}</div>
+            <div class="dynamics-review-item"><strong>Tabla</strong>{{ label(activeTable?.labels) || entity }}</div>
+            <div class="dynamics-review-item"><strong>Campos</strong>{{ crudMode === 'delete' ? 'Registro completo' : writeFields.length }}</div>
+            <div v-if="crudMode !== 'create'" class="dynamics-review-item"><strong>Registro</strong>{{ recordId }}</div>
           </div>
-        </template>
-        <div v-else class="dynamics-data-card">
-          <p class="dynamics-subtitle">El borrado solo es posible con política habilitada, permiso específico, ETag y motivo. No se puede deshacer.</p>
-          <p v-if="!deletePolicy?.enabled" class="dynamics-feedback dynamics-feedback-error">La política de borrado de esta tabla está deshabilitada.</p>
-          <label class="dynamics-check"><input v-model="confirmed" type="checkbox"> Confirmo que el registro identificado será eliminado</label>
-          <label class="dynamics-field"><span>Escribí ELIMINAR</span><input v-model="deletePhrase" placeholder="ELIMINAR"></label>
-          <label class="dynamics-field"><span>Motivo (mínimo 10 caracteres)</span><textarea v-model="deleteReason" rows="3"></textarea></label>
+          <details v-if="crudMode !== 'delete'" class="dynamics-disclosure" open>
+            <summary>Datos que se enviarán</summary>
+            <pre class="dynamics-json">{{ JSON.stringify(crudPreview, null, 2) }}</pre>
+          </details>
+          <div v-if="!canWrite || (crudMode === 'delete' && !canDelete)"
+            class="dynamics-feedback dynamics-feedback-error" role="alert">
+            Operación bloqueada por permisos o aprobaciones de producción. Podés revisar el formulario, pero no se enviará ningún cambio.
+          </div>
+          <div v-else-if="!canFinishWrite && !lockedWrite" class="dynamics-feedback dynamics-feedback-error">
+            Revisá los campos, ETag y confirmaciones antes de ejecutar.
+          </div>
+          <button type="button" class="dynamics-primary-button" :disabled="!canFinishWrite" @click="submitWrite">
+            {{ crudMode === 'create' ? 'Confirmar creación' : crudMode === 'update' ? 'Confirmar modificación' : 'Confirmar eliminación' }}
+          </button>
         </div>
-        <div class="dynamics-tools">
-          <button class="dynamics-primary-button" type="button" :disabled="busy || lockedWrite || !canWrite || (crudMode==='delete' && (!canDelete || !deletePolicy?.enabled))" @click="submitWrite">Ejecutar {{ crudMode.toUpperCase() }}</button>
-          <button class="dynamics-outline-button" type="button" :disabled="busy" @click="newWrite">Nueva operación</button>
+        <div class="dynamics-wizard-footer">
+          <button v-if="crudStep > 1" type="button" class="dynamics-outline-button" :disabled="busy || lockedWrite"
+            @click="crudStep = (crudStep - 1) as 1 | 2 | 3 | 4">Anterior</button>
+          <div class="dynamics-wizard-footer-right">
+            <span class="dynamics-subtitle">Paso {{ crudStep }} de 4</span>
+            <button v-if="crudStep < 4" type="button" class="dynamics-primary-button" :disabled="busy || lockedWrite || !enabledTables.length"
+              @click="nextCrudStep">Siguiente</button>
+            <button v-else type="button" class="dynamics-outline-button" :disabled="busy" @click="newWrite(); crudStep=1">Nueva operación</button>
+          </div>
         </div>
-        <p v-if="lockedWrite" class="dynamics-subtitle">La operación quedó cerrada en esta pantalla para evitar reenvíos. Revisá su identificador y auditoría antes de cualquier nueva intención.</p>
+        <p v-if="lockedWrite" class="dynamics-subtitle">No se reenvía automáticamente la operación. Revisá su identificador en Auditoría si hay dudas sobre el resultado.</p>
         <pre v-if="writeResult" class="dynamics-json">{{ JSON.stringify(writeResult, null, 2) }}</pre>
       </template>
     </template>
