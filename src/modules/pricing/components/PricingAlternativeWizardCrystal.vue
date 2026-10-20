@@ -3497,10 +3497,16 @@ async function hydrateExistingRate() {
     for (const line of rateLines.value) {
       if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
     }
-    // The same Release can arrive twice from different catalog CostIds.
-    // Omitting an equivalent persisted row from rateLines causes edit/save to
-    // remove the redundant detail via removedExtraDetailIds.
-    rateLines.value = dedupeEquivalentReleaseLines(rateLines.value)
+    // Two different catalog CostIds can represent the same Release.
+    // Keep a single identical line; edit/save removes the extra persisted Id.
+    const uniqueReleaseLines = dedupeEquivalentReleaseLines(rateLines.value)
+    if (uniqueReleaseLines.length !== rateLines.value.length) {
+      toastStore.warning(
+        'Release duplicado en la tarifa',
+        'Se muestra un solo Release. Edite y guarde la tarifa para corregir también los detalles y totales almacenados.',
+      )
+    }
+    rateLines.value = uniqueReleaseLines
     mergeConfiguredOptionalCostsIntoRateLines()
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
