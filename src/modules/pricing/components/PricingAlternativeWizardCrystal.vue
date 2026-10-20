@@ -48,6 +48,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
+import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -3496,6 +3497,16 @@ async function hydrateExistingRate() {
     for (const line of rateLines.value) {
       if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
     }
+    // Two different catalog CostIds can represent the same Release.
+    // Keep a single identical line; edit/save removes the extra persisted Id.
+    const uniqueReleaseLines = dedupeEquivalentReleaseLines(rateLines.value)
+    if (uniqueReleaseLines.length !== rateLines.value.length) {
+      toastStore.warning(
+        'Release duplicado en la tarifa',
+        'Se muestra un solo Release. Edite y guarde la tarifa para corregir también los detalles y totales almacenados.',
+      )
+    }
+    rateLines.value = uniqueReleaseLines
     mergeConfiguredOptionalCostsIntoRateLines()
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
