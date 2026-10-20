@@ -20,8 +20,8 @@ function patchWizard(source: string) {
     'catalog selector')
 
   code = replaceOne(code,
-    "    agentId: '',\\n    carrierId: '',",
-    "    agentId: '',\\n    lclGroupAgentId: '',\\n    carrierId: '',",
+    "    agentId: '',\n    carrierId: '',",
+    "    agentId: '',\n    lclGroupAgentId: '',\n    carrierId: '',",
     'reset new rate')
 
   code = replaceOne(code,
