@@ -774,6 +774,9 @@ export interface PricingExchangeRateDto extends Record<string, unknown> {
 }
 
 export interface RateDto extends Record<string, unknown> {
+  lclGroupAgentId?: string | null
+  lclGroupAgentName?: string | null
+  lclGroupAgentCode?: string | null
   id: string
   rateCode: string
   rateName: string
@@ -925,6 +928,7 @@ export interface CreateRateContainerRequest extends Record<string, unknown> {
 }
 
 export interface CreateRateRequest extends Record<string, unknown> {
+  lclGroupAgentId?: string | null
   sourceImportFclRateId?: string | null
   agentId?: string | null
   agentName?: string | null
