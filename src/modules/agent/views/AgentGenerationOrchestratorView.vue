@@ -915,7 +915,7 @@ onUnmounted(() => {
             </div>
             <div v-if="canManage && guideProvisioned && validStandbyName(guideTarget)" class="mt-4 grid gap-3">
               <template v-if="guideSession?.status === 'Ready'">
-                <DhButton label="Abrir navegador aislado" variant="secondary" :icon="ShieldCheck"
+                <DhButton :label="'Abrir noVNC de ' + guideTarget" variant="secondary" :icon="ShieldCheck"
                   :disabled="standbyBusy !== null" :loading="standbyBusy === guideTarget"
                   @click="openStandbyViewer(guideTarget)" />
                 <DhButton label="Comprobar ahora" variant="secondary" :icon="RefreshCw"
@@ -1201,7 +1201,7 @@ onUnmounted(() => {
                   El acceso se administra desde Dhole. Worker activo registrado: {{ state.activeGeneration }}.
                 </p>
                 <template v-if="standbySession(item.name)?.status === 'Ready'">
-                  <DhButton :label="'Abrir navegador de ' + item.name" :icon="ShieldCheck"
+                  <DhButton :label="'Abrir noVNC de ' + item.name" :icon="ShieldCheck"
                     variant="secondary" :disabled="standbyBusy !== null"
                     :loading="standbyBusy === item.name" @click="openStandbyViewer(item.name)" />
                   <p class="text-[var(--dh-text-muted)]">
@@ -1434,7 +1434,7 @@ onUnmounted(() => {
         role="dialog" aria-modal="true" aria-label="Navegador independiente de Maersk">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] bg-[var(--dh-surface)] p-3">
           <div class="text-sm font-semibold">
-            Maersk · {{ activeStandbyViewer.generation }} · Navegador independiente
+            Maersk · {{ activeStandbyViewer.generation }} · noVNC interactivo
             <p class="text-xs font-normal text-[var(--dh-text-muted)]">
               Ingresá al Hub completo de Maersk en este navegador. La autenticación real se verifica en el servidor.
             </p>
