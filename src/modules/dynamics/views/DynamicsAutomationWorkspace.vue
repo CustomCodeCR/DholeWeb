@@ -68,9 +68,9 @@ async function load(){
   busy.value=true;error.value=''
   try{
     const [rules,ts,fields]=await Promise.all([
-      fetchClient<Automation[]>(url('/event-automations')),
-      fetchClient<Template[]>(url('/templates')),
-      fetchClient<Record<string,string>>(url('/event-automations/pricing-fields'))
+      fetchClient<Automation[]>(url('/event-automations'), { method: 'GET' }),
+      fetchClient<Template[]>(url('/templates'), { method: 'GET' }),
+      fetchClient<Record<string,string>>(url('/event-automations/pricing-fields'), { method: 'GET' })
     ])
     existing.value=rules;templates.value=ts;pricingFields.value=fields
     if(!quoteTemplates.value.some(t=>t.name===templateName.value)&&quoteTemplates.value.length)
