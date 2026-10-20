@@ -148,11 +148,13 @@ ${restoreAnchor}`
     // For a normal new quote, resume at most on Pantalla 4. Pantalla 5+ depends on
     // live tariff/catalog responses and is recalculated when the user continues.
     // Existing seller/rate-request flows keep their own minimum step behavior.
-    step.value = props.sellerEditRequestId
-      ? 4
-      : props.rateRequestId
-        ? safeRestoredStep
-        : Math.min(safeRestoredStep, 4)
+    step.value = props.sellerModificationRateId
+      ? 3
+      : props.sellerEditRequestId
+        ? 4
+        : props.rateRequestId
+          ? safeRestoredStep
+          : Math.min(safeRestoredStep, 4)
 
     await Promise.resolve()
     const draftForm = draft.form && typeof draft.form === 'object'
@@ -192,7 +194,7 @@ ${restoreAnchor}`
     selectedFclBundleKey.value = ''
     fclSelectedImportRateIds.value = {}
     lclSelectedSource.value = null
-    step.value = props.rateRequestId ? 5 : 1
+    step.value = props.sellerModificationRateId ? 3 : props.rateRequestId ? 5 : 1
     toastStore.warning(
       'Borrador incompatible descartado',
       'El borrador anterior no era compatible con la versión actual. Puede continuar creando la tarifa normalmente.',
