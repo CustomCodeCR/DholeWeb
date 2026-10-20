@@ -55,7 +55,7 @@ type DeletePolicy = { entity: string; enabled: boolean; minAgeDays: number }
 type MetadataJob = {
   id: string; connectionId: string; kind: string; resourceKey: string
   status: 'pending' | 'running' | 'completed' | 'dead'; lastErrorCode: string | null
-  attempts: number; createdAt: string
+  attempts: number; maxAttempts: number; createdAt: string
 }
 type ApiOperation = 'saved' | 'search' | 'get' | 'create' | 'update' | 'delete' | 'upsert'
 type ApiClient = { id: string; issuer: string; clientId: string; displayName: string; enabled: boolean }
@@ -296,18 +296,19 @@ async function reload() {
   if ((props.section === 'security' || props.section === 'integrations') && canSecurity.value) await loadGrants()
   if (props.section === 'catalog') await resumeMetadataJob()
 }
-async function refreshMetadata() {
+async function refreshMetadata(targetTable: string | null = null) {
   await run(async () => {
     if (!canSecurity.value) throw new Error('Se requiere dynamics.security.admin para solicitar un refresco.')
     // The durable queue responds immediately; Dataverse discovery is never tied to the browser timeout.
     const active = (await api<MetadataJob[]>('operations/jobs?connectionCode=' +
-      encodeURIComponent(code.value) + '&limit=25'))
-      .find(j => j.kind === 'metadata_refresh' && ['pending', 'running'].includes(j.status))
+      encodeURIComponent(code.value) + '&limit=50'))
+      .find(j => j.kind === 'metadata_refresh' && j.resourceKey === (targetTable ?? '') &&
+        ['pending', 'running'].includes(j.status))
     metadataJob.value = active ?? await api<MetadataJob>('operations/jobs/' + encodeURIComponent(code.value),
-      'POST', { kind: 'metadata_refresh', entityName: null,
+      'POST', { kind: 'metadata_refresh', entityName: targetTable,
         dedupeKey: 'metadata-ui-' + crypto.randomUUID().replaceAll('-', '') })
-    info.value = active ? 'Ya hay una actualización activa. Podés continuar usando Dhole.' :
-      'Actualización enviada. Podés salir de esta sección; se procesará sin mantener abierta la conexión.'
+    info.value = active ? 'Ya se está descubriendo ' + (targetTable || 'el índice de tablas') + '.' :
+      'Descubrimiento de ' + (targetTable || 'tablas') + ' en segundo plano. Podés continuar usando Dhole.'
   })
 }
 async function pollMetadataJob() {
@@ -698,11 +699,11 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
     <div v-if="!code" class="dynamics-empty">Seleccioná una conexión para continuar.</div>
     <template v-else-if="section === 'catalog'">
       <div class="dynamics-tools">
-        <button type="button" class="dynamics-primary-button" :disabled="busy || !!metadataJob || !canSecurity" @click="refreshMetadata"><RefreshCw :size="15" /> {{ metadataJob ? 'Actualización en curso' : 'Actualizar catálogo' }}</button>
+        <button type="button" class="dynamics-primary-button"  :disabled="busy || (metadataJob?.resourceKey === '' && ['pending','running'].includes(metadataJob.status)) || !canSecurity" @click="refreshMetadata()"><RefreshCw :size="15" /> {{ metadataJob?.resourceKey === '' ? 'Actualizando índice' : 'Actualizar catálogo' }}</button>
         <span class="dynamics-subtitle">Snapshot {{ snapshot?.version ?? 'sin generar' }} · {{ snapshot?.capturedAt ? new Date(snapshot.capturedAt).toLocaleString('es-CR') : 'Pendiente de descubrimiento' }}</span>
       </div>
       <p v-if="metadataJob" class="dynamics-feedback" role="status">
-        <RefreshCw :size="15" /> {{ metadataJob.status === 'pending' ? 'Actualización en cola' : 'Consultando Dataverse en segundo plano' }} · intento {{ metadataJob.attempts }}/{{ 3 }}. Podés utilizar el resto del sistema.
+        <RefreshCw :size="15" /> {{ metadataJob.resourceKey ? 'Tabla: ' + metadataJob.resourceKey : 'Índice de tablas' }} · {{ metadataJob.status === 'pending' ? 'En cola' : 'Consultando Dataverse' }} · intento {{ metadataJob.attempts }}/{{ metadataJob.maxAttempts }}. {{ metadataJob.lastErrorCode ? 'Último error: ' + metadataJob.lastErrorCode + '.' : '' }} Podés utilizar el resto del sistema.
       </p>
       <div class="dynamics-tools">
         <label class="dynamics-field"><span>Actualización automática (60–10080 minutos)</span><input v-model.number="schedule.intervalMinutes" type="number" min="60" max="10080"></label>
@@ -720,10 +721,13 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
         <article v-for="table in matchedTables" :key="table.logicalName" class="dynamics-data-card">
           <div class="dynamics-data-card-top">
             <div><strong>{{ label(table.labels) || table.logicalName }}</strong>
-              <p class="dynamics-subtitle">{{ table.logicalName }} · {{ table.entitySetName }} · {{ table.columns.length }} columnas · {{ table.relationships.length }} relaciones</p>
+              <p class="dynamics-subtitle">{{ table.logicalName }} · {{ table.entitySetName }} · {{ table.columns.length ? table.columns.length + ' columnas · ' + table.relationships.length + ' relaciones' : 'Pendiente de descubrir campos' }}</p>
             </div>
             <div class="dynamics-actions">
-              <button class="dynamics-outline-button" type="button" :disabled="busy" @click="toggleEntity(table)">{{ entityEnabled(table.logicalName) ? 'Deshabilitar' : 'Habilitar' }}</button>
+              <button v-if="!table.columns.length" class="dynamics-outline-button" type="button"
+                :disabled="busy || !canSecurity || (metadataJob?.resourceKey === table.logicalName && ['pending','running'].includes(metadataJob.status))"
+                @click="refreshMetadata(table.logicalName)">Descubrir campos</button>
+              <button class="dynamics-outline-button" type="button" :disabled="busy || !table.columns.length" @click="toggleEntity(table)">{{ entityEnabled(table.logicalName) ? 'Deshabilitar' : 'Habilitar' }}</button>
               <button class="dynamics-outline-button" type="button" @click="expanded=expanded === table.logicalName ? '' : table.logicalName">{{ expanded===table.logicalName ? 'Cerrar' : 'Campos' }}</button>
             </div>
           </div>
