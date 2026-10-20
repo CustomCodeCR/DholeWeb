@@ -11,11 +11,11 @@ function patchWizard(source: string) {
   let code = source
   code = once(code,
     '  sellerEditRequestId?: string | null',
-    '  sellerEditRequestId?: string | null\n  sellerModificationRateId?: string | null',
+    '  sellerEditRequestId?: string | null\n  sellerModificationRateId?: string | null\n  modificationRequestId?: string | null',
     'wizard prop')
   code = once(code,
     '  sellerEditRequestId: null,',
-    '  sellerEditRequestId: null,\n  sellerModificationRateId: null,',
+    '  sellerEditRequestId: null,\n  sellerModificationRateId: null,\n  modificationRequestId: null,',
     'wizard prop default')
 
   code = once(code,
@@ -293,7 +293,7 @@ async function submitSellerModification() {
 }
 async function loadPricingModificationWorkItem() {
   if (!props.rateId || props.viewOnly) return
-  const id = new URLSearchParams(window.location.search).get('modificationRequestId')
+  const id = props.modificationRequestId || new URLSearchParams(window.location.search).get('modificationRequestId')
   if (!id) return
   pricingModificationLoading.value = true
   try {
@@ -388,6 +388,13 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   }`,
     'discard incomplete legacy amendment drafts')
 
+  // Start on the same pricing stages as the normal "Continuar tarifa" flow.
+  // The original quote remains editable on all wizard screens.
+  code = once(code,
+    'step.value = props.viewOnly ? 9 : 8',
+    'step.value = props.viewOnly ? 9 : props.modificationRequestId ? 5 : 8',
+    'pricing modification initial wizard screen')
+
   // When updating an already-generated quote for a reserved modification,
   // stay in the wizard instead of redirecting to the rate list. The worker
   // must still complete the linked request from the comparison screen.
@@ -396,19 +403,23 @@ onMounted(() => { void loadPricingModificationWorkItem() })
     ? code.indexOf("    await router.push({ name: 'pricing-rates' })", saveRateStart) : -1
   if (savedRateNavigation < 0) throw new Error('[pricingSellerModificationWizard] Rate save navigation not found')
   const stayInRevision = `
-    if (props.rateId && new URLSearchParams(window.location.search).has('modificationRequestId')) {
-      toastStore.success('Tarifa guardada', 'La nueva revisión está guardada. Regrese al comparativo para enviar la revisión al vendedor.')
+    if (props.rateId && (props.modificationRequestId || new URLSearchParams(window.location.search).has('modificationRequestId'))) {
+      toastStore.success('Tarifa guardada', 'La tarifa se guardó. Envíe la nueva revisión al vendedor desde la barra superior de la solicitud.')
       await hydrateExistingRate()
+      step.value = 8
       return
     }
 `
   code = code.slice(0, savedRateNavigation) + stayInRevision + code.slice(savedRateNavigation)
 
   const comparisonPanel = `
-    <section v-if="pricingModificationWorkItem" class="crystal-soft space-y-3 border border-amber-400/30 p-4 md:p-5">
-      <h3 class="font-black">Comparativo de la solicitud de Ventas</h3>
-      <p class="text-xs text-[var(--dh-text-muted)]">Revisión original: {{ pricingModificationWorkItem.payload?.modification?.sourceRevisionNumber }}. Los valores del vendedor no están aplicados todavía.</p>
-      <div class="max-h-80 overflow-auto rounded-xl border border-[var(--dh-border)]">
+    <details v-if="pricingModificationWorkItem" class="crystal-soft group mb-4 border border-amber-400/30 p-4 md:p-5">
+      <summary class="flex cursor-pointer flex-wrap items-center justify-between gap-2 font-black">
+        <span>Modificaciones solicitadas por Ventas · {{ pricingModificationChanges.length }} cambios</span>
+        <span class="text-xs font-semibold text-[var(--dh-text-muted)]">Ver comparativo original / solicitado</span>
+      </summary>
+      <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Revisión original: {{ pricingModificationWorkItem.payload?.modification?.sourceRevisionNumber }}. Los valores del vendedor no se aplican automáticamente.</p>
+      <div class="mt-3 max-h-80 overflow-auto rounded-xl border border-[var(--dh-border)]">
         <table class="w-full min-w-[660px] text-left text-sm">
           <thead><tr><th class="p-3">Cambio</th><th class="p-3">Cotización original</th><th class="p-3">Solicitado por Ventas</th></tr></thead>
           <tbody><tr v-for="(change, index) in pricingModificationChanges" :key="index" class="border-t border-[var(--dh-border)]">
@@ -418,17 +429,17 @@ onMounted(() => { void loadPricingModificationWorkItem() })
           </tr><tr v-if="!pricingModificationChanges.length"><td colspan="3" class="p-3 text-center">No hay diferencias disponibles para mostrar.</td></tr></tbody>
         </table>
       </div>
-      <DhButton variant="secondary" :disabled="pricingModificationApplied" @click="applyPricingModification">
+      <DhButton variant="secondary" :disabled="pricingModificationApplied || !editingRate || loadingExistingRate" @click="applyPricingModification">
         {{ pricingModificationApplied ? 'Datos cargados en el formulario' : 'Cargar datos solicitados en el wizard' }}
       </DhButton>
       <p v-if="pricingModificationWorkItem.payload?.sellerContext?.portHandlingMode" class="text-sm font-semibold">Muellaje solicitado por Ventas: {{ pricingModificationWorkItem.payload.sellerContext.portHandlingMode }}</p>
-      <p class="text-xs text-amber-700 dark:text-amber-300">Compruebe importes, recargos, proveedores y términos. Guardar una nueva revisión y reenviarla al vendedor son pasos separados.</p>
-    </section>
+      <p class="mt-2 text-xs text-amber-700 dark:text-amber-300">Compruebe importes, recargos, proveedores y términos antes de guardar. La revisión se envía al vendedor desde la solicitud reservada.</p>
+    </details>
 `
   code = once(code,
-    '<div v-if="loadingExistingRate" class="crystal-soft p-5 text-sm font-black">',
-    comparisonPanel + '\n    <div v-if="loadingExistingRate" class="crystal-soft p-5 text-sm font-black">',
-    'comparison panels')
+    '<section class="crystal-panel min-h-[470px] p-5 md:p-8"',
+    comparisonPanel + '\n    <section class="crystal-panel min-h-[470px] p-5 md:p-8"',
+    'comparison inside pricing wizard')
   return code
 }
 

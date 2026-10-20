@@ -27,46 +27,9 @@ const router = useRouter()
 const toast = useToastStore()
 const workRequest = ref<WorkRequest | null>(null)
 const finishing = ref(false)
-const showRateEditor = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
-// Pricing guardó solicitudes anteriores con PascalCase (Field/Action/Original/Requested).
-// Normalize in the UI: the already submitted quote must not need resubmitting.
-const modificationChanges = computed(() =>
-  (workRequest.value?.payload?.modification?.changes ?? [])
-    .map(raw => {
-      const row = raw as Record<string, unknown>
-      const value = (camel: string, pascal: string) => String(row[camel] ?? row[pascal] ?? '').trim()
-      return {
-        field: value('field', 'Field'),
-        action: value('action', 'Action'),
-        original: value('original', 'Original'),
-        requested: value('requested', 'Requested'),
-      }
-    })
-    .filter(change => change.field || change.action || change.original || change.requested)
-)
-async function openRateEditor() {
-  if (!workRequest.value?.rateId) return
-  if (showRateEditor.value) {
-    showRateEditor.value = false
-    return
-  }
-  try {
-    // Stay on the reserved request: a second tab would lose the heartbeat,
-    // leave the original work item locked, and orphan the completion step.
-    await router.replace({
-      name: 'pricing-rate-request-resume',
-      params: { requestId: requestId.value },
-      query: { ...route.query, modificationRequestId: requestId.value },
-    })
-    showRateEditor.value = true
-    lastInteractionAt = Date.now()
-  } catch (error) {
-    toast.backendError(error, 'No se pudo abrir la tarifa dentro de la solicitud reservada.')
-  }
-}
 async function completeModification() {
   const rateId = workRequest.value?.rateId
   if (!rateId || finishing.value) return
@@ -147,7 +110,6 @@ function stop() {
   heartbeatTimer = undefined
   ready.value = false
   workRequest.value = null
-  showRateEditor.value = false
   const id = currentId
   currentId = ''
   if (id) void RateRequestLeaseService.release(id).catch(() => undefined)
@@ -188,42 +150,36 @@ onBeforeUnmount(() => {
     <div class="mb-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold">
       Solicitud reservada para {{ ownerName }}. Nadie más puede trabajar esta solicitud mientras esté activa.
     </div>
-    <section v-if="isModification" class="mb-4 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-      <div>
-        <h2 class="text-lg font-black">Solicitud de modificación de tarifa</h2>
-        <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
-          Revise las diferencias y abra la tarifa en este mismo flujo. Puede editarla
-          sin perder la reserva y luego enviar la nueva revisión al vendedor.
+
+    <!-- Same wizard used by "Continuar tarifa": no separate comparison screen. -->
+    <section v-if="isModification" class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
+      <div class="min-w-0">
+        <p class="text-sm font-black">Continuar modificación · {{ workRequest?.payload?.modification?.quote || workRequest?.rateId }}</p>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+          Revisión original {{ workRequest?.payload?.modification?.sourceRevisionNumber ?? 1 }}.
+          Compare los cambios en el wizard, guarde la nueva revisión y después envíela al vendedor.
         </p>
-        <p class="mt-2 text-sm font-bold">Tarifa: {{ workRequest?.payload?.modification?.quote || workRequest?.rateId }} · Revisión de origen: {{ workRequest?.payload?.modification?.sourceRevisionNumber }}</p>
       </div>
-      <div class="overflow-x-auto rounded-xl border border-[var(--dh-border)]">
-        <table class="w-full min-w-[660px] text-left text-sm">
-          <thead class="bg-[var(--dh-card-hover)] text-xs uppercase text-[var(--dh-text-muted)]">
-            <tr><th class="p-3">Cambio</th><th class="p-3">Original (Pricing)</th><th class="p-3">Solicitado (Ventas)</th></tr>
-          </thead>
-          <tbody class="divide-y divide-[var(--dh-border)]">
-            <tr v-for="(change, index) in modificationChanges" :key="index">
-              <td class="p-3 font-bold">{{ change.action }} · {{ change.field }}</td>
-              <td class="p-3 whitespace-pre-wrap text-[var(--dh-text-muted)]">{{ change.original }}</td>
-              <td class="p-3 whitespace-pre-wrap font-semibold text-[var(--dh-text)]">{{ change.requested }}</td>
-            </tr>
-            <tr v-if="!modificationChanges.length"><td colspan="3" class="p-4 text-center text-[var(--dh-text-muted)]">No hay diferencias disponibles para mostrar.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-if="workRequest?.payload?.modification?.notes" class="whitespace-pre-wrap text-sm">Observaciones: {{ workRequest?.payload?.modification?.notes }}</p>
       <div class="flex flex-wrap gap-2">
-        <DhButton :label="showRateEditor ? 'Ocultar editor' : 'Continuar modificación de tarifa'" @click="openRateEditor" />
-        <DhButton label="Enviar revisión al vendedor" :loading="finishing" variant="secondary" @click="completeModification" />
+        <DhButton
+          label="Enviar revisión al vendedor"
+          :loading="finishing"
+          :disabled="!workRequest?.rateId || finishing"
+          @click="completeModification"
+        />
         <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
       </div>
-      <p class="text-xs text-[var(--dh-text-muted)]">Solo podrá finalizar después de que la tarifa tenga una revisión mayor que la indicada. El envío adjunta el PDF y conserva el historial.</p>
     </section>
+
     <PricingAlternativeWizardCrystal
-      v-if="isModification && showRateEditor && workRequest?.rateId"
+      v-if="isModification && workRequest?.rateId"
+      :key="'modification:' + requestId"
       :rate-id="workRequest.rateId"
+      :modification-request-id="requestId"
     />
-    <PricingAlternativeWizardCrystal v-else-if="!isModification" :rate-request-id="requestId" />
+    <PricingAlternativeWizardCrystal v-else-if="!isModification" :key="'original:' + requestId" :rate-request-id="requestId" />
+    <p v-else class="dh-glass rounded-xl p-4 text-sm text-[var(--dh-text-muted)]">
+      No se encontró la tarifa asociada a esta modificación. Revise la solicitud desde el dashboard.
+    </p>
   </div>
 </template>
