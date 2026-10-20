@@ -188,7 +188,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
       <div class="dynamics-mini-card">
         <span class="dynamics-mini-icon"><Activity :size="18" /></span>
         <div><span class="dynamics-mini-caption">Modo de producción</span>
-          <strong>Escrituras de Dataverse bloqueadas</strong>
+          <strong>Sujetas a permisos y aprobación</strong>
         </div>
       </div>
     </section>
