@@ -97,6 +97,7 @@ import { pricingSellerRequestHideRateType } from './build/pricingSellerRequestHi
 import { pricingExwFcaVariableCosts } from './build/pricingExwFcaVariableCosts'
 import { pricingScreen7RemoveVariableLines } from './build/pricingScreen7RemoveVariableLines'
 import { pricingCarrierMerchantChargeCompleteness } from './build/pricingCarrierMerchantChargeCompleteness'
+import { pricingWizardLclGroupAgent } from './build/pricingWizardLclGroupAgent'
 
 export default defineConfig({
   plugins: [
@@ -195,6 +196,7 @@ export default defineConfig({
     pricingFclMultiCarrierCosts20261015(),
     pricingFclInlandPerCarrier20261016(),
     pricingMiamiOwnLclBreakdown(),
+    pricingWizardLclGroupAgent(),
     vue(),
     tailwindcss(),
   ],
