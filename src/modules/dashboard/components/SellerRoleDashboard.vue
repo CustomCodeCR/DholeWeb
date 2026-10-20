@@ -95,6 +95,7 @@ function statusLabel(status: SellerCommercialStatus) {
 }
 
 function sellerStatusLabel(rate: RateDto) {
+  if (rate.revisionPending) return 'En modificación por Pricing'
   return commercialStatus(rate) === 'Sent' && rate.sellerReceivedAtUtc
     ? 'Recibida · Esperando cliente'
     : statusLabel(commercialStatus(rate))
@@ -307,7 +308,7 @@ function routeLabel(rate: RateDto) {
 }
 
 function canRespondToRate(rate: RateDto) {
-  return ['Sent', 'RequestedByClient'].includes(rate.status)
+  return !rate.revisionPending && ['Sent', 'RequestedByClient'].includes(rate.status)
 }
 
 function pendingModification(rate: RateDto): boolean {
@@ -316,7 +317,7 @@ function pendingModification(rate: RateDto): boolean {
 }
 
 function canRequestModification(rate: RateDto): boolean {
-  if (props.adminPreview || ['Cancelled', 'Closed'].includes(rate.status)) return false
+  if (props.adminPreview || rate.revisionPending || ['Cancelled', 'Closed'].includes(rate.status)) return false
   return Boolean(rate.sellerReceivedAtUtc)
     || ['Sent', 'RequestedByClient', 'AcceptedByClient', 'RejectedByClient', 'Expired'].includes(rate.status)
 }
@@ -331,6 +332,7 @@ function openModification(rate: RateDto) {
 
 function canMarkReceived(rate: RateDto) {
   return !props.adminPreview
+    && !rate.revisionPending
     && ['Sent', 'RequestedByClient'].includes(rate.status)
     && !rate.sellerReceivedAtUtc
     && !!rate.executiveName?.trim()
