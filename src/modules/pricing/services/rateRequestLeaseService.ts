@@ -15,12 +15,12 @@ export const RateRequestLeaseService = {
   tokenFor(id: string): string | null {
     return sessionStorage.getItem(key(id))
   },
-  async claim(id: string): Promise<RateRequestLease> {
-    const response = await callEndpoint<unknown, { token: string | null }>({
+  async claim(id: string, options?: { recoverOwnLease?: boolean }): Promise<RateRequestLease> {
+    const response = await callEndpoint<unknown, { token: string | null; recoverOwnLease: boolean }>({
       method: 'POST',
       path: path(id, 'claim'),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    }, { body: { token: this.tokenFor(id) } })
+    }, { body: { token: this.tokenFor(id), recoverOwnLease: options?.recoverOwnLease === true } })
     const lease = unwrapApiResponse<RateRequestLease>(response as never)
     sessionStorage.setItem(key(id), lease.token)
     return lease
@@ -37,12 +37,12 @@ export const RateRequestLeaseService = {
   async release(id: string): Promise<void> {
     const token = this.tokenFor(id)
     if (!token) return
-    sessionStorage.removeItem(key(id))
     await callEndpoint<unknown, { token: string }>({
       method: 'POST',
       path: path(id, 'release'),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     }, { body: { token } })
+    if (sessionStorage.getItem(key(id)) === token) sessionStorage.removeItem(key(id))
   },
   async attachRate(id: string, rateId: string): Promise<void> {
     const token = this.tokenFor(id)

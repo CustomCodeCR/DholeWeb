@@ -265,12 +265,18 @@ function isLocked(request: RateRequestDto): boolean {
     && new Date(request.lockExpiresAtUtc).getTime() > now.value)
 }
 
+function isOwnLock(request: RateRequestDto): boolean {
+  return isLocked(request) && Boolean(authStore.userId)
+    && request.lockedByUserId?.toLowerCase() === authStore.userId?.toLowerCase()
+}
+
 async function continueRequest(request: RateRequestDto) {
   if (request.status !== 'Open') return
-  if (claimingRequestId.value || isLocked(request)) return
+  if (claimingRequestId.value || (isLocked(request) && !isOwnLock(request))) return
   claimingRequestId.value = request.id
   try {
-    await RateRequestLeaseService.claim(request.id)
+    // The resume view obtains (or safely recovers) the lease after navigation.
+    // A failed navigation must never reserve a request without opening it.
     await router.push({ name: 'pricing-rate-request-resume', params: { requestId: request.id } })
   } catch (error) {
     toast.backendError(error, 'La solicitud ya está siendo atendida por otra persona.')
@@ -464,7 +470,7 @@ onBeforeUnmount(() => {
             <td class="px-4 py-3">
               <span v-if="isLocked(request)" class="font-bold text-amber-600 dark:text-amber-300">
                 {{ request.lockedByName || 'Otro usuario' }}
-                <span class="block text-xs font-medium">En proceso · Bloqueada</span>
+                <span class="block text-xs font-medium">{{ isOwnLock(request) ? 'Reservada por usted · Puede retomarla' : 'En proceso · Bloqueada' }}</span>
               </span>
               <span v-else class="font-semibold text-emerald-600 dark:text-emerald-400">Disponible</span>
             </td>
@@ -476,9 +482,9 @@ onBeforeUnmount(() => {
             </td>
             <td class="px-4 py-3 text-right">
               <div v-if="request.status === 'Open'" class="flex items-center justify-end gap-2">
-                <DhButton :disabled="isLocked(request) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="continueRequest(request)">
+                <DhButton :disabled="(isLocked(request) && !isOwnLock(request)) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="continueRequest(request)">
                   <PlayCircle class="h-4 w-4" />
-                  {{ isLocked(request) ? 'En proceso' : claimingRequestId === request.id ? 'Reservando…' : isModification(request) ? 'Revisar cambios' : 'Continuar tarifa' }}
+                  {{ claimingRequestId === request.id ? 'Abriendo…' : isOwnLock(request) ? 'Retomar mi trabajo' : isLocked(request) ? 'En proceso' : isModification(request) ? 'Revisar cambios' : 'Continuar tarifa' }}
                 </DhButton>
                 <DhButton variant="secondary" :disabled="isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="completeRequest(request)">
                   <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : isModification(request) ? 'Enviar revisión' : 'Marcar completada' }}

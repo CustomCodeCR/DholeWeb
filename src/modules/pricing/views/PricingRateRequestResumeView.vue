@@ -27,18 +27,29 @@ const router = useRouter()
 const toast = useToastStore()
 const workRequest = ref<WorkRequest | null>(null)
 const finishing = ref(false)
+const showRateEditor = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
-function openRateEditor() {
-  const rateId = workRequest.value?.rateId
-  if (!rateId) return
-  const href = router.resolve({
-    name: 'pricing-rate-wizard',
-    params: { rateId },
-    query: { mode: 'edit', modificationRequestId: requestId.value },
-  }).href
-  window.open(href, '_blank', 'noopener,noreferrer')
+async function openRateEditor() {
+  if (!workRequest.value?.rateId) return
+  if (showRateEditor.value) {
+    showRateEditor.value = false
+    return
+  }
+  try {
+    // Stay on the reserved request: a second tab would lose the heartbeat,
+    // leave the original work item locked, and orphan the completion step.
+    await router.replace({
+      name: 'pricing-rate-request-resume',
+      params: { requestId: requestId.value },
+      query: { ...route.query, modificationRequestId: requestId.value },
+    })
+    showRateEditor.value = true
+    lastInteractionAt = Date.now()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo abrir la tarifa dentro de la solicitud reservada.')
+  }
 }
 async function completeModification() {
   const rateId = workRequest.value?.rateId
@@ -72,7 +83,7 @@ async function begin(id: string) {
   checking.value = true
   error.value = ''
   try {
-    const lease = await RateRequestLeaseService.claim(id)
+    const lease = await RateRequestLeaseService.claim(id, { recoverOwnLease: true })
     if (version !== generation) {
       void RateRequestLeaseService.release(id).catch(() => undefined)
       return
@@ -120,6 +131,7 @@ function stop() {
   heartbeatTimer = undefined
   ready.value = false
   workRequest.value = null
+  showRateEditor.value = false
   const id = currentId
   currentId = ''
   if (id) void RateRequestLeaseService.release(id).catch(() => undefined)
@@ -164,8 +176,8 @@ onBeforeUnmount(() => {
       <div>
         <h2 class="text-lg font-black">Solicitud de modificación de tarifa</h2>
         <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
-          Revise cada cambio, abra la tarifa original en una pestaña nueva y guarde una nueva revisión.
-          Mantenga abierta esta pantalla para conservar la reserva de trabajo.
+          Revise las diferencias y abra la tarifa en este mismo flujo. Puede editarla
+          sin perder la reserva y luego enviar la nueva revisión al vendedor.
         </p>
         <p class="mt-2 text-sm font-bold">Tarifa: {{ workRequest?.payload?.modification?.quote || workRequest?.rateId }} · Revisión de origen: {{ workRequest?.payload?.modification?.sourceRevisionNumber }}</p>
       </div>
@@ -185,12 +197,16 @@ onBeforeUnmount(() => {
       </div>
       <p v-if="workRequest?.payload?.modification?.notes" class="whitespace-pre-wrap text-sm">Observaciones: {{ workRequest?.payload?.modification?.notes }}</p>
       <div class="flex flex-wrap gap-2">
-        <DhButton label="Abrir tarifa para modificar" @click="openRateEditor" />
+        <DhButton :label="showRateEditor ? 'Ocultar editor' : 'Continuar modificación de tarifa'" @click="openRateEditor" />
         <DhButton label="Enviar revisión al vendedor" :loading="finishing" variant="secondary" @click="completeModification" />
         <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
       </div>
       <p class="text-xs text-[var(--dh-text-muted)]">Solo podrá finalizar después de que la tarifa tenga una revisión mayor que la indicada. El envío adjunta el PDF y conserva el historial.</p>
     </section>
-    <PricingAlternativeWizardCrystal v-else :rate-request-id="requestId" />
+    <PricingAlternativeWizardCrystal
+      v-if="isModification && showRateEditor && workRequest?.rateId"
+      :rate-id="workRequest.rateId"
+    />
+    <PricingAlternativeWizardCrystal v-else-if="!isModification" :rate-request-id="requestId" />
   </div>
 </template>
