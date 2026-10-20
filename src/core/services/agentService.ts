@@ -414,11 +414,33 @@ const maerskOperations = {
     return unwrapApiResponse<MaerskOperationsDto>(response as never)
   },
 
-  verifyOriginalSession(providerId: string, credentialId: string): Promise<{ executionId: string; verificationOnly: boolean; circuit: string }> {
-    return callEndpoint<{ executionId: string; verificationOnly: boolean; circuit: string }, { credentialId: string }>(
+  verifyOriginalSession(providerId: string, credentialId: string): Promise<{ executionId: string; verificationOnly: boolean; circuit: string; activeGeneration: string; noVncPort: number }> {
+    return callEndpoint<{ executionId: string; verificationOnly: boolean; circuit: string; activeGeneration: string; noVncPort: number }, { credentialId: string }>(
       AgentEndpoints.verifyOriginalMaerskSession,
       { params: { providerId }, body: { credentialId } },
     )
+  },
+
+  openActiveViewer(providerId: string, executionId: string): Promise<{
+    url: string
+    generation: string
+    internalPort: number
+    hostPort: number | null
+    accessMode: string
+    expiresAtUtc: string
+  }> {
+    return callEndpoint<{
+      url: string
+      generation: string
+      internalPort: number
+      hostPort: number | null
+      accessMode: string
+      expiresAtUtc: string
+    }, { executionId: string }>({
+      method: 'POST',
+      path: '/api/agents/maersk-circuit/{{providerId}}/viewer/access',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, { params: { providerId }, body: { executionId }, credentials: 'include' })
   },
 
   async closeCircuitAdministratively(providerId: string, reason: string): Promise<{
