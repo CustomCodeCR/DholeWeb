@@ -4,7 +4,7 @@ import { MapPin, Waypoints } from 'lucide-vue-next'
 import { DhButton, DhInput } from '@/shared/components/atoms'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 
-export interface InlandServiceLocation {
+interface InlandServiceLocation {
   address: string
   latitude: number | null
   longitude: number | null
