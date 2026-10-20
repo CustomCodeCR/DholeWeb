@@ -67,12 +67,12 @@ async function locateAddress() {
     // Evitar sobreescribir una dirección que el usuario cambió durante la búsqueda.
     if (address.value.trim() !== requested) return
     if (!found) {
-      error.value = 'No se encontró la ubicación. Seleccione el punto en el mapa o indique ciudad, provincia y país.'
+      error.value = 'No se encontró el punto en el mapa. Puede continuar usando únicamente la dirección escrita.'
       return
     }
     updateLocation({ address: requested, ...found })
   } catch {
-    error.value = 'No se pudo consultar OpenStreetMap. Puede seleccionar el punto directamente en el mapa.'
+    error.value = 'No se pudo consultar OpenStreetMap. Puede continuar usando únicamente la dirección escrita.'
   } finally {
     locating.value = false
   }
@@ -112,7 +112,7 @@ async function selectPoint(selected: { latitude: number; longitude: number }) {
         <h3 class="font-black">{{ title }}</h3>
         <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
           {{ isPickup ? 'Indique dónde se recogerá la carga.' : 'Indique dónde se entregará la carga.' }}
-          Puede escribir la dirección exacta y marcarla en el mapa, como en una recolecta EXW.
+          La dirección es obligatoria para continuar; ubicar el punto en el mapa es opcional.
         </p>
       </div>
     </div>
@@ -120,7 +120,7 @@ async function selectPoint(selected: { latitude: number; longitude: number }) {
       placeholder="Calle, ciudad, provincia/estado y país" />
     <div class="flex flex-wrap items-center gap-3">
       <DhButton variant="secondary" :disabled="locating || !address.trim()" @click="locateAddress">
-        <Waypoints class="h-4 w-4" /> {{ locating ? 'Ubicando…' : 'Ubicar en mapa' }}
+        <Waypoints class="h-4 w-4" /> {{ locating ? 'Ubicando…' : 'Ubicar en mapa (opcional)' }}
       </DhButton>
       <p v-if="point" class="text-xs font-semibold text-[var(--dh-text-muted)]">
         {{ point.latitude.toFixed(6) }}, {{ point.longitude.toFixed(6) }}
@@ -133,7 +133,7 @@ async function selectPoint(selected: { latitude: number; longitude: number }) {
       :interactive-selection="true"
       :initial-zoom="11"
       :selection-zoom="13"
-      hint="Toque el mapa para señalar el punto exacto de recolección o entrega."
+      hint="Opcional: toque el mapa para señalar el punto exacto de recolección o entrega."
       @select-point="selectPoint"
     />
     <a
