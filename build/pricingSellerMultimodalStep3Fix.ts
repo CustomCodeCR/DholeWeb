@@ -78,6 +78,8 @@ function continueSellerMultimodalStep3() {
   if (number(form.equipmentQuantity) <= 0) missing.push('Cantidad de equipo')
   if (!selectedIncoterm.value) missing.push('Incoterm')
   if (!form.serviceIds.length) missing.push('Servicios')
+  if (inlandPickupServiceSelected.value && !form.inlandPickupLocation.address.trim()) missing.push('Ubicación de transporte de recolección')
+  if (inlandDeliveryServiceSelected.value && !form.inlandDeliveryLocation.address.trim()) missing.push('Ubicación de transporte de entrega')
   if (!form.loadDate) missing.push('Fecha de carga lista')
   if (!exwLocationReady.value) missing.push('Ubicación de recolecta EXW')
   if (!fcaLocationReady.value) missing.push('Ubicación de WHS FCA')
