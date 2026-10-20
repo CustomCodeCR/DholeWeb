@@ -117,6 +117,7 @@ const crudSteps = computed(() => [
   crudMode.value === 'delete' ? 'Revisar borrado' : 'Completar datos', 'Confirmar',
 ])
 const recordId = ref('')
+const loadedRecordId = ref('')
 const etag = ref('')
 const writeFields = ref<string[]>([])
 const writeValues = ref<Record<string, string>>({})
@@ -175,7 +176,7 @@ const crudPreviewValid = computed(() => {
 })
 const canFinishWrite = computed(() =>
   canWrite.value && !busy.value && !lockedWrite.value && !!activeTable.value &&
-  (crudMode.value === 'create' || (!!etag.value && validGuid(recordId.value))) &&
+  (crudMode.value === 'create' || (!!etag.value && validGuid(recordId.value) && recordId.value === loadedRecordId.value)) &&
   (crudMode.value === 'delete' || (writeFields.value.length > 0 && crudPreviewValid.value)) &&
   (crudMode.value !== 'delete' || (canDelete.value && !!deletePolicy.value?.enabled &&
     confirmed.value && deletePhrase.value === 'ELIMINAR' && deleteReason.value.trim().length >= 10)))
@@ -300,7 +301,7 @@ function fieldAllowed(field: Column, op: 'read' | 'create' | 'update') {
 }
 function resetRecord() {
   writeFields.value = []; writeValues.value = {}; navByField.value = {}
-  recordId.value = ''; etag.value = ''; writeResult.value = null; lockedWrite.value = false
+  recordId.value = ''; loadedRecordId.value = ''; etag.value = ''; writeResult.value = null; lockedWrite.value = false
   confirmed.value = false; deleteReason.value = ''; deletePhrase.value = ''
 }
 function resetQuery() {
@@ -334,7 +335,7 @@ function nextCrudStep() {
   if (crudStep.value === 2 && crudMode.value === 'create' && !writeFields.value.length) {
     error.value = 'Elegí al menos un campo con permiso de creación.'; return
   }
-  if (crudStep.value === 2 && crudMode.value !== 'create' && (!etag.value || !validGuid(recordId.value))) {
+  if (crudStep.value === 2 && crudMode.value !== 'create' && (!etag.value || !validGuid(recordId.value) || recordId.value !== loadedRecordId.value)) {
     error.value = 'Primero cargá un registro válido para obtener su ETag.'; return
   }
   if (crudStep.value === 3 && crudMode.value !== 'delete' && !writeFields.value.length) {
@@ -651,6 +652,7 @@ async function loadRecord() {
       encodeURIComponent(recordId.value) + '?connectionCode=' + encodeURIComponent(code.value) +
       '&select=' + encodeURIComponent(permitted.map(f => f.logicalName).join(',')))
     etag.value = response.eTag ?? ''
+    loadedRecordId.value = etag.value ? recordId.value : ''
     for (const f of writableFields.value) {
       const value = response.item[f.logicalName]
       if (value != null && !['Lookup', 'Customer', 'Owner'].includes(f.type))
@@ -671,7 +673,7 @@ async function submitWrite() {
     let method: 'POST' | 'PATCH' | 'DELETE' = 'POST'
     let body: unknown = { connectionCode: code.value, values: valuesToWrite() }
     if (crudMode.value !== 'create') {
-      if (!validGuid(recordId.value) || !etag.value) throw new Error('Cargá un registro con un ETag válido.')
+      if (!validGuid(recordId.value) || !etag.value || recordId.value !== loadedRecordId.value) throw new Error('Cargá el registro para obtener el ETag antes de escribir.')
       path += '/' + encodeURIComponent(recordId.value)
       if (crudMode.value === 'update') method = 'PATCH'
       else {
