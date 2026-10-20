@@ -906,61 +906,183 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
       </template>
     </template>
     <template v-else-if="section === 'query'">
-      <div v-if="!canSecurity" class="dynamics-feedback dynamics-feedback-error"><ShieldCheck :size="17" /> Consultar registros requiere el scope dynamics.security.admin.</div>
+      <div v-if="!canSecurity" class="dynamics-feedback dynamics-feedback-error"><ShieldCheck :size="17" /> Para crear consultas necesitás el permiso dynamics.security.admin.</div>
       <template v-else>
-        <p v-if="!enabledTables.length" class="dynamics-empty">Primero habilitá una tabla y columnas de lectura en Catálogo.</p>
-        <template v-else>
-          <div class="dynamics-form-grid">
-            <label class="dynamics-field"><span>Tabla</span><select v-model="entity" @change="changeEntity"><option v-for="t in enabledTables" :key="t.logicalName" :value="t.logicalName">{{ label(t.labels) || t.logicalName }} ({{ t.logicalName }})</option></select></label>
-            <label class="dynamics-field"><span>Registros por página</span><input v-model.number="pageSize" type="number" min="1" max="100"></label>
+        <nav class="dynamics-wizard-steps" aria-label="Pasos para crear la consulta">
+          <button v-for="(name, index) in querySteps" :key="name" type="button"
+            class="dynamics-wizard-step" :class="{ active: queryStep === index + 1, done: queryStep > index + 1 }"
+            :disabled="index + 1 > queryStep" :aria-current="queryStep === index + 1 ? 'step' : undefined"
+            @click="queryStep = (index + 1) as 1 | 2 | 3 | 4">
+            <span class="dynamics-step-index">{{ index + 1 }}</span><span>{{ name }}</span>
+          </button>
+        </nav>
+        <div v-if="queryStep === 1" class="dynamics-wizard-pane">
+          <p class="dynamics-wizard-kicker">PASO 1 · ORIGEN DE DATOS</p>
+          <h3>¿Qué información querés consultar?</h3>
+          <p class="dynamics-subtitle">Elegí la tabla de Microsoft Dynamics. Solo aparecen tablas habilitadas por Seguridad.</p>
+          <div v-if="!enabledTables.length" class="dynamics-empty-state">
+            <Database :size="24" /><strong>No hay tablas habilitadas</strong>
+            <p>Primero descubrí una tabla y aprobá sus campos de lectura en el Catálogo.</p>
+            <button type="button" class="dynamics-outline-button" @click="emit('navigate', 'catalog')">Ir al catálogo</button>
           </div>
-          <p class="dynamics-subtitle">Seleccioná de 1 a 30 columnas aprobadas.</p>
-          <div class="dynamics-check-grid">
-            <label v-for="f in approvedFields" :key="f.logicalName" class="dynamics-check"><input v-model="columns" type="checkbox" :value="f.logicalName" :disabled="!columns.includes(f.logicalName) && columns.length >= 30">{{ label(f.labels) || f.logicalName }}</label>
+          <div v-else class="dynamics-form-grid">
+            <label class="dynamics-field"><span>Tabla de Dataverse</span>
+              <select v-model="entity" @change="changeEntity">
+                <option v-for="t in enabledTables" :key="t.logicalName" :value="t.logicalName">{{ label(t.labels) || t.logicalName }} ({{ t.logicalName }})</option>
+              </select>
+            </label>
+            <div class="dynamics-explainer">
+              <strong>{{ label(activeTable?.labels) || activeTable?.logicalName || 'Seleccioná una tabla' }}</strong>
+              <p>{{ approvedFields.length }} columnas aprobadas para lectura · conexión {{ code }}</p>
+              <button v-if="!approvedFields.length" type="button" class="dynamics-outline-button" @click="emit('navigate', 'catalog')">Autorizar campos en Catálogo</button>
+            </div>
           </div>
+        </div>
+        <div v-else-if="queryStep === 2" class="dynamics-wizard-pane">
+          <p class="dynamics-wizard-kicker">PASO 2 · COLUMNAS</p>
+          <h3>¿Qué datos querés ver?</h3>
+          <p class="dynamics-subtitle">Marcá las columnas que aparecerán en el resultado (máximo 30). No necesitás saber sus nombres técnicos.</p>
+          <div class="dynamics-tools">
+            <label class="dynamics-field dynamics-search-field"><span>Buscar campos por nombre</span>
+              <input v-model="queryFieldSearch" placeholder="Ej.: cliente, número, fecha…">
+            </label>
+            <button type="button" class="dynamics-outline-button" @click="chooseSuggestedFields">5 primeros</button>
+            <button type="button" class="dynamics-outline-button" @click="chooseAllReadFields">Todos (máx. 30)</button>
+            <button type="button" class="dynamics-outline-button" @click="columns = []">Limpiar selección</button>
+          </div>
+          <p class="dynamics-selection-count">{{ columns.length }} de 30 columnas seleccionadas</p>
+          <div v-if="!approvedFields.length" class="dynamics-empty-state">
+            <strong>Esta tabla todavía no tiene columnas aprobadas</strong>
+            <p>Autorizá al menos un campo con permiso de lectura.</p>
+            <button type="button" class="dynamics-outline-button" @click="emit('navigate', 'catalog')">Configurar permisos</button>
+          </div>
+          <div v-else class="dynamics-choice-list">
+            <label v-for="f in visibleQueryFields" :key="f.logicalName" class="dynamics-choice-row">
+              <input v-model="columns" type="checkbox" :value="f.logicalName"
+                :disabled="!columns.includes(f.logicalName) && columns.length >= 30">
+              <span><strong>{{ label(f.labels) || f.logicalName }}</strong>
+                <small>{{ f.logicalName }} · {{ f.type }}</small></span>
+            </label>
+            <p v-if="!visibleQueryFields.length" class="dynamics-subtitle">Ningún campo coincide con la búsqueda.</p>
+          </div>
+        </div>
+        <div v-else-if="queryStep === 3" class="dynamics-wizard-pane">
+          <p class="dynamics-wizard-kicker">PASO 3 · CONDICIONES</p>
+          <h3>Filtrá y ordená los resultados</h3>
+          <p class="dynamics-subtitle">Los filtros son opcionales. Si no agregás ninguno, verás los primeros registros autorizados.</p>
           <div class="dynamics-data-card">
-            <div class="dynamics-data-card-top"><strong>Filtros estructurados</strong>
-              <div class="dynamics-actions"><select v-model="join" aria-label="Combinar filtros"><option value="and">Y (AND)</option><option value="or">O (OR)</option></select>
-                <button type="button" class="dynamics-outline-button" :disabled="filters.length>=24" @click="addFilter">+ Añadir filtro</button>
+            <div class="dynamics-data-card-top">
+              <strong>Mostrar registros que cumplan…</strong>
+              <div class="dynamics-actions">
+                <select v-model="join" aria-label="Combinar condiciones">
+                  <option value="and">Todas las condiciones (Y)</option>
+                  <option value="or">Alguna condición (O)</option>
+                </select>
+                <button type="button" class="dynamics-outline-button" :disabled="filters.length >= 24 || !approvedFields.length" @click="addFilter">+ Añadir condición</button>
               </div>
             </div>
-            <div v-for="(f, i) in filters" :key="f.id" class="dynamics-filter-row">
-              <select v-model="f.field" :aria-label="'Campo de filtro '+(i+1)"><option v-for="col in approvedFields" :key="col.logicalName" :value="col.logicalName">{{ col.logicalName }}</option></select>
-              <select v-model="f.op" :aria-label="'Operador '+(i+1)"><option v-for="op in ['eq','ne','gt','ge','lt','le','contains']" :key="op" :value="op">{{ op }}</option></select>
-              <input v-model="f.value" :aria-label="'Valor '+(i+1)" placeholder="Valor a buscar">
-              <button type="button" class="dynamics-outline-button" @click="filters.splice(i,1)">Quitar</button>
+            <div v-for="(filter, i) in filters" :key="filter.id" class="dynamics-friendly-filter">
+              <label class="dynamics-field"><span>Campo {{ i + 1 }}</span>
+                <select v-model="filter.field" @change="filterFieldChanged(filter)">
+                  <option v-for="col in approvedFields" :key="col.logicalName" :value="col.logicalName">{{ label(col.labels) || col.logicalName }}</option>
+                </select>
+              </label>
+              <label class="dynamics-field"><span>Comparación</span>
+                <select v-model="filter.op">
+                  <option v-for="operator in filterOperators(filter.field)" :key="operator.value" :value="operator.value">{{ operator.label }}</option>
+                </select>
+              </label>
+              <label class="dynamics-field"><span>Valor</span>
+                <select v-if="approvedFields.find(f => f.logicalName === filter.field)?.type === 'Boolean'" v-model="filter.value">
+                  <option value="">Seleccionar</option><option value="true">Sí</option><option value="false">No</option>
+                </select>
+                <select v-else-if="approvedFields.find(f => f.logicalName === filter.field)?.choices.length" v-model="filter.value">
+                  <option value="">Seleccionar</option>
+                  <option v-for="choice in approvedFields.find(f => f.logicalName === filter.field)?.choices ?? []"
+                    :key="choice.value" :value="String(choice.value)">{{ label(choice.labels) || choice.value }}</option>
+                </select>
+                <input v-else v-model="filter.value" :type="filterInputType(filter.field)"
+                  :step="filterInputType(filter.field) === 'number' ? 'any' : undefined" placeholder="Escribí un valor">
+              </label>
+              <button type="button" class="dynamics-outline-button" @click="filters.splice(i, 1)">Quitar</button>
             </div>
-            <p v-if="filters.length===0" class="dynamics-subtitle">Sin filtros: se mostrarán los primeros resultados autorizados.</p>
+            <p v-if="!filters.length" class="dynamics-subtitle">No hay condiciones; se usarán las columnas aprobadas seleccionadas.</p>
+          </div>
+          <div class="dynamics-form-grid">
+            <label class="dynamics-field"><span>Ordenar por (opcional)</span>
+              <select v-model="orderField"><option value="">Orden predeterminado</option>
+                <option v-for="f in approvedFields" :key="f.logicalName" :value="f.logicalName">{{ label(f.labels) || f.logicalName }}</option>
+              </select>
+            </label>
+            <label class="dynamics-field"><span>Registros por página</span><input v-model.number="pageSize" type="number" min="1" max="100"></label>
           </div>
           <div class="dynamics-tools">
-            <label class="dynamics-field"><span>Ordenar por</span><select v-model="orderField"><option value="">Orden predeterminado</option><option v-for="f in approvedFields" :key="f.logicalName" :value="f.logicalName">{{ f.logicalName }}</option></select></label>
-            <label class="dynamics-check"><input v-model="descending" type="checkbox" :disabled="!orderField"> Descendente</label>
-            <label class="dynamics-check"><input v-model="count" type="checkbox"> Incluir total</label>
-            <button type="button" class="dynamics-primary-button" :disabled="busy || !columns.length || !entity" @click="searchRecords()"><Search :size="15" /> Ejecutar consulta</button>
+            <label class="dynamics-check"><input v-model="descending" type="checkbox" :disabled="!orderField"> Orden descendente</label>
+            <label class="dynamics-check"><input v-model="count" type="checkbox"> Incluir total (puede tardar más)</label>
           </div>
+        </div>
+        <div v-else class="dynamics-wizard-pane">
+          <p class="dynamics-wizard-kicker">PASO 4 · REVISIÓN</p>
+          <h3>Tu consulta está lista para revisar</h3>
+          <div class="dynamics-review-grid">
+            <div v-for="item in querySummary" :key="item" class="dynamics-review-item">{{ item }}</div>
+          </div>
+          <div v-if="!queryPreview.valid" class="dynamics-feedback dynamics-feedback-error" role="alert">{{ queryPreview.error }}</div>
+          <details class="dynamics-disclosure">
+            <summary>Ver consulta técnica (JSON)</summary>
+            <pre class="dynamics-json">{{ JSON.stringify(queryPreview.data, null, 2) }}</pre>
+          </details>
           <div class="dynamics-data-card">
-            <strong>Guardar consulta reutilizable</strong>
-            <div class="dynamics-tools">
-              <label class="dynamics-field"><span>Nombre</span><input v-model.trim="savedName" placeholder="cotizaciones_activas" maxlength="40"></label>
-              <label class="dynamics-field"><span>Parámetro del primer filtro</span><input v-model.trim="paramName" maxlength="40" placeholder="valor"></label>
-              <button type="button" class="dynamics-outline-button" :disabled="busy || !entity" @click="saveQuery">Guardar deshabilitada</button>
+            <div class="dynamics-data-card-top"><div>
+              <strong>Guardar para usar nuevamente o desde una API</strong>
+              <p class="dynamics-subtitle">La consulta se guarda inactiva hasta que decidás habilitarla.</p>
+            </div></div>
+            <div class="dynamics-form-grid">
+              <label class="dynamics-field"><span>Nombre de la consulta</span>
+                <input v-model.trim="savedName" placeholder="ejemplo: ofertas_abiertas" maxlength="40" autocomplete="off">
+                <small class="dynamics-subtitle">Empezá con una letra; usá letras minúsculas, números, - o _.</small>
+              </label>
+              <div class="dynamics-explainer">
+                <label class="dynamics-check"><input v-model="saveAsParameter" type="checkbox"> Hacer variable el primer filtro</label>
+                <p class="dynamics-subtitle">Útil si Pangolin u otra aplicación enviará un valor diferente en cada ejecución.</p>
+              </div>
+              <label v-if="saveAsParameter && filters.length" class="dynamics-field"><span>Nombre del parámetro</span>
+                <input v-model.trim="paramName" placeholder="valor" maxlength="40">
+              </label>
             </div>
-            <p class="dynamics-subtitle">Las consultas se almacenan en PostgreSQL y requieren activación explícita para clientes M2M.</p>
+            <button type="button" class="dynamics-outline-button" :disabled="busy || !queryPreview.valid || !savedName.trim()" @click="saveQuery">Guardar consulta</button>
+          </div>
+          <div v-if="saved.length" class="dynamics-data-card">
+            <strong>Mis consultas guardadas</strong>
             <div v-for="item in saved" :key="item.id" class="dynamics-saved-row">
-              <div><strong>{{ item.name }}</strong><p class="dynamics-subtitle">{{ item.entityName }} · {{ item.enabled ? 'Activa' : 'Deshabilitada' }}</p></div>
-              <div class="dynamics-actions"><button class="dynamics-outline-button" type="button" @click="applySaved(item)">Cargar</button><button class="dynamics-outline-button" type="button" :disabled="busy" @click="toggleSaved(item)">{{ item.enabled ? 'Desactivar' : 'Activar' }}</button></div>
+              <div><strong>{{ item.name }}</strong><p class="dynamics-subtitle">{{ item.entityName }} · {{ item.enabled ? 'Habilitada para clientes con permiso' : 'Deshabilitada' }}</p></div>
+              <div class="dynamics-actions"><button class="dynamics-outline-button" type="button" @click="applySaved(item)">Editar consulta</button>
+                <button class="dynamics-outline-button" type="button" :disabled="busy" @click="toggleSaved(item)">{{ item.enabled ? 'Desactivar' : 'Activar' }}</button>
+                <button v-if="item.enabled" type="button" class="dynamics-outline-button" @click="emit('navigate', 'integrations')">Ver URL API</button>
+              </div>
             </div>
           </div>
-          <div v-if="page" class="dynamics-data-card">
-            <div class="dynamics-data-card-top"><strong>Resultados · página {{ page.page }}</strong><span>{{ page.items.length }} registros · {{ page.count ?? 'total no calculado' }}</span></div>
-            <div class="dynamics-scroll"><table class="dynamics-data-table">
-              <thead><tr><th v-for="name in lastQuery?.select ?? []" :key="name">{{ name }}</th></tr></thead>
-              <tbody><tr v-for="(item, idx) in page.items" :key="idx"><td v-for="name in lastQuery?.select ?? []" :key="name">{{ typeof item[name] === 'object' ? JSON.stringify(item[name]) : (item[name] ?? '—') }}</td></tr></tbody>
-            </table></div>
-            <p v-if="page.truncated" class="dynamics-subtitle">Límite de páginas alcanzado: los resultados están truncados.</p>
-            <button v-if="page.nextCursor" class="dynamics-outline-button" type="button" :disabled="busy" @click="searchRecords(page.nextCursor ?? undefined)">Siguiente página</button>
+        </div>
+        <div class="dynamics-wizard-footer">
+          <button v-if="queryStep > 1" type="button" class="dynamics-outline-button" @click="queryStep = (queryStep - 1) as 1 | 2 | 3 | 4">Anterior</button>
+          <div class="dynamics-wizard-footer-right">
+            <span class="dynamics-subtitle">Paso {{ queryStep }} de 4</span>
+            <button v-if="queryStep < 4" type="button" class="dynamics-primary-button"
+              :disabled="busy || (queryStep === 1 && !enabledTables.length)"
+              @click="nextQueryStep">Siguiente</button>
+            <button v-else type="button" class="dynamics-primary-button" :disabled="busy || !queryPreview.valid"
+              @click="searchRecords()"><Search :size="15" /> Ejecutar consulta</button>
           </div>
-        </template>
+        </div>
+        <div v-if="page" class="dynamics-data-card">
+          <div class="dynamics-data-card-top"><strong>Resultados · página {{ page.page }}</strong><span>{{ page.items.length }} registros · {{ page.count ?? 'total no calculado' }}</span></div>
+          <div class="dynamics-scroll"><table class="dynamics-data-table">
+            <thead><tr><th v-for="name in lastQuery?.select ?? []" :key="name">{{ label(activeTable?.columns.find(f => f.logicalName === name)?.labels) || name }}</th></tr></thead>
+            <tbody><tr v-for="(item, idx) in page.items" :key="idx"><td v-for="name in lastQuery?.select ?? []" :key="name">{{ typeof item[name] === 'object' ? JSON.stringify(item[name]) : (item[name] ?? '—') }}</td></tr></tbody>
+          </table></div>
+          <p v-if="page.truncated" class="dynamics-subtitle">Límite de páginas alcanzado: resultados truncados.</p>
+          <button v-if="page.nextCursor" class="dynamics-outline-button" type="button" :disabled="busy" @click="searchRecords(page.nextCursor ?? undefined)">Siguiente página</button>
+        </div>
       </template>
     </template>
     <template v-else-if="section === 'crud'">
