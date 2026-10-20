@@ -78,12 +78,10 @@ function continueSellerMultimodalStep3() {
   if (number(form.equipmentQuantity) <= 0) missing.push('Cantidad de equipo')
   if (!selectedIncoterm.value) missing.push('Incoterm')
   if (!form.serviceIds.length) missing.push('Servicios')
-  if (inlandPickupServiceSelected.value && (!form.inlandPickupLocation.address.trim()
-    || form.inlandPickupLocation.latitude == null || form.inlandPickupLocation.longitude == null))
-    missing.push('Dirección y punto en mapa para transporte de recolección')
-  if (inlandDeliveryServiceSelected.value && (!form.inlandDeliveryLocation.address.trim()
-    || form.inlandDeliveryLocation.latitude == null || form.inlandDeliveryLocation.longitude == null))
-    missing.push('Dirección y punto en mapa para transporte de entrega')
+  if (inlandPickupServiceSelected.value && !form.inlandPickupLocation.address.trim())
+    missing.push('Dirección para transporte de recolección')
+  if (inlandDeliveryServiceSelected.value && !form.inlandDeliveryLocation.address.trim())
+    missing.push('Dirección para transporte de entrega')
   if (!form.loadDate) missing.push('Fecha de carga lista')
   if (!exwLocationReady.value) missing.push('Ubicación de recolecta EXW')
   if (!fcaLocationReady.value) missing.push('Ubicación de WHS FCA')
@@ -129,7 +127,7 @@ ${nextAnchor}`,
     '  }',
     "  if (props.sellerRequestMode && !inlandServiceLocationsReady.value) {",
     "    step.value = 3",
-    "    toastStore.error('Ubicación de transporte requerida', 'Complete la dirección y seleccione el punto en el mapa para los servicios de recolección y entrega.')",
+    "    toastStore.error('Ubicación de transporte requerida', 'Complete la dirección de los servicios de recolección y entrega. Ubicarlos en el mapa es opcional.')",
     '    return',
     '  }',
   ].join('\n'))
