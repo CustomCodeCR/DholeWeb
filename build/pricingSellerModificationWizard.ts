@@ -132,7 +132,7 @@ function modificationDisplay(key: string, value: unknown, isOriginal: boolean) {
     const address = String(location.address ?? '').trim()
     if (!address) return '—'
     return location.latitude != null && location.longitude != null
-      ? `${address} (${Number(location.latitude).toFixed(5)}, ${Number(location.longitude).toFixed(5)})`
+      ? address + ' (' + Number(location.latitude).toFixed(5) + ', ' + Number(location.longitude).toFixed(5) + ')'
       : address
   }
   const raw = modificationComparable(value)
