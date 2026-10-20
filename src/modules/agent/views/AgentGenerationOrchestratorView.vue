@@ -82,6 +82,7 @@ const providerAccessRestricted = computed(() =>
   (maerskCircuit.value.state !== 'Closed' || maerskCircuit.value.requiresOperator))
 const standbyBusy = ref<string | null>(null)
 const activeStandbyViewer = ref<{ generation: string; url: string } | null>(null)
+const lastStandbyInspectionAt = ref<Record<string, number>>({})
 const automaticHubInspectionAttempts = new Map<string, number>()
 const automaticHubInspectionIntervalMs = 180_000
 const independentlyVerified = ref<Record<string, boolean>>({})
@@ -294,6 +295,26 @@ const standbyDiagnosticLabels: Record<string, string> = {
   postgres_operation_failed: 'No se pudo actualizar el estado de autenticación. Contacta al administrador.',
   standby_hub_not_authenticated: 'El Hub autenticado todavía no está visible. Ingresa al Hub completo y vuelve a comprobar.',
 }
+function standbyInspectionMessage(name: string): string {
+  const session = standbySession(name)
+  if (session?.accountVerifiedAtUtc) {
+    const verified = Date.parse(session.accountVerifiedAtUtc)
+    if (Number.isFinite(verified) && verified > 0) {
+      return 'Hub autenticado confirmado por Dhole. Cerrá el visor y finalizá la verificación.'
+    }
+  }
+  const requestedAt = lastStandbyInspectionAt.value[name]
+  const updatedAt = session?.updatedAtUtc ? Date.parse(session.updatedAtUtc) : 0
+  if (session?.diagnosticCode === 'standby_hub_not_authenticated' &&
+      (!requestedAt || (Number.isFinite(updatedAt) && updatedAt >= requestedAt))) {
+    return 'No se detectó una sesión autenticada en el Hub de Maersk. Entrá al Hub completo desde este navegador; si no ves su contenido, no es posible finalizar.'
+  }
+  if (requestedAt) {
+    return 'Comprobación enviada. La inspección se ejecuta en el servidor y el resultado puede tardar. Dhole actualizará el estado automáticamente.'
+  }
+  return 'Entrá al Hub de Maersk en este navegador. Comprobar ahora no inicia sesión automáticamente.'
+}
+
 async function refreshStandbyAuthentication() {
   try {
     const response = await callEndpoint<unknown>({
@@ -304,7 +325,7 @@ async function refreshStandbyAuthentication() {
     // Poll only API-authorized, active Ready sessions. No browser credentials
     // or identity fields are read; the trusted runner verifies the real Hub.
     // Throttle dispatch to avoid queueing multiple GitHub jobs.
-    if (canManage.value && !document.hidden && !standbyBusy.value) {
+    if (canManage.value && !document.hidden && !standbyBusy.value && !activeStandbyViewer.value) {
       const now = Date.now()
       const candidate = standbyAuthentications.value.find(session =>
         session.status === 'Ready' && !session.accountVerifiedAtUtc &&
@@ -360,7 +381,7 @@ async function openStandbyViewer(name: string) {
     activeStandbyViewer.value = { generation: name, url: destination.href }
   } catch (error) {
     toast.backendError(error,
-      'No se pudo abrir el navegador. Confirma que prod2 esté listo e inténtalo nuevamente.')
+      'No se pudo abrir el navegador de ' + name + '. Revisá que su sesión figure como lista.')
   } finally {
     standbyBusy.value = null
   }
@@ -375,9 +396,10 @@ async function inspectStandby(name: string, silent = false) {
       path: '/api/agents/runtime-generations/authentication/{{generation}}/inspect',
       headers: { Accept: 'application/json' },
     }, { params: { generation: name } })
+    lastStandbyInspectionAt.value = { ...lastStandbyInspectionAt.value, [name]: Date.now() }
     if (!silent) {
-      toast.success('Comprobación del Hub solicitada',
-        'Dhole comprobará el Hub de Maersk en el navegador de ' + name + '. No se necesitan datos de usuario.')
+      toast.info('Comprobación enviada',
+        'La inspección de ' + name + ' continúa en el servidor. Esperá a que Dhole confirme el Hub autenticado; enviar la solicitud no significa que haya iniciado sesión.')
     }
     await refreshStandbyAuthentication()
   } catch (error) {
@@ -902,6 +924,9 @@ onUnmounted(() => {
                 <p v-if="guideSession.accountVerifiedAtUtc" class="text-xs text-emerald-500">
                   Hub comprobado: {{ dateLabel(guideSession.accountVerifiedAtUtc) }}
                 </p>
+                <p role="status" aria-live="polite" class="text-xs text-[var(--dh-text-muted)]">
+                  {{ standbyInspectionMessage(guideTarget) }}
+                </p>
                 <label class="flex items-start gap-2 text-sm">
                   <input v-model="independentlyVerified[guideTarget]" type="checkbox" class="mt-1" />
                   Verifiqué personalmente que {{ guideTarget }} tiene acceso legítimo al Hub
@@ -1232,7 +1257,10 @@ onUnmounted(() => {
                     :disabled="!selectedCredential || standbyBusy !== null"
                     :loading="standbyBusy === item.name" @click="prepareStandby(item.name)" />
                 </template>
-                <p v-if="standbySession(item.name)?.diagnosticCode" class="text-[var(--dh-text-muted)]">
+                <p role="status" aria-live="polite" class="text-[var(--dh-text-muted)]">
+                {{ standbyInspectionMessage(item.name) }}
+              </p>
+              <p v-if="standbySession(item.name)?.diagnosticCode" class="text-[var(--dh-text-muted)]">
                   {{ standbyDiagnosticLabels[standbySession(item.name)?.diagnosticCode ?? ''] ??
                     'No se completó la operación. Actualiza e inténtalo nuevamente desde Dhole.' }}
                 </p>
@@ -1400,32 +1428,38 @@ onUnmounted(() => {
     <div v-else-if="loading" class="rounded-2xl border border-[var(--dh-border)] p-6 text-sm text-[var(--dh-text-muted)]">
       Cargando entornos…
     </div>
-    <div v-if="activeStandbyViewer"
-      class="fixed inset-0 z-[100] flex flex-col bg-[var(--dh-surface)]"
-      role="dialog" aria-modal="true" aria-label="Navegador independiente de Maersk">
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-3">
-        <div class="text-sm font-semibold">
-          Maersk · {{ activeStandbyViewer.generation }} · Navegador independiente
-          <p class="text-xs font-normal text-[var(--dh-text-muted)]">
-            Ingresá al Hub de Maersk. Dhole comprobará automáticamente que esté abierto y autenticado, sin pedir datos de cuenta.
-          </p>
+    <Teleport to="body">
+      <div v-if="activeStandbyViewer"
+        class="fixed inset-0 z-[9999] flex flex-col bg-[var(--dh-surface)]"
+        role="dialog" aria-modal="true" aria-label="Navegador independiente de Maersk">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] bg-[var(--dh-surface)] p-3">
+          <div class="text-sm font-semibold">
+            Maersk · {{ activeStandbyViewer.generation }} · Navegador independiente
+            <p class="text-xs font-normal text-[var(--dh-text-muted)]">
+              Ingresá al Hub completo de Maersk en este navegador. La autenticación real se verifica en el servidor.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <DhButton label="Comprobar ahora" :icon="ShieldCheck"
+              variant="secondary" :loading="standbyBusy === activeStandbyViewer.generation"
+              :disabled="standbyBusy !== null"
+              @click="inspectStandby(activeStandbyViewer.generation)" />
+            <DhButton label="Cerrar visor" variant="secondary"
+              @click="activeStandbyViewer = null" />
+          </div>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <DhButton label="Comprobar ahora" :icon="ShieldCheck"
-            variant="secondary" :loading="standbyBusy === activeStandbyViewer.generation"
-            :disabled="standbyBusy !== null"
-            @click="inspectStandby(activeStandbyViewer.generation)" />
-          <DhButton label="Cerrar visor" variant="secondary"
-            @click="activeStandbyViewer = null" />
-        </div>
+        <p class="border-b border-[var(--dh-border)] bg-[var(--dh-surface)] px-3 py-2 text-xs text-[var(--dh-text-muted)]"
+          role="status" aria-live="polite">
+          {{ standbyInspectionMessage(activeStandbyViewer.generation) }}
+        </p>
+        <iframe :src="activeStandbyViewer.url"
+          class="min-h-0 w-full flex-1 border-0 bg-[var(--dh-surface)]"
+          title="Navegador aislado de Maersk"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
+          referrerpolicy="no-referrer"
+          allow="clipboard-read; clipboard-write" />
       </div>
-      <iframe :src="activeStandbyViewer.url"
-        class="min-h-0 w-full flex-1 border-0"
-        title="Navegador aislado de Maersk"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"
-        referrerpolicy="no-referrer"
-        allow="clipboard-read; clipboard-write" />
-    </div>
+    </Teleport>
 
   </section>
 </template>
