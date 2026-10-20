@@ -4,6 +4,7 @@ import { test } from 'node:test'
 
 const view = readFileSync(new URL('../src/modules/agent/views/AgentGenerationOrchestratorView.vue', import.meta.url), 'utf8')
 const profileView = readFileSync(new URL('../src/modules/agent/views/AgentBrowserProfilesView.vue', import.meta.url), 'utf8')
+const nginxConfig = readFileSync(new URL('../nginx.conf', import.meta.url), 'utf8')
 const maerskOperationsView = readFileSync(new URL('../src/modules/agent/views/MaerskOperationsView.vue', import.meta.url), 'utf8')
 const agentService = readFileSync(new URL('../src/core/services/agentService.ts', import.meta.url), 'utf8')
 const callEndpoint = readFileSync(new URL('../src/core/api/callEndpoint.ts', import.meta.url), 'utf8')
@@ -125,4 +126,12 @@ test('standby viewer is teleported above the app with asynchronous inspection fe
   assert.match(view, /Comprobación enviada/)
   assert.match(view, /standby_hub_not_authenticated/)
   assert.match(view, /if \(canManage\.value && !document\.hidden && !standbyBusy\.value && !activeStandbyViewer\.value\)/)
+})
+
+test('Maersk authenticated noVNC can render from the API origin and open independently', () => {
+  assert.match(nginxConfig, /frame-src 'self' blob: https:\/\/api\.logisticacastrofallas\.com/)
+  assert.match(view, /Abrir noVNC en otra pestaña/)
+  assert.match(view, /:href="activeStandbyViewer\.url"/)
+  assert.match(view, /target="_blank" rel="noopener noreferrer"/)
+  assert.match(view, /<iframe :src="activeStandbyViewer\.url"/)
 })
