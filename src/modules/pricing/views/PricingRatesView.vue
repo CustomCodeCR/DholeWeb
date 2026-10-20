@@ -235,6 +235,22 @@ function creatorUserName(rate: RateDto) {
   if (!rate.createdByUserId) return ''
   return creatorDirectory.value[rate.createdByUserId]?.userName || ''
 }
+
+function auditDisplayName(displayName?: string | null, userName?: string | null, userId?: string | null) {
+  if (displayName) return displayName
+  if (userName) return userName
+  if (!userId) return '—'
+  const user = creatorDirectory.value[userId] || creatorDirectory.value[userId.toLowerCase()]
+  return user?.displayName || user?.userName || userId
+}
+
+function reviewerDisplayName(rate: RateDto) {
+  return auditDisplayName(rate.reviewedByDisplayName, rate.reviewedByUserName, rate.reviewedByUserId)
+}
+
+function lastModifierDisplayName(rate: RateDto) {
+  return auditDisplayName(rate.lastModifiedByDisplayName, rate.lastModifiedByUserName, rate.lastModifiedByUserId)
+}
 const selectedIds = ref<string[]>([])
 const loading = ref(false)
 const loadError = ref(false)
@@ -863,6 +879,17 @@ onMounted(async () => {
             </div>
 
             <div class="mt-2 grid grid-cols-2 gap-2">
+              <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Revisado por</p>
+                <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ reviewerDisplayName(row) }}</p>
+              </div>
+              <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Última modificación por</p>
+                <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ lastModifierDisplayName(row) }}</p>
+              </div>
+            </div>
+
+            <div class="mt-2 grid grid-cols-2 gap-2">
               <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2.5">
                 <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo</p>
                 <p class="mt-1 whitespace-nowrap text-sm font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
@@ -930,15 +957,16 @@ onMounted(async () => {
         <div
           class="hidden overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] lg:block"
         >
-          <table class="w-full min-w-[1160px] table-fixed border-collapse text-left text-sm">
+          <table class="w-full min-w-[1360px] table-fixed border-collapse text-left text-sm">
             <colgroup>
               <col class="w-12" />
-              <col class="w-[27%]" />
-              <col class="w-[17%]" />
-              <col class="w-[14%]" />
-              <col class="w-[18%]" />
-              <col class="w-[11%]" />
-              <col class="w-[8%]" />
+              <col class="w-[22%]" />
+              <col class="w-[15%]" />
+              <col class="w-[12%]" />
+              <col class="w-[16%]" />
+              <col class="w-[15%]" />
+              <col class="w-[10%]" />
+              <col class="w-[7%]" />
               <col class="w-[112px]" />
             </colgroup>
             <thead class="bg-black/[0.035] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
@@ -947,6 +975,7 @@ onMounted(async () => {
                 <th class="px-3 py-3 whitespace-nowrap">Tarifa</th>
                 <th class="px-3 py-3 whitespace-nowrap">Operación</th>
                 <th class="px-3 py-3 whitespace-nowrap">Cotizado por</th>
+                <th class="px-3 py-3 whitespace-nowrap">Revisado por</th>
                 <th class="px-3 py-3 whitespace-nowrap text-right">Resumen comercial</th>
                 <th class="px-3 py-3 whitespace-nowrap">Vigencia</th>
                 <th class="px-3 py-3 whitespace-nowrap text-center">Estado</th>
@@ -955,13 +984,13 @@ onMounted(async () => {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
+                <td colspan="9" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
               </tr>
               <tr v-else-if="loadError">
-                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No se pudieron cargar las tarifas. Intente nuevamente desde Actualizar.</td>
+                <td colspan="9" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No se pudieron cargar las tarifas. Intente nuevamente desde Actualizar.</td>
               </tr>
               <tr v-else-if="rows.length === 0">
-                <td colspan="8" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas que coincidan con los filtros.</td>
+                <td colspan="9" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas que coincidan con los filtros.</td>
               </tr>
               <tr
                 v-for="row in rows"
@@ -1012,6 +1041,13 @@ onMounted(async () => {
                     class="mt-1 break-all text-[11px] font-semibold text-[var(--dh-text-muted)]"
                   >
                     @{{ creatorUserName(row) }}
+                  </p>
+                </td>
+
+                <td class="px-3 py-4 align-top">
+                  <p class="break-words font-black text-[var(--dh-text)]">{{ reviewerDisplayName(row) }}</p>
+                  <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                    Última modificación por: {{ lastModifierDisplayName(row) }}
                   </p>
                 </td>
 
