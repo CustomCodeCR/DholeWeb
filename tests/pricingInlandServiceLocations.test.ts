@@ -18,12 +18,30 @@ test('selected inland transport services expose independent pickup and delivery 
   assert.match(picker, /update:modelValue/)
 })
 
-test('both service locations require an address and map coordinates before continuing', () => {
+test('both service locations require a written address without map coordinates', () => {
   assert.match(wizard, /inlandServiceLocationsReady\.value/)
-  assert.match(wizard, /form\.inlandPickupLocation\.latitude != null/)
-  assert.match(wizard, /form\.inlandDeliveryLocation\.longitude != null/)
-  assert.match(sellerMultimodal, /Dirección y punto en mapa para transporte de recolección/)
-  assert.match(sellerMultimodal, /Dirección y punto en mapa para transporte de entrega/)
+  assert.match(wizard, /Boolean\(form\.inlandPickupLocation\?\.address\?\.trim\(\)\)/)
+  assert.match(wizard, /Boolean\(form\.inlandDeliveryLocation\?\.address\?\.trim\(\)\)/)
+  assert.doesNotMatch(wizard, /form\.inlandPickupLocation\.latitude != null/)
+  assert.doesNotMatch(wizard, /form\.inlandDeliveryLocation\.longitude != null/)
+  assert.match(sellerMultimodal, /Dirección para transporte de recolección/)
+  assert.match(sellerMultimodal, /Dirección para transporte de entrega/)
+  assert.doesNotMatch(sellerMultimodal, /inlandPickupLocation\.latitude == null/)
+  assert.match(picker, /ubicar el punto en el mapa es opcional/)
+})
+
+test('EXW requires adding the pickup but allows null geographic coordinates', () => {
+  const savePickup = wizard.match(/function savePickupLocation\(\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
+  assert.match(savePickup, /if \(!address\)/)
+  assert.doesNotMatch(savePickup, /!pickupCoordinates/)
+  assert.match(wizard, /!pickupLocations\.value\.length \|\| form\.pickupAddress\.trim\(\)/)
+  assert.match(wizard, /:disabled="!form\.pickupAddress\.trim\(\) \|\| \(sellerRequestMode && !pickupCargoCondition\)"/)
+  assert.match(wizard, /latitude: form\.pickupLatitude/)
+  assert.match(wizard, /longitude: form\.pickupLongitude/)
+  const rateEdit = readFileSync(new URL('../build/pricingRateEditCreateParity.ts', import.meta.url), 'utf8')
+  assert.match(rateEdit, /const invalidPickup = pickupLocations\.value\.find/)
+  assert.doesNotMatch(rateEdit, /pickup\.latitude == null/)
+  assert.doesNotMatch(rateEdit, /Coordenadas requeridas/)
 })
 
 test('saved request and modification review preserve the inland addresses', () => {
