@@ -51,6 +51,9 @@ type WriteResult = {
 }
 type Diagnostics = { environment: string; productionWritesApproved: boolean; productionDeletesApproved: boolean }
 type DeletePolicy = { entity: string; enabled: boolean; minAgeDays: number }
+type ApiClient = { id: string; issuer: string; clientId: string; displayName: string; enabled: boolean }
+type ApiGrant = { id: string; apiClientId: string; connectionId: string; entitySet: string; operation: string;
+  allowedFields: string[]; maxRequestsPerMinute: number; enabled: boolean }
 
 const props = defineProps<{ section: Section; connections: Connection[] }>()
 const auth = useAuthStore()
@@ -93,8 +96,13 @@ const deleteReason = ref('')
 const deletePolicy = ref<DeletePolicy | null>(null)
 const writeResult = ref<WriteResult | null>(null)
 const lockedWrite = ref(false)
-const clients = ref<Array<Record<string, unknown>>>([])
-const grants = ref<Array<Record<string, unknown>>>([])
+const clients = ref<ApiClient[]>([])
+const grants = ref<ApiGrant[]>([])
+const grantClient = ref('')
+const grantOperation = ref<'read' | 'create' | 'update' | 'delete' | 'upsert'>('read')
+const grantFields = ref<string[]>([])
+const grantQuota = ref(60)
+const grantEnabled = ref(true)
 
 const tables = computed(() => snapshot.value?.catalog.tables ?? [])
 const activeTable = computed(() => tables.value.find(t => t.logicalName === entity.value) ?? null)
@@ -106,6 +114,13 @@ const matchedTables = computed(() => tables.value.filter(t => (
 ).toLowerCase().includes(tableSearch.value.trim().toLowerCase())).slice(0, 200))
 const canWrite = computed(() => canSecurity.value && diagnostics.value !== null && diagnostics.value.productionWritesApproved)
 const canDelete = computed(() => canWrite.value && diagnostics.value?.productionDeletesApproved === true)
+const grantAllowedFields = computed(() => {
+  if (!activeTable.value) return []
+  if (grantOperation.value === 'delete') return [activeTable.value.primaryIdAttribute]
+  if (grantOperation.value === 'upsert')
+    return activeTable.value.columns.filter(f => fieldAllowed(f, 'create') && fieldAllowed(f, 'update')).map(f => f.logicalName)
+  return activeTable.value.columns.filter(f => fieldAllowed(f, grantOperation.value)).map(f => f.logicalName)
+})
 
 function label(labels: Record<string, string> | undefined) {
   return labels?.['3082'] || labels?.['1033'] || Object.values(labels ?? {})[0] || ''
@@ -447,10 +462,42 @@ async function saveDeletePolicy() {
 }
 async function loadGrants() {
   const [c, g] = await Promise.all([
-    api<Array<Record<string, unknown>>>('clients'),
-    api<Array<Record<string, unknown>>>('grants'),
+    api<ApiClient[]>('clients'),
+    api<ApiGrant[]>('grants'),
   ])
   clients.value = c; grants.value = g
+  if (!clients.value.some(c => c.id === grantClient.value))
+    grantClient.value = clients.value.find(c => c.enabled)?.id ?? ''
+}
+function editGrant(grant: ApiGrant) {
+  const target = enabledTables.value.find(t => t.logicalName === grant.entitySet)
+  if (!target) { error.value = 'La tabla de este grant no está habilitada.'; return }
+  const operation = grant.operation as typeof grantOperation.value
+  if (!['read','create','update','delete','upsert'].includes(operation)) {
+    error.value = 'Esta operación debe editarse desde el administrador de API.'; return
+  }
+  entity.value = target.logicalName; changeEntity()
+  grantClient.value = grant.apiClientId
+  grantOperation.value = operation
+  grantFields.value = grant.allowedFields.slice()
+  grantQuota.value = grant.maxRequestsPerMinute
+  grantEnabled.value = grant.enabled
+}
+async function saveGrant() {
+  await run(async () => {
+    if (!canSecurity.value || !validGuid(grantClient.value) || !entity.value)
+      throw new Error('Seleccioná una aplicación M2M y una entidad aprobada.')
+    if (grantFields.value.length < 1 || grantFields.value.some(f => !grantAllowedFields.value.includes(f)))
+      throw new Error('Seleccioná únicamente campos permitidos para la operación.')
+    if (!Number.isInteger(grantQuota.value) || grantQuota.value < 1 || grantQuota.value > 600)
+      throw new Error('La cuota permitida es de 1 a 600 solicitudes por minuto.')
+    await api('grants','POST', {
+      clientId: grantClient.value, connectionCode: code.value, entitySet: entity.value,
+      operation: grantOperation.value, allowedFields: grantFields.value,
+      maxRequestsPerMinute: grantQuota.value, enabled: grantEnabled.value,
+    })
+    await loadGrants(); info.value = 'Grant M2M guardado con auditoría.'
+  })
 }
 watch(() => props.connections, list => {
   if (!list.some(c => c.code === code.value))
@@ -665,12 +712,38 @@ watch(() => props.section, section => {
           <p class="dynamics-subtitle">Una política habilitada no omite la aprobación de producción, los permisos del usuario ni el ETag.</p>
         </div>
         <div class="dynamics-data-card"><div class="dynamics-data-card-top"><strong>Aplicaciones M2M registradas</strong><button class="dynamics-outline-button" type="button" :disabled="busy" @click="run(loadGrants)">Actualizar</button></div>
-          <div v-if="!clients.length" class="dynamics-subtitle">No hay aplicaciones M2M registradas.</div>
-          <pre v-else class="dynamics-json">{{ JSON.stringify(clients, null, 2) }}</pre>
+          <p v-if="!clients.length" class="dynamics-subtitle">No hay aplicaciones M2M registradas. Registralas con el administrador del conector antes de asignar grants.</p>
+          <div v-for="client in clients" :key="client.id" class="dynamics-saved-row">
+            <div><strong>{{ client.displayName }}</strong><p class="dynamics-subtitle">{{ client.clientId }} · {{ client.enabled ? 'Habilitada' : 'Deshabilitada' }}</p></div>
+          </div>
         </div>
-        <div class="dynamics-data-card"><strong>Grants por entidad, operación y campos</strong>
-          <p class="dynamics-subtitle">Los grants M2M están separados de las políticas administrativas del catálogo.</p>
-          <pre class="dynamics-json">{{ JSON.stringify(grants, null, 2) }}</pre>
+        <div class="dynamics-data-card">
+          <strong>Autorizar aplicación por entidad y operación</strong>
+          <div class="dynamics-form-grid">
+            <label class="dynamics-field"><span>Aplicación M2M</span><select v-model="grantClient">
+              <option value="">Seleccioná aplicación</option>
+              <option v-for="client in clients.filter(c => c.enabled)" :key="client.id" :value="client.id">{{ client.displayName }}</option>
+            </select></label>
+            <label class="dynamics-field"><span>Tabla</span><select v-model="entity" @change="changeEntity"><option v-for="t in enabledTables" :key="t.logicalName" :value="t.logicalName">{{ t.logicalName }}</option></select></label>
+            <label class="dynamics-field"><span>Operación</span><select v-model="grantOperation" @change="grantFields=[]">
+              <option value="read">SELECT</option><option value="create">CREATE</option><option value="update">UPDATE</option>
+              <option value="upsert">UPSERT</option><option value="delete">DELETE</option>
+            </select></label>
+            <label class="dynamics-field"><span>Cuota (1 a 600/minuto)</span><input v-model.number="grantQuota" type="number" min="1" max="600"></label>
+          </div>
+          <strong class="dynamics-subtitle">Campos autorizados</strong>
+          <div class="dynamics-check-grid"><label v-for="f in grantAllowedFields" :key="f" class="dynamics-check">
+            <input v-model="grantFields" type="checkbox" :value="f">{{ f }}</label></div>
+          <div class="dynamics-tools"><label class="dynamics-check"><input v-model="grantEnabled" type="checkbox"> Grant activo</label>
+            <button class="dynamics-primary-button" type="button" :disabled="busy || !grantClient || !grantFields.length" @click="saveGrant">Guardar grant</button></div>
+          <p class="dynamics-subtitle">Los grants M2M también requieren scopes OAuth válidos y no conceden permisos administrativos de DholeAuth.</p>
+        </div>
+        <div class="dynamics-data-card"><strong>Grants existentes</strong>
+          <div v-for="grant in grants" :key="grant.id" class="dynamics-saved-row">
+            <div><strong>{{ grant.entitySet }} · {{ grant.operation.toUpperCase() }}</strong>
+              <p class="dynamics-subtitle">{{ grant.allowedFields.join(', ') }} · {{ grant.maxRequestsPerMinute }}/min · {{ grant.enabled ? 'Activo' : 'Inactivo' }}</p></div>
+            <button class="dynamics-outline-button" type="button" @click="editGrant(grant)">Editar</button>
+          </div>
         </div>
       </template>
     </template>
