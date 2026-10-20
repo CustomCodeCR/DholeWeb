@@ -50,7 +50,7 @@ type WriteResult = {
   operationId: string; state: string; httpStatus: number | null
   recordId: string | null; eTag?: string | null
 }
-type Diagnostics = { environment: string; productionWritesApproved: boolean; productionDeletesApproved: boolean }
+type Diagnostics = { environment: string; m2mConfigured: boolean; productionWritesApproved: boolean; productionDeletesApproved: boolean }
 type DeletePolicy = { entity: string; enabled: boolean; minAgeDays: number }
 type MetadataBulkFieldResult = {
   snapshotVersion: number; enabledFields: number; readFields: number;
@@ -83,7 +83,7 @@ const metadataJob = computed(() => Object.values(metadataJobs.value).find(j =>
 const tableJob = (name: string) => metadataJobs.value[name]
 const monitoring = ref(false)
 let monitorInterval: ReturnType<typeof setInterval> | null = null
-const publicOrigin = ref('')
+const publicOrigin = ref((import.meta.env.VITE_API_URL || 'https://api.logisticacastrofallas.com').trim().replace(/\/+$/, ''))
 const publicOperation = ref<ApiOperation>('saved')
 const publicSavedName = ref('')
 const publicRecordId = ref('')
@@ -188,9 +188,9 @@ const publicEndpoint = computed(() => {
   const origin = publicOrigin.value.trim().replace(/\/+$/, '')
   const base = origin + '/api/dynamics-connector'
   const table = encodeURIComponent(entity.value || '{table}')
-  const id = encodeURIComponent(publicRecordId.value || '{record-guid}')
+  const id = publicRecordId.value ? encodeURIComponent(publicRecordId.value) : '{record-guid}'
   if (publicOperation.value === 'saved')
-    return base + '/saved-queries/' + encodeURIComponent(publicSavedName.value || '{query-name}') + '/execute'
+    return base + '/saved-queries/' + (publicSavedName.value ? encodeURIComponent(publicSavedName.value) : '{query-name}') + '/execute'
   if (publicOperation.value === 'search') return base + '/records/' + table + '/search'
   if (publicOperation.value === 'get') {
     const fields = approvedFields.value.slice(0, 5).map(f => f.logicalName).join(',')
@@ -200,6 +200,17 @@ const publicEndpoint = computed(() => {
   if (publicOperation.value === 'upsert') return base + '/records/' + table + '/by-key'
   if (publicOperation.value === 'create') return base + '/records/' + table
   return base + '/records/' + table + '/' + id
+})
+const publicReady = computed(() => {
+  if (!validApiOrigin.value || !code.value) return false
+  if (publicOperation.value === 'saved')
+    return !!publicSavedName.value && !!saved.value.find(q => q.name === publicSavedName.value && q.enabled)
+  if (!activeTable.value || !entityEnabled(activeTable.value.logicalName)) return false
+  if (publicOperation.value === 'get' || publicOperation.value === 'update' || publicOperation.value === 'delete')
+    return validGuid(publicRecordId.value)
+  if (publicOperation.value === 'upsert')
+    return !!publicKey.value && !!activeTable.value.alternateKeys?.some(k => k.attributes.includes(publicKey.value))
+  return true
 })
 const publicMethod = computed(() => ({
   saved: 'POST', search: 'POST', get: 'GET', create: 'POST', update: 'PATCH', delete: 'DELETE',
@@ -853,7 +864,6 @@ watch(() => props.section, section => {
   if (section === 'catalog' && canSecurity.value) void resumeMetadataJob()
 })
 onMounted(() => {
-  publicOrigin.value = window.location.origin
   monitorInterval = setInterval(() => { void pollMetadataJob() }, 4000)
 })
 onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
@@ -1368,8 +1378,9 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
       <div class="dynamics-data-card">
         <strong>1. Configurá la URL de tu integración</strong>
         <div class="dynamics-form-grid">
-          <label class="dynamics-field"><span>Dominio público del gateway (HTTPS)</span>
-            <input v-model.trim="publicOrigin" placeholder="https://sistema.tudominio.com"></label>
+          <label class="dynamics-field"><span>API Gateway de Dhole (no el sitio web)</span>
+            <input :value="publicOrigin" readonly aria-label="URL base del gateway, tomada de la configuración de API">
+            <small class="dynamics-subtitle">La dirección la establece VITE_API_URL del entorno. No se usan enlaces del frontend.</small></label>
           <label class="dynamics-field"><span>Operación</span><select v-model="publicOperation">
             <option value="saved">Ejecutar consulta guardada</option>
             <option value="search">Consulta estructurada</option>
@@ -1394,7 +1405,11 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             </select>
           </label>
         </div>
-        <p v-if="!validApiOrigin" class="dynamics-feedback dynamics-feedback-error">Para compartir una ruta usá un origen HTTPS válido sin path ni credenciales.</p>
+        <p v-if="!validApiOrigin" class="dynamics-feedback dynamics-feedback-error">La URL del API Gateway está mal configurada. Revisá VITE_API_URL del despliegue.</p>
+        <p v-if="diagnostics && !diagnostics.m2mConfigured" class="dynamics-feedback dynamics-feedback-error" role="alert">
+          El conector todavía no tiene habilitado OAuth2 M2M en este entorno: se requieren M2m:Authority y M2m:Audience en el backend antes de que una aplicación externa pueda autenticarse.
+        </p>
+        <p v-if="!publicReady" class="dynamics-subtitle">Elegí una consulta habilitada, una tabla autorizada y, cuando corresponda, un GUID o una clave alternativa para generar una URL lista para usar.</p>
         <p v-if="publicOperation === 'saved' && saved.find(s => s.name === publicSavedName)?.enabled === false" class="dynamics-feedback dynamics-feedback-error">
           Esta consulta está deshabilitada. Activala en Query Builder antes de consumirla desde una aplicación externa.
         </p>
@@ -1403,19 +1418,20 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
         <strong>2. URL de tu API</strong>
         <div class="dynamics-tools"><span class="dynamics-api-method">{{ publicMethod }}</span>
           <code class="dynamics-api-url">{{ publicEndpoint }}</code>
-          <button class="dynamics-outline-button" type="button" :disabled="!validApiOrigin" @click="copyApi(publicEndpoint)">Copiar URL</button>
+          <button class="dynamics-outline-button" type="button" :disabled="!publicReady" @click="copyApi(publicEndpoint)">Copiar URL</button>
         </div>
         <p class="dynamics-subtitle">Permiso OAuth requerido: <strong>{{ publicScope }}</strong>. Además se requiere cliente OAuth registrado, grant por conexión, tabla, operación y campos, y políticas de Dataverse. Para CREATE, UPDATE y DELETE, también las aprobaciones de producción.</p>
         <strong>Ejemplo de solicitud HTTP (sin credenciales reales)</strong>
         <pre class="dynamics-json">{{ publicCurl }}</pre>
-        <div class="dynamics-tools"><button type="button" class="dynamics-primary-button" :disabled="!validApiOrigin" @click="copyApi(publicCurl)">Copiar cURL</button>
-          <span v-if="copied" class="dynamics-subtitle">Ejemplo copiado</span>
+        <div class="dynamics-tools"><button type="button" class="dynamics-primary-button" :disabled="!publicReady" @click="copyApi(publicCurl)">Copiar cURL</button>
+          <span v-if="copied" class="dynamics-subtitle">Ejemplo copiado · requiere token OAuth de aplicación</span>
         </div>
       </div>
       <div class="dynamics-data-card">
         <strong>3. Consumir desde Pangolin u otra aplicación</strong>
-        <p class="dynamics-subtitle">Configurá un recurso HTTPS de Pangolin que apunte al API Gateway de Dhole o consumí directamente el dominio autorizado. El cliente obtiene un access token OAuth2 desde Microsoft Entra y envía Authorization: Bearer en cada petición. Pangolin no sustituye los permisos de Dataverse ni los scopes del conector.</p>
-        <p class="dynamics-subtitle">Si usás el dominio publicado por Pangolin, reemplazá arriba el origen por ese dominio HTTPS. Nunca agregués un client secret, access token o clave en parámetros de URL.</p>
+        <p class="dynamics-subtitle"><strong>Si Pangolin es el sistema que consume los datos:</strong> configurá una llamada HTTP saliente a {{ publicOrigin }}. No lo apuntés a sistema.logisticacastrofallas.com y no abras el enlace como una página. El backend de Pangolin obtiene un token OAuth2 app-only de Microsoft Entra y lo envía con la cabecera Authorization: Bearer.</p>
+        <p class="dynamics-subtitle"><strong>Configuración requerida:</strong> (1) crear una aplicación cliente en Entra y asignarle un rol de aplicación dynamics.records.read (u otra operación autorizada) sobre el recurso de API; (2) configurar el issuer y audience M2M del conector; (3) registrar el Client ID y su issuer en la sección Seguridad de Dhole; (4) crear un grant habilitado para conexión {{ code }}, tabla, operación y columnas; (5) consumir mediante HTTPS con JSON.</p>
+        <p class="dynamics-subtitle"><strong>Si Pangolin solo funciona como proxy/túnel:</strong> conservá este gateway como destino; el proxy debe reenviar método, cuerpo y Authorization sin convertir la solicitud en una navegación del frontend. No coloqués secretos en la URL ni guardés el client secret en código del navegador.</p>
         <div class="dynamics-actions">
           <button type="button" class="dynamics-outline-button" @click="copyApi('Authorization: Bearer <ACCESS_TOKEN>')">Copiar cabecera OAuth</button>
           <button type="button" class="dynamics-outline-button" @click="run(loadSaved)">Recargar consultas</button>
