@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Activity, Database, CheckCircle2, RefreshCw, ShieldCheck, Link2, AlertCircle, Search, PenLine, GitBranch, LockKeyhole } from 'lucide-vue-next'
 import DynamicsDataWorkspace from './DynamicsDataWorkspace.vue'
-import DynamicsAutomationWorkspace from './DynamicsAutomationWorkspace.vue'
+import DynamicsCrudIntegrationWorkspace from './DynamicsCrudIntegrationWorkspace.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { fetchClient } from '@/core/api/fetchConfig'
 import { ApiError, NetworkError } from '@/core/api/apiErrorHandler'
@@ -212,7 +212,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
             <LockKeyhole v-else-if="tab==='security'" :size="16" />
             <Activity v-else-if="tab==='operations'" :size="16" />
             <ShieldCheck v-else :size="16" />
-            {{ { connections:'Conexiones', catalog:'Catálogo', query:'Query Builder', automation:'Automatizaciones', crud:'CRUD manual', integrations:'API / Integraciones', security:'Seguridad', operations:'Operación', audit:'Auditoría' }[tab] }}
+            {{ { connections:'Conexiones', catalog:'Catálogo', query:'Query Builder', automation:'API CRUD', crud:'CRUD manual', integrations:'API / Integraciones', security:'Seguridad', operations:'Operación', audit:'Auditoría' }[tab] }}
           </button>
         </nav>
 
@@ -329,7 +329,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
           <p v-if="loading" class="dynamics-subtitle">Consultando...</p>
           <pre v-else class="dynamics-json">{{ output || 'Todavía no hay información disponible.' }}</pre>
         </section>
-        <DynamicsAutomationWorkspace v-else-if="activeTab==='automation'" :connections="connections" @navigate="activeTab = $event" />
+        <DynamicsCrudIntegrationWorkspace v-else-if="activeTab==='automation'" :connections="connections" @navigate="activeTab = $event" />
         <DynamicsDataWorkspace v-else :section="activeTab as 'catalog' | 'query' | 'crud' | 'security' | 'integrations'" :connections="connections" @navigate="activeTab = $event" />
       </div>
     </template>
