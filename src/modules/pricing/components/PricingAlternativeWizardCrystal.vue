@@ -62,6 +62,7 @@ import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.
 import PricingMarketBenchmarkPanel from '@/modules/pricing/components/PricingMarketBenchmarkPanel.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
+import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
 import { resolvePodVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
@@ -3622,60 +3623,56 @@ async function downloadRateLinesExcel() {
   try {
     downloadingLinesExcel.value = true
 
-    // Pantalla 9 debe exportar EXACTAMENTE la tabla que el usuario está viendo,
-    // con todas sus filas y columnas. No reutilizar el documento XLSX de la
-    // cotización general porque ese template puede omitir columnas del detalle.
-    const table = document.querySelector<HTMLTableElement>('[data-screen09-rate-lines-table]')
-    if (!table) {
-      throw new Error('No se encontró la tabla completa de líneas de la tarifa.')
-    }
+    // Las líneas son las mismas de Pantalla 9; el archivo es un XLSX real
+    // con importes numéricos y una columna de ubicación para cada cargo.
+    const rows = includedLines.value.map((line) => {
+      const quantity = quantityForRateLine(line)
+      const chargeType = line.costDetailType === 'Freight' || line.section === 'international_freight'
+        ? 'Flete'
+        : line.section === 'pickup_origin' || line.section === 'origin_charges'
+          ? 'Origen'
+          : 'Destino'
 
-    const exportedTable = table.cloneNode(true) as HTMLTableElement
-    exportedTable.removeAttribute('class')
-    exportedTable.setAttribute('border', '1')
-    exportedTable.setAttribute('cellpadding', '5')
-    exportedTable.setAttribute('cellspacing', '0')
-
-    exportedTable.querySelectorAll<HTMLElement>('*').forEach((element) => {
-      element.removeAttribute('class')
-      element.removeAttribute('style')
+      return {
+        chargeType,
+        name: line.name,
+        notes: line.notes ?? '',
+        basis: chargeBasisLabel(effectiveChargeBasisForLine(line)),
+        quantity,
+        currency: detailCurrencyValue(line),
+        billTo: line.billToClient || '',
+        unitCost: number(line.costAmount),
+        unitSale: number(line.saleAmount),
+        saleSubtotal: number(line.saleAmount) * quantity,
+        tax: lineTaxTotalAmount(line),
+        saleTotal: lineSaleWithTax(line) * quantity,
+      }
     })
 
     const reference = editingRate.value.quoNumber || editingRate.value.rateCode || 'tarifa'
-    const safeReference = reference
-      .replace(/[\\/:*?"<>|]+/g, '-')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    const workbookHtml = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="Content-Type" content="application/vnd.ms-excel; charset=utf-8">
-  <style>
-    table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; }
-    th { font-weight: 700; background: #e7e7e7; white-space: nowrap; }
-    th, td { border: 1px solid #999; padding: 6px 8px; vertical-align: top; }
-    td:first-child { min-width: 340px; white-space: pre-wrap; }
-  </style>
-</head>
-<body>
-  <h3>${safeReference} - Líneas completas de la tarifa</h3>
-  ${exportedTable.outerHTML}
-</body>
-</html>`
-
-    const blob = new Blob(['\uFEFF', workbookHtml], {
-      type: 'application/vnd.ms-excel;charset=utf-8',
+    const downloaded = downloadExcelWorkbook({
+      fileName: `${reference} - lineas completas de tarifa.xlsx`,
+      sheets: [{
+        name: 'Líneas de tarifa',
+        columns: [
+          { key: 'chargeType', label: 'Tipo de cargo' },
+          { key: 'name', label: 'Rubro' },
+          { key: 'notes', label: 'Observaciones' },
+          { key: 'basis', label: 'Base' },
+          { key: 'quantity', label: 'Cant.' },
+          { key: 'currency', label: 'Divisa' },
+          { key: 'billTo', label: 'Facturar / cobrar a' },
+          { key: 'unitCost', label: 'Costo unit.' },
+          { key: 'unitSale', label: 'Venta unit.' },
+          { key: 'saleSubtotal', label: 'Venta subtotal' },
+          { key: 'tax', label: 'IVA' },
+          { key: 'saleTotal', label: 'Venta total' },
+        ],
+        rows,
+      }],
     })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${safeReference} - lineas completas de tarifa.xls`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+
+    if (!downloaded) throw new Error('No se pudo generar el archivo Excel.')
   } catch (error) {
     toastStore.backendError(error, 'No se pudieron descargar todas las líneas de la tarifa en Excel.')
   } finally {
