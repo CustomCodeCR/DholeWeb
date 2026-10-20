@@ -5048,7 +5048,9 @@ onMounted(async () => {
                 <div>
                   <p class="text-sm font-black">Ubicación en mapa (opcional)</p>
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                    No es necesario usar el mapa para agregar la recolecta. Úselo solamente si desea precisar el punto.
+                    {{ selectedIncotermCode === 'EXW'
+                      ? 'No es necesario usar el mapa para agregar la recolecta. Úselo solamente si desea precisar el punto.'
+                      : 'La selección del WHS no requiere usar el mapa. Es solamente una referencia.' }}
                   </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
@@ -5070,40 +5072,39 @@ onMounted(async () => {
                 </div>
               </div>
 
-            <PricingInteractiveOsmMap
-              v-if="selectedIncotermCode === 'EXW'"
-              :latitude="form.pickupLatitude"
-              :longitude="form.pickupLongitude"
-              :markers="nearestPortMapMarkers"
-              :fit-markers="nearestPortMapMarkers.length > 0"
-              :interactive-selection="true"
-              :initial-zoom="11"
-              :selection-zoom="13"
-              hint="Opcional: toque el mapa para fijar el punto exacto de recolección. Los puertos encontrados se muestran como marcadores."
-              @select-point="selectPickupFromMap"
-            />
-            <PricingInteractiveOsmMap
-              v-else
-              :latitude="form.pickupLatitude"
-              :longitude="form.pickupLongitude"
-              :markers="warehouseMapMarkers"
-              :interactive-selection="false"
-              :fit-markers="!form.warehouseId"
-              :initial-zoom="3"
-              :selection-zoom="10"
-              hint="Los marcadores corresponden a los WHS globales configurados en Dhole. Al seleccionar uno, el mapa se centra en ese WHS."
-              @select-marker="selectWarehouseFromMap"
-            />
-            <p
-              v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length > warehouseMapMarkers.length"
-              class="text-[11px] font-bold text-amber-600"
-            >
-              Algunos WHS no tienen ubicación exacta configurada. Siguen disponibles en la lista, pero no se colocan en el mapa sin coordenadas.
-            </p>
-            <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
-              Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
-            </p>
-
+              <PricingInteractiveOsmMap
+                v-if="selectedIncotermCode === 'EXW'"
+                :latitude="form.pickupLatitude"
+                :longitude="form.pickupLongitude"
+                :markers="nearestPortMapMarkers"
+                :fit-markers="nearestPortMapMarkers.length > 0"
+                :interactive-selection="true"
+                :initial-zoom="11"
+                :selection-zoom="13"
+                hint="Opcional: toque el mapa para fijar el punto exacto de recolección. Los puertos encontrados se muestran como marcadores."
+                @select-point="selectPickupFromMap"
+              />
+              <PricingInteractiveOsmMap
+                v-else
+                :latitude="form.pickupLatitude"
+                :longitude="form.pickupLongitude"
+                :markers="warehouseMapMarkers"
+                :interactive-selection="false"
+                :fit-markers="!form.warehouseId"
+                :initial-zoom="3"
+                :selection-zoom="10"
+                hint="Los marcadores corresponden a los WHS globales configurados en Dhole. Al seleccionar uno, el mapa se centra en ese WHS."
+                @select-marker="selectWarehouseFromMap"
+              />
+              <p
+                v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length > warehouseMapMarkers.length"
+                class="text-[11px] font-bold text-amber-600"
+              >
+                Algunos WHS no tienen ubicación exacta configurada. Siguen disponibles en la lista, pero no se colocan en el mapa sin coordenadas.
+              </p>
+              <p v-if="pickupCoordinates" class="text-[11px] font-bold text-[var(--dh-text-muted)]">
+                Coordenadas: {{ pickupCoordinates.latitude.toFixed(6) }}, {{ pickupCoordinates.longitude.toFixed(6) }}
+              </p>
             </div>
 
             <div v-if="selectedIncotermCode === 'EXW'" class="space-y-2">
