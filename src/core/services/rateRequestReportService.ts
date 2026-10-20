@@ -9,6 +9,10 @@ export interface RequestedRateReportRow {
   requestedAtUtc: string
   dueAtUtc?: string | null
   completedAtUtc?: string | null
+  cancelledAtUtc?: string | null
+  cancelledByName?: string | null
+  cancellationReason?: string | null
+  cancellationDetails?: string | null
   rateId?: string | null
   sellerUserId: string
   sellerName?: string | null

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { CheckCircle2, Clock3, PlayCircle, RefreshCcw } from 'lucide-vue-next'
+import { Ban, CheckCircle2, Clock3, PlayCircle, RefreshCcw } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
@@ -11,6 +11,7 @@ import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCata
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 
 type Priority = 'Green' | 'Yellow' | 'Red'
+type CancellationReason = 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'
 
 type ModificationItem = { action: 'Add' | 'Change' | 'Remove'; field: string; details: string }
 type RequestPayload = {
@@ -27,6 +28,10 @@ interface RateRequestDto {
   status: 'Open' | 'Completed' | 'Cancelled'
   requestedAtUtc: string
   dueAtUtc: string
+  cancelledAtUtc?: string | null
+  cancelledByName?: string | null
+  cancellationReason?: CancellationReason | null
+  cancellationDetails?: string | null
   lockedByUserId?: string | null
   lockedByName?: string | null
   lockExpiresAtUtc?: string | null
@@ -50,6 +55,10 @@ const toast = useToastStore()
 const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
 const completingRequestId = ref<string | null>(null)
+const cancellationTarget = ref<RateRequestDto | null>(null)
+const cancellationReason = ref<CancellationReason>('Duplicate')
+const cancellationDetails = ref('')
+const cancellingRequestId = ref<string | null>(null)
 const claimingRequestId = ref<string | null>(null)
 const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
@@ -246,6 +255,57 @@ async function completeRequest(request: RateRequestDto) {
   }
 }
 
+const cancellationReasons: { value: CancellationReason; label: string }[] = [
+  { value: 'Duplicate', label: 'Solicitud duplicada' },
+  { value: 'CustomerCancelled', label: 'Cancelada por el cliente' },
+  { value: 'SellerCancelled', label: 'Cancelada por Ventas' },
+  { value: 'Other', label: 'Otro motivo' },
+]
+
+function cancellationReasonLabel(reason?: CancellationReason | null) {
+  return cancellationReasons.find((item) => item.value === reason)?.label ?? 'Sin motivo'
+}
+
+function openCancellation(request: RateRequestDto) {
+  if (request.status !== 'Open' || isLocked(request)
+    || claimingRequestId.value || completingRequestId.value || cancellingRequestId.value) return
+  cancellationTarget.value = request
+  cancellationReason.value = 'Duplicate'
+  cancellationDetails.value = ''
+}
+
+function closeCancellation() {
+  if (cancellingRequestId.value) return
+  cancellationTarget.value = null
+}
+
+async function confirmCancellation() {
+  const request = cancellationTarget.value
+  if (!request || request.status !== 'Open' || cancellingRequestId.value || isLocked(request)) return
+  const details = cancellationDetails.value.trim()
+  if (cancellationReason.value === 'Other' && !details) {
+    toast.error('Detalle requerido', 'Describa por qué se está cancelando la solicitud.')
+    return
+  }
+
+  cancellingRequestId.value = request.id
+  try {
+    // The same exclusive lease used to continue a request prevents cancellation
+    // while another pricing operator is preparing the quote.
+    await RateRequestLeaseService.claim(request.id)
+    await RateRequestLeaseService.cancel(request.id, { reason: cancellationReason.value, details })
+    cancellationTarget.value = null
+    toast.success('Solicitud cancelada', 'Se conservó en el historial con su motivo de cancelación.')
+    await load()
+  } catch (error) {
+    toast.backendError(error, 'No se pudo cancelar la solicitud. Compruebe si está siendo atendida.')
+    await load()
+  } finally {
+    await RateRequestLeaseService.release(request.id).catch(() => undefined)
+    cancellingRequestId.value = null
+  }
+}
+
 function handleRealtimeNotification(event: Event) {
   const notification = (event as CustomEvent<SystemNotificationPush>).detail
   if (!['pricing.rate-request.created', 'pricing.rate-request.sla-overdue'].includes(notification?.notificationType ?? '')) return
@@ -354,18 +414,73 @@ onBeforeUnmount(() => {
             </td>
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end gap-2">
-                <DhButton :disabled="isLocked(request) || Boolean(claimingRequestId)" @click="continueRequest(request)">
+                <DhButton :disabled="isLocked(request) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="continueRequest(request)">
                   <PlayCircle class="h-4 w-4" />
                   {{ isLocked(request) ? 'En proceso' : claimingRequestId === request.id ? 'Reservando…' : isModification(request) ? 'Revisar cambios' : 'Continuar tarifa' }}
                 </DhButton>
-                <DhButton variant="secondary" :disabled="isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId)" @click="completeRequest(request)">
+                <DhButton variant="secondary" :disabled="isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="completeRequest(request)">
                   <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : isModification(request) ? 'Enviar revisión' : 'Marcar completada' }}
+                </DhButton>
+                <DhButton
+                  variant="secondary"
+                  class="!text-red-600 dark:!text-red-400"
+                  :disabled="isLocked(request) || Boolean(claimingRequestId) || Boolean(completingRequestId) || Boolean(cancellingRequestId)"
+                  @click="openCancellation(request)"
+                >
+                  <Ban class="h-4 w-4" /> Cancelar
                 </DhButton>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
+    </div>
+    <div
+      v-if="cancellationTarget"
+      class="fixed inset-0 z-[150] flex items-center justify-center bg-black/65 p-4"
+      @click.self="closeCancellation"
+    >
+      <div role="dialog" aria-modal="true" aria-labelledby="cancel-rate-request-title"
+        class="dh-glass dh-liquid w-full max-w-lg rounded-[28px] border border-[var(--dh-border)] p-6 shadow-2xl">
+        <div class="flex items-center gap-3">
+          <Ban class="h-6 w-6 text-red-500" />
+          <h3 id="cancel-rate-request-title" class="text-xl font-black">Cancelar solicitud de tarifa</h3>
+        </div>
+        <p class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+          {{ cancellationTarget.clientName || 'Cliente sin definir' }} ·
+          {{ cancellationTarget.originName || 'Origen' }} →
+          {{ cancellationTarget.podName || cancellationTarget.destinationName || 'Destino' }}
+        </p>
+        <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+          La solicitud dejará de estar pendiente. No se eliminará ninguna cotización ya generada.
+        </p>
+        <label for="rate-request-cancel-reason" class="mt-5 block text-sm font-bold">
+          Motivo de cancelación <span class="text-red-500">*</span>
+        </label>
+        <select id="rate-request-cancel-reason" v-model="cancellationReason"
+          :disabled="Boolean(cancellingRequestId)"
+          class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm font-semibold text-[var(--dh-text)]">
+          <option v-for="reason in cancellationReasons" :key="reason.value" :value="reason.value">{{ reason.label }}</option>
+        </select>
+        <label for="rate-request-cancel-details" class="mt-4 block text-sm font-bold">
+          Observación {{ cancellationReason === 'Other' ? '(obligatoria)' : '(opcional)' }}
+        </label>
+        <textarea id="rate-request-cancel-details" v-model="cancellationDetails"
+          :disabled="Boolean(cancellingRequestId)" maxlength="500" rows="3"
+          placeholder="Indique más información para el historial…"
+          class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm text-[var(--dh-text)]"
+        />
+        <div class="mt-6 flex flex-wrap justify-end gap-2">
+          <DhButton variant="secondary" :disabled="Boolean(cancellingRequestId)" @click="closeCancellation">Volver</DhButton>
+          <DhButton
+            class="!bg-red-600 !text-white hover:!bg-red-700"
+            :disabled="Boolean(cancellingRequestId) || (cancellationReason === 'Other' && !cancellationDetails.trim())"
+            @click="confirmCancellation"
+          >
+            <Ban class="h-4 w-4" /> {{ cancellingRequestId ? 'Cancelando…' : 'Confirmar cancelación' }}
+          </DhButton>
+        </div>
+      </div>
     </div>
   </section>
 </template>
