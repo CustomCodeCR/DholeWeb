@@ -39,6 +39,10 @@ const operation=ref<Operation>('create')
 const entity=ref('')
 const selected=ref<string[]>([])
 const exampleOptions=ref<Record<string,number|string>>({})
+const liveChoices=ref<Record<string,Array<{value:number;label:string}>>>({})
+const choicesLoading=ref(false)
+const choiceError=ref('')
+let choiceRequest=0
 const fieldSearch=ref('')
 const keyName=ref('')
 const endpointName=ref('crear_oferta')
@@ -95,12 +99,12 @@ const entityNameOptions=computed(()=>(snapshot.value?.catalog.tables??[])
   .sort((a,b)=>a.label.localeCompare(b.label,'es')))
 const optionFields=computed(()=>selectedFields.value.filter(f=>
   ['Picklist','State','Status','EntityName'].includes(f.type)))
-const metadataChoicesMissing=computed(()=>optionFields.value.filter(f=>
-  f.type!=='EntityName' && !(f.choices?.length) ||
-  f.type==='EntityName' && !entityNameOptions.value.length))
 const choicesFor=(f:Field):Array<{ value:number|string;label:string }> =>
   f.type==='EntityName'?entityNameOptions.value:
-  (f.choices??[]).map(c=>({value:c.value,label:display(c.labels,String(c.value))}))
+  liveChoices.value[f.logicalName] ??
+    (f.choices??[]).map(c=>({value:c.value,label:display(c.labels,String(c.value))}))
+const metadataChoicesMissing=computed(()=>optionFields.value.filter(f=>
+  choicesFor(f).length===0))
 const chosenValue=(f:Field):string|number|undefined=>{
   const options=choicesFor(f)
   const chosen=exampleOptions.value[f.logicalName]
@@ -125,7 +129,7 @@ const definition=computed<Definition>(()=>({
 const nameValid=computed(()=>/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(endpointName.value))
 const configValid=computed(()=>!!table.value&&nameValid.value&&
   (operation.value==='delete'||selectedFields.value.length>0)&&
-  metadataChoicesMissing.value.length===0 &&
+  metadataChoicesMissing.value.length===0 && !choicesLoading.value && !choiceError.value &&
   (operation.value!=='upsert'||!!selectedKey.value))
 const selectedTemplate=computed(()=>definitions.value.find(t=>t.name===endpointName.value))
 const hasCurrentVersion=computed(()=>!!createdVersion.value&&selectedTemplate.value?.history.some(h=>
@@ -189,8 +193,12 @@ function forward(){
   if(step.value===2&&operation.value!=='delete'&&selectedFields.value.length===0){
     error.value='Elegí al menos un campo autorizado.';return
   }
+  if(step.value===2&&(choicesLoading.value||choiceError.value)){
+    error.value=choicesLoading.value?'Se están consultando las opciones en Dataverse.':
+      'No se pudo consultar las opciones: '+choiceError.value;return
+  }
   if(step.value===2&&metadataChoicesMissing.value.length){
-    error.value='Primero actualizá Catálogo para descubrir las opciones de: '+
+    error.value='Dataverse no devolvió opciones para: '+
       metadataChoicesMissing.value.map(f=>f.logicalName).join(', ');return
   }
   if(step.value===2&&operation.value==='upsert'&&!selectedKey.value){
@@ -198,6 +206,26 @@ function forward(){
   }
   if(step.value===3&&!configValid.value){error.value='Revisá el nombre y los campos del comando.';return}
   if(step.value<4)step.value=(step.value+1) as 1|2|3|4
+}
+async function loadChoiceOptions(){
+  const request=++choiceRequest
+  const fields=optionFields.value.filter(f=>f.type!=='EntityName')
+  liveChoices.value={}
+  choiceError.value=''
+  if(!fields.length){choicesLoading.value=false;return}
+  choicesLoading.value=true
+  try {
+    const response=await fetchClient<{options:Record<string,Array<{value:number;label:string}>>}>(
+      api('metadata/entities/'+encodeURIComponent(entity.value)+'/choices'),
+      {method:'POST',body:{fields:fields.map(f=>f.logicalName)}})
+    if(request!==choiceRequest)return
+    liveChoices.value=response.options??{}
+  } catch(e){
+    if(request===choiceRequest)
+      choiceError.value=e instanceof Error?e.message:'No se pudieron consultar las opciones en Dataverse.'
+  } finally {
+    if(request===choiceRequest)choicesLoading.value=false
+  }
 }
 async function refresh(){
   if(!canManage.value)return
@@ -215,6 +243,7 @@ async function refresh(){
       entity.value=tables.value[0]?.logicalName??''
       selected.value=[];exampleOptions.value={};createdVersion.value=null
     }
+    void loadChoiceOptions()
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo cargar el catálogo.'}
   finally{busy.value=false}
 }
@@ -284,6 +313,8 @@ watch(()=>props.connections, list=>{
   if(list.length&&!list.some(x=>x.code===connection.value))connection.value=list[0]!.code
 },{immediate:true,deep:true})
 watch(connection,()=>{createdVersion.value=null;issued.value=null;void refresh()})
+watch(()=>[connection.value,entity.value,selected.value.slice().sort().join(',')].join('|'),
+  ()=>{void loadChoiceOptions()})
 onMounted(refresh)
 </script>
 
@@ -362,10 +393,13 @@ onMounted(refresh)
             <div v-if="optionFields.length" class="crud-options-panel">
               <h4>Opciones reales de Dynamics — sin buscar IDs</h4>
               <p>Seleccioná la opción por su nombre. Dhole utiliza automáticamente el valor técnico al generar el ejemplo de solicitud.</p>
+              <p v-if="choicesLoading" class="crud-help" role="status">Consultando opciones del campo en Dynamics...</p>
+              <p v-if="choiceError" class="crud-error" role="alert">{{ choiceError }}</p>
               <div class="crud-options-grid">
                 <label v-for="field in optionFields" :key="field.logicalName" class="crud-field">
                   <span>{{ display(field.labels,field.logicalName) }} · {{ field.type }}</span>
-                  <select :value="chosenValue(field)" @change="setExampleOption(field,($event.target as HTMLSelectElement).value)">
+                  <select :value="chosenValue(field)" :disabled="choicesLoading||choicesFor(field).length===0"
+                    @change="setExampleOption(field,($event.target as HTMLSelectElement).value)">
                     <option v-for="opt in choicesFor(field)" :key="opt.value" :value="opt.value">
                       {{ opt.label }}
                     </option>
@@ -381,7 +415,7 @@ onMounted(refresh)
               </div>
               <p v-if="metadataChoicesMissing.length" class="crud-error">
                 No se encontraron opciones para {{ metadataChoicesMissing.map(f=>f.logicalName).join(', ') }}.
-                Actualizá los metadatos de esas tablas en Catálogo antes de guardar la API.
+                Consultá las opciones de nuevo; no se publicará una API con valores inventados.
               </p>
             </div>
             <label v-if="operation==='upsert'" class="crud-field">Clave alternativa de Dataverse
