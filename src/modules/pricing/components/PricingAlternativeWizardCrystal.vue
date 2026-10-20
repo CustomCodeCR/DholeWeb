@@ -54,6 +54,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
+import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -328,6 +329,8 @@ const form = reactive({
   warehouseId: '',
   pickupLatitude: null as number | null,
   pickupLongitude: null as number | null,
+  inlandPickupLocation: { address: '', latitude: null as number | null, longitude: null as number | null },
+  inlandDeliveryLocation: { address: '', latitude: null as number | null, longitude: null as number | null },
   freeDays: 0,
   transitDays: 0,
   agentId: '',
@@ -1022,6 +1025,20 @@ const fcaLocationReady = computed(() =>
     : Boolean(form.pickupAddress.trim() && pickupCoordinates.value)),
 )
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
+// These services can be requested with any Incoterm; they are independent of EXW/FCA.
+function inlandServiceName(service: CatalogItemSelectDto) {
+  return normalizeCatalogValue([displayValue(service), service.label, service.code, service.slug].filter(Boolean).join(' '))
+}
+const inlandPickupServiceSelected = computed(() => selectedServices.value.some(service =>
+  /transporte.*recole|recole.*transporte|pickup/.test(inlandServiceName(service)),
+))
+const inlandDeliveryServiceSelected = computed(() => selectedServices.value.some(service =>
+  /transporte.*entrega|entrega.*transporte|delivery/.test(inlandServiceName(service)),
+))
+const inlandServiceLocationsReady = computed(() =>
+  (!inlandPickupServiceSelected.value || Boolean(form.inlandPickupLocation?.address?.trim()))
+  && (!inlandDeliveryServiceSelected.value || Boolean(form.inlandDeliveryLocation?.address?.trim())),
+)
 function isStorageService(value: string) {
   const normalized = normalizeCatalogValue(value)
   return normalized.includes('almacen') || normalized.includes('deposito fiscal') || normalized.includes('bodega fiscal')
@@ -1755,6 +1772,7 @@ const canNext = computed(() => {
       form.loadDate &&
       exwLocationReady.value &&
       fcaLocationReady.value &&
+      inlandServiceLocationsReady.value &&
       sellerCargoConditionReady.value,
     )
   }
@@ -4496,6 +4514,8 @@ function resetWizard() {
     warehouseId: '',
     pickupLatitude: null,
     pickupLongitude: null,
+    inlandPickupLocation: { address: '', latitude: null, longitude: null },
+    inlandDeliveryLocation: { address: '', latitude: null, longitude: null },
     freeDays: 0,
     transitDays: 0,
     agentId: '',
@@ -4929,6 +4949,16 @@ onMounted(async () => {
               placeholder="Seleccione servicios"
               search-placeholder="Buscar servicio..."
               :options="serviceOptions"
+            />
+            <PricingInlandServiceLocation
+              v-if="inlandPickupServiceSelected"
+              v-model="form.inlandPickupLocation"
+              kind="pickup"
+            />
+            <PricingInlandServiceLocation
+              v-if="inlandDeliveryServiceSelected"
+              v-model="form.inlandDeliveryLocation"
+              kind="delivery"
             />
             <div v-if="storageServiceSelected" class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
               <DhInput v-model.number="form.storageDays" type="number" min="1" step="1"
