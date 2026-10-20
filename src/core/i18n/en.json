@@ -708,6 +708,8 @@
         "rate": "Rate",
         "operation": "Operation",
         "quotedBy": "Quoted by",
+        "reviewedBy": "Reviewed by",
+        "lastModifiedBy": "Last modified by",
         "commercial": "Commercial summary",
         "validity": "Validity",
         "status": "Status",

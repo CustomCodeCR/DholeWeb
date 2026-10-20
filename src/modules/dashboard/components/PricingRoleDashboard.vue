@@ -61,6 +61,22 @@ function creatorUserName(rate: PricingRateDashboardDto['recentRates'][number]) {
   return creatorDirectory.value[rate.createdByUserId]?.userName || ''
 }
 
+function auditDisplayName(displayName?: string | null, userName?: string | null, userId?: string | null) {
+  if (displayName) return displayName
+  if (userName) return userName
+  if (!userId) return '—'
+  const user = creatorDirectory.value[userId] || creatorDirectory.value[userId.toLowerCase()]
+  return user?.displayName || user?.userName || userId
+}
+
+function reviewerDisplayName(rate: PricingRateDashboardDto['recentRates'][number]) {
+  return auditDisplayName(rate.reviewedByDisplayName, rate.reviewedByUserName, rate.reviewedByUserId)
+}
+
+function lastModifierDisplayName(rate: PricingRateDashboardDto['recentRates'][number]) {
+  return auditDisplayName(rate.lastModifiedByDisplayName, rate.lastModifiedByUserName, rate.lastModifiedByUserId)
+}
+
 const filters = reactive({
   createdFrom: '',
   createdTo: '',
@@ -529,6 +545,14 @@ onMounted(loadDashboard)
                 <p class="mt-1 truncate font-black text-[var(--dh-text)]">{{ creatorDisplayName(rate) }}</p>
               </div>
               <div class="rounded-xl bg-[var(--dh-input)] p-2.5">
+                <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Revisado por</p>
+                <p class="mt-1 break-words font-black text-[var(--dh-text)]">{{ reviewerDisplayName(rate) }}</p>
+              </div>
+              <div class="rounded-xl bg-[var(--dh-input)] p-2.5">
+                <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Última modificación por</p>
+                <p class="mt-1 break-words font-black text-[var(--dh-text)]">{{ lastModifierDisplayName(rate) }}</p>
+              </div>
+              <div class="rounded-xl bg-[var(--dh-input)] p-2.5">
                 <p class="text-[9px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Utilidad</p>
                 <p class="mt-1 truncate font-black text-green-600 dark:text-green-400">
                   {{ formatMoney(rate.totalUtilityAmount, currencyDisplayValue(rate.currencyCode)) }}
@@ -554,21 +578,23 @@ onMounted(loadDashboard)
         </div>
 
         <div class="hidden overflow-x-auto lg:block">
-          <table class="w-full min-w-[1080px] table-fixed text-left text-sm">
+          <table class="w-full min-w-[1260px] table-fixed text-left text-sm">
             <colgroup>
-              <col class="w-[15%]" />
-              <col class="w-[27%]" />
-              <col class="w-[12%]" />
-              <col class="w-[10%]" />
-              <col class="w-[16%]" />
+              <col class="w-[14%]" />
+              <col class="w-[23%]" />
               <col class="w-[11%]" />
+              <col class="w-[13%]" />
+              <col class="w-[8%]" />
+              <col class="w-[16%]" />
               <col class="w-[9%]" />
+              <col class="w-[6%]" />
             </colgroup>
             <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">
               <tr>
                 <th class="px-4 py-3">Tarifa</th>
                 <th class="px-4 py-3">Ruta</th>
                 <th class="px-4 py-3">Cotizado por</th>
+                <th class="px-4 py-3">Revisado por</th>
                 <th class="px-4 py-3">Estado</th>
                 <th class="px-4 py-3">Actividad</th>
                 <th class="px-4 py-3">Vigencia</th>
@@ -602,11 +628,15 @@ onMounted(loadDashboard)
                   </p>
                 </td>
                 <td class="px-4 py-3 align-top">
+                  <p class="break-words font-black text-[var(--dh-text)]">{{ reviewerDisplayName(rate) }}</p>
+                </td>
+                <td class="px-4 py-3 align-top">
                   <DhBadge :label="statusLabel(rate.status)" :variant="statusTone(rate.status)" />
                 </td>
                 <td class="px-4 py-3 align-top text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]">
                   <p>Creada: {{ formatDateTime(rate.createdAtUtc) }}</p>
                   <p class="mt-1">Modificada: {{ formatDateTime(rate.updatedAtUtc) }}</p>
+                  <p class="mt-1 break-words">Modificó: {{ lastModifierDisplayName(rate) }}</p>
                 </td>
                 <td class="px-4 py-3 align-top text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]">
                   {{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}
@@ -616,7 +646,7 @@ onMounted(loadDashboard)
                 </td>
               </tr>
               <tr v-if="!dashboard.recentRates.length">
-                <td colspan="7" class="px-5 py-10 text-center font-semibold text-[var(--dh-text-muted)]">
+                <td colspan="8" class="px-5 py-10 text-center font-semibold text-[var(--dh-text-muted)]">
                   No hay tarifas para mostrar.
                 </td>
               </tr>

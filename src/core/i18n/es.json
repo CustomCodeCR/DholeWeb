@@ -708,6 +708,8 @@
         "rate": "Tarifa",
         "operation": "Operación",
         "quotedBy": "Cotizado por",
+        "reviewedBy": "Revisado por",
+        "lastModifiedBy": "Última modificación por",
         "commercial": "Resumen comercial",
         "validity": "Vigencia",
         "status": "Estado",
