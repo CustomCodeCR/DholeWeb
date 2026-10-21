@@ -186,10 +186,10 @@ function coloaderFreightDisplayRate(row: LclColoaderRateDto) {
   const freight = row.lines.find((line) => line.costDetailType === 'Freight')
   const amount = coloaderFreightPerCbm(row)
   if (!isAir.value || !freight || amount === null) return amount
-  const sourceIsLb = freight.chargeBasis === 'PerLb'
-  if (props.requestedWeightUnit === 'lb' && !sourceIsLb) return amount / 2.20462262
-  if (props.requestedWeightUnit === 'kg' && sourceIsLb) return amount * 2.20462262
-  return amount
+  const ratePerKg = freight.chargeBasis === 'PerLb' ? amount * 2.20462262
+    : freight.chargeBasis === 'Per100Kg' ? amount / 100
+    : freight.chargeBasis === 'PerTon' ? amount / 1000 : amount
+  return props.requestedWeightUnit === 'lb' ? ratePerKg / 2.20462262 : ratePerKg
 }
 async function loadCurrencyCatalog() {
   if (currencyCatalog.value.length) return
