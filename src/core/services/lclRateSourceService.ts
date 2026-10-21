@@ -74,7 +74,7 @@ export interface LclColoaderRateDto extends Record<string, unknown> {
 }
 
 export interface BrowseLclColoaderRatesQuery {
-  modality?: 'Maritime' | 'Air' | 'Land' | 'Multimodal' | null
+  modality?: 'Maritime' | 'Air' | 'AirConsol' | 'Land' | 'Multimodal' | null
   polId?: string | null
   pol?: string | null
   poeId?: string | null
@@ -87,8 +87,13 @@ export interface BrowseLclColoaderRatesQuery {
 
 export const LclRateSourceService = {
   async browseColoaders(query: BrowseLclColoaderRatesQuery): Promise<LclColoaderRateDto[]> {
+    // Always request the canonical air mode; the API also accepts legacy Air.
+    const normalizedQuery = {
+      ...query,
+      modality: query.modality === 'Air' ? 'AirConsol' : query.modality,
+    }
     const response = await callEndpointWithQuery<unknown>(endpoints.coloaders, {
-      query: query as Record<string, unknown>,
+      query: normalizedQuery as Record<string, unknown>,
     })
     return unwrapListResponse<LclColoaderRateDto>(response)
   },

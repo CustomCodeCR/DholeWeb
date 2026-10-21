@@ -77,7 +77,7 @@ export interface LclRateSourceSelection {
 }
 
 const props = withDefaults(defineProps<{
-  modality?: 'Maritime' | 'Air' | 'Land' | 'Multimodal'
+  modality?: 'Maritime' | 'Air' | 'AirConsol' | 'Land' | 'Multimodal'
   polId?: string | null
   polCode?: string | null
   polName?: string | null
@@ -143,7 +143,7 @@ const ownRows = ref<Array<OwnLclConsolidationDto & TableRow>>([])
 const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
 const currencyCatalog = ref<CatalogItemSelectDto[]>([])
-const isAir = computed(() => props.modality === 'Air')
+const isAir = computed(() => props.modality === 'Air' || props.modality === 'AirConsol')
 const ownPoeEligible = computed(() => !isAir.value && isOwnLclPoeEligible(props.polCode, props.polName, props.poeCode, props.poeName))
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
