@@ -59,7 +59,7 @@ function createHarness() {
     sectionForCost: (cost: { costDetailType: string }) =>
       cost.costDetailType === 'OriginCharge' ? 'origin_charges' : 'destination_charges',
     incotermResponsibilitySections: { value: ['origin_charges', 'destination_charges'] },
-    airLclCostMatchesCurrentContext: () => false,
+    airLclCostMatchesCurrentContext: (_cost: Record<string, unknown>) => false,
   }
   const methods = vm.runInNewContext(
     script + '\n({ match: dholeLclColoaderAgentCostMatches, rebuild: rebuildLclColoaderAgentLines, load: loadApplicableCosts })',
