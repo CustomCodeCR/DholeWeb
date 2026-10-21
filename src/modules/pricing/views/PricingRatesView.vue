@@ -924,9 +924,7 @@ onMounted(async () => {
                   {{ row.clientName || 'Sin cliente' }}
                   <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
                 </p>
-                  <p v-if="row.pendingReapproval" class="mt-2 break-words rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs font-semibold text-[var(--dh-text)]">
-                    <strong>Motivo de modificación:</strong> {{ row.reapprovalReason || 'No registrado en revisiones anteriores; consultar auditoría.' }}
-                  </p>
+
               </div>
 
             </div>
@@ -960,6 +958,13 @@ onMounted(async () => {
                 <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Última modificación por</p>
                 <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ lastModifierDisplayName(row) }}</p>
               </div>
+            </div>
+
+            <div v-if="row.pendingReapproval" class="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5">
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Motivo de modificación</p>
+              <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text)]">
+                {{ row.reapprovalReason || 'No registrado en revisiones anteriores; consultar auditoría.' }}
+              </p>
             </div>
 
             <div class="mt-2 grid grid-cols-2 gap-2">
@@ -1030,16 +1035,17 @@ onMounted(async () => {
         <div
           class="hidden overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] lg:block"
         >
-          <table class="w-full min-w-[1360px] table-fixed border-collapse text-left text-sm">
+          <table class="w-full min-w-[1600px] table-fixed border-collapse text-left text-sm">
             <colgroup>
               <col class="w-12" />
-              <col class="w-[22%]" />
-              <col class="w-[15%]" />
-              <col class="w-[12%]" />
-              <col class="w-[16%]" />
-              <col class="w-[15%]" />
-              <col class="w-[10%]" />
-              <col class="w-[7%]" />
+              <col class="w-[225px]" />
+              <col class="w-[145px]" />
+              <col class="w-[125px]" />
+              <col class="w-[150px]" />
+              <col class="w-[245px]" />
+              <col class="w-[205px]" />
+              <col class="w-[130px]" />
+              <col class="w-[185px]" />
               <col class="w-[112px]" />
             </colgroup>
             <thead class="bg-black/[0.035] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
@@ -1049,6 +1055,7 @@ onMounted(async () => {
                 <th class="px-3 py-3 whitespace-nowrap">Operación</th>
                 <th class="px-3 py-3 whitespace-nowrap">Cotizado por</th>
                 <th class="px-3 py-3 whitespace-nowrap">Revisado por</th>
+                <th class="px-3 py-3 whitespace-nowrap">Motivo de modificación</th>
                 <th class="px-3 py-3 whitespace-nowrap text-right">Resumen comercial</th>
                 <th class="px-3 py-3 whitespace-nowrap">Vigencia</th>
                 <th class="px-3 py-3 whitespace-nowrap text-center">Estado</th>
@@ -1057,13 +1064,13 @@ onMounted(async () => {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="9" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
+                <td colspan="10" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
               </tr>
               <tr v-else-if="loadError">
-                <td colspan="9" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No se pudieron cargar las tarifas. Intente nuevamente desde Actualizar.</td>
+                <td colspan="10" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No se pudieron cargar las tarifas. Intente nuevamente desde Actualizar.</td>
               </tr>
               <tr v-else-if="rows.length === 0">
-                <td colspan="9" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas que coincidan con los filtros.</td>
+                <td colspan="10" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas que coincidan con los filtros.</td>
               </tr>
               <tr
                 v-for="row in rows"
@@ -1098,9 +1105,7 @@ onMounted(async () => {
                       {{ row.clientName || 'Sin cliente' }}
                       <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
                     </p>
-                  <p v-if="row.pendingReapproval" class="mt-2 break-words rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs font-semibold text-[var(--dh-text)]">
-                    <strong>Motivo de modificación:</strong> {{ row.reapprovalReason || 'No registrado en revisiones anteriores; consultar auditoría.' }}
-                  </p>
+
                   </div>
                 </td>
 
@@ -1125,6 +1130,13 @@ onMounted(async () => {
                   <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">
                     Última modificación por: {{ lastModifierDisplayName(row) }}
                   </p>
+                </td>
+
+                <td class="px-3 py-4 align-top">
+                  <p v-if="row.pendingReapproval" class="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-[var(--dh-text)]">
+                    {{ row.reapprovalReason || 'No registrado en revisiones anteriores; consultar auditoría.' }}
+                  </p>
+                  <span v-else class="text-xs font-semibold text-[var(--dh-text-muted)]">—</span>
                 </td>
 
                 <td class="px-3 py-4 text-right align-top">
