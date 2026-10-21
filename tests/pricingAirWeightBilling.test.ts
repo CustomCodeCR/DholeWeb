@@ -1,12 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { pricingAirLclFreightPerKg } from '../build/pricingAirLclFreightPerKg'
-
-function transform(source: string, filename: string): string {
-  const plugin = pricingAirLclFreightPerKg()
-  const handler = plugin.transform as (source: string, id: string) => { code: string } | null
-  return handler(source, filename)?.code ?? ''
-}
+import { patchWizard, patchSelector } from '../build/pricingAirLclFreightPerKg.ts'
 
 test('air quote switches quantity, label and persisted charge basis with selected lb/kg', () => {
   const source = [
@@ -22,7 +16,7 @@ test('air quote switches quantity, label and persisted charge basis with selecte
     '{{ line.name }}',
   ].join('\n')
 
-  const code = transform(source, '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  const code = patchWizard(source)
   assert.ok(code.includes("form.miamiWeightInputUnit === 'lb' ? 'lb' : 'kg'"))
   assert.ok(code.includes("airChargeUnit.value === 'lb' ? 'PerLb' : 'PerKg'"))
   assert.ok(code.includes("if (basis === 'PerLb') return airChargeableWeight.value"))
@@ -39,7 +33,7 @@ test('source selector shows preferred weight unit instead of fixed kilograms', (
     '>Flete / CBM</span>',
   ].join('\n')
 
-  const code = transform(source, '/src/modules/pricing/components/PricingLclRateSourceSelector.vue')
+  const code = patchSelector(source)
   assert.ok(code.includes("requestedWeightUnit === 'lb' ? 2.20462262 : 1"))
   assert.ok(code.includes("'Peso cobrable (' + requestedWeightUnit + ')'"))
   assert.ok(code.includes("'Flete / ' + requestedWeightUnit"))
