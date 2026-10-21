@@ -4,7 +4,7 @@ import { unwrapApiResponse, unwrapListResponse, unwrapPagedResponse } from '@/co
 import type { PagedResponse } from '@/core/api/apiResponse'
 import { Endpoints } from '@/core/composables/endpoints'
 import { toQueryString } from '@/core/api/queryString'
-import { appendExecutiveNameFilters } from '@/modules/pricing/utils/rateSellerQuery'
+import { appendRateMultiFilters } from '@/modules/pricing/utils/rateSellerQuery'
 import type {
   BrowseCostsQuery,
   BrowseCompetitorTariffsQuery,
@@ -592,10 +592,17 @@ export const PricingService = {
   },
 
   async browseRates(query?: BrowseRatesQuery): Promise<PagedResponse<RateDto>> {
-    const filters = query ? { ...query, executiveNames: undefined } : undefined
-    const path = appendExecutiveNameFilters(
-      withQuery(Endpoints.browseRates.path, filters),
-      query?.executiveNames ?? [],
+    const multiKeys = [
+      'executiveNames', 'statuses', 'agentIds', 'carrierIds', 'polIds', 'poeIds',
+      'podIds', 'containerTypeIds', 'currencyIds',
+    ] as const
+    const simpleFilters = query ? { ...query } : undefined
+    if (simpleFilters) {
+      for (const key of multiKeys) delete simpleFilters[key]
+    }
+    const path = appendRateMultiFilters(
+      withQuery(Endpoints.browseRates.path, simpleFilters),
+      Object.fromEntries(multiKeys.map((key) => [key, query?.[key]])),
     )
     const response = await callEndpoint<unknown>({
       ...Endpoints.browseRates,
