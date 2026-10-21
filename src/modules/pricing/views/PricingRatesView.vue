@@ -717,7 +717,7 @@ onMounted(async () => {
     </DhPageHeader>
 
     <section
-      v-if="authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin) && (dynamicsIssues.length || dynamicsIssuesUnavailable)"
+      v-if="authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin)"
       class="rounded-[24px] border border-amber-500/25 bg-amber-500/[0.07] p-4"
       aria-label="Incidencias de sincronización con Dynamics"
     >
@@ -737,6 +737,9 @@ onMounted(async () => {
       </div>
       <p v-if="dynamicsIssuesUnavailable" class="mt-3 text-xs text-red-600">
         No se pudieron consultar las incidencias de Dynamics.
+      </p>
+      <p v-if="!dynamicsIssues.length && !dynamicsIssuesUnavailable" class="mt-3 text-xs text-[var(--dh-text-muted)]">
+        No hay incidencias de Dynamics registradas.
       </p>
       <ul v-if="dynamicsIssues.length" class="mt-3 space-y-2">
         <li v-for="item in dynamicsIssues" :key="`${item.rateId}-${item.revisionNumber}`"
