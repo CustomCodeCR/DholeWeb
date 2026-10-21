@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { AlertCircle, CheckCircle2, ExternalLink, RefreshCw, SearchCheck } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
+import { fetchClient } from '@/core/api/fetchConfig'
+import { useAuthStore } from '@/core/stores/authStore'
 
 type QuoteIssue = {
   rateId: string
   revisionNumber: number
   status: string
   attempts: number
+  retryableWithoutDuplicateRisk?: boolean
   lastError: string | null
   error?: {
     code?: string
@@ -27,6 +30,73 @@ type Diagnosis = {
   schemaVersion?: number
   httpStatus?: number
   noPostExecuted?: boolean
+}
+
+type QuoteCrudKey = {
+  id: string
+  templateName: string
+  entityName: string
+  operation: string
+  label: string
+  enabled: boolean
+  expiresAt: string
+}
+const auth = useAuthStore()
+const isAdministrator = computed(() => auth.hasScope('dynamics.security.admin'))
+const quoteKeys = ref<QuoteCrudKey[]>([])
+const selectedKeyId = ref('')
+const granting = ref(false)
+const grantError = ref('')
+const grantSuccess = ref('')
+
+async function loadQuoteKeys() {
+  if (!isAdministrator.value) return
+  try {
+    const keys = await fetchClient<QuoteCrudKey[]>(
+      '/api/dynamics-admin/connections/principal/crud-keys', { method: 'GET' })
+    quoteKeys.value = keys.filter(k => k.enabled &&
+      k.entityName === 'quote' && k.operation === 'create' &&
+      k.templateName === 'crear_oferta' && new Date(k.expiresAt).getTime() > Date.now())
+    if (!quoteKeys.value.some(k => k.id === selectedKeyId.value))
+      selectedKeyId.value = quoteKeys.value.length === 1 ? quoteKeys.value[0]!.id : ''
+  } catch {
+    grantError.value = 'No se pudieron consultar las claves de crear_oferta.'
+  }
+}
+
+async function grantQuoteTotal() {
+  if (!selectedKeyId.value || !isAdministrator.value || granting.value) return
+  granting.value = true
+  grantError.value = ''
+  grantSuccess.value = ''
+  try {
+    await fetchClient<unknown>(
+      '/api/dynamics-admin/connections/principal/quote-total-grants/' +
+        encodeURIComponent(selectedKeyId.value),
+      { method: 'POST', body: {} })
+    // Requeue only failures that the backend proved to be pre-write; legacy
+    // ambiguous operations never qualify and cannot be retried here.
+    let queued = 0
+    for (const issue of issues.value.filter(i =>
+      i.status === 'NeedsAttention' && i.retryableWithoutDuplicateRisk)) {
+      try {
+        await callEndpoint<unknown>({
+          method: 'POST',
+          path: `/api/pricing/rates/${encodeURIComponent(issue.rateId)}/dynamics-sync/retry`,
+        })
+        queued += 1
+      } catch {
+        // A row may have been picked up concurrently or changed status.
+      }
+    }
+    grantSuccess.value = `Permisos aprobados. ${queued} cotización(es) con fallos seguros encoladas para reintento; las operaciones ambiguas permanecen bloqueadas.`
+    await refresh()
+  } catch (error) {
+    grantError.value = error instanceof Error ? error.message :
+      'No fue posible habilitar los permisos. Confirmá los campos de quote y quotedetail en Catálogo.'
+  } finally {
+    granting.value = false
+  }
 }
 
 const issues = ref<QuoteIssue[]>([])
@@ -75,7 +145,7 @@ async function diagnose(rateId: string) {
   }
 }
 
-onMounted(() => { void refresh() })
+onMounted(() => { void refresh(); void loadQuoteKeys() })
 </script>
 
 <template>
@@ -92,6 +162,35 @@ onMounted(() => { void refresh() })
         <RefreshCw :size="15" :class="{ 'animate-spin': loading }" />
         {{ loading ? 'Consultando...' : 'Actualizar' }}
       </button>
+    </div>
+
+    <div v-if="isAdministrator" class="quote-sync-grants">
+      <div>
+        <strong>Autorizar importe total estándar de Dynamics</strong>
+        <p>
+          Elegí la clave activa de crear_oferta. Esta acción autoriza únicamente
+          la lectura del identificador de la oferta y la creación de su línea de venta
+          en quotedetail. No crea ni modifica ofertas.
+        </p>
+      </div>
+      <div class="quote-sync-grant-controls">
+        <select v-model="selectedKeyId" aria-label="Clave de crear oferta">
+          <option value="">Seleccionar clave activa</option>
+          <option v-for="key in quoteKeys" :key="key.id" :value="key.id">
+            {{ key.label }} · {{ key.id.slice(0, 8) }}
+          </option>
+        </select>
+        <button class="dynamics-primary-button" type="button"
+          :disabled="granting || !selectedKeyId" @click="grantQuoteTotal">
+          {{ granting ? 'Autorizando...' : 'Autorizar venta total' }}
+        </button>
+      </div>
+      <p v-if="grantError" class="quote-sync-error" role="alert">{{ grantError }}</p>
+      <p v-if="grantSuccess" class="quote-sync-ok" role="status">{{ grantSuccess }}</p>
+      <p class="quote-sync-footnote">
+        Si no aparece la clave o falta quotedetail, actualizá los metadatos y habilitá
+        sus campos de creación en Catálogo antes de autorizar.
+      </p>
     </div>
 
     <p v-if="loadError" class="quote-sync-message quote-sync-error" role="alert">
@@ -144,6 +243,13 @@ onMounted(() => { void refresh() })
 </template>
 
 <style scoped>
+.quote-sync-grants{border:1px solid var(--dh-border);border-radius:14px;margin-bottom:16px;padding:16px;background:var(--dh-card)}
+.quote-sync-grants strong{font-size:13px}
+.quote-sync-grants p{font-size:12px;color:var(--dh-text-muted);margin:7px 0}
+.quote-sync-grant-controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:12px 0}
+.quote-sync-grant-controls select{border:1px solid var(--dh-border);border-radius:10px;padding:10px;flex:1;min-width:180px;background:var(--dh-card);color:var(--dh-text)}
+.quote-sync-grant-controls button{padding:10px 14px}
+
 .quote-sync-panel{margin-top:18px}
 .quote-sync-list{display:grid;gap:12px}
 .quote-sync-item{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:17px;border:1px solid var(--dh-border);border-radius:16px;background:var(--dh-card)}
