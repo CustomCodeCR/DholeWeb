@@ -9,8 +9,10 @@ type Choice = { value: number; labels: Record<string,string> }
 type Field = { logicalName: string; type: string; canRead: boolean; canCreate: boolean
   canUpdate: boolean; isCalculated: boolean; requiredLevel?: string | null
   labels: Record<string,string>; lookupTargets: string[]; choices: Choice[] }
+type Relationship = { kind:string; referencingEntity?:string|null; referencingAttribute?:string|null
+  referencedEntity?:string|null; referencingNavigation?:string|null }
 type Table = { logicalName: string; entitySetName: string; labels: Record<string,string>
-  primaryIdAttribute: string; columns: Field[]
+  primaryIdAttribute: string; columns: Field[]; relationships?: Relationship[]
   alternateKeys?: Array<{ logicalName: string; attributes: string[] }> }
 type Snapshot = { version: number; catalog: { tables: Table[] } }
 type Policy = { entities: Array<{logicalName:string;enabled:boolean}>
@@ -38,6 +40,11 @@ const step=ref<1|2|3|4>(1)
 const operation=ref<Operation>('create')
 const entity=ref('')
 const selected=ref<string[]>([])
+const chosenRelations=ref<Record<string,string>>({})
+const quoteSetupConfirm=ref(false)
+const quoteSetupBusy=ref(false)
+const quoteSetupMessage=ref('')
+const quoteSetupError=ref('')
 const exampleOptions=ref<Record<string,number|string>>({})
 const liveChoices=ref<Record<string,Array<{value:number;label:string}>>>({})
 const choicesLoading=ref(false)
@@ -79,7 +86,7 @@ function fieldType(f:Field):'string'|'guid'|'integer'|'decimal'|'boolean'|'datet
   if(['Integer','BigInt','Picklist','State','Status'].includes(f.type))return 'integer'
   if(['Money','Decimal','Double'].includes(f.type))return 'decimal'
   if(['DateTime'].includes(f.type))return 'datetime'
-  if(['Uniqueidentifier'].includes(f.type))return 'guid'
+  if(['Uniqueidentifier','Lookup','Customer','Owner'].includes(f.type))return 'guid'
   return 'string'
 }
 const tables=computed(()=>snapshot.value?.catalog.tables.filter(t=>
@@ -97,9 +104,9 @@ function availability(f:Field):FieldAvailability {
     return denied('Referencia OData de solo lectura. Para escribir una relación se necesita el atributo real y @odata.bind.')
   if(f.isCalculated)
     return denied('Campo calculado o administrado por Dataverse: no admite escritura directa.')
-  if(relationshipTypes.has(f.type))
-    return denied('Relación de Dataverse: requiere configurar la propiedad de navegación y @odata.bind. El selector simple no escribe GUID de relaciones.')
-  if(!supportedTypes.has(f.type))
+  if(relationshipTypes.has(f.type)&&!lookupOptions(f).length)
+    return denied('Falta descubrir la propiedad de navegación real. Usá Preparar Oferta y Línea de oferta.')
+  if(!relationshipTypes.has(f.type)&&!supportedTypes.has(f.type))
     return denied('Tipo '+f.type+' no compatible con los campos de entrada del comando CRUD.')
   const action=operation.value==='create'?'crear':operation.value==='update'?'editar':'crear y editar'
   if(operation.value==='create'&&!f.canCreate)
@@ -117,6 +124,17 @@ function availability(f:Field):FieldAvailability {
     return denied('La política de Dhole no autoriza '+action+' este campo. Revisá Catálogo → Habilitar todos.',true)
   return {field:f,selectable:true,reason:'Disponible para '+action+' en este comando.',requiresPermission:false}
 }
+function lookupOptions(f:Field):Relationship[] {
+  if(!relationshipTypes.has(f.type))return []
+  return (table.value?.relationships??[]).filter(r=>
+    r.kind==='ManyToOneRelationships'&&r.referencingEntity===entity.value&&
+    r.referencingAttribute===f.logicalName&&!!r.referencingNavigation&&!!r.referencedEntity)
+}
+function chosenLookup(f:Field):Relationship|undefined {
+  const options=lookupOptions(f)
+  return options.find(r=>r.referencingNavigation===chosenRelations.value[f.logicalName])??options[0]
+}
+const selectedLookups=computed(()=>selectedFields.value.filter(f=>relationshipTypes.has(f.type)))
 const fieldAvailability=computed(()=>table.value?.columns.map(availability)??[])
 const eligibleFields=computed(()=>fieldAvailability.value.filter(a=>a.selectable).map(a=>a.field))
 const restrictedCount=computed(()=>fieldAvailability.value.filter(a=>!a.selectable).length)
@@ -136,7 +154,7 @@ function selectVisibleFields(){
   }
   selected.value=[...current]
 }
-function clearSelectedFields(){selected.value=[];exampleOptions.value={};createdVersion.value=null}
+function clearSelectedFields(){selected.value=[];chosenRelations.value={};exampleOptions.value={};createdVersion.value=null}
 const entityNameOptions=computed(()=>(snapshot.value?.catalog.tables??[])
   .filter(t=>policies.value.entities.some(p=>p.logicalName===t.logicalName&&p.enabled))
   .map(t=>({ value:t.logicalName,label:display(t.labels,t.logicalName) }))
@@ -167,7 +185,10 @@ const definition=computed<Definition>(()=>({
     required:operation.value==='create'&&!!f.requiredLevel?.includes('Required')
   })),
   mappings:operation.value==='delete'?[]:selectedFields.value.map(f=>({
-    target:f.logicalName,source:f.logicalName
+    target:relationshipTypes.has(f.type)
+      ?(chosenLookup(f)?.referencingNavigation??'')+'@odata.bind'
+      :f.logicalName,
+    source:f.logicalName
   }))
 }))
 const nameValid=computed(()=>/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(endpointName.value))
@@ -225,9 +246,23 @@ const sampleCurl=computed(()=>[
   "  -H 'Content-Type: application/json'",
   "  --data '"+JSON.stringify(exampleBody.value)+"'"
 ].join(' \\\n'))
+async function prepareQuoteIntegration(){
+  if(!canManage.value||!quoteSetupConfirm.value||quoteSetupBusy.value)return
+  quoteSetupBusy.value=true
+  quoteSetupError.value=''
+  quoteSetupMessage.value=''
+  try {
+    const outcome=await fetchClient<{prepared:boolean;message:string}>(
+      api('metadata/quote-integration/prepare'),{method:'POST',body:{confirm:true}})
+    quoteSetupMessage.value=outcome.message
+    quoteSetupConfirm.value=false
+    await refresh()
+  }catch(e){quoteSetupError.value=e instanceof Error?e.message:'No se pudo preparar la oferta.'}
+  finally{quoteSetupBusy.value=false}
+}
 async function copy(value:string){await navigator.clipboard.writeText(value);success.value='Copiado al portapapeles.'}
 function chooseOperation(op:Operation){
-  if(operation.value!==op){operation.value=op;selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null;fieldVisibility.value='all'}
+  if(operation.value!==op){operation.value=op;selected.value=[];chosenRelations.value={};exampleOptions.value={};keyName.value='';createdVersion.value=null;fieldVisibility.value='all'}
 }
 function changeTable(){selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null;fieldVisibility.value='all'}
 function back(){if(step.value>1)step.value=(step.value-1) as 1|2|3|4}
@@ -437,6 +472,25 @@ onMounted(refresh)
               La política de borrado de la tabla y la aprobación independiente de producción siguen siendo obligatorias.</div>
           </template>
           <template v-else>
+          <div v-if="entity==='quote'&&operation==='create'" class="crud-card">
+            <h4>Preparar Oferta, Cliente, IDTRA y Línea de oferta</h4>
+            <p class="crud-help">
+              <strong>quotedetail</strong> es una tabla aparte de <strong>quote</strong>.
+              Esta acción descubre las relaciones reales y habilita solo los permisos mínimos
+              de lectura y creación para calcular el importe total. No crea ofertas.
+            </p>
+            <label class="crud-field">
+              <input v-model="quoteSetupConfirm" type="checkbox">
+              Confirmo habilitar los metadatos y permisos mínimos de Quote y Línea de oferta.
+            </label>
+            <button type="button" class="crud-primary"
+              :disabled="!canManage||!quoteSetupConfirm||quoteSetupBusy"
+              @click="prepareQuoteIntegration">
+              {{ quoteSetupBusy?'Preparando...':'Preparar Oferta y Línea de oferta' }}
+            </button>
+            <p v-if="quoteSetupMessage" class="crud-info" role="status">{{ quoteSetupMessage }}</p>
+            <p v-if="quoteSetupError" class="crud-error" role="alert">{{ quoteSetupError }}</p>
+          </div>
             <div class="crud-two">
               <label class="crud-field">Buscar en todos los campos
                 <input v-model="fieldSearch" placeholder="Nombre comercial o técnico, incluso no autorizados"></label>
@@ -480,6 +534,9 @@ onMounted(refresh)
                   <small :class="item.selectable ? 'crud-field-available-note' : 'crud-field-unavailable-note'">
                     {{ item.reason }}
                   </small>
+                  <small v-if="item.selectable&&relationshipTypes.has(item.field.type)">
+                    Relación con {{ lookupOptions(item.field).map(r=>r.referencedEntity).join(' / ') }} (requiere GUID real).
+                  </small>
                 </span>
               </label>
               <div v-if="!filteredFields.length" class="crud-info">
@@ -492,6 +549,26 @@ onMounted(refresh)
               y luego presioná «Recargar campos» aquí. Los atributos calculados y relaciones de solo
               lectura no se pueden activar para escritura directa.
             </p>
+            <div v-if="selectedLookups.length" class="crud-options-panel">
+              <h4>Relaciones con registros existentes en Dynamics</h4>
+              <p>Cliente (Customer) e IDTRA 1 (Lookup) requieren el GUID real de un registro.
+                El comando creará un vínculo mediante la propiedad de navegación oficial
+                (<code>@odata.bind</code>). El IDTRA textual se envía en
+                <code>new_idtraasignado</code>, no en new_idtra1.</p>
+              <div class="crud-options-grid">
+                <label v-for="field in selectedLookups" :key="field.logicalName" class="crud-field">
+                  <span>{{ display(field.labels,field.logicalName) }} · {{ field.logicalName }}</span>
+                  <select :value="chosenLookup(field)?.referencingNavigation"
+                    @change="chosenRelations={...chosenRelations,[field.logicalName]:($event.target as HTMLSelectElement).value}">
+                    <option v-for="rel in lookupOptions(field)" :key="rel.referencingNavigation ?? ''"
+                      :value="rel.referencingNavigation ?? ''">
+                      {{ rel.referencedEntity }} · {{ rel.referencingNavigation }}
+                    </option>
+                  </select>
+                  <small>Necesitás el GUID de un registro existente y permiso de lectura en la tabla relacionada.</small>
+                </label>
+              </div>
+            </div>
             <div v-if="optionFields.length" class="crud-options-panel">
               <h4>Opciones reales de Dynamics — sin buscar IDs</h4>
               <p>Seleccioná la opción por su nombre. Dhole utiliza automáticamente el valor técnico al generar el ejemplo de solicitud.</p>
@@ -602,7 +679,8 @@ onMounted(refresh)
               <code>totalamount</code>. No se escribe <code>msdyn_invoicesetuptotals</code>.
             </p>
             <p class="crud-help">
-              Primero habilitá en Catálogo las capacidades permitidas para <strong>Oferta (quote)</strong>
+              Prepará primero ambas tablas con el botón anterior. quotedetail nunca aparecerá
+              como un campo de quote. Después verificá en Catálogo las capacidades de <strong>Oferta (quote)</strong>
               y <strong>Línea de oferta (quotedetail)</strong>. Para la línea se requieren:
               <code>quoteid</code>, <code>isproductoverridden</code>, <code>ispriceoverridden</code>,
               <code>productdescription</code>, <code>quotedetailname</code>, <code>quantity</code>
