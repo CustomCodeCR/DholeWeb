@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Activity, Database, CheckCircle2, RefreshCw, ShieldCheck, Link2, AlertCircle, Search, PenLine, GitBranch, LockKeyhole } from 'lucide-vue-next'
 import DynamicsDataWorkspace from './DynamicsDataWorkspace.vue'
 import DynamicsCrudIntegrationWorkspace from './DynamicsCrudIntegrationWorkspace.vue'
+import DynamicsQuoteSyncIssues from './DynamicsQuoteSyncIssues.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { fetchClient } from '@/core/api/fetchConfig'
 import { ApiError, NetworkError } from '@/core/api/apiErrorHandler'
@@ -328,6 +329,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
           </div>
           <p v-if="loading" class="dynamics-subtitle">Consultando...</p>
           <pre v-else class="dynamics-json">{{ output || 'Todavía no hay información disponible.' }}</pre>
+          <DynamicsQuoteSyncIssues v-if="activeTab==='operations'" />
         </section>
         <DynamicsCrudIntegrationWorkspace v-else-if="activeTab==='automation'" :connections="connections" @navigate="activeTab = $event" />
         <DynamicsDataWorkspace v-else :section="activeTab as 'catalog' | 'query' | 'crud' | 'security' | 'integrations'" :connections="connections" @navigate="activeTab = $event" />
