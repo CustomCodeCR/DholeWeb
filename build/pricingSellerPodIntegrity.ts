@@ -34,7 +34,7 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `  const finalDestination = selectedPod.value\n  const equipment = selectedEquipment.value`,
-    `  const finalDestination = selectedPod.value\n  const requestPodId = String(form.podId ?? '').trim()\n  const requestPodName = currentRequestPodName()\n  const equipment = selectedEquipment.value\n\n  if (props.sellerRequestMode && shipmentModeForApi.value === 'Lcl' && !requestPodId) {\n    toastStore.error('El POD es requerido para solicitudes LCL. Seleccione el destino final antes de enviar la solicitud a Pricing.')\n    return\n  }`,
+    `  const finalDestination = selectedPod.value\n  const requestPodId = String(form.podId ?? '').trim()\n  const requestPodName = currentRequestPodName()\n  const equipment = selectedEquipment.value\n\n  if (props.sellerRequestMode && shipmentModeForApi.value === 'Lcl' && form.modality !== 'Air' && !requestPodId) {\n    toastStore.error('El POD es requerido para solicitudes LCL marítimas. Seleccione el destino final antes de enviar la solicitud a Pricing.')\n    return\n  }`,
     'seller LCL POD guard',
   )
 
@@ -78,14 +78,14 @@ function patchWizard(source: string) {
     code,
     handoffMarker,
     `:class="shipmentModeForApi === 'Lcl' && !selectedPod ? 'text-red-600 dark:text-red-300' : ''"`,
-    `:class="shipmentModeForApi === 'Lcl' && !requestedPodName && !selectedPod ? 'text-red-600 dark:text-red-300' : ''"`,
+    `:class="shipmentModeForApi === 'Lcl' && form.modality !== 'Air' && !requestedPodName && !selectedPod ? 'text-red-600 dark:text-red-300' : ''"`,
     'POD missing styling',
   )
   code = replaceAfter(
     code,
     handoffMarker,
-    `{{ displayValue(selectedPod) || (shipmentModeForApi === 'Lcl' ? 'POD no indicado por Ventas' : 'No indicado') }}`,
-    `{{ requestedPodName || displayValue(selectedPod) || (shipmentModeForApi === 'Lcl' ? 'POD no indicado por Ventas' : 'No indicado') }}`,
+    `{{ displayValue(selectedPod) || (shipmentModeForApi === 'Lcl' && form.modality !== 'Air' ? 'POD no indicado por Ventas' : 'No indicado (opcional)') }}`,
+    `{{ requestedPodName || displayValue(selectedPod) || (shipmentModeForApi === 'Lcl' && form.modality !== 'Air' ? 'POD no indicado por Ventas' : 'No indicado (opcional)') }}`,
     'POD handoff display',
   )
 
@@ -128,14 +128,14 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `label="POD (opcional)"\n                placeholder="Buscar destino final"`,
-    `:label="sellerRequestMode && shipmentModeForApi === 'Lcl' ? 'POD requerido' : 'POD'"\n                placeholder="Buscar destino final"`,
+    `:label="sellerRequestMode && shipmentModeForApi === 'Lcl' && form.modality !== 'Air' ? 'POD requerido' : 'POD (opcional)'"\n                placeholder="Buscar destino final"`,
     'seller POD label',
   )
   code = replaceAfter(
     code,
     `placeholder="Buscar destino final"`,
     `:optional="true"`,
-    `:optional="!(sellerRequestMode && shipmentModeForApi === 'Lcl')"`,
+    `:optional="!(sellerRequestMode && shipmentModeForApi === 'Lcl' && form.modality !== 'Air')"`,
     'seller POD optional flag',
   )
 
