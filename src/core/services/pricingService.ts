@@ -4,6 +4,7 @@ import { unwrapApiResponse, unwrapListResponse, unwrapPagedResponse } from '@/co
 import type { PagedResponse } from '@/core/api/apiResponse'
 import { Endpoints } from '@/core/composables/endpoints'
 import { toQueryString } from '@/core/api/queryString'
+import { appendExecutiveNameFilters } from '@/modules/pricing/utils/rateSellerQuery'
 import type {
   BrowseCostsQuery,
   BrowseCompetitorTariffsQuery,
@@ -591,9 +592,14 @@ export const PricingService = {
   },
 
   async browseRates(query?: BrowseRatesQuery): Promise<PagedResponse<RateDto>> {
+    const filters = query ? { ...query, executiveNames: undefined } : undefined
+    const path = appendExecutiveNameFilters(
+      withQuery(Endpoints.browseRates.path, filters),
+      query?.executiveNames ?? [],
+    )
     const response = await callEndpoint<unknown>({
       ...Endpoints.browseRates,
-      path: withQuery(Endpoints.browseRates.path, query),
+      path,
     })
 
     return unwrapPagedResponse<RateDto>(response)
