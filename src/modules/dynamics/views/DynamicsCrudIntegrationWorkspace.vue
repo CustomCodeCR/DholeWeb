@@ -44,6 +44,8 @@ const choicesLoading=ref(false)
 const choiceError=ref('')
 let choiceRequest=0
 const fieldSearch=ref('')
+const fieldVisibility=ref<'all'|'selectable'|'restricted'>('all')
+const MAX_COMMAND_FIELDS=30
 const keyName=ref('')
 const endpointName=ref('crear_oferta')
 const snapshot=ref<Snapshot|null>(null)
@@ -78,21 +80,58 @@ function fieldType(f:Field):'string'|'guid'|'integer'|'decimal'|'boolean'|'datet
 const tables=computed(()=>snapshot.value?.catalog.tables.filter(t=>
   policies.value.entities.some(p=>p.logicalName===t.logicalName&&p.enabled))??[])
 const table=computed(()=>tables.value.find(t=>t.logicalName===entity.value))
-const eligibleFields=computed(()=>table.value?.columns.filter(f=>{
-  if(f.isCalculated||['Virtual','PartyList','ManagedProperty','Lookup','Customer','Owner'].includes(f.type))
-    return false
-  if(!['String','Memo','EntityName','Boolean','Integer','BigInt','Picklist',
-    'State','Status','Money','Decimal','Double','DateTime','Uniqueidentifier'].includes(f.type))
-    return false
+const supportedTypes=new Set(['String','Memo','EntityName','Boolean','Integer','BigInt',
+  'Picklist','State','Status','Money','Decimal','Double','DateTime','Uniqueidentifier'])
+const relationshipTypes=new Set(['Lookup','Customer','Owner'])
+type FieldAvailability={field:Field;selectable:boolean;reason:string;requiresPermission:boolean}
+function availability(f:Field):FieldAvailability {
+  const denied=(reason:string,requiresPermission=false):FieldAvailability=>({
+    field:f,selectable:false,reason,requiresPermission
+  })
+  if(f.logicalName.startsWith('_')&&f.logicalName.endsWith('_value'))
+    return denied('Referencia OData de solo lectura. Para escribir una relación se necesita el atributo real y @odata.bind.')
+  if(f.isCalculated)
+    return denied('Campo calculado o administrado por Dataverse: no admite escritura directa.')
+  if(relationshipTypes.has(f.type))
+    return denied('Relación de Dataverse: requiere configurar la propiedad de navegación y @odata.bind. El selector simple no escribe GUID de relaciones.')
+  if(!supportedTypes.has(f.type))
+    return denied('Tipo '+f.type+' no compatible con los campos de entrada del comando CRUD.')
+  const action=operation.value==='create'?'crear':operation.value==='update'?'editar':'crear y editar'
+  if(operation.value==='create'&&!f.canCreate)
+    return denied('Dataverse no permite crear este campo (IsValidForCreate=false).')
+  if(operation.value==='update'&&!f.canUpdate)
+    return denied('Dataverse no permite editar este campo (IsValidForUpdate=false).')
+  if(operation.value==='upsert'&&(!f.canCreate||!f.canUpdate))
+    return denied('UPSERT requiere que Dataverse permita crear y editar este campo.')
   const rule=policies.value.fields.find(p=>p.entityName===entity.value&&p.fieldName===f.logicalName)
-  if(!rule?.enabled)return false
-  if(operation.value==='create')return rule.canCreate&&f.canCreate
-  if(operation.value==='update')return rule.canUpdate&&f.canUpdate
-  if(operation.value==='upsert')return rule.canCreate&&rule.canUpdate&&f.canCreate&&f.canUpdate
-  return false
-})??[])
-const filteredFields=computed(()=>eligibleFields.value.filter(f=>
-  (display(f.labels,f.logicalName)+' '+f.logicalName).toLowerCase().includes(fieldSearch.value.toLowerCase())))
+  if(!rule?.enabled)
+    return denied('Sin autorización en Catálogo para '+action+'. Usá Habilitar todos con lectura y escritura.',true)
+  if(operation.value==='create'&&!rule.canCreate||
+     operation.value==='update'&&!rule.canUpdate||
+     operation.value==='upsert'&&(!rule.canCreate||!rule.canUpdate))
+    return denied('La política de Dhole no autoriza '+action+' este campo. Revisá Catálogo → Habilitar todos.',true)
+  return {field:f,selectable:true,reason:'Disponible para '+action+' en este comando.',requiresPermission:false}
+}
+const fieldAvailability=computed(()=>table.value?.columns.map(availability)??[])
+const eligibleFields=computed(()=>fieldAvailability.value.filter(a=>a.selectable).map(a=>a.field))
+const restrictedCount=computed(()=>fieldAvailability.value.filter(a=>!a.selectable).length)
+const requiresPermissionCount=computed(()=>fieldAvailability.value.filter(a=>a.requiresPermission).length)
+const filteredFields=computed(()=>fieldAvailability.value.filter(a=>{
+  if(fieldVisibility.value==='selectable'&&!a.selectable)return false
+  if(fieldVisibility.value==='restricted'&&a.selectable)return false
+  return (display(a.field.labels,a.field.logicalName)+' '+a.field.logicalName)
+    .toLocaleLowerCase().includes(fieldSearch.value.trim().toLocaleLowerCase())
+}).sort((a,b)=>Number(b.selectable)-Number(a.selectable)||
+  display(a.field.labels,a.field.logicalName).localeCompare(display(b.field.labels,b.field.logicalName),'es')))
+function selectVisibleFields(){
+  const current=new Set(selected.value)
+  for(const row of filteredFields.value){
+    if(current.size>=MAX_COMMAND_FIELDS)break
+    if(row.selectable)current.add(row.field.logicalName)
+  }
+  selected.value=[...current]
+}
+function clearSelectedFields(){selected.value=[];exampleOptions.value={};createdVersion.value=null}
 const entityNameOptions=computed(()=>(snapshot.value?.catalog.tables??[])
   .filter(t=>policies.value.entities.some(p=>p.logicalName===t.logicalName&&p.enabled))
   .map(t=>({ value:t.logicalName,label:display(t.labels,t.logicalName) }))
@@ -183,9 +222,9 @@ const sampleCurl=computed(()=>[
 ].join(' \\\n'))
 async function copy(value:string){await navigator.clipboard.writeText(value);success.value='Copiado al portapapeles.'}
 function chooseOperation(op:Operation){
-  if(operation.value!==op){operation.value=op;selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null}
+  if(operation.value!==op){operation.value=op;selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null;fieldVisibility.value='all'}
 }
-function changeTable(){selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null}
+function changeTable(){selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null;fieldVisibility.value='all'}
 function back(){if(step.value>1)step.value=(step.value-1) as 1|2|3|4}
 function forward(){
   error.value=''
@@ -376,20 +415,60 @@ onMounted(refresh)
           </template>
           <template v-else>
             <div class="crud-two">
-              <label class="crud-field">Buscar campo
-                <input v-model="fieldSearch" placeholder="Nombre comercial o técnico"></label>
-              <div class="crud-info">{{ selectedFields.length }} de 30 campos seleccionados</div>
+              <label class="crud-field">Buscar en todos los campos
+                <input v-model="fieldSearch" placeholder="Nombre comercial o técnico, incluso no autorizados"></label>
+              <div class="crud-info">{{ selectedFields.length }} / {{ MAX_COMMAND_FIELDS }} seleccionados por comando ·
+                {{ fieldAvailability.length }} campos descubiertos en {{ entity }}</div>
+            </div>
+            <div class="crud-field-visibility" role="group" aria-label="Filtrar campos por disponibilidad">
+              <button type="button" :class="{active:fieldVisibility==='all'}"
+                @click="fieldVisibility='all'">Todos ({{ fieldAvailability.length }})</button>
+              <button type="button" :class="{active:fieldVisibility==='selectable'}"
+                @click="fieldVisibility='selectable'">Seleccionables ({{ eligibleFields.length }})</button>
+              <button type="button" :class="{active:fieldVisibility==='restricted'}"
+                @click="fieldVisibility='restricted'">No seleccionables ({{ restrictedCount }})</button>
+            </div>
+            <div class="crud-field-actions">
+              <span class="crud-help">
+                {{ requiresPermissionCount }} campos necesitan permisos en Catálogo.
+                Se pueden elegir hasta {{ MAX_COMMAND_FIELDS }} campos por API; los demás seguirán visibles.
+              </span>
+              <button class="crud-secondary" type="button" @click="selectVisibleFields"
+                :disabled="selected.length>=MAX_COMMAND_FIELDS || !filteredFields.some(item=>item.selectable&&!selected.includes(item.field.logicalName))">
+                Seleccionar disponibles
+              </button>
+              <button class="crud-secondary" type="button" :disabled="selected.length===0"
+                @click="clearSelectedFields">Limpiar selección</button>
+              <button class="crud-secondary" type="button" @click="emit('navigate','catalog')">
+                Revisar y habilitar permisos
+              </button>
+              <button class="crud-secondary" type="button" :disabled="busy"
+                @click="refresh">Recargar campos</button>
             </div>
             <div class="crud-check-list">
-              <label v-for="field in filteredFields" :key="field.logicalName">
-                <input v-model="selected" type="checkbox" :value="field.logicalName"
-                  :disabled="!selected.includes(field.logicalName)&&selected.length>=30">
-                <span><strong>{{ display(field.labels,field.logicalName) }}</strong>
-                  <small>{{ field.logicalName }} · {{ field.type }}</small></span>
+              <label v-for="item in filteredFields" :key="item.field.logicalName"
+                :class="{ 'crud-field-unavailable': !item.selectable }"
+                :title="item.reason">
+                <input v-model="selected" type="checkbox" :value="item.field.logicalName"
+                  :disabled="!item.selectable || (!selected.includes(item.field.logicalName)&&selected.length>=MAX_COMMAND_FIELDS)">
+                <span>
+                  <strong>{{ display(item.field.labels,item.field.logicalName) }}</strong>
+                  <small>{{ item.field.logicalName }} · {{ item.field.type }}</small>
+                  <small :class="item.selectable ? 'crud-field-available-note' : 'crud-field-unavailable-note'">
+                    {{ item.reason }}
+                  </small>
+                </span>
               </label>
-              <div v-if="!eligibleFields.length" class="crud-info">No existen campos autorizados y compatibles con esta operación.
-                Revisá sus permisos CREATE/UPDATE en Catálogo.</div>
+              <div v-if="!filteredFields.length" class="crud-info">
+                Ningún campo coincide con esta búsqueda o filtro. Probá «Todos» o borrá la búsqueda.
+              </div>
             </div>
+            <p v-if="!eligibleFields.length" class="crud-info" role="status">
+              Aún no hay campos habilitados para {{ operation.toUpperCase() }}.
+              En Catálogo → Oferta → Habilitar todos, seleccioná «Lectura, creación y edición»
+              y luego presioná «Recargar campos» aquí. Los atributos calculados y relaciones de solo
+              lectura no se pueden activar para escritura directa.
+            </p>
             <div v-if="optionFields.length" class="crud-options-panel">
               <h4>Opciones reales de Dynamics — sin buscar IDs</h4>
               <p>Seleccioná la opción por su nombre. Dhole utiliza automáticamente el valor técnico al generar el ejemplo de solicitud.</p>
@@ -578,6 +657,16 @@ onMounted(refresh)
 .crud-stage h3{font-size:17px;margin:5px 0 14px}.crud-operation-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
 .crud-operation-list button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:8px;min-height:95px;padding:17px;background:var(--dh-card);border:1px solid var(--dh-border);border-radius:12px;color:var(--dh-text)}
 .crud-operation-list button.selected{border-color:var(--dh-primary);background:color-mix(in srgb,var(--dh-primary) 7%,var(--dh-card))}
+.crud-field-visibility{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px}
+.crud-field-visibility button{padding:9px 13px;border-radius:12px;border:1px solid var(--dh-border);color:var(--dh-text);font-size:12px;font-weight:750;background:var(--dh-card)}
+.crud-field-visibility button.active{border-color:var(--dh-primary);color:var(--dh-primary);background:color-mix(in srgb,var(--dh-primary) 9%,var(--dh-card))}
+.crud-field-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px}
+.crud-field-actions .crud-help{flex:1 1 100%;font-size:12px}
+.crud-check-list label.crud-field-unavailable{opacity:.76;border-style:dashed}
+.crud-check-list label.crud-field-unavailable input{cursor:not-allowed}
+.crud-check-list .crud-field-unavailable-note{color:var(--dh-text-muted);white-space:normal}
+.crud-check-list .crud-field-available-note{color:var(--dh-primary);white-space:normal}
+
 .crud-operation-list strong{font-size:14px}.crud-operation-list span,.crud-help{color:var(--dh-text-muted);line-height:1.5}
 .crud-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}.crud-check-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:420px;overflow:auto}
 .crud-check-list label{display:flex;gap:10px;align-items:flex-start;padding:12px;background:var(--dh-card);border:1px solid var(--dh-border);border-radius:10px;cursor:pointer}
