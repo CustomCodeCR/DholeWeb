@@ -13,7 +13,7 @@ import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
 import { UsersService } from '@/core/services/usersService'
 import { callEndpoint } from '@/core/api/callEndpoint'
-import { unwrapListResponse } from '@/core/api/apiResponse'
+import { unwrapApiResponse, unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
@@ -54,6 +54,21 @@ function normalizeCommercialStatus(value: unknown): CommercialRateStatusFilter {
 
 const route = useRoute()
 const router = useRouter()
+type DynamicsQuoteIssue = {
+  rateId: string
+  revisionNumber: number
+  status: string
+  attempts: number
+  lastError: string | null
+  error?: { code?: string; stage?: string; message?: string; httpStatus?: number } | null
+}
+
+const dynamicsIssues = ref<DynamicsQuoteIssue[]>([])
+const dynamicsIssuesUnavailable = ref(false)
+const dynamicsIssuesLoading = ref(false)
+const dynamicsDiagnosisByRate = ref<Record<string, string>>({})
+const dynamicsDiagnosingRateId = ref<string | null>(null)
+
 const authStore = useAuthStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
@@ -511,6 +526,57 @@ function toggleSelection(id: string) {
     : [...selectedIds.value, id]
 }
 
+async function loadDynamicsIssues() {
+  if (!authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin)) return
+  dynamicsIssuesLoading.value = true
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/pricing/rates/dynamics-sync/issues',
+    })
+    const result = unwrapApiResponse<{ issues: DynamicsQuoteIssue[] }>(response as never)
+    dynamicsIssues.value = Array.isArray(result?.issues) ? result.issues : []
+    dynamicsIssuesUnavailable.value = false
+  } catch {
+    // Fail independently; Pricing's rate list must remain usable.
+    dynamicsIssuesUnavailable.value = true
+  } finally {
+    dynamicsIssuesLoading.value = false
+  }
+}
+
+async function diagnoseDynamicsIssue(rateId: string) {
+  if (dynamicsDiagnosingRateId.value) return
+  dynamicsDiagnosingRateId.value = rateId
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: `/api/pricing/rates/${rateId}/dynamics-sync/validate`,
+    })
+    const result = unwrapApiResponse<{ valid: boolean; message: string; code: string }>(response as never)
+    dynamicsDiagnosisByRate.value = {
+      ...dynamicsDiagnosisByRate.value,
+      [rateId]: result?.message || result?.code || 'No se obtuvo un diagnóstico.',
+    }
+  } catch (error) {
+    dynamicsDiagnosisByRate.value = {
+      ...dynamicsDiagnosisByRate.value,
+      [rateId]: 'No se pudo consultar el diagnóstico. Revisá los permisos o la conexión del servicio.',
+    }
+  } finally {
+    dynamicsDiagnosingRateId.value = null
+  }
+}
+
+async function openDynamicsIssueRate(rateId: string) {
+  try {
+    const rate = await PricingService.getRate(rateId)
+    openDetail(rate)
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo abrir la tarifa asociada a la incidencia.')
+  }
+}
+
 function openDetail(rate: RateDto) {
   if (isSellerUser.value) {
     // Sellers must never open Pricing's internal wizard or unpublished price details.
@@ -637,6 +703,7 @@ onMounted(async () => {
   }
 
   await load()
+  void loadDynamicsIssues()
   await openRequestedRate()
 })
 </script>
@@ -657,6 +724,59 @@ onMounted(async () => {
         />
       </template>
     </DhPageHeader>
+
+
+    <section
+      v-if="authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin) && (dynamicsIssues.length || dynamicsIssuesUnavailable)"
+      class="rounded-[24px] border border-amber-500/25 bg-amber-500/[0.07] p-4"
+      aria-label="Incidencias de sincronización con Dynamics"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-black text-[var(--dh-text)]">
+            Sincronización Dynamics · {{ dynamicsIssues.length }} incidencia{{ dynamicsIssues.length === 1 ? '' : 's' }}
+          </h3>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+            Consulta el error específico o valida la plantilla sin crear ofertas duplicadas.
+          </p>
+        </div>
+        <button type="button" class="text-xs font-black text-[var(--dh-primary)] hover:underline"
+          :disabled="dynamicsIssuesLoading" @click="loadDynamicsIssues">
+          {{ dynamicsIssuesLoading ? 'Consultando...' : 'Actualizar incidencias' }}
+        </button>
+      </div>
+      <p v-if="dynamicsIssuesUnavailable" class="mt-3 text-xs text-red-600">
+        No se pudieron consultar las incidencias de Dynamics.
+      </p>
+      <ul v-if="dynamicsIssues.length" class="mt-3 space-y-2">
+        <li v-for="item in dynamicsIssues" :key="`${item.rateId}-${item.revisionNumber}`"
+          class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-black">
+                Tarifa {{ item.rateId }} · Rev. {{ item.revisionNumber }} · {{ item.status }}
+              </p>
+              <p class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">
+                {{ item.lastError || item.error?.message || 'Error pendiente de diagnóstico' }}
+              </p>
+            </div>
+            <div class="flex gap-3">
+              <button type="button" class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
+                @click="openDynamicsIssueRate(item.rateId)">Ver tarifa</button>
+              <button type="button" class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
+                :disabled="Boolean(dynamicsDiagnosingRateId)"
+                @click="diagnoseDynamicsIssue(item.rateId)">
+                {{ dynamicsDiagnosingRateId === item.rateId ? 'Analizando...' : 'Diagnosticar' }}
+              </button>
+            </div>
+          </div>
+          <p v-if="dynamicsDiagnosisByRate[item.rateId]"
+            class="mt-2 rounded-lg bg-black/[0.04] p-2 text-xs font-semibold text-[var(--dh-text)] dark:bg-white/[0.06]">
+            {{ dynamicsDiagnosisByRate[item.rateId] }}
+          </p>
+        </li>
+      </ul>
+    </section>
 
     <section class="dh-glass dh-liquid rounded-[24px] p-3 sm:rounded-[32px] sm:p-5">
       <DhCrudToolbar
