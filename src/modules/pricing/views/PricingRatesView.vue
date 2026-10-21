@@ -395,8 +395,8 @@ function commercialStatusForRate(rate: RateDto): CommercialRateStatusFilter {
 }
 
 function rowStatusLabel(rate: RateDto) {
-  return rate.revisionPending ? 'En modificación'
-    : rate.pendingReapproval ? 'Pendiente de re-aprobación'
+  return rate.pendingReapproval ? 'Pendiente de re-aprobación'
+    : rate.revisionPending ? 'En modificación'
       : statusLabel(rate.status)
 }
 
