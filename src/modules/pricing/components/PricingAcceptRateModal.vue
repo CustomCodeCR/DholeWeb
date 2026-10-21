@@ -16,15 +16,11 @@ const modalStore = useModalStore()
 const toastStore = useToastStore()
 const form = reactive({
   idtraNumber: props.rate.idtraNumber?.trim() ?? '',
-  submitted: false,
   saving: false,
 })
 
 async function submit() {
-  form.submitted = true
   const idtraNumber = form.idtraNumber.trim()
-  if (!idtraNumber) return
-
   if (
     props.rate.rateType === 'Tariff'
     && String(props.rate.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO')
@@ -40,9 +36,9 @@ async function submit() {
     form.saving = true
     await PricingService.setRateStatus(props.rate.id, {
       status: 'AcceptedByClient',
-      idtraNumber,
+      idtraNumber: idtraNumber || null,
     })
-    toastStore.success('Tarifa aceptada por el cliente', `IDTRA ${idtraNumber} registrado.`)
+    toastStore.success('Tarifa aceptada por el cliente', idtraNumber ? `IDTRA ${idtraNumber} registrado.` : 'El IDTRA puede asignarse posteriormente.')
     modalStore.close()
     await props.onSaved?.()
   } catch (error) {
@@ -63,7 +59,7 @@ async function submit() {
         <div class="min-w-0">
           <p class="text-sm font-black text-[var(--dh-text)]">Confirmar aceptación del cliente</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            Esta acción corresponde a una QUO específica del cliente. La tarifa pasará a Aceptada y el IDTRA quedará ligado a ella.
+            Esta acción corresponde a una QUO específica del cliente. La tarifa pasará a Aceptada y podrá registrar el IDTRA ahora o posteriormente.
           </p>
         </div>
       </div>
@@ -76,10 +72,9 @@ async function submit() {
       </div>
       <DhInput
         v-model="form.idtraNumber"
-        label="IDTRA"
-        placeholder="Ingrese el IDTRA obligatorio"
+        label="IDTRA (opcional)"
+        placeholder="Puede dejarlo vacío y registrarlo después"
         autocomplete="off"
-        :error="form.submitted && !form.idtraNumber.trim() ? 'El IDTRA es obligatorio para aceptar la tarifa.' : undefined"
       />
     </div>
 
