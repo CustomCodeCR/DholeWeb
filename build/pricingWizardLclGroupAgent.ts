@@ -116,11 +116,23 @@ function patchWizard(source: string) {
       `[pricingWizardLclGroupAgent] expected one supported LCL agent selector, found ${existingSelectors.length}`,
     )
   }
-  section = replaceOne(
-    section,
-    existingSelectors[0]!,
-    '            <DhSelect v-model="form.agentId" label="Agente / coloader" :options="shipmentModeForApi === \'Lcl\' ? lclAgentOptions : agentOptions" />',
-    'replace duplicate/locked LCL provider with unified selector',
+  // Otro plugin añade restricciones terrestres al selector anterior.
+  // Identificar los controles por su función, no por una cadena exacta.
+  const lockedProvider = /<DhInput\b[^>]*lclSelectedSource\?\.kind === 'Own'[^>]*label="Fuente \/ proveedor"[^>]*\/>/
+  const matchingLockedProviders = section.match(new RegExp(lockedProvider.source, 'g')) ?? []
+  if (matchingLockedProviders.length !== 1) {
+    throw new Error('[pricingWizardLclGroupAgent] Expected one locked LCL source field, got ' + matchingLockedProviders.length)
+  }
+  section = section.replace(lockedProvider, '')
+
+  const agentSelect = /<DhSelect\b[^>]*v-model="form\.agentId"[^>]*label="Agente \/ coloader"[^>]*\/>/
+  const matchingAgentSelects = section.match(new RegExp(agentSelect.source, 'g')) ?? []
+  if (matchingAgentSelects.length !== 1) {
+    throw new Error('[pricingWizardLclGroupAgent] Expected one agent/coloader selector, got ' + matchingAgentSelects.length)
+  }
+  section = section.replace(
+    agentSelect,
+    '<DhSelect v-if="form.modality !== \'Land\' || (shipmentModeForApi === \'Ltl\' && form.manualRate && landLtlCommercialProfile === \'Nvocc\')" v-model="form.agentId" label="Agente / coloader" :options="shipmentModeForApi === \'Lcl\' ? lclAgentOptions : agentOptions" />',
   )
 
   // La naviera no se selecciona para LCL; no introducir ningún otro agente.
