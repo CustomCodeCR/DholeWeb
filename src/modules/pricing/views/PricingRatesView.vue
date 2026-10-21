@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Copy, Edit3, Eye, FileSpreadsheet, ReceiptText, Trash2 } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
+import { DhBadge, DhButton, DhCheckbox, DhInput, DhMultiSelect } from '@/shared/components/atoms'
 import { DhCrudToolbar, DhPagination } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -12,6 +12,7 @@ import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
 import { UsersService } from '@/core/services/usersService'
+import { SellerVisibilityService } from '@/core/services/sellerVisibilityService'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
@@ -258,16 +259,41 @@ const filtersOpen = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const selectedExecutiveNames = ref<string[]>([])
+const executiveOptions = ref<string[]>([])
+const executivesLoading = ref(false)
+
+async function loadExecutiveOptions() {
+  executivesLoading.value = true
+  try {
+    const sellers = await SellerVisibilityService.rateOptions()
+    const names = new Map<string, string>()
+    for (const seller of sellers) {
+      const name = String(seller.displayName || seller.userName || seller.email || '').trim()
+      if (name) names.set(name.toLocaleLowerCase('es'), name)
+    }
+    executiveOptions.value = [...names.values()].sort((a, b) => a.localeCompare(b, 'es'))
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo cargar la lista de vendedores.')
+  } finally {
+    executivesLoading.value = false
+  }
+}
+
+const initialStatus = normalizeCommercialStatus(route.query.status)
+const selectedFilters = reactive({
+  statuses: initialStatus ? [initialStatus] : [] as string[],
+  agentIds: [] as string[],
+  carrierIds: [] as string[],
+  polIds: [] as string[],
+  poeIds: [] as string[],
+  podIds: [] as string[],
+  containerTypeIds: [] as string[],
+  currencyIds: [] as string[],
+})
+
 const filters = reactive({
   search: '',
-  status: normalizeCommercialStatus(route.query.status),
-  agentId: '',
-  carrierId: '',
-  polId: '',
-  poeId: '',
-  podId: '',
-  containerTypeId: '',
-  currencyId: '',
   idtraNumber: '',
   quoNumber: '',
   quoteDate: '',
@@ -354,13 +380,13 @@ const statusOptions: Array<{ label: string; value: CommercialRateStatusFilter }>
 const quickStatusOptions = statusOptions
 
 const activeFiltersCount = computed(
-  () =>
-    Object.entries(filters).filter(([key, value]) => !['search', 'status'].includes(key) && String(value || '').trim())
-      .length + (filters.search.trim() ? 1 : 0),
+  () => Object.values(filters).filter((value) => String(value || '').trim()).length
+    + Object.values(selectedFilters).filter((values) => values.length > 0).length
+    + (selectedExecutiveNames.value.length ? 1 : 0),
 )
 
 function applyQuickStatus(status: CommercialRateStatusFilter) {
-  filters.status = status
+  selectedFilters.statuses = status ? [status] : []
   applyFilters()
 }
 
@@ -402,14 +428,18 @@ async function load() {
 
       const searchValue = filters.search.trim().toLowerCase()
       sellerRows = sellerRows.filter((rate) => {
-        if (filters.status && normalizeCommercialStatus(rate.status) !== filters.status) return false
-        if (filters.agentId && rate.agentId !== filters.agentId) return false
-        if (filters.carrierId && rate.carrierId !== filters.carrierId) return false
-        if (filters.polId && rate.polId !== filters.polId) return false
-        if (filters.poeId && rate.poeId !== filters.poeId) return false
-        if (filters.podId && rate.podId !== filters.podId) return false
-        if (filters.containerTypeId && rate.containerTypeId !== filters.containerTypeId) return false
-        if (filters.currencyId && rate.currencyId !== filters.currencyId) return false
+        if (selectedExecutiveNames.value.length && !selectedExecutiveNames.value.some(
+          (name) => name.toLocaleLowerCase('es') === String(rate.executiveName || '').trim().toLocaleLowerCase('es'),
+        )) return false
+        if (selectedFilters.statuses.length && !selectedFilters.statuses.includes(normalizeCommercialStatus(rate.status))) return false
+        if (selectedFilters.agentIds.length && !selectedFilters.agentIds.includes(rate.agentId || '')) return false
+        if (selectedFilters.carrierIds.length && !selectedFilters.carrierIds.includes(rate.carrierId || '')) return false
+        if (selectedFilters.polIds.length && !selectedFilters.polIds.includes(rate.polId || '')) return false
+        if (selectedFilters.poeIds.length && !selectedFilters.poeIds.includes(rate.poeId || '')) return false
+        if (selectedFilters.podIds.length && !selectedFilters.podIds.includes(rate.podId || '')) return false
+        if (selectedFilters.containerTypeIds.length && !selectedFilters.containerTypeIds.includes(rate.containerTypeId || '')
+          && !rate.containers?.some((item) => selectedFilters.containerTypeIds.includes(item.containerTypeId))) return false
+        if (selectedFilters.currencyIds.length && !selectedFilters.currencyIds.includes(rate.currencyId || '')) return false
         if (filters.idtraNumber && !String(rate.idtraNumber || '').toLowerCase().includes(filters.idtraNumber.toLowerCase())) return false
         if (filters.quoNumber && !String(rate.quoNumber || '').toLowerCase().includes(filters.quoNumber.toLowerCase())) return false
         if (filters.validFrom && String(rate.validFrom || '').slice(0, 10) < filters.validFrom) return false
@@ -439,38 +469,33 @@ async function load() {
 
     const result = await PricingService.browseRates({
       pageNumber: page.value,
-      pageSize: filters.status === 'Open' ? Math.max(pageSize.value, 100) : pageSize.value,
+      pageSize: pageSize.value,
       search: filters.search || undefined,
-      status: filters.status || undefined,
-      agentId: filters.agentId || undefined,
-      carrierId: filters.carrierId || undefined,
-      polId: filters.polId || undefined,
-      poeId: filters.poeId || undefined,
-      podId: filters.podId || undefined,
-      containerTypeId: filters.containerTypeId || undefined,
-      currencyId: filters.currencyId || undefined,
+      statuses: selectedFilters.statuses,
+      agentIds: selectedFilters.agentIds,
+      carrierIds: selectedFilters.carrierIds,
+      polIds: selectedFilters.polIds,
+      poeIds: selectedFilters.poeIds,
+      podIds: selectedFilters.podIds,
+      containerTypeIds: selectedFilters.containerTypeIds,
+      currencyIds: selectedFilters.currencyIds,
       idtraNumber: filters.idtraNumber || undefined,
       quoNumber: filters.quoNumber || undefined,
       quoteDate: filters.quoteDate || undefined,
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
       excludeTariffMasters: true,
+      executiveNames: selectedExecutiveNames.value.length ? selectedExecutiveNames.value : undefined,
     })
 
     const safeItems = Array.isArray(result?.items)
       ? result.items.filter((row): row is RateDto => Boolean(row && row.id))
       : []
 
-    const visibleItems = filters.status === 'Open'
-      ? safeItems.filter((item) => item.status === 'Open')
-      : safeItems
-
-    rows.value = visibleItems
+    rows.value = safeItems
     await loadCreatorDirectory()
-    total.value = filters.status === 'Open'
-      ? visibleItems.length
-      : result?.totalCount ?? visibleItems.length
-    selectedIds.value = selectedIds.value.filter((id) => visibleItems.some((row) => row.id === id))
+    total.value = result?.totalCount ?? safeItems.length
+    selectedIds.value = selectedIds.value.filter((id) => safeItems.some((row) => row.id === id))
   } catch (error) {
     rows.value = []
     total.value = 0
@@ -486,16 +511,12 @@ function applyFilters() {
   load()
 }
 function clearFilters() {
+  selectedExecutiveNames.value = []
+  for (const key of Object.keys(selectedFilters) as Array<keyof typeof selectedFilters>) {
+    selectedFilters[key] = []
+  }
   Object.assign(filters, {
     search: '',
-    status: '',
-    agentId: '',
-    carrierId: '',
-    polId: '',
-    poeId: '',
-    podId: '',
-    containerTypeId: '',
-    currencyId: '',
     idtraNumber: '',
     quoNumber: '',
     quoteDate: '',
@@ -597,8 +618,9 @@ watch(
   () => route.query.status,
   (value) => {
     const nextStatus = normalizeCommercialStatus(value)
-    if (filters.status === nextStatus) return
-    filters.status = nextStatus
+    const updated = nextStatus ? [nextStatus] : []
+    if (selectedFilters.statuses.length === updated.length && selectedFilters.statuses.every((item, index) => item === updated[index])) return
+    selectedFilters.statuses = updated
     applyFilters()
   },
 )
@@ -628,6 +650,7 @@ watch(
 )
 
 onMounted(async () => {
+  if (!isSellerUser.value) void loadExecutiveOptions()
   try {
     await catalogs.loadAll()
   } catch (error) {
@@ -692,7 +715,7 @@ onMounted(async () => {
           type="button"
           class="rounded-full border px-3 py-1.5 text-xs font-black transition"
           :class="
-            filters.status === option.value
+            (option.value ? selectedFilters.statuses.length === 1 && selectedFilters.statuses[0] === option.value : selectedFilters.statuses.length === 0)
               ? 'border-[var(--dh-primary)] dh-bg-primary-soft text-[var(--dh-primary)]'
               : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-soft)] hover:border-[var(--dh-primary)]/50'
           "
@@ -715,53 +738,71 @@ onMounted(async () => {
         class="mt-5 rounded-[26px] border border-[var(--dh-border)] bg-black/[0.025] p-4 dark:bg-white/[0.04]"
       >
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <DhSelect
-            v-model="filters.status"
+          <DhMultiSelect
+            v-model="selectedFilters.statuses"
             label="Estado"
-            :options="statusOptions"
-            placeholder=""
+            :options="statusOptions.filter((option) => Boolean(option.value))"
+            placeholder="Todos"
+            search-placeholder="Buscar estado..."
           />
-          <DhSelect
-            v-model="filters.agentId"
+          <DhMultiSelect
+            v-model="selectedFilters.agentIds"
             label="Agente"
-            :options="[{ label: 'Todos', value: '' }, ...catalogs.agentOptions.value]"
-            placeholder=""
+            :options="catalogs.agentOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar agente..."
           />
-          <DhSelect
-            v-model="filters.carrierId"
+          <DhMultiSelect
+            v-model="selectedFilters.carrierIds"
             label="Naviera"
-            :options="[{ label: 'Todas', value: '' }, ...catalogs.carrierOptions.value]"
-            placeholder=""
+            :options="catalogs.carrierOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar naviera..."
           />
-          <DhSelect
-            v-model="filters.polId"
+          <DhMultiSelect
+            v-model="selectedFilters.polIds"
             label="POL"
-            :options="[{ label: 'Todos', value: '' }, ...catalogs.polOptions.value]"
-            placeholder=""
+            :options="catalogs.polOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar pol..."
           />
-          <DhSelect
-            v-model="filters.poeId"
+          <DhMultiSelect
+            v-model="selectedFilters.poeIds"
             label="POE"
-            :options="[{ label: 'Todos', value: '' }, ...catalogs.poeOptions.value]"
-            placeholder=""
+            :options="catalogs.poeOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar poe..."
           />
-          <DhSelect
-            v-model="filters.podId"
+          <DhMultiSelect
+            v-model="selectedFilters.podIds"
             label="POD"
-            :options="[{ label: 'Todos', value: '' }, ...catalogs.podOptions.value]"
-            placeholder=""
+            :options="catalogs.podOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar pod..."
           />
-          <DhSelect
-            v-model="filters.containerTypeId"
+          <DhMultiSelect
+            v-model="selectedFilters.containerTypeIds"
             label="Contenedor"
-            :options="[{ label: 'Todos', value: '' }, ...catalogs.containerOptions.value]"
-            placeholder=""
+            :options="catalogs.containerOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar contenedor..."
           />
-          <DhSelect
-            v-model="filters.currencyId"
+          <DhMultiSelect
+            v-model="selectedFilters.currencyIds"
             label="Moneda"
-            :options="[{ label: 'Todas', value: '' }, ...catalogs.currencyOptions.value]"
-            placeholder=""
+            :options="catalogs.currencyOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar moneda..."
+          />
+          <DhMultiSelect
+            v-if="!isSellerUser"
+            v-model="selectedExecutiveNames"
+            label="Vendedor"
+            :options="executiveOptions.map((name) => ({ label: name, value: name }))"
+            :disabled="executivesLoading"
+            :empty-text="executivesLoading ? 'Cargando vendedores...' : 'No hay vendedores disponibles.'"
+            search-placeholder="Buscar vendedor..."
+            placeholder="Todos"
           />
           <DhInput v-model="filters.idtraNumber" label="Número IDTRA" placeholder="Buscar IDTRA" />
           <DhInput v-model="filters.quoNumber" label="Número QUO" placeholder="Buscar QUO" />
