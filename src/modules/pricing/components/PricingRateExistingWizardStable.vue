@@ -57,6 +57,7 @@ import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateR
 import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
+import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
@@ -364,6 +365,9 @@ const commercialRateTypeLabel = computed(() =>
 )
 const canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canAssignIdtra = computed(() => editingRate.value?.status === 'AcceptedByClient'
+  && !String(editingRate.value.idtraNumber ?? '').trim()
+  && (canUpdateRateStatus.value || canApproveLowMargin.value))
 const canApproveCurrentRate = computed(() =>
   canApproveLowMargin.value
   && editingRate.value?.status === 'PendingApproval'
@@ -3021,6 +3025,19 @@ function startCommercialDecision(action: 'accept' | 'reject') {
   if (action === 'reject') commercialRejectionReason.value = ''
 }
 
+function openAssignIdtra() {
+  if (!editingRate.value || !canAssignIdtra.value) return
+  modalStore.open({
+    title: 'Asignar IDTRA',
+    component: PricingAssignIdtraModal,
+    size: 'md',
+    props: {
+      rate: editingRate.value,
+      onSaved: async () => { await hydrateExistingRate() },
+    },
+  })
+}
+
 function startAcceptedRateCancellation() {
   if (!editingRate.value || !canCancelAccepted.value || commercialStatusSaving.value) return
   modalStore.open({
@@ -4041,7 +4058,10 @@ onMounted(async () => {
           <p class="mt-3 text-lg font-black">{{ editingRate.rateName }}</p>
           <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ editingRate.quoNumber || '—' }}</p>
         </div>
-        <DhButton v-if="viewOnly" variant="secondary" @click="editCurrentRate">Editar en este wizard</DhButton>
+        <div class="flex flex-wrap items-center gap-2">
+          <DhButton v-if="canAssignIdtra" size="sm" @click="openAssignIdtra">Asignar IDTRA</DhButton>
+          <DhButton v-if="viewOnly" variant="secondary" @click="editCurrentRate">Editar en este wizard</DhButton>
+        </div>
       </div>
       <div v-if="editingRate.status === 'AcceptedByClient' && !viewOnly" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">
         Esta tarifa ya fue aceptada. Al guardar, Dhole conservará la revisión {{ editingRate.revisionNumber || 1 }} como versión histórica y abrirá la revisión {{ (editingRate.revisionNumber || 1) + 1 }}.
@@ -5116,6 +5136,7 @@ onMounted(async () => {
                 </div>
               </div>
               <div class="flex flex-wrap items-center gap-2">
+                <DhButton v-if="canAssignIdtra" size="sm" @click="openAssignIdtra">Asignar IDTRA</DhButton>
                 <DhButton
                   v-if="canApproveCurrentRate"
                   size="sm"

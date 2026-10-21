@@ -18,6 +18,7 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
+import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -551,6 +552,22 @@ function toggleSelection(id: string) {
     : [...selectedIds.value, id]
 }
 
+function canAssignIdtra(rate: RateDto): boolean {
+  return acceptedRateMissingIdtra(rate) &&
+    (authStore.hasScope(PRICING_SCOPES.rates.update) ||
+     authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+}
+
+function assignIdtra(rate: RateDto) {
+  if (!canAssignIdtra(rate)) return
+  modalStore.open({
+    title: 'Asignar IDTRA',
+    component: PricingAssignIdtraModal,
+    size: 'md',
+    props: { rate, onSaved: async () => { await load() } },
+  })
+}
+
 function openDetail(rate: RateDto) {
   if (isSellerUser.value) {
     // Sellers must never open Pricing's internal wizard or unpublished price details.
@@ -988,6 +1005,13 @@ onMounted(async () => {
               <p class="mt-2 text-[11px] font-bold text-[var(--dh-text-soft)]">{{ t('pricing.rates.freeDaysValue', { count: row.freeDays }) }}</p>
             </div>
 
+            <button
+              v-if="canAssignIdtra(row)"
+              type="button"
+              class="mt-3 w-full rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-xs font-black text-amber-700 dark:text-amber-300"
+              @click.stop="assignIdtra(row)"
+            >Asignar IDTRA · Pendiente para Dynamics</button>
+
             <div class="mt-3 grid grid-flow-col auto-cols-[2.75rem] justify-center gap-2 border-t border-[var(--dh-border)] pt-2.5" @click.stop>
               <button
                 type="button"
@@ -1037,7 +1061,7 @@ onMounted(async () => {
               <col class="w-[205px]" />
               <col class="w-[130px]" />
               <col class="w-[185px]" />
-              <col class="w-[112px]" />
+              <col class="w-[190px]" />
             </colgroup>
             <thead class="bg-black/[0.035] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
               <tr>
@@ -1095,6 +1119,7 @@ onMounted(async () => {
                     <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
                       {{ row.clientName || t('pricing.rates.noClient') }}
                       <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
+                      <span v-if="acceptedRateMissingIdtra(row)" class="font-black text-amber-600"> · Pendiente de IDTRA</span>
                     </p>
 
                   </div>
@@ -1165,6 +1190,13 @@ onMounted(async () => {
                     >
                       <Eye class="h-4 w-4" />
                     </button>
+                    <button
+                      v-if="canAssignIdtra(row)"
+                      type="button"
+                      class="shrink-0 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] font-black text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                      title="Registrar IDTRA y enviar la Quote a Dynamics"
+                      @click="assignIdtra(row)"
+                    >Asignar IDTRA</button>
                     <button
                       v-if="canUpdateRate(row)"
                       type="button"

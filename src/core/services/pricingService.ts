@@ -693,6 +693,14 @@ export const PricingService = {
     })
   },
 
+  async assignRateIdtra(rateId: string, idtraNumber: string): Promise<{ idtraNumber: string; dynamicsSync?: string }> {
+    const response = await callEndpoint<unknown, { idtraNumber: string }>({
+      method: 'PATCH',
+      path: `/api/pricing/rates/${encodeURIComponent(rateId)}/idtra`,
+    }, { body: { idtraNumber } })
+    return unwrapApiResponse<{ idtraNumber: string; dynamicsSync?: string }>(response as never)
+  },
+
   setRateStatus(rateId: string, payload: SetRateStatusRequest): Promise<NoContent> {
     return callEndpoint<NoContent, SetRateStatusRequest>(Endpoints.setRateStatus, {
       params: { rateId },

@@ -6,6 +6,7 @@ import {
   Edit3,
   ExternalLink,
   FolderOpen,
+  FileCheck2,
   Printer,
   RefreshCw,
   Route,
@@ -25,6 +26,7 @@ import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import type { ImportRateDto, RateDetailDto, RateDto, SetRateStatusRequest } from '@/core/interfaces/pricing'
 import PricingRateFormDrawer from './PricingRateFormDrawer.vue'
 import PricingAcceptRateModal from './PricingAcceptRateModal.vue'
+import PricingAssignIdtraModal from './PricingAssignIdtraModal.vue'
 import PricingApplyTariffModal from './PricingApplyTariffModal.vue'
 import PricingReasonModal from './PricingReasonModal.vue'
 import PricingDuplicateRateModal from './PricingDuplicateRateModal.vue'
@@ -93,6 +95,8 @@ const sourceLabel = computed(() => sourceImportRate.value ? sourceTitle(sourceIm
 const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDuplicate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.create))
 const canApprove = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canAssignIdtra = computed(() => current.value.status === 'AcceptedByClient'
+  && !String(current.value.idtraNumber ?? '').trim() && (canUpdate.value || canApprove.value))
 const isMasterTariff = computed(() =>
   current.value.rateType === 'Tariff'
     && String(current.value.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO'),
@@ -350,6 +354,22 @@ function rejectByClient() {
   })
 }
 
+function assignIdtra() {
+  if (!canAssignIdtra.value) return
+  modalStore.open({
+    title: 'Asignar IDTRA',
+    component: PricingAssignIdtraModal,
+    size: 'md',
+    props: {
+      rate: current.value,
+      onSaved: async () => {
+        await reload()
+        await props.onSaved?.()
+      },
+    },
+  })
+}
+
 function acceptByClient() {
   modalStore.open({
     title: 'Aceptar tarifa por cliente',
@@ -472,6 +492,7 @@ onMounted(async () => {
               >
                 {{ current.rateCode }}
                 <span v-if="current.idtraNumber"> · IDTRA {{ current.idtraNumber }}</span>
+                <span v-else-if="current.status === 'AcceptedByClient'"> · IDTRA pendiente para Dynamics</span>
                 <span v-if="current.quoNumber"> · QUO {{ current.quoNumber }}</span>
               </p>
               <p v-if="current.sourceTariffRateId" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
@@ -504,6 +525,14 @@ onMounted(async () => {
             variant="secondary"
             size="sm"
             @click="duplicate"
+          />
+          <DhButton
+            v-if="canAssignIdtra"
+            label="Asignar IDTRA"
+            :icon="FileCheck2"
+            size="sm"
+            variant="secondary"
+            @click="assignIdtra"
           />
           <DhButton
             v-if="canUpdate && !['Closed', 'Expired'].includes(current.status)"
