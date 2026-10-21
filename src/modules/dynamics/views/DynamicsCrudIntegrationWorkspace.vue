@@ -55,6 +55,11 @@ const keys=ref<KeyInfo[]>([])
 const issued=ref<Issued|null>(null)
 const createdVersion=ref<number|null>(null)
 const keyForm=ref({label:'Mi aplicación',expiresInDays:30,maxRequestsPerMinute:30})
+const quoteTotalGrantKeyId=ref('')
+const quoteTotalGrantConfirm=ref(false)
+const quoteTotalGrantBusy=ref(false)
+const quoteTotalGrantSuccess=ref('')
+const quoteTotalGrantError=ref('')
 const base=(import.meta.env.VITE_API_URL||'https://api.logisticacastrofallas.com').trim().replace(/\/+$/,'')
 const api=(path:string)=>'/api/dynamics-admin/connections/'+encodeURIComponent(connection.value)+'/'+path
 const steps=['Operación','Tabla y campos','Definir comando','Publicar API'] as const
@@ -328,6 +333,24 @@ async function issueKey(){
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo crear la clave.'}
   finally{busy.value=false}
 }
+const quoteTotalKeys=computed(()=>keys.value.filter(k=>k.templateName==='crear_oferta'&&
+  k.entityName==='quote'&&k.operation==='create'&&k.enabled))
+async function approveQuoteTotalGrant(){
+  if(!canManage.value||!quoteTotalGrantConfirm.value||!quoteTotalGrantKeyId.value||
+    !quoteTotalKeys.value.some(k=>k.id===quoteTotalGrantKeyId.value))return
+  quoteTotalGrantBusy.value=true
+  quoteTotalGrantError.value=''
+  quoteTotalGrantSuccess.value=''
+  try{
+    await fetchClient(api('quote-total-grants/'+encodeURIComponent(quoteTotalGrantKeyId.value)),{
+      method:'POST'
+    })
+    quoteTotalGrantSuccess.value='Permisos aprobados: lectura del identificador de la oferta y creación de la línea de venta total. La API sigue usando la clave exclusiva y las políticas de Dataverse.'
+    quoteTotalGrantConfirm.value=false
+  }catch(e){
+    quoteTotalGrantError.value=e instanceof Error?e.message:'No se pudieron aprobar los permisos. Verificá los campos de Oferta y Línea de oferta en Catálogo.'
+  }finally{quoteTotalGrantBusy.value=false}
+}
 async function revoke(id:string){
   busy.value=true;error.value=''
   try{
@@ -570,6 +593,47 @@ onMounted(refresh)
               <button class="crud-primary" type="button" @click="copy(issued.apiKey)"><Copy :size="14"/> Copiar clave</button>
               <button class="crud-secondary" type="button" @click="issued=null">Ya la guardé · ocultar</button>
             </div>
+          </div>
+          <div v-if="endpointName==='crear_oferta'&&entity==='quote'&&operation==='create'" class="crud-card">
+            <h4>Importe total de Oferta calculado por Dataverse</h4>
+            <p class="crud-help">
+              La integración de Pricing crea la cabecera y una línea de venta (quotedetail)
+              con cantidad 1 y el importe de venta como precio. Dataverse calcula
+              <code>totalamount</code>. No se escribe <code>msdyn_invoicesetuptotals</code>.
+            </p>
+            <p class="crud-help">
+              Primero habilitá en Catálogo las capacidades permitidas para <strong>Oferta (quote)</strong>
+              y <strong>Línea de oferta (quotedetail)</strong>. Para la línea se requieren:
+              <code>quoteid</code>, <code>isproductoverridden</code>, <code>ispriceoverridden</code>,
+              <code>productdescription</code>, <code>quotedetailname</code>, <code>quantity</code>
+              y <code>priceperunit</code>; la cabecera requiere lectura de su identificador.
+            </p>
+            <div class="crud-actions">
+              <button type="button" class="crud-secondary" @click="emit('navigate','catalog')">
+                Abrir Catálogo para autorizar campos
+              </button>
+            </div>
+            <label class="crud-field">Clave de integración de Pricing autorizada
+              <select v-model="quoteTotalGrantKeyId">
+                <option value="">Seleccionar clave activa de crear_oferta</option>
+                <option v-for="key in quoteTotalKeys" :key="key.id" :value="key.id">
+                  {{ key.label }} · {{ key.id }}
+                </option>
+              </select>
+            </label>
+            <p v-if="!quoteTotalKeys.length" class="crud-help">Todavía no se encontró una clave activa del comando crear_oferta. Creala primero.</p>
+            <label class="crud-field">
+              <input v-model="quoteTotalGrantConfirm" type="checkbox">
+              Confirmo que autorizo a esta clave a leer el identificador de Oferta y crear
+              únicamente los campos de la línea necesarios para calcular la venta total.
+            </label>
+            <button type="button" class="crud-primary"
+              :disabled="quoteTotalGrantBusy||!quoteTotalGrantConfirm||!quoteTotalGrantKeyId"
+              @click="approveQuoteTotalGrant">
+              {{ quoteTotalGrantBusy?'Autorizando...':'Autorizar creación de línea y total' }}
+            </button>
+            <p v-if="quoteTotalGrantError" class="crud-error" role="alert">{{ quoteTotalGrantError }}</p>
+            <p v-if="quoteTotalGrantSuccess" class="crud-info" role="status">{{ quoteTotalGrantSuccess }}</p>
           </div>
           <div class="crud-card">
             <h4>URL HTTP para Pangolin o cualquier otra aplicación</h4>
