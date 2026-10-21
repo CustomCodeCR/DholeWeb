@@ -1099,6 +1099,14 @@ export interface BrowseImportRatesQuery extends Record<string, unknown> {
 
 export interface BrowseRatesQuery extends Record<string, unknown> {
   executiveNames?: string[]
+  statuses?: string[]
+  agentIds?: string[]
+  carrierIds?: string[]
+  polIds?: string[]
+  poeIds?: string[]
+  podIds?: string[]
+  containerTypeIds?: string[]
+  currencyIds?: string[]
   pageNumber?: number
   pageSize?: number
   search?: string | null
