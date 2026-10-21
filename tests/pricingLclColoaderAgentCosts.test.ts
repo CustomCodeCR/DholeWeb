@@ -50,6 +50,7 @@ function createHarness() {
     toastStore: { backendError: (error: unknown) => { throw error } },
     costContextAgentId: () => state.form.agentId,
     costs: { value: [] as Record<string, unknown>[] },
+    allCosts: { value: [] as Record<string, unknown>[] },
     number: (value: unknown) => Number(value) || 0,
     normalizeCatalogValue: (value: unknown) => String(value ?? '').toLowerCase(),
     displayValue: (value: { label: string }) => value.label,
@@ -224,4 +225,37 @@ test('real Pier17 contextual response: all 8 costs survive FOB-style display sec
   }
   rebuild()
   assert.equal(state.rateLines.value.length, 9, 'Repeated rendering must not create duplicates')
+})
+
+test('AirConsol retains matching fixed, variable and optional charges after coloader rebuilds', () => {
+  const { rebuild, state } = createHarness()
+  state.form.modality = 'Air'
+  const airCosts = [
+    { ...origin('air-awb', 'AWB'), shipmentMode: 'AirConsol', shipmentModes: ['AirConsol'], agentId: null, agents: [] },
+    { ...origin('air-man', 'Manejos aéreo'), shipmentMode: 'AirConsol', shipmentModes: ['AirConsol'], agentId: null, agents: [], costType: 'Variable' },
+    { ...origin('air-pickup', 'Retiro AWB'), shipmentMode: 'AirConsol', shipmentModes: ['AirConsol'], agentId: null, agents: [], costType: 'Optional' },
+  ]
+  state.allCosts.value = [...airCosts, { ...origin('ocean-only', 'Cargo marítimo'), shipmentMode: 'Lcl' }]
+  state.airLclCostMatchesCurrentContext = (cost: Record<string, unknown>) =>
+    cost.shipmentMode === 'AirConsol'
+
+  rebuild()
+  const names = state.rateLines.value.map((line) => String(line.name))
+  assert.equal(names.includes('Cargo marítimo'), false)
+  for (const cost of airCosts) {
+    assert.equal(names.filter((name) => name === cost.name).length, 1, cost.name)
+  }
+  assert.equal(state.rateLines.value.length, 4, 'The air freight source and all three Pricing charges remain')
+
+  rebuild()
+  assert.equal(state.rateLines.value.length, 4, 'Another LCL refresh must preserve all air charges exactly once')
+})
+
+test('air pricing guard never delegates to the destructive maritime coloader optional merger', async () => {
+  const source = await readFile(
+    new URL('../build/pricingAirLclCostFinalGuard.ts', import.meta.url), 'utf8',
+  )
+  assert.match(source, /if \(!isLclColoaderAgentCostContext\(\)\) mergeConfiguredOptionalCostsIntoRateLines\(true\)/)
+  assert.match(source, /\['airconsol', 'air', 'any'\]/)
+  assert.doesNotMatch(source, /\['airconsol', 'lcl', 'any'\]/)
 })
