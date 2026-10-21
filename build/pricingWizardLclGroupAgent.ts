@@ -104,34 +104,26 @@ function patchWizard(source: string) {
     /<h2 class="crystal-title">[\s\S]*?<\/h2>/,
     '<h2 class="crystal-title">{{ shipmentModeForApi === \'Lcl\' ? \'Agentes LCL\' : form.modality === \'Land\' ? \'Flete terrestre\' : \'Agente y naviera\' }}</h2>',
   )
-  // Support both wizard versions. The standalone "Agente" select replaced
-  // the old locked-own-provider input; it must still be upgraded for LCL.
-  const legacyProviderSelector =
-    '            <DhInput v-if="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Own\'" :model-value="lclSelectedSource.providerName || \'Grupo Castro Fallas\'" label="Fuente / proveedor" disabled />\n            <DhSelect v-else v-model="form.agentId" label="Agente / coloader" :options="agentOptions" />'
-  const currentAgentSelector = '            <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />'
-  const existingSelectors = [legacyProviderSelector, currentAgentSelector]
-    .filter((selector) => section.includes(selector))
-  if (existingSelectors.length !== 1) {
+  // Earlier Vite transforms can add Land restrictions to the historical LCL
+  // controls. Match by their purpose instead of exact template attributes.
+  const lockedProviderSelector = /<DhInput\b[^>]*lclSelectedSource\?\.kind === 'Own'[^>]*label="Fuente \/ proveedor"[^>]*\/>/g
+  const lockedMatches = [...section.matchAll(lockedProviderSelector)]
+  if (lockedMatches.length > 1) {
+    throw new Error('[pricingWizardLclGroupAgent] Multiple locked LCL providers found')
+  }
+  if (lockedMatches.length === 1) {
+    section = section.replace(lockedProviderSelector, '')
+  }
+
+  const agentSelector = /<DhSelect\b[^>]*v-model="form\.agentId"[^>]*label="(?:Agente|Agente \/ coloader)"[^>]*\/>/g
+  const agentMatches = [...section.matchAll(agentSelector)]
+  if (agentMatches.length !== 1) {
     throw new Error(
-      `[pricingWizardLclGroupAgent] expected one supported LCL agent selector, found ${existingSelectors.length}`,
+      `[pricingWizardLclGroupAgent] expected one LCL agent selector, got ${agentMatches.length}`,
     )
   }
-  // Otro plugin añade restricciones terrestres al selector anterior.
-  // Identificar los controles por su función, no por una cadena exacta.
-  const lockedProvider = /<DhInput\b[^>]*lclSelectedSource\?\.kind === 'Own'[^>]*label="Fuente \/ proveedor"[^>]*\/>/
-  const matchingLockedProviders = section.match(new RegExp(lockedProvider.source, 'g')) ?? []
-  if (matchingLockedProviders.length !== 1) {
-    throw new Error('[pricingWizardLclGroupAgent] Expected one locked LCL source field, got ' + matchingLockedProviders.length)
-  }
-  section = section.replace(lockedProvider, '')
-
-  const agentSelect = /<DhSelect\b[^>]*v-model="form\.agentId"[^>]*label="Agente \/ coloader"[^>]*\/>/
-  const matchingAgentSelects = section.match(new RegExp(agentSelect.source, 'g')) ?? []
-  if (matchingAgentSelects.length !== 1) {
-    throw new Error('[pricingWizardLclGroupAgent] Expected one agent/coloader selector, got ' + matchingAgentSelects.length)
-  }
   section = section.replace(
-    agentSelect,
+    agentSelector,
     '<DhSelect v-if="form.modality !== \'Land\' || (shipmentModeForApi === \'Ltl\' && form.manualRate && landLtlCommercialProfile === \'Nvocc\')" v-model="form.agentId" label="Agente / coloader" :options="shipmentModeForApi === \'Lcl\' ? lclAgentOptions : agentOptions" />',
   )
 
