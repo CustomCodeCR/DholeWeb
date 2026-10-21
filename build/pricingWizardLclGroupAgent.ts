@@ -104,9 +104,21 @@ function patchWizard(source: string) {
     /<h2 class="crystal-title">[\s\S]*?<\/h2>/,
     '<h2 class="crystal-title">{{ shipmentModeForApi === \'Lcl\' ? \'Agentes LCL\' : form.modality === \'Land\' ? \'Flete terrestre\' : \'Agente y naviera\' }}</h2>',
   )
+  // Support both wizard versions. The standalone "Agente" select replaced
+  // the old locked-own-provider input; it must still be upgraded for LCL.
+  const legacyProviderSelector =
+    '            <DhInput v-if="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Own\'" :model-value="lclSelectedSource.providerName || \'Grupo Castro Fallas\'" label="Fuente / proveedor" disabled />\n            <DhSelect v-else v-model="form.agentId" label="Agente / coloader" :options="agentOptions" />'
+  const currentAgentSelector = '            <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />'
+  const existingSelectors = [legacyProviderSelector, currentAgentSelector]
+    .filter((selector) => section.includes(selector))
+  if (existingSelectors.length !== 1) {
+    throw new Error(
+      `[pricingWizardLclGroupAgent] expected one supported LCL agent selector, found ${existingSelectors.length}`,
+    )
+  }
   section = replaceOne(
     section,
-    '            <DhInput v-if="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Own\'" :model-value="lclSelectedSource.providerName || \'Grupo Castro Fallas\'" label="Fuente / proveedor" disabled />\n            <DhSelect v-else v-model="form.agentId" label="Agente / coloader" :options="agentOptions" />',
+    existingSelectors[0]!,
     '            <DhSelect v-model="form.agentId" label="Agente / coloader" :options="shipmentModeForApi === \'Lcl\' ? lclAgentOptions : agentOptions" />',
     'replace duplicate/locked LCL provider with unified selector',
   )
