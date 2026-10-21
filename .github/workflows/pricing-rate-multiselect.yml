@@ -1,0 +1,34 @@
+name: Pricing rate multi-select
+
+on:
+  pull_request:
+    branches: [master, develop]
+    paths:
+      - 'src/modules/pricing/views/PricingRatesView.vue'
+      - 'src/modules/pricing/utils/rateSellerQuery.ts'
+      - 'src/core/services/pricingService.ts'
+      - 'src/core/interfaces/pricing.ts'
+      - 'tests/pricingRateSellerQuery.test.ts'
+      - '.github/workflows/pricing-rate-multiselect.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  rate-filter-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Multi-select URL tests
+        run: node --test tests/pricingRateSellerQuery.test.ts
+      - name: Validate Vue types
+        run: pnpm exec vue-tsc --build
+      - name: Build frontend
+        run: pnpm run build-only
