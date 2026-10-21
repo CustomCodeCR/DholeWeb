@@ -1997,6 +1997,7 @@ function chargeBasisLabel(basis: ChargeBasis) {
     PerCft: 'Por CFT',
     PerChargeableCft: 'Por CFT cobrable',
     PerKg: 'Por kg',
+    PerLb: 'Por lb',
     Per100Kg: 'Por 100 kg',
     PerTon: 'Por tonelada',
     PerPallet: 'Por pallet',
@@ -2005,7 +2006,7 @@ function chargeBasisLabel(basis: ChargeBasis) {
   } as Record<ChargeBasis, string>)[basis]
 }
 
-const manualChargeBasisOptions = ([
+const manualChargeBasisOptions = computed(() => ([
   'PerShipment',
   'PerService',
   'PerContainer',
@@ -2017,12 +2018,14 @@ const manualChargeBasisOptions = ([
   'PerCft',
   'PerChargeableCft',
   'PerKg',
+  'PerLb',
   'Per100Kg',
   'PerTon',
   'PerPallet',
   'PerPackage',
   'PerDocument',
-] as ChargeBasis[]).map((value) => ({ value, label: chargeBasisLabel(value) }))
+] as ChargeBasis[]).filter((value) => value !== 'PerLb' || form.modality === 'Air')
+  .map((value) => ({ value, label: chargeBasisLabel(value) })))
 
 
 function costContextLabel(cost: CostSelectDto) {

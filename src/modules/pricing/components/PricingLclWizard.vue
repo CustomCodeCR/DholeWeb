@@ -383,6 +383,7 @@ function quantityForCost(cost: CostSelectDto) {
     case 'PerCbm':
     case 'PerChargeableCbm': return cbm
     case 'PerKg': return totalWeightKg.value
+    case 'PerLb': return totalWeightKg.value * 2.20462262
     case 'Per100Kg': return totalWeightKg.value / 100
     case 'PerTon': return totalWeightKg.value / 1000
     case 'PerPallet': return totalPallets.value
