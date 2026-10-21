@@ -30,7 +30,7 @@ import {
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
 
-type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'RejectedByClient' | 'Cancelled'
+type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'PendingReapproval' | 'RejectedByClient' | 'Cancelled'
 type CommercialRateStatusFilter = CommercialRateStatus | ''
 
 const commercialStatuses = new Set<CommercialRateStatus>([
@@ -39,6 +39,7 @@ const commercialStatuses = new Set<CommercialRateStatus>([
   'Sent',
   'Expired',
   'AcceptedByClient',
+  'PendingReapproval',
   'RejectedByClient',
   'Cancelled',
 ])
@@ -371,6 +372,7 @@ const statusOptions: Array<{ label: string; value: CommercialRateStatusFilter }>
   { label: 'Enviadas', value: 'Sent' },
   { label: 'Vencidas', value: 'Expired' },
   { label: 'Aceptadas', value: 'AcceptedByClient' },
+  { label: 'Aprobada pendiente de re-aprobación', value: 'PendingReapproval' },
   { label: 'No aceptadas', value: 'RejectedByClient' },
   { label: 'Canceladas', value: 'Cancelled' },
 ]
@@ -388,6 +390,20 @@ function applyQuickStatus(status: CommercialRateStatusFilter) {
   applyFilters()
 }
 
+function commercialStatusForRate(rate: RateDto): CommercialRateStatusFilter {
+  return rate.pendingReapproval ? 'PendingReapproval' : normalizeCommercialStatus(rate.status)
+}
+
+function rowStatusLabel(rate: RateDto) {
+  return rate.revisionPending ? 'En modificación'
+    : rate.pendingReapproval ? 'Pendiente de re-aprobación'
+      : statusLabel(rate.status)
+}
+
+function rowStatusTone(rate: RateDto) {
+  return rate.revisionPending || rate.pendingReapproval ? 'warning' : statusTone(rate.status)
+}
+
 function statusLabel(status: string) {
   return (
     (
@@ -399,6 +415,7 @@ function statusLabel(status: string) {
         Sent: 'Enviada',
         RequestedByClient: 'Solicitada por cliente',
         AcceptedByClient: 'Aceptada',
+        PendingReapproval: 'Aprobada pendiente de re-aprobación',
         RejectedByClient: 'No aceptada',
         Closed: 'No aceptada',
         Cancelled: 'Cancelada',
@@ -429,7 +446,7 @@ async function load() {
         if (selectedExecutiveNames.value.length && !selectedExecutiveNames.value.some(
           (name) => name.toLocaleLowerCase('es') === String(rate.executiveName || '').trim().toLocaleLowerCase('es'),
         )) return false
-        if (selectedFilters.statuses.length && !selectedFilters.statuses.includes(normalizeCommercialStatus(rate.status))) return false
+        if (selectedFilters.statuses.length && !selectedFilters.statuses.includes(commercialStatusForRate(rate))) return false
         if (selectedFilters.agentIds.length && !selectedFilters.agentIds.includes(rate.agentId || '')) return false
         if (selectedFilters.carrierIds.length && !selectedFilters.carrierIds.includes(rate.carrierId || '')) return false
         if (selectedFilters.polIds.length && !selectedFilters.polIds.includes(rate.polId || '')) return false
@@ -670,7 +687,7 @@ onMounted(async () => {
   <section class="space-y-6">
     <DhPageHeader
       title="Tarifas"
-      subtitle="Seguimiento por Pendientes de aprobación, Abiertas, Enviadas, Vencidas, Aceptadas y No aceptadas."
+      subtitle="Seguimiento por estado comercial, incluidas las tarifas aprobadas pendientes de re-aprobación."
       :icon="ReceiptText"
     >
       <template #actions>
@@ -886,7 +903,7 @@ onMounted(async () => {
                     :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
                   />
                   <span data-mobile-rate-status class="inline-flex">
-                    <DhBadge :label="row.revisionPending ? 'En modificación' : statusLabel(row.status)" :variant="row.revisionPending ? 'warning' : statusTone(row.status)" />
+                    <DhBadge :label="rowStatusLabel(row)" :variant="rowStatusTone(row)" />
                   </span>
                 </div>
 
@@ -897,6 +914,9 @@ onMounted(async () => {
                   {{ row.clientName || t('pricing.rates.noClient') }}
                   <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
                 </p>
+                  <p v-if="row.pendingReapproval" class="mt-2 break-words rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs font-semibold text-[var(--dh-text)]">
+                    <strong>Motivo de modificación:</strong> {{ row.reapprovalReason || 'No registrado en revisiones anteriores; consultar auditoría.' }}
+                  </p>
               </div>
 
             </div>
@@ -1068,6 +1088,9 @@ onMounted(async () => {
                       {{ row.clientName || t('pricing.rates.noClient') }}
                       <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
                     </p>
+                  <p v-if="row.pendingReapproval" class="mt-2 break-words rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs font-semibold text-[var(--dh-text)]">
+                    <strong>Motivo de modificación:</strong> {{ row.reapprovalReason || 'No registrado en revisiones anteriores; consultar auditoría.' }}
+                  </p>
                   </div>
                 </td>
 
@@ -1115,7 +1138,7 @@ onMounted(async () => {
 
                 <td class="px-3 py-4 text-center align-top">
                   <div class="flex justify-center whitespace-nowrap">
-                    <DhBadge :label="row.revisionPending ? 'En modificación' : statusLabel(row.status)" :variant="row.revisionPending ? 'warning' : statusTone(row.status)" />
+                    <DhBadge :label="rowStatusLabel(row)" :variant="rowStatusTone(row)" />
                   </div>
                 </td>
 
