@@ -215,8 +215,15 @@ function podLabel(request: RateRequestDto) {
   return 'No indicado'
 }
 
+function podOptionalForAirLcl(request: RateRequestDto) {
+  return request.shipmentMode?.toUpperCase() === 'LCL'
+    && modalityLabel(request).trim().toUpperCase() === 'AIR'
+}
+
 function podMissing(request: RateRequestDto) {
-  return request.shipmentMode?.toUpperCase() === 'LCL' && podLabel(request) === 'No indicado'
+  return request.shipmentMode?.toUpperCase() === 'LCL'
+    && !podOptionalForAirLcl(request)
+    && podLabel(request) === 'No indicado'
 }
 
 async function load() {
@@ -541,7 +548,7 @@ onBeforeUnmount(() => {
             <td class="px-4 py-3 font-bold">{{ request.originName || 'Origen no indicado' }}</td>
             <td class="px-4 py-3 font-bold">{{ poeLabel(request) }}</td>
             <td class="px-4 py-3">
-              <DhBadge v-if="!podMissing(request)" :label="podLabel(request)" variant="primary" />
+              <DhBadge v-if="!podMissing(request)" :label="podOptionalForAirLcl(request) && podLabel(request) === 'No indicado' ? 'POD opcional' : podLabel(request)" :variant="podOptionalForAirLcl(request) && podLabel(request) === 'No indicado' ? 'neutral' : 'primary'" />
               <DhBadge v-else label="POD no indicado" variant="danger" />
             </td>
             <td class="border-l-4 px-4 py-3" :class="request.priority === 'Red' ? 'border-red-500' : request.priority === 'Yellow' ? 'border-amber-500' : 'border-emerald-500'"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
