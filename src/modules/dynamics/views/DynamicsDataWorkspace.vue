@@ -465,7 +465,8 @@ async function refreshMetadata(targetTable: string | null = null) {
 }
 
 const bulkTable = ref('')
-const bulkIncludeWrite = ref(false)
+// Bulk approval defaults to every Dataverse-authorized read/create/update capability.
+const bulkIncludeWrite = ref(true)
 const bulkConfirmed = ref(false)
 const bulkPreview = computed(() => {
   const table = tables.value.find(t => t.logicalName === bulkTable.value)
@@ -476,11 +477,33 @@ const bulkPreview = computed(() => {
     read: fields.filter(f => f.canRead).length,
     create: bulkIncludeWrite.value ? fields.filter(f => f.canCreate && !f.isCalculated).length : 0,
     update: bulkIncludeWrite.value ? fields.filter(f => f.canUpdate && !f.isCalculated).length : 0,
+    writeRestricted: fields.filter(f => f.canRead &&
+      (f.isCalculated || !f.canCreate || !f.canUpdate)).length,
   }
 })
+
+function readRestriction(field: Column): string {
+  return field.canRead ? '' : 'Dataverse no permite consultar este atributo mediante la API.'
+}
+
+function writeRestriction(table: Table, field: Column, operation: 'create' | 'update'): string {
+  const action = operation === 'create' ? 'crear' : 'editar'
+  if (field.logicalName.startsWith('_') && field.logicalName.endsWith('_value')) {
+    const logicalName = field.logicalName.slice(1, -'_value'.length)
+    const base = table.columns.find(f => f.logicalName === logicalName)
+    return base
+      ? `Este identificador es una proyección OData de solo lectura. Para ${action} utilizá la relación real del atributo ${logicalName} mediante @odata.bind, cuando Dataverse permita la operación.`
+      : 'Proyección OData de solo lectura. La relación se establece mediante su propiedad de navegación (@odata.bind).'
+  }
+  if (field.isCalculated)
+    return 'Este atributo es calculado o administrado por Dataverse. No se puede escribir directamente; se debe modificar su campo de origen.'
+  if (!field[operation === 'create' ? 'canCreate' : 'canUpdate'])
+    return `Dataverse no permite ${action} este atributo (IsValidFor${operation === 'create' ? 'Create' : 'Update'} = false).`
+  return ''
+}
 function openBulkApproval(table: Table) {
   bulkTable.value = bulkTable.value === table.logicalName ? '' : table.logicalName
-  bulkIncludeWrite.value = false
+  bulkIncludeWrite.value = true
   bulkConfirmed.value = false
   expanded.value = table.logicalName
 }
@@ -1002,8 +1025,8 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
               </label>
               <label class="dynamics-bulk-option" :class="{ selected: bulkIncludeWrite }">
                 <input v-model="bulkIncludeWrite" type="radio" :value="true" @change="bulkConfirmed=false">
-                <span><strong>Lectura y escritura · Queries y Commands</strong>
-                  <small>Incluye permisos para CREATE y UPDATE solamente en los campos que Dataverse identifica como editables. Nunca habilita DELETE ni modifica registros.</small></span>
+                <span><strong>Lectura, creación y edición · Todos los campos permitidos</strong>
+                  <small>Habilita SELECT, CREATE y UPDATE únicamente donde Dataverse lo permita. Los campos calculados y las proyecciones de relaciones siguen siendo de solo lectura. No modifica registros.</small></span>
               </label>
             </div>
             <div class="dynamics-bulk-counts">
@@ -1011,7 +1034,9 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
               <span>{{ bulkPreview.read }} legibles</span>
               <span>{{ bulkPreview.create }} para crear</span>
               <span>{{ bulkPreview.update }} para editar</span>
+              <span>{{ bulkPreview.writeRestricted }} con alguna restricción de escritura</span>
             </div>
+            <p class="dynamics-subtitle">No es posible forzar escritura en campos del sistema, calculados o proyecciones de relaciones. En esos casos, utilizá el campo de origen o una propiedad de navegación (@odata.bind) admitida por Dataverse.</p>
             <p class="dynamics-subtitle">Estos permisos son exclusivos de la conexión {{ code }} y la tabla {{ table.logicalName }}. Las aplicaciones externas siguen necesitando un grant específico; los cambios reales en producción continúan sujetos a sus aprobaciones.</p>
             <label class="dynamics-check">
               <input v-model="bulkConfirmed" type="checkbox">
@@ -1036,13 +1061,32 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
               <thead><tr><th>Campo</th><th>Tipo</th><th>Habilitado</th><th>Leer</th><th>Crear</th><th>Editar</th><th></th></tr></thead>
               <tbody>
                 <tr v-for="field in table.columns" :key="field.logicalName">
-                  <td><strong>{{ label(field.labels) || field.logicalName }}</strong><small>{{ field.logicalName }}</small></td>
-                  <td>{{ field.type }}<small v-if="field.isCalculated">Calculado</small></td>
+                  <td>
+                    <strong>{{ label(field.labels) || field.logicalName }}</strong><small>{{ field.logicalName }}</small>
+                    <small v-if="writeRestriction(table, field, 'create') || writeRestriction(table, field, 'update')"
+                      class="dynamics-field-restriction"
+                      :title="writeRestriction(table, field, 'create') || writeRestriction(table, field, 'update')">
+                      {{ field.logicalName.startsWith('_') && field.logicalName.endsWith('_value')
+                        ? 'Referencia: escribir mediante relación'
+                        : field.isCalculated ? 'Calculado: solo lectura' : 'Escritura restringida (ver motivo)' }}
+                    </small>
+                  </td>
+                  <td>{{ field.type }}
+                    <small v-if="field.logicalName.startsWith('_') && field.logicalName.endsWith('_value')">Referencia de solo lectura</small>
+                    <small v-else-if="field.isCalculated">Calculado o del sistema</small>
+                    <small v-else-if="!field.canCreate || !field.canUpdate">Escritura limitada por Dataverse</small>
+                  </td>
                   <template v-if="drafts[table.logicalName + '.' + field.logicalName]">
                     <td><input v-model="drafts[table.logicalName + '.' + field.logicalName]!.enabled" type="checkbox" :disabled="busy || !entityEnabled(table.logicalName)"></td>
-                    <td><input v-model="drafts[table.logicalName + '.' + field.logicalName]!.canRead" type="checkbox" :disabled="busy || !entityEnabled(table.logicalName) || !field.canRead"></td>
-                    <td><input v-model="drafts[table.logicalName + '.' + field.logicalName]!.canCreate" type="checkbox" :disabled="busy || !entityEnabled(table.logicalName) || !field.canCreate || field.isCalculated"></td>
-                    <td><input v-model="drafts[table.logicalName + '.' + field.logicalName]!.canUpdate" type="checkbox" :disabled="busy || !entityEnabled(table.logicalName) || !field.canUpdate || field.isCalculated"></td>
+                    <td><input v-model="drafts[table.logicalName + '.' + field.logicalName]!.canRead"
+                      type="checkbox" :title="readRestriction(field) || 'Lectura permitida por Dataverse'"
+                      :disabled="busy || !entityEnabled(table.logicalName) || !field.canRead"></td>
+                    <td><input v-model="drafts[table.logicalName + '.' + field.logicalName]!.canCreate"
+                      type="checkbox" :title="writeRestriction(table, field, 'create') || 'Creación permitida por Dataverse'"
+                      :disabled="busy || !entityEnabled(table.logicalName) || !field.canCreate || field.isCalculated"></td>
+                    <td><input v-model="drafts[table.logicalName + '.' + field.logicalName]!.canUpdate"
+                      type="checkbox" :title="writeRestriction(table, field, 'update') || 'Edición permitida por Dataverse'"
+                      :disabled="busy || !entityEnabled(table.logicalName) || !field.canUpdate || field.isCalculated"></td>
                   </template>
                   <td><button class="dynamics-outline-button" type="button" :disabled="busy || !entityEnabled(table.logicalName)" @click="saveField(table, field)">Guardar</button></td>
                 </tr>
