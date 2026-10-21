@@ -50,13 +50,6 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `  if (commercialAction.value === 'accept' && !commercialIdtra.value.trim()) {\n    commercialActionError.value = 'El IDTRA es obligatorio para aceptar la tarifa.'\n    return\n  }`,
-    `  if (commercialAction.value === 'accept' && !commercialIdtra.value.trim()) {\n    commercialActionError.value = 'El IDTRA es obligatorio para aceptar la tarifa.'\n    toastStore.error('Falta IDTRA', commercialActionError.value)\n    return\n  }`,
-    'commercial accept validation toast',
-  )
-
-  code = replaceOne(
-    code,
     `  if (commercialAction.value === 'reject' && !commercialRejectionReason.value.trim()) {\n    commercialActionError.value = 'El motivo de rechazo es obligatorio.'\n    return\n  }`,
     `  if (commercialAction.value === 'reject' && !commercialRejectionReason.value.trim()) {\n    commercialActionError.value = 'El motivo de rechazo es obligatorio.'\n    toastStore.error('Falta motivo de rechazo', commercialActionError.value)\n    return\n  }`,
     'commercial reject validation toast',
