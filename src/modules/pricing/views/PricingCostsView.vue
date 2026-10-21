@@ -58,6 +58,12 @@ const filters = reactive({
   portRole: [] as string[],
   currencyId: [] as string[],
   active: [] as string[],
+  shipmentMode: [] as string[],
+  incotermId: [] as string[],
+  portId: [] as string[],
+  serviceId: [] as string[],
+  chargeBasis: [] as string[],
+  operationalCondition: [] as string[],
 })
 
 const canCreate = computed(() => authStore.hasScope(PRICING_SCOPES.costs.create))
@@ -144,6 +150,25 @@ const operationalConditionLabels: Record<string, string> = {
   FiscalCargo: 'Carga fiscal',
   NationalizedCargo: 'Carga nacionalizada',
 }
+
+const modeOptions = [
+  { label: 'FCL · Contenedor completo', value: 'Fcl' },
+  { label: 'LCL · Marítimo consolidado', value: 'Lcl' },
+  { label: 'FTL · Camión completo', value: 'Ftl' },
+  { label: 'LTL · Terrestre consolidado', value: 'Ltl' },
+  { label: 'Aéreo', value: 'Air' },
+  { label: 'LCL aéreo · Consolidado aéreo', value: 'AirConsol' },
+]
+const chargeBasisOptions = [
+  'PerShipment', 'PerService', 'PerContainer', 'PerTeu', 'PerPickup', 'PerTruck',
+  'PerCbm', 'PerChargeableCbm', 'PerCft', 'PerChargeableCft', 'PerKg',
+  'Per100Kg', 'PerTon', 'PerPallet', 'PerPackage', 'PerDocument',
+].map((value) => ({ label: chargeBasisLabel(value), value }))
+const operationalConditionOptions = Object.entries(operationalConditionLabels).map(([value, label]) => ({ label, value }))
+const portOptions = computed(() =>
+  [...catalogs.polOptions.value, ...catalogs.poeOptions.value, ...catalogs.podOptions.value]
+    .filter((option, index, options) => options.findIndex((item) => item.value === option.value) === index),
+)
 
 function chargeBasisLabel(value: unknown) {
   const basis = value as ChargeBasis
@@ -274,6 +299,12 @@ function buildCostsQueryString() {
   appendMany('portRole', filters.portRole)
   appendMany('currencyId', filters.currencyId)
   appendMany('isActive', filters.active)
+  appendMany('shipmentMode', filters.shipmentMode)
+  appendMany('incotermId', filters.incotermId)
+  appendMany('portId', filters.portId)
+  appendMany('serviceId', filters.serviceId)
+  appendMany('chargeBasis', filters.chargeBasis)
+  appendMany('operationalCondition', filters.operationalCondition)
 
   return `?${params.toString()}`
 }
@@ -334,6 +365,12 @@ function clearFilters() {
     portRole: [],
     currencyId: [],
     active: [],
+    shipmentMode: [],
+    incotermId: [],
+    portId: [],
+    serviceId: [],
+    chargeBasis: [],
+    operationalCondition: [],
   })
   applyFilters()
 }
@@ -447,6 +484,20 @@ onMounted(async () => {
       >
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <PricingMultiSelect
+            v-model="filters.shipmentMode"
+            label="Modalidad"
+            :options="modeOptions"
+            placeholder="Todas"
+            search-placeholder="Buscar modalidad..."
+          />
+          <PricingMultiSelect
+            v-model="filters.incotermId"
+            label="Incoterm"
+            :options="catalogs.incotermOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar Incoterm..."
+          />
+          <PricingMultiSelect
             v-model="filters.costType"
             label="Aplicación"
             :options="typeOptions"
@@ -482,6 +533,13 @@ onMounted(async () => {
             search-placeholder="Buscar punto..."
           />
           <PricingMultiSelect
+            v-model="filters.portId"
+            label="Puerto específico"
+            :options="portOptions"
+            placeholder="Todos"
+            search-placeholder="Buscar puerto..."
+          />
+          <PricingMultiSelect
             v-model="filters.currencyId"
             label="Moneda"
             :options="catalogs.currencyOptions.value"
@@ -494,6 +552,27 @@ onMounted(async () => {
             :options="activeOptions"
             placeholder="Todos"
             search-placeholder="Buscar estado..."
+          />
+          <PricingMultiSelect
+            v-model="filters.serviceId"
+            label="Servicio"
+            :options="catalogs.serviceOptions.value"
+            placeholder="Todos"
+            search-placeholder="Buscar servicio..."
+          />
+          <PricingMultiSelect
+            v-model="filters.chargeBasis"
+            label="Base de cobro"
+            :options="chargeBasisOptions"
+            placeholder="Todas"
+            search-placeholder="Buscar base de cobro..."
+          />
+          <PricingMultiSelect
+            v-model="filters.operationalCondition"
+            label="Condición operativa"
+            :options="operationalConditionOptions"
+            placeholder="Todas"
+            search-placeholder="Buscar condición..."
           />
         </div>
         <div class="mt-4 flex justify-end gap-2">
