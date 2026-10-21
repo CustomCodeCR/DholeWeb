@@ -93,7 +93,8 @@ function airLclConfiguredModeMatches(cost: CostSelectDto) {
 
   if (!configuredModes.length) return true
   // Older agent matrices can store air LCL charges under the generic Lcl mode.
-  return configuredModes.some((mode) => ['airconsol', 'lcl', 'any'].includes(mode))
+  // AirConsol and historical Air are the same mode; maritime LCL is separate.
+  return configuredModes.some((mode) => ['airconsol', 'air', 'any'].includes(mode))
 }
 
 function airLclLegacyPortMatches(cost: CostSelectDto) {
@@ -317,7 +318,10 @@ function refreshAirLclRateLines() {
     }
   })
 
-  mergeConfiguredOptionalCostsIntoRateLines(true)
+  // The coloader optional merger delegates to rebuildLclColoaderAgentLines(),
+  // which replaces the entire rateLines array. Air prices above are already
+  // materialized (including optional lines), so do not discard them here.
+  if (!isLclColoaderAgentCostContext()) mergeConfiguredOptionalCostsIntoRateLines(true)
 }
 
 const dholeAirLclCostStepGuard = watch(
