@@ -95,6 +95,7 @@ const props = withDefaults(defineProps<{
   modelValue?: string | null
   requestedCbm?: number
   requestedWeightKg?: number
+  requestedWeightUnit?: 'kg' | 'lb'
   requestedCbmLocked?: boolean
   cargoLines?: OwnLclCargoLineRequest[]
   commercialPlan?: string | null
@@ -120,6 +121,7 @@ const props = withDefaults(defineProps<{
   modelValue: null,
   requestedCbm: 1,
   requestedWeightKg: 0,
+  requestedWeightUnit: 'kg',
   requestedCbmLocked: false,
   cargoLines: () => [],
   commercialPlan: null,
@@ -164,9 +166,9 @@ const coloaderColumns: DhTableColumn<LclColoaderRateDto & TableRow>[] = [
   { key: 'action', label: '', align: 'right', width: '120px' },
 ]
 
-const airColoaderColumns = coloaderColumns.map((column) =>
-  column.key === 'sale' ? { ...column, label: 'Flete / kg' } : column,
-)
+const airColoaderColumns = computed(() => coloaderColumns.map((column) =>
+  column.key === 'sale' ? { ...column, label: `Flete / ${props.requestedWeightUnit}` } : column,
+))
 
 function n(value: unknown) {
   return Number(value ?? 0)
@@ -177,6 +179,17 @@ function money(value: unknown) {
 function coloaderFreightPerCbm(row: LclColoaderRateDto) {
   const freight = row.lines.find((line) => line.costDetailType === 'Freight')
   return freight ? n(freight.saleAmount || freight.costAmount) : null
+}
+// Provider prices are originally per kg or per lb; keep the displayed rate
+// consistent with the customer's selected billing unit.
+function coloaderFreightDisplayRate(row: LclColoaderRateDto) {
+  const freight = row.lines.find((line) => line.costDetailType === 'Freight')
+  const amount = coloaderFreightPerCbm(row)
+  if (!isAir.value || !freight || amount === null) return amount
+  const ratePerKg = freight.chargeBasis === 'PerLb' ? amount * 2.20462262
+    : freight.chargeBasis === 'Per100Kg' ? amount / 100
+    : freight.chargeBasis === 'PerTon' ? amount / 1000 : amount
+  return props.requestedWeightUnit === 'lb' ? ratePerKg / 2.20462262 : ratePerKg
 }
 async function loadCurrencyCatalog() {
   if (currencyCatalog.value.length) return
@@ -561,7 +574,7 @@ function mapColoaderLine(line: LclColoaderRateLineDto, rate: LclColoaderRateDto)
     name: isAir.value && line.costDetailType === 'Freight' ? 'Flete Internacional' : line.name,
     costDetailType: line.costDetailType,
     costType: line.costType,
-    chargeBasis: isAir.value && (line.costDetailType === 'Freight' || airVolumeBasis) ? 'PerKg' : line.chargeBasis,
+    chargeBasis: isAir.value && (airVolumeBasis || (line.costDetailType === 'Freight' && !['PerKg', 'PerLb', 'Per100Kg', 'PerTon'].includes(line.chargeBasis))) ? 'PerKg' : line.chargeBasis,
     costId: line.costId,
     contextLabel: `${rate.providerName || rate.providerCode || 'Coloader'} · ${rate.rateCode}`,
     notes: [`LCL COLOADER · RateId: ${rate.id}`, line.notes].filter(Boolean).join(' · '),
@@ -751,7 +764,7 @@ onMounted(load)
         <template #cell-sale="{ row }">
           <div class="space-y-0.5 text-right">
             <p class="font-black">
-              <template v-if="coloaderFreightPerCbm(row) != null">{{ currencyValue(row) }} {{ money(coloaderFreightPerCbm(row)) }}</template>
+              <template v-if="coloaderFreightDisplayRate(row) != null">{{ currencyValue(row) }} {{ money(coloaderFreightDisplayRate(row)) }}</template>
               <template v-else>—</template>
             </p>
             <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">Total base {{ currencyValue(row) }} {{ money(row.totalSaleAmount) }}</p>

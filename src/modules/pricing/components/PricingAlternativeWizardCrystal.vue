@@ -1996,6 +1996,7 @@ function chargeBasisLabel(basis: ChargeBasis) {
     PerCft: 'Por CFT',
     PerChargeableCft: 'Por CFT cobrable',
     PerKg: 'Por kg',
+    PerLb: 'Por lb',
     Per100Kg: 'Por 100 kg',
     PerTon: 'Por tonelada',
     PerPallet: 'Por pallet',
@@ -2004,7 +2005,7 @@ function chargeBasisLabel(basis: ChargeBasis) {
   } as Record<ChargeBasis, string>)[basis]
 }
 
-const manualChargeBasisOptions = ([
+const manualChargeBasisOptions = computed(() => ([
   'PerShipment',
   'PerService',
   'PerContainer',
@@ -2016,12 +2017,14 @@ const manualChargeBasisOptions = ([
   'PerCft',
   'PerChargeableCft',
   'PerKg',
+  'PerLb',
   'Per100Kg',
   'PerTon',
   'PerPallet',
   'PerPackage',
   'PerDocument',
-] as ChargeBasis[]).map((value) => ({ value, label: chargeBasisLabel(value) }))
+] as ChargeBasis[]).filter((value) => value !== 'PerLb' || form.modality === 'Air')
+  .map((value) => ({ value, label: chargeBasisLabel(value) })))
 
 
 function costContextLabel(cost: CostSelectDto) {
@@ -3299,7 +3302,7 @@ function modalityForRate(rate: RateDto): Modality {
     // Backend historically saved maritime and air LCL under ShipmentMode.Lcl.
     // Preserve air context when reopening a quotation, including legacy PDFs.
     const airFreight = (rate.rateDetails ?? []).some((detail) =>
-      detail.costDetailType === 'Freight' && (detail.chargeBasis === 'PerKg' || detail.chargeBasis === 'Per100Kg'))
+      detail.costDetailType === 'Freight' && (detail.chargeBasis === 'PerKg' || detail.chargeBasis === 'PerLb' || detail.chargeBasis === 'Per100Kg'))
     const cargoText = (rate.cargoLines ?? []).map((line) => line.description ?? '').join(' ')
     const hasFlightContext = /a[eé]re[ao]|aviaci[oó]n|aeropuerto|airport|vuelos?/i.test(cargoText)
     const airportRoute = /\([A-Z]{3}\)/.test(rate.polName ?? '') && /\([A-Z]{3}\)/.test(rate.poeName ?? '')
