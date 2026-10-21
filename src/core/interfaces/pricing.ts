@@ -1098,6 +1098,7 @@ export interface BrowseImportRatesQuery extends Record<string, unknown> {
 }
 
 export interface BrowseRatesQuery extends Record<string, unknown> {
+  executiveNames?: string[]
   pageNumber?: number
   pageSize?: number
   search?: string | null
