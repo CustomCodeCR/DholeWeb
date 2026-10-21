@@ -2776,7 +2776,7 @@ function modalityForRate(rate: RateDto): Modality {
     // Backend historically saved maritime and air LCL under ShipmentMode.Lcl.
     // Preserve air context when reopening a quotation, including legacy PDFs.
     const airFreight = (rate.rateDetails ?? []).some((detail) =>
-      detail.costDetailType === 'Freight' && (detail.chargeBasis === 'PerKg' || detail.chargeBasis === 'Per100Kg'))
+      detail.costDetailType === 'Freight' && (detail.chargeBasis === 'PerKg' || detail.chargeBasis === 'PerLb' || detail.chargeBasis === 'Per100Kg'))
     const cargoText = (rate.cargoLines ?? []).map((line) => line.description ?? '').join(' ')
     const hasFlightContext = /a[eé]re[ao]|aviaci[oó]n|aeropuerto|airport|vuelos?/i.test(cargoText)
     const airportRoute = /\([A-Z]{3}\)/.test(rate.polName ?? '') && /\([A-Z]{3}\)/.test(rate.poeName ?? '')
