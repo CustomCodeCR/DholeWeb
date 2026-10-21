@@ -11,7 +11,7 @@ function replaceRequired(source: string, anchor: string, replacement: string) {
   return source.replace(anchor, replacement)
 }
 
-function patchWizard(source: string) {
+export function patchWizard(source: string) {
   if (source.includes(MARKER)) return source
   if (!source.includes('const consolidatedTotalWeightKg = computed(')) {
     throw new Error('[pricingAirLclFreightPerKg] Consolidated cargo runtime must run first.')
@@ -107,7 +107,7 @@ function patchWizard(source: string) {
   return code
 }
 
-function patchSelector(source: string) {
+export function patchSelector(source: string) {
   let code = source
 
   // Run after the Miami/CFT compatibility plugin; it requires the original
