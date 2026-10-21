@@ -84,7 +84,7 @@ function patchWizard(source: string) {
   code = replaceAfter(
     code,
     handoffMarker,
-    `{{ displayValue(selectedPod) || (shipmentModeForApi === 'Lcl' && form.modality !== 'Air' ? 'POD no indicado por Ventas' : 'No indicado (opcional)') }}`,
+    `{{ displayValue(selectedPod) || (shipmentModeForApi === 'Lcl' ? 'POD no indicado por Ventas' : 'No indicado') }}`,
     `{{ requestedPodName || displayValue(selectedPod) || (shipmentModeForApi === 'Lcl' && form.modality !== 'Air' ? 'POD no indicado por Ventas' : 'No indicado (opcional)') }}`,
     'POD handoff display',
   )
