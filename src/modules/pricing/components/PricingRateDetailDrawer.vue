@@ -255,7 +255,11 @@ function duplicate() {
     size: 'lg',
     props: {
       rate: current.value,
-      onDuplicated: async (duplicatedRateId: string) => {
+      onDuplicated: async (duplicatedRateId: string, mode: 'identical' | 'editable') => {
+        if (mode === 'identical') {
+          await props.onSaved?.()
+          return
+        }
         const duplicatedRate = await PricingService.getRate(duplicatedRateId)
         drawerStore.open({
           title: 'Revisar tarifa duplicada',

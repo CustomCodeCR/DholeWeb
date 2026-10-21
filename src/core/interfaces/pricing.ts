@@ -1031,6 +1031,7 @@ export interface DuplicateRateRequest extends Record<string, unknown> {
   validFrom: string
   validTo: string
   applyTariff?: boolean
+  identicalCopy?: boolean
   clientName?: string | null
   executiveName?: string | null
   idtraNumber?: string | null

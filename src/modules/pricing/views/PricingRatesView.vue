@@ -603,8 +603,9 @@ function duplicate(rate: RateDto) {
     component: PricingDuplicateRateModal,
     props: {
       rate,
-      onDuplicated: async (duplicatedRateId: string) => {
+      onDuplicated: async (duplicatedRateId: string, mode: 'identical' | 'editable') => {
         await load()
+        if (mode === 'identical') return
         await router.push({
           name: 'pricing-rate-wizard',
           params: { rateId: duplicatedRateId },

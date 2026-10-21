@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Copy, FileSearch2, RefreshCw, Route, Ship } from 'lucide-vue-next'
 import { DhButton, DhInput } from '@/shared/components/atoms'
@@ -11,7 +11,7 @@ import { rateDisplayName, routeLabel, toDateInput } from '@/modules/pricing/util
 
 const props = defineProps<{
   rate: RateDto
-  onDuplicated?: (rateId: string) => void | Promise<void>
+  onDuplicated?: (rateId: string, mode: 'identical' | 'editable') => void | Promise<void>
 }>()
 
 const router = useRouter()
@@ -30,6 +30,7 @@ const isMasterTariff = computed(() =>
   && String(props.rate.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO'),
 )
 const today = todayInputDate()
+const duplicationMode = ref<'identical' | 'editable'>('editable')
 const form = reactive({
   validFrom: isMasterTariff.value ? toDateInput(props.rate.validFrom) : isFcl.value ? today : toDateInput(props.rate.validFrom),
   validTo: isMasterTariff.value ? toDateInput(props.rate.validTo) : isFcl.value ? today : toDateInput(props.rate.validTo),
@@ -39,17 +40,19 @@ const form = reactive({
 
 const validRange = computed(() => Boolean(form.validFrom && form.validTo && form.validTo >= form.validFrom))
 const submitLabel = computed(() =>
-  isMasterTariff.value ? 'Duplicar tarifario' : isFcl.value ? 'Continuar a revisar datos' : 'Duplicar y revisar',
+  duplicationMode.value === 'identical'
+    ? 'Generar copia idéntica'
+    : isMasterTariff.value ? 'Duplicar tarifario' : isFcl.value ? 'Continuar a revisar datos' : 'Duplicar y revisar',
 )
 
 async function submit() {
   form.submitted = true
-  if (!validRange.value) return
+  if (duplicationMode.value === 'editable' && !validRange.value) return
 
   try {
     form.saving = true
 
-    if (isFcl.value) {
+    if (isFcl.value && duplicationMode.value === 'editable') {
       // Una duplicación FCL aprobada funciona como una nueva cotización SPOT basada en la
       // anterior. Todavía no se crea ningún RateHeader: el wizard rehidrata la tarifa fuente,
       // inicia en pantalla 3 para revisar los datos y crea la nueva tarifa únicamente al final.
@@ -67,16 +70,20 @@ async function submit() {
     }
 
     const duplicatedRateId = await PricingService.duplicateRate(props.rate.id, {
-      validFrom: form.validFrom,
-      validTo: form.validTo,
+      validFrom: duplicationMode.value === 'identical' ? toDateInput(props.rate.validFrom) : form.validFrom,
+      validTo: duplicationMode.value === 'identical' ? toDateInput(props.rate.validTo) : form.validTo,
+      identicalCopy: duplicationMode.value === 'identical',
     })
 
     toastStore.success(
       'Tarifa duplicada',
-      'La copia conserva la ruta y la nueva vigencia y se abrirá para revisión.',
+      duplicationMode.value === 'identical'
+        ? 'Se copiaron todos los rubros y montos originales. La nueva tarifa está disponible sin pasar por revisión.'
+        : 'La copia conserva la ruta y la nueva vigencia y se abrirá para revisión.',
     )
     modalStore.close()
-    await props.onDuplicated?.(duplicatedRateId)
+    await props.onDuplicated?.(duplicatedRateId, duplicationMode.value)
+    if (duplicationMode.value === 'identical') return
     await router.push({
       name: 'pricing-rate-wizard',
       params: { rateId: duplicatedRateId },
@@ -93,14 +100,44 @@ async function submit() {
 <template>
   <form class="space-y-5" @submit.prevent="submit">
     <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <p class="mb-3 text-sm font-black text-[var(--dh-text)]">Tipo de duplicación</p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          class="flex items-start gap-3 rounded-2xl border p-4 text-left transition-colors"
+          :class="duplicationMode === 'identical' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.08)]' : 'border-[var(--dh-border)] hover:bg-[var(--dh-input)]'"
+          :aria-pressed="duplicationMode === 'identical'"
+          :disabled="form.saving"
+          @click="duplicationMode = 'identical'"
+        >
+          <Copy class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+          <span><strong class="block text-sm">Generar copia idéntica</strong><span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Mismos datos, flete, rubros, precios y vigencia. Sin edición ni recálculo.</span></span>
+        </button>
+        <button
+          type="button"
+          class="flex items-start gap-3 rounded-2xl border p-4 text-left transition-colors"
+          :class="duplicationMode === 'editable' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.08)]' : 'border-[var(--dh-border)] hover:bg-[var(--dh-input)]'"
+          :aria-pressed="duplicationMode === 'editable'"
+          :disabled="form.saving"
+          @click="duplicationMode = 'editable'"
+        >
+          <FileSearch2 class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+          <span><strong class="block text-sm">Generar copia editable</strong><span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Flujo actual: cambiar vigencia y revisar o actualizar los costos.</span></span>
+        </button>
+      </div>
+    </section>
+    <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
       <div class="flex items-start gap-3">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
           <Copy class="h-5 w-5" />
         </span>
         <div class="min-w-0">
-          <p class="text-base font-black text-[var(--dh-text)]">{{ isMasterTariff ? 'Duplicar tarifario maestro' : 'Duplicar y revisar' }}</p>
+          <p class="text-base font-black text-[var(--dh-text)]">{{ duplicationMode === 'identical' ? 'Copia idéntica' : isMasterTariff ? 'Duplicar tarifario maestro' : 'Duplicar y revisar' }}</p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            <template v-if="isMasterTariff">
+            <template v-if="duplicationMode === 'identical'">
+              Se conserva íntegramente la cotización: datos de carga, ruta, servicios, flete, cargos, importes, impuestos, tipo de cambio y fechas. Solo cambian el identificador, el número de QUO y el estado comercial; no se copia el IDTRA ni la aceptación.
+            </template>
+            <template v-else-if="isMasterTariff">
               Esta acción crea otro tarifario maestro para revisión. No aplica el tarifario a ningún cliente y no registra una aceptación. La vigencia parte de la del tarifario actual y puede ajustarse.
             </template>
             <template v-else-if="isFcl">
@@ -121,7 +158,7 @@ async function submit() {
         <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ routeLabel(rate) }}</p>
       </div>
 
-      <div v-if="isFcl" class="mt-4 grid gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+      <div v-if="isFcl && duplicationMode === 'editable'" class="mt-4 grid gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
         <div v-if="isMasterTariff" class="flex items-start gap-2 rounded-xl border border-[rgb(var(--dh-primary-rgb)/0.24)] bg-[rgb(var(--dh-primary-rgb)/0.05)] px-3 py-2.5">
           <Copy class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
           <span>Duplicar tarifario crea otro maestro. Para generar una QUO de cliente use “Aplicar a cliente”.</span>
@@ -141,7 +178,7 @@ async function submit() {
       </div>
     </section>
 
-    <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+    <section v-if="duplicationMode === 'editable'" class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
       <div class="mb-4 flex items-center gap-2">
         <FileSearch2 class="h-4 w-4 text-[var(--dh-primary)]" />
         <p class="text-sm font-black text-[var(--dh-text)]">Nueva vigencia</p>
