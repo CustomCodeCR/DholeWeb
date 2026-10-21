@@ -53,6 +53,13 @@ function normalizeCommercialStatus(value: unknown): CommercialRateStatusFilter {
   return ''
 }
 
+// The seller endpoint returns the full owner-scoped list, so sort before
+// client-side pagination to keep accepted quotes without IDTRA at the top.
+function acceptedRateMissingIdtra(rate: RateDto): boolean {
+  return normalizeCommercialStatus(rate.status) === 'AcceptedByClient'
+    && !String(rate.idtraNumber ?? '').trim()
+}
+
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
@@ -448,6 +455,10 @@ async function load() {
           rate.podName,
         ].some((value) => String(value || '').toLowerCase().includes(searchValue))
       })
+
+      sellerRows.sort(
+        (left, right) => Number(acceptedRateMissingIdtra(right)) - Number(acceptedRateMissingIdtra(left)),
+      )
 
       const start = (page.value - 1) * pageSize.value
       const pageRows = sellerRows.slice(start, start + pageSize.value)
