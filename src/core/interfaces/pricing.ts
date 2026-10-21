@@ -39,6 +39,7 @@ export type ChargeBasis =
   | 'PerCft'
   | 'PerChargeableCft'
   | 'PerKg'
+  | 'PerLb'
   | 'Per100Kg'
   | 'PerTon'
   | 'PerPallet'
