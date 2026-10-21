@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Copy, Edit3, Eye, FileSpreadsheet, ReceiptText, Trash2 } from 'lucide-vue-next'
+import { ChevronDown, Copy, Edit3, Eye, FileSpreadsheet, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhCrudToolbar, DhPagination } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -12,6 +12,7 @@ import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { PricingService } from '@/core/services/pricingService'
 import { UsersService } from '@/core/services/usersService'
+import { SellerVisibilityService } from '@/core/services/sellerVisibilityService'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
@@ -258,6 +259,39 @@ const filtersOpen = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const selectedExecutiveNames = ref<string[]>([])
+const executiveSearch = ref('')
+const executiveOptions = ref<string[]>([])
+const executivesLoading = ref(false)
+
+const filteredExecutiveOptions = computed(() => {
+  const search = executiveSearch.value.trim().toLocaleLowerCase('es')
+  return executiveOptions.value.filter((name) => name.toLocaleLowerCase('es').includes(search))
+})
+
+async function loadExecutiveOptions() {
+  executivesLoading.value = true
+  try {
+    const sellers = await SellerVisibilityService.rateOptions()
+    const names = new Map<string, string>()
+    for (const seller of sellers) {
+      const name = String(seller.displayName || seller.userName || seller.email || '').trim()
+      if (name) names.set(name.toLocaleLowerCase('es'), name)
+    }
+    executiveOptions.value = [...names.values()].sort((a, b) => a.localeCompare(b, 'es'))
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo cargar la lista de vendedores.')
+  } finally {
+    executivesLoading.value = false
+  }
+}
+
+function toggleExecutiveName(name: string) {
+  selectedExecutiveNames.value = selectedExecutiveNames.value.includes(name)
+    ? selectedExecutiveNames.value.filter((value) => value !== name)
+    : [...selectedExecutiveNames.value, name]
+}
+
 const filters = reactive({
   search: '',
   status: normalizeCommercialStatus(route.query.status),
@@ -356,7 +390,7 @@ const quickStatusOptions = statusOptions
 const activeFiltersCount = computed(
   () =>
     Object.entries(filters).filter(([key, value]) => !['search', 'status'].includes(key) && String(value || '').trim())
-      .length + (filters.search.trim() ? 1 : 0),
+      .length + (filters.search.trim() ? 1 : 0) + (selectedExecutiveNames.value.length ? 1 : 0),
 )
 
 function applyQuickStatus(status: CommercialRateStatusFilter) {
@@ -402,6 +436,9 @@ async function load() {
 
       const searchValue = filters.search.trim().toLowerCase()
       sellerRows = sellerRows.filter((rate) => {
+        if (selectedExecutiveNames.value.length && !selectedExecutiveNames.value.some(
+          (name) => name.toLocaleLowerCase('es') === String(rate.executiveName || '').trim().toLocaleLowerCase('es'),
+        )) return false
         if (filters.status && normalizeCommercialStatus(rate.status) !== filters.status) return false
         if (filters.agentId && rate.agentId !== filters.agentId) return false
         if (filters.carrierId && rate.carrierId !== filters.carrierId) return false
@@ -455,6 +492,7 @@ async function load() {
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
       excludeTariffMasters: true,
+      executiveNames: selectedExecutiveNames.value.length ? selectedExecutiveNames.value : undefined,
     })
 
     const safeItems = Array.isArray(result?.items)
@@ -486,6 +524,8 @@ function applyFilters() {
   load()
 }
 function clearFilters() {
+  selectedExecutiveNames.value = []
+  executiveSearch.value = ''
   Object.assign(filters, {
     search: '',
     status: '',
@@ -628,6 +668,7 @@ watch(
 )
 
 onMounted(async () => {
+  if (!isSellerUser.value) void loadExecutiveOptions()
   try {
     await catalogs.loadAll()
   } catch (error) {
@@ -763,6 +804,43 @@ onMounted(async () => {
             :options="[{ label: 'Todas', value: '' }, ...catalogs.currencyOptions.value]"
             placeholder=""
           />
+          <div v-if="!isSellerUser" class="min-w-0">
+            <label class="mb-1.5 block text-[10px] font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">
+              Vendedor
+            </label>
+            <details class="group relative">
+              <summary
+                class="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 text-sm text-[var(--dh-text)] [&::-webkit-details-marker]:hidden"
+              >
+                <span class="truncate">{{ selectedExecutiveNames.length ? selectedExecutiveNames.length + ' seleccionados' : 'Todos' }}</span>
+                <ChevronDown class="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+              </summary>
+              <div class="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 shadow-xl">
+                <input
+                  v-model="executiveSearch"
+                  type="search"
+                  aria-label="Buscar vendedor"
+                  placeholder="Buscar vendedor..."
+                  class="mb-2 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+                />
+                <div class="max-h-56 space-y-0.5 overflow-y-auto">
+                  <p v-if="executivesLoading" class="p-2 text-xs text-[var(--dh-text-muted)]">Cargando vendedores...</p>
+                  <label
+                    v-for="name in filteredExecutiveOptions"
+                    :key="name"
+                    class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--dh-text)] hover:bg-black/5 dark:hover:bg-white/5"
+                  >
+                    <input type="checkbox" :checked="selectedExecutiveNames.includes(name)" class="accent-[var(--dh-primary)]" @change="toggleExecutiveName(name)" />
+                    <span class="min-w-0 break-words">{{ name }}</span>
+                  </label>
+                  <p v-if="!executivesLoading && !filteredExecutiveOptions.length" class="p-2 text-xs text-[var(--dh-text-muted)]">No hay vendedores disponibles.</p>
+                </div>
+                <div v-if="selectedExecutiveNames.length" class="mt-2 border-t border-[var(--dh-border)] pt-2 text-right">
+                  <button type="button" class="text-xs font-bold text-[var(--dh-primary)] hover:underline" @click="selectedExecutiveNames = []">Limpiar vendedores</button>
+                </div>
+              </div>
+            </details>
+          </div>
           <DhInput v-model="filters.idtraNumber" label="Número IDTRA" placeholder="Buscar IDTRA" />
           <DhInput v-model="filters.quoNumber" label="Número QUO" placeholder="Buscar QUO" />
           <DhInput v-model="filters.quoteDate" type="date" label="Fecha de cotización" />
