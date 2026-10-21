@@ -192,12 +192,39 @@ async function ensureAirLclApplicableCosts() {
   if (!isAirLclPricingContext() || props.viewOnly) return
 
   try {
-    // Load active costs across AirConsol, legacy Lcl and unrestricted entries.
-    // The client matcher applies the selected air route, provider and incoterm.
+    // Always perform the same contextual query used by FCL/land, but with
+    // the canonical AirConsol mode. Catalog fallback covers legacy relations
+    // whose snapshot IDs differ from today's Config records.
     const contextKey = dholeRuntimeCostContextKey()
-    const freshCosts = await PricingService.selectCosts({ isActive: true })
+    const [contextResult, catalogResult] = await Promise.allSettled([
+      PricingService.selectCosts({
+        shipmentMode: 'AirConsol',
+        agentId: costContextAgentId() || undefined,
+        carrierId: lclSelectedSource.value?.kind === 'Coloader'
+          ? undefined : form.carrierId || undefined,
+        polId: form.originId || undefined,
+        poeId: dholeRuntimeCostContextPoeId() || undefined,
+        podId: form.podId || undefined,
+        incotermId: form.incotermId || undefined,
+        serviceIds: form.serviceIds.join(',') || undefined,
+        isActive: true,
+        applicableToContext: true,
+      }),
+      PricingService.selectCosts({ isActive: true }),
+    ])
     if (!isAirLclPricingContext() || dholeRuntimeCostContextKey() !== contextKey) return
-    const matchingCosts = freshCosts
+    if (contextResult.status === 'rejected' && catalogResult.status === 'rejected') {
+      throw contextResult.reason
+    }
+
+    const availableCosts = new Map<string, CostSelectDto>()
+    if (catalogResult.status === 'fulfilled') {
+      catalogResult.value.forEach((cost) => availableCosts.set(cost.id, cost))
+    }
+    if (contextResult.status === 'fulfilled') {
+      contextResult.value.forEach((cost) => availableCosts.set(cost.id, cost))
+    }
+    const matchingCosts = [...availableCosts.values()]
       .filter(airLclCostMatchesCurrentContext)
       .map((cost) => ({
         ...cost,
