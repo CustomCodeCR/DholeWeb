@@ -156,8 +156,7 @@ const modeOptions = [
   { label: 'LCL · Marítimo consolidado', value: 'Lcl' },
   { label: 'FTL · Camión completo', value: 'Ftl' },
   { label: 'LTL · Terrestre consolidado', value: 'Ltl' },
-  { label: 'Aéreo', value: 'Air' },
-  { label: 'LCL aéreo · Consolidado aéreo', value: 'AirConsol' },
+  { label: 'Aéreo · Consolidado aéreo', value: 'AirConsol' },
 ]
 const chargeBasisOptions = [
   'PerShipment', 'PerService', 'PerContainer', 'PerTeu', 'PerPickup', 'PerTruck',
