@@ -27,11 +27,15 @@ function patchWizard(source: string) {
     'const airChargeableWeightKg = computed(() =>',
     '  Math.max(0, number(consolidatedTotalWeightKg.value)),',
     ')',
+    "const airChargeUnit = computed(() => form.miamiWeightInputUnit === 'lb' ? 'lb' : 'kg')",
+    "const airChargeBasis = computed<ChargeBasis>(() => airChargeUnit.value === 'lb' ? 'PerLb' : 'PerKg')",
+    "const airChargeableWeight = computed(() => airChargeUnit.value === 'lb'",
+    '  ? airChargeableWeightKg.value * MIAMI_LB_PER_KG : airChargeableWeightKg.value)',
     '',
     'function normalizedAirChargeBasis(line: RateLine): ChargeBasis {',
     '  if (!isAirLclFreightContext()) return line.chargeBasis',
-    "  if (line.costDetailType === 'Freight') return 'PerKg'",
-    "  if (['PerCbm', 'PerChargeableCbm', 'PerCft', 'PerChargeableCft'].includes(line.chargeBasis)) return 'PerKg'",
+    "  if (line.costDetailType === 'Freight') return airChargeBasis.value",
+    "  if (['PerCbm', 'PerChargeableCbm', 'PerCft', 'PerChargeableCft', 'PerKg', 'PerLb'].includes(line.chargeBasis)) return airChargeBasis.value",
     '  return line.chargeBasis',
     '}',
     '',
@@ -40,6 +44,7 @@ function patchWizard(source: string) {
     '  () => [',
     '    form.modality,',
     '    shipmentModeForApi.value,',
+    '    form.miamiWeightInputUnit,',
     "    ...rateLines.value.map((line) => line.costDetailType + ':' + line.name + ':' + line.chargeBasis),",
     '  ],',
     '  () => {',
@@ -47,7 +52,20 @@ function patchWizard(source: string) {
     '    rateLines.value.forEach((line) => {',
     "      if (line.costDetailType === 'Freight') line.name = 'Flete Internacional'",
     '      const basis = normalizedAirChargeBasis(line)',
-    '      if (line.chargeBasis !== basis) line.chargeBasis = basis',
+    '      if (line.chargeBasis !== basis) {',
+    "        const previousBasis = line.chargeBasis",
+    "        // Preserve the total of an existing kg/lb tariff when the user switches units.",
+    "        const sourceKg = previousBasis === 'PerKg' ? 1",
+    "          : previousBasis === 'PerLb' ? MIAMI_LB_PER_KG",
+    "          : previousBasis === 'Per100Kg' ? 0.01",
+    "          : previousBasis === 'PerTon' ? 0.001 : null",
+    "        if (sourceKg !== null && (basis === 'PerLb' || basis === 'PerKg')) {",
+    "          const ratio = sourceKg / (basis === 'PerLb' ? MIAMI_LB_PER_KG : 1)",
+    "          line.costAmount = Math.round(number(line.costAmount) * ratio * 1e10) / 1e10",
+    "          line.saleAmount = Math.round(number(line.saleAmount) * ratio * 1e10) / 1e10",
+    "        }",
+    '        line.chargeBasis = basis',
+    '      }',
     '    })',
     '  },',
     "  { immediate: true, flush: 'sync' },",
@@ -57,7 +75,7 @@ function patchWizard(source: string) {
   ].join('\n')
 
   code = replaceRequired(code, 'function defaultChargeBasis(type: CostDetailType): ChargeBasis {',
-    helper + "function defaultChargeBasis(type: CostDetailType): ChargeBasis {\n  if (isAirLclFreightContext() && type === 'Freight') return 'PerKg'")
+    helper + "function defaultChargeBasis(type: CostDetailType): ChargeBasis {\n  if (isAirLclFreightContext() && type === 'Freight') return airChargeBasis.value")
   code = replaceRequired(code, 'function effectiveChargeBasisForLine(line: RateLine): ChargeBasis {',
     "function effectiveChargeBasisForLine(line: RateLine): ChargeBasis {\n  if (isAirLclFreightContext() && !isFlatPickupLine(line)) return normalizedAirChargeBasis(line)")
   code = replaceRequired(code, 'function quantityForRateLine(line: RateLine) {',
@@ -66,6 +84,7 @@ function patchWizard(source: string) {
       '  if (isAirLclFreightContext() && !isFlatPickupLine(line)) {',
       '    const basis = normalizedAirChargeBasis(line)',
       "    if (basis === 'PerKg') return airChargeableWeightKg.value",
+      "    if (basis === 'PerLb') return airChargeableWeight.value",
       "    if (basis === 'Per100Kg') return airChargeableWeightKg.value / 100",
       "    if (basis === 'PerTon') return airChargeableWeightKg.value / 1000",
       '  }',
@@ -75,13 +94,13 @@ function patchWizard(source: string) {
   code = replaceRequired(code, '    cargoLineQuantity(line) > 0',
     '    cargoLineQuantity(line) > 0\n    && (!isAirLclFreightContext() || number(line.weightKg) > 0)')
   code = replaceRequired(code, ':requested-cbm="lclChargeableCbm"',
-    ':requested-cbm="lclChargeableCbm"\n            :requested-weight-kg="airChargeableWeightKg"')
+    ':requested-cbm="lclChargeableCbm"\n            :requested-weight-kg="airChargeableWeightKg"\n            :requested-weight-unit="airChargeUnit"')
   code = replaceRequired(code, '{{ cargoVolumeUnit }} cobrable',
-    "{{ isAirLclFreightContext() ? 'Peso cobrable (kg)' : cargoVolumeUnit + ' cobrable' }}")
+    "{{ isAirLclFreightContext() ? 'Peso cobrable (' + airChargeUnit + ')' : cargoVolumeUnit + ' cobrable' }}")
   code = replaceRequired(code, '{{ formatCargoVolume(lclChargeableCbm) }}',
-    "{{ isAirLclFreightContext() ? airChargeableWeightKg.toFixed(2) + ' kg' : formatCargoVolume(lclChargeableCbm) }}")
+    "{{ isAirLclFreightContext() ? airChargeableWeight.toFixed(2) + ' ' + airChargeUnit : formatCargoVolume(lclChargeableCbm) }}")
   code = code.replaceAll('{{ lclChargeableCbm.toFixed(3) }} CBM cobrable',
-    "{{ isAirLclFreightContext() ? airChargeableWeightKg.toFixed(2) + ' kg' : lclChargeableCbm.toFixed(3) + ' CBM' }} cobrable")
+    "{{ isAirLclFreightContext() ? airChargeableWeight.toFixed(2) + ' ' + airChargeUnit : lclChargeableCbm.toFixed(3) + ' CBM' }} cobrable")
   code = code.replaceAll('{{ line.name }}',
     "{{ isAirLclFreightContext() && line.costDetailType === 'Freight' ? 'Flete Internacional' : line.name }}")
 
@@ -95,12 +114,12 @@ function patchSelector(source: string) {
   // markup as an input anchor and still owns the maritime volume selector.
   code = replaceRequired(code,
     '<DhInput :model-value="requestedChargeableDisplay" type="number" :label="requestedChargeableLabel" :disabled="requestedCbmLocked" @update:model-value="updateRequestedChargeableDisplay" />',
-    '<DhInput :model-value="isAir ? requestedWeightKg : requestedChargeableDisplay" type="number" :label="isAir ? \'Peso cobrable (kg)\' : requestedChargeableLabel" :disabled="requestedCbmLocked || isAir" @update:model-value="updateRequestedChargeableDisplay" />',
+    '<DhInput :model-value="isAir ? requestedWeightKg * (requestedWeightUnit === \'lb\' ? 2.20462262 : 1) : requestedChargeableDisplay" type="number" :label="isAir ? \'Peso cobrable (\' + requestedWeightUnit + \')\' : requestedChargeableLabel" :disabled="requestedCbmLocked || isAir" @update:model-value="updateRequestedChargeableDisplay" />',
   )
   code = replaceRequired(code, ':columns="coloaderColumns"',
     ':columns="isAir ? airColoaderColumns : coloaderColumns"')
   code = code.replaceAll('>Flete / CBM</span>',
-    ">{{ isAir ? 'Flete / kg' : 'Flete / CBM' }}</span>")
+    ">{{ isAir ? 'Flete / ' + requestedWeightUnit : 'Flete / CBM' }}</span>")
   return code
 }
 
