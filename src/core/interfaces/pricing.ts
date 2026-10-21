@@ -835,6 +835,8 @@ export interface RateDto extends Record<string, unknown> {
   sellerReceivedAtUtc?: string | null
   sellerReceivedBy?: string | null
   revisionPending?: boolean
+  pendingReapproval?: boolean
+  reapprovalReason?: string | null
   includes?: string | null
   subjectTo?: string | null
   excludes?: string | null
