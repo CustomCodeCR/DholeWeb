@@ -3086,10 +3086,6 @@ function startCommercialDecision(action: 'accept' | 'reject') {
 
 async function submitCommercialDecision() {
   if (!editingRate.value || !commercialAction.value || !canAcceptOrReject.value) return
-  if (commercialAction.value === 'accept' && !commercialIdtra.value.trim()) {
-    commercialActionError.value = 'El IDTRA es obligatorio para aceptar la tarifa.'
-    return
-  }
   if (commercialAction.value === 'reject' && !commercialRejectionReason.value.trim()) {
     commercialActionError.value = 'El motivo de rechazo es obligatorio.'
     return
@@ -3101,9 +3097,9 @@ async function submitCommercialDecision() {
     if (commercialAction.value === 'accept') {
       await PricingService.setRateStatus(editingRate.value.id, {
         status: 'AcceptedByClient',
-        idtraNumber: commercialIdtra.value.trim(),
+        idtraNumber: commercialIdtra.value.trim() || null,
       })
-      toastStore.success('Tarifa aceptada', `IDTRA ${commercialIdtra.value.trim()} registrado.`)
+      toastStore.success('Tarifa aceptada', commercialIdtra.value.trim() ? `IDTRA ${commercialIdtra.value.trim()} registrado.` : 'El IDTRA podrá registrarse posteriormente.')
     } else {
       await PricingService.setRateStatus(editingRate.value.id, {
         status: 'RejectedByClient',
@@ -5216,10 +5212,10 @@ onMounted(async () => {
 
             <div v-if="commercialAction === 'accept'" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
               <p class="text-sm font-black">Aceptar tarifa</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Para aceptar la tarifa debe registrar el número IDTRA.</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El número IDTRA es opcional y puede agregarse posteriormente.</p>
               <div class="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
-                <DhInput v-model="commercialIdtra" label="Número IDTRA" placeholder="Ej. IDTRA-2026-00125" />
-                <DhButton :loading="commercialStatusSaving" :disabled="commercialStatusSaving || !commercialIdtra.trim()" @click="submitCommercialDecision">Confirmar aceptación</DhButton>
+                <DhInput v-model="commercialIdtra" label="Número IDTRA (opcional)" placeholder="Ej. IDTRA-2026-00125" />
+                <DhButton :loading="commercialStatusSaving" :disabled="commercialStatusSaving" @click="submitCommercialDecision">Confirmar aceptación</DhButton>
                 <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Cancelar</DhButton>
               </div>
             </div>
