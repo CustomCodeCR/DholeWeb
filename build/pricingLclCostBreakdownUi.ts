@@ -46,11 +46,19 @@ export function pricingLclCostBreakdownUi(): Plugin {
         'own-LCL route cost column',
       )
 
-      code = replaceOne(
-        code,
-        "  modality?: 'Maritime' | 'Air' | 'Land' | 'Multimodal'\n  polId?: string | null",
-        "  modality?: 'Maritime' | 'Air' | 'Land' | 'Multimodal'\n  chargeableVolumeUnit?: 'CBM' | 'CFT'\n  polId?: string | null",
-        'chargeable volume unit prop',
+      // Preserve the modality union (including the AirConsol alias) rather than
+      // depending on a hard-coded list of mode strings.
+      const volumeUnitPropAnchor = /^  modality\?: ([^\n]+)\n  polId\?: string \| null/m
+      const volumeUnitMatches = [...code.matchAll(new RegExp(volumeUnitPropAnchor.source, 'gm'))]
+      if (volumeUnitMatches.length !== 1) {
+        throw new Error(
+          '[pricingLclCostBreakdownUi] Expected one chargeable volume unit prop anchor, found ' + volumeUnitMatches.length,
+        )
+      }
+      code = code.replace(
+        volumeUnitPropAnchor,
+        (_match, supportedModes: string) =>
+          `  modality?: ${supportedModes}\n  chargeableVolumeUnit?: 'CBM' | 'CFT'\n  polId?: string | null`,
       )
 
       code = replaceOne(
