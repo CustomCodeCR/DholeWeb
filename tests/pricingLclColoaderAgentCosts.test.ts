@@ -259,3 +259,43 @@ test('air pricing guard never delegates to the destructive maritime coloader opt
   assert.match(source, /\['airconsol', 'air', 'any'\]/)
   assert.doesNotMatch(source, /\['airconsol', 'lcl', 'any'\]/)
 })
+
+test('air coloader performs contextual AirConsol cost lookup instead of skipping it', async () => {
+  const { load, state } = createHarness()
+  state.form.modality = 'Air'
+  state.form.originId = 'SAN_JOSE'
+  state.form.destinationId = 'BARILOCHE'
+  state.form.incotermId = 'FOB'
+  state.form.serviceIds = ['INTERNATIONAL_TRANSPORT']
+  const requests: Array<{
+    shipmentMode?: string
+    applicableToContext?: boolean
+    agentId?: string
+    polId?: string
+    poeId?: string
+    incotermId?: string
+    serviceIds?: string
+  }> = []
+  state.PricingService.selectCosts = async (query) => {
+    requests.push(query)
+    return []
+  }
+  await load()
+  assert.equal(requests.length, 2, 'Air performs both contextual and legacy catalog requests')
+  assert.equal(requests[0]?.shipmentMode, 'AirConsol')
+  assert.equal(requests[0]?.applicableToContext, true)
+  assert.equal(requests[0]?.agentId, 'PIER17')
+  assert.equal(requests[0]?.polId, 'SAN_JOSE')
+  assert.equal(requests[0]?.poeId, 'BARILOCHE')
+  assert.equal(requests[0]?.incotermId, 'FOB')
+  assert.equal(requests[0]?.serviceIds, 'INTERNATIONAL_TRANSPORT')
+  assert.equal(requests[1]?.applicableToContext, undefined)
+})
+test('air final guard also refreshes contextual costs when entering screen 7', async () => {
+  const guard = await readFile(
+    new URL('../build/pricingAirLclCostFinalGuard.ts', import.meta.url), 'utf8',
+  )
+  assert.match(guard, /PricingService\.selectCosts\(\{\s*shipmentMode: 'AirConsol'/)
+  assert.match(guard, /applicableToContext: true/)
+  assert.match(guard, /dholeRuntimeCostContextPoeId\(\)/)
+})
