@@ -217,13 +217,18 @@ function patchWizard(source: string): string {
     '',
   ].join('\n') + code.slice(rebuildAssignment)
 
-  // Existing CIF/CFR-DDP quotes can still retain an imported FCL source from
-  // an older revision. Explicitly clear that source through the edit middleware.
-  // Keep other Incoterms' original source-selection behavior unchanged.
+  // Edit payload type predates sourceImportFclRateId, while Pricing's
+  // middleware already supports explicit null for source dissociation.
+  // Add it immediately before the API call, independent of other wizard plugins.
   code = replaceRequired(
     code,
-    '        ...baseUpdate,\n        agentId: agent!.id,',
-    "        ...baseUpdate,\n        ...(!hasInternationalTransportService.value ? { sourceImportFclRateId: null } : {}),\n        agentId: agent!.id,",
+    '      await PricingService.updateRate(editingRate.value.id, updatePayload)',
+    [
+      '      if (!hasInternationalTransportService.value) {',
+      '        Object.assign(updatePayload, { sourceImportFclRateId: null })',
+      '      }',
+      '      await PricingService.updateRate(editingRate.value.id, updatePayload)',
+    ].join('\n'),
     'clear imported freight association on no-freight edit',
   )
 
