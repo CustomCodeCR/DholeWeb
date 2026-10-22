@@ -19,6 +19,7 @@ type QuoteIssue = {
     message?: string
     httpStatus?: number | null
     postAttempted?: boolean
+    providerCode?: string
   } | null
   createdAtUtc?: string
 }
@@ -149,6 +150,29 @@ const loading = ref(false)
 const loadError = ref('')
 const diagnosingRateId = ref<string | null>(null)
 const diagnoses = ref<Record<string, Diagnosis>>({})
+const retryingRateId = ref<string | null>(null)
+const retryMessages = ref<Record<string, string>>({})
+
+async function retryConfirmedPreWrite(issue: QuoteIssue) {
+  if (!isAdministrator.value || retryingRateId.value ||
+      issue.status !== 'NeedsAttention' || !issue.retryableWithoutDuplicateRisk) return
+  retryingRateId.value = issue.rateId
+  retryMessages.value = { ...retryMessages.value, [issue.rateId]: '' }
+  try {
+    await callEndpoint<unknown>({
+      method: 'POST',
+      path: `/api/pricing/rates/${encodeURIComponent(issue.rateId)}/dynamics-sync/retry`,
+    })
+    retryMessages.value = { ...retryMessages.value,
+      [issue.rateId]: 'Reintento encolado con la misma revisión e identificador.' }
+    await refresh()
+  } catch (error) {
+    retryMessages.value = { ...retryMessages.value, [issue.rateId]:
+      error instanceof Error ? error.message : 'No se pudo reintentar. Revisá el estado actual.' }
+  } finally {
+    retryingRateId.value = null
+  }
+}
 
 async function refresh() {
   if (loading.value) return
@@ -285,6 +309,10 @@ onMounted(() => { void refresh(); void loadQuoteKeys() })
             <span v-if="issue.error?.httpStatus"> · HTTP {{ issue.error.httpStatus }}</span>
           </p>
           <p class="quote-sync-error-detail">{{ issue.lastError || issue.error?.message || 'Error anterior sin detalle registrado. Usá Diagnosticar.' }}</p>
+          <p v-if="issue.error?.providerCode" class="quote-sync-meta">Código del proveedor: {{ issue.error.providerCode }}</p>
+          <p v-if="retryMessages[issue.rateId]" class="quote-sync-meta" role="status">
+            {{ retryMessages[issue.rateId] }}
+          </p>
           <div v-if="diagnoses[issue.rateId]" class="quote-sync-diagnosis" :class="{ 'quote-sync-ok': diagnoses[issue.rateId]?.valid }" role="status">
             <CheckCircle2 v-if="diagnoses[issue.rateId]?.valid" :size="16" />
             <AlertCircle v-else :size="16" />
@@ -303,11 +331,20 @@ onMounted(() => { void refresh(); void loadQuoteKeys() })
             <SearchCheck :size="15" />
             {{ diagnosingRateId === issue.rateId ? 'Diagnóstico en curso...' : 'Diagnosticar' }}
           </button>
+          <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
+              issue.retryableWithoutDuplicateRisk"
+            type="button" class="dynamics-outline-button"
+            :disabled="Boolean(retryingRateId)" @click="retryConfirmedPreWrite(issue)">
+            <RefreshCw :size="15" />
+            {{ retryingRateId === issue.rateId ? 'Encolando...' : 'Reintentar sin duplicar' }}
+          </button>
         </div>
       </article>
     </div>
     <p class="quote-sync-footnote">
-      Diagnosticar solamente lee el esquema activo de Dynamics y comprueba los campos; nunca crea otra oferta.
+      Diagnosticar solamente lee el esquema activo de Dynamics y comprueba los campos.
+      El botón Reintentar solo aparece si Pricing confirmó que el error ocurrió antes de escribir en Dataverse.
+      Antes del reintento, corregí la autorización de escrituras en el servidor.
     </p>
   </section>
 </template>
