@@ -222,8 +222,8 @@ function patchWizard(source: string): string {
   // Keep other Incoterms' original source-selection behavior unchanged.
   code = replaceRequired(
     code,
-    '        ...baseUpdate,\\n        agentId: agent!.id,',
-    "        ...baseUpdate,\\n        ...(!hasInternationalTransportService.value ? { sourceImportFclRateId: null } : {}),\\n        agentId: agent!.id,",
+    '        ...baseUpdate,\n        agentId: agent!.id,',
+    "        ...baseUpdate,\n        ...(!hasInternationalTransportService.value ? { sourceImportFclRateId: null } : {}),\n        agentId: agent!.id,",
     'clear imported freight association on no-freight edit',
   )
 
