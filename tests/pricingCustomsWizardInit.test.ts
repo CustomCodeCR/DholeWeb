@@ -19,7 +19,7 @@ test('CFR through DDP skip tariff selection and never require a freight line', (
   }
   assert.ok(plugin.includes('freightNotRequiredByIncoterm.value && selectedServices.value.some'),
     'the Incoterm exclusion must participate in the service-based freight calculation')
-  assert.ok(plugin.includes("'    form.selectedImportRateId = ''"),
+  assert.ok(plugin.includes("form.selectedImportRateId = ''"),
     'a prepaid Incoterm must not retain a selected imported tariff')
   assert.ok(plugin.includes("'    form.freightCost = 0'"),
     'freight cost must be reset when the Incoterm switches to no-freight')
@@ -27,6 +27,6 @@ test('CFR through DDP skip tariff selection and never require a freight line', (
     'freight sale must be reset when the Incoterm switches to no-freight')
   assert.ok(plugin.includes("'  if (!hasInternationalTransportService.value && step.value === 5) step.value = 6'"),
     'Tarifas (step 5) must be skipped')
-  assert.ok(plugin.includes("'const includedLines = computed(() => rateLines.value.filter((line) => (hasInternationalTransportService.value"),
+  assert.ok(plugin.includes("const includedLines = computed(() => rateLines.value.filter((line) => (hasInternationalTransportService.value"),
     'submitted detail lines must omit freight when the Incoterm has no freight')
 })
