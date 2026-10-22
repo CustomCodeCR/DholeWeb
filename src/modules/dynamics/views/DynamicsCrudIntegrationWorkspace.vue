@@ -308,6 +308,21 @@ const exampleBody=computed(()=>{
   return body
 })
 const endpoint=computed(()=>base+'/api/dynamics-connector/keyed/templates/'+encodeURIComponent(endpointName.value)+'/execute')
+const quoteTotalEndpoint=computed(()=>base+
+  '/api/dynamics-connector/keyed/templates/crear_oferta/execute-with-total')
+const quoteTotalExample=computed(()=>({
+  connectionCode:connection.value,
+  dholeRateId:'GUID_REAL_DE_LA_TARIFA_DHOLE',
+  totalSaleAmount:3500,
+  inputs:exampleBody.value.inputs
+}))
+const quoteTotalCurl=computed(()=>[
+  'curl -X POST '+JSON.stringify(quoteTotalEndpoint.value),
+  "  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>'",
+  "  -H 'Idempotency-Key: dhole-pricing-quote-<GUID_SIN_GUIONES>-v<REVISION>'",
+  "  -H 'Content-Type: application/json'",
+  "  --data '"+JSON.stringify(quoteTotalExample.value)+"'"
+].join(' \\\n'))
 const schemaEndpoint=computed(()=>base+'/api/dynamics-connector/keyed/templates/'+
   encodeURIComponent(endpointName.value)+'/schema?connectionCode='+encodeURIComponent(connection.value))
 const schemaCurl=computed(()=>[
@@ -907,6 +922,31 @@ onMounted(refresh)
             </button>
             <p v-if="quoteTotalGrantError" class="crud-error" role="alert">{{ quoteTotalGrantError }}</p>
             <p v-if="quoteTotalGrantSuccess" class="crud-info" role="status">{{ quoteTotalGrantSuccess }}</p>
+            <div class="crud-options-panel">
+              <h4>Probar aceptación de tarifa con importe total</h4>
+              <p>Al aceptar una tarifa con IDTRA, DholePricing usa esta API especial
+                para crear la oferta y la línea quotedetail automáticamente.
+                No agregués los campos de quotedetail dentro de inputs:
+                enviá totalSaleAmount fuera de inputs y el GUID real de la tarifa.</p>
+              <code class="crud-secret">{{ quoteTotalEndpoint }}</code>
+              <div class="crud-actions">
+                <button class="crud-secondary" type="button" @click="copy(quoteTotalEndpoint)">
+                  <Copy :size="14"/> Copiar endpoint con total
+                </button>
+                <button class="crud-secondary" type="button" @click="copy(quoteTotalCurl)">
+                  <Copy :size="14"/> Copiar cURL de ejemplo
+                </button>
+              </div>
+              <p class="crud-help">El cURL es solo una plantilla: reemplazá el GUID,
+                la revisión, los valores de ejemplo y la clave antes de usarlo.
+                Reutilizá el mismo Idempotency-Key para los reintentos de una misma revisión.
+                La API estándar /execute solo crea la cabecera y no su línea.</p>
+              <details class="crud-details">
+                <summary>Ver JSON de aceptación y ejemplo cURL</summary>
+                <pre>{{ JSON.stringify(quoteTotalExample,null,2) }}</pre>
+                <pre>{{ quoteTotalCurl }}</pre>
+              </details>
+            </div>
           </div>
           <div class="crud-card">
             <h4>URL HTTP para Pangolin o cualquier otra aplicación</h4>
