@@ -76,7 +76,17 @@ function pricingDraftPayload() {
     supportEntityId: supportEntityId.value,
     supportDocuments: JSON.parse(JSON.stringify(supportDocuments.value)),
     rateLines: JSON.parse(JSON.stringify(rateLines.value)),
-    availableRates: JSON.parse(JSON.stringify(availableRates.value)),
+    pickupLocations: JSON.parse(JSON.stringify(pickupLocations.value)),
+    pickupCargoCondition: pickupCargoCondition.value,
+    finalBackupEntityId: finalBackupEntityId.value,
+    finalBackupDocuments: JSON.parse(JSON.stringify(finalBackupDocuments.value)),
+    landExtraEquipment: JSON.parse(JSON.stringify(landExtraEquipment.value)),
+    billToBatchByGroup: JSON.parse(JSON.stringify(billToBatchByGroup.value)),
+    exchangeRatePurchase: exchangeRatePurchase.value,
+    exchangeRateSale: exchangeRateSale.value,
+    exchangeRateDate: exchangeRateDate.value,
+    // Tarifas de búsqueda son derivadas de la API; no llenar localStorage con miles de opciones.
+    availableRates: [],
     rateCarrierFilter: rateCarrierFilter.value,
     fclExtraContainers: JSON.parse(JSON.stringify(fclExtraContainers.value)),
     fclRatesByContainer: JSON.parse(JSON.stringify(fclRatesByContainer.value)),
@@ -175,6 +185,19 @@ async function restorePricingDraft() {
       restoreSellerConsolidatedCargo(draft.form)
     }
     if (Array.isArray(draft.supportDocuments)) supportDocuments.value = draft.supportDocuments
+    if (Array.isArray(draft.pickupLocations)) pickupLocations.value = draft.pickupLocations
+    if (draft.pickupCargoCondition === 'FiscalCargo' || draft.pickupCargoCondition === 'NationalizedCargo' || draft.pickupCargoCondition === '') {
+      pickupCargoCondition.value = draft.pickupCargoCondition
+    }
+    if (Array.isArray(draft.finalBackupDocuments)) finalBackupDocuments.value = draft.finalBackupDocuments
+    if (typeof draft.finalBackupEntityId === 'string' && draft.finalBackupEntityId) finalBackupEntityId.value = draft.finalBackupEntityId
+    if (Array.isArray(draft.landExtraEquipment)) landExtraEquipment.value = draft.landExtraEquipment
+    if (draft.billToBatchByGroup && typeof draft.billToBatchByGroup === 'object' && !Array.isArray(draft.billToBatchByGroup)) {
+      billToBatchByGroup.value = draft.billToBatchByGroup
+    }
+    if (Number(draft.exchangeRatePurchase) > 0) exchangeRatePurchase.value = Number(draft.exchangeRatePurchase)
+    if (Number(draft.exchangeRateSale) > 0) exchangeRateSale.value = Number(draft.exchangeRateSale)
+    if (typeof draft.exchangeRateDate === 'string') exchangeRateDate.value = draft.exchangeRateDate
     if (typeof draft.supportEntityId === 'string' && draft.supportEntityId) supportEntityId.value = draft.supportEntityId
     if (Array.isArray(draft.rateLines)) rateLines.value = draft.rateLines
     if (Array.isArray(draft.availableRates)) availableRates.value = draft.availableRates
@@ -273,6 +296,14 @@ watch(
     supportDocuments,
     consolidatedCargoLines,
     rateLines,
+    pickupLocations,
+    finalBackupDocuments,
+    landExtraEquipment,
+    billToBatchByGroup,
+    () => pickupCargoCondition.value,
+    () => exchangeRatePurchase.value,
+    () => exchangeRateSale.value,
+    () => exchangeRateDate.value,
     availableRates,
     fclExtraContainers,
     fclRatesByContainer,
