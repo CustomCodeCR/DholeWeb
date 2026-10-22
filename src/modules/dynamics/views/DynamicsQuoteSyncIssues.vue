@@ -75,6 +75,12 @@ async function enqueueAccepted() {
   enqueueFeedback.value = ''
   enqueueError.value = ''
   try {
+    const readiness = await checkWriteReadiness()
+    if (!readiness.ready) {
+      enqueueError.value = 'No se encoló la tarifa: ' + readiness.message +
+        ' (' + readiness.code + ').'
+      return
+    }
     const response = await callEndpoint<unknown>({
       method: 'POST',
       path: `/api/pricing/rates/${encodeURIComponent(manualRateId.value.trim())}/dynamics-sync/enqueue`,
@@ -126,6 +132,13 @@ async function grantQuoteTotal() {
       '/api/dynamics-admin/connections/principal/quote-total-grants/' +
         encodeURIComponent(selectedKeyId.value),
       { method: 'POST', body: {} })
+    const readiness = await checkWriteReadiness()
+    if (!readiness.ready) {
+      grantSuccess.value = 'Permisos de campos aprobados, pero no se reintentó ninguna QUO: ' +
+        readiness.message + ' (' + readiness.code + ').'
+      await refresh()
+      return
+    }
     // Requeue only failures that the backend proved to be pre-write; legacy
     // ambiguous operations never qualify and cannot be retried here.
     let queued = 0
