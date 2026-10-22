@@ -23,7 +23,7 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       code = replaceOne(
         code,
         identityImportAnchor,
-        `${identityImportAnchor}\nimport { buildRateUpdateExtraDetails, stalePersistedFclFreightDetailIds } from '@/modules/pricing/utils/pricingRateUpdateDetails'`,
+        `${identityImportAnchor}\nimport { buildRateUpdateExtraDetails, reconcileRateUpdateDetailChanges, stalePersistedFclFreightDetailIds } from '@/modules/pricing/utils/pricingRateUpdateDetails'`,
         'rate detail identity normalizer import',
       )
 
@@ -106,7 +106,7 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       const staleFclFreightIds = stalePersistedFclFreightDetailIds(
         shipmentModeForApi.value, existingRateDetails, includedLines.value,
       )
-      const removedExtraDetailIds = existingRateDetails
+      const proposedRemovedExtraDetailIds = existingRateDetails
         .filter((detail) => {
           if (staleFclFreightIds.has(detail.id)) return true
           if (explicitlyRemovedPersistedDetailIds.value.has(detail.id)) return true
@@ -142,10 +142,18 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       }
       // A cost/name fallback may point two different rows to the same persisted Id.
       // Match the existing CostId, insert other distinct charges, and dedupe exact retries.
-      const extraDetails = buildRateUpdateExtraDetails(
+      const proposedExtraDetails = buildRateUpdateExtraDetails(
         createPayload.details,
         includedLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) })),
         editingRate.value!.rateDetails,
+      )
+      // Reconcile the actual PUT details with inferred removals. In CIF an old
+      // Freight Id cannot also update Release, HBL, Manejos or other charges.
+      const { extraDetails, removedExtraDetailIds } = reconcileRateUpdateDetailChanges(
+        proposedExtraDetails,
+        proposedRemovedExtraDetailIds,
+        editingRate.value!.rateDetails,
+        freightNotRequiredByIncoterm.value,
       )`
       code = replaceOne(code, updateExtraDetailsAnchor, updateExtraDetailsReplacement, 'persisted detail id reconciliation')
 
