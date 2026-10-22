@@ -48,6 +48,37 @@ const selectedKeyId = ref('')
 const granting = ref(false)
 const grantError = ref('')
 const grantSuccess = ref('')
+const manualRateId = ref('')
+const enqueueing = ref(false)
+const enqueueFeedback = ref('')
+const enqueueError = ref('')
+const manualRateIdValid = computed(() =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    .test(manualRateId.value.trim()))
+
+async function enqueueAccepted() {
+  if (!isAdministrator.value || !manualRateIdValid.value || enqueueing.value) return
+  enqueueing.value = true
+  enqueueFeedback.value = ''
+  enqueueError.value = ''
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'POST',
+      path: `/api/pricing/rates/${encodeURIComponent(manualRateId.value.trim())}/dynamics-sync/enqueue`,
+    })
+    const result = unwrapApiResponse<{ status: string; alreadyQueued: boolean;
+      revisionNumber: number }>(response as never)
+    enqueueFeedback.value = result.alreadyQueued
+      ? `La revisión v${result.revisionNumber} ya tiene sincronización en estado ${result.status}. No se duplicó.`
+      : `Revisión v${result.revisionNumber} encolada. Podés consultar su avance en Pricing.`
+    await refresh()
+  } catch (error) {
+    enqueueError.value = error instanceof Error ? error.message :
+      'No se pudo encolar la tarifa. Confirmá que está aceptada y que tiene IDTRA.'
+  } finally {
+    enqueueing.value = false
+  }
+}
 
 async function loadQuoteKeys() {
   if (!isAdministrator.value) return
@@ -191,6 +222,25 @@ onMounted(() => { void refresh(); void loadQuoteKeys() })
         Si no aparece la clave o falta quotedetail, actualizá los metadatos y habilitá
         sus campos de creación en Catálogo antes de autorizar.
       </p>
+    </div>
+
+    <div v-if="isAdministrator" class="quote-sync-grants">
+      <div>
+        <strong>Probar QUO con tarifa aceptada e IDTRA</strong>
+        <p>Escribí el GUID de una tarifa existente en Dhole, ya aceptada y con
+          IDTRA asignado. Solo se encola su revisión si todavía no existe un
+          trabajo de sincronización. Esta acción no envía un POST directo a Dataverse.</p>
+      </div>
+      <div class="quote-sync-grant-controls">
+        <input v-model.trim="manualRateId" type="text"
+          aria-label="GUID de tarifa Dhole" placeholder="GUID de la tarifa Dhole" />
+        <button class="dynamics-primary-button" type="button"
+          :disabled="enqueueing || !manualRateIdValid" @click="enqueueAccepted">
+          {{ enqueueing ? 'Encolando...' : 'Encolar QUO aceptada' }}
+        </button>
+      </div>
+      <p v-if="enqueueError" class="quote-sync-error" role="alert">{{ enqueueError }}</p>
+      <p v-if="enqueueFeedback" class="quote-sync-ok" role="status">{{ enqueueFeedback }}</p>
     </div>
 
     <p v-if="loadError" class="quote-sync-message quote-sync-error" role="alert">
