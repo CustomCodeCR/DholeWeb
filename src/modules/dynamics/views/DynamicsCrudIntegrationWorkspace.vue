@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ArrowLeft, ArrowRight, Check, Copy, Database, KeyRound, RefreshCw, ShieldCheck } from 'lucide-vue-next'
 import { fetchClient } from '@/core/api/fetchConfig'
+import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
 
 type Connection = { code: string }
@@ -23,7 +24,7 @@ type Definition = {entityName:string;operation:string;
 type Summary = {id:string;name:string;activeVersion:number|null;
   history:Array<{version:number;definition:Definition}>}
 type KeyInfo = {id:string;templateName:string;operation:string;entityName:string;
-  label:string;enabled:boolean;expiresAt:string;maxRequestsPerMinute:number;
+  label:string;enabled:boolean;expiresAt:string;templateVersion:number;maxRequestsPerMinute:number;
   createdAt:string;lastUsedAt:string|null}
 type Issued = {key:KeyInfo;apiKey:string}
 type Operation = 'create'|'update'|'upsert'|'delete'
@@ -469,12 +470,32 @@ async function issueKey(){
       keyFields:operation.value==='upsert'?selectedKey.value?.attributes??[]:[]
     }})
     keys.value=await fetchClient<KeyInfo[]>(api('crud-keys'),{method:'GET'})
-    success.value='Clave creada. Copiala ahora; no se mostrará nuevamente.'
+    if(issued.value.key.templateName==='crear_oferta'&&
+      issued.value.key.entityName==='quote'&&issued.value.key.operation==='create')
+      quoteTotalGrantKeyId.value=issued.value.key.id
+    success.value='Clave creada para la versión activa. Copiala ahora; no se mostrará nuevamente. Actualizá la configuración del backend de Pricing si usará esta clave.'
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo crear la clave.'}
   finally{busy.value=false}
 }
+const quoteTotalActiveVersion=computed(()=>definitions.value.find(t=>
+  t.name==='crear_oferta')?.activeVersion??null)
 const quoteTotalKeys=computed(()=>keys.value.filter(k=>k.templateName==='crear_oferta'&&
-  k.entityName==='quote'&&k.operation==='create'&&k.enabled))
+  k.entityName==='quote'&&k.operation==='create'&&k.enabled&&
+  k.templateVersion===quoteTotalActiveVersion.value&&
+  new Date(k.expiresAt).getTime()>Date.now()))
+const outdatedQuoteTotalKeys=computed(()=>keys.value.filter(k=>
+  k.templateName==='crear_oferta'&&k.entityName==='quote'&&
+  k.operation==='create'&&k.enabled&&
+  k.templateVersion!==quoteTotalActiveVersion.value))
+const quoteTotalGrantHints:Record<string,string>={
+  active_quote_template_key_not_found:'La clave no corresponde a la versión activa, venció o está revocada. Generá una nueva clave para crear_oferta y actualizá su secreto en Pricing.',
+  quote_total_field_not_authorized:'Usá Preparar Oferta y Línea de oferta y verificá los permisos de creación de quotedetail.',
+  quote_id_read_not_authorized:'Falta permiso de lectura del identificador principal de quote. Ejecutá Preparar Oferta y Línea de oferta.',
+  quote_lookup_target_not_authorized:'Falta acceso de lectura al identificador de una tabla relacionada (cliente, cuenta o IDTRA). Revisá Catálogo.',
+  quote_lookup_name_field_not_authorized:'Falta permiso de lectura sobre un campo de búsqueda por nombre de cliente o IDTRA. Revisá Catálogo.',
+  crud_template_inactive:'Activá una versión de crear_oferta antes de autorizar.',
+  table_denied:'Autorizá las tablas quote y quotedetail en Catálogo.'
+}
 async function approveQuoteTotalGrant(){
   if(!canManage.value||!quoteTotalGrantConfirm.value||!quoteTotalGrantKeyId.value||
     !quoteTotalKeys.value.some(k=>k.id===quoteTotalGrantKeyId.value))return
@@ -488,7 +509,12 @@ async function approveQuoteTotalGrant(){
     quoteTotalGrantSuccess.value='Permisos aprobados: lectura del identificador de la oferta y creación de la línea de venta total. La API sigue usando la clave exclusiva y las políticas de Dataverse.'
     quoteTotalGrantConfirm.value=false
   }catch(e){
-    quoteTotalGrantError.value=e instanceof Error?e.message:'No se pudieron aprobar los permisos. Verificá los campos de Oferta y Línea de oferta en Catálogo.'
+    if(e instanceof ApiError){
+      const code=e.code??''
+      quoteTotalGrantError.value='No se autorizó la línea de oferta'+
+        (code?' ('+code+')':'')+'. '+(quoteTotalGrantHints[code]??e.message)
+    }else quoteTotalGrantError.value=e instanceof Error?e.message:
+      'No se pudieron aprobar los permisos. Verificá los campos de Oferta y Línea de oferta en Catálogo.'
   }finally{quoteTotalGrantBusy.value=false}
 }
 async function revoke(id:string){
@@ -550,6 +576,10 @@ watch(()=>props.connections, list=>{
   if(list.length&&!list.some(x=>x.code===connection.value))connection.value=list[0]!.code
 },{immediate:true,deep:true})
 watch(connection,()=>{createdVersion.value=null;issued.value=null;void refresh()})
+watch(quoteTotalKeys, valid=>{
+  if(!valid.some(key=>key.id===quoteTotalGrantKeyId.value))
+    quoteTotalGrantKeyId.value=valid.length===1?valid[0]!.id:''
+})
 watch(()=>[connection.value,entity.value,selected.value.slice().sort().join(',')].join('|'),
   ()=>{void loadChoiceOptions()})
 onMounted(refresh)
@@ -905,11 +935,19 @@ onMounted(refresh)
               <select v-model="quoteTotalGrantKeyId">
                 <option value="">Seleccionar clave activa de crear_oferta</option>
                 <option v-for="key in quoteTotalKeys" :key="key.id" :value="key.id">
-                  {{ key.label }} · {{ key.id }}
+                  {{ key.label }} · v{{ key.templateVersion }} · {{ key.id }}
                 </option>
               </select>
             </label>
-            <p v-if="!quoteTotalKeys.length" class="crud-help">Todavía no se encontró una clave activa del comando crear_oferta. Creala primero.</p>
+            <p v-if="!quoteTotalKeys.length" class="crud-error">
+              No hay una clave vigente para la versión activa
+              {{ quoteTotalActiveVersion?'v'+quoteTotalActiveVersion:'(ninguna)' }} de crear_oferta.
+              Generá una clave en esta versión y actualizá el secreto del backend de Pricing.
+            </p>
+            <p v-if="outdatedQuoteTotalKeys.length" class="crud-help">
+              {{ outdatedQuoteTotalKeys.length }} clave(s) de versiones anteriores se ocultan:
+              el conector no las acepta con la versión actual.
+            </p>
             <label class="crud-field">
               <input v-model="quoteTotalGrantConfirm" type="checkbox">
               Confirmo que autorizo a esta clave a leer el identificador de Oferta y crear
