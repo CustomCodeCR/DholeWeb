@@ -38,9 +38,12 @@ function patchWizard(source: string) {
     '    if (Array.isArray(draft.rateLines)) rateLines.value = draft.rateLines',
     "    if (Array.isArray(draft.rateLines)) rateLines.value = draft.rateLines\n    removedScreen7LineKeys.value = Array.isArray(draft.removedScreen7LineKeys) ? draft.removedScreen7LineKeys.filter((key: unknown): key is string => typeof key === 'string') : []",
     'draft restoration')
+  const draftWatcherAnchor = code.includes('    rateLines,\n    availableRates,')
+    ? '    rateLines,\n    availableRates,'
+    : '    rateLines,\n    pickupLocations,'
   code = replaceOnce(code,
-    '    rateLines,\n    availableRates,',
-    '    rateLines,\n    removedScreen7LineKeys,\n    availableRates,',
+    draftWatcherAnchor,
+    draftWatcherAnchor.replace('    rateLines,\n', '    rateLines,\n    removedScreen7LineKeys,\n'),
     'draft change watcher')
   code = replaceOnce(code,
     'function resetWizard() {\n',
