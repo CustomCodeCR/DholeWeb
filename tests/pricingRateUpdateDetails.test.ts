@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { readFileSync } from 'node:fs'
 import { buildRateUpdateExtraDetails, reconcileRateUpdateDetailChanges, stalePersistedFclFreightDetailIds } from '../src/modules/pricing/utils/pricingRateUpdateDetails.ts'
 import { dedupeEquivalentReleaseLines } from '../src/modules/pricing/utils/pricingReleaseLineDeduplication.ts'
 
@@ -175,4 +176,11 @@ test('CIF without a freight detail still deletes the historical freight and leav
   assert.deepEqual(payload.extraDetails.map((detail) => detail.id), ['manejos'])
   assert.deepEqual(payload.removedExtraDetailIds, ['freight'])
   assert.equal(payload.extraDetails[0]?.saleAmount, 55)
+})
+
+test('the production wizard reconciles edit/removal IDs after building final update details', () => {
+  const plugin = readFileSync(new URL('../build/pricingWizardFixedAutomaticCostEditFix.ts', import.meta.url), 'utf8')
+  assert.ok(plugin.includes('reconcileRateUpdateDetailChanges('))
+  assert.ok(plugin.includes('proposedRemovedExtraDetailIds'))
+  assert.ok(plugin.includes('freightNotRequiredByIncoterm.value'))
 })
