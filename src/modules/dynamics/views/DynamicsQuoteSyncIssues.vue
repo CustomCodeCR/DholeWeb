@@ -40,10 +40,16 @@ type QuoteCrudKey = {
   label: string
   enabled: boolean
   expiresAt: string
+  templateVersion: number
+}
+type QuoteTemplate = {
+  name: string
+  activeVersion: number | null
 }
 const auth = useAuthStore()
 const isAdministrator = computed(() => auth.hasScope('dynamics.security.admin'))
 const quoteKeys = ref<QuoteCrudKey[]>([])
+const currentQuoteVersion = ref<number | null>(null)
 const selectedKeyId = ref('')
 const granting = ref(false)
 const grantError = ref('')
@@ -83,11 +89,19 @@ async function enqueueAccepted() {
 async function loadQuoteKeys() {
   if (!isAdministrator.value) return
   try {
-    const keys = await fetchClient<QuoteCrudKey[]>(
-      '/api/dynamics-admin/connections/principal/crud-keys', { method: 'GET' })
+    const [keys, templates] = await Promise.all([
+      fetchClient<QuoteCrudKey[]>(
+        '/api/dynamics-admin/connections/principal/crud-keys', { method: 'GET' }),
+      fetchClient<QuoteTemplate[]>(
+        '/api/dynamics-admin/connections/principal/templates', { method: 'GET' }),
+    ])
+    currentQuoteVersion.value = templates.find(t => t.name === 'crear_oferta')
+      ?.activeVersion ?? null
     quoteKeys.value = keys.filter(k => k.enabled &&
       k.entityName === 'quote' && k.operation === 'create' &&
-      k.templateName === 'crear_oferta' && new Date(k.expiresAt).getTime() > Date.now())
+      k.templateName === 'crear_oferta' &&
+      k.templateVersion === currentQuoteVersion.value &&
+      new Date(k.expiresAt).getTime() > Date.now())
     if (!quoteKeys.value.some(k => k.id === selectedKeyId.value))
       selectedKeyId.value = quoteKeys.value.length === 1 ? quoteKeys.value[0]!.id : ''
   } catch {
@@ -208,7 +222,7 @@ onMounted(() => { void refresh(); void loadQuoteKeys() })
         <select v-model="selectedKeyId" aria-label="Clave de crear oferta">
           <option value="">Seleccionar clave activa</option>
           <option v-for="key in quoteKeys" :key="key.id" :value="key.id">
-            {{ key.label }} · {{ key.id.slice(0, 8) }}
+            {{ key.label }} · v{{ key.templateVersion }} · {{ key.id.slice(0, 8) }}
           </option>
         </select>
         <button class="dynamics-primary-button" type="button"
@@ -218,6 +232,12 @@ onMounted(() => { void refresh(); void loadQuoteKeys() })
       </div>
       <p v-if="grantError" class="quote-sync-error" role="alert">{{ grantError }}</p>
       <p v-if="grantSuccess" class="quote-sync-ok" role="status">{{ grantSuccess }}</p>
+      <p v-if="!quoteKeys.length" class="quote-sync-error">
+        No hay claves vigentes para crear_oferta
+        {{ currentQuoteVersion ? 'v' + currentQuoteVersion : '(sin versión activa)' }}.
+        Generá una nueva clave para esa versión desde API CRUD y configurala
+        también en DholePricing.
+      </p>
       <p class="quote-sync-footnote">
         Si no aparece la clave o falta quotedetail, actualizá los metadatos y habilitá
         sus campos de creación en Catálogo antes de autorizar.
