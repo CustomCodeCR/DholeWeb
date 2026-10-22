@@ -54,6 +54,8 @@ const choiceError=ref('')
 let choiceRequest=0
 const fieldSearch=ref('')
 const fieldVisibility=ref<'all'|'selectable'|'restricted'>('all')
+const showQuoteDetailFields=ref(false)
+const quoteDetailSearch=ref('')
 const MAX_COMMAND_FIELDS=30
 const keyName=ref('')
 const endpointName=ref('crear_oferta')
@@ -96,6 +98,20 @@ function fieldType(f:Field):'string'|'guid'|'integer'|'decimal'|'boolean'|'datet
 const tables=computed(()=>snapshot.value?.catalog.tables.filter(t=>
   policies.value.entities.some(p=>p.logicalName===t.logicalName&&p.enabled))??[])
 const table=computed(()=>tables.value.find(t=>t.logicalName===entity.value))
+const quoteDetailTable=computed(()=>snapshot.value?.catalog.tables.find(t=>t.logicalName==='quotedetail'))
+const quoteDetailRequiredFields=[
+  'quoteid','isproductoverridden','ispriceoverridden','productdescription',
+  'quotedetailname','quantity','priceperunit'
+] as const
+const quoteDetailStatus=computed(()=>quoteDetailRequiredFields.map(name=>{
+  const field=quoteDetailTable.value?.columns.find(f=>f.logicalName===name)
+  const policy=policies.value.fields.find(p=>p.entityName==='quotedetail'&&p.fieldName===name)
+  return {name, discovered:!!field, authorized:!!field?.canCreate&&!!policy?.enabled&&!!policy.canCreate}
+}))
+const filteredQuoteDetailFields=computed(()=>(quoteDetailTable.value?.columns??[])
+  .filter(f=>(display(f.labels,f.logicalName)+' '+f.logicalName)
+    .toLocaleLowerCase().includes(quoteDetailSearch.value.trim().toLocaleLowerCase()))
+  .sort((a,b)=>a.logicalName.localeCompare(b.logicalName)))
 const supportedTypes=new Set(['String','Memo','EntityName','Boolean','Integer','BigInt',
   'Picklist','State','Status','Money','Decimal','Double','DateTime','Uniqueidentifier'])
 const relationshipTypes=new Set(['Lookup','Customer','Owner'])
@@ -223,10 +239,23 @@ const definition=computed<Definition>(()=>({
   }))
 }))
 const nameValid=computed(()=>/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(endpointName.value))
-const configValid=computed(()=>!!table.value&&nameValid.value&&
-  (operation.value==='delete'||selectedFields.value.length>0)&&
-  metadataChoicesMissing.value.length===0 && !choicesLoading.value && !choiceError.value &&
-  (operation.value!=='upsert'||!!selectedKey.value))
+const validationIssues=computed(()=>{
+  const issues:string[]=[]
+  if(!table.value)issues.push('La tabla no está habilitada en Catálogo o no está disponible en los metadatos.')
+  if(!nameValid.value)issues.push('El nombre público debe comenzar con una letra y usar solo letras, números, guiones o guion bajo (máximo 80 caracteres).')
+  if(operation.value!=='delete'&&!selectedFields.value.length)
+    issues.push('Seleccioná al menos un campo con permiso de escritura.')
+  const unavailable=selected.value.filter(name=>!eligibleFields.value.some(f=>f.logicalName===name))
+  if(unavailable.length)issues.push('Los campos '+unavailable.join(', ')+' no están autorizados o no se pudieron recuperar. Revisá Tabla y campos; no se omitirán silenciosamente.')
+  if(choicesLoading.value)issues.push('Todavía se están consultando las opciones de Dataverse.')
+  if(choiceError.value)issues.push('Falló la lectura de opciones: '+choiceError.value)
+  if(metadataChoicesMissing.value.length)
+    issues.push('No hay opciones válidas para: '+metadataChoicesMissing.value.map(f=>f.logicalName).join(', '))
+  if(operation.value==='upsert'&&!selectedKey.value)
+    issues.push('UPSERT necesita una clave alternativa válida de Dataverse.')
+  return issues
+})
+const configValid=computed(()=>validationIssues.value.length===0)
 const selectedTemplate=computed(()=>definitions.value.find(t=>t.name===endpointName.value))
 const hasCurrentVersion=computed(()=>!!createdVersion.value&&selectedTemplate.value?.history.some(h=>
   h.version===createdVersion.value &&
@@ -318,7 +347,7 @@ function forward(){
   if(step.value===2&&operation.value==='upsert'&&!selectedKey.value){
     error.value='Seleccioná una clave alternativa descubierta en Dataverse.';return
   }
-  if(step.value===3&&!configValid.value){error.value='Revisá el nombre y los campos del comando.';return}
+  if(step.value===3&&!configValid.value){error.value=validationIssues.value.join(' ');return}
   if(step.value<4)step.value=(step.value+1) as 1|2|3|4
 }
 async function loadChoiceOptions(){
@@ -366,7 +395,12 @@ async function reloadDefinitions(){
   definitions.value=await fetchClient<Summary[]>(api('templates'),{method:'GET'})
 }
 async function saveDefinition(){
-  if(!canManage.value||!configValid.value)return
+  if(!canManage.value)return
+  if(!configValid.value){
+    error.value='No se puede guardar otra versión: '+validationIssues.value.join(' ')
+    success.value=''
+    return
+  }
   busy.value=true;error.value='';success.value=''
   try{
     const response=await fetchClient<Summary>(
@@ -435,12 +469,45 @@ async function revoke(id:string){
 function inspect(t:Summary){
   const version=t.history.find(h=>h.version===t.activeVersion)??t.history[0]
   if(!version||!['create','update','upsert','delete'].includes(version.definition.operation))return
-  endpointName.value=t.name;operation.value=version.definition.operation as Operation
+  const tableInfo=snapshot.value?.catalog.tables.find(x=>x.logicalName===version.definition.entityName)
+  endpointName.value=t.name
+  operation.value=version.definition.operation as Operation
   entity.value=version.definition.entityName
-  selected.value=version.definition.mappings.map(m=>m.target)
+  const restoredFields=new Set<string>()
+  const restoredRelations:Record<string,string>={}
+  const restoredModes:Record<string,'name'|'guid'>={}
+  const restoredMatchFields:Record<string,string>={}
+  // Inputs are the original UI fields; OData navigation targets are NOT field names.
+  for(const mapping of version.definition.mappings){
+    const field=tableInfo?.columns.find(f=>f.logicalName===mapping.source)
+      ??tableInfo?.columns.find(f=>f.logicalName===mapping.target)
+    if(!field)continue
+    restoredFields.add(field.logicalName)
+    if(mapping.target.endsWith('@odata.bind')){
+      const navigation=mapping.target.slice(0,-'@odata.bind'.length)
+      const relationship=tableInfo?.relationships?.find(r=>
+        r.kind==='ManyToOneRelationships'&&r.referencingNavigation===navigation&&
+        r.referencingAttribute===field.logicalName)
+      if(relationship)restoredRelations[field.logicalName]=navigation
+      const named=mapping.steps?.find(step=>step.op==='lookup_name')
+      restoredModes[field.logicalName]=named?'name':'guid'
+      if(named?.argument)restoredMatchFields[field.logicalName]=named.argument
+    }
+  }
+  selected.value=[...restoredFields]
+  chosenRelations.value=restoredRelations
+  relationModes.value=restoredModes
+  lookupMatchFields.value=restoredMatchFields
   exampleOptions.value={}
+  choiceError.value=''
+  error.value=''
+  success.value=''
   createdVersion.value=version.version
-  step.value=4;issued.value=null
+  step.value=4
+  issued.value=null
+  if(!tableInfo)error.value='La tabla de esta versión no está en el catálogo actual. Revisá Catálogo antes de guardar otra versión.'
+  else if(!restoredFields.size&&version.definition.operation!=='delete')
+    error.value='No se pudieron recuperar los campos de esta versión. Revisá Tabla y campos antes de guardar.'
 }
 watch(()=>props.connections, list=>{
   if(list.length&&!list.some(x=>x.code===connection.value))connection.value=list[0]!.code
@@ -515,6 +582,39 @@ onMounted(refresh)
               Esta acción descubre las relaciones reales y habilita solo los permisos mínimos
               de lectura y creación para calcular el importe total. No crea ofertas.
             </p>
+            <div v-if="quoteDetailTable" class="crud-quote-detail-panel">
+              <h4>Línea de oferta (quotedetail) · {{ quoteDetailTable.columns.length }} campos descubiertos</h4>
+              <p class="crud-help">Los campos de quotedetail no forman parte de quote. La integración
+                crear_oferta crea la línea por separado para calcular totalamount;
+                no tenés que añadir esos campos al comando de cabecera.</p>
+              <div class="crud-quote-requirements">
+                <div v-for="item in quoteDetailStatus" :key="item.name" class="crud-quote-requirement">
+                  <code>{{ item.name }}</code>
+                  <span :class="item.authorized?'crud-quote-enabled':'crud-quote-restricted'">
+                    {{ item.authorized?'Creación autorizada':item.discovered?'Falta autorización':'No descubierto' }}
+                  </span>
+                </div>
+              </div>
+              <button class="crud-secondary" type="button" @click="showQuoteDetailFields=!showQuoteDetailFields">
+                {{ showQuoteDetailFields?'Ocultar campos de quotedetail':'Ver todos los campos de quotedetail' }}
+              </button>
+              <div v-if="showQuoteDetailFields" class="crud-quote-detail-results">
+                <label class="crud-field">Buscar campo en quotedetail
+                  <input v-model.trim="quoteDetailSearch" placeholder="Nombre comercial o técnico"></label>
+                <p class="crud-help">{{ filteredQuoteDetailFields.length }} campos encontrados en quotedetail.
+                  Para crear una API de línea independiente seleccioná quotedetail en el paso Operación.
+                  Los campos calculados de Dataverse son de solo lectura.</p>
+                <div v-for="field in filteredQuoteDetailFields.slice(0,150)" :key="field.logicalName"
+                  class="crud-quote-detail-row">
+                  <span>{{ display(field.labels,field.logicalName) }} <code>{{ field.logicalName }}</code></span>
+                  <small>{{ field.canCreate?'Admite creación':'Solo lectura / administrado' }}</small>
+                </div>
+                <p v-if="filteredQuoteDetailFields.length>150" class="crud-help">
+                  Mostrando los primeros 150; filtrá por nombre para encontrar otro campo.</p>
+              </div>
+            </div>
+            <p v-else class="crud-error">quotedetail aún no aparece en los metadatos.
+              Ejecutá la preparación y recargá el catálogo de Dynamics.</p>
             <label class="crud-field">
               <input v-model="quoteSetupConfirm" type="checkbox">
               Confirmo habilitar los metadatos y permisos mínimos de Quote y Línea de oferta.
@@ -699,10 +799,15 @@ onMounted(refresh)
             {{ operation.toUpperCase() }} sobre {{ entity }} ·
             {{ selectedFields.length }} campos elegidos.</div>
           <div class="crud-actions">
-            <button class="crud-primary" type="button" :disabled="busy||!configValid"
-              @click="saveDefinition">1. Guardar versión</button>
+            <button class="crud-primary" type="button" :disabled="busy"
+              @click="saveDefinition">{{ selectedTemplate?'1. Guardar nueva versión':'1. Guardar primera versión' }}</button>
             <button class="crud-secondary" type="button" :disabled="busy||!hasCurrentVersion||active"
               @click="activate">{{ active?'Versión activa':'2. Activar versión' }}</button>
+          </div>
+          <div v-if="validationIssues.length" class="crud-card">
+            <h4>Revisá estos requisitos antes de guardar otra versión</h4>
+            <p v-for="issue in validationIssues" :key="issue" class="crud-error">{{ issue }}</p>
+            <button class="crud-secondary" type="button" @click="step=2">Volver a Tabla y campos</button>
           </div>
           <div v-if="active" class="crud-card">
             <h4>3. Generar clave exclusiva para esta integración</h4>
@@ -847,6 +952,15 @@ onMounted(refresh)
 .crud-field{display:flex;flex-direction:column;gap:8px;font-weight:750;margin:12px 0}
 .crud-field input,.crud-field select{padding:12px;width:100%;min-width:0;color:var(--dh-text);background:var(--dh-surface);border:1px solid var(--dh-border-strong);border-radius:10px;font-size:12px}
 .crud-field small{color:var(--dh-text-muted);font-size:11px;font-weight:400}
+.crud-quote-detail-panel{margin:14px 0;padding:14px;border:1px solid var(--dh-border);border-radius:12px;background:var(--dh-card)}
+.crud-quote-detail-panel h4{margin:0 0 10px}
+.crud-quote-requirements{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin:12px 0}
+.crud-quote-requirement,.crud-quote-detail-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:9px;border-bottom:1px solid var(--dh-border)}
+.crud-quote-enabled{color:var(--dh-text)}
+.crud-quote-restricted{color:var(--dh-text-muted)}
+.crud-quote-detail-results{margin-top:12px;max-height:390px;overflow-y:auto}
+.crud-quote-detail-row code{margin-left:8px}
+.crud-quote-detail-row small{color:var(--dh-text-muted)}
 .crud-connection{max-width:480px}.crud-note,.crud-info{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--dh-border);background:var(--dh-surface);border-radius:11px;color:var(--dh-text-soft);line-height:1.6;margin:15px 0}
 .crud-note p{margin:0}.crud-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:18px 0}
 .crud-steps button{display:flex;gap:9px;align-items:center;padding:11px;border:1px solid var(--dh-border);background:var(--dh-surface);color:var(--dh-text-muted);font-size:11px;font-weight:800;border-radius:11px}
