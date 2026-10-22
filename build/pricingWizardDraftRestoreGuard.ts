@@ -67,9 +67,8 @@ function patchWizard(source: string) {
     }
   }
 
-  // Selection state belongs to Pantalla 5 and must always be rebuilt against the
-  // current API/catalog data instead of trusting an older browser snapshot.
-  form.selectedImportRateId = ''
+  // The selected source tariff ID is user input and must survive recovery.
+  // Search result DTOs are reloaded separately and never trusted from localStorage.
 }
 
 function sanitizeDraftFclExtraContainers(value: unknown) {
@@ -120,9 +119,13 @@ ${restoreAnchor}`
     rateCarrierFilter.value = ''
     fclExtraContainers.value = sanitizeDraftFclExtraContainers(draft.fclExtraContainers)
     fclRatesByContainer.value = {}
-    selectedFclBundleKey.value = ''
-    fclSelectedImportRateIds.value = {}
-    lclSelectedSourceKey.value = ''
+    selectedFclBundleKey.value = typeof draft.selectedFclBundleKey === 'string' ? draft.selectedFclBundleKey : ''
+    fclSelectedImportRateIds.value = draft.fclSelectedImportRateIds && typeof draft.fclSelectedImportRateIds === 'object'
+      ? Object.fromEntries(Object.entries(draft.fclSelectedImportRateIds).filter(
+        ([key, id]) => typeof key === 'string' && typeof id === 'string',
+      )) as Record<string, string>
+      : {}
+    lclSelectedSourceKey.value = typeof draft.lclSelectedSourceKey === 'string' ? draft.lclSelectedSourceKey : ''
     if (Number.isFinite(Number(draft.lclRequestedCbm))) lclRequestedCbm.value = Number(draft.lclRequestedCbm)
     lclSelectedSource.value = null`,
     'derived draft state restore',
