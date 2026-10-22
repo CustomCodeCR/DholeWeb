@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { AlertCircle, CheckCircle2, ExternalLink, RefreshCw, SearchCheck } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
+import { ApiError, getApiErrorMessage } from '@/core/api/apiErrorHandler'
 import { fetchClient } from '@/core/api/fetchConfig'
 import { useAuthStore } from '@/core/stores/authStore'
 
@@ -24,6 +25,8 @@ type QuoteIssue = {
     lookupSearchField?: string | null
   } | null
   createdAtUtc?: string
+  currentRateRevision?: number | null
+  retryBlockReason?: string | null
 }
 type WriteReadiness = {
   ready: boolean
@@ -209,7 +212,8 @@ async function checkWriteReadiness(): Promise<WriteReadiness> {
 
 async function retryConfirmedPreWrite(issue: QuoteIssue) {
   if (!isAdministrator.value || retryingRateId.value ||
-      issue.status !== 'NeedsAttention' || !issue.retryableWithoutDuplicateRisk) return
+      issue.status !== 'NeedsAttention' || !issue.retryableWithoutDuplicateRisk ||
+      issue.retryBlockReason) return
   retryingRateId.value = issue.rateId
   retryMessages.value = { ...retryMessages.value, [issue.rateId]: '' }
   try {
@@ -227,8 +231,13 @@ async function retryConfirmedPreWrite(issue: QuoteIssue) {
       [issue.rateId]: 'Reintento encolado con la misma revisión e identificador.' }
     await refresh()
   } catch (error) {
-    retryMessages.value = { ...retryMessages.value, [issue.rateId]:
-      error instanceof Error ? error.message : 'No se pudo reintentar. Revisá el estado actual.' }
+    // Preserve the provider code instead of hiding code-only 404/409 responses
+    // behind the generic global message 'No se encontró el registro solicitado'.
+    const message = error instanceof ApiError
+      ? (error.code ? '[' + error.code + '] ' : 'HTTP ' + error.status + ': ') +
+        getApiErrorMessage(error)
+      : error instanceof Error ? error.message : 'No se pudo reintentar. Revisá el estado actual.'
+    retryMessages.value = { ...retryMessages.value, [issue.rateId]: message }
   } finally {
     retryingRateId.value = null
   }
@@ -389,6 +398,12 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
           </p>
           <p class="quote-sync-error-detail">{{ issue.lastError || issue.error?.message || 'Error anterior sin detalle registrado. Usá Diagnosticar.' }}</p>
           <p v-if="issue.error?.providerCode" class="quote-sync-meta">Código del proveedor: {{ issue.error.providerCode }}</p>
+          <p v-if="issue.retryBlockReason" class="quote-sync-error-detail" role="alert">
+            Reintento bloqueado: {{ issue.retryBlockReason }}
+            <template v-if="issue.currentRateRevision && issue.currentRateRevision !== issue.revisionNumber">
+              (revisión actual: {{ issue.currentRateRevision }})
+            </template>
+          </p>
           <p v-if="issue.error?.lookupInput" class="quote-sync-meta">
             Relación sin resolver: <code>{{ issue.error.lookupInput }}</code>
             <template v-if="issue.error.lookupSearchField">
@@ -427,7 +442,7 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
             {{ diagnosingRateId === issue.rateId ? 'Diagnóstico en curso...' : 'Diagnosticar' }}
           </button>
           <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
-              issue.retryableWithoutDuplicateRisk"
+              issue.retryableWithoutDuplicateRisk && !issue.retryBlockReason"
             type="button" class="dynamics-outline-button"
             :disabled="Boolean(retryingRateId)" @click="retryConfirmedPreWrite(issue)">
             <RefreshCw :size="15" />
