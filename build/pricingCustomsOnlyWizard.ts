@@ -192,6 +192,15 @@ function patchWizard(source: string): string {
     'exclude freight from customs rate payload',
   )
 
+  // A no-freight LCL quote must be allowed to save even without a coloader
+  // and must never bounce back to the hidden tariff selection screen.
+  code = replaceRequired(
+    code,
+    "if (shipmentModeForApi.value === 'Lcl' && includedLines.value.length === 0) {",
+    "if (hasInternationalTransportService.value && shipmentModeForApi.value === 'Lcl' && includedLines.value.length === 0) {",
+    'no-freight LCL save guard',
+  )
+
   // Other pricing plugins can insert freight rows during rebuilding; remove them
   // at the final assignment rather than relying on a particular freight source.
   const rebuildStart = code.indexOf('function rebuildRateLines() {')
