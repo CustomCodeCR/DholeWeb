@@ -37,6 +37,8 @@ type Diagnosis = {
   schemaVersion?: number
   httpStatus?: number
   noPostExecuted?: boolean
+  lookupInput?: string | null
+  lookupSearchField?: string | null
 }
 
 type QuoteCrudKey = {
@@ -392,8 +394,14 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
             <CheckCircle2 v-if="diagnoses[issue.rateId]?.valid" :size="16" />
             <AlertCircle v-else :size="16" />
             <div>
-              <strong>{{ diagnoses[issue.rateId]?.valid ? 'Mapeo válido' : 'Diagnóstico' }}</strong>
+              <strong>{{ diagnoses[issue.rateId]?.valid ? 'Relaciones verificadas' : 'Diagnóstico' }}</strong>
               <p>{{ diagnoses[issue.rateId]?.message }}</p>
+              <p v-if="diagnoses[issue.rateId]?.lookupInput">
+                Relación: <code>{{ diagnoses[issue.rateId]?.lookupInput }}</code>
+                <template v-if="diagnoses[issue.rateId]?.lookupSearchField">
+                  · Campo de Dynamics: <code>{{ diagnoses[issue.rateId]?.lookupSearchField }}</code>
+                </template>
+              </p>
               <small v-if="diagnoses[issue.rateId]?.code">{{ diagnoses[issue.rateId]?.code }}</small>
             </div>
           </div>
@@ -417,7 +425,8 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
       </article>
     </div>
     <p class="quote-sync-footnote">
-      Diagnosticar solamente lee el esquema activo de Dynamics y comprueba los campos.
+      Diagnosticar valida también las búsquedas reales por nombre de Cliente, Cuenta e IDTRA
+      sin crear ninguna oferta ni consumir intentos de sincronización.
       Reintentar verifica primero que el conector permita escrituras de QUO y solo
       encola fallos confirmados anteriores a la creación. El diagnóstico de mapeo válido
       no reemplaza la aprobación de escrituras. Los fallos de resultado ambiguo
