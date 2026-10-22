@@ -20,6 +20,8 @@ type QuoteIssue = {
     httpStatus?: number | null
     postAttempted?: boolean
     providerCode?: string
+    lookupInput?: string | null
+    lookupSearchField?: string | null
   } | null
   createdAtUtc?: string
 }
@@ -387,6 +389,16 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
           </p>
           <p class="quote-sync-error-detail">{{ issue.lastError || issue.error?.message || 'Error anterior sin detalle registrado. Usá Diagnosticar.' }}</p>
           <p v-if="issue.error?.providerCode" class="quote-sync-meta">Código del proveedor: {{ issue.error.providerCode }}</p>
+          <p v-if="issue.error?.lookupInput" class="quote-sync-meta">
+            Relación sin resolver: <code>{{ issue.error.lookupInput }}</code>
+            <template v-if="issue.error.lookupSearchField">
+              · Campo de búsqueda: <code>{{ issue.error.lookupSearchField }}</code>
+            </template>
+          </p>
+          <p v-else-if="issue.error?.providerCode === 'lookup_name_not_found'" class="quote-sync-meta">
+            Hay una referencia de cliente o IDTRA que no coincide con Dynamics.
+            Usá «Diagnosticar» para identificar la relación antes de reintentar.
+          </p>
           <p v-if="retryMessages[issue.rateId]" class="quote-sync-meta" role="status">
             {{ retryMessages[issue.rateId] }}
           </p>
