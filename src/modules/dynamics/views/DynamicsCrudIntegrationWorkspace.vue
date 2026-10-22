@@ -257,14 +257,25 @@ const validationIssues=computed(()=>{
 })
 const configValid=computed(()=>validationIssues.value.length===0)
 const selectedTemplate=computed(()=>definitions.value.find(t=>t.name===endpointName.value))
-const hasCurrentVersion=computed(()=>!!createdVersion.value&&selectedTemplate.value?.history.some(h=>
-  h.version===createdVersion.value &&
-  h.definition.entityName===definition.value.entityName &&
-  h.definition.operation===definition.value.operation &&
-  JSON.stringify(h.definition.inputs.map(i=>({name:i.name,type:i.type,required:i.required})))===
-    JSON.stringify(definition.value.inputs) &&
-  JSON.stringify(h.definition.mappings.map(m=>({target:m.target,source:m.source,steps:m.steps??[]})))===
-    JSON.stringify(definition.value.mappings.map(m=>({target:m.target,source:m.source,steps:m.steps??[]})))))
+// Activation targets an immutable revision that was saved by the API. A client-side
+// field comparison must not hide a persisted revision: metadata ordering, omitted
+// default values and OData mappings can legitimately differ after a round-trip.
+const savedVersion=computed(()=>createdVersion.value==null?null:
+  selectedTemplate.value?.history.find(h=>h.version===createdVersion.value)??null)
+const hasCurrentVersion=computed(()=>!!savedVersion.value)
+function comparableDefinition(value:Definition):string {
+  return JSON.stringify({
+    entityName:value.entityName, operation:value.operation,
+    inputs:value.inputs.map(i=>({name:i.name,type:i.type,required:i.required}))
+      .sort((a,b)=>a.name.localeCompare(b.name)),
+    mappings:value.mappings.map(m=>({
+      target:m.target,source:m.source,
+      steps:(m.steps??[]).map(step=>({op:step.op,argument:step.argument??null}))
+    })).sort((a,b)=>a.target.localeCompare(b.target))
+  })
+}
+const unsavedChanges=computed(()=>!!savedVersion.value&&
+  comparableDefinition(savedVersion.value.definition)!==comparableDefinition(definition.value))
 const active=computed(()=>hasCurrentVersion.value&&selectedTemplate.value?.activeVersion===createdVersion.value)
 const exampleBody=computed(()=>{
   const inputs:Record<string,unknown>={}
@@ -406,20 +417,29 @@ async function saveDefinition(){
     const response=await fetchClient<Summary>(
       api('templates/'+encodeURIComponent(endpointName.value)+'/versions'),
       {method:'POST',body:definition.value})
-    createdVersion.value=response.history[0]?.version??null
-    await reloadDefinitions()
-    success.value='Versión guardada como borrador; todavía no se puede ejecutar.'
+    const revision=response.history[0]
+    if(!revision)throw new Error('El servidor no devolvió el número de versión guardada.')
+    // Preserve the successful save even if refreshing the version list fails.
+    createdVersion.value=revision.version
+    definitions.value=[
+      ...definitions.value.filter(t=>t.name!==response.name),
+      response
+    ]
+    try{await reloadDefinitions()}catch{
+      // The POST already persisted the revision. Its response is authoritative.
+    }
+    success.value='Versión v'+revision.version+' guardada como borrador. Seleccioná Activar versión v'+revision.version+' para publicarla.'
   }catch(e){error.value=e instanceof Error?e.message:'Error guardando el comando.'}
   finally{busy.value=false}
 }
 async function activate(){
-  if(!hasCurrentVersion.value)return
+  if(!canManage.value||busy.value||!hasCurrentVersion.value)return
   busy.value=true;error.value='';success.value=''
   try{
     await fetchClient<Summary>(api('templates/'+encodeURIComponent(endpointName.value)+'/active'),
       {method:'PUT',body:{version:createdVersion.value}})
     await reloadDefinitions()
-    success.value='Plantilla activada. Las escrituras de producción siguen sujetas a aprobación.'
+    success.value='Versión v'+createdVersion.value+' activada. Las escrituras de producción siguen sujetas a aprobación.'
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo activar.'}
   finally{busy.value=false}
 }
@@ -467,7 +487,9 @@ async function revoke(id:string){
   finally{busy.value=false}
 }
 function inspect(t:Summary){
-  const version=t.history.find(h=>h.version===t.activeVersion)??t.history[0]
+  // Prefer the latest revision, including an inactive draft, so it can be
+  // activated from the library instead of reopening an older active revision.
+  const version=t.history[0]??t.history.find(h=>h.version===t.activeVersion)
   if(!version||!['create','update','upsert','delete'].includes(version.definition.operation))return
   const tableInfo=snapshot.value?.catalog.tables.find(x=>x.logicalName===version.definition.entityName)
   endpointName.value=t.name
@@ -802,7 +824,18 @@ onMounted(refresh)
             <button class="crud-primary" type="button" :disabled="busy"
               @click="saveDefinition">{{ selectedTemplate?'1. Guardar nueva versión':'1. Guardar primera versión' }}</button>
             <button class="crud-secondary" type="button" :disabled="busy||!hasCurrentVersion||active"
-              @click="activate">{{ active?'Versión activa':'2. Activar versión' }}</button>
+              @click="activate">{{ active?'Versión v'+createdVersion+' activa':
+                hasCurrentVersion?'2. Activar versión v'+createdVersion:'2. Guardá una versión primero' }}</button>
+          </div>
+          <p v-if="hasCurrentVersion" class="crud-info" role="status">
+            Versión guardada: v{{ createdVersion }} ·
+            {{ active?'Activa': 'Borrador pendiente de activación' }}.
+          </p>
+          <div v-if="hasCurrentVersion&&unsavedChanges" class="crud-note" role="status">
+            <ShieldCheck :size="17"/>
+            <p>El formulario tiene diferencias respecto a la versión v{{ createdVersion }} guardada.
+              El botón Activar publicará exactamente esa versión guardada, no los cambios
+              sin guardar. Para publicar estos últimos, pulsá Guardar nueva versión primero.</p>
           </div>
           <div v-if="validationIssues.length" class="crud-card">
             <h4>Revisá estos requisitos antes de guardar otra versión</h4>
@@ -924,8 +957,9 @@ onMounted(refresh)
           <span><strong>{{ template.name }}</strong>
             <small>{{ template.history[0]?.definition.operation.toUpperCase() }} ·
               {{ template.history[0]?.definition.entityName }} ·
-              {{ template.activeVersion?'Activa · v'+template.activeVersion:'Borrador' }}</small></span>
-          <button class="crud-secondary" type="button" @click="inspect(template)">Abrir</button>
+              Última v{{ template.history[0]?.version }} ·
+              {{ template.activeVersion?'Activa v'+template.activeVersion:'Sin versión activa' }}</small></span>
+          <button class="crud-secondary" type="button" @click="inspect(template)">Abrir última versión</button>
         </div>
         <div v-if="!definitions.length" class="crud-info">Todavía no hay comandos configurados.</div>
         <h3>Claves de acceso emitidas</h3>
