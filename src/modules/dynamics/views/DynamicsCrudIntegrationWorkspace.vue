@@ -445,7 +445,7 @@ async function saveDefinition(){
       // The POST already persisted the revision. Its response is authoritative.
     }
     success.value='Versión v'+revision.version+' guardada como borrador. Seleccioná Activar versión v'+revision.version+' para publicarla.'
-  }catch(e){error.value=e instanceof Error?e.message:'Error guardando el comando.'}
+  }catch(e){error.value=describeCrudError(e,'Error guardando el comando.')}
   finally{busy.value=false}
 }
 async function activate(){
@@ -456,8 +456,27 @@ async function activate(){
       {method:'PUT',body:{version:createdVersion.value}})
     await reloadDefinitions()
     success.value='Versión v'+createdVersion.value+' activada. Las escrituras de producción siguen sujetas a aprobación.'
-  }catch(e){error.value=e instanceof Error?e.message:'No se pudo activar.'}
+  }catch(e){error.value=describeCrudError(e,'No se pudo activar.')}
   finally{busy.value=false}
+}
+const crudErrorReasons:Record<string,string>={
+  crud_lookup_mapping_requires_oauth:'El conector estaba rechazando relaciones por nombre autorizadas; comprobá que esté desplegada la última versión del conector.',
+  crud_lookup_mapping_not_approved:'Hay un campo de relación que no coincide con los metadatos de Dataverse. Revisá Cliente, Cuenta e IDTRA en el paso 2.',
+  crud_field_denied:'Uno o más campos elegidos no tienen permiso de creación en Catálogo o cambiaron sus metadatos.',
+  template_mapping_field_denied:'Una relación o campo del comando no conserva la autorización de Dataverse. Revisá Tabla y campos.',
+  active_template_required:'Primero activá la versión de crear_oferta.',
+  template_version_changed:'La versión activa cambió durante la operación. Recargá y generá una clave para la versión actual.',
+  invalid_crud_key_request:'Verificá el nombre, vencimiento y límite de solicitudes de la clave.',
+  approved_alternate_key_required:'UPSERT requiere una clave alternativa válida.',
+  quote_lookup_name_field_not_authorized:'Falta lectura del campo elegido para buscar por nombre al cliente o IDTRA.'
+}
+function describeCrudError(value:unknown,fallback:string):string {
+  if(value instanceof ApiError){
+    const code=value.code??''
+    const reason=crudErrorReasons[code]??value.message
+    return (code?'Error '+code+' (HTTP '+(value.status??'?')+'): ':'')+reason
+  }
+  return value instanceof Error?value.message:fallback
 }
 async function issueKey(){
   if(!active.value||!canManage.value)return
@@ -474,7 +493,7 @@ async function issueKey(){
       issued.value.key.entityName==='quote'&&issued.value.key.operation==='create')
       quoteTotalGrantKeyId.value=issued.value.key.id
     success.value='Clave creada para la versión activa. Copiala ahora; no se mostrará nuevamente. Actualizá la configuración del backend de Pricing si usará esta clave.'
-  }catch(e){error.value=e instanceof Error?e.message:'No se pudo crear la clave.'}
+  }catch(e){error.value=describeCrudError(e,'No se pudo crear la clave.')}
   finally{busy.value=false}
 }
 const quoteTotalActiveVersion=computed(()=>definitions.value.find(t=>
@@ -524,7 +543,7 @@ async function revoke(id:string){
     if(issued.value?.key.id===id)issued.value=null
     keys.value=await fetchClient<KeyInfo[]>(api('crud-keys'),{method:'GET'})
     success.value='Acceso revocado.'
-  }catch(e){error.value=e instanceof Error?e.message:'No se pudo revocar.'}
+  }catch(e){error.value=describeCrudError(e,'No se pudo revocar.')}
   finally{busy.value=false}
 }
 function inspect(t:Summary){
