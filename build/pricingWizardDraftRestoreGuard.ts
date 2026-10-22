@@ -18,7 +18,7 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `const PRICING_DRAFT_VERSION = 1`,
-    `const PRICING_DRAFT_VERSION = 2`,
+    `const PRICING_DRAFT_VERSION = 3`,
     'draft version',
   )
 
@@ -35,8 +35,14 @@ function patchWizard(source: string) {
 
     if (Array.isArray(current)) {
       target[key] = Array.isArray(incoming)
-        ? incoming.filter((item) => typeof item === 'string')
+        ? incoming.filter((item) => item !== null && ['string', 'number', 'boolean', 'object'].includes(typeof item))
         : []
+      continue
+    }
+    if (current && typeof current === 'object') {
+      if (incoming && typeof incoming === 'object' && !Array.isArray(incoming)) {
+        target[key] = { ...current, ...incoming }
+      }
       continue
     }
     if (typeof current === 'string') {
@@ -84,7 +90,7 @@ ${restoreAnchor}`
   code = replaceRequired(
     code,
     `      Number(draft.version) !== PRICING_DRAFT_VERSION ||`,
-    `      ![1, PRICING_DRAFT_VERSION].includes(Number(draft.version)) ||`,
+    `      ![1, 2, PRICING_DRAFT_VERSION].includes(Number(draft.version)) ||`,
     'draft version validation',
   )
 
@@ -145,16 +151,14 @@ ${restoreAnchor}`
     const restoredStep = Math.trunc(Number(draft.step || minimumStep))
     const safeRestoredStep = Math.min(maximumStep, Math.max(minimumStep, restoredStep))
 
-    // For a normal new quote, resume at most on Pantalla 4. Pantalla 5+ depends on
-    // live tariff/catalog responses and is recalculated when the user continues.
-    // Existing seller/rate-request flows keep their own minimum step behavior.
+    // Retomar la pantalla real guardada (incluidas Líneas y Borrador).
+    // Los resultados derivados de la API se refrescan sin descartar los cargos
+    // manuales ni los montos de venta preservados en rateLines.
     step.value = props.sellerModificationRateId
       ? 3
       : props.sellerEditRequestId
         ? 4
-        : props.rateRequestId
-          ? safeRestoredStep
-          : Math.min(safeRestoredStep, 4)
+        : safeRestoredStep
 
     await Promise.resolve()
     const draftForm = draft.form && typeof draft.form === 'object'
@@ -171,9 +175,9 @@ ${restoreAnchor}`
     `    toastStore.success('Borrador recuperado', 'Se restauró automáticamente la tarifa que estaba en proceso.')`,
     `    toastStore.success(
       'Borrador recuperado',
-      safeRestoredStep >= 5 && !props.rateRequestId
-        ? 'Se recuperaron los datos capturados. Las tarifas se consultarán nuevamente al continuar a Pantalla 5.'
-        : 'Se restauró automáticamente la tarifa que estaba en proceso.',
+      safeRestoredStep === 5
+        ? 'Se restauró la pantalla de proveedores; las tarifas de búsqueda se actualizarán desde la API.'
+        : 'Se restauró la tarifa completa y la pantalla donde estaba trabajando.',
     )`,
     'draft restored toast',
   )
