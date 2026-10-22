@@ -4,7 +4,14 @@ WORKDIR /app
 RUN corepack enable
 
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# Use the pnpm version pinned by package.json; retry transient registry/DNS failures.
+RUN set -eu; \
+    for attempt in 1 2 3; do \
+      if pnpm install --frozen-lockfile; then exit 0; fi; \
+      if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+      echo "pnpm install failed (attempt $attempt/3); retrying..." >&2; \
+      sleep "$((attempt * 10))"; \
+    done
 
 COPY . .
 
