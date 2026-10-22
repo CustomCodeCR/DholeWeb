@@ -12,14 +12,14 @@ type Field = { logicalName: string; type: string; canRead: boolean; canCreate: b
 type Relationship = { kind:string; referencingEntity?:string|null; referencingAttribute?:string|null
   referencedEntity?:string|null; referencingNavigation?:string|null }
 type Table = { logicalName: string; entitySetName: string; labels: Record<string,string>
-  primaryIdAttribute: string; columns: Field[]; relationships?: Relationship[]
+  primaryIdAttribute: string; primaryNameAttribute?: string|null; columns: Field[]; relationships?: Relationship[]
   alternateKeys?: Array<{ logicalName: string; attributes: string[] }> }
 type Snapshot = { version: number; catalog: { tables: Table[] } }
 type Policy = { entities: Array<{logicalName:string;enabled:boolean}>
   fields: Array<{entityName:string;fieldName:string;enabled:boolean;canCreate:boolean;canUpdate:boolean;canRead:boolean}> }
 type Definition = {entityName:string;operation:string;
   inputs: Array<{name:string;type:string;required:boolean}>;
-  mappings: Array<{target:string;source:string}>}
+  mappings: Array<{target:string;source:string;steps?:Array<{op:string;argument?:string}>}>}
 type Summary = {id:string;name:string;activeVersion:number|null;
   history:Array<{version:number;definition:Definition}>}
 type KeyInfo = {id:string;templateName:string;operation:string;entityName:string;
@@ -41,6 +41,8 @@ const operation=ref<Operation>('create')
 const entity=ref('')
 const selected=ref<string[]>([])
 const chosenRelations=ref<Record<string,string>>({})
+const relationModes=ref<Record<string,'name'|'guid'>>({})
+const lookupMatchFields=ref<Record<string,string>>({})
 const quoteSetupConfirm=ref(false)
 const quoteSetupBusy=ref(false)
 const quoteSetupMessage=ref('')
@@ -82,6 +84,8 @@ function display(labels?:Record<string,string>,fallback='') {
   return labels['3082']||labels['1033']||Object.values(labels)[0]||fallback
 }
 function fieldType(f:Field):'string'|'guid'|'integer'|'decimal'|'boolean'|'datetime' {
+  if(relationshipTypes.has(f.type)&&relationMode(f)==='name')return 'string'
+  if(f.logicalName==='new_equipo'&&f.type==='Picklist')return 'string'
   if(['Boolean'].includes(f.type))return 'boolean'
   if(['Integer','BigInt','Picklist','State','Status'].includes(f.type))return 'integer'
   if(['Money','Decimal','Double'].includes(f.type))return 'decimal'
@@ -134,6 +138,29 @@ function chosenLookup(f:Field):Relationship|undefined {
   const options=lookupOptions(f)
   return options.find(r=>r.referencingNavigation===chosenRelations.value[f.logicalName])??options[0]
 }
+function targetTable(f:Field):Table|undefined {
+  const rel=chosenLookup(f)
+  return snapshot.value?.catalog.tables.find(t=>t.logicalName===rel?.referencedEntity)
+}
+function readableNameFields(f:Field):Field[] {
+  const dest=targetTable(f)
+  if(!dest)return []
+  return dest.columns.filter(c=>c.canRead&&['String','Memo'].includes(c.type)&&
+    policies.value.fields.some(p=>p.entityName===dest.logicalName&&
+      p.fieldName===c.logicalName&&p.enabled&&p.canRead))
+}
+function selectedNameField(f:Field):string {
+  const fields=readableNameFields(f)
+  const existing=lookupMatchFields.value[f.logicalName]
+  if(existing&&fields.some(c=>c.logicalName===existing))return existing
+  const preferred=f.logicalName==='new_idtra1'?'ticketnumber':targetTable(f)?.primaryNameAttribute
+  return fields.find(c=>c.logicalName===preferred)?.logicalName??fields[0]?.logicalName??''
+}
+function relationMode(f:Field):'name'|'guid' {
+  const choice=relationModes.value[f.logicalName]
+  return choice==='guid'||choice==='name'&&readableNameFields(f).length?choice:
+    readableNameFields(f).length?'name':'guid'
+}
 const selectedLookups=computed(()=>selectedFields.value.filter(f=>relationshipTypes.has(f.type)))
 const fieldAvailability=computed(()=>table.value?.columns.map(availability)??[])
 const eligibleFields=computed(()=>fieldAvailability.value.filter(a=>a.selectable).map(a=>a.field))
@@ -154,7 +181,7 @@ function selectVisibleFields(){
   }
   selected.value=[...current]
 }
-function clearSelectedFields(){selected.value=[];chosenRelations.value={};exampleOptions.value={};createdVersion.value=null}
+function clearSelectedFields(){selected.value=[];chosenRelations.value={};relationModes.value={};lookupMatchFields.value={};exampleOptions.value={};createdVersion.value=null}
 const entityNameOptions=computed(()=>(snapshot.value?.catalog.tables??[])
   .filter(t=>policies.value.entities.some(p=>p.logicalName===t.logicalName&&p.enabled))
   .map(t=>({ value:t.logicalName,label:display(t.labels,t.logicalName) }))
@@ -188,7 +215,11 @@ const definition=computed<Definition>(()=>({
     target:relationshipTypes.has(f.type)
       ?(chosenLookup(f)?.referencingNavigation??'')+'@odata.bind'
       :f.logicalName,
-    source:f.logicalName
+    source:f.logicalName,
+    ...(relationshipTypes.has(f.type)&&relationMode(f)==='name'
+      ?{steps:[{op:'lookup_name',argument:selectedNameField(f)}]}:
+      f.logicalName==='new_equipo'&&f.type==='Picklist'
+      ?{steps:[{op:'choice_label'}]}:{})
   }))
 }))
 const nameValid=computed(()=>/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(endpointName.value))
@@ -203,14 +234,18 @@ const hasCurrentVersion=computed(()=>!!createdVersion.value&&selectedTemplate.va
   h.definition.operation===definition.value.operation &&
   JSON.stringify(h.definition.inputs.map(i=>({name:i.name,type:i.type,required:i.required})))===
     JSON.stringify(definition.value.inputs) &&
-  JSON.stringify(h.definition.mappings.map(m=>({target:m.target,source:m.source})))===
-    JSON.stringify(definition.value.mappings)))
+  JSON.stringify(h.definition.mappings.map(m=>({target:m.target,source:m.source,steps:m.steps??[]})))===
+    JSON.stringify(definition.value.mappings.map(m=>({target:m.target,source:m.source,steps:m.steps??[]})))))
 const active=computed(()=>hasCurrentVersion.value&&selectedTemplate.value?.activeVersion===createdVersion.value)
 const exampleBody=computed(()=>{
   const inputs:Record<string,unknown>={}
   for(const f of selectedFields.value) {
     const kind=fieldType(f)
-    inputs[f.logicalName]=['Picklist','State','Status','EntityName'].includes(f.type)
+    inputs[f.logicalName]=relationshipTypes.has(f.type)&&relationMode(f)==='name'
+      ?(f.logicalName==='new_idtra1'?'IDTRA-2026-00125':'NOMBRE EXACTO EN DYNAMICS'):
+      f.logicalName==='new_equipo'&&f.type==='Picklist'
+      ?choicesFor(f).find(o=>o.value===chosenValue(f))?.label??null:
+      ['Picklist','State','Status','EntityName'].includes(f.type)
       ?chosenValue(f)??null:
       kind==='integer'||kind==='decimal'?0:
       kind==='boolean'?false:
@@ -320,7 +355,8 @@ async function refresh(){
     definitions.value=summaries;keys.value=keyList
     if(!tables.value.some(t=>t.logicalName===entity.value)){
       entity.value=tables.value[0]?.logicalName??''
-      selected.value=[];exampleOptions.value={};createdVersion.value=null
+      selected.value=[];chosenRelations.value={};relationModes.value={};lookupMatchFields.value={};
+      exampleOptions.value={};createdVersion.value=null
     }
     void loadChoiceOptions()
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo cargar el catálogo.'}
@@ -535,7 +571,7 @@ onMounted(refresh)
                     {{ item.reason }}
                   </small>
                   <small v-if="item.selectable&&relationshipTypes.has(item.field.type)">
-                    Relación con {{ lookupOptions(item.field).map(r=>r.referencedEntity).join(' / ') }} (requiere GUID real).
+                    Relación con {{ lookupOptions(item.field).map(r=>r.referencedEntity).join(' / ') }} · búsqueda por nombre o GUID.
                   </small>
                 </span>
               </label>
@@ -551,10 +587,10 @@ onMounted(refresh)
             </p>
             <div v-if="selectedLookups.length" class="crud-options-panel">
               <h4>Relaciones con registros existentes en Dynamics</h4>
-              <p>Cliente (Customer) e IDTRA 1 (Lookup) requieren el GUID real de un registro.
-                El comando creará un vínculo mediante la propiedad de navegación oficial
-                (<code>@odata.bind</code>). El IDTRA textual se envía en
-                <code>new_idtraasignado</code>, no en new_idtra1.</p>
+              <p>Ingresá el nombre del cliente y el número o título del IDTRA: Dhole buscará
+                automáticamente el registro único, resolverá su GUID y creará el vínculo
+                (<code>@odata.bind</code>). Si tenés el GUID también podés usarlo.
+                El IDTRA textual se conserva en <code>new_idtraasignado</code>.</p>
               <div class="crud-options-grid">
                 <label v-for="field in selectedLookups" :key="field.logicalName" class="crud-field">
                   <span>{{ display(field.labels,field.logicalName) }} · {{ field.logicalName }}</span>
@@ -565,7 +601,24 @@ onMounted(refresh)
                       {{ rel.referencedEntity }} · {{ rel.referencingNavigation }}
                     </option>
                   </select>
-                  <small>Necesitás el GUID de un registro existente y permiso de lectura en la tabla relacionada.</small>
+                  <span>Cómo identificar el registro</span>
+                  <select :value="relationMode(field)"
+                    @change="relationModes={...relationModes,[field.logicalName]:($event.target as HTMLSelectElement).value as 'name'|'guid'}">
+                    <option value="name" :disabled="!readableNameFields(field).length">Nombre o número (búsqueda exacta automática)</option>
+                    <option value="guid">GUID del sistema externo</option>
+                  </select>
+                  <template v-if="relationMode(field)==='name'">
+                    <span>Campo de Dataverse utilizado para buscar</span>
+                    <select :value="selectedNameField(field)"
+                      @change="lookupMatchFields={...lookupMatchFields,[field.logicalName]:($event.target as HTMLSelectElement).value}">
+                      <option v-for="candidate in readableNameFields(field)" :key="candidate.logicalName"
+                        :value="candidate.logicalName">
+                        {{ display(candidate.labels,candidate.logicalName) }} · {{ candidate.logicalName }}
+                      </option>
+                    </select>
+                    <small>La búsqueda debe devolver exactamente un registro. Si falta o hay duplicados se rechaza la creación.</small>
+                  </template>
+                  <small v-else>Se requiere un GUID real del registro de {{ chosenLookup(field)?.referencedEntity }}.</small>
                 </label>
               </div>
             </div>
@@ -585,6 +638,10 @@ onMounted(refresh)
                   </select>
                   <small v-if="field.type==='EntityName'">
                     Se envía el nombre lógico de la tabla, no un GUID de registro.
+                  </small>
+                  <small v-else-if="field.logicalName==='new_equipo'">
+                    Se envía el nombre del equipo. El conector busca la opción exacta y utiliza
+                    internamente su número de Picklist de Dataverse.
                   </small>
                   <small v-else>
                     Se envía el valor numérico de esta lista de opciones de Dataverse.
