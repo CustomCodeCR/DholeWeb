@@ -23,6 +23,12 @@ type QuoteIssue = {
   } | null
   createdAtUtc?: string
 }
+type WriteReadiness = {
+  ready: boolean
+  code: string
+  message: string
+  noPostExecuted: boolean
+}
 type Diagnosis = {
   valid: boolean
   stage: string
@@ -152,6 +158,37 @@ const diagnosingRateId = ref<string | null>(null)
 const diagnoses = ref<Record<string, Diagnosis>>({})
 const retryingRateId = ref<string | null>(null)
 const retryMessages = ref<Record<string, string>>({})
+const writeReadiness = ref<WriteReadiness | null>(null)
+const checkingWrites = ref(false)
+
+async function checkWriteReadiness(): Promise<WriteReadiness> {
+  if (!isAdministrator.value) {
+    return { ready: false, code: 'DYNAMICS_NOT_AUTHORIZED',
+      message: 'No tenés autorización para revisar las escrituras de QUO.', noPostExecuted: true }
+  }
+  checkingWrites.value = true
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET', path: '/api/pricing/rates/dynamics-sync/write-readiness',
+    })
+    const result = unwrapApiResponse<WriteReadiness>(response as never)
+    if (typeof result?.ready !== 'boolean' || typeof result?.code !== 'string') {
+      throw new Error('Respuesta de autorización inválida.')
+    }
+    writeReadiness.value = result
+    return result
+  } catch {
+    const unavailable: WriteReadiness = {
+      ready: false, code: 'DYNAMICS_PREFLIGHT_UNAVAILABLE',
+      message: 'No se pudo verificar la autorización en Pricing/Connector. No se reenviará la tarifa.',
+      noPostExecuted: true,
+    }
+    writeReadiness.value = unavailable
+    return unavailable
+  } finally {
+    checkingWrites.value = false
+  }
+}
 
 async function retryConfirmedPreWrite(issue: QuoteIssue) {
   if (!isAdministrator.value || retryingRateId.value ||
@@ -159,6 +196,12 @@ async function retryConfirmedPreWrite(issue: QuoteIssue) {
   retryingRateId.value = issue.rateId
   retryMessages.value = { ...retryMessages.value, [issue.rateId]: '' }
   try {
+    const readiness = await checkWriteReadiness()
+    if (!readiness.ready) {
+      retryMessages.value = { ...retryMessages.value, [issue.rateId]:
+        'No se encoló: ' + readiness.message + ' (' + readiness.code + ').' }
+      return
+    }
     await callEndpoint<unknown>({
       method: 'POST',
       path: `/api/pricing/rates/${encodeURIComponent(issue.rateId)}/dynamics-sync/retry`,
@@ -214,7 +257,7 @@ async function diagnose(rateId: string) {
   }
 }
 
-onMounted(() => { void refresh(); void loadQuoteKeys() })
+onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness() })
 </script>
 
 <template>
@@ -266,6 +309,25 @@ onMounted(() => { void refresh(); void loadQuoteKeys() })
         Si no aparece la clave o falta quotedetail, actualizá los metadatos y habilitá
         sus campos de creación en Catálogo antes de autorizar.
       </p>
+    </div>
+
+    <div v-if="isAdministrator" class="quote-sync-grants">
+      <div>
+        <strong>Autorización de escrituras de QUO en producción</strong>
+        <p>Esta comprobación utiliza la clave del backend de Pricing y consulta la
+          política real de Dynamics; no crea ni modifica ofertas.</p>
+        <p v-if="writeReadiness" role="status"
+          :class="writeReadiness.ready ? 'quote-sync-ok' : 'quote-sync-error'">
+          {{ writeReadiness.ready ? 'Habilitado' : 'Bloqueado' }}:
+          {{ writeReadiness.message }} ({{ writeReadiness.code }})
+        </p>
+        <p v-else>Sin comprobar.</p>
+      </div>
+      <button class="dynamics-outline-button" type="button"
+        :disabled="checkingWrites" @click="checkWriteReadiness">
+        <RefreshCw :size="15" :class="{ 'animate-spin': checkingWrites }" />
+        {{ checkingWrites ? 'Comprobando...' : 'Comprobar autorización' }}
+      </button>
     </div>
 
     <div v-if="isAdministrator" class="quote-sync-grants">
@@ -343,8 +405,10 @@ onMounted(() => { void refresh(); void loadQuoteKeys() })
     </div>
     <p class="quote-sync-footnote">
       Diagnosticar solamente lee el esquema activo de Dynamics y comprueba los campos.
-      El botón Reintentar solo aparece si Pricing confirmó que el error ocurrió antes de escribir en Dataverse.
-      Antes del reintento, corregí la autorización de escrituras en el servidor.
+      Reintentar verifica primero que el conector permita escrituras de QUO y solo
+      encola fallos confirmados anteriores a la creación. El diagnóstico de mapeo válido
+      no reemplaza la aprobación de escrituras. Los fallos de resultado ambiguo
+      requieren conciliación en Dynamics antes de cualquier reintento.
     </p>
   </section>
 </template>
