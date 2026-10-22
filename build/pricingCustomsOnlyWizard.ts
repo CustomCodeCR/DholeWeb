@@ -217,6 +217,16 @@ function patchWizard(source: string): string {
     '',
   ].join('\n') + code.slice(rebuildAssignment)
 
+  // Existing CIF/CFR-DDP quotes can still retain an imported FCL source from
+  // an older revision. Explicitly clear that source through the edit middleware.
+  // Keep other Incoterms' original source-selection behavior unchanged.
+  code = replaceRequired(
+    code,
+    '        ...baseUpdate,\\n        agentId: agent!.id,',
+    "        ...baseUpdate,\\n        ...(!hasInternationalTransportService.value ? { sourceImportFclRateId: null } : {}),\\n        agentId: agent!.id,",
+    'clear imported freight association on no-freight edit',
+  )
+
   const screenSixStart = code.indexOf('<div v-else-if="step === 6" class="space-y-6">')
   const screenSixEnd = code.indexOf('<div v-else-if="step === 4" class="space-y-6">', screenSixStart)
   if (screenSixStart < 0 || screenSixEnd <= screenSixStart) {
