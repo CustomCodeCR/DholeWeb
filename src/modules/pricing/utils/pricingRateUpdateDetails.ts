@@ -64,3 +64,62 @@ export function stalePersistedFclFreightDetailIds(
       .map((detail) => detail.id),
   )
 }
+
+
+/**
+ * The final update payload must never request an update and deletion of the same
+ * persisted detail. The wizard's removal candidates are calculated from the
+ * visible lines, while CostId/name hydration can later recover a persisted Id.
+ *
+ * Resolve identities AFTER building extraDetails, not before it. A legacy CIF
+ * freight Id reused by an unrelated destination charge must be inserted as a
+ * new row; it must not steal the Id of a freight detail being removed.
+ */
+export function reconcileRateUpdateDetailChanges<T extends {
+  id?: string | null
+  costId?: string | null
+  costDetailType: string
+}>(
+  proposedDetails: readonly T[],
+  proposedRemovedIds: readonly string[],
+  persistedDetails: ReadonlyArray<{
+    id: string
+    costId?: string | null
+    costDetailType: string
+  }>,
+  excludesQuotedFreight: boolean,
+): { extraDetails: Array<T & { id: string | null }>; removedExtraDetailIds: string[] } {
+  const persistedById = new Map(persistedDetails.map((detail) => [detail.id, detail]))
+  const updatedIds = new Set<string>()
+  const extraDetails: Array<T & { id: string | null }> = []
+
+  for (const detail of proposedDetails) {
+    if (excludesQuotedFreight && detail.costDetailType === 'Freight') continue
+
+    const existing = detail.id ? persistedById.get(detail.id) : undefined
+    let id = existing?.id ?? null
+    // Incoterm CIF/CFR-DDP: this persisted freight row is being removed.
+    // Never attach another valid charge to that doomed Freight detail ID.
+    if (excludesQuotedFreight && existing?.costDetailType === 'Freight') id = null
+    if (id && updatedIds.has(id)) id = null
+    if (id) updatedIds.add(id)
+
+    extraDetails.push({ ...detail, id })
+  }
+
+  const removed = new Set(proposedRemovedIds.filter((id) => persistedById.has(id)))
+  if (excludesQuotedFreight) {
+    for (const original of persistedDetails) {
+      if (original.costDetailType === 'Freight') removed.add(original.id)
+    }
+  }
+
+  // Updating a surviving detail wins over an inferred deletion. Explicit
+  // exclusion of historical Freight is safe because those IDs were cleared.
+  for (const id of updatedIds) removed.delete(id)
+
+  return {
+    extraDetails,
+    removedExtraDetailIds: [...removed],
+  }
+}
