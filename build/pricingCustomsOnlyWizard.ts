@@ -24,7 +24,7 @@ function patchWizard(source: string): string {
   code = replaceRequired(
     code,
     "import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'",
-    "import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'\nimport { filterTransportOnlyTermSelection, isInternationalTransportTerm } from '@/modules/pricing/services/pricingTransportTermScope'",
+    "import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'\nimport { filterTransportOnlyTermSelection } from '@/modules/pricing/services/pricingTransportTermScope'",
     'international transport service-scoped terms import',
   )
 
@@ -54,7 +54,7 @@ function patchWizard(source: string): string {
     '  }',
     '  if (!hasInternationalTransportService.value && step.value === 5) step.value = 6',
     '  if (!hasInternationalTransportService.value && step.value === 7) {',
-    "    rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight' && line.section !== 'international_freight' && !isInternationalTransportTerm(line.name))",
+    "    rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight')",
     '  }',
     '})',
     '',
@@ -188,7 +188,7 @@ function patchWizard(source: string): string {
   code = replaceRequired(
     code,
     'const includedLines = computed(() => rateLines.value.filter((line) => line.included && lineMatchesPickupCargoCondition(line)))',
-    "const includedLines = computed(() => rateLines.value.filter((line) => (hasInternationalTransportService.value || (line.costDetailType !== 'Freight' && line.section !== 'international_freight' && !isInternationalTransportTerm(line.name))) && line.included && lineMatchesPickupCargoCondition(line)))",
+    "const includedLines = computed(() => rateLines.value.filter((line) => (hasInternationalTransportService.value || line.costDetailType !== 'Freight') && line.included && lineMatchesPickupCargoCondition(line)))",
     'exclude freight from customs rate payload',
   )
 
@@ -211,7 +211,7 @@ function patchWizard(source: string): string {
   code = code.slice(0, rebuildAssignment) + [
     '  if (!hasInternationalTransportService.value) {',
     '    for (let i = lines.length - 1; i >= 0; i -= 1) {',
-    "      if (lines[i]?.costDetailType === 'Freight' || lines[i]?.section === 'international_freight' || isInternationalTransportTerm(lines[i]?.name ?? '')) lines.splice(i, 1)",
+    "      if (lines[i]?.costDetailType === 'Freight') lines.splice(i, 1)",
     '    }',
     '  }',
     '',
