@@ -11,6 +11,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useShortcutStore } from '@/core/stores/shortcutStore'
 import { NotificationsService } from '@/core/services/notificationsService'
 import type { NotificationInboxItemDto } from '@/core/interfaces/notifications'
+import { resolveNotificationDestination } from '@/core/utils/notificationNavigation'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -74,17 +75,38 @@ async function loadMoreNotifications() {
   }
 }
 
-async function markNotificationRead(item: NotificationInboxItemDto) {
-  expandedRecipientId.value = expandedRecipientId.value === item.recipientId ? null : item.recipientId
+async function persistNotificationRead(item: NotificationInboxItemDto) {
   if (item.readAtUtc) return
-
   try {
     await NotificationsService.markInboxRead(item.recipientId)
     item.readAtUtc = new Date().toISOString()
     unreadCount.value = Math.max(0, unreadCount.value - 1)
   } catch {
-    // Keep it unread so the user can retry later.
+    // Leave it unread so the user can retry if the request failed.
   }
+}
+
+async function openNotification(item: NotificationInboxItemDto) {
+  const destination = resolveNotificationDestination(item)
+
+  if (destination && router.resolve(destination).matched.length > 0) {
+    try {
+      await router.push(destination)
+      // Route guards can redirect an unauthorized user to /home.
+      // Only mark it read as a successful navigation when the target was opened.
+      if (router.currentRoute.value.path === router.resolve(destination).path) {
+        inboxOpen.value = false
+        void persistNotificationRead(item)
+      }
+    } catch {
+      // Do not mark it read if navigation failed.
+    }
+    return
+  }
+
+  // Older/generic notifications without a real destination remain expandable.
+  expandedRecipientId.value = expandedRecipientId.value === item.recipientId ? null : item.recipientId
+  await persistNotificationRead(item)
 }
 
 async function markAllNotificationsRead() {
@@ -269,7 +291,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="w-full min-w-0 overflow-hidden rounded-[18px] border px-3 py-3 text-left transition hover:bg-[var(--dh-card-hover)]"
                 :class="item.readAtUtc ? 'border-transparent bg-transparent' : 'border-[var(--dh-border)] bg-[var(--dh-card)]'"
-                @click="markNotificationRead(item)"
+                @click="openNotification(item)"
               >
                 <div class="flex min-w-0 items-start gap-2.5 sm:gap-3">
                   <span
