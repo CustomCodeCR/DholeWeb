@@ -88,6 +88,7 @@ export function reconcileRateUpdateDetailChanges<T extends {
     costDetailType: string
   }>,
   excludesQuotedFreight: boolean,
+  completeSnapshot = false,
 ): { extraDetails: Array<T & { id: string | null }>; removedExtraDetailIds: string[] } {
   const persistedById = new Map(persistedDetails.map((detail) => [detail.id, detail]))
   const updatedIds = new Set<string>()
@@ -108,6 +109,15 @@ export function reconcileRateUpdateDetailChanges<T extends {
   }
 
   const removed = new Set(proposedRemovedIds.filter((id) => persistedById.has(id)))
+  // Final save represents exactly the details the user kept on Screen 7.
+  // Hydrated/duplicated rows can be marked included yet disappear from the
+  // normalized outbound payload; remove those persisted IDs as well.
+  // Keep this opt-in: intermediate/transient UI builds are not authoritative.
+  if (completeSnapshot) {
+    for (const previous of persistedDetails) {
+      if (!updatedIds.has(previous.id)) removed.add(previous.id)
+    }
+  }
   if (excludesQuotedFreight) {
     for (const original of persistedDetails) {
       if (original.costDetailType === 'Freight') removed.add(original.id)
