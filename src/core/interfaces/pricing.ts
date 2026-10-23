@@ -1028,6 +1028,7 @@ export interface UpdateRateRequest extends Omit<
   carrierCode: string
   extraDetails: UpsertRateExtraDetailRequest[]
   removedExtraDetailIds: string[]
+  replaceExtraDetails?: boolean
   updateReason?: string | null
 }
 
