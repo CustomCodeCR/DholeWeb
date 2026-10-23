@@ -30,6 +30,7 @@ interface RateRequestDto {
   kind?: 'New' | 'Modification'
   status: 'Open' | 'Completed' | 'Cancelled'
   workStatus?: 'Working' | 'RequestedFromProvider' | null
+  preparedRevisionNumber?: number | null
   requestedAtUtc: string
   dueAtUtc: string
   cancelledAtUtc?: string | null
@@ -226,6 +227,12 @@ function isModification(request: RateRequestDto): boolean {
   return request.kind === 'Modification' || request.payload?.kind === 'Modification'
 }
 
+function canSendModification(request: RateRequestDto): boolean {
+  return isModification(request)
+    && Number(request.preparedRevisionNumber || 0) >
+       Number(request.payload?.modification?.sourceRevisionNumber || 0)
+}
+
 function modificationItems(request: RateRequestDto): ModificationItem[] {
   // The seller's persisted modification payload stores the diff in "changes".
   return request.payload?.modification?.changes ?? request.payload?.modification?.items ?? []
@@ -265,7 +272,8 @@ async function continueRequest(request: RateRequestDto) {
 }
 
 async function completeRequest(request: RateRequestDto) {
-  if (request.status !== 'Open' || completingRequestId.value || isLocked(request)) return
+  if (request.status !== 'Open' || completingRequestId.value || isLocked(request)
+    || (isModification(request) && !canSendModification(request))) return
   try {
     completingRequestId.value = request.id
     await RateRequestLeaseService.claim(request.id)
@@ -528,8 +536,8 @@ onBeforeUnmount(() => {
                   @click="openRecovery(request)">
                   Vincular existente
                 </DhButton>
-                <DhButton variant="secondary" :disabled="isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="completeRequest(request)">
-                  <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : isModification(request) ? 'Enviar revisión' : 'Marcar completada' }}
+                <DhButton variant="secondary" :disabled="(isModification(request) && !canSendModification(request)) || isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="completeRequest(request)">
+                  <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : isModification(request) ? (canSendModification(request) ? 'Enviar revisión' : 'Guardar revisión primero') : 'Marcar completada' }}
                 </DhButton>
                 <DhButton
                   variant="secondary"
