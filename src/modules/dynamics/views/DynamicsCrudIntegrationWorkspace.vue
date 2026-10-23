@@ -239,7 +239,8 @@ const definition=computed<Definition>(()=>({
     source:f.logicalName,
     ...(relationshipTypes.has(f.type)&&relationMode(f)==='name'
       ?{steps:[{op:'lookup_name',argument:selectedNameField(f)}]}:
-      f.logicalName==='new_divisa'||f.logicalName==='new_moneda'?'USD':
+      // Divisa/moneda use their supplied input value; mappings must
+      // contain an object, never a raw string (invalid TypeScript spread).
       f.logicalName==='new_equipo'&&f.type==='Picklist'
       ?{steps:[{op:'choice_label'}]}:{})
   }))
