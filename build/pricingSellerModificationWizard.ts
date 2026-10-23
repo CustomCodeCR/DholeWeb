@@ -374,8 +374,8 @@ async function applyPricingModification() {
     restoreSellerConsolidatedCargo(proposal, workPayload?.sellerContext)
   await nextTick()
   pricingModificationApplied.value = true
-  if (hasInternationalTransportService.value) await searchApprovedRates()
-  step.value = hasInternationalTransportService.value ? 5 : 6
+  await searchApprovedRates()
+  step.value = 5
   toastStore.info('Cambios cargados en el borrador',
     'Continue desde Pantalla 5. Revise tarifas, proveedores y costos; los cambios todavía no se han guardado ni enviado.')
 }
@@ -436,25 +436,56 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   // must still complete the linked request from the comparison screen.
   code = once(code,
     '  if (props.rateId) await hydrateExistingRate()',
-    `  if (props.rateId) await hydrateExistingRate()
-  // A modification uses the same handoff as a new Sales request: show the
-  // read-only seller summary and begin Pricing at step 5 (6 without freight).
-  // No proposal data is persisted until Pricing explicitly applies and saves it.
+    `  if (props.modificationRequestId) {
+    // A seller-requested modification already has an auditable reason; it does
+    // not require the manual edit wizard reason gate or Screen 3.
+    updateReason.value = 'Solicitud de modificacion de vendedor'
+    editReasonConfirmed.value = true
+  }
+  if (props.rateId) await hydrateExistingRate()
   if (props.modificationRequestId) {
-    step.value = hasInternationalTransportService.value ? 5 : 6
-    if (hasInternationalTransportService.value) await searchApprovedRates()
+    updateReason.value = 'Solicitud de modificacion de vendedor'
+    editReasonConfirmed.value = true
+    await nextTick()
+    step.value = 5
+    await searchApprovedRates()
+    step.value = 5
   }`,
     'start modification at pricing handoff')
 
   code = once(code,
     'async function saveRate() {',
     `async function saveRate() {
+  if (props.modificationRequestId) updateReason.value = 'Solicitud de modificacion de vendedor'
   if (props.modificationRequestId && !pricingModificationApplied.value) {
     toastStore.warning('Modificación pendiente de aplicar',
       'Primero cargue los datos solicitados por Ventas antes de guardar una nueva revisión.')
     return
   }`,
     'modification application required before saving')
+  code = once(code,
+    '        updateReason: updateReason.value.trim(),',
+    "        updateReason: props.modificationRequestId ? 'Solicitud de modificacion de vendedor' : updateReason.value.trim(),",
+    'automatic modification reason in persisted quote')
+  // Guard against the ordinary edit watcher resetting this request to its
+  // manual-reason screen after asynchronous hydration.
+  code = once(code,
+    'if (!loading && props.rateId && !props.viewOnly && editingRate.value && !editReasonConfirmed.value)',
+    'if (!loading && props.rateId && !props.modificationRequestId && !props.viewOnly && editingRate.value && !editReasonConfirmed.value)',
+    'skip manual edit reason watcher for seller modification')
+  // Hide manual edit-reason controls only on a seller modification. Ordinary
+  // edits keep the reason entry and Change reason button unchanged.
+  const reasonEditor = '<div v-if="!viewOnly && !editReasonConfirmed" class="mt-4">'
+  if (!code.includes(reasonEditor))
+    throw new Error('[pricingSellerModificationWizard] Manual reason entry not found')
+  code = code.replace(reasonEditor,
+    '<div v-if="!viewOnly && !editReasonConfirmed && !props.modificationRequestId" class="mt-4">')
+  const reasonSummary = '<div v-else-if="!viewOnly" class="mt-4 rounded-2xl'
+  if (!code.includes(reasonSummary))
+    throw new Error('[pricingSellerModificationWizard] Manual reason summary not found')
+  code = code.replace(reasonSummary,
+    '<div v-else-if="!viewOnly && !props.modificationRequestId" class="mt-4 rounded-2xl')
+
   const saveRateStart = code.indexOf('async function saveRate() {')
   const savedRateNavigation = saveRateStart >= 0
     ? code.indexOf("    await router.push({ name: 'pricing-rates' })", saveRateStart) : -1
