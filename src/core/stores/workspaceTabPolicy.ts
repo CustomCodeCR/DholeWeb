@@ -7,6 +7,19 @@ export function workspaceTabKey(path: string): string {
   return pathname.replace(/\/+$/, '') || '/'
 }
 
+// Related pages share one workspace slot: navigating from a list to its detail,
+// or between editor documents, updates that tab instead of leaving a stale one.
+export function workspaceTabGroup(path: string): string | null {
+  const pathname = workspaceTabKey(path)
+  if (pathname === '/pricing' || /^\/pricing\/rates\/[^/]+\/wizard$/.test(pathname)) return 'pricing-editor'
+  if (pathname === '/pricing/imports' || /^\/pricing\/imports\/review\/[^/]+$/.test(pathname)) return 'pricing-import-review'
+  if (pathname === '/pricing/email-imports' || /^\/pricing\/email-source\/[^/]+$/.test(pathname)) return 'pricing-email-review'
+  if (pathname === '/pricing/request-rate' || /^\/pricing\/seller-rates\/[^/]+$/.test(pathname)) return 'pricing-seller-request'
+  if (/^\/agents\/executions(?:\/[^/]+)?$/.test(pathname)) return 'agent-executions'
+  if (/^\/agents\/profiles(?:\/[^/]+)?$/.test(pathname)) return 'agent-profiles'
+  return null
+}
+
 // Bounded history: keep Dashboard, the active page and the optional split pane.
 // The oldest inactive, closable tab is removed when the workspace is full.
 export function limitWorkspaceTabs<T extends { key: string; closable: boolean }>(
