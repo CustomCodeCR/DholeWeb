@@ -57,7 +57,7 @@ const fieldSearch=ref('')
 const fieldVisibility=ref<'all'|'selectable'|'restricted'>('all')
 const showQuoteDetailFields=ref(false)
 const quoteDetailSearch=ref('')
-const MAX_COMMAND_FIELDS=30
+const MAX_COMMAND_FIELDS=64
 const keyName=ref('')
 const endpointName=ref('crear_oferta')
 const snapshot=ref<Snapshot|null>(null)
@@ -235,6 +235,7 @@ const definition=computed<Definition>(()=>({
     source:f.logicalName,
     ...(relationshipTypes.has(f.type)&&relationMode(f)==='name'
       ?{steps:[{op:'lookup_name',argument:selectedNameField(f)}]}:
+      f.logicalName==='new_divisa'||f.logicalName==='new_moneda'?'USD':
       f.logicalName==='new_equipo'&&f.type==='Picklist'
       ?{steps:[{op:'choice_label'}]}:{})
   }))
@@ -283,7 +284,9 @@ const exampleBody=computed(()=>{
   for(const f of selectedFields.value) {
     const kind=fieldType(f)
     inputs[f.logicalName]=relationshipTypes.has(f.type)&&relationMode(f)==='name'
-      ?(f.logicalName==='new_idtra1'?'IDTRA-2026-00125':'NOMBRE EXACTO EN DYNAMICS'):
+      ?(/^new_idtra(?:10|[1-9])$/i.test(f.logicalName)
+        ?'IDTRA-2026-00125'
+        :f.logicalName==='transactioncurrencyid'?'USD':'NOMBRE EXACTO EN DYNAMICS'):
       f.logicalName==='new_equipo'&&f.type==='Picklist'
       ?choicesFor(f).find(o=>o.value===chosenValue(f))?.label??null:
       ['Picklist','State','Status','EntityName'].includes(f.type)
