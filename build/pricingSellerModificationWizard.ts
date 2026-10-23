@@ -93,7 +93,7 @@ const modificationKeys = [
   'clientName', 'cargoCondition', 'dangerousCargo', 'nonStackable', 'overweight',
   'cargoValue', 'cargoWeightKg', 'cargoPackages', 'cargoPallets',
   'cargoLengthCm', 'cargoWidthCm', 'cargoHeightCm', 'storageDays',
-  'cargoDescription', 'pickupAddress', 'warehouseId',
+  'cargoDescription', 'cargoObservations', 'pickupAddress', 'warehouseId',
   'inlandPickupLocation', 'inlandDeliveryLocation',
 ] as const
 const modificationFieldLabels: Record<string, string> = {
@@ -107,7 +107,7 @@ const modificationFieldLabels: Record<string, string> = {
   cargoWeightKg: 'Peso (kg)', cargoPackages: 'Bultos', cargoPallets: 'Tarimas',
   cargoLengthCm: 'Largo (cm)', cargoWidthCm: 'Ancho (cm)',
   cargoHeightCm: 'Alto (cm)', storageDays: 'Almacenaje',
-  cargoDescription: 'Descripción', pickupAddress: 'Recolección', warehouseId: 'Bodega',
+  cargoDescription: 'Descripción', cargoObservations: 'Observaciones de la carga', pickupAddress: 'Recolección', warehouseId: 'Bodega',
   inlandPickupLocation: 'Ubicación transporte de recolección',
   inlandDeliveryLocation: 'Ubicación transporte de entrega',
 }
