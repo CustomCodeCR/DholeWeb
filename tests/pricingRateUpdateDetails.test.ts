@@ -155,6 +155,36 @@ test('CIF without a freight detail still deletes the historical freight and leav
   assert.equal(payload.extraDetails[0]?.saleAmount, 55)
 })
 
+test('final quote snapshot removes an obsolete duplicate VGM even if initially marked included', () => {
+  const snapshot = reconcileRateUpdateDetailChanges(
+    [
+      { id: 'vgm-retained', costDetailType: 'OriginCharge', costId: 'vgm-a', name: 'VGM', saleAmount: 30 },
+      { id: 'bl-retained', costDetailType: 'OriginCharge', costId: 'bl-fee', name: 'BL FEE', saleAmount: 45 },
+      { id: null, costDetailType: 'AgentCharge', costId: 'handling', name: 'Container Handling Fee', saleAmount: 0 },
+    ],
+    [], // stale VGM never appears in inferred removals
+    [
+      { id: 'vgm-retained', costDetailType: 'OriginCharge', costId: 'vgm-a' },
+      { id: 'vgm-stale', costDetailType: 'OriginCharge', costId: 'vgm-b' },
+      { id: 'bl-retained', costDetailType: 'OriginCharge', costId: 'bl-fee' },
+    ],
+    false,
+    true,
+  )
+  assert.deepEqual(snapshot.removedExtraDetailIds, ['vgm-stale'])
+  assert.deepEqual(snapshot.extraDetails.map((detail) => detail.name), ['VGM', 'BL FEE', 'Container Handling Fee'])
+})
+
+test('partial snapshots preserve otherwise unmentioned saved details', () => {
+  const result = reconcileRateUpdateDetailChanges(
+    [{ id: 'a', costDetailType: 'OriginCharge', name: 'VGM' }],
+    [],
+    [{ id: 'a', costDetailType: 'OriginCharge' }, { id: 'b', costDetailType: 'OriginCharge' }],
+    false,
+  )
+  assert.deepEqual(result.removedExtraDetailIds, [])
+})
+
 test('the production wizard reconciles edit/removal IDs after building final update details', () => {
   const plugin = readFileSync(new URL('../build/pricingWizardFixedAutomaticCostEditFix.ts', import.meta.url), 'utf8')
   assert.ok(plugin.includes('reconcileRateUpdateDetailChanges('))
