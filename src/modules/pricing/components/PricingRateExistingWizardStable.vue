@@ -3854,6 +3854,7 @@ async function saveRate() {
         // this same wizard from the edited Incoterm, services and tariff lines.
         extraDetails,
         removedExtraDetailIds,
+        replaceExtraDetails: true,
       } as UpdateRateRequest
       await PricingService.updateRate(editingRate.value.id, updatePayload)
       rateId = editingRate.value.id
