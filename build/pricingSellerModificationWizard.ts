@@ -374,7 +374,7 @@ async function applyPricingModification() {
     restoreSellerConsolidatedCargo(proposal, workPayload?.sellerContext)
   await nextTick()
   pricingModificationApplied.value = true
-  await searchApprovedRates()
+  if (hasInternationalTransportService.value) await searchApprovedRates()
   step.value = 5
   toastStore.info('Cambios cargados en el borrador',
     'Continue desde Pantalla 5. Revise tarifas, proveedores y costos; los cambios todavía no se han guardado ni enviado.')
@@ -448,7 +448,7 @@ onMounted(() => { void loadPricingModificationWorkItem() })
     editReasonConfirmed.value = true
     await nextTick()
     step.value = 5
-    await searchApprovedRates()
+    if (hasInternationalTransportService.value) await searchApprovedRates()
     step.value = 5
   }`,
     'start modification at pricing handoff')
