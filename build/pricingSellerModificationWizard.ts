@@ -365,7 +365,8 @@ async function applyPricingModification() {
     restoreSellerConsolidatedCargo(proposal, workPayload?.sellerContext)
   await nextTick()
   pricingModificationApplied.value = true
-  step.value = 5
+  if (hasInternationalTransportService.value) await searchApprovedRates()
+  step.value = hasInternationalTransportService.value ? 5 : 6
   toastStore.info('Cambios cargados en el borrador',
     'Continue desde Pantalla 5. Revise tarifas, proveedores y costos; los cambios todavía no se han guardado ni enviado.')
 }
@@ -424,6 +425,18 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   // When updating an already-generated quote for a reserved modification,
   // stay in the wizard instead of redirecting to the rate list. The worker
   // must still complete the linked request from the comparison screen.
+  code = once(code,
+    '  if (props.rateId) await hydrateExistingRate()',
+    `  if (props.rateId) await hydrateExistingRate()
+  // A modification uses the same handoff as a new Sales request: show the
+  // read-only seller summary and begin Pricing at step 5 (6 without freight).
+  // No proposal data is persisted until Pricing explicitly applies and saves it.
+  if (props.modificationRequestId) {
+    step.value = hasInternationalTransportService.value ? 5 : 6
+    if (hasInternationalTransportService.value) await searchApprovedRates()
+  }`,
+    'start modification at pricing handoff')
+
   code = once(code,
     'async function saveRate() {',
     `async function saveRate() {
