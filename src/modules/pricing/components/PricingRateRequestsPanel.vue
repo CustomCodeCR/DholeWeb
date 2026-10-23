@@ -31,6 +31,7 @@ interface RateRequestDto {
   priority: Priority
   kind?: 'New' | 'Modification'
   status: RequestStatus
+  workStatus?: 'Working' | 'RequestedFromProvider' | null
   requestedAtUtc: string
   dueAtUtc: string
   cancelledAtUtc?: string | null
@@ -501,7 +502,7 @@ onBeforeUnmount(() => {
       No hay solicitudes para mostrar.
     </div>
     <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-      <table class="min-w-[2150px] w-full text-left text-sm">
+      <table class="min-w-[2300px] w-full text-left text-sm">
         <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
           <tr>
             <th class="px-4 py-3">Estado</th>
@@ -514,6 +515,7 @@ onBeforeUnmount(() => {
             <th class="px-4 py-3">POE</th>
             <th class="px-4 py-3">POD</th>
             <th class="px-4 py-3">Prioridad</th>
+            <th class="px-4 py-3">Estado de trabajo</th>
             <th class="px-4 py-3">Atendida por</th>
             <th class="px-4 py-3">Incoterm</th>
             <th class="px-4 py-3">Tiempo</th>
@@ -552,6 +554,10 @@ onBeforeUnmount(() => {
               <DhBadge v-else label="POD no indicado" variant="danger" />
             </td>
             <td class="border-l-4 px-4 py-3" :class="request.priority === 'Red' ? 'border-red-500' : request.priority === 'Yellow' ? 'border-amber-500' : 'border-emerald-500'"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
+            <td class="px-4 py-3">
+              <DhBadge :label="request.workStatus === 'RequestedFromProvider' ? 'Solicitado a proveedor' : request.workStatus === 'Working' ? 'Trabajando' : 'Pendiente'"
+                :variant="request.workStatus === 'Working' ? 'success' : request.workStatus === 'RequestedFromProvider' ? 'warning' : 'neutral'" />
+            </td>
             <td class="px-4 py-3">
               <span v-if="isLocked(request)" class="font-bold text-amber-600 dark:text-amber-300">
                 {{ request.lockedByName || 'Otro usuario' }}
