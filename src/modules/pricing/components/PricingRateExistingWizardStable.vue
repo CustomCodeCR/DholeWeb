@@ -937,7 +937,7 @@ const exwLocationReady = computed(() =>
 const fcaLocationReady = computed(() =>
   selectedIncotermCode.value !== 'FCA' ||
   (catalogs.warehouses.length
-    ? Boolean(form.warehouseId)
+    ? Boolean(selectedWarehouse.value)
     : Boolean(form.pickupAddress.trim() && pickupCoordinates.value)),
 )
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
