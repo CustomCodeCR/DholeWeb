@@ -99,6 +99,7 @@ import { pricingScreen7RemoveVariableLines } from './build/pricingScreen7RemoveV
 import { pricingCarrierMerchantChargeCompleteness } from './build/pricingCarrierMerchantChargeCompleteness'
 import { pricingWizardLclGroupAgent } from './build/pricingWizardLclGroupAgent'
 import { pricingWizardCompleteDraftNavigation } from './build/pricingWizardCompleteDraftNavigation'
+import { pricingWizardScreen7CostChoice } from './build/pricingWizardScreen7CostChoice'
 
 export default defineConfig({
   plugins: [
@@ -199,6 +200,7 @@ export default defineConfig({
     pricingMiamiOwnLclBreakdown(),
     pricingWizardLclGroupAgent(),
     pricingWizardCompleteDraftNavigation(),
+    pricingWizardScreen7CostChoice(),
     vue(),
     tailwindcss(),
   ],
