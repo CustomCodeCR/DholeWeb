@@ -170,7 +170,11 @@ function selectedNameField(f:Field):string {
   const fields=readableNameFields(f)
   const existing=lookupMatchFields.value[f.logicalName]
   if(existing&&fields.some(c=>c.logicalName===existing))return existing
-  const preferred=f.logicalName==='new_idtra1'?'title':targetTable(f)?.primaryNameAttribute
+  const preferred=/^new_idtra(?:10|[1-9])$/i.test(f.logicalName)
+    ?'title'
+    :f.logicalName==='transactioncurrencyid'
+      ?'isocurrencycode'
+      :targetTable(f)?.primaryNameAttribute
   return fields.find(c=>c.logicalName===preferred)?.logicalName??fields[0]?.logicalName??''
 }
 function relationMode(f:Field):'name'|'guid' {
