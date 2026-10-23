@@ -46,6 +46,14 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
     'forward navigation floor',
   )
 
+  // Four steps remain visible in Pricing. Avoid an eight-column grid with
+  // empty cells after hiding the seller-owned tabs.
+  replaceOne(
+    `:class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'"`,
+    `:class="pricingSellerScreensLocked ? 'xl:grid-cols-4' : viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'"`,
+    'pricing four-step grid',
+  )
+
   // Keep absolute 05-08 numbering; hide tabs 01-04 instead of reindexing
   // their IDs to 01-04 and accidentally opening the wrong steps.
   replaceOne(
