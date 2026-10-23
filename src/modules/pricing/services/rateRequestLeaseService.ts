@@ -69,6 +69,20 @@ export const RateRequestLeaseService = {
       extraHeaders: { 'X-Rate-Request-Lease': token },
     })
   },
+  async prepareModification(id: string, rateId: string, revisionNumber: number): Promise<number> {
+    const token = this.tokenFor(id)
+    if (!token) throw new Error('No existe una reserva vigente de esta modificación.')
+    const response = await callEndpoint<unknown, { rateId: string; revisionNumber: number }>({
+      method: 'POST',
+      path: path(id, 'prepare-modification'),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, {
+      body: { rateId, revisionNumber },
+      extraHeaders: { 'X-Rate-Request-Lease': token },
+    })
+    const prepared = unwrapApiResponse<{ preparedRevisionNumber: number }>(response as never)
+    return prepared.preparedRevisionNumber
+  },
   async completeRate(id: string, rateId: string): Promise<void> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('No existe una reserva vigente para finalizar la tarifa.')
