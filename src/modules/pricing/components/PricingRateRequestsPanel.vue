@@ -18,10 +18,10 @@ type Priority = 'Green' | 'Yellow' | 'Red'
 type CancellationReason = 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'
 type RequestStatus = 'Open' | 'Completed' | 'Cancelled'
 
-type ModificationItem = { action: 'Add' | 'Change' | 'Remove'; field: string; details: string }
+type ModificationItem = { action: string; field: string; details?: string; original?: string; requested?: string }
 type RequestPayload = {
   kind?: string
-  modification?: { sourceRevisionNumber?: number; items?: ModificationItem[]; notes?: string }
+  modification?: { sourceRevisionNumber?: number; quote?: string; items?: ModificationItem[]; changes?: ModificationItem[]; notes?: string }
   form?: Record<string, unknown>
   requestContext?: Record<string, unknown>
 }
@@ -270,10 +270,16 @@ function isModification(request: RateRequestDto): boolean {
 }
 
 function modificationItems(request: RateRequestDto): ModificationItem[] {
-  return request.payload?.modification?.items ?? []
+  // The seller's persisted modification payload stores the diff in "changes".
+  return request.payload?.modification?.changes ?? request.payload?.modification?.items ?? []
 }
 function actionLabel(action: ModificationItem['action']) {
-  return action === 'Add' ? 'Agregar' : action === 'Remove' ? 'Eliminar' : 'Modificar'
+  return ['Add', 'Agregar'].includes(action) ? 'Agregar'
+    : ['Remove', 'Eliminar'].includes(action) ? 'Eliminar' : 'Modificar'
+}
+function modificationDetail(item: ModificationItem) {
+  if (item.details) return item.details
+  return `${item.original || '—'} → ${item.requested || '—'}`
 }
 
 function isLocked(request: RateRequestDto): boolean {
@@ -537,9 +543,9 @@ onBeforeUnmount(() => {
             <td class="px-4 py-3">
               <strong>{{ request.clientName || 'Cliente sin definir' }}</strong>
               <div v-if="isModification(request)" class="mt-1 text-xs">
-                <DhBadge :label="`Modificación de REV ${request.payload?.modification?.sourceRevisionNumber || 1}`" variant="warning" />
+                <DhBadge :label="`Modificación · ${request.payload?.modification?.quote || 'REV ' + (request.payload?.modification?.sourceRevisionNumber || 1)}`" variant="warning" />
                 <div v-for="(item, index) in modificationItems(request).slice(0, 3)" :key="index" class="mt-1 max-w-72 whitespace-normal text-[var(--dh-text-muted)]">
-                  {{ actionLabel(item.action) }} · {{ item.field }}: {{ item.details }}
+                  {{ actionLabel(item.action) }} · {{ item.field }}: {{ modificationDetail(item) }}
                 </div>
                 <p v-if="modificationItems(request).length > 3" class="mt-1">+ {{ modificationItems(request).length - 3 }} cambios</p>
               </div>
