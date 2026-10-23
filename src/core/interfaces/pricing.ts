@@ -789,8 +789,6 @@ export interface RateDto extends Record<string, unknown> {
   rateName: string
   revisionNumber: number
   sourceImportFclRateId?: string | null
-  sourceTariffRateId?: string | null
-  sourceTariffRevisionNumber?: number | null
   agentId?: string | null
   agentName?: string | null
   agentCode?: string | null
@@ -834,6 +832,7 @@ export interface RateDto extends Record<string, unknown> {
   clientName?: string | null
   executiveName?: string | null
   idtraNumber?: string | null
+  otherReferences?: string | null
   quoNumber?: string | null
   sellerReceivedAtUtc?: string | null
   sellerReceivedBy?: string | null
@@ -902,6 +901,7 @@ export interface RateRevisionDto extends Record<string, unknown> {
   status: string
   rateName: string
   idtraNumber?: string | null
+  otherReferences?: string | null
   quoNumber?: string | null
   totalCostUsd?: number
   totalCostCrc?: number
@@ -987,6 +987,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   clientName?: string | null
   executiveName?: string | null
   idtraNumber?: string | null
+  otherReferences?: string | null
   quoNumber?: string | null
   includes?: string | null
   subjectTo?: string | null
@@ -1056,6 +1057,7 @@ export interface SetRateStatusRequest extends Record<string, unknown> {
   >
   reason?: string | null
   idtraNumber?: string | null
+  otherReferences?: string | null
 }
 
 export interface DeleteBatchRequest extends Record<string, unknown> {
@@ -1117,6 +1119,7 @@ export interface BrowseRatesQuery extends Record<string, unknown> {
   pageSize?: number
   search?: string | null
   idtraNumber?: string | null
+  otherReferences?: string | null
   quoNumber?: string | null
   sourceImportFclRateId?: string | null
   sourceTariffRateId?: string | null
