@@ -58,36 +58,67 @@ async function applyScreen7DatabaseCosts() {
   if (screen7RefreshBusy.value || props.viewOnly) return
   const previous = rateLines.value.map((line) => ({ ...line }))
   const previousCosts = costs.value
+  const previousLineContext = pricingDraftLastLineContext
+  const requestedContext = pricingDraftLineContextKey()
   screen7RefreshBusy.value = true
+  screen7RefreshAllowed.value = true
   try {
-    // Unlike loadApplicableCosts, this direct read propagates API errors, so
-    // a failed backend request can never erase the user's current quotation.
-    const latestCosts = await PricingService.selectCosts({
-      carrierId: form.carrierId || undefined,
-      agentId: form.agentId || undefined,
-      polId: form.originId || undefined,
-      poeId: form.destinationId || undefined,
-      podId: form.podId || undefined,
-      incotermId: form.incotermId || undefined,
-      shipmentMode: shipmentModeForApi.value,
-      isActive: true,
-      applicableToContext: true,
-      serviceIds: form.serviceIds.join(',') || undefined,
-    })
-    if (!Array.isArray(latestCosts)) throw new Error('No se recibió un catálogo válido.')
+    if (!selectedCurrency.value && catalogs.currencies.length === 0) {
+      throw new Error('No se cargó la moneda de la cotización. Recargue los catálogos antes de actualizar.')
+    }
 
-    costs.value = latestCosts
-    screen7RefreshAllowed.value = true
-    // Intentionally drop the old rows before regenerating: the refresh is
-    // explicit permission to add/remove rows and replace changed cost/sales.
+    // This is the exact same loader used when entering Screen 7. A direct
+    // /costs/select call misses normalized agent/POE, import-rate, multi-port,
+    // multi-carrier FCL, LTL and LCL-specific cost sources.
+    await loadApplicableCosts()
+    if (requestedContext !== pricingDraftLineContextKey()) {
+      throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
+    }
+
+    // Own LCL rates come from a consolidation matrix rather than the global
+    // Costs catalog. Restoring the persisted matrix is NOT a database refresh.
+    if (isOwnLclMatrixContext()) {
+      throw new Error('Esta tarifa LCL propia se alimenta del consolidado. Vuelva a seleccionar el consolidado en Proveedor para actualizar su matriz.')
+    }
+
+    // In addition to the contextual costs, Screen 7 normally queries the
+    // complete applicable Optional catalog. Refresh it before rebuilding, but
+    // do not use global optionals for a coloader's own rate.
+    const isColoader = isLclColoaderAgentCostContext()
+    if (!isColoader) {
+      const optionalCosts = await loadAllApplicableOptionalCosts()
+      const merged = new Map(costs.value.map((cost) => [cost.id, cost]))
+      const contextKey = currentCostContextKey()
+      optionalCosts.forEach((cost) => {
+        merged.set(cost.id, { ...cost, __dholePricingContextKey: contextKey })
+      })
+      costs.value = [...merged.values()]
+    }
+    if (requestedContext !== pricingDraftLineContextKey()) {
+      throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
+    }
+    if (previous.some((line) => line.costId) && !costs.value.length && !isColoader) {
+      throw new Error('Pricing no devolvió costos aplicables a esta ruta y proveedor. No se reemplazaron los cargos anteriores.')
+    }
+
+    // Explicit refresh replaces catalog prices, not the user's hand-entered
+    // rubrics. Clearing first also prevents the draft wrapper from retaining
+    // the previous catalog's edited sale/cost amounts.
     rateLines.value = []
     rebuildRateLines()
     if (!rateLines.value.length && previous.length) {
-      throw new Error('La actualización no generó líneas. Se conservarán las anteriores.')
+      throw new Error('No se pudieron reconstruir los cargos para esta modalidad, ruta, proveedor e Incoterm. Se conservaron los anteriores.')
+    }
+    const currentLineKeys = new Set(rateLines.value.map(screen7CostLineKey))
+    for (const line of previous) {
+      if (line.manual && !line.costId && !currentLineKeys.has(screen7CostLineKey(line))) {
+        rateLines.value.push({ ...line })
+        currentLineKeys.add(screen7CostLineKey(line))
+      }
     }
 
-    // Preserve existing detail IDs for compatible rows so an edit updates
-    // rather than duplicating backend details on save.
+    // Keep existing detail IDs for the same catalog row so saving edits
+    // updates RateDetails rather than creating duplicate charges.
     const previousByKey = new Map(previous.map((line) => [screen7CostLineKey(line), line]))
     for (const line of rateLines.value) {
       const original = previousByKey.get(screen7CostLineKey(line))
@@ -98,10 +129,11 @@ async function applyScreen7DatabaseCosts() {
     pricingDraftLastLineContext = pricingDraftLineContextKey()
     screen7RefreshPromptOpen.value = false
     savePricingDraftNow()
-    toastStore.success('Líneas actualizadas', 'Se aplicaron los costos vigentes de la base de datos. Revise costo, venta y totales antes de guardar.')
+    toastStore.success('Líneas actualizadas', 'Se aplicaron los costos vigentes y los cargos opcionales. Los rubros manuales se conservaron. Revise los importes antes de guardar.')
   } catch (error) {
     rateLines.value = previous
     costs.value = previousCosts
+    pricingDraftLastLineContext = previousLineContext
     screen7RefreshPromptOpen.value = true
     toastStore.backendError(error, 'No se actualizaron las líneas. Todos los valores anteriores se conservaron.')
   } finally {
@@ -140,8 +172,9 @@ watch(
             <h3 class="text-sm font-black text-[var(--dh-text)]">¿Desea mantener los valores actuales o actualizar la tarifa?</h3>
             <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
               Mantener conserva los montos y las líneas que ya tiene, incluidas las modificaciones manuales.
-              Actualizar vuelve a consultar la base de datos y puede añadir o quitar líneas, reemplazar
-              costos y ventas y descartar ajustes anteriores. No guarda la tarifa hasta que usted lo confirme.
+              Actualizar consulta los costos y cargos opcionales vigentes para la ruta y el proveedor,
+              reemplaza sus importes y puede añadir o quitar líneas automáticas. Los rubros manuales
+              se conservan. No guarda la tarifa hasta que usted lo confirme.
             </p>
             <div class="mt-4 flex flex-wrap gap-2">
               <DhButton type="button" variant="secondary" size="sm" :disabled="screen7RefreshBusy"
