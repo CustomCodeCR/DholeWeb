@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { limitWorkspaceTabs, workspaceTabKey } from './workspaceTabPolicy'
 
 export interface WorkspaceTab {
   key: string
@@ -28,14 +29,15 @@ export const DASHBOARD_TAB: WorkspaceTab = {
 }
 
 function normalizeTab(tab: WorkspaceTab): WorkspaceTab | null {
-  if (!tab?.key || !tab?.path || !tab?.title) return null
+  if (!tab?.path || !tab?.title) return null
 
-  if (tab.path === '/home' || tab.key === '/home') {
+  const key = workspaceTabKey(tab.path)
+  if (key === '/home') {
     return { ...DASHBOARD_TAB }
   }
 
   return {
-    key: tab.key,
+    key,
     path: tab.path,
     title: tab.title,
     titleKey: tab.titleKey,
@@ -44,13 +46,15 @@ function normalizeTab(tab: WorkspaceTab): WorkspaceTab | null {
 }
 
 function ensureDashboard(tabs: WorkspaceTab[]): WorkspaceTab[] {
-  const normalized = tabs
-    .map(normalizeTab)
-    .filter((tab): tab is WorkspaceTab => tab !== null)
-    .filter((tab, index, collection) => collection.findIndex((x) => x.key === tab.key) === index)
-
-  const withoutDashboard = normalized.filter((tab) => tab.key !== DASHBOARD_TAB.key)
-  return [{ ...DASHBOARD_TAB }, ...withoutDashboard]
+  const byKey = new Map<string, WorkspaceTab>()
+  for (const candidate of tabs) {
+    const tab = normalizeTab(candidate)
+    if (!tab || tab.key === DASHBOARD_TAB.key) continue
+    // Old sessions may contain multiple query-string copies of one view.
+    byKey.delete(tab.key)
+    byKey.set(tab.key, tab)
+  }
+  return [{ ...DASHBOARD_TAB }, ...byKey.values()]
 }
 
 function loadTabs(): WorkspaceTab[] {
@@ -59,15 +63,17 @@ function loadTabs(): WorkspaceTab[] {
 
   try {
     const parsed = JSON.parse(raw) as WorkspaceTab[]
-    return ensureDashboard(Array.isArray(parsed) ? parsed : [])
+    const normalized = ensureDashboard(Array.isArray(parsed) ? parsed : [])
+    const active = workspaceTabKey(localStorage.getItem(ACTIVE_KEY) || '/home')
+    return limitWorkspaceTabs(normalized, active)
   } catch {
     return ensureDashboard([])
   }
 }
 
 function loadActiveKey(tabs: WorkspaceTab[]): string {
-  const stored = localStorage.getItem(ACTIVE_KEY)
-  return tabs.some((tab) => tab.key === stored) ? String(stored) : DASHBOARD_TAB.key
+  const stored = workspaceTabKey(localStorage.getItem(ACTIVE_KEY) || '/home')
+  return tabs.some((tab) => tab.key === stored) ? stored : DASHBOARD_TAB.key
 }
 
 function splitPaneFromTab(tab: WorkspaceTab): WorkspaceSplitPane {
@@ -90,7 +96,7 @@ function loadSplitPane(): WorkspaceSplitPane | null {
       return null
     }
 
-    return parsed
+    return { ...parsed, key: workspaceTabKey(parsed.path) }
   } catch {
     return null
   }
@@ -118,7 +124,11 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
 
   actions: {
     persist() {
-      this.tabs = ensureDashboard(this.tabs)
+      this.tabs = limitWorkspaceTabs(
+        ensureDashboard(this.tabs),
+        this.activeKey,
+        this.splitPane?.key ?? null,
+      )
 
       if (!this.tabs.some((tab) => tab.key === this.activeKey)) {
         this.activeKey = DASHBOARD_TAB.key
