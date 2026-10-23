@@ -23,6 +23,7 @@ const ownLcl = computed(() =>
   <PricingOwnLclView v-if="ownLcl" />
   <PricingAlternativeWizardCrystal
     v-else
+    :key="rateId ? `${rateId}:${viewOnly ? 'view' : 'edit'}` : 'new'"
     :rate-id="rateId"
     :view-only="Boolean(rateId) && viewOnly"
   />
