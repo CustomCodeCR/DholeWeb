@@ -297,6 +297,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/linked-seller-requests',
+          name: 'pricing-linked-seller-requests',
+          component: () => import('@/modules/pricing/views/PricingLinkedSellerRequestsView.vue'),
+          meta: {
+            tabTitle: 'Solicitudes cotizadas',
+            closable: true,
+            requiredScope: 'pricing.rate.update',
+          },
+        },
+        {
           path: 'pricing/tariffs',
           name: 'pricing-tariffs',
           component: () => import('@/modules/pricing/views/PricingTariffsView.vue'),

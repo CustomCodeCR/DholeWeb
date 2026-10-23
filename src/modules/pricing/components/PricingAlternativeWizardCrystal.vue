@@ -60,6 +60,7 @@ import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLoc
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
+import PricingLinkedSellerRequest from '@/modules/pricing/components/PricingLinkedSellerRequest.vue'
 import PricingMarketBenchmarkPanel from '@/modules/pricing/components/PricingMarketBenchmarkPanel.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
@@ -4808,6 +4809,7 @@ onMounted(async () => {
         Esta tarifa ya fue aceptada. Al guardar, Dhole conservará la revisión {{ editingRate.revisionNumber || 1 }} como versión histórica y abrirá la revisión {{ (editingRate.revisionNumber || 1) + 1 }}.
       </div>
       <PricingRateHistory v-if="editingRate" :rate-id="editingRate.id" />
+      <PricingLinkedSellerRequest v-if="authStore.hasScope('pricing.rate.update')" :rate-id="editingRate.id" />
       <details v-if="rateRevisions.length" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
         <summary class="cursor-pointer text-sm font-black">Historial de revisiones · {{ rateRevisions.length }} versión{{ rateRevisions.length === 1 ? '' : 'es' }} anterior{{ rateRevisions.length === 1 ? '' : 'es' }}</summary>
         <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
