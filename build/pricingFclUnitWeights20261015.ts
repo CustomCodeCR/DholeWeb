@@ -274,7 +274,7 @@ watch(
       + distribution.slice(gridEnd + 1)
     // Put the expandable editor AFTER the grid, inside the same card.
     // This prevents the quantity column from making the entire row taller.
-    const tags = /<\\/?div\\b[^>]*>/g
+    const tags = /<\/?div\b[^>]*>/g
     tags.lastIndex = gridStart
     let depth = 0
     let rowEnd = -1
