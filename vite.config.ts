@@ -24,6 +24,7 @@ import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerRequestEdit } from './build/pricingSellerRequestEdit'
 import { pricingSellerModificationWizard } from './build/pricingSellerModificationWizard'
+import { pricingSellerRequestDuplicate } from './build/pricingSellerRequestDuplicate'
 import { pricingSellerPricingStepGuard } from './build/pricingSellerPricingStepGuard'
 import { pricingFclUnitWeights20261015 } from './build/pricingFclUnitWeights20261015'
 import { pricingFclMultiCarrierCosts20261015 } from './build/pricingFclMultiCarrierCosts20261015'
@@ -195,6 +196,7 @@ export default defineConfig({
     pricingSellerMultimodalStep3Fix(),
     pricingSellerRequestEdit(),
     pricingSellerModificationWizard(),
+    pricingSellerRequestDuplicate(),
     pricingFclUnitWeights20261015(),
     pricingFclMultiCarrierCosts20261015(),
     pricingFclInlandPerCarrier20261016(),
