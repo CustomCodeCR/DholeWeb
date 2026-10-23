@@ -495,6 +495,9 @@ onMounted(async () => {
                 <span v-else-if="current.status === 'AcceptedByClient'"> · IDTRA pendiente para Dynamics</span>
                 <span v-if="current.quoNumber"> · QUO {{ current.quoNumber }}</span>
               </p>
+              <p v-if="current.otherReferences" class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
+                Otras referencias (solo Dhole): {{ current.otherReferences }}
+              </p>
               <p v-if="current.sourceTariffRateId" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                 Derivada de tarifario · revisión {{ current.sourceTariffRevisionNumber || 1 }}
               </p>
