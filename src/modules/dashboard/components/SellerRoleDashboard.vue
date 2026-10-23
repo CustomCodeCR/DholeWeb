@@ -27,6 +27,8 @@ interface SellerRateRequestDto {
   requestedAtUtc: string
   dueAtUtc: string
   completedAtUtc?: string | null
+  preparedRevisionNumber?: number | null
+  payload?: { modification?: { sourceRevisionNumber?: number | null } } | null
   rateId?: string | null
   kind?: 'New' | 'Modification'
   sellerUserId?: string | null
@@ -130,7 +132,7 @@ const myRates = computed(() => {
     .filter((rate) => !allowedRateIds || allowedRateIds.has(rate.id))
 })
 const pendingRequests = computed(() => requests.value.filter((request) =>
-  request.status === 'Open' && (!request.rateId || request.kind === 'Modification')).length)
+  (request.status === 'Open' && !request.rateId) || modificationStillPending(request)).length)
 const countStatus = (status: SellerCommercialStatus) =>
   myRates.value.filter((rate) => commercialStatus(rate) === status).length
 
@@ -303,9 +305,24 @@ function editRequest(request: SellerRateRequestDto) {
   void router.push({ name: 'pricing-seller-rate-request-edit', params: { requestId: request.id } })
 }
 
+function modificationActuallyCompleted(request: SellerRateRequestDto): boolean {
+  return request.kind === 'Modification'
+    && request.status === 'Completed'
+    && !!request.completedAtUtc
+    && Number(request.preparedRevisionNumber || 0) >
+      Number(request.payload?.modification?.sourceRevisionNumber || 0)
+}
+function modificationStillPending(request: SellerRateRequestDto): boolean {
+  return request.kind === 'Modification'
+    && (request.status === 'Open'
+      || (request.status === 'Completed' && !modificationActuallyCompleted(request)))
+}
 function requestState(request: SellerRateRequestDto) {
   if (request.status === 'Cancelled') return 'Cancelada'
-  if (request.status === 'Completed') return request.kind === 'Modification' ? 'Modificación atendida' : 'Completada'
+  if (modificationActuallyCompleted(request)) return 'Modificación atendida'
+  if (request.kind === 'Modification' && request.status === 'Completed')
+    return 'Modificación pendiente de verificar'
+  if (request.status === 'Completed') return 'Completada'
   if (request.workStatus === 'RequestedFromProvider') return 'Solicitado a proveedor'
   if (request.workStatus === 'Working') return 'Trabajando'
   if (request.kind === 'Modification') return 'Modificación pendiente'
@@ -316,6 +333,8 @@ function requestState(request: SellerRateRequestDto) {
 
 function requestStateVariant(request: SellerRateRequestDto): 'success' | 'warning' | 'danger' | 'neutral' {
   if (request.status === 'Cancelled') return 'neutral'
+  if (modificationActuallyCompleted(request)) return 'success'
+  if (request.kind === 'Modification' && request.status === 'Completed') return 'warning'
   if (request.status === 'Completed') return 'success'
   if (request.workStatus === 'RequestedFromProvider') return 'warning'
   if (request.workStatus === 'Working') return 'success'
@@ -334,7 +353,7 @@ function canRespondToRate(rate: RateDto) {
 
 function pendingModification(rate: RateDto): boolean {
   return requests.value.some(request => request.rateId === rate.id
-    && request.kind === 'Modification' && request.status === 'Open')
+    && modificationStillPending(request))
 }
 
 function canRequestModification(rate: RateDto): boolean {
