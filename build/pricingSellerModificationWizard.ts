@@ -424,7 +424,18 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   if (savedRateNavigation < 0) throw new Error('[pricingSellerModificationWizard] Rate save navigation not found')
   const stayInRevision = `
     if (props.rateId && (props.modificationRequestId || new URLSearchParams(window.location.search).has('modificationRequestId'))) {
-      toastStore.success('Tarifa guardada', 'La tarifa se guardó. Envíe la nueva revisión al vendedor desde la barra superior de la solicitud.')
+      // Saving the quote is not equivalent to closing the seller request.
+      // The server requires explicit preparation of the exact persisted revision.
+      const modificationId = props.modificationRequestId
+        || new URLSearchParams(window.location.search).get('modificationRequestId')
+      if (!modificationId) throw new Error('No se identificó la solicitud de modificación.')
+      const savedRevision = await PricingService.getRate(rateId)
+      const preparedRevisionNumber = await RateRequestLeaseService.prepareModification(
+        modificationId, rateId, savedRevision.revisionNumber || 0)
+      window.dispatchEvent(new CustomEvent('dhole:pricing:modification-prepared', {
+        detail: { requestId: modificationId, preparedRevisionNumber },
+      }))
+      toastStore.success('Revisión guardada', 'Los cambios están listos. Envíe expresamente la revisión al vendedor para completar la solicitud.')
       await hydrateExistingRate()
       step.value = 8
       return
