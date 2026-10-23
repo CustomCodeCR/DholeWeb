@@ -763,7 +763,9 @@ router.beforeEach(async (to) => {
   return true
 })
 
-router.afterEach((to) => {
+router.afterEach((to, _from, failure) => {
+  // Failed/aborted navigations must never resurrect a closed workspace tab.
+  if (failure) return
   if (to.meta.public === true || to.path === '/change-password' || to.query.dhEmbed === '1') return
 
   const tabsStore = useWorkspaceTabsStore()
