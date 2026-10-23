@@ -83,7 +83,7 @@ export const RateRequestLeaseService = {
     const prepared = unwrapApiResponse<{ preparedRevisionNumber: number }>(response as never)
     return prepared.preparedRevisionNumber
   },
-  async completeRate(id: string, rateId: string): Promise<void> {
+  async completeRate(id: string, rateId: string, options?: { confirmSellerModification?: boolean }): Promise<void> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('No existe una reserva vigente para finalizar la tarifa.')
     await callEndpoint<unknown, { rateId: string }>({
@@ -91,7 +91,7 @@ export const RateRequestLeaseService = {
       path: path(id, 'complete-rate'),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     }, {
-      body: { rateId },
+      body: { rateId, confirmation: options?.confirmSellerModification === true ? 'SendSellerModification' : null },
       extraHeaders: { 'X-Rate-Request-Lease': token },
     })
   },
