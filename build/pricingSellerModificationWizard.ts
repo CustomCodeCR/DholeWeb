@@ -61,7 +61,7 @@ interface PricingModificationWorkItem {
     form?: Record<string, unknown>
     pickupLocations?: RatePickupLocationDto[]
     supportDocuments?: SupportDocument[]
-    sellerContext?: { portHandlingMode?: string | null }
+    sellerContext?: Record<string, unknown> & { portHandlingMode?: string | null }
     modification?: {
       changes?: SellerModificationComparison[]
       sourceRevisionNumber?: number
@@ -359,9 +359,15 @@ async function applyPricingModification() {
     pickupLocations.value = workPayload.pickupLocations.map(pickup => ({ ...pickup }))
   if (Array.isArray(workPayload?.supportDocuments))
     supportDocuments.value = workPayload.supportDocuments.map(document => ({ ...document }))
+  // Same cargo hydration as a new Sales request, including multiple LCL/LTL
+  // lines, chosen dimensions and stackability. The original quote is untouched.
+  if (['LCL', 'LTL'].includes(String(proposal.shipmentMode ?? '').toUpperCase()))
+    restoreSellerConsolidatedCargo(proposal, workPayload?.sellerContext)
+  await nextTick()
   pricingModificationApplied.value = true
-  toastStore.info('Propuesta aplicada en pantalla',
-    'Revise todos los proveedores, costos y recargos antes de guardar la nueva revisión. Aún no se modificó la tarifa persistida.')
+  step.value = 5
+  toastStore.info('Cambios cargados en el borrador',
+    'Continue desde Pantalla 5. Revise tarifas, proveedores y costos; los cambios todavía no se han guardado ni enviado.')
 }
 onMounted(() => { void loadPricingModificationWorkItem() })
 `
@@ -418,6 +424,15 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   // When updating an already-generated quote for a reserved modification,
   // stay in the wizard instead of redirecting to the rate list. The worker
   // must still complete the linked request from the comparison screen.
+  code = once(code,
+    'async function saveRate() {',
+    `async function saveRate() {
+  if (props.modificationRequestId && !pricingModificationApplied.value) {
+    toastStore.warning('Modificación pendiente de aplicar',
+      'Primero cargue los datos solicitados por Ventas antes de guardar una nueva revisión.')
+    return
+  }`,
+    'modification application required before saving')
   const saveRateStart = code.indexOf('async function saveRate() {')
   const savedRateNavigation = saveRateStart >= 0
     ? code.indexOf("    await router.push({ name: 'pricing-rates' })", saveRateStart) : -1
@@ -444,28 +459,22 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   code = code.slice(0, savedRateNavigation) + stayInRevision + code.slice(savedRateNavigation)
 
   const comparisonPanel = `
-    <details v-if="pricingModificationWorkItem" class="crystal-soft group mb-4 border border-amber-400/30 p-4 md:p-5">
-      <summary class="flex cursor-pointer flex-wrap items-center justify-between gap-2 font-black">
-        <span>Modificaciones solicitadas por Ventas · {{ pricingModificationChanges.length }} cambios</span>
-        <span class="text-xs font-semibold text-[var(--dh-text-muted)]">Ver comparativo original / solicitado</span>
-      </summary>
-      <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Revisión original: {{ pricingModificationWorkItem.payload?.modification?.sourceRevisionNumber }}. Los valores del vendedor no se aplican automáticamente.</p>
-      <div class="mt-3 max-h-80 overflow-auto rounded-xl border border-[var(--dh-border)]">
-        <table class="w-full min-w-[660px] text-left text-sm">
-          <thead><tr><th class="p-3">Cambio</th><th class="p-3">Cotización original</th><th class="p-3">Solicitado por Ventas</th></tr></thead>
-          <tbody><tr v-for="(change, index) in pricingModificationChanges" :key="index" class="border-t border-[var(--dh-border)]">
-            <td class="p-3 font-bold">{{ change.action }} · {{ change.field }}</td>
-            <td class="p-3 text-[var(--dh-text-muted)]">{{ change.original }}</td>
-            <td class="p-3 font-semibold">{{ change.requested }}</td>
-          </tr><tr v-if="!pricingModificationChanges.length"><td colspan="3" class="p-3 text-center">No hay diferencias disponibles para mostrar.</td></tr></tbody>
-        </table>
+    <section v-if="pricingModificationWorkItem" class="crystal-soft space-y-3 border border-amber-400/30 p-4 md:p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-black">Preparar la modificación solicitada</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            {{ pricingModificationChanges.length }} diferencias de Ventas. El resumen completo de las pantallas 1–4 y el comparativo original/solicitado están encima del wizard.
+          </p>
+        </div>
+        <DhButton variant="secondary" :disabled="pricingModificationApplied || !editingRate || loadingExistingRate" @click="applyPricingModification">
+          {{ pricingModificationApplied ? 'Cambios cargados en borrador' : 'Cargar cambios solicitados y continuar en Pantalla 5' }}
+        </DhButton>
       </div>
-      <DhButton variant="secondary" :disabled="pricingModificationApplied || !editingRate || loadingExistingRate" @click="applyPricingModification">
-        {{ pricingModificationApplied ? 'Datos cargados en el formulario' : 'Cargar datos solicitados en el wizard' }}
-      </DhButton>
-      <p v-if="pricingModificationWorkItem.payload?.sellerContext?.portHandlingMode" class="text-sm font-semibold">Muellaje solicitado por Ventas: {{ pricingModificationWorkItem.payload.sellerContext.portHandlingMode }}</p>
-      <p class="mt-2 text-xs text-amber-700 dark:text-amber-300">Compruebe importes, recargos, proveedores y términos antes de guardar. La revisión se envía al vendedor desde la solicitud reservada.</p>
-    </details>
+      <p class="text-xs text-amber-700 dark:text-amber-300">
+        Cargar los valores no guarda ni envía la cotización. Revise los cargos y guarde una nueva revisión antes de enviar al vendedor.
+      </p>
+    </section>
 `
   code = once(code,
     '<section class="crystal-panel min-h-[470px] p-5 md:p-8"',
