@@ -570,6 +570,11 @@ function logout() {
   router.push('/login')
 }
 
+function closeAllTabs() {
+  tabsStore.clear()
+  router.replace('/home')
+}
+
 function closeCurrentTab() {
   if (!tabsStore.activeKey) return
 
@@ -694,6 +699,11 @@ function handleShortcut(event: KeyboardEvent) {
 
   if (shortcut.action === 'tab.close') {
     closeCurrentTab()
+    return
+  }
+
+  if (shortcut.action === 'tab.closeAll') {
+    closeAllTabs()
     return
   }
 
