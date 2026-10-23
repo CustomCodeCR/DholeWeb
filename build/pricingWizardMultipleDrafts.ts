@@ -300,6 +300,14 @@ function startNewPricingDraft() {
   )
 }
 
+function discardAndReloadPricingDraft() {
+  // A discarded quote must behave like a fresh tab: clear all transient
+  // selections, cached results, and the automatic draft before booting again.
+  discardPricingDraft(false)
+  pricingDraftLibraryOpen.value = false
+  window.location.reload()
+}
+
 async function resumePricingDraft(id: string) {
   if (!pricingDraftSupportsMultiple.value) return
 
@@ -380,7 +388,7 @@ onMounted(() => {
           v-if="pricingDraftSavedAt"
           variant="secondary"
           size="sm"
-          @click="discardPricingDraft()"
+          @click="discardAndReloadPricingDraft"
         >Descartar actual</DhButton>
       </div>`
 
