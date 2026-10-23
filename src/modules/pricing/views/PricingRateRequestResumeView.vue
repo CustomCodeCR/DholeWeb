@@ -103,7 +103,7 @@ async function completeModification() {
   if (!rateId || !modificationPrepared.value || finishing.value) return
   finishing.value = true
   try {
-    await RateRequestLeaseService.completeRate(requestId.value, rateId)
+    await RateRequestLeaseService.completeRate(requestId.value, rateId, { confirmSellerModification: true })
     toast.success('Modificación completada', 'Se generó la revisión y se notificó al vendedor con el PDF actualizado.')
     await router.push('/home')
   } catch (error) {
