@@ -7,9 +7,13 @@ import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingAlternativeWizardCrystal from '@/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
+import { StorageService } from '@/core/services/storageService'
+import PricingSellerHandoffPreview from '@/modules/pricing/components/PricingSellerHandoffPreview.vue'
 
 const route = useRoute()
 type WorkStatus = 'Working' | 'RequestedFromProvider'
+type ModificationChange = { field: string; action: string; original: string; requested: string }
+type ModificationDocument = { id: string; fileName: string; categoryLabel: string; sizeInBytes: number }
 type WorkRequest = {
   workStatus?: WorkStatus | null
   workStatusUpdatedAtUtc?: string | null
@@ -17,11 +21,24 @@ type WorkRequest = {
   id: string
   kind?: 'Modification' | 'New'
   rateId?: string | null
+  priority?: string
+  clientName?: string | null
+  executiveName?: string | null
+  sellerName?: string | null
+  originName?: string | null
+  destinationName?: string | null
+  poeName?: string | null
+  podName?: string | null
   payload?: {
     kind?: string
+    form?: Record<string, unknown>
+    requestContext?: Record<string, unknown>
+    sellerContext?: Record<string, unknown>
+    pickupLocations?: unknown[]
+    supportDocuments?: ModificationDocument[]
     modification?: {
       sourceRevisionNumber?: number
-      changes?: Array<{ field: string; action: string; original: string; requested: string }>
+      changes?: ModificationChange[]
       quote?: string
       notes?: string
     }
@@ -35,6 +52,44 @@ const workStatusSaving = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
+const modificationChanges = computed(() => workRequest.value?.payload?.modification?.changes ?? [])
+const modificationSnapshot = computed(() => {
+  const request = workRequest.value
+  const payload = request?.payload
+  const context = payload?.requestContext ?? {}
+  const form = payload?.form ?? {}
+  return {
+    form,
+    context,
+    sellerContext: payload?.sellerContext ?? {},
+    pickupLocations: payload?.pickupLocations ?? [],
+    documents: (payload?.supportDocuments ?? []).filter(file => !!file.id && !!file.fileName),
+    clientName: request?.clientName || String(form.clientName || ''),
+    executiveName: request?.executiveName || request?.sellerName || String(form.executiveName || ''),
+    originName: String(context.originName || request?.originName || ''),
+    destinationName: String(context.destinationName || request?.destinationName || ''),
+    poeName: String(context.destinationName || request?.poeName || ''),
+    podName: String(context.podName || request?.podName || ''),
+    priority: request?.priority || 'Green',
+  }
+})
+const modificationServiceLabels = computed(() => {
+  const value = workRequest.value?.payload?.requestContext?.serviceNames
+  return Array.isArray(value) ? value.map(String).filter(Boolean).join(', ') : ''
+})
+const modificationEquipmentLabel = computed(() =>
+  String(workRequest.value?.payload?.requestContext?.equipmentName
+    || workRequest.value?.payload?.form?.equipmentType
+    || workRequest.value?.payload?.form?.shipmentMode || ''))
+const modificationIncotermLabel = computed(() =>
+  String(workRequest.value?.payload?.requestContext?.incotermName || ''))
+async function downloadModificationDocument(file: ModificationDocument) {
+  try {
+    await StorageService.downloadFile({ id: file.id, fileName: file.fileName })
+  } catch (cause) {
+    toast.backendError(cause, 'No se pudo descargar el documento enviado por Ventas.')
+  }
+}
 const modificationPrepared = computed(() => isModification.value
   && Number(workRequest.value?.preparedRevisionNumber || 0) >
      Number(workRequest.value?.payload?.modification?.sourceRevisionNumber || 0))
@@ -203,7 +258,64 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <!-- Same wizard used by "Continuar tarifa": no separate comparison screen. -->
+    <!-- Same read-only Sales summary as an original request; show the requested
+         values, never silently overwrite the existing quote on opening. -->
+    <template v-if="isModification">
+      <section class="mb-4 space-y-3 rounded-[26px] border border-[rgb(var(--dh-primary-rgb)/0.28)] bg-[var(--dh-card)] p-4 sm:p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-base font-black text-[var(--dh-text)]">Qué solicitó modificar el vendedor</h2>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ workRequest?.payload?.modification?.quote || 'Cotización original' }} ·
+              REV {{ workRequest?.payload?.modification?.sourceRevisionNumber || 1 }} ·
+              {{ modificationChanges.length }} diferencias solicitadas
+            </p>
+          </div>
+          <span class="rounded-full border border-amber-500/40 px-3 py-1 text-xs font-bold text-amber-600 dark:text-amber-300">Pendiente de aplicar</span>
+        </div>
+        <p class="text-xs text-[var(--dh-text-muted)]">Compare los valores vigentes con lo pedido por Ventas. Abrir esta solicitud no aplica cambios ni completa la tarifa.</p>
+        <div v-if="modificationChanges.length" class="overflow-x-auto rounded-xl border border-[var(--dh-border)]">
+          <table class="w-full min-w-[620px] text-left text-sm">
+            <thead class="bg-[var(--dh-card-hover)] text-[11px] font-black uppercase text-[var(--dh-text-muted)]">
+              <tr>
+                <th class="p-3">Campo</th>
+                <th class="p-3">Acción</th>
+                <th class="p-3">Original</th>
+                <th class="p-3">Solicitado por Ventas</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(change, index) in modificationChanges" :key="index" class="border-t border-[var(--dh-border)]">
+                <td class="p-3 font-bold">{{ change.field }}</td>
+                <td class="p-3 font-semibold text-amber-600 dark:text-amber-300">{{ change.action }}</td>
+                <td class="max-w-[300px] break-words p-3 text-[var(--dh-text-muted)]">{{ change.original || '—' }}</td>
+                <td class="max-w-[360px] break-words p-3 font-bold text-[var(--dh-text)]">{{ change.requested || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else class="text-sm font-semibold text-amber-600 dark:text-amber-300">La solicitud no contiene un comparativo detallado. Revise los datos enviados por Ventas que aparecen a continuación.</p>
+      </section>
+
+      <div class="mb-4">
+        <PricingSellerHandoffPreview
+          :snapshot="modificationSnapshot"
+          :equipment-label="modificationEquipmentLabel"
+          :service-labels="modificationServiceLabels"
+          :origin-label="modificationSnapshot.originName"
+          :destination-label="modificationSnapshot.poeName"
+          :pod-label="modificationSnapshot.podName"
+          :incoterm-label="modificationIncotermLabel"
+          :is-land="modificationSnapshot.form.modality === 'Land'"
+          title="Información solicitada por Ventas"
+          subtitle="Pantallas 1–4 de la modificación · mismos datos de la solicitud original, solo lectura"
+          @download="downloadModificationDocument"
+        />
+      </div>
+    </template>
+
+    <!-- The existing quote wizard remains editable only after Pricing deliberately
+         applies the seller's proposal; opening the work item performs no write. -->
     <section v-if="isModification" class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
       <div class="min-w-0">
         <p class="text-sm font-black">Continuar modificación · {{ workRequest?.payload?.modification?.quote || workRequest?.rateId }}</p>
