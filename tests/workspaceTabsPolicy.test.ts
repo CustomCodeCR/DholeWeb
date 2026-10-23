@@ -5,6 +5,7 @@ import {
   MAX_WORKSPACE_TABS,
   visibleWorkspaceTabKeys,
   workspaceTabKey,
+  workspaceTabGroup,
 } from '../src/core/stores/workspaceTabPolicy.ts'
 
 test('filters, hashes and wizard query parameters reuse the same tab', () => {
@@ -39,4 +40,15 @@ test('compact strip always shows active tab and Dashboard', () => {
   assert.ok(visible.has('/module/1'))
   assert.ok(visible.size <= 5)
   assert.equal(visible.has('/module/0'), false)
+})
+
+test('related pricing/editor routes reuse a workspace slot, unrelated modules do not', () => {
+  assert.equal(workspaceTabGroup('/pricing'), 'pricing-editor')
+  assert.equal(workspaceTabGroup('/pricing/rates/a/wizard?step=4'), 'pricing-editor')
+  assert.equal(workspaceTabGroup('/pricing/rates/b/wizard'), 'pricing-editor')
+  assert.equal(workspaceTabGroup('/pricing/imports'), workspaceTabGroup('/pricing/imports/review/id-1'))
+  assert.equal(workspaceTabGroup('/pricing/email-imports'), workspaceTabGroup('/pricing/email-source/batch-2'))
+  assert.equal(workspaceTabGroup('/pricing/request-rate'), workspaceTabGroup('/pricing/seller-rates/id-3'))
+  assert.notEqual(workspaceTabGroup('/pricing'), workspaceTabGroup('/pricing/imports'))
+  assert.equal(workspaceTabGroup('/dynamics'), null)
 })
