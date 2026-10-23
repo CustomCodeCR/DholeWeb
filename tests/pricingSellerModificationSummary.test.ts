@@ -34,7 +34,7 @@ test('original quote cannot be saved by mistake before seller proposal was appli
   const plugin = read('build/pricingSellerModificationWizard.ts')
   assert.match(plugin, /props\.modificationRequestId && !pricingModificationApplied\.value/)
   assert.match(plugin, /restoreSellerConsolidatedCargo\(proposal, workPayload\?\.sellerContext\)/)
-  assert.match(plugin, /step\.value = hasInternationalTransportService\.value \? 5 : 6/)
+  assert.match(plugin, /step\.value = 5/)
   assert.match(plugin, /Cargar cambios solicitados y continuar en Pantalla 5/)
   assert.match(plugin, /Los cambios todavía no se han guardado ni enviado/)
 })
