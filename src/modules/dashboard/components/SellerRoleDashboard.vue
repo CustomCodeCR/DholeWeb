@@ -305,6 +305,17 @@ function editRequest(request: SellerRateRequestDto) {
   void router.push({ name: 'pricing-seller-rate-request-edit', params: { requestId: request.id } })
 }
 
+// Completed, cancelled and in-progress requests can all serve as templates.
+// In supervisor mode, only the seller's own requests may be reused.
+function canDuplicateRequest(request: SellerRateRequestDto) {
+  return !props.adminPreview || (props.enableSellerActions && ownRequestIds.value.has(request.id))
+}
+
+function duplicateRequest(request: SellerRateRequestDto) {
+  if (!canDuplicateRequest(request)) return
+  void router.push({ name: 'pricing-seller-rate-request', query: { duplicateRequestId: request.id } })
+}
+
 function modificationActuallyCompleted(request: SellerRateRequestDto): boolean {
   return request.kind === 'Modification'
     && request.status === 'Completed'
@@ -810,14 +821,23 @@ onBeforeUnmount(() => {
                   </p>
                 </td>
                 <td v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">
-                  <DhButton
-                    v-if="canEditRequest(request)"
-                    label="Editar solicitud"
-                    size="sm"
-                    variant="secondary"
-                    @click="editRequest(request)"
-                  />
-                  <span v-else class="text-[11px] text-[var(--dh-text-muted)]">Solo lectura</span>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <DhButton
+                      v-if="canEditRequest(request)"
+                      label="Editar solicitud"
+                      size="sm"
+                      variant="secondary"
+                      @click="editRequest(request)"
+                    />
+                    <DhButton
+                      v-if="canDuplicateRequest(request)"
+                      label="Duplicar"
+                      size="sm"
+                      variant="secondary"
+                      @click="duplicateRequest(request)"
+                    />
+                    <span v-if="!canEditRequest(request) && !canDuplicateRequest(request)" class="text-[11px] text-[var(--dh-text-muted)]">Solo lectura</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
