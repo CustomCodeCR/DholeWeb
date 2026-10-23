@@ -48,10 +48,11 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
 
   // Four steps remain visible in Pricing. Avoid an eight-column grid with
   // empty cells after hiding the seller-owned tabs.
-  replaceOne(
-    `:class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'"`,
+  // Visual-only grid optimisation: other compatibility plugins can rewrite the
+  // grid class before this last transform. Never break production for styling.
+  code = code.replace(
+    /:class="viewOnly \? 'xl:grid-cols-9' : 'xl:grid-cols-8'"/,
     `:class="pricingSellerScreensLocked ? 'xl:grid-cols-4' : viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'"`,
-    'pricing four-step grid',
   )
 
   // Keep absolute 05-08 numbering; hide tabs 01-04 instead of reindexing
