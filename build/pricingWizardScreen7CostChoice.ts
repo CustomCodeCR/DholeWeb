@@ -13,21 +13,21 @@ function replaceOnce(source: string, anchor: string, replacement: string, label:
 function patchWizard(source: string) {
   let code = source
   const stateAnchor = 'const rateLines = ref<RateLine[]>([])'
-  code = replaceOnce(code, stateAnchor, stateAnchor + String.raw\`
+  code = replaceOnce(code, stateAnchor, stateAnchor + String.raw`
 const screen7RefreshPromptOpen = ref(false)
 const screen7RefreshBusy = ref(false)
 const screen7RefreshAllowed = ref(false)
-\`.replace(/\\\`/g, '\`'), 'line state')
+`, 'line state')
 
   // Do not silently replace edited/persisted rows when an upstream watcher
   // asks for catalog costs again. First-time generation still runs normally.
   const rebuildAnchor = 'function rebuildRateLines() {\n  if (pricingDraftRestoring.value) return'
-  code = replaceOnce(code, rebuildAnchor, rebuildAnchor + String.raw\`
+  code = replaceOnce(code, rebuildAnchor, rebuildAnchor + String.raw`
   if (rateLines.value.length > 0 && !screen7RefreshAllowed.value) {
     screen7RefreshPromptOpen.value = true
     return
   }
-\`.replace(/\\\`/g, '\`'), 'rebuild guard')
+`, 'rebuild guard')
 
   // A persisted rate is the authoritative source until the user elects to
   // reapply live catalog data; preserve both amounts and line membership.
@@ -37,7 +37,7 @@ const screen7RefreshAllowed = ref(false)
   if (code.includes(eagerAdd)) code = code.replace(eagerAdd, '    rateLines.value = uniqueReleaseLines')
 
   const scriptEnd = '\n</script>'
-  const script = String.raw\`
+  const script = String.raw`
 function screen7CostLineKey(line: RateLine) {
   // A persisted detail can have a different Vue key to an unsaved catalog row.
   return line.costId
@@ -122,7 +122,7 @@ watch(
   },
   { immediate: true, flush: 'post' },
 )
-\`.replace(/\\\`/g, '\`')
+`
   code = replaceOnce(code, scriptEnd, '\n' + script + scriptEnd, 'script insertion')
 
   // The benchmark panel may refresh its own data. It must never rehydrate the
@@ -130,7 +130,7 @@ watch(
   code = code.replace('@refreshed="hydrateExistingRate"', '@refreshed="screen7RefreshPromptOpen = true"')
 
   const stageAnchor = '<div v-else-if="step === 7" class="crystal-lines-stage space-y-6">'
-  const prompt = String.raw\`
+  const prompt = String.raw`
           <div v-if="screen7RefreshPromptOpen && rateLines.length && !viewOnly"
             role="group" aria-label="Confirmar actualización de líneas"
             class="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4 md:p-5">
@@ -147,7 +147,7 @@ watch(
                 @click="applyScreen7DatabaseCosts">Actualizar desde la base de datos</DhButton>
             </div>
           </div>
-\`.replace(/\\\`/g, '\`')
+`
   code = replaceOnce(code, stageAnchor, stageAnchor + '\n' + prompt, 'screen 7 confirmation')
   return code
 }
