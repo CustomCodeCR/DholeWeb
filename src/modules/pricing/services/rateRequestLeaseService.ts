@@ -25,6 +25,19 @@ export const RateRequestLeaseService = {
     sessionStorage.setItem(key(id), lease.token)
     return lease
   },
+  async setWorkStatus(id: string, workStatus: 'Working' | 'RequestedFromProvider'): Promise<{ workStatus: 'Working' | 'RequestedFromProvider'; workStatusUpdatedAtUtc: string }> {
+    const token = this.tokenFor(id)
+    if (!token) throw new Error('No existe una reserva vigente de la solicitud.')
+    const response = await callEndpoint<unknown, { workStatus: string }>({
+      method: 'PATCH',
+      path: path(id, 'work-status'),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, {
+      body: { workStatus },
+      extraHeaders: { 'X-Rate-Request-Lease': token },
+    })
+    return unwrapApiResponse<{ workStatus: 'Working' | 'RequestedFromProvider'; workStatusUpdatedAtUtc: string }>(response as never)
+  },
   async heartbeat(id: string): Promise<void> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('Se perdió la reserva de la solicitud.')
