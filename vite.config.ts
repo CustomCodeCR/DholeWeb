@@ -24,6 +24,7 @@ import { pricingWizardScreen09LclFix } from './build/pricingWizardScreen09LclFix
 import { pricingSellerRateRequests } from './build/pricingSellerRateRequests'
 import { pricingSellerRequestEdit } from './build/pricingSellerRequestEdit'
 import { pricingSellerModificationWizard } from './build/pricingSellerModificationWizard'
+import { pricingSellerPricingStepGuard } from './build/pricingSellerPricingStepGuard'
 import { pricingFclUnitWeights20261015 } from './build/pricingFclUnitWeights20261015'
 import { pricingFclMultiCarrierCosts20261015 } from './build/pricingFclMultiCarrierCosts20261015'
 import { pricingFclInlandPerCarrier20261016 } from './build/pricingFclInlandPerCarrier20261016'
@@ -201,6 +202,7 @@ export default defineConfig({
     pricingWizardLclGroupAgent(),
     pricingWizardCompleteDraftNavigation(),
     pricingWizardScreen7CostChoice(),
+    pricingSellerPricingStepGuard(),
     vue(),
     tailwindcss(),
   ],
