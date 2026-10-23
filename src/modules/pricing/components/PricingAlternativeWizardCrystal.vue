@@ -4779,6 +4779,9 @@ onMounted(async () => {
           </div>
           <p class="mt-3 text-lg font-black">{{ editingRate.rateName }}</p>
           <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ editingRate.quoNumber || '—' }}</p>
+          <p v-if="editingRate.otherReferences?.trim()" class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text-muted)]">
+            <span class="font-black text-[var(--dh-text)]">Otras referencias (solo Dhole):</span> {{ editingRate.otherReferences }}
+          </p>
         </div>
         <DhButton v-if="viewOnly" variant="secondary" @click="editCurrentRate">Editar en este wizard</DhButton>
       </div>
@@ -6054,8 +6057,12 @@ onMounted(async () => {
                   Derivada de tarifario · REV {{ editingRate.sourceTariffRevisionNumber || 1 }}
                 </span>
               </div>
-              <p class="mt-2 text-sm font-bold">IDTRA: {{ editingRate.idtraNumber || 'Pendiente' }}</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ editingRate.rateName }}</p>
+              <p class="mt-2 break-words text-sm font-bold">IDTRA: {{ editingRate.idtraNumber || 'Pendiente' }}</p>
+              <div v-if="editingRate.otherReferences?.trim()" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Otras referencias · Solo Dhole</p>
+                <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text)]">{{ editingRate.otherReferences }}</p>
+              </div>
+              <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">{{ editingRate.rateName }}</p>
             </div>
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
