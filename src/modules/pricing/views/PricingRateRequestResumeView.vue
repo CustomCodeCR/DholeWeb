@@ -13,6 +13,7 @@ type WorkStatus = 'Working' | 'RequestedFromProvider'
 type WorkRequest = {
   workStatus?: WorkStatus | null
   workStatusUpdatedAtUtc?: string | null
+  preparedRevisionNumber?: number | null
   id: string
   kind?: 'Modification' | 'New'
   rateId?: string | null
@@ -34,9 +35,17 @@ const workStatusSaving = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
+const modificationPrepared = computed(() => isModification.value
+  && Number(workRequest.value?.preparedRevisionNumber || 0) >
+     Number(workRequest.value?.payload?.modification?.sourceRevisionNumber || 0))
+function onModificationPrepared(event: Event) {
+  const detail = (event as CustomEvent<{ requestId: string; preparedRevisionNumber: number }>).detail
+  if (detail?.requestId !== requestId.value || !workRequest.value || !ready.value) return
+  workRequest.value.preparedRevisionNumber = detail.preparedRevisionNumber
+}
 async function completeModification() {
   const rateId = workRequest.value?.rateId
-  if (!rateId || finishing.value) return
+  if (!rateId || !modificationPrepared.value || finishing.value) return
   finishing.value = true
   try {
     await RateRequestLeaseService.completeRate(requestId.value, rateId)
@@ -137,6 +146,7 @@ function stop() {
 }
 
 onMounted(() => {
+  window.addEventListener('dhole:pricing:modification-prepared', onModificationPrepared)
   window.addEventListener('pointerdown', recordActivity)
   window.addEventListener('keydown', recordActivity)
   window.addEventListener('wheel', recordActivity)
@@ -148,6 +158,7 @@ watch(requestId, (next, previous) => {
   void begin(next)
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('dhole:pricing:modification-prepared', onModificationPrepared)
   window.removeEventListener('pointerdown', recordActivity)
   window.removeEventListener('keydown', recordActivity)
   window.removeEventListener('wheel', recordActivity)
@@ -205,9 +216,10 @@ onBeforeUnmount(() => {
         <DhButton
           label="Enviar revisión al vendedor"
           :loading="finishing"
-          :disabled="!workRequest?.rateId || finishing"
+          :disabled="!workRequest?.rateId || !modificationPrepared || finishing"
           @click="completeModification"
         />
+        <span v-if="!modificationPrepared" class="text-xs font-semibold text-amber-500">Primero guarde los cambios de la nueva revisión en pantalla 8.</span>
         <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
       </div>
     </section>
