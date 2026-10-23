@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { limitWorkspaceTabs, workspaceTabKey } from './workspaceTabPolicy'
+import { limitWorkspaceTabs, workspaceTabGroup, workspaceTabKey } from './workspaceTabPolicy'
 
 export interface WorkspaceTab {
   key: string
@@ -51,8 +51,9 @@ function ensureDashboard(tabs: WorkspaceTab[]): WorkspaceTab[] {
     const tab = normalizeTab(candidate)
     if (!tab || tab.key === DASHBOARD_TAB.key) continue
     // Old sessions may contain multiple query-string copies of one view.
-    byKey.delete(tab.key)
-    byKey.set(tab.key, tab)
+    const identity = workspaceTabGroup(tab.path) ?? tab.key
+    byKey.delete(identity)
+    byKey.set(identity, tab)
   }
   return [{ ...DASHBOARD_TAB }, ...byKey.values()]
 }
@@ -159,7 +160,22 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
       const existingIndex = this.tabs.findIndex((x) => x.key === normalized.key)
 
       if (existingIndex === -1) {
-        this.tabs.push(normalized)
+        const activeIndex = this.tabs.findIndex((x) => x.key === this.activeKey)
+        const active = this.tabs[activeIndex]
+        const group = workspaceTabGroup(normalized.path)
+        // Internal workflow navigation replaces the current related view.
+        // Other modules, and existing explicit tabs, keep their own slots.
+        if (
+          activeIndex > 0
+          && active?.closable
+          && group !== null
+          && workspaceTabGroup(active.path) === group
+          && this.splitPane?.key !== active.key
+        ) {
+          this.tabs.splice(activeIndex, 1, normalized)
+        } else {
+          this.tabs.push(normalized)
+        }
       } else {
         const existing = this.tabs[existingIndex]
         if (!existing) return
