@@ -73,6 +73,7 @@ const sellerModificationSource = ref<SellerModificationSource | null>(null)
 const pricingModificationWorkItem = ref<PricingModificationWorkItem | null>(null)
 const pricingModificationLoading = ref(false)
 const pricingModificationApplied = ref(false)
+const pricingModificationApplying = ref(false)
 const pricingModificationChanges = computed(() =>
   (pricingModificationWorkItem.value?.payload?.modification?.changes ?? [])
     .map(raw => {
@@ -341,7 +342,9 @@ async function loadPricingModificationWorkItem() {
 }
 async function applyPricingModification() {
   const proposal = pricingModificationWorkItem.value?.payload?.form
-  if (!proposal || !editingRate.value || props.viewOnly) return
+  if (!proposal || !editingRate.value || props.viewOnly || pricingModificationApplied.value || pricingModificationApplying.value) return
+  pricingModificationApplying.value = true
+  try {
   // Never import financial fields from the seller payload, nor save automatically.
   for (const key of modificationKeys) {
     if (Object.prototype.hasOwnProperty.call(proposal, key))
@@ -362,7 +365,8 @@ async function applyPricingModification() {
   form.equipmentSize = String(meta?.size ?? '')
   form.equipmentType = equipmentHasSizes.value ? String(meta?.kind ?? '') : form.equipmentId
   await nextTick()
-  form.equipmentId = String(proposal.equipmentId ?? form.equipmentId)
+  if (typeof proposal.equipmentId === 'string' && proposal.equipmentId.trim())
+    form.equipmentId = proposal.equipmentId
   const workPayload = pricingModificationWorkItem.value?.payload
   if (Array.isArray(workPayload?.pickupLocations))
     pickupLocations.value = workPayload.pickupLocations.map(pickup => ({ ...pickup }))
@@ -376,9 +380,23 @@ async function applyPricingModification() {
   pricingModificationApplied.value = true
   if (hasInternationalTransportService.value) await searchApprovedRates()
   step.value = 5
-  toastStore.info('Cambios cargados en el borrador',
-    'Continue desde Pantalla 5. Revise tarifas, proveedores y costos; los cambios todavía no se han guardado ni enviado.')
+  toastStore.info('Solicitud de Ventas cargada',
+    'La propuesta solicitada por Ventas ya está en el borrador desde Pantalla 5. La tarifa original no se ha guardado ni enviado.')
+  } catch (error) {
+    toastStore.backendError(error, 'No fue posible cargar los cambios solicitados por Ventas.')
+  } finally {
+    pricingModificationApplying.value = false
+  }
 }
+// The existing quote hydrates asynchronously after catalog loading. Do not
+// display/price its old FCA values: apply the requested EXW and other seller
+// inputs only AFTER the quote hydration completes, without persisting anything.
+watch([pricingModificationWorkItem, editingRate, loadingExistingRate], () => {
+  if (!props.modificationRequestId || !pricingModificationWorkItem.value
+    || !editingRate.value || loadingExistingRate.value || pricingModificationApplied.value
+    || pricingModificationApplying.value) return
+  void applyPricingModification()
+}, { immediate: true })
 onMounted(() => { void loadPricingModificationWorkItem() })
 `
 
