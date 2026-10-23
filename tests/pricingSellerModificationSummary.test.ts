@@ -20,11 +20,11 @@ test('seller amendment and new request use the exact same read-only Sales summar
 test('amendment summary comes from the seller request, not mutable quote fields', () => {
   const resume = read('src/modules/pricing/views/PricingRateRequestResumeView.vue')
   assert.match(resume, /const modificationSnapshot = computed/)
-  assert.match(resume, /form: payload\?\.form \?\? \{\}/)
+  assert.match(resume, /const form = payload\?\.form \?\? \{\}/)
   assert.match(resume, /sellerContext: payload\?\.sellerContext \?\? \{\}/)
   assert.match(resume, /pickupLocations: payload\?\.pickupLocations \?\? \[\]/)
   assert.match(resume, /documents: \(payload\?\.supportDocuments \?\? \[\]\)/)
-  assert.match(resume, /modification\.changes \?\? \[\]/)
+  assert.match(resume, /modification\?\.changes \?\? \[\]/)
   assert.match(resume, /Solicitado por Ventas/)
   assert.match(resume, /StorageService\.downloadFile/)
   assert.match(resume, /:is-land="modificationSnapshot\.form\.modality === 'Land'"/)
