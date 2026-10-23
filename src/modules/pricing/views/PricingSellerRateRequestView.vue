@@ -17,6 +17,7 @@ const sellerModificationRateId = computed(() => {
 
 <template>
   <PricingAlternativeWizardCrystal seller-request-mode
+    :key="sellerDuplicateRequestId ?? sellerEditRequestId ?? sellerModificationRateId ?? 'new-request'"
     :seller-edit-request-id="sellerEditRequestId"
     :seller-duplicate-request-id="sellerDuplicateRequestId"
     :seller-modification-rate-id="sellerModificationRateId" />
