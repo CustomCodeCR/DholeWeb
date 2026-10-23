@@ -15,6 +15,7 @@ import { PricingService } from '@/core/services/pricingService'
 import { UsersService } from '@/core/services/usersService'
 import { SellerVisibilityService } from '@/core/services/sellerVisibilityService'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { fetchBlobClient } from '@/core/api/fetchBlobClient'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
@@ -292,6 +293,10 @@ const selectedFilters = reactive({
   currencyIds: [] as string[],
 })
 
+const excelExporting = ref(false)
+const excelFrom = ref('')
+const excelTo = ref('')
+
 const filters = reactive({
   search: '',
   idtraNumber: '',
@@ -526,6 +531,50 @@ async function load() {
   }
 }
 
+async function exportBasicExcel() {
+  if (excelExporting.value) return
+
+  // Export date range is optional; when omitted, reuse the quotation date filter.
+  const from = excelFrom.value || (!excelTo.value ? filters.quoteDate : '')
+  const to = excelTo.value || (!excelFrom.value ? filters.quoteDate : '')
+  if (from && to && from > to) {
+    toastStore.warning('Fechas inválidas', 'La fecha inicial no puede ser posterior a la fecha final.')
+    return
+  }
+
+  excelExporting.value = true
+  try {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    if (filters.search.trim()) params.set('search', filters.search.trim())
+    const query = params.toString()
+    const blob = await fetchBlobClient(
+      '/api/pricing/rates/basic-report.xlsx' + (query ? '?' + query : ''),
+      {
+        method: 'GET',
+        headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+      },
+    )
+    const url = URL.createObjectURL(blob)
+    try {
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'Tarifas-' + (from || 'Todas') + (to ? '-a-' + to : '') + '.xlsx'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
+    toastStore.success('Excel generado', 'Se descargó el reporte básico de tarifas con fecha, QUO, cliente, detalle, IDTRA, venta y costo.')
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo exportar el reporte básico de tarifas.')
+  } finally {
+    excelExporting.value = false
+  }
+}
+
 function applyFilters() {
   page.value = 1
   load()
@@ -707,8 +756,16 @@ onMounted(async () => {
       title="Tarifas"
       subtitle="Seguimiento por estado comercial, incluidas las tarifas aprobadas pendientes de re-aprobación."
       :icon="ReceiptText"
+      :hide-excel-export="authStore.hasScope('pricing.rate-request.view-all')"
     >
       <template #actions>
+        <DhButton
+          v-if="authStore.hasScope('pricing.rate-request.view-all')"
+          label="Exportar Excel"
+          :icon="FileSpreadsheet"
+          :loading="excelExporting"
+          @click="exportBasicExcel"
+        />
         <DhButton
           v-if="authStore.hasScope('pricing.rate-request.view-all')"
           label="Reporte de cotizaciones"
@@ -843,6 +900,8 @@ onMounted(async () => {
           <DhInput v-model="filters.idtraNumber" label="Número IDTRA" placeholder="Buscar IDTRA" />
           <DhInput v-model="filters.quoNumber" label="Número QUO" placeholder="Buscar QUO" />
           <DhInput v-model="filters.quoteDate" type="date" label="Fecha de cotización" />
+          <DhInput v-if="authStore.hasScope('pricing.rate-request.view-all')" v-model="excelFrom" type="date" label="Excel: desde" />
+          <DhInput v-if="authStore.hasScope('pricing.rate-request.view-all')" v-model="excelTo" type="date" label="Excel: hasta" />
           <DhInput v-model="filters.validFrom" type="date" label="Vigente desde" />
           <DhInput v-model="filters.validTo" type="date" label="Vigente hasta" />
         </div>
