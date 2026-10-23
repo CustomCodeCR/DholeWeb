@@ -347,6 +347,15 @@ async function applyPricingModification() {
     if (Object.prototype.hasOwnProperty.call(proposal, key))
       (form as unknown as Record<string, unknown>)[key] = JSON.parse(JSON.stringify(proposal[key] ?? null))
   }
+  // Legacy LTL amendments can omit equipmentId while keeping the trailer in
+  // landContainers; do not erase the selected equipment when applying changes.
+  if (String(proposal.shipmentMode ?? '').toUpperCase() === 'LTL' && !String(form.equipmentId ?? '').trim()) {
+    const trailers = Array.isArray(proposal.landContainers) ? proposal.landContainers : []
+    const selectedTrailer = trailers.find((item): item is Record<string, unknown> =>
+      item != null && typeof item === 'object' && !Array.isArray(item)
+      && typeof (item as Record<string, unknown>).containerTypeId === 'string')
+    if (selectedTrailer?.containerTypeId) form.equipmentId = String(selectedTrailer.containerTypeId)
+  }
   const equipment = [...catalogs.containers, ...catalogs.landEquipmentSizes, ...catalogs.landEquipmentTypes]
     .find(item => item.id === form.equipmentId)
   const meta = metadata(equipment)
