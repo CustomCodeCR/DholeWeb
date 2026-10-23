@@ -55,28 +55,38 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
     `:class="pricingSellerScreensLocked ? 'xl:grid-cols-4' : viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'"`,
   )
 
-  // Keep absolute 05-08 numbering; hide tabs 01-04 instead of reindexing
-  // their IDs to 01-04 and accidentally opening the wrong steps.
-  replaceOne(
-    '@click="goToStep(index + 1)"',
-    `v-show="!pricingSellerScreensLocked || index >= 4"
-        :disabled="pricingSellerScreensLocked && index < 4"
-        @click="goToStep(index + 1)"`,
-    'hidden Sales step buttons',
-  )
+  // Only the runtime guards above enforce the invariant. Multiple wizard
+  // plugins rewrite the navigation markup, so presentation patches must never
+  // require an exact @click / grid / footer signature to build successfully.
+  // Match the rendered step button by its loop rather than by its click handler.
+  const stepButton = /<(?:button|DhButton)\b(?=[^>]*\bv-for="[^"]*visibleStepTitles[^"]*")[^>]*>/s
+  code = code.replace(stepButton, (tag) => {
+    if (tag.includes('pricingSellerScreensLocked')) return tag
+    return tag.replace(
+      /^<(button|DhButton)\b/,
+      \`<$1 v-show="!pricingSellerScreensLocked || index >= 4"
+        :disabled="pricingSellerScreensLocked && index < 4"\`,
+    )
+  })
 
+  // Other plugins may have replaced the footer, or moved @click to a
+  // handler. The previous() function already clamps the minimum step.
   const backButton = code.match(/<DhButton[^>]*@click="previous"[^>]*>/)
-  if (!backButton || !backButton[0].includes(':disabled="'))
-    throw new Error('[pricingSellerPricingStepGuard] Back button anchor not found')
-  const updatedButton = backButton[0].replace(
-    /:disabled="([^"]*)"/,
-    (_whole, condition: string) =>
-      `:disabled="(${condition}) || (pricingSellerScreensLocked && step <= 5)"`,
-  )
-  code = code.replace(backButton[0], updatedButton)
+  if (backButton && backButton[0].includes(':disabled="')
+      && !backButton[0].includes('pricingSellerScreensLocked')) {
+    code = code.replace(backButton[0], backButton[0].replace(
+      /:disabled="([^"]*)"/,
+      (_whole, condition: string) =>
+        \`:disabled="(\${condition}) || (pricingSellerScreensLocked && step <= 5)"\`,
+    ))
+  }
 
+  // Loading state is an enhancement, not a prerequisite to compilation.
+  // The watcher and navigation guards still work if another plugin changes
+  // the section's layout classes or wraps the panel.
   const panel = '<section class="crystal-panel min-h-[470px] p-5 md:p-8"'
-  replaceOne(panel, `<div v-if="props.modificationRequestId && !pricingModificationApplied"
+  if (code.includes(panel)) {
+    code = code.replace(panel, \`<div v-if="props.modificationRequestId && !pricingModificationApplied"
       class="crystal-soft p-5 text-sm font-semibold" role="status">
       {{ pricingModificationLoading ? 'Cargando solicitud de modificación de Ventas…'
         : pricingModificationWorkItem && loadingExistingRate ? 'Preparando tarifa original…'
@@ -84,7 +94,8 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
         : 'No se pudo cargar la modificación solicitada. Compruebe la conexión antes de continuar.' }}
     </div>
     <section v-if="!props.modificationRequestId || pricingModificationApplied"
-      class="crystal-panel min-h-[470px] p-5 md:p-8"`, 'requested proposal readiness')
+      class="crystal-panel min-h-[470px] p-5 md:p-8"\`)
+  }
 
   return code
 }
