@@ -463,28 +463,10 @@ onMounted(() => { void loadPricingModificationWorkItem() })
     return
   }`,
     'modification application required before saving')
-  code = once(code,
-    '        updateReason: updateReason.value.trim(),',
-    "        updateReason: props.modificationRequestId ? 'Solicitud de modificacion de vendedor' : updateReason.value.trim(),",
-    'automatic modification reason in persisted quote')
-  // Guard against the ordinary edit watcher resetting this request to its
-  // manual-reason screen after asynchronous hydration.
-  code = once(code,
-    'if (!loading && props.rateId && !props.viewOnly && editingRate.value && !editReasonConfirmed.value)',
-    'if (!loading && props.rateId && !props.modificationRequestId && !props.viewOnly && editingRate.value && !editReasonConfirmed.value)',
-    'skip manual edit reason watcher for seller modification')
-  // Hide manual edit-reason controls only on a seller modification. Ordinary
-  // edits keep the reason entry and Change reason button unchanged.
-  const reasonEditor = '<div v-if="!viewOnly && !editReasonConfirmed" class="mt-4">'
-  if (!code.includes(reasonEditor))
-    throw new Error('[pricingSellerModificationWizard] Manual reason entry not found')
-  code = code.replace(reasonEditor,
-    '<div v-if="!viewOnly && !editReasonConfirmed && !props.modificationRequestId" class="mt-4">')
-  const reasonSummary = '<div v-else-if="!viewOnly" class="mt-4 rounded-2xl'
-  if (!code.includes(reasonSummary))
-    throw new Error('[pricingSellerModificationWizard] Manual reason summary not found')
-  code = code.replace(reasonSummary,
-    '<div v-else-if="!viewOnly && !props.modificationRequestId" class="mt-4 rounded-2xl')
+  // The update-reason payload, manual gate and hydration watcher are produced
+  // by the later requirements/parity transforms. Their seller-modification
+  // variants are now authored in those plugins, not patched here during
+  // Vite's early (enforce: pre) stage.
 
   const saveRateStart = code.indexOf('async function saveRate() {')
   const savedRateNavigation = saveRateStart >= 0
