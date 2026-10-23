@@ -37,6 +37,8 @@ const props = defineProps<{
   podLabel: string
   incotermLabel: string
   isLand: boolean
+  title?: string
+  subtitle?: string
 }>()
 const emit = defineEmits<{ download: [document: SalesDocument] }>()
 
@@ -297,8 +299,8 @@ function fileKind(fileName: string): string {
         <ClipboardList class="h-5 w-5" />
       </span>
       <span class="min-w-0 flex-1">
-        <span class="block text-base font-black text-[var(--dh-text)] sm:text-lg">Información proporcionada por Ventas</span>
-        <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Resumen original de las pantallas 1–4 · consulta sin edición</span>
+        <span class="block text-base font-black text-[var(--dh-text)] sm:text-lg">{{ title || 'Información proporcionada por Ventas' }}</span>
+        <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">{{ subtitle || 'Resumen original de las pantallas 1–4 · consulta sin edición' }}</span>
       </span>
       <span class="hidden rounded-full border border-[var(--dh-border)] px-3 py-1 text-[11px] font-bold text-[var(--dh-text-muted)] md:inline-flex">Solo lectura</span>
       <ChevronDown class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)] transition group-open:rotate-180" />
