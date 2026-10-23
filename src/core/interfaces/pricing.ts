@@ -1057,6 +1057,7 @@ export interface SetRateStatusRequest extends Record<string, unknown> {
   >
   reason?: string | null
   idtraNumber?: string | null
+  otherReferences?: string | null
 }
 
 export interface DeleteBatchRequest extends Record<string, unknown> {
