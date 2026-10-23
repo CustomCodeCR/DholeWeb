@@ -1,15 +1,39 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
-import { PanelRightOpen, X } from 'lucide-vue-next'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Layers3, PanelRightOpen, Trash2, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
 import { useRouter } from 'vue-router'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
+import { visibleWorkspaceTabKeys } from '@/core/stores/workspaceTabPolicy'
 
 const router = useRouter()
 const tabsStore = useWorkspaceTabsStore()
 const { t, locale } = useI18n()
 const tabListRef = ref<HTMLElement | null>(null)
+const menuRootRef = ref<HTMLElement | null>(null)
+const overflowOpen = ref(false)
+const visibleTabs = computed(() => {
+  const visibleKeys = visibleWorkspaceTabKeys(tabsStore.tabs, tabsStore.activeKey)
+  return tabsStore.tabs.filter((tab) => visibleKeys.has(tab.key))
+})
+const hiddenTabs = computed(() => {
+  const visibleKeys = new Set(visibleTabs.value.map((tab) => tab.key))
+  return tabsStore.tabs.filter((tab) => !visibleKeys.has(tab.key))
+})
+
+watch(() => hiddenTabs.value.length, (count) => {
+  if (!count) overflowOpen.value = false
+})
+
+function handleOutsidePointerDown(event: PointerEvent) {
+  if (menuRootRef.value && !menuRootRef.value.contains(event.target as Node)) {
+    overflowOpen.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('pointerdown', handleOutsidePointerDown))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsidePointerDown))
 
 watch(
   () => tabsStore.activeKey,
@@ -27,17 +51,25 @@ function displayTitle(tab: { title: string; titleKey?: string }): string {
 }
 
 function activate(path: string, key: string) {
+  overflowOpen.value = false
   tabsStore.setActiveTab(key)
   router.push(tabsStore.activeTab?.path ?? path)
 }
 
 function close(key: string) {
+  overflowOpen.value = false
   const wasActive = tabsStore.activeKey === key
   tabsStore.closeTab(key)
 
   if (wasActive) {
     router.push(tabsStore.activeTab?.path ?? '/home')
   }
+}
+
+function closeAll() {
+  overflowOpen.value = false
+  tabsStore.clear()
+  router.replace('/home')
 }
 
 function split(key: string) {
@@ -86,13 +118,16 @@ function onTabDrop(event: DragEvent, targetKey: string) {
 <template>
   <div
     v-if="tabsStore.tabs.length"
-    ref="tabListRef"
-    role="tablist"
-    :aria-label="t('tabs.workspaceTabs')"
-    class="dh-responsive-tabs dh-scrollbar mx-2 mt-2 flex max-w-[calc(100vw-1rem)] min-w-0 snap-x snap-proximity gap-1.5 overflow-x-auto rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-shell)] p-1.5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl sm:mx-4 sm:mt-4 sm:max-w-[calc(100vw-2rem)] sm:gap-2 sm:rounded-[26px] sm:p-2"
+    class="mx-2 mt-2 flex max-w-[calc(100vw-1rem)] min-w-0 items-center gap-1.5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-shell)] p-1.5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl sm:mx-4 sm:mt-4 sm:max-w-[calc(100vw-2rem)] sm:gap-2 sm:rounded-[26px] sm:p-2"
   >
     <div
-      v-for="tab in tabsStore.tabs"
+      ref="tabListRef"
+      role="tablist"
+      :aria-label="t('tabs.workspaceTabs')"
+      class="dh-responsive-tabs dh-scrollbar flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1.5 overflow-x-auto sm:gap-2"
+    >
+    <div
+      v-for="tab in visibleTabs"
       :key="tab.key"
       role="tab"
       tabindex="0"
@@ -143,6 +178,60 @@ function onTabDrop(event: DragEvent, targetKey: string) {
         @click.stop="close(tab.key)"
       >
         <X class="h-3.5 w-3.5" />
+      </button>
+    </div>
+    </div>
+
+    <div ref="menuRootRef" class="relative flex shrink-0 items-center gap-1">
+      <button
+        v-if="hiddenTabs.length"
+        type="button"
+        class="inline-flex min-h-9 items-center gap-1 rounded-xl border border-[var(--dh-border)] px-2 text-xs font-bold text-[var(--dh-text)] transition hover:bg-[var(--dh-card-hover)]"
+        :aria-expanded="overflowOpen"
+        aria-haspopup="true"
+        :title="`Ver ${hiddenTabs.length} pestañas adicionales`"
+        @click="overflowOpen = !overflowOpen"
+        @keydown.esc.stop="overflowOpen = false"
+      >
+        <Layers3 class="h-4 w-4" />
+        <span class="hidden sm:inline">Más</span>
+        <span>{{ hiddenTabs.length }}</span>
+      </button>
+
+      <div
+        v-if="overflowOpen && hiddenTabs.length"
+        class="absolute right-0 top-full z-50 mt-2 max-h-80 w-[min(80vw,20rem)] overflow-y-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-2 shadow-xl backdrop-blur-2xl"
+        @keydown.esc.stop="overflowOpen = false"
+      >
+        <p class="px-2 py-1 text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Otras pestañas</p>
+        <div v-for="tab in hiddenTabs" :key="tab.key" class="flex items-center gap-1 rounded-xl hover:bg-[var(--dh-card-hover)]">
+          <button
+            type="button"
+            class="min-w-0 flex-1 truncate px-3 py-2 text-left text-sm font-semibold text-[var(--dh-text)]"
+            :title="displayTitle(tab)"
+            @click="activate(tab.path, tab.key)"
+          >
+            {{ displayTitle(tab) }}
+          </button>
+          <button
+            v-if="tab.closable"
+            type="button"
+            class="shrink-0 rounded-lg p-2 text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]"
+            :aria-label="`Cerrar ${displayTitle(tab)}`"
+            @click="close(tab.key)"
+          ><X class="h-4 w-4" /></button>
+        </div>
+      </div>
+
+      <button
+        v-if="tabsStore.tabs.length > 1"
+        type="button"
+        class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
+        title="Cerrar todas las pestañas (Ctrl+Alt+W)"
+        aria-label="Cerrar todas las pestañas"
+        @click="closeAll"
+      >
+        <Trash2 class="h-4 w-4" />
       </button>
     </div>
   </div>
