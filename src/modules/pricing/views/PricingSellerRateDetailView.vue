@@ -94,8 +94,18 @@ async function load() {
         rateId?: string | null
         kind?: string
         status: string
-      }>(response).some(request => request.rateId === rateId.value
-        && request.kind === 'Modification' && request.status === 'Open')
+        completedAtUtc?: string | null
+        preparedRevisionNumber?: number | null
+        payload?: { modification?: { sourceRevisionNumber?: number | null } } | null
+      }>(response).some(request => {
+        if (request.rateId !== rateId.value || request.kind !== 'Modification') return false
+        if (request.status === 'Open') return true
+        // Legacy prematurely-completed work cannot be considered delivered
+        // without an explicitly prepared and completed revision.
+        return request.status === 'Completed'
+          && (!request.completedAtUtc || Number(request.preparedRevisionNumber || 0) <=
+            Number(request.payload?.modification?.sourceRevisionNumber || 0))
+      })
     } catch {
       pendingModification.value = false
     }
