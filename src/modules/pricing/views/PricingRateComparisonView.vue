@@ -160,9 +160,15 @@ async function createRate() {
     })
     const createdRateId = unwrapApiResponse<string>(response)
     toastStore.success('Tarifa creada', 'La nueva tarifa quedó creada con el flujo normal de Pricing.')
-    await load()
     if (createdRateId) {
-      await router.push(`/pricing/rates/${createdRateId}/wizard`)
+      // Navegar directamente al detalle de la tarifa creada, no a su editor.
+      await router.replace({
+        name: 'pricing-rate-wizard',
+        params: { rateId: createdRateId },
+        query: { mode: 'view' },
+      })
+    } else {
+      await load()
     }
   } catch (error) {
     toastStore.backendError(
