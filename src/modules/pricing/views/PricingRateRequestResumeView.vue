@@ -9,7 +9,10 @@ import PricingAlternativeWizardCrystal from '@/modules/pricing/components/Pricin
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 
 const route = useRoute()
+type WorkStatus = 'Working' | 'RequestedFromProvider'
 type WorkRequest = {
+  workStatus?: WorkStatus | null
+  workStatusUpdatedAtUtc?: string | null
   id: string
   kind?: 'Modification' | 'New'
   rateId?: string | null
@@ -27,6 +30,7 @@ const router = useRouter()
 const toast = useToastStore()
 const workRequest = ref<WorkRequest | null>(null)
 const finishing = ref(false)
+const workStatusSaving = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
@@ -55,6 +59,23 @@ let generation = 0
 let lastInteractionAt = Date.now()
 const idleTimeoutMs = 15 * 60 * 1000
 function recordActivity() { if (ready.value) lastInteractionAt = Date.now() }
+
+async function setWorkStatus(nextStatus: WorkStatus) {
+  if (!ready.value || workStatusSaving.value || !workRequest.value || workRequest.value.workStatus === nextStatus) return
+  const id = requestId.value
+  workStatusSaving.value = true
+  try {
+    const updated = await RateRequestLeaseService.setWorkStatus(id, nextStatus)
+    if (currentId !== id || !workRequest.value) return
+    workRequest.value.workStatus = updated.workStatus
+    workRequest.value.workStatusUpdatedAtUtc = updated.workStatusUpdatedAtUtc
+    toast.success('Estado actualizado', nextStatus === 'Working' ? 'El vendedor verá Trabajando.' : 'El vendedor verá Solicitado a proveedor.')
+  } catch (cause) {
+    toast.backendError(cause, 'No se pudo actualizar el estado de trabajo.')
+  } finally {
+    workStatusSaving.value = false
+  }
+}
 
 async function begin(id: string) {
   const version = ++generation
@@ -150,6 +171,26 @@ onBeforeUnmount(() => {
     <div class="mb-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold">
       Solicitud reservada para {{ ownerName }}. Nadie más puede trabajar esta solicitud mientras esté activa.
     </div>
+
+    <section class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
+      <div class="min-w-0">
+        <p class="text-sm font-black text-[var(--dh-text)]">Estado visible para Ventas</p>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cambie el estado conforme avanza la cotización. El vendedor lo verá automáticamente en su dashboard.</p>
+      </div>
+      <div role="group" aria-label="Estado de trabajo de la solicitud" class="flex flex-wrap items-center gap-2">
+        <button type="button" :disabled="workStatusSaving"
+          :aria-pressed="workRequest?.workStatus === 'Working'"
+          class="rounded-xl border px-3 py-2 text-xs font-black transition-colors disabled:opacity-60"
+          :class="workRequest?.workStatus === 'Working' ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text)]'"
+          @click="setWorkStatus('Working')">Trabajando</button>
+        <button type="button" :disabled="workStatusSaving"
+          :aria-pressed="workRequest?.workStatus === 'RequestedFromProvider'"
+          class="rounded-xl border px-3 py-2 text-xs font-black transition-colors disabled:opacity-60"
+          :class="workRequest?.workStatus === 'RequestedFromProvider' ? 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text)]'"
+          @click="setWorkStatus('RequestedFromProvider')">Solicitado a proveedor</button>
+        <span v-if="workStatusSaving" role="status" class="text-xs text-[var(--dh-text-muted)]">Guardando…</span>
+      </div>
+    </section>
 
     <!-- Same wizard used by "Continuar tarifa": no separate comparison screen. -->
     <section v-if="isModification" class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
