@@ -5,6 +5,7 @@ export type ShortcutAction =
   | 'record.create'
   | 'record.save'
   | 'tab.close'
+  | 'tab.closeAll'
   | 'theme.toggle'
   | 'locale.toggle'
 
@@ -23,6 +24,7 @@ const defaultShortcuts: ShortcutDefinition[] = [
   { action: 'record.create', label: 'Nuevo registro', keys: 'ctrl+n' },
   { action: 'record.save', label: 'Guardar registro', keys: 'ctrl+s' },
   { action: 'tab.close', label: 'Cerrar pestaña', keys: 'ctrl+w' },
+  { action: 'tab.closeAll', label: 'Cerrar todas las pestañas', keys: 'ctrl+alt+w' },
   { action: 'theme.toggle', label: 'Cambiar tema', keys: 'ctrl+shift+d' },
   { action: 'locale.toggle', label: 'Cambiar idioma', keys: 'ctrl+shift+l' },
 ]
