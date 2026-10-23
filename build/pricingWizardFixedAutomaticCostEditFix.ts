@@ -154,6 +154,7 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
         proposedRemovedExtraDetailIds,
         editingRate.value!.rateDetails,
         freightNotRequiredByIncoterm.value,
+        true, // final update snapshot, not transient includedLines,
       )`
       code = replaceOne(code, updateExtraDetailsAnchor, updateExtraDetailsReplacement, 'persisted detail id reconciliation')
 
