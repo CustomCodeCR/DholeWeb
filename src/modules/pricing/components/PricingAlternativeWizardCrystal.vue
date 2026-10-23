@@ -4452,6 +4452,7 @@ async function saveRate() {
         // this same wizard from the edited Incoterm, services and tariff lines.
         extraDetails,
         removedExtraDetailIds,
+        replaceExtraDetails: true,
       } as UpdateRateRequest
       await PricingService.updateRate(editingRate.value.id, updatePayload)
       // A successful HTTP status is not enough: edited prices must be readable
@@ -4459,6 +4460,18 @@ async function saveRate() {
       const persistedRate = await PricingService.getRate(editingRate.value.id)
       const savedDetailsById = new Map(persistedRate.rateDetails.map((detail) => [detail.id, detail] as const))
       const previousDetailsById = new Map(editingRate.value.rateDetails.map((detail) => [detail.id, detail] as const))
+      // Do not report success when the API silently retains a saved charge
+      // omitted by the complete final snapshot (e.g. a duplicate VGM).
+      const requestedDetailIds = new Set(updatePayload.extraDetails.map((detail) => detail.id).filter(Boolean))
+      const staleSavedDetails = persistedRate.rateDetails.filter((detail) =>
+        previousDetailsById.has(detail.id) && !requestedDetailIds.has(detail.id),
+      )
+      if (staleSavedDetails.length > 0) {
+        throw new Error(
+          'El servidor conservó cargos eliminados de la tarifa: '
+          + staleSavedDetails.map((detail) => detail.name).join(', '),
+        )
+      }
       const unchangedContext = (
         String(editingRate.value.agentId ?? '') === String(updatePayload.agentId ?? '')
         && String(editingRate.value.carrierId ?? '') === String(updatePayload.carrierId ?? '')
