@@ -17,13 +17,16 @@ function patchWizard(source: string) {
 const screen7RefreshPromptOpen = ref(false)
 const screen7RefreshBusy = ref(false)
 const screen7RefreshAllowed = ref(false)
+// The confirmation is for an existing persisted quote only.
+// Newly created quotations always use current catalog costs automatically.
+const screen7RequiresConfirmation = computed(() => Boolean(props.rateId) && !props.viewOnly)
 `, 'line state')
 
   // Do not silently replace edited/persisted rows when an upstream watcher
   // asks for catalog costs again. First-time generation still runs normally.
   const rebuildAnchor = 'function rebuildRateLines() {\n  if (pricingDraftRestoring.value) return'
   code = replaceOnce(code, rebuildAnchor, rebuildAnchor + String.raw`
-  if (rateLines.value.length > 0 && !screen7RefreshAllowed.value) {
+  if (screen7RequiresConfirmation.value && rateLines.value.length > 0 && !screen7RefreshAllowed.value) {
     screen7RefreshPromptOpen.value = true
     return
   }
@@ -107,8 +110,8 @@ async function applyScreen7DatabaseCosts() {
   }
 }
 
-// Prompt each time a saved draft or an existing quotation is opened on
-// screen 7. The user decides whether to retain their work or reprice it.
+// Only prompt while editing/reloading a saved quotation. New quotations
+// load their applicable database costs without interrupting the wizard.
 watch(
   () => [step.value, pricingDraftReady.value] as const,
   ([currentStep, ready]) => {
@@ -116,7 +119,7 @@ watch(
       screen7RefreshPromptOpen.value = false
       return
     }
-    if (!props.viewOnly && ready && rateLines.value.length) {
+    if (screen7RequiresConfirmation.value && ready && rateLines.value.length) {
       screen7RefreshPromptOpen.value = true
     }
   },
@@ -127,11 +130,11 @@ watch(
 
   // The benchmark panel may refresh its own data. It must never rehydrate the
   // entire rate and overwrite unsaved price edits as a side effect.
-  code = code.replace('@refreshed="hydrateExistingRate"', '@refreshed="screen7RefreshPromptOpen = true"')
+  code = code.replace('@refreshed="hydrateExistingRate"', '@refreshed="screen7RefreshPromptOpen = screen7RequiresConfirmation"')
 
   const stageAnchor = '<div v-else-if="step === 7" class="crystal-lines-stage space-y-6">'
   const prompt = String.raw`
-          <div v-if="screen7RefreshPromptOpen && rateLines.length && !viewOnly"
+          <div v-if="screen7RequiresConfirmation && screen7RefreshPromptOpen && rateLines.length"
             role="group" aria-label="Confirmar actualización de líneas"
             class="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4 md:p-5">
             <h3 class="text-sm font-black text-[var(--dh-text)]">¿Desea mantener los valores actuales o actualizar la tarifa?</h3>
