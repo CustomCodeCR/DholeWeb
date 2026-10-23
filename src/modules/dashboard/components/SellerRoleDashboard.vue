@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock, FileSpreadsheet } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -21,6 +21,8 @@ interface SellerRateRequestDto {
   id: string
   priority: 'Green' | 'Yellow' | 'Red'
   status: string
+  workStatus?: 'Working' | 'RequestedFromProvider' | null
+  workStatusUpdatedAtUtc?: string | null
   requestedAtUtc: string
   dueAtUtc: string
   completedAtUtc?: string | null
@@ -301,15 +303,22 @@ function editRequest(request: SellerRateRequestDto) {
 }
 
 function requestState(request: SellerRateRequestDto) {
-  if (request.kind === 'Modification')
-    return request.status === 'Completed' ? 'Modificación atendida' : 'Modificación pendiente'
+  if (request.status === 'Cancelled') return 'Cancelada'
+  if (request.status === 'Completed') return request.kind === 'Modification' ? 'Modificación atendida' : 'Completada'
+  if (request.workStatus === 'RequestedFromProvider') return 'Solicitado a proveedor'
+  if (request.workStatus === 'Working') return 'Trabajando'
+  if (request.kind === 'Modification') return 'Modificación pendiente'
   if (request.rateId) return 'Tarifa creada'
   if (new Date(request.dueAtUtc).getTime() < Date.now()) return 'Fuera de tiempo'
   return 'En Pricing'
 }
 
 function requestStateVariant(request: SellerRateRequestDto): 'success' | 'warning' | 'danger' | 'neutral' {
-  if (request.kind === 'Modification') return request.status === 'Completed' ? 'success' : 'warning'
+  if (request.status === 'Cancelled') return 'neutral'
+  if (request.status === 'Completed') return 'success'
+  if (request.workStatus === 'RequestedFromProvider') return 'warning'
+  if (request.workStatus === 'Working') return 'success'
+  if (request.kind === 'Modification') return 'warning'
   if (request.rateId) return 'success'
   return new Date(request.dueAtUtc).getTime() < Date.now() ? 'danger' : 'warning'
 }
@@ -433,7 +442,40 @@ async function load() {
   }
 }
 
-onMounted(load)
+// Poll only the lightweight request list: new statuses appear without refreshing the
+// entire commercial dashboard or requiring the seller to reload the page.
+let requestStatusTimer: number | undefined
+let requestStatusRefreshing = false
+async function refreshRequestStatuses() {
+  if (document.hidden || loading.value || !hasLoaded.value || requestStatusRefreshing) return
+  requestStatusRefreshing = true
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: props.adminPreview ? '/api/pricing/rate-requests/dashboard' : '/api/pricing/rate-requests/mine',
+      headers: { Accept: 'application/json' },
+    })
+    allRequests.value = unwrapListResponse<SellerRateRequestDto>(response)
+  } catch {
+    // Transient network failures must not clear the last confirmed status.
+  } finally {
+    requestStatusRefreshing = false
+  }
+}
+function refreshWhenVisible() {
+  if (!document.hidden) void refreshRequestStatuses()
+}
+onMounted(() => {
+  void load()
+  requestStatusTimer = window.setInterval(refreshWhenVisible, 5000)
+  document.addEventListener('visibilitychange', refreshWhenVisible)
+  window.addEventListener('focus', refreshWhenVisible)
+})
+onBeforeUnmount(() => {
+  if (requestStatusTimer) window.clearInterval(requestStatusTimer)
+  document.removeEventListener('visibilitychange', refreshWhenVisible)
+  window.removeEventListener('focus', refreshWhenVisible)
+})
 </script>
 
 <template>
@@ -734,7 +776,12 @@ onMounted(load)
                 <td class="px-4 py-3 text-[var(--dh-text)]">{{ requestEquipmentLabel(request) }}</td>
                 <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
                 <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ new Date(request.requestedAtUtc).toLocaleDateString('es-CR') }}</td>
-                <td class="px-4 py-3"><DhBadge :label="requestState(request)" :variant="requestStateVariant(request)" /></td>
+                <td class="px-4 py-3">
+                  <DhBadge :label="requestState(request)" :variant="requestStateVariant(request)" />
+                  <p v-if="request.workStatusUpdatedAtUtc && request.status === 'Open'" class="mt-1 text-[10px] font-semibold text-[var(--dh-text-muted)]">
+                    Actualizado {{ new Date(request.workStatusUpdatedAtUtc).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' }) }}
+                  </p>
+                </td>
                 <td v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">
                   <DhButton
                     v-if="canEditRequest(request)"
