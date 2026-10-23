@@ -73,6 +73,7 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>) {
     enforceLineCurrency: () => {},
     normalizeCatalogValue: (v: unknown) => String(v ?? '').toLowerCase(),
     visibleSections: { value: ['destination_charges'] },
+    hasInternationalTransportService: { value: true },
     savePricingDraftNow: () => events.push('saved'),
     toastStore: {
       success: () => events.push('success'),
