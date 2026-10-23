@@ -274,7 +274,7 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `        extraDetails,\n        removedExtraDetailIds,`,
-    `        extraDetails,\n        removedExtraDetailIds,\n        updateReason: updateReason.value.trim(),`,
+    `        extraDetails,\n        removedExtraDetailIds,\n        updateReason: props.modificationRequestId ? 'Solicitud de modificacion de vendedor' : updateReason.value.trim(),`,
     'update reason payload',
   )
   code = replaceRequired(
