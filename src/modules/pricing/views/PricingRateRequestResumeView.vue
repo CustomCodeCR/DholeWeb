@@ -68,7 +68,7 @@ const modificationSnapshot = computed(() => {
     executiveName: request?.executiveName || request?.sellerName || String(form.executiveName || ''),
     originName: String(context.originName || request?.originName || ''),
     destinationName: String(context.destinationName || request?.destinationName || ''),
-    poeName: String(context.destinationName || request?.poeName || ''),
+    poeName: String(request?.poeName || context.poeName || context.destinationName || ''),
     podName: String(context.podName || request?.podName || ''),
     priority: request?.priority || 'Green',
   }
