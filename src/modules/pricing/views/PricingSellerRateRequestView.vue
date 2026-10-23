@@ -5,6 +5,10 @@ import PricingAlternativeWizardCrystal from '@/modules/pricing/components/Pricin
 
 const route = useRoute()
 const sellerEditRequestId = computed(() => String(route.params.requestId ?? '').trim() || null)
+const sellerDuplicateRequestId = computed(() => {
+  const value = route.query.duplicateRequestId
+  return typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value) ? value : null
+})
 const sellerModificationRateId = computed(() => {
   const value = route.query.modifyRateId
   return typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value) ? value : null
@@ -14,5 +18,6 @@ const sellerModificationRateId = computed(() => {
 <template>
   <PricingAlternativeWizardCrystal seller-request-mode
     :seller-edit-request-id="sellerEditRequestId"
+    :seller-duplicate-request-id="sellerDuplicateRequestId"
     :seller-modification-rate-id="sellerModificationRateId" />
 </template>
