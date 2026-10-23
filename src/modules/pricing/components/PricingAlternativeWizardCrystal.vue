@@ -4476,6 +4476,13 @@ async function saveRate() {
       toastStore.success('Tarifa creada correctamente.', props.rateRequestId
         ? 'La solicitud quedó vinculada. Si el margen requiere aprobación, se finalizará automáticamente al autorizar la tarifa.'
         : undefined)
+      // Al crear, reemplazar el wizard vacío por el detalle de la QUO guardada.
+      await router.replace({
+        name: 'pricing-rate-wizard',
+        params: { rateId },
+        query: { mode: 'view' },
+      })
+      return
     }
     await router.push({ name: 'pricing-rates' })
   } catch (error) {
