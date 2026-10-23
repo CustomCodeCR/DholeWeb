@@ -117,12 +117,38 @@ const ready = ref(false)
 const checking = ref(false)
 const error = ref('')
 const ownerName = ref('')
+const leaseWarning = ref('')
 let heartbeatTimer: number | undefined
 let currentId = ''
 let generation = 0
-let lastInteractionAt = Date.now()
-const idleTimeoutMs = 15 * 60 * 1000
-function recordActivity() { if (ready.value) lastInteractionAt = Date.now() }
+let heartbeatInFlight = false
+
+// Renew while the user is working. Background tabs may throttle timers; if
+// our lease expired, reclaim it with the same token only when nobody else
+// took the request. Keep the wizard mounted to preserve unsaved work.
+async function renewLease(id: string, version: number) {
+  if (heartbeatInFlight || version !== generation || currentId !== id || !ready.value) return
+  heartbeatInFlight = true
+  try {
+    try {
+      await RateRequestLeaseService.heartbeat(id)
+    } catch {
+      await RateRequestLeaseService.claim(id)
+    }
+    if (version === generation && currentId === id) leaseWarning.value = ''
+  } catch {
+    if (version === generation && currentId === id)
+      leaseWarning.value = 'La reserva no pudo renovarse. El formulario permanece abierto. Compruebe la conexión y recupere la reserva antes de guardar.'
+  } finally {
+    heartbeatInFlight = false
+  }
+}
+function renewOnFocus() {
+  if (currentId && ready.value) void renewLease(currentId, generation)
+}
+function renewOnVisibilityChange() {
+  if (document.visibilityState === 'visible') renewOnFocus()
+}
 
 async function setWorkStatus(nextStatus: WorkStatus) {
   if (!ready.value || workStatusSaving.value || !workRequest.value || workRequest.value.workStatus === nextStatus) return
@@ -146,6 +172,7 @@ async function begin(id: string) {
   ready.value = false
   checking.value = true
   error.value = ''
+  leaseWarning.value = ''
   try {
     const lease = await RateRequestLeaseService.claim(id, { recoverOwnLease: true })
     if (version !== generation) {
@@ -159,23 +186,8 @@ async function begin(id: string) {
     })
     workRequest.value = unwrapApiResponse<WorkRequest>(response as never)
     ownerName.value = lease.ownerName
-    lastInteractionAt = Date.now()
     ready.value = true
-    heartbeatTimer = window.setInterval(() => {
-      if (Date.now() - lastInteractionAt >= idleTimeoutMs) {
-        stop()
-        error.value = 'La reserva se liberó tras 15 minutos de inactividad. Puede volver a intentar tomarla.'
-        return
-      }
-      void RateRequestLeaseService.heartbeat(id).catch(() => {
-        if (version !== generation) return
-        ready.value = false
-        error.value = 'Se perdió la reserva de esta solicitud. Ya no puede editarla. Regrese al dashboard.'
-        if (heartbeatTimer) window.clearInterval(heartbeatTimer)
-        heartbeatTimer = undefined
-        // Conserve the original tab token so a reconnect can renew its own lease.
-      })
-    }, 20000)
+    heartbeatTimer = window.setInterval(() => { void renewLease(id, version) }, 20000)
   } catch (cause) {
     if (version !== generation) return
     if (currentId === id) {
@@ -202,9 +214,8 @@ function stop() {
 
 onMounted(() => {
   window.addEventListener('dhole:pricing:modification-prepared', onModificationPrepared)
-  window.addEventListener('pointerdown', recordActivity)
-  window.addEventListener('keydown', recordActivity)
-  window.addEventListener('wheel', recordActivity)
+  window.addEventListener('focus', renewOnFocus)
+  document.addEventListener('visibilitychange', renewOnVisibilityChange)
   void begin(requestId.value)
 })
 watch(requestId, (next, previous) => {
@@ -214,9 +225,8 @@ watch(requestId, (next, previous) => {
 })
 onBeforeUnmount(() => {
   window.removeEventListener('dhole:pricing:modification-prepared', onModificationPrepared)
-  window.removeEventListener('pointerdown', recordActivity)
-  window.removeEventListener('keydown', recordActivity)
-  window.removeEventListener('wheel', recordActivity)
+  window.removeEventListener('focus', renewOnFocus)
+  document.removeEventListener('visibilitychange', renewOnVisibilityChange)
   stop()
 })
 </script>
@@ -236,6 +246,10 @@ onBeforeUnmount(() => {
   <div v-else>
     <div class="mb-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold">
       Solicitud reservada para {{ ownerName }}. Nadie más puede trabajar esta solicitud mientras esté activa.
+    </div>
+    <div v-if="leaseWarning" role="alert" class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 text-sm font-semibold">
+      <span>{{ leaseWarning }}</span>
+      <DhButton variant="secondary" size="sm" label="Recuperar reserva" @click="renewOnFocus" />
     </div>
 
     <section class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
