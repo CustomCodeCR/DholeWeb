@@ -10,9 +10,16 @@ test('seller modification bypasses manual update-reason dialog and starts in Pri
   assert.match(wizard, /editReasonConfirmed\.value = true/)
   assert.match(wizard, /if \(props\.rateId\) await hydrateExistingRate\(\)/)
   assert.match(wizard, /step\.value = 5/)
-  assert.match(wizard, /!props\.modificationRequestId" class="mt-4 rounded-2xl/)
-  assert.match(wizard, /updateReason: props\.modificationRequestId \? 'Solicitud de modificacion de vendedor'/)
-  assert.match(wizard, /!props\.modificationRequestId && !props\.viewOnly && editingRate\.value/)
+  // The modification plugin runs in Vite's early stage. It must not try to
+  // rewrite fields and controls supplied by the later prerequisite plugins.
+  assert.doesNotMatch(wizard, /automatic modification reason in persisted quote/)
+  assert.doesNotMatch(wizard, /Manual reason entry not found/)
+  const requirements = read('build/pricingRequirements20260908.ts')
+  const parity = read('build/pricingRateEditCreateParity.ts')
+  assert.match(requirements, /updateReason: props\.modificationRequestId \? 'Solicitud de modificacion de vendedor'/)
+  assert.match(parity, /!viewOnly && !editReasonConfirmed && !props\.modificationRequestId/)
+  assert.match(parity, /v-else-if="!viewOnly && !props\.modificationRequestId"/)
+  assert.match(parity, /!loading && props\.rateId && !props\.modificationRequestId && !props\.viewOnly/)
 })
 
 test('open modification does not unmount the wizard because of elapsed time or a transient heartbeat error', () => {
