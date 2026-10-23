@@ -54,6 +54,45 @@ function keepScreen7CurrentLines() {
   savePricingDraftNow()
 }
 
+function screen7CatalogRateLine(cost: CostSelectDto, previous?: RateLine): RateLine | null {
+  const amount = resolvedConditionalCost(cost)
+  if (!amount) return null
+
+  // Reconcile persisted details by their stable CostId. Generated wizard rows
+  // can be empty for no-freight Incoterms, edited LCL, or legacy routes even
+  // when Pricing returned matching costs.
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!currency) return null
+  const optional = cost.costType === 'Optional'
+  const line: RateLine = {
+    key: previous?.key ?? 'cost:' + cost.id,
+    detailId: previous?.detailId,
+    section: sectionForCost(cost),
+    name: cost.name,
+    costDetailType: cost.costDetailType,
+    costType: cost.costType,
+    chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+    costId: previous?.costId ?? cost.id,
+    contextLabel: costContextLabel(cost),
+    notes: cost.notes?.trim() || null,
+    serviceIds: cost.services?.map((service) => service.id) ?? [],
+    billToClient: previous?.billToClient,
+    currencyId: cost.currencyId || currency.id,
+    currencyName: cost.currencyName || displayValue(currency),
+    currencyCode: cost.currencyCode || currency.code,
+    amountCurrencyCode: cost.currencyCode || currency.code,
+    costAmount: number(amount.costAmount),
+    saleAmount: number(amount.saleAmount),
+    included: previous?.included ?? !optional,
+    optional,
+    manual: false,
+    applyDestinationTax: previous?.applyDestinationTax,
+    destinationTaxRate: previous?.destinationTaxRate,
+  }
+  enforceLineCurrency(line)
+  return line
+}
+
 async function applyScreen7DatabaseCosts() {
   if (screen7RefreshBusy.value || props.viewOnly) return
   const previous = rateLines.value.map((line) => ({ ...line }))
@@ -67,23 +106,14 @@ async function applyScreen7DatabaseCosts() {
       throw new Error('No se cargó la moneda de la cotización. Recargue los catálogos antes de actualizar.')
     }
 
-    // This is the exact same loader used when entering Screen 7. A direct
-    // /costs/select call misses normalized agent/POE, import-rate, multi-port,
-    // multi-carrier FCL, LTL and LCL-specific cost sources.
     await loadApplicableCosts()
     if (requestedContext !== pricingDraftLineContextKey()) {
       throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
     }
-
-    // Own LCL rates come from a consolidation matrix rather than the global
-    // Costs catalog. Restoring the persisted matrix is NOT a database refresh.
     if (isOwnLclMatrixContext()) {
       throw new Error('Esta tarifa LCL propia se alimenta del consolidado. Vuelva a seleccionar el consolidado en Proveedor para actualizar su matriz.')
     }
 
-    // In addition to the contextual costs, Screen 7 normally queries the
-    // complete applicable Optional catalog. Refresh it before rebuilding, but
-    // do not use global optionals for a coloader's own rate.
     const isColoader = isLclColoaderAgentCostContext()
     if (!isColoader) {
       const optionalCosts = await loadAllApplicableOptionalCosts()
@@ -97,39 +127,120 @@ async function applyScreen7DatabaseCosts() {
     if (requestedContext !== pricingDraftLineContextKey()) {
       throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
     }
-    if (previous.some((line) => line.costId) && !costs.value.length && !isColoader) {
-      throw new Error('Pricing no devolvió costos aplicables a esta ruta y proveedor. No se reemplazaron los cargos anteriores.')
+
+    // A saved quote may reference a CostId not returned by the contextual
+    // endpoint due to historical first-port or agent associations. Read the
+    // active catalog for those exact IDs, never a cross-route name guess.
+    const catalogById = new Map(costs.value.map((cost) => [cost.id, cost]))
+    const missingCostIds = new Set(
+      previous.map((line) => line.costId).filter((id): id is string =>
+        Boolean(id) && !catalogById.has(id!)),
+    )
+    if (missingCostIds.size) {
+      const activeCatalog = await PricingService.selectCosts({ isActive: true })
+      activeCatalog.forEach((cost) => {
+        if (missingCostIds.has(cost.id) && cost.isActive !== false) {
+          catalogById.set(cost.id, cost)
+        }
+      })
+    }
+    if (previous.some((line) => line.costId) && !catalogById.size && !isColoader) {
+      throw new Error('Pricing no devolvió costos vigentes asociados a esta cotización. Los valores anteriores siguen intactos.')
     }
 
-    // Explicit refresh replaces catalog prices, not the user's hand-entered
-    // rubrics. Clearing first also prevents the draft wrapper from retaining
-    // the previous catalog's edited sale/cost amounts.
-    rateLines.value = []
+    // Do NOT empty rateLines before rebuilding. LCL coloaders, manual freights
+    // and saved quote snapshots depend on the previous source rows. Instead
+    // disable the normal draft-price-preservation wrapper for this one
+    // explicitly confirmed refresh.
+    pricingDraftLastLineContext = '__explicit_catalog_refresh__'
     rebuildRateLines()
-    if (!rateLines.value.length && previous.length) {
-      throw new Error('No se pudieron reconstruir los cargos para esta modalidad, ruta, proveedor e Incoterm. Se conservaron los anteriores.')
+    const generated = rateLines.value.map((line) => ({ ...line }))
+    const previousByKey = new Map(previous.map((line) => [screen7CostLineKey(line), line]))
+    const next: RateLine[] = []
+    const seenKeys = new Set<string>()
+    let refreshed = 0
+    let retained = 0
+
+    const insert = (line: RateLine) => {
+      const key = screen7CostLineKey(line)
+      if (seenKeys.has(key)) return
+      seenKeys.add(key)
+      next.push(line)
     }
-    const currentLineKeys = new Set(rateLines.value.map(screen7CostLineKey))
-    for (const line of previous) {
-      if (line.manual && !line.costId && !currentLineKeys.has(screen7CostLineKey(line))) {
-        rateLines.value.push({ ...line })
-        currentLineKeys.add(screen7CostLineKey(line))
+
+    // The rebuild may contain provider-specific lines, manual charges and
+    // catalog costs. Update every CostId from the latest DB snapshot even if
+    // a source-specific rebuilder kept the old amounts.
+    for (const line of generated) {
+      const original = previousByKey.get(screen7CostLineKey(line))
+      const configured = line.costId ? catalogById.get(line.costId) : undefined
+      const refreshedLine = configured ? screen7CatalogRateLine(configured, original ?? line) : null
+      if (refreshedLine) {
+        insert(refreshedLine)
+        refreshed += 1
+      } else {
+        if (original?.detailId && !line.detailId) line.detailId = original.detailId
+        insert(line)
       }
     }
 
-    // Keep existing detail IDs for the same catalog row so saving edits
-    // updates RateDetails rather than creating duplicate charges.
-    const previousByKey = new Map(previous.map((line) => [screen7CostLineKey(line), line]))
-    for (const line of rateLines.value) {
-      const original = previousByKey.get(screen7CostLineKey(line))
-      if (original?.detailId && original.costId === line.costId) {
-        line.detailId = original.detailId
+    // Reconcile all original persisted details. A no-freight quote can have
+    // zero rebuilt lines but still has legitimate destination/customs charges.
+    // Do not mistake an empty builder output for permission to delete them.
+    for (const original of previous) {
+      const key = screen7CostLineKey(original)
+      if (seenKeys.has(key)) continue
+      const configured = original.costId ? catalogById.get(original.costId) : undefined
+      const refreshedLine = configured ? screen7CatalogRateLine(configured, original) : null
+      if (refreshedLine) {
+        insert(refreshedLine)
+        refreshed += 1
+      } else {
+        // Manual items and historical unmatched CostIds retain their exact
+        // detail IDs and amounts until a human explicitly edits/removes them.
+        insert({ ...original })
+        retained += 1
       }
     }
+
+    // The contextual Pricing response is authoritative for ADDING newly
+    // applicable charges. Some legacy wizard rebuild branches produce none,
+    // so materialize those items directly without an unrelated freight row.
+    for (const cost of costs.value) {
+      if (cost.isActive === false || cost.costDetailType === 'Freight') continue
+      if (!visibleSections.value.includes(sectionForCost(cost))
+          && !previous.some((line) => line.costId === cost.id)) continue
+      if (seenKeys.has('cost:' + cost.id)) continue
+      const existingLogical = next.some((line) =>
+        normalizeCatalogValue(line.name) === normalizeCatalogValue(cost.name)
+        && line.costDetailType === cost.costDetailType
+        && line.section === sectionForCost(cost))
+      if (existingLogical) continue
+      const newLine = screen7CatalogRateLine(cost)
+      if (newLine) {
+        insert(newLine)
+        refreshed += 1
+      }
+    }
+
+    if (!next.length && previous.length) {
+      throw new Error('No se recibieron líneas ni costos para esta cotización. Se conservaron los valores anteriores.')
+    }
+    rateLines.value = next
     pricingDraftLastLineContext = pricingDraftLineContextKey()
     screen7RefreshPromptOpen.value = false
     savePricingDraftNow()
-    toastStore.success('Líneas actualizadas', 'Se aplicaron los costos vigentes y los cargos opcionales. Los rubros manuales se conservaron. Revise los importes antes de guardar.')
+    if (refreshed === 0) {
+      toastStore.warning(
+        'No hay nuevos costos aplicables',
+        'Pricing no devolvió importes actualizables para esta ruta. Las ' + retained + ' líneas anteriores se conservaron sin cambios.',
+      )
+    } else {
+      toastStore.success(
+        'Líneas actualizadas',
+        'Se aplicaron ' + refreshed + ' costos vigentes; ' + retained + ' líneas sin equivalencia en el catálogo se conservaron. Revise los importes antes de guardar.',
+      )
+    }
   } catch (error) {
     rateLines.value = previous
     costs.value = previousCosts
