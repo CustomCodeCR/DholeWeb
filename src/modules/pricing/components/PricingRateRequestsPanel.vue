@@ -278,7 +278,7 @@ async function completeRequest(request: RateRequestDto) {
     completingRequestId.value = request.id
     await RateRequestLeaseService.claim(request.id)
     if (isModification(request) && request.rateId) {
-      await RateRequestLeaseService.completeRate(request.id, request.rateId)
+      await RateRequestLeaseService.completeRate(request.id, request.rateId, { confirmSellerModification: true })
       toast.success('Revisión enviada', 'Se notificó al vendedor y se entregó el PDF actualizado.')
     } else {
       await RateRequestLeaseService.complete(request.id)
