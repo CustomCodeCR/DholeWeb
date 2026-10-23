@@ -64,8 +64,8 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
     if (tag.includes('pricingSellerScreensLocked')) return tag
     return tag.replace(
       /^<(button|DhButton)\b/,
-      \`<$1 v-show="!pricingSellerScreensLocked || index >= 4"
-        :disabled="pricingSellerScreensLocked && index < 4"\`,
+      `<$1 v-show="!pricingSellerScreensLocked || index >= 4"
+        :disabled="pricingSellerScreensLocked && index < 4"`,
     )
   })
 
@@ -77,7 +77,7 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
     code = code.replace(backButton[0], backButton[0].replace(
       /:disabled="([^"]*)"/,
       (_whole, condition: string) =>
-        \`:disabled="(\${condition}) || (pricingSellerScreensLocked && step <= 5)"\`,
+        `:disabled="(${condition}) || (pricingSellerScreensLocked && step <= 5)"`,
     ))
   }
 
@@ -86,7 +86,7 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
   // the section's layout classes or wraps the panel.
   const panel = '<section class="crystal-panel min-h-[470px] p-5 md:p-8"'
   if (code.includes(panel)) {
-    code = code.replace(panel, \`<div v-if="props.modificationRequestId && !pricingModificationApplied"
+    code = code.replace(panel, `<div v-if="props.modificationRequestId && !pricingModificationApplied"
       class="crystal-soft p-5 text-sm font-semibold" role="status">
       {{ pricingModificationLoading ? 'Cargando solicitud de modificación de Ventas…'
         : pricingModificationWorkItem && loadingExistingRate ? 'Preparando tarifa original…'
@@ -94,7 +94,7 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
         : 'No se pudo cargar la modificación solicitada. Compruebe la conexión antes de continuar.' }}
     </div>
     <section v-if="!props.modificationRequestId || pricingModificationApplied"
-      class="crystal-panel min-h-[470px] p-5 md:p-8"\`)
+      class="crystal-panel min-h-[470px] p-5 md:p-8"`)
   }
 
   return code
