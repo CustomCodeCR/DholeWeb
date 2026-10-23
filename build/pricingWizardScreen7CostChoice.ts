@@ -172,6 +172,7 @@ async function applyScreen7DatabaseCosts() {
     // catalog costs. Update every CostId from the latest DB snapshot even if
     // a source-specific rebuilder kept the old amounts.
     for (const line of generated) {
+      if (line.costDetailType === 'Freight' && !hasInternationalTransportService.value) continue
       const original = previousByKey.get(screen7CostLineKey(line))
       const configured = line.costId ? catalogById.get(line.costId) : undefined
       const refreshedLine = configured ? screen7CatalogRateLine(configured, original ?? line) : null
@@ -188,6 +189,7 @@ async function applyScreen7DatabaseCosts() {
     // zero rebuilt lines but still has legitimate destination/customs charges.
     // Do not mistake an empty builder output for permission to delete them.
     for (const original of previous) {
+      if (original.costDetailType === 'Freight' && !hasInternationalTransportService.value) continue
       const key = screen7CostLineKey(original)
       if (seenKeys.has(key)) continue
       const configured = original.costId ? catalogById.get(original.costId) : undefined
