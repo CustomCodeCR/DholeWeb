@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive } from 'vue'
 import { CircleCheck, FileCheck2 } from 'lucide-vue-next'
-import { DhButton, DhInput } from '@/shared/components/atoms'
+import { DhButton, DhTextarea } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
 import type { RateDto } from '@/core/interfaces/pricing'
 import { useModalStore } from '@/core/stores/modalStore'
@@ -16,11 +16,17 @@ const modalStore = useModalStore()
 const toastStore = useToastStore()
 const form = reactive({
   idtraNumber: props.rate.idtraNumber?.trim() ?? '',
+  otherReferences: props.rate.otherReferences?.trim() ?? '',
   saving: false,
 })
 
 async function submit() {
-  const idtraNumber = form.idtraNumber.trim()
+  const idtras = [...new Set(form.idtraNumber.split(',').map(x => x.trim()).filter(Boolean))]
+  const idtraNumber = idtras.join(', ')
+  if (idtras.length > 30 || idtraNumber.length > 2000 || idtras.some(id => id.length > 100 || id.includes(';')) || form.otherReferences.length > 2000) {
+    toastStore.warning('Referencias inválidas', 'Máximo 30 IDTRA separados por comas, 100 caracteres por IDTRA y 2000 para otras referencias.')
+    return
+  }
   if (
     props.rate.rateType === 'Tariff'
     && String(props.rate.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO')
@@ -37,6 +43,7 @@ async function submit() {
     await PricingService.setRateStatus(props.rate.id, {
       status: 'AcceptedByClient',
       idtraNumber: idtraNumber || null,
+      otherReferences: form.otherReferences.trim(),
     })
     toastStore.success('Tarifa aceptada por el cliente', idtraNumber ? `IDTRA ${idtraNumber} registrado.` : 'El IDTRA puede asignarse posteriormente.')
     modalStore.close()
@@ -70,12 +77,24 @@ async function submit() {
         <FileCheck2 class="h-4 w-4" />
         {{ rate.quoNumber || rate.rateCode }}
       </div>
-      <DhInput
+      <DhTextarea
         v-model="form.idtraNumber"
-        label="IDTRA (opcional)"
-        placeholder="Puede dejarlo vacío y registrarlo después"
-        autocomplete="off"
+        label="IDTRA separados por comas (opcional)"
+        placeholder="IDTRA-2026-00125, IDTRA-2026-00126"
+        :rows="2"
       />
+      <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+        Ingrese los números separados por comas. La lista se guarda para la integración con Dynamics.
+      </p>
+      <div class="mt-4">
+        <DhTextarea
+          v-model="form.otherReferences"
+          label="Otras referencias internas (opcional)"
+          placeholder="BL, HBL, contenedor, PO u otras referencias"
+          :rows="2"
+        />
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Estas referencias no se sincronizan con Dynamics.</p>
+      </div>
     </div>
 
     <div class="flex justify-end gap-2">
