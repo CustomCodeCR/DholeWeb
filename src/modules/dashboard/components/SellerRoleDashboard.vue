@@ -5,6 +5,7 @@ import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, 
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
+import type { SystemNotificationPush } from '@/core/realtime/notificationRealtime'
 import type { RateDto } from '@/core/interfaces/pricing'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -465,16 +466,23 @@ async function refreshRequestStatuses() {
 function refreshWhenVisible() {
   if (!document.hidden) void refreshRequestStatuses()
 }
+function handleWorkStatusNotification(event: Event) {
+  const notification = (event as CustomEvent<SystemNotificationPush>).detail
+  if (notification?.notificationType === 'pricing.rate-request.work-status.changed')
+    void refreshRequestStatuses()
+}
 onMounted(() => {
   void load()
   requestStatusTimer = window.setInterval(refreshWhenVisible, 5000)
   document.addEventListener('visibilitychange', refreshWhenVisible)
   window.addEventListener('focus', refreshWhenVisible)
+  window.addEventListener('dhole:notification:received', handleWorkStatusNotification)
 })
 onBeforeUnmount(() => {
   if (requestStatusTimer) window.clearInterval(requestStatusTimer)
   document.removeEventListener('visibilitychange', refreshWhenVisible)
   window.removeEventListener('focus', refreshWhenVisible)
+  window.removeEventListener('dhole:notification:received', handleWorkStatusNotification)
 })
 </script>
 
