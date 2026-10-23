@@ -27,7 +27,7 @@ function patchWizard(source: string): string {
   const stateAnchor = 'const fclContainerAllocations = computed('
   if (!code.includes(stateAnchor)) throw new Error('[pricingFclUnitWeights] No se encontró la distribución FCL.')
   code = code.replace(stateAnchor,
-    'const fclUnitWeightsKg = ref<Record<string, number[]>>({})\n\n' + stateAnchor)
+    'const fclUnitWeightsKg = ref<Record<string, number[]>>({})\nconst fclWeightEditorOpen = ref<Record<string, boolean>>({})\n\n' + stateAnchor)
 
 
   const script = `
@@ -39,6 +39,32 @@ function fclUnitWeight(typeId: string, index: number) {
     && (shipmentModeForApi.value === 'Ftl' || fclContainerTotal.value === 1))
     return Math.max(0, number(form.cargoWeightKg))
   return 0
+}
+
+function fclWeightCompleted(typeId: string, quantity: number) {
+  return fclUnitWeightsFor(typeId, quantity).filter((kg) => kg > 0).length
+}
+
+function fclWeightTotal(typeId: string, quantity: number) {
+  return fclUnitWeightsFor(typeId, quantity).reduce((sum, kg) => sum + kg, 0)
+}
+
+function toggleFclWeightEditor(typeId: string) {
+  if (!typeId) return
+  fclWeightEditorOpen.value = {
+    ...fclWeightEditorOpen.value,
+    [typeId]: !fclWeightEditorOpen.value[typeId],
+  }
+}
+
+function copyFirstFclUnitWeight(typeId: string, quantity: number) {
+  const first = fclUnitWeight(typeId, 0)
+  if (!typeId || first <= 0) return
+  const count = Math.max(1, Math.min(100, Math.trunc(number(quantity))))
+  fclUnitWeightsKg.value = {
+    ...fclUnitWeightsKg.value,
+    [typeId]: Array.from({ length: count }, () => first),
+  }
 }
 
 function fclUnitWeightsFor(typeId: string, quantity: number): number[] {
@@ -166,7 +192,7 @@ watch(
     code = code.replace(requestRows, requestRows + '\n  restoreFclUnitWeights(rows.map((row) => ({ containerTypeId: String(row.containerTypeId ?? ""), unitWeightsKg: Array.isArray(row.unitWeightsKg) ? row.unitWeightsKg.map((kg) => number(kg)) : [] })))')
 
   if (code.includes('function resetWizard() {'))
-    code = code.replace('function resetWizard() {', 'function resetWizard() {\n  fclUnitWeightsKg.value = {}')
+    code = code.replace('function resetWizard() {', 'function resetWizard() {\n  fclUnitWeightsKg.value = {}\n  fclWeightEditorOpen.value = {}')
 
   // Validación también cuando se edita, ruta que tradicionalmente omitía canNext.
   const next = 'async function next() {'
@@ -184,8 +210,10 @@ watch(
     ':disabled="shipmentModeForApi === \'Fcl\' || shipmentModeForApi === \'Ftl\'" @click="form.overweight = !form.overweight"',
   )
 
-  const primaryFclWeights = "<div class=\"min-w-0\">\n                    <div class=\"grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))\" :key=\"'primary-weight:' + unitNumber\" class=\"min-w-0\">\n                        <DhInput :model-value=\"fclUnitWeight(form.equipmentId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"Number(form.equipmentQuantity) > 1 ? 'Unidad ' + unitNumber + ' · kg *' : 'Peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))\" />\n                        <p v-if=\"fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1))\" class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n                      </div>\n                    </div>\n                  </div>"
-  const additionalFclWeights = "<div class=\"min-w-0\">\n                    <div class=\"grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3\">\n                      <div v-for=\"unitNumber in Math.max(1, Math.trunc(Number(row.quantity)))\" :key=\"'additional-weight:' + unitNumber\" class=\"min-w-0\">\n                        <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\" :label=\"Number(row.quantity) > 1 ? 'Unidad ' + unitNumber + ' · kg *' : 'Peso (kg) *'\" @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))\" />\n                        <p v-if=\"fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1))\" class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n                      </div>\n                    </div>\n                  </div>"
+  const primaryFclWeights = "<div class=\"min-w-0\">\n  <div v-if=\"Math.trunc(Number(form.equipmentQuantity)) <= 1\">\n    <DhInput :model-value=\"fclUnitWeight(form.equipmentId, 0)\" type=\"number\" min=\"0\" step=\"1\"\n      label=\"Peso (kg) *\" @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, 0, Number(value))\" />\n  </div>\n  <div v-else class=\"rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2\">\n    <span class=\"block text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]\">Pesos individuales</span>\n    <div class=\"mt-1 flex items-center justify-between gap-2\">\n      <span class=\"text-xs font-black text-[var(--dh-text)]\">{{ fclWeightCompleted(form.equipmentId, form.equipmentQuantity) }}/{{ Math.trunc(Number(form.equipmentQuantity)) }} listos</span>\n      <button type=\"button\" class=\"rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.30)] px-2 py-1 text-xs font-black text-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.08)]\"\n        :aria-expanded=\"Boolean(fclWeightEditorOpen[form.equipmentId])\" @click=\"toggleFclWeightEditor(form.equipmentId)\">\n        {{ fclWeightEditorOpen[form.equipmentId] ? 'Cerrar' : 'Editar' }}\n      </button>\n    </div>\n    <span class=\"mt-1 block text-[11px] font-semibold text-[var(--dh-text-muted)]\">{{ fclWeightTotal(form.equipmentId, form.equipmentQuantity).toLocaleString('es-CR') }} kg total</span>\n  </div>\n</div>"
+  const additionalFclWeights = "<div class=\"min-w-0\">\n  <div v-if=\"Math.trunc(Number(row.quantity)) <= 1\">\n    <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, 0)\" type=\"number\" min=\"0\" step=\"1\"\n      label=\"Peso (kg) *\" @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, 0, Number(value))\" />\n  </div>\n  <div v-else class=\"rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2\">\n    <span class=\"block text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]\">Pesos individuales</span>\n    <div class=\"mt-1 flex items-center justify-between gap-2\">\n      <span class=\"text-xs font-black text-[var(--dh-text)]\">{{ fclWeightCompleted(row.containerTypeId, row.quantity) }}/{{ Math.trunc(Number(row.quantity)) }} listos</span>\n      <button type=\"button\" class=\"rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.30)] px-2 py-1 text-xs font-black text-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.08)]\"\n        :aria-expanded=\"Boolean(fclWeightEditorOpen[row.containerTypeId])\" @click=\"toggleFclWeightEditor(row.containerTypeId)\">\n        {{ fclWeightEditorOpen[row.containerTypeId] ? 'Cerrar' : 'Editar' }}\n      </button>\n    </div>\n    <span class=\"mt-1 block text-[11px] font-semibold text-[var(--dh-text-muted)]\">{{ fclWeightTotal(row.containerTypeId, row.quantity).toLocaleString('es-CR') }} kg total</span>\n  </div>\n</div>"
+  const primaryFclPanel = "<div v-if=\"Math.trunc(Number(form.equipmentQuantity)) > 1 && fclWeightEditorOpen[form.equipmentId]\"\n  class=\"mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3\">\n  <div class=\"flex flex-wrap items-center justify-between gap-3\">\n    <div>\n      <p class=\"text-xs font-black text-[var(--dh-text)]\">Pesos por unidad (kg)</p>\n      <p class=\"mt-1 text-[11px] text-[var(--dh-text-muted)]\">Edite cada peso individualmente o repita el primero.</p>\n    </div>\n    <DhButton type=\"button\" variant=\"secondary\" size=\"sm\"\n      :disabled=\"fclUnitWeight(form.equipmentId, 0) <= 0\" @click=\"copyFirstFclUnitWeight(form.equipmentId, form.equipmentQuantity)\">\n      Repetir peso del primero\n    </DhButton>\n  </div>\n  <div class=\"mt-3 grid max-h-56 grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4\">\n    <div v-for=\"unitNumber in Math.max(1, Math.min(100, Math.trunc(Number(form.equipmentQuantity))))\"\n      :key=\"'primary-weight:' + unitNumber\" class=\"min-w-0\">\n      <DhInput :model-value=\"fclUnitWeight(form.equipmentId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\"\n        :label=\"'Unidad ' + unitNumber + ' · kg *'\"\n        @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))\" />\n      <p v-if=\"fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1))\"\n        class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n    </div>\n  </div>\n</div>"
+  const additionalFclPanel = "<div v-if=\"Math.trunc(Number(row.quantity)) > 1 && fclWeightEditorOpen[row.containerTypeId]\"\n  class=\"mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3\">\n  <div class=\"flex flex-wrap items-center justify-between gap-3\">\n    <div>\n      <p class=\"text-xs font-black text-[var(--dh-text)]\">Pesos por unidad (kg)</p>\n      <p class=\"mt-1 text-[11px] text-[var(--dh-text-muted)]\">Edite cada peso individualmente o repita el primero.</p>\n    </div>\n    <DhButton type=\"button\" variant=\"secondary\" size=\"sm\"\n      :disabled=\"fclUnitWeight(row.containerTypeId, 0) <= 0\" @click=\"copyFirstFclUnitWeight(row.containerTypeId, row.quantity)\">\n      Repetir peso del primero\n    </DhButton>\n  </div>\n  <div class=\"mt-3 grid max-h-56 grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4\">\n    <div v-for=\"unitNumber in Math.max(1, Math.min(100, Math.trunc(Number(row.quantity))))\"\n      :key=\"'additional-weight:' + unitNumber\" class=\"min-w-0\">\n      <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\"\n        :label=\"'Unidad ' + unitNumber + ' · kg *'\"\n        @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))\" />\n      <p v-if=\"fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1))\"\n        class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n    </div>\n  </div>\n</div>"
 
   // Pesos FCL y FTL integrados en sus respectivas tarjetas de equipo.
   const row4 = '<!-- Fila 4: Incoterm y fecha de carga lista. -->'
@@ -206,7 +234,7 @@ watch(
 
   // Place a compact weight column inside the SAME responsive grid as
   // container size/type and quantity. Each physical unit retains its weight.
-  const addWeightControls = (model: string, markup: string) => {
+  const addWeightControls = (model: string, markup: string, panel: string) => {
     const tokens = [`v-model.number="${model}"`, `v-model="${model}"`]
     const occurrences = tokens.flatMap((token) => {
       const positions: number[] = []
@@ -231,7 +259,7 @@ watch(
     const originalGrid = distribution.slice(gridStart, gridEnd + 1)
     const targetGrid = originalGrid.replace('lg:items-end', 'lg:items-start').replace(
       'lg:grid-cols-[minmax(0,1fr)_160px]',
-      'lg:grid-cols-[minmax(0,1.2fr)_120px_minmax(300px,1fr)] xl:grid-cols-[minmax(0,1.2fr)_130px_minmax(380px,1fr)]',
+      'lg:grid-cols-[minmax(0,1fr)_120px_215px] xl:grid-cols-[minmax(0,1fr)_130px_235px]',
     )
     if (originalGrid === targetGrid) {
       throw new Error('[pricingFclUnitWeights] Cambió la grilla para ' + model)
@@ -244,37 +272,41 @@ watch(
     distribution = distribution.slice(0, gridStart)
       + targetGrid
       + distribution.slice(gridEnd + 1)
+    // Put the expandable editor AFTER the grid, inside the same card.
+    // This prevents the quantity column from making the entire row taller.
+    const tags = /<\\/?div\\b[^>]*>/g
+    tags.lastIndex = gridStart
+    let depth = 0
+    let rowEnd = -1
+    let token: RegExpExecArray | null
+    while ((token = tags.exec(distribution)) !== null) {
+      depth += token[0].startsWith('</') ? -1 : 1
+      if (depth === 0) {
+        rowEnd = tags.lastIndex
+        break
+      }
+    }
+    if (rowEnd < 0) throw new Error('[pricingFclUnitWeights] No cerró la fila de ' + model)
+    distribution = distribution.slice(0, rowEnd) + '\n' + panel + distribution.slice(rowEnd)
   }
-  addWeightControls('form.equipmentQuantity', primaryFclWeights)
-  addWeightControls('row.quantity', additionalFclWeights)
+  addWeightControls('form.equipmentQuantity', primaryFclWeights, primaryFclPanel)
+  addWeightControls('row.quantity', additionalFclWeights, additionalFclPanel)
   code = code.slice(0, fclHeading) + distribution + code.slice(distributionEnd)
 
   // FTL: el peso se registra junto al tamaño y la cantidad dentro de cada tarjeta.
   // Cada unidad física tiene un input propio, incluso cuando hay varios furgones iguales.
-  const primaryFtlWeights = `<div class="min-w-0">
-                    <div class="flex flex-col gap-1.5">
-                      <div v-for="unitNumber in Math.max(1, Math.trunc(Number(form.equipmentQuantity)))" :key="'ftl-primary-weight:' + unitNumber" class="min-w-0">
-                        <DhInput :model-value="fclUnitWeight(form.equipmentId, unitNumber - 1)" type="number" min="0" step="1" :label="Number(form.equipmentQuantity) > 1 ? 'Furgón ' + unitNumber + ' · kg *' : 'Peso (kg) *'" @update:model-value="(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))" />
-                        <p v-if="fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1))" class="mt-1 text-[11px] font-semibold text-[var(--dh-primary)]">Sobrepeso</p>
-                      </div>
-                    </div>
-                  </div>`
-  const additionalFtlWeights = `<div class="min-w-0">
-                    <div class="flex flex-col gap-1.5">
-                      <div v-for="unitNumber in Math.max(1, Math.trunc(Number(row.quantity)))" :key="'ftl-additional-weight:' + row.key + ':' + unitNumber" class="min-w-0">
-                        <DhInput :model-value="fclUnitWeight(row.containerTypeId, unitNumber - 1)" type="number" min="0" step="1" :label="Number(row.quantity) > 1 ? 'Furgón ' + unitNumber + ' · kg *' : 'Peso (kg) *'" @update:model-value="(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))" />
-                        <p v-if="fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1))" class="mt-1 text-[11px] font-semibold text-[var(--dh-primary)]">Sobrepeso</p>
-                      </div>
-                    </div>
-                  </div>`
+  const primaryFtlWeights = "<div class=\"min-w-0\">\n  <div v-if=\"Math.trunc(Number(form.equipmentQuantity)) <= 1\">\n    <DhInput :model-value=\"fclUnitWeight(form.equipmentId, 0)\" type=\"number\" min=\"0\" step=\"1\"\n      label=\"Peso (kg) *\" @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, 0, Number(value))\" />\n  </div>\n  <div v-else class=\"rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2\">\n    <span class=\"block text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]\">Pesos individuales</span>\n    <div class=\"mt-1 flex items-center justify-between gap-2\">\n      <span class=\"text-xs font-black text-[var(--dh-text)]\">{{ fclWeightCompleted(form.equipmentId, form.equipmentQuantity) }}/{{ Math.trunc(Number(form.equipmentQuantity)) }} listos</span>\n      <button type=\"button\" class=\"rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.30)] px-2 py-1 text-xs font-black text-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.08)]\"\n        :aria-expanded=\"Boolean(fclWeightEditorOpen[form.equipmentId])\" @click=\"toggleFclWeightEditor(form.equipmentId)\">\n        {{ fclWeightEditorOpen[form.equipmentId] ? 'Cerrar' : 'Editar' }}\n      </button>\n    </div>\n    <span class=\"mt-1 block text-[11px] font-semibold text-[var(--dh-text-muted)]\">{{ fclWeightTotal(form.equipmentId, form.equipmentQuantity).toLocaleString('es-CR') }} kg total</span>\n  </div>\n</div>"
+  const additionalFtlWeights = "<div class=\"min-w-0\">\n  <div v-if=\"Math.trunc(Number(row.quantity)) <= 1\">\n    <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, 0)\" type=\"number\" min=\"0\" step=\"1\"\n      label=\"Peso (kg) *\" @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, 0, Number(value))\" />\n  </div>\n  <div v-else class=\"rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2\">\n    <span class=\"block text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]\">Pesos individuales</span>\n    <div class=\"mt-1 flex items-center justify-between gap-2\">\n      <span class=\"text-xs font-black text-[var(--dh-text)]\">{{ fclWeightCompleted(row.containerTypeId, row.quantity) }}/{{ Math.trunc(Number(row.quantity)) }} listos</span>\n      <button type=\"button\" class=\"rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.30)] px-2 py-1 text-xs font-black text-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.08)]\"\n        :aria-expanded=\"Boolean(fclWeightEditorOpen[row.containerTypeId])\" @click=\"toggleFclWeightEditor(row.containerTypeId)\">\n        {{ fclWeightEditorOpen[row.containerTypeId] ? 'Cerrar' : 'Editar' }}\n      </button>\n    </div>\n    <span class=\"mt-1 block text-[11px] font-semibold text-[var(--dh-text-muted)]\">{{ fclWeightTotal(row.containerTypeId, row.quantity).toLocaleString('es-CR') }} kg total</span>\n  </div>\n</div>"
+  const primaryFtlPanel = "<div v-if=\"Math.trunc(Number(form.equipmentQuantity)) > 1 && fclWeightEditorOpen[form.equipmentId]\"\n  class=\"mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3\">\n  <div class=\"flex flex-wrap items-center justify-between gap-3\">\n    <div>\n      <p class=\"text-xs font-black text-[var(--dh-text)]\">Pesos por furgón (kg)</p>\n      <p class=\"mt-1 text-[11px] text-[var(--dh-text-muted)]\">Edite cada peso individualmente o repita el primero.</p>\n    </div>\n    <DhButton type=\"button\" variant=\"secondary\" size=\"sm\"\n      :disabled=\"fclUnitWeight(form.equipmentId, 0) <= 0\" @click=\"copyFirstFclUnitWeight(form.equipmentId, form.equipmentQuantity)\">\n      Repetir peso del primero\n    </DhButton>\n  </div>\n  <div class=\"mt-3 grid max-h-56 grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4\">\n    <div v-for=\"unitNumber in Math.max(1, Math.min(100, Math.trunc(Number(form.equipmentQuantity))))\"\n      :key=\"'ftl-primary-weight:' + unitNumber\" class=\"min-w-0\">\n      <DhInput :model-value=\"fclUnitWeight(form.equipmentId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\"\n        :label=\"'Furgón ' + unitNumber + ' · kg *'\"\n        @update:model-value=\"(value) => setFclUnitWeight(form.equipmentId, unitNumber - 1, Number(value))\" />\n      <p v-if=\"fclUnitIsOverweight(fclUnitWeight(form.equipmentId, unitNumber - 1))\"\n        class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n    </div>\n  </div>\n</div>"
+  const additionalFtlPanel = "<div v-if=\"Math.trunc(Number(row.quantity)) > 1 && fclWeightEditorOpen[row.containerTypeId]\"\n  class=\"mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3\">\n  <div class=\"flex flex-wrap items-center justify-between gap-3\">\n    <div>\n      <p class=\"text-xs font-black text-[var(--dh-text)]\">Pesos por furgón (kg)</p>\n      <p class=\"mt-1 text-[11px] text-[var(--dh-text-muted)]\">Edite cada peso individualmente o repita el primero.</p>\n    </div>\n    <DhButton type=\"button\" variant=\"secondary\" size=\"sm\"\n      :disabled=\"fclUnitWeight(row.containerTypeId, 0) <= 0\" @click=\"copyFirstFclUnitWeight(row.containerTypeId, row.quantity)\">\n      Repetir peso del primero\n    </DhButton>\n  </div>\n  <div class=\"mt-3 grid max-h-56 grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4\">\n    <div v-for=\"unitNumber in Math.max(1, Math.min(100, Math.trunc(Number(row.quantity))))\"\n      :key=\"'ftl-additional-weight:' + unitNumber\" class=\"min-w-0\">\n      <DhInput :model-value=\"fclUnitWeight(row.containerTypeId, unitNumber - 1)\" type=\"number\" min=\"0\" step=\"1\"\n        :label=\"'Furgón ' + unitNumber + ' · kg *'\"\n        @update:model-value=\"(value) => setFclUnitWeight(row.containerTypeId, unitNumber - 1, Number(value))\" />\n      <p v-if=\"fclUnitIsOverweight(fclUnitWeight(row.containerTypeId, unitNumber - 1))\"\n        class=\"mt-1 text-[11px] font-semibold text-[var(--dh-primary)]\">Sobrepeso</p>\n    </div>\n  </div>\n</div>"
   const ftlHeading = code.indexOf('Distribución de furgones FTL', fclHeading)
   const ftlDistributionEnd = code.indexOf(row4, ftlHeading)
   if (ftlHeading < 0 || ftlDistributionEnd < 0) {
     throw new Error('[pricingFclUnitWeights] No se encontró la distribución terrestre.')
   }
   distribution = code.slice(ftlHeading, ftlDistributionEnd)
-  addWeightControls('form.equipmentQuantity', primaryFtlWeights)
-  addWeightControls('row.quantity', additionalFtlWeights)
+  addWeightControls('form.equipmentQuantity', primaryFtlWeights, primaryFtlPanel)
+  addWeightControls('row.quantity', additionalFtlWeights, additionalFtlPanel)
   code = code.slice(0, ftlHeading) + distribution + code.slice(ftlDistributionEnd)
 
   // Los indicadores permanecen dentro de la distribución, sin crear un panel aparte.
