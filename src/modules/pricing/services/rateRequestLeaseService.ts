@@ -86,7 +86,7 @@ export const RateRequestLeaseService = {
   async completeRate(id: string, rateId: string, options?: { confirmSellerModification?: boolean }): Promise<void> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('No existe una reserva vigente para finalizar la tarifa.')
-    await callEndpoint<unknown, { rateId: string }>({
+    await callEndpoint<unknown, { rateId: string; confirmation: string | null }>({
       method: 'POST',
       path: path(id, 'complete-rate'),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
