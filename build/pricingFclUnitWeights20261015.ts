@@ -121,7 +121,9 @@ watch(
       ? fclContainerAllocations.value.flatMap((row) => fclUnitWeightsFor(row.containerTypeId, row.quantity))
       : landEquipmentAllocations.value.flatMap((row) => fclUnitWeightsFor(row.containerTypeId, row.quantity))
     // No sobrescribir el dato agregado de un registro antiguo mientras no se indiquen pesos por unidad.
-    if (weights.some((kg) => kg > 0))
+    // Once per-unit values were explicitly entered, even clearing the last
+    // weight to zero must update the aggregate instead of retaining stale kg.
+    if (Object.values(fclUnitWeightsKg.value).some((values) => values.length > 0))
       form.cargoWeightKg = weights.reduce((sum, kg) => sum + kg, 0)
   },
 )
