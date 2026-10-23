@@ -144,9 +144,9 @@ async function applyScreen7DatabaseCosts() {
         }
       })
     }
-    if (previous.some((line) => line.costId) && !catalogById.size && !isColoader) {
-      throw new Error('Pricing no devolvió costos vigentes asociados a esta cotización. Los valores anteriores siguen intactos.')
-    }
+    // An all-manual or historical quotation can legitimately have no matching
+    // active master costs. The safe result is to keep it intact and tell the
+    // user no amounts could be refreshed, never make the quote uneditable.
 
     // Do NOT empty rateLines before rebuilding. LCL coloaders, manual freights
     // and saved quote snapshots depend on the previous source rows. Instead
