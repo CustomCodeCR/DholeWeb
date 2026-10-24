@@ -199,15 +199,15 @@ async function recoverRejected(issue: QuoteIssue) {
   recoveringRateId.value = issue.rateId
   recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]: '' }
   try {
-    const response = await callEndpoint<unknown>({
-      method: 'POST',
-      path: `/api/pricing/rates/${encodeURIComponent(issue.rateId)}/dynamics-sync/recover-rejected`,
-      body: {
-        confirmation: 'RECUPERAR_QUO',
-        reason: recoveryReason.value[issue.rateId]!.trim(),
-      },
-    })
-    const result = unwrapApiResponse<{ recoveryAttempt: number }>(response as never)
+    const result = await fetchClient<{ recoveryAttempt: number }>(
+      `/api/pricing/rates/${encodeURIComponent(issue.rateId)}/dynamics-sync/recover-rejected`,
+      {
+        method: 'POST',
+        body: {
+          confirmation: 'RECUPERAR_QUO',
+          reason: recoveryReason.value[issue.rateId]!.trim(),
+        },
+      })
     recoveryMessages.value = { ...recoveryMessages.value,
       [issue.rateId]: `Recuperación r${result.recoveryAttempt} encolada. El worker validará la clave nueva antes de crear la oferta.` }
     recoveryOpenedRateId.value = null
