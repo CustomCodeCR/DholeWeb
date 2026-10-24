@@ -290,7 +290,7 @@ const exampleBody=computed(()=>{
     const kind=fieldType(f)
     inputs[f.logicalName]=relationshipTypes.has(f.type)&&relationMode(f)==='name'
       ?(/^new_idtra(?:10|[1-9])$/i.test(f.logicalName)
-        ?'IDTRA-2026-00125'
+        ?'IDTRA-2026-'+String(124+Number(f.logicalName.replace('new_idtra',''))).padStart(5,'0')
         :f.logicalName==='transactioncurrencyid'?'USD':'NOMBRE EXACTO EN DYNAMICS'):
       f.logicalName==='new_divisa'||f.logicalName==='new_moneda'?'USD':
       f.logicalName==='new_equipo'&&f.type==='Picklist'
@@ -299,7 +299,9 @@ const exampleBody=computed(()=>{
       ?chosenValue(f)??null:
       kind==='integer'||kind==='decimal'?0:
       kind==='boolean'?false:
-      kind==='guid'?'GUID_REAL_OBTENIDO_CON_QUERY_BUILDER':
+      kind==='guid'?(f.logicalName==='transactioncurrencyid'
+        ?'b3a963da-2eda-e611-80f2-fc15b42826a0'
+        :'GUID_REAL_OBTENIDO_CON_QUERY_BUILDER'):
       kind==='datetime'?'2026-10-20T12:00:00Z':'VALOR'
   }
   const body:Record<string,unknown>={connectionCode:connection.value,inputs}
