@@ -181,6 +181,9 @@ function selectedNameField(f:Field):string {
 }
 function relationMode(f:Field):'name'|'guid' {
   const choice=relationModes.value[f.logicalName]
+  // New quote templates bind the fixed tenant currency directly by GUID.
+  // Preserve the selection when loading a previously published version.
+  if(f.logicalName==='transactioncurrencyid'&&!choice)return 'guid'
   return choice==='guid'||choice==='name'&&readableNameFields(f).length?choice:
     readableNameFields(f).length?'name':'guid'
 }
