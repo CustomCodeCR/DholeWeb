@@ -63,6 +63,8 @@ const endpointName=ref('crear_oferta')
 const snapshot=ref<Snapshot|null>(null)
 const policies=ref<Policy>({entities:[],fields:[]})
 const definitions=ref<Summary[]>([])
+const showRetiredFlows=ref(false)
+const retireConfirmation=ref<string|null>(null)
 const keys=ref<KeyInfo[]>([])
 const issued=ref<Issued|null>(null)
 const createdVersion=ref<number|null>(null)
@@ -543,6 +545,34 @@ async function approveQuoteTotalGrant(){
     }else quoteTotalGrantError.value=e instanceof Error?e.message:
       'No se pudieron aprobar los permisos. Verificá los campos de Oferta y Línea de oferta en Catálogo.'
   }finally{quoteTotalGrantBusy.value=false}
+}
+function isRetiredFlow(template:Summary):boolean {
+  const issued=keys.value.filter(key=>key.templateName===template.name)
+  // Never hide a new draft that has never been published or issued a key.
+  return template.activeVersion===null && issued.length>0 &&
+    issued.every(key=>!key.enabled)
+}
+async function retireFlow(template:Summary){
+  if(!canManage.value||busy.value||template.activeVersion===null ||
+    retireConfirmation.value!==template.name)return
+  busy.value=true;error.value='';success.value=''
+  try{
+    // Deactivate FIRST so no further keyed call may create Dataverse records.
+    // Then revoke credentials; keep template revisions, auditing and QUOs intact.
+    await fetchClient<Summary>(
+      api('templates/'+encodeURIComponent(template.name)+'/active'),
+      {method:'PUT',body:{version:null}})
+    retireConfirmation.value=null
+    await reloadDefinitions()
+    for(const key of keys.value.filter(key=>key.templateName===template.name&&key.enabled))
+      await fetchClient(api('crud-keys/'+encodeURIComponent(key.id)),{method:'DELETE'})
+    keys.value=await fetchClient<KeyInfo[]>(api('crud-keys'),{method:'GET'})
+    if(endpointName.value===template.name)createdVersion.value=null
+    success.value='Flujo '+template.name+' retirado: plantilla desactivada, claves revocadas. No se eliminó ningún registro de Dynamics ni el historial.'
+  }catch(e){
+    error.value='El flujo fue desactivado si el primer paso tuvo éxito. Revisá y revocá cualquier clave aún activa. '+
+      describeCrudError(e,'No se pudo completar el retiro.')
+  }finally{busy.value=false}
 }
 async function revoke(id:string){
   busy.value=true;error.value=''
@@ -1055,9 +1085,14 @@ onMounted(refresh)
       </footer>
       <div class="crud-library">
         <h3>Comandos publicados y borradores</h3>
+        <label class="crud-field">
+          <input v-model="showRetiredFlows" type="checkbox">
+          Ver flujos retirados (sin versión activa y con claves revocadas)
+        </label>
         <p>Seleccioná una plantilla existente para revisar su versión y generar una clave de acceso.</p>
         <div v-for="template in definitions.filter(t=>
-          ['create','update','upsert','delete'].includes(t.history[0]?.definition.operation??''))"
+          ['create','update','upsert','delete'].includes(t.history[0]?.definition.operation??'') &&
+          (showRetiredFlows || !isRetiredFlow(t)))"
           :key="template.id" class="crud-library-row">
           <span><strong>{{ template.name }}</strong>
             <small>{{ template.history[0]?.definition.operation.toUpperCase() }} ·
@@ -1065,6 +1100,19 @@ onMounted(refresh)
               Última v{{ template.history[0]?.version }} ·
               {{ template.activeVersion?'Activa v'+template.activeVersion:'Sin versión activa' }}</small></span>
           <button class="crud-secondary" type="button" @click="inspect(template)">Abrir última versión</button>
+          <button v-if="template.activeVersion!==null" class="crud-secondary"
+            type="button" :disabled="busy"
+            @click="retireConfirmation=template.name">Retirar flujo</button>
+          <div v-if="retireConfirmation===template.name && template.activeVersion!==null"
+            class="crud-info" role="group" aria-label="Confirmar retiro del flujo">
+            Se desactivará {{ template.name }} y se revocarán todas sus claves.
+            Las ofertas y el historial de la plantilla no se eliminan.
+            Revisá antes los trabajos pendientes de Pricing.
+            <button class="crud-secondary" type="button" :disabled="busy"
+              @click="retireConfirmation=null">Cancelar</button>
+            <button class="crud-primary" type="button" :disabled="busy"
+              @click="retireFlow(template)">Confirmar retiro</button>
+          </div>
         </div>
         <div v-if="!definitions.length" class="crud-info">Todavía no hay comandos configurados.</div>
         <h3>Claves de acceso emitidas</h3>
