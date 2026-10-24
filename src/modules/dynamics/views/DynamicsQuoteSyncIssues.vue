@@ -398,6 +398,17 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
           </p>
           <p class="quote-sync-error-detail">{{ issue.lastError || issue.error?.message || 'Error anterior sin detalle registrado. Usá Diagnosticar.' }}</p>
           <p v-if="issue.error?.providerCode" class="quote-sync-meta">Código del proveedor: {{ issue.error.providerCode }}</p>
+          <div v-if="issue.error?.httpStatus === 409 && issue.error?.postAttempted"
+            class="quote-sync-diagnosis" role="alert">
+            <AlertCircle :size="17" />
+            <div>
+              <strong>Conciliación de QUO necesaria — no reintentar todavía</strong>
+              <p>Dynamics pudo crear la cabecera, la línea de venta o ambas. El
+                HTTP 409 no confirma que la operación no se haya ejecutado.</p>
+              <p>Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
+                y <code>...-total</code> en el registro de idempotencia de Dynamics antes de volver a enviar.</p>
+            </div>
+          </div>
           <p v-if="issue.retryBlockReason" class="quote-sync-error-detail" role="alert">
             Reintento bloqueado: {{ issue.retryBlockReason }}
             <template v-if="issue.currentRateRevision && issue.currentRateRevision !== issue.revisionNumber">
