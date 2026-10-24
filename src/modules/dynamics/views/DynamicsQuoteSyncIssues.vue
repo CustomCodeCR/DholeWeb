@@ -47,6 +47,7 @@ type WriteReadiness = {
   code: string
   message: string
   noPostExecuted: boolean
+  configuredKeyId?: string | null
 }
 type Diagnosis = {
   valid: boolean
@@ -136,7 +137,10 @@ async function loadQuoteKeys() {
       k.templateName === 'crear_oferta' &&
       k.templateVersion === currentQuoteVersion.value &&
       new Date(k.expiresAt).getTime() > Date.now())
-    if (!quoteKeys.value.some(k => k.id === selectedKeyId.value))
+    const configured = writeReadiness.value?.configuredKeyId
+    if (configured && quoteKeys.value.some(k => k.id === configured))
+      selectedKeyId.value = configured
+    else if (!quoteKeys.value.some(k => k.id === selectedKeyId.value))
       selectedKeyId.value = quoteKeys.value.length === 1 ? quoteKeys.value[0]!.id : ''
   } catch {
     grantError.value = 'No se pudieron consultar las claves de crear_oferta.'
@@ -144,7 +148,9 @@ async function loadQuoteKeys() {
 }
 
 async function grantQuoteTotal() {
-  if (!selectedKeyId.value || !isAdministrator.value || granting.value) return
+  if (!selectedKeyId.value || !isAdministrator.value || granting.value ||
+      (writeReadiness.value?.configuredKeyId &&
+        writeReadiness.value.configuredKeyId !== selectedKeyId.value)) return
   granting.value = true
   grantError.value = ''
   grantSuccess.value = ''
@@ -231,6 +237,9 @@ async function checkWriteReadiness(): Promise<WriteReadiness> {
       throw new Error('Respuesta de autorización inválida.')
     }
     writeReadiness.value = result
+    if (result.configuredKeyId &&
+        quoteKeys.value.some(key => key.id === result.configuredKeyId))
+      selectedKeyId.value = result.configuredKeyId
     return result
   } catch {
     const unavailable: WriteReadiness = {
@@ -352,15 +361,25 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
           <option value="">Seleccionar clave activa</option>
           <option v-for="key in quoteKeys" :key="key.id" :value="key.id">
             {{ key.label }} · v{{ key.templateVersion }} · {{ key.id.slice(0, 8) }}
+          {{ writeReadiness?.configuredKeyId === key.id ? ' · Clave usada por Pricing' : '' }}
           </option>
         </select>
         <button class="dynamics-primary-button" type="button"
-          :disabled="granting || !selectedKeyId" @click="grantQuoteTotal">
+          :disabled="granting || !selectedKeyId ||
+            Boolean(writeReadiness?.configuredKeyId &&
+              writeReadiness.configuredKeyId !== selectedKeyId)" @click="grantQuoteTotal">
           {{ granting ? 'Autorizando...' : 'Autorizar vínculos y venta total' }}
         </button>
       </div>
       <p v-if="grantError" class="quote-sync-error" role="alert">{{ grantError }}</p>
       <p v-if="grantSuccess" class="quote-sync-ok" role="status">{{ grantSuccess }}</p>
+      <p v-if="writeReadiness?.configuredKeyId && quoteKeys.length &&
+        !quoteKeys.some(key => key.id === writeReadiness?.configuredKeyId)"
+        class="quote-sync-error" role="alert">
+        La clave configurada en el backend de Pricing no corresponde a ninguna
+        clave activa de crear_oferta. No autorices otra clave: corregí la selección
+        de versión o la clave usada por Pricing.
+      </p>
       <p v-if="!quoteKeys.length" class="quote-sync-error">
         No hay claves vigentes para crear_oferta
         {{ currentQuoteVersion ? 'v' + currentQuoteVersion : '(sin versión activa)' }}.
