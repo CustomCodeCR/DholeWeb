@@ -183,6 +183,45 @@ const checkingWrites = ref(false)
 const ledgerByRate = ref<Record<string, QuoteLedger>>({})
 const ledgerErrors = ref<Record<string, string>>({})
 const checkingLedgerRateId = ref<string | null>(null)
+const recoveringRateId = ref<string | null>(null)
+const recoveryOpenedRateId = ref<string | null>(null)
+const recoveryReason = ref<Record<string,string>>({})
+const recoveryConfirm = ref<Record<string,boolean>>({})
+const recoveryMessages = ref<Record<string,string>>({})
+
+async function recoverRejected(issue: QuoteIssue) {
+  const ledger = ledgerByRate.value[issue.rateId]
+  if (!isAdministrator.value || recoveringRateId.value || issue.retryBlockReason ||
+      issue.status !== 'NeedsAttention' || !diagnoses.value[issue.rateId]?.valid ||
+      ledger?.header.status !== 'rejected' || ledger.total.status !== 'not_sent' ||
+      !recoveryConfirm.value[issue.rateId] ||
+      (recoveryReason.value[issue.rateId] ?? '').trim().length < 10) return
+  recoveringRateId.value = issue.rateId
+  recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]: '' }
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'POST',
+      path: `/api/pricing/rates/${encodeURIComponent(issue.rateId)}/dynamics-sync/recover-rejected`,
+      body: {
+        confirmation: 'RECUPERAR_QUO',
+        reason: recoveryReason.value[issue.rateId]!.trim(),
+      },
+    })
+    const result = unwrapApiResponse<{ recoveryAttempt: number }>(response as never)
+    recoveryMessages.value = { ...recoveryMessages.value,
+      [issue.rateId]: `Recuperación r${result.recoveryAttempt} encolada. El worker validará la clave nueva antes de crear la oferta.` }
+    recoveryOpenedRateId.value = null
+    await refresh()
+  } catch (error) {
+    const message = error instanceof ApiError
+      ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error)
+      : error instanceof Error ? error.message : 'No fue posible autorizar la recuperación.'
+    recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]: message }
+  } finally {
+    recoveringRateId.value = null
+  }
+}
+
 
 async function verifyQuoteLedger(issue: QuoteIssue) {
   if (!isAdministrator.value || checkingLedgerRateId.value) return
@@ -503,6 +542,51 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
                 requiere corregir el fallo y realizar una recuperación controlada.</p>
             </div>
           </div>
+          <div v-if="isAdministrator && issue.status === 'NeedsAttention' &&
+            !issue.retryBlockReason && ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
+            ledgerByRate[issue.rateId]?.total.status === 'not_sent'"
+            class="quote-sync-recovery">
+            <button v-if="recoveryOpenedRateId !== issue.rateId" type="button"
+              class="dynamics-outline-button" @click="recoveryOpenedRateId=issue.rateId; diagnose(issue.rateId)">
+              <RefreshCw :size="15" /> Recuperar QUO rechazada
+            </button>
+            <div v-else>
+              <strong>Recuperación excepcional — una nueva clave de idempotencia</strong>
+              <p>Solo se habilita tras confirmar que el envío anterior fue rechazado
+                y que cliente, IDTRA y los demás vínculos están autorizados.</p>
+              <p v-if="!diagnoses[issue.rateId]?.valid">
+                Ejecutá Diagnosticar y corregí cualquier error antes de continuar.
+              </p>
+              <label class="quote-sync-recovery-label" :for="'reason-'+issue.rateId">
+                Motivo de recuperación
+              </label>
+              <textarea :id="'reason-'+issue.rateId" rows="2" maxlength="500"
+                :value="recoveryReason[issue.rateId] || ''"
+                @input="recoveryReason={...recoveryReason,
+                  [issue.rateId]:($event.target as HTMLTextAreaElement).value}"
+                placeholder="Ej.: Rechazo HTTP 400 confirmado; relaciones y plantilla corregidas" />
+              <label class="quote-sync-recovery-check">
+                <input type="checkbox" :checked="Boolean(recoveryConfirm[issue.rateId])"
+                  @change="recoveryConfirm={...recoveryConfirm,
+                    [issue.rateId]:($event.target as HTMLInputElement).checked}">
+                Confirmo que revisé la cabecera rechazada y autorizo el nuevo intento.
+              </label>
+              <div class="quote-sync-actions">
+                <button type="button" class="dynamics-outline-button"
+                  @click="recoveryOpenedRateId=null">Cancelar</button>
+                <button type="button" class="dynamics-primary-button"
+                  :disabled="Boolean(recoveringRateId) || !diagnoses[issue.rateId]?.valid ||
+                    !recoveryConfirm[issue.rateId] ||
+                    (recoveryReason[issue.rateId] || '').trim().length < 10"
+                  @click="recoverRejected(issue)">
+                  {{ recoveringRateId===issue.rateId ? 'Validando...' : 'Autorizar recuperación y enviar' }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <p v-if="recoveryMessages[issue.rateId]" class="quote-sync-meta" role="status">
+            {{ recoveryMessages[issue.rateId] }}
+          </p>
           <p v-if="ledgerErrors[issue.rateId]" class="quote-sync-error-detail" role="alert">
             {{ ledgerErrors[issue.rateId] }}
           </p>
@@ -578,6 +662,10 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
 </template>
 
 <style scoped>
+.quote-sync-recovery{border:1px solid var(--dh-border);padding:12px;border-radius:12px;margin:12px 0}
+.quote-sync-recovery textarea{display:block;width:100%;background:var(--dh-card);color:var(--dh-text);border:1px solid var(--dh-border);padding:8px;border-radius:7px}
+.quote-sync-recovery-label{display:block;font-weight:600;margin:10px 0 6px}
+.quote-sync-recovery-check{display:flex;align-items:center;gap:8px;margin:10px 0}
 .quote-sync-grants{border:1px solid var(--dh-border);border-radius:14px;margin-bottom:16px;padding:16px;background:var(--dh-card)}
 .quote-sync-grants strong{font-size:13px}
 .quote-sync-grants p{font-size:12px;color:var(--dh-text-muted);margin:7px 0}
