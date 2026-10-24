@@ -7,6 +7,20 @@ import { ApiError, getApiErrorMessage } from '@/core/api/apiErrorHandler'
 import { fetchClient } from '@/core/api/fetchConfig'
 import { useAuthStore } from '@/core/stores/authStore'
 
+type LedgerEntry = {
+  status: 'not_sent' | 'reserved' | 'rejected' | 'succeeded' | 'ambiguous' | 'reconciled'
+  httpStatus: number | null
+  recordId: string | null
+  providerCode: string | null
+}
+type QuoteLedger = {
+  rateId: string
+  revisionNumber: number
+  header: LedgerEntry
+  total: LedgerEntry
+  noPostExecuted: boolean
+}
+
 type QuoteIssue = {
   rateId: string
   revisionNumber: number
@@ -180,6 +194,42 @@ const retryingRateId = ref<string | null>(null)
 const retryMessages = ref<Record<string, string>>({})
 const writeReadiness = ref<WriteReadiness | null>(null)
 const checkingWrites = ref(false)
+const ledgerByRate = ref<Record<string, QuoteLedger>>({})
+const ledgerErrors = ref<Record<string, string>>({})
+const checkingLedgerRateId = ref<string | null>(null)
+
+async function verifyQuoteLedger(issue: QuoteIssue) {
+  if (!isAdministrator.value || checkingLedgerRateId.value) return
+  checkingLedgerRateId.value = issue.rateId
+  ledgerErrors.value = { ...ledgerErrors.value, [issue.rateId]: '' }
+  try {
+    const result = await fetchClient<QuoteLedger>(
+      '/api/dynamics-admin/connections/principal/quote-sync-ledger/' +
+        encodeURIComponent(issue.rateId) + '/' +
+        encodeURIComponent(String(issue.revisionNumber)), { method: 'GET' })
+    if (!result?.noPostExecuted || !result.header || !result.total)
+      throw new Error('El conector devolvió un diagnóstico incompleto.')
+    ledgerByRate.value = { ...ledgerByRate.value, [issue.rateId]: result }
+  } catch (error) {
+    ledgerErrors.value = { ...ledgerErrors.value, [issue.rateId]:
+      error instanceof Error ? error.message : 'No se pudo consultar el historial del conector.' }
+  } finally {
+    checkingLedgerRateId.value = null
+  }
+}
+
+function ledgerLabel(record: LedgerEntry): string {
+  switch (record.status) {
+    case 'rejected': return 'Rechazada'
+    case 'succeeded': return 'Creada'
+    case 'reserved': return 'Reservada: comprobar'
+    case 'ambiguous': return 'Sin confirmar'
+    case 'reconciled': return 'Conciliada manualmente'
+    default: return 'Sin envío registrado'
+  }
+}
+
+
 
 async function checkWriteReadiness(): Promise<WriteReadiness> {
   if (!isAdministrator.value) {
@@ -403,12 +453,43 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
             <AlertCircle :size="17" />
             <div>
               <strong>Conciliación de QUO necesaria — no reintentar todavía</strong>
-              <p>Dynamics pudo crear la cabecera, la línea de venta o ambas. El
-                HTTP 409 no confirma que la operación no se haya ejecutado.</p>
+              <p v-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
+                ledgerByRate[issue.rateId]?.total.status === 'not_sent'">
+                Resultado real del conector: cabecera rechazada
+                (HTTP {{ ledgerByRate[issue.rateId]?.header.httpStatus ?? 'desconocido' }}).
+                No se registró intento de la línea de venta. El HTTP 409 es la respuesta
+                histórica de Pricing, no una confirmación de creación.
+              </p>
+              <p v-else>Dynamics pudo crear la cabecera, la línea de venta o ambas.
+                El HTTP 409 no confirma que la operación no se haya ejecutado.</p>
               <p>Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
                 y <code>...-total</code> en el registro de idempotencia de Dynamics antes de volver a enviar.</p>
             </div>
           </div>
+          <div v-if="ledgerByRate[issue.rateId]" class="quote-sync-diagnosis" role="status">
+            <SearchCheck :size="17" />
+            <div>
+              <strong>Operaciones verificadas en Dynamics (solo lectura)</strong>
+              <p>Cabecera: {{ ledgerLabel(ledgerByRate[issue.rateId]!.header) }}
+                <template v-if="ledgerByRate[issue.rateId]!.header.httpStatus">
+                  · HTTP {{ ledgerByRate[issue.rateId]!.header.httpStatus }}
+                </template>
+                <template v-if="ledgerByRate[issue.rateId]!.header.providerCode">
+                  · Código {{ ledgerByRate[issue.rateId]!.header.providerCode }}
+                </template>
+              </p>
+              <p>Línea de venta: {{ ledgerLabel(ledgerByRate[issue.rateId]!.total) }}
+                <template v-if="ledgerByRate[issue.rateId]!.total.httpStatus">
+                  · HTTP {{ ledgerByRate[issue.rateId]!.total.httpStatus }}
+                </template>
+              </p>
+              <p>Esta consulta no reintenta ni crea QUO. Una cabecera rechazada
+                requiere corregir el fallo y realizar una recuperación controlada.</p>
+            </div>
+          </div>
+          <p v-if="ledgerErrors[issue.rateId]" class="quote-sync-error-detail" role="alert">
+            {{ ledgerErrors[issue.rateId] }}
+          </p>
           <p v-if="issue.retryBlockReason" class="quote-sync-error-detail" role="alert">
             Reintento bloqueado: {{ issue.retryBlockReason }}
             <template v-if="issue.currentRateRevision && issue.currentRateRevision !== issue.revisionNumber">
@@ -448,6 +529,13 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
           <RouterLink class="dynamics-outline-button" :to="{ path: '/pricing/rates', query: { rateId: issue.rateId } }">
             <ExternalLink :size="15" /> Ver tarifa
           </RouterLink>
+          <button v-if="isAdministrator && issue.error?.httpStatus === 409 &&
+              issue.error?.postAttempted" type="button"
+            class="dynamics-outline-button" :disabled="Boolean(checkingLedgerRateId)"
+            @click="verifyQuoteLedger(issue)">
+            <SearchCheck :size="15" />
+            {{ checkingLedgerRateId === issue.rateId ? 'Verificando...' : 'Verificar en Dynamics' }}
+          </button>
           <button type="button" class="dynamics-primary-button" :disabled="Boolean(diagnosingRateId)" @click="diagnose(issue.rateId)">
             <SearchCheck :size="15" />
             {{ diagnosingRateId === issue.rateId ? 'Diagnóstico en curso...' : 'Diagnosticar' }}
