@@ -153,29 +153,9 @@ async function grantQuoteTotal() {
       '/api/dynamics-admin/connections/principal/quote-total-grants/' +
         encodeURIComponent(selectedKeyId.value),
       { method: 'POST', body: {} })
-    const readiness = await checkWriteReadiness()
-    if (!readiness.ready) {
-      grantSuccess.value = 'Permisos de campos aprobados, pero no se reintentó ninguna QUO: ' +
-        readiness.message + ' (' + readiness.code + ').'
-      await refresh()
-      return
-    }
-    // Requeue only failures that the backend proved to be pre-write; legacy
-    // ambiguous operations never qualify and cannot be retried here.
-    let queued = 0
-    for (const issue of issues.value.filter(i =>
-      i.status === 'NeedsAttention' && i.retryableWithoutDuplicateRisk)) {
-      try {
-        await callEndpoint<unknown>({
-          method: 'POST',
-          path: `/api/pricing/rates/${encodeURIComponent(issue.rateId)}/dynamics-sync/retry`,
-        })
-        queued += 1
-      } catch {
-        // A row may have been picked up concurrently or changed status.
-      }
-    }
-    grantSuccess.value = `Permisos aprobados. ${queued} cotización(es) con fallos seguros encoladas para reintento; las operaciones ambiguas permanecen bloqueadas.`
+    grantSuccess.value = 'Permisos aprobados para la clave seleccionada. Se habilitó la lectura limitada de las relaciones de crear_oferta y el alta de quotedetail. No se reintentó ninguna cotización.'
+    // Never start a background QUO write when the administrator only
+    // approves read grants or the quotedetail permission.
     await refresh()
   } catch (error) {
     grantError.value = error instanceof Error ? error.message :
@@ -212,7 +192,12 @@ async function verifyQuoteLedger(issue: QuoteIssue) {
     ledgerByRate.value = { ...ledgerByRate.value, [issue.rateId]: result }
   } catch (error) {
     ledgerErrors.value = { ...ledgerErrors.value, [issue.rateId]:
-      error instanceof Error ? error.message : 'No se pudo consultar el historial del conector.' }
+      error instanceof ApiError && error.status === 404
+        ? 'La consulta de operaciones todavía no está disponible en el conector de producción (endpoint 404). Se requiere desplegar la versión correspondiente del conector; no significa que la oferta no exista.'
+        : error instanceof ApiError && error.status === 403
+          ? 'Sin permiso de administrador Dynamics para consultar el historial de esta operación.'
+          : error instanceof Error ? error.message
+            : 'No se pudo consultar el historial del conector.' }
   } finally {
     checkingLedgerRateId.value = null
   }
@@ -356,9 +341,10 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
       <div>
         <strong>Autorizar importe total estándar de Dynamics</strong>
         <p>
-          Elegí la clave activa de crear_oferta. Esta acción autoriza únicamente
-          la lectura del identificador de la oferta y la creación de su línea de venta
-          en quotedetail. No crea ni modifica ofertas.
+          Elegí la clave activa de crear_oferta. Esta acción autoriza la lectura
+          limitada de los vínculos configurados (cliente, IDTRA y divisa), la
+          lectura del identificador de quote y la creación de su línea de venta
+          en quotedetail, conforme al catálogo aprobado. No crea ofertas ni reintenta tarifas.
         </p>
       </div>
       <div class="quote-sync-grant-controls">
@@ -370,7 +356,7 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
         </select>
         <button class="dynamics-primary-button" type="button"
           :disabled="granting || !selectedKeyId" @click="grantQuoteTotal">
-          {{ granting ? 'Autorizando...' : 'Autorizar venta total' }}
+          {{ granting ? 'Autorizando...' : 'Autorizar vínculos y venta total' }}
         </button>
       </div>
       <p v-if="grantError" class="quote-sync-error" role="alert">{{ grantError }}</p>
