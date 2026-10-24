@@ -159,13 +159,26 @@ async function grantQuoteTotal() {
       '/api/dynamics-admin/connections/principal/quote-total-grants/' +
         encodeURIComponent(selectedKeyId.value),
       { method: 'POST', body: {} })
-    grantSuccess.value = 'Permisos aprobados para la clave seleccionada. Se habilitó la lectura limitada de las relaciones de crear_oferta y el alta de quotedetail. No se reintentó ninguna cotización.'
-    // Never start a background QUO write when the administrator only
-    // approves read grants or the quotedetail permission.
+    // Verify with the same API key that the Pricing worker really uses.
+    // A successful admin grant is NOT proof that the active worker key has
+    // permission, and must never enqueue or execute a Dataverse write.
+    const readiness = await checkWriteReadiness()
+    grantSuccess.value = readiness.ready
+      ? 'Permisos autorizados y comprobados con la clave activa de Pricing. Diagnosticá la tarifa antes de recuperar una QUO rechazada. No se envió ninguna QUO.'
+      : 'Se guardaron los permisos solicitados, pero la clave de Pricing todavía no está lista: ' +
+        readiness.message + ' (' + readiness.code + '). No se envió ninguna QUO.'
     await refresh()
+    // Refresh only the diagnoses the operator already opened. Never auto-
+    // recover or retry previously rejected Dataverse quote headers.
+    for (const rateId of Object.keys(diagnoses.value).slice(0, 3)) {
+      await diagnose(rateId)
+    }
   } catch (error) {
-    grantError.value = error instanceof Error ? error.message :
-      'No fue posible habilitar los permisos. Confirmá los campos de quote y quotedetail en Catálogo.'
+    grantError.value = error instanceof ApiError
+      ? (error.code ? '[' + error.code + '] ' : 'HTTP ' + error.status + ': ') +
+        getApiErrorMessage(error)
+      : error instanceof Error ? error.message :
+        'No fue posible habilitar los permisos. Confirmá los campos de quote y quotedetail en Catálogo.'
   } finally {
     granting.value = false
   }
