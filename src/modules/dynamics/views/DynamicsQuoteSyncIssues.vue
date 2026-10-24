@@ -457,7 +457,11 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
             class="quote-sync-diagnosis" role="alert">
             <AlertCircle :size="17" />
             <div>
-              <strong>Conciliación de QUO necesaria — no reintentar todavía</strong>
+              <strong v-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
+                ledgerByRate[issue.rateId]?.total.status === 'not_sent'">
+                Cabecera rechazada en Dataverse — requiere corregir el HTTP 400
+              </strong>
+              <strong v-else>Conciliación de QUO necesaria — no reintentar todavía</strong>
               <p v-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
                 ledgerByRate[issue.rateId]?.total.status === 'not_sent'">
                 Resultado real del conector: cabecera rechazada
@@ -467,7 +471,14 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
               </p>
               <p v-else>Dynamics pudo crear la cabecera, la línea de venta o ambas.
                 El HTTP 409 no confirma que la operación no se haya ejecutado.</p>
-              <p>Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
+              <p v-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
+                ledgerByRate[issue.rateId]?.total.status === 'not_sent'">
+                No se registró una QUO creada. Revisá el diagnóstico y los campos
+                obligatorios de la cabecera, especialmente la relación de cliente.
+                Esta operación rechazada conserva su clave de idempotencia y necesita
+                una recuperación administrativa controlada después de corregir el motivo.
+              </p>
+              <p v-else>Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
                 y <code>...-total</code> en el registro de idempotencia de Dynamics antes de volver a enviar.</p>
             </div>
           </div>
