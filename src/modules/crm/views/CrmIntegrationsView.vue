@@ -35,6 +35,7 @@ interface SyncConflict {
   existingEntityId?: string | null
   reasonCode: string
   resolution: string
+  rowVersion: number
 }
 interface ConflictPage { items: SyncConflict[]; total: number; page: number; pageSize: number }
 
@@ -47,6 +48,7 @@ const currentJob = ref<SyncJob | null>(null)
 const conflicts = ref<SyncConflict[]>([])
 const conflictPage = ref(1)
 const conflictTotal = ref(0)
+const reconciliationReason = ref('')
 const preview = ref<DynamicsPreview | null>(null)
 const busy = ref(false)
 const error = ref('')
@@ -141,6 +143,30 @@ async function retry(job: SyncJob) {
     busy.value = false
   }
 }
+async function resolveConflict(conflict: SyncConflict, action: 'LinkExisting' | 'Reviewed') {
+  if (!canManage.value || busy.value || conflict.resolution !== 'Pending') return
+  const reason = reconciliationReason.value.trim()
+  if (reason.length < 8 || reason.length > 1000) {
+    error.value = t('crm.integration.reasonRequired')
+    return
+  }
+  if (!window.confirm(t('crm.integration.confirmResolve'))) return
+  busy.value = true
+  error.value = ''; notice.value = ''
+  try {
+    await crmRequest('/api/crm/integrations/conflicts/' + encodeURIComponent(conflict.id) + '/resolve',
+      'POST', {
+        expectedVersion: conflict.rowVersion,
+        resolution: action,
+        existingAccountId: action === 'LinkExisting' ? conflict.existingEntityId : null,
+        reason,
+      })
+    reconciliationReason.value = ''
+    notice.value = t('crm.integration.reviewed')
+    if (currentJob.value) await loadConflicts(currentJob.value.id, conflictPage.value)
+  } catch (e) { error.value = crmError(e) }
+  finally { busy.value = false }
+}
 onMounted(() => { if (canRead.value) void refresh() })
 </script>
 
@@ -222,10 +248,25 @@ onMounted(() => { if (canRead.value) void refresh() })
         <p v-if="currentJob.lastErrorCode" class="text-sm text-amber-700">
           {{ currentJob.lastErrorCode }}
         </p>
-        <p v-for="row in conflicts" :key="row.id" class="border-b border-[var(--dh-border)] p-2 text-sm">
-          {{ row.entityType }} · {{ row.externalId }} · {{ row.reasonCode }}
-          <span class="text-[var(--dh-text-muted)]"> ({{ row.resolution }})</span>
-        </p>
+        <label v-if="canManage && conflicts.some(x => x.resolution === 'Pending')" class="block text-sm">
+          {{ t('crm.integration.resolutionReason') }}
+          <textarea v-model="reconciliationReason" maxlength="1000" rows="2"
+            class="mt-1 block w-full rounded-xl border border-[var(--dh-border)] bg-transparent p-2" />
+        </label>
+        <div v-for="row in conflicts" :key="row.id" class="space-y-2 border-b border-[var(--dh-border)] p-2 text-sm">
+          <p>{{ row.entityType }} · {{ row.externalId }} · {{ row.reasonCode }}
+            <span class="text-[var(--dh-text-muted)]"> ({{ row.resolution }})</span>
+          </p>
+          <div v-if="canManage && row.resolution === 'Pending'" class="flex flex-wrap gap-3">
+            <button class="underline" :disabled="busy" @click="resolveConflict(row, 'Reviewed')">
+              {{ t('crm.integration.acknowledge') }}
+            </button>
+            <button v-if="row.reasonCode === 'existing_crm_identity_requires_linking' && row.existingEntityId"
+              class="underline" :disabled="busy" @click="resolveConflict(row, 'LinkExisting')">
+              {{ t('crm.integration.linkExisting') }}
+            </button>
+          </div>
+        </div>
         <p v-if="!conflicts.length" class="text-sm">{{ t('common.noData') }}</p>
         <div class="flex items-center gap-3 text-sm">
           <button class="underline" :disabled="conflictPage <= 1"
