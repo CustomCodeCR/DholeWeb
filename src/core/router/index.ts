@@ -179,6 +179,12 @@ export const router = createRouter({
           meta: { tabTitleKey: 'crm.nav.finance', closable: true, crmSection: 'finance', requiredAnyScopes: ['crm.credit.read', 'crm.contract.read'] },
         },
         {
+          path: 'crm/integrations',
+          name: 'crm-integrations',
+          component: () => import('@/modules/crm/views/CrmIntegrationsView.vue'),
+          meta: { tabTitleKey: 'crm.nav.integrations', closable: true, requiredAnyScopes: ['crm.integration.read'] },
+        },
+        {
           path: 'crm/settings',
           name: 'crm-settings',
           component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
