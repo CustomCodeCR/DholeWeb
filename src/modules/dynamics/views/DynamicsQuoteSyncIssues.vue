@@ -42,6 +42,7 @@ type MissingQueuedRate = {
   totalSaleAmount: number
   totalCostAmount: number
   currencyCode: string
+  currencyName?: string | null
 }
 type QuoteIssue = {
   rate?: {
@@ -56,6 +57,7 @@ type QuoteIssue = {
     poeName?: string | null
     podName?: string | null
     currencyCode?: string | null
+    currencyName?: string | null
     totalSaleAmount?: number | null
     totalCostAmount?: number | null
     totalUtilityAmount?: number | null
@@ -256,10 +258,26 @@ const visibleIssues = computed(() => {
       .some(value => (value || '').toLocaleLowerCase().includes(search))
   })
 })
-function money(amount?: number | null, currency = 'USD'): string {
-  return amount == null ? '—' : new Intl.NumberFormat('es-CR', {
-    style: 'currency', currency, maximumFractionDigits: 2,
-  }).format(amount)
+function money(amount?: number | null, currency = '', currencyName = ''): string {
+  if (amount == null || !Number.isFinite(Number(amount))) return '—'
+  // Catalog currencies (e.g. CUR-2026-001) are NOT ISO 4217 codes.
+  // Passing them to Intl.NumberFormat({ style:'currency' }) throws
+  // RangeError during Vue render and makes the entire queue disappear.
+  // Prefer the approved currency's real name when present.
+  const code = [currencyName, currency]
+    .map(value => (value || '').trim().toUpperCase())
+    .find(value => value === 'USD' || value === 'CRC')
+  if (code) {
+    return new Intl.NumberFormat('es-CR', {
+      style: 'currency', currency: code, maximumFractionDigits: 2,
+    }).format(Number(amount))
+  }
+  // Do not pretend that an unknown catalog code means USD.
+  const amountText = new Intl.NumberFormat('es-CR', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(Number(amount))
+  const label = currencyName || currency || 'moneda sin identificar'
+  return amountText + ' (' + label + ')'
 }
 function quoteUrl(value?: string | null): string | null {
   if (!value || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(value))
@@ -713,7 +731,7 @@ onUnmounted(() => {
             · {{ rate.incotermName }}
           </p>
           <p class="quote-sync-meta">IDTRA: {{ rate.idtraNumber }} · REV {{ rate.revisionNumber }}
-            · Venta: {{ money(rate.totalSaleAmount, rate.currencyCode) }}</p>
+            · Venta: {{ money(rate.totalSaleAmount, rate.currencyCode, rate.currencyName || '') }}</p>
         </div>
         <div class="quote-sync-actions">
           <RouterLink class="dynamics-outline-button"
@@ -759,9 +777,9 @@ onUnmounted(() => {
             · Ejecutivo: {{ issue.rate?.executiveName || '—' }}
           </p>
           <p class="quote-sync-meta">
-            Venta: {{ money(issue.rate?.totalSaleAmount, issue.rate?.currencyCode || 'USD') }}
-            · Costo: {{ money(issue.rate?.totalCostAmount, issue.rate?.currencyCode || 'USD') }}
-            · Utilidad: {{ money(issue.rate?.totalUtilityAmount, issue.rate?.currencyCode || 'USD') }}
+            Venta: {{ money(issue.rate?.totalSaleAmount, issue.rate?.currencyCode || '', issue.rate?.currencyName || '') }}
+            · Costo: {{ money(issue.rate?.totalCostAmount, issue.rate?.currencyCode || '', issue.rate?.currencyName || '') }}
+            · Utilidad: {{ money(issue.rate?.totalUtilityAmount, issue.rate?.currencyCode || '', issue.rate?.currencyName || '') }}
           </p>
           <p class="quote-sync-meta">Revisión {{ issue.revisionNumber }} · {{ issue.attempts }} intento{{ issue.attempts === 1 ? '' : 's' }}
             <span v-if="issue.error?.stage"> · Etapa: {{ issue.error.stage }}</span>
