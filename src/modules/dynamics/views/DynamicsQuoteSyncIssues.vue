@@ -363,6 +363,8 @@ const loadError = ref('')
 const diagnosingRateId = ref<string | null>(null)
 const diagnoses = ref<Record<string, Diagnosis>>({})
 const retryingRateId = ref<string | null>(null)
+// Remains visible even if a new write is blocked by idempotency protection.
+const retryDecisionRateId = ref<string | null>(null)
 const retryMessages = ref<Record<string, string>>({})
 const writeReadiness = ref<WriteReadiness | null>(null)
 const checkingWrites = ref(false)
@@ -438,8 +440,8 @@ async function reconcileConfirmed(issue: QuoteIssue) {
   }
 }
 
-async function verifyQuoteLedger(issue: QuoteIssue) {
-  if (!isAdministrator.value || checkingLedgerRateId.value) return
+async function verifyQuoteLedger(issue: QuoteIssue): Promise<QuoteLedger | null> {
+  if (!isAdministrator.value || checkingLedgerRateId.value) return null
   checkingLedgerRateId.value = issue.rateId
   ledgerErrors.value = { ...ledgerErrors.value, [issue.rateId]: '' }
   try {
@@ -450,6 +452,7 @@ async function verifyQuoteLedger(issue: QuoteIssue) {
     if (!result?.noPostExecuted || !result.header || !result.total)
       throw new Error('El conector devolvió un diagnóstico incompleto.')
     ledgerByRate.value = { ...ledgerByRate.value, [issue.rateId]: result }
+    return result
   } catch (error) {
     ledgerErrors.value = { ...ledgerErrors.value, [issue.rateId]:
       error instanceof ApiError && error.status === 404
@@ -458,6 +461,7 @@ async function verifyQuoteLedger(issue: QuoteIssue) {
           ? 'Sin permiso de administrador Dynamics para consultar el historial de esta operación.'
           : error instanceof Error ? error.message
             : 'No se pudo consultar el historial del conector.' }
+    return null
   } finally {
     checkingLedgerRateId.value = null
   }
@@ -505,6 +509,82 @@ async function checkWriteReadiness(): Promise<WriteReadiness> {
     return unavailable
   } finally {
     checkingWrites.value = false
+  }
+}
+
+// Always-available action: a click NEVER bypasses the write ledger or
+// modifies a previously successful/ambiguous Dataverse operation.
+async function retryWithoutDuplicate(issue: QuoteIssue) {
+  if (retryDecisionRateId.value || retryingRateId.value || recoveringRateId.value) return
+  const rateId = issue.rateId
+  retryDecisionRateId.value = rateId
+  retryMessages.value = { ...retryMessages.value, [rateId]: '' }
+  try {
+    if (!isAdministrator.value) {
+      retryMessages.value = { ...retryMessages.value, [rateId]:
+        'La acción es visible, pero la recuperación y verificación requieren permisos de administrador de Dynamics.' }
+      return
+    }
+    if (issue.retryBlockReason) {
+      retryMessages.value = { ...retryMessages.value, [rateId]:
+        'No se enviará una revisión desactualizada: ' + issue.retryBlockReason }
+      return
+    }
+    if (issue.status === 'Pending' || issue.status === 'Processing' || issue.status === 'Retry') {
+      await refresh()
+      retryMessages.value = { ...retryMessages.value, [rateId]:
+        'Este trabajo ya está en cola, en proceso o programado para reintentar. No se generó otra oferta.' }
+      return
+    }
+
+    const ledger = await verifyQuoteLedger(issue)
+    if (!ledger) {
+      retryMessages.value = { ...retryMessages.value, [rateId]:
+        'No fue posible verificar el historial de Dataverse. No se envió otra QUO; consultá el error de verificación.' }
+      return
+    }
+    if (ledger.header.status === 'succeeded' && ledger.total.status === 'succeeded') {
+      if (issue.status === 'NeedsAttention') {
+        await reconcileConfirmed(issue)
+        retryMessages.value = { ...retryMessages.value, [rateId]:
+          'El conector ya registró cabecera y línea. Se comprobó la conciliación sin generar una segunda QUO.' }
+      } else {
+        retryMessages.value = { ...retryMessages.value, [rateId]:
+          'Cabecera y línea registradas. No se intentó crear otra oferta.' }
+      }
+      return
+    }
+    if (issue.status === 'Completed') {
+      retryMessages.value = { ...retryMessages.value, [rateId]:
+        'El trabajo está completado en Pricing. Verificá la existencia en Dataverse: no se vuelve a crear.' }
+      return
+    }
+    if (issue.status !== 'NeedsAttention') {
+      retryMessages.value = { ...retryMessages.value, [rateId]:
+        'El estado actual no admite un nuevo envío. Se consultó el historial sin escribir en Dynamics.' }
+      return
+    }
+    if (ledger.header.status === 'rejected' && ledger.total.status === 'not_sent' &&
+        !ledger.header.recordId && !ledger.total.recordId) {
+      recoveryOpenedRateId.value = rateId
+      retryMessages.value = { ...retryMessages.value, [rateId]:
+        'La cabecera fue rechazada y no se envió la línea. Se abrió «Recuperación excepcional» abajo: revisá el diagnóstico, anotá el motivo y autorizá el nuevo intento.' }
+      await diagnose(rateId)
+      return
+    }
+    if (ledger.header.status !== 'not_sent' || ledger.total.status !== 'not_sent') {
+      retryMessages.value = { ...retryMessages.value, [rateId]:
+        'Hay una cabecera o línea previa, reservada o con resultado incierto. Conciliá antes de intentar otra escritura para evitar duplicados.' }
+      return
+    }
+    if (issue.retryableWithoutDuplicateRisk) {
+      await retryConfirmedPreWrite(issue)
+      return
+    }
+    retryMessages.value = { ...retryMessages.value, [rateId]:
+      'No existe confirmación de fallo seguro anterior a la escritura. Revisá el historial; no se creó una QUO nueva.' }
+  } finally {
+    retryDecisionRateId.value = null
   }
 }
 
@@ -1129,12 +1209,15 @@ onUnmounted(() => {
             <SearchCheck :size="15" />
             {{ diagnosingRateId === issue.rateId ? 'Diagnóstico en curso...' : 'Diagnosticar' }}
           </button>
-          <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
-              issue.retryableWithoutDuplicateRisk && !issue.retryBlockReason"
-            type="button" class="dynamics-outline-button"
-            :disabled="Boolean(retryingRateId)" @click="retryConfirmedPreWrite(issue)">
+          <button type="button" class="dynamics-outline-button"
+            :disabled="Boolean(retryingRateId) || Boolean(retryDecisionRateId) ||
+              Boolean(checkingLedgerRateId) || Boolean(recoveringRateId)"
+            :aria-label="'Reintentar sin duplicar y comprobar el historial de ' +
+              (issue.rate?.rateCode || issue.rateId)"
+            @click="retryWithoutDuplicate(issue)">
             <RefreshCw :size="15" />
-            {{ retryingRateId === issue.rateId ? 'Encolando...' : 'Reintentar sin duplicar' }}
+            {{ retryDecisionRateId === issue.rateId || retryingRateId === issue.rateId
+              ? 'Verificando reintento...' : 'Reintentar sin duplicar' }}
           </button>
         </div>
       </article>
@@ -1142,10 +1225,10 @@ onUnmounted(() => {
     <p class="quote-sync-footnote">
       Diagnosticar valida también las búsquedas reales por nombre de Cliente, Cuenta e IDTRA
       sin crear ninguna oferta ni consumir intentos de sincronización.
-      Reintentar verifica primero que el conector permita escrituras de QUO y solo
-      encola fallos confirmados anteriores a la creación. El diagnóstico de mapeo válido
-      no reemplaza la aprobación de escrituras. Los fallos de resultado ambiguo
-      requieren conciliación en Dynamics antes de cualquier reintento.
+      «Reintentar sin duplicar» permanece visible. Verifica el historial de Dynamics
+      antes de actuar: reencola solamente fallos anteriores a la escritura con la misma
+      clave, muestra la recuperación administrativa para cabeceras rechazadas y nunca
+      crea otra oferta si hay registros previos o resultados ambiguos.
     </p>
   </section>
 </template>
