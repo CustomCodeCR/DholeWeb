@@ -26,8 +26,8 @@ async function load() {
   try {
     contact.value = await crmGet('contacts', id)
     Object.assign(edit, {
-      name: String(contact.value.name || ''), jobTitle: String(contact.value.jobTitle || ''),
-      email: String(contact.value.email || ''), phone: String(contact.value.phone || ''),
+      name: String(contact.value?.name || ''), jobTitle: String(contact.value?.jobTitle || ''),
+      email: String(contact.value?.email || ''), phone: String(contact.value?.phone || ''),
     })
     const [p, c] = await Promise.all([
       crmRequest<CrmRow | null>(crmPath('contacts', id, 'preferences')),
