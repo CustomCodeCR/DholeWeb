@@ -164,8 +164,13 @@ async function enqueueAccepted() {
       : `Revisión v${result.revisionNumber} encolada. Podés consultar su avance en Pricing.`
     await refresh()
   } catch (error) {
-    enqueueError.value = error instanceof Error ? error.message :
-      'No se pudo encolar la tarifa. Confirmá que está aceptada y que tiene IDTRA.'
+    enqueueError.value = error instanceof ApiError
+      ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error) +
+        (error.status === 503
+          ? ' El servicio registró la etapa del fallo: consultá el seguimiento de Pricing antes de volver a intentar.'
+          : '')
+      : error instanceof Error ? error.message :
+        'No se pudo encolar la tarifa. Confirmá que está aceptada y que tiene IDTRA.'
   } finally {
     enqueueing.value = false
   }
