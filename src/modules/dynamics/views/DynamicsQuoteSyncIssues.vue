@@ -28,6 +28,21 @@ type QuoteLedger = {
   noPostExecuted: boolean
 }
 
+type MissingQueuedRate = {
+  rateId: string
+  rateCode: string
+  rateName: string | null
+  clientName: string | null
+  idtraNumber: string | null
+  revisionNumber: number
+  polName: string | null
+  poeName: string | null
+  podName: string | null
+  incotermName: string | null
+  totalSaleAmount: number
+  totalCostAmount: number
+  currencyCode: string
+}
 type QuoteIssue = {
   rate?: {
     rateCode?: string | null
@@ -253,19 +268,34 @@ function quoteUrl(value?: string | null): string | null {
   return 'https://sibaja07.crm.dynamics.com/main.aspx?pagetype=entityrecord&etn=quote&id=' +
     encodeURIComponent(value)
 }
+const missingQueuedJobs = ref<MissingQueuedRate[]>([])
+const missingQueuedVisible = computed(() => {
+  const search = rateSearch.value.trim().toLowerCase()
+  if (statusFilter.value === 'completed') return []
+  return missingQueuedJobs.value.filter(rate =>
+    !search || [rate.rateId, rate.rateCode, rate.rateName,
+      rate.clientName, rate.idtraNumber].some(value =>
+      (value || '').toLowerCase().includes(search)))
+})
+async function enqueueMissingRate(rateId: string) {
+  if (!isAdministrator.value || enqueueing.value) return
+  manualRateId.value = rateId
+  await enqueueAccepted()
+}
 const issues = ref<QuoteIssue[]>([])
 const queueSummary = ref<QueueSummary>(emptyQueue())
 const lastQueueUpdate = ref<string | null>(null)
 let queueRefreshTimer: ReturnType<typeof setInterval> | null = null
 let readinessRefreshTimer: ReturnType<typeof setInterval> | null = null
 
-function syncStateLabel(status: string): string {
+function syncStateLabel(status: string, rateId?: string): string {
   switch (status) {
     case 'Pending': return 'En cola'
     case 'Processing': return 'Enviando a Dynamics'
     case 'Retry': return 'Reintento programado'
     case 'NeedsAttention': return 'Requiere atención'
-    case 'Completed': return 'Confirmada en Dynamics'
+    case 'Completed': return rateId && ledgerByRate.value[rateId]?.live?.confirmed
+      ? 'Verificada en Dynamics' : 'Completada (sin verificar)'
     default: return status
   }
 }
@@ -464,9 +494,12 @@ async function refresh() {
       method: 'GET',
       path: '/api/pricing/rates/dynamics-sync/queue',
     })
-    const result = unwrapApiResponse<{ issues: QuoteIssue[], queue: QueueSummary,
+    const result = unwrapApiResponse<{ issues: QuoteIssue[],
+      missingQueuedJobs?: MissingQueuedRate[], queue: QueueSummary,
       refreshedAtUtc: string }>(response as never)
     issues.value = Array.isArray(result?.issues) ? result.issues : []
+    missingQueuedJobs.value = Array.isArray(result?.missingQueuedJobs)
+      ? result.missingQueuedJobs : []
     queueSummary.value = result?.queue ?? emptyQueue()
     lastQueueUpdate.value = result?.refreshedAtUtc ?? null
   } catch {
@@ -654,6 +687,40 @@ onUnmounted(() => {
       </select>
       <span class="quote-sync-meta">{{ visibleIssues.length }} resultados</span>
     </div>
+    <section v-if="missingQueuedVisible.length" class="quote-sync-untracked"
+      aria-label="Cotizaciones aceptadas sin sincronización">
+      <div class="quote-sync-head">
+        <strong>Ofertas aceptadas sin envío registrado ({{ missingQueuedVisible.length }})</strong>
+        <span class="quote-sync-state">Revisar</span>
+      </div>
+      <p class="quote-sync-meta">Estas tarifas tienen IDTRA, pero no hay trabajo
+        para su revisión actual. No significa que falten en Dynamics: comprobá
+        que no se hayan creado manualmente antes de encolarlas.</p>
+      <article v-for="rate in missingQueuedVisible" :key="rate.rateId"
+        class="quote-sync-item">
+        <div class="quote-sync-main">
+          <strong>{{ rate.rateCode }}</strong>
+          <p class="quote-sync-client">{{ rate.clientName }}</p>
+          <p class="quote-sync-meta">
+            {{ [rate.polName, rate.poeName, rate.podName].filter(Boolean).join(' → ') }}
+            · {{ rate.incotermName }}
+          </p>
+          <p class="quote-sync-meta">IDTRA: {{ rate.idtraNumber }} · REV {{ rate.revisionNumber }}
+            · Venta: {{ money(rate.totalSaleAmount, rate.currencyCode) }}</p>
+        </div>
+        <div class="quote-sync-actions">
+          <RouterLink class="dynamics-outline-button"
+            :to="{ path: '/pricing/rates', query: { rateId: rate.rateId } }">
+            <ExternalLink :size="15" /> Ver tarifa
+          </RouterLink>
+          <button v-if="isAdministrator" type="button" class="dynamics-primary-button"
+            :disabled="enqueueing || !writeReadiness?.ready"
+            @click="enqueueMissingRate(rate.rateId)">
+            Encolar revisión sin duplicar
+          </button>
+        </div>
+      </article>
+    </section>
     <p v-if="loadError" class="quote-sync-message quote-sync-error" role="alert">
       <AlertCircle :size="16" /> {{ loadError }}
     </p>
@@ -661,7 +728,7 @@ onUnmounted(() => {
       <RefreshCw :size="22" class="animate-spin" />
       <span>Consultando la cola de Dynamics...</span>
     </div>
-    <p v-else-if="!visibleIssues.length" class="quote-sync-message">
+    <p v-else-if="!visibleIssues.length && !missingQueuedVisible.length" class="quote-sync-message">
       No hay cotizaciones para el filtro actual. Las completadas siguen disponibles en «Completadas» y «Todas».
     </p>
     <div v-else class="quote-sync-list">
@@ -669,7 +736,7 @@ onUnmounted(() => {
         <div class="quote-sync-main">
           <div class="quote-sync-head">
             <strong class="quote-sync-id">{{ issue.rate?.rateCode || issue.rate?.rateName || ('Tarifa ' + issue.rateId) }}</strong>
-            <span class="quote-sync-state">{{ syncStateLabel(issue.status) }}</span>
+            <span class="quote-sync-state">{{ syncStateLabel(issue.status, issue.rateId) }}</span>
           </div>
           <p class="quote-sync-client">
             {{ issue.rate?.clientName || 'Cliente no disponible en la revisión registrada' }}
@@ -931,6 +998,9 @@ onUnmounted(() => {
 
 .quote-sync-panel{margin-top:18px}
 .quote-sync-list{display:grid;gap:12px}
+.quote-sync-untracked{display:grid;gap:10px;margin:18px 0;padding:14px;border:1px solid var(--dh-border);border-radius:14px}
+.quote-sync-untracked>.quote-sync-head{justify-content:space-between}
+
 .quote-sync-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:16px 0}
 .quote-sync-toolbar input,.quote-sync-toolbar select{background:var(--dh-card);color:var(--dh-text);border:1px solid var(--dh-border);border-radius:9px;padding:10px 12px}
 .quote-sync-toolbar input{flex:1;min-width:210px}
