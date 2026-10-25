@@ -564,7 +564,38 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div v-if="isAdministrator" class="quote-sync-grants">
+    <div class="quote-sync-queue-stats" aria-label="Resumen de sincronizaciones">
+      <div><strong>{{ queueSummary.pending }}</strong><span>En cola</span></div>
+      <div><strong>{{ queueSummary.processing }}</strong><span>Procesando</span></div>
+      <div><strong>{{ queueSummary.retry }}</strong><span>Reintentos</span></div>
+      <div><strong>{{ queueSummary.needsAttention }}</strong><span>Con error</span></div>
+      <div><strong>{{ queueSummary.completed }}</strong><span>Confirmadas (total)</span></div>
+    </div>
+    <p class="quote-sync-meta" role="status">
+      Actualización automática cada 3 segundos · Última consulta:
+      {{ dateTimeLabel(lastQueueUpdate) }} · Se muestran trabajos activos recientes
+      y las últimas 25 sincronizaciones completadas.
+      <template v-if="writeReadiness && !writeReadiness.ready">
+        <strong>Envíos pausados:</strong> {{ writeReadiness.message }}
+      </template>
+    </p>
+    <div class="quote-sync-toolbar" role="search" aria-label="Buscar sincronizaciones">
+      <input v-model="rateSearch" type="search" placeholder="Buscar QUO, cliente, IDTRA o tarifa…"
+        aria-label="Buscar QUO, cliente o IDTRA" />
+      <select v-model="statusFilter" aria-label="Filtrar estado de sincronización">
+        <option value="active">Pendientes y errores</option>
+        <option value="attention">Solo con error</option>
+        <option value="completed">Completadas</option>
+        <option value="all">Todas</option>
+      </select>
+      <span class="quote-sync-meta">{{ visibleIssues.length }} resultados</span>
+    </div>
+    <details v-if="isAdministrator" class="quote-sync-advanced">
+      <summary class="quote-sync-advanced-trigger">
+        <span>Configuración y herramientas de administración</span>
+        <span class="quote-sync-meta">Permisos · Comprobaciones · Encolar por GUID</span>
+      </summary>
+    <div class="quote-sync-grants">
       <div>
         <strong>Autorizar importe total estándar de Dynamics</strong>
         <p>
@@ -612,7 +643,7 @@ onUnmounted(() => {
       </p>
     </div>
 
-    <div v-if="isAdministrator" class="quote-sync-grants">
+    <div class="quote-sync-grants">
       <div>
         <strong>Autorización de escrituras de QUO en producción</strong>
         <p>Esta comprobación utiliza la clave del backend de Pricing y consulta la
@@ -642,7 +673,7 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div v-if="isAdministrator" class="quote-sync-grants">
+    <div class="quote-sync-grants">
       <div>
         <strong>Probar QUO con tarifa aceptada e IDTRA</strong>
         <p>Escribí el GUID de una tarifa existente en Dhole, ya aceptada y con
@@ -661,32 +692,8 @@ onUnmounted(() => {
       <p v-if="enqueueFeedback" class="quote-sync-ok" role="status">{{ enqueueFeedback }}</p>
     </div>
 
-    <div class="quote-sync-queue-stats" aria-label="Resumen de sincronizaciones">
-      <div><strong>{{ queueSummary.pending }}</strong><span>En cola</span></div>
-      <div><strong>{{ queueSummary.processing }}</strong><span>Procesando</span></div>
-      <div><strong>{{ queueSummary.retry }}</strong><span>Reintentos</span></div>
-      <div><strong>{{ queueSummary.needsAttention }}</strong><span>Con error</span></div>
-      <div><strong>{{ queueSummary.completed }}</strong><span>Confirmadas (total)</span></div>
-    </div>
-    <p class="quote-sync-meta" role="status">
-      Actualización automática cada 3 segundos · Última consulta:
-      {{ dateTimeLabel(lastQueueUpdate) }} · Se muestran trabajos activos recientes
-      y las últimas 25 sincronizaciones completadas.
-      <template v-if="writeReadiness && !writeReadiness.ready">
-        <strong>Envíos pausados:</strong> {{ writeReadiness.message }}
-      </template>
-    </p>
-    <div class="quote-sync-toolbar" role="search" aria-label="Buscar sincronizaciones">
-      <input v-model="rateSearch" type="search" placeholder="Buscar QUO, cliente, IDTRA o tarifa…"
-        aria-label="Buscar QUO, cliente o IDTRA" />
-      <select v-model="statusFilter" aria-label="Filtrar estado de sincronización">
-        <option value="active">Pendientes y errores</option>
-        <option value="attention">Solo con error</option>
-        <option value="completed">Completadas</option>
-        <option value="all">Todas</option>
-      </select>
-      <span class="quote-sync-meta">{{ visibleIssues.length }} resultados</span>
-    </div>
+    </details>
+
     <section v-if="missingQueuedVisible.length" class="quote-sync-untracked"
       aria-label="Cotizaciones aceptadas sin sincronización">
       <div class="quote-sync-head">
@@ -998,6 +1005,11 @@ onUnmounted(() => {
 
 .quote-sync-panel{margin-top:18px}
 .quote-sync-list{display:grid;gap:12px}
+.quote-sync-advanced{margin:16px 0;border:1px solid var(--dh-border);border-radius:14px;padding:10px;background:var(--dh-surface)}
+.quote-sync-advanced-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;cursor:pointer;font-weight:750;flex-wrap:wrap}
+.quote-sync-advanced[open] .quote-sync-advanced-trigger{margin-bottom:14px}
+.quote-sync-advanced>.quote-sync-grants{margin:10px 0}
+
 .quote-sync-untracked{display:grid;gap:10px;margin:18px 0;padding:14px;border:1px solid var(--dh-border);border-radius:14px}
 .quote-sync-untracked>.quote-sync-head{justify-content:space-between}
 
