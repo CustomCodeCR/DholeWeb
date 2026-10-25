@@ -44,3 +44,18 @@ test('Editable CRM records preserve optimistic concurrency and ISO UTC', () => {
   assert.match(forms, /toUtc/)
   assert.match(forms, /customerTypeCode/)
 })
+
+test('Finance screen lists authorized CRM accounts instead of requesting a raw UUID', () => {
+  const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
+  assert.match(workspace, /crmList\('accounts', \{ q: financeQuery\.value\.trim\(\)/)
+  assert.match(workspace, /crm\.account\.read-all/)
+  assert.match(workspace, /v-model="selectedAccount"/)
+  assert.doesNotMatch(workspace, /v-model\.trim="selectedAccount"/)
+})
+
+test('CRM weekly agenda groups actual UTC instants by viewer local date', () => {
+  const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
+  assert.match(workspace, /crmAgendaRecordsForDay/)
+  assert.match(workspace, /crm\.partialAgenda/)
+  assert.doesNotMatch(workspace, /\.toISOString\(\)\.slice\(0,10\)/)
+})
