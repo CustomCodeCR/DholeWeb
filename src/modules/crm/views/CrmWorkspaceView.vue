@@ -118,7 +118,7 @@ async function load() {
       rows.value = await crmRequest<CrmRow[]>(crmPath('pipelines'))
       total.value = rows.value.length
     } else {
-      const response = await crmList(model.value.resource, {
+      const response = await crmList(model.value!.resource, {
         page: page.value, pageSize: 25, q: search.value.trim(),
         ...(section.value === 'opportunities' && pipelineId.value ? { pipelineId: pipelineId.value } : {}),
       })
@@ -312,7 +312,7 @@ onMounted(() => { if (allowed.value) void load() })
             <select v-else-if="f.type === 'select'" v-model="form[f.key]" class="crm-input mt-1">
               <option v-for="o in f.options" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
-            <textarea v-else-if="f.type === 'textarea'" v-model="form[f.key]" class="crm-input mt-1" rows="3" />
+            <textarea v-else-if="f.type === 'textarea'" :value="String(form[f.key] ?? '')" @input="form[f.key] = ($event.target as HTMLTextAreaElement).value" class="crm-input mt-1" rows="3" />
             <input v-else v-model="form[f.key]" type="checkbox" class="ml-3" />
           </label>
           <label v-if="section === 'followups'" class="block text-sm font-semibold">

@@ -19,7 +19,7 @@ const loading = ref(false)
 const saving = ref(false)
 const relationRows = ref<CrmRow[]>([])
 const relation = ref('')
-const drafts = reactive<Record<string, string>>({
+const drafts = reactive({
   note: '', reason: '', outcome: 'Completed', date: '',
   stageId: '', status: '', contactName: '', contactEmail: '',
   quoteId: '', pricingRequestId: '', priority: 'Green', shipmentMode: 'Fcl',
@@ -79,7 +79,7 @@ async function load() {
       record.value = await crmGet(section.value, id.value)
     }
     if (section.value === 'opportunities') {
-      const pipelineId = String(record.value.pipelineId ?? '')
+      const pipelineId = String(record.value?.pipelineId ?? '')
       if (pipelineId) stages.value = await crmRequest<CrmRow[]>(crmPath('pipelines', pipelineId, 'stages'))
     }
     if (!tabs.value.includes(relation.value)) relation.value = tabs.value.find(permitted) ?? ''
