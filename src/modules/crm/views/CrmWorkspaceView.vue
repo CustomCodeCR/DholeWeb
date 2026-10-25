@@ -25,6 +25,7 @@ const total = ref(0)
 const page = ref(1)
 const search = ref('')
 const showForm = ref(false)
+const pendingCreateKey = ref(crmUuid())
 const edited = ref<CrmRow | null>(null)
 const form = reactive<Record<string, unknown>>({})
 const pipelineStages = ref<CrmRow[]>([])
@@ -36,6 +37,7 @@ const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities
 const configWarning = ref('')
 
 function beginCreate() {
+  pendingCreateKey.value = crmUuid()
   edited.value = null
   Object.keys(form).forEach(key => delete form[key])
   Object.assign(form, crmDefaults(section.value))
@@ -149,8 +151,9 @@ async function save() {
       throw new Error(t('crm.useDetailActions'))
     }
     if (edited.value) await crmPatch(model.value.resource, edited.value.id, body)
-    else await crmCreate(model.value.resource, body, crmUuid())
+    else await crmCreate(model.value.resource, body, pendingCreateKey.value)
     showForm.value = false
+    pendingCreateKey.value = crmUuid()
     await load()
     success.value = t('crm.saved')
   } catch (e) { error.value = crmError(e) }

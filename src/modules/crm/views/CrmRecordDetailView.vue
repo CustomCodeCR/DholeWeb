@@ -17,6 +17,7 @@ const error = ref('')
 const success = ref('')
 const loading = ref(false)
 const saving = ref(false)
+const pendingCreateKeys = new Map<string, string>()
 const relationRows = ref<CrmRow[]>([])
 const relation = ref('')
 const drafts = reactive({
@@ -106,7 +107,11 @@ async function createRelation(tab: string, body: unknown, requiredScope: string)
   if (!can(requiredScope) || saving.value) return
   saving.value = true; error.value = ''; success.value = ''
   try {
-    await crmRequest(endpoint(tab), 'POST', body, crmUuid())
+    const fingerprint = endpoint(tab) + ':' + JSON.stringify(body)
+    const key = pendingCreateKeys.get(fingerprint) ?? crmUuid()
+    pendingCreateKeys.set(fingerprint, key)
+    await crmRequest(endpoint(tab), 'POST', body, key)
+    pendingCreateKeys.delete(fingerprint)
     await loadRelation(); success.value = t('crm.saved')
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
