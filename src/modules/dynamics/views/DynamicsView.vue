@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onErrorCaptured, onMounted, reactive, ref } from 'vue'
 import { Activity, Database, CheckCircle2, RefreshCw, ShieldCheck, Link2, AlertCircle, Search, PenLine, GitBranch, LockKeyhole } from 'lucide-vue-next'
 import DynamicsDataWorkspace from './DynamicsDataWorkspace.vue'
 import DynamicsCrudIntegrationWorkspace from './DynamicsCrudIntegrationWorkspace.vue'
@@ -26,6 +26,16 @@ const canSecurity = computed(() => auth.hasScope('dynamics.security.admin'))
 const connections = ref<Connection[]>([])
 // The daily workflow is the quote queue; advanced admin areas are secondary.
 const activeTab = ref<Tab>('quotes')
+const queueRenderError = ref(false)
+
+// Guard this large operational module: one malformed historical job must
+// never leave an entirely blank Dynamics tab with no actionable feedback.
+onErrorCaptured((error, _instance, info) => {
+  if (activeTab.value !== 'quotes') return
+  console.error('Dynamics quote console rendering error', info, error)
+  queueRenderError.value = true
+  return false
+})
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -205,7 +215,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
         <nav class="dynamics-nav" aria-label="Secciones de Dynamics">
           <button v-for="tab in (['quotes','connections','catalog','query','automation','integrations','security','operations','audit'] as Tab[])" :key="tab" v-show="tab!=='security' || canSecurity" type="button"
             class="dynamics-nav-button" :class="{ active: activeTab === tab }" :aria-current="activeTab === tab ? 'page' : undefined"
-            @click="activeTab=tab; if (tab==='operations' || tab==='audit') loadOperational(tab==='audit' ? 'audit' : 'overview')">
+            @click="activeTab=tab; if (tab==='quotes') queueRenderError=false; if (tab==='operations' || tab==='audit') loadOperational(tab==='audit' ? 'audit' : 'overview')">
             <Activity v-if="tab==='quotes'" :size="16" />
             <Database v-else-if="tab==='connections'" :size="16" />
             <Search v-else-if="tab==='query'" :size="16" />
@@ -231,7 +241,22 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
         <!-- The full commercial quote queue is the primary visible page.
              Keep it mounted only in this tab so polling and actions do not
              run behind hidden technical screens. -->
-        <DynamicsQuoteSyncIssues v-if="activeTab==='quotes'" />
+        <DynamicsQuoteSyncIssues v-if="activeTab==='quotes' && !queueRenderError" />
+        <section v-else-if="activeTab==='quotes'" class="dynamics-panel"
+          role="alert">
+          <div class="dynamics-panel-header">
+            <div>
+              <p class="dynamics-section-label">COLA DE OFERTAS</p>
+              <h2>No se pudo mostrar la consola de sincronización</h2>
+              <p class="dynamics-subtitle">
+                Hay un error al interpretar algún dato de las tarifas.
+                La pantalla no creó ni reintentó ninguna QUO.
+              </p>
+            </div>
+            <button type="button" class="dynamics-primary-button"
+              @click="queueRenderError=false">Volver a cargar consola</button>
+          </div>
+        </section>
 
         <template v-else-if="activeTab==='connections'">
           <div class="dynamics-layout">
