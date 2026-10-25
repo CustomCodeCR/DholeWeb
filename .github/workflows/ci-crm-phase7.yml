@@ -8,6 +8,7 @@ on:
       - 'src/core/composables/useSidebarItems.ts'
       - 'src/core/i18n/index.ts'
       - 'tests/crmFrontend.test.ts'
+      - 'tests/crmAgenda.test.ts'
       - '.github/workflows/ci-crm-phase7.yml'
   workflow_dispatch:
 permissions:
@@ -24,7 +25,7 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - name: Verify CRM route/permission and API regression contracts
-        run: node --test tests/crmFrontend.test.ts
+        run: pnpm run test:crm
       - name: Strict Vue TypeScript checking
         run: pnpm run type-check
       - name: Build real Vue 3 application
