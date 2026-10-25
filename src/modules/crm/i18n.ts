@@ -13,6 +13,14 @@ export const crmMessages = {
       "settings": "Administración CRM",
       "integrations": "Dynamics y Hacienda"
     },
+    "hacienda": {
+      "title": "Consulta de Hacienda",
+      "status": "Estado de verificación",
+      "lastVerified": "Última verificación",
+      "retry": "Solicitar nueva verificación",
+      "history": "Consultar historial oficial",
+      "manualProtected": "Solo se consulta Hacienda para identificaciones costarricenses elegibles; el nombre registrado manualmente nunca se reemplaza."
+    },
     "dashboard": "Dashboard comercial",
     "integration": {
       "title": "Integraciones y conciliación CRM",
@@ -125,6 +133,14 @@ export const crmMessages = {
       "finance": "Credit and contracts",
       "settings": "CRM administration",
       "integrations": "Dynamics and Hacienda"
+    },
+    "hacienda": {
+      "title": "Costa Rican tax verification",
+      "status": "Verification status",
+      "lastVerified": "Last verification",
+      "retry": "Request verification again",
+      "history": "View official history",
+      "manualProtected": "Only eligible Costa Rican identifications are verified; manually entered names are never overwritten."
     },
     "dashboard": "Sales dashboard",
     "integration": {
