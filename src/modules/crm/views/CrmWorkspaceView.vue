@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
 import { CRM_MODULES, crmDefaults, crmPayload, type CrmSection } from '../model/crmForms'
-import { crmAction, crmCreate, crmEnabled, crmError, crmGet, crmList, crmPatch,
+import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
   crmRequest, crmUuid, crmPath, fromUtc, type CrmRow } from '../services/crmApi'
 import { crmSectionScope } from '../model/crmForms'
 
@@ -34,7 +34,6 @@ const selectedAccount = ref('')
 const financeTab = ref<'credit' | 'contracts'>('credit')
 const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities: 0, weighted: 0, loaded: false })
 const configWarning = ref('')
-const dateToday = new Date().toISOString().slice(0, 10)
 
 function beginCreate() {
   edited.value = null

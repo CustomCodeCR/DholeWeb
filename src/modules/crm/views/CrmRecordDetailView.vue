@@ -3,9 +3,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
-import { CRM_MODULES, crmPayload } from '../model/crmForms'
-import { crmAction, crmCreate, crmEnabled, crmError, crmGet, crmPath, crmRequest,
-  crmUuid, fromUtc, toUtc, type CrmRow } from '../services/crmApi'
+import { crmEnabled, crmError, crmGet, crmPath, crmRequest,
+  crmUuid, toUtc, type CrmRow } from '../services/crmApi'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -32,8 +31,6 @@ const drafts = reactive<Record<string, string>>({
 })
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
-const writeScope = computed(() => CRM_MODULES[section.value]?.updateScope ?? '')
-const canWrite = computed(() => writeScope.value && can(writeScope.value))
 const tabs = computed(() => {
   if (section.value === 'accounts') return ['contacts', 'addresses', 'trade-profiles', 'credit-profiles', 'credit-contracts', 'followup-policy']
   if (section.value === 'leads') return ['activities']
