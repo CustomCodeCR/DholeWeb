@@ -32,18 +32,20 @@ export function crmAgendaDays(now: Date = new Date(), locale = 'es-CR'): CrmAgen
   })
 }
 
-export function crmAgendaRecordsForDay<T extends {
-  scheduledStartAt?: unknown
-  dueAt?: unknown
-}>(records: readonly T[], dateKey: string): T[] {
+function agendaInstant(record: object): unknown {
+  const values = record as { scheduledStartAt?: unknown; dueAt?: unknown }
+  return values.scheduledStartAt ?? values.dueAt
+}
+
+export function crmAgendaRecordsForDay<T extends object>(records: readonly T[], dateKey: string): T[] {
   return records
     .filter((record) => {
-      const value = record.scheduledStartAt ?? record.dueAt
+      const value = agendaInstant(record)
       return typeof value === 'string' && crmLocalDateKey(value) === dateKey
     })
     .sort((a, b) => {
-      const start = new Date(String(a.scheduledStartAt ?? a.dueAt)).getTime()
-      const end = new Date(String(b.scheduledStartAt ?? b.dueAt)).getTime()
+      const start = new Date(String(agendaInstant(a))).getTime()
+      const end = new Date(String(agendaInstant(b))).getTime()
       return start - end
     })
 }
