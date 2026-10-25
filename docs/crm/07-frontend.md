@@ -32,3 +32,10 @@ El panel de campañas y Dynamics/Hacienda no se activa como si existiera. La int
 Rollback: desactivar VITE_CRM_ENABLED y restaurar la imagen frontend previa sin borrar datos ni revertir la base de datos.
 
 No se desplegó a staging ni a producción en esta implementación.
+
+## Revisión del 25/10/2026 — mejoras sin adelantar Fase 8
+
+- Agenda de actividades/seguimientos: los registros almacenados como instantes UTC ahora se agrupan por fecha **local del navegador**; el cálculo de siete días usa fechas calendario y no suma 86.400.000 ms (evita desfases al cambiar el horario de verano). La vista explica cuando solo están cargados los primeros registros paginados; no anuncia una agenda global completa.
+- Finanzas: la selección de cuenta consulta cuentas **autorizadas** usando GET `/api/crm/accounts` con búsqueda. No exige copiar UUID manualmente. El backend sigue aplicando controles por registro y scopes de crédito/contrato.
+- Pruebas añadidas: `tests/crmAgenda.test.ts` (conversión UTC→Costa Rica, límites de mes/año, orden cronológico, DST) y regresiones de permisos e interfaz en `tests/crmFrontend.test.ts`. `pnpm run test:crm` ejecuta ambas suites; el workflow dedicado también.
+- Riesgos no resueltos: las fases 1–6 siguen en PR independientes y no están integradas en `develop`; sin ello no hay E2E autenticado/staging de CRM. El audit de dependencias del frontend y las pruebas de Maersk pueden bloquear la promoción; no se suprimen validaciones.
