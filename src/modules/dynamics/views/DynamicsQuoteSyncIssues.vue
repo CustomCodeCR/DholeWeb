@@ -125,6 +125,23 @@ type QuoteTemplate = {
   name: string
   activeVersion: number | null
 }
+type TrackedDelivery = {
+  revisionNumber: number
+  status: string
+  attempts: number
+  lastError: string | null
+  error?: {
+    stage?: string
+    code?: string
+    providerCode?: string
+    httpStatus?: number | null
+    postAttempted?: boolean
+    message?: string
+  } | null
+  createdAtUtc?: string
+  nextAttemptAtUtc?: string | null
+  completedAtUtc?: string | null
+}
 const auth = useAuthStore()
 const isAdministrator = computed(() => auth.hasScope('dynamics.security.admin'))
 const quoteKeys = ref<QuoteCrudKey[]>([])
@@ -137,6 +154,12 @@ const manualRateId = ref('')
 const enqueueing = ref(false)
 const enqueueFeedback = ref('')
 const enqueueError = ref('')
+// The user should never lose sight of the exact queued revision when the
+// status switches from Pending to NeedsAttention between 3-second polls.
+const trackedRateId = ref('')
+const trackedRevision = ref<number | null>(null)
+const trackedDelivery = ref<TrackedDelivery | null>(null)
+const trackedLoadError = ref('')
 const manualRateIdValid = computed(() =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     .test(manualRateId.value.trim()))
@@ -159,10 +182,18 @@ async function enqueueAccepted() {
     })
     const result = unwrapApiResponse<{ status: string; alreadyQueued: boolean;
       revisionNumber: number }>(response as never)
+    const queuedId = manualRateId.value.trim().toLowerCase()
+    trackedRateId.value = queuedId
+    trackedRevision.value = result.revisionNumber
+    trackedDelivery.value = null
+    rateSearch.value = queuedId
+    // A previously selected 'Completadas' filter hid the newly enqueued job.
+    statusFilter.value = 'all'
     enqueueFeedback.value = result.alreadyQueued
-      ? `La revisión v${result.revisionNumber} ya tiene sincronización en estado ${result.status}. No se duplicó.`
-      : `Revisión v${result.revisionNumber} encolada. Podés consultar su avance en Pricing.`
+      ? `Revisión v${result.revisionNumber} ya registrada en estado ${result.status}. No se duplicó. Consultá el seguimiento de esta revisión.`
+      : `Revisión v${result.revisionNumber} guardada en Pricing. La QUO NO está confirmada hasta que el worker y Dataverse confirmen su creación.`
     await refresh()
+    await refreshTrackedDelivery()
   } catch (error) {
     enqueueError.value = error instanceof ApiError
       ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error) +
@@ -508,8 +539,56 @@ async function retryConfirmedPreWrite(issue: QuoteIssue) {
   }
 }
 
+async function refreshTrackedDelivery() {
+  const rateId = trackedRateId.value
+  if (!rateId) return
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: `/api/pricing/rates/${encodeURIComponent(rateId)}/dynamics-sync`,
+    })
+    const detail = unwrapApiResponse<{
+      deliveries: TrackedDelivery[]
+      currentRevision: number
+    }>(response as never)
+    if (trackedRateId.value !== rateId) return
+    const revision = trackedRevision.value ?? detail.currentRevision
+    trackedDelivery.value = (detail.deliveries || [])
+      .find(delivery => delivery.revisionNumber === revision) ?? null
+    trackedLoadError.value = trackedDelivery.value
+      ? '' : 'No se encontró el registro de esta revisión en la consulta individual. Revisá su historial antes de volver a encolar.'
+  } catch (error) {
+    if (trackedRateId.value !== rateId) return
+    trackedLoadError.value = error instanceof Error
+      ? error.message : 'No se pudo consultar el seguimiento de esta revisión.'
+  }
+}
+
+function followRate(rateId: string) {
+  if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(rateId.trim())) return
+  trackedRateId.value = rateId.trim().toLowerCase()
+  trackedRevision.value = null
+  trackedDelivery.value = null
+  trackedLoadError.value = ''
+  rateSearch.value = trackedRateId.value
+  statusFilter.value = 'all'
+  void refreshTrackedDelivery()
+}
+
+function clearTrackedRate() {
+  trackedRateId.value = ''
+  trackedRevision.value = null
+  trackedDelivery.value = null
+  trackedLoadError.value = ''
+  rateSearch.value = ''
+  statusFilter.value = 'active'
+}
+
 async function refresh() {
-  if (loading.value) return
+  if (loading.value) {
+    if (trackedRateId.value) await refreshTrackedDelivery()
+    return
+  }
   loading.value = true
   loadError.value = ''
   try {
@@ -530,6 +609,7 @@ async function refresh() {
   } finally {
     loading.value = false
   }
+  if (trackedRateId.value) await refreshTrackedDelivery()
 }
 
 async function diagnose(rateId: string) {
@@ -611,8 +691,46 @@ onUnmounted(() => {
         <option value="completed">Completadas</option>
         <option value="all">Todas</option>
       </select>
+      <button v-if="/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(rateSearch.trim())"
+        type="button" class="dynamics-outline-button" @click="followRate(rateSearch)">
+        Seguir revisión
+      </button>
       <span class="quote-sync-meta">{{ visibleIssues.length }} resultados</span>
     </div>
+    <section v-if="trackedRateId" class="quote-sync-tracking" aria-label="Seguimiento individual de Dynamics" role="status">
+      <div class="quote-sync-head">
+        <strong>Seguimiento de tarifa {{ trackedRateId }}{{ trackedRevision != null ? ' · REV ' + trackedRevision : '' }}</strong>
+        <button type="button" class="dynamics-outline-button" @click="clearTrackedRate">
+          Volver a ver todas
+        </button>
+      </div>
+      <template v-if="trackedDelivery">
+        <p><strong>Estado real en Pricing:</strong> {{ syncStateLabel(trackedDelivery.status, trackedRateId) }}
+          · {{ trackedDelivery.attempts }} intento{{ trackedDelivery.attempts === 1 ? '' : 's' }}</p>
+        <p v-if="trackedDelivery.error?.stage" class="quote-sync-meta">
+          Etapa: {{ trackedDelivery.error.stage }}
+          <template v-if="trackedDelivery.error.httpStatus"> · HTTP {{ trackedDelivery.error.httpStatus }}</template>
+          <template v-if="trackedDelivery.error.providerCode"> · Código: {{ trackedDelivery.error.providerCode }}</template>
+        </p>
+        <p v-if="trackedDelivery.lastError || trackedDelivery.error?.message"
+          class="quote-sync-error-detail" role="alert">
+          {{ trackedDelivery.lastError || trackedDelivery.error?.message }}
+        </p>
+        <p v-if="trackedDelivery.status === 'Completed'" class="quote-sync-meta">
+          El conector informó la operación como completada. Verificá los identificadores de cabecera y línea en Dataverse antes de dar por creada la QUO.
+        </p>
+        <p v-else-if="trackedDelivery.status === 'NeedsAttention' && trackedDelivery.error?.postAttempted"
+          class="quote-sync-error-detail">
+          El envío a Dynamics pudo haberse ejecutado. Consultá «Verificar en Dynamics» en el registro inferior; no generés un nuevo intento sin conciliarlo.
+        </p>
+        <p v-else-if="trackedDelivery.status === 'Pending' || trackedDelivery.status === 'Processing' || trackedDelivery.status === 'Retry'"
+          class="quote-sync-meta">
+          Todavía no hay confirmación de creación de QUO en Dynamics. Esta vista se actualiza automáticamente.
+        </p>
+      </template>
+      <p v-else class="quote-sync-meta">Consultando el trabajo de esta revisión. El POST de encolado por sí solo no crea una QUO.</p>
+      <p v-if="trackedLoadError" class="quote-sync-error-detail" role="alert">{{ trackedLoadError }}</p>
+    </section>
     <details v-if="isAdministrator" class="quote-sync-advanced">
       <summary class="quote-sync-advanced-trigger">
         <span>Configuración y herramientas de administración</span>
@@ -1046,6 +1164,10 @@ onUnmounted(() => {
 .quote-sync-queue-stats strong{font-size:22px;font-variant-numeric:tabular-nums}
 .quote-sync-queue-stats span{font-size:12px;color:var(--dh-text-muted)}
 @media(max-width:850px){.quote-sync-queue-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.quote-sync-tracking{display:flex;flex-direction:column;gap:8px;border:1px solid var(--dh-border);background:var(--dh-card);border-radius:14px;padding:16px;margin:12px 0}
+.quote-sync-tracking p{margin:0}
+.quote-sync-tracking .quote-sync-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.quote-sync-tracking strong{overflow-wrap:anywhere}
 .quote-sync-item{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:17px;border:1px solid var(--dh-border);border-radius:16px;background:var(--dh-card)}
 .quote-sync-main{min-width:0;flex:1}
 .quote-sync-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
