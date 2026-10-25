@@ -37,3 +37,13 @@ test('phase 8 console uses persistent server jobs and does not simulate success'
   assert.match(translations, /"integrations": "Dynamics y Hacienda"/)
   assert.match(translations, /"integrations": "Dynamics and Hacienda"/)
 })
+
+test('Hacienda actions are gated by record access and do not overwrite local legal name', () => {
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  assert.match(detail, /crm\.account\.update/)
+  assert.match(detail, /hacienda\/retry/)
+  assert.match(detail, /hacienda\/history/)
+  assert.match(detail, /expectedVersion: version\(\)/)
+  assert.match(detail, /haciendaSnapshots/)
+  assert.doesNotMatch(detail, /record\.legalName\s*=/)
+})
