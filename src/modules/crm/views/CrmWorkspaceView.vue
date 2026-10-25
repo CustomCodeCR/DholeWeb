@@ -33,7 +33,11 @@ const pipelineStages = ref<CrmRow[]>([])
 const pipelineId = ref('')
 const viewMode = ref<'table' | 'kanban' | 'week'>('table')
 const selectedAccount = ref('')
-const financeTab = ref<'credit' | 'contracts'>('credit')
+const financeQuery = ref('')
+const financeAccounts = ref<CrmRow[]>([])
+const financeAccountsTotal = ref(0)
+const financeAccountsLoading = ref(false)
+const financeTab = ref<'credit' | 'contracts'>(can('crm.credit.read') ? 'credit' : 'contracts')
 const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities: 0, weighted: 0, loaded: false })
 const configWarning = ref('')
 
@@ -93,6 +97,29 @@ async function loadDashboard() {
   }
   dashboard.loaded = true
 }
+async function loadFinanceAccounts() {
+  if (!can('crm.account.read') && !can('crm.account.read-all')) {
+    financeAccounts.value = []
+    financeAccountsTotal.value = 0
+    return
+  }
+  financeAccountsLoading.value = true
+  try {
+    // Search is always scoped server-side to the user's authorized account records.
+    const result = await crmList('accounts', { q: financeQuery.value.trim(), page: 1, pageSize: 50 })
+    financeAccounts.value = result.items
+    financeAccountsTotal.value = result.total
+    if (selectedAccount.value && !result.items.some(account => account.id === selectedAccount.value)) {
+      selectedAccount.value = ''
+    }
+  } catch (e) {
+    financeAccounts.value = []
+    financeAccountsTotal.value = 0
+    error.value = crmError(e)
+  } finally {
+    financeAccountsLoading.value = false
+  }
+}
 async function loadFinance() {
   if (!selectedAccount.value) { rows.value = []; total.value = 0; return }
   const endpoint = '/api/crm/accounts/' + encodeURIComponent(selectedAccount.value) +
@@ -116,7 +143,7 @@ async function load() {
   loading.value = true
   try {
     if (section.value === 'dashboard') await loadDashboard()
-    else if (section.value === 'finance') await loadFinance()
+    else if (section.value === 'finance') { await loadFinanceAccounts(); await loadFinance() }
     else if (section.value === 'settings') {
       rows.value = await crmRequest<CrmRow[]>(crmPath('pipelines'))
       total.value = rows.value.length
@@ -222,9 +249,24 @@ onMounted(() => { if (allowed.value) void load() })
       <template v-else-if="section === 'finance'">
         <div class="crm-card space-y-4 p-4">
           <p class="text-sm text-[var(--dh-text-muted)]">{{ t('crm.financeSelectAccount') }}</p>
-          <label class="block max-w-xl text-sm font-bold">{{ t('crm.accountId') }}
-            <input v-model.trim="selectedAccount" class="crm-input mt-1" :placeholder="t('crm.uuidHint')" />
+          <form class="flex flex-wrap items-end gap-2" @submit.prevent="loadFinanceAccounts">
+            <label class="block min-w-[200px] flex-1 text-sm font-bold">{{ t('crm.searchAccounts') }}
+              <input v-model.trim="financeQuery" class="crm-input mt-1"
+                :placeholder="t('common.search')" :disabled="financeAccountsLoading" />
+            </label>
+            <button class="crm-button" type="submit" :disabled="financeAccountsLoading">{{ t('common.search') }}</button>
+          </form>
+          <label class="block max-w-xl text-sm font-bold">{{ t('crm.selectAccount') }}
+            <select v-model="selectedAccount" class="crm-input mt-1">
+              <option value="">{{ t('crm.choose') }}</option>
+              <option v-for="account in financeAccounts" :key="account.id" :value="account.id">
+                {{ account.displayName ?? account.legalName ?? account.id }}
+              </option>
+            </select>
           </label>
+          <p v-if="financeAccountsTotal > financeAccounts.length" class="text-xs text-[var(--dh-text-muted)]">
+            {{ t('crm.searchAccountHint') }}
+          </p>
           <div class="flex gap-2">
             <button v-if="can('crm.credit.read')" class="crm-button"
               :aria-pressed="financeTab === 'credit'" @click="financeTab='credit'">{{ t('crm.credit') }}</button>
