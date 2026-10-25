@@ -84,6 +84,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
           { labelKey: 'crm.nav.followups', icon: LayoutDashboard, to: '/crm/followups', name: 'crm-followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
           { labelKey: 'crm.nav.analyses', icon: LayoutDashboard, to: '/crm/analyses', name: 'crm-analyses', requiredAnyScopes: ['crm.analysis.read', 'crm.analysis.manage'] },
           { labelKey: 'crm.nav.finance', icon: LayoutDashboard, to: '/crm/finance', name: 'crm-finance', requiredAnyScopes: ['crm.credit.read', 'crm.contract.read'] },
+          { labelKey: 'crm.nav.integrations', icon: Database, to: '/crm/integrations', name: 'crm-integrations', requiredAnyScopes: ['crm.integration.read'] },
           { labelKey: 'crm.nav.settings', icon: LayoutDashboard, to: '/crm/settings', name: 'crm-settings', requiredAnyScopes: ['crm.settings.manage'] },
         ],
       },
