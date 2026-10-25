@@ -10,6 +10,7 @@ import { CatalogGroupsService } from '@/core/services/catalogGroupsService'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { ReportsService } from '@/core/services/reportsService'
 import { AgentService } from '@/core/services/agentService'
+import { crmEnabled, crmList } from '@/modules/crm/services/crmApi'
 
 export interface GlobalSearchRecord {
   id: string
@@ -256,6 +257,32 @@ export async function searchGlobalRecords(
       },
     },
   ]
+
+  // Federate only CRM records already permitted by JWT scopes and backend ownership.
+  // The CRM gateway flag keeps this source completely disabled before staging validation.
+  if (crmEnabled()) {
+    const crmResources = [
+      { kind: 'accounts', read: 'crm.account.read', all: 'crm.account.read-all', title: 'displayName', detail: 'legalName', category: 'Cliente CRM' },
+      { kind: 'leads', read: 'crm.lead.read', all: 'crm.lead.read-all', title: 'name', detail: 'companyName', category: 'Prospecto CRM' },
+      { kind: 'opportunities', read: 'crm.opportunity.read', all: 'crm.opportunity.read-all', title: 'title', detail: 'status', category: 'Oportunidad CRM' },
+    ] as const
+    for (const config of crmResources) {
+      if (!hasScope(config.read) && !hasScope(config.all)) continue
+      sources.push({
+        scope: hasScope(config.read) ? config.read : config.all,
+        run: async () => {
+          const response = await crmList(config.kind, { q: query, page: 1, pageSize: SEARCH_PAGE_SIZE })
+          return response.items.map((item) => ({
+            id: 'crm:' + config.kind + ':' + item.id,
+            title: String(item[config.title] ?? item.id),
+            description: String(item[config.detail] ?? ''),
+            category: config.category,
+            path: '/crm/' + config.kind + '/' + encodeURIComponent(item.id),
+          }))
+        },
+      })
+    }
+  }
 
   const permitted = sources.filter((source) => hasScope(source.scope)
     && !(restrictedSeller && source.scope === VIEW_SCOPES.pricingRates))
