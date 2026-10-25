@@ -276,7 +276,11 @@ onBeforeRouteLeave(() => {
   if (!saving.value) return true
   return window.confirm(t('crm.leaveDuringSave'))
 })
-watch([id, section], () => { void load() })
+watch([id, section], () => {
+  haciendaSnapshots.value = []
+  haciendaHistoryLoaded.value = false
+  void load()
+})
 watch(relation, () => { if (relation.value) void loadRelation() })
 onMounted(() => { if (crmEnabled()) void load() })
 </script>
