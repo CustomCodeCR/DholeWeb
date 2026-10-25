@@ -434,6 +434,8 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
         <p>
           Elegí la clave activa de crear_oferta. Esta acción autoriza la lectura
           limitada de los vínculos configurados (cliente, IDTRA y divisa), la
+          búsqueda de divisa por código ISO, los nueve campos de costo
+          (monto1 con el total del proveedor y monto2–9 en cero), la
           lectura del identificador de quote y la creación de su línea de venta
           en quotedetail, conforme al catálogo aprobado. No crea ofertas ni reintenta tarifas.
         </p>
