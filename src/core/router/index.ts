@@ -5,6 +5,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { i18n } from '@/core/i18n'
+import { crmEnabled } from '@/modules/crm/services/crmApi'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
 
 declare module 'vue-router' {
@@ -18,6 +19,7 @@ declare module 'vue-router' {
     requiredAnyScopes?: string[]
     requiredAllScopes?: string[]
     requiredRole?: string
+    crmSection?: string
   }
 }
 
@@ -92,6 +94,110 @@ export const router = createRouter({
           },
         },
 
+        {
+          path: 'crm/dashboard',
+          name: 'crm-dashboard',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.dashboard', closable: true, crmSection: 'dashboard', requiredAnyScopes: ['crm.account.read', 'crm.lead.read', 'crm.opportunity.read', 'crm.activity.read'] },
+        },
+        {
+          path: 'crm/accounts',
+          name: 'crm-accounts',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.accounts', closable: true, crmSection: 'accounts', requiredAnyScopes: ['crm.account.read', 'crm.account.read-all'] },
+        },
+        {
+          path: 'crm/accounts/:id',
+          name: 'crm-accounts-detail',
+          component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
+          meta: { tabTitleKey: 'crm.nav.accounts', closable: true, crmSection: 'accounts', requiredAnyScopes: ['crm.account.read', 'crm.account.read-all'] },
+        },
+        {
+          path: 'crm/leads',
+          name: 'crm-leads',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.leads', closable: true, crmSection: 'leads', requiredAnyScopes: ['crm.lead.read', 'crm.lead.read-all'] },
+        },
+        {
+          path: 'crm/leads/:id',
+          name: 'crm-leads-detail',
+          component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
+          meta: { tabTitleKey: 'crm.nav.leads', closable: true, crmSection: 'leads', requiredAnyScopes: ['crm.lead.read', 'crm.lead.read-all'] },
+        },
+        {
+          path: 'crm/opportunities',
+          name: 'crm-opportunities',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.opportunities', closable: true, crmSection: 'opportunities', requiredAnyScopes: ['crm.opportunity.read', 'crm.opportunity.read-all'] },
+        },
+        {
+          path: 'crm/opportunities/:id',
+          name: 'crm-opportunities-detail',
+          component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
+          meta: { tabTitleKey: 'crm.nav.opportunities', closable: true, crmSection: 'opportunities', requiredAnyScopes: ['crm.opportunity.read', 'crm.opportunity.read-all'] },
+        },
+        {
+          path: 'crm/activities',
+          name: 'crm-activities',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
+        },
+        {
+          path: 'crm/activities/:id',
+          name: 'crm-activities-detail',
+          component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
+          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
+        },
+        {
+          path: 'crm/followups',
+          name: 'crm-followups',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
+        },
+        {
+          path: 'crm/followups/:id',
+          name: 'crm-followups-detail',
+          component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
+          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
+        },
+        {
+          path: 'crm/analyses',
+          name: 'crm-analyses',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.analyses', closable: true, crmSection: 'analyses', requiredAnyScopes: ['crm.analysis.read', 'crm.analysis.manage'] },
+        },
+        {
+          path: 'crm/analyses/:id',
+          name: 'crm-analyses-detail',
+          component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
+          meta: { tabTitleKey: 'crm.nav.analyses', closable: true, crmSection: 'analyses', requiredAnyScopes: ['crm.analysis.read', 'crm.analysis.manage'] },
+        },
+        {
+          path: 'crm/finance',
+          name: 'crm-finance',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.finance', closable: true, crmSection: 'finance', requiredAnyScopes: ['crm.credit.read', 'crm.contract.read'] },
+        },
+        {
+          path: 'crm/settings',
+          name: 'crm-settings',
+          component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
+          meta: { tabTitleKey: 'crm.nav.settings', closable: true, crmSection: 'settings', requiredAnyScopes: ['crm.settings.manage'] },
+        },
+        {
+          path: 'crm/settings/:id',
+          name: 'crm-settings-detail',
+          component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
+          meta: { tabTitleKey: 'crm.nav.settings', closable: true, crmSection: 'settings', requiredAnyScopes: ['crm.settings.manage'] },
+        },
+
+        {
+          path: 'crm/contacts/:id',
+          name: 'crm-contact-detail',
+          component: () => import('@/modules/crm/views/CrmContactDetailView.vue'),
+          meta: { tabTitleKey: 'crm.contactDetails', closable: true,
+            requiredScope: 'crm.contact.read' },
+        },
         {
           path: 'auth/users',
           name: 'auth-users',
@@ -723,6 +829,7 @@ router.beforeEach(async (to) => {
   await authStore.initialize()
 
   const isPublic = to.meta.public === true
+  if (to.path.startsWith('/crm/') && !crmEnabled()) return '/home'
   const hasSession = authStore.hasValidSession()
 
   if (!hasSession && to.path === '/change-password') {
