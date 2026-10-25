@@ -83,7 +83,7 @@ export const crmMessages = {
     "preferredDays": "Días permitidos (máscara)", "startHour": "Desde", "endHour": "Hasta",
     "doNotContact": "No contactar", "consentHistory": "Historial de consentimiento",
     "evidence": "Evidencia obligatoria si acepta", "consentSource": "Origen de consentimiento",
-    "registerConsent": "Registrar consentimiento", "consentEvidence": "El consentimiento afirmativo requiere evidencia."
+    "registerConsent": "Registrar consentimiento", "consentEvidence": "El consentimiento afirmativo requiere evidencia.", "approveCredit":"Aprobar crédito", "rejectCredit":"Rechazar crédito", "activateContract":"Activar contrato", "cancelContract":"Cancelar contrato", "renewContract":"Renovar contrato", "attachSigned":"Adjuntar documento firmado", "addressType":"Tipo de dirección", "address":"Dirección", "addAddress":"Añadir dirección", "savePolicy":"Guardar política", "addNote":"Añadir nota", "serviceCode":"Código servicio", "addService":"Añadir servicio", "negotiationSummary":"Resumen negociación", "addNegotiation":"Registrar negociación", "signedFileId":"UUID archivo firmado de Storage"
   },
   "en": {
     "title": "CRM · Commercial management",
@@ -169,6 +169,6 @@ export const crmMessages = {
     "preferredDays": "Allowed days (mask)", "startHour": "From", "endHour": "Until",
     "doNotContact": "Do not contact", "consentHistory": "Consent history",
     "evidence": "Opt-in evidence required", "consentSource": "Consent source",
-    "registerConsent": "Record consent", "consentEvidence": "Affirmative opt-in requires evidence."
+    "registerConsent": "Record consent", "consentEvidence": "Affirmative opt-in requires evidence.", "approveCredit":"Approve credit", "rejectCredit":"Reject credit", "activateContract":"Activate contract", "cancelContract":"Cancel contract", "renewContract":"Renew contract", "attachSigned":"Attach signed document", "addressType":"Address type", "address":"Address", "addAddress":"Add address", "savePolicy":"Save policy", "addNote":"Add note", "serviceCode":"Service code", "addService":"Add service", "negotiationSummary":"Negotiation summary", "addNegotiation":"Record negotiation", "signedFileId":"Signed Storage file UUID"
   }
 } as const
