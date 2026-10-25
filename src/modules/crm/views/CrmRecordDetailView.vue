@@ -35,6 +35,19 @@ const drafts = reactive({
   summary: '',
 })
 const stages = ref<CrmRow[]>([])
+const haciendaSnapshots = ref<{ id: string; resolvedLegalName: string; verifiedAt: string }[]>([])
+const haciendaHistoryLoaded = ref(false)
+async function loadHaciendaHistory() {
+  if (section.value !== 'accounts' || !can('crm.account.read')) return
+  error.value = ''
+  try {
+    haciendaSnapshots.value = await crmRequest<
+      { id: string; resolvedLegalName: string; verifiedAt: string }[]>(
+      crmPath('accounts', id.value, 'hacienda/history'))
+    haciendaHistoryLoaded.value = true
+  } catch (e) { error.value = crmError(e) }
+}
+
 const can = (scope: string) => auth.hasScope(scope)
 const tabs = computed(() => {
   if (section.value === 'accounts') return ['contacts', 'addresses', 'trade-profiles', 'credit-profiles', 'credit-contracts', 'followup-policy']
@@ -288,6 +301,32 @@ onMounted(() => { if (crmEnabled()) void load() })
             </div>
           </template>
         </dl>
+      </section>
+
+      <section v-if="section === 'accounts' && (can('crm.account.read') || can('crm.account.read-all'))"
+        class="crm-panel space-y-3 p-4">
+        <h2 class="font-bold">{{ t('crm.hacienda.title') }}</h2>
+        <p class="text-sm">{{ t('crm.hacienda.status') }}: {{ record.verificationStatus || 'Pending' }}</p>
+        <p v-if="record.haciendaVerifiedAt" class="text-sm text-[var(--dh-text-muted)]">
+          {{ t('crm.hacienda.lastVerified') }}: {{ new Date(String(record.haciendaVerifiedAt)).toLocaleString() }}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <button v-if="can('crm.account.update') && record.taxId && record.countryId"
+            class="crm-action" :disabled="saving"
+            @click="perform('hacienda/retry',{ expectedVersion: version() },'crm.account.update')">
+            {{ t('crm.hacienda.retry') }}
+          </button>
+          <button class="crm-action" :disabled="loading" @click="loadHaciendaHistory">
+            {{ t('crm.hacienda.history') }}
+          </button>
+        </div>
+        <p class="text-xs text-[var(--dh-text-muted)]">{{ t('crm.hacienda.manualProtected') }}</p>
+        <div v-if="haciendaHistoryLoaded" class="space-y-2">
+          <p v-if="!haciendaSnapshots.length" class="text-sm">{{ t('common.noData') }}</p>
+          <p v-for="snapshot in haciendaSnapshots" :key="snapshot.id" class="text-sm">
+            {{ snapshot.resolvedLegalName }} · {{ new Date(snapshot.verifiedAt).toLocaleString() }}
+          </p>
+        </div>
       </section>
 
       <section v-if="section === 'leads' && can('crm.lead.convert')" class="crm-panel space-y-3 p-4">
