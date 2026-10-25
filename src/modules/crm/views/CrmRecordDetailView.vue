@@ -71,7 +71,13 @@ async function loadRelation() {
 async function load() {
   loading.value = true; error.value = ''; success.value = ''
   try {
-    record.value = await crmGet(section.value === 'settings' ? 'pipelines' : section.value, id.value)
+    if (section.value === 'settings') {
+      const list = await crmRequest<CrmRow[]>(crmPath('pipelines'))
+      record.value = list.find(x => x.id === id.value) ?? null
+      if (!record.value) throw new Error('Pipeline no encontrado')
+    } else {
+      record.value = await crmGet(section.value, id.value)
+    }
     if (section.value === 'opportunities') {
       const pipelineId = String(record.value.pipelineId ?? '')
       if (pipelineId) stages.value = await crmRequest<CrmRow[]>(crmPath('pipelines', pipelineId, 'stages'))

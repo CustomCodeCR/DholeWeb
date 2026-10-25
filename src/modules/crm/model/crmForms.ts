@@ -166,7 +166,7 @@ export function crmPayload(section: string, values: Record<string, unknown>,
     if (section === 'analyses') result.ownerUserId = null
     if (section === 'activities') { result.ownerUserId = null; result.occurredAt = null }
     if (section === 'accounts' || section === 'leads') result.executiveUserId = null
-    if (section === 'followups') throw new Error('El responsable del seguimiento debe seleccionarse con su UUID de Auth.')
+    if (section === 'followups') result.assignedUserId = values.assignedUserId || null
   }
   return result
 }
