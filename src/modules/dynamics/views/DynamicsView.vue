@@ -18,13 +18,14 @@ type Connection = {
   updatedAt: string
 }
 type DataverseHealth = { connected: boolean; applicationUserId: string; canReadQuotes: boolean }
-type Tab = 'connections' | 'catalog' | 'query' | 'automation' | 'crud' | 'security' | 'integrations' | 'operations' | 'audit'
+type Tab = 'quotes' | 'connections' | 'catalog' | 'query' | 'automation' | 'crud' | 'security' | 'integrations' | 'operations' | 'audit'
 
 const auth = useAuthStore()
 const canAdmin = computed(() => auth.hasScope('dynamics.admin') || auth.hasScope('dynamics.security.admin'))
 const canSecurity = computed(() => auth.hasScope('dynamics.security.admin'))
 const connections = ref<Connection[]>([])
-const activeTab = ref<Tab>('connections')
+// The daily workflow is the quote queue; advanced admin areas are secondary.
+const activeTab = ref<Tab>('quotes')
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -202,10 +203,11 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
     <template v-else>
       <div class="dynamics-workspace">
         <nav class="dynamics-nav" aria-label="Secciones de Dynamics">
-          <button v-for="tab in (['connections','catalog','query','automation','integrations','security','operations','audit'] as Tab[])" :key="tab" v-show="tab!=='security' || canSecurity" type="button"
+          <button v-for="tab in (['quotes','connections','catalog','query','automation','integrations','security','operations','audit'] as Tab[])" :key="tab" v-show="tab!=='security' || canSecurity" type="button"
             class="dynamics-nav-button" :class="{ active: activeTab === tab }" :aria-current="activeTab === tab ? 'page' : undefined"
             @click="activeTab=tab; if (tab==='operations' || tab==='audit') loadOperational(tab==='audit' ? 'audit' : 'overview')">
-            <Database v-if="tab==='connections'" :size="16" />
+            <Activity v-if="tab==='quotes'" :size="16" />
+            <Database v-else-if="tab==='connections'" :size="16" />
             <Search v-else-if="tab==='query'" :size="16" />
             <GitBranch v-else-if="tab==='automation'" :size="16" />
             <PenLine v-else-if="tab==='crud'" :size="16" />
@@ -213,7 +215,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
             <LockKeyhole v-else-if="tab==='security'" :size="16" />
             <Activity v-else-if="tab==='operations'" :size="16" />
             <ShieldCheck v-else :size="16" />
-            {{ { connections:'Conexiones', catalog:'Catálogo', query:'Query Builder', automation:'API CRUD', crud:'CRUD manual', integrations:'API / Integraciones', security:'Seguridad', operations:'Operación', audit:'Auditoría' }[tab] }}
+            {{ { quotes:'Cola de ofertas', connections:'Conexiones', catalog:'Catálogo', query:'Query Builder', automation:'API CRUD', crud:'CRUD manual', integrations:'API / Integraciones', security:'Seguridad', operations:'Monitor técnico', audit:'Auditoría' }[tab] }}
           </button>
         </nav>
 
@@ -226,7 +228,12 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
           <CheckCircle2 :size="19" /> {{ notice }}
         </div>
 
-        <template v-if="activeTab==='connections'">
+        <!-- The full commercial quote queue is the primary visible page.
+             Keep it mounted only in this tab so polling and actions do not
+             run behind hidden technical screens. -->
+        <DynamicsQuoteSyncIssues v-if="activeTab==='quotes'" />
+
+        <template v-else-if="activeTab==='connections'">
           <div class="dynamics-layout">
             <section class="dynamics-panel dynamics-connections">
               <div class="dynamics-panel-header">
@@ -319,7 +326,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
         <section v-else-if="activeTab==='operations' || activeTab==='audit'" class="dynamics-panel dynamics-operation-panel">
           <div class="dynamics-panel-header"><div>
             <p class="dynamics-section-label">MONITOREO</p>
-            <h2>{{ activeTab==='audit' ? 'Auditoría de Dynamics' : 'Operación del conector' }}</h2>
+            <h2>{{ activeTab==='audit' ? 'Auditoría de Dynamics' : 'Monitor técnico del conector' }}</h2>
             <p class="dynamics-subtitle">Consultá el estado de las operaciones y los registros de auditoría.</p>
           </div></div>
           <div class="dynamics-actions">
@@ -329,7 +336,7 @@ onMounted(() => { if (canAdmin.value) void refreshConnections() })
           </div>
           <p v-if="loading" class="dynamics-subtitle">Consultando...</p>
           <pre v-else class="dynamics-json">{{ output || 'Todavía no hay información disponible.' }}</pre>
-          <DynamicsQuoteSyncIssues v-if="activeTab==='operations'" />
+          <!-- The queue lives in its own first tab; this area is technical only. -->
         </section>
         <DynamicsCrudIntegrationWorkspace v-else-if="activeTab==='automation'" :connections="connections" @navigate="activeTab = $event" />
         <DynamicsDataWorkspace v-else :section="activeTab as 'catalog' | 'query' | 'crud' | 'security' | 'integrations'" :connections="connections" @navigate="activeTab = $event" />
