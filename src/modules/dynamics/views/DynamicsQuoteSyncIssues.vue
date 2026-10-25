@@ -136,6 +136,8 @@ type TrackedDelivery = {
     providerCode?: string
     httpStatus?: number | null
     postAttempted?: boolean
+    lookupInput?: string | null
+    lookupSearchField?: string | null
     message?: string
   } | null
   createdAtUtc?: string
@@ -716,10 +718,21 @@ onUnmounted(() => {
           class="quote-sync-error-detail" role="alert">
           {{ trackedDelivery.lastError || trackedDelivery.error?.message }}
         </p>
+        <p v-if="trackedDelivery.error?.providerCode === 'quote_text_exceeds_dataverse_limit'"
+          class="quote-sync-meta">
+          Validación anterior a crear la cabecera. No se envió una QUO a Dataverse.
+          <template v-if="trackedDelivery.error?.lookupInput">
+            Campo excedido: <code>{{ trackedDelivery.error.lookupInput }}</code>
+            · Límite: MaxLength del campo en Dynamics
+          </template>
+          Corregido el texto, usá «Reintentar sin duplicar» sobre esta revisión.
+        </p>
         <p v-if="trackedDelivery.status === 'Completed'" class="quote-sync-meta">
           El conector informó la operación como completada. Verificá los identificadores de cabecera y línea en Dataverse antes de dar por creada la QUO.
         </p>
-        <p v-else-if="trackedDelivery.status === 'NeedsAttention' && trackedDelivery.error?.postAttempted"
+        <p v-else-if="trackedDelivery.status === 'NeedsAttention' &&
+          trackedDelivery.error?.postAttempted &&
+          trackedDelivery.error?.providerCode !== 'quote_text_exceeds_dataverse_limit'"
           class="quote-sync-error-detail">
           El envío a Dynamics pudo haberse ejecutado. Consultá «Verificar en Dynamics» en el registro inferior; no generés un nuevo intento sin conciliarlo.
         </p>
@@ -1047,7 +1060,12 @@ onUnmounted(() => {
               (revisión actual: {{ issue.currentRateRevision }})
             </template>
           </p>
-          <p v-if="issue.error?.lookupInput" class="quote-sync-meta">
+          <p v-if="issue.error?.lookupInput && issue.error?.providerCode === 'quote_text_exceeds_dataverse_limit'"
+            class="quote-sync-meta">
+            Texto excedido en Dynamics: <code>{{ issue.error.lookupInput }}</code>
+            · Se valida contra MaxLength del campo, sin modificar la tarifa original.
+          </p>
+          <p v-else-if="issue.error?.lookupInput" class="quote-sync-meta">
             Relación sin resolver: <code>{{ issue.error.lookupInput }}</code>
             <template v-if="issue.error.lookupSearchField">
               · Campo de búsqueda: <code>{{ issue.error.lookupSearchField }}</code>
