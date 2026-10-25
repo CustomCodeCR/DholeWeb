@@ -7,11 +7,12 @@ import { CRM_MODULES, crmDefaults, crmPayload, type CrmSection } from '../model/
 import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
   crmRequest, crmUuid, crmPath, fromUtc, type CrmRow } from '../services/crmApi'
 import { crmSectionScope } from '../model/crmForms'
+import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const section = computed(() => String(route.meta.crmSection || 'dashboard') as CrmSection)
 const model = computed(() => CRM_MODULES[section.value])
 const can = (scope: string) => auth.hasScope(scope)
@@ -170,6 +171,8 @@ async function changeStage(item: CrmRow, stageId: string) {
 }
 const stages = computed(() => pipelineStages.value.filter(x => x.isActive !== false))
 const kanbanRows = (stageId: string) => rows.value.filter(x => x.stageId === stageId)
+const agendaDays = computed(() => crmAgendaDays(new Date(), locale.value === 'en' ? 'en-US' : 'es-CR'))
+const agendaForDay = (dateKey: string) => crmAgendaRecordsForDay(rows.value, dateKey)
 const financeAllowed = computed(() =>
   financeTab.value === 'credit' ? can('crm.credit.read') : can('crm.contract.read'))
 watch([section, financeTab, pipelineId], () => { page.value = 1; showForm.value = false; void load() })
@@ -266,10 +269,10 @@ onMounted(() => { if (allowed.value) void load() })
       <div v-else-if="section === 'activities' || section === 'followups' ? viewMode === 'week' : false"
         class="crm-card space-y-3 p-4">
         <h2 class="text-lg font-bold">{{ t('crm.week') }}</h2>
-        <div v-for="day in 7" :key="day" class="border-b border-[var(--dh-border)] pb-2">
-          <h3 class="text-sm font-bold">{{ new Date(Date.now() + (day-1)*86400000).toLocaleDateString() }}</h3>
-          <button v-for="item in rows.filter(x=>String(x.scheduledStartAt??x.dueAt??'').startsWith(
-            new Date(Date.now()+(day-1)*86400000).toISOString().slice(0,10)))" :key="item.id"
+        <p v-if="total > rows.length" class="text-sm text-amber-700" role="status">{{ t('crm.partialAgenda', { loaded: rows.length, total }) }}</p>
+        <div v-for="day in agendaDays" :key="day.dateKey" class="border-b border-[var(--dh-border)] pb-2">
+          <h3 class="text-sm font-bold">{{ day.label }}</h3>
+          <button v-for="item in agendaForDay(day.dateKey)" :key="item.id"
             class="block text-sm underline" @click="details(item)">{{ item.subject ?? item.channel }}</button>
         </div>
       </div>
