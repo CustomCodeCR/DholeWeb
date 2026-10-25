@@ -197,6 +197,8 @@ const checkingWrites = ref(false)
 const ledgerByRate = ref<Record<string, QuoteLedger>>({})
 const ledgerErrors = ref<Record<string, string>>({})
 const checkingLedgerRateId = ref<string | null>(null)
+const reconcilingRateId = ref<string | null>(null)
+const reconcileMessages = ref<Record<string,string>>({})
 const recoveringRateId = ref<string | null>(null)
 const recoveryOpenedRateId = ref<string | null>(null)
 const recoveryReason = ref<Record<string,string>>({})
@@ -236,6 +238,33 @@ async function recoverRejected(issue: QuoteIssue) {
   }
 }
 
+
+async function reconcileConfirmed(issue: QuoteIssue) {
+  const ledger = ledgerByRate.value[issue.rateId]
+  if (!isAdministrator.value || reconcilingRateId.value ||
+      issue.status !== 'NeedsAttention' ||
+      ledger?.header.status !== 'succeeded' || !ledger.header.recordId ||
+      ledger?.total.status !== 'succeeded' || !ledger.total.recordId) return
+  reconcilingRateId.value = issue.rateId
+  reconcileMessages.value = { ...reconcileMessages.value, [issue.rateId]: '' }
+  try {
+    const result = await fetchClient<{ status: string; message: string }>(
+      '/api/pricing/rates/' + encodeURIComponent(issue.rateId) +
+        '/dynamics-sync/reconcile-confirmed', { method: 'POST' })
+    reconcileMessages.value = { ...reconcileMessages.value,
+      [issue.rateId]: result.message ||
+        'QUO y línea conciliadas contra el historial sin reenviar a Dynamics.' }
+    await refresh()
+  } catch (error) {
+    reconcileMessages.value = { ...reconcileMessages.value,
+      [issue.rateId]: error instanceof ApiError
+        ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error)
+        : error instanceof Error ? error.message :
+          'No se pudo confirmar la QUO en el historial. No se modificó la tarifa.' }
+  } finally {
+    reconcilingRateId.value = null
+  }
+}
 
 async function verifyQuoteLedger(issue: QuoteIssue) {
   if (!isAdministrator.value || checkingLedgerRateId.value) return
@@ -661,6 +690,19 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
             <SearchCheck :size="15" />
             {{ checkingLedgerRateId === issue.rateId ? 'Verificando...' : 'Verificar en Dynamics' }}
           </button>
+          <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
+              ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+              ledgerByRate[issue.rateId]?.header.recordId &&
+              ledgerByRate[issue.rateId]?.total.status === 'succeeded' &&
+              ledgerByRate[issue.rateId]?.total.recordId"
+            type="button" class="dynamics-primary-button"
+            :disabled="Boolean(reconcilingRateId)" @click="reconcileConfirmed(issue)">
+            <CheckCircle2 :size="15" />
+            {{ reconcilingRateId === issue.rateId ? 'Conciliando...' : 'Confirmar QUO ya creada (sin duplicar)' }}
+          </button>
+          <p v-if="reconcileMessages[issue.rateId]" class="quote-sync-meta" role="status">
+            {{ reconcileMessages[issue.rateId] }}
+          </p>
           <button type="button" class="dynamics-primary-button" :disabled="Boolean(diagnosingRateId)" @click="diagnose(issue.rateId)">
             <SearchCheck :size="15" />
             {{ diagnosingRateId === issue.rateId ? 'Diagnóstico en curso...' : 'Diagnosticar' }}
