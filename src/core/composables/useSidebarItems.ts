@@ -28,6 +28,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
+import { crmEnabled } from '@/modules/crm/services/crmApi'
 
 export interface SidebarItem {
   labelKey: string
@@ -71,6 +72,20 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         to: '/dynamics',
         name: 'dynamics-connections',
         requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'],
+      },
+      {
+        labelKey: 'crm.title', icon: Users, name: 'crm-root',
+        children: [
+          { labelKey: 'crm.nav.dashboard', icon: LayoutDashboard, to: '/crm/dashboard', name: 'crm-dashboard', requiredAnyScopes: ['crm.account.read', 'crm.lead.read', 'crm.opportunity.read', 'crm.activity.read'] },
+          { labelKey: 'crm.nav.accounts', icon: LayoutDashboard, to: '/crm/accounts', name: 'crm-accounts', requiredAnyScopes: ['crm.account.read', 'crm.account.read-all'] },
+          { labelKey: 'crm.nav.leads', icon: LayoutDashboard, to: '/crm/leads', name: 'crm-leads', requiredAnyScopes: ['crm.lead.read', 'crm.lead.read-all'] },
+          { labelKey: 'crm.nav.opportunities', icon: LayoutDashboard, to: '/crm/opportunities', name: 'crm-opportunities', requiredAnyScopes: ['crm.opportunity.read', 'crm.opportunity.read-all'] },
+          { labelKey: 'crm.nav.activities', icon: LayoutDashboard, to: '/crm/activities', name: 'crm-activities', requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
+          { labelKey: 'crm.nav.followups', icon: LayoutDashboard, to: '/crm/followups', name: 'crm-followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
+          { labelKey: 'crm.nav.analyses', icon: LayoutDashboard, to: '/crm/analyses', name: 'crm-analyses', requiredAnyScopes: ['crm.analysis.read', 'crm.analysis.manage'] },
+          { labelKey: 'crm.nav.finance', icon: LayoutDashboard, to: '/crm/finance', name: 'crm-finance', requiredAnyScopes: ['crm.credit.read', 'crm.contract.read'] },
+          { labelKey: 'crm.nav.settings', icon: LayoutDashboard, to: '/crm/settings', name: 'crm-settings', requiredAnyScopes: ['crm.settings.manage'] },
+        ],
       },
       {
         labelKey: 'sidebar.security',
@@ -345,6 +360,7 @@ function mapItem(
   t: (key: string) => string,
   authStore: ReturnType<typeof useAuthStore>,
 ): SidebarItemView | null {
+  if (item.name === 'crm-root' && !crmEnabled()) return null
   if (item.requiredScope && !authStore.hasScope(item.requiredScope)) {
     return null
   }
