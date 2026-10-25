@@ -192,6 +192,13 @@ export const router = createRouter({
         },
 
         {
+          path: 'crm/contacts/:id',
+          name: 'crm-contact-detail',
+          component: () => import('@/modules/crm/views/CrmContactDetailView.vue'),
+          meta: { tabTitleKey: 'crm.contactDetails', closable: true,
+            requiredScope: 'crm.contact.read' },
+        },
+        {
           path: 'auth/users',
           name: 'auth-users',
           component: () => import('@/modules/users/views/UsersView.vue'),

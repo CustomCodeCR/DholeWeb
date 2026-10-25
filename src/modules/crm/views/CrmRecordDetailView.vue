@@ -280,6 +280,10 @@ onMounted(() => { if (crmEnabled()) void load() })
         <div v-if="!relationRows.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('common.noData') }}</div>
         <div v-for="item in relationRows" :key="item.id" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">
           <p class="font-bold">{{ item.name ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.id }}</p>
+          <button v-if="relation==='contacts' && section==='accounts' && can('crm.contact.read')"
+            type="button" class="crm-action mt-2" @click="router.push('/crm/contacts/'+encodeURIComponent(item.id))">
+            {{ t('common.details') }}
+          </button>
           <p class="text-[var(--dh-text-muted)]">{{ item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot ?? '' }}</p>
         </div>
         <form v-if="section==='accounts' && relation==='contacts' && can('crm.contact.create')"

@@ -76,7 +76,14 @@ export const crmMessages = {
     "stageName": "Nombre de etapa",
     "addStage": "Crear etapa",
     "assignedUser": "Responsable (Auth UUID)",
-    "leaveDuringSave": "La operación aún se está guardando. ¿Salir?"
+    "leaveDuringSave": "La operación aún se está guardando. ¿Salir?",
+    "contactDetails": "Contacto CRM",
+    "jobTitle": "Puesto", "phone": "Teléfono", "contactPreferences": "Preferencias de contacto",
+    "preferredChannel": "Canal preferido", "timezone": "Zona horaria", "frequencyDays": "Frecuencia en días",
+    "preferredDays": "Días permitidos (máscara)", "startHour": "Desde", "endHour": "Hasta",
+    "doNotContact": "No contactar", "consentHistory": "Historial de consentimiento",
+    "evidence": "Evidencia obligatoria si acepta", "consentSource": "Origen de consentimiento",
+    "registerConsent": "Registrar consentimiento", "consentEvidence": "El consentimiento afirmativo requiere evidencia."
   },
   "en": {
     "title": "CRM · Commercial management",
@@ -155,6 +162,13 @@ export const crmMessages = {
     "stageName": "Stage name",
     "addStage": "Create stage",
     "assignedUser": "Assigned user (Auth UUID)",
-    "leaveDuringSave": "Save is in progress. Leave anyway?"
+    "leaveDuringSave": "Save is in progress. Leave anyway?",
+    "contactDetails": "CRM contact", "jobTitle": "Job title", "phone": "Phone",
+    "contactPreferences": "Contact preferences", "preferredChannel": "Preferred channel",
+    "timezone": "Time zone", "frequencyDays": "Contact frequency (days)",
+    "preferredDays": "Allowed days (mask)", "startHour": "From", "endHour": "Until",
+    "doNotContact": "Do not contact", "consentHistory": "Consent history",
+    "evidence": "Opt-in evidence required", "consentSource": "Consent source",
+    "registerConsent": "Record consent", "consentEvidence": "Affirmative opt-in requires evidence."
   }
 } as const
