@@ -18,10 +18,40 @@ type QuoteLedger = {
   revisionNumber: number
   header: LedgerEntry
   total: LedgerEntry
+  live?: {
+    headerExists: boolean | null
+    headerStatus: string
+    detailExists: boolean | null
+    detailStatus: string
+    confirmed: boolean
+  }
   noPostExecuted: boolean
 }
 
 type QuoteIssue = {
+  rate?: {
+    rateCode?: string | null
+    rateName?: string | null
+    clientName?: string | null
+    executiveName?: string | null
+    idtraNumber?: string | null
+    shipmentMode?: string | null
+    incotermName?: string | null
+    polName?: string | null
+    poeName?: string | null
+    podName?: string | null
+    currencyCode?: string | null
+    totalSaleAmount?: number | null
+    totalCostAmount?: number | null
+    totalUtilityAmount?: number | null
+  }
+  crm?: {
+    quoteId: string | null
+    lineId: string | null
+    connectorRecordedSuccess: boolean
+    liveDataverseVerified: boolean
+    verification: string
+  }
   rateId: string
   revisionNumber: number
   status: string
@@ -197,6 +227,32 @@ type QueueSummary = {
 const emptyQueue = (): QueueSummary => ({
   pending: 0, processing: 0, retry: 0, needsAttention: 0, completed: 0,
 })
+const statusFilter = ref<'active' | 'completed' | 'attention' | 'all'>('active')
+const rateSearch = ref('')
+const visibleIssues = computed(() => {
+  const search = rateSearch.value.trim().toLocaleLowerCase()
+  return issues.value.filter(issue => {
+    if (statusFilter.value === 'active' && issue.status === 'Completed') return false
+    if (statusFilter.value === 'completed' && issue.status !== 'Completed') return false
+    if (statusFilter.value === 'attention' && issue.status !== 'NeedsAttention') return false
+    if (!search) return true
+    return [issue.rateId, issue.rate?.rateCode, issue.rate?.rateName,
+      issue.rate?.clientName, issue.rate?.idtraNumber, issue.rate?.executiveName]
+      .some(value => (value || '').toLocaleLowerCase().includes(search))
+  })
+})
+function money(amount?: number | null, currency = 'USD'): string {
+  return amount == null ? '—' : new Intl.NumberFormat('es-CR', {
+    style: 'currency', currency, maximumFractionDigits: 2,
+  }).format(amount)
+}
+function quoteUrl(value?: string | null): string | null {
+  if (!value || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(value))
+    return null
+  // Tenant hostname is fixed and is not based on user or response-controlled input.
+  return 'https://sibaja07.crm.dynamics.com/main.aspx?pagetype=entityrecord&etn=quote&id=' +
+    encodeURIComponent(value)
+}
 const issues = ref<QuoteIssue[]>([])
 const queueSummary = ref<QueueSummary>(emptyQueue())
 const lastQueueUpdate = ref<string | null>(null)
@@ -587,6 +643,17 @@ onUnmounted(() => {
         <strong>Envíos pausados:</strong> {{ writeReadiness.message }}
       </template>
     </p>
+    <div class="quote-sync-toolbar" role="search" aria-label="Buscar sincronizaciones">
+      <input v-model="rateSearch" type="search" placeholder="Buscar QUO, cliente, IDTRA o tarifa…"
+        aria-label="Buscar QUO, cliente o IDTRA" />
+      <select v-model="statusFilter" aria-label="Filtrar estado de sincronización">
+        <option value="active">Pendientes y errores</option>
+        <option value="attention">Solo con error</option>
+        <option value="completed">Completadas</option>
+        <option value="all">Todas</option>
+      </select>
+      <span class="quote-sync-meta">{{ visibleIssues.length }} resultados</span>
+    </div>
     <p v-if="loadError" class="quote-sync-message quote-sync-error" role="alert">
       <AlertCircle :size="16" /> {{ loadError }}
     </p>
@@ -594,28 +661,52 @@ onUnmounted(() => {
       <RefreshCw :size="22" class="animate-spin" />
       <span>Consultando la cola de Dynamics...</span>
     </div>
-    <p v-else-if="!issues.length" class="quote-sync-message quote-sync-ok">
-      <CheckCircle2 :size="17" /> No hay trabajos de sincronización registrados en la consulta.
+    <p v-else-if="!visibleIssues.length" class="quote-sync-message">
+      No hay cotizaciones para el filtro actual. Las completadas siguen disponibles en «Completadas» y «Todas».
     </p>
     <div v-else class="quote-sync-list">
-      <article v-for="issue in issues" :key="`${issue.rateId}-${issue.revisionNumber}`" class="quote-sync-item">
+      <article v-for="issue in visibleIssues" :key="`${issue.rateId}-${issue.revisionNumber}`" class="quote-sync-item">
         <div class="quote-sync-main">
           <div class="quote-sync-head">
-            <strong class="quote-sync-id">Tarifa {{ issue.rateId }}</strong>
+            <strong class="quote-sync-id">{{ issue.rate?.rateCode || issue.rate?.rateName || ('Tarifa ' + issue.rateId) }}</strong>
             <span class="quote-sync-state">{{ syncStateLabel(issue.status) }}</span>
           </div>
+          <p class="quote-sync-client">
+            {{ issue.rate?.clientName || 'Cliente no disponible en la revisión registrada' }}
+          </p>
+          <p class="quote-sync-meta">
+            {{ [issue.rate?.shipmentMode, issue.rate?.incotermName].filter(Boolean).join(' · ') }}
+            <template v-if="issue.rate?.polName"> ·
+              {{ [issue.rate.polName, issue.rate?.poeName, issue.rate?.podName].filter(Boolean).join(' → ') }}
+            </template>
+          </p>
+          <p class="quote-sync-meta">
+            IDTRA: <strong>{{ issue.rate?.idtraNumber || 'Sin IDTRA en el snapshot' }}</strong>
+            · Ejecutivo: {{ issue.rate?.executiveName || '—' }}
+          </p>
+          <p class="quote-sync-meta">
+            Venta: {{ money(issue.rate?.totalSaleAmount, issue.rate?.currencyCode || 'USD') }}
+            · Costo: {{ money(issue.rate?.totalCostAmount, issue.rate?.currencyCode || 'USD') }}
+            · Utilidad: {{ money(issue.rate?.totalUtilityAmount, issue.rate?.currencyCode || 'USD') }}
+          </p>
           <p class="quote-sync-meta">Revisión {{ issue.revisionNumber }} · {{ issue.attempts }} intento{{ issue.attempts === 1 ? '' : 's' }}
             <span v-if="issue.error?.stage"> · Etapa: {{ issue.error.stage }}</span>
             <span v-if="issue.error?.httpStatus"> · HTTP {{ issue.error.httpStatus }}</span>
           </p>
           <p v-if="issue.status === 'Pending'" class="quote-sync-meta">Pendiente de ser tomada por el worker. Todavía no hay confirmación de Dynamics.</p>
           <p v-else-if="issue.status === 'Processing'" class="quote-sync-meta">Operación en ejecución. La creación y su línea de venta aún deben confirmarse.</p>
-          <p v-else-if="issue.status === 'Completed'" class="quote-sync-ok quote-sync-meta">
-            El conector confirmó la creación. Completada: {{ dateTimeLabel(issue.completedAtUtc) }}.
+          <p v-else-if="issue.status === 'Completed'" class="quote-sync-meta">
+            <strong>Completada en el registro del conector.</strong>
+            Se requiere verificación de lectura en Dynamics para confirmar la existencia real.
+            Finalizada: {{ dateTimeLabel(issue.completedAtUtc) }}.
           </p>
           <p v-else-if="issue.status === 'Retry'" class="quote-sync-meta">
             Próximo intento: {{ dateTimeLabel(issue.nextAttemptAtUtc) }}.
             No se genera una clave de idempotencia nueva.
+          </p>
+          <p v-if="issue.crm?.quoteId" class="quote-sync-meta">
+            Identificador CRM: <code>{{ issue.crm.quoteId }}</code>
+            · Línea: <code>{{ issue.crm.lineId || 'No confirmada' }}</code>
           </p>
           <p v-if="issue.status === 'NeedsAttention' || issue.status === 'Retry'"
             class="quote-sync-error-detail">{{ issue.lastError || issue.error?.message || 'Sin detalle del error anterior.' }}</p>
@@ -650,6 +741,20 @@ onUnmounted(() => {
               </p>
               <p v-else>Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
                 y <code>...-total</code> en el registro de idempotencia de Dynamics antes de volver a enviar.</p>
+            </div>
+          </div>
+          <div v-if="ledgerByRate[issue.rateId]?.live" class="quote-sync-diagnosis"
+            role="status">
+            <CheckCircle2 v-if="ledgerByRate[issue.rateId]?.live?.confirmed" :size="16" />
+            <AlertCircle v-else :size="16" />
+            <div>
+              <strong>{{ ledgerByRate[issue.rateId]?.live?.confirmed
+                ? 'Existencia verificada directamente en Dynamics'
+                : 'Existencia en Dynamics no confirmada' }}</strong>
+              <p>Cabecera: {{ ledgerByRate[issue.rateId]?.live?.headerStatus }} ·
+                Línea: {{ ledgerByRate[issue.rateId]?.live?.detailStatus }}</p>
+              <p>Si falta permiso de lectura, el resultado es desconocido,
+                no una confirmación de que el registro no exista.</p>
             </div>
           </div>
           <div v-if="ledgerByRate[issue.rateId]" class="quote-sync-diagnosis" role="status">
@@ -760,13 +865,18 @@ onUnmounted(() => {
           <RouterLink class="dynamics-outline-button" :to="{ path: '/pricing/rates', query: { rateId: issue.rateId } }">
             <ExternalLink :size="15" /> Ver tarifa
           </RouterLink>
-          <button v-if="isAdministrator && issue.error?.httpStatus === 409 &&
-              issue.error?.postAttempted" type="button"
+          <button v-if="isAdministrator && (issue.status === 'Completed' ||
+              issue.status === 'NeedsAttention' || issue.status === 'Retry')" type="button"
             class="dynamics-outline-button" :disabled="Boolean(checkingLedgerRateId)"
             @click="verifyQuoteLedger(issue)">
             <SearchCheck :size="15" />
             {{ checkingLedgerRateId === issue.rateId ? 'Verificando...' : 'Verificar en Dynamics' }}
           </button>
+          <a v-if="quoteUrl(ledgerByRate[issue.rateId]?.header.recordId || issue.crm?.quoteId)"
+            :href="quoteUrl(ledgerByRate[issue.rateId]?.header.recordId || issue.crm?.quoteId) || undefined"
+            target="_blank" rel="noopener noreferrer" class="dynamics-outline-button">
+            <ExternalLink :size="15" /> Abrir registro en Dynamics
+          </a>
           <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
               ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
               ledgerByRate[issue.rateId]?.header.recordId &&
@@ -821,6 +931,11 @@ onUnmounted(() => {
 
 .quote-sync-panel{margin-top:18px}
 .quote-sync-list{display:grid;gap:12px}
+.quote-sync-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:16px 0}
+.quote-sync-toolbar input,.quote-sync-toolbar select{background:var(--dh-card);color:var(--dh-text);border:1px solid var(--dh-border);border-radius:9px;padding:10px 12px}
+.quote-sync-toolbar input{flex:1;min-width:210px}
+.quote-sync-client{font-size:14px;font-weight:650;margin:8px 0 5px}
+
 .quote-sync-queue-stats{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:10px;margin:14px 0}
 .quote-sync-queue-stats>div{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--dh-border);border-radius:12px;background:var(--dh-card)}
 .quote-sync-queue-stats strong{font-size:22px;font-variant-numeric:tabular-nums}
