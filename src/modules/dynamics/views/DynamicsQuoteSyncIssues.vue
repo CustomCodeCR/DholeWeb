@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { AlertCircle, CheckCircle2, ExternalLink, RefreshCw, SearchCheck } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
@@ -39,6 +39,8 @@ type QuoteIssue = {
     lookupSearchField?: string | null
   } | null
   createdAtUtc?: string
+  nextAttemptAtUtc?: string | null
+  completedAtUtc?: string | null
   currentRateRevision?: number | null
   retryBlockReason?: string | null
 }
@@ -185,7 +187,35 @@ async function grantQuoteTotal() {
   }
 }
 
+type QueueSummary = {
+  pending: number
+  processing: number
+  retry: number
+  needsAttention: number
+  completed: number
+}
+const emptyQueue = (): QueueSummary => ({
+  pending: 0, processing: 0, retry: 0, needsAttention: 0, completed: 0,
+})
 const issues = ref<QuoteIssue[]>([])
+const queueSummary = ref<QueueSummary>(emptyQueue())
+const lastQueueUpdate = ref<string | null>(null)
+let queueRefreshTimer: ReturnType<typeof setInterval> | null = null
+let readinessRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+function syncStateLabel(status: string): string {
+  switch (status) {
+    case 'Pending': return 'En cola'
+    case 'Processing': return 'Enviando a Dynamics'
+    case 'Retry': return 'Reintento programado'
+    case 'NeedsAttention': return 'Requiere atención'
+    case 'Completed': return 'Confirmada en Dynamics'
+    default: return status
+  }
+}
+function dateTimeLabel(value?: string | null): string {
+  return value ? new Date(value).toLocaleString() : '—'
+}
 const loading = ref(false)
 const loadError = ref('')
 const diagnosingRateId = ref<string | null>(null)
@@ -376,10 +406,13 @@ async function refresh() {
   try {
     const response = await callEndpoint<unknown>({
       method: 'GET',
-      path: '/api/pricing/rates/dynamics-sync/issues',
+      path: '/api/pricing/rates/dynamics-sync/queue',
     })
-    const result = unwrapApiResponse<{ issues: QuoteIssue[] }>(response as never)
+    const result = unwrapApiResponse<{ issues: QuoteIssue[], queue: QueueSummary,
+      refreshedAtUtc: string }>(response as never)
     issues.value = Array.isArray(result?.issues) ? result.issues : []
+    queueSummary.value = result?.queue ?? emptyQueue()
+    lastQueueUpdate.value = result?.refreshedAtUtc ?? null
   } catch {
     loadError.value = 'No fue posible consultar las incidencias de Pricing. Verificá tus permisos o la conexión del servicio.'
   } finally {
@@ -409,7 +442,20 @@ async function diagnose(rateId: string) {
   }
 }
 
-onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness() })
+onMounted(() => {
+  void refresh()
+  void loadQuoteKeys()
+  void checkWriteReadiness()
+  // Lightweight near-live queue monitoring without submitting another QUO.
+  // Clear both timers when leaving this view.
+  queueRefreshTimer = setInterval(() => { void refresh() }, 3000)
+  if (isAdministrator.value)
+    readinessRefreshTimer = setInterval(() => { void checkWriteReadiness() }, 20000)
+})
+onUnmounted(() => {
+  if (queueRefreshTimer !== null) clearInterval(queueRefreshTimer)
+  if (readinessRefreshTimer !== null) clearInterval(readinessRefreshTimer)
+})
 </script>
 
 <template>
@@ -417,9 +463,10 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
     <div class="dynamics-panel-header">
       <div>
         <p class="dynamics-section-label">SINCRONIZACIÓN · PRICING → DYNAMICS 365</p>
-        <h2>Incidencias de ofertas</h2>
+        <h2>Cola y sincronización de ofertas</h2>
         <p class="dynamics-subtitle">
-          Revisá los errores de creación de Quotes y validá el mapeo sin enviar operaciones nuevas a Dataverse.
+          Consultá en vivo las ofertas en cola, en proceso, confirmadas y con errores.
+          Esta pantalla solo consulta estados y no crea QUO.
         </p>
       </div>
       <button type="button" class="dynamics-outline-button" :disabled="loading" @click="refresh">
@@ -525,29 +572,57 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
       <p v-if="enqueueFeedback" class="quote-sync-ok" role="status">{{ enqueueFeedback }}</p>
     </div>
 
+    <div class="quote-sync-queue-stats" aria-label="Resumen de sincronizaciones">
+      <div><strong>{{ queueSummary.pending }}</strong><span>En cola</span></div>
+      <div><strong>{{ queueSummary.processing }}</strong><span>Procesando</span></div>
+      <div><strong>{{ queueSummary.retry }}</strong><span>Reintentos</span></div>
+      <div><strong>{{ queueSummary.needsAttention }}</strong><span>Con error</span></div>
+      <div><strong>{{ queueSummary.completed }}</strong><span>Confirmadas (total)</span></div>
+    </div>
+    <p class="quote-sync-meta" role="status">
+      Actualización automática cada 3 segundos · Última consulta:
+      {{ dateTimeLabel(lastQueueUpdate) }} · Se muestran trabajos activos recientes
+      y las últimas 25 sincronizaciones completadas.
+      <template v-if="writeReadiness && !writeReadiness.ready">
+        <strong>Envíos pausados:</strong> {{ writeReadiness.message }}
+      </template>
+    </p>
     <p v-if="loadError" class="quote-sync-message quote-sync-error" role="alert">
       <AlertCircle :size="16" /> {{ loadError }}
     </p>
     <div v-else-if="loading && !issues.length" class="dynamics-empty">
       <RefreshCw :size="22" class="animate-spin" />
-      <span>Consultando incidencias de las cotizaciones...</span>
+      <span>Consultando la cola de Dynamics...</span>
     </div>
     <p v-else-if="!issues.length" class="quote-sync-message quote-sync-ok">
-      <CheckCircle2 :size="17" /> No hay incidencias de sincronización pendientes.
+      <CheckCircle2 :size="17" /> No hay trabajos de sincronización registrados en la consulta.
     </p>
     <div v-else class="quote-sync-list">
       <article v-for="issue in issues" :key="`${issue.rateId}-${issue.revisionNumber}`" class="quote-sync-item">
         <div class="quote-sync-main">
           <div class="quote-sync-head">
             <strong class="quote-sync-id">Tarifa {{ issue.rateId }}</strong>
-            <span class="quote-sync-state">{{ issue.status === 'NeedsAttention' ? 'Requiere atención' : 'Reintento pendiente' }}</span>
+            <span class="quote-sync-state">{{ syncStateLabel(issue.status) }}</span>
           </div>
           <p class="quote-sync-meta">Revisión {{ issue.revisionNumber }} · {{ issue.attempts }} intento{{ issue.attempts === 1 ? '' : 's' }}
             <span v-if="issue.error?.stage"> · Etapa: {{ issue.error.stage }}</span>
             <span v-if="issue.error?.httpStatus"> · HTTP {{ issue.error.httpStatus }}</span>
           </p>
-          <p class="quote-sync-error-detail">{{ issue.lastError || issue.error?.message || 'Error anterior sin detalle registrado. Usá Diagnosticar.' }}</p>
-          <p v-if="issue.error?.providerCode" class="quote-sync-meta">Código del proveedor: {{ issue.error.providerCode }}</p>
+          <p v-if="issue.status === 'Pending'" class="quote-sync-meta">Pendiente de ser tomada por el worker. Todavía no hay confirmación de Dynamics.</p>
+          <p v-else-if="issue.status === 'Processing'" class="quote-sync-meta">Operación en ejecución. La creación y su línea de venta aún deben confirmarse.</p>
+          <p v-else-if="issue.status === 'Completed'" class="quote-sync-ok quote-sync-meta">
+            El conector confirmó la creación. Completada: {{ dateTimeLabel(issue.completedAtUtc) }}.
+          </p>
+          <p v-else-if="issue.status === 'Retry'" class="quote-sync-meta">
+            Próximo intento: {{ dateTimeLabel(issue.nextAttemptAtUtc) }}.
+            No se genera una clave de idempotencia nueva.
+          </p>
+          <p v-if="issue.status === 'NeedsAttention' || issue.status === 'Retry'"
+            class="quote-sync-error-detail">{{ issue.lastError || issue.error?.message || 'Sin detalle del error anterior.' }}</p>
+          <p v-if="(issue.status === 'NeedsAttention' || issue.status === 'Retry') &&
+            issue.error?.providerCode" class="quote-sync-meta">
+            Código del proveedor: {{ issue.error.providerCode }}
+          </p>
           <div v-if="issue.error?.httpStatus === 409 && issue.error?.postAttempted"
             class="quote-sync-diagnosis" role="alert">
             <AlertCircle :size="17" />
@@ -705,7 +780,9 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
           <p v-if="reconcileMessages[issue.rateId]" class="quote-sync-meta" role="status">
             {{ reconcileMessages[issue.rateId] }}
           </p>
-          <button type="button" class="dynamics-primary-button" :disabled="Boolean(diagnosingRateId)" @click="diagnose(issue.rateId)">
+          <button v-if="issue.status === 'NeedsAttention' || issue.status === 'Retry'"
+            type="button" class="dynamics-primary-button"
+            :disabled="Boolean(diagnosingRateId)" @click="diagnose(issue.rateId)">
             <SearchCheck :size="15" />
             {{ diagnosingRateId === issue.rateId ? 'Diagnóstico en curso...' : 'Diagnosticar' }}
           </button>
@@ -744,6 +821,11 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
 
 .quote-sync-panel{margin-top:18px}
 .quote-sync-list{display:grid;gap:12px}
+.quote-sync-queue-stats{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:10px;margin:14px 0}
+.quote-sync-queue-stats>div{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--dh-border);border-radius:12px;background:var(--dh-card)}
+.quote-sync-queue-stats strong{font-size:22px;font-variant-numeric:tabular-nums}
+.quote-sync-queue-stats span{font-size:12px;color:var(--dh-text-muted)}
+@media(max-width:850px){.quote-sync-queue-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .quote-sync-item{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:17px;border:1px solid var(--dh-border);border-radius:16px;background:var(--dh-card)}
 .quote-sync-main{min-width:0;flex:1}
 .quote-sync-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
