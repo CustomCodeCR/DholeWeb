@@ -27,7 +27,11 @@ const drafts = reactive({
   polCode: '', poeCode: '', podCode: '', creditDays: '30', creditLimit: '0',
   monthlyFinancingPct: '0', currencyCode: 'USD', paymentConditions: '',
   contractNumber: '', renewalDate: '', expiryDate: '', startDate: '',
-  marketCode: 'OTHER', decisionRole: 'INFLUENCER',
+  marketCode: 'OTHER', decisionRole: 'INFLUENCER', fileId: '', timezoneId: 'America/Costa_Rica',
+  channelStrategy: 'BOTH', frequencyDays: '7', reminderLeadMinutes: '60',
+  assignedUserId: String(auth.userId || ''), operationId: crmUuid(),
+  addressText: '', addressType: 'WORK', transportModeCode: 'SEA', modalityCode: 'FCL',
+  summary: '',
 })
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
@@ -199,6 +203,56 @@ async function createStage() {
     defaultWinProbability: 0, isWon: false, isLost: false,
   }, 'crm.settings.manage')
 }
+async function actOnChild(item: CrmRow, action: string, required: string, body: Record<string, unknown>) {
+  if (!can(required) || saving.value) return
+  saving.value = true; error.value = ''; success.value = ''
+  try {
+    await crmRequest(crmPath(relation.value === 'credit-profiles' ? 'credit-profiles' : 'credit-contracts',
+      item.id, action), 'POST', { expectedVersion: item.rowVersion, ...body }, crmUuid())
+    drafts.operationId = crmUuid()
+    await loadRelation()
+    success.value = t('crm.saved')
+  } catch (e) { error.value = crmError(e) }
+  finally { saving.value = false }
+}
+function savePolicy() {
+  const policy = relationRows.value[0]
+  if (!drafts.date) { error.value = t('crm.required'); return }
+  saving.value = true; error.value = ''
+  void crmRequest(crmPath('accounts', id.value, 'followup-policy'), 'PUT', {
+    expectedVersion: policy?.rowVersion ?? null, enabled: true,
+    ownerUserId: drafts.assignedUserId || auth.userId,
+    channelStrategy: drafts.channelStrategy, frequencyDays: Number(drafts.frequencyDays),
+    nextDueAt: toUtc(drafts.date), timezoneId: drafts.timezoneId,
+    reminderLeadMinutes: Number(drafts.reminderLeadMinutes), pausedUntil: null,
+  }).then(async () => { await loadRelation(); success.value = t('crm.saved') })
+    .catch(e => { error.value = crmError(e) }).finally(() => { saving.value = false })
+}
+function addService() {
+  return createRelation('services', {
+    serviceCode: drafts.serviceCode, modalityCode: drafts.modalityCode,
+    transportModeCode: drafts.transportModeCode, requiresCustoms: false,
+    cargoTypeCode: null, volume: Number(drafts.volume), volumeUnit: 'CBM',
+    containerTypeCode: null, equipmentQuantity: null,
+    expectedMovementsPerMonth: null, notes: drafts.note || null,
+  }, 'crm.analysis.manage')
+}
+function addAddress() {
+  return createRelation('addresses', {
+    contactId: null, countryId: null, addressType: drafts.addressType,
+    addressText: drafts.addressText, location: null,
+  }, 'crm.account.update')
+}
+function addNote() {
+  return createRelation('notes', { noteText: drafts.note }, 'crm.activity.update')
+}
+function addNegotiation() {
+  return createRelation('negotiations', {
+    pricingQuoteId: drafts.quoteId || null, status: 'Open',
+    changeSummary: drafts.summary, agreedTerms: null, nextActionAt: null,
+  }, 'crm.opportunity.update')
+}
+
 function back() { router.push('/crm/' + section.value) }
 onBeforeRouteLeave(() => {
   if (!saving.value) return true
@@ -285,6 +339,82 @@ onMounted(() => { if (crmEnabled()) void load() })
             {{ t('common.details') }}
           </button>
           <p class="text-[var(--dh-text-muted)]">{{ item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot ?? '' }}</p>
+          <div v-if="relation==='credit-profiles' && section==='accounts' && item.status==='PendingApproval'
+            && can('crm.credit.approve')" class="mt-3 flex flex-wrap gap-2">
+            <button :disabled="saving" class="crm-action"
+              @click="actOnChild(item,'approve','crm.credit.approve',{reason:drafts.reason||'Aprobación financiera'})">
+              {{ t('crm.approveCredit') }}
+            </button>
+            <button :disabled="saving" class="crm-action"
+              @click="actOnChild(item,'reject','crm.credit.approve',{reason:drafts.reason||'Rechazo financiero'})">
+              {{ t('crm.rejectCredit') }}
+            </button>
+          </div>
+          <div v-if="relation==='credit-contracts' && section==='accounts' && can('crm.contract.manage')"
+            class="mt-3 flex flex-wrap gap-2">
+            <button v-if="item.status==='Draft'" :disabled="saving" class="crm-action"
+              @click="actOnChild(item,'activate','crm.contract.manage',{reason:drafts.reason||'Activación'})">
+              {{ t('crm.activateContract') }}
+            </button>
+            <button v-if="item.status==='Active'" :disabled="saving" class="crm-action"
+              @click="actOnChild(item,'cancel','crm.contract.manage',{reason:drafts.reason||'Cancelación'})">
+              {{ t('crm.cancelContract') }}
+            </button>
+            <button v-if="item.status==='Active' && drafts.renewalDate" :disabled="saving" class="crm-action"
+              @click="actOnChild(item,'renew','crm.contract.manage',{
+                operationId:drafts.operationId,renewalDate:toUtc(drafts.renewalDate),
+                expiryDate:drafts.expiryDate?toUtc(drafts.expiryDate):null,
+                reason:drafts.reason||'Renovación'
+              })">
+              {{ t('crm.renewContract') }}
+            </button>
+            <button v-if="drafts.fileId" :disabled="saving" class="crm-action"
+              @click="actOnChild(item,'signed-document','crm.contract.manage',{fileId:drafts.fileId})">
+              {{ t('crm.attachSigned') }}
+            </button>
+          </div>
+
+        </div>
+        <form v-if="section==='accounts' && relation==='addresses' && can('crm.account.update')"
+          class="grid gap-3 sm:grid-cols-3" @submit.prevent="addAddress">
+          <input v-model.trim="drafts.addressType" class="crm-input" required :placeholder="t('crm.addressType')" />
+          <input v-model.trim="drafts.addressText" class="crm-input" required :placeholder="t('crm.address')" />
+          <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.addAddress') }}</button>
+        </form>
+        <form v-if="section==='accounts' && relation==='followup-policy' && can('crm.followup.manage')"
+          class="grid gap-3 sm:grid-cols-3" @submit.prevent="savePolicy">
+          <input v-model.trim="drafts.assignedUserId" class="crm-input" required :placeholder="t('crm.assignedUser')" />
+          <input v-model="drafts.date" class="crm-input" type="datetime-local" required />
+          <input v-model.trim="drafts.timezoneId" class="crm-input" required />
+          <input v-model="drafts.frequencyDays" class="crm-input" type="number" min="1" max="365" required />
+          <select v-model="drafts.channelStrategy" class="crm-input">
+            <option value="BOTH">System + Email</option><option value="SYSTEM">System</option><option value="EMAIL">Email</option>
+          </select>
+          <input v-model="drafts.reminderLeadMinutes" class="crm-input" type="number" min="0" max="10080" />
+          <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.savePolicy') }}</button>
+        </form>
+        <form v-if="section==='activities' && relation==='notes' && can('crm.activity.update')"
+          class="grid gap-3 sm:grid-cols-[1fr,auto]" @submit.prevent="addNote">
+          <textarea v-model="drafts.note" required class="crm-input" :placeholder="t('crm.notes')" />
+          <button type="submit" class="crm-action" :disabled="saving">{{ t('crm.addNote') }}</button>
+        </form>
+        <form v-if="section==='analyses' && relation==='services' && can('crm.analysis.manage')"
+          class="grid gap-3 sm:grid-cols-4" @submit.prevent="addService">
+          <input v-model.trim="drafts.serviceCode" required class="crm-input" :placeholder="t('crm.serviceCode')" />
+          <input v-model.trim="drafts.modalityCode" required class="crm-input" placeholder="FCL" />
+          <input v-model="drafts.volume" type="number" min="0" step=".01" required class="crm-input" />
+          <button type="submit" class="crm-action" :disabled="saving">{{ t('crm.addService') }}</button>
+        </form>
+        <form v-if="section==='opportunities' && relation==='negotiations' && can('crm.opportunity.update')"
+          class="grid gap-3 sm:grid-cols-[1fr,auto]" @submit.prevent="addNegotiation">
+          <input v-model.trim="drafts.summary" required class="crm-input" :placeholder="t('crm.negotiationSummary')" />
+          <button type="submit" class="crm-action" :disabled="saving">{{ t('crm.addNegotiation') }}</button>
+        </form>
+        <div v-if="section==='accounts' && relation==='credit-contracts' && can('crm.contract.manage')"
+          class="grid gap-3 sm:grid-cols-3">
+          <input v-model.trim="drafts.fileId" class="crm-input" :placeholder="t('crm.signedFileId')" />
+          <input v-model.trim="drafts.reason" class="crm-input" :placeholder="t('crm.reason')" />
+          <input v-model="drafts.renewalDate" type="datetime-local" class="crm-input" />
         </div>
         <form v-if="section==='accounts' && relation==='contacts' && can('crm.contact.create')"
           class="grid gap-3 sm:grid-cols-3" @submit.prevent="createContact">
