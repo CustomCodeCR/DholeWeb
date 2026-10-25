@@ -48,6 +48,7 @@ type WriteReadiness = {
   message: string
   noPostExecuted: boolean
   configuredKeyId?: string | null
+  missingGrants?: string[] | null
 }
 type Diagnosis = {
   valid: boolean
@@ -454,7 +455,18 @@ onMounted(() => { void refresh(); void loadQuoteKeys(); void checkWriteReadiness
           {{ writeReadiness.ready ? 'Habilitado' : 'Bloqueado' }}:
           {{ writeReadiness.message }} ({{ writeReadiness.code }})
         </p>
-        <p v-else>Sin comprobar.</p>
+        <div v-if="writeReadiness?.missingGrants?.length" class="quote-sync-meta">
+          <strong>Permisos específicos pendientes ({{ writeReadiness.missingGrants.length }}):</strong>
+          <ul class="list-disc pl-5">
+            <li v-for="grant in writeReadiness.missingGrants" :key="grant">
+              <code>{{ grant }}</code>
+            </li>
+          </ul>
+        </div>
+        <p v-else-if="writeReadiness?.ready" class="quote-sync-meta">
+          Todos los permisos de la plantilla activa fueron verificados.
+        </p>
+        <p v-else-if="!writeReadiness">Sin comprobar.</p>
       </div>
       <button class="dynamics-outline-button" type="button"
         :disabled="checkingWrites" @click="checkWriteReadiness">
