@@ -60,7 +60,7 @@ const drafts = reactive({
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 const tabs = computed(() => {
-  if (section.value === 'accounts') return ['contacts', 'addresses', 'trade-profiles', 'credit-profiles', 'credit-contracts', 'followup-policy']
+  if (section.value === 'accounts') return ['contacts', 'addresses', 'business-activities', 'trade-profiles', 'credit-profiles', 'credit-contracts', 'followup-policy']
   if (section.value === 'leads') return ['activities']
   if (section.value === 'opportunities') return ['stage-history', 'quotes', 'rate-requests', 'negotiations', 'contacts']
   if (section.value === 'activities') return ['notes', 'participants']
@@ -74,6 +74,7 @@ function permitted(tab: string) {
   if (tab === 'credit-contracts') return can('crm.contract.read')
   if (tab === 'contacts' || tab === 'participants') return can('crm.contact.read') || section.value !== 'accounts'
   if (tab === 'followup-policy') return can('crm.followup.manage')
+  if (tab === 'business-activities') return can('crm.account.read') || can('crm.account.read-all')
   if (tab === 'trade-profiles') return can('crm.analysis.read')
   if (tab === 'quotes' || tab === 'rate-requests') return can('crm.quote.read')
   return true
@@ -82,7 +83,7 @@ function endpoint(tab: string) {
   if (tab === 'stages') return crmPath('pipelines', id.value, 'stages')
   if (tab === 'contacts' && section.value === 'accounts') return crmPath('accounts', id.value, 'contacts')
   if (tab === 'contacts') return crmPath('opportunities', id.value, 'contacts')
-  if (tab === 'addresses' || tab === 'trade-profiles' || tab === 'credit-profiles' ||
+  if (tab === 'addresses' || tab === 'business-activities' || tab === 'trade-profiles' || tab === 'credit-profiles' ||
       tab === 'credit-contracts' || tab === 'followup-policy')
     return crmPath('accounts', id.value, tab)
   return crmPath(section.value, id.value, tab)
@@ -366,12 +367,12 @@ onMounted(() => { if (crmEnabled()) void load() })
         </div>
         <div v-if="!relationRows.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('common.noData') }}</div>
         <div v-for="item in relationRows" :key="item.id" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">
-          <p class="font-bold">{{ item.name ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.id }}</p>
+          <p class="font-bold">{{ item.name ?? item.activityCode ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.id }}</p>
           <button v-if="relation==='contacts' && section==='accounts' && can('crm.contact.read')"
             type="button" class="crm-action mt-2" @click="router.push('/crm/contacts/'+encodeURIComponent(item.id))">
             {{ t('common.details') }}
           </button>
-          <p class="text-[var(--dh-text-muted)]">{{ item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot ?? '' }}</p>
+          <p class="text-[var(--dh-text-muted)]">{{ item.activityDescription ?? item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot ?? '' }}</p>
           <div v-if="relation==='credit-profiles' && section==='accounts' && item.status==='PendingApproval'
             && can('crm.credit.approve')" class="mt-3 flex flex-wrap gap-2">
             <button :disabled="saving" class="crm-action"
