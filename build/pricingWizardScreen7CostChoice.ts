@@ -504,7 +504,38 @@ async function applyScreen7DatabaseCosts() {
     form.freightCost = previousFreightCost
     form.freightSale = previousFreightSale
     screen7RefreshPromptOpen.value = true
-    toastStore.backendError(error, 'No se actualizaron las líneas. Todos los valores anteriores se conservaron.')
+    if (isOwnLclMatrixContext()) {
+      // Surface an actionable route-matrix error instead of the backend's
+      // ambiguous "An unexpected error occurred" toast. The HTTP status,
+      // public error code and trace are safe to report and make it possible
+      // to diagnose Pricing without losing persisted tariff details.
+      const failure = error as {
+        status?: number
+        code?: string
+        endpoint?: string
+        message?: string
+        data?: { code?: string; detail?: string; message?: string; traceId?: string; correlationId?: string }
+      }
+      const status = failure?.status ? 'HTTP ' + failure.status : 'Error de cálculo'
+      const code = failure?.code || failure?.data?.code
+      const trace = failure?.data?.traceId || failure?.data?.correlationId
+      const detail = String(failure?.data?.detail || failure?.data?.message || failure?.message || '').trim()
+      const generic = /^(an unexpected error occurred\.?|internal server error\.?|error interno del servidor\.?)$/i.test(detail)
+      const reason = detail && !generic ? detail : 'Pricing no pudo calcular la matriz del consolidado.'
+      const message = status + (code ? ' · ' + code : '')
+        + ': ' + reason
+        + (trace ? ' · Seguimiento: ' + trace : '')
+        + ' Se conservaron todas las líneas e importes anteriores.'
+      console.error('[Pricing][LCL propio][Pantalla 7] Falló la actualización de matriz', {
+        status: failure?.status,
+        code,
+        endpoint: failure?.endpoint,
+        traceId: trace,
+      }, error)
+      toastStore.error('No se pudieron actualizar los cargos LCL propios', message)
+    } else {
+      toastStore.backendError(error, 'No se actualizaron las líneas. Todos los valores anteriores se conservaron.')
+    }
   } finally {
     screen7RefreshAllowed.value = false
     screen7RefreshBusy.value = false
