@@ -23,23 +23,22 @@ function patchWizard(source: string) {
     code,
     `const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))`,
     `const landAgentPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c42',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-agent',\n} as CatalogItemSelectDto\nconst landCarrierPlaceholder = {\n  id: '7f4ed7d4-60a3-4f69-90e0-e2e2b24b4c43',\n  code: 'LAND',\n  value: 'No aplica (terrestre)',\n  slug: 'land-internal-carrier',\n} as CatalogItemSelectDto\nconst selectedAgent = computed(() =>
-  form.modality === 'Land'
-    && !(shipmentModeForApi.value === 'Ltl'
-      && form.manualRate
-      && landLtlCommercialProfile.value === 'Nvocc')
-    ? landAgentPlaceholder
-    : findById(catalogs.agents, form.agentId),
+  findById(catalogs.agents, form.agentId)
+    ?? (form.modality === 'Land' ? landAgentPlaceholder : null),
 )`,
     'selected agent',
   )
   code = replaceRequired(
     code,
     `const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))`,
-    `const selectedCarrier = computed(() => form.modality === 'Land' ? landCarrierPlaceholder : findById(catalogs.carriers, form.carrierId))`,
+    `const selectedCarrier = computed(() =>
+  findById(catalogs.carriers, form.carrierId)
+    ?? (form.modality === 'Land' ? landCarrierPlaceholder : null),
+)`,
     'selected carrier',
   )
 
-  // Terrestrial rates do not have an external agent/carrier selector and do not include agent charges.
+  // Terrestrial providers are selectable; agent cost lines remain controlled by the tariff.
   code = replaceRequired(
     code,
     `const providerAgentCosts = computed(() => {\n  const seen = new Set<string>()`,
