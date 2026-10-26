@@ -9,7 +9,7 @@ export interface CrmPage<T = CrmRow> {
 }
 export type CrmMethod = 'GET' | 'POST' | 'PATCH' | 'PUT'
 
-export const crmEnabled = () => import.meta.env.VITE_CRM_ENABLED !== 'false'
+export const crmEnabled = () => import.meta.env.VITE_CRM_ENABLED === 'true'
 const base = '/api/crm'
 export function crmPath(resource: string, id?: string, action?: string) {
   const encoded = id ? '/' + encodeURIComponent(id) : ''
