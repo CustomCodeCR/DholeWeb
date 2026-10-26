@@ -27,6 +27,13 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     critical: true,
   },
   {
+    key: 'crm',
+    name: 'CRM Service',
+    description: 'Gestión de clientes, contactos, oportunidades y registros comerciales.',
+    url: buildGatewayHealthUrl('crm'),
+    critical: true,
+  },
+  {
     key: 'config',
     name: 'Config Service',
     description: 'Catálogos y configuración operacional.',

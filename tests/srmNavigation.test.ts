@@ -7,6 +7,7 @@ const layout = read('src/shared/components/layouts/MainLayout.vue')
 const router = read('src/core/router/index.ts')
 const view = read('src/modules/srm/views/SrmWorkspaceView.vue')
 const translations = read('src/modules/srm/i18n.ts')
+const monitoring = read('src/core/services/monitoringService.ts')
 
 test('the actual MainLayout exposes both CRM and SRM', () => {
   assert.match(layout, /label: t\('crm.title'\)/)
@@ -21,15 +22,25 @@ test('CRM and SRM sections are real authenticated workspace routes', () => {
   assert.match(router, /requiresAuth: true/)
 })
 test('SRM only reads real Config suppliers with permission and never fabricates storage', () => {
-  assert.match(view, /CatalogItemsService.getByGroupSlug\('agents'\)/)
-  assert.match(view, /CatalogItemsService.getByGroupSlug\('carriers'\)/)
+  assert.match(view, /CatalogItemsService.getByGroupSlug\('srm-suppliers'\)/)
+  assert.doesNotMatch(view, /CatalogItemsService.getByGroupSlug\('agents'\)|CatalogItemsService.getByGroupSlug\('carriers'\)/)
   assert.match(view, /CONFIG_SCOPES.catalogItems.view/)
-  assert.match(view, /Promise.allSettled/)
+  assert.match(view, /CatalogItemsService.getByGroupSlug/)
   assert.doesNotMatch(view, /localStorage|mockSuppliers|seedSuppliers|faker/i)
-  assert.doesNotMatch(view, /\.create\(|\.update\(|\.delete\(/)
+  assert.match(view, /CatalogItemsService.createForGroup/)
+  assert.match(view, /CatalogGroupsService.select/)
+  assert.match(view, /CONFIG_SCOPES.catalogItems.create/)
 })
 test('CRM/SRM translations include Spanish and English', () => {
   assert.match(translations, /es: \{/)
   assert.match(translations, /en: \{/)
   assert.match(translations, /contracts: 'Contratos y acuerdos'/)
+})
+
+test('CRM is monitored through the Gateway and both modules are pinned in the real sidebar', () => {
+  const sidebar = read('src/shared/components/organisms/DhSidebar.vue')
+  assert.match(monitoring, /key: 'crm'/)
+  assert.match(monitoring, /buildGatewayHealthUrl\('crm'\)/)
+  assert.ok(sidebar.indexOf('to="/crm"') < sidebar.indexOf('<nav class="dh-scrollbar'))
+  assert.ok(sidebar.indexOf('to="/srm"') < sidebar.indexOf('<nav class="dh-scrollbar'))
 })

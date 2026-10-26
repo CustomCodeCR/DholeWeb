@@ -2,7 +2,7 @@
 import { computed, type Component } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, X } from 'lucide-vue-next'
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Truck, Users, X } from 'lucide-vue-next'
 
 export interface SidebarItem {
   label: string
@@ -93,6 +93,33 @@ const visibleItems = computed(() =>
           <PanelLeftClose v-else class="h-4 w-4" />
         </button>
       </div>
+
+      <!-- CRM/SRM are first-class workspaces: keep links visible even when the
+           long navigation list is scrolled or the sidebar is collapsed. -->
+      <nav class="shrink-0 border-b border-[var(--dh-border)] px-3 pb-3" :aria-label="t('app.name')">
+        <div class="grid grid-cols-2 gap-2" :class="compact ? 'grid-cols-1' : ''">
+          <RouterLink
+            to="/crm"
+            class="flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-2 py-2 text-xs font-black text-[var(--dh-text)] transition hover:bg-[var(--dh-card-hover)]"
+            :title="t('crm.title')"
+            active-class="!bg-[var(--dh-primary)] !text-white"
+            @click="emit('close')"
+          >
+            <Users class="h-4 w-4 shrink-0" />
+            <span v-if="!compact" class="truncate">{{ t('crm.title') }}</span>
+          </RouterLink>
+          <RouterLink
+            to="/srm"
+            class="flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-2 py-2 text-xs font-black text-[var(--dh-text)] transition hover:bg-[var(--dh-card-hover)]"
+            :title="t('srm.title')"
+            active-class="!bg-[var(--dh-primary)] !text-white"
+            @click="emit('close')"
+          >
+            <Truck class="h-4 w-4 shrink-0" />
+            <span v-if="!compact" class="truncate">{{ t('srm.title') }}</span>
+          </RouterLink>
+        </div>
+      </nav>
 
       <nav class="dh-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pr-2">
         <template v-for="item in visibleItems" :key="item.label">
