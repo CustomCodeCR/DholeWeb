@@ -41,8 +41,11 @@ source = replaceOnce(
 )
 
 // POD-based VAT is now implemented directly in the wizard.
-// Do not inject the historical POE / Panama-only country resolver over it.
-if (!source.includes('resolvePodVatRate(resolvePodForDestination(), catalogs.countries)')) {
+// Preserve both the older POD-only helper and the current POD -> POE fallback.
+// Do not inject the obsolete Panamá/POE-only resolver over either implementation.
+const hasPodVatResolver = source.includes('resolvePodVatRate(resolvePodForDestination(), catalogs.countries)')
+const hasDestinationVatResolver = source.includes('resolveDestinationVatRate(resolvePodForDestination(), selectedDestination.value, catalogs.countries)')
+if (!hasPodVatResolver && !hasDestinationVatResolver) {
 source = replaceOnce(
   source,
   `const destinationCountryCode = computed(() => {\n  const configured = String(metadata(selectedDestination.value)?.countryCode ?? '').trim().toUpperCase()\n  if (configured) return configured\n  if (isCostaRica(selectedDestination.value)) return 'CR'\n  const destination = normalizeCatalogValue([\n    displayValue(selectedDestination.value),\n    selectedDestination.value?.label,\n    selectedDestination.value?.code,\n    selectedDestination.value?.slug,\n  ].filter(Boolean).join(' '))\n  if (destination.includes('panama')) return 'PA'\n  if (destination.includes('guatemala')) return 'GT'\n  return ''\n})`,
