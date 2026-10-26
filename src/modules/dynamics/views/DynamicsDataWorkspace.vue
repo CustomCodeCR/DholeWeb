@@ -757,7 +757,7 @@ async function saveQuery() {
       name, entityName: entity.value, query, parameters, enabled: false,
     })
     savedName.value = name
-    if (parameters.length) paramName.value = parameters[0].name
+    if (parameters[0]) paramName.value = parameters[0].name
     await loadSaved()
     info.value = updating
       ? 'Consulta actualizada y deshabilitada por seguridad. Activala de nuevo para la API.'
