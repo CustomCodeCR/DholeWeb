@@ -67,7 +67,7 @@ type ApiClient = { id: string; issuer: string; clientId: string; displayName: st
 type ApiGrant = { id: string; apiClientId: string; connectionId: string; entitySet: string; operation: string;
   allowedFields: string[]; maxRequestsPerMinute: number; enabled: boolean }
 type IntegrationKeyInfo = {
-  id: string; queryName: string; label: string; enabled: boolean; expiresAt: string
+  id: string; queryName: string | null; scope?: 'all' | 'single'; label: string; enabled: boolean; expiresAt: string
   maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null
 }
 type IntegrationKeyIssued = { key: IntegrationKeyInfo; apiKey: string }
@@ -295,11 +295,10 @@ async function loadIntegrationKeys() {
 }
 async function createIntegrationKey() {
   await run(async () => {
-    if (!canSecurity.value || !publicSavedName.value ||
-        !saved.value.some(q => q.name === publicSavedName.value && q.enabled))
-      throw new Error('Elegí una consulta guardada y habilitada.')
+    if (!canSecurity.value || !code.value)
+      throw new Error('Seleccioná una conexión y verificá el permiso de seguridad.')
     const issued = await api<IntegrationKeyIssued>(connectionPath('integration-keys'), 'POST', {
-      queryName: publicSavedName.value,
+      queryName: null, // One key for all enabled saved queries in this connection.
       label: integrationKeyForm.value.label.trim(),
       expiresInDays: integrationKeyForm.value.expiresInDays,
       maxRequestsPerMinute: integrationKeyForm.value.maxRequestsPerMinute,
@@ -1508,7 +1507,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
     </template>
     <template v-else-if="section === 'integrations'">
       <div class="dynamics-security-note"><ShieldCheck :size="18" />
-        <span>Podés conectar Pangolin sin tokens OAuth usando una clave de API propia de Dhole. La clave se envía como cabecera HTTPS, vence automáticamente y solo ejecuta la consulta guardada seleccionada. La API no es pública ni permite escrituras anónimas.</span>
+        <span>Podés conectar Pangolin sin tokens OAuth usando una clave de API propia de Dhole. La clave se envía como cabecera HTTPS y permite ejecutar todas las consultas guardadas habilitadas de esta conexión. Tiene vencimiento, cuota y revocación propios; no permite consultas libres ni escrituras anónimas.</span>
       </div>
       <div class="dynamics-data-card">
         <strong>1. Elegí cómo conectar tu aplicación</strong>
@@ -1516,7 +1515,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
           <label class="dynamics-bulk-option" :class="{ selected: publicAuthMode === 'api-key' }">
             <input v-model="publicAuthMode" type="radio" value="api-key" @change="publicOperation='saved'">
             <span><strong>Clave de API de Dhole (recomendado para Pangolin)</strong>
-              <small>Sin Microsoft Entra ni tokens de sesión. Generás una clave por aplicación para una consulta guardada, con caducidad y límite de peticiones.</small></span>
+              <small>Sin Microsoft Entra ni tokens de sesión. Generás una sola clave por aplicación para todas las consultas guardadas habilitadas de la conexión, con caducidad y límite de peticiones.</small></span>
           </label>
           <label class="dynamics-bulk-option" :class="{ selected: publicAuthMode === 'oauth' }">
             <input v-model="publicAuthMode" type="radio" value="oauth">
@@ -1541,6 +1540,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             <select v-model="publicSavedName"><option value="">Seleccionar consulta</option>
               <option v-for="item in saved" :key="item.id" :value="item.name">{{ item.name }} ({{ item.enabled ? 'habilitada' : 'deshabilitada' }})</option>
             </select>
+            <small v-if="publicAuthMode === 'api-key'" class="dynamics-subtitle">Solo cambia la URL de ejemplo. La clave general funciona con cualquiera de las consultas habilitadas.</small>
           </label>
           <label v-else class="dynamics-field"><span>Tabla Dataverse</span><select v-model="entity" @change="changeEntity">
             <option v-for="item in enabledTables" :key="item.logicalName" :value="item.logicalName">{{ item.logicalName }}</option>
@@ -1563,7 +1563,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
       </div>
       <div v-if="publicAuthMode === 'api-key'" class="dynamics-data-card">
         <strong>2. Crear una clave para Pangolin u otra aplicación</strong>
-        <p class="dynamics-subtitle">Cada clave solo puede ejecutar la consulta guardada seleccionada para la conexión {{ code }}. Se mostrará una sola vez. Si cambiás o desactivás la consulta, deberás generar otra clave.</p>
+        <p class="dynamics-subtitle">La clave sirve para todas las consultas guardadas habilitadas de la conexión {{ code }}, incluidas las que habilités más adelante. Se mostrará una sola vez. Desactivar una consulta impide ejecutarla, pero no invalida las otras ni obliga a generar una nueva clave.</p>
         <div v-if="!canSecurity" class="dynamics-feedback dynamics-feedback-error">Se requiere el permiso dynamics.security.admin para generar claves.</div>
         <template v-else>
           <div class="dynamics-form-grid">
@@ -1575,7 +1575,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
               <input v-model.number="integrationKeyForm.maxRequestsPerMinute" type="number" min="1" max="120"></label>
           </div>
           <button type="button" class="dynamics-primary-button"
-            :disabled="busy || !publicReady || !integrationKeyForm.label.trim() ||
+            :disabled="busy || !code || !integrationKeyForm.label.trim() ||
               integrationKeyForm.expiresInDays < 1 || integrationKeyForm.expiresInDays > 90 ||
               integrationKeyForm.maxRequestsPerMinute < 1 || integrationKeyForm.maxRequestsPerMinute > 120"
             @click="createIntegrationKey">Generar clave de API</button>
@@ -1593,7 +1593,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             <strong>Claves existentes (sin mostrar secretos)</strong>
             <div v-for="key in integrationKeys" :key="key.id" class="dynamics-saved-row">
               <div><strong>{{ key.label }}</strong>
-                <p class="dynamics-subtitle">Consulta {{ key.queryName }} · {{ key.enabled ? 'Habilitada' : 'Revocada' }} · vence {{ new Date(key.expiresAt).toLocaleDateString('es-CR') }}</p>
+                <p class="dynamics-subtitle">{{ key.scope === 'all' ? 'Todas las consultas habilitadas' : 'Consulta ' + key.queryName }} · {{ key.enabled ? 'Habilitada' : 'Revocada' }} · vence {{ new Date(key.expiresAt).toLocaleDateString('es-CR') }}</p>
               </div>
               <button v-if="key.enabled" type="button" class="dynamics-outline-button"
                 :disabled="busy" @click="revokeIntegrationKey(key.id)">Revocar acceso</button>
@@ -1607,7 +1607,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
           <code class="dynamics-api-url">{{ publicEndpoint }}</code>
           <button class="dynamics-outline-button" type="button" :disabled="!publicReady" @click="copyApi(publicEndpoint)">Copiar URL</button>
         </div>
-        <p v-if="publicAuthMode === 'api-key'" class="dynamics-subtitle">Se requiere una clave activa y no caducada de la consulta seleccionada, enviada en <code>X-Dhole-Api-Key</code>. El servidor aplicará los permisos de lectura vigentes de Dataverse. No se puede utilizar para CREATE, UPDATE ni DELETE.</p>
+        <p v-if="publicAuthMode === 'api-key'" class="dynamics-subtitle">La misma clave activa y no caducada se envía en <code>X-Dhole-Api-Key</code> para cualquier consulta guardada habilitada de esta conexión; solo cambiás el nombre en la URL. Se aplican los permisos de lectura vigentes de Dataverse. No permite CREATE, UPDATE ni DELETE.</p>
         <p v-else class="dynamics-subtitle">Permiso OAuth requerido: <strong>{{ publicScope }}</strong>. Además se requiere cliente OAuth registrado, grant por conexión, tabla, operación y campos, y políticas de Dataverse. Para CREATE, UPDATE y DELETE, también las aprobaciones de producción.</p>
         <strong>Ejemplo de solicitud HTTP (sin credenciales reales)</strong>
         <pre class="dynamics-json">{{ publicCurl }}</pre>
@@ -1618,7 +1618,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
       <div class="dynamics-data-card">
         <strong>{{ publicAuthMode === 'api-key' ? '4. Consumir desde Pangolin' : '3. Consumir desde Pangolin u otra aplicación' }}</strong>
         <template v-if="publicAuthMode === 'api-key'">
-          <p class="dynamics-subtitle">Desde el backend de Pangolin realizá una solicitud <strong>POST</strong> a la URL indicada, con <code>Content-Type: application/json</code> y <code>X-Dhole-Api-Key</code> en las cabeceras. El cuerpo debe contener <code>connectionCode</code> y <code>parameters</code>. No necesitás acceder a Dhole ni a Microsoft Entra desde esa aplicación.</p>
+          <p class="dynamics-subtitle">Desde el backend de Pangolin realizá una solicitud <strong>POST</strong> a la URL indicada, con <code>Content-Type: application/json</code> y <code>X-Dhole-Api-Key</code> en las cabeceras. El cuerpo debe contener <code>connectionCode</code> y <code>parameters</code>. Para otra búsqueda, conservá la misma clave y cambiá el nombre de la consulta en la URL. No necesitás acceder a Dhole ni a Microsoft Entra desde esa aplicación.</p>
           <p class="dynamics-subtitle">Nunca pongás la clave en la URL, en JavaScript del navegador ni en un repositorio. Si Pangolin es un proxy inverso, configurá un cliente/backend que envíe la cabecera a este gateway, sin redirigir a la página web.</p>
         </template>
         <template v-else>
