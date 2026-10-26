@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { BriefcaseBusiness, Plus, RefreshCw } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
-import { DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
+import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -246,72 +246,66 @@ onMounted(() => { if (allowed.value) void load() })
       <p v-if="loading" role="status" class="text-sm text-[var(--dh-text-muted)]">{{ t('common.loading') }}</p>
       <template v-if="section === 'dashboard'">
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <div v-for="metric in [
+          <DhCard v-for="metric in [
             { label: t('crm.accounts'), value: dashboard.accounts },
             { label: t('crm.leads'), value: dashboard.leads },
             { label: t('crm.opportunities'), value: dashboard.opportunities },
             { label: t('crm.activities'), value: dashboard.activities },
             { label: t('crm.weighted'), value: dashboard.weighted.toLocaleString(undefined,{maximumFractionDigits:2}) },
-          ]" :key="metric.label" class="crm-card p-5">
+          ]" :key="metric.label">
             <p class="text-xs font-bold text-[var(--dh-text-muted)]">{{ metric.label }}</p>
             <p class="mt-3 text-2xl font-black">{{ dashboard.loaded ? metric.value : '—' }}</p>
-          </div>
+          </DhCard>
         </div>
         <p v-if="configWarning" class="text-sm text-amber-700">{{ configWarning }}</p>
         <p class="text-sm text-[var(--dh-text-muted)]">{{ t('crm.dashboardNote') }}</p>
       </template>
 
       <template v-else-if="section === 'finance'">
-        <div class="crm-card space-y-4 p-4">
-          <p class="text-sm text-[var(--dh-text-muted)]">{{ t('crm.financeSelectAccount') }}</p>
+        <DhCard class="space-y-4">
+          <p class="text-sm font-medium text-[var(--dh-text-muted)]">{{ t('crm.financeSelectAccount') }}</p>
           <form class="flex flex-wrap items-end gap-2" @submit.prevent="loadFinanceAccounts">
-            <label class="block min-w-[200px] flex-1 text-sm font-bold">{{ t('crm.searchAccounts') }}
-              <input v-model.trim="financeQuery" class="crm-input mt-1"
-                :placeholder="t('common.search')" :disabled="financeAccountsLoading" />
-            </label>
-            <button class="crm-button" type="submit" :disabled="financeAccountsLoading">{{ t('common.search') }}</button>
+            <DhInput class="min-w-[200px] flex-1" :label="t('crm.searchAccounts')"
+              :model-value="financeQuery" :placeholder="t('common.search')" :disabled="financeAccountsLoading"
+              @update:model-value="financeQuery = $event" />
+            <DhButton :label="t('common.search')" type="submit" variant="secondary" :disabled="financeAccountsLoading" />
           </form>
-          <label class="block max-w-xl text-sm font-bold">{{ t('crm.selectAccount') }}
-            <select v-model="selectedAccount" class="crm-input mt-1">
-              <option value="">{{ t('crm.choose') }}</option>
-              <option v-for="account in financeAccounts" :key="account.id" :value="account.id">
-                {{ account.displayName ?? account.legalName ?? account.id }}
-              </option>
-            </select>
-          </label>
+          <DhSelect :label="t('crm.selectAccount')" class="max-w-xl" :model-value="selectedAccount"
+            :placeholder="t('crm.choose')" :options="financeAccounts.map(a => ({value: a.id, label: String(a.displayName ?? a.legalName ?? a.id)}))"
+            @update:model-value="selectedAccount = String($event)" />
           <p v-if="financeAccountsTotal > financeAccounts.length" class="text-xs text-[var(--dh-text-muted)]">
             {{ t('crm.searchAccountHint') }}
           </p>
           <div class="flex gap-2">
-            <button v-if="can('crm.credit.read')" class="crm-button"
-              :aria-pressed="financeTab === 'credit'" @click="financeTab='credit'">{{ t('crm.credit') }}</button>
-            <button v-if="can('crm.contract.read')" class="crm-button"
-              :aria-pressed="financeTab === 'contracts'" @click="financeTab='contracts'">{{ t('crm.contracts') }}</button>
+            <DhButton v-if="can('crm.credit.read')" :label="t('crm.credit')"
+              :variant="financeTab === 'credit' ? 'primary' : 'secondary'" @click="financeTab='credit'" />
+            <DhButton v-if="can('crm.contract.read')" :label="t('crm.contracts')"
+              :variant="financeTab === 'contracts' ? 'primary' : 'secondary'" @click="financeTab='contracts'" />
           </div>
-        </div>
+        </DhCard>
         <p v-if="!financeAllowed" class="crm-alert">{{ t('crm.denied') }}</p>
       </template>
 
       <template v-else>
-        <div class="flex flex-wrap items-center gap-3">
-          <label v-if="!['settings'].includes(section)" class="min-w-[200px] flex-1">
-            <span class="sr-only">{{ t('common.search') }}</span>
-            <input v-model="search" class="crm-input" :placeholder="t('common.search')" @keyup.enter="page=1;load()" />
-          </label>
-          <button v-if="!['settings'].includes(section)" class="crm-button" @click="page=1;load()">{{ t('common.search') }}</button>
-          <button v-if="section === 'opportunities'" class="crm-button"
-            :aria-pressed="viewMode === 'kanban'" @click="viewMode=viewMode==='kanban'?'table':'kanban'">
-            {{ viewMode === 'kanban' ? t('crm.table') : t('crm.kanban') }}
-          </button>
-          <button v-if="section === 'followups' || section === 'activities'" class="crm-button"
-            :aria-pressed="viewMode === 'week'" @click="viewMode=viewMode==='week'?'table':'week'">
-            {{ viewMode === 'week' ? t('crm.table') : t('crm.week') }}
-          </button>
+        <div class="flex flex-wrap items-end gap-2">
+          <DhInput v-if="section !== 'settings'" class="min-w-[200px] flex-1"
+            :model-value="search" :placeholder="t('common.search')"
+            @update:model-value="search = $event" @keyup.enter="page=1;load()" />
+          <DhButton v-if="section !== 'settings'" :label="t('common.search')" variant="secondary"
+            @click="page=1;load()" />
+          <DhButton v-if="section === 'opportunities'"
+            :label="viewMode === 'kanban' ? t('crm.table') : t('crm.kanban')"
+            :variant="viewMode === 'kanban' ? 'primary' : 'secondary'"
+            @click="viewMode=viewMode==='kanban'?'table':'kanban'" />
+          <DhButton v-if="section === 'followups' || section === 'activities'"
+            :label="viewMode === 'week' ? t('crm.table') : t('crm.week')"
+            :variant="viewMode === 'week' ? 'primary' : 'secondary'"
+            @click="viewMode=viewMode==='week'?'table':'week'" />
         </div>
       </template>
 
       <div v-if="section === 'opportunities' && viewMode === 'kanban'" class="flex gap-4 overflow-x-auto pb-3">
-        <section v-for="stage in stages" :key="stage.id" class="crm-card min-w-[260px] flex-1 p-4">
+        <DhCard v-for="stage in stages" :key="stage.id" class="min-w-[260px] flex-1">
           <h2 class="font-bold">{{ stage.name }} ({{ kanbanRows(stage.id).length }})</h2>
           <article v-for="item in kanbanRows(stage.id)" :key="item.id" class="mt-3 rounded-xl border border-[var(--dh-border)] p-3">
             <button class="block text-left font-semibold underline" @click="details(item)">{{ item.title }}</button>
@@ -321,10 +315,10 @@ onMounted(() => { if (allowed.value) void load() })
               <option v-for="s in stages" :key="s.id" :value="s.id">{{ s.name }}</option>
             </select>
           </article>
-        </section>
+        </DhCard>
       </div>
       <div v-else-if="section === 'activities' || section === 'followups' ? viewMode === 'week' : false"
-        class="crm-card space-y-3 p-4">
+        class="space-y-3 rounded-[var(--dh-radius-xl)] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
         <h2 class="text-lg font-bold">{{ t('crm.week') }}</h2>
         <p v-if="total > rows.length" class="text-sm text-amber-700" role="status">{{ t('crm.partialAgenda', { loaded: rows.length, total }) }}</p>
         <div v-for="day in agendaDays" :key="day.dateKey" class="border-b border-[var(--dh-border)] pb-2">
@@ -396,10 +390,6 @@ onMounted(() => { if (allowed.value) void load() })
 
 <style scoped>
 .crm-card{border:1px solid var(--dh-border);border-radius:1.25rem;background:var(--dh-card);box-shadow:var(--dh-shadow-sm)}
-.crm-button{border:1px solid var(--dh-border);border-radius:.8rem;padding:.6rem 1rem;font-weight:700;min-height:42px;background:var(--dh-card);color:var(--dh-text)}
-.crm-button:disabled{opacity:.45;cursor:not-allowed}.crm-button[aria-pressed=true]{outline:2px solid var(--dh-primary)}
-.crm-primary{background:var(--dh-primary);color:white}
-.crm-input{display:block;width:100%;background:var(--dh-card);color:var(--dh-text);border:1px solid var(--dh-border);border-radius:.7rem;padding:.6rem}
-.crm-link{text-decoration:underline;color:var(--dh-primary);font-weight:700}
+.crm-input{display:block;width:100%;background:var(--dh-input);color:var(--dh-text);border:1px solid var(--dh-border);border-radius:1.125rem;padding:.7rem}
 .crm-alert{background:var(--dh-card);border:1px solid #d38c6a;border-radius:.8rem;padding:1rem}
 </style>
