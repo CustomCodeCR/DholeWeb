@@ -38,6 +38,22 @@ function patchWizard(source: string) {
     '    ...agentOptions.value.filter((option) => option.value !== gcfId),',
     '  ]',
     '})',
+    '// Land origins do not filter the supplier-agent directory by maritime POL.',
+    'const landAgentOptions = computed(() => catalogs.agents.map((item) => ({ value: item.id, label: displayValue(item) })))',
+    'watch(',
+    '  () => [step.value, form.modality, catalogs.agents.length] as const,',
+    '  ([currentStep, modality]) => {',
+    "    if (currentStep !== 6 || modality !== 'Land' || form.agentId) return",
+    "    if (shipmentModeForApi.value === 'Ltl' && landLtlCommercialProfile.value === 'Nvocc') return",
+    '    const gcf = catalogs.agents.find((item) => {',
+    '      const value = normalizeCatalogValue(displayValue(item))',
+    '      const code = normalizeCatalogValue(item.code)',
+    "      return code === 'gcf' || value.includes('grupo castro fallas')",
+    '    })',
+    '    if (gcf) form.agentId = gcf.id',
+    '  },',
+    '  { immediate: true },',
+    ')',
     agentOptionsAnchor,
   ].join('\n'), 'single LCL agent selector options')
 
@@ -124,7 +140,7 @@ function patchWizard(source: string) {
   }
   section = section.replace(
     agentSelector,
-    '<DhSelect v-if="form.modality !== \'Land\' || (shipmentModeForApi === \'Ltl\' && form.manualRate && landLtlCommercialProfile === \'Nvocc\')" v-model="form.agentId" label="Agente / coloader" :options="shipmentModeForApi === \'Lcl\' ? lclAgentOptions : agentOptions" />',
+    '<DhSelect v-model="form.agentId" :label="form.modality === \'Land\' ? \'Agente terrestre\' : shipmentModeForApi === \'Lcl\' ? \'Agente / coloader\' : \'Agente\'" :options="shipmentModeForApi === \'Lcl\' ? lclAgentOptions : form.modality === \'Land\' ? landAgentOptions : agentOptions" />',
   )
 
   // La naviera no se selecciona para LCL; no introducir ningún otro agente.
@@ -132,11 +148,11 @@ function patchWizard(source: string) {
   if (!carrier.test(section)) throw new Error('[pricingWizardLclGroupAgent] Carrier select not found')
   section = section.replace(
     carrier,
-    '<DhSelect v-if="shipmentModeForApi !== \'Lcl\' && form.modality !== \'Land\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />',
+    '<DhSelect v-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" :label="form.modality === \'Land\' ? \'Transportista / proveedor terrestre\' : form.modality === \'Air\' ? \'Aerolínea / proveedor\' : \'Naviera / proveedor\'" :options="carrierOptions" />',
   )
   section = section.replace(
     /<p class="crystal-description">[\s\S]*?<\/p>/,
-    "<p class=\"crystal-description\">{{ shipmentModeForApi === 'Lcl' ? 'Seleccione un agente o coloader, incluyendo Grupo Castro Fallas. Para LCL no se utiliza naviera.' : form.modality === 'Land' ? 'Flete terrestre: no se requiere naviera.' : 'Los selectores muestran el Value configurado en Config.' }}</p>",
+    "<p class=\"crystal-description\">{{ shipmentModeForApi === 'Lcl' ? 'Seleccione un agente o coloader, incluyendo Grupo Castro Fallas. Para LCL no se utiliza naviera.' : form.modality === 'Land' ? 'Seleccione el agente y transportista terrestre del catálogo cuando correspondan a la operación. El flete LTL de tarifario conserva sus importes.' : form.modality === 'Air' ? 'Seleccione el agente y la aerolínea o proveedor aplicable.' : 'Seleccione el agente y naviera aplicables según la operación y el Incoterm.' }}</p>",
   )
   code = code.slice(0, begin) + section + code.slice(end)
 
