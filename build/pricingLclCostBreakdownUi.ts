@@ -15,7 +15,7 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
  * The watcher can evolve without breaking the Vite build on exact text anchors.
  */
 export function patchOwnLclRoutePreviewWatcher(source: string): string {
-  const watchers = [...source.matchAll(/watch\(\s*\(\)\s*=>\s*\[([^\]\n]*)\],\s*\(\)\s*=>\s*void load\(\),\s*\)/g)]
+  const watchers = [...source.matchAll(/watch\(\s*\(\)\s*=>\s*\[([^\]\n]*)\],\s*\(\)\s*=>\s*void load\(\),?\s*\)/g)]
   if (watchers.length !== 1) {
     throw new Error('[pricingLclCostBreakdownUi] Expected exactly one own-LCL route preview watcher anchor, found ' + watchers.length + '.')
   }
