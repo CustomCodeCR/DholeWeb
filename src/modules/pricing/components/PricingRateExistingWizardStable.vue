@@ -61,7 +61,7 @@ import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignI
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
-import { resolvePodVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
+import { resolveDestinationVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
   calculateCargoInsurance,
@@ -967,8 +967,9 @@ const effectiveServices = computed(() => {
 const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))
 const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))
 const selectedCurrency = computed(() => findById(catalogs.currencies, form.currencyId))
-// The fiscal country is the POD (final delivery port), never the transit POE.
-const destinationTaxRate = computed(() => resolvePodVatRate(resolvePodForDestination(), catalogs.countries))
+// POD determines VAT whenever it exists; POE is the fallback only if POD is absent.
+const destinationTaxRate = computed(() => resolveDestinationVatRate(resolvePodForDestination(), selectedDestination.value, catalogs.countries))
+const destinationTaxOrigin = computed(() => resolvePodForDestination() ? 'POD' : 'POE')
 const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
 
 function resolvedImportSource(rate: ImportRateSelectDto) {
@@ -1326,11 +1327,11 @@ const providerMarginPercentage = computed(() =>
   providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
 )
 function canApplyDestinationTax(_line: RateLine) {
-  // The VAT option is available for every rate item; the percentage belongs to the POD.
+  // The VAT option is available for every rate item; use the selected destination jurisdiction.
   return true
 }
 function lineDestinationTaxRate(_line: RateLine) {
-  // Recalculate from POD, including on edit: an old POE-based percentage is not authoritative.
+  // Recalculate using the current POD, or POE only when there is no POD.
   return destinationTaxRate.value
 }
 function lineTaxAmount(line: RateLine) {
@@ -4878,7 +4879,7 @@ onMounted(async () => {
               <div class="crystal-line-vat">
                 <DhCheckbox
                   :model-value="Boolean(line.applyDestinationTax)"
-                  :label="destinationTaxRate > 0 ? `IVA POD (${destinationTaxRate}%)` : 'IVA POD (seleccione un POD con IVA configurado)'"
+                  :label="destinationTaxRate > 0 ? `IVA ${destinationTaxOrigin} (${destinationTaxRate}%)` : `IVA ${destinationTaxOrigin} (sin IVA configurado)`"
                   :disabled="destinationTaxRate <= 0"
                   @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                 />
@@ -4947,7 +4948,7 @@ onMounted(async () => {
                 <div class="crystal-line-vat">
                   <DhCheckbox
                     :model-value="Boolean(line.applyDestinationTax)"
-                    :label="destinationTaxRate > 0 ? `IVA POD (${destinationTaxRate}%)` : 'IVA POD (seleccione un POD con IVA configurado)'"
+                    :label="destinationTaxRate > 0 ? `IVA ${destinationTaxOrigin} (${destinationTaxRate}%)` : `IVA ${destinationTaxOrigin} (sin IVA configurado)`"
                     :disabled="destinationTaxRate <= 0"
                     @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                   />
