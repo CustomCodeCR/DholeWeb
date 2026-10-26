@@ -172,8 +172,22 @@ const querySummary = computed(() => [
   filters.value.length ? filters.value.length + ' condiciones (' + (join.value === 'and' ? 'todas' : 'cualquiera') + ')' : 'Sin condiciones',
   pageSize.value + ' registros por página',
 ])
+const suggestedSavedName = computed(() => {
+  const base = ('consulta_' + (entity.value || 'dataverse')).toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_').slice(0, 40)
+  let suggestion = base
+  for (let version = 2; saved.value.some(item => item.name === suggestion); version++) {
+    const suffix = '_' + version
+    suggestion = base.slice(0, 40 - suffix.length) + suffix
+  }
+  return suggestion
+})
 const queryPreview = computed(() => {
   try { return { valid: true, data: buildQuery(), error: '' } }
+  catch (e) { return { valid: false, data: null, error: e instanceof Error ? e.message : 'Consulta incompleta.' } }
+})
+const savedQueryPreview = computed(() => {
+  try { return { valid: true, data: buildQuery(true), error: '' } }
   catch (e) { return { valid: false, data: null, error: e instanceof Error ? e.message : 'Consulta incompleta.' } }
 })
 const crudPreview = computed(() => {
@@ -367,6 +381,7 @@ function resetQuery() {
   filters.value = []; page.value = null; lastQuery.value = null
   orderField.value = ''; descending.value = false
   queryStep.value = 1; queryFieldSearch.value = ''; queryNameVisible.value = false
+  savedName.value = ''; paramName.value = 'valor'; saveAsParameter.value = false
 }
 function changeEntity() {
   resetQuery(); resetRecord()
@@ -384,7 +399,9 @@ function nextQueryStep() {
   error.value = ''
   if (queryStep.value === 1 && !activeTable.value) { error.value = 'Elegí una tabla habilitada.'; return }
   if (queryStep.value === 2 && !queryReady.value) { error.value = 'Seleccioná al menos una columna autorizada.'; return }
-  if (queryStep.value === 3 && !queryPreview.value.valid) { error.value = queryPreview.value.error; return }
+  if (queryStep.value === 3 && !queryPreview.value.valid && !savedQueryPreview.value.valid) {
+    error.value = savedQueryPreview.value.error; return
+  }
   if (queryStep.value < 4) queryStep.value = (queryStep.value + 1) as 1 | 2 | 3 | 4
 }
 function nextCrudStep() {
@@ -604,7 +621,7 @@ async function saveSchedule() {
 }
 function addFilter() {
   const first = approvedFields.value[0]
-  if (first && filters.value.length < 24) filters.value.push({ id: ++nextId.value, field: first.logicalName, op: 'eq', value: '' })
+  if (first && filters.value.length < 10) filters.value.push({ id: ++nextId.value, field: first.logicalName, op: 'eq', value: '' })
 }
 function kind(f: Column): 'string' | 'guid' | 'integer' | 'decimal' | 'boolean' | 'datetime' {
   if (['Uniqueidentifier', 'Lookup', 'Customer', 'Owner'].includes(f.type)) return 'guid'
@@ -657,14 +674,24 @@ function filterFieldChanged(f: Filter) {
 function validGuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 }
-function buildQuery(): Query {
+function buildQuery(forSaving = false): Query {
   if (!columns.value.length || columns.value.length > 30) throw new Error('Seleccioná de 1 a 30 columnas.')
   if (!columns.value.every(name => approvedFields.value.some(f => f.logicalName === name)))
     throw new Error('Hay campos no autorizados en la selección.')
-  const predicates = filters.value.map(row => {
+  // The API supports at most 10 children in the single AND/OR group created by this UI.
+  if (filters.value.length > 10) throw new Error('Se permiten hasta 10 condiciones por consulta.')
+  if (forSaving && saveAsParameter.value && !filters.value.length)
+    throw new Error('Para usar un parámetro, añadí al menos una condición.')
+  const predicates = filters.value.map((row, index) => {
     const field = approvedFields.value.find(f => f.logicalName === row.field)
     if (!field) throw new Error('El filtro tiene un campo no autorizado.')
     if (row.op === 'contains' && kind(field) !== 'string') throw new Error('Contains requiere texto.')
+    if (forSaving && saveAsParameter.value && index === 0) {
+      const parameter = paramName.value.trim().toLowerCase()
+      if (!/^[a-z][a-z0-9_]{0,39}$/.test(parameter))
+        throw new Error('El parámetro debe empezar con una letra y contener solo minúsculas, números o _.')
+      return { field: row.field, op: row.op, parameter }
+    }
     return { field: row.field, op: row.op, value: parseValue(field, row.value) }
   })
   return {
@@ -674,6 +701,7 @@ function buildQuery(): Query {
     pageSize: pageSize.value, count: count.value,
   }
 }
+
 async function searchRecords(cursor?: string) {
   await run(async () => {
     if (!activeTable.value) throw new Error('Seleccioná una tabla habilitada.')
@@ -705,6 +733,7 @@ function applySaved(item: Saved) {
   filters.value = clauses.map(f => ({ id: ++nextId.value, field: f.field, op: f.op,
     value: f.value === undefined ? '' : String(f.value) }))
   saveAsParameter.value = item.parameters.length > 0
+  paramName.value = item.parameters[0]?.name ?? 'valor'
   queryNameVisible.value = true
   savedName.value = item.name
   queryStep.value = 3
@@ -713,30 +742,29 @@ function applySaved(item: Saved) {
 }
 async function saveQuery() {
   await run(async () => {
-    if (!/^[a-z][a-z0-9_-]{0,39}$/.test(savedName.value)) throw new Error('Nombre inválido: comenzá con una letra y usá hasta 40 caracteres.')
-    const query = buildQuery()
-    const clauses = filters.value
-    const first = clauses[0]
+    // Saving must not require typing a name or a literal sample for a parameterized filter.
+    const name = savedName.value.trim().toLowerCase() || suggestedSavedName.value
+    if (!/^[a-z][a-z0-9_]{0,39}$/.test(name))
+      throw new Error('Nombre inválido: usá solo letras minúsculas, números y _.')
+    const query = buildQuery(true)
+    const first = filters.value[0]
     const field = approvedFields.value.find(f => f.logicalName === first?.field)
-    const param = saveAsParameter.value && first && field ? [{
-      name: paramName.value, type: kind(field), required: true,
-    }] : []
-    if (param.length && !/^[a-z][a-z0-9_]{0,39}$/.test(paramName.value)) throw new Error('Nombre de parámetro inválido.')
-    if (first && param.length) {
-      const predicate = { field: first.field, op: first.op, parameter: paramName.value }
-      const more = clauses.slice(1).map(f => {
-        const col = approvedFields.value.find(x => x.logicalName === f.field)!
-        return { field: f.field, op: f.op, value: parseValue(col, f.value) }
-      })
-      query.filter = more.length ? { join: join.value, children: [predicate, ...more] } : predicate
-    }
+    const parameters = saveAsParameter.value && field
+      ? [{ name: paramName.value.trim().toLowerCase(), type: kind(field), required: true }]
+      : []
+    const updating = saved.value.some(item => item.name === name)
     await api(connectionPath('saved-queries'), 'POST', {
-      name: savedName.value, entityName: entity.value, query, parameters: param, enabled: false,
+      name, entityName: entity.value, query, parameters, enabled: false,
     })
+    savedName.value = name
+    if (parameters.length) paramName.value = parameters[0].name
     await loadSaved()
-    info.value = 'Consulta guardada deshabilitada. Activala expresamente para la API M2M.'
+    info.value = updating
+      ? 'Consulta actualizada y deshabilitada por seguridad. Activala de nuevo para la API.'
+      : 'Consulta guardada correctamente. Está deshabilitada hasta que decidás habilitarla para la API.'
   })
 }
+
 async function toggleSaved(item: Saved) {
   await run(async () => {
     if (!canSecurity.value) throw new Error('Se requiere Dynamics Seguridad.')
@@ -1172,7 +1200,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
                   <option value="and">Todas las condiciones (Y)</option>
                   <option value="or">Alguna condición (O)</option>
                 </select>
-                <button type="button" class="dynamics-outline-button" :disabled="filters.length >= 24 || !approvedFields.length" @click="addFilter">+ Añadir condición</button>
+                <button type="button" class="dynamics-outline-button" :disabled="filters.length >= 10 || !approvedFields.length" @click="addFilter">+ Añadir condición</button>
               </div>
             </div>
             <div v-for="(filter, i) in filters" :key="filter.id" class="dynamics-friendly-filter">
@@ -1201,6 +1229,10 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
               <button type="button" class="dynamics-outline-button" @click="filters.splice(i, 1)">Quitar</button>
             </div>
             <p v-if="!filters.length" class="dynamics-subtitle">No hay condiciones; se usarán las columnas aprobadas seleccionadas.</p>
+            <label v-if="filters.length" class="dynamics-check">
+              <input v-model="saveAsParameter" type="checkbox">
+              Usar el primer filtro como parámetro al guardar (no necesita un valor de prueba).
+            </label>
           </div>
           <div class="dynamics-form-grid">
             <label class="dynamics-field"><span>Ordenar por (opcional)</span>
@@ -1221,10 +1253,13 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
           <div class="dynamics-review-grid">
             <div v-for="item in querySummary" :key="item" class="dynamics-review-item">{{ item }}</div>
           </div>
-          <div v-if="!queryPreview.valid" class="dynamics-feedback dynamics-feedback-error" role="alert">{{ queryPreview.error }}</div>
+          <div v-if="!queryPreview.valid && !savedQueryPreview.valid" class="dynamics-feedback dynamics-feedback-error" role="alert">{{ savedQueryPreview.error }}</div>
+          <p v-else-if="!queryPreview.valid" class="dynamics-subtitle" role="status">
+            Podés guardar esta consulta parametrizada sin valor de prueba. Para ejecutarla ahora, ingresá un valor en el primer filtro.
+          </p>
           <details class="dynamics-disclosure">
             <summary>Ver consulta técnica (JSON)</summary>
-            <pre class="dynamics-json">{{ JSON.stringify(queryPreview.data, null, 2) }}</pre>
+            <pre class="dynamics-json">{{ JSON.stringify(queryPreview.valid ? queryPreview.data : savedQueryPreview.data, null, 2) }}</pre>
           </details>
           <div class="dynamics-data-card">
             <div class="dynamics-data-card-top"><div>
@@ -1233,18 +1268,19 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             </div></div>
             <div class="dynamics-form-grid">
               <label class="dynamics-field"><span>Nombre de la consulta</span>
-                <input v-model.trim="savedName" placeholder="ejemplo: ofertas_abiertas" maxlength="40" autocomplete="off">
-                <small class="dynamics-subtitle">Empezá con una letra; usá letras minúsculas, números, - o _.</small>
+                <input v-model.trim="savedName" :placeholder="'Ejemplo: ' + suggestedSavedName" maxlength="40" autocomplete="off">
+                <small class="dynamics-subtitle">Si lo dejás vacío, se guardará como <strong>{{ suggestedSavedName }}</strong>. Solo letras, números y _; se convertirá a minúsculas.</small>
               </label>
               <div class="dynamics-explainer">
                 <label class="dynamics-check"><input v-model="saveAsParameter" type="checkbox"> Hacer variable el primer filtro</label>
                 <p class="dynamics-subtitle">Útil si Pangolin u otra aplicación enviará un valor diferente en cada ejecución.</p>
               </div>
               <label v-if="saveAsParameter && filters.length" class="dynamics-field"><span>Nombre del parámetro</span>
-                <input v-model.trim="paramName" placeholder="valor" maxlength="40">
+                <input v-model.trim="paramName" placeholder="idtra" maxlength="40">
+                <small class="dynamics-subtitle">Ejemplo: IDTRA se guardará como idtra para coincidir con la API.</small>
               </label>
             </div>
-            <button type="button" class="dynamics-outline-button" :disabled="busy || !queryPreview.valid || !savedName.trim()" @click="saveQuery">Guardar consulta</button>
+            <button type="button" class="dynamics-outline-button" :disabled="busy" @click="saveQuery">{{ busy ? 'Guardando…' : 'Guardar consulta' }}</button>
           </div>
           <div v-if="saved.length" class="dynamics-data-card">
             <strong>Mis consultas guardadas</strong>
