@@ -4256,8 +4256,8 @@ async function saveRate() {
   if (shipmentModeForApi.value === 'Lcl' && !isMiamiLcl.value) {
     for (const detail of details) {
       const notes = String(detail.notes ?? '')
-      if (!/LCL\\s*PROPIO/i.test(notes)) continue
-      const corrected = notes.replace(/\\s*·\\s*Plan Miami:[\\s\\S]*?(?=\\s*·\\s*Base:|$)/i, '').trim()
+      if (!/LCL\s*PROPIO/i.test(notes)) continue
+      const corrected = notes.replace(/\s*·\s*Plan Miami:[\s\S]*?(?=\s*·\s*Base:|$)/i, '').trim()
       detail.notes = corrected || null
     }
   }
