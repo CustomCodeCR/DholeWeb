@@ -62,8 +62,11 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
     screen7OwnLclRefreshContext: { value: '' },
     persistedOwnLclConsolidationId: () => '11111111-1111-4111-8111-111111111111',
     OwnLclConsolidationService: {
-      get: async () => ({ polCode: 'CNSHA', polName: 'Shanghai' }),
-      calculate: async () => ({
+      get: async () => { throw new Error('Do not call consolidation detail GET in screen 7') },
+      calculate: async (_id: string, request: any) => {
+        events.push('matrix:' + request.destinationCode + ':' + request.polCode
+          + ':' + request.cargoLines[0]?.heightCm)
+        return ({
         consolidationId: '11111111-1111-4111-8111-111111111111',
         consolidationNumber: 54, matrixVersion: 'matrix-current',
         lines: [
@@ -78,7 +81,7 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
         ],
         totalCost: 4900, finalSale: 5200, profitAmount: 300,
         profitPerCbm: 10, profitPercentage: 6, meetsMinimumMargin: false,
-      }),
+      }) },
     },
     screen7RefreshBusy: { value: false },
     screen7RefreshAllowed: { value: false },
@@ -191,7 +194,7 @@ test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and
   assert.equal(env.lclSelectedSource.value.lines.length, 4)
   assert.equal(env.screen7OwnLclRefreshContext.value, 'normal-context')
   assert.equal(env.screen7RefreshPromptOpen.value, false)
-  assert.deepEqual(events, ['saved', 'success'])
+  assert.deepEqual(events, ['matrix:CR:SHANGHAI:2900', 'saved', 'success'])
 })
 
 test('wizard includes own LCL service import used by screen 7 refresh', () => {
