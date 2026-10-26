@@ -52,7 +52,6 @@ function patchWizard(source: string) {
     '    })',
     '    if (gcf) form.agentId = gcf.id',
     '  },',
-    '  { immediate: true },',
     ')',
     agentOptionsAnchor,
   ].join('\n'), 'single LCL agent selector options')
