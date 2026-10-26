@@ -5,6 +5,8 @@ import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/comp
 import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmReferencePicker from '../components/CrmReferencePicker.vue'
+import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
+import CrmHaciendaLookup, { type HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -31,6 +33,17 @@ const referenceScopes: Record<string, string[]> = {
   opportunityId: ['crm.opportunity.read', 'crm.opportunity.read-all'],
 }
 const canSelectReference = (key: string) => (referenceScopes[key] ?? []).some(scope => auth.hasScope(scope))
+const catalogFields: Record<string, { slug: string; kind: 'id' | 'code' | 'value' }> = {
+  countryId: { slug: 'countries', kind: 'id' },
+  currencyCode: { slug: 'currencies', kind: 'value' },
+}
+function applyHacienda(result: HaciendaResult) {
+  // Never overwrite a manually-entered commercial name.
+  form.legalName = result.name
+  if (!String(form.displayName ?? '').trim()) form.displayName = result.name
+  if (result.identificationType) form.taxIdTypeCode = result.identificationType
+}
+
 const columns = computed<DhTableColumn<CrmRow>[]>(() => [
   { key: '_crmTitle', label: t('common.name') },
   { key: '_crmDescription', label: t('common.description') },
@@ -372,6 +385,9 @@ onMounted(() => { if (allowed.value) void load() })
         <form v-if="model" class="space-y-6" @submit.prevent="save">
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">{{ t('crm.formHint') }}</p>
           <p v-if="error" role="alert" class="rounded-2xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ error }}</p>
+          <CrmHaciendaLookup v-if="section === 'accounts'"
+            :country-id="String(form.countryId ?? '')" :tax-id="String(form.taxId ?? '')"
+            @resolved="applyHacienda" />
           <div class="grid gap-4 sm:grid-cols-2">
             <div v-for="f in model.fields" :key="f.key" :class="f.type === 'textarea' && 'sm:col-span-2'">
               <DhSelect v-if="f.type === 'select'" :label="f.label" :options="f.options ?? []" placeholder=""
@@ -381,6 +397,14 @@ onMounted(() => { if (allowed.value) void load() })
               <div v-else-if="f.type === 'checkbox'" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
                 <DhSwitch :label="f.label" :model-value="Boolean(form[f.key])" @update:model-value="form[f.key] = $event" />
               </div>
+              <CrmCatalogPicker v-else-if="catalogFields[f.key]"
+                :label="f.label" :catalog-group-slug="catalogFields[f.key]?.slug ?? ''"
+                :value-kind="catalogFields[f.key]?.kind ?? 'id'"
+                :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
+              <DhSelect v-else-if="f.key === 'categoryCode' && section === 'accounts'"
+                :label="f.label" :model-value="String(form[f.key] ?? '')" placeholder=""
+                :options="(String(form.categoryType) === 'NVOCC' ? ['A','B'] : ['A','B','C','D']).map(x => ({label: x, value: x}))"
+                @update:model-value="form[f.key] = $event" />
               <CrmReferencePicker v-else-if="canSelectReference(f.key)"
                 :label="f.label" :resource="referenceResources[f.key] ?? 'accounts'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
