@@ -67,7 +67,8 @@ type ApiClient = { id: string; issuer: string; clientId: string; displayName: st
 type ApiGrant = { id: string; apiClientId: string; connectionId: string; entitySet: string; operation: string;
   allowedFields: string[]; maxRequestsPerMinute: number; enabled: boolean }
 type IntegrationKeyInfo = {
-  id: string; queryName: string | null; scope?: 'all' | 'single'; label: string; enabled: boolean; expiresAt: string
+  id: string; queryName: string | null; scope: 'all' | 'single' | 'selected'
+  allowedQueries?: string[]; label: string; enabled: boolean; expiresAt: string
   maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null
 }
 type IntegrationKeyIssued = { key: IntegrationKeyInfo; apiKey: string }
@@ -94,6 +95,13 @@ const publicOperation = ref<ApiOperation>('saved')
 const publicAuthMode = ref<'api-key' | 'oauth'>('api-key')
 const integrationKeys = ref<IntegrationKeyInfo[]>([])
 const integrationKeyForm = ref({ label: 'Pangolin', expiresInDays: 30, maxRequestsPerMinute: 60 })
+const newKeyScope = ref<'all' | 'selected'>('all')
+const newKeyQueries = ref<string[]>([])
+const editingKeyId = ref('')
+const editingKeyScope = ref<'all' | 'selected'>('all')
+const editingKeyQueries = ref<string[]>([])
+const enabledSavedQueries = computed(() => saved.value.filter(query => query.enabled))
+const editingKey = computed(() => integrationKeys.value.find(key => key.id === editingKeyId.value))
 const issuedIntegrationKey = ref<IntegrationKeyIssued | null>(null)
 const publicSavedName = ref('')
 const publicRecordId = ref('')
@@ -297,21 +305,50 @@ async function createIntegrationKey() {
   await run(async () => {
     if (!canSecurity.value || !code.value)
       throw new Error('Seleccioná una conexión y verificá el permiso de seguridad.')
+    if (newKeyScope.value === 'selected' && newKeyQueries.value.length === 0)
+      throw new Error('Seleccioná al menos una consulta habilitada.')
     const issued = await api<IntegrationKeyIssued>(connectionPath('integration-keys'), 'POST', {
-      queryName: null, // One key for all enabled saved queries in this connection.
+      queryName: null,
+      scope: newKeyScope.value,
+      allowedQueries: newKeyScope.value === 'selected' ? newKeyQueries.value : [],
       label: integrationKeyForm.value.label.trim(),
       expiresInDays: integrationKeyForm.value.expiresInDays,
       maxRequestsPerMinute: integrationKeyForm.value.maxRequestsPerMinute,
     })
     issuedIntegrationKey.value = issued
     await loadIntegrationKeys()
-    info.value = 'Clave generada. Copiala ahora: solo se muestra una vez.'
+    info.value = 'Clave generada para ' + (newKeyScope.value === 'all'
+      ? 'todas las consultas habilitadas.' : newKeyQueries.value.length + ' consultas seleccionadas.')
+      + ' Copiala ahora: solo se muestra una vez.'
+  })
+}
+function editIntegrationKey(key: IntegrationKeyInfo) {
+  editingKeyId.value = key.id
+  editingKeyScope.value = key.scope === 'all' ? 'all' : 'selected'
+  editingKeyQueries.value = key.scope === 'selected'
+    ? (key.allowedQueries ?? []).filter(name => enabledSavedQueries.value.some(query => query.name === name))
+    : key.scope === 'single' && key.queryName && enabledSavedQueries.value.some(query => query.name === key.queryName)
+      ? [key.queryName] : []
+}
+async function updateIntegrationKeyAccess() {
+  await run(async () => {
+    if (!editingKeyId.value || !canSecurity.value)
+      throw new Error('Seleccioná una API Key activa.')
+    if (editingKeyScope.value === 'selected' && editingKeyQueries.value.length === 0)
+      throw new Error('Seleccioná al menos una consulta habilitada.')
+    await api(connectionPath('integration-keys/' + encodeURIComponent(editingKeyId.value) + '/access'),
+      'PUT', { scope: editingKeyScope.value,
+        allowedQueries: editingKeyScope.value === 'selected' ? editingKeyQueries.value : [] })
+    await loadIntegrationKeys()
+    editingKeyId.value = ''
+    info.value = 'Permisos de la API Key actualizados sin cambiar su secreto.'
   })
 }
 async function revokeIntegrationKey(id: string) {
   await run(async () => {
     await api(connectionPath('integration-keys/' + encodeURIComponent(id)), 'DELETE')
     if (issuedIntegrationKey.value?.key.id === id) issuedIntegrationKey.value = null
+    if (editingKeyId.value === id) editingKeyId.value = ''
     await loadIntegrationKeys()
     info.value = 'Clave revocada. Esa aplicación ya no puede utilizarla.'
   })
@@ -953,6 +990,8 @@ watch(code, () => {
   metadataJobs.value = {}
   issuedIntegrationKey.value = null
   integrationKeys.value = []
+  editingKeyId.value = ''
+  newKeyQueries.value = []
   if (code.value) void run(reload)
 }, { immediate: true })
 watch(() => props.section, section => {
@@ -1536,7 +1575,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             <option value="delete">Eliminar registro</option>
             <option value="upsert">UPSERT por clave alternativa</option>
           </select></label>
-          <label v-if="publicAuthMode === 'api-key' || publicOperation === 'saved'" class="dynamics-field"><span>Consulta guardada</span>
+          <label v-if="publicAuthMode === 'api-key' || publicOperation === 'saved'" class="dynamics-field"><span>{{ publicAuthMode === 'api-key' ? 'Consulta para generar una URL de ejemplo (no asigna permisos)' : 'Consulta guardada' }}</span>
             <select v-model="publicSavedName"><option value="">Seleccionar consulta</option>
               <option v-for="item in saved" :key="item.id" :value="item.name">{{ item.name }} ({{ item.enabled ? 'habilitada' : 'deshabilitada' }})</option>
             </select>
@@ -1563,9 +1602,34 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
       </div>
       <div v-if="publicAuthMode === 'api-key'" class="dynamics-data-card">
         <strong>2. Crear una clave para Pangolin u otra aplicación</strong>
-        <p class="dynamics-subtitle">La clave sirve para todas las consultas guardadas habilitadas de la conexión {{ code }}, incluidas las que habilités más adelante. Se mostrará una sola vez. Desactivar una consulta impide ejecutarla, pero no invalida las otras ni obliga a generar una nueva clave.</p>
+        <p class="dynamics-subtitle">Elegí todas las consultas o marcá varias consultas específicas para una sola clave. También podés modificar los permisos de las claves existentes sin cambiar su secreto.</p>
         <div v-if="!canSecurity" class="dynamics-feedback dynamics-feedback-error">Se requiere el permiso dynamics.security.admin para generar claves.</div>
         <template v-else>
+          <div class="dynamics-bulk-options">
+            <label class="dynamics-bulk-option" :class="{ selected: newKeyScope === 'all' }">
+              <input v-model="newKeyScope" type="radio" value="all">
+              <span><strong>Todas las consultas habilitadas</strong>
+                <small>Incluye las consultas nuevas que habilités posteriormente.</small></span>
+            </label>
+            <label class="dynamics-bulk-option" :class="{ selected: newKeyScope === 'selected' }">
+              <input v-model="newKeyScope" type="radio" value="selected">
+              <span><strong>Seleccionar varias consultas</strong>
+                <small>La API Key funcionará únicamente con las consultas que marqué.</small></span>
+            </label>
+          </div>
+          <div v-if="newKeyScope === 'selected'" class="dynamics-bulk-panel">
+            <strong>Consultas permitidas para esta API Key</strong>
+            <div class="dynamics-actions">
+              <button class="dynamics-outline-button" type="button" @click="newKeyQueries=enabledSavedQueries.map(query => query.name)">Seleccionar todas</button>
+              <button class="dynamics-outline-button" type="button" @click="newKeyQueries=[]">Limpiar</button>
+            </div>
+            <div class="dynamics-check-grid">
+              <label v-for="query in enabledSavedQueries" :key="query.id" class="dynamics-check">
+                <input v-model="newKeyQueries" type="checkbox" :value="query.name">{{ query.name }}
+              </label>
+            </div>
+            <p v-if="!enabledSavedQueries.length" class="dynamics-subtitle">No hay consultas habilitadas. Activá las que necesités en Query Builder.</p>
+          </div>
           <div class="dynamics-form-grid">
             <label class="dynamics-field"><span>Nombre de la aplicación</span>
               <input v-model.trim="integrationKeyForm.label" maxlength="120" placeholder="Pangolin"></label>
@@ -1576,6 +1640,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
           </div>
           <button type="button" class="dynamics-primary-button"
             :disabled="busy || !code || !integrationKeyForm.label.trim() ||
+              (newKeyScope === 'selected' && !newKeyQueries.length) ||
               integrationKeyForm.expiresInDays < 1 || integrationKeyForm.expiresInDays > 90 ||
               integrationKeyForm.maxRequestsPerMinute < 1 || integrationKeyForm.maxRequestsPerMinute > 120"
             @click="createIntegrationKey">Generar clave de API</button>
@@ -1590,13 +1655,54 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
             </div>
           </div>
           <div v-if="integrationKeys.length" class="dynamics-data-card">
-            <strong>Claves existentes (sin mostrar secretos)</strong>
+            <strong>API Keys existentes · administrá sus consultas sin generar otra clave</strong>
             <div v-for="key in integrationKeys" :key="key.id" class="dynamics-saved-row">
               <div><strong>{{ key.label }}</strong>
-                <p class="dynamics-subtitle">{{ key.scope === 'all' ? 'Todas las consultas habilitadas' : 'Consulta ' + key.queryName }} · {{ key.enabled ? 'Habilitada' : 'Revocada' }} · vence {{ new Date(key.expiresAt).toLocaleDateString('es-CR') }}</p>
+                <p class="dynamics-subtitle">{{ key.scope === 'all' ? 'Todas las consultas habilitadas'
+                  : key.scope === 'selected' ? (key.allowedQueries?.length ?? 0) + ' consultas seleccionadas'
+                  : 'Una consulta: ' + key.queryName }} · {{ key.enabled ? 'Habilitada' : 'Revocada' }} · vence {{ new Date(key.expiresAt).toLocaleDateString('es-CR') }}</p>
               </div>
-              <button v-if="key.enabled" type="button" class="dynamics-outline-button"
-                :disabled="busy" @click="revokeIntegrationKey(key.id)">Revocar acceso</button>
+              <div class="dynamics-actions">
+                <button v-if="key.enabled && new Date(key.expiresAt).getTime() > Date.now()"
+                  type="button" class="dynamics-outline-button" :disabled="busy"
+                  @click="editIntegrationKey(key)">Administrar consultas</button>
+                <button v-if="key.enabled" type="button" class="dynamics-outline-button"
+                  :disabled="busy" @click="revokeIntegrationKey(key.id)">Revocar acceso</button>
+              </div>
+            </div>
+            <div v-if="editingKey" class="dynamics-bulk-panel">
+              <strong>Consultas permitidas · {{ editingKey.label }}</strong>
+              <p class="dynamics-subtitle">La clave seguirá siendo la misma. El cambio se aplica a la conexión {{ code }} y queda auditado.</p>
+              <div class="dynamics-bulk-options">
+                <label class="dynamics-bulk-option" :class="{ selected: editingKeyScope === 'all' }">
+                  <input v-model="editingKeyScope" type="radio" value="all">
+                  <span><strong>Todas las consultas habilitadas</strong>
+                    <small>Incluye las nuevas consultas habilitadas en el futuro.</small></span>
+                </label>
+                <label class="dynamics-bulk-option" :class="{ selected: editingKeyScope === 'selected' }">
+                  <input v-model="editingKeyScope" type="radio" value="selected">
+                  <span><strong>Solo las consultas que seleccione</strong>
+                    <small>Elegí una o varias búsquedas autorizadas.</small></span>
+                </label>
+              </div>
+              <div v-if="editingKeyScope === 'selected'">
+                <div class="dynamics-actions">
+                  <button class="dynamics-outline-button" type="button" @click="editingKeyQueries=enabledSavedQueries.map(query => query.name)">Seleccionar todas</button>
+                  <button class="dynamics-outline-button" type="button" @click="editingKeyQueries=[]">Limpiar</button>
+                </div>
+                <div class="dynamics-check-grid">
+                  <label v-for="query in enabledSavedQueries" :key="query.id" class="dynamics-check">
+                    <input v-model="editingKeyQueries" type="checkbox" :value="query.name">{{ query.name }}
+                  </label>
+                </div>
+                <p v-if="!enabledSavedQueries.length" class="dynamics-subtitle">No hay consultas habilitadas para seleccionar.</p>
+              </div>
+              <div class="dynamics-tools">
+                <button type="button" class="dynamics-primary-button"
+                  :disabled="busy || (editingKeyScope === 'selected' && !editingKeyQueries.length)"
+                  @click="updateIntegrationKeyAccess">Guardar permisos de esta API Key</button>
+                <button type="button" class="dynamics-outline-button" @click="editingKeyId=''">Cancelar</button>
+              </div>
             </div>
           </div>
         </template>
@@ -1607,7 +1713,7 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
           <code class="dynamics-api-url">{{ publicEndpoint }}</code>
           <button class="dynamics-outline-button" type="button" :disabled="!publicReady" @click="copyApi(publicEndpoint)">Copiar URL</button>
         </div>
-        <p v-if="publicAuthMode === 'api-key'" class="dynamics-subtitle">La misma clave activa y no caducada se envía en <code>X-Dhole-Api-Key</code> para cualquier consulta guardada habilitada de esta conexión; solo cambiás el nombre en la URL. Se aplican los permisos de lectura vigentes de Dataverse. No permite CREATE, UPDATE ni DELETE.</p>
+        <p v-if="publicAuthMode === 'api-key'" class="dynamics-subtitle">La misma clave activa y no caducada se envía en <code>X-Dhole-Api-Key</code> para todas las consultas habilitadas o para las consultas seleccionadas en sus permisos; solo cambiás el nombre en la URL. Se aplican los permisos de lectura vigentes de Dataverse. No permite CREATE, UPDATE ni DELETE.</p>
         <p v-else class="dynamics-subtitle">Permiso OAuth requerido: <strong>{{ publicScope }}</strong>. Además se requiere cliente OAuth registrado, grant por conexión, tabla, operación y campos, y políticas de Dataverse. Para CREATE, UPDATE y DELETE, también las aprobaciones de producción.</p>
         <strong>Ejemplo de solicitud HTTP (sin credenciales reales)</strong>
         <pre class="dynamics-json">{{ publicCurl }}</pre>
