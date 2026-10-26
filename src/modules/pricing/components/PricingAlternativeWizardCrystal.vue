@@ -4615,7 +4615,9 @@ async function saveRate() {
       })
       return
     }
-    await router.push({ name: 'pricing-rates' })
+    // An edited quotation is a new revision awaiting explicit delivery; show it immediately.
+    await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
+    return
   } catch (error) {
     toastStore.backendError(error, createdRateId.value && props.rateRequestId
       ? 'La tarifa ya existe, pero no se pudo vincular la solicitud. No cree otra; recupere la tarifa existente desde el dashboard.'
