@@ -8,8 +8,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { CONFIG_SCOPES } from '@/core/auth/scopes'
-import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { CatalogGroupsService } from '@/core/services/catalogGroupsService'
+import { SrmApi } from '../services/srmApi'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
 
 type SrmSection = 'dashboard' | 'suppliers' | 'performance' | 'contracts'
@@ -23,22 +22,19 @@ const en = computed(() => locale.value === 'en')
 const heading = computed(() => section.value === 'performance' ? t('srm.performance')
   : section.value === 'contracts' ? t('srm.contracts')
   : section.value === 'suppliers' ? t('srm.suppliers') : t('srm.dashboard'))
-const hasConfigRead = computed(() => auth.hasScope(CONFIG_SCOPES.catalogItems.view) ||
-  auth.hasScope(CONFIG_SCOPES.catalogSelects.view) || auth.hasScope(CONFIG_SCOPES.catalogSelects.select))
-const hasConfigWrite = computed(() => auth.hasScope(CONFIG_SCOPES.catalogItems.create) &&
-  (auth.hasScope(CONFIG_SCOPES.catalogSelects.view) || auth.hasScope(CONFIG_SCOPES.catalogSelects.select)))
 const canReadSuppliers = computed(() => auth.hasScope('srm.supplier.read'))
-const canCreateSuppliers = computed(() => auth.hasScope('srm.supplier.create') && hasConfigWrite.value)
-const canEditSuppliers = computed(() => auth.hasScope('srm.supplier.update') && auth.hasScope(CONFIG_SCOPES.catalogItems.update))
+const canCreateSuppliers = computed(() => auth.hasScope('srm.supplier.create'))
+const canEditSuppliers = computed(() => auth.hasScope('srm.supplier.update'))
 const canReadSection = computed(() => {
-  if (section.value === 'performance') return auth.hasScope('srm.performance.read') || auth.hasScope('srm.performance.manage')
-  if (section.value === 'contracts') return auth.hasScope('srm.contract.read') || auth.hasScope('srm.contract.manage')
-  return canReadSuppliers.value
+  if (!canReadSuppliers.value) return false
+  if (section.value === 'performance') return auth.hasScope('srm.performance.read')
+  if (section.value === 'contracts') return auth.hasScope('srm.contract.read')
+  return true
 })
 const canWriteSection = computed(() => section.value === 'performance'
-  ? auth.hasScope('srm.performance.manage') && hasConfigWrite.value
+  ? auth.hasScope('srm.performance.manage')
   : section.value === 'contracts'
-    ? auth.hasScope('srm.contract.manage') && hasConfigWrite.value : canCreateSuppliers.value)
+    ? auth.hasScope('srm.contract.manage') : canCreateSuppliers.value)
 const sections = [
   { path: '/srm', value: 'dashboard', label: 'srm.dashboard', icon: Building2 },
   { path: '/srm/suppliers', value: 'suppliers', label: 'srm.suppliers', icon: Truck },
@@ -112,17 +108,17 @@ const pageIntro = computed(() => section.value === 'contracts'
     : (en.value ? 'Your logistics partner directory' : 'Administración de empresas y aliados logísticos'))
 
 async function load() {
-  if (!canReadSection.value || !hasConfigRead.value) return
+  if (!canReadSection.value) return
   loading.value = true
   error.value = ''
   try {
     const promises: Promise<CatalogItemDto[]>[] = [
-      CatalogItemsService.getByGroupSlug('srm-suppliers'),
+      SrmApi.list('suppliers'),
     ]
     if (auth.hasScope('srm.performance.read') || auth.hasScope('srm.performance.manage'))
-      promises.push(CatalogItemsService.getByGroupSlug('srm-evaluations'))
+      promises.push(SrmApi.list('evaluations'))
     if (auth.hasScope('srm.contract.read') || auth.hasScope('srm.contract.manage'))
-      promises.push(CatalogItemsService.getByGroupSlug('srm-contracts'))
+      promises.push(SrmApi.list('contracts'))
     const results = await Promise.allSettled(promises)
     const supplierResult = results[0]
     if (!supplierResult) throw new Error('SRM supplier result is missing')
@@ -141,20 +137,6 @@ async function load() {
   } catch {
     error.value = t('srm.loadError')
   } finally { loading.value = false }
-}
-async function groupId(slug: string, name: string) {
-  let groups = await CatalogGroupsService.select()
-  let group = groups.find(item => item.slug === slug)
-  if (!group && auth.hasScope(CONFIG_SCOPES.catalogGroups.create)) {
-    await CatalogGroupsService.create({
-      name, slug, isSystem: false,
-      description: 'Registro del módulo SRM; no mezclar con clientes CRM ni con agentes/navieras.',
-    })
-    groups = await CatalogGroupsService.select()
-    group = groups.find(item => item.slug === slug)
-  }
-  if (!group) throw new Error(en.value ? 'Create this SRM catalog in Config before saving.' : 'Se requiere crear el catálogo ' + slug + ' en Config.')
-  return group.id
 }
 function resetForm() {
   editing.value = null
@@ -197,15 +179,14 @@ async function saveSupplier() {
       contactPhone: contactPhone.value.trim(),
     })
     if (editing.value) {
-      await CatalogItemsService.update(editing.value.id, {
+      await SrmApi.updateSupplier(editing.value.id, {
         name: supplierName.value.trim(), description: supplierDescription.value.trim() || null,
         value: supplierName.value.trim(), metadataJson, sortOrder: editing.value.sortOrder,
       })
     } else {
-      const id = await groupId('srm-suppliers', 'Proveedores SRM')
-      await CatalogItemsService.createForGroup(id, {
+      await SrmApi.create('suppliers', {
         name: supplierName.value.trim(), description: supplierDescription.value.trim() || null,
-        value: supplierName.value.trim(), metadataJson, sortOrder: suppliers.value.length + 1, isSystem: false,
+        value: supplierName.value.trim(), metadataJson, sortOrder: suppliers.value.length + 1,
       })
     }
     closeForm()
@@ -220,19 +201,18 @@ async function saveRecord() {
   error.value = ''
   try {
     const contract = section.value === 'contracts'
-    const slug = contract ? 'srm-contracts' : 'srm-evaluations'
-    const id = await groupId(slug, contract ? 'Contratos SRM' : 'Evaluaciones SRM')
+    const collection = contract ? 'contracts' : 'evaluations'
     const name = (contract ? (reference.value.trim() || 'Contrato') : 'Evaluación') +
       ' · ' + supplierLabel(supplierId.value) + ' · ' + new Date().toISOString().slice(0, 10) +
       ' · ' + Date.now()
-    await CatalogItemsService.createForGroup(id, {
+    await SrmApi.create(collection, {
       name, description: note.value.trim() || null, value: reference.value.trim() || null,
       metadataJson: JSON.stringify({
         supplierId: supplierId.value,
         ...(contract ? { reference: reference.value.trim(), expiresAt: expiresAt.value } : { score: score.value }),
         createdAt: new Date().toISOString(),
       }),
-      sortOrder: selectedRecords.value.length + 1, isSystem: false,
+      sortOrder: selectedRecords.value.length + 1,
     })
     closeForm()
     success.value = t('crm.saved')
@@ -240,7 +220,7 @@ async function saveRecord() {
   } catch (cause) { error.value = cause instanceof Error ? cause.message : t('srm.loadError') }
   finally { saving.value = false }
 }
-watch([section, canReadSection, hasConfigRead], () => { closeForm(); void load() })
+watch([section, canReadSection], () => { closeForm(); void load() })
 onMounted(() => { void load() })
 </script>
 
@@ -277,9 +257,6 @@ onMounted(() => { void load() })
       <div><h2 class="font-bold">{{ en ? 'Restricted module' : 'Módulo restringido' }}</h2>
         <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ en ? 'An administrator must assign the corresponding srm.* permission to your user.' : 'Un administrador debe asignar el permiso srm.* correspondiente desde Auth → Usuarios.' }}</p>
       </div>
-    </div>
-    <div v-else-if="!hasConfigRead" role="alert" class="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 text-sm">
-      {{ en ? 'SRM permissions are present, but Config catalog read access is also required until the dedicated Config SRM API is deployed.' : 'Tiene permiso de SRM, pero la API actual de Config también exige permiso de consulta de catálogos. Asigne el permiso de Config desde Auth.' }}
     </div>
     <template v-else>
       <p v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">{{ error }}</p>
