@@ -42,12 +42,13 @@ test('CRM/SRM translations include Spanish and English', () => {
   assert.match(translations, /contracts: 'Contratos y acuerdos'/)
 })
 
-test('CRM is monitored through the Gateway and scoped module shortcuts are present', () => {
+test('CRM is monitored through the Gateway without a duplicate pinned sidebar shortcut', () => {
   const sidebar = read('src/shared/components/organisms/DhSidebar.vue')
   assert.match(monitoring, /key: 'crm'/)
   assert.match(monitoring, /buildGatewayHealthUrl\('crm'\)/)
-  assert.ok(sidebar.indexOf('to="/crm"') < sidebar.indexOf('<nav class="dh-scrollbar'))
-  assert.ok(sidebar.indexOf('to="/srm"') < sidebar.indexOf('<nav class="dh-scrollbar'))
+  assert.doesNotMatch(sidebar, /to="\/crm"/)
+  assert.doesNotMatch(sidebar, /to="\/srm"/)
+  assert.match(sidebar, /<nav class="dh-scrollbar/)
 })
 
 test('CRM and SRM menu entries require the effective user's module scopes', () => {
@@ -59,9 +60,7 @@ test('CRM and SRM menu entries require the effective user's module scopes', () =
   assert.ok(layout.includes("if (canView('srm.supplier.read'))"))
   assert.ok(layout.includes("if (canView('srm.performance.read'))"))
   assert.ok(layout.includes("if (canView('srm.contract.read'))"))
-  assert.ok(sidebar.includes('v-if="canOpenCrm || canOpenSrm"'))
-  assert.ok(sidebar.includes('v-if="canOpenCrm"'))
-  assert.ok(sidebar.includes('v-if="canOpenSrm"'))
+  assert.doesNotMatch(sidebar, /canOpenCrm|canOpenSrm/)
   assert.ok(secondary.includes('requiredAnyScopes: [...CRM_WORKSPACE_SCOPES]'))
   assert.ok(secondary.includes("requiredScope: 'srm.supplier.read'"))
   assert.ok(scopes.includes('export const CRM_WORKSPACE_SCOPES = ['))
