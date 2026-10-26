@@ -451,7 +451,7 @@ function cargoForCbm(cbm: number) {
 }
 
 function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateLine[] {
-  const commercialMarker = props.commercialPlan
+  const commercialMarker = props.commercialPlan && isMiamiOwnLclPol(props.polCode, props.polName)
     ? ` · Plan Miami: ${props.commercialPlan} · WHS: ${Math.max(1, Math.trunc(n(props.whsQty)))} · SED: ${props.includeSed ? Math.max(1, Math.trunc(n(props.sedQty))) : 0} · Bonded: ${props.bonded ? 'Sí' : 'No'}`
     : ''
   const sourceMarker = `LCL PROPIO · ConsolidadoId: ${calculation.consolidationId} · Consolidado: #${calculation.consolidationNumber}${commercialMarker}`
