@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { ArrowLeft, ContactRound, Plus } from 'lucide-vue-next'
+import { DhButton } from '@/shared/components/atoms'
+import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -12,6 +15,7 @@ const contact = ref<CrmRow | null>(null)
 const preference = ref<CrmRow | null>(null)
 const consents = ref<CrmRow[]>([])
 const error = ref(''), notice = ref(''), busy = ref(false)
+const showConsentForm = ref(false)
 const edit = reactive({ name: '', jobTitle: '', email: '', phone: '' })
 const pref = reactive({
   preferredChannel: 'EMAIL', preferredDaysMask: 127, startLocalTime: '',
@@ -49,7 +53,7 @@ async function load() {
 }
 async function run(action: () => Promise<unknown>) {
   busy.value = true; error.value = ''; notice.value = ''
-  try { await action(); await load(); notice.value = t('crm.saved') }
+  try { await action(); await load(); notice.value = t('crm.saved'); showConsentForm.value = false }
   catch (e) { error.value = crmError(e) }
   finally { busy.value = false }
 }
@@ -83,8 +87,9 @@ onMounted(() => { if (can('crm.contact.read')) void load() })
 
 <template>
   <main class="mx-auto max-w-5xl space-y-5 p-3 text-[var(--dh-text)] sm:p-6">
-    <button class="crm-button" @click="router.back()">← {{ t('crm.back') }}</button>
-    <h1 class="text-2xl font-black">{{ t('crm.contactDetails') }}</h1>
+    <DhPageHeader :title="t('crm.contactDetails')" :icon="ContactRound" hide-excel-export>
+      <template #actions><DhButton :label="t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="router.back()" /></template>
+    </DhPageHeader>
     <p v-if="!can('crm.contact.read')" role="alert">{{ t('crm.denied') }}</p>
     <template v-else>
       <p v-if="busy" role="status">{{ t('common.loading') }}</p>
@@ -115,11 +120,16 @@ onMounted(() => { if (can('crm.contact.read')) void load() })
         <button v-if="can('crm.contact.update')" type="submit" :disabled="busy" class="crm-button">{{ t('common.save') }}</button>
       </form>
       <section v-if="contact" class="crm-panel space-y-4 p-5">
-        <h2 class="text-lg font-bold">{{ t('crm.consentHistory') }}</h2>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-lg font-bold">{{ t('crm.consentHistory') }}</h2>
+          <DhButton v-if="can('crm.contact.marketing-consent.manage')" :label="t('crm.registerConsent')"
+            :icon="Plus" @click="showConsentForm=true" />
+        </div>
         <div v-for="c in consents" :key="c.id" class="border-b border-[var(--dh-border)] py-2 text-sm">
           {{ c.channel }} — {{ c.status }} · {{ c.purpose }} · {{ c.capturedAt }}
         </div>
         <p v-if="!consents.length" class="text-sm">{{ t('common.noData') }}</p>
+        <DhDrawer :open="showConsentForm" :title="t('crm.registerConsent')" size="md" @close="showConsentForm=false">
         <form v-if="can('crm.contact.marketing-consent.manage')" class="grid gap-3 sm:grid-cols-2" @submit.prevent="addConsent">
           <label class="text-sm font-bold">{{ t('common.status') }}
             <select v-model="consent.status" class="crm-input">
@@ -137,6 +147,8 @@ onMounted(() => { if (can('crm.contact.read')) void load() })
           </label>
           <button type="submit" :disabled="busy" class="crm-button">{{ t('crm.registerConsent') }}</button>
         </form>
+          <p v-if="error" role="alert" class="mt-2 text-sm text-red-500">{{ error }}</p>
+        </DhDrawer>
       </section>
     </template>
   </main>
