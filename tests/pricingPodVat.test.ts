@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { resolvePodCountryCode, resolvePodVatRate, stripGeneratedPodVatNotes } from '../src/modules/pricing/utils/pricingPodVat.ts'
+import { resolveDestinationVatRate, resolvePodCountryCode, resolvePodVatRate, stripGeneratedPodVatNotes } from '../src/modules/pricing/utils/pricingPodVat.ts'
 import type { CatalogItemSelectDto } from '../src/core/interfaces/catalogs'
 
 function item(code: string, value: string, metadata: Record<string, unknown> = {}): CatalogItemSelectDto {
@@ -55,6 +55,22 @@ test('Does not fall back to POE or stale VAT when the POD is absent or unknown',
   assert.equal(resolvePodVatRate(item('UNKNOWN', 'Puerto sin país'), countries), 0)
 })
 
+test('POD takes precedence over a different POE, even when its VAT is explicitly zero', () => {
+  const poe = item('PABLB', 'Balboa, Panamá', { countryCode: 'PA' })
+  const pod = item('CRCAL', 'Caldera, Costa Rica', { countryCode: 'CR' })
+  assert.equal(resolveDestinationVatRate(pod, poe, countries), 13)
+  assert.equal(resolveDestinationVatRate(item('CRLIM', 'Limón', { countryCode: 'CR', vatRate: 0 }), poe, countries), 0)
+  assert.equal(resolveDestinationVatRate(item('UNKNOWN', 'Puerto sin país'), poe, countries), 0)
+})
+
+test('POE determines IVA only when there is no POD', () => {
+  const poe = item('PABLB', 'Balboa, Panamá', { countryCode: 'PA' })
+  assert.equal(resolveDestinationVatRate(null, poe, countries), 7)
+  assert.equal(resolveDestinationVatRate(undefined, item('CRCAL', 'Caldera', { countryCode: 'CR' }), countries), 13)
+  assert.equal(resolveDestinationVatRate(null, null, countries), 0)
+  assert.equal(resolveDestinationVatRate(null, item('UNKNOWN', 'Puerto sin país'), countries), 0)
+})
+
 test('Old POE VAT notes are replaced without losing legitimate charge comments', () => {
   const notes = 'Cargo manual agregado desde Pricing · IVA 7%: 3.50; venta total: 53.50 · IVA 13%: 6.50; venta total: 56.50'
   assert.equal(stripGeneratedPodVatNotes(notes), 'Cargo manual agregado desde Pricing')
@@ -67,8 +83,9 @@ test('Both pricing wizards offer the IVA checkbox on every rate line and recalcu
     '../src/modules/pricing/components/PricingRateExistingWizardStable.vue',
   ]) {
     const source = readFileSync(new URL(path, import.meta.url), 'utf8')
-    assert.match(source, /resolvePodVatRate\(resolvePodForDestination\(\), catalogs\.countries\)/)
+    assert.match(source, /resolveDestinationVatRate\(resolvePodForDestination\(\), selectedDestination\.value, catalogs\.countries\)/)
     assert.match(source, /function lineDestinationTaxRate\(_line: RateLine\) \{\s*\/\/[^\n]*\n\s*return destinationTaxRate\.value/)
+    assert.match(source, /IVA \$\{destinationTaxOrigin\}/)
     assert.equal((source.match(/class="crystal-line-vat"/g) ?? []).length, 2)
     assert.doesNotMatch(source, /v-if="canApplyDestinationTax\(line\)" class="crystal-line-vat"/)
   }
