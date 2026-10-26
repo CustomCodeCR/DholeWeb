@@ -14,7 +14,7 @@ const fixture = [
   '<div v-else-if="step === 7" class="crystal-lines-stage space-y-6">',
 ].join('\n')
 
-function refreshHarness(pricingCosts: Array<Record<string, unknown>>) {
+function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = false) {
   const plugin = pricingWizardScreen7CostChoice()
   const transform = plugin.transform as unknown as
     (source: string, id: string) => { code: string }
@@ -44,6 +44,40 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>) {
   const events: string[] = []
   const env: Record<string, any> = {
     props: { viewOnly: false },
+    form: { freightCost: 0, freightSale: 0, miamiCommercialPlan: null, cargoValue: 0,
+      miamiWhsQty: 1, miamiIncludeSed: true, miamiSedQty: 1, dangerousCargo: false,
+      miamiBonded: false },
+    editingRate: { value: { chargeableQuantity: 29 } },
+    selectedOrigin: { value: { code: 'CNSHA', name: 'Shanghai, China' } },
+    selectedDestination: { value: { name: 'Balboa, Panamá' } },
+    resolvePodForDestination: () => ({ name: 'San Jose, Costa Rica' }),
+    selectedIncotermCode: { value: 'FOB' },
+    lclSelectedSourceKey: { value: 'Own:11111111-1111-4111-8111-111111111111' },
+    lclSelectedSource: { value: null },
+    lclRequestedCbm: { value: 29 },
+    lclCargoLines: { value: [{ description: 'Carga LCL', units: 1, totalWeightKg: 0,
+      lengthCm: 100, widthCm: 100, heightCm: 2900 }] },
+    screen7OwnLclRefreshContext: { value: '' },
+    persistedOwnLclConsolidationId: () => '11111111-1111-4111-8111-111111111111',
+    OwnLclConsolidationService: {
+      get: async () => ({ polCode: 'CNSHA', polName: 'Shanghai' }),
+      calculate: async () => ({
+        consolidationId: '11111111-1111-4111-8111-111111111111',
+        consolidationNumber: 54, matrixVersion: 'matrix-current',
+        lines: [
+          { name: 'Flete internacional', chargeBasis: 'CBM', quantity: 29,
+            costUnit: 165, saleUnit: 172, costTotal: 4785, saleTotal: 4988 },
+          { name: 'Zone Charge', chargeBasis: 'HBL', quantity: 1,
+            costUnit: 10, saleUnit: 50, costTotal: 10, saleTotal: 50 },
+          { name: 'DMCE', chargeBasis: 'HBL', quantity: 1,
+            costUnit: 65, saleUnit: 75, costTotal: 65, saleTotal: 75 },
+          { name: 'Manejos', chargeBasis: 'HBL', quantity: 1,
+            costUnit: 25, saleUnit: 40, costTotal: 25, saleTotal: 40 },
+        ],
+        totalCost: 4900, finalSale: 5200, profitAmount: 300,
+        profitPerCbm: 10, profitPercentage: 6, meetsMinimumMargin: false,
+      }),
+    },
     screen7RefreshBusy: { value: false },
     screen7RefreshAllowed: { value: false },
     screen7RefreshPromptOpen: { value: true },
@@ -55,7 +89,7 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>) {
     pricingDraftLineContextKey: () => 'normal-context',
     loadApplicableCosts: async () => { env.costs.value = pricingCosts },
     loadAllApplicableOptionalCosts: async () => [],
-    isOwnLclMatrixContext: () => false,
+    isOwnLclMatrixContext: () => own,
     isLclColoaderAgentCostContext: () => false,
     currentCostContextKey: () => 'route-and-agent',
     PricingService: {
@@ -67,6 +101,8 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>) {
       costAmount: cost.costAmount, saleAmount: cost.saleAmount,
     }),
     sectionForCost: () => 'destination_charges',
+    sectionForDetail: (type: string) => type === 'Freight' ? 'international_freight'
+      : type === 'OriginCharge' ? 'origin_charges' : 'destination_charges',
     costContextLabel: () => '',
     defaultChargeBasis: () => 'PerShipment',
     displayValue: (currency: any) => currency.value,
@@ -113,4 +149,45 @@ test('screen 7 preserves every persisted line if Pricing returns no matching amo
   assert.equal(env.rateLines.value[0].costAmount, 100)
   assert.equal(env.rateLines.value[1].costAmount, 45)
   assert.deepEqual(events, ['saved', 'warning'])
+})
+
+test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and retains manual charges', async () => {
+  const { env, events, runRefresh } = refreshHarness([], true)
+  const id = '11111111-1111-4111-8111-111111111111'
+  const marker = 'LCL PROPIO · ConsolidadoId: ' + id
+  env.rateLines.value = [{
+    key: 'existing:F', detailId: 'F', costId: null, name: 'Flete internacional',
+    notes: marker, costDetailType: 'Freight', costType: 'Fixed',
+    chargeBasis: 'PerChargeableCbm', section: 'international_freight',
+    costAmount: 164.81, saleAmount: 171.8, included: true, optional: false, manual: false,
+  }, {
+    key: 'existing:Z', detailId: 'Z', costId: null, name: 'Zone Charge',
+    notes: marker, costDetailType: 'DestinationCharge', costType: 'Fixed',
+    chargeBasis: 'PerShipment', section: 'destination_charges',
+    costAmount: 0, saleAmount: 50, included: true, optional: false, manual: false,
+  }, {
+    key: 'existing:M', detailId: 'M', name: 'Recargo manual',
+    notes: null, costDetailType: 'DestinationCharge', costType: 'Variable',
+    chargeBasis: 'PerShipment', section: 'destination_charges',
+    costAmount: 12, saleAmount: 20, included: true, optional: false, manual: true,
+  }]
+  env.lclSelectedSource.value = { kind: 'Own', id, requestedCbm: 29, currencyId: 'USD',
+    currencyName: 'USD', currencyCode: 'USD', lines: [] }
+  env.loadApplicableCosts = async () => { throw new Error('Do not load global costs for own LCL') }
+
+  await runRefresh()
+
+  assert.deepEqual(Array.from(env.rateLines.value, (item: any) => item.name), [
+    'Flete internacional', 'Zone Charge', 'DMCE', 'Manejos', 'Recargo manual',
+  ])
+  assert.equal(env.rateLines.value[0].detailId, 'F')
+  assert.equal(env.rateLines.value[0].costAmount, 165)
+  assert.equal(env.rateLines.value[1].detailId, 'Z')
+  assert.equal(env.rateLines.value[2].costAmount, 65)
+  assert.equal(env.rateLines.value[4].detailId, 'M')
+  assert.equal(env.rateLines.value[4].saleAmount, 20)
+  assert.equal(env.lclSelectedSource.value.lines.length, 4)
+  assert.equal(env.screen7OwnLclRefreshContext.value, 'normal-context')
+  assert.equal(env.screen7RefreshPromptOpen.value, false)
+  assert.deepEqual(events, ['saved', 'success'])
 })
