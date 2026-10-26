@@ -488,7 +488,7 @@ onMounted(() => { void loadPricingModificationWorkItem() })
 
   const saveRateStart = code.indexOf('async function saveRate() {')
   const savedRateNavigation = saveRateStart >= 0
-    ? code.indexOf("    await router.push({ name: 'pricing-rates' })", saveRateStart) : -1
+    ? code.indexOf("    await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })", saveRateStart) : -1
   if (savedRateNavigation < 0) throw new Error('[pricingSellerModificationWizard] Rate save navigation not found')
   const stayInRevision = `
     if (props.rateId && (props.modificationRequestId || new URLSearchParams(window.location.search).has('modificationRequestId'))) {
