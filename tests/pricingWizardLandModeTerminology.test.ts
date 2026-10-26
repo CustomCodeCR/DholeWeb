@@ -208,20 +208,22 @@ test('original Sales information stays visible during screen 5 even before its s
   assert.equal(output.match(/<PricingSellerHandoffPreview/g)?.length, 1)
 })
 
-test('Pricing screen 6 exposes mode-specific agent and transport-provider selectors', () => {
+test('Pricing screen 6 filters agents by origin and only offers maritime carriers', () => {
   const providers = readFileSync(new URL('../build/pricingWizardLclGroupAgent.ts', import.meta.url), 'utf8')
   const land = readFileSync(new URL('../build/pricingLandProviderCurrencyValue.ts', import.meta.url), 'utf8')
+  const wizardSource = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
 
-  for (const label of ['Agente terrestre', 'Transportista / proveedor terrestre',
-    'Aerolínea / proveedor', 'Naviera / proveedor']) {
-    assert.ok(providers.includes(label), 'missing transport-mode label: ' + label)
-  }
-  assert.ok(providers.includes('const landAgentOptions = computed('))
-  assert.ok(providers.includes('shipmentModeForApi !=='))
-  assert.ok(providers.includes('landAgentOptions : agentOptions'))
-  assert.ok(providers.includes('landLtlCommercialProfile.value ==='))
+  assert.ok(wizardSource.includes('function agentMatchesSelectedPol('))
+  assert.ok(wizardSource.includes('const eligibleAgents = computed(() => catalogs.agents.filter(agentMatchesSelectedPol))'))
+  assert.ok(providers.includes("shipmentModeForApi === \\'Lcl\\' ? lclAgentOptions : agentOptions"))
+  assert.ok(providers.includes("eligibleAgents.value.some((agent) => agent.id === form.agentId)"))
+  assert.ok(!providers.includes('const landAgentOptions = computed('))
+  assert.ok(!providers.includes('Transportista / proveedor terrestre'))
+  assert.ok(!providers.includes('Aerolínea / proveedor'))
+  assert.ok(providers.includes('Naviera / proveedor'))
+  assert.ok(providers.includes("form.modality === \\'Maritime\\' || form.modality === \\'Multimodal\\'"))
+  assert.ok(providers.includes("form.modality !== 'Air'"))
+  assert.ok(providers.includes("carrierId: (' + maritimeCarrier + ') ? (carrier?.id ?? null) : null"))
+  assert.ok(providers.includes("country-matching save guard"))
   assert.ok(land.includes('findById(catalogs.agents, form.agentId)'))
-  assert.ok(land.includes('findById(catalogs.carriers, form.carrierId)'))
-  assert.ok(land.includes("?? (form.modality === 'Land' ? landAgentPlaceholder : null)"))
-  assert.ok(land.includes("?? (form.modality === 'Land' ? landCarrierPlaceholder : null)"))
 })
