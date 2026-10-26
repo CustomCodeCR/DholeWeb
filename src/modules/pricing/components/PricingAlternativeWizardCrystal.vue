@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Edit3,
   FileUp,
+  Paperclip,
   Plane,
   Plus,
   Search,
@@ -58,6 +59,7 @@ import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingIntera
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
+import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
 import PricingLinkedSellerRequest from '@/modules/pricing/components/PricingLinkedSellerRequest.vue'
@@ -4014,6 +4016,29 @@ function removeFinalBackup(document: SupportDocument) {
   finalBackupDocuments.value = finalBackupDocuments.value.filter((item) => item.id !== document.id)
 }
 
+function previewFinalBackup(document: SupportDocument) {
+  if (document.fileName === 'Archivo no disponible en Storage') {
+    toastStore.warning('Archivo no disponible', 'No se encontró este respaldo en Storage.')
+    return
+  }
+  modalStore.open({
+    title: document.fileName,
+    component: StorageFileViewer,
+    props: {
+      id: document.id,
+      fileName: document.fileName,
+      sizeInBytes: document.sizeInBytes,
+    },
+    size: 'xl',
+  })
+}
+
+function attachmentSizeLabel(sizeInBytes: number) {
+  if (sizeInBytes <= 0) return 'Tamaño no disponible'
+  if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`
+  return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 async function downloadFinalBackup(document: SupportDocument) {
   try {
     await StorageService.downloadFile({
@@ -6248,6 +6273,40 @@ onMounted(async () => {
                 WHS {{ String(editingRate.incotermName || '').toUpperCase().includes('FOB') ? 'FOB' : 'FCA' }}: {{ editingRate.pickupAddress }}
               </span>
             </div>
+          </div>
+
+          <div class="crystal-soft space-y-4 p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Archivos adjuntos</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Respaldos finales guardados con esta tarifa. Puede consultarlos y descargarlos desde aquí.</p>
+              </div>
+              <DhBadge :label="`${finalBackupDocuments.length} adjunto${finalBackupDocuments.length === 1 ? '' : 's'}`" variant="neutral" />
+            </div>
+            <div v-if="finalBackupDocuments.length" class="grid gap-3 md:grid-cols-2">
+              <div
+                v-for="document in finalBackupDocuments"
+                :key="`full-view-backup:${document.id}`"
+                class="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
+              >
+                <div class="flex min-w-0 flex-1 items-center gap-3">
+                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-card-hover)] text-[var(--dh-primary)]">
+                    <Paperclip class="h-5 w-5" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="break-all text-sm font-black text-[var(--dh-text)]">{{ document.fileName }}</p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Respaldo final · {{ attachmentSizeLabel(document.sizeInBytes) }}</p>
+                  </div>
+                </div>
+                <div class="flex shrink-0 flex-wrap gap-2">
+                  <DhButton size="sm" variant="secondary" :disabled="document.fileName === 'Archivo no disponible en Storage'" @click="previewFinalBackup(document)">Ver</DhButton>
+                  <DhButton size="sm" variant="secondary" :disabled="document.fileName === 'Archivo no disponible en Storage'" @click="downloadFinalBackup(document)">Descargar</DhButton>
+                </div>
+              </div>
+            </div>
+            <p v-else class="rounded-2xl border border-dashed border-[var(--dh-border)] px-4 py-4 text-sm font-semibold text-[var(--dh-text-muted)]">
+              Esta tarifa no tiene adjuntos finales registrados.
+            </p>
           </div>
 
           <div class="crystal-soft overflow-hidden p-0">
