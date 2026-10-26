@@ -461,10 +461,6 @@ onMounted(() => { if (allowed.value) void load() })
                 :label="f.label" :catalog-group-slug="catalogFields[f.key]?.slug ?? ''"
                 :value-kind="catalogFields[f.key]?.kind ?? 'id'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
-              <DhSelect v-else-if="f.key === 'categoryCode' && section === 'accounts'"
-                :label="f.label" :model-value="String(form[f.key] ?? '')" placeholder=""
-                :options="(String(form.categoryType) === 'NVOCC' ? ['A','B'] : ['A','B','C','D']).map(x => ({label: x, value: x}))"
-                @update:model-value="form[f.key] = $event" />
               <CrmReferencePicker v-else-if="canSelectReference(f.key)"
                 :label="f.label" :resource="referenceResources[f.key] ?? 'accounts'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
