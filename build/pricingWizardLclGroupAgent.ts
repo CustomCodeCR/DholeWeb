@@ -32,25 +32,23 @@ function patchWizard(source: string) {
     "  return code === 'gcf' || name.includes('grupo castro fallas')",
     '}))',
     'const lclAgentOptions = computed(() => {',
-    '  const gcfId = lclGcfCatalogAgent.value?.id ?? LCL_GCF_INTERNAL_AGENT_ID',
+    '  const gcf = lclGcfCatalogAgent.value',
+    '  const gcfId = gcf?.id ?? LCL_GCF_INTERNAL_AGENT_ID',
+    "  const isOwnLcl = lclSelectedSource.value?.kind === 'Own'",
+    '  const includeGcf = isOwnLcl || Boolean(gcf && eligibleAgents.value.some((agent) => agent.id === gcf.id))',
     '  return [',
-    "    { value: gcfId, label: 'Grupo Castro Fallas' },",
+    "    ...(includeGcf ? [{ value: gcfId, label: 'Grupo Castro Fallas' }] : []),",
     '    ...agentOptions.value.filter((option) => option.value !== gcfId),',
     '  ]',
     '})',
-    '// Land origins do not filter the supplier-agent directory by maritime POL.',
-    'const landAgentOptions = computed(() => catalogs.agents.map((item) => ({ value: item.id, label: displayValue(item) })))',
+    '// Preserve only agents assigned to the selected origin country (or general agents).',
     'watch(',
-    '  () => [step.value, form.modality, catalogs.agents.length] as const,',
-    '  ([currentStep, modality]) => {',
-    "    if (currentStep !== 6 || modality !== 'Land' || form.agentId) return",
-    "    if (shipmentModeForApi.value === 'Ltl' && landLtlCommercialProfile.value === 'Nvocc') return",
-    '    const gcf = catalogs.agents.find((item) => {',
-    '      const value = normalizeCatalogValue(displayValue(item))',
-    '      const code = normalizeCatalogValue(item.code)',
-    "      return code === 'gcf' || value.includes('grupo castro fallas')",
-    '    })',
-    '    if (gcf) form.agentId = gcf.id',
+    '  () => [form.originId, form.modality, catalogs.agents.length] as const,',
+    '  () => {',
+    '    if (hydratingExistingRate.value || !form.agentId) return',
+    "    // LCL sources may supply an external coloader or the internal own-agent code.",
+    "    if (shipmentModeForApi.value === 'Lcl') return",
+    "    if (!eligibleAgents.value.some((agent) => agent.id === form.agentId)) form.agentId = ''",
     '  },',
     ')',
     agentOptionsAnchor,
@@ -77,7 +75,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     'const canNext = computed(() => {',
-    "const canNext = computed(() => {\n  if (step.value === 6 && shipmentModeForApi.value === 'Lcl' && !form.agentId) return false",
+    "const canNext = computed(() => {\n  if (step.value === 6 && (form.modality === 'Air' || form.modality === 'Land') && (!form.agentId || !eligibleAgents.value.some((agent) => agent.id === form.agentId))) return false\n  if (step.value === 6 && form.modality === 'Air') return Boolean(form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  if (step.value === 6 && shipmentModeForApi.value === 'Lcl' && !form.agentId) return false",
     'LCL agent required on screen 6',
   )
 
@@ -139,7 +137,7 @@ function patchWizard(source: string) {
   }
   section = section.replace(
     agentSelector,
-    '<DhSelect v-model="form.agentId" :label="form.modality === \'Land\' ? \'Agente terrestre\' : shipmentModeForApi === \'Lcl\' ? \'Agente / coloader\' : \'Agente\'" :options="shipmentModeForApi === \'Lcl\' ? lclAgentOptions : form.modality === \'Land\' ? landAgentOptions : agentOptions" />',
+    '<DhSelect v-model="form.agentId" :label="form.modality === \'Land\' ? \'Agente terrestre\' : shipmentModeForApi === \'Lcl\' ? \'Agente / coloader\' : \'Agente\'" :options="shipmentModeForApi === \'Lcl\' ? lclAgentOptions : agentOptions" />',
   )
 
   // La naviera no se selecciona para LCL; no introducir ningún otro agente.
@@ -147,13 +145,41 @@ function patchWizard(source: string) {
   if (!carrier.test(section)) throw new Error('[pricingWizardLclGroupAgent] Carrier select not found')
   section = section.replace(
     carrier,
-    '<DhSelect v-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" :label="form.modality === \'Land\' ? \'Transportista / proveedor terrestre\' : form.modality === \'Air\' ? \'Aerolínea / proveedor\' : \'Naviera / proveedor\'" :options="carrierOptions" />',
+    '<DhSelect v-if="(form.modality === \'Maritime\' || form.modality === \'Multimodal\') && shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />',
   )
   section = section.replace(
     /<p class="crystal-description">[\s\S]*?<\/p>/,
-    "<p class=\"crystal-description\">{{ shipmentModeForApi === 'Lcl' ? 'Seleccione un agente o coloader, incluyendo Grupo Castro Fallas. Para LCL no se utiliza naviera.' : form.modality === 'Land' ? 'Seleccione el agente y transportista terrestre del catálogo cuando correspondan a la operación. El flete LTL de tarifario conserva sus importes.' : form.modality === 'Air' ? 'Seleccione el agente y la aerolínea o proveedor aplicable.' : 'Seleccione el agente y naviera aplicables según la operación y el Incoterm.' }}</p>",
+    "<p class=\"crystal-description\">{{ shipmentModeForApi === 'Lcl' ? 'Seleccione un agente o coloader según el país de origen. Para LCL no se utiliza naviera.' : form.modality === 'Land' ? 'Seleccione un agente del país de origen. No se requiere naviera para transporte terrestre.' : form.modality === 'Air' ? 'Seleccione un agente del país de origen. No se requiere naviera para transporte aéreo.' : 'Seleccione el agente del país de origen y la naviera aplicable según el Incoterm.' }}</p>",
   )
   code = code.slice(0, begin) + section + code.slice(end)
+
+  // Air and Land never send a carrier/naviera. Enforce country matching on
+  // all other explicitly chosen non-LCL agents, including saved drafts.
+  const saveStart = code.indexOf('async function saveRate() {')
+  const saveEnd = code.indexOf('</script>', saveStart)
+  if (saveStart < 0 || saveEnd < 0) throw new Error('[pricingWizardLclGroupAgent] Cannot find rate save handler')
+  let save = code.slice(saveStart, saveEnd)
+  save = replaceOne(
+    save,
+    '  const missing: string[] = []',
+    [
+      '  const missing: string[] = []',
+      "  if ((form.modality === 'Air' || form.modality === 'Land') && !form.agentId) missing.push('agente')",
+      "  if (shipmentModeForApi.value !== 'Lcl' && form.agentId && !eligibleAgents.value.some((item) => item.id === form.agentId)) missing.push('agente válido para el país de origen')",
+    ].join('\\n'),
+    'country-matching save guard',
+  )
+  const carrierValidation = save.match(/^([ \\t]*)if \\(([^\\n]*!carrier[^\\n]*)\\) missing\\.push\\('proveedor'\\)$/m)
+  if (!carrierValidation) throw new Error('[pricingWizardLclGroupAgent] Carrier missing validation not found')
+  save = save.replace(
+    carrierValidation[0],
+    carrierValidation[1] + "if (form.modality !== 'Air' && (" + carrierValidation[2] + ")) missing.push('proveedor')",
+  )
+  const maritimeCarrier = "form.modality === 'Maritime' || form.modality === 'Multimodal'"
+  save = replaceCount(save, 'carrierId: carrier!.id,', 'carrierId: (' + maritimeCarrier + ') ? (carrier?.id ?? null) : null,', 2, 'carrier ID create/update')
+  save = replaceCount(save, 'carrierName: displayValue(carrier),', 'carrierName: (' + maritimeCarrier + ') && carrier ? displayValue(carrier) : null,', 2, 'carrier name create/update')
+  save = replaceCount(save, 'carrierCode: carrier!.code,', 'carrierCode: (' + maritimeCarrier + ') ? (carrier?.code ?? null) : null,', 2, 'carrier code create/update')
+  code = code.slice(0, saveStart) + save + code.slice(saveEnd)
 
   // En el resumen LCL se muestra únicamente el agente común.
   const oldCarrier = '<div><span class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Naviera / proveedor</span><p class="mt-1 font-bold">{{ editingRate.carrierName || \'Sin asignar\' }}</p></div>'
