@@ -3,7 +3,7 @@ import MainLayout from '@/shared/components/layouts/MainLayout.vue'
 import AuthLayout from '@/shared/components/layouts/AuthLayout.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
-import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
+import { CRM_WORKSPACE_SCOPES, PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { i18n } from '@/core/i18n'
 import { crmEnabled } from '@/modules/crm/services/crmApi'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
@@ -99,7 +99,7 @@ export const router = createRouter({
           path: 'crm',
           name: 'crm-home',
           component: () => import('@/modules/crm/views/CrmLandingView.vue'),
-          meta: { tabTitleKey: 'crm.title', closable: true },
+          meta: { tabTitleKey: 'crm.title', closable: true, requiredAnyScopes: [...CRM_WORKSPACE_SCOPES] },
         },
         {
           path: 'crm/dashboard',
@@ -209,25 +209,25 @@ export const router = createRouter({
           path: 'srm',
           name: 'srm-home',
           component: () => import('@/modules/srm/views/SrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'srm.title', closable: true, srmSection: 'dashboard' },
+          meta: { tabTitleKey: 'srm.title', closable: true, srmSection: 'dashboard', requiredScope: 'srm.supplier.read' },
         },
         {
           path: 'srm/suppliers',
           name: 'srm-suppliers',
           component: () => import('@/modules/srm/views/SrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'srm.suppliers', closable: true, srmSection: 'suppliers' },
+          meta: { tabTitleKey: 'srm.suppliers', closable: true, srmSection: 'suppliers', requiredScope: 'srm.supplier.read' },
         },
         {
           path: 'srm/performance',
           name: 'srm-performance',
           component: () => import('@/modules/srm/views/SrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'srm.performance', closable: true, srmSection: 'performance' },
+          meta: { tabTitleKey: 'srm.performance', closable: true, srmSection: 'performance', requiredAllScopes: ['srm.supplier.read', 'srm.performance.read'] },
         },
         {
           path: 'srm/contracts',
           name: 'srm-contracts',
           component: () => import('@/modules/srm/views/SrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'srm.contracts', closable: true, srmSection: 'contracts' },
+          meta: { tabTitleKey: 'srm.contracts', closable: true, srmSection: 'contracts', requiredAllScopes: ['srm.supplier.read', 'srm.contract.read'] },
         },
 
         {
@@ -861,7 +861,7 @@ router.beforeEach(async (to) => {
   await authStore.initialize()
 
   const isPublic = to.meta.public === true
-  if (to.path.startsWith('/crm/') && !crmEnabled()) return '/crm'
+  if ((to.path === '/crm' || to.path.startsWith('/crm/')) && !crmEnabled()) return '/home'
   const hasSession = authStore.hasValidSession()
 
   if (!hasSession && to.path === '/change-password') {
