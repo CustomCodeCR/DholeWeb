@@ -225,6 +225,34 @@ const rateRevisions = ref<RateRevisionDto[]>([])
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
 const commercialAction = ref<'accept' | 'reject' | null>(null)
+// Same CSV contract used by the acceptance and assignment modals.
+const wizardIdtraIdentifiers = computed(() => {
+  const seen = new Set<string>()
+  return form.idtraNumber.split(',').map((value) => value.trim()).filter((value) => {
+    const key = value.toLocaleUpperCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+})
+const wizardNormalizedIdtra = computed(() => wizardIdtraIdentifiers.value.join(', '))
+const wizardIdtraError = computed(() => {
+  if (wizardIdtraIdentifiers.value.length > 30) return 'Se permiten como máximo 30 IDTRA.'
+  if (wizardIdtraIdentifiers.value.some((idtra) => idtra.length > 100 || idtra.includes(';')))
+    return 'Cada IDTRA admite hasta 100 caracteres y no puede contener punto y coma.'
+  if (wizardNormalizedIdtra.value.length > 2000) return 'La lista de IDTRA no puede superar 2000 caracteres.'
+  return ''
+})
+const wizardOtherReferencesError = computed(() =>
+  form.otherReferences.length > 2000 ? 'Las otras referencias no pueden superar 2000 caracteres.' : ''
+)
+function validateWizardReferences() {
+  const message = wizardIdtraError.value || wizardOtherReferencesError.value
+  if (!message) return true
+  step.value = 8
+  toastStore.warning('Revise las referencias', message)
+  return false
+}
 const commercialIdtra = ref('')
 const commercialOtherReferences = ref('')
 const commercialIdtraIdentifiers = computed(() => {
@@ -354,6 +382,7 @@ const form = reactive({
   executiveId: '',
   executiveName: '',
   idtraNumber: '',
+  otherReferences: '',
   pickupAddress: '',
   warehouseId: '',
   pickupLatitude: null as number | null,
@@ -3434,6 +3463,7 @@ async function hydrateExistingRate() {
     form.clientName = rate.clientName ?? ''
     form.executiveName = rate.executiveName ?? ''
     form.idtraNumber = rate.idtraNumber ?? ''
+    form.otherReferences = rate.otherReferences ?? ''
     commercialIdtra.value = rate.idtraNumber ?? ''
     commercialOtherReferences.value = rate.otherReferences ?? ''
     commercialRejectionReason.value = rate.status === 'RejectedByClient' ? rate.closedReason ?? '' : ''
@@ -4029,6 +4059,7 @@ function supportSummaryText() {
 }
 
 async function saveOpenRequest() {
+  if (!validateWizardReferences()) return
   const origin = selectedOrigin.value
   const poe = selectedDestination.value
   const equipment = selectedEquipment.value
@@ -4085,7 +4116,8 @@ async function saveOpenRequest() {
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
-      idtraNumber: form.idtraNumber.trim() || null,
+      idtraNumber: wizardNormalizedIdtra.value || null,
+      otherReferences: form.otherReferences.trim(),
       freeDays: 0,
       validFrom: form.loadDate,
       validTo: addDaysIso(form.loadDate, 30),
@@ -4155,6 +4187,7 @@ async function saveOpenRequest() {
 }
 
 async function saveRate() {
+  if (!validateWizardReferences()) return
   if (editingRate.value && number(form.cargoValue) > 0 && !rateLines.value.some((line) => line.costDetailType === 'Insurance')) {
     syncDeclaredCargoInsuranceOnEdit()
   }
@@ -4406,7 +4439,8 @@ async function saveRate() {
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
-      idtraNumber: form.idtraNumber.trim() || null,
+      idtraNumber: wizardNormalizedIdtra.value || null,
+      otherReferences: form.otherReferences.trim(),
       freeDays: (form.modality === 'Land' || shipmentModeForApi.value === 'Lcl') ? 0 : number(form.freeDays),
       validFrom: form.loadDate,
       validTo: form.validTo || selectedImportRate.value?.validTo?.slice(0, 10) || addDaysIso(form.loadDate, 30),
@@ -4648,6 +4682,7 @@ function resetWizard() {
     executiveId: '',
     executiveName: '',
     idtraNumber: '',
+  otherReferences: '',
     pickupAddress: '',
     warehouseId: '',
     pickupLatitude: null,
@@ -5893,7 +5928,35 @@ onMounted(async () => {
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
               <p class="mt-3 text-lg font-black">{{ form.clientName || 'Cliente sin definir' }}</p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Ejecutivo: {{ form.executiveName || 'Sin asignar' }}</p>
-              <div class="mt-4"><DhInput v-model="form.idtraNumber" label="Número IDTRA" placeholder="Ej. IDTRA-2026-00125" :disabled="viewOnly" /></div>
+              <div class="mt-4 space-y-3">
+                <DhTextarea
+                  v-model="form.idtraNumber"
+                  label="Números IDTRA (separados por comas, opcional)"
+                  placeholder="IDTRA999.12565, IDTRA999.12566"
+                  :rows="2"
+                  :disabled="viewOnly"
+                  :error="wizardIdtraError || undefined"
+                />
+                <div v-if="wizardIdtraIdentifiers.length" class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="idtra in wizardIdtraIdentifiers"
+                    :key="'wizard-idtra:' + idtra"
+                    class="rounded-lg border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.07)] px-2.5 py-1 text-xs font-bold text-[var(--dh-text)]"
+                  >{{ idtra }}</span>
+                </div>
+                <DhTextarea
+                  v-model="form.otherReferences"
+                  label="Otras referencias (opcional)"
+                  placeholder="BL, HBL, PO, contenedor, referencias internas..."
+                  :rows="2"
+                  :disabled="viewOnly"
+                  :error="wizardOtherReferencesError || undefined"
+                />
+                <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Los IDTRA se separan con comas y podrán sincronizarse con Dynamics al aceptar la tarifa.
+                  Otras referencias se guardan únicamente en Dhole.
+                </p>
+              </div>
               <p class="mt-4 text-sm font-bold">{{ displayValue(selectedOrigin) }} → {{ displayValue(selectedDestination) }}<span v-if="selectedPod"> → {{ displayValue(selectedPod) }}</span></p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }} · {{ displayValue(selectedEquipment) }} · {{ displayValue(selectedIncoterm) }}</p>
             </div>
