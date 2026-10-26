@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
+import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { pricingWizardScreen7CostChoice } from '../build/pricingWizardScreen7CostChoice.ts'
 
@@ -191,4 +192,9 @@ test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and
   assert.equal(env.screen7OwnLclRefreshContext.value, 'normal-context')
   assert.equal(env.screen7RefreshPromptOpen.value, false)
   assert.deepEqual(events, ['saved', 'success'])
+})
+
+test('wizard includes own LCL service import used by screen 7 refresh', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(wizard, /import\\s*\\{\\s*OwnLclConsolidationService\\s*\\}\\s*from\\s*['\"]@\\/core\\/services\\/ownLclConsolidationService['\"]/, 'wizard must import the own LCL calculation service')
 })
