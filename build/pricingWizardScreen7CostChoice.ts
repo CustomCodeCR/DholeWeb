@@ -183,7 +183,13 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
   // missing editable dimensions, so preserve their original billable CBM.
   const storedCbm = Math.max(1, number(editingRate.value?.chargeableQuantity)
     || number(source?.requestedCbm) || number(lclRequestedCbm.value))
-  const cargoLines = lclCargoLines.value.length
+  // Editing older own-LCL quotes can hydrate with default 1-CBM dimensions,
+  // despite a persisted 29-CBM (or larger) billable quantity. A pricing-only
+  // refresh must not silently reprice them using that placeholder.
+  const currentCbm = number(lclChargeableCbm.value)
+  const useCurrentCargo = lclCargoLines.value.length > 0
+    && (!editingRate.value || Math.abs(currentCbm - storedCbm) < 0.05)
+  const cargoLines = useCurrentCargo
     ? lclCargoLines.value
     : [{
         description: 'Cotización LCL',
