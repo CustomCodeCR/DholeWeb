@@ -4593,6 +4593,9 @@ async function saveRate() {
         editingRate.value.status === 'AcceptedByClient'
           ? `Revisión ${nextRevision} creada y versión aceptada anterior conservada.`
           : 'Tarifa actualizada correctamente.',
+        persistedRate.status === 'PendingApproval'
+          ? 'La nueva revisión requiere aprobación de margen antes de volver a enviarse.'
+          : 'La nueva revisión está pendiente de envío. Revísela y márquela como Enviada desde su detalle.',
       )
     } else {
       rateId = await PricingService.createRate(createPayload)
