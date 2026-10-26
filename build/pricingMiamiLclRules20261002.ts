@@ -38,6 +38,22 @@ function patchWizard(source: string) {
   if (source.includes(MARKER)) return source
   let code = source
 
+  // Vue type-checking reads the untransformed wizard, which therefore needs the
+  // fallback helper. Vite injects the complete Miami implementation below.
+  // Remove only that fallback from the transformed copy to avoid redeclaring it.
+  const typeCheckMiamiHelper = `const isMiamiLcl = computed(() => {
+  if (shipmentModeForApi.value !== 'Lcl') return false
+  const origin = selectedOrigin.value
+  return Boolean(origin && /\\bmiami\\b/i.test(
+    [origin.value, origin.label, origin.slug, origin.code].filter(Boolean).join(' '),
+  ))
+})
+`
+  if (code.includes(typeCheckMiamiHelper)) {
+    code = code.replace(typeCheckMiamiHelper, '')
+  }
+
+
   code = insertMiamiFormState(code)
 
   code = replaceRequired(
