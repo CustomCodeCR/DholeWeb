@@ -54,6 +54,7 @@ import { useThemeStore } from '@/core/stores/themeStore'
 import { useLocale } from '@/core/stores/locale'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
+import { crmEnabled } from '@/modules/crm/services/crmApi'
 import { searchGlobalRecords, type GlobalSearchRecord } from '@/core/services/globalSearchService'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dhole.sidebar.collapsed'
@@ -337,7 +338,42 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     },
   ]
 
-  const ownConsolidationChildren: SidebarItem[] = []
+  // MainLayout renders the actual sidebar (useSidebarItems is a secondary registry).
+  // The two module overviews must remain discoverable even before their API
+  // scopes / feature rollout have been provisioned. Data paths stay protected.
+  const crmChildren: SidebarItem[] = [
+    { label: t('crm.nav.dashboard'), path: '/crm', icon: Home },
+  ]
+  if (crmEnabled()) {
+    const crmPages = [
+      { key: 'accounts', scopes: ['crm.account.read', 'crm.account.read-all'], icon: Users },
+      { key: 'leads', scopes: ['crm.lead.read', 'crm.lead.read-all'], icon: Users },
+      { key: 'opportunities', scopes: ['crm.opportunity.read', 'crm.opportunity.read-all'], icon: TrendingUp },
+      { key: 'activities', scopes: ['crm.activity.read', 'crm.activity.read-all'], icon: ClipboardList },
+      { key: 'followups', scopes: ['crm.followup.manage', 'crm.task.manage'], icon: CalendarClock },
+      { key: 'analyses', scopes: ['crm.analysis.read', 'crm.analysis.manage'], icon: Gauge },
+      { key: 'finance', scopes: ['crm.credit.read', 'crm.contract.read'], icon: BadgeDollarSign },
+      { key: 'settings', scopes: ['crm.settings.manage'], icon: Settings },
+    ]
+    for (const item of crmPages) {
+      if (item.scopes.some(scope => canView(scope))) {
+        crmChildren.push({ label: t('crm.nav.' + item.key), path: '/crm/' + item.key, icon: item.icon })
+      }
+    }
+  }
+  items.push({ label: t('crm.title'), icon: Users, children: crmChildren })
+  items.push({
+    label: t('srm.title'),
+    icon: Truck,
+    children: [
+      { label: t('srm.dashboard'), path: '/srm', icon: Home },
+      { label: t('srm.suppliers'), path: '/srm/suppliers', icon: Users },
+      { label: t('srm.performance'), path: '/srm/performance', icon: Gauge },
+      { label: t('srm.contracts'), path: '/srm/contracts', icon: FileText },
+    ],
+  })
+
+    const ownConsolidationChildren: SidebarItem[] = []
   if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
     ownConsolidationChildren.push({
       label: t('sidebar.ownLcl'),
