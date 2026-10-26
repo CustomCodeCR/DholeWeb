@@ -385,9 +385,48 @@ onMounted(() => { if (allowed.value) void load() })
         <form v-if="model" class="space-y-6" @submit.prevent="save">
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">{{ t('crm.formHint') }}</p>
           <p v-if="error" role="alert" class="rounded-2xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ error }}</p>
-          <CrmHaciendaLookup v-if="section === 'accounts'"
-            :country-id="String(form.countryId ?? '')" :tax-id="String(form.taxId ?? '')"
-            @resolved="applyHacienda" />
+          <template v-if="section === 'accounts'">
+            <section class="space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <h3 class="text-sm font-black uppercase tracking-wide text-[var(--dh-text)]">Identificación del cliente</h3>
+              <div v-if="section !== 'accounts'" class="grid gap-4 sm:grid-cols-2">
+                <DhInput label="Nombre comercial *" :model-value="String(form.displayName ?? '')"
+                  @update:model-value="form.displayName = $event" />
+                <DhInput label="Razón social *" :model-value="String(form.legalName ?? '')"
+                  @update:model-value="form.legalName = $event" />
+                <CrmCatalogPicker label="País" catalog-group-slug="countries" value-kind="id"
+                  :model-value="String(form.countryId ?? '')" @update:model-value="form.countryId = $event" />
+                <DhInput label="Identificación fiscal" :model-value="String(form.taxId ?? '')"
+                  @update:model-value="form.taxId = $event" />
+                <DhInput label="Tipo de identificación" :model-value="String(form.taxIdTypeCode ?? '')"
+                  @update:model-value="form.taxIdTypeCode = $event" />
+              </div>
+              <CrmHaciendaLookup v-if="!edited"
+                :country-id="String(form.countryId ?? '')" :tax-id="String(form.taxId ?? '')"
+                @resolved="applyHacienda" />
+            </section>
+            <section class="space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <h3 class="text-sm font-black uppercase tracking-wide text-[var(--dh-text)]">Perfil comercial</h3>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <DhSelect label="Tipo de cliente *" :model-value="String(form.customerTypeCode ?? 'cash')" placeholder=""
+                  :options="[{label:'Contado',value:'cash'},{label:'Crédito',value:'credit'}]"
+                  @update:model-value="form.customerTypeCode = $event" />
+                <DhSelect label="Tipo de categoría" :model-value="String(form.categoryType ?? 'CUSTOMER')" placeholder=""
+                  :options="[{label:'Cliente',value:'CUSTOMER'},{label:'NVOCC',value:'NVOCC'}]"
+                  @update:model-value="form.categoryType = $event; form.categoryCode = 'A'" />
+                <DhSelect label="Categoría" :model-value="String(form.categoryCode ?? 'A')" placeholder=""
+                  :options="(String(form.categoryType) === 'NVOCC' ? ['A','B'] : ['A','B','C','D']).map(x=>({label:x,value:x}))"
+                  @update:model-value="form.categoryCode = $event" />
+                <DhInput label="Origen de la cuenta" :model-value="String(form.sourceCode ?? '')"
+                  @update:model-value="form.sourceCode = $event" />
+                <DhInput label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')"
+                  @update:model-value="form.relationshipTypeCode = $event" />
+              </div>
+              <p class="text-xs text-[var(--dh-text-muted)]">
+                El ejecutivo asignado, los contactos, direcciones, actividades económicas y seguimientos se administran desde el detalle del cliente.
+                La creación usa el usuario actual como ejecutivo si no se asigna uno.
+              </p>
+            </section>
+          </template>
           <div class="grid gap-4 sm:grid-cols-2">
             <div v-for="f in model.fields" :key="f.key" :class="f.type === 'textarea' && 'sm:col-span-2'">
               <DhSelect v-if="f.type === 'select'" :label="f.label" :options="f.options ?? []" placeholder=""

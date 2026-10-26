@@ -20,8 +20,11 @@ const error = ref('')
 function optionValue(item: CatalogItemSelectDto): string {
   if (props.valueKind === 'id') return item.id
   if (props.valueKind === 'value') {
-    const value = item.value?.trim() ?? ''
-    return value || item.code
+    // Currencies in Config may use generated internal codes; persist the ISO value.
+    const iso = [item.value, item.label, item.code, item.slug]
+      .map(x => String(x ?? '').trim())
+      .find(x => /^[A-Za-z]{3}$/.test(x))
+    return iso?.toUpperCase() ?? String(item.value || item.code)
   }
   return item.code
 }
