@@ -17,6 +17,7 @@ function patchWizard(source: string) {
 const screen7RefreshPromptOpen = ref(false)
 const screen7RefreshBusy = ref(false)
 const screen7RefreshAllowed = ref(false)
+const screen7OwnLclRefreshContext = ref('')
 // The confirmation is for an existing persisted quote only.
 // Newly created quotations always use current catalog costs automatically.
 const screen7RequiresConfirmation = computed(() => Boolean(props.rateId) && !props.viewOnly)
@@ -93,11 +94,210 @@ function screen7CatalogRateLine(cost: CostSelectDto, previous?: RateLine): RateL
   return line
 }
 
+
+function screen7OwnLclDestinationCode() {
+  const label = normalizeCatalogValue(displayValue(resolvePodForDestination() ?? selectedDestination.value))
+  if (/costa rica|san jose|gam|caldera|limon|moin/.test(label)) return 'CR'
+  if (/panama|colon|cfz|czf/.test(label)) return 'PA'
+  if (/nicaragua|managua/.test(label)) return 'NI'
+  if (/honduras|san pedro sula/.test(label)) return 'HN'
+  if (/guatemala/.test(label)) return 'GT'
+  if (/salvador|san salvador/.test(label)) return 'SV'
+  return ''
+}
+
+function screen7OwnLclPolCode(consolidation: { polCode: string; polName: string | null }) {
+  const origin = normalizeCatalogValue(
+    [displayValue(selectedOrigin.value), selectedOrigin.value?.code].filter(Boolean).join(' '),
+  )
+  const aliases: Record<string, string> = {
+    ningbo: 'NINGBO', cnngb: 'NINGBO',
+    qingdao: 'QINGDAO', cntao: 'QINGDAO',
+    xiamen: 'XIAMEN', cnxmn: 'XIAMEN',
+    shantou: 'SHANTOU', cnswa: 'SHANTOU',
+    dalian: 'DALIAN', cndlc: 'DALIAN',
+    chongqing: 'CHONGQING', cnckg: 'CHONGQING',
+    fuzhou: 'FUZHOU', cnfoc: 'FUZHOU',
+    shenzhen: 'SHENZHEN', cnszx: 'SHENZHEN',
+    xingang: 'XINGANG', tianjin: 'XINGANG',
+    shekou: 'SHEKOU', guangzhou: 'GUANGZHOU',
+    miami: 'MIAMI', usmia: 'MIAMI',
+    shanghai: 'SHANGHAI', cnsha: 'SHANGHAI',
+  }
+  for (const [alias, code] of Object.entries(aliases)) {
+    if (origin.includes(alias)) return code
+  }
+  // Internal Config item codes are not UN/LOCODEs; the consolidation's
+  // physical POL is a safer fallback than passing POL-2026-NNN to Pricing.
+  return String(consolidation.polName || consolidation.polCode || '').toUpperCase()
+}
+
+function screen7OwnLclQuoteLineType(name: string): CostDetailType {
+  const value = normalizeCatalogValue(name)
+  if (/flete internacional|flete miami|miami costa rica|ocean/.test(value)) return 'Freight'
+  if (/recolecta|pickup|pick up/.test(value)) return 'OriginCharge'
+  if (value.includes('custom')) return 'CustomsCharge'
+  if (/seguro|insurance/.test(value)) return 'Insurance'
+  if (/doc|manifest|vgm/.test(value)) return 'Documentation'
+  if (value.includes('flete terrestre')) return 'InlandTransport'
+  if (/cfs|whse|warehouse/.test(value)) return 'OriginCharge'
+  return 'DestinationCharge'
+}
+
+function screen7OwnLclQuoteLineBasis(basis: string): ChargeBasis {
+  const value = normalizeCatalogValue(basis)
+  if (value.includes('cft')) return 'PerChargeableCft'
+  if (value.includes('cbm')) return 'PerChargeableCbm'
+  if (value.includes('document')) return 'PerDocument'
+  return 'PerShipment'
+}
+
+function screen7OwnLclMatrixMarker(line: RateLine) {
+  return /LCL\s*PROPIO|Fuente LCL:\s*Propio|Consolidado(Id)?:/i.test(String(line.notes ?? ''))
+}
+
+function screen7OwnLclMatrixIdentity(line: RateLine) {
+  return [
+    normalizeCatalogValue(line.name),
+    line.section,
+    line.chargeBasis,
+  ].join('|')
+}
+
+async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
+  const source = lclSelectedSource.value
+  const selectedId = source?.kind === 'Own' ? String(source.id ?? '') : ''
+  const keyId = String(lclSelectedSourceKey.value ?? '').startsWith('Own:')
+    ? String(lclSelectedSourceKey.value).slice(4) : ''
+  const persistedId = persistedOwnLclConsolidationId()
+  const consolidationId = selectedId || keyId || persistedId
+  if (!consolidationId) {
+    throw new Error('La tarifa no contiene un identificador de consolidado propio. No se modificaron sus líneas.')
+  }
+  const destinationCode = screen7OwnLclDestinationCode()
+  if (!destinationCode) {
+    throw new Error('No se pudo determinar el país de destino de la matriz LCL. Se conservaron los importes.')
+  }
+  const consolidation = await OwnLclConsolidationService.get(consolidationId)
+  // Use the exact quote cargo when available; older persisted rates can be
+  // missing editable dimensions, so preserve their original billable CBM.
+  const storedCbm = Math.max(1, number(editingRate.value?.chargeableQuantity)
+    || number(source?.requestedCbm) || number(lclRequestedCbm.value))
+  const cargoLines = lclCargoLines.value.length
+    ? lclCargoLines.value
+    : [{
+        description: 'Cotización LCL',
+        units: 1,
+        totalWeightKg: 0,
+        lengthCm: 100,
+        widthCm: 100,
+        heightCm: storedCbm * 100,
+      }]
+  const calculation = await OwnLclConsolidationService.calculate(consolidationId, {
+    destinationCode,
+    incoterm: selectedIncotermCode.value || 'FOB',
+    cargoLines,
+    polCode: screen7OwnLclPolCode(consolidation),
+    salePerCbm: null,
+    sets: 1,
+    hbl: 1,
+    pickupCost: 0,
+    pickupSale: 0,
+    discount: 0,
+    commercialPlan: form.miamiCommercialPlan || null,
+    cargoValue: Math.max(0, number(form.cargoValue)),
+    whsQty: Math.max(1, Math.trunc(number(form.miamiWhsQty))),
+    includeSed: Boolean(form.miamiIncludeSed),
+    sedQty: Math.max(1, Math.trunc(number(form.miamiSedQty))),
+    isDangerousCargo: Boolean(form.dangerousCargo),
+    isBonded: Boolean(form.miamiBonded),
+  })
+  if (!calculation.lines?.length) {
+    throw new Error('La matriz del consolidado no devolvió cargos vigentes. Los valores anteriores se conservaron.')
+  }
+  const commercialMarker = form.miamiCommercialPlan
+    ? ' · Plan Miami: ' + form.miamiCommercialPlan
+      + ' · WHS: ' + Math.max(1, Math.trunc(number(form.miamiWhsQty)))
+      + ' · SED: ' + (form.miamiIncludeSed ? Math.max(1, Math.trunc(number(form.miamiSedQty))) : 0)
+      + ' · Bonded: ' + (form.miamiBonded ? 'Sí' : 'No')
+    : ''
+  const marker = 'LCL PROPIO · ConsolidadoId: ' + calculation.consolidationId
+    + ' · Consolidado: #' + calculation.consolidationNumber + commercialMarker
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!currency) throw new Error('No está disponible la divisa de la cotización LCL.')
+  const existingMatrix = previous.filter(screen7OwnLclMatrixMarker)
+  const used = new Set<number>()
+  const fresh: RateLine[] = calculation.lines.map((item, index) => {
+    const type = screen7OwnLclQuoteLineType(item.name)
+    const normalized = normalizeCatalogValue(item.name)
+    const isPickup = /recolecta|pickup|pick up/.test(normalized)
+    const sourceBasis = normalizeCatalogValue(item.chargeBasis)
+    const volumeBased = sourceBasis.includes('cbm') || sourceBasis.includes('cft')
+    const quantity = Math.max(0, number(item.quantity))
+    const collapseFixed = !volumeBased && quantity > 1
+    const basis = normalized === 'cfs' ? 'PerCbm' : screen7OwnLclQuoteLineBasis(item.chargeBasis)
+    const section: RateSection = isPickup ? 'pickup_origin'
+      : sectionForDetail(type, item.name)
+    const line: RateLine = {
+      key: 'own-lcl:' + consolidationId + ':' + index,
+      section,
+      name: item.name,
+      costDetailType: type,
+      costType: isPickup ? 'Variable' : 'Fixed',
+      chargeBasis: basis,
+      costId: null,
+      contextLabel: 'Consolidado ' + calculation.consolidationNumber
+        + ' · ' + calculation.matrixVersion,
+      notes: volumeBased ? marker
+        : marker + ' · Base: ' + item.chargeBasis
+          + '; cantidad aplicada: ' + (quantity || 1) + '.',
+      currencyId: source?.currencyId || currency.id,
+      currencyName: source?.currencyName || displayValue(currency),
+      currencyCode: source?.currencyCode || currency.code,
+      amountCurrencyCode: source?.currencyCode || currency.code,
+      costAmount: collapseFixed ? number(item.costTotal) : number(item.costUnit),
+      saleAmount: collapseFixed ? number(item.saleTotal) : number(item.saleUnit),
+      included: true,
+      optional: false,
+      manual: false,
+      applyDestinationTax: false,
+      destinationTaxRate: 0,
+    }
+    const identity = screen7OwnLclMatrixIdentity(line)
+    const oldIndex = existingMatrix.findIndex((candidate, candidateIndex) =>
+      !used.has(candidateIndex) && screen7OwnLclMatrixIdentity(candidate) === identity)
+    if (oldIndex >= 0) {
+      used.add(oldIndex)
+      const old = existingMatrix[oldIndex]
+      line.detailId = old.detailId
+      line.billToClient = old.billToClient
+      line.applyDestinationTax = old.applyDestinationTax
+      line.destinationTaxRate = old.destinationTaxRate
+      line.included = old.included
+    }
+    return line
+  })
+  // Matrix items are replaced in full. Preserve ad-hoc/historical details
+  // without a consolidation marker and prevent duplicate generated insurance.
+  const supplemental = previous.filter((line) => {
+    if (screen7OwnLclMatrixMarker(line)) return false
+    if (line.key === 'cargo-insurance:auto') {
+      return !fresh.some((item) => item.costDetailType === 'Insurance')
+    }
+    return true
+  })
+  return { fresh, next: [...fresh, ...supplemental], calculation }
+}
+
 async function applyScreen7DatabaseCosts() {
   if (screen7RefreshBusy.value || props.viewOnly) return
   const previous = rateLines.value.map((line) => ({ ...line }))
   const previousCosts = costs.value
   const previousLineContext = pricingDraftLastLineContext
+  const previousOwnLclRefreshContext = screen7OwnLclRefreshContext.value
+  const previousSource = lclSelectedSource.value
+  const previousFreightCost = form.freightCost
+  const previousFreightSale = form.freightSale
   const requestedContext = pricingDraftLineContextKey()
   screen7RefreshBusy.value = true
   screen7RefreshAllowed.value = true
@@ -106,12 +306,47 @@ async function applyScreen7DatabaseCosts() {
       throw new Error('No se cargó la moneda de la cotización. Recargue los catálogos antes de actualizar.')
     }
 
+    if (isOwnLclMatrixContext()) {
+      // LCL propio uses its consolidated route matrix, never the generic
+      // Pricing Costs catalog or the historical persisted detail snapshot.
+      const { fresh, next, calculation } = await screen7RefreshOwnLclMatrix(previous)
+      if (requestedContext !== pricingDraftLineContextKey()) {
+        throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
+      }
+      screen7OwnLclRefreshContext.value = requestedContext
+      rateLines.value = next
+      costs.value = []
+      if (lclSelectedSource.value?.kind === 'Own') {
+        lclSelectedSource.value = {
+          ...lclSelectedSource.value,
+          lines: fresh,
+          totalCost: calculation.totalCost,
+          totalSale: calculation.finalSale,
+          profitAmount: calculation.profitAmount,
+          profitPerCbm: calculation.profitPerCbm,
+          profitPercentage: calculation.profitPercentage,
+          meetsMinimumMargin: calculation.meetsMinimumMargin,
+          matrixVersion: calculation.matrixVersion,
+        }
+      }
+      const freight = fresh.find((line) => line.costDetailType === 'Freight')
+      if (freight) {
+        form.freightCost = freight.costAmount
+        form.freightSale = freight.saleAmount
+      }
+      pricingDraftLastLineContext = requestedContext
+      screen7RefreshPromptOpen.value = false
+      savePricingDraftNow()
+      toastStore.success(
+        'Matriz LCL propia actualizada',
+        'Se cargaron los ' + fresh.length + ' rubros vigentes del consolidado; '
+          + (next.length - fresh.length) + ' líneas independientes se conservaron. Revise antes de guardar.',
+      )
+      return
+    }
     await loadApplicableCosts()
     if (requestedContext !== pricingDraftLineContextKey()) {
       throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
-    }
-    if (isOwnLclMatrixContext()) {
-      throw new Error('Esta tarifa LCL propia se alimenta del consolidado. Vuelva a seleccionar el consolidado en Proveedor para actualizar su matriz.')
     }
 
     const isColoader = isLclColoaderAgentCostContext()
@@ -247,6 +482,10 @@ async function applyScreen7DatabaseCosts() {
     rateLines.value = previous
     costs.value = previousCosts
     pricingDraftLastLineContext = previousLineContext
+    screen7OwnLclRefreshContext.value = previousOwnLclRefreshContext
+    lclSelectedSource.value = previousSource
+    form.freightCost = previousFreightCost
+    form.freightSale = previousFreightSale
     screen7RefreshPromptOpen.value = true
     toastStore.backendError(error, 'No se actualizaron las líneas. Todos los valores anteriores se conservaron.')
   } finally {
@@ -271,6 +510,17 @@ watch(
   { immediate: true, flush: 'post' },
 )
 `
+  // After an explicit recalculation, unrelated source watchers must not
+  // restore the saved matrix snapshot and discard the newly fetched rows.
+  if (code.includes('function restoreOwnLclMatrixLines() {')) {
+    code = replaceOnce(
+      code,
+      'function restoreOwnLclMatrixLines() {',
+      'function restoreOwnLclMatrixLines() {\n  if (screen7OwnLclRefreshContext.value === pricingDraftLineContextKey()) return',
+      'explicit own LCL refresh persistence',
+    )
+  }
+
   code = replaceOnce(code, scriptEnd, '\n' + script + scriptEnd, 'script insertion')
 
   // The benchmark panel may refresh its own data. It must never rehydrate the
