@@ -51,6 +51,13 @@ function patchWizard(source: string) {
     "    if (!eligibleAgents.value.some((agent) => agent.id === form.agentId)) form.agentId = ''",
     '  },',
     ')',
+    '// Do not retain a maritime carrier when a quotation becomes air or land.',
+    'watch(',
+    '  () => [form.modality, form.carrierId, hydratingExistingRate.value] as const,',
+    '  ([modality, carrierId, hydrating]) => {',
+    "    if ((modality === 'Air' || modality === 'Land') && carrierId && !hydrating) form.carrierId = ''",
+    '  },',
+    ')',
     agentOptionsAnchor,
   ].join('\n'), 'single LCL agent selector options')
 
