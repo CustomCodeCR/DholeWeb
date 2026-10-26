@@ -5,6 +5,7 @@ import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/comp
 import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmReferencePicker from '../components/CrmReferencePicker.vue'
+import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmHaciendaLookup, { type HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -109,6 +110,7 @@ function beginCreate() {
   Object.keys(form).forEach(key => delete form[key])
   Object.assign(form, crmDefaults(section.value))
   if (section.value === 'followups') form.assignedUserId = auth.userId ?? ''
+  if (section.value === 'accounts') form.executiveUserId = auth.userId ?? ''
   showForm.value = true
 }
 function beginEdit(item: CrmRow) {
@@ -442,9 +444,12 @@ onMounted(() => { if (allowed.value) void load() })
                 <DhInput label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')"
                   @update:model-value="form.relationshipTypeCode = $event" />
               </div>
+              <CrmExecutivePicker v-if="can('crm.account.assign') && can('auth.users.view') && !edited"
+                :model-value="String(form.executiveUserId ?? '')" label="Ejecutivo de ventas"
+                @update:model-value="form.executiveUserId = $event" />
               <p class="text-xs text-[var(--dh-text-muted)]">
-                El ejecutivo asignado, los contactos, direcciones, actividades económicas y seguimientos se administran desde el detalle del cliente.
-                La creación usa el usuario actual como ejecutivo si no se asigna uno.
+                Si no se selecciona un ejecutivo, se asigna al usuario actual.
+                Los contactos, direcciones, actividades económicas y seguimientos se administran desde el detalle del cliente.
               </p>
             </section>
           </template>
