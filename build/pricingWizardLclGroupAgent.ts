@@ -166,10 +166,10 @@ function patchWizard(source: string) {
       '  const missing: string[] = []',
       "  if ((form.modality === 'Air' || form.modality === 'Land') && !form.agentId) missing.push('agente')",
       "  if (shipmentModeForApi.value !== 'Lcl' && form.agentId && !eligibleAgents.value.some((item) => item.id === form.agentId)) missing.push('agente válido para el país de origen')",
-    ].join('\\n'),
+    ].join('\n'),
     'country-matching save guard',
   )
-  const carrierValidation = save.match(/^([ \\t]*)if \\(([^\\n]*!carrier[^\\n]*)\\) missing\\.push\\('proveedor'\\)$/m)
+  const carrierValidation = save.match(/^([ \t]*)if \(([^\n]*!carrier[^\n]*)\) missing\.push\('proveedor'\)$/m)
   if (!carrierValidation) throw new Error('[pricingWizardLclGroupAgent] Carrier missing validation not found')
   save = save.replace(
     carrierValidation[0],
