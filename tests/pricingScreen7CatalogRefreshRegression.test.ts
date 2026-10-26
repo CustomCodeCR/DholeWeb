@@ -105,7 +105,7 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
       : type === 'OriginCharge' ? 'origin_charges' : 'destination_charges',
     costContextLabel: () => '',
     defaultChargeBasis: () => 'PerShipment',
-    displayValue: (currency: any) => currency.value,
+    displayValue: (currency: any) => currency.value ?? currency.name ?? '',
     enforceLineCurrency: () => {},
     normalizeCatalogValue: (v: unknown) => String(v ?? '').toLowerCase(),
     visibleSections: { value: ['destination_charges'] },
