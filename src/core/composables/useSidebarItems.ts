@@ -73,6 +73,28 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'],
       },
       {
+        labelKey: 'crm.title',
+        icon: Users,
+        name: 'crm-root',
+        children: [
+          { labelKey: 'crm.nav.dashboard', icon: LayoutDashboard, to: '/crm', name: 'crm-home' },
+          { labelKey: 'crm.nav.accounts', icon: Users, to: '/crm/accounts', name: 'crm-accounts', requiredAnyScopes: ['crm.account.read', 'crm.account.read-all'] },
+          { labelKey: 'crm.nav.leads', icon: Users, to: '/crm/leads', name: 'crm-leads', requiredAnyScopes: ['crm.lead.read', 'crm.lead.read-all'] },
+          { labelKey: 'crm.nav.opportunities', icon: TrendingUp, to: '/crm/opportunities', name: 'crm-opportunities', requiredAnyScopes: ['crm.opportunity.read', 'crm.opportunity.read-all'] },
+        ],
+      },
+      {
+        labelKey: 'srm.title',
+        icon: Truck,
+        name: 'srm-root',
+        children: [
+          { labelKey: 'srm.dashboard', icon: LayoutDashboard, to: '/srm', name: 'srm-home' },
+          { labelKey: 'srm.suppliers', icon: Users, to: '/srm/suppliers', name: 'srm-suppliers' },
+          { labelKey: 'srm.performance', icon: BarChart3, to: '/srm/performance', name: 'srm-performance' },
+          { labelKey: 'srm.contracts', icon: FileText, to: '/srm/contracts', name: 'srm-contracts' },
+        ],
+      },
+      {
         labelKey: 'sidebar.security',
         icon: Shield,
         name: 'security',
