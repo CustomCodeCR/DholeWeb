@@ -4,6 +4,7 @@ import { AlertTriangle, Database, RefreshCw, Search, ShieldCheck } from 'lucide-
 import { fetchClient } from '@/core/api/fetchConfig'
 import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
+import { formatDynamicsReadCell } from '../utils/dynamicsReadFormatting'
 
 type Section = 'catalog' | 'query' | 'crud' | 'security' | 'integrations'
 type Connection = { code: string; id?: string }
@@ -338,6 +339,10 @@ const grantAllowedFields = computed(() => {
 
 function label(labels: Record<string, string> | undefined) {
   return labels?.['3082'] || labels?.['1033'] || Object.values(labels ?? {})[0] || ''
+}
+function formatReadCell(item: Record<string, unknown>, fieldName: string) {
+  const choices = activeTable.value?.columns.find(field => field.logicalName === fieldName)?.choices ?? []
+  return formatDynamicsReadCell(item, fieldName, choices)
 }
 function prefixed(path: string) {
   return '/api/dynamics-admin/' + path
@@ -1306,9 +1311,10 @@ onBeforeUnmount(() => { if (monitorInterval) clearInterval(monitorInterval) })
         </div>
         <div v-if="page" class="dynamics-data-card">
           <div class="dynamics-data-card-top"><strong>Resultados · página {{ page.page }}</strong><span>{{ page.items.length }} registros · {{ page.count ?? 'total no calculado' }}</span></div>
+          <p class="dynamics-subtitle">Las opciones se muestran por su nombre de Dynamics. Colocá el cursor sobre el valor para ver el código interno.</p>
           <div class="dynamics-scroll"><table class="dynamics-data-table">
             <thead><tr><th v-for="name in lastQuery?.select ?? []" :key="name">{{ label(activeTable?.columns.find(f => f.logicalName === name)?.labels) || name }}</th></tr></thead>
-            <tbody><tr v-for="(item, idx) in page.items" :key="idx"><td v-for="name in lastQuery?.select ?? []" :key="name">{{ typeof item[name] === 'object' ? JSON.stringify(item[name]) : (item[name] ?? '—') }}</td></tr></tbody>
+            <tbody><tr v-for="(item, idx) in page.items" :key="idx"><td v-for="name in lastQuery?.select ?? []" :key="name"><span :title="formatReadCell(item, name).raw ? 'Valor interno: ' + formatReadCell(item, name).raw : undefined">{{ formatReadCell(item, name).text }}</span></td></tr></tbody>
           </table></div>
           <p v-if="page.truncated" class="dynamics-subtitle">Límite de páginas alcanzado: resultados truncados.</p>
           <button v-if="page.nextCursor" class="dynamics-outline-button" type="button" :disabled="busy" @click="searchRecords(page.nextCursor ?? undefined)">Siguiente página</button>
