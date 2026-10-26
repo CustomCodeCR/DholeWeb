@@ -27,7 +27,8 @@ import {
   Database,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
-import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
+import { CRM_WORKSPACE_SCOPES, PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
+import { crmEnabled } from '@/modules/crm/services/crmApi'
 
 export interface SidebarItem {
   labelKey: string
@@ -76,8 +77,9 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         labelKey: 'crm.title',
         icon: Users,
         name: 'crm-root',
+        requiredAnyScopes: [...CRM_WORKSPACE_SCOPES],
         children: [
-          { labelKey: 'crm.nav.dashboard', icon: LayoutDashboard, to: '/crm', name: 'crm-home' },
+          { labelKey: 'crm.nav.dashboard', icon: LayoutDashboard, to: '/crm', name: 'crm-home', requiredAnyScopes: [...CRM_WORKSPACE_SCOPES] },
           { labelKey: 'crm.nav.accounts', icon: Users, to: '/crm/accounts', name: 'crm-accounts', requiredAnyScopes: ['crm.account.read', 'crm.account.read-all'] },
           { labelKey: 'crm.nav.leads', icon: Users, to: '/crm/leads', name: 'crm-leads', requiredAnyScopes: ['crm.lead.read', 'crm.lead.read-all'] },
           { labelKey: 'crm.nav.opportunities', icon: TrendingUp, to: '/crm/opportunities', name: 'crm-opportunities', requiredAnyScopes: ['crm.opportunity.read', 'crm.opportunity.read-all'] },
@@ -87,11 +89,12 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         labelKey: 'srm.title',
         icon: Truck,
         name: 'srm-root',
+        requiredScope: 'srm.supplier.read',
         children: [
-          { labelKey: 'srm.dashboard', icon: LayoutDashboard, to: '/srm', name: 'srm-home' },
-          { labelKey: 'srm.suppliers', icon: Users, to: '/srm/suppliers', name: 'srm-suppliers' },
-          { labelKey: 'srm.performance', icon: BarChart3, to: '/srm/performance', name: 'srm-performance' },
-          { labelKey: 'srm.contracts', icon: FileText, to: '/srm/contracts', name: 'srm-contracts' },
+          { labelKey: 'srm.dashboard', icon: LayoutDashboard, to: '/srm', name: 'srm-home', requiredScope: 'srm.supplier.read' },
+          { labelKey: 'srm.suppliers', icon: Users, to: '/srm/suppliers', name: 'srm-suppliers', requiredScope: 'srm.supplier.read' },
+          { labelKey: 'srm.performance', icon: BarChart3, to: '/srm/performance', name: 'srm-performance', requiredAllScopes: ['srm.supplier.read', 'srm.performance.read'] },
+          { labelKey: 'srm.contracts', icon: FileText, to: '/srm/contracts', name: 'srm-contracts', requiredAllScopes: ['srm.supplier.read', 'srm.contract.read'] },
         ],
       },
       {
@@ -367,6 +370,8 @@ function mapItem(
   t: (key: string) => string,
   authStore: ReturnType<typeof useAuthStore>,
 ): SidebarItemView | null {
+  if (item.name === 'crm-root' && !crmEnabled()) return null
+
   if (item.requiredScope && !authStore.hasScope(item.requiredScope)) {
     return null
   }
