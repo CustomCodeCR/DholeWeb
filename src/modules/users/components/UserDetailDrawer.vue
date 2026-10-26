@@ -326,18 +326,21 @@ function openRevokeRoles() {
   })
 }
 
-function openAssignScopes() {
+// Direct assignments remain optional and never bypass Auth's role + resource checks.
+// Filtering here makes the existing Auth scope catalogue practical for CRM/SRM managers.
+function openAssignScopes(module: 'all' | 'crm' | 'srm' = 'all') {
   if (!canAssignScopes.value || isProtectedUser.value) return
 
   const selected = directScopes.value.map((scope) => scope.scopeId)
+  const options = module === 'all' ? availableScopes.value : availableScopes.value.filter(scope => scope.code.startsWith(module + '.'))
   modalStore.open({
-    title: t('users.assignScopes'),
+    title: module === 'all' ? t('users.assignScopes') : 'Asignar permisos ' + module.toUpperCase(),
     component: AuthMultiSelectModal,
     size: 'lg',
     props: {
       title: t('users.assignScopes'),
-      description: 'Seleccione los scopes directos que desea asignar al usuario.',
-      items: scopeItems(availableScopes.value),
+      description: module === 'all' ? 'Seleccione los scopes directos que desea asignar al usuario.' : 'Permisos de ' + module.toUpperCase() + ' asignables individualmente; no se conceden permisos de otros módulos.',
+      items: scopeItems(options),
       initiallySelectedIds: selected,
       confirmLabel: t('common.assign'),
       onConfirm: async (ids: string[]) => {
@@ -489,7 +492,9 @@ onMounted(loadRelated)
 
     <section v-else-if="activeTab === 'scopes'" class="space-y-3">
       <div v-if="showScopeActions" class="flex justify-end gap-2">
-        <DhButton v-if="canAssignScopes" :icon="KeyRound" :label="t('users.assignScopes')" @click="openAssignScopes" />
+        <DhButton v-if="canAssignScopes" :icon="KeyRound" label="Permisos CRM" @click="openAssignScopes('crm')" />
+        <DhButton v-if="canAssignScopes" :icon="KeyRound" label="Permisos SRM" variant="secondary" @click="openAssignScopes('srm')" />
+        <DhButton v-if="canAssignScopes" :icon="KeyRound" :label="t('users.assignScopes')" variant="secondary" @click="openAssignScopes('all')" />
         <DhButton v-if="canRevokeScopes && directScopes.length > 0" :icon="Ban" :label="t('users.revokeScopes')" variant="secondary" @click="openRevokeScopes" />
       </div>
       <div class="grid gap-2">
