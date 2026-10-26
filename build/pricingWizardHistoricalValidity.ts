@@ -12,19 +12,19 @@ export function patchPricingWizardHistoricalValidity(source: string): string {
 
   // Selecting an imported freight must never overwrite the shipment date.
   code = code.replace(
-    "  // La selección del flete internacional define automáticamente la vigencia\\n  // comercial; no arrastramos los 30 días predeterminados ni fechas anteriores.\\n",
-    "  // El flete seleccionado no modifica la fecha de carga/embarque de la QUO.\\n",
+    "  // La selección del flete internacional define automáticamente la vigencia\n  // comercial; no arrastramos los 30 días predeterminados ni fechas anteriores.\n",
+    "  // El flete seleccionado no modifica la fecha de carga/embarque de la QUO.\n",
   )
   code = code.replace(
-    /\\n  const freightValidFrom = String\\(rate\\.validFrom \\?\\? ''\\)\\.slice\\(0, 10\\)/,
+    /\n  const freightValidFrom = String\(rate\.validFrom \?\? ''\)\.slice\(0, 10\)/,
     '',
   )
   code = code.replace(
-    /\\n  if \\(freightValidFrom\\) form\\.loadDate = freightValidFrom/,
+    /\n  if \(freightValidFrom\) form\.loadDate = freightValidFrom/,
     '',
   )
   code = code.replace(
-    /\\n  if \\(bundle\\.validFrom\\) form\\.loadDate = bundle\\.validFrom/,
+    /\n  if \(bundle\.validFrom\) form\.loadDate = bundle\.validFrom/,
     '',
   )
 
@@ -52,7 +52,7 @@ export function patchPricingWizardHistoricalValidity(source: string): string {
   if (code.includes(sharedEnd)) {
     code = code.replace(
       sharedEnd,
-      sharedEnd + '\\n            <p class="text-xs font-semibold text-[var(--dh-text-muted)] md:col-span-2">La fecha inicial es la carga o el embarque. Puede registrar vencimientos anteriores a hoy si la cotización se acordó anteriormente.</p>',
+      sharedEnd + '\n            <p class="text-xs font-semibold text-[var(--dh-text-muted)] md:col-span-2">La fecha inicial es la carga o el embarque. Puede registrar vencimientos anteriores a hoy si la cotización se acordó anteriormente.</p>',
     )
   }
 
@@ -73,8 +73,8 @@ export function patchPricingWizardHistoricalValidity(source: string): string {
     return
   }
 `
-  code = code.replace('async function saveRate() {\\n', 'async function saveRate() {\\n' + guard)
-  code = code.replace('async function saveOpenRequest() {\\n', 'async function saveOpenRequest() {\\n' + guard)
+  code = code.replace('async function saveRate() {\n', 'async function saveRate() {\n' + guard)
+  code = code.replace('async function saveOpenRequest() {\n', 'async function saveOpenRequest() {\n' + guard)
 
   return code
 }
@@ -84,7 +84,7 @@ export function pricingWizardHistoricalValidity(): Plugin {
     name: 'dhole-pricing-wizard-historical-validity',
     transform(source, id) {
       if (id.includes('?')) return null
-      const normalized = id.replaceAll('\\\\', '/').split('?')[0]
+      const normalized = id.replaceAll('\\', '/').split('?')[0]
       if (!normalized.endsWith(WIZARD_PATH)) return null
       return { code: patchPricingWizardHistoricalValidity(source), map: null }
     },
