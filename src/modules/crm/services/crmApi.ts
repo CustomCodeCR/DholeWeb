@@ -9,7 +9,9 @@ export interface CrmPage<T = CrmRow> {
 }
 export type CrmMethod = 'GET' | 'POST' | 'PATCH' | 'PUT'
 
-export const crmEnabled = () => import.meta.env.VITE_CRM_ENABLED === 'true'
+// CRM is an active workspace: authorize access with CRM scopes, not an absent
+// build-time rollout flag. An explicit false flag can still disable the module.
+export const crmEnabled = () => import.meta.env.VITE_CRM_ENABLED !== 'false'
 const base = '/api/crm'
 export function crmPath(resource: string, id?: string, action?: string) {
   const encoded = id ? '/' + encodeURIComponent(id) : ''
