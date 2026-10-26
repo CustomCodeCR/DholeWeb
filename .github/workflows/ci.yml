@@ -34,5 +34,7 @@ jobs:
         run: pnpm run test:agent
       - name: Pricing rate update regression tests
         run: pnpm run test:pricing-rate-update
+      - name: CRM and SRM navigation/integration tests
+        run: pnpm run test:crm
       - name: Type-check and build
         run: pnpm run build
