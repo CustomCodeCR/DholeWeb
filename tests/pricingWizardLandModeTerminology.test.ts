@@ -225,5 +225,6 @@ test('Pricing screen 6 filters agents by origin and only offers maritime carrier
   assert.ok(providers.includes("form.modality !== 'Air'"))
   assert.ok(providers.includes("carrierId: (' + maritimeCarrier + ') ? (carrier?.id ?? null) : null"))
   assert.ok(providers.includes("country-matching save guard"))
+  assert.ok(providers.includes('form.modality, form.carrierId, hydratingExistingRate.value'))
   assert.ok(land.includes('findById(catalogs.agents, form.agentId)'))
 })
