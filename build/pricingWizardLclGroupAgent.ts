@@ -182,10 +182,36 @@ function patchWizard(source: string) {
     carrierValidation[0],
     carrierValidation[1] + "if (form.modality !== 'Air' && (" + carrierValidation[2] + ")) missing.push('proveedor')",
   )
-  const maritimeCarrier = "form.modality === 'Maritime' || form.modality === 'Multimodal'"
-  save = replaceCount(save, 'carrierId: carrier!.id,', 'carrierId: (' + maritimeCarrier + ') ? (carrier?.id ?? null) : null,', 2, 'carrier ID create/update')
-  save = replaceCount(save, 'carrierName: displayValue(carrier),', 'carrierName: (' + maritimeCarrier + ') && carrier ? displayValue(carrier) : null,', 2, 'carrier name create/update')
-  save = replaceCount(save, 'carrierCode: carrier!.code,', 'carrierCode: (' + maritimeCarrier + ') ? (carrier?.code ?? null) : null,', 2, 'carrier code create/update')
+  // An earlier pricingWizardEnhancementsScoped transform already makes both
+  // create/update carrier fields optional for LCL coloaders. Match that version
+  // as well as the legacy raw wizard, without silently skipping either payload.
+  // LCL (own/coloader), Air and Land must never send maritime carrier details.
+  const maritimeCarrier = "(form.modality === 'Maritime' || form.modality === 'Multimodal') && shipmentModeForApi.value !== 'Lcl'"
+  function replaceCarrierField(
+    field: 'carrierId' | 'carrierName' | 'carrierCode',
+    legacyValue: string,
+    normalizedValue: string,
+    nextValue: string,
+  ) {
+    const legacy = `${field}: ${legacyValue},`
+    const normalized = `${field}: ${normalizedValue},`
+    const legacyCount = save.split(legacy).length - 1
+    const normalizedCount = save.split(normalized).length - 1
+    if (legacyCount + normalizedCount !== 2) {
+      throw new Error(`[pricingWizardLclGroupAgent] ${field} create/update: expected 2 payload fields, got ${legacyCount + normalizedCount}`)
+    }
+    save = save.split(legacy).join(`${field}: ${nextValue},`)
+      .split(normalized).join(`${field}: ${nextValue},`)
+  }
+  replaceCarrierField('carrierId', 'carrier!.id',
+    "shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : carrier?.id ?? null",
+    maritimeCarrier + ' ? (carrier?.id ?? null) : null')
+  replaceCarrierField('carrierName', 'displayValue(carrier)',
+    "shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : (carrier ? displayValue(carrier) : null)",
+    maritimeCarrier + ' && carrier ? displayValue(carrier) : null')
+  replaceCarrierField('carrierCode', 'carrier!.code',
+    "shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader' ? null : carrier?.code ?? null",
+    maritimeCarrier + ' ? (carrier?.code ?? null) : null')
   code = code.slice(0, saveStart) + save + code.slice(saveEnd)
 
   // En el resumen LCL se muestra únicamente el agente común.
