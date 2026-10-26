@@ -13,6 +13,24 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 function patchWizard(source: string) {
   let code = source
 
+  // The base Vue file declares this helper for vue-tsc. The plugin supplies
+  // the source-aware implementation at addManualCharge(), so strip the fallback
+  // from the transformed code before inserting the definitive implementation.
+  const typeCheckOwnMatrixHelper = `function isOwnLclMatrixContext() {
+  const currentNotes = includedLines.value.map((line) => String(line.notes ?? ''))
+  // Prefer the actively selected source over the historical rate when switching coloader/own.
+  if (currentNotes.some((note) => /Fuente LCL:\\s*Coloader|LCL\\s+COLOADER/i.test(note))) return false
+  if (currentNotes.some((note) => /Fuente LCL:\\s*Propio|LCL\\s*PROPIO|ConsolidadoId:/i.test(note))) return true
+  return Boolean(editingRate.value?.rateDetails.some((detail) =>
+    /Fuente LCL:\\s*Propio|LCL\\s*PROPIO|ConsolidadoId:/i.test(String(detail.notes ?? '')),
+  ))
+}
+`
+  if (code.includes(typeCheckOwnMatrixHelper)) {
+    code = code.replace(typeCheckOwnMatrixHelper, '')
+  }
+
+
   code = replaceOne(
     code,
     `function addManualCharge() {`,
