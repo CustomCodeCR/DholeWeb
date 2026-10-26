@@ -20,6 +20,10 @@ interface SignalRNegotiateResponse {
   error?: string
 }
 
+interface SignalRHubTicketResponse {
+  ticket?: string
+}
+
 interface SignalRInvocationMessage {
   type?: number
   target?: string
@@ -119,11 +123,32 @@ async function negotiate(base: URL, accessToken: string) {
   throw lastError ?? new Error('SignalR negotiate failed.')
 }
 
-function websocketUrl(hubUrl: URL, connectionToken: string, accessToken: string) {
+async function requestHubTicket(hubUrl: URL, accessToken: string): Promise<string> {
+  const url = new URL(hubUrl.toString())
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/ticket`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!response.ok) {
+    const error = new Error(`SignalR ticket request failed (${response.status}).`)
+    if (response.status === 401) throw new SignalRAuthenticationError(error.message)
+    throw error
+  }
+
+  const result = (await response.json()) as SignalRHubTicketResponse
+  if (!result.ticket || result.ticket.length > 128) {
+    throw new Error('SignalR ticket endpoint returned an invalid ticket.')
+  }
+  return result.ticket
+}
+
+function websocketUrl(hubUrl: URL, connectionToken: string, ticket: string) {
   const url = new URL(hubUrl.toString())
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.searchParams.set('id', connectionToken)
-  url.searchParams.set('access_token', accessToken)
+  url.searchParams.set('ticket', ticket)
   return url.toString()
 }
 
@@ -252,7 +277,8 @@ async function openSignalRSocket(accessToken: string): Promise<WebSocket> {
 
   const negotiation = await negotiate(base, accessToken)
   const connectionToken = negotiation.result.connectionToken ?? negotiation.result.connectionId!
-  const ws = new WebSocket(websocketUrl(negotiation.hubUrl, connectionToken, accessToken))
+  const ticket = await requestHubTicket(negotiation.hubUrl, accessToken)
+  const ws = new WebSocket(websocketUrl(negotiation.hubUrl, connectionToken, ticket))
   await waitForWebSocketOpen(ws)
   return ws
 }
