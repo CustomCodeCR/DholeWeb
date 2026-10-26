@@ -11,13 +11,14 @@ const views = read('src/modules/crm/views/CrmWorkspaceView.vue') +
   read('src/modules/crm/views/CrmRecordDetailView.vue')
 const forms = read('src/modules/crm/model/crmForms.ts')
 
-test('CRM is discoverable in MainLayout while privileged subroutes remain gated', () => {
-  assert.match(api, /VITE_CRM_ENABLED === 'true'/)
-  assert.match(routes, /to.path.startsWith\('\/crm\/'\) && !crmEnabled\(\)/)
+test('CRM is enabled by default but restricted to authorized users', () => {
+  assert.match(api, /VITE_CRM_ENABLED !== 'false'/)
+  assert.ok(routes.includes("to.path === '/crm' || to.path.startsWith('/crm/')"))
+  assert.ok(routes.includes("!crmEnabled()) return '/home'"))
   assert.match(routes, /path: 'crm'/)
   assert.match(sidebar, /name: 'crm-root'/)
   assert.match(mainLayout, /items.push\(\{ label: t\('crm.title'\)/)
-  assert.match(mainLayout, /crmEnabled\(\)/)
+  assert.match(mainLayout, /crmEnabled\(\) && CRM_WORKSPACE_SCOPES\.some\(scope => canView\(scope\)\)/)
   assert.match(mainLayout, /item.scopes.some\(scope => canView\(scope\)\)/)
 })
 test('CRM requests use authenticated existing gateway client and idempotency', () => {
