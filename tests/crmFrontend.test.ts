@@ -12,7 +12,7 @@ const views = read('src/modules/crm/views/CrmWorkspaceView.vue') +
 const forms = read('src/modules/crm/model/crmForms.ts')
 
 test('CRM is discoverable in MainLayout while privileged subroutes remain gated', () => {
-  assert.match(api, /VITE_CRM_ENABLED !== 'false'/)
+  assert.match(api, /VITE_CRM_ENABLED === 'true'/)
   assert.match(routes, /to.path.startsWith\('\/crm\/'\) && !crmEnabled\(\)/)
   assert.match(routes, /path: 'crm'/)
   assert.match(sidebar, /name: 'crm-root'/)
