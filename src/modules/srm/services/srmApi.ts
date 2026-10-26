@@ -1,5 +1,5 @@
 import { fetchClient } from '@/core/api/fetchConfig'
-import { unwrapApiResponse, unwrapListResponse } from '@/core/api/apiResponse'
+import { unwrapApiResponse, unwrapListResponse, type ApiResponse } from '@/core/api/apiResponse'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
 
 // Fixed SRM routes are hosted by Config but authorize only their dedicated srm.* scopes.
@@ -20,7 +20,7 @@ export const SrmApi = {
     return unwrapListResponse<CatalogItemDto>(response)
   },
   async create(collection: SrmCollection, body: SrmRecordInput): Promise<string> {
-    const response = await fetchClient<unknown>(base + '/' + collection, { method: 'POST', body })
+    const response = await fetchClient<string | ApiResponse<string>>(base + '/' + collection, { method: 'POST', body })
     return unwrapApiResponse<string>(response)
   },
   async updateSupplier(id: string, body: SrmRecordInput): Promise<void> {
