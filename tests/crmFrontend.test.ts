@@ -6,14 +6,19 @@ const read = (file: string) => readFileSync(file, 'utf8')
 const api = read('src/modules/crm/services/crmApi.ts')
 const routes = read('src/core/router/index.ts')
 const sidebar = read('src/core/composables/useSidebarItems.ts')
+const mainLayout = read('src/shared/components/layouts/MainLayout.vue')
 const views = read('src/modules/crm/views/CrmWorkspaceView.vue') +
   read('src/modules/crm/views/CrmRecordDetailView.vue')
 const forms = read('src/modules/crm/model/crmForms.ts')
 
-test('CRM route and menu are both guarded by a disabled-by-default flag', () => {
+test('CRM is discoverable in MainLayout while privileged subroutes remain gated', () => {
   assert.match(api, /VITE_CRM_ENABLED === 'true'/)
   assert.match(routes, /to.path.startsWith\('\/crm\/'\) && !crmEnabled\(\)/)
-  assert.match(sidebar, /item.name === 'crm-root' && !crmEnabled\(\)/)
+  assert.match(routes, /path: 'crm'/)
+  assert.match(sidebar, /name: 'crm-root'/)
+  assert.match(mainLayout, /items.push\(\{ label: t\('crm.title'\)/)
+  assert.match(mainLayout, /crmEnabled\(\)/)
+  assert.match(mainLayout, /item.scopes.some\(scope => canView\(scope\)\)/)
 })
 test('CRM requests use authenticated existing gateway client and idempotency', () => {
   assert.match(api, /import \{ fetchClient \} from '@\/core\/api\/fetchConfig'/)
