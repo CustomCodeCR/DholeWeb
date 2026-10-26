@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { ArrowLeft, BriefcaseBusiness, Plus } from 'lucide-vue-next'
+import { DhButton } from '@/shared/components/atoms'
+import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -20,6 +23,25 @@ const saving = ref(false)
 const pendingCreateKeys = new Map<string, string>()
 const relationRows = ref<CrmRow[]>([])
 const relation = ref('')
+const showRelationForm = ref(false)
+const createRelationPermissions: Record<string, string> = {
+  'accounts:addresses': 'crm.account.update',
+  'accounts:followup-policy': 'crm.followup.manage',
+  'accounts:contacts': 'crm.contact.create',
+  'accounts:credit-profiles': 'crm.credit.manage',
+  'accounts:credit-contracts': 'crm.contract.manage',
+  'activities:notes': 'crm.activity.update',
+  'analyses:services': 'crm.analysis.manage',
+  'analyses:routes': 'crm.analysis.manage',
+  'opportunities:negotiations': 'crm.opportunity.update',
+  'opportunities:quotes': 'crm.quote.link',
+  'opportunities:rate-requests': 'crm.quote.link',
+  'settings:stages': 'crm.settings.manage',
+}
+const canAddRelation = computed(() => {
+  const scope = createRelationPermissions[`${section.value}:${relation.value}`]
+  return !!scope && auth.hasScope(scope)
+})
 const drafts = reactive({
   note: '', reason: '', outcome: 'Completed', date: '',
   stageId: '', status: '', contactName: '', contactEmail: '',
@@ -112,7 +134,7 @@ async function createRelation(tab: string, body: unknown, requiredScope: string)
     pendingCreateKeys.set(fingerprint, key)
     await crmRequest(endpoint(tab), 'POST', body, key)
     pendingCreateKeys.delete(fingerprint)
-    await loadRelation(); success.value = t('crm.saved')
+    await loadRelation(); success.value = t('crm.saved'); showRelationForm.value = false
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
 }
@@ -264,20 +286,22 @@ onBeforeRouteLeave(() => {
   return window.confirm(t('crm.leaveDuringSave'))
 })
 watch([id, section], () => { void load() })
-watch(relation, () => { if (relation.value) void loadRelation() })
+watch(relation, () => { showRelationForm.value = false; if (relation.value) void loadRelation() })
+watch(success, value => { if (value) showRelationForm.value = false })
 onMounted(() => { if (crmEnabled()) void load() })
 </script>
 
 <template>
   <main class="mx-auto max-w-6xl space-y-5 p-3 text-[var(--dh-text)] sm:p-6" data-crm-detail>
-    <button type="button" class="crm-action" @click="back">← {{ t('crm.back') }}</button>
+    <DhButton :label="t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
     <p v-if="error" role="alert" class="crm-error">{{ error }}</p>
     <p v-if="success" role="status" class="text-sm text-emerald-600">{{ success }}</p>
     <p v-if="loading" role="status">{{ t('common.loading') }}</p>
     <template v-if="record">
       <section class="crm-panel space-y-3 p-5">
-        <h1 class="text-2xl font-black">{{ record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id }}</h1>
-        <p class="text-sm text-[var(--dh-text-muted)]">{{ t('crm.version') }} {{ record.rowVersion }} · ID {{ record.id }}</p>
+        <DhPageHeader :icon="BriefcaseBusiness"
+          :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
+          :subtitle="t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
         <dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
@@ -335,7 +359,10 @@ onMounted(() => { if (crmEnabled()) void load() })
           :aria-pressed="relation===tab" @click="relation=tab">{{ tab }}</button>
       </nav>
       <section v-if="relation && permitted(relation)" class="crm-panel space-y-4 p-4">
-        <h2 class="text-lg font-bold">{{ relation }} ({{ relationRows.length }})</h2>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-lg font-bold">{{ relation }} ({{ relationRows.length }})</h2>
+          <DhButton v-if="canAddRelation" :icon="Plus" :label="t('common.create')" @click="showRelationForm = true" />
+        </div>
         <div v-if="!relationRows.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('common.noData') }}</div>
         <div v-for="item in relationRows" :key="item.id" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">
           <p class="font-bold">{{ item.name ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.id }}</p>
@@ -380,6 +407,9 @@ onMounted(() => { if (crmEnabled()) void load() })
           </div>
 
         </div>
+        <DhDrawer :open="showRelationForm && canAddRelation"
+          :title="t('common.create') + ' · ' + relation" size="lg" @close="showRelationForm = false">
+          <p v-if="error" role="alert" class="mb-3 rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
         <form v-if="section==='accounts' && relation==='addresses' && can('crm.account.update')"
           class="grid gap-3 sm:grid-cols-3" @submit.prevent="addAddress">
           <input v-model.trim="drafts.addressType" class="crm-input" required :placeholder="t('crm.addressType')" />
@@ -477,6 +507,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           <input v-model="drafts.volume" type="number" min="0" class="crm-input" />
           <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.addStage') }}</button>
         </form>
+        </DhDrawer>
       </section>
     </template>
   </main>
