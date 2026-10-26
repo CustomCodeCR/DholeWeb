@@ -4269,6 +4269,10 @@ async function saveRate() {
         : stripGeneratedPodVatNotes(line.notes) || null,
   }))
 
+  const includedNameKeys = new Set(
+    includedLines.value.map((line) => normalizeCatalogValue(line.name)),
+  )
+
   // Un LCL propio de China no usa los planes comerciales de Miami.
   // Las revisiones antiguas pudieron guardar esa metadata en notes; limpiarla
   // al guardar corrige también las cotizaciones existentes sin modificar montos.
@@ -4281,9 +4285,6 @@ async function saveRate() {
     }
   }
 
-  const includedNameKeys = new Set(
-    includedLines.value.map((line) => normalizeCatalogValue(line.name)),
-  )
   const serviceCodes = new Set<string>()
   selectedServices.value.forEach((service) => {
     const code = service.code?.trim().toUpperCase()
