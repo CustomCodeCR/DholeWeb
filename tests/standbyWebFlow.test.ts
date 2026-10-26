@@ -46,7 +46,8 @@ test('all new generations authenticate by Hub without collecting account details
   assert.match(view, /Dhole detecta y registra el acceso automáticamente/)
   assert.doesNotMatch(view, /<strong>Customer ID:<\/strong>/)
   assert.doesNotMatch(view, /<strong>Usuario:<\/strong>/)
-  assert.match(profileView, /Acceso al Hub confirmado, sin recopilar datos de la cuenta/)
+  assert.match(profileView, /Verified: 'Hub de Maersk verificado'/)
+  assert.doesNotMatch(profileView, /<strong>Customer ID:<\/strong>|<strong>Usuario:<\/strong>/)
   assert.match(view, /validStandbyName\(item.name\)/)
 })
 
