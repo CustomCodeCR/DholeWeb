@@ -388,7 +388,7 @@ onMounted(() => { if (allowed.value) void load() })
           <template v-if="section === 'accounts'">
             <section class="space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
               <h3 class="text-sm font-black uppercase tracking-wide text-[var(--dh-text)]">Identificación del cliente</h3>
-              <div v-if="section !== 'accounts'" class="grid gap-4 sm:grid-cols-2">
+              <div class="grid gap-4 sm:grid-cols-2">
                 <DhInput label="Nombre comercial *" :model-value="String(form.displayName ?? '')"
                   @update:model-value="form.displayName = $event" />
                 <DhInput label="Razón social *" :model-value="String(form.legalName ?? '')"
@@ -427,7 +427,7 @@ onMounted(() => { if (allowed.value) void load() })
               </p>
             </section>
           </template>
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div v-if="section !== 'accounts'" class="grid gap-4 sm:grid-cols-2">
             <div v-for="f in model.fields" :key="f.key" :class="f.type === 'textarea' && 'sm:col-span-2'">
               <DhSelect v-if="f.type === 'select'" :label="f.label" :options="f.options ?? []" placeholder=""
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
