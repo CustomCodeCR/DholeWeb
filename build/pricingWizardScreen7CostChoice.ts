@@ -221,18 +221,18 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
     pickupCost: 0,
     pickupSale: 0,
     discount: 0,
-    commercialPlan: form.miamiCommercialPlan || null,
+    commercialPlan: isMiamiLcl.value ? form.miamiCommercialPlan : null,
     cargoValue: Math.max(0, number(form.cargoValue)),
-    whsQty: Math.max(1, Math.trunc(number(form.miamiWhsQty))),
-    includeSed: Boolean(form.miamiIncludeSed),
-    sedQty: Math.max(1, Math.trunc(number(form.miamiSedQty))),
+    whsQty: isMiamiLcl.value ? Math.max(1, Math.trunc(number(form.miamiWhsQty))) : 1,
+    includeSed: isMiamiLcl.value && Boolean(form.miamiIncludeSed),
+    sedQty: isMiamiLcl.value ? Math.max(1, Math.trunc(number(form.miamiSedQty))) : 1,
     isDangerousCargo: Boolean(form.dangerousCargo),
-    isBonded: Boolean(form.miamiBonded),
+    isBonded: isMiamiLcl.value && Boolean(form.miamiBonded),
   })
   if (!calculation.lines?.length) {
     throw new Error('La matriz del consolidado no devolvió cargos vigentes. Los valores anteriores se conservaron.')
   }
-  const commercialMarker = form.miamiCommercialPlan
+  const commercialMarker = isMiamiLcl.value && form.miamiCommercialPlan
     ? ' · Plan Miami: ' + form.miamiCommercialPlan
       + ' · WHS: ' + Math.max(1, Math.trunc(number(form.miamiWhsQty)))
       + ' · SED: ' + (form.miamiIncludeSed ? Math.max(1, Math.trunc(number(form.miamiSedQty))) : 0)
