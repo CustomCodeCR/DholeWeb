@@ -73,7 +73,7 @@ const form = reactive({
   maximumCbm: 50,
   carrierDestinationCostTotal: 0,
   panamaToCostaRicaCost: 2140,
-  bunkerCost: 280,
+  bunkerCost: 476,
   costaRicaTransferBaseCbm: 95,
   freightProfitPerCbm: 5.69,
   includeEmptyReturn: true,
@@ -231,7 +231,7 @@ function resetForm() {
     name: '', consolidationNumber: null,
     booking: '', etd: '', carrierId: '', containerId: '', polId: '', panamaArrivalPortCode: '',
     oceanFreight: 0, maximumCbm: 50, carrierDestinationCostTotal: 0,
-    panamaToCostaRicaCost: 2140, bunkerCost: 280, costaRicaTransferBaseCbm: 95,
+    panamaToCostaRicaCost: 2140, bunkerCost: 476, costaRicaTransferBaseCbm: 95,
     freightProfitPerCbm: 5.69,
     includeEmptyReturn: true,
   })
@@ -415,7 +415,7 @@ watch(formMatrixType, (matrix, previous) => {
     form.includeEmptyReturn = false
   } else {
     form.panamaToCostaRicaCost = 2140
-    form.bunkerCost = 280
+    form.bunkerCost = 476
     form.costaRicaTransferBaseCbm = 95
     form.includeEmptyReturn = true
   }
@@ -426,7 +426,7 @@ const previewDestinationTotal = computed(() => Number(form.carrierDestinationCos
 const previewDestinationPerCbm = computed(() => previewDestinationTotal.value / Math.max(Number(form.maximumCbm || 50), 0.01))
 const previewOceanPerCbm = computed(() => Number(form.oceanFreight || 0) / Math.max(Number(form.maximumCbm || 50), 0.01))
 const previewTransfer = computed(() => Number(form.panamaToCostaRicaCost ?? selected.value?.panamaToCostaRicaCost ?? 2140))
-const previewBunker = computed(() => Number(form.bunkerCost ?? effectiveProfile.value?.costaRicaTransfer.bunker ?? selected.value?.bunkerCost ?? 280))
+const previewBunker = computed(() => Number(form.bunkerCost ?? effectiveProfile.value?.costaRicaTransfer.bunker ?? selected.value?.bunkerCost ?? 476))
 const previewTransferBase = computed(() => Number(form.costaRicaTransferBaseCbm || selected.value?.costaRicaTransferBaseCbm || 95))
 const previewCrTransferPerCbm = computed(() => (previewTransfer.value + previewBunker.value) / Math.max(previewTransferBase.value, 0.01))
 const previewMiamiCbmCost = computed(() => pricingLines.value
