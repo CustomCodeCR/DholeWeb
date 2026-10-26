@@ -9,7 +9,7 @@ const view = read('src/modules/srm/views/SrmWorkspaceView.vue')
 const translations = read('src/modules/srm/i18n.ts')
 const monitoring = read('src/core/services/monitoringService.ts')
 
-test('the actual MainLayout exposes both CRM and SRM', () => {
+test('the MainLayout exposes CRM/SRM only when authorized', () => {
   assert.match(layout, /label: t\('crm.title'\)/)
   assert.match(layout, /label: t\('srm.title'\)/)
   assert.match(layout, /path: '\/crm'/)
@@ -42,10 +42,36 @@ test('CRM/SRM translations include Spanish and English', () => {
   assert.match(translations, /contracts: 'Contratos y acuerdos'/)
 })
 
-test('CRM is monitored through the Gateway and both modules are pinned in the real sidebar', () => {
+test('CRM is monitored through the Gateway and scoped module shortcuts are present', () => {
   const sidebar = read('src/shared/components/organisms/DhSidebar.vue')
   assert.match(monitoring, /key: 'crm'/)
   assert.match(monitoring, /buildGatewayHealthUrl\('crm'\)/)
   assert.ok(sidebar.indexOf('to="/crm"') < sidebar.indexOf('<nav class="dh-scrollbar'))
   assert.ok(sidebar.indexOf('to="/srm"') < sidebar.indexOf('<nav class="dh-scrollbar'))
+})
+
+test('CRM and SRM menu entries require the effective user's module scopes', () => {
+  const sidebar = read('src/shared/components/organisms/DhSidebar.vue')
+  const secondary = read('src/core/composables/useSidebarItems.ts')
+  const scopes = read('src/core/auth/scopes.ts')
+
+  assert.ok(layout.includes("if (crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope)))"))
+  assert.ok(layout.includes("if (canView('srm.supplier.read'))"))
+  assert.ok(layout.includes("if (canView('srm.performance.read'))"))
+  assert.ok(layout.includes("if (canView('srm.contract.read'))"))
+  assert.ok(sidebar.includes('v-if="canOpenCrm || canOpenSrm"'))
+  assert.ok(sidebar.includes('v-if="canOpenCrm"'))
+  assert.ok(sidebar.includes('v-if="canOpenSrm"'))
+  assert.ok(secondary.includes('requiredAnyScopes: [...CRM_WORKSPACE_SCOPES]'))
+  assert.ok(secondary.includes("requiredScope: 'srm.supplier.read'"))
+  assert.ok(scopes.includes('export const CRM_WORKSPACE_SCOPES = ['))
+})
+
+test('CRM and SRM route guards block unauthorized direct URLs', () => {
+  assert.ok(router.includes("requiredAnyScopes: [...CRM_WORKSPACE_SCOPES]"))
+  assert.ok(router.includes("srmSection: 'dashboard', requiredScope: 'srm.supplier.read'"))
+  assert.ok(router.includes("srmSection: 'suppliers', requiredScope: 'srm.supplier.read'"))
+  assert.ok(router.includes("srmSection: 'performance', requiredAllScopes: ['srm.supplier.read', 'srm.performance.read']"))
+  assert.ok(router.includes("srmSection: 'contracts', requiredAllScopes: ['srm.supplier.read', 'srm.contract.read']"))
+  assert.ok(router.includes("to.path === '/crm' || to.path.startsWith('/crm/')"))
 })
