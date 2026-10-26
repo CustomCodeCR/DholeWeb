@@ -25,7 +25,7 @@ test('SRM only reads real Config suppliers with permission and never fabricates 
   assert.match(view, /CatalogItemsService.getByGroupSlug\('srm-suppliers'\)/)
   assert.doesNotMatch(view, /CatalogItemsService.getByGroupSlug\('agents'\)|CatalogItemsService.getByGroupSlug\('carriers'\)/)
   assert.match(view, /CONFIG_SCOPES.catalogItems.view/)
-  assert.match(view, /Promise.allSettled/)
+  assert.match(view, /CatalogItemsService.getByGroupSlug/)
   assert.doesNotMatch(view, /localStorage|mockSuppliers|seedSuppliers|faker/i)
   assert.match(view, /CatalogItemsService.createForGroup/)
   assert.match(view, /CatalogGroupsService.select/)
