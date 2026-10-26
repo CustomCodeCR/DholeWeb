@@ -4,6 +4,7 @@ import { ArrowLeft, BriefcaseBusiness, Plus } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
+import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -25,6 +26,9 @@ const pendingCreateKeys = new Map<string, string>()
 const relationRows = ref<CrmRow[]>([])
 const relation = ref('')
 const showRelationForm = ref(false)
+const showExecutiveDrawer = ref(false)
+const selectedExecutive = ref('')
+const executiveReason = ref('')
 const createRelationPermissions: Record<string, string> = {
   'accounts:addresses': 'crm.account.update',
   'accounts:followup-policy': 'crm.followup.manage',
@@ -121,6 +125,28 @@ async function perform(action: string, body: unknown, scope: string, path?: stri
   saving.value = true; error.value = ''; success.value = ''
   try {
     await crmRequest(path ?? crmPath(section.value, id.value, action), 'POST', body, crmUuid())
+    await load()
+    success.value = t('crm.saved')
+  } catch (e) { error.value = crmError(e) }
+  finally { saving.value = false }
+}
+function openExecutiveDrawer() {
+  selectedExecutive.value = String(record.value?.executiveUserId ?? '')
+  executiveReason.value = ''
+  showExecutiveDrawer.value = true
+}
+async function reassignExecutive() {
+  if (section.value !== 'accounts' || !record.value || !can('crm.account.assign') ||
+      !selectedExecutive.value || saving.value) return
+  saving.value = true
+  error.value = ''
+  try {
+    await crmRequest(crmPath('accounts', id.value, 'assign'), 'POST', {
+      expectedVersion: version(),
+      executiveUserId: selectedExecutive.value,
+      reason: executiveReason.value.trim() || null,
+    }, crmUuid())
+    showExecutiveDrawer.value = false
     await load()
     success.value = t('crm.saved')
   } catch (e) { error.value = crmError(e) }
@@ -304,6 +330,23 @@ onMounted(() => { if (crmEnabled()) void load() })
         <DhPageHeader :icon="BriefcaseBusiness"
           :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
           :subtitle="t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
+        <div v-if="section === 'accounts' && can('crm.account.assign') && can('auth.users.view')" class="flex justify-end">
+          <DhButton label="Cambiar ejecutivo de ventas" variant="secondary" @click="openExecutiveDrawer" />
+        </div>
+        <DhDrawer :open="showExecutiveDrawer" title="Asignar ejecutivo comercial" size="md" @close="showExecutiveDrawer=false">
+          <form class="space-y-4" @submit.prevent="reassignExecutive">
+            <CrmExecutivePicker :model-value="selectedExecutive" label="Ejecutivo"
+              @update:model-value="selectedExecutive=$event" />
+            <label class="block text-xs font-bold text-[var(--dh-text-muted)]">
+              Motivo de reasignación
+              <input v-model.trim="executiveReason" class="crm-input mt-2" maxlength="1000" />
+            </label>
+            <div class="flex justify-end gap-2">
+              <DhButton label="Cancelar" variant="secondary" @click="showExecutiveDrawer=false" />
+              <DhButton label="Asignar" type="submit" :loading="saving" :disabled="!selectedExecutive" />
+            </div>
+          </form>
+        </DhDrawer>
         <dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
