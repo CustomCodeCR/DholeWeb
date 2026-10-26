@@ -104,8 +104,8 @@ async function completeModification() {
   finishing.value = true
   try {
     await RateRequestLeaseService.completeRate(requestId.value, rateId, { confirmSellerModification: true })
-    toast.success('Modificación completada', 'Se generó la revisión y se notificó al vendedor con el PDF actualizado.')
-    await router.push('/home')
+    toast.success('Modificación completada', 'Se envió la nueva revisión al vendedor con el PDF actualizado.')
+    await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
   } catch (error) {
     toast.backendError(error, 'Primero guarde una revisión nueva y luego vuelva a enviar la tarifa.')
   } finally {
