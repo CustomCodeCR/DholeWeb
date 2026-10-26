@@ -4,6 +4,7 @@ import { BriefcaseBusiness, Plus, RefreshCw } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
+import CrmReferencePicker from '../components/CrmReferencePicker.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -21,6 +22,15 @@ const section = computed(() => String(route.meta.crmSection || 'dashboard') as C
 const model = computed(() => CRM_MODULES[section.value])
 const pageTitle = computed(() => section.value === 'dashboard' ? t('crm.dashboard') : section.value === 'finance' ? t('crm.finance') : model.value?.title ?? t('crm.title'))
 const formTitle = computed(() => `${edited.value ? t('common.edit') : t('common.create')} · ${model.value?.title ?? ''}`)
+const referenceResources: Record<string, 'accounts' | 'leads' | 'opportunities'> = {
+  accountId: 'accounts', leadId: 'leads', opportunityId: 'opportunities',
+}
+const referenceScopes: Record<string, string[]> = {
+  accountId: ['crm.account.read', 'crm.account.read-all'],
+  leadId: ['crm.lead.read', 'crm.lead.read-all'],
+  opportunityId: ['crm.opportunity.read', 'crm.opportunity.read-all'],
+}
+const canSelectReference = (key: string) => (referenceScopes[key] ?? []).some(scope => auth.hasScope(scope))
 const columns = computed<DhTableColumn<CrmRow>[]>(() => [
   { key: '_crmTitle', label: t('common.name') },
   { key: '_crmDescription', label: t('common.description') },
@@ -371,6 +381,9 @@ onMounted(() => { if (allowed.value) void load() })
               <div v-else-if="f.type === 'checkbox'" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
                 <DhSwitch :label="f.label" :model-value="Boolean(form[f.key])" @update:model-value="form[f.key] = $event" />
               </div>
+              <CrmReferencePicker v-else-if="canSelectReference(f.key)"
+                :label="f.label" :resource="referenceResources[f.key] ?? 'accounts'"
+                :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
               <DhInput v-else :label="f.label + (f.required ? ' *' : '')"
                 :type="f.type === 'email' ? 'email' : f.type === 'number' ? 'number' : f.type === 'datetime-local' ? 'datetime-local' : 'text'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
