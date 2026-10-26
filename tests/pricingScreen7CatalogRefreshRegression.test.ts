@@ -196,5 +196,5 @@ test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and
 
 test('wizard includes own LCL service import used by screen 7 refresh', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
-  assert.match(wizard, /import\\s*\\{\\s*OwnLclConsolidationService\\s*\\}\\s*from\\s*['\"]@\\/core\\/services\\/ownLclConsolidationService['\"]/, 'wizard must import the own LCL calculation service')
+  assert.ok(wizard.includes("import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'"), 'wizard must import the own LCL calculation service')
 })
