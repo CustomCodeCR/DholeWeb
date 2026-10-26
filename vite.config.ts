@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import { pricingCustomsOnlyWizard } from './build/pricingCustomsOnlyWizard'
 import { pricingSellerMultimodalStep3Fix } from './build/pricingSellerMultimodalStep3Fix'
 import { pricingWizardLandModeTerminology } from './build/pricingWizardLandModeTerminology'
+import { pricingWizardHistoricalValidity } from './build/pricingWizardHistoricalValidity'
 import { pricingMiamiOwnLclBreakdown } from './build/pricingMiamiOwnLclBreakdown'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
@@ -205,6 +206,8 @@ export default defineConfig({
     pricingWizardCompleteDraftNavigation(),
     pricingWizardScreen7CostChoice(),
     pricingSellerPricingStepGuard(),
+    // Last pricing transform: preserve historical shipment dates before Vue compilation.
+    pricingWizardHistoricalValidity(),
     vue(),
     tailwindcss(),
   ],
