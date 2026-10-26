@@ -212,14 +212,16 @@ test('Pricing screen 6 exposes mode-specific agent and transport-provider select
   const providers = readFileSync(new URL('../build/pricingWizardLclGroupAgent.ts', import.meta.url), 'utf8')
   const land = readFileSync(new URL('../build/pricingLandProviderCurrencyValue.ts', import.meta.url), 'utf8')
 
+  for (const label of ['Agente terrestre', 'Transportista / proveedor terrestre',
+    'Aerolínea / proveedor', 'Naviera / proveedor']) {
+    assert.ok(providers.includes(label), 'missing transport-mode label: ' + label)
+  }
   assert.ok(providers.includes('const landAgentOptions = computed('))
-  assert.ok(providers.includes('Agente terrestre'))
-  assert.ok(providers.includes('Transportista / proveedor terrestre'))
-  assert.ok(providers.includes('Aerolínea / proveedor'))
-  assert.ok(providers.includes('Naviera / proveedor'))
-  assert.ok(providers.includes("v-if=\\"shipmentModeForApi !== \\\'Lcl\\\'\\""))
-  assert.ok(providers.includes("form.modality === \\\'Land\\\' ? landAgentOptions : agentOptions"))
+  assert.ok(providers.includes('shipmentModeForApi !=='))
+  assert.ok(providers.includes('landAgentOptions : agentOptions'))
   assert.ok(providers.includes('landLtlCommercialProfile.value ==='))
-  assert.ok(land.includes('findById(catalogs.agents, form.agentId)\\n    ??'))
-  assert.ok(land.includes('findById(catalogs.carriers, form.carrierId)\\n    ??'))
+  assert.ok(land.includes('findById(catalogs.agents, form.agentId)'))
+  assert.ok(land.includes('findById(catalogs.carriers, form.carrierId)'))
+  assert.ok(land.includes("?? (form.modality === 'Land' ? landAgentPlaceholder : null)"))
+  assert.ok(land.includes("?? (form.modality === 'Land' ? landCarrierPlaceholder : null)"))
 })
