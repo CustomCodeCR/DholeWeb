@@ -44,17 +44,38 @@ function applyHacienda(result: HaciendaResult) {
   if (result.identificationType) form.taxIdTypeCode = result.identificationType
 }
 
-const columns = computed<DhTableColumn<CrmRow>[]>(() => [
-  { key: '_crmTitle', label: t('common.name') },
-  { key: '_crmDescription', label: t('common.description') },
-  { key: '_crmStatus', label: t('common.status') },
-  { key: 'actions', label: t('common.actions'), align: 'right' },
-])
+const columns = computed<DhTableColumn<CrmRow>[]>(() => {
+  const action = { key: 'actions', label: t('common.actions'), align: 'right' as const }
+  if (section.value === 'accounts') return [
+    { key: '_crmTitle', label: 'Cliente' },
+    { key: '_crmDescription', label: 'Razón social' },
+    { key: '_crmTax', label: 'Identificación' },
+    { key: '_crmType', label: 'Tipo de cliente' },
+    { key: '_crmStatus', label: t('common.status') },
+    action,
+  ]
+  if (section.value === 'leads') return [
+    { key: '_crmTitle', label: 'Prospecto' },
+    { key: '_crmDescription', label: 'Empresa' },
+    { key: '_crmEmail', label: 'Correo' },
+    { key: '_crmStatus', label: t('common.status') },
+    action,
+  ]
+  return [
+    { key: '_crmTitle', label: t('common.name') },
+    { key: '_crmDescription', label: t('common.description') },
+    { key: '_crmStatus', label: t('common.status') },
+    action,
+  ]
+})
 const tableRows = computed(() => rows.value.map(item => ({
   ...item,
   _crmTitle: String(item[model.value?.primary ?? 'contractNumber'] ?? item.contractNumber ?? item.id),
   _crmDescription: String(item[model.value?.secondary ?? 'paymentTerms'] ?? '—'),
   _crmStatus: String(item.status ?? item.qualificationStatus ?? '—'),
+  _crmTax: String(item.taxId ?? '—'),
+  _crmType: item.customerTypeCode === 'credit' ? 'Crédito' : item.customerTypeCode === 'cash' ? 'Contado' : '—',
+  _crmEmail: String(item.contactEmail ?? '—'),
 })))
 const can = (scope: string) => auth.hasScope(scope)
 const allowed = computed(() => crmEnabled() && crmSectionScope[section.value].some(can))

@@ -29,8 +29,8 @@ async function loadCountry() {
   try {
     const list = await CatalogItemsService.select({catalogGroupSlug: 'countries'})
     const cr = list.find(x => x.isActive !== false &&
-      [x.label, x.value, x.code, x.slug].some(v => ['CR','CRI','CRC','Costa Rica','costa-rica']
-        .includes(String(v ?? '').trim())))
+      [x.label, x.value, x.code, x.slug].some(v => ['cr','cri','crc','costa rica','costa-rica']
+        .includes(String(v ?? '').trim().toLowerCase())))
     costaRicaId.value = cr?.id ?? ''
   } catch { costaRicaId.value = '' }
 }
