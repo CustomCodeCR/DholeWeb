@@ -57,6 +57,7 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
     lclSelectedSource: { value: null },
     lclRequestedCbm: { value: 29 },
     lclChargeableCbm: { value: 29 },
+    isMiamiLcl: { value: false },
     lclCargoLines: { value: [{ description: 'Carga LCL', units: 1, totalWeightKg: 0,
       lengthCm: 100, widthCm: 100, heightCm: 2900 }] },
     screen7OwnLclRefreshContext: { value: '' },
