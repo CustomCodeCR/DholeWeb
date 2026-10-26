@@ -45,7 +45,7 @@ const hasUserManagement = computed(() => auth.hasScope('auth.users.view'))
     </header>
 
     <div v-if="!enabled" role="alert" class="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5 text-sm">
-      {{ locale === 'en' ? 'CRM is disabled by configuration (VITE_CRM_ENABLED=false).' : 'CRM está deshabilitado explícitamente por configuración (VITE_CRM_ENABLED=false).' }}
+      {{ locale === 'en' ? 'CRM is not active. Enable it with VITE_CRM_ENABLED=true only after the commercial HTTP APIs are deployed.' : 'CRM no está activo. Use VITE_CRM_ENABLED=true únicamente cuando las APIs HTTP comerciales estén desplegadas.' }}
     </div>
     <div v-else-if="available.length === 0" class="flex flex-col items-start gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-6">
       <ShieldCheck class="h-7 w-7 text-[var(--dh-primary)]" />
