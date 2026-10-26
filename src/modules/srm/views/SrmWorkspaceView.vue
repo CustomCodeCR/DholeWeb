@@ -125,17 +125,18 @@ async function load() {
       promises.push(CatalogItemsService.getByGroupSlug('srm-contracts'))
     const results = await Promise.allSettled(promises)
     const supplierResult = results[0]
+    if (!supplierResult) throw new Error('SRM supplier result is missing')
     if (supplierResult.status === 'rejected') throw supplierResult.reason
     suppliers.value = supplierResult.value.map(item => ({ ...item, category: supplierCategory(item) }))
     // These catalogs are optional until the first record is created by a Config administrator.
     let index = 1
     if (auth.hasScope('srm.performance.read') || auth.hasScope('srm.performance.manage')) {
       const result = results[index++]
-      evaluations.value = result.status === 'fulfilled' ? mapRecords(result.value) : []
+      evaluations.value = result?.status === 'fulfilled' ? mapRecords(result.value) : []
     }
     if (auth.hasScope('srm.contract.read') || auth.hasScope('srm.contract.manage')) {
       const result = results[index]
-      contracts.value = result.status === 'fulfilled' ? mapRecords(result.value) : []
+      contracts.value = result?.status === 'fulfilled' ? mapRecords(result.value) : []
     }
   } catch {
     error.value = t('srm.loadError')
