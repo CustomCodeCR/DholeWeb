@@ -32,6 +32,13 @@ const visibleItems = computed(() =>
     (item) => !item.children?.some((child) => child.path === '/settings/appearance'),
   ),
 )
+// Derive both shortcuts from the already authorization-filtered menu.
+const canOpenCrm = computed(() =>
+  props.items.some(item => item.children?.some(child => child.path === '/crm')),
+)
+const canOpenSrm = computed(() =>
+  props.items.some(item => item.children?.some(child => child.path === '/srm')),
+)
 </script>
 
 <template>
@@ -96,9 +103,10 @@ const visibleItems = computed(() =>
 
       <!-- CRM/SRM are first-class workspaces: keep links visible even when the
            long navigation list is scrolled or the sidebar is collapsed. -->
-      <nav class="shrink-0 border-b border-[var(--dh-border)] px-3 pb-3" :aria-label="t('app.name')">
-        <div class="grid grid-cols-2 gap-2" :class="compact ? 'grid-cols-1' : ''">
+      <nav v-if="canOpenCrm || canOpenSrm" class="shrink-0 border-b border-[var(--dh-border)] px-3 pb-3" :aria-label="t('app.name')">
+        <div class="grid gap-2" :class="compact || (canOpenCrm !== canOpenSrm) ? 'grid-cols-1' : 'grid-cols-2'">
           <RouterLink
+            v-if="canOpenCrm"
             to="/crm"
             class="flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-2 py-2 text-xs font-black text-[var(--dh-text)] transition hover:bg-[var(--dh-card-hover)]"
             :title="t('crm.title')"
@@ -109,6 +117,7 @@ const visibleItems = computed(() =>
             <span v-if="!compact" class="truncate">{{ t('crm.title') }}</span>
           </RouterLink>
           <RouterLink
+            v-if="canOpenSrm"
             to="/srm"
             class="flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-2 py-2 text-xs font-black text-[var(--dh-text)] transition hover:bg-[var(--dh-card-hover)]"
             :title="t('srm.title')"
