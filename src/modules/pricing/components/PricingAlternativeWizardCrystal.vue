@@ -821,6 +821,14 @@ const equipmentTypeOptions = computed(() => {
 })
 
 const selectedOrigin = computed(() => findById(catalogs.pol, form.originId))
+const isMiamiLcl = computed(() => {
+  if (shipmentModeForApi.value !== 'Lcl') return false
+  const origin = selectedOrigin.value
+  return Boolean(origin && /\bmiami\b/i.test(
+    [origin.value, origin.label, origin.slug, origin.code].filter(Boolean).join(' '),
+  ))
+})
+
 const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
 const multimodalAllInPresentation = computed(() => {
   if (form.modality === 'Multimodal') return true
@@ -1411,6 +1419,16 @@ const visibleSections = computed<RateSection[]>(() => {
 })
 
 const includedLines = computed(() => rateLines.value.filter((line) => line.included && lineMatchesPickupCargoCondition(line)))
+function isOwnLclMatrixContext() {
+  const currentNotes = includedLines.value.map((line) => String(line.notes ?? ''))
+  // Prefer the actively selected source over the historical rate when switching coloader/own.
+  if (currentNotes.some((note) => /Fuente LCL:\s*Coloader|LCL\s+COLOADER/i.test(note))) return false
+  if (currentNotes.some((note) => /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(note))) return true
+  return Boolean(editingRate.value?.rateDetails.some((detail) =>
+    /Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(String(detail.notes ?? '')),
+  ))
+}
+
 function haulageAssociation(line: { name: string }) {
   const value = normalizeCatalogValue(line.name)
   if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
