@@ -106,7 +106,7 @@ function screen7OwnLclDestinationCode() {
   return ''
 }
 
-function screen7OwnLclPolCode(consolidation: { polCode: string; polName: string | null }) {
+function screen7OwnLclPolCode() {
   const origin = normalizeCatalogValue(
     [displayValue(selectedOrigin.value), selectedOrigin.value?.code].filter(Boolean).join(' '),
   )
@@ -129,7 +129,16 @@ function screen7OwnLclPolCode(consolidation: { polCode: string; polName: string 
   }
   // Internal Config item codes are not UN/LOCODEs; the consolidation's
   // physical POL is a safer fallback than passing POL-2026-NNN to Pricing.
-  return String(consolidation.polName || consolidation.polCode || '').toUpperCase()
+  const persisted = normalizeCatalogValue(
+    String(editingRate.value?.polName ?? '')
+      + ' ' + String(editingRate.value?.polCode ?? ''),
+  )
+  for (const [alias, code] of Object.entries(aliases)) {
+    if (persisted.includes(alias)) return code
+  }
+  // Never send Config's opaque POL-YYYY-NNN keys to the calculation API.
+  // Requiring a recognizable commercial POL is safer than a wrong quote.
+  throw new Error('No se pudo identificar el puerto comercial (POL) de LCL propio. Revise la ruta antes de recalcular.')
 }
 
 function screen7OwnLclQuoteLineType(name: string): CostDetailType {
@@ -178,7 +187,9 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
   if (!destinationCode) {
     throw new Error('No se pudo determinar el país de destino de la matriz LCL. Se conservaron los importes.')
   }
-  const consolidation = await OwnLclConsolidationService.get(consolidationId)
+  // The selector itself calculates directly by consolidation ID. Do not
+  // prefetch the consolidation detail here: historic consolidated quotes can
+  // still be priced even if the detail endpoint refuses inactive/old records.
   // Use the exact quote cargo when available; older persisted rates can be
   // missing editable dimensions, so preserve their original billable CBM.
   const storedCbm = Math.max(1, number(editingRate.value?.chargeableQuantity)
@@ -203,7 +214,7 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
     destinationCode,
     incoterm: selectedIncotermCode.value || 'FOB',
     cargoLines,
-    polCode: screen7OwnLclPolCode(consolidation),
+    polCode: screen7OwnLclPolCode(),
     salePerCbm: null,
     sets: 1,
     hbl: 1,
