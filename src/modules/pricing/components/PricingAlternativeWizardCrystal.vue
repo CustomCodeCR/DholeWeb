@@ -4250,6 +4250,18 @@ async function saveRate() {
         : stripGeneratedPodVatNotes(line.notes) || null,
   }))
 
+  // Un LCL propio de China no usa los planes comerciales de Miami.
+  // Las revisiones antiguas pudieron guardar esa metadata en notes; limpiarla
+  // al guardar corrige también las cotizaciones existentes sin modificar montos.
+  if (shipmentModeForApi.value === 'Lcl' && !isMiamiLcl.value) {
+    for (const detail of details) {
+      const notes = String(detail.notes ?? '')
+      if (!/LCL\\s*PROPIO/i.test(notes)) continue
+      const corrected = notes.replace(/\\s*·\\s*Plan Miami:[\\s\\S]*?(?=\\s*·\\s*Base:|$)/i, '').trim()
+      detail.notes = corrected || null
+    }
+  }
+
   const includedNameKeys = new Set(
     includedLines.value.map((line) => normalizeCatalogValue(line.name)),
   )
@@ -4460,6 +4472,35 @@ async function saveRate() {
       // from the persisted quotation, otherwise don't show a false success toast.
       const persistedRate = await PricingService.getRate(editingRate.value.id)
       const savedDetailsById = new Map(persistedRate.rateDetails.map((detail) => [detail.id, detail] as const))
+      // A successful PUT previously only verified changed persisted IDs. New
+      // LCL matrix charges have id=null (Manejos) and could be silently removed
+      // by Pricing's post-update fixed-cost synchronization. Verify their actual
+      // presence, names and amounts before reporting a successful quotation.
+      if (shipmentModeForApi.value === 'Lcl' && isOwnLclMatrixContext()) {
+        const unclaimedNewDetailIds = new Set(
+          persistedRate.rateDetails
+            .filter((detail) => !updatePayload.extraDetails.some((requested) => requested.id === detail.id))
+            .map((detail) => detail.id),
+        )
+        const omittedNewLines = updatePayload.extraDetails.filter((requested) => !requested.id).filter((requested) => {
+          const saved = persistedRate.rateDetails.find((detail) =>
+            unclaimedNewDetailIds.has(detail.id)
+            && normalizeCatalogValue(detail.name) === normalizeCatalogValue(requested.name)
+            && detail.costDetailType === requested.costDetailType
+            && Math.abs(number(detail.costAmount) - number(requested.costAmount)) < 0.011
+            && Math.abs(number(detail.saleAmount) - number(requested.saleAmount)) < 0.011,
+          )
+          if (saved) unclaimedNewDetailIds.delete(saved.id)
+          return !saved
+        })
+        if (omittedNewLines.length > 0) {
+          throw new Error(
+            'Pricing respondió al guardado, pero no persistió estos cargos del consolidado LCL propio: '
+            + omittedNewLines.map((detail) => detail.name + ' (USD ' + number(detail.saleAmount).toFixed(2) + ')').join(', ')
+            + '. La cotización debe corregirse antes de enviarla.',
+          )
+        }
+      }
       const previousDetailsById = new Map(editingRate.value.rateDetails.map((detail) => [detail.id, detail] as const))
       // Do not report success when the API silently retains a saved charge
       // omitted by the complete final snapshot (e.g. a duplicate VGM).
