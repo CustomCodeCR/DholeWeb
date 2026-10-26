@@ -27,6 +27,13 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     critical: true,
   },
   {
+    key: 'crm',
+    name: 'CRM Service',
+    description: 'Gestión de clientes, contactos, oportunidades y registros comerciales.',
+    url: buildGatewayHealthUrl('crm'),
+    critical: true,
+  },
+  {
     key: 'config',
     name: 'Config Service',
     description: 'Catálogos y configuración operacional.',
@@ -115,6 +122,13 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     description: 'Archivos importados, correos, adjuntos y versiones.',
     descriptionKey: 'monitoring.services.storage.description',
     url: buildGatewayHealthUrl('storage'),
+    critical: true,
+  },
+  {
+    key: 'content',
+    name: 'Content Service',
+    description: 'Mercadeo, CMS, medios, SEO, menús y publicación de contenido.',
+    url: buildGatewayHealthUrl('content'),
     critical: true,
   },
 ]
