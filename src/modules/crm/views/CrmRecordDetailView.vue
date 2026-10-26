@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, BriefcaseBusiness, Plus } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
+import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -462,7 +463,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           <input v-model="drafts.creditDays" type="number" min="0" class="crm-input" :placeholder="t('crm.creditDays')" />
           <input v-model="drafts.creditLimit" type="number" min="0" step=".01" class="crm-input" :placeholder="t('crm.creditLimit')" />
           <input v-model="drafts.monthlyFinancingPct" type="number" min="0" max="100" step=".0001" class="crm-input" :placeholder="t('crm.monthlyRate')" />
-          <input v-model="drafts.currencyCode" class="crm-input" placeholder="USD" />
+          <CrmCatalogPicker label="Moneda" catalog-group-slug="currencies" value-kind="value" v-model="drafts.currencyCode" />
           <input v-model="drafts.paymentConditions" class="crm-input" :placeholder="t('crm.paymentTerms')" />
           <input v-model="drafts.renewalDate" type="datetime-local" class="crm-input" />
           <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.proposeCredit') }}</button>
@@ -496,9 +497,12 @@ onMounted(() => { if (crmEnabled()) void load() })
         </form>
         <form v-if="section==='analyses' && relation==='routes' && can('crm.analysis.manage')"
           class="grid gap-3 sm:grid-cols-4" @submit.prevent="createRoute">
-          <input v-model="drafts.polCode" class="crm-input" placeholder="POL" />
-          <input v-model="drafts.poeCode" class="crm-input" placeholder="POE" />
-          <input v-model="drafts.podCode" class="crm-input" placeholder="POD" />
+          <CrmCatalogPicker label="POL · Puerto de origen" catalog-group-slug="pol" value-kind="code"
+            v-model="drafts.polCode" />
+          <CrmCatalogPicker label="POE · Puerto de entrada" catalog-group-slug="poe" value-kind="code"
+            v-model="drafts.poeCode" />
+          <CrmCatalogPicker label="POD · Puerto de destino" catalog-group-slug="pod" value-kind="code"
+            v-model="drafts.podCode" />
           <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.addRoute') }}</button>
         </form>
         <form v-if="section==='settings' && relation==='stages' && can('crm.settings.manage')"
