@@ -7,6 +7,8 @@ import {
   CircleDollarSign, ContactRound, Settings2, ShieldCheck, UsersRound,
 } from 'lucide-vue-next'
 import { crmEnabled } from '../services/crmApi'
+import { DhPageHeader } from '@/shared/components/organisms'
+import { DhCard } from '@/shared/components/molecules'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
@@ -27,22 +29,17 @@ const hasUserManagement = computed(() => auth.hasScope('auth.users.view'))
 
 <template>
   <section class="mx-auto w-full max-w-7xl space-y-6 px-4 py-5 text-[var(--dh-text)] sm:px-7 lg:py-8" data-crm-landing>
-    <header class="flex flex-wrap items-end justify-between gap-5 border-b border-[var(--dh-border)] pb-6">
-      <div>
-        <div class="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[.2em] text-[var(--dh-text-muted)]">
-          <span class="h-2 w-2 rounded-full bg-[var(--dh-primary)]" aria-hidden="true"></span>
-          {{ t('crm.title') }}
-        </div>
-        <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">{{ locale === 'en' ? 'Commercial workspace' : 'Centro de gestión comercial' }}</h1>
-        <p class="mt-2 max-w-2xl text-sm text-[var(--dh-text-muted)]">{{ t('commercial.crmDescription') }}</p>
-      </div>
-      <RouterLink v-if="hasUserManagement" to="/auth/users"
-        class="inline-flex items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-2.5 text-sm font-semibold transition hover:border-[var(--dh-primary)]">
-        <ShieldCheck class="h-4 w-4" />
-        {{ locale === 'en' ? 'User permissions' : 'Permisos de usuarios' }}
-        <ArrowUpRight class="h-4 w-4" />
-      </RouterLink>
-    </header>
+    <DhPageHeader :title="locale === 'en' ? 'Commercial workspace' : 'Centro de gestión comercial'"
+      :subtitle="t('commercial.crmDescription')" :icon="BriefcaseBusiness" hide-excel-export>
+      <template #actions>
+        <RouterLink v-if="hasUserManagement" to="/auth/users"
+          class="inline-flex min-h-11 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-2 text-sm font-bold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] transition hover:bg-[var(--dh-card-hover)]">
+          <ShieldCheck class="h-4 w-4" />
+          {{ locale === 'en' ? 'User permissions' : 'Permisos de usuarios' }}
+          <ArrowUpRight class="h-4 w-4" />
+        </RouterLink>
+      </template>
+    </DhPageHeader>
 
     <div v-if="!enabled" role="alert" class="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5 text-sm">
       {{ locale === 'en' ? 'CRM is not active. Enable it with VITE_CRM_ENABLED=true only after the commercial HTTP APIs are deployed.' : 'CRM no está activo. Use VITE_CRM_ENABLED=true únicamente cuando las APIs HTTP comerciales estén desplegadas.' }}
@@ -64,18 +61,20 @@ const hasUserManagement = computed(() => auth.hasScope('auth.users.view'))
       </div>
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <RouterLink v-for="item in available" :key="item.path" :to="item.path"
-          class="group flex min-h-44 flex-col justify-between rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 transition hover:-translate-y-0.5 hover:border-[var(--dh-primary)] hover:shadow-lg"
+          class="group block min-w-0 rounded-[var(--dh-radius-xl)] transition hover:-translate-y-0.5"
         >
-          <div class="flex items-center justify-between">
-            <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]">
-              <component :is="item.icon" class="h-5 w-5" />
+          <DhCard class="flex min-h-44 flex-col justify-between transition group-hover:border-[var(--dh-primary)] group-hover:shadow-[var(--dh-glow)]">
+            <div class="flex items-center justify-between">
+              <div class="dh-bg-primary-soft flex h-11 w-11 items-center justify-center rounded-[20px] text-[var(--dh-primary)]">
+                <component :is="item.icon" class="h-5 w-5" />
+              </div>
+              <ArrowUpRight class="h-4 w-4 text-[var(--dh-text-muted)] transition group-hover:text-[var(--dh-primary)]" />
             </div>
-            <ArrowUpRight class="h-4 w-4 text-[var(--dh-text-muted)] transition group-hover:text-[var(--dh-primary)]" />
-          </div>
-          <div>
-            <h3 class="mt-4 font-bold">{{ t(item.label) }}</h3>
-            <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ locale === 'en' ? item.descEn : item.descEs }}</p>
-          </div>
+            <div>
+              <h3 class="mt-5 text-base font-black text-[var(--dh-text)]">{{ t(item.label) }}</h3>
+              <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ locale === 'en' ? item.descEn : item.descEs }}</p>
+            </div>
+          </DhCard>
         </RouterLink>
       </div>
       <div class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] px-4 py-3 text-xs text-[var(--dh-text-muted)]">
