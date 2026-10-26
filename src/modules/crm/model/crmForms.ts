@@ -165,7 +165,8 @@ export function crmPayload(section: string, values: Record<string, unknown>,
     if (section === 'opportunities') { result.pipelineId = null; result.stageId = null; result.executiveUserId = null }
     if (section === 'analyses') result.ownerUserId = null
     if (section === 'activities') { result.ownerUserId = null; result.occurredAt = null }
-    if (section === 'accounts' || section === 'leads') result.executiveUserId = null
+    if (section === 'accounts' || section === 'leads')
+      result.executiveUserId = values.executiveUserId || null
     if (section === 'followups') result.assignedUserId = values.assignedUserId || null
   }
   return result
