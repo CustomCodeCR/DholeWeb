@@ -207,3 +207,19 @@ test('original Sales information stays visible during screen 5 even before its s
   assert.match(output, /@click="reloadSellerHandoffSnapshot"/)
   assert.equal(output.match(/<PricingSellerHandoffPreview/g)?.length, 1)
 })
+
+test('Pricing screen 6 exposes mode-specific agent and transport-provider selectors', () => {
+  const providers = readFileSync(new URL('../build/pricingWizardLclGroupAgent.ts', import.meta.url), 'utf8')
+  const land = readFileSync(new URL('../build/pricingLandProviderCurrencyValue.ts', import.meta.url), 'utf8')
+
+  assert.ok(providers.includes('const landAgentOptions = computed('))
+  assert.ok(providers.includes('Agente terrestre'))
+  assert.ok(providers.includes('Transportista / proveedor terrestre'))
+  assert.ok(providers.includes('Aerolínea / proveedor'))
+  assert.ok(providers.includes('Naviera / proveedor'))
+  assert.ok(providers.includes("v-if=\\"shipmentModeForApi !== \\\'Lcl\\\'\\""))
+  assert.ok(providers.includes("form.modality === \\\'Land\\\' ? landAgentOptions : agentOptions"))
+  assert.ok(providers.includes('landLtlCommercialProfile.value ==='))
+  assert.ok(land.includes('findById(catalogs.agents, form.agentId)\\n    ??'))
+  assert.ok(land.includes('findById(catalogs.carriers, form.carrierId)\\n    ??'))
+})
