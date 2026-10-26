@@ -48,7 +48,7 @@ import DhWorkspaceTabs from '@/shared/components/organisms/DhWorkspaceTabs.vue'
 import DhCommandPalette, {
   type CommandItem,
 } from '@/shared/components/organisms/DhCommandPalette.vue'
-import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
+import { CRM_WORKSPACE_SCOPES, PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useShortcutStore, eventToShortcut } from '@/core/stores/shortcutStore'
 import { useThemeStore } from '@/core/stores/themeStore'
@@ -344,13 +344,11 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     },
   ]
 
-  // MainLayout renders the actual sidebar (useSidebarItems is a secondary registry).
-  // The two module overviews must remain discoverable even before their API
-  // scopes / feature rollout have been provisioned. Data paths stay protected.
-  const crmChildren: SidebarItem[] = [
-    { label: t('crm.nav.dashboard'), path: '/crm', icon: Home },
-  ]
-  if (crmEnabled()) {
+  // The effective (possibly impersonated) session controls module visibility.
+  if (crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope))) {
+    const crmChildren: SidebarItem[] = [
+      { label: t('crm.nav.dashboard'), path: '/crm', icon: Home },
+    ]
     const crmPages = [
       { key: 'accounts', scopes: ['crm.account.read', 'crm.account.read-all'], icon: Users },
       { key: 'leads', scopes: ['crm.lead.read', 'crm.lead.read-all'], icon: Users },
@@ -366,18 +364,22 @@ const sidebarItems = computed<SidebarItem[]>(() => {
         crmChildren.push({ label: t('crm.nav.' + item.key), path: '/crm/' + item.key, icon: item.icon })
       }
     }
+    items.push({ label: t('crm.title'), icon: Users, children: crmChildren })
   }
-  items.push({ label: t('crm.title'), icon: Users, children: crmChildren })
-  items.push({
-    label: t('srm.title'),
-    icon: Truck,
-    children: [
+
+  if (canView('srm.supplier.read')) {
+    const srmChildren: SidebarItem[] = [
       { label: t('srm.dashboard'), path: '/srm', icon: Home },
       { label: t('srm.suppliers'), path: '/srm/suppliers', icon: Users },
-      { label: t('srm.performance'), path: '/srm/performance', icon: Gauge },
-      { label: t('srm.contracts'), path: '/srm/contracts', icon: FileText },
-    ],
-  })
+    ]
+    if (canView('srm.performance.read')) {
+      srmChildren.push({ label: t('srm.performance'), path: '/srm/performance', icon: Gauge })
+    }
+    if (canView('srm.contract.read')) {
+      srmChildren.push({ label: t('srm.contracts'), path: '/srm/contracts', icon: FileText })
+    }
+    items.push({ label: t('srm.title'), icon: Truck, children: srmChildren })
+  }
 
     const ownConsolidationChildren: SidebarItem[] = []
   if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
