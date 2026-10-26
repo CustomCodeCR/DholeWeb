@@ -21,16 +21,21 @@ test('CRM and SRM sections are real authenticated workspace routes', () => {
   }
   assert.match(router, /requiresAuth: true/)
 })
-test('SRM only reads real Config suppliers with permission and never fabricates storage', () => {
-  assert.match(view, /CatalogItemsService.getByGroupSlug\('srm-suppliers'\)/)
-  assert.doesNotMatch(view, /CatalogItemsService.getByGroupSlug\('agents'\)|CatalogItemsService.getByGroupSlug\('carriers'\)/)
-  assert.match(view, /CONFIG_SCOPES.catalogItems.view/)
-  assert.match(view, /CatalogItemsService.getByGroupSlug/)
-  assert.doesNotMatch(view, /localStorage|mockSuppliers|seedSuppliers|faker/i)
-  assert.match(view, /CatalogItemsService.createForGroup/)
-  assert.match(view, /CatalogGroupsService.select/)
-  assert.match(view, /CONFIG_SCOPES.catalogItems.create/)
+test('SRM only uses dedicated srm-scoped Config APIs for supplier data', () => {
+  const client = read('src/modules/srm/services/srmApi.ts')
+  assert.match(view, /SrmApi.list\('suppliers'\)/)
+  assert.match(view, /SrmApi.list\('evaluations'\)/)
+  assert.match(view, /SrmApi.list\('contracts'\)/)
+  assert.match(view, /SrmApi.create\('suppliers'/)
+  assert.match(view, /SrmApi.updateSupplier/)
+  assert.match(view, /srm.supplier.read/)
+  assert.match(view, /srm.supplier.create/)
+  assert.match(view, /srm.performance.read/)
+  assert.match(view, /srm.contract.read/)
+  assert.match(client, /\/api\/config\/srm/)
+  assert.doesNotMatch(view, /CatalogItemsService|CatalogGroupsService|localStorage|mockSuppliers|faker/i)
 })
+
 test('CRM/SRM translations include Spanish and English', () => {
   assert.match(translations, /es: \{/)
   assert.match(translations, /en: \{/)
