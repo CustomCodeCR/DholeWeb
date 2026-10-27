@@ -410,3 +410,12 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
     margin-top: 0.25rem !important;
   }
 }
+
+/* Validation feedback for native forms without custom Dhole form components. */
+input.dh-native-invalid,
+select.dh-native-invalid,
+textarea.dh-native-invalid {
+  border-color: #ef4444 !important;
+  outline: 2px solid rgb(239 68 68 / 0.2) !important;
+  outline-offset: 1px;
+}
