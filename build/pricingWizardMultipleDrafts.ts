@@ -396,8 +396,8 @@ onMounted(() => {
 
   code = replaceExactlyOnce(
     code,
-    "    if (!editingRate.value) {\\n      toastStore.success('Tarifa creada correctamente.'",
-    "    if (!editingRate.value) {\\n      finishCreatedPricingDraft()\\n      toastStore.success('Tarifa creada correctamente.'",
+    "    if (!editingRate.value) {\n      toastStore.success('Tarifa creada correctamente.'",
+    "    if (!editingRate.value) {\n      finishCreatedPricingDraft()\n      toastStore.success('Tarifa creada correctamente.'",
     'successful rate creation cleanup',
   )
 
