@@ -10,6 +10,7 @@ import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmHaciendaLookup, { type HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
+import { useRequiredFieldFeedback } from '@/core/composables/useRequiredFieldFeedback'
 import { useI18n } from 'vue-i18n'
 import { CRM_MODULES, crmDefaults, crmPayload, type CrmSection } from '../model/crmForms'
 import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
@@ -92,6 +93,11 @@ const showForm = ref(false)
 const pendingCreateKey = ref(crmUuid())
 const edited = ref<CrmRow | null>(null)
 const form = reactive<Record<string, unknown>>({})
+const requiredFields = computed(() => (model.value?.fields ?? [])
+  .filter(field => field.required && (form[field.key] == null || String(form[field.key]).trim() === ''))
+  .map(field => ({ key: field.key, label: field.label })))
+const { fieldError, isInvalid, resetValidation, validateRequiredFields } =
+  useRequiredFieldFeedback(() => requiredFields.value)
 const pipelineStages = ref<CrmRow[]>([])
 const pipelineId = ref('')
 const viewMode = ref<'table' | 'kanban' | 'week'>('table')
@@ -105,6 +111,7 @@ const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities
 const configWarning = ref('')
 
 function beginCreate() {
+  resetValidation()
   pendingCreateKey.value = crmUuid()
   edited.value = null
   Object.keys(form).forEach(key => delete form[key])
@@ -114,6 +121,7 @@ function beginCreate() {
   showForm.value = true
 }
 function beginEdit(item: CrmRow) {
+  resetValidation()
   edited.value = item
   Object.keys(form).forEach(key => delete form[key])
   for (const f of model.value?.fields ?? []) {
@@ -225,9 +233,7 @@ async function load() {
 }
 async function save() {
   if (!model.value || saving.value) return
-  const missing = model.value.fields.find(field => field.required &&
-    (form[field.key] === null || form[field.key] === undefined || String(form[field.key]).trim() === ''))
-  if (missing) { error.value = `${missing.label}: campo obligatorio`; return }
+  if (!validateRequiredFields()) return
   error.value = ''; saving.value = true
   try {
     let body = crmPayload(section.value, form, edited.value ?? undefined)
@@ -412,9 +418,9 @@ onMounted(() => { if (allowed.value) void load() })
             <section class="space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
               <h3 class="text-sm font-black uppercase tracking-wide text-[var(--dh-text)]">Identificación del cliente</h3>
               <div class="grid gap-4 sm:grid-cols-2">
-                <DhInput label="Nombre comercial *" :model-value="String(form.displayName ?? '')"
+                <DhInput label="Nombre comercial *" data-required-field="displayName" :error="fieldError('displayName')" :model-value="String(form.displayName ?? '')"
                   @update:model-value="form.displayName = $event" />
-                <DhInput label="Razón social *" :model-value="String(form.legalName ?? '')"
+                <DhInput label="Razón social *" data-required-field="legalName" :error="fieldError('legalName')" :model-value="String(form.legalName ?? '')"
                   @update:model-value="form.legalName = $event" />
                 <CrmCatalogPicker label="País" catalog-group-slug="countries" value-kind="id"
                   :model-value="String(form.countryId ?? '')" @update:model-value="form.countryId = $event" />
@@ -436,7 +442,7 @@ onMounted(() => { if (allowed.value) void load() })
                 <DhSelect label="Tipo de categoría" :model-value="String(form.categoryType ?? 'CUSTOMER')" placeholder=""
                   :options="[{label:'Cliente',value:'CUSTOMER'},{label:'NVOCC',value:'NVOCC'}]"
                   @update:model-value="form.categoryType = $event; form.categoryCode = 'A'" />
-                <DhSelect label="Categoría" :model-value="String(form.categoryCode ?? 'A')" placeholder=""
+                <DhSelect label="Categoría" data-required-field="categoryCode" :error="fieldError('categoryCode')" :model-value="String(form.categoryCode ?? 'A')" placeholder=""
                   :options="(String(form.categoryType) === 'NVOCC' ? ['A','B'] : ['A','B','C','D']).map(x=>({label:x,value:x}))"
                   @update:model-value="form.categoryCode = $event" />
                 <DhInput label="Origen de la cuenta" :model-value="String(form.sourceCode ?? '')"
@@ -455,21 +461,21 @@ onMounted(() => { if (allowed.value) void load() })
           </template>
           <div v-if="section !== 'accounts'" class="grid gap-4 sm:grid-cols-2">
             <div v-for="f in model.fields" :key="f.key" :class="f.type === 'textarea' && 'sm:col-span-2'">
-              <DhSelect v-if="f.type === 'select'" :label="f.label" :options="f.options ?? []" placeholder=""
+              <DhSelect v-if="f.type === 'select'" :data-required-field="f.key" :error="fieldError(f.key)" :label="f.label" :options="f.options ?? []" placeholder=""
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
-              <DhTextarea v-else-if="f.type === 'textarea'" :label="f.label" :rows="4"
+              <DhTextarea v-else-if="f.type === 'textarea'" :data-required-field="f.key" :error="fieldError(f.key)" :label="f.label" :rows="4"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
-              <div v-else-if="f.type === 'checkbox'" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+              <div v-else-if="f.type === 'checkbox'" :data-required-field="f.key" :class="isInvalid(f.key) ? '!border-red-500 ring-2 ring-red-500/20' : ''" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
                 <DhSwitch :label="f.label" :model-value="Boolean(form[f.key])" @update:model-value="form[f.key] = $event" />
               </div>
-              <CrmCatalogPicker v-else-if="catalogFields[f.key]"
+              <CrmCatalogPicker v-else-if="catalogFields[f.key]" :data-required-field="f.key" :error="fieldError(f.key)"
                 :label="f.label" :catalog-group-slug="catalogFields[f.key]?.slug ?? ''"
                 :value-kind="catalogFields[f.key]?.kind ?? 'id'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
-              <CrmReferencePicker v-else-if="canSelectReference(f.key)"
+              <CrmReferencePicker v-else-if="canSelectReference(f.key)" :data-required-field="f.key" :error="fieldError(f.key)"
                 :label="f.label" :resource="referenceResources[f.key] ?? 'accounts'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
-              <DhInput v-else :label="f.label + (f.required ? ' *' : '')"
+              <DhInput v-else :data-required-field="f.key" :error="fieldError(f.key)" :label="f.label + (f.required ? ' *' : '')"
                 :type="f.type === 'email' ? 'email' : f.type === 'number' ? 'number' : f.type === 'datetime-local' ? 'datetime-local' : 'text'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
             </div>
