@@ -61,6 +61,8 @@ const MAX_COMMAND_FIELDS=64
 const keyName=ref('')
 const proposedKeyField=ref('new_idtraasignado')
 const alternateKeysLoading=ref(false)
+const alternateKeyCreating=ref(false)
+const alternateKeyCreateConfirm=ref(false)
 const endpointName=ref('crear_oferta')
 const snapshot=ref<Snapshot|null>(null)
 const policies=ref<Policy>({entities:[],fields:[]})
@@ -238,6 +240,10 @@ const candidateKeyFields=computed(()=>table.value?.columns.filter(f=>
   f.canRead&&!f.isCalculated).sort((a,b)=>
     Number(b.logicalName===proposedKeyField.value)-Number(a.logicalName===proposedKeyField.value)||
     display(a.labels,a.logicalName).localeCompare(display(b.labels,b.logicalName),'es'))??[])
+const canCreateProposedKey=computed(()=>entity.value==='quote'&&
+  proposedKeyField.value.startsWith('new_')&&
+  !!table.value?.columns.some(f=>f.logicalName===proposedKeyField.value&&
+    f.type==='String'&&f.canRead&&f.canCreate&&f.canUpdate&&!f.isCalculated))
 const selectedKey=computed(()=>eligibleKeys.value.find(k=>k.logicalName===keyName.value))
 const selectedFields=computed(()=>eligibleFields.value.filter(f=>selected.value.includes(f.logicalName)))
 const definition=computed<Definition>(()=>({
@@ -385,6 +391,7 @@ function chooseOperation(op:Operation){
   // Missing create/update permissions are reported before saving; none of
   // the existing mappings are silently removed.
   operation.value=op
+  alternateKeyCreateConfirm.value=false
   createdVersion.value=null
   issued.value=null
   reuseKeyConfirm.value=false
@@ -453,6 +460,22 @@ async function refresh(){
     void loadChoiceOptions()
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo cargar el catálogo.'}
   finally{busy.value=false}
+}
+async function createAlternateKeyOnExistingField(){
+  if(!canCreateProposedKey.value||!alternateKeyCreateConfirm.value||
+    alternateKeyCreating.value||alternateKeysLoading.value)return
+  alternateKeyCreating.value=true;error.value='';success.value=''
+  try{
+    await fetchClient(api('metadata/entities/quote/alternate-keys'),{
+      method:'POST',
+      body:{field:proposedKeyField.value,confirm:true}
+    })
+    alternateKeyCreateConfirm.value=false
+    success.value='Dataverse recibió la solicitud de clave única sobre '+
+      proposedKeyField.value+'. No se creó una columna ni se modificó ninguna oferta. '+
+      'Esperá a que el índice esté Activo y pulsá Actualizar claves desde Dataverse.'
+  }catch(e){error.value=describeCrudError(e,'Dataverse rechazó la creación de la clave alternativa.')}
+  finally{alternateKeyCreating.value=false}
 }
 async function refreshAlternateKeys(){
   if(!entity.value||alternateKeysLoading.value)return
@@ -958,7 +981,7 @@ onMounted(refresh)
               <p>UPSERT necesita una clave única que Dataverse haya creado y marcado como <strong>Activa</strong>.
                 No se crea ningún campo nuevo: se puede definir la clave sobre una columna existente.</p>
               <label class="crud-field">Columna existente que querés usar como identificador
-                <select v-model="proposedKeyField">
+                <select v-model="proposedKeyField" @change="alternateKeyCreateConfirm=false">
                   <option v-for="field in candidateKeyFields" :key="field.logicalName" :value="field.logicalName">
                     {{ display(field.labels,field.logicalName) }} · {{ field.logicalName }}
                   </option>
@@ -978,17 +1001,37 @@ onMounted(refresh)
                   {{ alternateKeysLoading?'Consultando Dataverse...':'Actualizar claves desde Dataverse' }}</button>
               </div>
               <div v-if="!eligibleKeys.length" class="crud-info">
-                Aún no hay claves alternativas activas. En Power Apps → Tablas → Oferta
-                → Claves, creá una clave sobre <code>{{ proposedKeyField }}</code>, esperá el estado
-                «Activa» y pulsá «Actualizar claves desde Dataverse».
-                Esto crea una restricción de unicidad, no una nueva columna.
+                Aún no hay claves alternativas activas. Podés solicitar aquí una clave única
+                sobre la columna existente o crearla en Power Apps → Tablas → Oferta → Claves.
+                La clave debe quedar «Activa» para poder usarla.
+              </div>
+              <div v-if="entity==='quote'&&canCreateProposedKey&&
+                !eligibleKeys.some(key=>key.attributes.length===1&&
+                  key.attributes[0]===proposedKeyField)" class="crud-card">
+                <h4>Definir clave única en la columna existente</h4>
+                <p>Esto crea una definición de índice único en Dataverse sobre
+                  <code>{{ proposedKeyField }}</code>, <strong>no crea ni elimina columnas</strong>
+                  y no cambia los datos actuales. Dataverse puede rechazarla si ya hay valores duplicados.
+                  El índice se construye de forma asíncrona.</p>
+                <label class="crud-field">
+                  <span><input v-model="alternateKeyCreateConfirm" type="checkbox">
+                    Confirmo crear una clave única en Dataverse y revisar primero que este campo
+                    contenga identificadores únicos y permanentes de tarifas.</span>
+                </label>
+                <button type="button" class="crud-secondary"
+                  :disabled="alternateKeyCreating||alternateKeysLoading||!alternateKeyCreateConfirm"
+                  @click="createAlternateKeyOnExistingField">
+                  {{ alternateKeyCreating?'Solicitando clave...':'Crear clave alternativa sobre '+proposedKeyField }}
+                </button>
               </div>
               <div v-if="proposedKeyField==='new_idtraasignado'" class="crud-note">
                 <ShieldCheck :size="17"/>
                 <p><strong>Atención:</strong> actualmente <code>new_idtraasignado</code> almacena los
                   IDTRA de los trámites. No se puede usar a la vez para ese texto y para guardar
                   el GUID de la tarifa sin modificar también el mapeo de Pricing y revisar los
-                  registros existentes. Crear una clave no cambia automáticamente esos valores.</p>
+                  registros existentes. Crear una clave no cambia automáticamente esos valores.
+                  Para conservar esos IDTRA, elegí el campo existente IdtraTarifa si aparece
+                  con un nombre lógico diferente.</p>
               </div>
               <p class="crud-help">Si ya configuraste la clave en Dynamics y sigue sin aparecer,
                 verificá que la creación del índice finalizó correctamente. Los índices pendientes
