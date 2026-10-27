@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Check,
@@ -53,6 +53,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useRequiredFieldFeedback, type RequiredFieldIssue } from '@/core/composables/useRequiredFieldFeedback'
 import { useModalStore } from '@/core/stores/modalStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
@@ -1850,6 +1851,7 @@ const canNext = computed(() => {
       form.incotermId &&
       form.serviceIds.length &&
       form.loadDate &&
+      (!props.sellerRequestMode || Boolean(form.clientId || form.clientName.trim())) &&
       exwLocationReady.value &&
       fcaLocationReady.value &&
       inlandServiceLocationsReady.value &&
@@ -1869,6 +1871,64 @@ const canNext = computed(() => {
   if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
   return true
 })
+
+// Each requirement is derived from the same conditions that gate the wizard.
+// Errors disappear immediately as the user fills the corresponding field.
+const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
+  const issues: RequiredFieldIssue[] = []
+  const add = (missing: boolean, key: string, label: string) => {
+    if (missing) issues.push({ key, label })
+  }
+
+  if (step.value === 1) add(!form.modality, 'modality', 'Modalidad')
+  if (step.value === 2) add(!form.shipmentMode, 'shipmentMode', 'Tipo de embarque')
+  if (step.value === 3) {
+    add(props.sellerRequestMode && !form.clientId && !form.clientName.trim(), 'client', 'Cliente')
+    add(!form.originId, 'originId', 'Origen (POL)')
+    add(!form.destinationId, 'destinationId', 'Entrada (POE)')
+    add(Boolean(equipmentHasSizes.value && !form.equipmentSize), 'equipmentSize', 'Tamaño de equipo')
+    add(!selectedEquipment.value, 'equipmentType', 'Tipo de equipo')
+    add(!(form.equipmentQuantity > 0), 'equipmentQuantity', 'Cantidad de equipo')
+    add(!form.incotermId, 'incotermId', 'Incoterm')
+    add(!form.serviceIds.length, 'serviceIds', 'Servicios')
+    add(!form.loadDate, 'loadDate', 'Fecha de carga lista')
+    if (selectedIncotermCode.value === 'EXW') {
+      add(!exwLocationReady.value, 'pickupAddress', 'Recolecta: dirección y botón Agregar recolecta')
+      add(!sellerCargoConditionReady.value, 'pickupCargoCondition', 'Condición aduanera de las recolectas')
+    } else {
+      if (selectedIncotermCode.value === 'FCA') {
+        add(!fcaLocationReady.value, catalogs.warehouses.length ? 'warehouseId' : 'pickupAddress', 'Dirección o WHS (FCA)')
+      }
+      add(!sellerCargoConditionReady.value, 'cargoCondition', 'Condición de carga')
+    }
+    add(inlandPickupServiceSelected.value && !form.inlandPickupLocation?.address?.trim(), 'inlandPickupLocation', 'Dirección del transporte de recolección')
+    add(inlandDeliveryServiceSelected.value && !form.inlandDeliveryLocation?.address?.trim(), 'inlandDeliveryLocation', 'Dirección del transporte de entrega')
+  }
+  if (step.value === 4 && consolidatedCargoMode.value) {
+    add(!(form.cargoPallets > 0), 'cargoPallets', 'Tarimas')
+    add(!(form.cargoLengthCm > 0), 'cargoLengthCm', 'Largo')
+    add(!(form.cargoWidthCm > 0), 'cargoWidthCm', 'Ancho')
+    add(!(form.cargoHeightCm > 0), 'cargoHeightCm', 'Alto')
+  }
+  if (step.value === 5 && !props.rateId) {
+    add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
+  }
+  if (step.value === 6) {
+    add(!form.agentId, 'agentId', 'Agente')
+    add(!form.carrierId, 'carrierId', 'Naviera / proveedor')
+    add(!form.currencyId, 'currencyId', 'Moneda')
+    add(!(form.freightCost >= 0), 'freightCost', 'Flete: costo')
+    add(!(form.freightSale >= 0), 'freightSale', 'Flete: venta')
+  }
+  if (step.value === 7) {
+    add(!(exchangeRatePurchase.value > 0), 'exchangeRatePurchase', 'Tipo de cambio: compra')
+    add(!(exchangeRateSale.value > 0), 'exchangeRateSale', 'Tipo de cambio: venta')
+  }
+  return issues
+})
+
+const { fieldError, isInvalid, resetValidation, validateRequiredFields } =
+  useRequiredFieldFeedback(() => requiredStepIssues.value)
 
 function detailTypeForService(service: CatalogItemSelectDto): CostDetailType {
   const value = normalizeCatalogValue(displayValue(service))
@@ -3803,10 +3863,12 @@ async function next() {
   }
 
   if (props.rateId) {
+    if (!props.viewOnly && !validateRequiredFields()) return
     if (step.value < maxStep.value) step.value += 1
     return
   }
 
+  if (!props.viewOnly && !validateRequiredFields()) return
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
@@ -4091,7 +4153,8 @@ async function saveOpenRequest() {
   const incoterm = selectedIncoterm.value
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
   if (!origin || !poe || !equipment || !incoterm || !currency) {
-    toastStore.error('Complete ruta, equipo, Incoterm y moneda antes de guardar la solicitud.')
+    step.value = 3
+    void nextTick(() => validateRequiredFields())
     return
   }
 
@@ -4235,6 +4298,7 @@ async function saveRate() {
   ) {
     step.value = 7
     exchangeRateError.value = 'Ingrese los tipos de cambio de Compra y Venta antes de crear la tarifa.'
+    void nextTick(() => validateRequiredFields())
     return
   }
 
@@ -4257,7 +4321,8 @@ async function saveRate() {
   if (!currency) missing.push('moneda')
 
   if (missing.length) {
-    toastStore.error(`No se pudo resolver: ${missing.join(', ')}.`)
+    step.value = !origin || !poe || !equipment || !incoterm ? 3 : 6
+    void nextTick(() => validateRequiredFields())
     return
   }
 
@@ -4885,6 +4950,7 @@ watch(
 )
 
 watch(step, (value) => {
+  resetValidation()
   if (value === 7) {
     void loadHaciendaExchangeRate(false)
     syncDeclaredCargoInsuranceOnEdit()
@@ -5077,8 +5143,8 @@ onMounted(async () => {
 
           <div class="crystal-soft space-y-5 p-4 md:p-5">
             <div class="grid gap-4 md:grid-cols-2">
-              <DhSelect v-if="clientOptions.length" v-model="form.clientId" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />
-              <DhInput v-else v-model="form.clientName" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
+              <DhSelect v-if="clientOptions.length" v-model="form.clientId" data-required-field="client" :error="fieldError('client')" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />
+              <DhInput v-else v-model="form.clientName" data-required-field="client" :error="fieldError('client')" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
               <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />
               <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
             </div>
@@ -5088,6 +5154,7 @@ onMounted(async () => {
             <div class="grid gap-4 md:grid-cols-3">
               <PricingLocationSearchSelect
                 v-model="form.originId"
+                data-required-field="originId" :error="fieldError('originId')"
                 label="Origen (POL)"
                 placeholder="Buscar puerto de origen"
                 search-placeholder="Buscar puerto, ciudad o país…"
@@ -5096,6 +5163,7 @@ onMounted(async () => {
               />
               <PricingLocationSearchSelect
                 v-model="form.destinationId"
+                data-required-field="destinationId" :error="fieldError('destinationId')"
                 label="Destino (POE)"
                 placeholder="Buscar puerto de salida"
                 search-placeholder="Buscar puerto, ciudad o país…"
@@ -5118,36 +5186,40 @@ onMounted(async () => {
               <DhSelect
                 v-if="equipmentHasSizes"
                 v-model="form.equipmentSize"
+                data-required-field="equipmentSize" :error="fieldError('equipmentSize')"
                 :label="form.modality === 'Land' ? 'Tamaño de furgón' : 'Tamaño de equipo'"
                 :placeholder="form.modality === 'Land' ? 'Seleccione tamaño de furgón' : 'Seleccione tamaño'"
                 :options="equipmentSizeOptions"
               />
               <DhSelect
                 v-model="form.equipmentType"
+                data-required-field="equipmentType" :error="fieldError('equipmentType')"
                 :label="form.modality === 'Land' ? 'Tipo de furgón' : equipmentHasSizes ? 'Tipo de equipo' : 'Tipo de equipo'"
                 :placeholder="form.modality === 'Land' ? 'Seleccione furgón' : equipmentHasSizes ? 'Seleccione tipo' : 'Seleccione equipo'"
                 :disabled="equipmentHasSizes && !form.equipmentSize"
                 :options="equipmentTypeOptions"
               />
-              <DhInput v-model.number="form.equipmentQuantity" type="number" min="1" :label="form.modality === 'Land' ? 'Cantidad de unidades' : 'Cantidad de equipo'" />
+              <DhInput v-model.number="form.equipmentQuantity" data-required-field="equipmentQuantity" :error="fieldError('equipmentQuantity')" type="number" min="1" :label="form.modality === 'Land' ? 'Cantidad de unidades' : 'Cantidad de equipo'" />
             </div>
 
             <!-- Fila 4: Incoterm y fecha de carga lista. -->
             <div class="grid gap-4 md:grid-cols-2">
-              <DhSelect v-model="form.incotermId" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
+              <DhSelect v-model="form.incotermId" data-required-field="incotermId" :error="fieldError('incotermId')" label="Incoterm" placeholder="Seleccione Incoterm" :options="incotermOptions" />
               <DhSelect
                 v-if="sellerRequestMode && selectedIncotermCode !== 'EXW'"
                 v-model="form.cargoCondition"
+                data-required-field="cargoCondition" :error="fieldError('cargoCondition')"
                 label="Condición de carga (obligatoria)"
                 placeholder="Seleccione carga fiscal o nacionalizada"
                 :options="pickupCargoConditionOptions"
               />
-              <DhInput v-model="form.loadDate" type="date" :label="form.rateType === 'Tariff' ? 'Vigente desde' : 'Vigente desde / carga lista'" />
+              <DhInput v-model="form.loadDate" data-required-field="loadDate" :error="fieldError('loadDate')" type="date" :label="form.rateType === 'Tariff' ? 'Vigente desde' : 'Vigente desde / carga lista'" />
               <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />
             </div>
 
             <PricingCrystalMultiSelect
               v-model="form.serviceIds"
+              data-required-field="serviceIds" :error="fieldError('serviceIds')"
               label="Servicios"
               placeholder="Seleccione servicios"
               search-placeholder="Buscar servicio..."
@@ -5156,11 +5228,13 @@ onMounted(async () => {
             <PricingInlandServiceLocation
               v-if="inlandPickupServiceSelected"
               v-model="form.inlandPickupLocation"
+              data-required-field="inlandPickupLocation" :error="fieldError('inlandPickupLocation')"
               kind="pickup"
             />
             <PricingInlandServiceLocation
               v-if="inlandDeliveryServiceSelected"
               v-model="form.inlandDeliveryLocation"
+              data-required-field="inlandDeliveryLocation" :error="fieldError('inlandDeliveryLocation')"
               kind="delivery"
             />
             <div v-if="storageServiceSelected" class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
@@ -5186,6 +5260,7 @@ onMounted(async () => {
             <PricingLocationSearchSelect
               v-if="selectedIncotermCode === 'FCA' && warehouseOptions.length"
               v-model="form.warehouseId"
+              data-required-field="warehouseId" :error="fieldError('warehouseId')"
               label="WHS global"
               @open="refreshWarehouseCatalog"
               placeholder="Buscar o seleccionar WHS"
@@ -5228,6 +5303,7 @@ onMounted(async () => {
             <DhSelect
               v-if="selectedIncotermCode === 'EXW'"
               v-model="pickupCargoCondition"
+              data-required-field="pickupCargoCondition" :error="fieldError('pickupCargoCondition')"
               :label="sellerRequestMode ? 'Tipo de carga en esta recolecta (obligatorio)' : 'Tipo de carga en esta recolecta (opcional)'"
               :options="pickupCargoConditionOptions"
               :placeholder="sellerRequestMode ? 'Seleccione carga fiscal o nacionalizada' : 'Sin clasificar / seleccione solo si aplica'"
@@ -5235,6 +5311,7 @@ onMounted(async () => {
 
             <DhInput
               v-model="form.pickupAddress"
+              data-required-field="pickupAddress" :error="fieldError('pickupAddress')"
               :label="selectedIncotermCode === 'EXW' ? 'Dirección de recolección' : 'Dirección del WHS'"
               placeholder="Ciudad, provincia/estado y país"
               :disabled="selectedIncotermCode === 'FCA' && warehouseOptions.length > 0"
@@ -5339,7 +5416,7 @@ onMounted(async () => {
                   </div>
                 </div>
               </div>
-              <p v-if="!pickupLocations.length" class="text-[11px] font-bold text-amber-600">
+              <p v-if="!pickupLocations.length" :class="isInvalid('pickupAddress') ? 'text-red-500' : 'text-amber-600'" class="text-[11px] font-bold">
                 Agregue al menos una recolecta con dirección para continuar. Marcarla en el mapa es opcional.
               </p>
             </div>
@@ -5434,7 +5511,7 @@ onMounted(async () => {
                 :key="rate.id"
                 type="button"
                 class="crystal-rate-card"
-                :class="form.selectedImportRateId === rate.id ? 'crystal-rate-card--active' : ''"
+                :class="[form.selectedImportRateId === rate.id ? 'crystal-rate-card--active' : '', isInvalid('selectedImportRateId') ? 'ring-2 ring-red-500/30' : '']"
                 @click="chooseRate(rate)"
               >
                 <div class="flex items-start justify-between gap-3">
@@ -5498,14 +5575,14 @@ onMounted(async () => {
           </div>
 
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
-            <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />
+            <DhSelect v-model="form.agentId" data-required-field="agentId" :error="fieldError('agentId')" label="Agente" :options="agentOptions" />
             <p v-if="form.originId && !agentOptions.length" class="text-xs font-semibold text-amber-500 md:col-span-2 xl:col-span-3">
               No hay agentes disponibles para este POL. Revise la metadata en Config &gt; Catálogos &gt; Agentes.
             </p>
-            <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
-            <DhSelect v-model="form.currencyId" label="Moneda" :options="currencyOptions" />
-            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
-            <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
+            <DhSelect v-model="form.carrierId" data-required-field="carrierId" :error="fieldError('carrierId')" label="Naviera / proveedor" :options="carrierOptions" />
+            <DhSelect v-model="form.currencyId" data-required-field="currencyId" :error="fieldError('currencyId')" label="Moneda" :options="currencyOptions" />
+            <DhInput v-model.number="form.freightCost" data-required-field="freightCost" :error="fieldError('freightCost')" type="number" min="0" step="0.01" label="Flete internacional · costo" />
+            <DhInput v-model.number="form.freightSale" data-required-field="freightSale" :error="fieldError('freightSale')" type="number" min="0" step="0.01" label="Flete internacional · venta" />
             <DhInput v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
             <div v-else-if="form.modality !== 'Land'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
             <DhInput v-model.number="form.transitDays" type="number" min="0" label="Días de tránsito" />
@@ -5581,10 +5658,10 @@ onMounted(async () => {
               </div>
               <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <DhInput v-model.number="form.cargoWeightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />
-                <DhInput v-model.number="form.cargoPallets" type="number" min="1" step="1" label="Tarimas" />
-                <DhInput v-model.number="form.cargoLengthCm" type="number" min="0" step="0.01" label="Largo (cm)" />
-                <DhInput v-model.number="form.cargoWidthCm" type="number" min="0" step="0.01" label="Ancho (cm)" />
-                <DhInput v-model.number="form.cargoHeightCm" type="number" min="0" step="0.01" label="Alto (cm)" />
+                <DhInput v-model.number="form.cargoPallets" data-required-field="cargoPallets" :error="fieldError('cargoPallets')" type="number" min="1" step="1" label="Tarimas" />
+                <DhInput v-model.number="form.cargoLengthCm" data-required-field="cargoLengthCm" :error="fieldError('cargoLengthCm')" type="number" min="0" step="0.01" label="Largo (cm)" />
+                <DhInput v-model.number="form.cargoWidthCm" data-required-field="cargoWidthCm" :error="fieldError('cargoWidthCm')" type="number" min="0" step="0.01" label="Ancho (cm)" />
+                <DhInput v-model.number="form.cargoHeightCm" data-required-field="cargoHeightCm" :error="fieldError('cargoHeightCm')" type="number" min="0" step="0.01" label="Alto (cm)" />
               </div>
               <div class="grid gap-3 sm:grid-cols-3">
                 <div class="crystal-metric crystal-metric--neutral">
@@ -5698,8 +5775,8 @@ onMounted(async () => {
               <DhButton variant="secondary" size="sm" :loading="exchangeRateLoading" :disabled="exchangeRateLoading" @click="loadHaciendaExchangeRate(true)">Actualizar Hacienda</DhButton>
             </div>
             <div class="mt-4 grid gap-3 md:grid-cols-2">
-              <DhInput v-model.number="exchangeRatePurchase" type="number" min="0.000001" step="0.01" label="Compra Hacienda (editable)" />
-              <DhInput v-model.number="exchangeRateSale" type="number" min="0.000001" step="0.01" label="Venta Hacienda (editable)" />
+              <DhInput v-model.number="exchangeRatePurchase" data-required-field="exchangeRatePurchase" :error="fieldError('exchangeRatePurchase')" type="number" min="0.000001" step="0.01" label="Compra Hacienda (editable)" />
+              <DhInput v-model.number="exchangeRateSale" data-required-field="exchangeRateSale" :error="fieldError('exchangeRateSale')" type="number" min="0.000001" step="0.01" label="Venta Hacienda (editable)" />
             </div>
             <p v-if="exchangeRateDate" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ exchangeRateSource }} · fecha {{ formatDate(exchangeRateDate) }}</p>
             <p v-if="exchangeRateError" class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-700">{{ exchangeRateError }}</p>
@@ -6380,7 +6457,7 @@ onMounted(async () => {
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
       <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
       <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>
-      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="!canNext || loadingRates" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="loadingRates || saving" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
       <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
