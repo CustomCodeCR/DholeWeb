@@ -1091,6 +1091,19 @@ const fcaLocationReady = computed(() =>
     : Boolean(form.pickupAddress.trim())),
 )
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
+function isCrcCustomsService(service: CatalogItemSelectDto) {
+  if (String(service.code ?? '').trim().toUpperCase() === 'CUSTOMS_CR') return true
+  const name = normalizeCatalogValue(
+    [displayValue(service), service.label, service.slug].filter(Boolean).join(' '),
+  )
+  return name.includes('agencia aduanas crc')
+    || name.includes('agencia aduanal crc')
+    || name.includes('servicio aduanas crc')
+    || name.includes('aduanas costa rica')
+}
+const selectedCrcCustomsService = computed(
+  () => selectedServices.value.find(isCrcCustomsService) ?? null,
+)
 // These services can be requested with any Incoterm; they are independent of EXW/FCA.
 function inlandServiceName(service: CatalogItemSelectDto) {
   return normalizeCatalogValue([displayValue(service), service.label, service.code, service.slug].filter(Boolean).join(' '))
@@ -1365,9 +1378,11 @@ const lclCargoLines = computed(() => consolidatedCargoMode.value && lclChargeabl
   : [])
 
 const direction = computed(() => {
-  if (!selectedOrigin.value || !selectedDestination.value) return ''
+  // El POD determina el destino final; un POE intermedio no cambia la importación.
+  const finalDestination = selectedPod.value ?? selectedDestination.value
+  if (!selectedOrigin.value || !finalDestination) return ''
   const originCr = isCostaRica(selectedOrigin.value)
-  const destinationCr = isCostaRica(selectedDestination.value)
+  const destinationCr = isCostaRica(finalDestination)
   if (originCr && !destinationCr) return 'Exportación'
   if (!originCr && destinationCr) return 'Importación'
   return 'Tránsito / doméstico'
@@ -1377,6 +1392,12 @@ const operationType = computed<RateOperationType>(() => {
   if (direction.value === 'Exportación') return 'Export'
   return 'TransitDomestic'
 })
+const crcImportContext = computed(
+  () => operationType.value === 'Import' || isCostaRica(selectedPod.value) || isCostaRica(selectedDestination.value),
+)
+const crcCurrency = computed(() =>
+  catalogs.currencies.find((item) => String(item.code ?? '').trim().toUpperCase() === 'CRC') ?? null,
+)
 
 // Se usa como moneda disponible para operaciones que la requieren; no bloquea las líneas.
 const usdCurrency = computed(() => catalogs.currencies.find(
@@ -2470,6 +2491,41 @@ async function loadApplicableCosts() {
   }
 }
 
+function isCrcCustomsLine(line: RateLine, serviceId: string) {
+  if (line.section !== 'destination_charges') return false
+  const name = normalizeCatalogValue(line.name)
+  return (line.serviceIds?.includes(serviceId) && line.costDetailType === 'CustomsCharge')
+    || (line.costDetailType === 'CustomsCharge' && /aduan|nacionaliz/.test(name)
+      && /crc|costa rica|nacionaliz/.test(name))
+}
+
+function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {
+  const service = selectedCrcCustomsService.value
+  if (!service || !crcImportContext.value || !visibleSections.value.includes('destination_charges')) return
+  if (lines.some((line) => isCrcCustomsLine(line, service.id))) return
+
+  // No inventar precio: se debe completar el importe antes de guardar.
+  const chargeCurrency = crcCurrency.value ?? currency
+  lines.push({
+    key: 'service:customs-cr',
+    section: 'destination_charges',
+    name: 'Servicio de aduanas (Costa Rica)',
+    costDetailType: 'CustomsCharge',
+    costType: 'Variable',
+    chargeBasis: 'PerService',
+    contextLabel: 'Servicio seleccionado sin costo configurado: ingrese costo y venta.',
+    serviceIds: [service.id],
+    currencyId: chargeCurrency.id,
+    currencyName: displayValue(chargeCurrency),
+    currencyCode: chargeCurrency.code,
+    costAmount: 0,
+    saleAmount: 0,
+    included: true,
+    optional: false,
+    manual: false,
+  })
+}
+
 function rebuildRateLines() {
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
   if (!currency) return
@@ -2680,6 +2736,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
   }
 }
 
+  ensureCrcCustomsLine(lines, currency)
   lines.forEach((line) => {
     line.amountCurrencyCode = canonicalCurrencyCode(line)
     enforceLineCurrency(line)
@@ -3637,6 +3694,10 @@ async function hydrateExistingRate() {
       if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
     }
     mergeConfiguredOptionalCostsIntoRateLines()
+    if (!props.viewOnly) {
+      const serviceCurrency = selectedCurrency.value ?? catalogs.currencies[0]
+      if (serviceCurrency) ensureCrcCustomsLine(rateLines.value, serviceCurrency)
+    }
     step.value = props.viewOnly ? 9 : 8
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la tarifa en el wizard.')
@@ -4334,6 +4395,19 @@ async function saveRate() {
     syncPersistedLinesWithChangedConfiguredCosts()
   }
 
+  const customsService = selectedCrcCustomsService.value
+  if (customsService && crcImportContext.value) {
+    const customsLine = includedLines.value.find((line) => isCrcCustomsLine(line, customsService.id))
+    if (!customsLine || number(customsLine.saleAmount) <= 0) {
+      step.value = 7
+      toastStore.error(
+        'Servicio de aduanas sin precio',
+        'Agencia de Aduanas CRC está seleccionada, pero falta un rubro de aduanas en destino con venta mayor a cero. Complete el precio antes de guardar.',
+      )
+      return
+    }
+  }
+
   // Todas las líneas que se muestran como incluidas deben viajar en el POST.
   // Las líneas generadas por matrices/reglas antiguas pueden no traer CurrencyId;
   // en ese caso heredan la moneda válida del encabezado. Costo/venta en cero son válidos.
@@ -4419,6 +4493,7 @@ async function saveRate() {
       !includedNameKeys.has(normalizeCatalogValue(canonical.name))
     ) return
     serviceCodes.add(code)
+    if (isCrcCustomsService(service)) serviceCodes.add('CUSTOMS_CR')
   })
   if (!incotermBuyerPaysMainTransport(incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
   if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))
