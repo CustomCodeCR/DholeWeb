@@ -28,8 +28,19 @@ test('Own LCL keeps matching EXW/FCA variable CostIds without importing other gl
   const code = generatedCode()
   assert.match(code, /ownLclTransientSupplementalLines/)
   assert.match(code, /line\.key\)\.startsWith\('exw-fca-variable-cost:'\)/)
-  assert.match(code, /!line\.costId \|\| String\(line\.key\)\.startsWith\('exw-fca-variable-cost:'\)/)
+  assert.match(code, /!line\.costId \|\| String\(line\.key \?\? ''\)\.startsWith\('exw-fca-variable-cost:'\)/)
   assert.match(code, /line\.costId === cost\.id/)
+})
+
+test('Own LCL preserves CRC agency costs and EXW/FCA charges together', () => {
+  const currentSource = fixture.replace(
+    "? includedLines.value.filter((line) => !line.costId)",
+    "? includedLines.value.filter((line) => !line.costId || String(line.key ?? '').startsWith('own-lcl-customs:'))",
+  )
+  const plugin = pricingExwFcaVariableCosts()
+  const transform = plugin.transform as unknown as (source: string, id: string) => { code: string }
+  const code = transform(currentSource, wizardPath).code
+  assert.match(code, /!line\.costId \|\| String\(line\.key \?\? ''\)\.startsWith\('own-lcl-customs:'\) \|\| String\(line\.key \?\? ''\)\.startsWith\('exw-fca-variable-cost:'\)/)
 })
 
 test('Variable catalog matching honors EXW/FCA, multi-party assignments, modality and conditions', () => {
