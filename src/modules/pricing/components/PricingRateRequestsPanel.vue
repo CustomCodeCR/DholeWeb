@@ -273,17 +273,12 @@ async function continueRequest(request: RateRequestDto) {
 
 async function completeRequest(request: RateRequestDto) {
   if (request.status !== 'Open' || completingRequestId.value || isLocked(request)
-    || (isModification(request) && !canSendModification(request))) return
+    || !isModification(request) || !request.rateId || !canSendModification(request)) return
   try {
     completingRequestId.value = request.id
     await RateRequestLeaseService.claim(request.id)
-    if (isModification(request) && request.rateId) {
-      await RateRequestLeaseService.completeRate(request.id, request.rateId, { confirmSellerModification: true })
-      toast.success('Revisión enviada', 'Se notificó al vendedor y se entregó el PDF actualizado.')
-    } else {
-      await RateRequestLeaseService.complete(request.id)
-      toast.success('Solicitud marcada como completada.')
-    }
+    await RateRequestLeaseService.completeRate(request.id, request.rateId, { confirmSellerModification: true })
+    toast.success('Revisión procesada', 'Se enviará automáticamente al vendedor cuando esté autorizada.')
     await load()
   } catch (error) {
     toast.backendError(error, 'No se pudo marcar la solicitud como completada.')
@@ -536,8 +531,8 @@ onBeforeUnmount(() => {
                   @click="openRecovery(request)">
                   Vincular existente
                 </DhButton>
-                <DhButton variant="secondary" :disabled="(isModification(request) && !canSendModification(request)) || isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="completeRequest(request)">
-                  <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Completando…' : isModification(request) ? (canSendModification(request) ? 'Enviar revisión' : 'Guardar revisión primero') : 'Marcar completada' }}
+                <DhButton v-if="isModification(request)" variant="secondary" :disabled="!canSendModification(request) || isLocked(request) || Boolean(completingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="completeRequest(request)">
+                  <CheckCircle2 class="h-4 w-4" /> {{ completingRequestId === request.id ? 'Enviando…' : canSendModification(request) ? 'Reintentar envío' : 'Guardar revisión primero' }}
                 </DhButton>
                 <DhButton
                   variant="secondary"
