@@ -113,7 +113,9 @@ function syncOwnLclCrcAgencyLine(forceReprice = false) {
       ? costContextLabel(configured)
       : 'No se encontró un tramo de precio para el peso indicado. Revise los kg antes de guardar.',
     notes: [
-      String(existing?.notes ?? configured.notes ?? '').trim(),
+      String(existing?.notes ?? configured.notes ?? '').split(/\s+·\s+/)
+        .filter((part) => !part.startsWith('Costo maestro Pricing:')
+          && part !== 'Servicio aduanal CRC seleccionado').join(' · ').trim(),
       'Costo maestro Pricing: ' + configured.id,
       'Servicio aduanal CRC seleccionado',
     ].filter((part, index, all) => part && all.indexOf(part) === index).join(' · '),
