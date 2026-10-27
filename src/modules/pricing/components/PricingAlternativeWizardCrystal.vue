@@ -3884,7 +3884,6 @@ async function next() {
   }
 
   if (props.rateId) {
-    if (!props.viewOnly && !validateRequiredFields()) return
     if (step.value < maxStep.value) step.value += 1
     return
   }
