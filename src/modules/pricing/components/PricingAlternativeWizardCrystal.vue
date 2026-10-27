@@ -4748,7 +4748,7 @@ async function saveRate() {
         if (omittedNewLines.length > 0) {
           throw new Error(
             'Pricing respondió al guardado, pero no persistió estos cargos del consolidado LCL propio: '
-            + omittedNewLines.map((detail) => detail.name + ' (USD ' + number(detail.saleAmount).toFixed(2) + ')').join(', ')
+            + omittedNewLines.map((detail) => detail.name + ' (' + String(detail.currencyCode || 'sin divisa') + ' ' + number(detail.saleAmount).toFixed(2) + ')').join(', ')
             + '. La cotización debe corregirse antes de enviarla.',
           )
         }
