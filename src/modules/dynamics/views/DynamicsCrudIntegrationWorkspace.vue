@@ -66,6 +66,7 @@ const quoteLines=ref<QuoteLineDraft[]>([
 ])
 let nextQuoteLineId=3
 const quoteLinesValid=computed(()=>quoteLines.value.length>0&&quoteLines.value.length<=50&&
+  quoteLinesTotal.value>=0&&quoteLinesTotal.value<=999999999999&&
   quoteLines.value.every(line=>
     line.name.trim().length>0&&line.name.trim().length<=100&&
     line.description.length<=2000&&
@@ -1373,15 +1374,15 @@ onMounted(refresh)
             <div class="crud-field-actions">
               <button class="crud-secondary" type="button" @click="addQuoteLine"
                 :disabled="quoteLines.length>=50">Añadir línea</button>
-              <strong>Total de venta: {{ quoteLinesTotal.toLocaleString('en-US',
-                {style:'currency',currency:'USD'}) }}</strong>
+              <strong>Total de venta del ejemplo: {{ quoteLinesTotal.toLocaleString('es-CR',
+                {minimumFractionDigits:2,maximumFractionDigits:2}) }} (moneda de la oferta)</strong>
             </div>
             <p v-if="!quoteLinesValid" class="crud-error" role="alert">
               Completá el concepto, cantidad positiva y precio no negativo de cada línea
               (máximo 50). No se publicará un ejemplo inválido.
             </p>
             <p class="crud-help">
-              El totalCostoAmount del JSON es un ejemplo: reemplazalo con el costo real
+              El totalCostAmount del JSON es un ejemplo: reemplazalo con el costo real
               antes de ejecutar. La API Key debe pertenecer a la versión CREATE activa
               y tener los permisos de quotedetail aprobados. No se ejecuta nada desde aquí.
             </p>
