@@ -272,6 +272,35 @@ function pricingDraftLibrarySavedLabel(value: string) {
   })
 }
 
+function finishCreatedPricingDraft() {
+  // A successfully created QUO must never reopen its old autosaved form.
+  // Pause watchers before removing the canonical draft and only the active
+  // library item; quotations explicitly put on hold must stay untouched.
+  pricingDraftReady.value = false
+  pricingDraftRestoring.value = true
+  clearPricingDraft(true)
+
+  if (pricingDraftSupportsMultiple.value) {
+    const completedId = pricingDraftActiveId.value
+    if (completedId) {
+      try {
+        localStorage.removeItem(pricingDraftLibraryItemKey(completedId))
+        pricingDraftLibraryWriteIndex(
+          pricingDraftLibraryReadIndex().filter((item) => item.id !== completedId),
+        )
+        if (localStorage.getItem(pricingDraftLibraryActiveKey.value) === completedId) {
+          localStorage.removeItem(pricingDraftLibraryActiveKey.value)
+        }
+      } catch {
+        // Failure to clear browser storage must not negate a successful rate.
+      }
+    }
+    pricingDraftActiveId.value = ''
+    pricingDraftLibraryOpen.value = false
+    refreshPricingDraftLibrary()
+  }
+}
+
 function startNewPricingDraft() {
   if (!pricingDraftSupportsMultiple.value) return
 
@@ -363,6 +392,13 @@ onMounted(() => {
     scriptCloseAnchor,
     multipleDraftsScript + scriptCloseAnchor,
     'script close',
+  )
+
+  code = replaceExactlyOnce(
+    code,
+    "    if (!editingRate.value) {\\n      toastStore.success('Tarifa creada correctamente.'",
+    "    if (!editingRate.value) {\\n      finishCreatedPricingDraft()\\n      toastStore.success('Tarifa creada correctamente.'",
+    'successful rate creation cleanup',
   )
 
   const discardButtonAnchor = `      <DhButton
