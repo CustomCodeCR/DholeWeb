@@ -104,6 +104,7 @@ import { pricingCarrierMerchantChargeCompleteness } from './build/pricingCarrier
 import { pricingWizardLclGroupAgent } from './build/pricingWizardLclGroupAgent'
 import { pricingWizardCompleteDraftNavigation } from './build/pricingWizardCompleteDraftNavigation'
 import { pricingWizardScreen7CostChoice } from './build/pricingWizardScreen7CostChoice'
+import { pricingRequiredFieldFinalFeedback } from './build/pricingRequiredFieldFinalFeedback'
 
 export default defineConfig({
   plugins: [
@@ -210,6 +211,7 @@ export default defineConfig({
     // Last pricing transform: preserve historical shipment dates before Vue compilation.
     pricingWizardHistoricalValidity(),
     pricingWizardGeneratedTemplateIntegrity(),
+    pricingRequiredFieldFinalFeedback(),
     vue(),
     tailwindcss(),
   ],
