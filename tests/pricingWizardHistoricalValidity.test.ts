@@ -40,10 +40,12 @@ test('shipment date and historical expiry retain distinct fields and clear label
   assert.match(output, /validTo: form\.validTo \|\| addDaysIso\(form\.loadDate, 30\)/)
 })
 
-test('saving validates the date order without requiring a future expiry', () => {
+test('only QUO saves validate expiry; Sales requests can omit it and use historical dates', () => {
   const output = patchPricingWizardHistoricalValidity(wizard)
-  assert.equal((output.match(/form\.validTo < form\.loadDate/g) || []).length, 2)
+  assert.equal((output.match(/form\.validTo < form\.loadDate/g) || []).length, 1)
   assert.doesNotMatch(output, /validTo < todayIso\(\)|validTo >= todayIso\(\)/)
   assert.match(output, /async function saveRate\(\) \{\n  if \(!form\.loadDate/)
-  assert.match(output, /async function saveOpenRequest\(\) \{\n  if \(!form\.loadDate/)
+  assert.match(output, /async function saveOpenRequest\(\) \{\n  return null/)
+  const salesSave = output.split('async function saveOpenRequest() {')[1]?.split('}')[0] ?? ''
+  assert.doesNotMatch(salesSave, /step\.value = 6|form\.validTo/)
 })
