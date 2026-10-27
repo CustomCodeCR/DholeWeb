@@ -230,61 +230,44 @@ test('Pricing screen 6 filters agents by origin and only offers maritime carrier
 })
 
 
-test('bultos declarados no se multiplican por tarimas en LCL y LTL', () => {
-  const cargo = readFileSync(new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url), 'utf8')
-  const units = readFileSync(new URL('../build/pricingConsolidatedUnitConversions20261015.ts', import.meta.url), 'utf8')
+
+test('LCL y LTL tienen una sola cantidad editable por línea y ocultan el campo superior', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
-  const summary = readFileSync(new URL('../src/modules/pricing/components/PricingSellerHandoffPreview.vue', import.meta.url), 'utf8')
-  assert.match(cargo, /unitType: 'Pallet'/)
-  assert.match(cargo, /const consolidatedTotalPallets = computed/)
+  const cargo = readFileSync(new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url), 'utf8')
+  assert.match(wizard, /<DhInput v-if="!consolidatedCargoMode" v-model\.number="form\.cargoPackages"/)
+  assert.equal((wizard.match(/v-model\.number="form\.cargoPackages"/g) || []).length, 1)
+  assert.match(cargo, /label=.*Cantidad/)
+  assert.doesNotMatch(cargo, /Cantidad de bultos sueltos/)
+  assert.match(cargo, /Seleccione el tipo de unidad de carga/)
+  assert.match(cargo, /Tipo de unidad/)
+})
+
+test('totales de LCL y LTL salen de las líneas, sin multiplicar el peso', () => {
+  const cargo = readFileSync(new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url), 'utf8')
+  assert.match(cargo, /form\.cargoPackages = consolidatedTotalPackages\.value/)
   assert.match(cargo, /form\.cargoPallets = consolidatedTotalPallets\.value/)
+  assert.match(cargo, /watch\(consolidatedCargoMode/)
   assert.match(cargo, /line\.unitType === 'Pallet' \? 0 : cargoLineQuantity\(line\)/)
   assert.match(cargo, /line\.unitType === 'Pallet' \? cargoLineQuantity\(line\) : 0/)
-  assert.match(cargo, /Math\.trunc\(number\(form\.cargoPackages\)\)/)
   assert.match(cargo, /sum \+ Math\.max\(0, number\(line\.weightKg\)\)/)
   assert.match(cargo, /lengthCm \* widthCm \* heightCm \* quantity \/ 1_000_000/)
-  assert.match(cargo, /Tipo de unidad/)
-  assert.match(cargo, /Cantidad de tarimas/)
-  assert.match(units, /Peso sumado de las líneas/)
-  assert.match(wizard, /Bultos declarados \(piezas\)/)
-  assert.match(summary, /sellerCargoLines/)
-  assert.match(summary, /sellerVolumeMismatch/)
-  assert.match(summary, /Unidades sin clasificar|Unidad sin clasificar/)
-
-  // Tres carretillas declaradas dentro de una sola tarima no son tres tarimas.
-  const cbm = (quantity: number) => quantity * 165 * 140 * 130 / 1_000_000
-  assert.equal(cbm(1), 3.003)
-  assert.equal(cbm(3), 9.009)
-  const declaredPieces = 3
-  const pallets = 1
-  assert.equal(cbm(pallets), 3.003)
-  assert.equal(declaredPieces, 3)
+  assert.equal(1 * 165 * 140 * 130 / 1_000_000, 3.003)
+  assert.equal(3 * 165 * 140 * 130 / 1_000_000, 9.009)
 })
 
-
-test('LCL y LTL distinguen bultos declarados de cantidades por unidad de carga', () => {
-  const source = readFileSync(new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url), 'utf8')
-  assert.match(source, /Cantidad de tarimas/)
-  assert.match(source, /Cantidad de bultos sueltos/)
-  assert.match(source, /Cantidad de cajas/)
-  assert.match(source, /Bultos declarados = piezas de mercancía/)
-  assert.match(source, /lengthCm \* widthCm \* heightCm \* quantity \/ 1_000_000/)
-  assert.match(source, /sum \+ Math\.max\(0, number\(line\.weightKg\)\)/)
-})
-
-
-test('LCL y LTL restauran el diseño de ancho completo y conservan los datos', () => {
+test('captura y resumen LCL LTL son responsivos y sin cantidades duplicadas', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   const cargo = readFileSync(new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url), 'utf8')
+  const units = readFileSync(new URL('../build/pricingConsolidatedUnitConversions20261015.ts', import.meta.url), 'utf8')
   const miami = readFileSync(new URL('../build/pricingMiamiLclRules20261002.ts', import.meta.url), 'utf8')
-  const preview = readFileSync(new URL('../src/modules/pricing/components/PricingSellerHandoffPreview.vue', import.meta.url), 'utf8')
-  assert.ok(wizard.includes('label="Bultos declarados (piezas)"'))
-  assert.ok(wizard.includes('label="Observaciones de la carga" :rows="4" class="col-span-full w-full"'))
-  assert.ok(cargo.includes('col-span-full w-full min-w-0 space-y-4'))
-  assert.ok(cargo.includes('xl:grid-cols-8'))
-  assert.ok(!cargo.includes('Medidas exteriores por cada unidad de embalaje'))
-  assert.ok(cargo.includes('Cantidad de tarimas'))
-  assert.ok(cargo.includes('Cantidad de bultos sueltos'))
-  assert.ok(miami.includes("return kg.toFixed(2) + ' kg → ' + lb.toFixed(2) + ' lb'"))
-  assert.ok(preview.includes('Piezas de mercancía declaradas'))
+  const summary = readFileSync(new URL('../src/modules/pricing/components/PricingSellerHandoffPreview.vue', import.meta.url), 'utf8')
+  assert.match(cargo, /grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8/)
+  assert.match(cargo, /col-span-full w-full min-w-0 space-y-4/)
+  assert.match(wizard, /label="Observaciones de la carga" :rows="4" class="col-span-full w-full"/)
+  assert.match(cargo, /Unidades de carga: /)
+  assert.doesNotMatch(cargo, /Bultos declarados: \{\{ form\.cargoPackages/)
+  assert.match(units, /Peso sumado de las líneas/)
+  assert.match(miami, /return kg\.toFixed\(2\) \+ ' kg → ' \+ lb\.toFixed\(2\)/)
+  assert.match(summary, /sellerCargoLines\.reduce\(\(total, line\) => total \+ line\.quantity, 0\)/)
+  assert.match(summary, /Bultos registrados \(histórico\)/)
 })
