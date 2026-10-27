@@ -307,12 +307,17 @@ const miamiLittleIssues = computed(() => {
     'Miami generic insurance hint guard',
   )
 
-  code = replaceRequired(
-    code,
-    `                  <p class="font-black">Medidas de la carga {{ shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}</p>`,
-    `                  <p class="font-black">Medidas de la carga {{ isAirLcl ? 'Aérea' : shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}</p>`,
-    'Air cargo title',
-  )
+  // The 2026-10 consolidated-cargo transform may already replace this
+  // legacy title block with per-line cargo controls. Only patch it when it
+  // still exists; never reinsert obsolete markup or fail the whole Web build.
+  if (code.includes(`Medidas de la carga {{ shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}`)) {
+    code = replaceRequired(
+      code,
+      `                  <p class="font-black">Medidas de la carga {{ shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}</p>`,
+      `                  <p class="font-black">Medidas de la carga {{ isAirLcl ? 'Aérea' : shipmentModeForApi === 'Ltl' ? 'LTL' : 'LCL' }}</p>`,
+      'Air cargo title',
+    )
+  }
 
   code = replaceRequired(
     code,
