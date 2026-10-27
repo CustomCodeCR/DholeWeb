@@ -157,6 +157,7 @@ onMounted(() => {
       label="Tamaño"
       :placeholder="isLand ? '48, 53...' : '20, 40, 45...'"
       :options="sizeOptions"
+      :error="error && !sizeId ? error : undefined"
     />
     <DhSelect
       v-model="kindId"
@@ -164,6 +165,7 @@ onMounted(() => {
       :label="isLand ? 'Tipo de equipo' : 'Tipo'"
       :placeholder="isLand ? 'Furgón seco, refrigerado...' : 'Dry Van, High Cube...'"
       :options="kindOptions"
+      :error="error && sizeId ? error : undefined"
     />
     <p v-if="selectedEquipment && props.showResolvedLabel" class="-mt-1 text-xs text-slate-500 sm:col-span-2">
       {{ isLand ? 'Equipo terrestre' : 'Equipo' }}:
