@@ -1105,6 +1105,44 @@ function isCrcCustomsService(service: CatalogItemSelectDto) {
 const selectedCrcCustomsService = computed(
   () => selectedServices.value.find(isCrcCustomsService) ?? null,
 )
+
+// Keep customs line helpers outside loadApplicableCosts: the FTL Vite transform
+// replaces that entire loader and would otherwise erase these definitions.
+function isCrcCustomsLine(line: RateLine, serviceId: string) {
+  if (line.section !== 'destination_charges') return false
+  const name = normalizeCatalogValue(line.name)
+  return (line.serviceIds?.includes(serviceId) && line.costDetailType === 'CustomsCharge')
+    || (line.costDetailType === 'CustomsCharge' && /aduan|nacionaliz/.test(name)
+      && /crc|costa rica|nacionaliz/.test(name))
+}
+
+function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {
+  const service = selectedCrcCustomsService.value
+  if (!service || !crcImportContext.value || !visibleSections.value.includes('destination_charges')) return
+  if (lines.some((line) => isCrcCustomsLine(line, service.id))) return
+
+  // No inventar un precio: el rubro faltante exige un importe antes de guardar.
+  const chargeCurrency = crcCurrency.value ?? currency
+  lines.push({
+    key: 'service:customs-cr',
+    section: 'destination_charges',
+    name: 'Servicio de aduanas (Costa Rica)',
+    costDetailType: 'CustomsCharge',
+    costType: 'Variable',
+    chargeBasis: 'PerService',
+    contextLabel: 'Servicio seleccionado sin costo configurado: ingrese costo y venta.',
+    serviceIds: [service.id],
+    currencyId: chargeCurrency.id,
+    currencyName: displayValue(chargeCurrency),
+    currencyCode: chargeCurrency.code,
+    costAmount: 0,
+    saleAmount: 0,
+    included: true,
+    optional: false,
+    manual: false,
+  })
+}
+
 // These services can be requested with any Incoterm; they are independent of EXW/FCA.
 function inlandServiceName(service: CatalogItemSelectDto) {
   return normalizeCatalogValue([displayValue(service), service.label, service.code, service.slug].filter(Boolean).join(' '))
@@ -2488,41 +2526,6 @@ async function loadApplicableCosts() {
       'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.',
     )
   }
-}
-
-function isCrcCustomsLine(line: RateLine, serviceId: string) {
-  if (line.section !== 'destination_charges') return false
-  const name = normalizeCatalogValue(line.name)
-  return (line.serviceIds?.includes(serviceId) && line.costDetailType === 'CustomsCharge')
-    || (line.costDetailType === 'CustomsCharge' && /aduan|nacionaliz/.test(name)
-      && /crc|costa rica|nacionaliz/.test(name))
-}
-
-function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {
-  const service = selectedCrcCustomsService.value
-  if (!service || !crcImportContext.value || !visibleSections.value.includes('destination_charges')) return
-  if (lines.some((line) => isCrcCustomsLine(line, service.id))) return
-
-  // No inventar un precio: el rubro faltante exige un importe antes de guardar.
-  const chargeCurrency = crcCurrency.value ?? currency
-  lines.push({
-    key: 'service:customs-cr',
-    section: 'destination_charges',
-    name: 'Servicio de aduanas (Costa Rica)',
-    costDetailType: 'CustomsCharge',
-    costType: 'Variable',
-    chargeBasis: 'PerService',
-    contextLabel: 'Servicio seleccionado sin costo configurado: ingrese costo y venta.',
-    serviceIds: [service.id],
-    currencyId: chargeCurrency.id,
-    currencyName: displayValue(chargeCurrency),
-    currencyCode: chargeCurrency.code,
-    costAmount: 0,
-    saleAmount: 0,
-    included: true,
-    optional: false,
-    manual: false,
-  })
 }
 
 function rebuildRateLines() {
