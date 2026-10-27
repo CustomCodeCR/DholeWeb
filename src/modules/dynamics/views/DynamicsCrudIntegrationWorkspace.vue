@@ -1030,7 +1030,7 @@ onMounted(refresh)
               </label>
               <div class="crud-actions">
                 <button type="button" class="crud-secondary" :disabled="alternateKeysLoading||!entity"
-                  @click="refreshAlternateKeys"><RefreshCw :size="15"/>
+                  @click="refreshAlternateKeys()"><RefreshCw :size="15"/>
                   {{ alternateKeysLoading?'Consultando Dataverse...':'Actualizar claves desde Dataverse' }}</button>
               </div>
               <div v-if="!eligibleKeys.length" class="crud-info">
