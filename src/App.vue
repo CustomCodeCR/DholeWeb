@@ -10,6 +10,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { installNativeFormValidation } from '@/core/utils/nativeFormValidation'
 import { initializePricingOfflineSync, flushPricingOfflineQueue } from '@/core/offline/pricingOfflineQueue'
 import {
   startNotificationRealtime,
@@ -22,6 +23,7 @@ const authStore = useAuthStore()
 const tabsStore = useWorkspaceTabsStore()
 const brandingStore = useBrandingStore()
 const toastStore = useToastStore()
+let uninstallNativeValidation: (() => void) | undefined
 const isPublicRoute = computed(() => router.currentRoute.value.meta.public === true)
 const isEmbedded = new URLSearchParams(window.location.search).get('dhEmbed') === '1'
 
@@ -73,6 +75,7 @@ function handleAuthRefreshed(event: Event) {
 }
 
 onMounted(() => {
+  uninstallNativeValidation = installNativeFormValidation()
   brandingStore.applyCachedOrDefault()
 
   // The public origin page is a deliberately isolated surface: no Pricing offline
@@ -110,6 +113,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  uninstallNativeValidation?.()
   if (!isPublicRoute.value && !isEmbedded) void stopNotificationRealtime()
   ;(window as Window & { __dholeConnectivityCleanup?: () => void }).__dholeConnectivityCleanup?.()
   window.removeEventListener('dhole:auth:expired', handleAuthExpired)
