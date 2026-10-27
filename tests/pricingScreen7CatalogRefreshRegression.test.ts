@@ -88,6 +88,29 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
     costContextAgentId: () => env.form.agentId,
     shipmentModeForApi: { value: 'Fcl' },
     fclAllCarrierIds: { value: ['MSC'] },
+    fclContainerAllocations: { value: [] },
+    reconcileFclFreightLines: () => {
+      const allocations = env.fclContainerAllocations.value
+      const all = env.rateLines.value
+      const used = new Set<number>()
+      const reconciled = allocations.map((allocation: any) => {
+        const index = all.findIndex((line: any, idx: number) =>
+          !used.has(idx) && line.costDetailType === 'Freight'
+          && (String(line.name).includes(allocation.containerTypeName)
+            || String(line.notes ?? '').includes(allocation.containerTypeName)))
+        const chosen = index >= 0 ? all[index] : all.find((line: any) => line.costDetailType === 'Freight')
+        if (index >= 0) used.add(index)
+        return { ...chosen, key: 'freight:' + allocation.containerTypeId,
+          name: 'Flete Internacional · ' + allocation.containerTypeName,
+          costDetailType: 'Freight', section: 'international_freight',
+          costAmount: allocation.freightCostAmount,
+          saleAmount: allocation.freightSaleAmount, included: true }
+      })
+      env.rateLines.value = [
+        ...all.filter((line: any) => line.costDetailType !== 'Freight'),
+        ...reconciled,
+      ]
+    },
     screen7RefreshBusy: { value: false },
     screen7RefreshAllowed: { value: false },
     screen7RefreshPromptOpen: { value: true },
@@ -226,6 +249,69 @@ test('multi-FCL refresh also retains charges from an additional selected carrier
   env.fclAllCarrierIds.value = ['MSC', 'ONE']
   await runRefresh()
   assert.ok(env.rateLines.value.some((line: any) => line.costId === 'C-ONE'))
+})
+
+test('FCL refresh reconciles generic plus persisted container freight into exactly one freight', async () => {
+  const { env, runRefresh } = refreshHarness([])
+  env.form.freightCost = 6700
+  env.form.freightSale = 6950
+  env.editingRate.value = {
+    containers: [{ containerTypeId: '40HC', containerTypeName: '40HC', quantity: 1 }],
+  }
+  env.fclContainerAllocations.value = [{
+    containerTypeId: '40HC', containerTypeName: '40HC', quantity: 1,
+    freightCostAmount: 6700, freightSaleAmount: 6950,
+  }]
+  env.rateLines.value = [
+    { key: 'existing:freight', detailId: 'F-40HC', costId: null,
+      name: 'Flete Internacional · 40HC', notes: 'Flete específico para 1 × 40HC',
+      costDetailType: 'Freight', costType: 'Variable', section: 'international_freight',
+      costAmount: 6700, saleAmount: 6950, included: true, manual: false },
+    { key: 'existing:duplicate', detailId: 'F-OLD', costId: null,
+      name: 'Flete Internacional', notes: 'Fuente anterior',
+      costDetailType: 'Freight', costType: 'Variable', section: 'international_freight',
+      costAmount: 6700, saleAmount: 6950, included: true, manual: false },
+  ]
+  env.rebuildRateLines = () => {
+    env.rateLines.value = [{
+      key: 'freight', name: 'Flete Internacional',
+      costDetailType: 'Freight', costType: 'Variable',
+      section: 'international_freight', costAmount: 6700, saleAmount: 6950,
+      included: true, manual: false,
+    }]
+  }
+  await runRefresh()
+  const freight = env.rateLines.value.filter((line: any) => line.costDetailType === 'Freight')
+  assert.equal(freight.length, 1)
+  assert.equal(freight[0].detailId, 'F-40HC')
+  assert.equal(freight[0].name, 'Flete Internacional · 40HC')
+  assert.ok(env.explicitlyRemovedPersistedDetailIds.value.has('F-OLD'))
+  assert.ok(!env.explicitlyRemovedPersistedDetailIds.value.has('F-40HC'))
+})
+
+test('FCL refresh retains one freight per two different equipment types', async () => {
+  const { env, runRefresh } = refreshHarness([])
+  env.fclContainerAllocations.value = [
+    { containerTypeId: '40HC', containerTypeName: '40HC', quantity: 1,
+      freightCostAmount: 6700, freightSaleAmount: 6950 },
+    { containerTypeId: '20DV', containerTypeName: '20DV', quantity: 1,
+      freightCostAmount: 3400, freightSaleAmount: 3650 },
+  ]
+  env.rateLines.value = [
+    { key: 'existing:1', detailId: 'F-40HC', name: 'Flete Internacional · 40HC',
+      costDetailType: 'Freight', section: 'international_freight', included: true },
+    { key: 'existing:2', detailId: 'F-20DV', name: 'Flete Internacional · 20DV',
+      costDetailType: 'Freight', section: 'international_freight', included: true },
+  ]
+  env.rebuildRateLines = () => {
+    env.rateLines.value = [{ key: 'freight', name: 'Flete Internacional',
+      costDetailType: 'Freight', section: 'international_freight', included: true }]
+  }
+  await runRefresh()
+  const freight = env.rateLines.value.filter((line: any) => line.costDetailType === 'Freight')
+  assert.equal(freight.length, 2)
+  assert.deepEqual(Array.from(freight, (line: any) => line.detailId).sort(), ['F-20DV','F-40HC'])
+  assert.equal(env.explicitlyRemovedPersistedDetailIds.value.size, 0)
 })
 
 test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and retains manual charges', async () => {
