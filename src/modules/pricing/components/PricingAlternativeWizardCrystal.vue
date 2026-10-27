@@ -1953,7 +1953,13 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     add(props.sellerRequestMode && !form.clientId && !form.clientName.trim(), 'client', 'Cliente')
     add(!form.originId, 'originId', 'Origen (POL)')
     add(!form.destinationId, 'destinationId', 'Entrada (POE)')
-    add(Boolean(equipmentHasSizes.value && !form.equipmentSize), 'equipmentSize', 'Tamaño de equipo')
+    // FCL uses the split container picker, which resolves size + kind into
+    // form.equipmentId. The old form.equipmentSize control is hidden there.
+    const standaloneEquipmentSelectorVisible =
+      shipmentModeForApi.value !== 'Fcl'
+      && shipmentModeForApi.value !== 'Lcl'
+      && shipmentModeForApi.value !== 'Ltl'
+    add(Boolean(standaloneEquipmentSelectorVisible && equipmentHasSizes.value && !form.equipmentSize), 'equipmentSize', 'Tamaño de equipo')
     add(!selectedEquipment.value, 'equipmentType', 'Tipo de equipo')
     add(!(form.equipmentQuantity > 0), 'equipmentQuantity', 'Cantidad de equipo')
     add(!form.incotermId, 'incotermId', 'Incoterm')
