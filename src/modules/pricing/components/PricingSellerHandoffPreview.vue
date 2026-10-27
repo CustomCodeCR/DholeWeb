@@ -94,6 +94,7 @@ const priorityClasses = computed(() => ({
 
 const fromName = computed(() => firstProvided(props.snapshot.originName, props.originLabel))
 const toName = computed(() => firstProvided(props.snapshot.poeName, props.snapshot.destinationName, props.destinationLabel))
+const finalDestinationName = computed(() => firstProvided(props.snapshot.podName, props.podLabel))
 const readyDate = computed(() => firstProvided(label('cargoReadyDate'), label('loadDate')))
 const remarks = computed(() => label('cargoObservations'))
 const description = computed(() => label('cargoDescription'))
@@ -343,10 +344,11 @@ function fileKind(fileName: string): string {
             <Route class="h-4 w-4 text-[var(--dh-primary)]" />
             <h3 class="text-sm font-black">03 · Ruta e Incoterm</h3>
           </div>
-          <div class="m-4 flex flex-wrap items-center gap-3 rounded-xl border border-[rgb(var(--dh-primary-rgb)/0.18)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-3">
-            <div class="min-w-0 flex-1"><div class="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">Origen</div><p class="flex items-start gap-1 text-sm font-black"><MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" /><span>{{ fromName }}</span></p></div>
+          <div class="m-4 flex flex-col gap-3 sm:flex-row sm:items-start rounded-xl border border-[rgb(var(--dh-primary-rgb)/0.18)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-3">
+            <div class="min-w-0 flex-1"><div class="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">{{ isLand ? 'Origen' : 'Origen · POL' }}</div><p class="flex items-start gap-1 text-sm font-black"><MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" /><span>{{ fromName }}</span></p></div>
             <ArrowRight class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
-            <div class="min-w-0 flex-1"><div class="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">Destino</div><p class="flex items-start gap-1 text-sm font-black"><MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" /><span>{{ toName }}</span></p></div>
+            <div class="min-w-0 flex-1"><div class="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">{{ isLand ? 'Destino' : 'Entrada · POE' }}</div><p class="flex items-start gap-1 text-sm font-black"><MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" /><span>{{ toName }}</span></p></div>
+            <template v-if="!isLand && finalDestinationName !== 'No indicado'"><ArrowRight class="h-4 w-4 shrink-0 self-center text-[var(--dh-primary)]" /><div class="min-w-0 flex-1"><div class="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">Destino final · POD</div><p class="flex items-start gap-1 text-sm font-black"><MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" /><span>{{ finalDestinationName }}</span></p></div></template>
           </div>
           <dl class="grid gap-3 px-4 pb-4 text-sm sm:grid-cols-2">
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incoterm</dt><dd class="font-bold">{{ incotermLabel || label('incotermCode') }}</dd></div>
