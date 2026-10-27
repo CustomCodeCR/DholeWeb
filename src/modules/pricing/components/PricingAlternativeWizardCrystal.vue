@@ -5593,7 +5593,10 @@ onMounted(async () => {
             <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
               <p v-if="fieldError('freightCost')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('freightCost') }}</p>
             </div>
-            <DhInput v-model.number="form.freightSale" data-required-field="freightSale" :error="fieldError('freightSale')" type="number" min="0" step="0.01" label="Flete internacional · venta" />
+            <div data-required-field="freightSale" :class="isInvalid('freightSale') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
+            <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
+              <p v-if="fieldError('freightSale')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('freightSale') }}</p>
+            </div>
             <DhInput v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
             <div v-else-if="form.modality !== 'Land'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
             <DhInput v-model.number="form.transitDays" type="number" min="0" label="Días de tránsito" />
