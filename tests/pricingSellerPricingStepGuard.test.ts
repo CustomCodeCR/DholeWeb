@@ -39,3 +39,12 @@ test('pricing request navigation and back button never expose Sales screens 1-4'
   assert.ok(vite.indexOf('pricingSellerPricingStepGuard(),') > vite.indexOf('pricingSellerModificationWizard(),'))
   assert.ok(vite.indexOf('pricingSellerPricingStepGuard(),') < vite.indexOf('vue(),'))
 })
+
+test('Sales requests clamp navigation to step 4 even on direct assignments and draft restore', () => {
+  const source = read('build/pricingSellerPricingStepGuard.ts')
+  assert.match(source, /props\.sellerRequestMode && !pricingSellerScreensLocked\.value/)
+  assert.match(source, /step\.value > 4\) step\.value = 4/)
+  assert.match(source, /sellerRequestScreensLocked\.value && target > 4/)
+  assert.match(source, /sellerRequestScreensLocked\.value && step\.value >= 4/)
+  assert.match(source, /watch\(\[step, \(\) => props\.rateRequestId, \(\) => props\.modificationRequestId, \(\) => props\.sellerRequestMode\]/)
+})
