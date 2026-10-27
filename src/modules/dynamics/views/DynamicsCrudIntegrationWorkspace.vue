@@ -59,6 +59,8 @@ const showQuoteDetailFields=ref(false)
 const quoteDetailSearch=ref('')
 const MAX_COMMAND_FIELDS=64
 const keyName=ref('')
+const proposedKeyField=ref('new_idtraasignado')
+const alternateKeysLoading=ref(false)
 const endpointName=ref('crear_oferta')
 const snapshot=ref<Snapshot|null>(null)
 const policies=ref<Policy>({entities:[],fields:[]})
@@ -231,6 +233,11 @@ function setExampleOption(field:Field,value:string) {
   exampleOptions.value[field.logicalName]=field.type==='EntityName'?value:Number(value)
 }
 const eligibleKeys=computed(()=>table.value?.alternateKeys??[])
+const candidateKeyFields=computed(()=>table.value?.columns.filter(f=>
+  ['String','Integer','Decimal','DateTime','Picklist'].includes(f.type)&&
+  f.canRead&&!f.isCalculated).sort((a,b)=>
+    Number(b.logicalName===proposedKeyField.value)-Number(a.logicalName===proposedKeyField.value)||
+    display(a.labels,a.logicalName).localeCompare(display(b.labels,b.logicalName),'es'))??[])
 const selectedKey=computed(()=>eligibleKeys.value.find(k=>k.logicalName===keyName.value))
 const selectedFields=computed(()=>eligibleFields.value.filter(f=>selected.value.includes(f.logicalName)))
 const definition=computed<Definition>(()=>({
@@ -246,8 +253,6 @@ const definition=computed<Definition>(()=>({
     source:f.logicalName,
     ...(relationshipTypes.has(f.type)&&relationMode(f)==='name'
       ?{steps:[{op:'lookup_name',argument:selectedNameField(f)}]}:
-      // Divisa/moneda use their supplied input value; mappings must
-      // contain an object, never a raw string (invalid TypeScript spread).
       f.logicalName==='new_equipo'&&f.type==='Picklist'
       ?{steps:[{op:'choice_label'}]}:{})
   }))
@@ -266,7 +271,7 @@ const validationIssues=computed(()=>{
   if(metadataChoicesMissing.value.length)
     issues.push('No hay opciones válidas para: '+metadataChoicesMissing.value.map(f=>f.logicalName).join(', '))
   if(operation.value==='upsert'&&!selectedKey.value)
-    issues.push('UPSERT necesita una clave alternativa válida de Dataverse.')
+    issues.push('UPSERT necesita una clave alternativa activa de Dataverse. Seleccioná una columna existente, definí la clave en Dataverse y actualizá las claves.')
   return issues
 })
 const configValid=computed(()=>validationIssues.value.length===0)
@@ -302,6 +307,7 @@ const exampleBody=computed(()=>{
       ?(/^new_idtra(?:10|[1-9])$/i.test(f.logicalName)
         ?'IDTRA-2026-'+String(124+Number(f.logicalName.replace('new_idtra',''))).padStart(5,'0')
         :f.logicalName==='transactioncurrencyid'?'USD':'NOMBRE EXACTO EN DYNAMICS'):
+      f.logicalName==='new_divisa'||f.logicalName==='new_moneda'?'USD':
       f.logicalName==='new_equipo'&&f.type==='Picklist'
       ?choicesFor(f).find(o=>o.value===chosenValue(f))?.label??null:
       ['Picklist','State','Status','EntityName'].includes(f.type)
@@ -402,7 +408,7 @@ function forward(){
       metadataChoicesMissing.value.map(f=>f.logicalName).join(', ');return
   }
   if(step.value===2&&operation.value==='upsert'&&!selectedKey.value){
-    error.value='Seleccioná una clave alternativa descubierta en Dataverse.';return
+    error.value='Seleccioná una clave alternativa activa de Dataverse. Usá el botón Actualizar claves y verificá que el índice esté activo.';return
   }
   if(step.value===3&&!configValid.value){error.value=validationIssues.value.join(' ');return}
   if(step.value<4)step.value=(step.value+1) as 1|2|3|4
@@ -447,6 +453,27 @@ async function refresh(){
     void loadChoiceOptions()
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo cargar el catálogo.'}
   finally{busy.value=false}
+}
+async function refreshAlternateKeys(){
+  if(!entity.value||alternateKeysLoading.value)return
+  alternateKeysLoading.value=true;error.value='';success.value=''
+  try{
+    const result=await fetchClient<{alternateKeys:Array<{logicalName:string;attributes:string[]}>}>(
+      api('metadata/entities/'+encodeURIComponent(entity.value)+'/alternate-keys/refresh'),
+      {method:'POST'})
+    // Only refresh metadata. Never reset selected columns, lookup bindings,
+    // Picklist selections, pending draft or saved version.
+    snapshot.value=await fetchClient<Snapshot>(api('metadata'),{method:'GET'})
+    const matches=result.alternateKeys.filter(key=>key.attributes.length===1&&
+      key.attributes[0]===proposedKeyField.value)
+    if(matches.length===1)keyName.value=matches[0]!.logicalName
+    else if(!result.alternateKeys.some(key=>key.logicalName===keyName.value))
+      keyName.value=''
+    success.value=result.alternateKeys.length
+      ?'Claves activas actualizadas desde Dataverse. Se conservaron todas tus columnas y relaciones.'
+      :'Dataverse todavía no tiene una clave alternativa activa para esta tabla. Creala sobre una columna existente y actualizá nuevamente.'
+  }catch(e){error.value=describeCrudError(e,'No se pudieron actualizar las claves alternativas.')}
+  finally{alternateKeysLoading.value=false}
 }
 async function reloadDefinitions(){
   definitions.value=await fetchClient<Summary[]>(api('templates'),{method:'GET'})
@@ -926,14 +953,47 @@ onMounted(refresh)
                 Consultá las opciones de nuevo; no se publicará una API con valores inventados.
               </p>
             </div>
-            <label v-if="operation==='upsert'" class="crud-field">Clave alternativa de Dataverse
-              <select v-model="keyName"><option value="">Seleccionar clave</option>
-                <option v-for="key in eligibleKeys" :key="key.logicalName" :value="key.logicalName">
-                  {{ key.logicalName }} · {{ key.attributes.join(', ') }}
-                </option></select>
-            </label>
-            <p v-if="operation==='upsert'&&!eligibleKeys.length" class="crud-error">
-              Esta tabla aún no tiene claves alternativas descubiertas. El UP SERT no puede publicarse sin una clave válida.</p>
+            <div v-if="operation==='upsert'" class="crud-options-panel">
+              <h4>Clave alternativa para localizar la oferta existente</h4>
+              <p>UPSERT necesita una clave única que Dataverse haya creado y marcado como <strong>Activa</strong>.
+                No se crea ningún campo nuevo: se puede definir la clave sobre una columna existente.</p>
+              <label class="crud-field">Columna existente que querés usar como identificador
+                <select v-model="proposedKeyField">
+                  <option v-for="field in candidateKeyFields" :key="field.logicalName" :value="field.logicalName">
+                    {{ display(field.labels,field.logicalName) }} · {{ field.logicalName }}
+                  </option>
+                </select>
+              </label>
+              <label class="crud-field">Clave alternativa activa de Dataverse
+                <select v-model="keyName">
+                  <option value="">Seleccionar clave activa</option>
+                  <option v-for="key in eligibleKeys" :key="key.logicalName" :value="key.logicalName">
+                    {{ key.logicalName }} · {{ key.attributes.join(', ') }}
+                  </option>
+                </select>
+              </label>
+              <div class="crud-actions">
+                <button type="button" class="crud-secondary" :disabled="alternateKeysLoading||!entity"
+                  @click="refreshAlternateKeys"><RefreshCw :size="15"/>
+                  {{ alternateKeysLoading?'Consultando Dataverse...':'Actualizar claves desde Dataverse' }}</button>
+              </div>
+              <div v-if="!eligibleKeys.length" class="crud-info">
+                Aún no hay claves alternativas activas. En Power Apps → Tablas → Oferta
+                → Claves, creá una clave sobre <code>{{ proposedKeyField }}</code>, esperá el estado
+                «Activa» y pulsá «Actualizar claves desde Dataverse».
+                Esto crea una restricción de unicidad, no una nueva columna.
+              </div>
+              <div v-if="proposedKeyField==='new_idtraasignado'" class="crud-note">
+                <ShieldCheck :size="17"/>
+                <p><strong>Atención:</strong> actualmente <code>new_idtraasignado</code> almacena los
+                  IDTRA de los trámites. No se puede usar a la vez para ese texto y para guardar
+                  el GUID de la tarifa sin modificar también el mapeo de Pricing y revisar los
+                  registros existentes. Crear una clave no cambia automáticamente esos valores.</p>
+              </div>
+              <p class="crud-help">Si ya configuraste la clave en Dynamics y sigue sin aparecer,
+                verificá que la creación del índice finalizó correctamente. Los índices pendientes
+                o fallidos no se pueden usar para UPSERT.</p>
+            </div>
           </template>
         </template>
         <template v-else-if="step===3">
