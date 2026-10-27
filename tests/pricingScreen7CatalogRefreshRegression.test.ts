@@ -129,6 +129,22 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
       selectCosts: async () => allActiveCosts,
     },
     rebuildRateLines: () => { env.rateLines.value = [] },
+    // Explicit catalog refresh must reapply the seller's selected handling.
+    syncHaulageOptionalLines: () => {
+      for (const line of env.rateLines.value) {
+        if (!line.optional || !line.costId) continue
+        const cost = env.costs.value.find((item: any) => item.id === line.costId)
+        if (!cost) continue
+        const name = String(cost.name ?? '').toLowerCase()
+        const mode = env.form.portHandlingMode
+        line.included = name.includes('anticipado') && !name.includes('redestino')
+          ? mode === 'Anticipado'
+          : name.includes('redestino') && !name.includes('anticipado')
+            ? mode === 'Redestino'
+            : !cost.operationalConditions?.length
+              || cost.operationalConditions.every((c: string) => c === mode)
+      }
+    },
     number: (v: unknown) => Number(v) || 0,
     resolvedConditionalCost: (cost: any) => ({
       costAmount: cost.costAmount, saleAmount: cost.saleAmount,
@@ -184,6 +200,31 @@ test('screen 7 preserves every persisted line if Pricing returns no matching amo
   assert.deepEqual(events, ['saved', 'warning'])
 })
 
+
+test('screen 7 recalculates sale and includes only the seller-selected port handling', async () => {
+  const current = [
+    { id: 'C-ANT', name: 'Anticipado', costDetailType: 'DestinationCharge',
+      costType: 'Optional', isActive: true, currencyId: 'USD', currencyCode: 'USD',
+      currencyName: 'USD', costAmount: 125, saleAmount: 150 },
+    { id: 'C-RED', name: 'Redestino', costDetailType: 'DestinationCharge',
+      costType: 'Optional', isActive: true, currencyId: 'USD', currencyCode: 'USD',
+      currencyName: 'USD', costAmount: 50, saleAmount: 65 },
+  ]
+  const { env, runRefresh } = refreshHarness(current)
+  env.form.portHandlingMode = 'Anticipado'
+  await runRefresh()
+  const anticipado = env.rateLines.value.find((x: any) => x.costId === 'C-ANT')
+  const redestino = env.rateLines.value.find((x: any) => x.costId === 'C-RED')
+  assert.ok(anticipado)
+  assert.ok(redestino)
+  assert.equal(anticipado.included, true)
+  assert.equal(anticipado.saleAmount, 150)
+  assert.equal(redestino.included, false)
+  env.form.portHandlingMode = 'Redestino'
+  await runRefresh()
+  assert.equal(env.rateLines.value.find((x: any) => x.costId === 'C-RED').included, true)
+  assert.equal(env.rateLines.value.find((x: any) => x.costId === 'C-ANT').included, false)
+})
 
 test('screen 7 replaces RS/ONE historical charges with WWL/MSC and marks obsolete details for deletion', async () => {
   const current = [
