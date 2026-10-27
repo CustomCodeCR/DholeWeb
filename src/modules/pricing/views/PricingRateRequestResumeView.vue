@@ -47,7 +47,6 @@ type WorkRequest = {
 const router = useRouter()
 const toast = useToastStore()
 const workRequest = ref<WorkRequest | null>(null)
-const finishing = ref(false)
 const workStatusSaving = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
@@ -88,28 +87,6 @@ async function downloadModificationDocument(file: ModificationDocument) {
     await StorageService.downloadFile({ id: file.id, fileName: file.fileName })
   } catch (cause) {
     toast.backendError(cause, 'No se pudo descargar el documento enviado por Ventas.')
-  }
-}
-const modificationPrepared = computed(() => isModification.value
-  && Number(workRequest.value?.preparedRevisionNumber || 0) >
-     Number(workRequest.value?.payload?.modification?.sourceRevisionNumber || 0))
-function onModificationPrepared(event: Event) {
-  const detail = (event as CustomEvent<{ requestId: string; preparedRevisionNumber: number }>).detail
-  if (detail?.requestId !== requestId.value || !workRequest.value || !ready.value) return
-  workRequest.value.preparedRevisionNumber = detail.preparedRevisionNumber
-}
-async function completeModification() {
-  const rateId = workRequest.value?.rateId
-  if (!rateId || !modificationPrepared.value || finishing.value) return
-  finishing.value = true
-  try {
-    await RateRequestLeaseService.completeRate(requestId.value, rateId, { confirmSellerModification: true })
-    toast.success('Modificación completada', 'Se envió la nueva revisión al vendedor con el PDF actualizado.')
-    await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
-  } catch (error) {
-    toast.backendError(error, 'Primero guarde una revisión nueva y luego vuelva a enviar la tarifa.')
-  } finally {
-    finishing.value = false
   }
 }
 const requestId = computed(() => String(route.params.requestId ?? ''))
@@ -213,7 +190,6 @@ function stop() {
 }
 
 onMounted(() => {
-  window.addEventListener('dhole:pricing:modification-prepared', onModificationPrepared)
   window.addEventListener('focus', renewOnFocus)
   document.addEventListener('visibilitychange', renewOnVisibilityChange)
   void begin(requestId.value)
@@ -224,7 +200,6 @@ watch(requestId, (next, previous) => {
   void begin(next)
 })
 onBeforeUnmount(() => {
-  window.removeEventListener('dhole:pricing:modification-prepared', onModificationPrepared)
   window.removeEventListener('focus', renewOnFocus)
   document.removeEventListener('visibilitychange', renewOnVisibilityChange)
   stop()
@@ -335,17 +310,11 @@ onBeforeUnmount(() => {
         <p class="text-sm font-black">Continuar modificación · {{ workRequest?.payload?.modification?.quote || workRequest?.rateId }}</p>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
           Revisión original {{ workRequest?.payload?.modification?.sourceRevisionNumber ?? 1 }}.
-          Compare los cambios en el wizard, guarde la nueva revisión y después envíela al vendedor.
+          Compare los cambios en el wizard y guarde la nueva revisión. La solicitud se completará automáticamente;
+          el PDF se enviará al vendedor ahora o al aprobar el margen, según corresponda.
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <DhButton
-          label="Enviar revisión al vendedor"
-          :loading="finishing"
-          :disabled="!workRequest?.rateId || !modificationPrepared || finishing"
-          @click="completeModification"
-        />
-        <span v-if="!modificationPrepared" class="text-xs font-semibold text-amber-500">Primero guarde los cambios de la nueva revisión en pantalla 8.</span>
         <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
       </div>
     </section>
