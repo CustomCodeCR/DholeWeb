@@ -13,8 +13,9 @@ const { t } = useI18n()
     <select
       :value="modelValue ?? ''"
       :disabled="disabled"
+      :aria-invalid="Boolean(error)"
       class="dh-select h-11 w-full rounded-[18px] border border-[var(--dh-border)] px-3 text-sm font-semibold shadow-[var(--dh-shadow-sm)] outline-none transition dh-focus-primary disabled:cursor-not-allowed disabled:opacity-50"
-      :class="error && 'border-red-500'"
+      :class="error && '!border-red-500 ring-2 ring-red-500/20'"
       @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
     >
       <option v-if="placeholder !== ''" value="" disabled>{{ placeholder ?? t('common.select') }}</option>
