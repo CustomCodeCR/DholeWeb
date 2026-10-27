@@ -1110,11 +1110,17 @@ const selectedCrcCustomsService = computed(
 // Keep customs line helpers outside loadApplicableCosts: the FTL Vite transform
 // replaces that entire loader and would otherwise erase these definitions.
 function isCrcCustomsLine(line: RateLine, serviceId: string) {
-  if (line.section !== 'destination_charges') return false
+  if (line.section !== 'destination_charges' || line.costDetailType === 'Freight') return false
+  if (line.serviceIds?.includes(serviceId)) return true
+
   const name = normalizeCatalogValue(line.name)
-  return (line.serviceIds?.includes(serviceId) && line.costDetailType !== 'Freight')
-    || (line.costDetailType === 'CustomsCharge' && /aduan|nacionaliz/.test(name)
-      && /crc|costa rica|nacionaliz/.test(name))
+  // A manually entered "TRÁMITE DE ADUANAS" is the same selected CRC service,
+  // even though manual charges use DestinationCharge rather than CustomsCharge.
+  // Do not confuse it with the separate "CUSTOMS" origin charge.
+  if (line.manual && /(?:tramite|agencia|servicio).*aduan|aduan.*(?:crc|costa rica)|nacionaliz/.test(name)) return true
+  return line.costDetailType === 'CustomsCharge'
+    && /aduan|nacionaliz/.test(name)
+    && /crc|costa rica|nacionaliz/.test(name)
 }
 
 function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {
