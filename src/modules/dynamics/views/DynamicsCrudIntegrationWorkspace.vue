@@ -66,6 +66,8 @@ const definitions=ref<Summary[]>([])
 const showRetiredFlows=ref(false)
 const retireConfirmation=ref<string|null>(null)
 const keys=ref<KeyInfo[]>([])
+const reuseKeyId=ref('')
+const reuseKeyConfirm=ref(false)
 const issued=ref<Issued|null>(null)
 const createdVersion=ref<number|null>(null)
 const keyForm=ref({label:'Mi aplicación',expiresInDays:30,maxRequestsPerMinute:30})
@@ -269,6 +271,9 @@ const validationIssues=computed(()=>{
 })
 const configValid=computed(()=>validationIssues.value.length===0)
 const selectedTemplate=computed(()=>definitions.value.find(t=>t.name===endpointName.value))
+const reusableKeys=computed(()=>keys.value.filter(k=>
+  k.templateName===endpointName.value&&k.entityName===entity.value&&k.enabled&&
+  new Date(k.expiresAt).getTime()>Date.now()))
 // Activation targets an immutable revision that was saved by the API. A client-side
 // field comparison must not hide a persisted revision: metadata ordering, omitted
 // default values and OData mappings can legitimately differ after a round-trip.
@@ -368,7 +373,17 @@ async function prepareQuoteIntegration(){
 }
 async function copy(value:string){await navigator.clipboard.writeText(value);success.value='Copiado al portapapeles.'}
 function chooseOperation(op:Operation){
-  if(operation.value!==op){operation.value=op;selected.value=[];chosenRelations.value={};exampleOptions.value={};keyName.value='';createdVersion.value=null;fieldVisibility.value='all'}
+  if(operation.value===op)return
+  // Switching CREATE ↔ UPSERT (or UPDATE) changes validation rules, not the
+  // user's carefully configured fields, lookups and Picklist selections.
+  // Missing create/update permissions are reported before saving; none of
+  // the existing mappings are silently removed.
+  operation.value=op
+  createdVersion.value=null
+  issued.value=null
+  reuseKeyConfirm.value=false
+  error.value=''
+  success.value=''
 }
 function changeTable(){selected.value=[];exampleOptions.value={};keyName.value='';createdVersion.value=null;fieldVisibility.value='all'}
 function back(){if(step.value>1)step.value=(step.value-1) as 1|2|3|4}
@@ -480,7 +495,9 @@ const crudErrorReasons:Record<string,string>={
   crud_field_denied:'Uno o más campos elegidos no tienen permiso de creación en Catálogo o cambiaron sus metadatos.',
   template_mapping_field_denied:'Una relación o campo del comando no conserva la autorización de Dataverse. Revisá Tabla y campos.',
   active_template_required:'Primero activá la versión de crear_oferta.',
-  template_version_changed:'La versión activa cambió durante la operación. Recargá y generá una clave para la versión actual.',
+  template_version_changed:'La versión activa cambió durante la operación. Recargá y reutilizá una clave autorizada para esa versión.',
+  crud_key_rebind_not_allowed:'Esta clave no está vigente, es de otro comando/tabla o la versión activa cambió. Seleccioná una clave válida del mismo comando.',
+  unexpected_alternate_key:'Solo las versiones UPSERT requieren seleccionar una clave alternativa.',
   invalid_crud_key_request:'Verificá el nombre, vencimiento y límite de solicitudes de la clave.',
   approved_alternate_key_required:'UPSERT requiere una clave alternativa válida.',
   quote_lookup_name_field_not_authorized:'Falta lectura del campo elegido para buscar por nombre al cliente o IDTRA.'
@@ -492,6 +509,25 @@ function describeCrudError(value:unknown,fallback:string):string {
     return (code?'Error '+code+' (HTTP '+(value.status??'?')+'): ':'')+reason
   }
   return value instanceof Error?value.message:fallback
+}
+async function reuseKey(){
+  if(!active.value||!canManage.value||!reuseKeyConfirm.value)return
+  const key=reusableKeys.value.find(k=>k.id===reuseKeyId.value)
+  if(!key)return
+  busy.value=true;error.value='';success.value=''
+  try{
+    await fetchClient<KeyInfo>(api('crud-keys/'+encodeURIComponent(key.id)+'/rebind'),{
+      method:'PUT',
+      body:{templateName:endpointName.value,
+        keyFields:operation.value==='upsert'?selectedKey.value?.attributes??[]:[]}
+    })
+    keys.value=await fetchClient<KeyInfo[]>(api('crud-keys'),{method:'GET'})
+    if(endpointName.value==='crear_oferta'&&operation.value==='create')
+      quoteTotalGrantKeyId.value=key.id
+    reuseKeyConfirm.value=false
+    success.value='Clave '+key.label+' vinculada a la versión activa sin cambiar su valor, vencimiento ni límites. Los permisos del comando se revalidaron.'
+  }catch(e){error.value=describeCrudError(e,'No se pudo reutilizar la clave.')}
+  finally{busy.value=false}
 }
 async function issueKey(){
   if(!active.value||!canManage.value)return
@@ -630,6 +666,8 @@ function inspect(t:Summary){
   createdVersion.value=version.version
   step.value=4
   issued.value=null
+  reuseKeyConfirm.value=false
+  reuseKeyId.value=''
   if(!tableInfo)error.value='La tabla de esta versión no está en el catálogo actual. Revisá Catálogo antes de guardar otra versión.'
   else if(!restoredFields.size&&version.definition.operation!=='delete')
     error.value='No se pudieron recuperar los campos de esta versión. Revisá Tabla y campos antes de guardar.'
@@ -638,6 +676,11 @@ watch(()=>props.connections, list=>{
   if(list.length&&!list.some(x=>x.code===connection.value))connection.value=list[0]!.code
 },{immediate:true,deep:true})
 watch(connection,()=>{createdVersion.value=null;issued.value=null;void refresh()})
+watch(reusableKeys, valid=>{
+  if(!valid.some(key=>key.id===reuseKeyId.value))
+    reuseKeyId.value=valid.length===1?valid[0]!.id:''
+  reuseKeyConfirm.value=false
+})
 watch(quoteTotalKeys, valid=>{
   if(!valid.some(key=>key.id===quoteTotalGrantKeyId.value))
     quoteTotalGrantKeyId.value=valid.length===1?valid[0]!.id:''
@@ -950,7 +993,32 @@ onMounted(refresh)
             <button class="crud-secondary" type="button" @click="step=2">Volver a Tabla y campos</button>
           </div>
           <div v-if="active" class="crud-card">
-            <h4>3. Generar clave exclusiva para esta integración</h4>
+            <h4>3. Reutilizar una API Key existente</h4>
+            <p class="crud-help">Podés usar una clave ya emitida para otra versión de este mismo comando.
+              Se mantiene exactamente el secreto usado por tu aplicación. Si cambiás CREATE a UPSERT,
+              se revalidan permisos de creación y edición y la clave alternativa seleccionada.</p>
+            <label class="crud-field">Clave existente
+              <select v-model="reuseKeyId">
+                <option value="">Seleccionar clave vigente de {{ endpointName }}</option>
+                <option v-for="key in reusableKeys" :key="key.id" :value="key.id">
+                  {{ key.label }} · {{ key.operation.toUpperCase() }} · v{{ key.templateVersion }}
+                  · {{ key.id.slice(0,8) }}
+                </option>
+              </select>
+            </label>
+            <label v-if="reuseKeyId" class="crud-field">
+              <span><input v-model="reuseKeyConfirm" type="checkbox">
+                Confirmo vincular esta clave a la versión activa y actualizar solamente los permisos autorizados.</span>
+            </label>
+            <button class="crud-primary" type="button"
+              :disabled="busy||!reuseKeyId||!reuseKeyConfirm"
+              @click="reuseKey"><KeyRound :size="15"/> Reutilizar clave seleccionada</button>
+            <p v-if="!reusableKeys.length" class="crud-help">
+              No hay claves vigentes de este comando. Podés generar una nueva sin eliminar ninguna versión.
+            </p>
+          </div>
+          <div v-if="active" class="crud-card">
+            <h4>O generar una API Key nueva</h4>
             <div class="crud-two">
               <label class="crud-field">Nombre de aplicación
                 <input v-model.trim="keyForm.label" maxlength="120" placeholder="Pangolin"></label>
@@ -972,6 +1040,11 @@ onMounted(refresh)
               <button class="crud-primary" type="button" @click="copy(issued.apiKey)"><Copy :size="14"/> Copiar clave</button>
               <button class="crud-secondary" type="button" @click="issued=null">Ya la guardé · ocultar</button>
             </div>
+          </div>
+          <div v-if="endpointName==='crear_oferta'&&entity==='quote'&&operation==='upsert'" class="crud-note">
+            La integración automática de Pricing todavía usa el endpoint especializado de CREATE y
+            una línea quotedetail. Publicar UPSERT exige adaptar también esa integración antes de
+            activar la nueva versión en producción; cambiar solo el selector no actualiza ofertas existentes.
           </div>
           <div v-if="endpointName==='crear_oferta'&&entity==='quote'&&operation==='create'" class="crud-card">
             <h4>Importe total de Oferta calculado por Dataverse</h4>
@@ -1004,11 +1077,11 @@ onMounted(refresh)
             <p v-if="!quoteTotalKeys.length" class="crud-error">
               No hay una clave vigente para la versión activa
               {{ quoteTotalActiveVersion?'v'+quoteTotalActiveVersion:'(ninguna)' }} de crear_oferta.
-              Generá una clave en esta versión y actualizá el secreto del backend de Pricing.
+              Podés reutilizar una clave de una versión anterior arriba sin cambiar el secreto del backend de Pricing.
             </p>
             <p v-if="outdatedQuoteTotalKeys.length" class="crud-help">
-              {{ outdatedQuoteTotalKeys.length }} clave(s) de versiones anteriores se ocultan:
-              el conector no las acepta con la versión actual.
+              {{ outdatedQuoteTotalKeys.length }} clave(s) de versiones anteriores disponibles para
+              volver a vincular usando «Reutilizar clave seleccionada».
             </p>
             <label class="crud-field">
               <input v-model="quoteTotalGrantConfirm" type="checkbox">
