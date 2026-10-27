@@ -428,8 +428,8 @@ function fileKind(fileName: string): string {
               <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin opciones adicionales seleccionadas.</p>
             </div>
             <dl class="grid gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm sm:grid-cols-2">
-              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Package class="h-3.5 w-3.5" /> Bultos declarados (piezas)</dt><dd class="font-bold">{{ label('cargoPackages') }}</dd></div>
-              <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Tarimas / embalaje</dt><dd class="font-bold">{{ isConsolidated ? sellerPalletsLabel : label('cargoPallets') }}</dd></div>
+              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Package class="h-3.5 w-3.5" /> Piezas de mercancía declaradas</dt><dd class="font-bold">{{ label('cargoPackages') }}</dd></div>
+              <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Tarimas (embalaje)</dt><dd class="font-bold">{{ isConsolidated ? sellerPalletsLabel : label('cargoPallets') }}</dd></div>
               <template v-if="isConsolidated && cargoVolume">
                 <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen físico</dt><dd class="font-black text-[var(--dh-text)]">{{ cargoVolume.physical }}</dd></div>
                 <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen cobrable</dt><dd class="font-black text-[var(--dh-primary)]">{{ cargoVolume.chargeable }}</dd></div>
@@ -442,7 +442,7 @@ function fileKind(fileName: string): string {
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">No estibable / almacenaje</dt><dd class="font-semibold">{{ label('nonStackable') }} / {{ label('storageDays') }} días</dd></div>
             </dl>
             <div v-if="isConsolidated" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
-              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Bultos declarados y unidades de carga son conceptos distintos. Solo la cantidad por línea multiplica sus dimensiones; el peso es total de cada línea.</p>
+              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Las piezas declaradas indican artículos; la cantidad por línea indica embalajes y es la que multiplica sus dimensiones. El peso ya representa el total de esa línea.</p>
               <div v-if="sellerVolumeMismatch" class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
                 La solicitud original tiene un volumen guardado distinto del calculado con sus líneas. Se muestra el cálculo de las líneas; confirme la carga antes de cotizar. No se modificó la solicitud histórica.
               </div>
@@ -450,7 +450,7 @@ function fileKind(fileName: string): string {
                 <article v-for="line in sellerCargoLines" :key="line.key" class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
                   <p class="text-sm font-bold">{{ line.description }} · {{ line.quantity }} × {{ line.unitName }}</p>
                   <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-                    Dimensiones por unidad: {{ cargoDisplayNumber(line.lengthCm) }} × {{ cargoDisplayNumber(line.widthCm) }} × {{ cargoDisplayNumber(line.heightCm) }} cm
+                    Dimensiones exteriores por embalaje: {{ cargoDisplayNumber(line.lengthCm) }} × {{ cargoDisplayNumber(line.widthCm) }} × {{ cargoDisplayNumber(line.heightCm) }} cm
                     · Peso total de línea: {{ cargoDisplayNumber(line.weightKg) }} kg
                     · Volumen físico: {{ line.physicalCbm.toFixed(3) }} CBM
                   </p>
