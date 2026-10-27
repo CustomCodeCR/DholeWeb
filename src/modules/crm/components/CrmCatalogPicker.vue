@@ -7,6 +7,7 @@ import { Search } from 'lucide-vue-next'
 
 const props = withDefaults(defineProps<{
   label: string
+  validationError?: string
   catalogGroupSlug: string
   modelValue: string
   valueKind?: 'id' | 'code' | 'value'
@@ -69,7 +70,7 @@ watch(() => props.catalogGroupSlug, () => { query.value = ''; void reload() }, {
         @update:model-value="query = $event" @keyup.enter.prevent="reload" />
       <DhButton :icon="Search" label="Buscar" variant="secondary" size="sm" :loading="loading" @click="reload" />
     </div>
-    <DhSelect :model-value="modelValue" :options="options" placeholder=""
+    <DhSelect :error="props.validationError" :model-value="modelValue" :options="options" placeholder=""
       @update:model-value="emit('update:modelValue', String($event))" />
     <p v-if="error" role="alert" class="text-xs text-red-500">{{ error }}</p>
   </section>
