@@ -228,3 +228,35 @@ test('Pricing screen 6 filters agents by origin and only offers maritime carrier
   assert.ok(providers.includes('form.modality, form.carrierId, hydratingExistingRate.value'))
   assert.ok(land.includes('findById(catalogs.agents, form.agentId)'))
 })
+
+
+test('bultos declarados no se multiplican por tarimas en LCL y LTL', () => {
+  const cargo = readFileSync(new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url), 'utf8')
+  const units = readFileSync(new URL('../build/pricingConsolidatedUnitConversions20261015.ts', import.meta.url), 'utf8')
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const summary = readFileSync(new URL('../src/modules/pricing/components/PricingSellerHandoffPreview.vue', import.meta.url), 'utf8')
+  assert.match(cargo, /unitType: 'Pallet'/)
+  assert.match(cargo, /const consolidatedTotalPallets = computed/)
+  assert.match(cargo, /form\.cargoPallets = consolidatedTotalPallets\.value/)
+  assert.match(cargo, /line\.unitType === 'Pallet' \? 0 : cargoLineQuantity\(line\)/)
+  assert.match(cargo, /line\.unitType === 'Pallet' \? cargoLineQuantity\(line\) : 0/)
+  assert.match(cargo, /Math\.trunc\(number\(form\.cargoPackages\)\)/)
+  assert.match(cargo, /sum \+ Math\.max\(0, number\(line\.weightKg\)\)/)
+  assert.match(cargo, /lengthCm \* widthCm \* heightCm \* quantity \/ 1_000_000/)
+  assert.match(cargo, /Tipo de unidad/)
+  assert.match(cargo, /Cantidad de unidades iguales/)
+  assert.match(units, /bultos declarados/)
+  assert.match(wizard, /Bultos declarados \(piezas\)/)
+  assert.match(summary, /sellerCargoLines/)
+  assert.match(summary, /sellerVolumeMismatch/)
+  assert.match(summary, /Unidades sin clasificar|Unidad sin clasificar/)
+
+  // Tres carretillas declaradas dentro de una sola tarima no son tres tarimas.
+  const cbm = (quantity: number) => quantity * 165 * 140 * 130 / 1_000_000
+  assert.equal(cbm(1), 3.003)
+  assert.equal(cbm(3), 9.009)
+  const declaredPieces = 3
+  const pallets = 1
+  assert.equal(cbm(pallets), 3.003)
+  assert.equal(declaredPieces, 3)
+})
