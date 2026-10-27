@@ -397,7 +397,7 @@ onMounted(() => {
   // Earlier pricing transforms may insert bookkeeping between the creation
   // branch and the success toast. Match the toast itself, not that surrounding
   // whitespace, so master and develop build with the same safe cleanup.
-  const rateCreationToast = /^([ \\t]*)toastStore\\.success\\('Tarifa creada correctamente\\.'/gm
+  const rateCreationToast = /^([ \t]*)toastStore\.success\('Tarifa creada correctamente\.'/gm
   const creationMatches = [...code.matchAll(rateCreationToast)]
   if (creationMatches.length !== 1) {
     throw new Error(`[pricingWizardMultipleDrafts] Expected one created-rate toast, found ${creationMatches.length}.`)
@@ -405,7 +405,7 @@ onMounted(() => {
   code = code.replace(
     rateCreationToast,
     (_match, indentation: string) =>
-      indentation + 'finishCreatedPricingDraft()\\n' + indentation + "toastStore.success('Tarifa creada correctamente.'",
+      indentation + 'finishCreatedPricingDraft()\n' + indentation + "toastStore.success('Tarifa creada correctamente.'",
   )
 
   const discardButtonAnchor = `      <DhButton
