@@ -4,6 +4,7 @@ import { pricingCustomsOnlyWizard } from './build/pricingCustomsOnlyWizard'
 import { pricingSellerMultimodalStep3Fix } from './build/pricingSellerMultimodalStep3Fix'
 import { pricingWizardLandModeTerminology } from './build/pricingWizardLandModeTerminology'
 import { pricingWizardHistoricalValidity } from './build/pricingWizardHistoricalValidity'
+import { pricingWizardGeneratedTemplateIntegrity } from './build/pricingWizardGeneratedTemplateIntegrity'
 import { pricingMiamiOwnLclBreakdown } from './build/pricingMiamiOwnLclBreakdown'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
@@ -208,27 +209,7 @@ export default defineConfig({
     pricingSellerPricingStepGuard(),
     // Last pricing transform: preserve historical shipment dates before Vue compilation.
     pricingWizardHistoricalValidity(),
-    {
-      name: 'temporary-pricing-markup-diagnostic',
-      transform(code, id) {
-        if (!id.endsWith('/PricingAlternativeWizardCrystal.vue')) return null
-        const lines = code.split('\n')
-        const start = lines.findIndex(l=>l.includes('v-else-if="step === 4"'))
-        const end = lines.findIndex((l,i)=>i>start&&l.includes('v-else-if="step === 7"'))
-        if(start<0||end<0)return null
-        const divStack: number[]=[]
-        let extras=0
-        for(let i=start;i<end;i++){
-          const rx=/<(\/?)div\b/gi
-          let m: RegExpExecArray|null
-          while((m=rx.exec(lines[i]!))!==null){
-            if(m[1]) { if(!divStack.length)extras++;else divStack.pop() }
-            else divStack.push(i+1)
-          }
-        }
-        console.error('WIZARD_STEP4_DEPTH '+JSON.stringify({from:start+1,to:end+1,unclosed:divStack.map(i=>({line:i,content:lines[i-1]?.trim()})),unexpectedClosings:extras}))
-      }
-    },
+    pricingWizardGeneratedTemplateIntegrity(),
     vue(),
     tailwindcss(),
   ],
