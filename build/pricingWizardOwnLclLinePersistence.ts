@@ -106,11 +106,17 @@ function syncOwnLclCrcAgencyLine(forceReprice = false) {
     costDetailType: configured.costDetailType,
     costType: configured.costType,
     chargeBasis: configured.chargeBasis ?? 'PerShipment',
-    costId: configured.id,
+    // Own-LCL uses matrix prices as its base. Supplemental CRC service
+    // snapshots must not be removed by backend fixed CostId synchronization.
+    costId: null,
     contextLabel: price
       ? costContextLabel(configured)
       : 'No se encontró un tramo de precio para el peso indicado. Revise los kg antes de guardar.',
-    notes: existing?.notes ?? configured.notes ?? null,
+    notes: [
+      String(existing?.notes ?? configured.notes ?? '').trim(),
+      'Costo maestro Pricing: ' + configured.id,
+      'Servicio aduanal CRC seleccionado',
+    ].filter((part, index, all) => part && all.indexOf(part) === index).join(' · '),
     serviceIds: configured.services?.map((item) => item.id) ?? [service.id],
     currencyId: existing?.detailId && !forceReprice ? existing.currencyId : selectedCurrencyForCost.id,
     currencyName: existing?.detailId && !forceReprice ? existing.currencyName : displayValue(selectedCurrencyForCost),
@@ -269,6 +275,15 @@ function patchWizard(source: string) {
   code = replaceOne(code, 'function addManualCharge() {',
     OWN_LCL_AGENCY_COST_HELPERS + '\nfunction addManualCharge() {',
     'independent own LCL CRC agency cost')
+
+  // The update detail IDs must follow the same filtered list used to make details.
+  code = replaceOne(
+    code,
+    "id: includedLines.value[index]?.detailId ?? null,",
+    "id: (isOwnLclMatrixContext() ? sourceDetails : normalizedIncludedLines)[index]?.detailId ?? null,",
+    'own LCL detail ID alignment',
+  )
+
 
   return code
 }
