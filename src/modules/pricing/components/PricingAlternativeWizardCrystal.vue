@@ -5569,9 +5569,16 @@ onMounted(async () => {
                 v-model.number="form.storageDays" type="number" min="1" step="1"
                 label="Días de almacenaje fiscal"
                 placeholder="Días efectivos en almacén" />
-              <DhInput v-model.number="form.cargoPackages" type="number" min="0" step="1"
-                label="Bultos declarados (piezas)"
-                placeholder="0 = no informados; no multiplica el volumen" />
+              <div v-if="consolidatedCargoMode" class="space-y-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)]/60 p-3 md:col-span-2">
+                <p class="text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Mercancía declarada</p>
+                <DhInput v-model.number="form.cargoPackages" type="number" min="0" step="1"
+                  label="Piezas de mercancía (opcional)"
+                  placeholder="Ej.: 3 carretillas aunque vengan en 1 tarima" />
+                <p class="text-xs text-[var(--dh-text-muted)]">Indique cuántos artículos contiene la carga. Es informativo: las cantidades y medidas para calcular volumen se ingresan en las líneas de embalaje de abajo.</p>
+              </div>
+              <DhInput v-else v-model.number="form.cargoPackages" type="number" min="0" step="1"
+                label="Bultos declarados"
+                placeholder="0 = no informado" />
             </div>
 
             <div v-if="consolidatedCargoMode" class="space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
