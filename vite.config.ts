@@ -219,7 +219,7 @@ export default defineConfig({
         const divStack: number[]=[]
         let extras=0
         for(let i=start;i<end;i++){
-          const rx=/<(\\/?)div\\b/gi
+          const rx=/<(\/?)div\b/gi
           let m: RegExpExecArray|null
           while((m=rx.exec(lines[i]!))!==null){
             if(m[1]) { if(!divStack.length)extras++;else divStack.pop() }
