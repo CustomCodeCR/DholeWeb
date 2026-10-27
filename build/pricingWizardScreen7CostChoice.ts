@@ -531,7 +531,34 @@ async function applyScreen7DatabaseCosts() {
     if (!next.length && previous.length) {
       throw new Error('No se recibieron líneas ni costos para esta cotización. Se conservaron los valores anteriores.')
     }
-    rateLines.value = next
+    // Rebuilding a FCL quotation creates a generic "freight" row while a
+    // saved quotation may already contain the equipment-specific freight row.
+    // They represent the same transport, not two independent charges.
+    // Put persisted rows first so the FCL reconciler reuses their detail IDs,
+    // then let it generate exactly one freight per CURRENT equipment allocation.
+    if (shipmentModeForApi.value === 'Fcl' && hasInternationalTransportService.value) {
+      const persistedFreight = previous.filter((line) =>
+        line.costDetailType === 'Freight' && Boolean(line.detailId))
+      const freshFreight = next.filter((line) =>
+        line.costDetailType === 'Freight'
+        && !persistedFreight.some((original) => original.key === line.key))
+      rateLines.value = [
+        ...next.filter((line) => line.costDetailType !== 'Freight'),
+        ...persistedFreight,
+        ...freshFreight,
+      ]
+      reconcileFclFreightLines()
+      const retainedFreightIds = new Set(rateLines.value
+        .filter((line) => line.costDetailType === 'Freight' && line.detailId)
+        .map((line) => line.detailId))
+      for (const line of persistedFreight) {
+        if (line.detailId && !retainedFreightIds.has(line.detailId)) {
+          discardedProviderDetailIds.add(line.detailId)
+        }
+      }
+    } else {
+      rateLines.value = next
+    }
     // A dropped persisted detail must also be deleted on PUT. The rate-update
     // reconciliation otherwise keeps it when the route stays unchanged or
     // a different agent has a charge with the same displayed name.
