@@ -20,6 +20,13 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
       let code = source.replace(entry,
         `${entry}\n  if (!validateRequiredFields()) return`)
 
+      // Preserve the selected Anticipado / Redestino handling after the older
+      // request-prefix compatibility transforms have completed.
+      code = code.replace(
+        "    form.carrierHaulage = false\n    form.validTo = ''",
+        "    form.carrierHaulage = false\n    form.portHandlingMode = sellerPortHandlingMode.value\n    form.validTo = ''",
+      )
+
       // The seller must be allowed to click Enviar even when fields are empty.
       // The click then explains the missing fields and highlights them.
       code = code.replace(
