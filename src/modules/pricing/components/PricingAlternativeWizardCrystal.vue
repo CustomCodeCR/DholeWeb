@@ -5588,9 +5588,9 @@ onMounted(async () => {
                 v-model.number="form.storageDays" type="number" min="1" step="1"
                 label="Días de almacenaje fiscal"
                 placeholder="Días efectivos en almacén" />
-              <DhInput v-model.number="form.cargoPackages" type="number" min="0" step="1"
-                label="Bultos declarados (piezas)"
-                placeholder="0 = no informados; no multiplica el volumen" />
+              <DhInput v-if="!consolidatedCargoMode" v-model.number="form.cargoPackages" type="number" min="0" step="1"
+                label="Bultos declarados"
+                placeholder="Cantidad de bultos" />
             </div>
 
             <div v-if="consolidatedCargoMode" class="space-y-4 rounded-[22px] border border-[rgb(var(--dh-primary-rgb)/0.22)] bg-[rgb(var(--dh-primary-rgb)/0.05)] p-4">
