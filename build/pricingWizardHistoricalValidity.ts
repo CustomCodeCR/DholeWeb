@@ -63,7 +63,7 @@ export function patchPricingWizardHistoricalValidity(source: string): string {
     'validTo: form.validTo || addDaysIso(form.loadDate, 30),',
   )
 
-  // Only compare the two selected commercial dates, never against today.
+  // Validate dates only when saving a QUO; Sales requests need no expiry date.
   const guard = `  if (!form.loadDate || !form.validTo || form.validTo < form.loadDate) {
     step.value = 6
     toastStore.error(
@@ -74,7 +74,6 @@ export function patchPricingWizardHistoricalValidity(source: string): string {
   }
 `
   code = code.replace('async function saveRate() {\n', 'async function saveRate() {\n' + guard)
-  code = code.replace('async function saveOpenRequest() {\n', 'async function saveOpenRequest() {\n' + guard)
 
   return code
 }
