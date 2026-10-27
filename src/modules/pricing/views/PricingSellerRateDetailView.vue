@@ -28,6 +28,9 @@ const receiving = ref(false)
 const downloading = ref(false)
 const loadError = ref('')
 const pendingModification = ref(false)
+const activeStep = ref(9)
+const steps = ['Modalidad', 'Embarque', 'Ruta', 'Carga', 'Tarifa', 'Proveedor', 'Líneas', 'Borrador', 'Vista completa'] as const
+const commercialLines = computed(() => rate.value?.rateDetails?.filter(line => Number(line.saleAmount) > 0) ?? [])
 
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
 const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
@@ -174,9 +177,8 @@ onMounted(() => { void load(); void loadCurrencies() })
   <section class="space-y-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p class="text-xs font-black uppercase tracking-wider text-[var(--dh-primary)]">Mi gestión comercial</p>
-        <h1 class="mt-1 text-2xl font-black text-[var(--dh-text)]">Cotización asignada</h1>
-        <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Acceso directo a la cotización enviada por Pricing.</p>
+        <h1 class="text-2xl font-black text-[var(--dh-text)]">Visualizar tarifa</h1>
+        <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Vista completa de la cotización comercial enviada por Pricing.</p>
       </div>
       <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
     </div>
@@ -189,82 +191,156 @@ onMounted(() => { void load(); void loadCurrencies() })
       <div class="mt-3"><DhButton label="Reintentar" variant="secondary" @click="load" /></div>
     </div>
     <template v-else-if="rate">
-      <div class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <header class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+        <div class="flex flex-wrap items-center gap-2">
+          <DhBadge :label="rate.quoNumber || rate.rateCode" variant="primary" />
+          <DhBadge :label="'Revisión ' + (rate.revisionNumber || 1)" variant="neutral" />
+          <DhBadge :label="statusText" :variant="isReceived ? 'success' : 'neutral'" />
+        </div>
+        <h2 class="mt-3 break-words text-lg font-black text-[var(--dh-text)]">
+          {{ rate.rateName || (rate.quoNumber || rate.rateCode) + ' - ' + (rate.clientName || 'Cliente sin definir') }}
+        </h2>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+          IDTRA: {{ rate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ rate.quoNumber || rate.rateCode }}
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <DhButton variant="secondary" label="Descargar cotización PDF" :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
+          <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
+        </div>
+        <div v-if="revisionPending || pendingModification" class="mt-3 space-y-1 text-xs font-semibold text-amber-500">
+          <p v-if="revisionPending">Pricing está preparando una nueva revisión. Se muestra únicamente la última cotización enviada, no el borrador.</p>
+          <p v-if="pendingModification">Existe una solicitud de modificación pendiente para esta tarifa.</p>
+        </div>
+      </header>
+
+      <nav class="grid grid-cols-3 gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 sm:grid-cols-3 lg:grid-cols-9" aria-label="Pantallas de la cotización">
+        <button v-for="(item, index) in steps" :key="index" type="button"
+          class="min-w-0 rounded-xl border px-2.5 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+          :class="activeStep === index + 1 ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-text)]' : 'border-transparent bg-[var(--dh-input)] text-[var(--dh-text-muted)] hover:border-[var(--dh-border)]'"
+          :aria-current="activeStep === index + 1 ? 'step' : undefined"
+          @click="activeStep = index + 1">
+          <span class="block text-[10px] font-black tracking-wide">{{ String(index + 1).padStart(2, '0') }}</span>
+          <span class="mt-1 block text-[11px] font-bold">{{ item }}</span>
+        </button>
+      </nav>
+
+      <main class="space-y-5 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
         <div class="flex flex-wrap items-start justify-between gap-4">
-          <div class="min-w-0 space-y-2">
-            <h2 class="break-words text-xl font-black text-[var(--dh-text)]">{{ rate.quoNumber || rate.rateCode }}</h2>
-            <p class="text-base font-bold text-[var(--dh-text)]">{{ rate.clientName || 'Cliente no indicado' }}</p>
-            <p class="text-sm text-[var(--dh-text-muted)]">Vendedor: {{ rate.executiveName || 'Sin asignar' }}</p>
-            <div class="flex flex-wrap gap-2">
-              <DhBadge :label="statusText" :variant="isReceived ? 'success' : 'warning'" />
-              <DhBadge v-if="isReceived" label="Recepción confirmada" variant="success" />
-            </div>
-            <p v-if="revisionPending" class="text-xs font-bold text-amber-500">Pricing está preparando una nueva revisión. Se muestra la última cotización enviada, no los precios del borrador.</p>
-            <p v-if="pendingModification" class="text-xs font-bold text-amber-500">Pricing tiene una solicitud de modificación pendiente para esta tarifa.</p>
-            <p v-if="rate.sellerReceivedAtUtc" class="text-xs text-[var(--dh-text-muted)]">
-              Confirmación: {{ new Date(rate.sellerReceivedAtUtc).toLocaleString('es-CR') }}
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-primary)]">Pantalla {{ activeStep }}</p>
+            <h2 class="mt-1 text-2xl font-black text-[var(--dh-text)]">
+              {{ activeStep === 9 ? 'Vista completa de la tarifa' : steps[activeStep - 1] }}
+            </h2>
+            <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
+              {{ activeStep === 9 ? 'Resumen de la revisión enviada, condiciones, líneas comerciales y total de venta.' : 'Información comercial de la cotización, en modo de consulta.' }}
             </p>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <DhButton label="Descargar PDF" variant="secondary" :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
-            <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
-            <DhButton v-if="canReceive" label="Marcar como recibida" :loading="receiving" @click="markReceived" />
+          <DhButton v-if="activeStep === 9" variant="secondary" label="Descargar cotización PDF"
+            :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
+        </div>
+
+        <section v-if="activeStep === 9" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 sm:p-5">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p class="text-xs font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Estado comercial</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <DhBadge :label="statusText" :variant="isReceived ? 'success' : 'warning'" />
+                <DhBadge v-if="isReceived" label="Recibida por vendedor" variant="success" />
+                <DhBadge :label="'REV ' + (rate.revisionNumber || 1)" variant="neutral" />
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <DhButton v-if="canReceive" label="Marcar como recibida" :loading="receiving" @click="markReceived" />
+              <template v-if="isSent && !revisionPending">
+                <DhButton label="Aceptada" @click="clientDecision('AcceptedByClient')" />
+                <DhButton label="Rechazada" variant="danger" @click="clientDecision('RejectedByClient')" />
+              </template>
+            </div>
           </div>
-        </div>
-        <p v-if="canReceive" class="mt-4 text-xs font-semibold text-[var(--dh-text-muted)]">
-          Confirme que recibió la cotización. Esto no registra aceptación del cliente ni cambia la venta.
-        </p>
-      </div>
+          <p v-if="canReceive" class="mt-3 text-xs text-[var(--dh-text-muted)]">Confirmar la recepción no significa aceptar la cotización por parte del cliente.</p>
+          <p v-if="isSent && !revisionPending" class="mt-2 text-xs text-[var(--dh-text-muted)]">Registre la aceptación o el rechazo únicamente cuando el cliente comunique su decisión.</p>
+          <p v-if="isReceived && rate.sellerReceivedAtUtc" class="mt-2 text-xs text-[var(--dh-text-muted)]">Recepción confirmada: {{ new Date(rate.sellerReceivedAtUtc).toLocaleString('es-CR') }}</p>
+        </section>
 
-      <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <p class="text-xs font-bold uppercase text-[var(--dh-text-muted)]">Ruta</p>
-          <p class="mt-2 font-semibold text-[var(--dh-text)]">{{ formattedRoute || 'Por confirmar' }}</p>
-        </div>
-        <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <p class="text-xs font-bold uppercase text-[var(--dh-text-muted)]">Modalidad y vigencia</p>
-          <p class="mt-2 font-semibold text-[var(--dh-text)]">{{ rate.shipmentMode }} · {{ formatDate(rate.validFrom) }} – {{ formatDate(rate.validTo) }}</p>
-        </div>
-        <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <p class="text-xs font-bold uppercase text-[var(--dh-text-muted)]">Venta total cotizada</p>
-          <p class="mt-2 text-lg font-black text-[var(--dh-text)]">{{ money(rate.totalSaleAmount, rate) }}</p>
-        </div>
-      </div>
+        <section v-if="[1, 2, 3, 9].includes(activeStep)" class="grid gap-3 md:grid-cols-3">
+          <div v-if="[1, 9].includes(activeStep)" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+            <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Identificación y modalidad</p>
+            <p class="mt-2 break-words text-sm font-black text-[var(--dh-text)]">{{ rate.quoNumber || rate.rateCode }}</p>
+            <p class="mt-1 text-sm text-[var(--dh-text)]">{{ rate.shipmentMode }} · {{ rate.incotermName || rate.incotermCode || 'Incoterm no indicado' }}</p>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Revisión {{ rate.revisionNumber || 1 }}</p>
+          </div>
+          <div v-if="[2, 9].includes(activeStep)" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+            <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Cliente y operación</p>
+            <p class="mt-2 text-sm font-black text-[var(--dh-text)]">{{ rate.clientName || 'Sin cliente' }}</p>
+            <p class="mt-1 text-sm text-[var(--dh-text)]">Vendedor: {{ rate.executiveName || 'Sin asignar' }}</p>
+          </div>
+          <div v-if="[2, 9].includes(activeStep)" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+            <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Vigencia</p>
+            <p class="mt-2 text-sm font-bold text-[var(--dh-text)]">{{ formatDate(rate.validFrom) }} → {{ formatDate(rate.validTo) }}</p>
+            <p v-if="rate.transitTime" class="mt-1 text-xs text-[var(--dh-text-muted)]">Tránsito: {{ rate.transitTime }}</p>
+          </div>
+          <div v-if="[3, 9].includes(activeStep)" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 md:col-span-3">
+            <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ruta · POL → POE → POD</p>
+            <p class="mt-2 text-sm font-black text-[var(--dh-text)]">{{ formattedRoute || 'Por confirmar' }}</p>
+            <div class="mt-3 grid gap-2 text-xs text-[var(--dh-text-muted)] sm:grid-cols-3">
+              <p>Origen (POL): <strong class="text-[var(--dh-text)]">{{ rate.polName || 'No indicado' }}</strong></p>
+              <p>Entrada (POE): <strong class="text-[var(--dh-text)]">{{ rate.poeName || 'No indicado' }}</strong></p>
+              <p>Destino (POD): <strong class="text-[var(--dh-text)]">{{ rate.podName || 'No indicado' }}</strong></p>
+            </div>
+          </div>
+        </section>
 
-      <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-        <h3 class="text-base font-black text-[var(--dh-text)]">Detalle comercial</h3>
-        <div v-if="rate.rateDetails?.length" class="mt-3 overflow-x-auto">
-          <table class="w-full min-w-[520px] text-left text-sm">
-            <thead class="text-xs uppercase text-[var(--dh-text-muted)]">
-              <tr><th class="py-2">Concepto</th><th class="py-2">Cantidad</th><th class="py-2 text-right">Venta</th></tr>
-            </thead>
-            <tbody class="divide-y divide-[var(--dh-border)]">
-              <tr v-for="line in rate.rateDetails.filter(item => Number(item.saleAmount) > 0)" :key="line.id">
-                <td class="py-3 font-semibold text-[var(--dh-text)]">{{ line.name }}</td>
-                <td class="py-3 text-[var(--dh-text-muted)]">{{ line.quantity }}</td>
-                <td class="py-3 text-right font-bold text-[var(--dh-text)]">{{ money(line.saleAmount, line, rate) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p v-else class="mt-3 text-sm text-[var(--dh-text-muted)]">Revise el detalle completo en el PDF adjunto al correo.</p>
-      </section>
+        <section v-if="[4, 9].includes(activeStep)" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+          <h3 class="text-sm font-black text-[var(--dh-text)]">Carga y equipo</h3>
+          <div class="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Equipo</p><p class="font-bold text-[var(--dh-text)]">{{ rate.containerQuantity || 1 }} × {{ rate.containerTypeName || rate.shipmentMode }}</p></div>
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Bultos</p><p class="font-bold text-[var(--dh-text)]">{{ rate.totalPackages ?? 'No indicado' }}</p></div>
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Peso</p><p class="font-bold text-[var(--dh-text)]">{{ rate.totalWeightKg ?? 0 }} kg</p></div>
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Volumen</p><p class="font-bold text-[var(--dh-text)]">{{ rate.totalVolumeCbm ?? 0 }} CBM</p></div>
+          </div>
+        </section>
 
-      <section class="grid gap-3 md:grid-cols-3">
-        <div v-for="term in [
-          { title: 'Incluye', text: rate.includes },
-          { title: 'Sujeto a', text: rate.subjectTo },
-          { title: 'No incluye', text: rate.excludes },
-        ]" :key="term.title" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <h3 class="text-sm font-bold text-[var(--dh-text)]">{{ term.title }}</h3>
-          <p class="mt-2 whitespace-pre-line text-sm text-[var(--dh-text-muted)]">{{ term.text || 'No indicado' }}</p>
-        </div>
-      </section>
-      <div v-if="isSent && !revisionPending" class="flex flex-wrap items-center gap-2">
-        <p class="w-full text-xs text-[var(--dh-text-muted)]">Solo registre una decisión cuando el cliente responda a la cotización.</p>
-        <DhButton label="Aceptada por cliente" @click="clientDecision('AcceptedByClient')" />
-        <DhButton label="Rechazada por cliente" variant="danger" @click="clientDecision('RejectedByClient')" />
-      </div>
+        <section v-if="[5, 9].includes(activeStep)" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+          <p class="text-xs font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Venta total cotizada</p>
+          <p class="mt-2 text-2xl font-black text-[var(--dh-text)]">{{ money(rate.totalSaleAmount, rate) }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Únicamente importes comerciales; no se muestran costos ni márgenes internos de Pricing.</p>
+        </section>
+
+        <section v-if="[6, 9].includes(activeStep)" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+          <p class="text-xs font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Proveedor y transporte</p>
+          <p class="mt-2 text-sm font-bold text-[var(--dh-text)]">{{ rate.carrierName || rate.agentName || 'No indicado en la cotización comercial' }}</p>
+        </section>
+
+        <section v-if="[7, 9].includes(activeStep)" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+          <h3 class="text-base font-black text-[var(--dh-text)]">Líneas de la cotización</h3>
+          <div v-if="commercialLines.length" class="mt-3 overflow-x-auto">
+            <table class="w-full min-w-[480px] text-left text-sm">
+              <thead class="text-xs uppercase text-[var(--dh-text-muted)]">
+                <tr><th scope="col" class="py-2">Concepto</th><th scope="col" class="py-2">Cantidad</th><th scope="col" class="py-2 text-right">Venta</th></tr>
+              </thead>
+              <tbody class="divide-y divide-[var(--dh-border)]">
+                <tr v-for="line in commercialLines" :key="line.id">
+                  <td class="py-3 font-semibold text-[var(--dh-text)]">{{ line.name }}</td>
+                  <td class="py-3 text-[var(--dh-text-muted)]">{{ line.quantity }}</td>
+                  <td class="py-3 text-right font-bold text-[var(--dh-text)]">{{ money(line.saleAmount, line, rate) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="mt-3 text-sm text-[var(--dh-text-muted)]">El desglose comercial está disponible en el PDF de la cotización.</p>
+        </section>
+
+        <section v-if="[8, 9].includes(activeStep)" class="grid gap-3 md:grid-cols-3">
+          <div v-for="term in [
+            { title: 'Incluye', text: rate.includes },
+            { title: 'Sujeto a', text: rate.subjectTo },
+            { title: 'No incluye', text: rate.excludes },
+          ]" :key="term.title" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+            <h3 class="text-sm font-black text-[var(--dh-text)]">{{ term.title }}</h3>
+            <p class="mt-2 whitespace-pre-line text-sm text-[var(--dh-text-muted)]">{{ term.text || 'No indicado' }}</p>
+          </div>
+        </section>
+      </main>
     </template>
   </section>
 </template>
