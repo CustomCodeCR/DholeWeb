@@ -16,6 +16,7 @@ const props = withDefaults(
     placeholder?: string
     searchPlaceholder?: string
     emptyText?: string
+    error?: string
   }>(),
   {
     placeholder: 'Seleccione una o varias opciones',
@@ -88,7 +89,7 @@ function toggle(value: string) {
       ref="detailsRef"
       data-dh-dropdown="true"
       class="crystal-multi group relative"
-      :class="{ 'crystal-multi--inline': inlineMenu, 'crystal-multi--dropup': opensUpward && !inlineMenu }"
+      :class="{ 'crystal-multi--inline': inlineMenu, 'crystal-multi--dropup': opensUpward && !inlineMenu, 'crystal-multi--invalid': !!error }"
       @toggle="handleToggle"
     >
       <summary class="crystal-multi__trigger">
@@ -134,6 +135,7 @@ function toggle(value: string) {
         </div>
       </div>
     </details>
+    <p v-if="error" role="alert" class="mt-1 text-xs font-semibold text-red-500">{{ error }}</p>
 
     <div v-if="selected.length" class="mt-2 flex flex-wrap gap-1.5">
       <button
@@ -159,6 +161,11 @@ function toggle(value: string) {
 
 :global(.crystal-panel:has(details[data-dh-dropdown="true"][open])) {
   overflow: visible;
+}
+
+.crystal-multi--invalid .crystal-multi__trigger {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgb(239 68 68 / 0.2);
 }
 
 .crystal-multi {
