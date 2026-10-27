@@ -152,10 +152,21 @@ function patchWizard(source: string) {
     if (ownEnd < 0) throw new Error('[pricingExwFcaVariableCosts] Own LCL mapper missing')
     const ownBlock = code.slice(ownStart, ownEnd)
     const oldFilter = '.filter((line) => !line.costId)'
-    if (!ownBlock.includes(oldFilter)) throw new Error('[pricingExwFcaVariableCosts] Own LCL filter missing')
-    code = code.slice(0, ownStart) +
-      ownBlock.replace(oldFilter, ".filter((line) => !line.costId || String(line.key).startsWith('exw-fca-variable-cost:'))") +
-      code.slice(ownEnd)
+    const customsFilter = ".filter((line) => !line.costId || String(line.key ?? '').startsWith('own-lcl-customs:'))"
+    const extraFilter = "String(line.key ?? '').startsWith('exw-fca-variable-cost:')"
+    let patchedBlock = ownBlock
+    if (!ownBlock.includes(extraFilter)) {
+      if (ownBlock.includes(customsFilter)) {
+        // The own-LCL persistence plugin now adds a customs exception first.
+        // Preserve that exception while including EXW/FCA variable charges.
+        patchedBlock = ownBlock.replace(customsFilter, customsFilter.slice(0, -1) + ' || ' + extraFilter + ')')
+      } else if (ownBlock.includes(oldFilter)) {
+        patchedBlock = ownBlock.replace(oldFilter, ".filter((line) => !line.costId || " + extraFilter + ")")
+      } else {
+        throw new Error('[pricingExwFcaVariableCosts] Own LCL filter missing')
+      }
+    }
+    code = code.slice(0, ownStart) + patchedBlock + code.slice(ownEnd)
   }
   return code
 }
