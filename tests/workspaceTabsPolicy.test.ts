@@ -43,9 +43,10 @@ test('compact strip always shows active tab and Dashboard', () => {
 })
 
 test('related pricing/editor routes reuse a workspace slot, unrelated modules do not', () => {
-  assert.equal(workspaceTabGroup('/pricing'), 'pricing-editor')
+  assert.equal(workspaceTabGroup('/pricing'), 'pricing-create')
   assert.equal(workspaceTabGroup('/pricing/rates/a/wizard?step=4'), 'pricing-editor')
   assert.equal(workspaceTabGroup('/pricing/rates/b/wizard'), 'pricing-editor')
+  assert.notEqual(workspaceTabGroup('/pricing'), workspaceTabGroup('/pricing/rates/a/wizard'))
   assert.equal(workspaceTabGroup('/pricing/imports'), workspaceTabGroup('/pricing/imports/review/id-1'))
   assert.equal(workspaceTabGroup('/pricing/email-imports'), workspaceTabGroup('/pricing/email-source/batch-2'))
   assert.equal(workspaceTabGroup('/pricing/request-rate'), workspaceTabGroup('/pricing/seller-rates/id-3'))
