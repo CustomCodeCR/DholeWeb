@@ -60,6 +60,10 @@ function handleAuthRefreshed(event: Event) {
     return
   }
 
+  // An administrator refresh happening in another API flow must not replace
+  // the currently impersonated user in this tab.
+  if (authStore.isImpersonating) return
+
   authStore.setSession(detail)
   void brandingStore.loadCurrentClientBranding()
 
