@@ -9,6 +9,7 @@ type CrmReferenceResource = 'accounts' | 'leads' | 'opportunities'
 const props = defineProps<{
   modelValue: string
   label: string
+  validationError?: string
   resource: CrmReferenceResource
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
@@ -68,7 +69,7 @@ onMounted(() => void load())
         @update:model-value="search = $event" @keyup.enter.prevent="load" />
       <DhButton :icon="Search" label="Buscar" variant="secondary" size="sm" :loading="loading" @click="load" />
     </div>
-    <DhSelect :model-value="modelValue" :options="options" placeholder=""
+    <DhSelect :error="props.validationError" :model-value="modelValue" :options="options" placeholder=""
       :disabled="loading && results.length === 0" @update:model-value="emit('update:modelValue', String($event))" />
     <p v-if="error" role="alert" class="text-xs text-red-500">{{ error }}</p>
     <p v-else-if="total > 50" class="text-xs text-[var(--dh-text-muted)]">
