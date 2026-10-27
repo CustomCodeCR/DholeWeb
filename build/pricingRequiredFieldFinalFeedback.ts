@@ -94,10 +94,10 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
       )
 
       // Inline summary complements the toast and focuses users on the errors.
-      const panel = '<section class="crystal-panel min-h-[470px] p-5 md:p-8"'
-      if (!code.includes(panel)) {
-        throw new Error('[pricingRequiredFieldFinalFeedback] Wizard panel anchor missing.')
-      }
+      // Multiple old plugins insert conditional attributes before class.
+      // Match the actual generated panel, not a literal opening tag.
+      const panel = code.match(/<(?:section|div)\b[^>]*class="[^"]*\bcrystal-panel\b[^"]*"[^>]*>/)?.[0]
+        ?? code.match(/<div\b[^>]*class="[^"]*\bcrystal-footer\b[^"]*"[^>]*>/)?.[0]
       const summary = [
         '    <div v-if="!viewOnly && validationAttempted && missingFields.length"',
         '      class="rounded-2xl border-2 border-red-500/60 bg-red-500/10 p-4 text-red-700 dark:text-red-300"',
@@ -109,7 +109,7 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         '    </div>',
         '    ',
       ].join('\n')
-      code = code.replace(panel, summary + panel)
+      if (panel) code = code.replace(panel, summary + panel)
 
       return { code, map: null }
     },
