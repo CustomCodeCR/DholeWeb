@@ -19,10 +19,14 @@ function patchWizard(source: string): string {
 const pricingSellerScreensLocked = computed(() =>
   !props.viewOnly && Boolean(props.rateRequestId || props.modificationRequestId),
 )
-watch([step, () => props.rateRequestId, () => props.modificationRequestId], () => {
-  // Includes direct step assignments from other plugins, async hydration,
-  // reloads and back navigation (not just clicks on the stepbar).
+const sellerRequestScreensLocked = computed(() =>
+  !props.viewOnly && props.sellerRequestMode && !pricingSellerScreensLocked.value,
+)
+watch([step, () => props.rateRequestId, () => props.modificationRequestId, () => props.sellerRequestMode], () => {
+  // Includes direct assignments from validation guards, async hydration,
+  // restored drafts and navigation: Sales never sees Pricing screens 5+.
   if (pricingSellerScreensLocked.value && step.value < 5) step.value = 5
+  if (sellerRequestScreensLocked.value && step.value > 4) step.value = 4
 }, { immediate: true, flush: 'sync' })`,
     'request navigation state',
   )
@@ -30,18 +34,21 @@ watch([step, () => props.rateRequestId, () => props.modificationRequestId], () =
   replaceOne(
     'function goToStep(target: number) {',
     `function goToStep(target: number) {
+  if (sellerRequestScreensLocked.value && target > 4) return
   if (pricingSellerScreensLocked.value && target < 5) return`,
     'stepbar navigation guard',
   )
   replaceOne(
     'function previous() {',
     `function previous() {
+  if (sellerRequestScreensLocked.value && step.value <= 1) return
   if (pricingSellerScreensLocked.value && step.value <= 5) return`,
     'back navigation floor',
   )
   replaceOne(
     'async function next() {',
     `async function next() {
+  if (sellerRequestScreensLocked.value && step.value >= 4) return
   if (pricingSellerScreensLocked.value && step.value < 5) { step.value = 5; return }`,
     'forward navigation floor',
   )
