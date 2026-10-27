@@ -56,5 +56,5 @@ export function useRequiredFieldFeedback(collectIssues: () => RequiredFieldIssue
     return false
   }
 
-  return { fieldError, isInvalid, missingFields, resetValidation, validateRequiredFields }
+  return { fieldError, isInvalid, missingFields, validationAttempted: attempted, resetValidation, validateRequiredFields }
 }
