@@ -30,6 +30,7 @@ interface SellerRateRequestDto {
   preparedRevisionNumber?: number | null
   payload?: { modification?: { sourceRevisionNumber?: number | null } } | null
   rateId?: string | null
+  quoNumber?: string | null
   kind?: 'New' | 'Modification'
   sellerUserId?: string | null
   sellerName?: string | null
@@ -72,6 +73,7 @@ const rates = ref<RateDto[]>([])
 const ownRates = ref<RateDto[]>([])
 const ownRequests = ref<SellerRateRequestDto[]>([])
 const ownRatesById = computed(() => new Map(ownRates.value.map(rate => [rate.id, rate])))
+const visibleRatesById = computed(() => new Map([...rates.value, ...ownRates.value].map(rate => [rate.id, rate])))
 const ownRequestIds = computed(() => new Set(ownRequests.value.map(request => request.id)))
 const receivingIds = ref<string[]>([])
 
@@ -298,6 +300,31 @@ function requestEquipmentLabel(request: SellerRateRequestDto) {
 function canEditRequest(request: SellerRateRequestDto) {
   return (!props.adminPreview || (props.enableSellerActions && ownRequestIds.value.has(request.id)))
     && request.status === 'Open' && !request.rateId
+}
+
+function linkedQuoNumber(request: SellerRateRequestDto): string {
+  if (!request.rateId) return ''
+  const rate = visibleRatesById.value.get(request.rateId)
+  return rate?.quoNumber || rate?.rateCode || request.quoNumber || 'QUO vinculada'
+}
+
+// Ventas accede solamente a sus cotizaciones mediante el endpoint seller-rates.
+// Supervisión con permiso de Pricing puede consultar el wizard completo, sin elevar
+// permisos a un vendedor ni exponer información interna en esta tabla.
+function canOpenLinkedRate(request: SellerRateRequestDto): boolean {
+  return Boolean(request.rateId && (
+    ownRatesById.value.has(request.rateId)
+    || (props.adminPreview && authStore.hasScope('pricing.rate.view'))
+  ))
+}
+
+function openLinkedRate(request: SellerRateRequestDto) {
+  if (!request.rateId || !canOpenLinkedRate(request)) return
+  if (ownRatesById.value.has(request.rateId)) {
+    void router.push({ name: 'pricing-seller-rate-detail', params: { rateId: request.rateId } })
+  } else {
+    void router.push({ name: 'pricing-rate-wizard', params: { rateId: request.rateId }, query: { mode: 'view' } })
+  }
 }
 
 function editRequest(request: SellerRateRequestDto) {
@@ -805,11 +832,21 @@ onBeforeUnmount(() => {
         <div v-else class="overflow-x-auto">
           <table class="w-full min-w-[820px] text-left text-xs">
             <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">
-              <tr><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">Origen → Destino</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Solicitada</th><th class="px-4 py-3">Estado</th><th v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">Acción</th></tr>
+              <tr><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">QUO</th><th class="px-4 py-3">Origen → Destino</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Solicitada</th><th class="px-4 py-3">Estado</th><th v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">Acción</th></tr>
             </thead>
             <tbody class="divide-y divide-[var(--dh-border)]">
               <tr v-for="request in latestRequests" :key="request.id">
                 <td class="px-4 py-3 font-bold text-[var(--dh-text)]">{{ request.clientName || 'Sin cliente' }}<span v-if="request.kind === 'Modification'" class="mt-1 block text-xs text-amber-500">Modificación de tarifa</span></td>
+                <td class="px-4 py-3">
+                  <button v-if="request.rateId && canOpenLinkedRate(request)" type="button"
+                    class="text-left font-black text-[var(--dh-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+                    :aria-label="`Abrir ${linkedQuoNumber(request)}`"
+                    @click="openLinkedRate(request)">
+                    {{ linkedQuoNumber(request) }}
+                  </button>
+                  <span v-else-if="request.rateId" class="font-semibold text-[var(--dh-text)]">{{ linkedQuoNumber(request) }}</span>
+                  <span v-else class="text-[var(--dh-text-muted)]">Pendiente</span>
+                </td>
                 <td class="px-4 py-3 text-[var(--dh-text)]">{{ request.originName || 'Origen' }} → {{ request.destinationName || 'Destino' }}</td>
                 <td class="px-4 py-3 text-[var(--dh-text)]">{{ requestEquipmentLabel(request) }}</td>
                 <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
