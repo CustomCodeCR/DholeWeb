@@ -15,12 +15,12 @@ function patchPayloads(source: string) {
     'totalPackages: Math.max(0, Math.trunc(number(form.cargoPackages))),',
   )
   code = code.replaceAll(
+    'totalPackages: consolidatedCargoMode.value ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,',
     'totalPackages: consolidatedCargoMode.value ? Math.max(0, Math.trunc(number(form.cargoPackages))) : 0,',
-    'totalPackages: consolidatedCargoMode.value ? consolidatedTotalPackages.value : 0,',
   )
   code = code.replaceAll(
+    'totalPallets: consolidatedCargoMode.value ? Math.max(1, Math.trunc(number(form.cargoPallets))) : 0,',
     'totalPallets: consolidatedCargoMode.value ? consolidatedTotalPallets.value : 0,',
-    'totalPallets: consolidatedCargoMode.value ? consolidatedTotalPackages.value : 0,',
   )
   code = code.replaceAll(
     'totalWeightKg: consolidatedCargoMode.value ? Math.max(0, number(form.cargoWeightKg)) : 0,',
