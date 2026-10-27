@@ -1996,7 +1996,7 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
   return issues
 })
 
-const { fieldError, isInvalid, resetValidation, validateRequiredFields } =
+const { fieldError, isInvalid, missingFields, validationAttempted, resetValidation, validateRequiredFields } =
   useRequiredFieldFeedback(() => requiredStepIssues.value)
 
 function detailTypeForService(service: CatalogItemSelectDto): CostDetailType {
