@@ -278,13 +278,29 @@ function patchWizard(source: string) {
     OWN_LCL_AGENCY_COST_HELPERS + '\nfunction addManualCharge() {',
     'independent own LCL CRC agency cost')
 
-  // The update detail IDs must follow the same filtered list used to make details.
-  code = replaceOne(
-    code,
-    "id: includedLines.value[index]?.detailId ?? null,",
-    "id: (isOwnLclMatrixContext() ? sourceDetails : normalizedIncludedLines)[index]?.detailId ?? null,",
-    'own LCL detail ID alignment',
-  )
+  // The fixed-cost edit transform executes before this plugin and replaces the
+  // old index-based "extraDetails" mapping with buildRateUpdateExtraDetails().
+  // Its identity candidates must be drawn from the SAME filtered sourceDetails
+  // that generated createPayload.details. Otherwise skipped own-LCL matrix
+  // rows shift the indexes and attach an unrelated persisted RateDetail ID.
+  const reconciledDetailIdAnchor =
+    'includedLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) }))'
+  const legacyDetailIdAnchor = 'id: includedLines.value[index]?.detailId ?? null,'
+  if (code.includes(reconciledDetailIdAnchor)) {
+    code = replaceOne(
+      code,
+      reconciledDetailIdAnchor,
+      'sourceDetails.map((line) => ({ detailId: persistedDetailIdForLine(line) }))',
+      'own LCL reconciled detail ID alignment',
+    )
+  } else {
+    code = replaceOne(
+      code,
+      legacyDetailIdAnchor,
+      'id: sourceDetails[index]?.detailId ?? null,',
+      'own LCL legacy detail ID alignment',
+    )
+  }
 
 
   return code
