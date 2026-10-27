@@ -13,6 +13,7 @@ interface InlandServiceLocation {
 const props = defineProps<{
   modelValue: InlandServiceLocation
   kind: 'pickup' | 'delivery'
+  error?: string
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: InlandServiceLocation] }>()
 const locating = ref(false)
@@ -116,7 +117,7 @@ async function selectPoint(selected: { latitude: number; longitude: number }) {
         </p>
       </div>
     </div>
-    <DhInput v-model="address" :label="isPickup ? 'Dirección de recolección *' : 'Dirección de entrega *'"
+    <DhInput v-model="address" :error="props.error" :label="isPickup ? 'Dirección de recolección *' : 'Dirección de entrega *'"
       placeholder="Calle, ciudad, provincia/estado y país" />
     <div class="flex flex-wrap items-center gap-3">
       <DhButton variant="secondary" :disabled="locating || !address.trim()" @click="locateAddress">
