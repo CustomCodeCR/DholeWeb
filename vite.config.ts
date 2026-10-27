@@ -216,9 +216,12 @@ export default defineConfig({
         if (id.endsWith('/PricingAlternativeWizardCrystal.vue')) {
           const lines=code.split('\n')
           if (lines.length >= 15899) {
-            console.error('WIZARD_TEMPLATE_15899: '+lines
-              .slice(15880,15917)
-              .map((line,index)=>String(15881+index)+' '+line).join('\n'))
+            const next=lines.findIndex((line,index)=>index>15899&&/v-else-if="step === 5"|v-if="step === 5"/.test(line))
+            console.error('WIZARD_STEP5_LINE '+(next+1))
+            const context=next>0?next:Math.min(lines.length-1,16400)
+            console.error('WIZARD_STEP4_END: '+lines
+              .slice(Math.max(15899,context-80),Math.min(lines.length,context+30))
+              .map((line,index)=>String(Math.max(15900,context-79)+index)+' '+line).join('\n'))
           }
         }
         return null
