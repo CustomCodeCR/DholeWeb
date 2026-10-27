@@ -409,7 +409,7 @@ export const router = createRouter({
           name: 'pricing-seller-rate-detail',
           component: () => import('@/modules/pricing/views/PricingSellerRateDetailView.vue'),
           meta: {
-            tabTitle: 'Cotización del vendedor',
+            tabTitle: 'Tarifa · Wizard',
             closable: true,
             requiredScope: 'pricing.rate-request.create',
           },
