@@ -169,7 +169,7 @@ function clientDecision(decision: 'AcceptedByClient' | 'RejectedByClient') {
   })
 }
 
-watch(rateId, () => { void load() })
+watch(rateId, () => { activeStep.value = 9; rate.value = null; void load() })
 onMounted(() => { void load(); void loadCurrencies() })
 </script>
 
