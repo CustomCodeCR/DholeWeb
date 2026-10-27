@@ -262,10 +262,14 @@ function patchWizard(source: string) {
     'FCL equipment freight reconciliation',
   )
   code = replaceRequired(code, "  const mixedFclFreightQuantity =\n    shipmentModeForApi.value === 'Fcl'\n    && line.costDetailType === 'Freight'\n    && String(line.key ?? '').startsWith('freight:')\n    && explicitQuantity > 0\n\n  if (mixedFclFreightQuantity) return explicitQuantity", "  if (shipmentModeForApi.value === 'Fcl' && line.costDetailType === 'Freight') {\n    const allocation = fclContainerAllocations.value.find((row) => fclFreightLineMatchesAllocation(line, row))\n    if (allocation) return allocation.quantity\n    // A persisted detail can have an older key (\"existing:<id>\"); preserve its\n    // stored freight-specific quantity instead of multiplying by all containers.\n    if (explicitQuantity > 0) return explicitQuantity\n  }", 'persisted FCL freight quantities')
+  // Other wizard features may inject service reconciliation between the
+  // persisted-cost merge and the step assignment. Insert the FCL freight
+  // reconciliation right after the merge instead of depending on adjacency.
+  const persistedCostsMerge = '    mergeConfiguredOptionalCostsIntoRateLines()\\n'
   code = replaceRequired(
     code,
-    '    mergeConfiguredOptionalCostsIntoRateLines()\n    step.value = props.viewOnly ? 9 : 8',
-    '    mergeConfiguredOptionalCostsIntoRateLines()\n    if (!props.viewOnly) reconcileFclFreightLines()\n    step.value = props.viewOnly ? 9 : 8',
+    persistedCostsMerge,
+    persistedCostsMerge + '    if (!props.viewOnly) reconcileFclFreightLines()\\n',
     'FCL freight hydrate reconciliation',
   )
   code = replaceRequired(
