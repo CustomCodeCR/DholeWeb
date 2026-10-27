@@ -1911,8 +1911,10 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
   }
   if (step.value === 6) {
-    add(!form.agentId, 'agentId', 'Agente')
-    add(!form.carrierId, 'carrierId', 'Naviera / proveedor')
+    // LCL's coloader/own source is chosen in its dedicated selector.
+    // Agent/carrier IDs can intentionally be empty in those scenarios.
+    add(shipmentModeForApi.value !== 'Lcl' && !form.agentId, 'agentId', 'Agente')
+    add(shipmentModeForApi.value !== 'Lcl' && !form.carrierId, 'carrierId', 'Naviera / proveedor')
     add(!form.currencyId, 'currencyId', 'Moneda')
     add(!(form.freightCost >= 0), 'freightCost', 'Flete: costo')
     add(!(form.freightSale >= 0), 'freightSale', 'Flete: venta')
