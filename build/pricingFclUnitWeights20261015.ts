@@ -114,12 +114,25 @@ const fclMissingUnitCount = computed(() => {
   return 0
 })
 
-function restoreFclUnitWeights(value: Array<{ containerTypeId: string; unitWeightsKg?: number[] | null }>) {
-  fclUnitWeightsKg.value = Object.fromEntries(value.map((row) => [
+function restoreFclUnitWeights(
+  value: Array<{ containerTypeId: string; quantity?: number; unitWeightsKg?: number[] | null }>,
+  aggregateWeightKg = 0,
+) {
+  const restored = Object.fromEntries(value.map((row) => [
     row.containerTypeId, Array.isArray(row.unitWeightsKg)
       ? row.unitWeightsKg.map((kg) => Math.max(0, number(kg)))
       : [],
-  ]))
+  ])) as Record<string, number[]>
+  // Historical seller requests and quotes stored the 15,000-kg aggregate but
+  // zero in UnitWeightsKg. A single physical unit has an unambiguous weight.
+  // Never guess the distribution across multiple physical containers.
+  const totalUnits = value.reduce((sum, row) =>
+    sum + Math.max(1, Math.trunc(number(row.quantity) || 1)), 0)
+  if (totalUnits === 1 && value.length === 1 && number(aggregateWeightKg) > 0
+    && !(restored[value[0]!.containerTypeId] ?? []).some((kg) => kg > 0)) {
+    restored[value[0]!.containerTypeId] = [Math.max(0, number(aggregateWeightKg))]
+  }
+  fclUnitWeightsKg.value = restored
 }
 
 // Use the individual unit weights as the single source of truth for FCL/FTL.
@@ -180,16 +193,16 @@ watch(
     const line = '  const allocations = (rate.containers ?? []).filter((container) => number(container.quantity) > 0)'
     const at = code.indexOf(line, persistedAt)
     if (at >= 0)
-      code = code.slice(0, at + line.length) + '\n  restoreFclUnitWeights(allocations)' + code.slice(at + line.length)
+      code = code.slice(0, at + line.length) + '\n  restoreFclUnitWeights(allocations, number(rate.totalWeightKg))' + code.slice(at + line.length)
   }
   // La hidratación de una tarifa FTL también debe restaurar sus pesos por equipo.
   const hydrate = '    const restoredMixedFclFreight = restorePersistedFclDistribution(rate)'
   if (code.includes(hydrate))
-    code = code.replace(hydrate, '    restoreFclUnitWeights((rate.containers ?? []).filter((container) => number(container.quantity) > 0))\n' + hydrate)
+    code = code.replace(hydrate, '    restoreFclUnitWeights((rate.containers ?? []).filter((container) => number(container.quantity) > 0), number(rate.totalWeightKg))\n' + hydrate)
 
   const requestRows = '  const rows = value as Array<Record<string, unknown>>'
   if (code.includes(requestRows))
-    code = code.replace(requestRows, requestRows + '\n  restoreFclUnitWeights(rows.map((row) => ({ containerTypeId: String(row.containerTypeId ?? ""), unitWeightsKg: Array.isArray(row.unitWeightsKg) ? row.unitWeightsKg.map((kg) => number(kg)) : [] })))')
+    code = code.replace(requestRows, requestRows + '\n  restoreFclUnitWeights(rows.map((row) => ({ containerTypeId: String(row.containerTypeId ?? ""), quantity: number(row.quantity), unitWeightsKg: Array.isArray(row.unitWeightsKg) ? row.unitWeightsKg.map((kg) => number(kg)) : [] })), number(form.cargoWeightKg))')
 
   if (code.includes('function resetWizard() {'))
     code = code.replace('function resetWizard() {', 'function resetWizard() {\n  fclUnitWeightsKg.value = {}\n  fclWeightEditorOpen.value = {}')
@@ -367,6 +380,56 @@ watch(
     '        unitWeightsKg: Array.isArray(weights) ? weights.map((weight) => Math.max(0, Math.min(100000, number(weight)))) : [],',
     '      })))',
     '    }',
+  ].join('\n'))
+
+  // A seller request stores unit weights under payload.form.fclContainers.
+  // Recover them after form hydration, including legacy one-unit aggregate-only
+  // requests; do not depend on the optional restore rows utility being called.
+  const requestHydrationStart = code.indexOf('async function hydrateRateRequest() {')
+  const requestHydrationEnd = code.indexOf('\n}\n', requestHydrationStart)
+  if (requestHydrationStart < 0 || requestHydrationEnd < 0) {
+    throw new Error('[pricingFclUnitWeights] No se encontró la carga de solicitud de Ventas.')
+  }
+  const requestHydration = code.slice(requestHydrationStart, requestHydrationEnd)
+  const requestHydrationAnchor = '    rateRequestPriority.value = request.priority'
+  if (requestHydration.split(requestHydrationAnchor).length !== 2) {
+    throw new Error('[pricingFclUnitWeights] No se encontró el contexto de equipo de la solicitud.')
+  }
+  const requestRestoration = [
+    requestHydrationAnchor,
+    '    const sellerEquipment = request.payload?.form as Record<string, unknown> | undefined',
+    '    const sellerFclRows = sellerEquipment?.fclContainers',
+    '    const sellerLandRows = sellerEquipment?.landContainers',
+    '    const sellerUnits = shipmentModeForApi.value === "Fcl" ? sellerFclRows : sellerLandRows',
+    '    if (Array.isArray(sellerUnits)) {',
+    '      restoreFclUnitWeights(sellerUnits as Array<{ containerTypeId: string; quantity?: number; unitWeightsKg?: number[] }>,',
+    '        number(sellerEquipment?.cargoWeightKg))',
+    '    }',
+  ].join('\n')
+  code = code.slice(0, requestHydrationStart)
+    + requestHydration.replace(requestHydrationAnchor, requestRestoration)
+    + code.slice(requestHydrationEnd)
+
+  // The seller previously could send a positive aggregate with an empty unit
+  // weight. Use it only for one container; multiple containers must be explicit.
+  const saveRequestAnchor = 'async function saveOpenRequest() {'
+  if (code.split(saveRequestAnchor).length !== 2) {
+    throw new Error('[pricingFclUnitWeights] Falta el guardado de la solicitud.')
+  }
+  code = code.replace(saveRequestAnchor, saveRequestAnchor + [
+    '',
+    '  if (props.sellerRequestMode && (shipmentModeForApi.value === "Fcl" || shipmentModeForApi.value === "Ftl")) {',
+    '    const units = shipmentModeForApi.value === "Fcl" ? fclContainerAllocations.value : landEquipmentAllocations.value',
+    '    const unitCount = units.reduce((sum, row) => sum + Math.max(1, Math.trunc(number(row.quantity))), 0)',
+    '    if (unitCount === 1 && units.length === 1',
+    '      && fclUnitWeight(units[0]!.containerTypeId, 0) <= 0 && number(form.cargoWeightKg) > 0) {',
+    '      setFclUnitWeight(units[0]!.containerTypeId, 0, number(form.cargoWeightKg))',
+    '    }',
+    '    if (fclMissingUnitCount.value > 0) {',
+    '      toastStore.error("Indique el peso en kg de cada contenedor antes de enviar la solicitud a Pricing.")',
+    '      return',
+    '    }',
+    '  }',
   ].join('\n'))
 
   // Requirements may add landExtraEquipment between the watched refs.
