@@ -210,7 +210,6 @@ export default defineConfig({
     pricingWizardHistoricalValidity(),
     {
       name: 'temporary-pricing-markup-diagnostic',
-      enforce: 'pre',
       transform(code, id) {
         if (!id.endsWith('/PricingAlternativeWizardCrystal.vue')) return null
         const lines=code.split('\n')
