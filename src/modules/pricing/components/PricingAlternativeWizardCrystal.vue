@@ -1920,8 +1920,8 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     add(!(form.freightSale >= 0), 'freightSale', 'Flete: venta')
   }
   if (step.value === 7) {
-    add(!(exchangeRatePurchase.value > 0), 'exchangeRatePurchase', 'Tipo de cambio: compra')
-    add(!(exchangeRateSale.value > 0), 'exchangeRateSale', 'Tipo de cambio: venta')
+    add(!(Number(exchangeRatePurchase.value) > 0), 'exchangeRatePurchase', 'Tipo de cambio: compra')
+    add(!(Number(exchangeRateSale.value) > 0), 'exchangeRateSale', 'Tipo de cambio: venta')
   }
   if (step.value === 8) {
     add(includedLines.value.length === 0, 'rateLines', 'Líneas de costo y venta')
