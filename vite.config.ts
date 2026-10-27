@@ -208,6 +208,22 @@ export default defineConfig({
     pricingSellerPricingStepGuard(),
     // Last pricing transform: preserve historical shipment dates before Vue compilation.
     pricingWizardHistoricalValidity(),
+    // TEMP build diagnostic for a pre-existing malformed composite wizard
+    // (all pricing transforms run before the Vue compiler).
+    {
+      name: 'pricing-wizard-markup-diagnostic',
+      transform(code,id) {
+        if (id.endsWith('/PricingAlternativeWizardCrystal.vue')) {
+          const lines=code.split('\n')
+          if (lines.length >= 15899) {
+            console.error('WIZARD_TEMPLATE_15899: '+lines
+              .slice(15880,15917)
+              .map((line,index)=>String(15881+index)+' '+line).join('\n'))
+          }
+        }
+        return null
+      },
+    },
     vue(),
     tailwindcss(),
   ],
