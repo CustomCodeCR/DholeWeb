@@ -468,11 +468,11 @@ onMounted(() => { if (allowed.value) void load() })
               <div v-else-if="f.type === 'checkbox'" :data-required-field="f.key" :class="isInvalid(f.key) ? '!border-red-500 ring-2 ring-red-500/20' : ''" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
                 <DhSwitch :label="f.label" :model-value="Boolean(form[f.key])" @update:model-value="form[f.key] = $event" />
               </div>
-              <CrmCatalogPicker v-else-if="catalogFields[f.key]" :data-required-field="f.key" :error="fieldError(f.key)"
+              <CrmCatalogPicker v-else-if="catalogFields[f.key]" :data-required-field="f.key" :validation-error="fieldError(f.key)"
                 :label="f.label" :catalog-group-slug="catalogFields[f.key]?.slug ?? ''"
                 :value-kind="catalogFields[f.key]?.kind ?? 'id'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
-              <CrmReferencePicker v-else-if="canSelectReference(f.key)" :data-required-field="f.key" :error="fieldError(f.key)"
+              <CrmReferencePicker v-else-if="canSelectReference(f.key)" :data-required-field="f.key" :validation-error="fieldError(f.key)"
                 :label="f.label" :resource="referenceResources[f.key] ?? 'accounts'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
               <DhInput v-else :data-required-field="f.key" :error="fieldError(f.key)" :label="f.label + (f.required ? ' *' : '')"
