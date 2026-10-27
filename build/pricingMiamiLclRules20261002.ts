@@ -30,7 +30,7 @@ function insertMiamiFormState(source: string) {
     `${indent}miamiSedQty: 1,`,
     `${indent}miamiBonded: false,`,
     `${indent}miamiDimensionInputUnit: 'in',`,
-    `${indent}miamiWeightInputUnit: 'lb',`,
+    `${indent}miamiWeightInputUnit: 'kg',`,
   ].join('\n'))
 }
 
@@ -107,8 +107,8 @@ const miamiDimensionUnitOptions = [
 ]
 
 const miamiWeightUnitOptions = [
-  { value: 'lb', label: 'Libras (lb)' },
   { value: 'kg', label: 'Kilogramos (kg)' },
+  { value: 'lb', label: 'Libras (lb)' },
 ]`,
     'Miami rate constants',
   )
@@ -182,9 +182,7 @@ function setMiamiDimensionInputValue(
 function miamiWeightConversionText(weightKg: number) {
   const kg = Math.max(0, number(weightKg))
   const lb = kg * MIAMI_LB_PER_KG
-  return form.miamiWeightInputUnit === 'lb'
-    ? lb.toFixed(2) + ' lb → ' + kg.toFixed(2) + ' kg'
-    : kg.toFixed(2) + ' kg → ' + lb.toFixed(2) + ' lb'
+  return kg.toFixed(2) + ' kg → ' + lb.toFixed(2) + ' lb'
 }
 
 function miamiDimensionConversionText(storedValue: number) {
