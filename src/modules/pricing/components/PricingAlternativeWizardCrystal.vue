@@ -1191,7 +1191,7 @@ function ownLclCustomsCostApplies(cost: CostSelectDto, serviceId: string) {
   return true
 }
 
-function syncOwnLclCrcAgencyLine() {
+function syncOwnLclCrcAgencyLine(forceReprice = false) {
   if (props.viewOnly || shipmentModeForApi.value !== 'Lcl'
     || !isOwnLclMatrixContext() || !crcImportContext.value) return
   const service = selectedCrcCustomsService.value
@@ -1240,14 +1240,14 @@ function syncOwnLclCrcAgencyLine() {
       : 'No se encontró un tramo de precio para el peso indicado. Revise los kg antes de guardar.',
     notes: existing?.notes ?? configured.notes ?? null,
     serviceIds: configured.services?.map((item) => item.id) ?? [service.id],
-    currencyId: existing?.detailId ? existing.currencyId : selectedCurrencyForCost.id,
-    currencyName: existing?.detailId ? existing.currencyName : displayValue(selectedCurrencyForCost),
-    currencyCode: existing?.detailId ? existing.currencyCode : selectedCurrencyForCost.code,
-    amountCurrencyCode: existing?.detailId
+    currencyId: existing?.detailId && !forceReprice ? existing.currencyId : selectedCurrencyForCost.id,
+    currencyName: existing?.detailId && !forceReprice ? existing.currencyName : displayValue(selectedCurrencyForCost),
+    currencyCode: existing?.detailId && !forceReprice ? existing.currencyCode : selectedCurrencyForCost.code,
+    amountCurrencyCode: existing?.detailId && !forceReprice
       ? existing.amountCurrencyCode ?? existing.currencyCode
       : selectedCurrencyForCost.code,
-    costAmount: existing?.detailId ? number(existing.costAmount) : number(price?.costAmount),
-    saleAmount: existing?.detailId ? number(existing.saleAmount) : number(price?.saleAmount),
+    costAmount: existing?.detailId && !forceReprice ? number(existing.costAmount) : number(price?.costAmount),
+    saleAmount: existing?.detailId && !forceReprice ? number(existing.saleAmount) : number(price?.saleAmount),
     included: true,
     optional: false,
     manual: false,
