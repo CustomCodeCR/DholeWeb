@@ -559,6 +559,10 @@ async function applyScreen7DatabaseCosts() {
     } else {
       rateLines.value = next
     }
+    // Re-evaluate the seller's Anticipado/Redestino selection after replacing
+    // catalog rows. Otherwise a freshly added Optional keeps included=false
+    // despite its OperationalConditions matching the persisted request.
+    syncHaulageOptionalLines()
     // A dropped persisted detail must also be deleted on PUT. The rate-update
     // reconciliation otherwise keeps it when the route stays unchanged or
     // a different agent has a charge with the same displayed name.
