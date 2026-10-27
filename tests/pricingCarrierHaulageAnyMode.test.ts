@@ -94,3 +94,58 @@ test('COSCO Merchant FCL remains eligible independently of Carrier', () => {
     operationalConditions: ['MerchantHaulage'],
   }), true)
 })
+
+
+const agentResolverStart = source.indexOf('function validPricingAgentId(value: unknown)')
+const agentResolverEnd = source.indexOf('function currentCostContextKey()', agentResolverStart)
+assert.ok(agentResolverStart >= 0 && agentResolverEnd > agentResolverStart,
+  'Pricing agent resolver must validate the GUID before sending a context query')
+
+const agentResolverJs = ts.transpileModule(
+  source.slice(agentResolverStart, agentResolverEnd),
+  { compilerOptions: { target: ts.ScriptTarget.ES2022 } },
+).outputText
+
+function agentContext() {
+  const env = {
+    form: { agentId: '__dhole_lcl_gcf_agent__' },
+    shipmentModeForApi: { value: 'Lcl' },
+    lclSelectedSource: {
+      value: {
+        kind: 'Own', providerId: '__dhole_lcl_gcf_agent__',
+        providerName: 'Grupo Castro Fallas', providerCode: 'GCF',
+      },
+    },
+    catalogs: { agents: [] as Array<{ id: string; code: string; name: string }> },
+    displayValue: (item: { name: string }) => item.name,
+    normalizeCatalogValue: (value: string) => String(value ?? '').toLowerCase(),
+  }
+  const agentId = vm.runInNewContext(agentResolverJs + '\ncostContextAgentId', env)
+    as () => string
+  return { env, agentId }
+}
+
+test('LCL GCF UI-only agent ID is omitted from the GUID-based costs/select query', () => {
+  const { agentId } = agentContext()
+  assert.equal(agentId(), '')
+  assert.equal(agentId() || undefined, undefined)
+})
+
+test('LCL GCF configured agent GUID is used when it exists in Config', () => {
+  const { env, agentId } = agentContext()
+  const realId = 'c536ce9d-6137-4c25-8e7c-9b6def9731b8'
+  env.catalogs.agents.push({ id: realId, code: 'GCF', name: 'Grupo Castro Fallas' })
+  assert.equal(agentId(), realId)
+})
+
+test('LCL source UUID or real selected agent UUID is retained without synthetic IDs', () => {
+  const { env, agentId } = agentContext()
+  const providerId = '97dbef84-2345-4ccc-95c4-601b1b377abf'
+  env.lclSelectedSource.value.providerId = providerId
+  assert.equal(agentId(), providerId)
+  env.lclSelectedSource.value.providerId = 'provider-not-a-guid'
+  env.form.agentId = 'c536ce9d-6137-4c25-8e7c-9b6def9731b8'
+  assert.equal(agentId(), env.form.agentId)
+  env.form.agentId = '__dhole_lcl_gcf_agent__'
+  assert.equal(agentId(), '')
+})
