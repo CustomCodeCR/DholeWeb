@@ -517,17 +517,30 @@ async function refreshAlternateKeys(keepMessage=false){
     // Only refresh metadata. Never reset selected columns, lookup bindings,
     // Picklist selections, pending draft or saved version.
     snapshot.value=await fetchClient<Snapshot>(api('metadata'),{method:'GET'})
-    const matches=result.alternateKeys.filter(key=>key.attributes.length===1&&
-      key.attributes[0]===proposedKeyField.value)
-    if(matches.length===1)keyName.value=matches[0]!.logicalName
-    else if(!result.alternateKeys.some(key=>key.logicalName===keyName.value))
-      keyName.value=''
+    // Once the server has discovered a newly created key column, prefer
+    // the permanent Dhole rate identity instead of the non-unique IDTRA text.
+    // Preserve an explicit selection of another still-active key.
+    const rateIdKey=result.alternateKeys.find(key=>key.attributes.length===1&&
+      /(?:^|_)dholerateid$/i.test(key.attributes[0]??''))
+    const matchingCurrent=result.alternateKeys.find(key=>key.logicalName===keyName.value)
+    if(rateIdKey&&!matchingCurrent){
+      proposedKeyField.value=rateIdKey.attributes[0]!
+      keyName.value=rateIdKey.logicalName
+      alternateKeyCreateConfirm.value=false
+    }else{
+      const matches=result.alternateKeys.filter(key=>key.attributes.length===1&&
+        key.attributes[0]===proposedKeyField.value)
+      if(matches.length===1)keyName.value=matches[0]!.logicalName
+      else if(!matchingCurrent)keyName.value=''
+    }
     if(!keepMessage)
-      success.value=result.alternateKeys.length
-        ?'Claves activas actualizadas desde Dataverse. Se conservaron todas tus columnas y relaciones.'
-        :result.keyStatuses?.length
-          ?'Se encontraron claves pendientes o fallidas; revisá el estado del índice. No se modificó ningún campo.'
-          :'Dataverse no tiene claves alternativas registradas para esta tabla.'
+      success.value=rateIdKey
+        ?'La clave Dhole Rate ID está activa y disponible para UPSERT. Si el nuevo campo aparece sin permiso, autorizalo explícitamente en Catálogo.'
+        :result.alternateKeys.length
+          ?'Claves activas actualizadas desde Dataverse. Se conservaron todas tus columnas y relaciones.'
+          :result.keyStatuses?.length
+            ?'Se encontraron claves pendientes o fallidas; revisá el estado del índice. No se modificó ningún campo.'
+            :'Dataverse no tiene claves alternativas registradas para esta tabla.'
   }catch(e){error.value=describeAlternateKeyError(e)}
   finally{alternateKeysLoading.value=false}
 }
