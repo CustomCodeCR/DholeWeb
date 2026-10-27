@@ -93,7 +93,33 @@ function patchWizard(source: string) {
   const approvalCommercialActions =
     "              <div class=\"flex flex-wrap gap-2\">\n                <DhButton v-if=\"isMasterTariff\" @click=\"applyMasterTariff\">Aplicar a cliente</DhButton>\n                <template v-else>\n                  <DhButton\n                    v-if=\"editingRate.status === 'PendingApproval' && canApproveLowMargin\"\n                    :loading=\"approvalSaving\"\n                    :disabled=\"!canApproveCurrentRate || approvalSaving\"\n                    @click=\"approveCurrentRate\"\n                  >Aprobar margen</DhButton>\n                  <DhButton\n                    v-if=\"editingRate.status === 'ApprovedByManagement' && canUpdateRateStatus\"\n                    :disabled=\"!canOpenApprovedRate || commercialStatusSaving\"\n                    @click=\"openApprovedRate\"\n                  >Poner en abierta</DhButton>\n                  <DhButton variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>\n                  <DhButton :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('accept')\">Aceptada</DhButton>\n                  <DhButton variant=\"danger\" :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('reject')\">Rechazada</DhButton>\n                </template>\n              </div>"
 
-  if (code.includes(compactMasterAwareCommercialActions)) {
+  const currentResendCommercialAction =
+    "<DhButton size=\"sm\" variant=\"secondary\" :disabled=\"(!canMarkSent && !canResendPendingReapproval) || commercialStatusSaving\" @click=\"markCurrentRateSent\">{{ canResendPendingReapproval ? 'Reenviar al vendedor' : editingRate.pendingReapproval ? 'Enviar revisión' : 'Enviada' }}</DhButton>"
+  const currentApprovalActions =
+    "                  <DhButton\n" +
+    "                    v-if=\"editingRate.status === 'PendingApproval' && canApproveLowMargin\"\n" +
+    "                    size=\"sm\"\n" +
+    "                    :loading=\"approvalSaving\"\n" +
+    "                    :disabled=\"!canApproveCurrentRate || approvalSaving\"\n" +
+    "                    @click=\"approveCurrentRate\"\n" +
+    "                  >Aprobar margen</DhButton>\n" +
+    "                  <DhButton\n" +
+    "                    v-if=\"editingRate.status === 'ApprovedByManagement' && canUpdateRateStatus\"\n" +
+    "                    size=\"sm\"\n" +
+    "                    :disabled=\"!canOpenApprovedRate || commercialStatusSaving\"\n" +
+    "                    @click=\"openApprovedRate\"\n" +
+    "                  >Poner en abierta</DhButton>\n"
+
+  // Preserve the current wizard's send/resend action instead of replacing
+  // it with the obsolete, pre-reapproval commercial button.
+  if (code.includes(currentResendCommercialAction)) {
+    code = replaceOne(
+      code,
+      "                  " + currentResendCommercialAction,
+      currentApprovalActions + "                  " + currentResendCommercialAction,
+      'wizard current commercial action buttons',
+    )
+  } else if (code.includes(compactMasterAwareCommercialActions)) {
     code = code.replace(compactMasterAwareCommercialActions, compactApprovalCommercialActions)
   } else if (code.includes(masterAwareCommercialActions)) {
     code = code.replace(masterAwareCommercialActions, approvalCommercialActions)
