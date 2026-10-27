@@ -49,6 +49,34 @@ function screen7CostLineKey(line: RateLine) {
     : 'line:' + normalizeCatalogValue(line.name) + '|' + line.costDetailType + '|' + line.section
 }
 
+// Costs can have several related agents/navieras. The legacy single ID may
+// point to the first relation (RS/ONE), not the currently selected one.
+// Only relationships actually selected for this quote may be refreshed.
+function screen7CostMatchesSelectedProviders(cost: CostSelectDto) {
+  const matches = (
+    relations: Array<{ id: string }> | null | undefined,
+    legacyId: string | null | undefined,
+    selectedId: string,
+  ) => {
+    const ids = Array.isArray(relations)
+      ? relations.map((item) => String(item.id ?? '').trim()).filter(Boolean)
+      : []
+    if (ids.length) return Boolean(selectedId) && ids.includes(selectedId)
+    return !legacyId || (Boolean(selectedId) && String(legacyId) === selectedId)
+  }
+  return matches(cost.agents, cost.agentId, String(costContextAgentId() || form.agentId || ''))
+    && matches(cost.carriers, cost.carrierId, String(form.carrierId || ''))
+}
+
+function screen7IsFormerProviderCost(
+  line: RateLine,
+  knownCatalogById: Map<string, CostSelectDto>,
+) {
+  if (!line.costId || line.manual) return false
+  const configured = knownCatalogById.get(line.costId)
+  return Boolean(configured && !screen7CostMatchesSelectedProviders(configured))
+}
+
 function keepScreen7CurrentLines() {
   screen7RefreshPromptOpen.value = false
   pricingDraftLastLineContext = pricingDraftLineContextKey()
@@ -311,6 +339,7 @@ async function applyScreen7DatabaseCosts() {
   const previous = rateLines.value.map((line) => ({ ...line }))
   const previousCosts = costs.value
   const previousLineContext = pricingDraftLastLineContext
+  const previousExplicitlyRemovedIds = new Set(explicitlyRemovedPersistedDetailIds.value)
   const previousOwnLclRefreshContext = screen7OwnLclRefreshContext.value
   const previousSource = lclSelectedSource.value
   const previousFreightCost = form.freightCost
@@ -380,6 +409,11 @@ async function applyScreen7DatabaseCosts() {
       throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
     }
 
+    // The Pricing endpoint and optional catalog can contain historical or
+    // multi-related associations. Never merge a different selected provider.
+    const knownCatalogById = new Map(costs.value.map((cost) => [cost.id, cost]))
+    costs.value = costs.value.filter(screen7CostMatchesSelectedProviders)
+
     // A saved quote may reference a CostId not returned by the contextual
     // endpoint due to historical first-port or agent associations. Read the
     // active catalog for those exact IDs, never a cross-route name guess.
@@ -391,7 +425,9 @@ async function applyScreen7DatabaseCosts() {
     if (missingCostIds.size) {
       const activeCatalog = await PricingService.selectCosts({ isActive: true })
       activeCatalog.forEach((cost) => {
-        if (missingCostIds.has(cost.id) && cost.isActive !== false) {
+        if (!missingCostIds.has(cost.id)) return
+        knownCatalogById.set(cost.id, cost)
+        if (cost.isActive !== false && screen7CostMatchesSelectedProviders(cost)) {
           catalogById.set(cost.id, cost)
         }
       })
@@ -412,6 +448,7 @@ async function applyScreen7DatabaseCosts() {
     const seenKeys = new Set<string>()
     let refreshed = 0
     let retained = 0
+    const discardedProviderDetailIds = new Set<string>()
 
     const insert = (line: RateLine) => {
       const key = screen7CostLineKey(line)
@@ -424,6 +461,7 @@ async function applyScreen7DatabaseCosts() {
     // catalog costs. Update every CostId from the latest DB snapshot even if
     // a source-specific rebuilder kept the old amounts.
     for (const line of generated) {
+      if (screen7IsFormerProviderCost(line, knownCatalogById)) continue
       if (line.costDetailType === 'Freight' && !hasInternationalTransportService.value) continue
       const original = previousByKey.get(screen7CostLineKey(line))
       const configured = line.costId ? catalogById.get(line.costId) : undefined
@@ -441,6 +479,10 @@ async function applyScreen7DatabaseCosts() {
     // zero rebuilt lines but still has legitimate destination/customs charges.
     // Do not mistake an empty builder output for permission to delete them.
     for (const original of previous) {
+      if (screen7IsFormerProviderCost(original, knownCatalogById)) {
+        if (original.detailId) discardedProviderDetailIds.add(original.detailId)
+        continue
+      }
       if (original.costDetailType === 'Freight' && !hasInternationalTransportService.value) continue
       const key = screen7CostLineKey(original)
       if (seenKeys.has(key)) continue
@@ -468,7 +510,8 @@ async function applyScreen7DatabaseCosts() {
       const existingLogical = next.some((line) =>
         normalizeCatalogValue(line.name) === normalizeCatalogValue(cost.name)
         && line.costDetailType === cost.costDetailType
-        && line.section === sectionForCost(cost))
+        && line.section === sectionForCost(cost)
+        && !line.costId)
       if (existingLogical) continue
       const newLine = screen7CatalogRateLine(cost)
       if (newLine) {
@@ -481,6 +524,13 @@ async function applyScreen7DatabaseCosts() {
       throw new Error('No se recibieron líneas ni costos para esta cotización. Se conservaron los valores anteriores.')
     }
     rateLines.value = next
+    // A dropped persisted detail must also be deleted on PUT. The rate-update
+    // reconciliation otherwise keeps it when the route stays unchanged or
+    // a different agent has a charge with the same displayed name.
+    explicitlyRemovedPersistedDetailIds.value = new Set([
+      ...previousExplicitlyRemovedIds,
+      ...discardedProviderDetailIds,
+    ])
     pricingDraftLastLineContext = pricingDraftLineContextKey()
     screen7RefreshPromptOpen.value = false
     savePricingDraftNow()
@@ -499,6 +549,7 @@ async function applyScreen7DatabaseCosts() {
     rateLines.value = previous
     costs.value = previousCosts
     pricingDraftLastLineContext = previousLineContext
+    explicitlyRemovedPersistedDetailIds.value = previousExplicitlyRemovedIds
     screen7OwnLclRefreshContext.value = previousOwnLclRefreshContext
     lclSelectedSource.value = previousSource
     form.freightCost = previousFreightCost
