@@ -11,7 +11,7 @@ export function workspaceTabKey(path: string): string {
 // or between editor documents, updates that tab instead of leaving a stale one.
 export function workspaceTabGroup(path: string): string | null {
   const pathname = workspaceTabKey(path)
-  if (pathname === '/pricing' || /^\/pricing\/rates\/[^/]+\/wizard$/.test(pathname)) return 'pricing-editor'
+  // Creation stays available as a fresh tab while the newly created QUO opens\n  // in its own editor/detail tab. Other quote details still reuse one slot.\n  if (pathname === '/pricing') return 'pricing-create'\n  if (/^\/pricing\/rates\/[^/]+\/wizard$/.test(pathname)) return 'pricing-editor'
   if (pathname === '/pricing/imports' || /^\/pricing\/imports\/review\/[^/]+$/.test(pathname)) return 'pricing-import-review'
   if (pathname === '/pricing/email-imports' || /^\/pricing\/email-source\/[^/]+$/.test(pathname)) return 'pricing-email-review'
   if (pathname === '/pricing/request-rate' || /^\/pricing\/seller-rates\/[^/]+$/.test(pathname)) return 'pricing-seller-request'
