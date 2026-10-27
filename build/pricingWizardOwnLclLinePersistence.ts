@@ -2,6 +2,126 @@ import type { Plugin } from 'vite'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 
+const OWN_LCL_AGENCY_COST_HELPERS = String.raw`
+// Own LCL keeps its consolidation matrix, but selected Costa Rica customs is a
+// separate service from Pricing Costs. Never replace or reprice the matrix.
+function ownLclCustomsRelationMatches(
+  relations: Array<{ id: string }> | null | undefined,
+  legacyId: string | null | undefined,
+  selectedId: string | null | undefined,
+) {
+  const ids = Array.isArray(relations)
+    ? relations.map((item) => String(item.id ?? '')).filter(Boolean)
+    : []
+  if (ids.length) return Boolean(selectedId) && ids.includes(String(selectedId))
+  return !legacyId || Boolean(selectedId) && String(legacyId) === String(selectedId)
+}
+
+function ownLclCustomsCostApplies(cost: CostSelectDto, serviceId: string) {
+  if (cost.isActive === false) return false
+  if (!cost.services?.some((item) => item.id === serviceId)) return false
+  const modes = cost.shipmentModes?.length ? cost.shipmentModes : cost.shipmentMode ? [cost.shipmentMode] : []
+  if (modes.length && !modes.some((mode) => ['lcl', 'any'].includes(String(mode).toLowerCase()))) return false
+  if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId)) return false
+  // LCL propio has no naviera: don't import shipping-line costs.
+  if (cost.carrierId || cost.carriers?.length) return false
+
+  const matches = ownLclCustomsRelationMatches
+  if (!matches(cost.pols, cost.polId, form.originId)) return false
+  if (!matches(cost.poes, cost.poeId, costContextPoeId())) return false
+  if (!matches(cost.pods, cost.podId, form.podId)) return false
+
+  const agentId = costContextAgentId()
+  const ownGcfAgent = lclSelectedSource.value?.kind === 'Own'
+    && normalizeCatalogValue([cost.agentName, cost.agentCode].filter(Boolean).join(' '))
+      .match(/grupo castro fallas|\bgcf\b/)
+  if ((cost.agentId || cost.agents?.length)
+    && !matches(cost.agents, cost.agentId, agentId) && !ownGcfAgent) return false
+
+  if (cost.portId) {
+    const role = String(cost.portRole ?? '').toLowerCase()
+    const relations = role === 'pol' ? cost.pols : role === 'poe' ? cost.poes : role === 'pod' ? cost.pods : null
+    if (!relations?.length) {
+      const expected = role === 'pol' ? form.originId
+        : role === 'poe' ? costContextPoeId()
+        : role === 'pod' ? form.podId : ''
+      if (expected ? cost.portId !== expected
+        : ![form.originId, costContextPoeId(), form.podId].includes(cost.portId)) return false
+    }
+  }
+  return true
+}
+
+function syncOwnLclCrcAgencyLine(forceReprice = false) {
+  if (props.viewOnly || shipmentModeForApi.value !== 'Lcl'
+    || !isOwnLclMatrixContext() || !crcImportContext.value) return
+  const service = selectedCrcCustomsService.value
+  if (!service || !visibleSections.value.includes('destination_charges')) return
+
+  // Pricing's full active catalog is loaded at wizard initialization. Service
+  // association and complete route restrictions are authoritative; names are not.
+  const configured = [...allCosts.value, ...costs.value]
+    .filter((cost) => ownLclCustomsCostApplies(cost, service.id))
+    .sort((a, b) => costSpecificity(b) - costSpecificity(a))[0]
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!currency) return
+  if (!configured) {
+    ensureCrcCustomsLine(rateLines.value, currency)
+    return
+  }
+
+  const price = resolveCostPricing(configured, {
+    weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : null,
+    packages: number(form.cargoPackages) > 0 ? Math.trunc(number(form.cargoPackages)) : null,
+    storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : null,
+    containerTypeId: selectedEquipment.value?.id ?? null,
+  })
+  const selectedCurrencyForCost = findById(catalogs.currencies, configured.currencyId)
+    ?? catalogs.currencies.find((item) =>
+      String(item.code ?? '').toUpperCase() === String(configured.currencyCode ?? '').toUpperCase())
+    ?? crcCurrency.value ?? currency
+  const key = 'own-lcl-customs:' + configured.id
+  const existing = rateLines.value.find((line) =>
+    line.key === key || line.costId === configured.id
+    || line.key === 'service:customs-cr'
+    || (line.section === 'destination_charges'
+      && normalizeCatalogValue(line.name) === normalizeCatalogValue(configured.name)),
+  )
+  const line: RateLine = {
+    key,
+    detailId: existing?.detailId ?? null,
+    section: 'destination_charges',
+    name: configured.name,
+    costDetailType: configured.costDetailType,
+    costType: configured.costType,
+    chargeBasis: configured.chargeBasis ?? 'PerShipment',
+    costId: configured.id,
+    contextLabel: price
+      ? costContextLabel(configured)
+      : 'No se encontró un tramo de precio para el peso indicado. Revise los kg antes de guardar.',
+    notes: existing?.notes ?? configured.notes ?? null,
+    serviceIds: configured.services?.map((item) => item.id) ?? [service.id],
+    currencyId: existing?.detailId && !forceReprice ? existing.currencyId : selectedCurrencyForCost.id,
+    currencyName: existing?.detailId && !forceReprice ? existing.currencyName : displayValue(selectedCurrencyForCost),
+    currencyCode: existing?.detailId && !forceReprice ? existing.currencyCode : selectedCurrencyForCost.code,
+    amountCurrencyCode: existing?.detailId && !forceReprice
+      ? existing.amountCurrencyCode ?? existing.currencyCode
+      : selectedCurrencyForCost.code,
+    costAmount: existing?.detailId && !forceReprice ? number(existing.costAmount) : number(price?.costAmount),
+    saleAmount: existing?.detailId && !forceReprice ? number(existing.saleAmount) : number(price?.saleAmount),
+    included: true,
+    optional: false,
+    manual: false,
+    billToClient: existing?.billToClient ?? null,
+    applyDestinationTax: existing?.applyDestinationTax ?? false,
+    destinationTaxRate: existing?.destinationTaxRate ?? 0,
+  }
+  if (existing) Object.assign(existing, line)
+  else rateLines.value.push(line)
+}
+`
+
+
 function replaceOne(source: string, anchor: string, replacement: string, label: string) {
   const count = source.split(anchor).length - 1
   if (count !== 1) {
@@ -118,6 +238,10 @@ function patchWizard(source: string) {
     `  const sourceDetails = isOwnLclMatrixContext()\n    ? ${detailsMapperAnchor}.filter((line) => !line.costId || String(line.key ?? '').startsWith('own-lcl-customs:'))\n    : ${detailsMapperAnchor}\n  const details: CreateRateDetailRequest[] = sourceDetails.map((line) => ({`,
     'own LCL persisted detail guard',
   )
+
+  code = replaceOne(code, 'function addManualCharge() {',
+    OWN_LCL_AGENCY_COST_HELPERS + '\nfunction addManualCharge() {',
+    'independent own LCL CRC agency cost')
 
   return code
 }
