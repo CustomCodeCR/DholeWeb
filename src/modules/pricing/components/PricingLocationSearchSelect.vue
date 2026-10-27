@@ -16,6 +16,7 @@ const props = withDefaults(defineProps<{
   options: LocationOption[]
   terminalType?: 'CY' | 'SD' | 'APT' | 'WHS'
   optional?: boolean
+  error?: string
   disabled?: boolean
 }>(), {
   placeholder: 'Seleccione una ubicación',
@@ -154,7 +155,9 @@ onBeforeUnmount(() => {
           type="search"
           autocomplete="off"
           :disabled="disabled"
-          class="h-11 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] pl-10 pr-24 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none transition dh-focus-primary disabled:cursor-not-allowed disabled:opacity-70"
+          :aria-invalid="Boolean(error)"
+          :class="error ? '!border-red-500 ring-2 ring-red-500/20' : ''"
+          class="h-11" w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] pl-10 pr-24 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] outline-none transition dh-focus-primary disabled:cursor-not-allowed disabled:opacity-70"
           :placeholder="open ? searchPlaceholder : placeholder"
           @focus="openSearch"
           @click="openSearch"
@@ -184,6 +187,7 @@ onBeforeUnmount(() => {
         />
       </span>
     </label>
+    <p v-if="error" role="alert" class="mt-1 text-xs font-semibold text-red-500">{{ error }}</p>
 
     <div
       v-if="open && !disabled"
