@@ -199,12 +199,14 @@ const props = withDefaults(defineProps<{
   viewOnly?: boolean
   sellerRequestMode?: boolean
   rateRequestId?: string | null
+  modificationRequestId?: string | null
   sellerEditRequestId?: string | null
 }>(), {
   rateId: null,
   viewOnly: false,
   sellerRequestMode: false,
   rateRequestId: null,
+  modificationRequestId: null,
   sellerEditRequestId: null,
 })
 
@@ -4339,7 +4341,9 @@ async function saveOpenRequest() {
       }],
     })
     if (props.rateRequestId) {
-      await RateRequestLeaseService.completeRate(props.rateRequestId, rateId)
+      // An unfinished draft may be associated with its request, but must NOT
+      // be marked completed or emailed until Pricing saves the final quote.
+      await RateRequestLeaseService.attachRate(props.rateRequestId, rateId)
     }
     // CreateRate puede devolver la solicitud ya Open cuando el usuario tiene
     // permiso de aprobación. No enviamos Open -> Open porque esa transición era la
@@ -4790,29 +4794,46 @@ async function saveRate() {
         }
       }
       rateId = editingRate.value.id
+      if (props.modificationRequestId) {
+        // Saving a requested revision is the delivery intent; no second
+        // manual completion click is necessary. Pricing defers the actual
+        // email until management approves any low-margin revision.
+        await RateRequestLeaseService.prepareModification(
+          props.modificationRequestId, rateId, persistedRate.revisionNumber,
+        )
+        await RateRequestLeaseService.completeRate(
+          props.modificationRequestId, rateId, { confirmSellerModification: true },
+        )
+      }
       const nextRevision = editingRate.value.status === 'AcceptedByClient'
         ? (editingRate.value.revisionNumber || 1) + 1
         : (editingRate.value.revisionNumber || 1)
       toastStore.success(
-        editingRate.value.status === 'AcceptedByClient'
-          ? `Revisión ${nextRevision} creada y versión aceptada anterior conservada.`
-          : 'Tarifa actualizada correctamente.',
-        persistedRate.status === 'PendingApproval'
-          ? 'La nueva revisión requiere aprobación de margen antes de volver a enviarse.'
-          : 'La nueva revisión está pendiente de envío. Revísela y márquela como Enviada desde su detalle.',
+        props.modificationRequestId
+          ? 'Solicitud de modificación completada.'
+          : editingRate.value.status === 'AcceptedByClient'
+            ? `Revisión ${nextRevision} creada y versión aceptada anterior conservada.`
+            : 'Tarifa actualizada correctamente.',
+        props.modificationRequestId
+          ? persistedRate.status === 'PendingApproval'
+            ? 'La solicitud quedó completada. El PDF se enviará automáticamente al vendedor después de aprobar el margen.'
+            : 'El PDF se enviará automáticamente al vendedor.'
+          : persistedRate.status === 'PendingApproval'
+            ? 'La nueva revisión requiere aprobación de margen antes de volver a enviarse.'
+            : 'La nueva revisión está pendiente de envío. Revísela y márquela como Enviada desde su detalle.',
       )
     } else {
       rateId = await PricingService.createRate(createPayload)
     }
     createdRateId.value = rateId
     if (props.rateRequestId) {
-      // The quote may exist before its PDF can be issued (low-margin approval).
-      // The backend links that quote immediately and completes delivery on approval.
+      // Pricing completes the seller request now and automatically dispatches
+      // the PDF on approval, or immediately when no approval is required.
       await RateRequestLeaseService.completeRate(props.rateRequestId, rateId)
     }
     if (!editingRate.value) {
       toastStore.success('Tarifa creada correctamente.', props.rateRequestId
-        ? 'La solicitud quedó vinculada. Si el margen requiere aprobación, se finalizará automáticamente al autorizar la tarifa.'
+        ? 'La solicitud quedó completada. Si necesita aprobación de margen, el PDF se enviará al vendedor al autorizarla.'
         : undefined)
       // Al crear, reemplazar el wizard vacío por el detalle de la QUO guardada.
       await router.replace({
