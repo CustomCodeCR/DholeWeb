@@ -265,11 +265,11 @@ function patchWizard(source: string) {
   // Other wizard features may inject service reconciliation between the
   // persisted-cost merge and the step assignment. Insert the FCL freight
   // reconciliation right after the merge instead of depending on adjacency.
-  const persistedCostsMerge = '    mergeConfiguredOptionalCostsIntoRateLines()\\n'
+  const persistedCostsMerge = '    mergeConfiguredOptionalCostsIntoRateLines()\n'
   code = replaceRequired(
     code,
     persistedCostsMerge,
-    persistedCostsMerge + '    if (!props.viewOnly) reconcileFclFreightLines()\\n',
+    persistedCostsMerge + '    if (!props.viewOnly) reconcileFclFreightLines()\n',
     'FCL freight hydrate reconciliation',
   )
   code = replaceRequired(
