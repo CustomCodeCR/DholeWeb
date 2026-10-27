@@ -15,7 +15,7 @@ const fixture = [
   '<div v-else-if="step === 7" class="crystal-lines-stage space-y-6">',
 ].join('\n')
 
-function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = false) {
+function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = false, allActiveCosts = pricingCosts) {
   const plugin = pricingWizardScreen7CostChoice()
   const transform = plugin.transform as unknown as
     (source: string, id: string) => { code: string }
@@ -45,7 +45,7 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
   const events: string[] = []
   const env: Record<string, any> = {
     props: { viewOnly: false },
-    form: { freightCost: 0, freightSale: 0, miamiCommercialPlan: null, cargoValue: 0,
+    form: { agentId: 'WWL', carrierId: 'MSC', freightCost: 0, freightSale: 0, miamiCommercialPlan: null, cargoValue: 0,
       miamiWhsQty: 1, miamiIncludeSed: true, miamiSedQty: 1, dangerousCargo: false,
       miamiBonded: false },
     editingRate: { value: { chargeableQuantity: 29 } },
@@ -84,6 +84,8 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
         profitPerCbm: 10, profitPercentage: 6, meetsMinimumMargin: false,
       }) },
     },
+    explicitlyRemovedPersistedDetailIds: { value: new Set<string>() },
+    costContextAgentId: () => env.form.agentId,
     screen7RefreshBusy: { value: false },
     screen7RefreshAllowed: { value: false },
     screen7RefreshPromptOpen: { value: true },
@@ -99,7 +101,7 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
     isLclColoaderAgentCostContext: () => false,
     currentCostContextKey: () => 'route-and-agent',
     PricingService: {
-      selectCosts: async () => pricingCosts,
+      selectCosts: async () => allActiveCosts,
     },
     rebuildRateLines: () => { env.rateLines.value = [] },
     number: (v: unknown) => Number(v) || 0,
@@ -155,6 +157,60 @@ test('screen 7 preserves every persisted line if Pricing returns no matching amo
   assert.equal(env.rateLines.value[0].costAmount, 100)
   assert.equal(env.rateLines.value[1].costAmount, 45)
   assert.deepEqual(events, ['saved', 'warning'])
+})
+
+
+test('screen 7 replaces RS/ONE historical charges with WWL/MSC and marks obsolete details for deletion', async () => {
+  const current = [
+    { id: 'C1', name: 'Cargo en destino', costDetailType: 'DestinationCharge',
+      costType: 'Fixed', isActive: true, currencyId: 'USD', currencyCode: 'USD',
+      currencyName: 'USD', costAmount: 135, saleAmount: 175 },
+    { id: 'C-WWL', name: 'Manejos', costDetailType: 'DestinationCharge',
+      costType: 'Fixed', isActive: true, agentId: 'WWL',
+      currencyId: 'USD', currencyCode: 'USD', currencyName: 'USD',
+      costAmount: 50, saleAmount: 65 },
+    { id: 'C-MSC', name: 'Release', costDetailType: 'DestinationCharge',
+      costType: 'Fixed', isActive: true, carrierId: 'MSC',
+      currencyId: 'USD', currencyCode: 'USD', currencyName: 'USD',
+      costAmount: 75, saleAmount: 95 },
+  ]
+  const old = [
+    { ...current[1], id: 'C-RS', agentId: 'RS', costAmount: 40 },
+    { ...current[2], id: 'C-ONE', carrierId: 'ONE', costAmount: 70 },
+  ]
+  const { env, runRefresh } = refreshHarness(current, false, [...current, ...old])
+  env.rateLines.value.push(
+    { key: 'existing:RS', detailId: 'RS', costId: 'C-RS', name: 'Manejos',
+      costDetailType: 'DestinationCharge', costType: 'Fixed',
+      section: 'destination_charges', costAmount: 40, saleAmount: 65,
+      included: true, optional: false, manual: false },
+    { key: 'existing:ONE', detailId: 'ONE', costId: 'C-ONE', name: 'Release',
+      costDetailType: 'DestinationCharge', costType: 'Fixed',
+      section: 'destination_charges', costAmount: 70, saleAmount: 95,
+      included: true, optional: false, manual: false },
+  )
+  await runRefresh()
+  assert.deepEqual(
+    Array.from(env.rateLines.value, (line: any) => line.costId).filter(Boolean).sort(),
+    ['C-MSC', 'C-WWL', 'C1'].sort(),
+  )
+  assert.deepEqual(
+    Array.from(env.explicitlyRemovedPersistedDetailIds.value).sort(),
+    ['ONE', 'RS'],
+  )
+})
+
+test('multi-agent configured cost remains valid when the selected agent is not its legacy first agent', async () => {
+  const current = [{
+    id: 'C-SHARED', name: 'ISPS', costDetailType: 'DestinationCharge',
+    costType: 'Fixed', isActive: true, agentId: 'RS',
+    agents: [{ id: 'RS' }, { id: 'WWL' }],
+    currencyId: 'USD', currencyCode: 'USD', currencyName: 'USD',
+    costAmount: 15, saleAmount: 20,
+  }]
+  const { env, runRefresh } = refreshHarness(current)
+  await runRefresh()
+  assert.ok(env.rateLines.value.some((line: any) => line.costId === 'C-SHARED'))
 })
 
 test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and retains manual charges', async () => {
