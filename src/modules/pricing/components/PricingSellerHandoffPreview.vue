@@ -116,6 +116,59 @@ const selectedCargoOptions = computed(() => ([
 
 // Las líneas originales son la fuente para solicitudes LCL/LTL con múltiples bultos.
 // Los totales persistidos evitan volver a calcular el volumen con solo la primera línea.
+// Ventas puede declarar 3 piezas en una tarima: el número de bultos no es
+// la cantidad de líneas ni debe multiplicar las dimensiones.
+const sellerCargoLines = computed(() => {
+  const context = props.snapshot.sellerContext
+  const lines = Array.isArray(context.consolidatedCargoLines) ? context.consolidatedCargoLines : []
+  const origin = [
+    props.snapshot.originName, props.originLabel,
+    props.snapshot.context.originCountryName, props.snapshot.context.originCountryCode,
+  ].filter((value) => typeof value === 'string').join(' ')
+  const legacyUsOrigin = /\b(miami|usa|united states|estados unidos)\b/i.test(origin)
+  const storageUnit = context.cargoDimensionStorageUnit === 'in'
+    || (!context.cargoDimensionStorageUnit && legacyUsOrigin) ? 2.54 : 1
+  const numberOrZero = (value: unknown) => {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  }
+  return lines.flatMap((candidate, index) => {
+    if (candidate == null || typeof candidate !== 'object' || Array.isArray(candidate)) return []
+    const line = candidate as Record<string, unknown>
+    const quantity = Math.max(1, Math.trunc(numberOrZero(line.quantity)))
+    const lengthCm = numberOrZero(line.length) * storageUnit
+    const widthCm = numberOrZero(line.width) * storageUnit
+    const heightCm = numberOrZero(line.height) * storageUnit
+    const unitType = ['Pallet', 'Loose', 'Box', 'Other'].includes(String(line.unitType))
+      ? String(line.unitType) : 'Legacy'
+    const unitName = ({ Pallet: 'Tarima', Loose: 'Bulto suelto', Box: 'Caja',
+      Other: 'Otra unidad', Legacy: 'Unidad sin clasificar (histórica)' } as Record<string, string>)[unitType]
+    return [{
+      key: index,
+      description: String(line.description || 'Línea ' + (index + 1)),
+      quantity, unitType, unitName, lengthCm, widthCm, heightCm,
+      weightKg: numberOrZero(line.weightKg),
+      stackable: line.isStackable !== false && heightCm < 177.8,
+      physicalCbm: quantity * lengthCm * widthCm * heightCm / 1_000_000,
+    }]
+  })
+})
+const sellerPalletsLabel = computed(() => {
+  if (!sellerCargoLines.value.length) return label('cargoPallets')
+  if (sellerCargoLines.value.some((line) => line.unitType === 'Legacy')) {
+    return label('cargoPallets') + ' (histórico, sin tipo de unidad por línea)'
+  }
+  return String(sellerCargoLines.value.reduce(
+    (sum, line) => sum + (line.unitType === 'Pallet' ? line.quantity : 0), 0))
+})
+const sellerVolumeMismatch = computed(() => {
+  if (!sellerCargoLines.value.length) return false
+  const persisted = Number(props.snapshot.sellerContext.physicalVolumeCbm)
+  if (!Number.isFinite(persisted) || persisted <= 0) return false
+  const calculated = sellerCargoLines.value.reduce((sum, line) => sum + line.physicalCbm, 0)
+  return Math.abs(calculated - persisted) > 0.02
+})
+
 const cargoVolume = computed(() => {
   if (!isConsolidated.value) return null
   const context = props.snapshot.sellerContext
@@ -134,27 +187,16 @@ const cargoVolume = computed(() => {
     const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : 0
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
   }
-  const lines = Array.isArray(context.consolidatedCargoLines) ? context.consolidatedCargoLines : []
-  // La unidad mostrada (CBM/CFT) no siempre coincide con la unidad interna de medidas.
-  // En Miami se pueden mostrar CBM aunque las líneas se almacenen en pulgadas.
-  const inchToCm = context.cargoDimensionStorageUnit === 'in'
-    || (!context.cargoDimensionStorageUnit && legacyUsOrigin) ? 2.54 : 1
   let physicalCbm = 0
   let billableCbm = 0
-  if (lines.length) {
-    for (const item of lines) {
-      if (!item || typeof item !== 'object') continue
-      const line = item as Record<string, unknown>
-      const quantity = Math.max(1, Math.trunc(positive(line.quantity)))
-      const length = positive(line.length) * inchToCm
-      const width = positive(line.width) * inchToCm
-      const height = positive(line.height) * inchToCm
-      if (!length || !width || !height) continue
-      physicalCbm += quantity * length * width * height / 1_000_000
-      const stackable = line.isStackable !== false && height < 177.8
-      billableCbm += quantity * length * width * (stackable ? height : Math.max(266, height)) / 1_000_000
+  if (sellerCargoLines.value.length) {
+    for (const line of sellerCargoLines.value) {
+      physicalCbm += line.physicalCbm
+      billableCbm += line.quantity * line.lengthCm * line.widthCm
+        * (line.stackable ? line.heightCm : Math.max(266, line.heightCm)) / 1_000_000
     }
   } else {
+    // Solo para solicitudes antiguas sin líneas guardadas.
     const length = positive(raw('cargoLengthCm'))
     const width = positive(raw('cargoWidthCm'))
     const height = positive(raw('cargoHeightCm'))
@@ -162,11 +204,15 @@ const cargoVolume = computed(() => {
     physicalCbm = quantity * length * width * height / 1_000_000
     billableCbm = physicalCbm
   }
-  physicalCbm = positive(context.physicalVolumeCbm) || physicalCbm
-  billableCbm = positive(context.billableVolumeCbm) || billableCbm
+  // Las líneas guardadas son la fuente; los totales históricos pueden estar desfasados.
+  if (!sellerCargoLines.value.length) {
+    physicalCbm = positive(context.physicalVolumeCbm) || physicalCbm
+    billableCbm = positive(context.billableVolumeCbm) || billableCbm
+  }
   const weightCbm = positive(raw('cargoWeightKg')) / (shipmentMode.value === 'LTL' ? 330 : 500)
-  const chargeableCbm = positive(context.chargeableVolumeCbm)
-    || (Math.max(billableCbm, weightCbm) > 0 ? Math.max(1, billableCbm, weightCbm) : 0)
+  const calculatedChargeable = Math.max(billableCbm, weightCbm) > 0 ? Math.max(1, billableCbm, weightCbm) : 0
+  const chargeableCbm = sellerCargoLines.value.length ? calculatedChargeable
+    : positive(context.chargeableVolumeCbm) || calculatedChargeable
   const format = (cbm: number) => cbm > 0
     ? (cbm * factor).toLocaleString('es-CR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' ' + unit
     : 'No indicado'
@@ -382,19 +428,36 @@ function fileKind(fileName: string): string {
               <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin opciones adicionales seleccionadas.</p>
             </div>
             <dl class="grid gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm sm:grid-cols-2">
-              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Package class="h-3.5 w-3.5" /> Bultos</dt><dd class="font-bold">{{ label('cargoPackages') }}</dd></div>
-              <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Tarimas</dt><dd class="font-bold">{{ label('cargoPallets') }}</dd></div>
+              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Package class="h-3.5 w-3.5" /> Bultos declarados (piezas)</dt><dd class="font-bold">{{ label('cargoPackages') }}</dd></div>
+              <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Tarimas / embalaje</dt><dd class="font-bold">{{ isConsolidated ? sellerPalletsLabel : label('cargoPallets') }}</dd></div>
               <template v-if="isConsolidated && cargoVolume">
                 <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen físico</dt><dd class="font-black text-[var(--dh-text)]">{{ cargoVolume.physical }}</dd></div>
                 <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen cobrable</dt><dd class="font-black text-[var(--dh-primary)]">{{ cargoVolume.chargeable }}</dd></div>
               </template>
               <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Weight class="h-3.5 w-3.5" /> Peso</dt><dd class="font-bold">{{ cargoWeight }}</dd></div>
-              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Ruler class="h-3.5 w-3.5" /> Medidas</dt><dd class="font-bold">{{ measurements }}</dd></div>
+              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Ruler class="h-3.5 w-3.5" /> {{ isConsolidated ? 'Medidas de la primera línea (no total)' : 'Medidas' }}</dt><dd class="font-bold">{{ measurements }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Valor de la carga</dt><dd class="font-semibold">{{ label('cargoValue') }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">CABYS</dt><dd class="font-semibold">{{ label('cabysCode') }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Peligrosa / sobrepeso</dt><dd class="font-semibold">{{ label('dangerousCargo') }} / {{ label('overweight') }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">No estibable / almacenaje</dt><dd class="font-semibold">{{ label('nonStackable') }} / {{ label('storageDays') }} días</dd></div>
             </dl>
+            <div v-if="isConsolidated" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
+              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Bultos declarados y unidades de carga son conceptos distintos. Solo la cantidad por línea multiplica sus dimensiones; el peso es total de cada línea.</p>
+              <div v-if="sellerVolumeMismatch" class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                La solicitud original tiene un volumen guardado distinto del calculado con sus líneas. Se muestra el cálculo de las líneas; confirme la carga antes de cotizar. No se modificó la solicitud histórica.
+              </div>
+              <div v-if="sellerCargoLines.length" class="grid gap-2">
+                <article v-for="line in sellerCargoLines" :key="line.key" class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                  <p class="text-sm font-bold">{{ line.description }} · {{ line.quantity }} × {{ line.unitName }}</p>
+                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                    Dimensiones por unidad: {{ cargoDisplayNumber(line.lengthCm) }} × {{ cargoDisplayNumber(line.widthCm) }} × {{ cargoDisplayNumber(line.heightCm) }} cm
+                    · Peso total de línea: {{ cargoDisplayNumber(line.weightKg) }} kg
+                    · Volumen físico: {{ line.physicalCbm.toFixed(3) }} CBM
+                  </p>
+                </article>
+              </div>
+              <p v-else class="text-xs font-semibold text-amber-700 dark:text-amber-300">Solicitud antigua sin desglose guardado: las medidas generales no permiten identificar cada unidad de carga. Confirmar con Ventas.</p>
+            </div>
             <div v-if="notes !== 'No indicado' && notes !== remarks" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs"><p class="mb-1 font-black">Notas adicionales</p><p class="whitespace-pre-wrap break-words leading-relaxed">{{ notes }}</p></div>
           </div>
         </section>
