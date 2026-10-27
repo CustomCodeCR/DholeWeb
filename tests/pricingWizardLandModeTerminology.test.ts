@@ -260,3 +260,14 @@ test('bultos declarados no se multiplican por tarimas en LCL y LTL', () => {
   assert.equal(cbm(pallets), 3.003)
   assert.equal(declaredPieces, 3)
 })
+
+
+test('LCL y LTL distinguen bultos declarados de cantidades por unidad de carga', () => {
+  const source = readFileSync(new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url), 'utf8')
+  assert.match(source, /Cantidad de tarimas/)
+  assert.match(source, /Cantidad de bultos sueltos/)
+  assert.match(source, /Cantidad de cajas/)
+  assert.match(source, /Bultos declarados = piezas de mercancía/)
+  assert.match(source, /lengthCm \* widthCm \* heightCm \* quantity \/ 1_000_000/)
+  assert.match(source, /sum \+ Math\.max\(0, number\(line\.weightKg\)\)/)
+})
