@@ -229,8 +229,14 @@ function patchWizard(source: string) {
     'commercial validation state',
   )
   code = replaceAllRequired(code, `if (!canNext.value) return`, `if (!canNext.value || !requirements20260908Ready.value) return`, 'next requirements guard')
-  code = replaceAllRequired(code, `:disabled="!canNext || (loadingRates && shipmentModeForApi === 'Fcl')"`, `:disabled="!canNext || !requirements20260908Ready || (loadingRates && shipmentModeForApi === 'Fcl')"`, 'continue requirements button')
-  code = replaceRequired(code, `:disabled="saving || !canNext" @click="saveOpenRequest"`, `:disabled="saving || !canNext || !requirements20260908Ready" @click="saveOpenRequest"`, 'seller submit requirements button')
+  // New forms keep navigation clickable so missing requirements are explained
+  // via toasts and red field feedback instead of leaving buttons disabled.
+  if (code.includes(`:disabled="!canNext || (loadingRates && shipmentModeForApi === 'Fcl')"`)) {
+    code = replaceAllRequired(code, `:disabled="!canNext || (loadingRates && shipmentModeForApi === 'Fcl')"`, `:disabled="loadingRates || saving"`, 'continue requirements button')
+  }
+  if (code.includes(`:disabled="saving || !canNext" @click="saveOpenRequest"`)) {
+    code = replaceRequired(code, `:disabled="saving || !canNext" @click="saveOpenRequest"`, `:disabled="saving" @click="saveOpenRequest"`, 'seller submit requirements button')
+  }
 
   // Insert the same validation into the existing seller-request wizard regardless
   // of earlier Vite plugins adding their own preamble at the top of saveOpenRequest.
