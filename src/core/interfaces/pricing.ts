@@ -943,6 +943,9 @@ export interface CreateRateContainerRequest extends Record<string, unknown> {
   containerTypeName: string
   containerTypeCode: string
   quantity: number
+  // One real weight per physical FCL/FTL unit; totalWeightKg is only an aggregate.
+  unitWeightsKg?: number[]
+  overweightUnitCount?: number
 }
 
 export interface CreateRateRequest extends Record<string, unknown> {
