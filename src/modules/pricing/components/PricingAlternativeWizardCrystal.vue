@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Check,
@@ -4174,7 +4174,7 @@ async function saveOpenRequest() {
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
   if (!origin || !poe || !equipment || !incoterm || !currency) {
     step.value = 3
-    void nextTick(() => validateRequiredFields())
+    void Promise.resolve().then(() => { validateRequiredFields() })
     return
   }
 
@@ -4318,7 +4318,7 @@ async function saveRate() {
   ) {
     step.value = 7
     exchangeRateError.value = 'Ingrese los tipos de cambio de Compra y Venta antes de crear la tarifa.'
-    void nextTick(() => validateRequiredFields())
+    void Promise.resolve().then(() => { validateRequiredFields() })
     return
   }
 
@@ -4342,7 +4342,7 @@ async function saveRate() {
 
   if (missing.length) {
     step.value = !origin || !poe || !equipment || !incoterm ? 3 : 6
-    void nextTick(() => validateRequiredFields())
+    void Promise.resolve().then(() => { validateRequiredFields() })
     return
   }
 
