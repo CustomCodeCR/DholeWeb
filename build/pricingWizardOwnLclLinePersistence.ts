@@ -81,12 +81,23 @@ function syncOwnLclCrcAgencyLine(forceReprice = false) {
       String(item.code ?? '').toUpperCase() === String(configured.currencyCode ?? '').toUpperCase())
     ?? crcCurrency.value ?? currency
   const key = 'own-lcl-customs:' + configured.id
-  const existing = rateLines.value.find((line) =>
+  const matchesAgencyLine = (line: RateLine) =>
     line.key === key || line.costId === configured.id
     || line.key === 'service:customs-cr'
+    || isCrcCustomsLine(line, service.id)
     || (line.section === 'destination_charges'
-      && normalizeCatalogValue(line.name) === normalizeCatalogValue(configured.name)),
-  )
+      && normalizeCatalogValue(line.name) === normalizeCatalogValue(configured.name))
+  const existingAgencyLines = rateLines.value.filter(matchesAgencyLine)
+  const manual = existingAgencyLines.find((line) => line.manual && number(line.saleAmount) > 0)
+  // An explicitly entered paid customs line is already the selected service.
+  // Do not overwrite it or append a second master-cost row during normal edits.
+  if (manual && !forceReprice) {
+    rateLines.value = rateLines.value.filter((line) =>
+      line === manual || !existingAgencyLines.includes(line) || Boolean(line.detailId))
+    return
+  }
+  const existing = existingAgencyLines.find((line) => Boolean(line.detailId))
+    ?? existingAgencyLines[0]
   const line: RateLine = {
     key,
     detailId: existing?.detailId ?? null,
@@ -118,6 +129,12 @@ function syncOwnLclCrcAgencyLine(forceReprice = false) {
   }
   if (existing) Object.assign(existing, line)
   else rateLines.value.push(line)
+  // On explicit database refresh, replace stale generated placeholders.
+  // Never delete a persisted detail automatically; its id must remain available.
+  if (existing) {
+    rateLines.value = rateLines.value.filter((item) =>
+      item === existing || !existingAgencyLines.includes(item) || Boolean(item.detailId))
+  }
 }
 `
 
