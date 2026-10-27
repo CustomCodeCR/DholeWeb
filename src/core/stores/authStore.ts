@@ -4,7 +4,8 @@ import { defineStore } from 'pinia'
 import { AuthService } from '@/core/services/authService'
 import {
   clearTransientAccessToken,
-  setTransientAccessToken,
+  restoreTransientImpersonation,
+  saveTransientImpersonation,
 } from '@/core/auth/transientSession'
 
 import type {
@@ -135,14 +136,15 @@ function getStoredDateTime(key: string): number | null {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const accessToken = ref<string | null>(readStringFromStorage(STORAGE_KEYS.accessToken))
-  const refreshToken = ref<string | null>(readStringFromStorage(STORAGE_KEYS.refreshToken))
-  const sessionId = ref<string | null>(readStringFromStorage(STORAGE_KEYS.sessionId))
+  const restoredImpersonation = restoreTransientImpersonation()
+  const accessToken = ref<string | null>(restoredImpersonation?.accessToken ?? readStringFromStorage(STORAGE_KEYS.accessToken))
+  const refreshToken = ref<string | null>(restoredImpersonation ? null : readStringFromStorage(STORAGE_KEYS.refreshToken))
+  const sessionId = ref<string | null>(restoredImpersonation?.sessionId ?? readStringFromStorage(STORAGE_KEYS.sessionId))
   const accessTokenExpiresAt = ref<string | null>(
-    readStringFromStorage(STORAGE_KEYS.accessTokenExpiresAt),
+    restoredImpersonation?.accessTokenExpiresAt ?? readStringFromStorage(STORAGE_KEYS.accessTokenExpiresAt),
   )
   const refreshTokenExpiresAt = ref<string | null>(
-    readStringFromStorage(STORAGE_KEYS.refreshTokenExpiresAt),
+    restoredImpersonation ? null : readStringFromStorage(STORAGE_KEYS.refreshTokenExpiresAt),
   )
 
   const userId = ref<string | null>(readStringFromStorage(STORAGE_KEYS.userId))
@@ -156,8 +158,8 @@ export const useAuthStore = defineStore('auth', () => {
   const clientCode = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientCode))
   const clientName = ref<string | null>(readStringFromStorage(STORAGE_KEYS.clientName))
 
-  const roles = ref<string[]>(readArrayFromStorage(STORAGE_KEYS.roles))
-  const scopes = ref<string[]>(readArrayFromStorage(STORAGE_KEYS.scopes))
+  const roles = ref<string[]>(restoredImpersonation ? [] : readArrayFromStorage(STORAGE_KEYS.roles))
+  const scopes = ref<string[]>(restoredImpersonation ? [] : readArrayFromStorage(STORAGE_KEYS.scopes))
 
   const token = computed(() => accessToken.value)
   const currentTokenPayload = computed(() =>
@@ -293,6 +295,14 @@ export const useAuthStore = defineStore('auth', () => {
     scopes.value = readClaimArray(payload, ['scopes', 'scope', 'scp'])
   }
 
+  if (restoredImpersonation) {
+    applyClaimsFromAccessToken(restoredImpersonation.accessToken)
+    username.value = restoredImpersonation.userName
+    displayName.value = restoredImpersonation.displayName
+    email.value = restoredImpersonation.email
+    mustChangePassword.value = false
+  }
+
   function persistSession() {
     if (isImpersonating.value) return
 
@@ -393,7 +403,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     const response = await AuthService.startImpersonation(userIdToImpersonate)
 
-    setTransientAccessToken(response.accessToken)
+    saveTransientImpersonation(response, readStringFromStorage(STORAGE_KEYS.userId) ?? '')
     accessToken.value = response.accessToken
     refreshToken.value = null
     sessionId.value = response.sessionId
@@ -482,6 +492,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refreshSession(): Promise<boolean> {
     if (isImpersonating.value) {
+      // A refresh request must not terminate a still-valid temporary session.
+      if (!isAccessTokenExpired(accessToken.value)) return true
       await stopImpersonation()
 
       if (!accessToken.value) {
@@ -545,6 +557,7 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error('Authentication tokens were not returned by the server')
     }
 
+    clearTransientAccessToken()
     setSession(response)
 
     return response
@@ -560,6 +573,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     applyClaimsFromAccessToken(accessToken.value)
+
+    // A temporary session is non-refreshable; do not apply the administrator's
+    // scope-refresh checks to it or revert impersonation on page navigation.
+    if (isImpersonating.value) {
+      if (isAccessTokenExpired(accessToken.value)) await stopImpersonation()
+      return
+    }
 
     const pricingRoleNeedsScopeRefresh =
       hasRole('Pricing') &&
