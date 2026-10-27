@@ -15,6 +15,7 @@ type Relationship = { kind:string; referencingEntity?:string|null; referencingAt
 type Table = { logicalName: string; entitySetName: string; labels: Record<string,string>
   primaryIdAttribute: string; primaryNameAttribute?: string|null; columns: Field[]; relationships?: Relationship[]
   alternateKeys?: Array<{ logicalName: string; attributes: string[] }> }
+type AlternateKeyState = {logicalName:string;attributes:string[];status:'Pending'|'InProgress'|'Active'|'Failed'|'Unknown'}
 type Snapshot = { version: number; catalog: { tables: Table[] } }
 type Policy = { entities: Array<{logicalName:string;enabled:boolean}>
   fields: Array<{entityName:string;fieldName:string;enabled:boolean;canCreate:boolean;canUpdate:boolean;canRead:boolean}> }
@@ -62,6 +63,7 @@ const keyName=ref('')
 const proposedKeyField=ref('new_idtraasignado')
 const alternateKeysLoading=ref(false)
 const alternateKeyCreating=ref(false)
+const alternateKeyStatuses=ref<AlternateKeyState[]>([])
 const alternateKeyCreateConfirm=ref(false)
 const endpointName=ref('crear_oferta')
 const snapshot=ref<Snapshot|null>(null)
@@ -240,6 +242,8 @@ const candidateKeyFields=computed(()=>table.value?.columns.filter(f=>
   f.canRead&&!f.isCalculated).sort((a,b)=>
     Number(b.logicalName===proposedKeyField.value)-Number(a.logicalName===proposedKeyField.value)||
     display(a.labels,a.logicalName).localeCompare(display(b.labels,b.logicalName),'es'))??[])
+const proposedKeyExisting=computed(()=>alternateKeyStatuses.value.find(k=>
+  k.attributes.length===1&&k.attributes[0]===proposedKeyField.value))
 const canCreateProposedKey=computed(()=>entity.value==='quote'&&
   proposedKeyField.value.startsWith('new_')&&
   !!table.value?.columns.some(f=>f.logicalName===proposedKeyField.value&&
@@ -461,29 +465,55 @@ async function refresh(){
   }catch(e){error.value=e instanceof Error?e.message:'No se pudo cargar el catálogo.'}
   finally{busy.value=false}
 }
+function describeAlternateKeyError(value:unknown):string {
+  if(value instanceof ApiError){
+    if(value.code==='alternate_key_confirmation_timeout')
+      return 'Dataverse no confirmó la creación a tiempo. La solicitud pudo completarse. Consultá el estado antes de volver a crearla.'
+    if(value.status===502||value.status===503||value.status===504)
+      return 'No se pudo completar la operación por un problema temporal de comunicación con Dataverse o el servidor Dhole (HTTP '+value.status+'). Conservamos todos tus campos. Consultá el estado de la clave antes de reintentar.'
+  }
+  const detail=describeCrudError(value,'No se pudieron consultar las claves en Dataverse.')
+  if(/502|503|504|Bad gateway|NetworkError|Failed to fetch|Network error|<!DOCTYPE html>/i.test(detail))
+    return 'No se pudo comunicar con api.logisticacastrofallas.com. El servidor devolvió un error de conexión. Ninguna columna ni mapeo se borró; comprobá el estado de la clave antes de reintentar.'
+  return detail
+}
 async function createAlternateKeyOnExistingField(){
   if(!canCreateProposedKey.value||!alternateKeyCreateConfirm.value||
     alternateKeyCreating.value||alternateKeysLoading.value)return
   alternateKeyCreating.value=true;error.value='';success.value=''
   try{
-    await fetchClient(api('metadata/entities/quote/alternate-keys'),{
+    const result=await fetchClient<{status:string;keyName:string;message:string}>(
+      api('metadata/entities/quote/alternate-keys'),{
       method:'POST',
       body:{field:proposedKeyField.value,confirm:true}
     })
     alternateKeyCreateConfirm.value=false
-    success.value='Dataverse recibió la solicitud de clave única sobre '+
-      proposedKeyField.value+'. No se creó una columna ni se modificó ninguna oferta. '+
-      'Esperá a que el índice esté Activo y pulsá Actualizar claves desde Dataverse.'
-  }catch(e){error.value=describeCrudError(e,'Dataverse rechazó la creación de la clave alternativa.')}
+    if(result.status==='failed')
+      error.value=result.message
+    else
+      success.value=result.message
+    // Fetch the current index status; a newly accepted index is not
+    // automatically active and must never enable Upsert prematurely.
+    await refreshAlternateKeys(true)
+  }catch(e){
+    error.value=describeAlternateKeyError(e)
+    if(e instanceof ApiError&&e.code==='alternate_key_confirmation_timeout')
+      success.value='La solicitud pudo haberse recibido. Verificá el estado con «Actualizar claves desde Dataverse» antes de reintentar.'
+  }
   finally{alternateKeyCreating.value=false}
 }
-async function refreshAlternateKeys(){
+async function refreshAlternateKeys(keepMessage=false){
   if(!entity.value||alternateKeysLoading.value)return
-  alternateKeysLoading.value=true;error.value='';success.value=''
+  alternateKeysLoading.value=true
+  if(!keepMessage){error.value='';success.value=''}
   try{
-    const result=await fetchClient<{alternateKeys:Array<{logicalName:string;attributes:string[]}>}>(
+    const result=await fetchClient<{
+      alternateKeys:Array<{logicalName:string;attributes:string[]}>
+      keyStatuses?:AlternateKeyState[]
+    }>(
       api('metadata/entities/'+encodeURIComponent(entity.value)+'/alternate-keys/refresh'),
       {method:'POST'})
+    alternateKeyStatuses.value=result.keyStatuses??[]
     // Only refresh metadata. Never reset selected columns, lookup bindings,
     // Picklist selections, pending draft or saved version.
     snapshot.value=await fetchClient<Snapshot>(api('metadata'),{method:'GET'})
@@ -492,10 +522,13 @@ async function refreshAlternateKeys(){
     if(matches.length===1)keyName.value=matches[0]!.logicalName
     else if(!result.alternateKeys.some(key=>key.logicalName===keyName.value))
       keyName.value=''
-    success.value=result.alternateKeys.length
-      ?'Claves activas actualizadas desde Dataverse. Se conservaron todas tus columnas y relaciones.'
-      :'Dataverse todavía no tiene una clave alternativa activa para esta tabla. Creala sobre una columna existente y actualizá nuevamente.'
-  }catch(e){error.value=describeCrudError(e,'No se pudieron actualizar las claves alternativas.')}
+    if(!keepMessage)
+      success.value=result.alternateKeys.length
+        ?'Claves activas actualizadas desde Dataverse. Se conservaron todas tus columnas y relaciones.'
+        :result.keyStatuses?.length
+          ?'Se encontraron claves pendientes o fallidas; revisá el estado del índice. No se modificó ningún campo.'
+          :'Dataverse no tiene claves alternativas registradas para esta tabla.'
+  }catch(e){error.value=describeAlternateKeyError(e)}
   finally{alternateKeysLoading.value=false}
 }
 async function reloadDefinitions(){
@@ -997,7 +1030,7 @@ onMounted(refresh)
               </label>
               <div class="crud-actions">
                 <button type="button" class="crud-secondary" :disabled="alternateKeysLoading||!entity"
-                  @click="refreshAlternateKeys"><RefreshCw :size="15"/>
+                  @click="refreshAlternateKeys()"><RefreshCw :size="15"/>
                   {{ alternateKeysLoading?'Consultando Dataverse...':'Actualizar claves desde Dataverse' }}</button>
               </div>
               <div v-if="!eligibleKeys.length" class="crud-info">
@@ -1005,7 +1038,23 @@ onMounted(refresh)
                 sobre la columna existente o crearla en Power Apps → Tablas → Oferta → Claves.
                 La clave debe quedar «Activa» para poder usarla.
               </div>
+              <div v-if="proposedKeyExisting" class="crud-info" role="status">
+                <strong>Estado real de la clave {{ proposedKeyExisting.logicalName }}:
+                  {{ proposedKeyExisting.status==='Active'?'Activa':
+                    proposedKeyExisting.status==='InProgress'?'En progreso':
+                    proposedKeyExisting.status==='Pending'?'Pendiente':
+                    proposedKeyExisting.status==='Failed'?'Fallida':'Desconocida' }}</strong>
+                <p v-if="proposedKeyExisting.status==='Failed'">
+                  Dataverse no consiguió crear el índice único. Revisá duplicados o valores
+                  incompatibles y reactivá la clave en Power Apps; Dhole no creará otra.
+                </p>
+                <p v-else-if="proposedKeyExisting.status!=='Active'">
+                  La clave todavía no se puede utilizar para UPSERT. Pulsá
+                  «Actualizar claves desde Dataverse» para comprobar su estado.
+                </p>
+              </div>
               <div v-if="entity==='quote'&&canCreateProposedKey&&
+                !proposedKeyExisting&&
                 !eligibleKeys.some(key=>key.attributes.length===1&&
                   key.attributes[0]===proposedKeyField)" class="crud-card">
                 <h4>Definir clave única en la columna existente</h4>
@@ -1015,8 +1064,8 @@ onMounted(refresh)
                   El índice se construye de forma asíncrona.</p>
                 <label class="crud-field">
                   <span><input v-model="alternateKeyCreateConfirm" type="checkbox">
-                    Confirmo crear una clave única en Dataverse y revisar primero que este campo
-                    contenga identificadores únicos y permanentes de tarifas.</span>
+                    Confirmo crear una clave única en Dataverse sobre el campo reservado para
+                    el GUID de Dhole, sin modificar los valores existentes ni los otros IDTRA.</span>
                 </label>
                 <button type="button" class="crud-secondary"
                   :disabled="alternateKeyCreating||alternateKeysLoading||!alternateKeyCreateConfirm"
@@ -1026,12 +1075,12 @@ onMounted(refresh)
               </div>
               <div v-if="proposedKeyField==='new_idtraasignado'" class="crud-note">
                 <ShieldCheck :size="17"/>
-                <p><strong>Atención:</strong> actualmente <code>new_idtraasignado</code> almacena los
-                  IDTRA de los trámites. No se puede usar a la vez para ese texto y para guardar
-                  el GUID de la tarifa sin modificar también el mapeo de Pricing y revisar los
-                  registros existentes. Crear una clave no cambia automáticamente esos valores.
-                  Para conservar esos IDTRA, elegí el campo existente IdtraTarifa si aparece
-                  con un nombre lógico diferente.</p>
+                <p><strong>Identificador de tarifa Dhole:</strong> <code>new_idtraasignado</code>
+                  está reservado para el GUID permanente de la tarifa. Las referencias IDTRA
+                  se guardan por separado en los campos de relación <code>new_idtra1</code>
+                  a <code>new_idtra10</code>. Las ofertas históricas que contengan IDTRA como
+                  texto requieren conciliación antes de activar UPSERT.
+                  <code>new_idtratarifa</code> es calculado y de solo lectura.</p>
               </div>
               <p class="crud-help">Si ya configuraste la clave en Dynamics y sigue sin aparecer,
                 verificá que la creación del índice finalizó correctamente. Los índices pendientes
