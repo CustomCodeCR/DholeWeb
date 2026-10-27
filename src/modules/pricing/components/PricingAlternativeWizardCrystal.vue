@@ -5575,13 +5575,22 @@ onMounted(async () => {
           </div>
 
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
-            <DhSelect v-model="form.agentId" data-required-field="agentId" :error="fieldError('agentId')" label="Agente" :options="agentOptions" />
+            <div data-required-field="agentId" :class="isInvalid('agentId') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
+            <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />
+              <p v-if="fieldError('agentId')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('agentId') }}</p>
+            </div>
             <p v-if="form.originId && !agentOptions.length" class="text-xs font-semibold text-amber-500 md:col-span-2 xl:col-span-3">
               No hay agentes disponibles para este POL. Revise la metadata en Config &gt; Catálogos &gt; Agentes.
             </p>
-            <DhSelect v-model="form.carrierId" data-required-field="carrierId" :error="fieldError('carrierId')" label="Naviera / proveedor" :options="carrierOptions" />
+            <div data-required-field="carrierId" :class="isInvalid('carrierId') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
+            <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
+              <p v-if="fieldError('carrierId')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('carrierId') }}</p>
+            </div>
             <DhSelect v-model="form.currencyId" data-required-field="currencyId" :error="fieldError('currencyId')" label="Moneda" :options="currencyOptions" />
-            <DhInput v-model.number="form.freightCost" data-required-field="freightCost" :error="fieldError('freightCost')" type="number" min="0" step="0.01" label="Flete internacional · costo" />
+            <div data-required-field="freightCost" :class="isInvalid('freightCost') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
+            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
+              <p v-if="fieldError('freightCost')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('freightCost') }}</p>
+            </div>
             <DhInput v-model.number="form.freightSale" data-required-field="freightSale" :error="fieldError('freightSale')" type="number" min="0" step="0.01" label="Flete internacional · venta" />
             <DhInput v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
             <div v-else-if="form.modality !== 'Land'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
