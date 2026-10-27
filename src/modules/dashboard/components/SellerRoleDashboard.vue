@@ -830,7 +830,7 @@ onBeforeUnmount(() => {
           Todavía no hay solicitudes registradas.
         </p>
         <div v-else class="overflow-x-auto">
-          <table class="w-full min-w-[820px] text-left text-xs">
+          <table class="w-full min-w-[980px] text-left text-xs">
             <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">
               <tr><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">QUO</th><th class="px-4 py-3">Origen → Destino</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Solicitada</th><th class="px-4 py-3">Estado</th><th v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">Acción</th></tr>
             </thead>
