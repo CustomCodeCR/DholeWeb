@@ -62,7 +62,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `async function saveOpenRequest() {\n  const origin = selectedOrigin.value`,
-    `async function saveOpenRequest() {\n  if (props.sellerRequestMode) {\n    // Ventas no define el proveedor del inland ni la vigencia comercial.\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.validTo = ''\n  }\n\n  const origin = selectedOrigin.value`,
+    `async function saveOpenRequest() {\n  if (props.sellerRequestMode) {\n    // Ventas no define el proveedor del inland ni la vigencia comercial.\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    // La opción de Ventas es también la condición comercial que Pricing usa para seleccionar cargos.\n    form.portHandlingMode = sellerPortHandlingMode.value\n    form.validTo = ''\n  }\n\n  const origin = selectedOrigin.value`,
     'seller request sanitization',
   )
 
@@ -88,7 +88,7 @@ function patchWizard(source: string) {
 
   const sellerHydrationReplacement = sellerHydrationAnchor.replace(
     `    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`,
-    `    const sellerContext = (request.payload as unknown as { sellerContext?: { cargoReadyDate?: string | null; portHandlingMode?: SellerPortHandlingMode | null } } | null)?.sellerContext\n    requestedCargoReadyDate.value = sellerContext?.cargoReadyDate || form.loadDate || ''\n    requestedPortHandlingMode.value = sellerContext?.portHandlingMode || ''\n    if (!form.validTo && form.loadDate) form.validTo = addDaysIso(form.loadDate, 30)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`,
+    `    const sellerContext = (request.payload as unknown as { sellerContext?: { cargoReadyDate?: string | null; portHandlingMode?: SellerPortHandlingMode | null } } | null)?.sellerContext\n    requestedCargoReadyDate.value = sellerContext?.cargoReadyDate || form.loadDate || ''\n    requestedPortHandlingMode.value = sellerContext?.portHandlingMode || ''\n    // Cotizaciones antiguas solamente lo guardaron en sellerContext; recuperar también el flag de Pricing.\n    form.portHandlingMode = requestedPortHandlingMode.value\n    if (!form.validTo && form.loadDate) form.validTo = addDaysIso(form.loadDate, 30)\n    if (request.payload?.supportEntityId) supportEntityId.value = request.payload.supportEntityId`,
   )
 
   code = replaceOne(
