@@ -66,13 +66,28 @@ function operationalConditionsSatisfied(line: {
 function shouldIncludeOptionalCost(line: {
   id?: string | null
   costId?: string | null
+  name?: string | null
+  notes?: string | null
   operationalConditions?: string[] | null
 }) {
   const automaticCostId = automaticOptionalCostId(line)
   if (automaticCostId && dismissedAutomaticOptionalCostIds.value.has(automaticCostId)) return false
 
-  // Sin botón/condición asignada = Manual: entra automáticamente.
-  // Con condiciones asignadas, todas deben estar seleccionadas en Pantalla 4.
+  // Los tarifarios antiguos identifican Anticipado / Redestino por nombre,
+  // sin OperationalConditions. No se pueden cobrar ambos ni ignorar el de Ventas.
+  const label = normalizeCatalogValue(String(line.name ?? ''))
+  const anticipado = label.includes('anticipado')
+  const redestino = label.includes('redestino')
+  if (anticipado !== redestino) {
+    if (form.portHandlingMode !== (anticipado ? 'Anticipado' : 'Redestino')) return false
+  } else if (anticipado && redestino) {
+    // Un cargo ambiguo que ofrece ambas alternativas no se puede cobrar
+    // automáticamente como si fuera uno de los dos servicios.
+    return false
+  }
+
+  // Las condiciones explícitas de Pricing siempre tienen prioridad, incluidas
+  // las reglas de muellaje configuradas desde Costos y recargos.
   return operationalConditionsSatisfied(line)
 }`,
     'explicit operational condition matcher',
