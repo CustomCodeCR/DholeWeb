@@ -394,11 +394,18 @@ onMounted(() => {
     'script close',
   )
 
-  code = replaceExactlyOnce(
-    code,
-    "    if (!editingRate.value) {\n      toastStore.success('Tarifa creada correctamente.'",
-    "    if (!editingRate.value) {\n      finishCreatedPricingDraft()\n      toastStore.success('Tarifa creada correctamente.'",
-    'successful rate creation cleanup',
+  // Earlier pricing transforms may insert bookkeeping between the creation
+  // branch and the success toast. Match the toast itself, not that surrounding
+  // whitespace, so master and develop build with the same safe cleanup.
+  const rateCreationToast = /^([ \\t]*)toastStore\\.success\\('Tarifa creada correctamente\\.'/gm
+  const creationMatches = [...code.matchAll(rateCreationToast)]
+  if (creationMatches.length !== 1) {
+    throw new Error(`[pricingWizardMultipleDrafts] Expected one created-rate toast, found ${creationMatches.length}.`)
+  }
+  code = code.replace(
+    rateCreationToast,
+    (_match, indentation: string) =>
+      indentation + 'finishCreatedPricingDraft()\\n' + indentation + "toastStore.success('Tarifa creada correctamente.'",
   )
 
   const discardButtonAnchor = `      <DhButton
