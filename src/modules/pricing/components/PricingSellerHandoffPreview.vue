@@ -428,7 +428,7 @@ function fileKind(fileName: string): string {
               <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin opciones adicionales seleccionadas.</p>
             </div>
             <dl class="grid gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-sm sm:grid-cols-2">
-              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Package class="h-3.5 w-3.5" /> Piezas de mercancía declaradas</dt><dd class="font-bold">{{ label('cargoPackages') }}</dd></div>
+              <div><dt class="mb-1 flex items-center gap-1 text-xs text-[var(--dh-text-muted)]"><Package class="h-3.5 w-3.5" /> {{ isConsolidated ? (sellerCargoLines.length ? 'Unidades de carga' : 'Bultos registrados (histórico)') : 'Bultos declarados' }}</dt><dd class="font-bold">{{ isConsolidated && sellerCargoLines.length ? sellerCargoLines.reduce((total, line) => total + line.quantity, 0) : label('cargoPackages') }}</dd></div>
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Tarimas (embalaje)</dt><dd class="font-bold">{{ isConsolidated ? sellerPalletsLabel : label('cargoPallets') }}</dd></div>
               <template v-if="isConsolidated && cargoVolume">
                 <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">Volumen físico</dt><dd class="font-black text-[var(--dh-text)]">{{ cargoVolume.physical }}</dd></div>
@@ -442,7 +442,7 @@ function fileKind(fileName: string): string {
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">No estibable / almacenaje</dt><dd class="font-semibold">{{ label('nonStackable') }} / {{ label('storageDays') }} días</dd></div>
             </dl>
             <div v-if="isConsolidated" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
-              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Las piezas declaradas indican artículos; la cantidad por línea indica embalajes y es la que multiplica sus dimensiones. El peso ya representa el total de esa línea.</p>
+              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Cada línea indica un tipo de unidad de carga y su cantidad. Solo esa cantidad multiplica las dimensiones por unidad; el peso corresponde a toda la línea. Las solicitudes históricas conservan sus datos originales.</p>
               <div v-if="sellerVolumeMismatch" class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
                 La solicitud original tiene un volumen guardado distinto del calculado con sus líneas. Se muestra el cálculo de las líneas; confirme la carga antes de cotizar. No se modificó la solicitud histórica.
               </div>
