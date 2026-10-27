@@ -86,6 +86,8 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
     },
     explicitlyRemovedPersistedDetailIds: { value: new Set<string>() },
     costContextAgentId: () => env.form.agentId,
+    shipmentModeForApi: { value: 'Fcl' },
+    fclAllCarrierIds: { value: ['MSC'] },
     screen7RefreshBusy: { value: false },
     screen7RefreshAllowed: { value: false },
     screen7RefreshPromptOpen: { value: true },
@@ -211,6 +213,19 @@ test('multi-agent configured cost remains valid when the selected agent is not i
   const { env, runRefresh } = refreshHarness(current)
   await runRefresh()
   assert.ok(env.rateLines.value.some((line: any) => line.costId === 'C-SHARED'))
+})
+
+test('multi-FCL refresh also retains charges from an additional selected carrier', async () => {
+  const current = [{
+    id: 'C-ONE', name: 'Inland ONE', costDetailType: 'InlandTransport',
+    costType: 'Fixed', isActive: true, carrierId: 'ONE',
+    currencyId: 'USD', currencyCode: 'USD', currencyName: 'USD',
+    costAmount: 40, saleAmount: 50,
+  }]
+  const { env, runRefresh } = refreshHarness(current)
+  env.fclAllCarrierIds.value = ['MSC', 'ONE']
+  await runRefresh()
+  assert.ok(env.rateLines.value.some((line: any) => line.costId === 'C-ONE'))
 })
 
 test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and retains manual charges', async () => {
