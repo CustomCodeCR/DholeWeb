@@ -481,7 +481,15 @@ const canDownloadCurrentQuote = computed(() => {
 const canMarkSent = computed(() =>
   canUpdateRateStatus.value
   && !isMasterTariff.value
-  && currentCommercialStatus.value === 'Open',
+  && editingRate.value?.requiredApproval !== true
+  && ['Open', 'ApprovedByManagement'].includes(currentCommercialStatus.value),
+)
+const canResendPendingReapproval = computed(() =>
+  canUpdateRateStatus.value
+  && !isMasterTariff.value
+  && editingRate.value?.pendingReapproval === true
+  && editingRate.value.requiredApproval !== true
+  && currentCommercialStatus.value === 'Sent',
 )
 const canAcceptOrReject = computed(() => {
   if (isMasterTariff.value) return false
@@ -3753,15 +3761,24 @@ function commercialStatusLabel(status: string) {
 }
 
 async function markCurrentRateSent() {
-  if (!editingRate.value || !canMarkSent.value) return
+  const rate = editingRate.value
+  const resend = canResendPendingReapproval.value
+  if (!rate || (!canMarkSent.value && !resend)) return
   try {
     commercialStatusSaving.value = true
     commercialActionError.value = ''
-    await PricingService.setRateStatus(editingRate.value.id, { status: 'Sent' })
-    toastStore.success('Tarifa marcada como enviada.')
+    if (resend) {
+      await PricingService.resendRateRevision(rate.id, rate.revisionNumber || 1)
+      toastStore.success('Reenvío solicitado.', 'Se preparó otro correo con el PDF de la revisión para el vendedor.')
+    } else {
+      await PricingService.setRateStatus(rate.id, { status: 'Sent' })
+      toastStore.success('Tarifa marcada como enviada.', 'Se preparó el correo con el PDF para el vendedor.')
+    }
     await hydrateExistingRate()
   } catch (error) {
-    commercialActionError.value = 'No se pudo marcar la tarifa como enviada.'
+    commercialActionError.value = resend
+      ? 'No se pudo reenviar la revisión al vendedor.'
+      : 'No se pudo marcar la tarifa como enviada.'
     toastStore.backendError(error, commercialActionError.value)
   } finally {
     commercialStatusSaving.value = false
@@ -6319,6 +6336,7 @@ onMounted(async () => {
                     :variant="isMasterTariff ? 'primary' : isClientTariff ? 'success' : 'warning'"
                   />
                   <DhBadge :label="commercialStatusLabel(editingRate.status)" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : editingRate.status === 'RejectedByClient' ? 'danger' : 'neutral'" />
+                  <DhBadge v-if="editingRate.pendingReapproval" label="Pendiente de reaprobación" variant="warning" />
                   <DhBadge v-if="editingRate.sellerReceivedAtUtc" label="Recibida por vendedor" variant="success" />
                   <DhBadge :label="`REV ${editingRate.revisionNumber || 1}`" variant="neutral" />
                   <DhBadge v-if="editingRate.idtraNumber" :label="`IDTRA ${editingRate.idtraNumber}`" variant="primary" />
@@ -6332,7 +6350,7 @@ onMounted(async () => {
                   </span>
                 </template>
                 <template v-else>
-                  <DhButton size="sm" variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
+                  <DhButton size="sm" variant="secondary" :disabled="(!canMarkSent && !canResendPendingReapproval) || commercialStatusSaving" @click="markCurrentRateSent">{{ canResendPendingReapproval ? 'Reenviar al vendedor' : editingRate.pendingReapproval ? 'Enviar revisión' : 'Enviada' }}</DhButton>
                   <DhButton size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
                   <DhButton size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
                 </template>
@@ -6346,6 +6364,12 @@ onMounted(async () => {
                 ? 'El tarifario maestro permanece reutilizable durante su vigencia. Aplicarlo crea una nueva QUO del cliente; la aceptación o rechazo se registra únicamente sobre esa QUO hija.'
                 : currentCommercialStatus === 'AcceptedByClient'
                   ? 'La tarifa fue aceptada. Si el cliente cancela o retira su aceptación, use Cancelar cotización e indique el motivo.'
+                  : editingRate.pendingReapproval && currentCommercialStatus === 'Sent'
+                  ? 'Esta revisión ya fue enviada, pero sigue pendiente de reaprobación del vendedor. Puede volver a enviarle el PDF sin cambiar el estado comercial.'
+                  : editingRate.pendingReapproval && currentCommercialStatus === 'PendingApproval'
+                  ? 'La revisión requiere aprobación de margen antes de poder enviarse.'
+                  : editingRate.pendingReapproval && currentCommercialStatus === 'ApprovedByManagement'
+                  ? 'La revisión fue autorizada por gerencia y ya puede enviarse al vendedor.'
                   : canApproveLowMargin && currentCommercialStatus === 'Open'
                   ? 'Con el permiso Aprobar margen bajo puede registrar la tarifa como Aceptada o Rechazada directamente desde Abierta, sin marcarla primero como Enviada.'
                   : 'Una tarifa Abierta puede marcarse Enviada. Después de Enviada puede registrarse como Aceptada o Rechazada.' }}
