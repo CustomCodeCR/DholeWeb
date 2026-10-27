@@ -363,6 +363,11 @@ async function applyScreen7DatabaseCosts() {
     if (isOwnLclMatrixContext()) {
       // LCL propio uses its consolidated route matrix, never the generic
       // Pricing Costs catalog or the historical persisted detail snapshot.
+      // Own consolidation matrix remains authoritative for freight, while
+      // an independently selected CRC agency charge must use the current Cost master.
+      if (selectedCrcCustomsService.value) {
+        allCosts.value = await PricingService.selectCosts({ isActive: true })
+      }
       const { fresh, next, calculation } = await screen7RefreshOwnLclMatrix(previous)
       if (requestedContext !== pricingDraftLineContextKey()) {
         throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
@@ -370,6 +375,7 @@ async function applyScreen7DatabaseCosts() {
       screen7OwnLclRefreshContext.value = requestedContext
       rateLines.value = next
       costs.value = []
+      syncOwnLclCrcAgencyLine(true)
       if (lclSelectedSource.value?.kind === 'Own') {
         lclSelectedSource.value = {
           ...lclSelectedSource.value,
