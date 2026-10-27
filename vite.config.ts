@@ -212,13 +212,21 @@ export default defineConfig({
       name: 'temporary-pricing-markup-diagnostic',
       transform(code, id) {
         if (!id.endsWith('/PricingAlternativeWizardCrystal.vue')) return null
-        const lines=code.split('\n')
-        for (const term of ['v-else-if="step === 4"', 'v-else-if="step === 7"', 'v-else-if="step === 8"']) {
-          const i=lines.findIndex(line=>line.includes(term))
-          console.error('[WIZARD-CHECK] '+term+' line '+(i+1))
-          if(i>=0 && term.includes('step === 7'))
-            console.error('[WIZARD-STEP7-BOUNDARY] '+lines.slice(Math.max(0,i-38),i+9).map((line,j)=>String(Math.max(0,i-38)+j+1)+': '+line).join('\n'))
+        const lines = code.split('\n')
+        const start = lines.findIndex(l=>l.includes('v-else-if="step === 4"'))
+        const end = lines.findIndex((l,i)=>i>start&&l.includes('v-else-if="step === 7"'))
+        if(start<0||end<0)return null
+        const divStack: number[]=[]
+        let extras=0
+        for(let i=start;i<end;i++){
+          const rx=/<(\\/?)div\\b/gi
+          let m: RegExpExecArray|null
+          while((m=rx.exec(lines[i]!))!==null){
+            if(m[1]) { if(!divStack.length)extras++;else divStack.pop() }
+            else divStack.push(i+1)
+          }
         }
+        console.error('WIZARD_STEP4_DEPTH '+JSON.stringify({from:start+1,to:end+1,unclosed:divStack.map(i=>({line:i,content:lines[i-1]?.trim()})),unexpectedClosings:extras}))
       }
     },
     vue(),
