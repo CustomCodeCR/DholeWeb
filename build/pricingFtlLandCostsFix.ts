@@ -63,12 +63,21 @@ function costShipmentModeForApi(): ShipmentMode {
   return shipmentModeForApi.value
 }
 
+// UI-only LCL agent IDs (such as __dhole_lcl_gcf_agent__) are not database GUIDs.
+// Never send them as agentId to the strongly typed Pricing /costs/select endpoint.
+function validPricingAgentId(value: unknown): string {
+  const id = String(value ?? '').trim()
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    ? id
+    : ''
+}
+
 function costContextAgentId() {
   if (
     (shipmentModeForApi.value === 'Lcl' || shipmentModeForApi.value === 'AirConsol')
     && lclSelectedSource.value
   ) {
-    const directId = String(lclSelectedSource.value.providerId ?? '').trim()
+    const directId = validPricingAgentId(lclSelectedSource.value.providerId)
     if (directId && catalogs.agents.some((item) => item.id === directId)) return directId
 
     const providerText = normalizeCatalogValue(
@@ -88,11 +97,11 @@ function costContextAgentId() {
         && (candidate.includes(providerText) || providerText.includes(candidate)),
       )
     })
-    if (matched) return matched.id
+    if (matched && validPricingAgentId(matched.id)) return matched.id
     if (directId) return directId
   }
 
-  return String(form.agentId ?? '').trim()
+  return validPricingAgentId(form.agentId)
 }
 
 function currentCostContextKey() {
