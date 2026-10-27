@@ -64,8 +64,16 @@ function screen7CostMatchesSelectedProviders(cost: CostSelectDto) {
     if (ids.length) return Boolean(selectedId) && ids.includes(selectedId)
     return !legacyId || (Boolean(selectedId) && String(legacyId) === selectedId)
   }
+  // A multi-equipment FCL quotation may intentionally select more than one
+  // carrier. Match any actually selected carrier, never an unselected one.
+  const selectedCarrierIds = shipmentModeForApi.value === 'Fcl'
+    && fclAllCarrierIds.value.length > 0
+    ? fclAllCarrierIds.value
+    : [form.carrierId]
   return matches(cost.agents, cost.agentId, String(costContextAgentId() || form.agentId || ''))
-    && matches(cost.carriers, cost.carrierId, String(form.carrierId || ''))
+    && selectedCarrierIds.some((id) =>
+      matches(cost.carriers, cost.carrierId, String(id || '')))
+
 }
 
 function screen7IsFormerProviderCost(
