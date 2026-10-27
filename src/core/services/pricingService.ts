@@ -712,6 +712,18 @@ export const PricingService = {
     })
   },
 
+  resendRateRevision(rateId: string, revisionNumber: number): Promise<NoContent> {
+    return callEndpoint<NoContent, { revisionNumber: number }>({
+      method: 'POST',
+      path: `/api/pricing/rates/${encodeURIComponent(rateId)}/resend`,
+    }, {
+      body: { revisionNumber },
+      // Cada clic es un reenvío intencional; reintentar la misma petición
+      // conserva la misma clave para no duplicar el correo.
+      idempotencyKey: crypto.randomUUID(),
+    })
+  },
+
   deleteRates(ids: string[]): Promise<NoContent> {
     return callEndpoint<NoContent, DeleteBatchRequest>(Endpoints.deleteRates, { body: { ids } })
   },
