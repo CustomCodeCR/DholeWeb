@@ -1921,6 +1921,9 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     add(!(exchangeRatePurchase.value > 0), 'exchangeRatePurchase', 'Tipo de cambio: compra')
     add(!(exchangeRateSale.value > 0), 'exchangeRateSale', 'Tipo de cambio: venta')
   }
+  if (step.value === 8) {
+    add(includedLines.value.length === 0, 'rateLines', 'Líneas de costo y venta')
+  }
   return issues
 })
 
@@ -3874,10 +3877,7 @@ async function downloadRateLinesExcel() {
 async function next() {
   if (step.value === 3 && selectedIncotermCode.value === 'EXW' && !props.viewOnly
     && (!pickupLocations.value.length || form.pickupAddress.trim())) {
-    toastStore.warning(
-      'Recolecta pendiente de agregar',
-      'Presione Agregar recolecta para registrar la dirección antes de continuar. Ubicarla en el mapa es opcional.',
-    )
+    validateRequiredFields()
     return
   }
 
@@ -4294,7 +4294,7 @@ async function saveOpenRequest() {
 }
 
 async function saveRate() {
-  if (!validateWizardReferences()) return
+  if (!validateRequiredFields() || !validateWizardReferences()) return
   if (editingRate.value && number(form.cargoValue) > 0 && !rateLines.value.some((line) => line.costDetailType === 'Insurance')) {
     syncDeclaredCargoInsuranceOnEdit()
   }
@@ -5814,6 +5814,7 @@ onMounted(async () => {
             @refreshed="hydrateExistingRate"
           />
 
+          <p v-if="isInvalid('rateLines')" data-required-field="rateLines" role="alert" class="rounded-xl border border-red-500/50 bg-red-500/5 p-3 text-sm font-bold text-red-500">Agregue al menos una línea de costo y venta antes de guardar la tarifa.</p>
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
@@ -6480,7 +6481,7 @@ onMounted(async () => {
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
       <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
-        <DhButton :disabled="saving || uploadingFinalBackups || !includedLines.length" @click="saveRate">
+        <DhButton :disabled="saving || uploadingFinalBackups" @click="saveRate">
           <Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
         </DhButton>
       </div>
