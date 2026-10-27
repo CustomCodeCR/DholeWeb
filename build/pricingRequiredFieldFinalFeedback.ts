@@ -111,6 +111,15 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
       ].join('\n')
       if (panel) code = code.replace(panel, summary + panel)
 
+      // The FCL size/type picker is rendered by the distribution plugin.
+      // Forward the required field error to the REAL visible selector rather
+      // than the hidden legacy form.equipmentSize input.
+      const fclPrimarySelector = /<PricingContainerSelector\s+v-model="form\.equipmentId"\s+transport="maritime"/
+      if (fclPrimarySelector.test(code)) {
+        code = code.replace(fclPrimarySelector,
+          '<PricingContainerSelector v-model="form.equipmentId" transport="maritime" data-required-field="equipmentType" :error="fieldError(\'equipmentType\')"')
+      }
+
       return { code, map: null }
     },
   }
