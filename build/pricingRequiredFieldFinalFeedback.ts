@@ -157,7 +157,7 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         if (!code.includes(tag)) continue
         code = code.replace(tag, tag
           + ' data-required-field="' + key + '"'
-          + ' :error="validationAttempted && !(Number(' + model + ') > 0) ? ' + JSON.stringify(message) + ' : undefined"')
+          + ' :error="validationAttempted && !(Number(' + model + ') > 0) ? ' + "'" + message + "'" + ' : undefined"')
       }
       const cargoValueInput = '<DhInput v-model.number="form.cargoValue"'
       if (code.includes(cargoValueInput)) {
