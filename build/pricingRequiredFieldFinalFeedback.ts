@@ -117,6 +117,9 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
       if (!code.includes(stepFiveAnchor))
         throw new Error('[pricingRequiredFieldFinalFeedback] Missing step 4/5 boundary')
       code = code.replace(stepFiveAnchor, [
+        '  if (step.value === 3 && (shipmentModeForApi.value === "Fcl" || shipmentModeForApi.value === "Ftl")) {',
+        "    add(fclMissingUnitCount.value > 0, 'cargoWeightKg', 'Peso en kg de cada contenedor o furgón')",
+        '  }',
         '  if (step.value === 4 && consolidatedCargoMode.value) {',
         '    consolidatedCargoLines.value.forEach((line, index) => {',
         "      const row = index + 1",
@@ -136,6 +139,11 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         throw new Error('[pricingRequiredFieldFinalFeedback] Missing cargo save guard')
       code = code.replace(cargoSaveGuard, [
         cargoSaveGuard,
+        '  if ((shipmentModeForApi.value === "Fcl" || shipmentModeForApi.value === "Ftl") && fclMissingUnitCount.value > 0) {',
+        '    step.value = 3',
+        '    void Promise.resolve().then(() => { validateRequiredFields() })',
+        '    return false',
+        '  }',
         '  if (consolidatedCargoMode.value && consolidatedCargoLines.value.some((line) =>',
         '    !(Number(line.quantity) > 0) || !(Number(line.weightKg) > 0)',
         '    || !(Number(line.length) > 0) || !(Number(line.width) > 0) || !(Number(line.height) > 0))) {',
@@ -170,8 +178,9 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
           cargoWeightInput + ' data-required-field="cargoWeightKg" :error="fieldError(\'cargoWeightKg\')"')
       }
       // FCL/FTL weights use a physical-unit editor; highlight that input.
-      code = code.replace(/<DhInput(?=[^>]*:model-value="fclUnitWeight\()/g,
-        '<DhInput data-required-field="cargoWeightKg"')
+      code = code.replace(/<DhInput(?=[^>]*:model-value="(fclUnitWeight\([^"]+\))")/g,
+        (_tag, expression: string) => '<DhInput data-required-field="cargoWeightKg"'
+          + ' :error="validationAttempted && !(' + expression + ' > 0) ? \'Indique el peso de este contenedor\' : undefined"')
 
       // The FCL size/type picker is rendered by the distribution plugin.
       // Forward the required field error to the REAL visible selector rather
