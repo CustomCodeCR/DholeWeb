@@ -23,6 +23,10 @@ const persistedFtlAgentForEdit = computed(() => {
   const id = String(rate.agentId ?? '')
   const byId = catalogs.agents.find((agent) => agent.id === id)
   if (byId) return byId
+  const savedCode = normalizeCatalogValue(rate.agentCode ?? '')
+  const byCode = savedCode ? catalogs.agents.find((agent) =>
+    normalizeCatalogValue(agent.code) === savedCode) : null
+  if (byCode) return byCode
   const name = normalizeCatalogValue(rate.agentName ?? '')
   return name ? (catalogs.agents.find((agent) =>
     normalizeCatalogValue(displayValue(agent)) === name) ?? null) : null
