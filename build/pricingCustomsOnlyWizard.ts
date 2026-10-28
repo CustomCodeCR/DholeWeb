@@ -187,8 +187,13 @@ function patchWizard(source: string): string {
 
   code = replaceRequired(
     code,
-    'const includedLines = computed(() => rateLines.value.filter((line) => line.included && lineMatchesPickupCargoCondition(line)))',
-    "const includedLines = computed(() => rateLines.value.filter((line) => (hasInternationalTransportService.value || line.costDetailType !== 'Freight') && line.included && lineMatchesPickupCargoCondition(line)))",
+    `const includedLines = computed(() => rateLines.value.filter((line) =>
+  shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
+))`,
+    `const includedLines = computed(() => rateLines.value.filter((line) =>
+  (hasInternationalTransportService.value || line.costDetailType !== 'Freight')
+  && shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
+))`,
     'exclude freight from customs rate payload',
   )
 
