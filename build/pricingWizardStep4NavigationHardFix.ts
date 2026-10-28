@@ -351,6 +351,14 @@ async function next() {
     return
   }
 
+  if (step.value === 6 && props.modificationRequestId && pricingModificationApplied.value
+      && rateLines.value.length) {
+    // Pricing is amending the original quote, not selecting a new tariff.
+    // Step navigation never replaces edited cost/sale lines from its catalog.
+    step.value = 7
+    return
+  }
+
   if (step.value === 6) {
     try {
 ${savedManualStep}      if (shouldPreservePersistedEditLines()) {
