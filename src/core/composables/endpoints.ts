@@ -640,6 +640,7 @@ export const PricingEndpoints = {
   browseRates: { method: 'GET', path: '/api/pricing/rates', headers: acceptJson },
   getRateDashboard: { method: 'GET', path: '/api/pricing/rates/dashboard', headers: acceptJson },
   getUsdCrcExchangeRate: { method: 'GET', path: '/api/pricing/rates/exchange-rate/usd-crc', headers: acceptJson },
+  getEurUsdExchangeRate: { method: 'GET', path: '/api/pricing/rates/exchange-rate/eur-usd', headers: acceptJson },
   getRateById: { method: 'GET', path: '/api/pricing/rates/{{rateId}}', headers: acceptJson },
   getRateReportTemplateDefinition: {
     method: 'GET',
