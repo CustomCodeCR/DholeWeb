@@ -772,6 +772,14 @@ export interface RateCargoLineRequest extends Record<string, unknown> {
   isStackable?: boolean | null
 }
 
+export interface PricingEuroExchangeRateDto extends Record<string, unknown> {
+  dollars: number // USD por 1 EUR; campo "dolares" de Hacienda
+  colones: number
+  rateDate: string
+  capturedAtUtc: string
+  source: string
+}
+
 export interface PricingExchangeRateDto extends Record<string, unknown> {
   purchase: number
   sale: number
