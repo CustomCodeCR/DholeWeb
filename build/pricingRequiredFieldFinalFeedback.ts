@@ -177,6 +177,24 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         code = code.replace(cargoWeightInput,
           cargoWeightInput + ' data-required-field="cargoWeightKg" :error="fieldError(\'cargoWeightKg\')"')
       }
+      // The Miami/LCL unit selector uses :model-value instead of v-model.
+      // Mark the visible field too, not merely its hidden v-else alternative.
+      for (const [model, key, message] of [
+        ['miamiWeightInputValue(line.weightKg)', 'cargoWeightKg', 'Indique el peso total de esta línea'],
+        ['miamiDimensionInputValue(line.length)', 'cargoLineLength', 'Indique el largo'],
+        ['miamiDimensionInputValue(line.width)', 'cargoLineWidth', 'Indique el ancho'],
+        ['miamiDimensionInputValue(line.height)', 'cargoLineHeight', 'Indique el alto'],
+      ] as const) {
+        const marker = ':model-value="' + model + '"'
+        if (!code.includes(marker)) continue
+        code = code.replace(marker, marker + ' data-required-field="' + key + '"'
+          + ' :error="validationAttempted && !(Number('
+          + (model.includes('weightKg') ? 'line.weightKg' :
+            model.includes('line.length') ? 'line.length' :
+            model.includes('line.width') ? 'line.width' : 'line.height')
+          + ') > 0) ? ' + "'" + message + "'" + ' : undefined"')
+      }
+
       // FCL/FTL weights use a physical-unit editor; highlight that input.
       code = code.replace(/<DhInput(?=[^>]*:model-value="(fclUnitWeight\([^"]+\))")/g,
         (_tag, expression: string) => '<DhInput data-required-field="cargoWeightKg"'
