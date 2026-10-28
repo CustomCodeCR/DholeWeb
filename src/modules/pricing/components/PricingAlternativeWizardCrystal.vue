@@ -1188,6 +1188,15 @@ const cargoInsuranceService = computed(() =>
     return value.includes('seguro') && value.includes('carga')
   }) ?? null,
 )
+const cargoInsuranceSelected = computed(() =>
+  selectedServices.value.some((service) => {
+    const label = normalizeCatalogValue(
+      [displayValue(service), service.label, service.code, service.slug].filter(Boolean).join(' '),
+    )
+    return label.includes('seguro') && label.includes('carga')
+  }),
+)
+
 const effectiveServices = computed(() => {
   const services = [...selectedServices.value]
   const insurance = cargoInsuranceService.value
@@ -1990,11 +1999,19 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     add(inlandPickupServiceSelected.value && !form.inlandPickupLocation?.address?.trim(), 'inlandPickupLocation', 'Dirección del transporte de recolección')
     add(inlandDeliveryServiceSelected.value && !form.inlandDeliveryLocation?.address?.trim(), 'inlandDeliveryLocation', 'Dirección del transporte de entrega')
   }
-  if (step.value === 4 && consolidatedCargoMode.value) {
-    add(!(form.cargoPallets > 0), 'cargoPallets', 'Tarimas')
-    add(!(form.cargoLengthCm > 0), 'cargoLengthCm', 'Largo')
-    add(!(form.cargoWidthCm > 0), 'cargoWidthCm', 'Ancho')
-    add(!(form.cargoHeightCm > 0), 'cargoHeightCm', 'Alto')
+  if (step.value === 4) {
+    // El peso es obligatorio en TODOS los embarques. Para LCL/LTL lo
+    // calcula el formulario desde las líneas, sin multiplicarlo de nuevo.
+    add(!(number(form.cargoWeightKg) > 0), 'cargoWeightKg', 'Peso total de la carga (kg)')
+    // Pedir Seguro de carga sin valor declarado produce un seguro de USD 0.
+    add(cargoInsuranceSelected.value && !(number(form.cargoValue) > 0),
+      'cargoValue', 'Valor declarado para Seguro de carga')
+    if (consolidatedCargoMode.value) {
+      add(!(form.cargoPallets > 0), 'cargoPallets', 'Tarimas')
+      add(!(form.cargoLengthCm > 0), 'cargoLengthCm', 'Largo')
+      add(!(form.cargoWidthCm > 0), 'cargoWidthCm', 'Ancho')
+      add(!(form.cargoHeightCm > 0), 'cargoHeightCm', 'Alto')
+    }
   }
   if (step.value === 5 && !props.rateId) {
     add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
@@ -2024,6 +2041,16 @@ const { fieldError, isInvalid, missingFields, validationAttempted, resetValidati
 // Submission may happen from Pantalla 4 (Ventas) or Pantalla 8 (Pricing),
 // where requiredStepIssues only evaluates the CURRENT screen. Revisit 3 and
 // report the missing POD instead of submitting a quote/request with null POD.
+// Save requests can be submitted from step 4; rate revisions from step 8.
+// Never bypass cargo validation just because another screen is active.
+function validateCargoBeforeSaving() {
+  if (number(form.cargoWeightKg) > 0 &&
+      (!cargoInsuranceSelected.value || number(form.cargoValue) > 0)) return true
+  step.value = 4
+  void Promise.resolve().then(() => { validateRequiredFields() })
+  return false
+}
+
 function validateMaritimePodBeforeSaving() {
   if (!maritimePodRequired.value || String(form.podId ?? '').trim()) return true
   step.value = 3
