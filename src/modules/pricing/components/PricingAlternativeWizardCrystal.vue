@@ -1911,6 +1911,13 @@ const sellerCargoConditionReady = computed(() => {
   return valid(form.cargoCondition)
 })
 
+// FCL/LCL maritimos require the final destination (POD), in both
+// seller requests and Pricing quotations. Other modalities are unchanged.
+const maritimePodRequired = computed(() =>
+  form.modality === 'Maritime' &&
+  (shipmentModeForApi.value === 'Fcl' || shipmentModeForApi.value === 'Lcl'),
+)
+
 const canNext = computed(() => {
   if (step.value === 1) return Boolean(form.modality)
   if (step.value === 2) return Boolean(form.shipmentMode)
@@ -1958,6 +1965,7 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     add(props.sellerRequestMode && !form.clientId && !form.clientName.trim(), 'client', 'Cliente')
     add(!form.originId, 'originId', 'Origen (POL)')
     add(!form.destinationId, 'destinationId', 'Entrada (POE)')
+    add(maritimePodRequired.value && !String(form.podId ?? '').trim(), 'podId', 'POD (destino final)')
     // FCL uses the split container picker, which resolves size + kind into
     // form.equipmentId. The old form.equipmentSize control is hidden there.
     const standaloneEquipmentSelectorVisible =
@@ -2012,6 +2020,16 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
 
 const { fieldError, isInvalid, missingFields, validationAttempted, resetValidation, validateRequiredFields } =
   useRequiredFieldFeedback(() => requiredStepIssues.value)
+
+// Submission may happen from Pantalla 4 (Ventas) or Pantalla 8 (Pricing),
+// where requiredStepIssues only evaluates the CURRENT screen. Revisit 3 and
+// report the missing POD instead of submitting a quote/request with null POD.
+function validateMaritimePodBeforeSaving() {
+  if (!maritimePodRequired.value || String(form.podId ?? '').trim()) return true
+  step.value = 3
+  void Promise.resolve().then(() => { validateRequiredFields() })
+  return false
+}
 
 function detailTypeForService(service: CatalogItemSelectDto): CostDetailType {
   const value = normalizeCatalogValue(displayValue(service))
