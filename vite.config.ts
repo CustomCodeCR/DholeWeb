@@ -4,6 +4,7 @@ import { pricingCustomsOnlyWizard } from './build/pricingCustomsOnlyWizard'
 import { pricingSellerMultimodalStep3Fix } from './build/pricingSellerMultimodalStep3Fix'
 import { pricingWizardLandModeTerminology } from './build/pricingWizardLandModeTerminology'
 import { pricingWizardHistoricalValidity } from './build/pricingWizardHistoricalValidity'
+import { pricingWizardStep5ValidityComments } from './build/pricingWizardStep5ValidityComments'
 import { pricingWizardGeneratedTemplateIntegrity } from './build/pricingWizardGeneratedTemplateIntegrity'
 import { pricingMiamiOwnLclBreakdown } from './build/pricingMiamiOwnLclBreakdown'
 import vue from '@vitejs/plugin-vue'
@@ -210,6 +211,7 @@ export default defineConfig({
     pricingSellerPricingStepGuard(),
     // Last pricing transform: preserve historical shipment dates before Vue compilation.
     pricingWizardHistoricalValidity(),
+    pricingWizardStep5ValidityComments(),
     pricingWizardGeneratedTemplateIntegrity(),
     pricingRequiredFieldFinalFeedback(),
     vue(),
