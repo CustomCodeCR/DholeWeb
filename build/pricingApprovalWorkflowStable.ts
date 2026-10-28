@@ -95,7 +95,21 @@ function patchWizard(source: string) {
   const approvalCommercialActions =
     "              <div class=\"flex flex-wrap gap-2\">\n                <DhButton v-if=\"isMasterTariff\" @click=\"applyMasterTariff\">Aplicar a cliente</DhButton>\n                <template v-else>\n                  <DhButton\n                    v-if=\"editingRate.status === 'PendingApproval' && canApproveLowMargin\"\n                    :loading=\"approvalSaving\"\n                    :disabled=\"!canApproveCurrentRate || approvalSaving\"\n                    @click=\"approveCurrentRate\"\n                  >Aprobar margen</DhButton>\n                  <DhButton\n                    v-if=\"editingRate.status === 'ApprovedByManagement' && canUpdateRateStatus\"\n                    :disabled=\"!canOpenApprovedRate || commercialStatusSaving\"\n                    @click=\"openApprovedRate\"\n                  >Poner en abierta</DhButton>\n                  <DhButton variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>\n                  <DhButton :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('accept')\">Aceptada</DhButton>\n                  <DhButton variant=\"danger\" :disabled=\"!canAcceptOrReject || commercialStatusSaving\" @click=\"startCommercialDecision('reject')\">Rechazada</DhButton>\n                </template>\n              </div>"
 
-  if (code.includes(compactMasterAwareCommercialActions)) {
+  // Current wizard supports resending pending revisions. Keep this behavior
+  // while injecting approval actions into the same compact commercial toolbar.
+  const compactResendCommercialActions = compactMasterAwareCommercialActions.replace(
+    "                  <DhButton size=\"sm\" variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>",
+    "                  <DhButton size=\"sm\" variant=\"secondary\" :disabled=\"(!canMarkSent && !canResendPendingReapproval) || commercialStatusSaving\" @click=\"markCurrentRateSent\">{{ canResendPendingReapproval ? 'Reenviar al vendedor' : editingRate.pendingReapproval ? 'Enviar revisión' : 'Enviada' }}</DhButton>",
+  )
+  const compactResendApprovalActions = compactApprovalCommercialActions.replace(
+    "                  <DhButton size=\"sm\" variant=\"secondary\" :disabled=\"!canMarkSent || commercialStatusSaving\" @click=\"markCurrentRateSent\">Enviada</DhButton>",
+    "                  <DhButton size=\"sm\" variant=\"secondary\" :disabled=\"(!canMarkSent && !canResendPendingReapproval) || commercialStatusSaving\" @click=\"markCurrentRateSent\">{{ canResendPendingReapproval ? 'Reenviar al vendedor' : editingRate.pendingReapproval ? 'Enviar revisión' : 'Enviada' }}</DhButton>",
+  )
+  if (compactResendCommercialActions === compactMasterAwareCommercialActions)
+    throw new Error('[pricing-approval-workflow-stable] Resend button fingerprint missing')
+  if (code.includes(compactResendCommercialActions)) {
+    code = code.replace(compactResendCommercialActions, compactResendApprovalActions)
+  } else if (code.includes(compactMasterAwareCommercialActions)) {
     code = code.replace(compactMasterAwareCommercialActions, compactApprovalCommercialActions)
   } else if (code.includes(masterAwareCommercialActions)) {
     code = code.replace(masterAwareCommercialActions, approvalCommercialActions)
