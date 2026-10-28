@@ -557,7 +557,7 @@ onBeforeUnmount(clearPendingWarehouseImages)
 
 <template>
   <form class="space-y-5" @submit.prevent="save">
-    <div class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+    <div v-if="!isRouteCreate" class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">
         {{ t('catalogs.group') }}
       </p>
@@ -838,9 +838,9 @@ onBeforeUnmount(clearPendingWarehouseImages)
 
       <DhButton
         type="submit"
-        :label="isEdit ? t('common.save') : 'Guardar y agregar otro'"
+        :label="isEdit ? t('common.save') : isRouteCreate ? 'Agregar ubicación' : 'Guardar y agregar otro'"
         :loading="loading"
-        :disabled="!canSave"
+        :disabled="!canSave || loading || (isRouteCreate && !routeDraft)"
       />
     </div>
   </form>
