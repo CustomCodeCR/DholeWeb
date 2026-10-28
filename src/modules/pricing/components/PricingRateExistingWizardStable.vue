@@ -203,6 +203,10 @@ const exchangeRatePurchase = ref<number | null>(null)
 const exchangeRateSale = ref<number | null>(null)
 const exchangeRateDate = ref('')
 const exchangeRateSource = ref('Ministerio de Hacienda de Costa Rica')
+const euroUsdRate = ref<number | null>(null)
+const euroRateDate = ref('')
+const euroRateError = ref('')
+const euroRateLoading = ref(false)
 const exchangeRateError = ref('')
 const createdRateId = ref('')
 const editingRate = ref<RateDto | null>(null)
@@ -3356,7 +3360,29 @@ function revisionTotals(revision: RateRevisionDto) {
   return computePricingRevisionTotals(revision)
 }
 
+async function loadHaciendaEuroRate(force = false) {
+  if (euroRateLoading.value || (!force && euroUsdRate.value !== null)) return
+  try {
+    euroRateLoading.value = true
+    euroRateError.value = ''
+    const snapshot = await PricingService.getEurUsdExchangeRate()
+    const dollars = Number(snapshot.dollars)
+    if (!Number.isFinite(dollars) || dollars <= 0) {
+      throw new Error('Hacienda devolvió un tipo de cambio EUR/USD inválido')
+    }
+    euroUsdRate.value = dollars
+    euroRateDate.value = snapshot.rateDate || ''
+  } catch {
+    // No utilizar un valor fijo ni sobrescribir la última tasa válida por un fallo de red.
+    euroRateError.value = 'No se pudo actualizar el cambio EUR/USD de Hacienda.'
+  } finally {
+    euroRateLoading.value = false
+  }
+}
+
 async function loadHaciendaExchangeRate(force = false) {
+  // USD/CRC y EUR/USD son consultas independientes: una falla no bloquea la otra.
+  void loadHaciendaEuroRate(force)
   if (exchangeRateLoading.value) return
   if (!force && exchangeRatePurchase.value && exchangeRateSale.value) return
 
@@ -4851,6 +4877,10 @@ onMounted(async () => {
               <DhInput v-model.number="exchangeRatePurchase" type="number" min="0.000001" step="0.01" label="Compra Hacienda (editable)" />
               <DhInput v-model.number="exchangeRateSale" type="number" min="0.000001" step="0.01" label="Venta Hacienda (editable)" />
             </div>
+            <p v-if="euroUsdRate" class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              EUR → USD (Hacienda): <strong>1 EUR = {{ euroUsdRate.toFixed(4) }} USD</strong><span v-if="euroRateDate"> · fecha {{ formatDate(euroRateDate) }}</span>
+            </p>
+            <p v-if="euroRateError" class="mt-2 text-xs font-semibold text-amber-700">{{ euroRateError }}</p>
             <p v-if="exchangeRateDate" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">{{ exchangeRateSource }} · fecha {{ formatDate(exchangeRateDate) }}</p>
             <p v-if="exchangeRateError" class="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-700">{{ exchangeRateError }}</p>
           </div>
