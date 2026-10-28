@@ -9,7 +9,7 @@ type TerminalType = 'CY' | 'SD' | 'APT'
 type RouteSource = { item: CatalogItemDto; terminalType: TerminalType; country: Country }
 type Country = { key: string; name: string; code: string }
 
-export interface RouteCatalogDraft {
+interface RouteCatalogDraft {
   name: string
   slug: string
   description: string
@@ -102,8 +102,14 @@ function alreadyExists(draft: RouteCatalogDraft): boolean {
   const countryCode = normalize(newMeta.countryCode)
   return existingItems.value.some((item) => {
     if (locationType(item) !== terminalType.value) return false
-    if (normalize(item.name) !== target && normalize(item.value) !== normalize(draft.value)) return false
-    const existingCode = normalize(metadata(item).countryCode)
+    const otherMeta = metadata(item)
+    const sameSlug = Boolean(draft.slug) && normalize(item.slug) === normalize(draft.slug)
+    const sameName = normalize(item.name) === target || normalize(item.value) === normalize(draft.value)
+    const iataCode = normalize(newMeta.iataCode)
+    const sameAirport = terminalType.value === 'APT' && Boolean(iataCode)
+      && normalize(otherMeta.iataCode) === iataCode
+    if (!sameSlug && !sameName && !sameAirport) return false
+    const existingCode = normalize(otherMeta.countryCode)
     return !existingCode || !countryCode || existingCode === countryCode
   })
 }
