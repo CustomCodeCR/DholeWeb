@@ -33,6 +33,9 @@ test('fixed costs are enabled without lifting read-only or non-fixed restriction
 test('selected customs is independent from the maritime coloader', () => {
   const result = patchPricingStep7FixedCostsAndCustoms(fixture)
   assert.match(result, /syncSelectedColoaderCrcCustomsLine\(\)/)
+  assert.match(result, /previous\.filter\(\(line\) => line\.costDetailType === 'Insurance'\)/)
+  assert.match(result, /result\.some\(\(line\) => line\.costDetailType === 'Insurance'\)/)
+  assert.match(result, /rateLines\.value = result\n  syncSelectedColoaderCrcCustomsLine\(\)\n  syncDeclaredCargoInsuranceOnEdit\(\)/)
   assert.match(result, /function selectedColoaderCrcCustomsCost/)
   assert.match(result, /function syncSelectedColoaderCrcCustomsLine/)
   assert.match(result, /name\.includes\('customs clearance'\)/)
