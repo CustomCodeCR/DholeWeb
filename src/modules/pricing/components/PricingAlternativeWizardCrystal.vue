@@ -2010,7 +2010,8 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     add(cargoInsuranceSelected.value && !(number(form.cargoValue) > 0),
       'cargoValue', 'Valor declarado para Seguro de carga')
     if (consolidatedCargoMode.value) {
-      add(!(form.cargoPallets > 0), 'cargoPallets', 'Tarimas')
+      // Tarimas may legitimately be zero when every cargo line is a box or
+      // loose package. The generated line validation checks each quantity.
       add(!(form.cargoLengthCm > 0), 'cargoLengthCm', 'Largo')
       add(!(form.cargoWidthCm > 0), 'cargoWidthCm', 'Ancho')
       add(!(form.cargoHeightCm > 0), 'cargoHeightCm', 'Alto')
