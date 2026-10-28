@@ -4865,9 +4865,30 @@ async function saveRate() {
         await RateRequestLeaseService.prepareModification(
           props.modificationRequestId, rateId, persistedRate.revisionNumber,
         )
-        await RateRequestLeaseService.completeRate(
-          props.modificationRequestId, rateId, { confirmSellerModification: true },
-        )
+        // The revision and its preparation are already saved.
+        try {
+          const completion = await RateRequestLeaseService.completeRate(
+            props.modificationRequestId, rateId, { confirmSellerModification: true },
+          )
+          if (completion?.status === 'CompletedDeliveryRetryPending') {
+            toastStore.warning(
+              'Revisión guardada; entrega pendiente',
+              'La modificación ya quedó guardada. Pricing reintentará generar y enviar el PDF sin crear otra revisión.',
+            )
+            await hydrateExistingRate()
+            step.value = 8
+            return
+          }
+        } catch (deliveryError) {
+          console.error('La revisión quedó guardada, pero falló el cierre de su solicitud.', deliveryError)
+          toastStore.warning(
+            'Revisión guardada; revisar envío',
+            'Se guardó la QUO, pero no se pudo confirmar el cierre de la solicitud. Revise o reintente el envío desde Solicitudes a Pricing; no vuelva a guardar otra revisión.',
+          )
+          await hydrateExistingRate()
+          step.value = 8
+          return
+        }
       }
       const nextRevision = editingRate.value.status === 'AcceptedByClient'
         ? (editingRate.value.revisionNumber || 1) + 1
