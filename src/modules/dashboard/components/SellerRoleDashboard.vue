@@ -261,6 +261,29 @@ function money(amount: number, currency: string) {
 const latestRequests = computed(() => [...requests.value]
   .sort((a, b) => Date.parse(b.requestedAtUtc) - Date.parse(a.requestedAtUtc)))
 
+const requestStatusFilter = ref('All')
+const requestStatusOptions = computed(() => {
+  // Compartir exactamente el estado que muestra cada badge (incluidas modificaciones).
+  const counts = new Map<string, number>()
+  for (const request of requests.value) {
+    const status = requestState(request)
+    counts.set(status, (counts.get(status) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, 'es'))
+    .map(([value, count]) => ({ value, count }))
+})
+const filteredRequests = computed(() => latestRequests.value.filter((request) =>
+  requestStatusFilter.value === 'All' || requestState(request) === requestStatusFilter.value,
+))
+watch(requestStatusOptions, (options) => {
+  // Al cambiar de vendedor o actualizar los datos, evitar un filtro ya inexistente.
+  if (requestStatusFilter.value !== 'All'
+    && !options.some(({ value }) => value === requestStatusFilter.value)) {
+    requestStatusFilter.value = 'All'
+  }
+})
+
 function modalityLabel(mode: RateDto['shipmentMode']) {
   const labels: Record<string, string> = {
     Fcl: 'FCL · Marítimo completo',
@@ -822,12 +845,31 @@ onBeforeUnmount(() => {
       </section>
 
       <section class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
-        <div class="border-b border-[var(--dh-border)] px-4 py-3.5">
-          <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Solicitudes a Pricing' : 'Mis solicitudes a Pricing' }}</h3>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Estado de los requerimientos enviados al equipo de Pricing.</p>
+        <div class="flex flex-col gap-3 border-b border-[var(--dh-border)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div class="min-w-0">
+            <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Solicitudes a Pricing' : 'Mis solicitudes a Pricing' }}</h3>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Estado de los requerimientos enviados al equipo de Pricing.</p>
+          </div>
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <label for="seller-request-status-filter" class="shrink-0 text-xs font-bold text-[var(--dh-text-muted)]">Estado</label>
+            <select
+              id="seller-request-status-filter"
+              v-model="requestStatusFilter"
+              aria-label="Filtrar solicitudes a Pricing por estado"
+              class="min-w-0 max-w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)] sm:max-w-[290px]"
+            >
+              <option value="All">Todos los estados ({{ latestRequests.length }})</option>
+              <option v-for="option in requestStatusOptions" :key="option.value" :value="option.value">
+                {{ option.value }} ({{ option.count }})
+              </option>
+            </select>
+          </div>
         </div>
         <p v-if="!latestRequests.length" class="p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
           Todavía no hay solicitudes registradas.
+        </p>
+        <p v-else-if="!filteredRequests.length" class="p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
+          No hay solicitudes con el estado seleccionado.
         </p>
         <div v-else class="overflow-x-auto">
           <table class="w-full min-w-[980px] text-left text-xs">
@@ -835,7 +877,7 @@ onBeforeUnmount(() => {
               <tr><th class="px-4 py-3">Cliente</th><th class="px-4 py-3">QUO</th><th class="px-4 py-3">Origen → Destino</th><th class="px-4 py-3">Equipo</th><th class="px-4 py-3">Prioridad</th><th class="px-4 py-3">Solicitada</th><th class="px-4 py-3">Estado</th><th v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">Acción</th></tr>
             </thead>
             <tbody class="divide-y divide-[var(--dh-border)]">
-              <tr v-for="request in latestRequests" :key="request.id">
+              <tr v-for="request in filteredRequests" :key="request.id">
                 <td class="px-4 py-3 font-bold text-[var(--dh-text)]">{{ request.clientName || 'Sin cliente' }}<span v-if="request.kind === 'Modification'" class="mt-1 block text-xs text-amber-500">Modificación de tarifa</span></td>
                 <td class="px-4 py-3">
                   <button v-if="request.rateId && canOpenLinkedRate(request)" type="button"
