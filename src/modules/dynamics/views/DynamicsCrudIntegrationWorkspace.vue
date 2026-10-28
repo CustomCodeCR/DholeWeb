@@ -249,6 +249,32 @@ const canCreateProposedKey=computed(()=>entity.value==='quote'&&
   !!table.value?.columns.some(f=>f.logicalName===proposedKeyField.value&&
     f.type==='String'&&f.canRead&&f.canCreate&&f.canUpdate&&!f.isCalculated))
 const selectedKey=computed(()=>eligibleKeys.value.find(k=>k.logicalName===keyName.value))
+const pricingRateIdentityFields=['cr933_dholerateid','new_idtraasignado'] as const
+const effectiveUpsertKey=computed(()=>{
+  if(operation.value!=='upsert')return null
+  if(entity.value!=='quote'||endpointName.value!=='crear_oferta')
+    return selectedKey.value??null
+  // The Pricing worker expects the permanent Dhole RateId, never an IDTRA,
+  // QUO number or any arbitrary alternate key from the tenant.
+  const permitted=(key:{logicalName:string;attributes:string[]})=>
+    key.attributes.length===1 &&
+    pricingRateIdentityFields.some(name=>name===key.attributes[0]) &&
+    key.attributes.every(attribute=>{
+      const field=table.value?.columns.find(f=>f.logicalName===attribute)
+      const grant=policies.value.fields.find(p=>
+        p.entityName==='quote'&&p.fieldName===attribute)
+      return !!field?.canRead&&!!field.canCreate&&!!field.canUpdate&&
+        !field.isCalculated&&!!grant?.enabled&&!!grant.canRead&&
+        !!grant.canCreate&&!!grant.canUpdate
+    })
+  const available=eligibleKeys.value.filter(permitted)
+  return available.find(key=>key.logicalName===keyName.value) ??
+    pricingRateIdentityFields.map(name=>available.find(key=>key.attributes[0]===name))
+      .find((key):key is {logicalName:string;attributes:string[]}=>!!key)??null
+})
+const upsertKeyReady=computed(()=>operation.value!=='upsert'||!!effectiveUpsertKey.value)
+const upsertKeyFields=computed(()=>operation.value==='upsert'
+  ?[...(effectiveUpsertKey.value?.attributes??[])]:[])
 const selectedFields=computed(()=>eligibleFields.value.filter(f=>selected.value.includes(f.logicalName)))
 const definition=computed<Definition>(()=>({
   entityName:entity.value,operation:operation.value,
@@ -280,8 +306,8 @@ const validationIssues=computed(()=>{
   if(choiceError.value)issues.push('Falló la lectura de opciones: '+choiceError.value)
   if(metadataChoicesMissing.value.length)
     issues.push('No hay opciones válidas para: '+metadataChoicesMissing.value.map(f=>f.logicalName).join(', '))
-  if(operation.value==='upsert'&&!selectedKey.value)
-    issues.push('UPSERT necesita una clave alternativa activa de Dataverse. Seleccioná una columna existente, definí la clave en Dataverse y actualizá las claves.')
+  if(operation.value==='upsert'&&!effectiveUpsertKey.value)
+    issues.push('UPSERT necesita una clave alternativa activa y autorizada de Dataverse. Actualizá las claves y seleccioná el identificador permanente de tarifa Dhole.')
   return issues
 })
 const configValid=computed(()=>validationIssues.value.length===0)
@@ -335,7 +361,7 @@ const exampleBody=computed(()=>{
     body.eTag='W/"VERSION_REAL_DEL_REGISTRO"'
   }
   if(operation.value==='upsert'){
-    body.keys=Object.fromEntries((selectedKey.value?.attributes??[]).map(f=>
+    body.keys=Object.fromEntries(upsertKeyFields.value.map(f=>
       [f,inputs[f]??'VALOR_DE_CLAVE']))
   }
   if(operation.value==='delete'){
@@ -419,7 +445,7 @@ function forward(){
     error.value='Dataverse no devolvió opciones para: '+
       metadataChoicesMissing.value.map(f=>f.logicalName).join(', ');return
   }
-  if(step.value===2&&operation.value==='upsert'&&!selectedKey.value){
+  if(step.value===2&&operation.value==='upsert'&&!effectiveUpsertKey.value){
     error.value='Seleccioná una clave alternativa activa de Dataverse. Usá el botón Actualizar claves y verificá que el índice esté activo.';return
   }
   if(step.value===3&&!configValid.value){error.value=validationIssues.value.join(' ');return}
@@ -611,12 +637,17 @@ async function reuseKey(){
   if(!active.value||!canManage.value||!reuseKeyConfirm.value)return
   const key=reusableKeys.value.find(k=>k.id===reuseKeyId.value)
   if(!key)return
+  if(!upsertKeyReady.value){
+    error.value='No se envió la solicitud: seleccioná una clave alternativa activa de Dataverse para el RateId en «Tabla y campos», o actualizá las claves desde aquí.'
+    success.value=''
+    return
+  }
   busy.value=true;error.value='';success.value=''
   try{
     await fetchClient<KeyInfo>(api('crud-keys/'+encodeURIComponent(key.id)+'/rebind'),{
       method:'PUT',
       body:{templateName:endpointName.value,
-        keyFields:operation.value==='upsert'?selectedKey.value?.attributes??[]:[]}
+        keyFields:upsertKeyFields.value}
     })
     keys.value=await fetchClient<KeyInfo[]>(api('crud-keys'),{method:'GET'})
     if(endpointName.value==='crear_oferta'&&
@@ -629,13 +660,18 @@ async function reuseKey(){
 }
 async function issueKey(){
   if(!active.value||!canManage.value)return
+  if(!upsertKeyReady.value){
+    error.value='No se puede generar una API Key UPSERT sin una clave alternativa activa y autorizada. Actualizá las claves desde Dataverse.'
+    success.value=''
+    return
+  }
   busy.value=true;error.value='';success.value=''
   try{
     issued.value=await fetchClient<Issued>(api('crud-keys'),{method:'POST',body:{
       templateName:endpointName.value,label:keyForm.value.label.trim(),
       expiresInDays:keyForm.value.expiresInDays,
       maxRequestsPerMinute:keyForm.value.maxRequestsPerMinute,
-      keyFields:operation.value==='upsert'?selectedKey.value?.attributes??[]:[]
+      keyFields:upsertKeyFields.value
     }})
     keys.value=await fetchClient<KeyInfo[]>(api('crud-keys'),{method:'GET'})
     if(issued.value.key.templateName==='crear_oferta'&&
@@ -764,7 +800,19 @@ function inspect(t:Summary){
   error.value=''
   success.value=''
   createdVersion.value=version.version
+  // Inspecting a published version jumps directly to step 4. Restore the
+  // rate alternate key rather than silently submitting keyFields: [].
+  const selectedRateKey=tableInfo?.alternateKeys?.find(key=>
+    key.attributes.length===1&&key.attributes[0]==='cr933_dholerateid') ??
+    tableInfo?.alternateKeys?.find(key=>
+      key.attributes.length===1&&key.attributes[0]==='new_idtraasignado')
+  keyName.value=version.definition.operation==='upsert'
+    ?selectedRateKey?.logicalName??(tableInfo?.alternateKeys?.length===1
+      ?tableInfo.alternateKeys[0]!.logicalName:'')
+    :''
   step.value=4
+  if(version.definition.operation==='upsert')
+    void refreshAlternateKeys(true)
   issued.value=null
   reuseKeyConfirm.value=false
   reuseKeyId.value=''
@@ -1179,8 +1227,32 @@ onMounted(refresh)
               <span><input v-model="reuseKeyConfirm" type="checkbox">
                 Confirmo vincular esta clave a la versión activa y actualizar solamente los permisos autorizados.</span>
             </label>
+            <div v-if="operation==='upsert'" class="crud-info" role="status">
+              <div v-if="effectiveUpsertKey">
+                <strong>Clave alternativa activa:</strong>
+                <code>{{ effectiveUpsertKey.logicalName }}</code> ·
+                <code>{{ effectiveUpsertKey.attributes.join(', ') }}</code>.
+                Se conservará el secreto existente de Pricing.
+              </div>
+              <div v-else>
+                <strong>Falta la clave alternativa de UPSERT.</strong>
+                No se enviará una solicitud con <code>keyFields: []</code>.
+                Revisá los permisos de lectura, creación y edición del identificador
+                permanente de Dhole.
+              </div>
+              <div class="crud-actions">
+                <button class="crud-secondary" type="button"
+                  :disabled="alternateKeysLoading" @click="refreshAlternateKeys()">
+                  <RefreshCw :size="15"/>
+                  {{ alternateKeysLoading?'Consultando Dataverse...':'Actualizar claves desde Dataverse' }}
+                </button>
+                <button class="crud-secondary" type="button" @click="step=2">
+                  Seleccionar clave en Tabla y campos
+                </button>
+              </div>
+            </div>
             <button class="crud-primary" type="button"
-              :disabled="busy||!reuseKeyId||!reuseKeyConfirm"
+              :disabled="busy||!reuseKeyId||!reuseKeyConfirm||!upsertKeyReady||alternateKeysLoading"
               @click="reuseKey"><KeyRound :size="15"/> Reutilizar clave seleccionada</button>
             <p v-if="!reusableKeys.length" class="crud-help">
               No hay claves vigentes de este comando. Podés generar una nueva sin eliminar ninguna versión.
