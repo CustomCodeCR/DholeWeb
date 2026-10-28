@@ -17,6 +17,7 @@ const modalStore = useModalStore()
 const toastStore = useToastStore()
 const form = reactive({
   reason: '',
+  observations: '',
   submitted: false,
   saving: false,
 })
@@ -29,6 +30,7 @@ async function submit() {
 
   const reason = form.reason.trim()
   if (!isAccept.value && !reason) return
+  if (isAccept.value && form.observations.trim().length > 2000) return
 
   try {
     form.saving = true
@@ -44,6 +46,7 @@ async function submit() {
           status: props.decision,
           idtraNumber: null,
           reason: isAccept.value ? null : reason,
+          observations: isAccept.value ? form.observations.trim() || null : null,
         },
       },
     )
@@ -51,7 +54,7 @@ async function submit() {
     toastStore.success(
       isAccept.value ? 'Tarifa aceptada por el cliente' : 'Tarifa no aceptada por el cliente',
       isAccept.value
-        ? 'La aceptación quedó registrada. El IDTRA podrá incorporarse posteriormente cuando esté disponible.'
+        ? 'La aceptación quedó registrada y las observaciones se incluirán en el aviso de apertura de trámite cuando corresponda. El IDTRA podrá agregarse posteriormente.'
         : 'El motivo de rechazo quedó registrado para seguimiento.',
     )
 
@@ -112,8 +115,19 @@ async function submit() {
         v-if="isAccept"
         class="mt-3 text-sm font-semibold leading-6 text-[var(--dh-text-muted)]"
       >
-        Confirme que el cliente aceptó esta tarifa. No se solicitará información adicional al vendedor.
+        Confirme que el cliente aceptó esta tarifa. Puede agregar instrucciones para el equipo de apertura de trámite.
       </p>
+      <div v-if="isAccept" class="mt-4">
+        <DhTextarea
+          v-model="form.observations"
+          label="Observaciones para apertura de trámite (opcional)"
+          :rows="4"
+          maxlength="2000"
+          placeholder="Instrucciones especiales, documentación pendiente, contactos o indicaciones del cliente..."
+          :error="form.observations.trim().length > 2000 ? 'Máximo 2000 caracteres.' : undefined"
+        />
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Se incluirán en el correo de apertura de trámite. No se agregan al PDF de la cotización.</p>
+      </div>
 
       <DhTextarea
         v-else
