@@ -473,6 +473,53 @@ const reconcilingRateId = ref<string | null>(null)
 const reconcileMessages = ref<Record<string,string>>({})
 const recoveringRateId = ref<string | null>(null)
 const recoveryMessages = ref<Record<string,string>>({})
+const legacyConfirmed = ref<Record<string, boolean>>({})
+const linkingLegacyRateId = ref<string | null>(null)
+const legacyLinkMessages = ref<Record<string, string>>({})
+
+async function linkLegacyAndResume(issue: QuoteIssue) {
+  const legacy = ledgerByRate.value[issue.rateId]?.legacy
+  const quoteId = legacy?.uniqueQuoteId
+  if (!isAdministrator.value || issue.status !== 'NeedsAttention' ||
+      issue.error?.providerCode !== 'legacy_quote_requires_rate_key_linking' ||
+      issue.retryBlockReason || linkingLegacyRateId.value ||
+      !quoteId || !legacy?.liveQuoteExists || legacy.historyTruncated ||
+      !legacyConfirmed.value[issue.rateId]) return
+  linkingLegacyRateId.value = issue.rateId
+  legacyLinkMessages.value = { ...legacyLinkMessages.value,
+    [issue.rateId]: 'Verificando la QUO histórica y su clave alternativa...' }
+  try {
+    // Step 1: admin action only PATCHes the unique existing historical Quote
+    // with the immutable RateId, guarded by an ETag and live reads.
+    await fetchClient<{ linked: boolean; quoteId: string }>(
+      '/api/dynamics-admin/connections/principal/quote-sync-ledger/' +
+        encodeURIComponent(issue.rateId) + '/' +
+        encodeURIComponent(String(issue.revisionNumber)) + '/link-legacy', {
+          method: 'POST', body: { quoteId, confirmExistingQuote: true },
+        })
+    legacyLinkMessages.value = { ...legacyLinkMessages.value,
+      [issue.rateId]: 'Vínculo confirmado. Comprobando que se puede reanudar sin duplicados...' }
+    // Step 2: Pricing independently asks the keyed connector to confirm
+    // the link by the ACTIVE alternate key and that v8 was never written.
+    const resumed = await fetchClient<{ message: string; existingQuoteId: string }>(
+      '/api/pricing/rates/' + encodeURIComponent(issue.rateId) +
+      '/dynamics-sync/resume-linked-legacy', { method: 'POST' })
+    legacyLinkMessages.value = { ...legacyLinkMessages.value,
+      [issue.rateId]: resumed.message || 'Reanudada la QUO existente sin crear otra.' }
+    legacyConfirmed.value = { ...legacyConfirmed.value, [issue.rateId]: false }
+    await refresh()
+  } catch (error) {
+    legacyLinkMessages.value = { ...legacyLinkMessages.value,
+      [issue.rateId]: error instanceof ApiError
+        ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error)
+        : error instanceof Error ? error.message :
+          'No se pudo confirmar el vínculo o reanudar la tarifa. No se creó otra QUO.' }
+    // Never submit the resume step after a failed/unconfirmed PATCH.
+  } finally {
+    linkingLegacyRateId.value = null
+  }
+}
+
 
 async function recoverRejected(issue: QuoteIssue) {
   const ledger = ledgerByRate.value[issue.rateId]
@@ -1231,11 +1278,39 @@ onUnmounted(() => {
                 <ExternalLink :size="15" /> Inspeccionar QUO histórica en Dynamics
               </a>
               <p>
-                Comprobá que la QUO corresponde al cliente, IDTRA y tarifa correctos.
-                Un administrador debe vincular el RateId permanente a ese registro
-                usando el campo alternativo aprobado antes de una recuperación controlada.
-                Esta consulta no modifica ni crea registros.
+                Verificá en Dynamics que este registro corresponde a
+                {{ issue.rate?.clientName }} ({{ issue.rate?.idtraNumber }}).
+                Al confirmar, se vinculará el RateId a la QUO histórica y después
+                se intentará actualizar esa misma oferta. No se creará otra cabecera.
               </p>
+              <label v-if="isAdministrator && issue.status === 'NeedsAttention' &&
+                issue.error?.providerCode === 'legacy_quote_requires_rate_key_linking' &&
+                ledgerByRate[issue.rateId]!.legacy!.uniqueQuoteId &&
+                ledgerByRate[issue.rateId]!.legacy!.liveQuoteExists === true &&
+                !ledgerByRate[issue.rateId]!.legacy!.historyTruncated &&
+                !issue.retryBlockReason"
+                class="quote-sync-recovery-check">
+                <input type="checkbox"
+                  :checked="Boolean(legacyConfirmed[issue.rateId])"
+                  :disabled="Boolean(linkingLegacyRateId)"
+                  @change="legacyConfirmed[issue.rateId] = ($event.target as HTMLInputElement).checked" />
+                Confirmo que revisé el registro existente, el cliente y el IDTRA.
+              </label>
+              <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
+                issue.error?.providerCode === 'legacy_quote_requires_rate_key_linking'"
+                type="button" class="dynamics-primary-button"
+                :disabled="!legacyConfirmed[issue.rateId] || Boolean(linkingLegacyRateId) ||
+                  !ledgerByRate[issue.rateId]!.legacy!.uniqueQuoteId ||
+                  ledgerByRate[issue.rateId]!.legacy!.liveQuoteExists !== true ||
+                  ledgerByRate[issue.rateId]!.legacy!.historyTruncated ||
+                  Boolean(issue.retryBlockReason)"
+                @click="linkLegacyAndResume(issue)">
+                <RefreshCw :size="15" />
+                {{ linkingLegacyRateId === issue.rateId
+                  ? 'Vinculando y verificando...' : 'Vincular QUO existente y reenviar revisión' }}
+              </button>
+              <p v-if="legacyLinkMessages[issue.rateId]" role="status"
+                class="quote-sync-meta">{{ legacyLinkMessages[issue.rateId] }}</p>
             </div>
           </div>
           <div v-if="ledgerByRate[issue.rateId]?.live" class="quote-sync-diagnosis"
