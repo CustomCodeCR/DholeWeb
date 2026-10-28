@@ -53,7 +53,7 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
 
       replaceOnce(
         'async function saveOpenRequest() {',
-        'async function saveOpenRequest() {\n  if (!validateRequiredFields()) return',
+        'async function saveOpenRequest() {\n  if (!validateMaritimePodBeforeSaving()) return\n  if (!validateRequiredFields()) return',
         'seller request validation',
       )
 
@@ -67,7 +67,7 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
       const rateSave = 'async function saveRate() {'
       if (code.includes(rateSave)) {
         code = code.replace(rateSave,
-          rateSave + '\n  if (!validateRequiredFields()) return')
+          rateSave + '\n  if (!validateMaritimePodBeforeSaving()) return\n  if (!validateRequiredFields()) return')
       }
 
       // Re-enable navigation to allow the click to explain missing fields.
@@ -119,6 +119,25 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         code = code.replace(fclPrimarySelector,
           '<PricingContainerSelector v-model="form.equipmentId" transport="maritime" data-required-field="equipmentType" :error="fieldError(\'equipmentType\')"')
       }
+
+      // Earlier build transforms rewrite the seller POD label and optionality.
+      // Apply the requirement to the FINAL rendered location selector for
+      // both maritime FCL and maritime LCL (quotes AND seller requests).
+      const podSelectPattern = /<PricingLocationSearchSelect\b[^>]*\bv-model="form\.podId"[^>]*\/>/g
+      const podSelectMatches = [...code.matchAll(podSelectPattern)]
+      if (podSelectMatches.length !== 1) {
+        throw new Error('[pricingRequiredFieldFinalFeedback] Expected one rendered POD selector, got ' + podSelectMatches.length)
+      }
+      code = code.replace(podSelectPattern, (tag) => {
+        if (!/(?::label|label)="[^"]*"/.test(tag) || !tag.includes(':optional="')) {
+          throw new Error('[pricingRequiredFieldFinalFeedback] POD label or optional binding missing')
+        }
+        return tag
+          .replace(/(?::label|label)="[^"]*"/, ':label="maritimePodRequired ? \'POD requerido *\' : \'POD\\'"')
+          .replace(/:optional="[^"]*"/, ':optional="!maritimePodRequired"')
+          .replace('<PricingLocationSearchSelect',
+            '<PricingLocationSearchSelect data-required-field="podId" :error="fieldError(\'podId\')"')
+      })
 
       return { code, map: null }
     },
