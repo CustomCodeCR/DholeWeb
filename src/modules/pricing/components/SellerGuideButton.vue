@@ -34,7 +34,7 @@ function loadDriver(): Promise<DriverFactory> {
     if (!document.querySelector('link[data-dhole-driver-css]')) {
       const css = document.createElement('link')
       css.rel = 'stylesheet'
-      css.href = 'https://cdn.jsdelivr.net/npm/driver.js@1.10.2/dist/driver.css'
+      css.href = 'https://unpkg.com/driver.js@1.10.2/dist/driver.css'
       css.dataset.dholeDriverCss = 'true'
       document.head.appendChild(css)
     }
@@ -56,7 +56,7 @@ function loadDriver(): Promise<DriverFactory> {
       reject(new Error('No se pudo cargar Driver.js.'))
     }, { once: true })
     if (!existingScript) {
-      script.src = 'https://cdn.jsdelivr.net/npm/driver.js@1.10.2/dist/driver.js.iife.js'
+      script.src = 'https://unpkg.com/driver.js@1.10.2/dist/driver.js.iife.js'
       script.async = true
       script.dataset.dholeDriverScript = 'true'
       document.head.appendChild(script)
