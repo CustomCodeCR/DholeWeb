@@ -25,6 +25,9 @@ interface SellerRateRequestDto {
   status: string
   workStatus?: 'Working' | 'RequestedFromProvider' | null
   workStatusUpdatedAtUtc?: string | null
+  lockedByUserId?: string | null
+  lockedByName?: string | null
+  lockExpiresAtUtc?: string | null
   requestedAtUtc: string
   dueAtUtc: string
   completedAtUtc?: string | null
@@ -321,9 +324,14 @@ function requestEquipmentLabel(request: SellerRateRequestDto) {
   return (request.equipmentQuantity || 1) + ' × ' + (request.equipmentType || request.shipmentMode || 'Equipo')
 }
 
+function isRequestClaimed(request: SellerRateRequestDto): boolean {
+  return Boolean(request.lockedByUserId && request.lockExpiresAtUtc
+    && new Date(request.lockExpiresAtUtc).getTime() > Date.now())
+}
+
 function canEditRequest(request: SellerRateRequestDto) {
   return (!props.adminPreview || (props.enableSellerActions && ownRequestIds.value.has(request.id)))
-    && request.status === 'Open' && !request.rateId
+    && request.status === 'Open' && !request.rateId && !isRequestClaimed(request)
 }
 
 function linkedQuoNumber(request: SellerRateRequestDto): string {
@@ -352,7 +360,11 @@ function openLinkedRate(request: SellerRateRequestDto) {
 }
 
 function editRequest(request: SellerRateRequestDto) {
-  if (!canEditRequest(request)) return
+  if (!canEditRequest(request)) {
+    if (isRequestClaimed(request))
+      toast.warning('Solicitud en proceso', (request.lockedByName || 'Pricing') + ' ya tomó esta solicitud. No se puede editar hasta que libere la reserva.')
+    return
+  }
   void router.push({ name: 'pricing-seller-rate-request-edit', params: { requestId: request.id } })
 }
 
@@ -897,6 +909,9 @@ onBeforeUnmount(() => {
                 <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ new Date(request.requestedAtUtc).toLocaleDateString('es-CR') }}</td>
                 <td class="px-4 py-3">
                   <DhBadge :label="requestState(request)" :variant="requestStateVariant(request)" />
+                  <p v-if="request.status === 'Open' && isRequestClaimed(request)" class="mt-1 text-[10px] font-bold text-amber-500">
+                    En proceso por {{ request.lockedByName || 'Pricing' }} · edición bloqueada
+                  </p>
                   <p v-if="request.workStatusUpdatedAtUtc && request.status === 'Open'" class="mt-1 text-[10px] font-semibold text-[var(--dh-text-muted)]">
                     Actualizado {{ new Date(request.workStatusUpdatedAtUtc).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' }) }}
                   </p>
