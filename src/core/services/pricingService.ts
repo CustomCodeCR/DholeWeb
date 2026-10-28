@@ -37,6 +37,7 @@ import type {
   PricingRateDashboardDto,
   PricingRateDashboardQuery,
   PricingExchangeRateDto,
+  PricingEuroExchangeRateDto,
   RateDto,
   RateRevisionDto,
   RateTermItemDto,
@@ -589,6 +590,11 @@ export const PricingService = {
   async getUsdCrcExchangeRate(): Promise<PricingExchangeRateDto> {
     const response = await callEndpoint<unknown>(Endpoints.getUsdCrcExchangeRate)
     return unwrapApiResponse<PricingExchangeRateDto>(response as never)
+  },
+
+  async getEurUsdExchangeRate(): Promise<PricingEuroExchangeRateDto> {
+    const response = await callEndpoint<unknown>(Endpoints.getEurUsdExchangeRate)
+    return unwrapApiResponse<PricingEuroExchangeRateDto>(response as never)
   },
 
   async browseRates(query?: BrowseRatesQuery): Promise<PagedResponse<RateDto>> {
