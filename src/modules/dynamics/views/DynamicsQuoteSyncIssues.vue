@@ -309,7 +309,7 @@ async function loadQuoteKeys() {
     currentQuoteVersion.value = templates.find(t => t.name === 'crear_oferta')
       ?.activeVersion ?? null
     quoteKeys.value = keys.filter(k => k.enabled &&
-      k.entityName === 'quote' && k.operation === 'create' &&
+      k.entityName === 'quote' && ['create', 'upsert'].includes(k.operation) &&
       k.templateName === 'crear_oferta' &&
       k.templateVersion === currentQuoteVersion.value &&
       new Date(k.expiresAt).getTime() > Date.now())
@@ -954,7 +954,7 @@ onUnmounted(() => {
     <details v-if="isAdministrator" class="quote-sync-advanced">
       <summary class="quote-sync-advanced-trigger">
         <span>Configuración y herramientas de administración</span>
-        <span class="quote-sync-meta">Permisos · Comprobaciones · Encolar por GUID</span>
+        <span class="quote-sync-meta">Permisos · Comprobaciones · Publicación avanzada por GUID</span>
       </summary>
     <div class="quote-sync-grants">
       <div>
