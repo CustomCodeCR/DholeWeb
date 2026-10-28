@@ -16,7 +16,7 @@ const fixture = [
 
 test('FTL edit restores original cost and sale even when origin, POE or equipment changed', () => {
   const output = patchPricingWizardFtlEditFreightRestore(fixture)
-  const guard = output.split('async function searchApprovedRates() {')[1].split('  availableRates.value = []')[0]
+  const guard = output.split('async function searchApprovedRates() {')[1].split('  }\n  availableRates.value = []')[0]
   assert.match(output, /return \(rate\.rateDetails \?\? \[\]\)\.find\(\(detail\) => detail\.costDetailType === 'Freight'\)/)
   assert.doesNotMatch(output, /if \(rate\.polId !== form\.originId \|\| rate\.poeId !== form\.destinationId/)
   assert.match(guard, /const savedFtlFreight = savedFtlFreightForCurrentEdit\(\)/)
