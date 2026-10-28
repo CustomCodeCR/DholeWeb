@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SellerGuideButton from '@/modules/pricing/components/SellerGuideButton.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock, FileSpreadsheet } from 'lucide-vue-next'
@@ -567,7 +568,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="space-y-4">
+  <section data-seller-guide="overview" class="space-y-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">Dashboard por rol</p>
@@ -585,6 +586,7 @@ onBeforeUnmount(() => {
           :icon="FileSpreadsheet"
           @click="router.push({ name: 'pricing-commercial-report' })"
         />
+        <SellerGuideButton context="dashboard" />
         <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
       </div>
     </div>
@@ -617,7 +619,7 @@ onBeforeUnmount(() => {
         No se pudieron actualizar mis tarifas y solicitudes. Presione Actualizar para intentar nuevamente.
       </div>
 
-      <section class="grid grid-cols-2 gap-2.5 lg:grid-cols-3 xl:grid-cols-6">
+      <section data-seller-guide="status" class="grid grid-cols-2 gap-2.5 lg:grid-cols-3 xl:grid-cols-6">
         <button
           v-for="card in statusCards"
           :key="card.filter"
@@ -725,7 +727,7 @@ onBeforeUnmount(() => {
         </article>
       </section>
 
-      <section class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+      <section data-seller-guide="rates" class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
         <div class="flex flex-col gap-3 border-b border-[var(--dh-border)] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Tarifas del equipo y seguimiento de ventas' : 'Mis tarifas y seguimiento de ventas' }}</h3>
@@ -844,7 +846,7 @@ onBeforeUnmount(() => {
         </template>
       </section>
 
-      <section class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+      <section data-seller-guide="requests" class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
         <div class="flex flex-col gap-3 border-b border-[var(--dh-border)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div class="min-w-0">
             <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Solicitudes a Pricing' : 'Mis solicitudes a Pricing' }}</h3>
