@@ -619,7 +619,8 @@ async function reuseKey(){
         keyFields:operation.value==='upsert'?selectedKey.value?.attributes??[]:[]}
     })
     keys.value=await fetchClient<KeyInfo[]>(api('crud-keys'),{method:'GET'})
-    if(endpointName.value==='crear_oferta'&&operation.value==='create')
+    if(endpointName.value==='crear_oferta'&&
+      (operation.value==='create'||operation.value==='upsert'))
       quoteTotalGrantKeyId.value=key.id
     reuseKeyConfirm.value=false
     success.value='Clave '+key.label+' vinculada a la versión activa sin cambiar su valor, vencimiento ni límites. Los permisos del comando se revalidaron.'
@@ -638,7 +639,8 @@ async function issueKey(){
     }})
     keys.value=await fetchClient<KeyInfo[]>(api('crud-keys'),{method:'GET'})
     if(issued.value.key.templateName==='crear_oferta'&&
-      issued.value.key.entityName==='quote'&&issued.value.key.operation==='create')
+      issued.value.key.entityName==='quote'&&
+      (issued.value.key.operation==='create'||issued.value.key.operation==='upsert'))
       quoteTotalGrantKeyId.value=issued.value.key.id
     success.value='Clave creada para la versión activa. Copiala ahora; no se mostrará nuevamente. Actualizá la configuración del backend de Pricing si usará esta clave.'
   }catch(e){error.value=describeCrudError(e,'No se pudo crear la clave.')}
@@ -647,12 +649,13 @@ async function issueKey(){
 const quoteTotalActiveVersion=computed(()=>definitions.value.find(t=>
   t.name==='crear_oferta')?.activeVersion??null)
 const quoteTotalKeys=computed(()=>keys.value.filter(k=>k.templateName==='crear_oferta'&&
-  k.entityName==='quote'&&k.operation==='create'&&k.enabled&&
+  k.entityName==='quote'&&
+  k.operation===operation.value&&k.enabled&&
   k.templateVersion===quoteTotalActiveVersion.value&&
   new Date(k.expiresAt).getTime()>Date.now()))
 const outdatedQuoteTotalKeys=computed(()=>keys.value.filter(k=>
   k.templateName==='crear_oferta'&&k.entityName==='quote'&&
-  k.operation==='create'&&k.enabled&&
+  (k.operation==='create'||k.operation==='upsert')&&k.enabled&&
   k.templateVersion!==quoteTotalActiveVersion.value))
 const quoteTotalGrantHints:Record<string,string>={
   active_quote_template_key_not_found:'La clave no corresponde a la versión activa, venció o está revocada. Generá una nueva clave para crear_oferta y actualizá su secreto en Pricing.',
@@ -1233,12 +1236,12 @@ onMounted(refresh)
               <select v-model="quoteTotalGrantKeyId">
                 <option value="">Seleccionar clave activa de crear_oferta</option>
                 <option v-for="key in quoteTotalKeys" :key="key.id" :value="key.id">
-                  {{ key.label }} · v{{ key.templateVersion }} · {{ key.id }}
+                  {{ key.label }} · {{ key.operation.toUpperCase() }} · v{{ key.templateVersion }} · {{ key.id }}
                 </option>
               </select>
             </label>
             <p v-if="!quoteTotalKeys.length" class="crud-error">
-              No hay una clave vigente para la versión activa
+              No hay una clave {{ operation.toUpperCase() }} vigente para la versión activa
               {{ quoteTotalActiveVersion?'v'+quoteTotalActiveVersion:'(ninguna)' }} de crear_oferta.
               Podés reutilizar una clave de una versión anterior arriba sin cambiar el secreto del backend de Pricing.
             </p>
