@@ -133,7 +133,7 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
           throw new Error('[pricingRequiredFieldFinalFeedback] POD label or optional binding missing')
         }
         return tag
-          .replace(/(?::label|label)="[^"]*"/, ':label="maritimePodRequired ? \'POD requerido *\' : \'POD\\'"')
+          .replace(/(?::label|label)="[^"]*"/, ':label="maritimePodRequired ? \'POD requerido *\' : \'POD\'"')
           .replace(/:optional="[^"]*"/, ':optional="!maritimePodRequired"')
           .replace('<PricingLocationSearchSelect',
             '<PricingLocationSearchSelect data-required-field="podId" :error="fieldError(\'podId\')"')
