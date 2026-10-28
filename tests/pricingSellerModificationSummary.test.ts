@@ -38,3 +38,23 @@ test('original quote cannot be saved by mistake before seller proposal was appli
   assert.match(plugin, /Cargar cambios solicitados y continuar en Pantalla 5/)
   assert.match(plugin, /Los cambios todavía no se han guardado ni enviado/)
 })
+
+test('amendments retain original quote details and required header values', () => {
+  const seller = read('build/pricingSellerModificationWizard.ts')
+  const step = read('build/pricingWizardStep4NavigationHardFix.ts')
+  const optional = read('build/pricingWizardScreen4CostSelectors.ts')
+  const resume = read('src/modules/pricing/views/PricingRateRequestResumeView.vue')
+
+  assert.match(seller, /const originalFinancialLines = rateLines\.value\.map/)
+  assert.match(seller, /rateLines\.value = originalFinancialLines/)
+  assert.match(seller, /syncDeclaredCargoInsuranceOnEdit\(\)/)
+  assert.match(seller, /const requestedForm = JSON\.parse/)
+  assert.match(seller, /'equipmentId', 'validTo'/)
+  assert.match(seller, /!modificationComparable\(proposal\[key\]\)/)
+  assert.match(seller, /if \(!editingRate\.value && hasInternationalTransportService\.value\)/)
+  assert.match(seller, /preserve edited insurance on Screen 7 revisit/)
+  assert.match(step, /props\.modificationRequestId && pricingModificationApplied\.value/)
+  assert.match(step, /rateLines\.value\.length/)
+  assert.match(optional, /props\.modificationRequestId && rateLines\.value\.length/)
+  assert.match(resume, /mandatoryHeaders\.has/)
+})
