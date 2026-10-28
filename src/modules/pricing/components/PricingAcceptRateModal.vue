@@ -17,12 +17,17 @@ const toastStore = useToastStore()
 const form = reactive({
   idtraNumber: props.rate.idtraNumber?.trim() ?? '',
   otherReferences: props.rate.otherReferences?.trim() ?? '',
+  observations: '',
   saving: false,
 })
 
 async function submit() {
   const idtras = [...new Set(form.idtraNumber.split(',').map(x => x.trim()).filter(Boolean))]
   const idtraNumber = idtras.join(', ')
+  if (form.observations.trim().length > 2000) {
+    toastStore.warning('Observaciones demasiado extensas', 'Máximo 2000 caracteres para apertura de trámite.')
+    return
+  }
   if (idtras.length > 30 || idtraNumber.length > 2000 || idtras.some(id => id.length > 100 || id.includes(';')) || form.otherReferences.length > 2000) {
     toastStore.warning('Referencias inválidas', 'Máximo 30 IDTRA separados por comas, 100 caracteres por IDTRA y 2000 para otras referencias.')
     return
@@ -44,6 +49,7 @@ async function submit() {
       status: 'AcceptedByClient',
       idtraNumber: idtraNumber || null,
       otherReferences: form.otherReferences.trim(),
+      observations: form.observations.trim() || null,
     })
     toastStore.success('Tarifa aceptada por el cliente', idtraNumber ? `IDTRA ${idtraNumber} registrado.` : 'El IDTRA puede asignarse posteriormente.')
     modalStore.close()
@@ -94,6 +100,10 @@ async function submit() {
           :rows="2"
         />
         <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Estas referencias no se sincronizan con Dynamics.</p>
+      </div>
+      <div class="mt-4">
+        <DhTextarea v-model="form.observations" label="Observaciones para apertura de trámite (opcional)" :rows="4" maxlength="2000" placeholder="Instrucciones del cliente o condiciones especiales para aperturas" />
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Se incluirán en el correo de apertura de trámite cuando corresponda.</p>
       </div>
     </div>
 
