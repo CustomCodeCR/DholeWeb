@@ -911,6 +911,7 @@ async function initialize() {
     if (
       !decision.value
       && !props.viewOnly
+      && props.context.mode !== 'Ftl'
       && canCalculateAutoPricing.value
     ) {
       await calculateAutoPricing(false)
@@ -939,7 +940,7 @@ watch(
     showDraftSuggestionConfirmation.value = false
 
     if (props.rateId) {
-      if (!props.viewOnly && canCalculateAutoPricing.value) {
+      if (!props.viewOnly && props.context.mode !== 'Ftl' && canCalculateAutoPricing.value) {
         await calculateAutoPricing(false)
       } else if (canViewBenchmark.value) {
         try {
