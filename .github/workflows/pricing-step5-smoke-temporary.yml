@@ -1,5 +1,7 @@
 name: Pricing Step 5 smoke (temporary)
 on:
+  pull_request:
+    branches: [master, develop]
   push:
     branches:
       - feat/pricing-step5-date-comments-20261028
