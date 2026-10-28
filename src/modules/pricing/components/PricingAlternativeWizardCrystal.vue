@@ -1976,8 +1976,8 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
       && shipmentModeForApi.value !== 'Lcl'
       && shipmentModeForApi.value !== 'Ltl'
     add(Boolean(standaloneEquipmentSelectorVisible && equipmentHasSizes.value && !form.equipmentSize), 'equipmentSize', 'Tamaño de equipo')
-    add(!selectedEquipment.value, 'equipmentType', 'Tipo de equipo')
-    add(!(form.equipmentQuantity > 0), 'equipmentQuantity', 'Cantidad de equipo')
+    add(!['Lcl', 'Ltl'].includes(shipmentModeForApi.value) && !selectedEquipment.value, 'equipmentType', 'Tipo de equipo')
+    add(!['Lcl', 'Ltl'].includes(shipmentModeForApi.value) && !(form.equipmentQuantity > 0), 'equipmentQuantity', 'Cantidad de equipo')
     add(!form.incotermId, 'incotermId', 'Incoterm')
     add(!form.serviceIds.length, 'serviceIds', 'Servicios')
     add(!form.loadDate, 'loadDate', 'Fecha de carga lista')
