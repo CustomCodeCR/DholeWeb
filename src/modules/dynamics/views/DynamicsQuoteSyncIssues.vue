@@ -18,6 +18,16 @@ type QuoteLedger = {
   revisionNumber: number
   header: LedgerEntry
   total: LedgerEntry
+  legacy?: {
+    hasPriorSuccessfulCreate: boolean
+    historyTruncated: boolean
+    priorHeaderCount: number
+    uniqueQuoteId: string | null
+    liveQuoteExists: boolean | null
+    liveQuoteStatus: string
+    requiresRateIdLink: boolean
+    candidates: Array<{ revisionNumber: number; quoteId: string | null }>
+  }
   live?: {
     headerExists: boolean | null
     headerStatus: string
@@ -1149,16 +1159,27 @@ onUnmounted(() => {
             issue.error?.providerCode" class="quote-sync-meta">
             Código del proveedor: {{ issue.error.providerCode }}
           </p>
-          <div v-if="issue.error?.httpStatus === 409 && issue.error?.postAttempted"
+          <div v-if="issue.error?.providerCode === 'legacy_quote_requires_rate_key_linking' ||
+            (issue.error?.httpStatus === 409 && issue.error?.postAttempted)"
             class="quote-sync-diagnosis" role="alert">
             <AlertCircle :size="17" />
             <div>
-              <strong v-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
+              <strong v-if="issue.error?.providerCode === 'legacy_quote_requires_rate_key_linking'">
+                Ya existe una cabecera CREATE histórica — falta vincular el RateId
+              </strong>
+              <strong v-else-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
                 ledgerByRate[issue.rateId]?.total.status === 'not_sent'">
                 Cabecera rechazada en Dataverse — requiere corregir el HTTP 400
               </strong>
               <strong v-else>Conciliación de QUO necesaria — no reintentar todavía</strong>
-              <p v-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
+              <p v-if="issue.error?.providerCode === 'legacy_quote_requires_rate_key_linking'">
+                Este HTTP 409 es un bloqueo anterior a la escritura de la revisión actual.
+                El conector encontró una cabecera CREATE exitosa de esta tarifa en su
+                historial, pero UPSERT no la localizó por el GUID de Dhole. Verificá en
+                Dynamics la revisión histórica y enlazá su RateId antes de continuar.
+                No generés otra oferta.
+              </p>
+              <p v-else-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
                 ledgerByRate[issue.rateId]?.total.status === 'not_sent'">
                 Resultado real del conector: cabecera rechazada
                 (HTTP {{ ledgerByRate[issue.rateId]?.header.httpStatus ?? 'desconocido' }}).
@@ -1173,8 +1194,48 @@ onUnmounted(() => {
                 desde el botón de abajo: el servidor verifica el historial, los vínculos
                 permitidos y los límites de texto antes de generar otro envío.
               </p>
-              <p v-else>Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
+              <p v-else-if="issue.error?.providerCode !== 'legacy_quote_requires_rate_key_linking'">Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
                 y <code>...-total</code> en el registro de idempotencia de Dynamics antes de volver a enviar.</p>
+            </div>
+          </div>
+          <div v-if="ledgerByRate[issue.rateId]?.legacy?.hasPriorSuccessfulCreate"
+            class="quote-sync-diagnosis" role="alert">
+            <AlertCircle :size="17" />
+            <div>
+              <strong>Cabecera CREATE encontrada en una revisión anterior</strong>
+              <p>
+                {{ ledgerByRate[issue.rateId]!.legacy!.priorHeaderCount }}
+                operación(es) CREATE exitosa(s) registrada(s) para esta tarifa.
+                <template v-if="ledgerByRate[issue.rateId]!.legacy!.historyTruncated">
+                  El historial está limitado y requiere revisión administrativa completa.
+                </template>
+              </p>
+              <p v-for="(candidate, index) in ledgerByRate[issue.rateId]!.legacy!.candidates"
+                :key="index">
+                Revisión {{ candidate.revisionNumber }} ·
+                Quote ID: <code>{{ candidate.quoteId || 'No registrado' }}</code>
+              </p>
+              <p v-if="ledgerByRate[issue.rateId]!.legacy!.uniqueQuoteId">
+                Identificador único candidato:
+                <code>{{ ledgerByRate[issue.rateId]!.legacy!.uniqueQuoteId }}</code>
+                · Estado de lectura en Dynamics:
+                {{ ledgerByRate[issue.rateId]!.legacy!.liveQuoteStatus }}
+              </p>
+              <p v-else>
+                No existe un identificador histórico único y completo. Se requiere
+                conciliación manual del historial antes de cualquier escritura.
+              </p>
+              <a v-if="quoteUrl(ledgerByRate[issue.rateId]!.legacy!.uniqueQuoteId)"
+                :href="quoteUrl(ledgerByRate[issue.rateId]!.legacy!.uniqueQuoteId) || undefined"
+                target="_blank" rel="noopener noreferrer" class="dynamics-outline-button">
+                <ExternalLink :size="15" /> Inspeccionar QUO histórica en Dynamics
+              </a>
+              <p>
+                Comprobá que la QUO corresponde al cliente, IDTRA y tarifa correctos.
+                Un administrador debe vincular el RateId permanente a ese registro
+                usando el campo alternativo aprobado antes de una recuperación controlada.
+                Esta consulta no modifica ni crea registros.
+              </p>
             </div>
           </div>
           <div v-if="ledgerByRate[issue.rateId]?.live" class="quote-sync-diagnosis"
