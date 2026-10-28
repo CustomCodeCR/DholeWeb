@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { patchPricingWizardLandModeTerminology } from '../build/pricingWizardLandModeTerminology.ts'
+import { requiresMaritimeCarrier } from '../src/modules/pricing/utils/pricingCarrierRequirement.ts'
 
 const sellerCard = [
   '          <div v-if="rateRequestId" class="crystal-soft space-y-4 border border-[rgb(var(--dh-primary-rgb)/0.28)] p-4 md:p-5">',
@@ -270,4 +271,30 @@ test('captura y resumen LCL LTL son responsivos y sin cantidades duplicadas', ()
   assert.match(miami, /return kg\.toFixed\(2\) \+ ' kg → ' \+ lb\.toFixed\(2\)/)
   assert.match(summary, /sellerCargoLines\.reduce\(\(total, line\) => total \+ line\.quantity, 0\)/)
   assert.match(summary, /Bultos registrados \(histórico\)/)
+})
+
+test('step 6 only requires naviera when a maritime carrier is actually selected', () => {
+  const cases = [
+    ['Land', 'Ltl', false],
+    ['Land', 'Ftl', false],
+    ['Air', 'Lcl', false],
+    ['Air', 'Fcl', false],
+    ['Maritime', 'Lcl', false],
+    ['Maritime', 'Fcl', true],
+    ['Multimodal', 'Fcl', true],
+    ['Multimodal', 'Lcl', false],
+  ] as const
+  for (const [modality, shipmentMode, expected] of cases) {
+    assert.equal(requiresMaritimeCarrier(modality, shipmentMode), expected,
+      modality + '/' + shipmentMode + ' naviera requirement')
+  }
+
+  // A hidden maritime selector must not leave behind an unfillable red field.
+  const wizard = readFileSync(
+    new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url),
+    'utf8',
+  )
+  assert.match(wizard, /requiresMaritimeCarrier\(form\.modality, shipmentModeForApi\.value\)/)
+  assert.match(wizard, /add\(carrierRequiredForStepSix\.value && !form\.carrierId, 'carrierId'/)
+  assert.match(wizard, /<div v-if="carrierRequiredForStepSix" data-required-field="carrierId"/)
 })
