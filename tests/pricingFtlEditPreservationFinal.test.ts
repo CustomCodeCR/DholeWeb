@@ -41,7 +41,7 @@ test('FTL edit navigation does not rebuild original lines', () => {
 
 test('saved FTL refresh adds only missing costs, and never replaces existing prices', () => {
   const output = patchPricingFtlEditPreservationFinal(fixture)
-  const addOnly = output.split('async function applyScreen7DatabaseCosts() {')[1].split('  if (screen7RefreshBusy.value || props.viewOnly) return')[0]
+  const addOnly = output.split('async function applyScreen7DatabaseCosts() {')[1]
   assert.match(addOnly, /rateLines\.value = \[\.\.\.previous, \.\.\.additions\]/)
   assert.match(addOnly, /existingCostIds\.has\(cost\.id\) \|\| originalCostIds\.has\(cost\.id\)/)
   assert.match(output, /Agregar solo cargos faltantes/)
