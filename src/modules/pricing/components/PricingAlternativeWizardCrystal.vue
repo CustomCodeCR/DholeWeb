@@ -1128,6 +1128,12 @@ function isCrcCustomsLine(line: RateLine, serviceId: string) {
   // even though manual charges use DestinationCharge rather than CustomsCharge.
   // Do not confuse it with the separate "CUSTOMS" origin charge.
   if (line.manual && /(?:tramite|agencia|servicio).*aduan|aduan.*(?:crc|costa rica)|nacionaliz/.test(name)) return true
+  // Historical CRC customs quotes stored this service as a manual
+  // DestinationCharge named "Servicio de agencia", with no CostId/serviceIds.
+  // Treat that same paid row as customs instead of appending a duplicate.
+  if (line.manual && name === 'servicio de agencia'
+    && (normalizeCatalogValue(line.currencyName) === 'crc'
+      || /aduan|costa rica/.test(normalizeCatalogValue(String(line.notes ?? ''))))) return true
   return line.costDetailType === 'CustomsCharge'
     && /aduan|nacionaliz/.test(name)
     && /crc|costa rica|nacionaliz/.test(name)

@@ -51,7 +51,14 @@ const workStatusSaving = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
-const modificationChanges = computed(() => workRequest.value?.payload?.modification?.changes ?? [])
+const modificationChanges = computed(() => {
+  const changes = workRequest.value?.payload?.modification?.changes ?? []
+  // Historical Sales LCL requests sometimes sent empty non-editable header
+  // fields. They are unchanged, not instructions to delete the quote's identity.
+  const mandatoryHeaders = new Set(['modalidad', 'tipo de embarque', 'tipo de equipo', 'vigencia'])
+  return changes.filter(change => !(String(change.action).toLowerCase() === 'eliminar'
+    && mandatoryHeaders.has(String(change.field).toLowerCase())))
+})
 const modificationSnapshot = computed(() => {
   const request = workRequest.value
   const payload = request?.payload

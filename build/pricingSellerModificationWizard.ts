@@ -87,6 +87,10 @@ const pricingModificationChanges = computed(() =>
       }
     })
     .filter(change => change.action || change.field || change.original || change.requested)
+    // Missing required LCL header values are not delete requests.
+    .filter(change => !(change.action.toLowerCase() === 'eliminar'
+      && ['tipo de equipo', 'modalidad', 'tipo de embarque', 'vigencia']
+        .includes(change.field.toLowerCase())))
 )
 const modificationKeys = [
   'modality', 'shipmentMode', 'originId', 'destinationId', 'podId', 'equipmentId',
@@ -164,6 +168,8 @@ const sellerModificationPreview = computed<SellerModificationComparison[]>(() =>
   return modificationKeys.flatMap(key => {
     const original = source.form[key]
     const requested = form[key as keyof typeof form]
+    if (['modality', 'shipmentMode', 'equipmentId', 'validTo'].includes(key)
+      && !modificationComparable(requested) && modificationComparable(original)) return []
     if (modificationComparable(original) === modificationComparable(requested)) return []
     const before = modificationComparable(original), after = modificationComparable(requested)
     return [{
@@ -270,11 +276,16 @@ async function submitSellerModification() {
       toastStore.error('Complete las medidas de todas las líneas de carga antes de solicitar la modificación.')
       return
     }
+    const requestedForm = JSON.parse(JSON.stringify(form)) as Record<string, unknown>
+    for (const key of ['modality', 'shipmentMode', 'equipmentId', 'validTo']) {
+      if (!modificationComparable(requestedForm[key]) && modificationComparable(source.form[key]))
+        requestedForm[key] = source.form[key]
+    }
     const body = {
       priority: rateRequestPriority.value,
       payload: {
         sourceRevisionNumber: source.revisionNumber,
-        form: JSON.parse(JSON.stringify(form)),
+        form: requestedForm,
         pickupLocations: pickupLocationsPayload(),
         supportEntityId: supportEntityId.value,
         supportDocuments: supportDocuments.value,
@@ -343,12 +354,15 @@ async function loadPricingModificationWorkItem() {
 async function applyPricingModification() {
   const proposal = pricingModificationWorkItem.value?.payload?.form
   if (!proposal || !editingRate.value || props.viewOnly || pricingModificationApplied.value || pricingModificationApplying.value) return
+  const originalFinancialLines = rateLines.value.map(line => ({ ...line }))
   pricingModificationApplying.value = true
   try {
   // Never import financial fields from the seller payload, nor save automatically.
   for (const key of modificationKeys) {
-    if (Object.prototype.hasOwnProperty.call(proposal, key))
-      (form as unknown as Record<string, unknown>)[key] = JSON.parse(JSON.stringify(proposal[key] ?? null))
+    if (!Object.prototype.hasOwnProperty.call(proposal, key)) continue
+    if (['modality', 'shipmentMode', 'equipmentId', 'validTo'].includes(key)
+      && !modificationComparable(proposal[key])) continue
+    (form as unknown as Record<string, unknown>)[key] = JSON.parse(JSON.stringify(proposal[key] ?? null))
   }
   // Legacy LTL amendments can omit equipmentId while keeping the trailer in
   // landContainers; do not erase the selected equipment when applying changes.
@@ -377,8 +391,13 @@ async function applyPricingModification() {
   if (['LCL', 'LTL'].includes(String(proposal.shipmentMode ?? '').toUpperCase()))
     restoreSellerConsolidatedCargo(proposal, workPayload?.sellerContext)
   await nextTick()
+  // Modifying a quote does not replace its saved lines or financial detail IDs.
+  if (originalFinancialLines.length) {
+    rateLines.value = originalFinancialLines
+    syncDeclaredCargoInsuranceOnEdit()
+  }
   pricingModificationApplied.value = true
-  if (hasInternationalTransportService.value) await searchApprovedRates()
+  if (!editingRate.value && hasInternationalTransportService.value) await searchApprovedRates()
   step.value = 5
   toastStore.info('Solicitud de Ventas cargada',
     'La propuesta solicitada por Ventas ya está en el borrador desde Pantalla 5. La tarifa original no se ha guardado ni enviado.')
@@ -420,6 +439,12 @@ onMounted(() => { void loadPricingModificationWorkItem() })
     "{{ saving ? 'Guardando…' : sellerEditRequestId ? 'Guardar cambios' : 'Enviar solicitud a Pricing' }}",
     "{{ saving ? 'Guardando…' : sellerModificationRateId ? 'Solicitar modificación a Pricing' : sellerEditRequestId ? 'Guardar cambios' : 'Enviar solicitud a Pricing' }}",
     'seller save button')
+
+
+  code = once(code,
+    '    void loadHaciendaExchangeRate(false)\n    syncDeclaredCargoInsuranceOnEdit()',
+    "    void loadHaciendaExchangeRate(false)\n    if (!(props.modificationRequestId && rateLines.value.some(line => line.costDetailType === 'Insurance')))\n      syncDeclaredCargoInsuranceOnEdit()",
+    'preserve edited insurance on Screen 7 revisit')
 
   // Older browser drafts were saved with a single empty cargo placeholder.
   // Reject those drafts so they cannot overwrite the original LTL/LCL rows
