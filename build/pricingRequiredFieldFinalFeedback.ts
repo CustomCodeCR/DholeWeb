@@ -53,7 +53,7 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
 
       replaceOnce(
         'async function saveOpenRequest() {',
-        'async function saveOpenRequest() {\n  if (!validateMaritimePodBeforeSaving()) return\n  if (!validateRequiredFields()) return',
+        'async function saveOpenRequest() {\n  if (!validateMaritimePodBeforeSaving() || !validateCargoBeforeSaving()) return\n  if (!validateRequiredFields()) return',
         'seller request validation',
       )
 
@@ -67,7 +67,7 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
       const rateSave = 'async function saveRate() {'
       if (code.includes(rateSave)) {
         code = code.replace(rateSave,
-          rateSave + '\n  if (!validateMaritimePodBeforeSaving()) return\n  if (!validateRequiredFields()) return')
+          rateSave + '\n  if (!validateMaritimePodBeforeSaving() || !validateCargoBeforeSaving()) return\n  if (!validateRequiredFields()) return')
       }
 
       // Re-enable navigation to allow the click to explain missing fields.
