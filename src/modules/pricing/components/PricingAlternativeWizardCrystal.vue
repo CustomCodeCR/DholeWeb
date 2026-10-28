@@ -50,6 +50,7 @@ import { PricingService } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
+import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
 import { requiresMaritimeCarrier } from '@/modules/pricing/utils/pricingCarrierRequirement'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
@@ -1545,7 +1546,9 @@ const visibleSections = computed<RateSection[]>(() => {
   return sectionOrder.filter((section) => allowed.has(section))
 })
 
-const includedLines = computed(() => rateLines.value.filter((line) => line.included && lineMatchesPickupCargoCondition(line)))
+const includedLines = computed(() => rateLines.value.filter((line) =>
+  shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
+))
 function isOwnLclMatrixContext() {
   const currentNotes = includedLines.value.map((line) => String(line.notes ?? ''))
   // Prefer the actively selected source over the historical rate when switching coloader/own.
@@ -1622,7 +1625,9 @@ const agentLines = computed(() =>
 )
 
 const insuranceLines = computed(() =>
-  rateLines.value.filter((line) => line.included && lineMatchesPickupCargoCondition(line) && !line.manual && line.costDetailType === 'Insurance'),
+  // Legacy saved Insurance details without CostId have manual=true.
+  // Show them in the insurance group, using the same lines as totals.
+  includedLines.value.filter((line) => line.costDetailType === 'Insurance'),
 )
 
 const bottomRateLines = computed(() =>
