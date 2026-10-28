@@ -556,7 +556,7 @@ onBeforeUnmount(clearPendingWarehouseImages)
 </script>
 
 <template>
-  <form class="space-y-5" @submit.prevent="save">
+  <form :class="isRouteCreate ? 'space-y-8' : 'space-y-5'" @submit.prevent="save">
     <div v-if="!isRouteCreate" class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">
         {{ t('catalogs.group') }}
@@ -828,7 +828,7 @@ onBeforeUnmount(clearPendingWarehouseImages)
     <MetadataEditor v-if="!isWarehouseGroup || !genericWarehouse" v-model="form.metadataJson" />
     </template>
 
-    <div class="flex justify-end gap-2">
+    <div class="flex flex-wrap items-center justify-end gap-3" :class="isRouteCreate ? 'border-t border-[var(--dh-border)] pt-6' : ''">
       <DhButton
         type="button"
         :label="t('common.close')"
