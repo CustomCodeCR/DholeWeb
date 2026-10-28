@@ -374,18 +374,14 @@ const checkingLedgerRateId = ref<string | null>(null)
 const reconcilingRateId = ref<string | null>(null)
 const reconcileMessages = ref<Record<string,string>>({})
 const recoveringRateId = ref<string | null>(null)
-const recoveryOpenedRateId = ref<string | null>(null)
-const recoveryReason = ref<Record<string,string>>({})
-const recoveryConfirm = ref<Record<string,boolean>>({})
 const recoveryMessages = ref<Record<string,string>>({})
 
 async function recoverRejected(issue: QuoteIssue) {
   const ledger = ledgerByRate.value[issue.rateId]
   if (!isAdministrator.value || recoveringRateId.value || issue.retryBlockReason ||
-      issue.status !== 'NeedsAttention' || !diagnoses.value[issue.rateId]?.valid ||
+      issue.status !== 'NeedsAttention' ||
       ledger?.header.status !== 'rejected' || ledger.total.status !== 'not_sent' ||
-      !recoveryConfirm.value[issue.rateId] ||
-      (recoveryReason.value[issue.rateId] ?? '').trim().length < 10) return
+      ledger.header.recordId || ledger.total.recordId) return
   recoveringRateId.value = issue.rateId
   recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]: '' }
   try {
@@ -393,14 +389,9 @@ async function recoverRejected(issue: QuoteIssue) {
       `/api/pricing/rates/${encodeURIComponent(issue.rateId)}/dynamics-sync/recover-rejected`,
       {
         method: 'POST',
-        body: {
-          confirmation: 'RECUPERAR_QUO',
-          reason: recoveryReason.value[issue.rateId]!.trim(),
-        },
       })
     recoveryMessages.value = { ...recoveryMessages.value,
-      [issue.rateId]: `Recuperación r${result.recoveryAttempt} encolada. El worker validará la clave nueva antes de crear la oferta.` }
-    recoveryOpenedRateId.value = null
+      [issue.rateId]: `Reenvío r${result.recoveryAttempt} autorizado. Dynamics está procesando la creación de la QUO y su línea; el resultado se actualizará automáticamente.` }
     await refresh()
   } catch (error) {
     const message = error instanceof ApiError
@@ -566,10 +557,10 @@ async function retryWithoutDuplicate(issue: QuoteIssue) {
     }
     if (ledger.header.status === 'rejected' && ledger.total.status === 'not_sent' &&
         !ledger.header.recordId && !ledger.total.recordId) {
-      recoveryOpenedRateId.value = rateId
-      retryMessages.value = { ...retryMessages.value, [rateId]:
-        'La cabecera fue rechazada y no se envió la línea. Se abrió «Recuperación excepcional» abajo: revisá el diagnóstico, anotá el motivo y autorizá el nuevo intento.' }
-      await diagnose(rateId)
+      // One click: the backend checks the prior 4xx ledger, read-only
+      // lookups and text limits, then queues a fresh safe idempotency key.
+      // Never bypass reconciliation for reserved/ambiguous/succeeded writes.
+      await recoverRejected(issue)
       return
     }
     if (ledger.header.status !== 'not_sent' || ledger.total.status !== 'not_sent') {
@@ -1042,10 +1033,9 @@ onUnmounted(() => {
                 El HTTP 409 no confirma que la operación no se haya ejecutado.</p>
               <p v-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
                 ledgerByRate[issue.rateId]?.total.status === 'not_sent'">
-                No se registró una QUO creada. Revisá el diagnóstico y los campos
-                obligatorios de la cabecera, especialmente la relación de cliente.
-                Esta operación rechazada conserva su clave de idempotencia y necesita
-                una recuperación administrativa controlada después de corregir el motivo.
+                Dataverse rechazó la cabecera sin crear la línea. Podés reintentar
+                desde el botón de abajo: el servidor verifica el historial, los vínculos
+                permitidos y los límites de texto antes de generar otro envío.
               </p>
               <p v-else>Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
                 y <code>...-total</code> en el registro de idempotencia de Dynamics antes de volver a enviar.</p>
@@ -1084,48 +1074,6 @@ onUnmounted(() => {
               </p>
               <p>Esta consulta no reintenta ni crea QUO. Una cabecera rechazada
                 requiere corregir el fallo y realizar una recuperación controlada.</p>
-            </div>
-          </div>
-          <div v-if="isAdministrator && issue.status === 'NeedsAttention' &&
-            !issue.retryBlockReason && ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
-            ledgerByRate[issue.rateId]?.total.status === 'not_sent'"
-            class="quote-sync-recovery">
-            <button v-if="recoveryOpenedRateId !== issue.rateId" type="button"
-              class="dynamics-outline-button" @click="recoveryOpenedRateId=issue.rateId; diagnose(issue.rateId)">
-              <RefreshCw :size="15" /> Recuperar QUO rechazada
-            </button>
-            <div v-else>
-              <strong>Recuperación excepcional — una nueva clave de idempotencia</strong>
-              <p>Solo se habilita tras confirmar que el envío anterior fue rechazado
-                y que cliente, IDTRA y los demás vínculos están autorizados.</p>
-              <p v-if="!diagnoses[issue.rateId]?.valid">
-                Ejecutá Diagnosticar y corregí cualquier error antes de continuar.
-              </p>
-              <label class="quote-sync-recovery-label" :for="'reason-'+issue.rateId">
-                Motivo de recuperación
-              </label>
-              <textarea :id="'reason-'+issue.rateId" rows="2" maxlength="500"
-                :value="recoveryReason[issue.rateId] || ''"
-                @input="recoveryReason={...recoveryReason,
-                  [issue.rateId]:($event.target as HTMLTextAreaElement).value}"
-                placeholder="Ej.: Rechazo HTTP 400 confirmado; relaciones y plantilla corregidas" />
-              <label class="quote-sync-recovery-check">
-                <input type="checkbox" :checked="Boolean(recoveryConfirm[issue.rateId])"
-                  @change="recoveryConfirm={...recoveryConfirm,
-                    [issue.rateId]:($event.target as HTMLInputElement).checked}">
-                Confirmo que revisé la cabecera rechazada y autorizo el nuevo intento.
-              </label>
-              <div class="quote-sync-actions">
-                <button type="button" class="dynamics-outline-button"
-                  @click="recoveryOpenedRateId=null">Cancelar</button>
-                <button type="button" class="dynamics-primary-button"
-                  :disabled="Boolean(recoveringRateId) || !diagnoses[issue.rateId]?.valid ||
-                    !recoveryConfirm[issue.rateId] ||
-                    (recoveryReason[issue.rateId] || '').trim().length < 10"
-                  @click="recoverRejected(issue)">
-                  {{ recoveringRateId===issue.rateId ? 'Validando...' : 'Autorizar recuperación y enviar' }}
-                </button>
-              </div>
             </div>
           </div>
           <p v-if="recoveryMessages[issue.rateId]" class="quote-sync-meta" role="status">
@@ -1217,18 +1165,16 @@ onUnmounted(() => {
             @click="retryWithoutDuplicate(issue)">
             <RefreshCw :size="15" />
             {{ retryDecisionRateId === issue.rateId || retryingRateId === issue.rateId
-              ? 'Verificando reintento...' : 'Reintentar sin duplicar' }}
+              ? 'Verificando y enviando...' : 'Reintentar sin duplicar' }}
           </button>
         </div>
       </article>
     </div>
     <p class="quote-sync-footnote">
-      Diagnosticar valida también las búsquedas reales por nombre de Cliente, Cuenta e IDTRA
-      sin crear ninguna oferta ni consumir intentos de sincronización.
-      «Reintentar sin duplicar» permanece visible. Verifica el historial de Dynamics
-      antes de actuar: reencola solamente fallos anteriores a la escritura con la misma
-      clave, muestra la recuperación administrativa para cabeceras rechazadas y nunca
-      crea otra oferta si hay registros previos o resultados ambiguos.
+      «Reintentar sin duplicar» verifica el historial de Dynamics en el mismo clic.
+      Si la cabecera fue rechazada con HTTP 4xx y la línea nunca se envió,
+      valida el mapeo de IDTRA, moneda y límites de texto y solicita la creación
+      inmediatamente. Nunca reenvía operaciones ambiguas ni cuotas ya creadas.
     </p>
   </section>
 </template>
