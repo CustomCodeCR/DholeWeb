@@ -58,30 +58,6 @@ const fieldSearch=ref('')
 const fieldVisibility=ref<'all'|'selectable'|'restricted'>('all')
 const showQuoteDetailFields=ref(false)
 const quoteDetailSearch=ref('')
-// Example payload builder for the narrowly scoped itemized quote endpoint.
-type QuoteLineDraft={ id:number; name:string; description:string; quantity:number; unitPrice:number }
-const quoteLines=ref<QuoteLineDraft[]>([
-  {id:1,name:'Flete marítimo',description:'Flete internacional',quantity:1,unitPrice:1500},
-  {id:2,name:'Agencia aduanal',description:'Servicio de agencia aduanal',quantity:1,unitPrice:250}
-])
-let nextQuoteLineId=3
-const quoteLinesValid=computed(()=>quoteLines.value.length>0&&quoteLines.value.length<=50&&
-  quoteLinesTotal.value>=0&&quoteLinesTotal.value<=999999999999&&
-  quoteLines.value.every(line=>
-    line.name.trim().length>0&&line.name.trim().length<=100&&
-    line.description.length<=2000&&
-    Number.isFinite(line.quantity)&&line.quantity>0&&line.quantity<=100000&&
-    Number.isFinite(line.unitPrice)&&line.unitPrice>=0&&line.unitPrice<=999999999999))
-const quoteLinesTotal=computed(()=>Math.round((quoteLines.value.reduce(
-  (sum,line)=>sum+(Number(line.quantity)||0)*(Number(line.unitPrice)||0),0)
-  +Number.EPSILON)*100)/100)
-function addQuoteLine(){
-  if(quoteLines.value.length>=50)return
-  quoteLines.value.push({id:nextQuoteLineId++,name:'',description:'',quantity:1,unitPrice:0})
-}
-function removeQuoteLine(id:number){
-  quoteLines.value=quoteLines.value.filter(line=>line.id!==id)
-}
 const MAX_COMMAND_FIELDS=64
 const keyName=ref('')
 const proposedKeyField=ref('new_idtraasignado')
@@ -371,8 +347,6 @@ const exampleBody=computed(()=>{
 const endpoint=computed(()=>base+'/api/dynamics-connector/keyed/templates/'+encodeURIComponent(endpointName.value)+'/execute')
 const quoteTotalEndpoint=computed(()=>base+
   '/api/dynamics-connector/keyed/templates/crear_oferta/execute-with-total')
-const quoteLinesEndpoint=computed(()=>base+
-  '/api/dynamics-connector/keyed/templates/crear_oferta/execute-with-lines')
 const quoteTotalExample=computed(()=>({
   connectionCode:connection.value,
   dholeRateId:'GUID_REAL_DE_LA_TARIFA_DHOLE',
@@ -380,23 +354,6 @@ const quoteTotalExample=computed(()=>({
   totalCostAmount:3000,
   inputs:exampleBody.value.inputs
 }))
-const quoteLinesExample=computed(()=>({
-  connectionCode:connection.value,
-  dholeRateId:'GUID_REAL_DE_LA_TARIFA_DHOLE',
-  totalSaleAmount:quoteLinesTotal.value,
-  totalCostAmount:0,
-  inputs:exampleBody.value.inputs,
-  lines:quoteLines.value.map(({name,description,quantity,unitPrice})=>({
-    name:name.trim(),description:description.trim(),quantity,unitPrice
-  }))
-}))
-const quoteLinesCurl=computed(()=>[
-  'curl -X POST '+JSON.stringify(quoteLinesEndpoint.value),
-  "  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>'",
-  "  -H 'Idempotency-Key: dhole-pricing-quote-<GUID_SIN_GUIONES>-v<REVISION>'",
-  "  -H 'Content-Type: application/json'",
-  "  --data '"+JSON.stringify(quoteLinesExample.value)+"'"
-].join(' \\\n'))
 const quoteTotalCurl=computed(()=>[
   'curl -X POST '+JSON.stringify(quoteTotalEndpoint.value),
   "  -H 'X-Dhole-Api-Key: <CLAVE_GENERADA_EN_DHOLE>'",
@@ -716,7 +673,7 @@ async function approveQuoteTotalGrant(){
     await fetchClient(api('quote-total-grants/'+encodeURIComponent(quoteTotalGrantKeyId.value)),{
       method:'POST'
     })
-    quoteTotalGrantSuccess.value='Permisos aprobados: lectura del identificador de la oferta y creación de la línea de venta total. La API sigue usando la clave exclusiva y las políticas de Dataverse.'
+    quoteTotalGrantSuccess.value='Permisos aprobados para sincronizar la oferta y su línea de venta automática. La API conserva las políticas de Dataverse.'
     quoteTotalGrantConfirm.value=false
   }catch(e){
     if(e instanceof ApiError){
@@ -1250,16 +1207,13 @@ onMounted(refresh)
               <button class="crud-secondary" type="button" @click="issued=null">Ya la guardé · ocultar</button>
             </div>
           </div>
-          <div v-if="endpointName==='crear_oferta'&&entity==='quote'&&operation==='upsert'" class="crud-note">
-            La integración automática de Pricing todavía usa el endpoint especializado de CREATE y
-            una línea quotedetail. Publicar UPSERT exige adaptar también esa integración antes de
-            activar la nueva versión en producción; cambiar solo el selector no actualiza ofertas existentes.
-          </div>
-          <div v-if="endpointName==='crear_oferta'&&entity==='quote'&&operation==='create'" class="crud-card">
+          <div v-if="endpointName==='crear_oferta'&&entity==='quote'&&
+            (operation==='create'||operation==='upsert')" class="crud-card">
             <h4>Importe total de Oferta calculado por Dataverse</h4>
             <p class="crud-help">
-              La integración de Pricing crea la cabecera y una línea de venta (quotedetail)
-              con cantidad 1 y el importe de venta como precio. Dataverse calcula
+              Pricing transmite automáticamente la cabecera y su línea de venta (quotedetail)
+              con cantidad 1 y el importe real de venta como precio. En UPSERT, la oferta y
+              la línea existente se actualizan sin introducir cargos manualmente. Dataverse calcula
               <code>totalamount</code>. No se escribe <code>msdyn_invoicesetuptotals</code>.
             </p>
             <p class="crud-help">
@@ -1294,22 +1248,22 @@ onMounted(refresh)
             </p>
             <label class="crud-field">
               <input v-model="quoteTotalGrantConfirm" type="checkbox">
-              Confirmo que autorizo a esta clave a leer el identificador de Oferta y crear
-              únicamente los campos de la línea necesarios para calcular la venta total.
+              Confirmo los permisos mínimos de la cabecera y su línea de venta para
+              creación y actualización, según la operación activa.
             </label>
             <button type="button" class="crud-primary"
               :disabled="quoteTotalGrantBusy||!quoteTotalGrantConfirm||!quoteTotalGrantKeyId"
               @click="approveQuoteTotalGrant">
-              {{ quoteTotalGrantBusy?'Autorizando...':'Autorizar creación de línea y total' }}
+              {{ quoteTotalGrantBusy?'Autorizando...':'Autorizar sincronización automática de línea' }}
             </button>
             <p v-if="quoteTotalGrantError" class="crud-error" role="alert">{{ quoteTotalGrantError }}</p>
             <p v-if="quoteTotalGrantSuccess" class="crud-info" role="status">{{ quoteTotalGrantSuccess }}</p>
             <div class="crud-options-panel">
-              <h4>Probar aceptación de tarifa con importe total</h4>
-              <p>Al aceptar una tarifa con IDTRA, DholePricing usa esta API especial
-                para crear la oferta y la línea quotedetail automáticamente.
-                No agregués los campos de quotedetail dentro de inputs:
-                enviá totalSaleAmount fuera de inputs y el GUID real de la tarifa.</p>
+              <h4>Crear o actualizar la oferta con su línea automática</h4>
+              <p>Pricing envía automáticamente el importe de venta y el identificador de
+                la tarifa. En UPSERT, la cabecera y su línea se actualizan; en CREATE se crean.
+                No se solicitan conceptos ni precios manuales en esta pantalla.
+                Enviá totalSaleAmount y totalCostAmount fuera de inputs.</p>
               <code class="crud-secret">{{ quoteTotalEndpoint }}</code>
               <div class="crud-actions">
                 <button class="crud-secondary" type="button" @click="copy(quoteTotalEndpoint)">
@@ -1329,83 +1283,6 @@ onMounted(refresh)
                 <pre>{{ quoteTotalCurl }}</pre>
               </details>
             </div>
-          </div>
-          <div v-if="endpointName==='crear_oferta'&&entity==='quote'&&
-            (operation==='create'||operation==='upsert')" class="crud-card">
-            <h4>Agregar líneas individuales a la oferta (quotedetail)</h4>
-            <p class="crud-help">
-              Configurá los conceptos, cantidades y precios. La API creará la cabecera
-              <code>quote</code> y cada registro <code>quotedetail</code> vinculado al
-              mismo <code>quoteid</code>, sin añadir otra línea artificial de total.
-              La suma de las líneas debe coincidir con <code>totalSaleAmount</code>.
-            </p>
-            <div v-if="operation==='upsert'" class="crud-note">
-              Este envío de múltiples líneas requiere una plantilla CREATE activa de
-              <code>crear_oferta</code>. No usés la versión UPSERT para este endpoint:
-              actualizar o reemplazar líneas existentes requiere otra conciliación.
-              <button class="crud-secondary" type="button" @click="chooseOperation('create')">
-                Cambiar a CREATE
-              </button>
-            </div>
-            <div v-for="(item,index) in quoteLines" :key="item.id" class="crud-line-item">
-              <div class="crud-line-heading">
-                <strong>Línea {{ index+1 }}</strong>
-                <button class="crud-secondary" type="button" @click="removeQuoteLine(item.id)"
-                  :disabled="quoteLines.length<=1">Eliminar línea</button>
-              </div>
-              <div class="crud-line-grid">
-                <label class="crud-field">Concepto
-                  <input v-model.trim="item.name" maxlength="100" placeholder="Ej. Flete marítimo">
-                </label>
-                <label class="crud-field">Descripción
-                  <input v-model.trim="item.description" maxlength="2000"
-                    placeholder="Detalle de lo que se cobra">
-                </label>
-                <label class="crud-field">Cantidad
-                  <input v-model.number="item.quantity" type="number" min="0.01"
-                    max="100000" step="any">
-                </label>
-                <label class="crud-field">Precio unitario
-                  <input v-model.number="item.unitPrice" type="number" min="0"
-                    max="999999999999" step="any">
-                </label>
-              </div>
-            </div>
-            <div class="crud-field-actions">
-              <button class="crud-secondary" type="button" @click="addQuoteLine"
-                :disabled="quoteLines.length>=50">Añadir línea</button>
-              <strong>Total de venta del ejemplo: {{ quoteLinesTotal.toLocaleString('es-CR',
-                {minimumFractionDigits:2,maximumFractionDigits:2}) }} (moneda de la oferta)</strong>
-            </div>
-            <p v-if="!quoteLinesValid" class="crud-error" role="alert">
-              Completá el concepto, cantidad positiva y precio no negativo de cada línea
-              (máximo 50). No se publicará un ejemplo inválido.
-            </p>
-            <p class="crud-help">
-              El totalCostAmount del JSON es un ejemplo: reemplazalo con el costo real
-              antes de ejecutar. La API Key debe pertenecer a la versión CREATE activa
-              y tener los permisos de quotedetail aprobados. No se ejecuta nada desde aquí.
-            </p>
-            <code class="crud-secret">{{ quoteLinesEndpoint }}</code>
-            <div class="crud-actions">
-              <button class="crud-secondary" type="button"
-                @click="copy(quoteLinesEndpoint)">Copiar URL de líneas</button>
-              <button class="crud-secondary" type="button"
-                :disabled="!quoteLinesValid||operation!=='create'"
-                @click="copy(JSON.stringify(quoteLinesExample,null,2))">
-                <Copy :size="14"/> Copiar JSON con líneas
-              </button>
-              <button class="crud-secondary" type="button"
-                :disabled="!quoteLinesValid||operation!=='create'"
-                @click="copy(quoteLinesCurl)">
-                <Copy :size="14"/> Copiar cURL con líneas
-              </button>
-            </div>
-            <details class="crud-details">
-              <summary>Ver cuerpo JSON y cURL para múltiples líneas</summary>
-              <pre>{{ JSON.stringify(quoteLinesExample,null,2) }}</pre>
-              <pre>{{ quoteLinesCurl }}</pre>
-            </details>
           </div>
           <div class="crud-card">
             <h4>URL HTTP para Pangolin o cualquier otra aplicación</h4>
@@ -1512,10 +1389,6 @@ onMounted(refresh)
 .crud-quote-detail-results{margin-top:12px;max-height:390px;overflow-y:auto}
 .crud-quote-detail-row code{margin-left:8px}
 .crud-quote-detail-row small{color:var(--dh-text-muted)}
-.crud-line-item{padding:14px;margin:14px 0;background:var(--dh-surface);border:1px solid var(--dh-border);border-radius:12px}
-.crud-line-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.crud-line-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
-@media(max-width:680px){.crud-line-grid{grid-template-columns:1fr}}
 .crud-connection{max-width:480px}.crud-note,.crud-info{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--dh-border);background:var(--dh-surface);border-radius:11px;color:var(--dh-text-soft);line-height:1.6;margin:15px 0}
 .crud-note p{margin:0}.crud-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:18px 0}
 .crud-steps button{display:flex;gap:9px;align-items:center;padding:11px;border:1px solid var(--dh-border);background:var(--dh-surface);color:var(--dh-text-muted);font-size:11px;font-weight:800;border-radius:11px}
