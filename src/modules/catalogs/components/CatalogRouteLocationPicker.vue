@@ -325,41 +325,41 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="space-y-5">
-    <header class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
-      <p class="text-sm font-black text-[var(--dh-text)]">¿Qué lugar desea agregar?</p>
-      <p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">{{ routeDescription }}</p>
-      <p class="mt-2 text-[11px] font-semibold text-[var(--dh-text-muted)]">
+  <section class="space-y-8 pb-2">
+    <header class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-5 py-5 sm:px-6">
+      <p class="text-base font-black text-[var(--dh-text)]">¿Qué lugar desea agregar?</p>
+      <p class="mt-2 text-sm font-medium leading-5 text-[var(--dh-text-muted)]">{{ routeDescription }}</p>
+      <p class="mt-3 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
         Solo debe elegir el lugar. Dhole se encarga de los códigos y demás datos.
       </p>
     </header>
 
-    <div>
-      <p class="mb-2 text-xs font-black text-[var(--dh-text)]">
+    <div class="space-y-4">
+      <p class="text-sm font-black text-[var(--dh-text)]">
         {{ catalogSlug === 'pod' ? 'Tipo de destino' : '1. ¿Qué tipo de lugar es?' }}
       </p>
-      <div class="grid gap-2" :class="terminalOptions.length === 1 ? 'grid-cols-1' : 'grid-cols-3'">
+      <div class="grid gap-3" :class="terminalOptions.length === 1 ? 'grid-cols-1' : 'grid-cols-3'">
         <button v-for="option in terminalOptions" :key="option.value" type="button"
           :disabled="disabled"
           :aria-pressed="terminalType === option.value"
-          class="flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center transition disabled:opacity-50"
+          class="flex min-h-[112px] min-w-0 flex-col items-center justify-center gap-2 rounded-2xl border px-3 py-5 text-center transition disabled:opacity-50"
           :class="terminalType === option.value
             ? 'border-[var(--dh-primary)] bg-[var(--dh-primary-soft)] text-[var(--dh-text)]'
             : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]'"
           @click="chooseType(option.value)">
-          <component :is="option.icon" class="h-5 w-5" :class="terminalType === option.value ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'" />
-          <span class="text-xs font-black">{{ option.label }}</span>
-          <span class="text-[10px] font-medium text-[var(--dh-text-muted)]">{{ option.helper }}</span>
+          <component :is="option.icon" class="h-6 w-6" :class="terminalType === option.value ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'" />
+          <span class="text-sm font-black">{{ option.label }}</span>
+          <span class="text-xs font-medium leading-4 text-[var(--dh-text-muted)]">{{ option.helper }}</span>
         </button>
       </div>
     </div>
 
-    <div v-if="!manual" class="space-y-3">
+    <div v-if="!manual" class="space-y-5">
       <label class="block">
-        <span class="mb-2 block text-xs font-black text-[var(--dh-text)]">
+        <span class="mb-3 block text-sm font-black text-[var(--dh-text)]">
           {{ catalogSlug === 'pod' ? '2. Busque el destino' : '2. Busque el lugar que necesita' }}
         </span>
-        <div class="flex h-12 items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 focus-within:border-[var(--dh-primary)]">
+        <div class="flex h-14 items-center gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 focus-within:border-[var(--dh-primary)]">
           <Search class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
           <input v-model="search" :disabled="disabled || loading"
             :placeholder="terminalType === 'APT' ? 'Ej. SJO, Miami, Bogotá…' : terminalType === 'CY' ? 'Ej. Moín, Shanghai, Manzanillo…' : 'Ej. San José, Ciudad de Guatemala…'"
@@ -370,7 +370,7 @@ onMounted(async () => {
       </label>
 
       <div class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
-        <div class="flex items-center justify-between gap-2 border-b border-[var(--dh-border)] px-3 py-2">
+        <div class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-3">
           <p class="text-xs font-bold text-[var(--dh-text)]">
             {{ search ? 'Resultados para su búsqueda' : 'Lugares disponibles para agregar' }}
           </p>
@@ -378,8 +378,8 @@ onMounted(async () => {
             {{ loading ? 'Buscando…' : searchResults.length + ' lugares' }}
           </span>
         </div>
-        <div v-if="loading" class="px-4 py-7 text-center text-xs text-[var(--dh-text-muted)]">Cargando ubicaciones…</div>
-        <div v-else-if="!visibleLocations.length" class="px-4 py-7 text-center">
+        <div v-if="loading" class="px-5 py-10 text-center text-xs text-[var(--dh-text-muted)]">Cargando ubicaciones…</div>
+        <div v-else-if="!visibleLocations.length" class="px-5 py-10 text-center">
           <MapPin class="mx-auto h-6 w-6 text-[var(--dh-text-muted)]" />
           <p class="mt-2 text-sm font-bold text-[var(--dh-text)]">
             {{ search ? 'No encontramos ese lugar' : 'No hay lugares disponibles para agregar' }}
@@ -392,7 +392,7 @@ onMounted(async () => {
           <button v-for="source in visibleLocations" :key="source.item.id" type="button"
             :disabled="disabled || alreadyExists(fromSource(source))"
             :aria-pressed="selectedSourceId === source.item.id"
-            class="flex w-full items-center gap-3 px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+            class="flex w-full items-center gap-4 px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
             :class="selectedSourceId === source.item.id
               ? 'bg-[var(--dh-primary-soft)]'
               : 'hover:bg-[var(--dh-input)]'"
@@ -419,18 +419,18 @@ onMounted(async () => {
           </button>
         </div>
         <button v-if="searchResults.length > visibleLocations.length" type="button"
-          class="w-full border-t border-[var(--dh-border)] px-3 py-2 text-center text-xs font-bold text-[var(--dh-primary)]"
+          class="w-full border-t border-[var(--dh-border)] px-4 py-3 text-center text-xs font-bold text-[var(--dh-primary)]"
           @click="visibleCount += 20">Mostrar más lugares</button>
       </div>
 
       <button type="button" :disabled="disabled" @click="openManual"
-        class="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-sm font-bold text-[var(--dh-primary)] transition hover:border-[var(--dh-primary)] disabled:opacity-50">
+        class="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-4 text-sm font-bold text-[var(--dh-primary)] transition hover:border-[var(--dh-primary)] disabled:opacity-50">
         <Plus class="h-4 w-4" />
         ¿No aparece el lugar? Crear uno nuevo
       </button>
     </div>
 
-    <div v-else class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+    <div v-else class="space-y-5 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
       <button type="button" class="flex items-center gap-1 text-xs font-bold text-[var(--dh-primary)]"
         @click="backToSearch"><ArrowLeft class="h-4 w-4" /> Volver a buscar un lugar</button>
       <div>
@@ -438,18 +438,18 @@ onMounted(async () => {
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo escriba el nombre y seleccione el país.</p>
       </div>
       <label class="block">
-        <span class="mb-1 block text-xs font-black text-[var(--dh-text)]">
+        <span class="mb-2 block text-xs font-black text-[var(--dh-text)]">
           {{ terminalType === 'APT' ? 'Nombre del aeropuerto' : terminalType === 'CY' ? 'Nombre del puerto' : 'Nombre de la ciudad o destino' }} *
         </span>
         <input v-model="newLocationName" :disabled="disabled" placeholder="Escriba el nombre del lugar"
-          class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
+          class="h-12 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
       </label>
       <div class="relative">
         <label class="block">
-          <span class="mb-1 block text-xs font-black text-[var(--dh-text)]">País *</span>
+          <span class="mb-2 block text-xs font-black text-[var(--dh-text)]">País *</span>
           <input :value="countrySearch" :disabled="disabled" autocomplete="off"
             placeholder="Escriba para buscar el país"
-            class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+            class="h-12 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
             @input="countryInput(($event.target as HTMLInputElement).value)"
             @focus="countryPickerOpen = !selectedCountry" />
         </label>
@@ -469,9 +469,9 @@ onMounted(async () => {
         </p>
       </div>
       <label v-if="terminalType === 'APT'" class="block">
-        <span class="mb-1 block text-xs font-black text-[var(--dh-text)]">Código del aeropuerto (IATA) *</span>
+        <span class="mb-2 block text-xs font-black text-[var(--dh-text)]">Código del aeropuerto (IATA) *</span>
         <input v-model="iataCode" :disabled="disabled" maxlength="3" placeholder="Ej. SJO"
-          class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold uppercase text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
+          class="h-12 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold uppercase text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
         <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Son las 3 letras que identifican el aeropuerto.</p>
       </label>
     </div>
@@ -479,7 +479,7 @@ onMounted(async () => {
     <p v-if="duplicate" role="alert" class="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-xs font-bold text-amber-600">
       Este lugar ya existe en el catálogo. No hace falta agregarlo otra vez.
     </p>
-    <div v-else-if="canAdd" role="status" class="flex items-start gap-3 rounded-2xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary-soft)] p-3">
+    <div v-else-if="canAdd" role="status" class="flex items-start gap-3 rounded-2xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary-soft)] p-4">
       <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
       <div class="min-w-0">
         <p class="text-sm font-black text-[var(--dh-text)]">Listo para agregar</p>
