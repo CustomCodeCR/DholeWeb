@@ -464,6 +464,8 @@ const workerExplanation = computed(() => {
       return 'Pricing no logra consultar el conector de Dynamics. Revisá la conectividad y los registros de Pricing API.'
     case 'DYNAMICS_WORKER_UNRESPONSIVE':
       return 'El worker dejó de responder. Revisá los registros y el estado de Pricing API.'
+    case 'DYNAMICS_WORKER_ITERATION_FAILED':
+      return 'El worker encontró un error al consultar la cola en PostgreSQL. Revisá los registros de Pricing API.'
     case 'DYNAMICS_WORKER_NOT_STARTED':
     case 'DYNAMICS_WORKER_STARTING':
       return 'El worker todavía no confirmó su inicio. Revisá los registros de Pricing API si persiste.'
