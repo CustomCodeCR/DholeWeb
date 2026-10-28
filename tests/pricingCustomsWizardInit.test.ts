@@ -27,10 +27,10 @@ test('CFR through DDP skip tariff selection and never require a freight line', (
     'freight sale must be reset when the Incoterm switches to no-freight')
   assert.ok(plugin.includes("'  if (!hasInternationalTransportService.value && step.value === 5) step.value = 6'"),
     'Tarifas (step 5) must be skipped')
-  assert.ok(plugin.includes("const includedLines = computed(() => rateLines.value.filter((line) => (hasInternationalTransportService.value"),
+  assert.ok(plugin.includes("(hasInternationalTransportService.value || line.costDetailType !== 'Freight')"),
     'submitted detail lines must omit freight when the Incoterm has no freight')
-  assert.ok(plugin.includes("line.costDetailType !== 'Freight') && line.included"),
-    'screen 8 must exclude only the Freight detail, not destination charges by name or section')
+  assert.ok(plugin.includes("&& shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line))"),
+    'screen 8 must include selectable insurance and obey pickup rules on other charges')
   assert.ok(plugin.includes("rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight')"),
     'the step 7 watcher must retain destination charges')
   assert.ok(plugin.includes("if (lines[i]?.costDetailType === 'Freight') lines.splice(i, 1)"),
