@@ -370,6 +370,11 @@ async function grantQuoteTotal() {
   }
 }
 
+type WorkerStatus = {
+  ready: boolean
+  code: string
+  lastHeartbeatUtc: string | null
+}
 type QueueSummary = {
   pending: number
   processing: number
@@ -438,13 +443,44 @@ async function enqueueMissingRate(rateId: string) {
 }
 const issues = ref<QuoteIssue[]>([])
 const queueSummary = ref<QueueSummary>(emptyQueue())
+const workerStatus = ref<WorkerStatus | null>(null)
+const workerExplanation = computed(() => {
+  const status = workerStatus.value
+  if (!status || status.ready) return ''
+  switch (status.code) {
+    case 'DYNAMICS_SYNC_DISABLED':
+      return 'La sincronización está deshabilitada en Pricing (DynamicsQuoteSync__Enabled). Activala y reiniciá Pricing API.'
+    case 'DYNAMICS_API_KEY_MISSING':
+      return 'Falta DynamicsQuoteSync__ApiKey en la configuración de Pricing API. Revisá /opt/dhole/.env y reiniciá el servicio.'
+    case 'crud_key_invalid':
+    case 'DYNAMICS_PREFLIGHT_HTTP_401':
+      return 'Dynamics rechazó la clave de Pricing. Usá una clave vigente de la versión activa de crear_oferta.'
+    case 'quote_grants_incomplete':
+      return 'Faltan permisos para esta clave. Revisá «Autorizar vínculos y venta total» con la clave usada por Pricing.'
+    case 'production_writes_not_approved':
+    case 'production_quote_writes_not_approved':
+      return 'El conector no tiene aprobada la escritura de ofertas en producción. Se requiere la autorización correspondiente.'
+    case 'DYNAMICS_PREFLIGHT_UNAVAILABLE':
+      return 'Pricing no logra consultar el conector de Dynamics. Revisá la conectividad y los registros de Pricing API.'
+    case 'DYNAMICS_WORKER_UNRESPONSIVE':
+      return 'El worker dejó de responder. Revisá los registros y el estado de Pricing API.'
+    case 'DYNAMICS_WORKER_ITERATION_FAILED':
+      return 'El worker encontró un error al consultar la cola en PostgreSQL. Revisá los registros de Pricing API.'
+    case 'DYNAMICS_WORKER_NOT_STARTED':
+    case 'DYNAMICS_WORKER_STARTING':
+      return 'El worker todavía no confirmó su inicio. Revisá los registros de Pricing API si persiste.'
+    default:
+      return 'Dynamics todavía no autorizó el envío (código: ' + status.code + '). Revisá la comprobación de permisos.'
+  }
+})
 const lastQueueUpdate = ref<string | null>(null)
 let queueRefreshTimer: ReturnType<typeof setInterval> | null = null
 let readinessRefreshTimer: ReturnType<typeof setInterval> | null = null
 
 function syncStateLabel(status: string, rateId?: string): string {
   switch (status) {
-    case 'Pending': return 'En cola'
+    case 'Pending': return workerStatus.value && !workerStatus.value.ready
+      ? 'En cola · envío pausado' : 'En cola'
     case 'Processing': return 'Enviando a Dynamics'
     case 'Retry': return 'Reintento programado'
     case 'NeedsAttention': return 'Requiere atención'
@@ -816,11 +852,12 @@ async function refresh() {
     })
     const result = unwrapApiResponse<{ issues: QuoteIssue[],
       missingQueuedJobs?: MissingQueuedRate[], queue: QueueSummary,
-      refreshedAtUtc: string }>(response as never)
+      worker?: WorkerStatus | null, refreshedAtUtc: string }>(response as never)
     issues.value = Array.isArray(result?.issues) ? result.issues : []
     missingQueuedJobs.value = Array.isArray(result?.missingQueuedJobs)
       ? result.missingQueuedJobs : []
     queueSummary.value = result?.queue ?? emptyQueue()
+    workerStatus.value = result?.worker ?? null
     lastQueueUpdate.value = result?.refreshedAtUtc ?? null
   } catch {
     loadError.value = 'No fue posible consultar las incidencias de Pricing. Verificá tus permisos o la conexión del servicio.'
@@ -947,6 +984,11 @@ onUnmounted(() => {
       <template v-if="writeReadiness && !writeReadiness.ready">
         <strong>Envíos pausados:</strong> {{ writeReadiness.message }}
       </template>
+    </p>
+    <p v-if="queueSummary.pending > 0 && workerStatus && !workerStatus.ready"
+      class="quote-sync-error-detail" role="status">
+      <strong>Cola de Dynamics pausada ({{ workerStatus.code }}):</strong>
+      {{ workerExplanation }} Ninguna QUO pendiente se está enviando; reanudará automáticamente cuando el conector y el worker estén listos.
     </p>
     <div class="quote-sync-toolbar" role="search" aria-label="Buscar sincronizaciones">
       <input v-model="rateSearch" type="search" placeholder="Buscar QUO, cliente, IDTRA o tarifa…"
@@ -1185,7 +1227,12 @@ onUnmounted(() => {
             <span v-if="issue.error?.stage"> · Etapa: {{ issue.error.stage }}</span>
             <span v-if="issue.error?.httpStatus"> · HTTP {{ issue.error.httpStatus }}</span>
           </p>
-          <p v-if="issue.status === 'Pending'" class="quote-sync-meta">Pendiente de ser tomada por el worker. Todavía no hay confirmación de Dynamics.</p>
+          <p v-if="issue.status === 'Pending' && workerStatus && !workerStatus.ready"
+            class="quote-sync-error-detail" role="status">
+            No se ha intentado enviar esta QUO. {{ workerExplanation }}
+            Última actividad del worker: {{ dateTimeLabel(workerStatus.lastHeartbeatUtc) }}.
+          </p>
+          <p v-else-if="issue.status === 'Pending'" class="quote-sync-meta">Pendiente de ser tomada por el worker. Todavía no hay confirmación de Dynamics.</p>
           <p v-else-if="issue.status === 'Processing'" class="quote-sync-meta">Operación en ejecución. La creación y su línea de venta aún deben confirmarse.</p>
           <p v-else-if="issue.status === 'Completed'" class="quote-sync-meta">
             <strong>Completada en el registro del conector.</strong>
