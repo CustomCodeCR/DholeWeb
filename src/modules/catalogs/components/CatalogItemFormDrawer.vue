@@ -476,7 +476,7 @@ async function save() {
 
   const selectedRoute = isRouteCreate.value ? routeDraft.value : null
   if (isRouteCreate.value && !selectedRoute) {
-    toastStore.warning('Ubicación incompleta', 'Seleccione el tipo, país y lugar antes de guardar.')
+    toastStore.warning('Ubicación incompleta', 'Escriba el nombre del lugar y seleccione el país antes de guardar.')
     return
   }
   const name = (selectedRoute?.name ?? form.value.name).trim()
