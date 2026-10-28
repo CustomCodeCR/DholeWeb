@@ -83,10 +83,12 @@ export const RateRequestLeaseService = {
     const prepared = unwrapApiResponse<{ preparedRevisionNumber: number }>(response as never)
     return prepared.preparedRevisionNumber
   },
-  async completeRate(id: string, rateId: string, options?: { confirmSellerModification?: boolean }): Promise<void> {
+  async completeRate(
+    id: string, rateId: string, options?: { confirmSellerModification?: boolean },
+  ): Promise<{ status?: string; code?: string } | null> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('No existe una reserva vigente para finalizar la tarifa.')
-    await callEndpoint<unknown, { rateId: string; confirmation: string | null }>({
+    const response = await callEndpoint<unknown, { rateId: string; confirmation: string | null }>({
       method: 'POST',
       path: path(id, 'complete-rate'),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -94,6 +96,11 @@ export const RateRequestLeaseService = {
       body: { rateId, confirmation: options?.confirmSellerModification === true ? 'SendSellerModification' : null },
       extraHeaders: { 'X-Rate-Request-Lease': token },
     })
+    // HTTP 204 (already queued) has no body; HTTP 202 documents the pending
+    // approval/retry state without incorrectly reporting a failed rate save.
+    return response && typeof response === 'object'
+      ? unwrapApiResponse<{ status?: string; code?: string }>(response as never)
+      : null
   },
   async cancel(id: string, payload: { reason: 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'; details?: string }): Promise<void> {
     const token = this.tokenFor(id)
