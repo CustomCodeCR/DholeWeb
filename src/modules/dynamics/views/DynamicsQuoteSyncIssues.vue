@@ -1354,7 +1354,8 @@ onUnmounted(() => {
             <SearchCheck :size="15" />
             {{ diagnosingRateId === issue.rateId ? 'Diagnóstico en curso...' : 'Diagnosticar' }}
           </button>
-          <button type="button" class="dynamics-outline-button"
+          <button v-if="issue.error?.providerCode !== 'legacy_quote_requires_rate_key_linking'"
+            type="button" class="dynamics-outline-button"
             :disabled="Boolean(retryingRateId) || Boolean(retryDecisionRateId) ||
               Boolean(checkingLedgerRateId) || Boolean(recoveringRateId)"
             :aria-label="'Reintentar sin duplicar y comprobar el historial de ' +
