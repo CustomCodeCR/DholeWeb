@@ -50,6 +50,7 @@ import { PricingService } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
+import { requiresMaritimeCarrier } from '@/modules/pricing/utils/pricingCarrierRequirement'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -1930,6 +1931,11 @@ const maritimePodRequired = computed(() =>
   (shipmentModeForApi.value === 'Fcl' || shipmentModeForApi.value === 'Lcl'),
 )
 
+// Keep the rendered carrier field and its required-field feedback in sync.
+const carrierRequiredForStepSix = computed(() =>
+  requiresMaritimeCarrier(form.modality, shipmentModeForApi.value),
+)
+
 const canNext = computed(() => {
   if (step.value === 1) return Boolean(form.modality)
   if (step.value === 2) return Boolean(form.shipmentMode)
@@ -2021,10 +2027,10 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
   }
   if (step.value === 6) {
-    // LCL's coloader/own source is chosen in its dedicated selector.
-    // Agent/carrier IDs can intentionally be empty in those scenarios.
+    // LCL chooses its own source; land LTL/FTL and air have no naviera.
+    // Only show this error when the maritime carrier selector is visible.
     add(shipmentModeForApi.value !== 'Lcl' && !form.agentId, 'agentId', 'Agente')
-    add(shipmentModeForApi.value !== 'Lcl' && !form.carrierId, 'carrierId', 'Naviera / proveedor')
+    add(carrierRequiredForStepSix.value && !form.carrierId, 'carrierId', 'Naviera / proveedor')
     add(!form.currencyId, 'currencyId', 'Moneda')
     add(!(form.freightCost >= 0), 'freightCost', 'Flete: costo')
     add(!(form.freightSale >= 0), 'freightSale', 'Flete: venta')
@@ -5753,7 +5759,7 @@ onMounted(async () => {
             <p v-if="form.originId && !agentOptions.length" class="text-xs font-semibold text-amber-500 md:col-span-2 xl:col-span-3">
               No hay agentes disponibles para este POL. Revise la metadata en Config &gt; Catálogos &gt; Agentes.
             </p>
-            <div data-required-field="carrierId" :class="isInvalid('carrierId') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
+            <div v-if="carrierRequiredForStepSix" data-required-field="carrierId" :class="isInvalid('carrierId') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
             <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
               <p v-if="fieldError('carrierId')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('carrierId') }}</p>
             </div>
