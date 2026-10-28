@@ -11,6 +11,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { StorageService } from '@/core/services/storageService'
 import type { CatalogGroupDto, CatalogItemDto } from '@/core/interfaces/catalogs'
 import MetadataEditor from '@/modules/catalogs/components/MetadataEditor.vue'
+import CatalogRouteLocationPicker from '@/modules/catalogs/components/CatalogRouteLocationPicker.vue'
 
 const props = defineProps<{
   group: CatalogGroupDto
@@ -60,6 +61,11 @@ const form = ref({
 
 const isEdit = computed(() => Boolean(props.item))
 const isWarehouseGroup = computed(() => props.group.slug === 'pricing-warehouses')
+const isRouteCreate = computed(() => !props.item && ['pol', 'poe', 'pod'].includes(props.group.slug))
+const routeCatalogSlug = computed(() => props.group.slug as 'pol' | 'poe' | 'pod')
+type RouteCatalogDraft = { name: string; slug: string; description: string; value: string; metadataJson: string }
+const routeDraft = ref<RouteCatalogDraft | null>(null)
+const routeFormVersion = ref(0)
 
 // A new WHS can be a country-only placeholder, without any geographic details.
 const genericWarehouse = ref(!props.item)
@@ -445,6 +451,8 @@ async function uploadWarehouseImages(entityId: string, metadataJson: string | nu
 }
 
 function resetCreateForm() {
+  routeDraft.value = null
+  routeFormVersion.value += 1
   const nextSortOrder = Number(form.value.sortOrder || 0) + 1
   clearPendingWarehouseImages()
   genericWarehouse.value = true
@@ -466,9 +474,14 @@ async function save() {
     return
   }
 
-  const name = form.value.name.trim()
+  const selectedRoute = isRouteCreate.value ? routeDraft.value : null
+  if (isRouteCreate.value && !selectedRoute) {
+    toastStore.warning('Ubicación incompleta', 'Seleccione el tipo, país y lugar antes de guardar.')
+    return
+  }
+  const name = (selectedRoute?.name ?? form.value.name).trim()
   if (!name) {
-    toastStore.warning('Nombre requerido', 'Escriba el nombre del WHS.')
+    toastStore.warning('Nombre requerido', 'Escriba el nombre del ítem.')
     return
   }
 
@@ -479,8 +492,8 @@ async function save() {
 
   const isGeneric = isWarehouseGroup.value && genericWarehouse.value
   // A generic WHS carries no street address, geocoding, city, photos or contacts.
-  const value = isGeneric ? name : form.value.value || null
-  const metadataJsonForSave = isGeneric ? JSON.stringify({ isGeneric: true }) : form.value.metadataJson
+  const value = isGeneric ? name : (selectedRoute?.value ?? form.value.value) || null
+  const metadataJsonForSave = isGeneric ? JSON.stringify({ isGeneric: true }) : (selectedRoute?.metadataJson ?? form.value.metadataJson)
 
   try {
     loading.value = true
@@ -508,8 +521,8 @@ async function save() {
 
     const createdId = await CatalogItemsService.createForGroup(props.group.id, {
       name,
-      slug: isGeneric ? null : form.value.slug || null,
-      description: isGeneric ? null : form.value.description || null,
+      slug: isGeneric ? null : (selectedRoute?.slug ?? form.value.slug) || null,
+      description: isGeneric ? null : (selectedRoute?.description ?? form.value.description) || null,
       value,
       metadataJson: metadataJsonForSave,
       sortOrder: form.value.sortOrder,
@@ -518,7 +531,7 @@ async function save() {
 
     const metadataJson = isGeneric
       ? metadataJsonForSave
-      : await uploadWarehouseImages(createdId, form.value.metadataJson)
+      : await uploadWarehouseImages(createdId, metadataJsonForSave)
     if (metadataJson !== metadataJsonForSave) {
       await CatalogItemsService.update(createdId, {
         name,
@@ -558,6 +571,15 @@ onBeforeUnmount(clearPendingWarehouseImages)
       </p>
     </div>
 
+    <CatalogRouteLocationPicker
+      v-if="isRouteCreate"
+      :key="routeFormVersion"
+      v-model="routeDraft"
+      :catalog-slug="routeCatalogSlug"
+      :disabled="!canSave || loading"
+    />
+
+    <template v-else>
     <section v-if="isWarehouseGroup" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <DhSwitch v-model="genericWarehouse" label="WHS genérico: solo nombre" :disabled="!canSave" />
       <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
@@ -804,6 +826,7 @@ onBeforeUnmount(clearPendingWarehouseImages)
     </section>
 
     <MetadataEditor v-if="!isWarehouseGroup || !genericWarehouse" v-model="form.metadataJson" />
+    </template>
 
     <div class="flex justify-end gap-2">
       <DhButton
