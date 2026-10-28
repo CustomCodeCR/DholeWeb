@@ -25,6 +25,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: RouteCatalogDraft | null] }>()
 const toast = useToastStore()
+const catalogDisplayName = computed(() => ({
+  pol: 'origen de ruta (POL)',
+  poe: 'punto de entrada (POE)',
+  pod: 'destino final (POD)',
+}[props.catalogSlug]))
 const loading = ref(true)
 const allItems = ref<CatalogItemDto[]>([])
 const terminalType = ref<TerminalType>(props.catalogSlug === 'pod' ? 'SD' : 'CY')
@@ -70,7 +75,9 @@ function countryOf(item: CatalogItemDto): Country {
   const meta = metadata(item)
   const code = String(meta.countryCode ?? '').trim().toUpperCase()
   const nameFromLabel = String(item.value || item.name).split(',').slice(-1)[0]?.trim() || ''
-  const name = String(meta.countryName || meta.country || nameFromLabel || code || 'Sin país').trim()
+  const isoCountry = /^[A-Z]{2}$/.test(code)
+    ? new Intl.DisplayNames(['es'], { type: 'region' }).of(code) : ''
+  const name = String(meta.countryName || meta.country || isoCountry || nameFromLabel || code || 'Sin país').trim()
   return { key: code || normalize(name), name, code: /^[A-Z]{2}$/.test(code) ? code : '' }
 }
 
@@ -120,7 +127,7 @@ const availableLocations = computed(() => {
   const unique = new Map<string, RouteSource>()
   for (const source of sources.value) {
     if (source.terminalType !== terminalType.value || source.country.key !== countryKey) continue
-    const key = normalize(source.item.name) + ':' + normalize(source.item.value)
+    const key = normalize(source.item.name) + ':' + normalize(source.item.value) + ':' + normalize(metadata(source.item).iataCode)
     if (unique.has(key)) continue
     const draft = draftFromSource(source)
     if (!alreadyExists(draft)) unique.set(key, source)
@@ -233,19 +240,20 @@ onMounted(async () => {
 <template>
   <section class="space-y-4 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
     <div>
-      <h3 class="text-base font-black text-[var(--dh-text)]">Agregar ubicación a {{ catalogSlug.toUpperCase() }}</h3>
+      <h3 class="text-base font-black text-[var(--dh-text)]">Agregar ubicación: {{ catalogDisplayName }}</h3>
       <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
         Seleccione el tipo, país y lugar. El código, nombre, valor y datos de Pricing se completan solos.
       </p>
     </div>
 
+    <p v-if="catalogSlug === 'pod'" class="text-xs text-[var(--dh-text-muted)]">El destino final se registra como ciudad o punto de entrega terrestre.</p>
     <div class="grid gap-3 md:grid-cols-2">
       <label class="block">
         <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Tipo de ubicación *</span>
         <select v-model="terminalType" :disabled="disabled" class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold text-[var(--dh-text)]">
-          <option value="CY" v-if="catalogSlug !== 'pod'">Puerto marítimo (CY)</option>
-          <option value="SD">Ciudad / ubicación terrestre (SD)</option>
-          <option value="APT" v-if="catalogSlug !== 'pod'">Aeropuerto (APT)</option>
+          <option value="CY" v-if="catalogSlug !== 'pod'">Puerto marítimo</option>
+          <option value="SD">Ciudad o punto terrestre</option>
+          <option value="APT" v-if="catalogSlug !== 'pod'">Aeropuerto</option>
         </select>
       </label>
       <label class="block">
