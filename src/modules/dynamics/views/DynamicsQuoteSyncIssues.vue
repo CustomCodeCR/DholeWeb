@@ -44,6 +44,18 @@ type MissingQueuedRate = {
   currencyCode: string
   currencyName?: string | null
 }
+type EligibleRate = {
+  rateId: string
+  rateCode: string
+  rateName: string | null
+  clientName: string | null
+  idtraNumber: string
+  revisionNumber: number
+  totalSaleAmount: number
+  currencyCode: string
+  jobStatus: string
+  canRetry: boolean
+}
 type QuoteIssue = {
   rate?: {
     rateCode?: string | null
@@ -152,6 +164,82 @@ const selectedKeyId = ref('')
 const granting = ref(false)
 const grantError = ref('')
 const grantSuccess = ref('')
+const selectedRateQuery = ref('')
+const searchedRates = ref<EligibleRate[]>([])
+const searchingRates = ref(false)
+const searchedRatesError = ref('')
+const publishingRateId = ref<string | null>(null)
+const publishingMessage = ref('')
+async function searchRatesForDynamics() {
+  const query = selectedRateQuery.value.trim()
+  if (!isAdministrator.value || searchingRates.value || query.length < 2) return
+  searchingRates.value = true
+  searchedRatesError.value = ''
+  publishingMessage.value = ''
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/pricing/rates/dynamics-sync/eligible-rates?search=' +
+        encodeURIComponent(query),
+    })
+    const result = unwrapApiResponse<{ results: EligibleRate[] }>(response as never)
+    searchedRates.value = result.results || []
+    if (!searchedRates.value.length)
+      searchedRatesError.value = 'No hay tarifas aceptadas con IDTRA que coincidan con esta búsqueda.'
+  } catch (error) {
+    searchedRates.value = []
+    searchedRatesError.value = error instanceof ApiError
+      ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error)
+      : error instanceof Error ? error.message : 'No se pudo buscar en Pricing.'
+  } finally {
+    searchingRates.value = false
+  }
+}
+
+async function publishSelectedRate(rate: EligibleRate) {
+  if (!isAdministrator.value || publishingRateId.value) return
+  publishingRateId.value = rate.rateId
+  publishingMessage.value = ''
+  try {
+    if (rate.jobStatus === 'NotQueued') {
+      manualRateId.value = rate.rateId
+      await enqueueAccepted()
+      publishingMessage.value = enqueueError.value || enqueueFeedback.value
+    } else if (rate.jobStatus === 'NeedsAttention' && rate.canRetry) {
+      const readiness = await checkWriteReadiness()
+      if (!readiness.ready) {
+        publishingMessage.value = 'No se pudo enviar: ' + readiness.message
+        return
+      }
+      await callEndpoint<unknown>({
+        method: 'POST',
+        path: '/api/pricing/rates/' + encodeURIComponent(rate.rateId) +
+          '/dynamics-sync/retry',
+      })
+      publishingMessage.value =
+        'Reintento seguro encolado con la misma clave. Consultá el seguimiento.'
+    } else if (rate.jobStatus === 'NeedsAttention') {
+      publishingMessage.value =
+        'La incidencia requiere conciliar la operación anterior antes de publicar. Abrí el seguimiento y verificá Dynamics.'
+    } else if (rate.jobStatus === 'Completed') {
+      publishingMessage.value =
+        'Esta revisión ya fue enviada. No se crea una segunda oferta.'
+    } else {
+      publishingMessage.value =
+        'Ya existe una operación en ' + rate.jobStatus + '. Consultá su progreso.'
+    }
+    followRate(rate.rateId)
+    await refresh()
+    await refreshTrackedDelivery()
+    if (rate.jobStatus !== 'NotQueued' && rate.canRetry) await searchRatesForDynamics()
+  } catch (error) {
+    publishingMessage.value = error instanceof ApiError
+      ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error)
+      : error instanceof Error ? error.message : 'No se pudo publicar la QUO.'
+  } finally {
+    publishingRateId.value = null
+  }
+}
 const manualRateId = ref('')
 const enqueueing = ref(false)
 const enqueueFeedback = ref('')
@@ -739,6 +827,54 @@ onUnmounted(() => {
         {{ loading ? 'Consultando...' : 'Actualizar' }}
       </button>
     </div>
+
+    <section v-if="isAdministrator" class="quote-sync-grants" aria-label="Publicar cualquier tarifa elegible">
+      <div>
+        <strong>Publicar una tarifa en Dynamics</strong>
+        <p>Elegí cualquier tarifa aceptada con IDTRA por número QUO, cliente o referencia.
+          Si existe un rechazo anterior a la escritura, se reintenta con la misma clave.
+          Los trabajos ya creados nunca se duplican.</p>
+        <div class="quote-sync-grant-controls">
+          <input v-model.trim="selectedRateQuery" type="search"
+            aria-label="Buscar tarifa para publicar en Dynamics"
+            placeholder="QUO-00000-000364, cliente o IDTRA"
+            @keydown.enter.prevent="searchRatesForDynamics" />
+          <button type="button" class="dynamics-primary-button"
+            :disabled="searchingRates || selectedRateQuery.trim().length < 2"
+            @click="searchRatesForDynamics">
+            <SearchCheck :size="15" /> {{ searchingRates ? 'Buscando...' : 'Buscar y elegir' }}
+          </button>
+        </div>
+        <p v-if="searchedRatesError" class="quote-sync-error" role="alert">{{ searchedRatesError }}</p>
+        <p v-if="publishingMessage" class="quote-sync-meta" role="status">{{ publishingMessage }}</p>
+        <div v-if="searchedRates.length" class="quote-sync-list">
+          <article v-for="rate in searchedRates" :key="rate.rateId" class="quote-sync-item">
+            <div class="quote-sync-main">
+              <strong>{{ rate.rateCode }}</strong>
+              <p class="quote-sync-client">{{ rate.clientName }}</p>
+              <p class="quote-sync-meta">{{ rate.rateName }}</p>
+              <p class="quote-sync-meta">IDTRA: {{ rate.idtraNumber }} · REV {{ rate.revisionNumber }}
+                · {{ syncStateLabel(rate.jobStatus, rate.rateId) }}</p>
+            </div>
+            <div class="quote-sync-actions">
+              <button type="button" class="dynamics-primary-button"
+                :disabled="Boolean(publishingRateId) || rate.jobStatus === 'Completed' ||
+                  (rate.jobStatus !== 'NotQueued' &&
+                   !(rate.jobStatus === 'NeedsAttention' && rate.canRetry))"
+                @click="publishSelectedRate(rate)">
+                <RefreshCw :size="15" />
+                {{ publishingRateId === rate.rateId ? 'Solicitando envío...' :
+                  rate.jobStatus === 'NotQueued' ? 'Publicar QUO' :
+                  rate.jobStatus === 'NeedsAttention' && rate.canRetry ? 'Reintentar y publicar' :
+                  rate.jobStatus === 'Completed' ? 'Ya publicada' : 'Revisar estado' }}
+              </button>
+              <button type="button" class="dynamics-outline-button"
+                @click="followRate(rate.rateId)">Ver seguimiento</button>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
 
     <div class="quote-sync-queue-stats" aria-label="Resumen de sincronizaciones">
       <div><strong>{{ queueSummary.pending }}</strong><span>En cola</span></div>
