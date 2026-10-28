@@ -106,6 +106,7 @@ import { pricingWizardLclGroupAgent } from './build/pricingWizardLclGroupAgent'
 import { pricingWizardCompleteDraftNavigation } from './build/pricingWizardCompleteDraftNavigation'
 import { pricingWizardScreen7CostChoice } from './build/pricingWizardScreen7CostChoice'
 import { pricingRequiredFieldFinalFeedback } from './build/pricingRequiredFieldFinalFeedback'
+import { pricingStep7FixedCostsAndCustoms } from './build/pricingStep7FixedCostsAndCustoms'
 
 export default defineConfig({
   plugins: [
@@ -214,6 +215,7 @@ export default defineConfig({
     pricingWizardStep5ValidityComments(),
     pricingWizardGeneratedTemplateIntegrity(),
     pricingRequiredFieldFinalFeedback(),
+    pricingStep7FixedCostsAndCustoms(),
     vue(),
     tailwindcss(),
   ],
