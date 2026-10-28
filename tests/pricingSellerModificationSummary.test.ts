@@ -57,4 +57,7 @@ test('amendments retain original quote details and required header values', () =
   assert.match(step, /rateLines\.value\.length/)
   assert.match(optional, /props\.modificationRequestId && rateLines\.value\.length/)
   assert.match(resume, /mandatoryHeaders\.has/)
+  const wizard = read('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  assert.match(wizard, /name === 'servicio de agencia'/)
+  assert.match(wizard, /normalizeCatalogValue\(line\.currencyName\) === 'crc'/)
 })
