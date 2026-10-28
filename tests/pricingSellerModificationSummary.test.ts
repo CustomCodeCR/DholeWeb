@@ -36,7 +36,7 @@ test('original quote cannot be saved by mistake before seller proposal was appli
   assert.match(plugin, /restoreSellerConsolidatedCargo\(proposal, workPayload\?\.sellerContext\)/)
   assert.match(plugin, /step\.value = 5/)
   assert.match(plugin, /Cargar cambios solicitados y continuar en Pantalla 5/)
-  assert.match(plugin, /Los cambios todavía no se han guardado ni enviado/)
+  assert.match(plugin, /La tarifa original no se ha guardado ni enviado/)
 })
 
 test('amendments retain original quote details and required header values', () => {
