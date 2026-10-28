@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { ArrowLeft, Check, CheckCircle2, MapPin, Plane, Plus, Search, Ship, Truck } from 'lucide-vue-next'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
 import { useToastStore } from '@/core/stores/toastStore'
 
 type RouteSlug = 'pol' | 'poe' | 'pod'
 type TerminalType = 'CY' | 'SD' | 'APT'
-type RouteSource = { item: CatalogItemDto; terminalType: TerminalType; country: Country }
 type Country = { key: string; name: string; code: string }
-
-interface RouteCatalogDraft {
+type RouteSource = { item: CatalogItemDto; terminalType: TerminalType; country: Country }
+type RouteCatalogDraft = {
   name: string
   slug: string
   description: string
@@ -22,215 +22,302 @@ const props = defineProps<{
   modelValue: RouteCatalogDraft | null
   disabled?: boolean
 }>()
-
 const emit = defineEmits<{ 'update:modelValue': [value: RouteCatalogDraft | null] }>()
 const toast = useToastStore()
-const catalogDisplayName = computed(() => ({
-  pol: 'origen de ruta (POL)',
-  poe: 'punto de entrada (POE)',
-  pod: 'destino final (POD)',
+
+const routeDescription = computed(() => ({
+  pol: 'El lugar donde comienza el transporte.',
+  poe: 'El puerto, aeropuerto o punto donde continúa la ruta.',
+  pod: 'La ciudad o punto donde se entrega la carga.',
 }[props.catalogSlug]))
-const loading = ref(true)
-const allItems = ref<CatalogItemDto[]>([])
+const terminalOptions = computed(() => props.catalogSlug === 'pod'
+  ? [{ value: 'SD' as const, label: 'Ciudad o destino terrestre', helper: 'Entrega final', icon: Truck }]
+  : [
+    { value: 'CY' as const, label: 'Puerto', helper: 'Transporte marítimo', icon: Ship },
+    { value: 'SD' as const, label: 'Ciudad', helper: 'Transporte terrestre', icon: Truck },
+    { value: 'APT' as const, label: 'Aeropuerto', helper: 'Transporte aéreo', icon: Plane },
+  ])
+
 const terminalType = ref<TerminalType>(props.catalogSlug === 'pod' ? 'SD' : 'CY')
-const selectedCountry = ref('')
-const selectedSourceId = ref('')
+const loading = ref(true)
+const failedCatalogs = ref(false)
+const allItems = ref<CatalogItemDto[]>([])
 const search = ref('')
+const visibleCount = ref(8)
+const selectedSourceId = ref('')
 const manual = ref(false)
-const placeName = ref('')
-const airportCode = ref('')
-const customCountryName = ref('')
+const newLocationName = ref('')
+const iataCode = ref('')
+const countrySearch = ref('')
+const countryPickerOpen = ref(false)
+const selectedCountry = ref<Country | null>(null)
 
 function normalize(value: unknown): string {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
-
 function slugify(value: string): string {
   return normalize(value).replace(/\s+/g, '-')
 }
-
-function metadata(item: CatalogItemDto): Record<string, unknown> {
+function metaOf(item: CatalogItemDto): Record<string, unknown> {
   try {
-    const value: unknown = JSON.parse(item.metadataJson || '{}')
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? value as Record<string, unknown> : {}
+    const result: unknown = JSON.parse(item.metadataJson || '{}')
+    return result && typeof result === 'object' && !Array.isArray(result)
+      ? result as Record<string, unknown> : {}
   } catch {
     return {}
   }
 }
-
-function locationType(item: CatalogItemDto): TerminalType {
-  const meta = metadata(item)
-  const configured = String(meta.terminalType ?? '').toUpperCase()
-  if (configured === 'CY' || configured === 'SD' || configured === 'APT') return configured
+function terminalOf(item: CatalogItemDto): TerminalType {
+  const meta = metaOf(item)
+  const type = String(meta.terminalType || '').trim().toUpperCase()
+  if (type === 'CY' || type === 'SD' || type === 'APT') return type
   const code = String(item.code || '').toUpperCase()
   if (code.startsWith('SD_') || code.includes('_SD_')) return 'SD'
   if (code.startsWith('APT_') || code.includes('_APT_')) return 'APT'
-  if (item.catalogGroupSlug === 'pod') return 'SD'
-  return 'CY'
+  return item.catalogGroupSlug === 'pod' ? 'SD' : 'CY'
+}
+function rawCountry(item: CatalogItemDto): { code: string; name: string } {
+  const meta = metaOf(item)
+  const countryCode = String(meta.countryCode || '').trim().toUpperCase()
+  const code = /^[A-Z]{2}$/.test(countryCode) ? countryCode : ''
+  const fullName = String(item.value || item.name)
+  const suffix = fullName.includes(',') ? fullName.split(',').at(-1)?.trim() || '' : ''
+  const rawName = String(meta.countryName || meta.country || suffix || '').trim()
+    .replace(/\s*\([A-Z0-9]{2,6}\)\s*$/i, '')
+  return { code, name: rawName }
+}
+function isoName(code: string): string {
+  try { return new Intl.DisplayNames(['es'], { type: 'region' }).of(code) || code }
+  catch { return code }
 }
 
+const activeItems = computed(() => allItems.value.filter((item) => item.isActive))
+const countryAliases = computed(() => {
+  const known = new Map<string, string>()
+  for (const item of activeItems.value) {
+    const raw = rawCountry(item)
+    if (!raw.code) continue
+    for (const name of [raw.name, isoName(raw.code)]) {
+      if (name) known.set(normalize(name), raw.code)
+    }
+  }
+  // Algunas ubicaciones antiguas no tienen código ISO, pero sí el nombre del país.
+  const commonAliases: Record<string, string> = {
+    'usa': 'US', 'us': 'US', 'united states': 'US', 'estados unidos': 'US',
+    'mexico': 'MX', 'panama': 'PA', 'costa rica': 'CR', 'china': 'CN',
+    'espana': 'ES', 'spain': 'ES', 'brasil': 'BR', 'brazil': 'BR',
+    'el salvador': 'SV', 'guatemala': 'GT', 'honduras': 'HN',
+    'colombia': 'CO', 'nicaragua': 'NI', 'canada': 'CA',
+  }
+  for (const [alias, code] of Object.entries(commonAliases)) {
+    if (!known.has(alias)) known.set(alias, code)
+  }
+  return known
+})
 function countryOf(item: CatalogItemDto): Country {
-  const meta = metadata(item)
-  const code = String(meta.countryCode ?? '').trim().toUpperCase()
-  const nameFromLabel = String(item.value || item.name).split(',').slice(-1)[0]?.trim() || ''
-  const isoCountry = /^[A-Z]{2}$/.test(code)
-    ? new Intl.DisplayNames(['es'], { type: 'region' }).of(code) : ''
-  const name = String(meta.countryName || meta.country || isoCountry || nameFromLabel || code || 'Sin país').trim()
-  return { key: code || normalize(name), name, code: /^[A-Z]{2}$/.test(code) ? code : '' }
+  const raw = rawCountry(item)
+  const code = raw.code || countryAliases.value.get(normalize(raw.name)) || ''
+  const name = code ? isoName(code) : raw.name
+  return { code, name: name || 'Sin país identificado', key: code || normalize(name) }
 }
+const sourceLocations = computed<RouteSource[]>(() => activeItems.value
+  .filter((item) => terminalOf(item) === terminalType.value)
+  .map((item) => ({
+    item, terminalType: terminalOf(item), country: countryOf(item),
+  }))
+  .filter((source) => source.country.name !== 'Sin país identificado'))
 
-const sources = computed<RouteSource[]>(() => allItems.value
-  .filter((item) => item.isActive)
-  .map((item) => ({ item, terminalType: locationType(item), country: countryOf(item) })))
-
-const countries = computed(() => {
-  const values = new Map<string, Country>()
-  for (const source of sources.value.filter((item) => item.terminalType === terminalType.value)) {
-    const { country } = source
-    if (!country.key || country.name === 'Sin país') continue
-    const current = values.get(country.key)
-    if (!current || (country.code && !current.code)) values.set(country.key, country)
+const countries = computed<Country[]>(() => {
+  const byKey = new Map<string, Country>()
+  for (const item of activeItems.value) {
+    const candidate = countryOf(item)
+    if (candidate.name === 'Sin país identificado') continue
+    if (!byKey.has(candidate.key)) byKey.set(candidate.key, candidate)
   }
-  return [...values.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'))
 })
+const filteredCountries = computed(() => countries.value
+  .filter((country) => !normalize(countrySearch.value)
+    || normalize(country.name).includes(normalize(countrySearch.value))
+    || normalize(country.code).includes(normalize(countrySearch.value)))
+  .slice(0, 8))
 
-const country = computed<Country | null>(() => selectedCountry.value === '__other'
-  ? customCountryName.value.trim()
-    ? { key: '__other', name: customCountryName.value.trim(), code: '' } : null
-  : countries.value.find((item) => item.key === selectedCountry.value) || null)
+const existingItems = computed(() => allItems.value.filter((item) =>
+  item.catalogGroupSlug === props.catalogSlug))
 
-const existingItems = computed(() => allItems.value.filter((item) => item.catalogGroupSlug === props.catalogSlug))
-
-function alreadyExists(draft: RouteCatalogDraft): boolean {
-  const target = normalize(draft.name)
-  const newMeta = JSON.parse(draft.metadataJson) as Record<string, unknown>
-  const countryCode = normalize(newMeta.countryCode)
-  return existingItems.value.some((item) => {
-    if (locationType(item) !== terminalType.value) return false
-    const otherMeta = metadata(item)
-    const sameSlug = Boolean(draft.slug) && normalize(item.slug) === normalize(draft.slug)
-    const sameName = normalize(item.name) === target || normalize(item.value) === normalize(draft.value)
-    const iataCode = normalize(newMeta.iataCode)
-    const sameAirport = terminalType.value === 'APT' && Boolean(iataCode)
-      && normalize(otherMeta.iataCode) === iataCode
-    if (!sameSlug && !sameName && !sameAirport) return false
-    const existingCode = normalize(otherMeta.countryCode)
-    return !existingCode || !countryCode || existingCode === countryCode
-  })
-}
-
-const availableLocations = computed(() => {
-  const countryKey = selectedCountry.value
-  if (!countryKey || countryKey === '__other') return []
-  const unique = new Map<string, RouteSource>()
-  for (const source of sources.value) {
-    if (source.terminalType !== terminalType.value || source.country.key !== countryKey) continue
-    const key = normalize(source.item.name) + ':' + normalize(source.item.value) + ':' + normalize(metadata(source.item).iataCode)
-    if (unique.has(key)) continue
-    const draft = draftFromSource(source)
-    if (!alreadyExists(draft)) unique.set(key, source)
-  }
-  return [...unique.values()].sort((a, b) => a.item.name.localeCompare(b.item.name, 'es'))
-})
-
-const matchingLocations = computed(() => {
-  const query = normalize(search.value)
-  return availableLocations.value.filter((source) => !query
-    || normalize([source.item.name, source.item.value, source.item.code, source.item.slug,
-      metadata(source.item).iataCode, metadata(source.item).city].join(' ')).includes(query))
-})
-
-const locationOptions = computed(() => matchingLocations.value.slice(0, 100))
-const selectedSource = computed(() => sources.value.find((source) => source.item.id === selectedSourceId.value))
-
-function draftFromSource(source: RouteSource): RouteCatalogDraft {
-  const meta = metadata(source.item)
-  const country = source.country
-  return {
-    name: source.item.name.trim(),
-    slug: source.item.slug?.trim() || slugify(source.item.name),
-    description: source.item.description || descriptionFor(source.terminalType),
-    value: source.item.value?.trim() || source.item.name.trim(),
-    metadataJson: JSON.stringify({
-      ...meta,
-      ...(country.code ? { countryCode: country.code } : {}),
-      ...(country.name !== 'Sin país' ? { countryName: country.name } : {}),
-      routeRole: props.catalogSlug.toUpperCase(),
-      terminalType: source.terminalType,
-      transportMode: transportModeFor(source.terminalType),
-      pricingWorkflow: true,
-    }),
-  }
-}
-
-function transportModeFor(type: TerminalType) {
-  return type === 'CY' ? 'Maritime' : type === 'APT' ? 'Air' : 'Land'
-}
-
-function descriptionFor(type: TerminalType) {
-  return type === 'CY'
-    ? 'Puerto marítimo de carga internacional - Container Yard (CY).'
+function descriptionFor(type: TerminalType): string {
+  return type === 'CY' ? 'Puerto marítimo de carga internacional - Container Yard (CY).'
     : type === 'APT' ? 'Aeropuerto APT para rutas aéreas de Pricing.'
       : 'Ubicación terrestre SD para Pricing.'
 }
-
-const draft = computed<RouteCatalogDraft | null>(() => {
-  if (!country.value) return null
-  if (!manual.value) {
-    if (!selectedSource.value || selectedSource.value.terminalType !== terminalType.value
-      || selectedSource.value.country.key !== selectedCountry.value) return null
-    return draftFromSource(selectedSource.value)
+function transportModeFor(type: TerminalType): string {
+  return type === 'CY' ? 'Maritime' : type === 'APT' ? 'Air' : 'Land'
+}
+function buildDraft(name: string, value: string, type: TerminalType,
+  country: Country, source?: CatalogItemDto): RouteCatalogDraft {
+  const original = source ? metaOf(source) : {}
+  const prefix = type.toLowerCase()
+  const sourceName = name.trim()
+  const originalSlug = source?.slug?.trim() || slugify(sourceName)
+  const code = String(original.iataCode || iataCode.value).trim().toUpperCase()
+  const merged = {
+    ...original,
+    ...(country.code ? { countryCode: country.code } : {}),
+    countryName: country.name,
+    ...(type === 'APT' && /^[A-Z]{3}$/.test(code)
+      ? { iataCode: code, airportName: original.airportName || sourceName } : {}),
+    routeRole: props.catalogSlug.toUpperCase(),
+    terminalType: type,
+    transportMode: transportModeFor(type),
+    pricingWorkflow: true,
   }
-  const name = placeName.value.trim()
-  const iata = airportCode.value.trim().toUpperCase()
-  if (!name || (terminalType.value === 'APT' && !/^[A-Z]{3}$/.test(iata))) return null
-  const displayName = normalize(name).includes(normalize(country.value.name))
-    ? name : name + ', ' + country.value.name
   return {
-    name: displayName,
-    slug: slugify(displayName),
-    description: descriptionFor(terminalType.value),
-    value: displayName,
-    metadataJson: JSON.stringify({
-      ...(country.value.code ? { countryCode: country.value.code } : {}),
-      countryName: country.value.name,
-      ...(terminalType.value === 'APT' ? { iataCode: iata, airportName: name } : {}),
-      routeRole: props.catalogSlug.toUpperCase(),
-      terminalType: terminalType.value,
-      transportMode: transportModeFor(terminalType.value),
-      pricingWorkflow: true,
-    }),
+    name: sourceName,
+    slug: prefix + '-' + slugify(originalSlug),
+    description: source?.description || descriptionFor(type),
+    value: value.trim() || sourceName,
+    metadataJson: JSON.stringify(merged),
   }
+}
+function alreadyExists(draft: RouteCatalogDraft): boolean {
+  const other = JSON.parse(draft.metadataJson) as Record<string, unknown>
+  const code = normalize(other.countryCode)
+  const iata = normalize(other.iataCode)
+  return existingItems.value.some((item) => {
+    if (terminalOf(item) !== terminalType.value) return false
+    const meta = metaOf(item)
+    const otherCountry = countryOf(item)
+    const samePlace = normalize(item.name) === normalize(draft.name)
+      || normalize(item.value) === normalize(draft.value)
+      || normalize(item.slug) === normalize(draft.slug)
+      || (terminalType.value === 'APT' && Boolean(iata) && normalize(meta.iataCode) === iata)
+    return samePlace && (!code || !otherCountry.code || code === normalize(otherCountry.code))
+  })
+}
+function fromSource(source: RouteSource): RouteCatalogDraft {
+  return buildDraft(source.item.name, source.item.value || source.item.name,
+    source.terminalType, source.country, source.item)
+}
+function sourceKey(source: RouteSource): string {
+  const meta = metaOf(source.item)
+  return source.country.key + ':' + normalize(source.item.name)
+    + ':' + normalize(meta.iataCode || '')
+}
+const searchResults = computed(() => {
+  const query = normalize(search.value)
+  const unique = new Map<string, RouteSource>()
+  for (const source of sourceLocations.value) {
+    const key = sourceKey(source)
+    const haystack = normalize([
+      source.item.name, source.item.value, source.item.slug, source.item.code,
+      source.country.name, source.country.code,
+      metaOf(source.item).iataCode, metaOf(source.item).city,
+      metaOf(source.item).airportName,
+    ].join(' '))
+    if (query && !haystack.includes(query)) continue
+    if (unique.has(key)) continue
+    unique.set(key, source)
+  }
+  const values = [...unique.values()].sort((a, b) =>
+    Number(alreadyExists(fromSource(a))) - Number(alreadyExists(fromSource(b)))
+    || a.item.name.localeCompare(b.item.name, 'es'))
+  // Sin búsqueda, priorizar sugerencias que todavía se pueden agregar.
+  return query ? values : values.filter((source) => !alreadyExists(fromSource(source)))
 })
+const visibleLocations = computed(() => searchResults.value.slice(0, visibleCount.value))
+const selectedSource = computed(() => sourceLocations.value.find(
+  (source) => source.item.id === selectedSourceId.value))
 
+const manualCountry = computed(() => selectedCountry.value)
+const draft = computed<RouteCatalogDraft | null>(() => {
+  if (!manual.value) {
+    return selectedSource.value ? fromSource(selectedSource.value) : null
+  }
+  const name = newLocationName.value.trim()
+  const chosenCountry = manualCountry.value
+  if (!name || !chosenCountry) return null
+  if (terminalType.value === 'APT' && !/^[A-Z]{3}$/.test(iataCode.value.trim().toUpperCase())) return null
+  const display = normalize(name).includes(normalize(chosenCountry.name))
+    ? name : name + ', ' + chosenCountry.name
+  return buildDraft(display, display, terminalType.value, chosenCountry)
+})
 const duplicate = computed(() => draft.value !== null && alreadyExists(draft.value))
+const canAdd = computed(() => draft.value !== null && !duplicate.value)
+const selectedLabel = computed(() => manual.value
+  ? draft.value?.name || '' : selectedSource.value?.item.name || '')
 
-watch(terminalType, () => {
-  selectedCountry.value = ''
+function chooseType(type: TerminalType) {
+  if (props.disabled) return
+  terminalType.value = type
   selectedSourceId.value = ''
+  visibleCount.value = 8
+  search.value = ''
   manual.value = false
-  search.value = ''
-})
-watch(selectedCountry, () => {
+  selectedCountry.value = null
+  countrySearch.value = ''
+  newLocationName.value = ''
+  iataCode.value = ''
+}
+function chooseLocation(id: string) {
+  if (props.disabled) return
+  selectedSourceId.value = id
+}
+function openManual() {
+  if (props.disabled) return
+  manual.value = true
+  newLocationName.value = search.value.trim()
   selectedSourceId.value = ''
-  search.value = ''
+  countrySearch.value = ''
+  selectedCountry.value = null
+  countryPickerOpen.value = false
+}
+function backToSearch() {
+  manual.value = false
+  selectedSourceId.value = ''
+  countryPickerOpen.value = false
+}
+function countryInput(value: string) {
+  countrySearch.value = value
+  selectedCountry.value = null
+  countryPickerOpen.value = true
+}
+function chooseCountry(country: Country) {
+  selectedCountry.value = country
+  countrySearch.value = country.name
+  countryPickerOpen.value = false
+}
+function chooseCustomCountry() {
+  const name = countrySearch.value.trim()
+  if (name.length < 2) return
+  chooseCountry({ name, key: normalize(name), code: countryAliases.value.get(normalize(name)) || '' })
+}
+function shortName(item: CatalogItemDto, country: Country) {
+  const name = item.name.trim()
+  const parts = name.split(',')
+  if (parts.length > 1 && normalize(parts[parts.length - 1]) === normalize(country.name)) {
+    return parts.slice(0, -1).join(',').trim()
+  }
+  return name
+}
+watch([draft, duplicate], () => emit('update:modelValue', canAdd.value ? draft.value : null), { immediate: true })
+watch(search, () => {
+  visibleCount.value = 8
+  selectedSourceId.value = ''
 })
-watch([draft, duplicate], () => {
-  emit('update:modelValue', !duplicate.value ? draft.value : null)
-}, { immediate: true })
 
 onMounted(async () => {
   const slugs: RouteSlug[] = ['pol', 'poe', 'pod']
   try {
-    const results = await Promise.allSettled(slugs.map((slug) => CatalogItemsService.getByGroupSlug(slug)))
-    allItems.value = results.flatMap((result) => result.status === 'fulfilled' ? result.value : [])
-    if (!allItems.value.length) {
-      toast.warning('Catálogos no disponibles', 'No se pudieron consultar las ubicaciones. Puede crear una nueva manualmente.')
+    const results = await Promise.allSettled(slugs.map((slug) =>
+      CatalogItemsService.getByGroupSlug(slug)))
+    failedCatalogs.value = results.some((result) => result.status === 'rejected')
+    allItems.value = results.flatMap((result) =>
+      result.status === 'fulfilled' ? result.value : [])
+    if (failedCatalogs.value) {
+      toast.warning('Ubicaciones parcialmente disponibles',
+        'No se pudieron cargar todos los catálogos. Puede agregar un lugar nuevo.')
     }
-  } catch {
-    toast.warning('Catálogos no disponibles', 'Puede ingresar una ubicación nueva.')
   } finally {
     loading.value = false
   }
@@ -238,86 +325,167 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="space-y-4 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+  <section class="space-y-5">
+    <header class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
+      <p class="text-sm font-black text-[var(--dh-text)]">¿Qué lugar desea agregar?</p>
+      <p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">{{ routeDescription }}</p>
+      <p class="mt-2 text-[11px] font-semibold text-[var(--dh-text-muted)]">
+        Solo debe elegir el lugar. Dhole se encarga de los códigos y demás datos.
+      </p>
+    </header>
+
     <div>
-      <h3 class="text-base font-black text-[var(--dh-text)]">Agregar ubicación: {{ catalogDisplayName }}</h3>
-      <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-        Seleccione el tipo, país y lugar. El código, nombre, valor y datos de Pricing se completan solos.
+      <p class="mb-2 text-xs font-black text-[var(--dh-text)]">
+        {{ catalogSlug === 'pod' ? 'Tipo de destino' : '1. ¿Qué tipo de lugar es?' }}
       </p>
+      <div class="grid gap-2" :class="terminalOptions.length === 1 ? 'grid-cols-1' : 'grid-cols-3'">
+        <button v-for="option in terminalOptions" :key="option.value" type="button"
+          :disabled="disabled"
+          :aria-pressed="terminalType === option.value"
+          class="flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-2xl border px-2 py-3 text-center transition disabled:opacity-50"
+          :class="terminalType === option.value
+            ? 'border-[var(--dh-primary)] bg-[var(--dh-primary-soft)] text-[var(--dh-text)]'
+            : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]'"
+          @click="chooseType(option.value)">
+          <component :is="option.icon" class="h-5 w-5" :class="terminalType === option.value ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'" />
+          <span class="text-xs font-black">{{ option.label }}</span>
+          <span class="text-[10px] font-medium text-[var(--dh-text-muted)]">{{ option.helper }}</span>
+        </button>
+      </div>
     </div>
 
-    <p v-if="catalogSlug === 'pod'" class="text-xs text-[var(--dh-text-muted)]">El destino final se registra como ciudad o punto de entrega terrestre.</p>
-    <div class="grid gap-3 md:grid-cols-2">
+    <div v-if="!manual" class="space-y-3">
       <label class="block">
-        <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Tipo de ubicación *</span>
-        <select v-model="terminalType" :disabled="disabled" class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold text-[var(--dh-text)]">
-          <option value="CY" v-if="catalogSlug !== 'pod'">Puerto marítimo</option>
-          <option value="SD">Ciudad o punto terrestre</option>
-          <option value="APT" v-if="catalogSlug !== 'pod'">Aeropuerto</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">País *</span>
-        <select v-model="selectedCountry" :disabled="disabled || loading" class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold text-[var(--dh-text)]">
-          <option value="">Seleccione un país</option>
-          <option v-for="option in countries" :key="option.key" :value="option.key">{{ option.name }}</option>
-          <option value="__other">Otro país (no aparece en la lista)</option>
-        </select>
-      </label>
-    </div>
-
-    <label v-if="selectedCountry === '__other'" class="block">
-      <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Nombre del país *</span>
-      <input v-model="customCountryName" :disabled="disabled" placeholder="Ej. Costa Rica" class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold text-[var(--dh-text)]" />
-    </label>
-
-    <div v-if="country && !manual" class="space-y-3">
-      <label class="block">
-        <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Buscar {{ terminalType === 'APT' ? 'aeropuerto o código IATA' : 'ciudad, puerto o ubicación' }}</span>
-        <input v-model="search" :disabled="disabled" placeholder="Escriba para filtrar las ubicaciones disponibles" class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold text-[var(--dh-text)]" />
-      </label>
-      <label class="block">
-        <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Ubicación *</span>
-        <select v-model="selectedSourceId" :disabled="disabled || loading" class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold text-[var(--dh-text)]">
-          <option value="">{{ loading ? 'Cargando lugares…' : 'Seleccione una ubicación' }}</option>
-          <option v-for="source in locationOptions" :key="source.item.id" :value="source.item.id">
-            {{ source.item.name }} {{ metadata(source.item).iataCode ? '(' + metadata(source.item).iataCode + ')' : '' }}
-          </option>
-        </select>
-        <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">
-          {{ matchingLocations.length }} disponibles{{ matchingLocations.length > locationOptions.length ? ' · Escriba para encontrar más' : '' }}. Los lugares ya registrados en este catálogo no se duplican.
+        <span class="mb-2 block text-xs font-black text-[var(--dh-text)]">
+          {{ catalogSlug === 'pod' ? '2. Busque el destino' : '2. Busque el lugar que necesita' }}
         </span>
+        <div class="flex h-12 items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 focus-within:border-[var(--dh-primary)]">
+          <Search class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+          <input v-model="search" :disabled="disabled || loading"
+            :placeholder="terminalType === 'APT' ? 'Ej. SJO, Miami, Bogotá…' : terminalType === 'CY' ? 'Ej. Moín, Shanghai, Manzanillo…' : 'Ej. San José, Ciudad de Guatemala…'"
+            class="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[var(--dh-text)] outline-none placeholder:text-[var(--dh-text-muted)] disabled:opacity-50" />
+          <button v-if="search" type="button" class="text-xs font-bold text-[var(--dh-text-muted)]"
+            aria-label="Limpiar búsqueda" @click="search = ''">Limpiar</button>
+        </div>
       </label>
+
+      <div class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+        <div class="flex items-center justify-between gap-2 border-b border-[var(--dh-border)] px-3 py-2">
+          <p class="text-xs font-bold text-[var(--dh-text)]">
+            {{ search ? 'Resultados para su búsqueda' : 'Lugares disponibles para agregar' }}
+          </p>
+          <span class="text-[11px] font-semibold text-[var(--dh-text-muted)]">
+            {{ loading ? 'Buscando…' : searchResults.length + ' lugares' }}
+          </span>
+        </div>
+        <div v-if="loading" class="px-4 py-7 text-center text-xs text-[var(--dh-text-muted)]">Cargando ubicaciones…</div>
+        <div v-else-if="!visibleLocations.length" class="px-4 py-7 text-center">
+          <MapPin class="mx-auto h-6 w-6 text-[var(--dh-text-muted)]" />
+          <p class="mt-2 text-sm font-bold text-[var(--dh-text)]">
+            {{ search ? 'No encontramos ese lugar' : 'No hay lugares disponibles para agregar' }}
+          </p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+            Puede crear uno nuevo con su nombre y país.
+          </p>
+        </div>
+        <div v-else class="max-h-[310px] overflow-y-auto divide-y divide-[var(--dh-border)]">
+          <button v-for="source in visibleLocations" :key="source.item.id" type="button"
+            :disabled="disabled || alreadyExists(fromSource(source))"
+            :aria-pressed="selectedSourceId === source.item.id"
+            class="flex w-full items-center gap-3 px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+            :class="selectedSourceId === source.item.id
+              ? 'bg-[var(--dh-primary-soft)]'
+              : 'hover:bg-[var(--dh-input)]'"
+            @click="chooseLocation(source.item.id)">
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--dh-input)] text-[var(--dh-primary)]">
+              <MapPin class="h-4 w-4" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-bold text-[var(--dh-text)]">
+                {{ shortName(source.item, source.country) }}
+              </span>
+              <span class="block truncate text-xs text-[var(--dh-text-muted)]">
+                {{ source.country.name }}
+                <template v-if="terminalType === 'APT' && metaOf(source.item).iataCode">
+                  · {{ metaOf(source.item).iataCode }}
+                </template>
+              </span>
+            </span>
+            <span v-if="alreadyExists(fromSource(source))" class="shrink-0 text-[10px] font-semibold text-[var(--dh-text-muted)]">Ya agregado</span>
+            <span v-else-if="selectedSourceId === source.item.id" class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--dh-primary)] text-white">
+              <Check class="h-4 w-4" />
+            </span>
+            <span v-else class="text-[11px] font-bold text-[var(--dh-primary)]">Elegir</span>
+          </button>
+        </div>
+        <button v-if="searchResults.length > visibleLocations.length" type="button"
+          class="w-full border-t border-[var(--dh-border)] px-3 py-2 text-center text-xs font-bold text-[var(--dh-primary)]"
+          @click="visibleCount += 20">Mostrar más lugares</button>
+      </div>
+
+      <button type="button" :disabled="disabled" @click="openManual"
+        class="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-sm font-bold text-[var(--dh-primary)] transition hover:border-[var(--dh-primary)] disabled:opacity-50">
+        <Plus class="h-4 w-4" />
+        ¿No aparece el lugar? Crear uno nuevo
+      </button>
     </div>
 
-    <button v-if="country" type="button" :disabled="disabled"
-      class="text-left text-sm font-bold text-[var(--dh-primary)] disabled:opacity-50"
-      @click="manual = !manual; selectedSourceId = ''">
-      {{ manual ? 'Volver a elegir de la lista' : '¿El lugar no está en la lista? Agregar ubicación nueva' }}
-    </button>
-
-    <div v-if="country && manual" class="grid gap-3 md:grid-cols-2">
+    <div v-else class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <button type="button" class="flex items-center gap-1 text-xs font-bold text-[var(--dh-primary)]"
+        @click="backToSearch"><ArrowLeft class="h-4 w-4" /> Volver a buscar un lugar</button>
+      <div>
+        <p class="text-sm font-black text-[var(--dh-text)]">Crear un lugar nuevo</p>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo escriba el nombre y seleccione el país.</p>
+      </div>
       <label class="block">
-        <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Nombre {{ terminalType === 'APT' ? 'del aeropuerto' : 'de la ciudad o puerto' }} *</span>
-        <input v-model="placeName" :disabled="disabled" placeholder="Ej. Manzanillo" class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold text-[var(--dh-text)]" />
+        <span class="mb-1 block text-xs font-black text-[var(--dh-text)]">
+          {{ terminalType === 'APT' ? 'Nombre del aeropuerto' : terminalType === 'CY' ? 'Nombre del puerto' : 'Nombre de la ciudad o destino' }} *
+        </span>
+        <input v-model="newLocationName" :disabled="disabled" placeholder="Escriba el nombre del lugar"
+          class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
       </label>
+      <div class="relative">
+        <label class="block">
+          <span class="mb-1 block text-xs font-black text-[var(--dh-text)]">País *</span>
+          <input :value="countrySearch" :disabled="disabled" autocomplete="off"
+            placeholder="Escriba para buscar el país"
+            class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+            @input="countryInput(($event.target as HTMLInputElement).value)"
+            @focus="countryPickerOpen = !selectedCountry" />
+        </label>
+        <div v-if="countryPickerOpen" class="mt-1 max-h-44 overflow-y-auto rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-1">
+          <button v-for="option in filteredCountries" :key="option.key" type="button"
+            class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold text-[var(--dh-text)] hover:bg-[var(--dh-input)]"
+            @click="chooseCountry(option)">
+            {{ option.name }} <span class="text-[var(--dh-text-muted)]">{{ option.code }}</span>
+          </button>
+          <button v-if="countrySearch.trim().length >= 2 && !countries.some(c => normalize(c.name) === normalize(countrySearch))"
+            type="button" class="w-full rounded-lg px-3 py-2 text-left text-xs font-bold text-[var(--dh-primary)] hover:bg-[var(--dh-input)]"
+            @click="chooseCustomCountry">Usar «{{ countrySearch.trim() }}» como país</button>
+          <p v-if="!filteredCountries.length && countrySearch.trim().length < 2" class="px-3 py-2 text-xs text-[var(--dh-text-muted)]">Escriba el nombre del país.</p>
+        </div>
+        <p v-if="selectedCountry" class="mt-1 flex items-center gap-1 text-xs font-semibold text-[var(--dh-primary)]">
+          <CheckCircle2 class="h-3.5 w-3.5" /> {{ selectedCountry.name }} seleccionado
+        </p>
+      </div>
       <label v-if="terminalType === 'APT'" class="block">
-        <span class="mb-1 block text-xs font-black text-[var(--dh-text-muted)]">Código IATA (3 letras) *</span>
-        <input v-model="airportCode" :disabled="disabled" maxlength="3" placeholder="Ej. SJO" class="h-11 w-full rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold uppercase text-[var(--dh-text)]" />
+        <span class="mb-1 block text-xs font-black text-[var(--dh-text)]">Código del aeropuerto (IATA) *</span>
+        <input v-model="iataCode" :disabled="disabled" maxlength="3" placeholder="Ej. SJO"
+          class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-bold uppercase text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
+        <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Son las 3 letras que identifican el aeropuerto.</p>
       </label>
     </div>
 
-    <p v-if="duplicate" role="alert" class="rounded-xl border border-amber-500/40 p-3 text-xs font-bold text-amber-600">
-      Este lugar ya está registrado en {{ catalogSlug.toUpperCase() }} para ese tipo de ubicación. No se creará un duplicado.
+    <p v-if="duplicate" role="alert" class="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-xs font-bold text-amber-600">
+      Este lugar ya existe en el catálogo. No hace falta agregarlo otra vez.
     </p>
-    <div v-else-if="draft" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-      <p class="text-xs font-black text-[var(--dh-text-muted)]">Vista previa: listo para guardar</p>
-      <p class="mt-1 text-sm font-black text-[var(--dh-text)]">{{ draft.name }}</p>
-      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-        {{ terminalType === 'CY' ? 'Marítimo' : terminalType === 'SD' ? 'Terrestre' : 'Aéreo' }}
-        · {{ catalogSlug.toUpperCase() }} · Los datos técnicos se completarán automáticamente.
-      </p>
+    <div v-else-if="canAdd" role="status" class="flex items-start gap-3 rounded-2xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary-soft)] p-3">
+      <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+      <div class="min-w-0">
+        <p class="text-sm font-black text-[var(--dh-text)]">Listo para agregar</p>
+        <p class="mt-0.5 text-sm font-semibold text-[var(--dh-text)]">{{ selectedLabel }}</p>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Presione «Agregar ubicación» para guardarlo.</p>
+      </div>
     </div>
-    <p v-else class="text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione los campos obligatorios para continuar.</p>
   </section>
 </template>

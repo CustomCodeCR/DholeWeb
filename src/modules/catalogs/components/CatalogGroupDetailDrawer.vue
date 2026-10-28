@@ -201,7 +201,11 @@ function openCreateItem() {
   const maxSortOrder = items.value.reduce((max, item) => Math.max(max, item.sortOrder), 0)
 
   drawerStore.open({
-    title: t('catalogs.newItem'),
+    title: ({
+      pol: 'Agregar origen (POL)',
+      poe: 'Agregar punto de entrada (POE)',
+      pod: 'Agregar destino final (POD)',
+    } as Record<string, string>)[localGroup.value.slug] || t('catalogs.newItem'),
     component: CatalogItemFormDrawer,
     size: 'lg',
     props: {
