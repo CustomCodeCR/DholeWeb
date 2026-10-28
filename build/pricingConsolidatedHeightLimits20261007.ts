@@ -149,7 +149,7 @@ watch(consolidatedCargoMaxHeightCm, clampConsolidatedCargoHeights, { immediate: 
   code = replaceRequired(
     code,
     `                  <p v-if="cargoLineForcedNonStackable(line)" class="mt-2 text-xs font-black text-amber-600">`,
-    `                  <p v-if="consolidatedCargoMaxHeightCm" class="mt-2 text-xs font-black text-red-500">
+    `                  <p v-if="consolidatedCargoMaxHeightCm" class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
                     Altura máxima permitida: {{ consolidatedCargoMaxHeightCm.toFixed(0) }} cm. El campo no permite superar este límite.
                   </p>
                   <p v-if="cargoLineForcedNonStackable(line)" class="mt-2 text-xs font-black text-amber-600">`,
