@@ -517,6 +517,15 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   if (savedRateNavigation < 0) throw new Error('[pricingSellerModificationWizard] Rate save navigation not found')
   const stayInRevision = `
     if (props.rateId && (props.modificationRequestId || new URLSearchParams(window.location.search).has('modificationRequestId'))) {
+      if (props.modificationRequestId) {
+        // saveRate already prepared AND completed this amendment. A second
+        // prepare-modification now returns 409 because the request is closed.
+        // Never turn a successful save into an error after successful delivery.
+        await hydrateExistingRate()
+        step.value = 8
+        return
+      }
+      // Legacy query-only modifications still require explicit preparation.
       // Saving the quote is not equivalent to closing the seller request.
       // The server requires explicit preparation of the exact persisted revision.
       const modificationId = props.modificationRequestId
