@@ -360,7 +360,18 @@ async function grantQuoteTotal() {
       await diagnose(rateId)
     }
   } catch (error) {
-    grantError.value = error instanceof ApiError
+    grantError.value = error instanceof ApiError &&
+      error.code === 'pricing_quote_notification_option_missing_live'
+      ? 'Dynamics no tiene publicada la opción numérica 100000000 de ' +
+        'new_notifrespuestacotizacion. Revisá las opciones reales del campo ' +
+        'en Dataverse y publicá la personalización correcta antes de autorizar. ' +
+        'No se envió ninguna QUO.'
+      : error instanceof ApiError &&
+        error.code === 'pricing_quote_notification_choice_unavailable'
+      ? 'El campo new_notifrespuestacotizacion no está disponible como opción ' +
+        'editable para crear o actualizar la oferta. Revisá su tipo, opción ' +
+        '100000000 y permisos en los metadatos de Dynamics. No se envió ninguna QUO.'
+      : error instanceof ApiError
       ? (error.code ? '[' + error.code + '] ' : 'HTTP ' + error.status + ': ') +
         getApiErrorMessage(error)
       : error instanceof Error ? error.message :
