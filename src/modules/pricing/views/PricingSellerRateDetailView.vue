@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SellerGuideButton from '@/modules/pricing/components/SellerGuideButton.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -180,7 +181,10 @@ onMounted(() => { void load(); void loadCurrencies() })
         <h1 class="text-2xl font-black text-[var(--dh-text)]">Visualizar tarifa</h1>
         <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Vista completa de la cotización comercial enviada por Pricing.</p>
       </div>
-      <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
+      <div class="flex flex-wrap items-center gap-2">
+        <SellerGuideButton context="detail" />
+        <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
+      </div>
     </div>
 
     <div v-if="loading && !rate" class="rounded-2xl border border-[var(--dh-border)] p-8 text-center text-sm">
@@ -191,7 +195,7 @@ onMounted(() => { void load(); void loadCurrencies() })
       <div class="mt-3"><DhButton label="Reintentar" variant="secondary" @click="load" /></div>
     </div>
     <template v-else-if="rate">
-      <header class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+      <header data-seller-guide="detail-summary" class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
         <div class="flex flex-wrap items-center gap-2">
           <DhBadge :label="rate.quoNumber || rate.rateCode" variant="primary" />
           <DhBadge :label="'Revisión ' + (rate.revisionNumber || 1)" variant="neutral" />
@@ -203,7 +207,7 @@ onMounted(() => { void load(); void loadCurrencies() })
         <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
           IDTRA: {{ rate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ rate.quoNumber || rate.rateCode }}
         </p>
-        <div class="mt-4 flex flex-wrap gap-2">
+        <div data-seller-guide="detail-modify" class="mt-4 flex flex-wrap gap-2">
           <DhButton variant="secondary" label="Descargar cotización PDF" :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
           <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
         </div>
@@ -213,7 +217,7 @@ onMounted(() => { void load(); void loadCurrencies() })
         </div>
       </header>
 
-      <nav class="grid grid-cols-3 gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 sm:grid-cols-3 lg:grid-cols-9" aria-label="Pantallas de la cotización">
+      <nav data-seller-guide="detail-navigation" class="grid grid-cols-3 gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 sm:grid-cols-3 lg:grid-cols-9" aria-label="Pantallas de la cotización">
         <button v-for="(item, index) in steps" :key="index" type="button"
           class="min-w-0 rounded-xl border px-2.5 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
           :class="activeStep === index + 1 ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-text)]' : 'border-transparent bg-[var(--dh-input)] text-[var(--dh-text-muted)] hover:border-[var(--dh-border)]'"
@@ -249,7 +253,7 @@ onMounted(() => { void load(); void loadCurrencies() })
                 <DhBadge :label="'REV ' + (rate.revisionNumber || 1)" variant="neutral" />
               </div>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div data-seller-guide="detail-decision" class="flex flex-wrap gap-2">
               <DhButton v-if="canReceive" label="Marcar como recibida" :loading="receiving" @click="markReceived" />
               <template v-if="isSent && !revisionPending">
                 <DhButton label="Aceptada" @click="clientDecision('AcceptedByClient')" />
