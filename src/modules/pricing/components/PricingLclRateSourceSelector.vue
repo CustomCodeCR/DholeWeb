@@ -298,7 +298,7 @@ function ownDepartureExpired(row: OwnLclConsolidationDto) {
 
 const chinaOwnLclOrigins = new Set([
   'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',
-  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',
+  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou', 'yantian',
 ])
 
 const ownLclOriginAliases: Record<string, string> = {
@@ -402,7 +402,9 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
     return consolidationOrigins.has('miami')
   }
 
-  // China usa Shanghai como base física y aplica el diferencial del POL comercial.
+  // Shanghai también contempla Yantian mediante la línea Shenzhen de su matriz.
+  // No convierte el consolidado Yantian en uno de Shanghai: solo habilita esa
+  // alternativa de precio para el POL real de la cotización.
   return consolidationOrigins.has('shanghai')
     && [...requestedOrigins].some((origin) => chinaOwnLclOrigins.has(origin))
 }
