@@ -742,6 +742,7 @@ export interface RateDetailDto extends Record<string, unknown> {
   commercialSaleSubtotal?: number
   commercialTaxAmount?: number
   commercialSaleTotal?: number
+  commercialUtilitySubtotal?: number
   showOnClientPdf?: boolean
 }
 
