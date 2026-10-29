@@ -55,6 +55,7 @@ import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLoc
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
+import PricingRateAttachments from '@/modules/pricing/components/PricingRateAttachments.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
 import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
@@ -5479,6 +5480,8 @@ onMounted(async () => {
               </span>
             </div>
           </div>
+
+          <PricingRateAttachments :rate-id="editingRate.id" :final-documents="finalBackupDocuments" />
 
           <div class="crystal-soft overflow-hidden p-0">
             <div class="border-b border-[var(--dh-border)] px-5 py-4">
