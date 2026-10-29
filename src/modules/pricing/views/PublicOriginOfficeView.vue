@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Building2, Clock3, Mail, MapPin, Phone, Navigation } from 'lucide-vue-next'
+import { isPublicColoaderOrigin } from '../utils/publicOriginContactPolicy'
 
 interface OfficeContact {
   name: string
@@ -80,7 +81,32 @@ const legacyOwnLclLink = computed(() =>
 const originAgentCode = computed(() => legacyOwnLclLink.value ? 'RS' : agentCode.value)
 const originAgentName = computed(() => legacyOwnLclLink.value ? 'RS' : agentName.value)
 
-const agentDisplay = computed(() => office.value?.agent || office.value?.agentCode || originAgentName.value || originAgentCode.value || 'Oficina de origen')
+// Coloader contacts are the company's public coordination channels, not the
+// external supplier/agent's contact or warehouse. Keep them configurable at build time.
+const isColoader = computed(() => isPublicColoaderOrigin(route.query))
+const coloaderContacts: OfficeContact[] = [
+  {
+    name: 'Grupo Castro Fallas',
+    role: 'Coordinación comercial · contacto general',
+    phone: String(import.meta.env.VITE_ORIGIN_GCF_PHONE ?? '+506 2272-6772').trim(),
+    email: String(import.meta.env.VITE_ORIGIN_GCF_EMAIL ?? 'comercial@castrofallas.com').trim(),
+    isPrimary: true,
+    modalities: [],
+    shipmentModes: [],
+    routes: [],
+  },
+  {
+    name: 'Consolidados',
+    role: 'Consultas de carga consolidada · canal de Pricing',
+    phone: String(import.meta.env.VITE_ORIGIN_CONSOLIDADOS_PHONE ?? '+506 2272-6772').trim(),
+    email: String(import.meta.env.VITE_ORIGIN_CONSOLIDADOS_EMAIL ?? 'pricing@grupocastrofallas.com').trim(),
+    isPrimary: false,
+    modalities: [],
+    shipmentModes: [],
+    routes: [],
+  },
+]
+const visibleContacts = computed(() => isColoader.value ? coloaderContacts : office.value?.contacts ?? [])
 
 const coordinates = computed(() => {
   if (office.value?.latitude == null || office.value?.longitude == null) return ''
@@ -155,6 +181,13 @@ async function load() {
   office.value = null
   revokePhotoObjectUrls()
 
+  // LCL coloader links use GCF/Consolidados contacts even when there is no
+  // WHS assigned to the external provider (e.g. Pier17 in Shanghai).
+  if (isColoader.value) {
+    loading.value = false
+    return
+  }
+
   if (!polLocator.value || !apiBaseUrl) {
     failed.value = true
     loading.value = false
@@ -213,22 +246,23 @@ onBeforeUnmount(revokePhotoObjectUrls)
         <div class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-black uppercase tracking-[.2em] text-red-700">Grupo Castro Fallas</p>
-            <h1 class="mt-2 text-2xl font-black sm:text-3xl">Datos de contacto en origen: {{ agentDisplay }}</h1>
-            <p class="mt-2 text-sm font-semibold text-slate-500">Oficina {{ office?.name || 'por confirmar' }} correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
+            <h1 class="mt-2 text-2xl font-black sm:text-3xl">Datos de contacto en origen</h1>
+            <p v-if="isColoader" class="mt-2 text-sm font-semibold text-slate-500">Coordinación de cargas consolidadas para el POL {{ polDisplay || 'seleccionado' }}.</p>
+            <p v-else class="mt-2 text-sm font-semibold text-slate-500">Oficina {{ office?.name || 'por confirmar' }} correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
           </div>
           <Building2 class="h-12 w-12 text-red-700" />
         </div>
       </header>
 
-      <div v-if="loading" class="rounded-3xl bg-white p-8 text-center font-bold shadow-sm ring-1 ring-slate-200">Cargando datos de la oficina…</div>
-      <div v-else-if="failed || !office" class="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+      <div v-if="!isColoader && loading" class="rounded-3xl bg-white p-8 text-center font-bold shadow-sm ring-1 ring-slate-200">Cargando datos de la oficina…</div>
+      <div v-else-if="!isColoader && (failed || !office)" class="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
         <p class="text-lg font-black">No encontramos una oficina activa para este POL.</p>
         <p class="mt-2 text-sm text-slate-500">Contacte a Grupo Castro Fallas para confirmar los datos de coordinación.</p>
       </div>
 
       <template v-else>
-        <section class="grid gap-4 md:grid-cols-2">
-          <article class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section class="grid gap-4" :class="isColoader ? 'md:grid-cols-1' : 'md:grid-cols-2'">
+          <article v-if="!isColoader" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Oficina de origen</p>
             <h2 class="mt-2 text-2xl font-black">{{ office.name }}</h2>
             <div class="mt-5 space-y-3 text-sm">
@@ -240,8 +274,8 @@ onBeforeUnmount(revokePhotoObjectUrls)
 
           <article class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Contactos</p>
-            <div v-if="office.contacts.length" class="mt-3 space-y-4">
-              <div v-for="(contact, index) in office.contacts" :key="`${contact.email}-${index}`" class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+            <div v-if="visibleContacts.length" class="mt-3 space-y-4">
+              <div v-for="(contact, index) in visibleContacts" :key="`${contact.email}-${index}`" class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                 <div class="flex items-center justify-between gap-2"><strong>{{ contact.name || 'Contacto de oficina' }}</strong><span v-if="contact.isPrimary" class="rounded-full bg-red-100 px-2 py-1 text-[10px] font-black uppercase text-red-800">Principal</span></div>
                 <p v-if="contact.role" class="mt-1 text-xs font-semibold text-slate-500">{{ contact.role }}</p>
                 <a v-if="contact.phone" :href="`tel:${contact.phone}`" class="mt-3 flex items-center gap-2 text-sm font-bold text-slate-700 hover:text-red-700"><Phone class="h-4 w-4" />{{ contact.phone }}</a>
@@ -252,7 +286,7 @@ onBeforeUnmount(revokePhotoObjectUrls)
           </article>
         </section>
 
-        <section v-if="!office.gcfOnly" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section v-if="!isColoader && office && !office.gcfOnly" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div class="mb-4"><p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Fotografías</p><h2 class="mt-1 text-xl font-black">Referencia de la oficina / WHS</h2></div>
           <div v-if="office.photos.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <figure v-for="photo in office.photos" :key="photo.storageId" class="overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
