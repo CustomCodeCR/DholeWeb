@@ -20,6 +20,7 @@ const costaRicaId = ref('')
 const loading = ref(false)
 const error = ref('')
 const result = ref<HaciendaResult | null>(null)
+let lookupVersion = 0
 
 const isCostaRica = computed(() => !!props.countryId && costaRicaId.value === props.countryId)
 const digits = computed(() => props.taxId.replace(/[\s-]/g, ''))
@@ -34,22 +35,33 @@ async function loadCountry() {
     costaRicaId.value = cr?.id ?? ''
   } catch { costaRicaId.value = '' }
 }
-watch(() => [props.countryId, props.taxId], () => {result.value = null; error.value = ''})
+watch(() => [props.countryId, props.taxId], () => {
+  lookupVersion++
+  result.value = null
+  error.value = ''
+})
 void loadCountry()
 
 async function lookup() {
   if (!canLookup.value) return
+  const version = ++lookupVersion
+  const identification = digits.value
+  const selectedCountry = props.countryId
   loading.value = true
   error.value = ''
   try {
-    const params = new URLSearchParams({identificacion: digits.value, countryId: props.countryId})
+    const params = new URLSearchParams({identificacion, countryId: selectedCountry})
     const response = await crmRequest<HaciendaResult>('/api/crm/hacienda/lookup?' + params.toString())
+    // Never apply a response for a previous tax ID to the current form.
+    if (version !== lookupVersion || digits.value !== identification ||
+      props.countryId !== selectedCountry) return
     result.value = response
     emit('resolved', response)
   } catch (e) {
+    if (version !== lookupVersion) return
     result.value = null
     error.value = crmError(e)
-  } finally { loading.value = false }
+  } finally { if (version === lookupVersion) loading.value = false }
 }
 </script>
 
