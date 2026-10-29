@@ -76,7 +76,7 @@ function patchWizard(source: string) {
   code = replaceLast(
     code,
     `<tr v-for="line in includedLines" :key="line.key" class="border-t border-[var(--dh-border)]">`,
-    `<tr v-for="line in commercialOutputLines" :key="line.key" class="border-t border-[var(--dh-border)]">`,
+    `<tr v-for="line in (props.viewOnly ? includedLines : commercialOutputLines)" :key="line.key" class="border-t border-[var(--dh-border)]">`,
     'screen 09 commercial rows',
   )
 
