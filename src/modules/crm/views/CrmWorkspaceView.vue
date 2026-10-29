@@ -163,7 +163,47 @@ const companyDraft = reactive({
   phone: '', email: '', website: '', sector: '', businessActivity: '',
   products: '', companyHistory: '', billingEmail: '', marketingEmail: '',
   commercialObservations: '', operationalInstructions: '',
+  activeServices: '', presenceCountries: '', commercialStrategy: '',
+  projectsOfInterest: '', pricingObservations: '', tariffMonitoringNotes: '',
+  tariffSendingNotes: '', customsInstructions: '', cargoCollectionInstructions: '',
+  documentReviewInstructions: '', assignedOperations: '', competitorObservations: '',
+  tradeAgreementNotes: '', webCustomerReference: '',
 })
+const companyExtraFields = [
+  { key: 'activeServices', label: 'Servicios activos' },
+  { key: 'presenceCountries', label: 'Países con presencia' },
+  { key: 'commercialStrategy', label: 'Estrategia comercial' },
+  { key: 'projectsOfInterest', label: 'Proyectos de interés' },
+  { key: 'pricingObservations', label: 'Observaciones Pricing' },
+  { key: 'tariffMonitoringNotes', label: 'Tarifas por enviar' },
+  { key: 'tariffSendingNotes', label: 'Observaciones tarifas enviadas' },
+  { key: 'customsInstructions', label: 'Instrucciones de aduanas' },
+  { key: 'cargoCollectionInstructions', label: 'Recolección de carga' },
+  { key: 'documentReviewInstructions', label: 'Revisión documental' },
+  { key: 'assignedOperations', label: 'Operativa asignada' },
+  { key: 'competitorObservations', label: 'Análisis de competidores' },
+  { key: 'tradeAgreementNotes', label: 'Tratados y acuerdos comerciales' },
+  { key: 'webCustomerReference', label: 'Referencia web (sin contraseñas)' },
+] as const
+const companyProfileVersion = ref<number | null>(null)
+const companyProfileSnapshot = ref('')
+const companyProfileLoading = ref(false)
+const companyProfileError = ref('')
+async function loadEditableCompanyProfile(accountId: string) {
+  companyProfileLoading.value = true
+  companyProfileError.value = ''
+  try {
+    const profile = await crmRequest<CrmRow | null>('/api/crm/accounts/' +
+      encodeURIComponent(accountId) + '/business-profile')
+    if (!showForm.value || edited.value?.id !== accountId) return
+    companyProfileVersion.value = profile?.rowVersion ?? null
+    for (const key of Object.keys(companyDraft) as Array<keyof typeof companyDraft>) {
+      companyDraft[key] = typeof profile?.[key] === 'string' ? String(profile[key]) : ''
+    }
+    companyProfileSnapshot.value = JSON.stringify(companyDraft)
+  } catch (cause) { companyProfileError.value = crmError(cause) }
+  finally { companyProfileLoading.value = false }
+}
 function resetCompanyDraft() {
   Object.keys(companyDraft).forEach(key => {
     companyDraft[key as keyof typeof companyDraft] = ''
@@ -198,6 +238,9 @@ function beginCreate() {
   resetValidation()
   resetRelatedDraft()
   resetCompanyDraft()
+  companyProfileVersion.value = null
+  companyProfileError.value = ''
+  companyProfileSnapshot.value = JSON.stringify(companyDraft)
   pendingCreateKey.value = crmUuid()
   edited.value = null
   Object.keys(form).forEach(key => delete form[key])
@@ -210,6 +253,8 @@ function beginEdit(item: CrmRow) {
   resetValidation()
   resetRelatedDraft()
   resetCompanyDraft()
+  companyProfileVersion.value = null
+  companyProfileError.value = ''
   edited.value = item
   accountFormTab.value = 'identity'
   Object.keys(form).forEach(key => delete form[key])
@@ -217,6 +262,7 @@ function beginEdit(item: CrmRow) {
     form[f.key] = f.type === 'datetime-local' ? fromUtc(item[f.key]) : item[f.key] ?? (f.type === 'checkbox' ? false : '')
   }
   showForm.value = true
+  if (section.value === 'accounts' && can('crm.account.read')) void loadEditableCompanyProfile(item.id)
 }
 function canCreate() {
   return !!model.value?.createScope && can(model.value.createScope)
@@ -343,6 +389,10 @@ async function save() {
     error.value = 'Si registrás correo o teléfono, completá también el nombre del contacto.'
     return
   }
+  if (section.value === 'accounts' && edited.value && companyProfileLoading.value) {
+    error.value = 'La ficha empresarial se está cargando. Revisá los datos antes de guardar.'
+    return
+  }
   if (!validateRequiredFields()) return
   error.value = ''; saving.value = true
   try {
@@ -369,10 +419,12 @@ async function save() {
     if (section.value === 'accounts' && createdOrUpdated?.id) {
       const missing: string[] = []
       const accountId = encodeURIComponent(createdOrUpdated.id)
-      if (!edited.value && Object.values(companyDraft).some(value => value.trim()) && can('crm.account.update')) {
+      if (can('crm.account.update') &&
+          (!edited.value ? Object.values(companyDraft).some(value => value.trim())
+            : !companyProfileError.value && JSON.stringify(companyDraft) !== companyProfileSnapshot.value)) {
         try {
           await crmRequest('/api/crm/accounts/' + accountId + '/business-profile', 'PUT', {
-            ...companyDraft, expectedVersion: null,
+            ...companyDraft, expectedVersion: edited.value ? companyProfileVersion.value : null,
           }, crmUuid())
         } catch { missing.push('datos empresariales') }
       }
@@ -660,7 +712,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
               <div id="crm-account-section-company" class="mt-6 border-t border-[var(--dh-border)] pt-5 scroll-mt-20">
                 <h3 class="mb-1 text-sm font-extrabold">Datos empresariales y operativos</h3>
                 <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Información para ventas, Pricing y aperturas operativas. La ficha puede completarse después del registro.</p>
-                <div v-if="!edited" class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-4 md:grid-cols-2">
                   <DhInput v-model="companyDraft.phone" label="Teléfono corporativo" />
                   <DhInput v-model="companyDraft.email" type="email" label="Correo principal" />
                   <DhInput v-model="companyDraft.website" label="Sitio web (https://)" />
@@ -672,8 +724,13 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                   <div class="md:col-span-2"><DhTextarea v-model="companyDraft.companyHistory" label="Historia y perfil de la empresa" :rows="2" /></div>
                   <div class="md:col-span-2"><DhTextarea v-model="companyDraft.commercialObservations" label="Observaciones comerciales" :rows="2" /></div>
                   <div class="md:col-span-2"><DhTextarea v-model="companyDraft.operationalInstructions" label="Instrucciones operativas" :rows="2" /></div>
+                   <div v-for="field in companyExtraFields" :key="field.key" class="md:col-span-2">
+                     <DhTextarea :label="field.label" :model-value="companyDraft[field.key]"
+                       @update:model-value="companyDraft[field.key]=$event" :rows="2" />
+                   </div>
                 </div>
-                <p v-else class="text-xs text-[var(--dh-text-muted)]">Para editar la información empresarial de una cuenta existente, abrí su ficha y seleccioná «Editar datos».</p>
+                <p v-if="companyProfileLoading" role="status" class="mt-2 text-xs text-[var(--dh-text-muted)]">Cargando datos empresariales…</p>
+                 <p v-if="companyProfileError" role="alert" class="mt-2 text-xs text-red-500">{{ companyProfileError }}</p>
               </div>
               <div id="crm-account-section-related" class="mt-6 border-t border-[var(--dh-border)] pt-5 scroll-mt-20">
                 <h3 class="mb-2 text-sm font-extrabold">Contactos, dirección y logística</h3>
