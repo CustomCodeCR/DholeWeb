@@ -5,6 +5,7 @@ import { DhButton } from '@/shared/components/atoms'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
+import CrmAccountHub from '../components/CrmAccountHub.vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -326,7 +327,7 @@ onMounted(() => { if (crmEnabled()) void load() })
     <p v-if="success" role="status" class="text-sm text-emerald-600">{{ success }}</p>
     <p v-if="loading" role="status">{{ t('common.loading') }}</p>
     <template v-if="record">
-      <section class="crm-panel space-y-3 p-5">
+      <section class="crm-panel space-y-3 p-4 sm:p-5">
         <DhPageHeader :icon="BriefcaseBusiness"
           :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
           :subtitle="t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
@@ -347,7 +348,8 @@ onMounted(() => { if (crmEnabled()) void load() })
             </div>
           </form>
         </DhDrawer>
-        <dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <CrmAccountHub v-if="section === 'accounts'" :account="record" />
+        <dl v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
             !key.toLowerCase().includes('hash') && !key.toLowerCase().includes('payload'))" :key="key">
