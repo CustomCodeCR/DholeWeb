@@ -68,7 +68,7 @@ function groupStateKey(item: SidebarItem, group: string): string {
 function isExpanded(key: string): boolean {
   const saved = navigationExpanded.value[key]
   if (typeof saved === 'boolean') return saved
-  // Keep the navigation focused: on first load, only the active CRM group is open.
+  // Other modules preserve their accordion preference; CRM links remain directly visible.
   if (!key.includes(':group:')) return true
   return visibleItems.value.some(item =>
     item.children && groupedChildren(item).some(group =>
@@ -91,6 +91,10 @@ function toggleExpanded(key: string): void {
 
 // The CRM supplies flat, permission-filtered children with group labels.
 // Group only adjacent entries, preserving both their order and route destinations.
+function isCrmSection(item: SidebarItem): boolean {
+  return (item.children ?? []).some(child => child.path === '/crm/accounts')
+}
+
 function groupedChildren(item: SidebarItem): ChildGroup[] {
   const groups: ChildGroup[] = []
   for (const child of item.children ?? []) {
@@ -258,8 +262,12 @@ watch(
                 class="sidebar-module-children"
               >
                 <template v-for="(group, groupIndex) in groupedChildren(item)" :key="group.id + groupIndex">
+                  <div v-if="group.label && isCrmSection(item) && group.id !== 'INICIO'"
+                    class="mx-1 mt-2 border-t border-[var(--dh-border)] px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[.1em] text-[var(--dh-text-muted)]">
+                    {{ group.label }}
+                  </div>
                   <button
-                    v-if="group.label"
+                    v-else-if="group.label && !isCrmSection(item)"
                     type="button"
                     class="sidebar-subgroup-toggle"
                     :class="{ 'sidebar-subgroup-toggle--current': groupIsActive(group) }"
@@ -276,7 +284,7 @@ watch(
 
                   <Transition name="sidebar-accordion">
                     <div
-                      v-if="!group.label || isExpanded(groupStateKey(item, group.id))"
+                      v-if="isCrmSection(item) || !group.label || isExpanded(groupStateKey(item, group.id))"
                       :id="'sidebar-section-' + itemIndex + '-group-' + groupIndex"
                       class="sidebar-subgroup-children"
                     >
