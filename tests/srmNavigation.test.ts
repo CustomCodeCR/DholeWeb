@@ -33,7 +33,9 @@ test('SRM only uses dedicated srm-scoped Config APIs for supplier data', () => {
   assert.match(view, /srm.performance.read/)
   assert.match(view, /srm.contract.read/)
   assert.match(client, /\/api\/config\/srm/)
-  assert.doesNotMatch(view, /CatalogItemsService|CatalogGroupsService|localStorage|mockSuppliers|faker/i)
+  assert.match(view, /CatalogItemsService\.select\(\{catalogGroupSlug: 'countries'\}\)/)
+  assert.match(view, /CatalogItemsService\.select\(\{catalogGroupSlug: 'currencies'\}\)/)
+  assert.doesNotMatch(view, /CatalogItemsService\.browse|CatalogGroupsService|localStorage|mockSuppliers|faker/i)
 })
 
 test('CRM/SRM translations include Spanish and English', () => {
@@ -51,7 +53,7 @@ test('CRM is monitored through the Gateway without a duplicate pinned sidebar sh
   assert.match(sidebar, /<nav class="dh-scrollbar/)
 })
 
-test('CRM and SRM menu entries require the effective user's module scopes', () => {
+test("CRM and SRM menu entries require the effective user's module scopes", () => {
   const sidebar = read('src/shared/components/organisms/DhSidebar.vue')
   const secondary = read('src/core/composables/useSidebarItems.ts')
   const scopes = read('src/core/auth/scopes.ts')
