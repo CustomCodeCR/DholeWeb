@@ -256,6 +256,7 @@ function beginEdit(item: CrmRow) {
   resetCompanyDraft()
   companyProfileVersion.value = null
   companyProfileError.value = ''
+  companyProfileSnapshot.value = JSON.stringify(companyDraft)
   edited.value = item
   accountFormTab.value = 'identity'
   Object.keys(form).forEach(key => delete form[key])
@@ -263,7 +264,7 @@ function beginEdit(item: CrmRow) {
     form[f.key] = f.type === 'datetime-local' ? fromUtc(item[f.key]) : item[f.key] ?? (f.type === 'checkbox' ? false : '')
   }
   showForm.value = true
-  if (section.value === 'accounts' && can('crm.account.read')) void loadEditableCompanyProfile(item.id)
+  if (section.value === 'accounts' && (can('crm.account.read') || can('crm.account.read-all'))) void loadEditableCompanyProfile(item.id)
 }
 function canCreate() {
   return !!model.value?.createScope && can(model.value.createScope)
@@ -392,6 +393,11 @@ async function save() {
   }
   if (section.value === 'accounts' && edited.value && companyProfileLoading.value) {
     error.value = 'La ficha empresarial se está cargando. Revisá los datos antes de guardar.'
+    return
+  }
+  if (section.value === 'accounts' && edited.value && companyProfileError.value &&
+      JSON.stringify(companyDraft) !== companyProfileSnapshot.value) {
+    error.value = 'No se pudo consultar la versión actual de la ficha empresarial. Actualizá antes de guardarla.'
     return
   }
   if (!validateRequiredFields()) return
