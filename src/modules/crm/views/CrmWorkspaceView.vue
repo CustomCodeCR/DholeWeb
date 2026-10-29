@@ -157,7 +157,17 @@ const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities
 const configWarning = ref('')
 const accountTypeFilter = ref('')
 const accountCategoryFilter = ref('')
-const accountFormTab = ref<'identity' | 'commercial' | 'related'>('identity')
+const accountFormTab = ref<'identity' | 'commercial' | 'company' | 'related'>('identity')
+const companyDraft = reactive({
+  phone: '', email: '', website: '', sector: '', businessActivity: '',
+  products: '', companyHistory: '', billingEmail: '', marketingEmail: '',
+  commercialObservations: '', operationalInstructions: '',
+})
+function resetCompanyDraft() {
+  Object.keys(companyDraft).forEach(key => {
+    companyDraft[key as keyof typeof companyDraft] = ''
+  })
+}
 const relatedDraft = reactive({ contactName: '', contactJobTitle: '', contactEmail: '', contactPhone: '', addressText: '' })
 function resetRelatedDraft() {
   Object.assign(relatedDraft, { contactName: '', contactJobTitle: '', contactEmail: '', contactPhone: '', addressText: '' })
@@ -172,6 +182,7 @@ async function loadCountryLabels() {
 const accountTabs = [
   { key: 'identity', label: 'Identificación', icon: Building2 },
   { key: 'commercial', label: 'Perfil comercial', icon: Wallet },
+  { key: 'company', label: 'Datos empresariales', icon: Building2 },
   { key: 'related', label: 'Contactos y logística', icon: Route },
 ] as const
 
@@ -179,6 +190,7 @@ const accountTabs = [
 function beginCreate() {
   resetValidation()
   resetRelatedDraft()
+  resetCompanyDraft()
   pendingCreateKey.value = crmUuid()
   edited.value = null
   Object.keys(form).forEach(key => delete form[key])
@@ -190,6 +202,7 @@ function beginCreate() {
 function beginEdit(item: CrmRow) {
   resetValidation()
   resetRelatedDraft()
+  resetCompanyDraft()
   edited.value = item
   accountFormTab.value = 'identity'
   Object.keys(form).forEach(key => delete form[key])
@@ -349,6 +362,13 @@ async function save() {
     if (section.value === 'accounts' && createdOrUpdated?.id) {
       const missing: string[] = []
       const accountId = encodeURIComponent(createdOrUpdated.id)
+      if (!edited.value && Object.values(companyDraft).some(value => value.trim()) && can('crm.account.update')) {
+        try {
+          await crmRequest('/api/crm/accounts/' + accountId + '/business-profile', 'PUT', {
+            ...companyDraft, expectedVersion: null,
+          }, crmUuid())
+        } catch { missing.push('datos empresariales') }
+      }
       if (!edited.value && relatedDraft.contactName.trim() && can('crm.contact.create')) {
         try {
           await crmRequest('/api/crm/accounts/' + accountId + '/contacts', 'POST', {
@@ -633,6 +653,24 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                 </div>
                 <p v-if="edited" class="mt-4 text-xs text-[var(--dh-text-muted)]">El tipo y la categoría de cuenta se mantienen según el registro actual. Para reasignar el ejecutivo, utilizá la acción en la ficha.</p>
               </div>
+              <div v-else-if="accountFormTab === 'company'" class="mt-4">
+                <h3 class="mb-1 text-sm font-extrabold">Datos empresariales y operativos</h3>
+                <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Información para ventas, Pricing y aperturas operativas. La ficha puede completarse después del registro.</p>
+                <div v-if="!edited" class="grid gap-4 md:grid-cols-2">
+                  <DhInput v-model="companyDraft.phone" label="Teléfono corporativo" />
+                  <DhInput v-model="companyDraft.email" type="email" label="Correo principal" />
+                  <DhInput v-model="companyDraft.website" label="Sitio web (https://)" />
+                  <DhInput v-model="companyDraft.sector" label="Sector productivo" />
+                  <DhInput v-model="companyDraft.billingEmail" type="email" label="Correo de facturación" />
+                  <DhInput v-model="companyDraft.marketingEmail" type="email" label="Correo comercial / marketing" />
+                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.businessActivity" label="Actividad de la empresa" :rows="2" /></div>
+                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.products" label="Mercancías y líneas de productos" :rows="2" /></div>
+                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.companyHistory" label="Historia y perfil de la empresa" :rows="2" /></div>
+                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.commercialObservations" label="Observaciones comerciales" :rows="2" /></div>
+                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.operationalInstructions" label="Instrucciones operativas" :rows="2" /></div>
+                </div>
+                <p v-else class="text-xs text-[var(--dh-text-muted)]">Para editar la información empresarial de una cuenta existente, abrí su ficha y seleccioná «Editar datos».</p>
+              </div>
               <div v-else class="mt-4">
                 <h3 class="mb-2 text-sm font-extrabold">Contactos, dirección y logística</h3>
                 <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">
@@ -698,7 +736,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           </div>
           <div class="sticky bottom-0 z-10 -mx-3 flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-bg)] px-3 py-4 sm:-mx-5 sm:px-5">
             <DhButton :label="t('common.cancel')" variant="secondary" @click="showForm = false" />
-            <DhButton v-if="section === 'accounts' && accountFormTab !== 'related'" variant="secondary" label="Siguiente" @click="accountFormTab=accountFormTab==='identity'?'commercial':'related'" />
+            <DhButton v-if="section === 'accounts' && accountFormTab !== 'related'" variant="secondary" label="Siguiente" @click="accountFormTab=accountFormTab==='identity'?'commercial':accountFormTab==='commercial'?'company':'related'" />
             <DhButton type="submit" :label="section === 'accounts' ? 'Guardar y abrir ficha' : t('common.save')" :loading="saving" />
           </div>
         </form>

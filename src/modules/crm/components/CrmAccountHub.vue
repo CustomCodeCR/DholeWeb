@@ -7,6 +7,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { crmPath, crmRequest, crmUuid, toUtc, type CrmRow } from '../services/crmApi'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import { DhDrawer } from '@/shared/components/organisms'
+import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
   Activity, CalendarClock, CheckCircle2, Clock3, FileText, MapPin, Phone,
   Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet,
@@ -79,6 +80,28 @@ const routesCapturedFromQuotes = computed(() =>
   routeHistory.value.filter(x => x.sourceKind === 'QUOTE').length)
 
 const countryName = ref('')
+const businessProfile = ref<CrmRow | null>(null)
+const businessProfileError = ref('')
+const profileOpen = ref(false)
+const profileSaving = ref(false)
+const profileFields = [
+  { key: 'phone', label: 'Teléfono corporativo', type: 'text', long: false },
+  { key: 'email', label: 'Correo principal', type: 'email', long: false },
+  { key: 'website', label: 'Sitio web (https://)', type: 'text', long: false },
+  { key: 'sector', label: 'Sector productivo', type: 'text', long: false },
+  { key: 'billingEmail', label: 'Correo de facturación', type: 'email', long: false },
+  { key: 'marketingEmail', label: 'Correo comercial / marketing', type: 'email', long: false },
+  { key: 'businessActivity', label: 'Actividad de la empresa', type: 'text', long: true },
+  { key: 'products', label: 'Líneas de productos y mercancías', type: 'text', long: true },
+  { key: 'companyHistory', label: 'Historia de la empresa', type: 'text', long: true },
+  { key: 'commercialObservations', label: 'Observaciones comerciales', type: 'text', long: true },
+  { key: 'operationalInstructions', label: 'Instrucciones operativas', type: 'text', long: true },
+] as const
+const profileDraft = ref<Record<string, string>>({})
+const profileFilled = computed(() => profileFields.filter(f =>
+  typeof businessProfile.value?.[f.key] === 'string' &&
+  String(businessProfile.value?.[f.key]).trim()).length)
+
 const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
@@ -144,6 +167,16 @@ async function load() {
     // Permissioned lookups are independent; a forbidden credit profile never blocks
     // the commercial parts of a customer record or exposes a hidden field.
     const jobs: Promise<void>[] = []
+    if (has('crm.account.read') || has('crm.account.read-all')) jobs.push(
+      get<CrmRow | null>(crmPath('accounts', accountId, 'business-profile'))
+        .then(result => { if (generation === requestGeneration) {
+          businessProfile.value = result
+          businessProfileError.value = ''
+        }})
+        .catch(cause => { if (generation === requestGeneration) {
+          businessProfile.value = null
+          businessProfileError.value = message(cause)
+        }}))
     if (has('crm.contact.read')) jobs.push(
       get<CrmRow[]>(crmPath('accounts', accountId, 'contacts'))
         .then(result => {if (generation === requestGeneration) contacts.value =
@@ -184,6 +217,8 @@ watch(() => props.account.id, () => {
   routeHistoryTotal.value = 0
   popularRoutes.value = []
   countryName.value = ''
+  businessProfile.value = null
+  businessProfileError.value = ''
   activeTab.value = 'summary'
   void load()
 }, { immediate: true })
@@ -207,9 +242,9 @@ async function loadRouteHistory(generation = requestGeneration) {
     }
   }
 }
-function openRouteEvidence(kind: 'MEETING' | 'QUOTE' = 'MEETING') {
+function openRouteEvidence(kind: 'MEETING' | 'QUOTE' = 'MEETING', sourceId = '') {
   routeSourceKind.value = kind
-  routeSourceId.value = ''
+  routeSourceId.value = sourceId
   routePol.value = ''
   routePoe.value = ''
   routePod.value = ''
@@ -243,6 +278,26 @@ async function saveRouteEvidence() {
 function changeRouteHistoryPage(delta: number) {
   routeHistoryPage.value += delta
   void loadRouteHistory()
+}
+
+function openProfileEditor() {
+  profileDraft.value = Object.fromEntries(profileFields.map(f =>
+    [f.key, String(businessProfile.value?.[f.key] ?? '')]))
+  profileOpen.value = true
+  error.value = ''
+}
+async function saveProfile() {
+  if (profileSaving.value || !has('crm.account.update')) return
+  profileSaving.value = true
+  error.value = ''
+  try {
+    const profile = await crmRequest<CrmRow>(crmPath('accounts', rowId(props.account.id), 'business-profile'),
+      'PUT', { ...profileDraft.value, expectedVersion: businessProfile.value?.rowVersion ?? null }, crmUuid())
+    businessProfile.value = profile
+    profileOpen.value = false
+    saved.value = 'Información empresarial actualizada.'
+  } catch (cause) { error.value = message(cause) }
+  finally { profileSaving.value = false }
 }
 
 function newActivity(type: 'CALL' | 'VISIT' | 'FOLLOWUP') {
@@ -373,6 +428,24 @@ async function saveRoute() {
               compactRow('Estado fiscal', account.verificationStatus),
             ]" :key="item.label" class="hub-kv">
               <dt>{{ item.label }}</dt><dd>{{ text(item.value) }}</dd>
+            </div>
+          </dl>
+        </section>
+        <section class="hub-panel">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 class="hub-panel-heading mb-0"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" />Datos empresariales
+              <span class="hub-count">{{ profileFilled }} / {{ profileFields.length }}</span>
+            </h2>
+            <button v-if="has('crm.account.update')" type="button" class="hub-text-link" @click="openProfileEditor">
+              {{ businessProfile ? 'Editar datos' : 'Completar ficha' }}
+            </button>
+          </div>
+          <p v-if="businessProfileError" role="alert" class="text-xs text-amber-600">{{ businessProfileError }}</p>
+          <p v-else-if="!businessProfile" class="hub-empty">Añadí teléfono, correo, sitio web, sector, productos e instrucciones operativas para que el equipo cuente con una ficha completa.</p>
+          <dl v-else class="divide-y divide-[var(--dh-border)]">
+            <div v-for="field in profileFields" :key="field.key" class="hub-kv">
+              <dt>{{ field.label }}</dt>
+              <dd>{{ text(businessProfile[field.key]) }}</dd>
             </div>
           </dl>
         </section>
@@ -663,7 +736,12 @@ async function saveRoute() {
           <td class="px-3 py-3">{{ text(q.shipmentModeSnapshot) }}</td>
           <td class="px-3 py-3">{{ text(q.commercialStatusSnapshot) }}</td>
           <td class="px-3 py-3">{{ date(q.linkedAt) }}</td>
-          <td class="px-3 py-3"><RouterLink :to="quoteLink(q)" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir tarifa</RouterLink></td>
+          <td class="px-3 py-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <RouterLink :to="quoteLink(q)" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir tarifa</RouterLink>
+              <button v-if="has('crm.analysis.manage') && has('crm.analysis.read')" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE', rowId(q.pricingQuoteId))">Registrar ruta</button>
+            </div>
+          </td>
         </tr></tbody>
       </table></div>
       <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Se muestran hasta 100 vínculos. Las tarifas de Pricing sin vínculo CRM no se incluyen en esta versión.</p>
@@ -712,6 +790,8 @@ async function saveRoute() {
             <span class="text-xs text-[var(--dh-text-muted)]">{{ date(entry.time) }}</span>
           </div>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ entry.kind }} · {{ entry.status }}</p>
+          <button v-if="has('crm.analysis.manage') && ['VISIT','MEETING'].includes(entry.kind) && entry.status === 'Completed'"
+            type="button" class="hub-text-link mt-2" @click="openRouteEvidence('MEETING', entry.id)">Documentar ruta acordada en esta reunión</button>
         </li>
       </ol>
     </section>
@@ -745,6 +825,21 @@ async function saveRoute() {
         </div>
       </section>
     </div>
+    <DhDrawer :open="profileOpen" title="Datos empresariales y operativos" size="xl" @close="profileOpen=false">
+      <form class="space-y-4 p-2" @submit.prevent="saveProfile">
+        <p class="text-xs text-[var(--dh-text-muted)]">Información corporativa del cliente. Los contactos personales, direcciones, crédito y rutas se administran como registros separados.</p>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div v-for="field in profileFields" :key="field.key" :class="field.long ? 'sm:col-span-2' : ''">
+            <DhTextarea v-if="field.long" v-model="profileDraft[field.key]" :label="field.label" :rows="3" />
+            <DhInput v-else v-model="profileDraft[field.key]" :label="field.label" :type="field.type === 'email' ? 'email' : 'text'" />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
+          <button type="button" class="hub-outline-button" @click="profileOpen=false">Cancelar</button>
+          <button type="submit" class="crm-action" :disabled="profileSaving">{{ profileSaving ? 'Guardando…' : 'Guardar datos empresariales' }}</button>
+        </div>
+      </form>
+    </DhDrawer>
   </div>
 </template>
 
