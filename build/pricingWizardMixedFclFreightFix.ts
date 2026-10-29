@@ -24,9 +24,13 @@ function patchWizard(source: string) {
 
   const quantityUsage = 'quantityForChargeBasis(line.chargeBasis)'
   const quantityUsageCount = code.split(quantityUsage).length - 1
-  if (quantityUsageCount < 4) {
+  // Other wizard plugins now use the canonical commercial snapshot in
+  // view-only tables, so there can be fewer legacy quantity expressions.
+  // Preserve the FCL rewrite where it is still needed rather than imposing
+  // a brittle global occurrence count on unrelated quote presentations.
+  if (quantityUsageCount === 0 && !code.includes('function quantityForRateLine(line: RateLine)')) {
     throw new Error(
-      '[pricingWizardMixedFclFreightFix] Expected line quantity usages, found ' + quantityUsageCount + '.',
+      '[pricingWizardMixedFclFreightFix] Neither legacy quantities nor the rate-line quantity helper were found.',
     )
   }
   code = code.split(quantityUsage).join('quantityForRateLine(line)')
