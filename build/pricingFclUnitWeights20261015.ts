@@ -34,6 +34,12 @@ function patchWizard(source: string): string {
 function fclUnitWeight(typeId: string, index: number) {
   const saved = fclUnitWeightsKg.value[typeId]?.[index]
   if (saved !== undefined) return Math.max(0, number(saved))
+  // Una QUO FCL/FTL anterior puede tener TotalWeightKg = 0 aunque el
+  // detalle del contenedor conserve UnitWeightsKg. La unidad tiene prioridad.
+  const persistedContainer = editingRate.value?.containers?.find((row) => row.containerTypeId === typeId)
+  const persistedWeight = persistedContainer?.unitWeightsKg?.[index]
+  if (persistedWeight !== undefined && number(persistedWeight) > 0)
+    return Math.max(0, number(persistedWeight))
   // Las cotizaciones anteriores de una sola unidad tenían solo peso total.
   if (form.equipmentId === typeId && Math.trunc(number(form.equipmentQuantity)) === 1
     && (shipmentModeForApi.value === 'Ftl' || fclContainerTotal.value === 1))
@@ -133,6 +139,9 @@ function restoreFclUnitWeights(
     restored[value[0]!.containerTypeId] = [Math.max(0, number(aggregateWeightKg))]
   }
   fclUnitWeightsKg.value = restored
+  const totalUnitWeight = Object.values(restored).flat().reduce((sum, kg) => sum + number(kg), 0)
+  if (totalUnitWeight > 0 && (shipmentModeForApi.value === 'Fcl' || shipmentModeForApi.value === 'Ftl'))
+    form.cargoWeightKg = totalUnitWeight
 }
 
 // Use the individual unit weights as the single source of truth for FCL/FTL.
@@ -206,6 +215,11 @@ watch(
 
   if (code.includes('function resetWizard() {'))
     code = code.replace('function resetWizard() {', 'function resetWizard() {\n  fclUnitWeightsKg.value = {}\n  fclWeightEditorOpen.value = {}')
+
+  // Pantalla 8 puede guardar directamente una revisión: no admitir unidades sin peso.
+  const saveRateAnchor = 'async function saveRate() {'
+  if (code.includes(saveRateAnchor))
+    code = code.replace(saveRateAnchor, saveRateAnchor + '\n  if (fclMissingUnitCount.value > 0) {\n    step.value = 3\n    toastStore.error("Indique el peso en kg de cada contenedor o furgón antes de guardar la tarifa.")\n    return\n  }')
 
   // Validación también cuando se edita, ruta que tradicionalmente omitía canNext.
   const next = 'async function next() {'
