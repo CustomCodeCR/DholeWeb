@@ -220,3 +220,25 @@ test('CRM landing shows authorized live counts and direct customer activity link
   assert.ok(home.includes("quickStats"))
   assert.ok(!home.includes("Math.random"))
 })
+
+test('Account sheet mirrors Dynamics groupings without inventing persistence for missing fields', () => {
+  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
+  const sheet = read('src/modules/crm/components/CrmDynamicsAccountSheet.vue')
+  for (const tab of ["'profile'", "'contacts'", "'finance'", "'quotes'", "'history'", "'agenda'"]) {
+    assert.ok(hub.includes(tab), 'Missing customer tab: ' + tab)
+  }
+  for (const label of [
+    'Información de la cuenta', 'Datos de la empresa', 'Seguimiento de la cuenta',
+    'Análisis comercial', 'Análisis operativo e instrucciones', 'Crédito y facturación',
+    'Escala de tiempo', 'Contactos relacionados',
+  ]) assert.ok(sheet.includes(label), 'Missing Dynamics section: ' + label)
+  assert.ok(hub.includes('@edit-profile="openProfileEditor"'))
+  assert.ok(hub.includes(':can-read-credit="has(\'crm.credit.read\')"'))
+  assert.ok(sheet.includes("c.isPrimary === true || c.primary === true"))
+  assert.ok(sheet.includes("props.routes.filter(r => r.isActive !== false)"))
+  assert.ok(sheet.includes("props.analyses"))
+  assert.ok(sheet.includes("props.followups"))
+  assert.ok(sheet.includes("props.activities"))
+  assert.ok(!sheet.includes('Math.random'))
+  assert.ok(!sheet.toLowerCase().includes('contraseña'))
+})
