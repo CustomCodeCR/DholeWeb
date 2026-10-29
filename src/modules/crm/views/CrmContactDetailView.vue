@@ -1,161 +1,150 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { ArrowLeft, ContactRound, Plus } from 'lucide-vue-next'
-import { DhButton } from '@/shared/components/atoms'
-import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
-import { crmError, crmGet, crmPath, crmPatch, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
+import { ArrowLeft, ContactRound, Mail, Pencil, Phone, RefreshCw, ShieldCheck, CalendarClock, UserRound } from 'lucide-vue-next'
+import { DhButton, DhInput } from '@/shared/components/atoms'
+import { DhDrawer } from '@/shared/components/organisms'
+import { useAuthStore } from '@/core/stores/authStore'
+import { crmGet, crmPatch, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 
-const route = useRoute(), router = useRouter(), auth = useAuthStore()
-const { t } = useI18n()
-const id = String(route.params.id ?? '')
+const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+const { locale } = useI18n()
+const en = computed(() => locale.value === 'en')
 const contact = ref<CrmRow | null>(null)
-const preference = ref<CrmRow | null>(null)
-const consents = ref<CrmRow[]>([])
-const error = ref(''), notice = ref(''), busy = ref(false)
-const showConsentForm = ref(false)
-const edit = reactive({ name: '', jobTitle: '', email: '', phone: '' })
-const pref = reactive({
-  preferredChannel: 'EMAIL', preferredDaysMask: 127, startLocalTime: '',
-  endLocalTime: '', timezoneId: 'America/Costa_Rica',
-  frequencyDays: 7, doNotContact: false,
-})
-const consent = reactive({ channel: 'EMAIL', purpose: 'MARKETING',
-  status: 'REVOKED', source: 'MANUAL', evidenceReference: '' })
-const can = (scope: string) => auth.hasScope(scope)
+const preferences = ref<CrmRow | null>(null)
+const activeTab = ref<'summary' | 'details' | 'preferences'>('summary')
+const contactTabs = [
+  { key: 'summary', label: 'Resumen' }, { key: 'details', label: 'Detalles' },
+  { key: 'preferences', label: 'Preferencias de contacto' },
+] as const
+const loading = ref(false)
+const saving = ref(false)
+const editOpen = ref(false)
+const error = ref('')
+const success = ref('')
+const draft = ref({ name: '', jobTitle: '', email: '', phone: '' })
+const contactId = computed(() => String(route.params.id ?? ''))
+const display = (value: unknown): string =>
+  typeof value === 'string' && value.trim() ? value : '—'
 async function load() {
-  busy.value = true; error.value = ''
+  if (!auth.hasScope('crm.contact.read')) return
+  loading.value = true
+  error.value = ''
   try {
-    contact.value = await crmGet('contacts', id)
-    Object.assign(edit, {
-      name: String(contact.value?.name || ''), jobTitle: String(contact.value?.jobTitle || ''),
-      email: String(contact.value?.email || ''), phone: String(contact.value?.phone || ''),
+    contact.value = await crmGet('contacts', contactId.value)
+    try { preferences.value = await crmRequest<CrmRow | null>('/api/crm/contacts/' + encodeURIComponent(contactId.value) + '/preferences') }
+    catch { preferences.value = null }
+  } catch (e) { contact.value = null; error.value = crmError(e) }
+  finally { loading.value = false }
+}
+function edit() {
+  if (!contact.value) return
+  draft.value = { name: String(contact.value.name || ''), jobTitle: String(contact.value.jobTitle || ''),
+    email: String(contact.value.email || ''), phone: String(contact.value.phone || '') }
+  editOpen.value = true
+}
+async function save() {
+  if (!contact.value || !draft.value.name.trim() || saving.value) return
+  saving.value = true
+  error.value = ''
+  try {
+    await crmPatch('contacts', contactId.value, {
+      expectedVersion: contact.value.rowVersion, name: draft.value.name.trim(),
+      jobTitle: draft.value.jobTitle.trim() || null, email: draft.value.email.trim() || null,
+      phone: draft.value.phone.trim() || null,
     })
-    const [p, c] = await Promise.all([
-      crmRequest<CrmRow | null>(crmPath('contacts', id, 'preferences')),
-      crmRequest<CrmRow[]>(crmPath('contacts', id, 'consents')),
-    ])
-    preference.value = p
-    consents.value = c
-    if (p) {
-      pref.preferredChannel = String(p.preferredChannel || 'EMAIL')
-      pref.preferredDaysMask = Number(p.preferredDaysMask ?? 127)
-      pref.startLocalTime = String(p.startLocalTime || '')
-      pref.endLocalTime = String(p.endLocalTime || '')
-      pref.timezoneId = String(p.timezoneId || 'America/Costa_Rica')
-      pref.frequencyDays = Number(p.frequencyDays ?? 7)
-      pref.doNotContact = Boolean(p.doNotContact)
-    }
+    editOpen.value = false
+    await load()
+    success.value = en.value ? 'Contact updated.' : 'Contacto actualizado.'
   } catch (e) { error.value = crmError(e) }
-  finally { busy.value = false }
+  finally { saving.value = false }
 }
-async function run(action: () => Promise<unknown>) {
-  busy.value = true; error.value = ''; notice.value = ''
-  try { await action(); await load(); notice.value = t('crm.saved'); showConsentForm.value = false }
-  catch (e) { error.value = crmError(e) }
-  finally { busy.value = false }
-}
-function saveContact() {
-  if (!contact.value || !can('crm.contact.update')) return
-  return run(() => crmPatch('contacts', id, {
-    expectedVersion: contact.value?.rowVersion, ...edit,
-  }))
-}
-function savePreferences() {
-  if (!can('crm.contact.update')) return
-  return run(() => crmRequest(crmPath('contacts', id, 'preferences'), 'PUT', {
-    expectedVersion: preference.value?.rowVersion ?? null,
-    preferredChannel: pref.preferredChannel, preferredDaysMask: pref.preferredDaysMask,
-    startLocalTime: pref.startLocalTime || null, endLocalTime: pref.endLocalTime || null,
-    timezoneId: pref.timezoneId, frequencyDays: pref.frequencyDays,
-    doNotContact: pref.doNotContact,
-  }))
-}
-function addConsent() {
-  if (!can('crm.contact.marketing-consent.manage')) return
-  if (consent.status === 'OPTED_IN' && !consent.evidenceReference.trim()) {
-    error.value = t('crm.consentEvidence'); return
-  }
-  return run(() => crmRequest(crmPath('contacts', id, 'consents'), 'POST', {
-    ...consent, evidenceReference: consent.evidenceReference || null,
-  }, crmUuid()))
-}
-onMounted(() => { if (can('crm.contact.read')) void load() })
+onMounted(load)
+watch(contactId, load)
 </script>
 
 <template>
-  <main class="mx-auto max-w-5xl space-y-5 p-3 text-[var(--dh-text)] sm:p-6">
-    <DhPageHeader :title="t('crm.contactDetails')" :icon="ContactRound" hide-excel-export>
-      <template #actions><DhButton :label="t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="router.back()" /></template>
-    </DhPageHeader>
-    <p v-if="!can('crm.contact.read')" role="alert">{{ t('crm.denied') }}</p>
-    <template v-else>
-      <p v-if="busy" role="status">{{ t('common.loading') }}</p>
-      <p v-if="error" role="alert" class="text-red-600">{{ error }}</p>
-      <p v-if="notice" role="status" class="text-emerald-600">{{ notice }}</p>
-      <form v-if="contact" class="crm-panel grid gap-4 p-5 sm:grid-cols-2" @submit.prevent="saveContact">
-        <label class="text-sm font-bold">{{ t('crm.contactName') }}<input v-model.trim="edit.name" class="crm-input" required maxlength="220" /></label>
-        <label class="text-sm font-bold">{{ t('crm.jobTitle') }}<input v-model.trim="edit.jobTitle" class="crm-input" /></label>
-        <label class="text-sm font-bold">{{ t('crm.email') }}<input v-model.trim="edit.email" class="crm-input" type="email" /></label>
-        <label class="text-sm font-bold">{{ t('crm.phone') }}<input v-model.trim="edit.phone" class="crm-input" /></label>
-        <button v-if="can('crm.contact.update')" type="submit" :disabled="busy" class="crm-button">{{ t('common.save') }}</button>
-      </form>
-      <form v-if="contact" class="crm-panel grid gap-4 p-5 sm:grid-cols-2" @submit.prevent="savePreferences">
-        <h2 class="text-lg font-bold sm:col-span-2">{{ t('crm.contactPreferences') }}</h2>
-        <label class="text-sm font-bold">{{ t('crm.preferredChannel') }}
-          <select v-model="pref.preferredChannel" class="crm-input">
-            <option v-for="v in ['EMAIL','PHONE','WHATSAPP','VISIT','OTHER']" :key="v">{{ v }}</option>
-          </select>
-        </label>
-        <label class="text-sm font-bold">{{ t('crm.timezone') }}<input v-model.trim="pref.timezoneId" class="crm-input" /></label>
-        <label class="text-sm font-bold">{{ t('crm.frequencyDays') }}<input v-model.number="pref.frequencyDays" type="number" min="1" class="crm-input" /></label>
-        <label class="text-sm font-bold">{{ t('crm.preferredDays') }}<input v-model.number="pref.preferredDaysMask" type="number" min="0" max="127" class="crm-input" /></label>
-        <label class="text-sm font-bold">{{ t('crm.startHour') }}<input v-model="pref.startLocalTime" type="time" class="crm-input" /></label>
-        <label class="text-sm font-bold">{{ t('crm.endHour') }}<input v-model="pref.endLocalTime" type="time" class="crm-input" /></label>
-        <label class="flex items-center gap-2 font-bold">
-          <input v-model="pref.doNotContact" type="checkbox" />{{ t('crm.doNotContact') }}
-        </label>
-        <button v-if="can('crm.contact.update')" type="submit" :disabled="busy" class="crm-button">{{ t('common.save') }}</button>
-      </form>
-      <section v-if="contact" class="crm-panel space-y-4 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-lg font-bold">{{ t('crm.consentHistory') }}</h2>
-          <DhButton v-if="can('crm.contact.marketing-consent.manage')" :label="t('crm.registerConsent')"
-            :icon="Plus" @click="showConsentForm=true" />
+  <main class="mx-auto w-full max-w-[1650px] space-y-3 p-3 text-[var(--dh-text)] sm:p-5" data-crm-contact-detail>
+    <DhButton :icon="ArrowLeft" :label="en ? 'Contacts' : 'Volver a contactos'" variant="secondary" @click="router.push('/crm/contacts')" />
+    <p v-if="error" role="alert" class="rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
+    <p v-if="success" role="status" class="text-sm text-emerald-500">{{ success }}</p>
+    <p v-if="loading" role="status" class="text-sm text-[var(--dh-text-muted)]">Cargando contacto…</p>
+    <template v-if="contact">
+      <header class="sticky top-1 z-20 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="rounded-xl bg-[var(--dh-primary)]/10 p-3 text-[var(--dh-primary)]"><ContactRound class="h-6 w-6" /></div>
+            <div class="min-w-0">
+              <p class="text-[10px] font-extrabold uppercase tracking-widest text-[var(--dh-text-muted)]">CRM · Contacto</p>
+              <h1 class="truncate text-xl font-extrabold">{{ display(contact.name) }}</h1>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ display(contact.jobTitle) }} · {{ display(contact.status) }}</p>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <DhButton :icon="RefreshCw" label="Actualizar" variant="secondary" :disabled="loading" @click="load" />
+            <DhButton v-if="auth.hasScope('crm.contact.update')" :icon="Pencil" label="Editar" @click="edit" />
+          </div>
         </div>
-        <div v-for="c in consents" :key="c.id" class="border-b border-[var(--dh-border)] py-2 text-sm">
-          {{ c.channel }} — {{ c.status }} · {{ c.purpose }} · {{ c.capturedAt }}
-        </div>
-        <p v-if="!consents.length" class="text-sm">{{ t('common.noData') }}</p>
-        <DhDrawer :open="showConsentForm" :title="t('crm.registerConsent')" size="md" @close="showConsentForm=false">
-        <form v-if="can('crm.contact.marketing-consent.manage')" class="grid gap-3 sm:grid-cols-2" @submit.prevent="addConsent">
-          <label class="text-sm font-bold">{{ t('common.status') }}
-            <select v-model="consent.status" class="crm-input">
-              <option value="OPTED_OUT">OPTED_OUT</option>
-              <option value="REVOKED">REVOKED</option>
-              <option value="OPTED_IN">OPTED_IN</option>
-            </select>
-          </label>
-          <label class="text-sm font-bold">{{ t('crm.evidence') }}
-            <input v-model.trim="consent.evidenceReference" class="crm-input"
-              :required="consent.status === 'OPTED_IN'" />
-          </label>
-          <label class="text-sm font-bold">{{ t('crm.consentSource') }}
-            <input v-model.trim="consent.source" class="crm-input" required />
-          </label>
-          <button type="submit" :disabled="busy" class="crm-button">{{ t('crm.registerConsent') }}</button>
-        </form>
-          <p v-if="error" role="alert" class="mt-2 text-sm text-red-500">{{ error }}</p>
-        </DhDrawer>
-      </section>
+        <nav role="tablist" aria-label="Detalle del contacto" class="flex gap-2 border-t border-[var(--dh-border)] px-3">
+          <button v-for="tab in contactTabs" :key="tab.key" role="tab" type="button" :aria-selected="activeTab===tab.key"
+            class="border-b-2 px-3 py-3 text-xs font-bold"
+            :class="activeTab===tab.key ? 'border-[var(--dh-primary)] text-[var(--dh-primary)]' : 'border-transparent text-[var(--dh-text-muted)]'"
+            @click="activeTab=tab.key">{{ tab.label }}</button>
+        </nav>
+      </header>
+      <div class="grid items-start gap-3 xl:grid-cols-[minmax(0,.85fr)_minmax(0,1.12fr)_minmax(250px,.78fr)]">
+        <section v-if="activeTab==='summary' || activeTab==='details'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+          <h2 class="mb-3 flex items-center gap-2 text-sm font-bold"><UserRound class="h-4 w-4 text-[var(--dh-primary)]" />Información general</h2>
+          <dl class="divide-y divide-[var(--dh-border)]">
+            <div v-for="item in [
+              {label:'Nombre completo',value:contact.name}, {label:'Puesto',value:contact.jobTitle},
+              {label:'Correo',value:contact.email}, {label:'Teléfono',value:contact.phone},
+              {label:'Estado',value:contact.status},
+            ]" :key="item.label" class="grid grid-cols-[42%_minmax(0,1fr)] gap-3 py-3 text-xs">
+              <dt class="font-semibold text-[var(--dh-text-muted)]">{{ item.label }}</dt><dd class="break-words font-semibold">{{ display(item.value) }}</dd>
+            </div>
+          </dl>
+        </section>
+        <section v-if="activeTab==='summary' || activeTab==='preferences'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+          <h2 class="mb-3 flex items-center gap-2 text-sm font-bold"><ShieldCheck class="h-4 w-4 text-[var(--dh-primary)]" />Preferencias de comunicación</h2>
+          <p v-if="!preferences" class="text-xs text-[var(--dh-text-muted)]">Aún no hay preferencias registradas.</p>
+          <dl v-else class="divide-y divide-[var(--dh-border)]">
+            <div v-for="item in [
+              {label:'Canal preferido',value:preferences.preferredChannel},
+              {label:'Zona horaria',value:preferences.timezoneId},
+              {label:'Frecuencia (días)',value:preferences.frequencyDays},
+              {label:'No contactar',value:preferences.doNotContact ? 'Sí' : 'No'},
+            ]" :key="item.label" class="grid grid-cols-[42%_minmax(0,1fr)] gap-3 py-3 text-xs">
+              <dt class="text-[var(--dh-text-muted)]">{{ item.label }}</dt><dd class="font-semibold">{{ item.value ?? '—' }}</dd>
+            </div>
+          </dl>
+        </section>
+        <aside class="space-y-3">
+          <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <h2 class="mb-3 text-sm font-bold">Acciones rápidas</h2>
+            <div class="flex flex-col gap-2">
+              <a v-if="contact.email" :href="'mailto:'+encodeURIComponent(String(contact.email))" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Mail class="h-4 w-4" />Enviar correo</a>
+              <a v-if="contact.phone" :href="'tel:'+String(contact.phone)" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Phone class="h-4 w-4" />Llamar</a>
+              <RouterLink to="/crm/followups" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><CalendarClock class="h-4 w-4" />Ver seguimientos</RouterLink>
+            </div>
+          </section>
+        </aside>
+      </div>
     </template>
+    <DhDrawer :open="editOpen" :title="en ? 'Edit contact' : 'Editar contacto'" size="md" @close="editOpen=false">
+      <form class="space-y-4" @submit.prevent="save">
+        <DhInput v-model="draft.name" label="Nombre completo *" />
+        <DhInput v-model="draft.jobTitle" label="Puesto / cargo" />
+        <DhInput v-model="draft.email" label="Correo electrónico" type="email" />
+        <DhInput v-model="draft.phone" label="Teléfono" />
+        <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] py-3">
+          <DhButton variant="secondary" label="Cancelar" @click="editOpen=false" />
+          <DhButton type="submit" :loading="saving" :disabled="!draft.name.trim()" label="Guardar" />
+        </div>
+      </form>
+    </DhDrawer>
   </main>
 </template>
-
-<style scoped>
-.crm-panel{border:1px solid var(--dh-border);border-radius:1.2rem;background:var(--dh-card)}
-.crm-input{display:block;width:100%;background:var(--dh-card);border:1px solid var(--dh-border);border-radius:.7rem;padding:.6rem;color:var(--dh-text)}
-.crm-button{min-height:42px;border:1px solid var(--dh-border);border-radius:.7rem;padding:.6rem 1rem}
-</style>

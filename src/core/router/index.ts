@@ -120,6 +120,18 @@ export const router = createRouter({
           meta: { tabTitleKey: 'crm.nav.accounts', closable: true, crmSection: 'accounts', requiredAnyScopes: ['crm.account.read', 'crm.account.read-all'] },
         },
         {
+          path: 'crm/contacts',
+          name: 'crm-contacts',
+          component: () => import('@/modules/crm/views/CrmContactsDirectory.vue'),
+          meta: { tabTitleKey: 'crm.nav.contacts', closable: true, requiredScope: 'crm.contact.read' },
+        },
+        {
+          path: 'crm/contacts/:id',
+          name: 'crm-contacts-detail',
+          component: () => import('@/modules/crm/views/CrmContactDetailView.vue'),
+          meta: { tabTitleKey: 'crm.nav.contacts', closable: true, requiredScope: 'crm.contact.read' },
+        },
+        {
           path: 'crm/leads',
           name: 'crm-leads',
           component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
