@@ -198,3 +198,15 @@ test('CRM business profile is editable and new clients can capture corporate det
   assert.ok(workspace.includes("'/business-profile', 'PUT'"))
   assert.ok(workspace.includes("missing.push('datos empresariales')"))
 })
+
+test('CRM reads linked quote ports from Pricing without faking missing routes', () => {
+  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
+  assert.ok(hub.includes("'quote-route-snapshots'"))
+  assert.ok(hub.includes("quoteRouteSnapshots"))
+  assert.ok(hub.includes("routeSourceKind"))
+  assert.ok(hub.includes("q.polName"))
+  assert.ok(hub.includes("q.poeName"))
+  assert.ok(hub.includes("q.podName"))
+  assert.ok(hub.includes("q.available"))
+  assert.ok(hub.includes("Ruta no disponible para el usuario"))
+})

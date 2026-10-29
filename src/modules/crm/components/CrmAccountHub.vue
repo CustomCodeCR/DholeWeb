@@ -54,6 +54,11 @@ const credit = ref<CrmRow[]>([])
 const contracts = ref<CrmRow[]>([])
 const routeHistory = ref<CrmRow[]>([])
 const popularRoutes = ref<CrmRow[]>([])
+const quoteRouteSnapshots = ref<CrmRow[]>([])
+const quoteRouteTotal = ref(0)
+const quoteRoutePage = ref(1)
+const quoteRouteLoading = ref(false)
+const quoteRouteError = ref('')
 const routeHistoryPage = ref(1)
 const routeHistoryTotal = ref(0)
 const routeHistoryError = ref('')
@@ -216,6 +221,9 @@ watch(() => props.account.id, () => {
   routeHistory.value = []
   routeHistoryTotal.value = 0
   popularRoutes.value = []
+  quoteRouteSnapshots.value = []
+  quoteRouteTotal.value = 0
+  quoteRoutePage.value = 1
   countryName.value = ''
   businessProfile.value = null
   businessProfileError.value = ''
@@ -242,6 +250,33 @@ async function loadRouteHistory(generation = requestGeneration) {
     }
   }
 }
+async function loadQuotedRoutes(generation = requestGeneration) {
+  if (!has('crm.quote.read')) return
+  quoteRouteLoading.value = true
+  try {
+    const result = await get<{ items: CrmRow[], total: number }>(
+      crmPath('accounts', rowId(props.account.id), 'quote-route-snapshots') +
+      '?page=' + quoteRoutePage.value + '&pageSize=8')
+    if (generation !== requestGeneration) return
+    quoteRouteSnapshots.value = result.items ?? []
+    quoteRouteTotal.value = result.total ?? 0
+    quoteRouteError.value = ''
+  } catch (cause) {
+    if (generation === requestGeneration) {
+      quoteRouteError.value = message(cause)
+      quoteRouteSnapshots.value = []
+      quoteRouteTotal.value = 0
+    }
+  } finally { if (generation === requestGeneration) quoteRouteLoading.value = false }
+}
+watch(activeTab, tab => {
+  if (tab === 'history' && has('crm.quote.read')) void loadQuotedRoutes()
+})
+function changeQuoteRoutePage(delta: number) {
+  quoteRoutePage.value += delta
+  void loadQuotedRoutes()
+}
+
 function openRouteEvidence(kind: 'MEETING' | 'QUOTE' = 'MEETING', sourceId = '') {
   routeSourceKind.value = kind
   routeSourceId.value = sourceId
@@ -645,6 +680,43 @@ async function saveRoute() {
           <div class="hub-mini-stat"><span>Cotizaciones en esta página</span><strong>{{ routesCapturedFromQuotes }}</strong></div>
         </div>
       </div>
+      <div v-if="has('crm.quote.read')" class="hub-panel">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="hub-panel-heading mb-0"><FileText class="h-4 w-4 text-[var(--dh-primary)]" />Rutas de cotizaciones (Pricing)</h3>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Consulta directa y autorizada de la última cotización comercial publicada; no requiere volver a introducir los puertos.</p>
+          </div>
+          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRouteLoading" @click="loadQuotedRoutes()">Actualizar</button>
+        </div>
+        <p v-if="quoteRouteLoading" class="py-2 text-xs text-[var(--dh-text-muted)]">Consultando rutas autorizadas de Pricing…</p>
+        <p v-if="quoteRouteError" role="alert" class="py-2 text-xs text-amber-600">{{ quoteRouteError }}</p>
+        <p v-if="!quoteRouteLoading && !quoteRouteSnapshots.length && !quoteRouteError" class="hub-empty">No hay cotizaciones vinculadas visibles para consultar.</p>
+        <ol v-if="quoteRouteSnapshots.length" class="divide-y divide-[var(--dh-border)]">
+          <li v-for="q in quoteRouteSnapshots" :key="rowId(q.pricingQuoteId)" class="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div class="min-w-0">
+              <p class="text-xs font-extrabold text-[var(--dh-primary)]">{{ text(q.quoteNumber) }} <span class="font-medium text-[var(--dh-text-muted)]">· {{ text(q.shipmentMode) }}</span></p>
+              <p v-if="q.available" class="mt-1 text-sm font-bold">
+                {{ text(q.polName) }} → {{ q.poeName ? text(q.poeName) + ' → ' : '' }}{{ text(q.podName) }}
+              </p>
+              <p v-else class="mt-1 text-xs text-[var(--dh-text-muted)]">Ruta no disponible para el usuario o sin puertos confirmados en Pricing.</p>
+              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">
+                Vinculada: {{ date(q.linkedAt) }}
+                <span v-if="q.revisionNumber"> · Revisión {{ q.revisionNumber }}</span>
+                <span v-if="q.revisionPending"> · Última revisión enviada (nueva edición en Pricing)</span>
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <RouterLink :to="quoteLink({ id: rowId(q.pricingQuoteId), pricingQuoteId: q.pricingQuoteId })" class="hub-outline-button hub-small">Abrir tarifa</RouterLink>
+              <button v-if="has('crm.analysis.manage')" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE',rowId(q.pricingQuoteId))">Documentar ruta</button>
+            </div>
+          </li>
+        </ol>
+        <div v-if="quoteRouteTotal > 8" class="mt-3 flex items-center justify-end gap-3 text-xs">
+          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage <= 1 || quoteRouteLoading" @click="changeQuoteRoutePage(-1)">Anterior</button>
+          <span>{{ quoteRoutePage }} · {{ quoteRouteTotal }} tarifas vinculadas</span>
+          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage * 8 >= quoteRouteTotal || quoteRouteLoading" @click="changeQuoteRoutePage(1)">Siguiente</button>
+        </div>
+      </div>
       <div v-if="popularRoutes.length" class="hub-panel">
         <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más utilizadas (registros documentados)</h3>
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -830,8 +902,8 @@ async function saveRoute() {
         <p class="text-xs text-[var(--dh-text-muted)]">Información corporativa del cliente. Los contactos personales, direcciones, crédito y rutas se administran como registros separados.</p>
         <div class="grid gap-3 sm:grid-cols-2">
           <div v-for="field in profileFields" :key="field.key" :class="field.long ? 'sm:col-span-2' : ''">
-            <DhTextarea v-if="field.long" v-model="profileDraft[field.key]" :label="field.label" :rows="3" />
-            <DhInput v-else v-model="profileDraft[field.key]" :label="field.label" :type="field.type === 'email' ? 'email' : 'text'" />
+            <DhTextarea v-if="field.long" :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :rows="3" />
+            <DhInput v-else :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :type="field.type === 'email' ? 'email' : 'text'" />
           </div>
         </div>
         <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
