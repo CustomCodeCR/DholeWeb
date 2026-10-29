@@ -296,7 +296,7 @@ function ownDepartureExpired(row: OwnLclConsolidationDto) {
 
 const chinaOwnLclOrigins = new Set([
   'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',
-  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',
+  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou', 'yantian',
 ])
 
 const ownLclOriginAliases: Record<string, string> = {
