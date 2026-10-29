@@ -50,7 +50,7 @@ async function lookup() {
   loading.value = true
   error.value = ''
   try {
-    const params = new URLSearchParams({identificacion, countryId: selectedCountry})
+    const params = new URLSearchParams({identificacion: identification, countryId: selectedCountry})
     const response = await crmRequest<HaciendaResult>('/api/crm/hacienda/lookup?' + params.toString())
     // Never apply a response for a previous tax ID to the current form.
     if (version !== lookupVersion || digits.value !== identification ||
