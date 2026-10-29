@@ -107,3 +107,22 @@ test('all Shanghai and Yantian own sources remain visible, without allowing inva
   assert.ok(mobilePatch.includes("{{ ownConsolidationSupportsPol(row) ? selectedPolDisplay(ownPreview(row)) : (row.polName || row.polCode || 'Otro origen') }}"))
   assert.ok(mobilePatch.includes("canonicalOwnLclOrigin(row.polName || row.polCode) === 'shanghai'"))
 })
+
+
+test('Yantian can select a compatible Shanghai sailing and keep its commercial POL', () => {
+  const mobilePatch = readFileSync(
+    new URL('../build/pricingLclCostBreakdownUi.ts', import.meta.url),
+    'utf8',
+  )
+  assert.ok(selector.includes("'shekou', 'guangzhou', 'yantian',"))
+  assert.ok(selector.includes("if (consolidationOrigin !== 'shanghai') return consolidationOrigin.toUpperCase()"))
+  assert.ok(selector.includes("const requestedChinaOrigin = requestedOrigins.find((origin) => chinaOwnLclOrigins.has(origin))"))
+  assert.ok(selector.includes("if (!consolidationOrigins.has('shanghai')) return false"))
+  assert.ok(selector.includes("requestedOrigins).some((origin) => chinaOwnLclOrigins.has(origin))"))
+  assert.ok(selector.includes("if (!ownConsolidationSupportsPol(row)) return 'Otro POL'"))
+  assert.ok(mobilePatch.includes("requestedOwnLclOrigins().has('yantian')"))
+  assert.ok(mobilePatch.includes("Matriz Shanghai (Yantian usa diferencial Shenzhen)"))
+  assert.ok(mobilePatch.includes("{{ ownConsolidationSupportsPol(row) ? selectedPolDisplay(ownPreview(row))"))
+  assert.ok(mobilePatch.includes("ownCalculationPolCode(row)"))
+  assert.ok(selector.includes("if (ownDepartureExpired(row)) return false"))
+})
