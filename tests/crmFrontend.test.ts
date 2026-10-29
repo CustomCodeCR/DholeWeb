@@ -55,7 +55,8 @@ test('Finance screen lists authorized CRM accounts instead of requesting a raw U
   const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
   assert.match(workspace, /crmList\('accounts', \{ q: financeQuery\.value\.trim\(\)/)
   assert.match(workspace, /crm\.account\.read-all/)
-  assert.match(workspace, /v-model="selectedAccount"/)
+  assert.match(workspace, /:model-value="selectedAccount"/)
+  assert.match(workspace, /@update:model-value="selectedAccount = String\(\$event\)"/)
   assert.doesNotMatch(workspace, /v-model\.trim="selectedAccount"/)
 })
 
