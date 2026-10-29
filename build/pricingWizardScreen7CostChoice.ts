@@ -40,6 +40,14 @@ const screen7RequiresConfirmation = computed(() => Boolean(props.rateId) && !pro
   const eagerAdd = '    rateLines.value = uniqueReleaseLines\n    mergeConfiguredOptionalCostsIntoRateLines()'
   if (code.includes(eagerAdd)) code = code.replace(eagerAdd, '    rateLines.value = uniqueReleaseLines')
 
+  // Guardar una revisión nunca recarga los montos del catálogo en silencio.
+  // Pantalla 7 dispone del botón explícito "Actualizar desde la base de datos".
+  // Si el operador decidió conservar o editar líneas, enviar exactamente esos valores.
+  const saveSync = '    await loadApplicableCosts()\\n    syncPersistedLinesWithChangedConfiguredCosts()'.replace('\\n', '\n')
+  code = replaceOnce(code, saveSync,
+    '    // Se mantienen los valores editados del snapshot; solo refrescar por acción expresa.',
+    'edit save must not overwrite existing charges')
+
   const scriptEnd = '\n</script>'
   const script = String.raw`
 function screen7CostLineKey(line: RateLine) {
