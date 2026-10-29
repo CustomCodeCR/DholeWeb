@@ -104,7 +104,26 @@ const profileFields = [
   { key: 'companyHistory', label: 'Historia de la empresa', type: 'text', long: true },
   { key: 'commercialObservations', label: 'Observaciones comerciales', type: 'text', long: true },
   { key: 'operationalInstructions', label: 'Instrucciones operativas', type: 'text', long: true },
+  { key: 'activeServices', label: 'Servicios activos', type: 'text', long: true },
+  { key: 'presenceCountries', label: 'Países con presencia', type: 'text', long: true },
+  { key: 'commercialStrategy', label: 'Estrategia comercial', type: 'text', long: true },
+  { key: 'projectsOfInterest', label: 'Proyectos de interés o vinculados', type: 'text', long: true },
+  { key: 'pricingObservations', label: 'Observaciones de Pricing', type: 'text', long: true },
+  { key: 'tariffMonitoringNotes', label: 'Seguimiento de tarifas por enviar', type: 'text', long: true },
+  { key: 'tariffSendingNotes', label: 'Observaciones de tarifas enviadas', type: 'text', long: true },
+  { key: 'customsInstructions', label: 'Instrucciones de aduanas y nacionalización', type: 'text', long: true },
+  { key: 'cargoCollectionInstructions', label: 'Observaciones de recolección de carga', type: 'text', long: true },
+  { key: 'documentReviewInstructions', label: 'Observaciones de revisión documental', type: 'text', long: true },
+  { key: 'assignedOperations', label: 'Operativa asignada', type: 'text', long: false },
+  { key: 'competitorObservations', label: 'Competidores y contexto comercial', type: 'text', long: true },
+  { key: 'tradeAgreementNotes', label: 'Tratados y acuerdos comerciales', type: 'text', long: true },
+  { key: 'webCustomerReference', label: 'ID de cliente en la web (sin credenciales)', type: 'text', long: false },
 ] as const
+const profileGroups = [
+  { label: 'Información de la empresa y cuenta web', keys: ['phone','email','website','sector','businessActivity','products','companyHistory','billingEmail','marketingEmail','webCustomerReference','presenceCountries','activeServices'] },
+  { label: 'Análisis y estrategia comercial', keys: ['commercialObservations','commercialStrategy','projectsOfInterest','pricingObservations','tariffMonitoringNotes','tariffSendingNotes','competitorObservations'] },
+  { label: 'Instrucciones operativas y aduaneras', keys: ['operationalInstructions','customsInstructions','cargoCollectionInstructions','documentReviewInstructions','assignedOperations','tradeAgreementNotes'] },
+].map(group => ({ label: group.label, fields: profileFields.filter(field => (group.keys as string[]).includes(field.key)) }))
 const profileDraft = ref<Record<string, string>>({})
 const profileFilled = computed(() => profileFields.filter(f =>
   typeof businessProfile.value?.[f.key] === 'string' &&
@@ -941,12 +960,15 @@ async function saveRoute() {
     <DhDrawer :open="profileOpen" title="Datos empresariales y operativos" size="xl" @close="profileOpen=false">
       <form class="space-y-4 p-2" @submit.prevent="saveProfile">
         <p class="text-xs text-[var(--dh-text-muted)]">Información corporativa del cliente. Los contactos personales, direcciones, crédito y rutas se administran como registros separados.</p>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div v-for="field in profileFields" :key="field.key" :class="field.long ? 'sm:col-span-2' : ''">
-            <DhTextarea v-if="field.long" :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :rows="3" />
-            <DhInput v-else :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :type="field.type === 'email' ? 'email' : 'text'" />
+        <fieldset v-for="group in profileGroups" :key="group.label" class="rounded-lg border border-[var(--dh-border)] p-4">
+          <legend class="px-2 text-sm font-extrabold">{{ group.label }}</legend>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div v-for="field in group.fields" :key="field.key" :class="field.long ? 'sm:col-span-2' : ''">
+              <DhTextarea v-if="field.long" :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :rows="3" />
+              <DhInput v-else :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :type="field.type === 'email' ? 'email' : 'text'" />
+            </div>
           </div>
-        </div>
+        </fieldset>
         <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
           <button type="button" class="hub-outline-button" @click="profileOpen=false">Cancelar</button>
           <button type="submit" class="crm-action" :disabled="profileSaving">{{ profileSaving ? 'Guardando…' : 'Guardar datos empresariales' }}</button>
