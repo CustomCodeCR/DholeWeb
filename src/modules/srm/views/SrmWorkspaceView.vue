@@ -8,6 +8,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { CONFIG_SCOPES } from '@/core/auth/scopes'
+import { DhDrawer } from '@/shared/components/organisms'
 import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -53,6 +54,12 @@ const suppliers = ref<Supplier[]>([])
 const evaluations = ref<SrmRecord[]>([])
 const contracts = ref<SrmRecord[]>([])
 const selected = ref<Supplier | null>(null)
+const supplierTab = ref<'profile' | 'terms' | 'performance'>('profile')
+const supplierTabs = [
+  { key: 'profile', label: 'Ficha proveedor' },
+  { key: 'terms', label: 'Condiciones comerciales' },
+  { key: 'performance', label: 'Evaluaciones' },
+] as const
 const query = ref('')
 const category = ref('all')
 const supplierId = ref('')
@@ -116,6 +123,9 @@ const filteredSuppliers = computed(() => suppliers.value.filter(item =>
   [item.name, item.code, item.description || ''].some(text => text.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase()))))
 const activeCount = computed(() => suppliers.value.filter(row => row.isActive).length)
 const selectedRecords = computed(() => section.value === 'contracts' ? contracts.value : evaluations.value)
+const supplierContracts = computed(() => selected.value && auth.hasScope('srm.contract.read') ? contracts.value.filter(x => x.supplierId === selected.value?.id) : [])
+const supplierEvaluations = computed(() => selected.value && auth.hasScope('srm.performance.read') ? evaluations.value.filter(x => x.supplierId === selected.value?.id) : [])
+function countryLabel(value: unknown) { return countries.value.find(x => x.id === value)?.label || '—' }
 const recordCount = computed(() => evaluations.value.length + contracts.value.length)
 const overdueCount = computed(() => contracts.value.filter(row => row.expiresAt && row.expiresAt < new Date().toISOString().slice(0, 10)).length)
 const averageScore = computed(() => evaluations.value.length
@@ -199,7 +209,7 @@ function openEdit(item: Supplier) {
   website.value = String(info.website || '')
   formVisible.value = true
 }
-function openDetails(item: Supplier) { selected.value = item; formVisible.value = false }
+function openDetails(item: Supplier) { selected.value = item; supplierTab.value = 'profile'; formVisible.value = false }
 function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
   if (saving.value || !supplierName.value.trim() || (!canCreateSuppliers.value && !canEditSuppliers.value)) return
@@ -326,14 +336,14 @@ onMounted(() => {
       <p v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">{{ error }}</p>
       <p v-if="success" role="status" class="rounded-xl border border-emerald-500/30 p-3 text-sm text-emerald-500">{{ success }}</p>
 
-      <div v-if="section === 'dashboard' || section === 'suppliers'" class="grid gap-3 sm:grid-cols-3">
+      <div v-if="section === 'dashboard' || section === 'suppliers'" class="flex flex-wrap gap-2">
         <article v-for="stat in [
           { label: t('srm.count'), value: suppliers.length, icon: Building2 },
           { label: t('srm.active'), value: activeCount, icon: CheckCircle2 },
           { label: t('srm.type'), value: categories.length, icon: Truck },
-        ]" :key="stat.label" class="flex items-center gap-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-          <div class="rounded-xl bg-[var(--dh-primary)]/10 p-3 text-[var(--dh-primary)]"><component :is="stat.icon" class="h-5 w-5" /></div>
-          <div><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ stat.label }}</p><p class="mt-1 text-2xl font-extrabold">{{ stat.value }}</p></div>
+        ]" :key="stat.label" class="flex min-w-[180px] flex-1 items-center gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-2.5">
+          <div class="rounded-lg bg-[var(--dh-primary)]/10 p-2 text-[var(--dh-primary)]"><component :is="stat.icon" class="h-5 w-5" /></div>
+          <div><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ stat.label }}</p><p class="mt-0.5 text-lg font-extrabold">{{ stat.value }}</p></div>
         </article>
       </div>
       <div v-else class="grid gap-3 sm:grid-cols-3">
@@ -346,10 +356,10 @@ onMounted(() => {
         </article>
       </div>
 
-      <section v-if="section === 'dashboard' || section === 'suppliers'"
+      <details v-if="section === 'dashboard' || section === 'suppliers'"
         class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
         aria-label="Transición de navieras y agentes a SRM">
-        <div class="flex flex-wrap items-center justify-between gap-2">
+        <summary class="flex cursor-pointer flex-wrap items-center justify-between gap-2">
           <div><h2 class="text-sm font-extrabold">{{ en ? 'Carriers and agents · transition to SRM' : 'Navieras y agentes · incorporación a SRM' }}</h2>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
               {{ en ? 'Original Config records remain active in Pricing until references are reconciled.' :
@@ -357,7 +367,7 @@ onMounted(() => {
             </p>
           </div>
           <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-bold">{{ importedLegacy }} / {{ legacyPartners.length }}</span>
-        </div>
+        </summary>
         <p v-if="!legacyPartners.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">
           {{ en ? 'No legacy carriers or agents returned by the service.' : 'No hay navieras o agentes heredados disponibles para incorporar.' }}
         </p>
@@ -387,8 +397,8 @@ onMounted(() => {
         <p v-if="legacyPartners.length && !pendingLegacy.length" class="mt-3 text-sm text-emerald-500">
           {{ en ? 'All listed partners have an SRM directory link.' : 'Todos los socios listados tienen vínculo en el directorio SRM.' }}
         </p>
-      </section>
-            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+      </details>
+            <div class="grid items-start gap-3" :class="section === 'dashboard' || section === 'suppliers' ? 'xl:grid-cols-[minmax(330px,.9fr)_minmax(0,1.6fr)]' : 'xl:grid-cols-[minmax(0,1fr)_320px]'">
         <section class="min-w-0 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] px-5 py-4">
             <div><h2 class="font-bold">{{ section === 'performance' ? t('srm.performance') : section === 'contracts' ? t('srm.contracts') : t('srm.suppliers') }}</h2>
@@ -441,20 +451,95 @@ onMounted(() => {
         </section>
 
         <aside class="space-y-4">
-          <section v-if="selected && (section === 'dashboard' || section === 'suppliers')" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-            <div class="flex justify-between gap-2"><h2 class="font-bold">{{ t('srm.details') }}</h2>
-              <button type="button" :aria-label="t('common.close')" @click="selected = null"><X class="h-4 w-4" /></button>
+          <section v-if="section === 'dashboard' || section === 'suppliers'" class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+            <template v-if="selected">
+              <div class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-4 sm:px-5">
+                <div class="flex min-w-0 items-center gap-3">
+                  <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)]/10 font-extrabold text-[var(--dh-primary)]">{{ selected.name.slice(0, 2).toUpperCase() }}</div>
+                  <div class="min-w-0"><p class="text-[10px] font-extrabold uppercase tracking-widest text-[var(--dh-text-muted)]">SRM · Ficha del proveedor</p>
+                    <h2 class="mt-1 truncate text-lg font-extrabold">{{ selected.name }}</h2>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ selected.category }} · {{ selected.code }}</p>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <button v-if="canEditSuppliers" type="button" class="inline-flex items-center gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-xs font-bold hover:border-[var(--dh-primary)]" @click="openEdit(selected)"><Pencil class="h-3.5 w-3.5" />Editar</button>
+                  <button type="button" :aria-label="t('common.close')" class="rounded-lg border border-[var(--dh-border)] p-2" @click="selected=null"><X class="h-4 w-4" /></button>
+                </div>
+              </div>
+              <nav class="flex gap-1 overflow-x-auto border-b border-[var(--dh-border)] px-3" aria-label="Ficha del proveedor" role="tablist">
+                <button v-for="item in supplierTabs" :key="item.key" type="button" role="tab" :aria-selected="supplierTab === item.key"
+                  class="shrink-0 border-b-2 px-3 py-3 text-xs font-bold transition"
+                  :class="supplierTab === item.key ? 'border-[var(--dh-primary)] text-[var(--dh-primary)]' : 'border-transparent text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
+                  @click="supplierTab = item.key">{{ item.label }}</button>
+              </nav>
+              <div v-if="supplierTab === 'profile'" class="grid gap-4 p-4 lg:grid-cols-2">
+                <section class="rounded-xl border border-[var(--dh-border)] p-4">
+                  <h3 class="mb-2 text-xs font-extrabold uppercase tracking-wider">Información del proveedor</h3>
+                  <dl class="divide-y divide-[var(--dh-border)]">
+                    <div v-for="field in [
+                      {label: 'Razón social', value: selected.name},
+                      {label: 'Tipo', value: selected.category},
+                      {label: 'Código', value: selected.code},
+                      {label: 'País', value: countryLabel(metadata(selected).countryId)},
+                      {label: 'Identificación fiscal', value: metadata(selected).taxId},
+                      {label: 'Sitio web', value: metadata(selected).website},
+                      {label: 'Estado', value: selected.isActive ? 'Activo' : 'Inactivo'},
+                    ]" :key="field.label" class="grid grid-cols-[42%_minmax(0,1fr)] gap-3 py-2.5 text-xs">
+                      <dt class="font-semibold text-[var(--dh-text-muted)]">{{ field.label }}</dt>
+                      <dd class="break-words font-semibold">{{ field.value || '—' }}</dd>
+                    </div>
+                  </dl>
+                </section>
+                <div class="space-y-3">
+                  <section class="rounded-xl border border-[var(--dh-border)] p-4">
+                    <h3 class="mb-3 text-xs font-extrabold uppercase tracking-wider">Contacto principal</h3>
+                    <dl class="divide-y divide-[var(--dh-border)]">
+                      <div v-for="field in [
+                        {label: 'Nombre', value: metadata(selected).contactName},
+                        {label: 'Correo', value: metadata(selected).contactEmail},
+                        {label: 'Teléfono', value: metadata(selected).contactPhone},
+                      ]" :key="field.label" class="grid grid-cols-[38%_minmax(0,1fr)] gap-2 py-2.5 text-xs">
+                        <dt class="text-[var(--dh-text-muted)]">{{ field.label }}</dt><dd class="break-all font-semibold">{{ field.value || '—' }}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  <section class="rounded-xl border border-[var(--dh-border)] p-4">
+                    <h3 class="mb-2 text-xs font-extrabold uppercase tracking-wider">Relación comercial</h3>
+                    <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ selected.description || 'Sin descripción de servicios.' }}</p>
+                    <p v-if="metadata(selected).legacyCode" class="mt-2 text-xs">Código original Config: <strong>{{ metadata(selected).legacyCode }}</strong></p>
+                  </section>
+                </div>
+              </div>
+              <div v-else-if="supplierTab === 'terms'" class="p-4">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 class="text-xs font-extrabold uppercase tracking-wider">Contratos y condiciones con el proveedor</h3>
+                  <RouterLink v-if="auth.hasScope('srm.contract.read')" to="/srm/contracts" class="text-xs font-bold text-[var(--dh-primary)]">Gestionar contratos</RouterLink>
+                </div>
+                <p v-if="!supplierContracts.length" class="py-5 text-center text-xs text-[var(--dh-text-muted)]">No hay acuerdos registrados o no tiene permisos para consultarlos.</p>
+                <article v-for="contract in supplierContracts" :key="contract.id" class="mb-3 rounded-xl border border-[var(--dh-border)] p-4">
+                  <div class="flex flex-wrap justify-between gap-2"><h4 class="text-sm font-bold">{{ contract.name }}</h4><span class="text-xs font-semibold text-[var(--dh-primary)]">Vence: {{ contract.expiresAt || '—' }}</span></div>
+                  <dl class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                    <div><dt class="text-[var(--dh-text-muted)]">Días de pago</dt><dd class="font-semibold">{{ metadata(contract).paymentDays ?? '—' }}</dd></div>
+                    <div><dt class="text-[var(--dh-text-muted)]">Moneda</dt><dd class="font-semibold">{{ metadata(contract).currencyCode || '—' }}</dd></div>
+                    <div><dt class="text-[var(--dh-text-muted)]">Referencia tarifaria</dt><dd class="font-semibold">{{ metadata(contract).rateReference || '—' }}</dd></div>
+                    <div><dt class="text-[var(--dh-text-muted)]">Servicios incluidos</dt><dd class="font-semibold">{{ metadata(contract).serviceCoverage || '—' }}</dd></div>
+                  </dl>
+                </article>
+              </div>
+              <div v-else class="p-4">
+                <div class="mb-3 flex items-center justify-between"><h3 class="text-xs font-extrabold uppercase tracking-wider">Evaluación y cumplimiento</h3>
+                  <RouterLink v-if="auth.hasScope('srm.performance.read')" to="/srm/performance" class="text-xs font-bold text-[var(--dh-primary)]">Evaluaciones</RouterLink></div>
+                <p v-if="!supplierEvaluations.length" class="py-5 text-center text-xs text-[var(--dh-text-muted)]">Todavía no hay evaluaciones registradas o autorizadas.</p>
+                <div v-for="evaluation in supplierEvaluations" :key="evaluation.id" class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-3 text-xs last:border-0">
+                  <span>{{ evaluation.name }}</span><strong>{{ evaluation.score ?? '—' }} / 5</strong>
+                </div>
+              </div>
+            </template>
+            <div v-else class="flex min-h-[360px] flex-col items-center justify-center px-6 py-10 text-center">
+              <Building2 class="h-10 w-10 text-[var(--dh-text-muted)]" />
+              <h2 class="mt-4 text-sm font-extrabold">Seleccione un proveedor</h2>
+              <p class="mt-2 max-w-xs text-xs leading-relaxed text-[var(--dh-text-muted)]">La ficha mostrará los contactos, país, condiciones comerciales y evaluaciones, sin salir del directorio.</p>
             </div>
-            <p class="mt-4 text-lg font-extrabold">{{ selected.name }}</p>
-            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">{{ selected.description || selected.category }}</p>
-            <dl class="mt-4 space-y-3 text-xs">
-              <div><dt class="text-[var(--dh-text-muted)]">{{ t('srm.type') }}</dt><dd class="mt-1 font-semibold">{{ selected.category }}</dd></div>
-              <div><dt class="text-[var(--dh-text-muted)]">{{ t('srm.code') }}</dt><dd class="mt-1 font-semibold">{{ selected.code }}</dd></div>
-              <div v-if="metadata(selected).contactName"><dt class="text-[var(--dh-text-muted)]">{{ en ? 'Contact' : 'Contacto' }}</dt><dd class="mt-1 font-semibold">{{ metadata(selected).contactName }}</dd></div>
-              <div v-if="metadata(selected).contactEmail"><dt class="text-[var(--dh-text-muted)]">Email</dt><dd class="mt-1 break-all font-semibold">{{ metadata(selected).contactEmail }}</dd></div>
-              <div v-if="metadata(selected).contactPhone"><dt class="text-[var(--dh-text-muted)]">{{ en ? 'Phone' : 'Teléfono' }}</dt><dd class="mt-1 font-semibold">{{ metadata(selected).contactPhone }}</dd></div>
-            </dl>
-            <button v-if="canEditSuppliers" type="button" class="mt-5 flex items-center gap-2 text-sm font-bold text-[var(--dh-primary)]" @click="openEdit(selected)"><Pencil class="h-4 w-4" />{{ t('common.edit') }}</button>
           </section>
           <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
             <div class="flex items-center gap-2"><CheckCircle2 class="h-5 w-5 text-[var(--dh-primary)]" /><h2 class="font-bold">{{ en ? 'Data ownership' : 'Origen de la información' }}</h2></div>
@@ -473,9 +558,7 @@ onMounted(() => {
         </aside>
       </div>
 
-      <section v-if="formVisible" class="rounded-2xl border border-[var(--dh-primary)]/40 bg-[var(--dh-card)] p-5 sm:p-6" aria-label="SRM form">
-        <div class="mb-5 flex items-center justify-between gap-2"><h2 class="text-lg font-bold">{{ editing ? (en ? 'Edit supplier' : 'Editar proveedor') : section === 'performance' ? (en ? 'New evaluation' : 'Nueva evaluación') : section === 'contracts' ? (en ? 'New contract' : 'Nuevo contrato') : (en ? 'New supplier' : 'Nuevo proveedor') }}</h2>
-          <button type="button" :aria-label="t('common.close')" @click="closeForm"><X class="h-5 w-5" /></button></div>
+      <DhDrawer :open="formVisible" :title="editing ? 'Editar proveedor' : section === 'performance' ? 'Nueva evaluación' : section === 'contracts' ? 'Nuevo contrato' : 'Nuevo proveedor'" size="xl" @close="closeForm">
         <form v-if="section === 'performance' || section === 'contracts'" class="grid gap-4 md:grid-cols-2" @submit.prevent="saveRecord">
           <label class="text-sm font-semibold">{{ t('srm.provider') }}
             <select v-model="supplierId" required class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
@@ -553,7 +636,7 @@ onMounted(() => {
           </label>
           <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim()" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
         </form>
-      </section>
+      </DhDrawer>
     </template>
   </main>
 </template>
