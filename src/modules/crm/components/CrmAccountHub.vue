@@ -130,8 +130,12 @@ async function load() {
         .then(result => {if (generation === requestGeneration) contracts.value = result})
         .catch(() => {if (generation === requestGeneration) contracts.value = []}))
     if (props.account.countryId && typeof props.account.countryId === 'string') jobs.push(
-      CatalogItemsService.getById(props.account.countryId)
-        .then(result => {if (generation === requestGeneration) countryName.value = result.name})
+      CatalogItemsService.select({ catalogGroupSlug: 'countries' })
+        .then(rows => {
+          if (generation !== requestGeneration) return
+          const country = rows.find(row => row.id === props.account.countryId)
+          countryName.value = country?.label || country?.value || ''
+        })
         .catch(() => {if (generation === requestGeneration) countryName.value = ''}))
     await Promise.all(jobs)
   } catch (cause) { if (generation === requestGeneration) error.value = message(cause) }
@@ -251,7 +255,7 @@ async function saveRoute() {
           <div v-for="item in [
             {label: 'Nombre comercial', value: account.displayName},
             {label: 'Razón social', value: account.legalName},
-            {label: 'País', value: countryName || (account.countryId ? 'Config' : '')},
+            {label: 'País', value: countryName || '—'},
             {label: 'Identificación fiscal', value: account.taxId},
             {label: 'Tipo de identificación', value: account.taxIdTypeCode},
             {label: 'Tipo de cliente', value: account.customerTypeCode === 'credit' ? 'Crédito' : 'Contado'},
