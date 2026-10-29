@@ -141,7 +141,7 @@ test('CRM customer onboarding persists authorized contact and address as related
   assert.ok(detail.includes("route.query.onboarding === 'partial'"))
 })
 
-test('Sidebar sections and CRM groups independently collapse while keeping active navigation accessible', () => {
+test('Sidebar sections remain accessible and CRM groups preserve navigation with a refined layout', () => {
   const component = read('src/shared/components/organisms/DhSidebar.vue')
   for (const group of ['INICIO', 'CLIENTES', 'VENTAS', 'ACTIVIDADES', 'ANÁLISIS', 'ADMINISTRACIÓN']) {
     assert.ok(mainLayout.includes("group: '" + group + "'"), 'missing CRM group: ' + group)
@@ -149,13 +149,19 @@ test('Sidebar sections and CRM groups independently collapse while keeping activ
   assert.match(component, /function groupedChildren\(item: SidebarItem\)/)
   assert.match(component, /sectionStateKey\(item\)/)
   assert.match(component, /groupStateKey\(item, group\.id\)/)
-  assert.match(component, /@click="toggleExpanded\(sectionStateKey\(item\)\)"/)
+  assert.match(component, /function onSectionClick\(item: SidebarItem\)/)
+  assert.match(component, /@click="onSectionClick\(item\)"/)
   assert.match(component, /@click="toggleExpanded\(groupStateKey\(item, group\.id\)\)"/)
   assert.match(component, /:aria-expanded="isExpanded\(groupStateKey\(item, group\.id\)\)"/)
   assert.match(component, /localStorage\.setItem\(NAVIGATION_STATE_KEY/)
   assert.match(component, /watch\(\s*\(\) => route\.path/)
-  assert.match(component, /v-if="compact \|\| !group\.label \|\| isExpanded/)
+  assert.match(component, /v-if="!compact && isExpanded\(sectionStateKey\(item\)\)"/)
+  assert.match(component, /v-if="!group\.label \|\| isExpanded/)
   assert.match(component, /:to="child\.path \?\? '\/'"/)
-  assert.match(component, /active-class="!bg-\[var\(--dh-primary\)\]/)
+  assert.match(component, /active-class="sidebar-nav-link-active"/)
   assert.match(component, /@click="emit\('close'\)"/)
+  assert.match(component, /sidebar-nav-link-active::before/)
+  assert.match(component, /sidebar-module-toggle--current/)
+  assert.match(component, /sidebar-subgroup-toggle--current/)
+  assert.ok(!component.includes("border-t border-[var(--dh-border)]"), 'avoid repeating dividers for every group')
 })
