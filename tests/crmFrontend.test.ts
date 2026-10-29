@@ -149,6 +149,8 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   assert.match(component, /function groupedChildren\(item: SidebarItem\)/)
   assert.match(component, /sectionStateKey\(item\)/)
   assert.match(component, /groupStateKey\(item, group\.id\)/)
+  assert.match(component, /groupStateKey\(item, group\.id\) === key && groupIsActive\(group\)/)
+  assert.match(component, /if \(!key\.includes\(':group:'\)\) return true/)
   assert.match(component, /function onSectionClick\(item: SidebarItem\)/)
   assert.match(component, /@click="onSectionClick\(item\)"/)
   assert.match(component, /@click="toggleExpanded\(groupStateKey\(item, group\.id\)\)"/)
