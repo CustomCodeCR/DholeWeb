@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CrmModuleNavigation from '../components/CrmModuleNavigation.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, BriefcaseBusiness, Plus } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
@@ -323,6 +324,7 @@ onMounted(() => { if (crmEnabled()) void load() })
 
 <template>
   <main class="mx-auto w-full text-[var(--dh-text)]" :class="section === 'accounts' ? 'max-w-[1750px] space-y-3 p-2 sm:p-4' : 'max-w-6xl space-y-5 p-3 sm:p-6'" data-crm-detail>
+    <CrmModuleNavigation />
     <DhButton :label="t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
     <p v-if="error" role="alert" class="crm-error">{{ error }}</p>
     <p v-if="section === 'accounts' && route.query.onboarding === 'partial'" role="alert"
