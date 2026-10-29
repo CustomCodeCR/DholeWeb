@@ -36,7 +36,7 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => [
   { key: 'phone', label: en.value ? 'Phone' : 'Teléfono' },
   { key: 'relationRole', label: en.value ? 'Relationship' : 'Relación' },
 ])
-const visibleRows = computed(() => rows.value.map(r => ({ ...r, name: r.name || '—',
+const visibleRows = computed<CrmRow[]>(() => rows.value.map(r => ({ ...r, name: r.name || '—',
   accountName: r.accountName || '—', jobTitle: r.jobTitle || '—',
   email: r.email || '—', phone: r.phone || '—', relationRole: r.relationRole || '—' })))
 async function load() {
