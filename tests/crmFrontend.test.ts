@@ -140,3 +140,22 @@ test('CRM customer onboarding persists authorized contact and address as related
   assert.ok(workspace.includes("missing.push('direcciones')"))
   assert.ok(detail.includes("route.query.onboarding === 'partial'"))
 })
+
+test('Sidebar sections and CRM groups independently collapse while keeping active navigation accessible', () => {
+  const component = read('src/shared/components/organisms/DhSidebar.vue')
+  for (const group of ['INICIO', 'CLIENTES', 'VENTAS', 'ACTIVIDADES', 'ANÁLISIS', 'ADMINISTRACIÓN']) {
+    assert.ok(mainLayout.includes("group: '" + group + "'"), 'missing CRM group: ' + group)
+  }
+  assert.match(component, /function groupedChildren\(item: SidebarItem\)/)
+  assert.match(component, /sectionStateKey\(item\)/)
+  assert.match(component, /groupStateKey\(item, group\.id\)/)
+  assert.match(component, /@click="toggleExpanded\(sectionStateKey\(item\)\)"/)
+  assert.match(component, /@click="toggleExpanded\(groupStateKey\(item, group\.id\)\)"/)
+  assert.match(component, /:aria-expanded="isExpanded\(groupStateKey\(item, group\.id\)\)"/)
+  assert.match(component, /localStorage\.setItem\(NAVIGATION_STATE_KEY/)
+  assert.match(component, /watch\(\s*\(\) => route\.path/)
+  assert.match(component, /v-if="compact \|\| !group\.label \|\| isExpanded/)
+  assert.match(component, /:to="child\.path \?\? '\/'"/)
+  assert.match(component, /active-class="!bg-\[var\(--dh-primary\)\]/)
+  assert.match(component, /@click="emit\('close'\)"/)
+})
