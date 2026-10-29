@@ -326,7 +326,7 @@ function canonicalOwnLclOrigin(value: unknown) {
   const key = normalize(value).replace(/[^a-z0-9]/g, '')
   if (ownLclOriginAliases[key]) return ownLclOriginAliases[key]
   // Prioritize the actual POL in labels like "Yantian, Shenzhen, China".
-  const firstPort = normalize(value).split(',')[0].trim().replace(/[^a-z0-9]/g, '')
+  const firstPort = (normalize(value).split(',')[0] ?? '').trim().replace(/[^a-z0-9]/g, '')
   if (ownLclOriginAliases[firstPort]) return ownLclOriginAliases[firstPort]
 
   const aliases = Object.entries(ownLclOriginAliases)
