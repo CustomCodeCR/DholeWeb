@@ -212,7 +212,6 @@ watch(step, (currentStep) => {
 export function pricingFtlEditPreservationFinal(): Plugin {
   return {
     name: 'dhole-pricing-ftl-edit-preservation-final',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       const normalized = id.replaceAll('\\', '/').split('?')[0]
