@@ -262,7 +262,7 @@ onBeforeUnmount(revokePhotoObjectUrls)
 
       <template v-else>
         <section class="grid gap-4" :class="isColoader ? 'md:grid-cols-1' : 'md:grid-cols-2'">
-          <article v-if="!isColoader" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <article v-if="!isColoader && office" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Oficina de origen</p>
             <h2 class="mt-2 text-2xl font-black">{{ office.name }}</h2>
             <div class="mt-5 space-y-3 text-sm">
