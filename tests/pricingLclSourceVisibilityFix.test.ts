@@ -74,12 +74,14 @@ test('own-LCL watcher patch accepts legacy route fields and fails fast on missin
 })
 
 
-test('Guangzhou lists the physical Yantian consolidation instead of Shanghai', () => {
+test('Guangzhou can quote Yantian and Shanghai matrix, without treating Yantian as Shanghai', () => {
   assert.ok(selector.includes("requestedOrigins.has('guangzhou') && consolidationOrigins.has('yantian')"))
   assert.ok(selector.includes("consolidationOrigin === 'yantian' && requestedOwnLclOrigins().has('guangzhou')"))
   assert.ok(selector.includes("return 'GUANGZHOU'"))
-  assert.ok(!selector.includes("'shekou', 'guangzhou',"))
+  assert.ok(selector.includes("'shekou', 'guangzhou',"))
+  assert.ok(selector.includes("requestedOrigins).some((origin) => chinaOwnLclOrigins.has(origin))"))
   assert.ok(selector.includes("if (!consolidationOrigins.has('shanghai')) return false"))
+  assert.ok(!selector.includes("'shekou', 'yantian',"))
 })
 
 test('all Shanghai and Yantian own sources remain visible, without allowing invalid quotations', () => {
@@ -91,6 +93,9 @@ test('all Shanghai and Yantian own sources remain visible, without allowing inva
   assert.ok(selector.includes("if (!showAllOwnConsolidations.value && !ownConsolidationSupportsPol(row)) return false"))
   assert.ok(selector.includes("if (!ownConsolidationSupportsPoe(row)) return false"))
   assert.ok(selector.includes("if (row.isActive === false || normalize(row.status) === 'closed') return false"))
+  assert.ok(selector.includes("if (ownDepartureExpired(row)) return false"))
+  assert.ok(selector.includes("const plannedDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(cargoDate)"))
+  assert.ok(selector.includes("cargoDate > today ? cargoDate : today"))
   assert.ok(selector.includes("function ownSelectionBlockReason(row: OwnLclConsolidationDto)"))
   assert.ok(selector.includes("if (!ownConsolidationSupportsPol(row)) return 'Otro POL'"))
   assert.ok(selector.includes("if (ownDepartureExpired(row)) return 'Revisar ETD'"))
@@ -98,7 +103,7 @@ test('all Shanghai and Yantian own sources remain visible, without allowing inva
   assert.ok(selector.includes(':disabled="Boolean(ownSelectionBlockReason(row))"'))
   assert.ok(selector.includes("showAllOwnConsolidations = !showAllOwnConsolidations"))
   assert.ok(mobilePatch.includes(':disabled="Boolean(ownSelectionBlockReason(row))"'))
-  assert.ok(mobilePatch.includes("await loadOwnPreviews(ownRows.value.filter((row) => ownConsolidationSupportsPoe(row)))"))
+  assert.ok(mobilePatch.includes("await loadOwnPreviews(ownRows.value.filter((row) => !ownDepartureExpired(row) && ownConsolidationSupportsPol(row) && ownConsolidationSupportsPoe(row)))"))
   assert.ok(mobilePatch.includes("{{ ownConsolidationSupportsPol(row) ? selectedPolDisplay(ownPreview(row)) : (row.polName || row.polCode || 'Otro origen') }}"))
   assert.ok(mobilePatch.includes("canonicalOwnLclOrigin(row.polName || row.polCode) === 'shanghai'"))
 })
