@@ -34,7 +34,7 @@ test('preserves the saved agent and displays Config.Value instead of catalog cod
 
 test('FTL edit navigation does not rebuild original lines', () => {
   const output = patchPricingFtlEditPreservationFinal(fixture)
-  assert.match(output, /shipmentModeForApi\.value === 'Ftl'\) \{\n    \/\/ Apply an explicitly edited freight amount/)
+  assert.match(output, /!props\.viewOnly && shipmentModeForApi\.value === 'Ftl'\) \{/)
   assert.match(output, /syncPersistedFreightLineForEdit\(\)\n    step\.value = 7\n    return/)
   assert.match(output, /editingRate\.value && !props\.viewOnly && shipmentModeForApi\.value !== 'Ftl'/)
   assert.match(output, /relinkExistingDetailIdsForEdit\(\)/)
