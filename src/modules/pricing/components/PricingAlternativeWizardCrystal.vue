@@ -1688,6 +1688,40 @@ function lineTaxAmount(line: RateLine) {
     ? Math.round(number(line.saleAmount) * taxRate) / 100
     : 0
 }
+// View-only quotations read the exact Pricing snapshot printed by the PDF.
+// Unsaved edits retain the wizard's interactive preview and are recalculated
+// by Pricing when the revised quote is saved.
+function savedCommercialDetail(line: RateLine) {
+  if (!props.viewOnly || !line.detailId) return null
+  const detail = editingRate.value?.rateDetails.find((item) => item.id === line.detailId)
+  return detail?.commercialQuantity !== undefined ? detail : null
+}
+function quoteShownQuantity(line: RateLine) {
+  return number(savedCommercialDetail(line)?.commercialQuantity ?? quantityForRateLine(line))
+}
+function quoteShownUnitCost(line: RateLine) {
+  return number(savedCommercialDetail(line)?.commercialUnitCost ?? line.costAmount)
+}
+function quoteShownUnitSale(line: RateLine) {
+  return number(savedCommercialDetail(line)?.commercialUnitSale ?? line.saleAmount)
+}
+function quoteShownSubtotal(line: RateLine) {
+  return number(savedCommercialDetail(line)?.commercialSaleSubtotal ?? number(line.saleAmount) * quantityForRateLine(line))
+}
+function quoteShownTax(line: RateLine) {
+  const detail = savedCommercialDetail(line)
+  return detail ? number(detail.commercialTaxAmount) : lineTaxTotalAmount(line)
+}
+function quoteShownTotal(line: RateLine) {
+  const detail = savedCommercialDetail(line)
+  return detail ? number(detail.commercialSaleTotal) : lineSaleWithTax(line) * quantityForRateLine(line)
+}
+function quoteShownBasis(line: RateLine) {
+  return savedCommercialDetail(line) && line.chargeBasis === 'PerLb'
+    ? 'Por kg (tarifa LB convertida en Pricing)'
+    : chargeBasisLabel(effectiveChargeBasisForLine(line))
+}
+
 function lineTaxTotalAmount(line: RateLine) {
   return lineTaxAmount(line) * quantityForRateLine(line)
 }
@@ -3746,6 +3780,7 @@ async function hydrateExistingRate() {
     // provider association or historical notes look like a container charge.
     // Switching sources replaces these lines in applyLclRateSource instead.
     rateLines.value = rate.rateDetails.filter((detail) => {
+      if (props.viewOnly) return true
       if (!isColoaderRate) return true
       const notes = String(detail.notes ?? '')
       const hasExplicitColoader = rate.rateDetails.some((row) =>
@@ -3796,7 +3831,7 @@ async function hydrateExistingRate() {
     }
     // Two different catalog CostIds can represent the same Release.
     // Keep a single identical line; edit/save removes the extra persisted Id.
-    const uniqueReleaseLines = dedupeEquivalentReleaseLines(rateLines.value)
+    const uniqueReleaseLines = props.viewOnly ? rateLines.value : dedupeEquivalentReleaseLines(rateLines.value)
     if (uniqueReleaseLines.length !== rateLines.value.length) {
       toastStore.warning(
         'Release duplicado en la tarifa',
@@ -3984,7 +4019,7 @@ async function downloadRateLinesExcel() {
     // Las líneas son las mismas de Pantalla 9; el archivo es un XLSX real
     // con importes numéricos y una columna de ubicación para cada cargo.
     const rows = includedLines.value.map((line) => {
-      const quantity = quantityForRateLine(line)
+      const quantity = quoteShownQuantity(line)
       const chargeType = line.costDetailType === 'Freight' || line.section === 'international_freight'
         ? 'Flete'
         : line.section === 'pickup_origin' || line.section === 'origin_charges'
@@ -3999,11 +4034,11 @@ async function downloadRateLinesExcel() {
         quantity,
         currency: detailCurrencyValue(line),
         billTo: line.billToClient || '',
-        unitCost: number(line.costAmount),
-        unitSale: number(line.saleAmount),
-        saleSubtotal: number(line.saleAmount) * quantity,
-        tax: lineTaxTotalAmount(line),
-        saleTotal: lineSaleWithTax(line) * quantity,
+        unitCost: quoteShownUnitCost(line),
+        unitSale: quoteShownUnitSale(line),
+        saleSubtotal: quoteShownSubtotal(line),
+        tax: quoteShownTax(line),
+        saleTotal: quoteShownTotal(line),
       }
     })
 
@@ -6685,25 +6720,25 @@ onMounted(async () => {
                       <strong>{{ line.name }}</strong>
                       <p v-if="line.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ line.notes }}</p>
                     </td>
-                    <td class="px-4 py-3">{{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}</td>
-                    <td class="px-4 py-3">{{ quantityForRateLine(line).toLocaleString('es-CR') }}</td>
+                    <td class="px-4 py-3">{{ quoteShownBasis(line) }}</td>
+                    <td class="px-4 py-3">{{ quoteShownQuantity(line).toLocaleString('es-CR') }}</td>
                     <td class="px-4 py-3 font-black">{{ detailCurrencyValue(line) }}</td>
                     <td class="px-4 py-3 font-semibold">{{ line.billToClient || '—' }}</td>
-                    <td class="px-4 py-3 text-right">{{ formatMoney(number(line.costAmount), canonicalCurrencyCode(line)) }}</td>
+                    <td class="px-4 py-3 text-right">{{ formatMoney(quoteShownUnitCost(line), canonicalCurrencyCode(line)) }}</td>
                     <td class="px-4 py-3 text-right">
-                      {{ formatMoney(number(line.saleAmount), canonicalCurrencyCode(line)) }}
+                      {{ formatMoney(quoteShownUnitSale(line), canonicalCurrencyCode(line)) }}
                     </td>
                     <td class="px-4 py-3 text-right font-semibold">
-                      {{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), canonicalCurrencyCode(line)) }}
+                      {{ formatMoney(quoteShownSubtotal(line), canonicalCurrencyCode(line)) }}
                     </td>
                     <td
                       class="px-4 py-3 text-right font-semibold"
-                      :class="lineTaxTotalAmount(line) > 0 ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'"
+                      :class="quoteShownTax(line) > 0 ? 'text-[var(--dh-primary)]' : 'text-[var(--dh-text-muted)]'"
                     >
-                      {{ formatMoney(lineTaxTotalAmount(line), canonicalCurrencyCode(line)) }}
+                      {{ formatMoney(quoteShownTax(line), canonicalCurrencyCode(line)) }}
                     </td>
                     <td class="px-4 py-3 text-right font-black">
-                      {{ formatMoney(lineSaleWithTax(line) * quantityForRateLine(line), canonicalCurrencyCode(line)) }}
+                      {{ formatMoney(quoteShownTotal(line), canonicalCurrencyCode(line)) }}
                     </td>
                   </tr>
                 </tbody>
