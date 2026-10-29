@@ -76,3 +76,16 @@ test('CRM and SRM route guards block unauthorized direct URLs', () => {
   assert.ok(router.includes("srmSection: 'contracts', requiredAllScopes: ['srm.supplier.read', 'srm.contract.read']"))
   assert.ok(router.includes("to.path === '/crm' || to.path.startsWith('/crm/')"))
 })
+
+test('SRM supplier workspace uses a Dynamics-like profile and Dhole drawers', () => {
+  const view = read('src/modules/srm/views/SrmWorkspaceView.vue')
+  for (const marker of [
+    'Ficha proveedor', 'Condiciones comerciales', 'Evaluaciones',
+    'Información del proveedor', 'Contacto principal', 'Días de pago',
+    'supplierContracts', 'supplierEvaluations',
+    '<DhDrawer :open="formVisible"', '<details v-if="section',
+    'xl:grid-cols-[minmax(330px,.9fr)_minmax(0,1.6fr)]',
+  ]) assert.ok(view.includes(marker), 'Missing supplier UI element: ' + marker)
+  assert.ok(!view.includes('<section v-if="formVisible"'))
+  assert.ok(view.includes('var(--dh-card)'))
+})

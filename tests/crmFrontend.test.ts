@@ -66,3 +66,19 @@ test('CRM weekly agenda groups actual UTC instants by viewer local date', () => 
   assert.match(workspace, /crm\.partialAgenda/)
   assert.doesNotMatch(workspace, /\.toISOString\(\)\.slice\(0,10\)/)
 })
+
+test('Dynamics-style CRM account shows full-width three-column workspace and timeline', () => {
+  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  for (const marker of [
+    'hub-record-header sticky', 'role="tablist"',
+    'xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]',
+    'Escala de tiempo', 'Contactos relacionados', 'Historial de tarifas',
+    'Ficha comercial', '<CrmCatalogPicker', '<DhDrawer :open="routeEditor"',
+    '<DhDrawer :open="Boolean(editor)"', 'var(--dh-card)', 'var(--dh-border)',
+  ]) assert.ok(hub.includes(marker), 'Missing CRM UI element: ' + marker)
+  assert.ok(detail.includes('max-w-[1750px]'))
+  assert.ok(detail.includes('@change-executive="openExecutiveDrawer"'))
+  assert.ok(!hub.includes('<form v-if="routeEditor"'))
+  assert.ok(!hub.includes('<form v-if="editor"'))
+})
