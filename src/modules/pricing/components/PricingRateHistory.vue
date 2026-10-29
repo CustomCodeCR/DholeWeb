@@ -2,6 +2,10 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ChevronDown, History, MessageSquareText, PencilLine, ShieldCheck, UserRound } from 'lucide-vue-next'
 import { DhBadge } from '@/shared/components/atoms'
+import { useModalStore } from '@/core/stores/modalStore'
+import { PricingService } from '@/core/services/pricingService'
+import type { RateRevisionDto } from '@/core/interfaces/pricing'
+import PricingRateRevisionViewer from './PricingRateRevisionViewer.vue'
 import { AuditLogsService } from '@/core/services/auditLogsService'
 import type { AuditEventDto } from '@/core/interfaces/auditLogs'
 
@@ -25,6 +29,9 @@ const props = defineProps<{ rateId: string }>()
 const loading = ref(false)
 const error = ref('')
 const events = ref<AuditEventDto[]>([])
+const revisions = ref<RateRevisionDto[]>([])
+const revisionsUnavailable = ref(false)
+const modalStore = useModalStore()
 
 const fieldLabels: Record<string, string> = {
   RateName: 'Nombre de tarifa',
@@ -274,15 +281,105 @@ const history = computed<HistoryGroup[]>(() => {
     .sort((a, b) => new Date(b.root.occurredAt).getTime() - new Date(a.root.occurredAt).getTime())
 })
 
+/**
+ * En Pricing se guarda una revisión inmutable ANTES de cada UpdateRate.
+ * Se enlaza por RevisionNumber de BeforeJson (no por fechas ni por orden,
+ * porque una aprobación puede ocurrir entre dos modificaciones).
+ */
+function revisionBeforeEdit(event: AuditEventDto): RateRevisionDto | null {
+  if (event.action?.toLowerCase() !== 'updated') return null
+  const before = parseRecord(event.beforeJson)
+  const revisionNumber = Number(before.RevisionNumber ?? before.revisionNumber)
+  if (!Number.isInteger(revisionNumber) || revisionNumber < 1) return null
+
+  const revision = revisions.value.find((item) => item.revisionNumber === revisionNumber)
+  if (!revision?.snapshotJson) return null
+
+  const snapshot = parseRecord(revision.snapshotJson)
+  if (!Object.keys(snapshot).length) return null
+  // No enlazar una copia ajena si el servidor devuelve una revisión inesperada.
+  if (String(snapshot.RevisionNumber ?? snapshot.revisionNumber ?? '') !== String(revisionNumber)) return null
+  const previousRateId = String(before.Id ?? before.id ?? '')
+  const snapshotRateId = String(snapshot.Id ?? snapshot.id ?? '')
+  if (previousRateId && snapshotRateId && previousRateId.toLowerCase() !== snapshotRateId.toLowerCase()) return null
+  return revision
+}
+
+function beforeSnapshot(event: AuditEventDto): JsonRecord {
+  const revision = revisionBeforeEdit(event)
+  return revision ? parseRecord(revision.snapshotJson) : {}
+}
+
+function previousValue(event: AuditEventDto, ...keys: string[]): unknown {
+  const snapshot = beforeSnapshot(event)
+  for (const key of keys) {
+    if (snapshot[key] !== null && snapshot[key] !== undefined) return snapshot[key]
+  }
+  return null
+}
+
+function previousRoute(event: AuditEventDto): string {
+  const values = [
+    previousValue(event, 'PolName', 'polName'),
+    previousValue(event, 'PoeName', 'poeName'),
+    previousValue(event, 'PodName', 'podName'),
+  ].map((value) => String(value ?? '').trim()).filter(Boolean)
+  return values.filter((value, index) => values.indexOf(value) === index).join(' → ') || '—'
+}
+
+function previousAmount(event: AuditEventDto, kind: 'cost' | 'sale'): string {
+  const amount = Number(kind === 'cost'
+    ? previousValue(event, 'TotalCostAmount', 'totalCostAmount')
+    : previousValue(event, 'TotalSaleAmount', 'totalSaleAmount'))
+  if (!Number.isFinite(amount)) return '—'
+  const currency = String(previousValue(event, 'CurrencyName', 'currencyName', 'CurrencyCode', 'currencyCode') ?? 'USD')
+  const iso = /CRC|COL[OÓ]N/i.test(currency) ? 'CRC' : /EUR|EURO/i.test(currency) ? 'EUR' : 'USD'
+  return new Intl.NumberFormat(iso === 'CRC' ? 'es-CR' : 'en-US', {
+    style: 'currency', currency: iso, minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+function previousLineCount(event: AuditEventDto): number {
+  const snapshot = beforeSnapshot(event)
+  const details = snapshot.Details ?? snapshot.details
+  return Array.isArray(details) ? details.length : 0
+}
+
+function openBeforeEdit(event: AuditEventDto) {
+  const revision = revisionBeforeEdit(event)
+  if (!revision) return
+  modalStore.open({
+    title: `Cotización antes de modificar · Revisión ${revision.revisionNumber}`,
+    component: PricingRateRevisionViewer,
+    size: 'xl',
+    props: { revision },
+  })
+}
+
 async function loadHistory() {
   if (!props.rateId) return
   try {
     loading.value = true
     error.value = ''
-    events.value = await AuditLogsService.getPricingRateHistory(props.rateId)
+    // Si falla Pricing, el detalle de auditoría continúa funcionando sin
+    // presentar una versión actual como si fuera la cotización anterior.
+    const rateId = props.rateId
+    const [auditEvents, revisionItems] = await Promise.all([
+      AuditLogsService.getPricingRateHistory(rateId),
+      PricingService.getRateRevisions(rateId).catch((cause) => {
+        console.error('[PricingRateHistory] Could not load historical snapshots.', cause)
+        return null
+      }),
+    ])
+    if (props.rateId !== rateId) return
+    events.value = auditEvents
+    revisions.value = revisionItems ?? []
+    revisionsUnavailable.value = revisionItems === null
   } catch (cause) {
     console.error('[PricingRateHistory] Could not load quotation history.', cause)
     error.value = 'No se pudo cargar el historial de esta cotización.'
+    events.value = []
+    revisions.value = []
   } finally {
     loading.value = false
   }
@@ -310,7 +407,7 @@ onMounted(loadHistory)
             </span>
           </div>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Quién aprobó o modificó la cotización, el motivo indicado antes de editar y los cambios realizados.
+            Quién aprobó o modificó la cotización, los datos anteriores a cada edición, el motivo y los cambios realizados.
           </p>
         </div>
       </div>
@@ -357,6 +454,52 @@ onMounted(loadHistory)
         </summary>
 
         <div class="mt-4 space-y-4 border-t border-[var(--dh-border)] pt-4">
+          <section v-if="revisionBeforeEdit(entry.root)" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 class="text-sm font-black">Cotización antes de modificar</h4>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                  Revisión {{ revisionBeforeEdit(entry.root)?.revisionNumber }} · Datos guardados antes de esta edición, sin aplicar cambios posteriores.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-bg)] px-3 py-2 text-xs font-black text-[var(--dh-text)] hover:border-[var(--dh-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                @click="openBeforeEdit(entry.root)"
+              >
+                Ver datos completos (pantalla 8)
+              </button>
+            </div>
+            <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div class="rounded-lg bg-[var(--dh-bg)] px-3 py-2">
+                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Cliente</p>
+                <p class="mt-1 break-words text-xs font-bold">{{ formatValue(previousValue(entry.root, 'ClientName', 'clientName')) }}</p>
+              </div>
+              <div class="rounded-lg bg-[var(--dh-bg)] px-3 py-2">
+                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Ruta anterior</p>
+                <p class="mt-1 break-words text-xs font-bold">{{ previousRoute(entry.root) }}</p>
+              </div>
+              <div class="rounded-lg bg-[var(--dh-bg)] px-3 py-2">
+                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Costo anterior</p>
+                <p class="mt-1 text-xs font-bold">{{ previousAmount(entry.root, 'cost') }}</p>
+              </div>
+              <div class="rounded-lg bg-[var(--dh-bg)] px-3 py-2">
+                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Venta anterior</p>
+                <p class="mt-1 text-xs font-bold">{{ previousAmount(entry.root, 'sale') }}</p>
+              </div>
+            </div>
+            <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ previousLineCount(entry.root) }} rubros guardados · Abra el detalle para consultar equipo, carga, vigencia, agente, costos, ventas y notas originales.
+            </p>
+          </section>
+          <p
+            v-else-if="entry.root.action?.toLowerCase() === 'updated'"
+            class="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300"
+          >
+            No hay una instantánea completa disponible para esta modificación.
+            Se muestran abajo los valores anteriores que sí quedaron registrados en auditoría.
+            {{ revisionsUnavailable ? 'No se pudieron consultar las revisiones guardadas.' : '' }}
+          </p>
           <section v-if="headerChanges(entry.root).length">
             <h4 class="mb-2 flex items-center gap-2 text-xs font-black"><UserRound class="h-4 w-4" />Cambios generales</h4>
             <div class="space-y-2">
