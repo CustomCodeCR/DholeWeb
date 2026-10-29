@@ -804,12 +804,12 @@ onMounted(async () => {
                 />
               </td>
               <td class="px-5 py-4 text-right font-bold">
-                {{ Math.max(1, detail.quantity || 1) }}
+                {{ detail.commercialQuantity ?? Math.max(1, detail.quantity || 1) }}
               </td>
               <td class="px-5 py-4 text-right font-bold">
                 {{
                   formatMoney(
-                    detail.costAmount * Math.max(1, detail.quantity || 1),
+                    detail.commercialCostSubtotal ?? detail.costAmount * Math.max(1, detail.quantity || 1),
                     detail.currencyName,
                   )
                 }}
@@ -817,7 +817,7 @@ onMounted(async () => {
               <td class="px-5 py-4 text-right font-bold">
                 {{
                   formatMoney(
-                    detail.saleAmount * Math.max(1, detail.quantity || 1),
+                    detail.commercialSaleSubtotal ?? detail.saleAmount * Math.max(1, detail.quantity || 1),
                     detail.currencyName,
                   )
                 }}
@@ -825,12 +825,12 @@ onMounted(async () => {
               <td
                 class="px-5 py-4 text-right font-black"
                 :class="
-                  detail.utilityAmount >= 0
+                  (detail.commercialUtilitySubtotal ?? detail.utilityAmount) >= 0
                     ? 'text-emerald-600 dark:text-emerald-400'
                     : 'text-red-500'
                 "
               >
-                {{ formatMoney(detail.utilityAmount, detail.currencyName) }}
+                {{ formatMoney(detail.commercialUtilitySubtotal ?? detail.utilityAmount, detail.currencyName) }}
               </td>
             </tr>
           </tbody>
