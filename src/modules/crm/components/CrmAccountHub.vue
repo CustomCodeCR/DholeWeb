@@ -6,6 +6,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { crmPath, crmRequest, crmUuid, toUtc, type CrmRow } from '../services/crmApi'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
+import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
@@ -13,7 +14,7 @@ import {
   Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet,
 } from 'lucide-vue-next'
 
-type Section = 'summary' | 'commercial' | 'quotes' | 'history' | 'agenda' | 'finance'
+type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'quotes' | 'history' | 'agenda' | 'finance'
 interface Overview {
   activities: CrmRow[]
   followups: CrmRow[]
@@ -35,12 +36,14 @@ const activeTab = ref<Section>('summary')
 const compactRow = (label: string, value: unknown) => ({ label, value })
 const tabs = computed(() => [
   { key: 'summary' as const, label: locale.value === 'en' ? 'Customer' : 'Cliente', icon: UserRound },
-  { key: 'commercial' as const, label: locale.value === 'en' ? 'Customer profile' : 'Ficha cliente', icon: Route },
+  { key: 'profile' as const, label: locale.value === 'en' ? 'Account form' : 'Ficha cliente', icon: FileText },
+  { key: 'commercial' as const, label: locale.value === 'en' ? 'Routes and markets' : 'Rutas y mercados', icon: Route },
+  ...(has('crm.contact.read') ? [{ key: 'contacts' as const, label: locale.value === 'en' ? 'Contacts' : 'Contactos', icon: UsersRound }] : []),
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
   { key: 'history' as const, label: locale.value === 'en' ? 'Route history' : 'Historial de rutas', icon: Route },
   { key: 'agenda' as const, label: locale.value === 'en' ? 'Activity & follow-up' : 'Seguimientos', icon: CalendarClock },
   ...(has('crm.credit.read') || has('crm.contract.read')
-    ? [{ key: 'finance' as const, label: locale.value === 'en' ? 'Credit & contacts' : 'Crédito / contactos', icon: Wallet }]
+    ? [{ key: 'finance' as const, label: locale.value === 'en' ? 'Credit & conditions' : 'Crédito / condiciones', icon: Wallet }]
     : []),
 ])
 const initial = (): Overview => ({
@@ -101,7 +104,26 @@ const profileFields = [
   { key: 'companyHistory', label: 'Historia de la empresa', type: 'text', long: true },
   { key: 'commercialObservations', label: 'Observaciones comerciales', type: 'text', long: true },
   { key: 'operationalInstructions', label: 'Instrucciones operativas', type: 'text', long: true },
+  { key: 'activeServices', label: 'Servicios activos', type: 'text', long: true },
+  { key: 'presenceCountries', label: 'Países con presencia', type: 'text', long: true },
+  { key: 'commercialStrategy', label: 'Estrategia comercial', type: 'text', long: true },
+  { key: 'projectsOfInterest', label: 'Proyectos de interés o vinculados', type: 'text', long: true },
+  { key: 'pricingObservations', label: 'Observaciones de Pricing', type: 'text', long: true },
+  { key: 'tariffMonitoringNotes', label: 'Seguimiento de tarifas por enviar', type: 'text', long: true },
+  { key: 'tariffSendingNotes', label: 'Observaciones de tarifas enviadas', type: 'text', long: true },
+  { key: 'customsInstructions', label: 'Instrucciones de aduanas y nacionalización', type: 'text', long: true },
+  { key: 'cargoCollectionInstructions', label: 'Observaciones de recolección de carga', type: 'text', long: true },
+  { key: 'documentReviewInstructions', label: 'Observaciones de revisión documental', type: 'text', long: true },
+  { key: 'assignedOperations', label: 'Operativa asignada', type: 'text', long: false },
+  { key: 'competitorObservations', label: 'Competidores y contexto comercial', type: 'text', long: true },
+  { key: 'tradeAgreementNotes', label: 'Tratados y acuerdos comerciales', type: 'text', long: true },
+  { key: 'webCustomerReference', label: 'ID de cliente en la web (sin credenciales)', type: 'text', long: false },
 ] as const
+const profileGroups = [
+  { label: 'Información de la empresa y cuenta web', keys: ['phone','email','website','sector','businessActivity','products','companyHistory','billingEmail','marketingEmail','webCustomerReference','presenceCountries','activeServices'] },
+  { label: 'Análisis y estrategia comercial', keys: ['commercialObservations','commercialStrategy','projectsOfInterest','pricingObservations','tariffMonitoringNotes','tariffSendingNotes','competitorObservations'] },
+  { label: 'Instrucciones operativas y aduaneras', keys: ['operationalInstructions','customsInstructions','cargoCollectionInstructions','documentReviewInstructions','assignedOperations','tradeAgreementNotes'] },
+].map(group => ({ label: group.label, fields: profileFields.filter(field => (group.keys as string[]).includes(field.key)) }))
 const profileDraft = ref<Record<string, string>>({})
 const profileFilled = computed(() => profileFields.filter(f =>
   typeof businessProfile.value?.[f.key] === 'string' &&
@@ -399,6 +421,19 @@ async function saveRoute() {
 
 <template>
   <div class="space-y-4" data-crm-account-hub>
+    <div class="hub-command-bar" aria-label="Acciones de la cuenta">
+      <button v-if="has('crm.account.update')" type="button" class="hub-outline-button hub-small" @click="openProfileEditor"><FileText class="h-4 w-4" />Editar ficha empresarial</button>
+      <button v-if="has('crm.activity.create')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('CALL')"><Phone class="h-4 w-4" />Llamada</button>
+      <button v-if="has('crm.activity.create')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('VISIT')"><Plus class="h-4 w-4" />Nueva visita</button>
+      <button v-if="has('crm.task.manage') || has('crm.followup.manage')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('FOLLOWUP')"><CalendarClock class="h-4 w-4" />Seguimiento</button>
+      <button type="button" class="hub-outline-button hub-small ml-auto" :disabled="loading" @click="load"><RefreshCw class="h-4 w-4" :class="loading && 'animate-spin'" />Actualizar datos</button>
+    </div>
+    <div class="hub-summary-strip" aria-label="Resumen comercial">
+      <span class="font-extrabold">Resumen</span>
+      <span>{{ text(account.displayName || account.legalName) }} · {{ account.customerTypeCode === 'credit' ? 'Cliente con crédito' : 'Cliente de contado' }}.</span>
+      <span>{{ activityCount }} actividades, {{ pendingCount }} seguimientos pendientes y {{ routeHistoryTotal }} rutas documentadas.</span>
+      <button type="button" class="hub-text-link ml-auto" @click="activeTab='profile'">Ver ficha completa</button>
+    </div>
     <header class="hub-record-header sticky top-1 z-20 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
         <div class="flex min-w-0 flex-1 items-center gap-3">
@@ -598,6 +633,31 @@ async function saveRoute() {
         </section>
       </aside>
     </div>
+
+    <CrmDynamicsAccountSheet v-else-if="activeTab === 'profile'" id="crm-account-profile" role="tabpanel"
+      :account="account" :profile="businessProfile" :country="countryName"
+      :contacts="contacts" :addresses="addresses" :activities="overview.activities"
+      :followups="overview.followups" :analyses="overview.analyses" :routes="overview.routes"
+      :credit="credit" :contracts="contracts" :can-read-contacts="has('crm.contact.read')"
+      :can-read-credit="has('crm.credit.read')" :can-read-contracts="has('crm.contract.read')"
+      :can-edit-profile="has('crm.account.update')"
+      @edit-profile="openProfileEditor" @open-tab="activeTab=$event" />
+
+    <section v-else-if="activeTab === 'contacts'" id="crm-account-contacts" role="tabpanel" class="hub-panel">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div><h2 class="font-extrabold">Contactos de la cuenta</h2><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Personas vinculadas realmente a este cliente.</p></div>
+        <RouterLink to="/crm/contacts" class="hub-outline-button hub-small"><UsersRound class="h-4 w-4" />Directorio de contactos</RouterLink>
+      </div>
+      <p v-if="!contacts.length" class="hub-empty">No hay contactos vinculados. Podés administrarlos desde la gestión avanzada de la cuenta.</p>
+      <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <RouterLink v-for="contact in contacts" :key="contact.id" :to="'/crm/contacts/' + encodeURIComponent(rowId(contact.id))"
+          class="rounded-lg border border-[var(--dh-border)] p-4 hover:border-[var(--dh-primary)]">
+          <p class="text-sm font-bold text-[var(--dh-primary)]">{{ text(contact.name || contact.displayName) }}</p>
+          <p class="mt-2 text-xs">{{ text(contact.jobTitle) }}</p>
+          <p class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ text(contact.email) }} · {{ text(contact.phone) }}</p>
+        </RouterLink>
+      </div>
+    </section>
 
     <div v-else-if="activeTab === 'commercial'" id="crm-account-commercial" role="tabpanel" class="grid items-start gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(255px,.76fr)]">
       <section class="hub-panel">
@@ -900,12 +960,15 @@ async function saveRoute() {
     <DhDrawer :open="profileOpen" title="Datos empresariales y operativos" size="xl" @close="profileOpen=false">
       <form class="space-y-4 p-2" @submit.prevent="saveProfile">
         <p class="text-xs text-[var(--dh-text-muted)]">Información corporativa del cliente. Los contactos personales, direcciones, crédito y rutas se administran como registros separados.</p>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div v-for="field in profileFields" :key="field.key" :class="field.long ? 'sm:col-span-2' : ''">
-            <DhTextarea v-if="field.long" :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :rows="3" />
-            <DhInput v-else :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :type="field.type === 'email' ? 'email' : 'text'" />
+        <fieldset v-for="group in profileGroups" :key="group.label" class="rounded-lg border border-[var(--dh-border)] p-4">
+          <legend class="px-2 text-sm font-extrabold">{{ group.label }}</legend>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div v-for="field in group.fields" :key="field.key" :class="field.long ? 'sm:col-span-2' : ''">
+              <DhTextarea v-if="field.long" :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :rows="3" />
+              <DhInput v-else :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :type="field.type === 'email' ? 'email' : 'text'" />
+            </div>
           </div>
-        </div>
+        </fieldset>
         <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
           <button type="button" class="hub-outline-button" @click="profileOpen=false">Cancelar</button>
           <button type="submit" class="crm-action" :disabled="profileSaving">{{ profileSaving ? 'Guardando…' : 'Guardar datos empresariales' }}</button>
@@ -916,6 +979,9 @@ async function saveRoute() {
 </template>
 
 <style scoped>
+.hub-command-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;border:1px solid var(--dh-border);border-radius:.8rem;background:var(--dh-card);padding:.65rem .8rem;box-shadow:var(--dh-shadow-sm)}
+.hub-summary-strip{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;border:1px solid var(--dh-border);border-radius:.8rem;background:var(--dh-card);padding:.85rem 1rem;font-size:.75rem;color:var(--dh-text-muted)}
+.hub-summary-strip>span:first-child{color:var(--dh-text)}
 .hub-record-header{backdrop-filter:blur(16px)}
 .hub-tab{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;padding:.85rem .95rem;font-size:.75rem;font-weight:700;color:var(--dh-text-muted);border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
 .hub-tab:hover,.hub-tab:focus-visible{color:var(--dh-text);background:var(--dh-primary-light,transparent);outline-offset:-2px}

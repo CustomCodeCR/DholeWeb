@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CrmModuleNavigation from '../components/CrmModuleNavigation.vue'
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Filter, Search, CalendarClock, Route, Wallet, ArrowRight } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
@@ -41,9 +42,10 @@ const catalogFields: Record<string, { slug: string; kind: 'id' | 'code' | 'value
   currencyCode: { slug: 'currencies', kind: 'value' },
 }
 function applyHacienda(result: HaciendaResult) {
-  // Never overwrite a manually-entered commercial name.
+  // Every explicit tax lookup replaces the stale account name.
+  if (String(form.taxId ?? '').replace(/[\s-]/g, '') !== result.identification.replace(/[\s-]/g, '')) return
   form.legalName = result.name
-  if (!String(form.displayName ?? '').trim()) form.displayName = result.name
+  form.displayName = result.name
   if (result.identificationType) form.taxIdTypeCode = result.identificationType
 }
 
@@ -162,7 +164,47 @@ const companyDraft = reactive({
   phone: '', email: '', website: '', sector: '', businessActivity: '',
   products: '', companyHistory: '', billingEmail: '', marketingEmail: '',
   commercialObservations: '', operationalInstructions: '',
+  activeServices: '', presenceCountries: '', commercialStrategy: '',
+  projectsOfInterest: '', pricingObservations: '', tariffMonitoringNotes: '',
+  tariffSendingNotes: '', customsInstructions: '', cargoCollectionInstructions: '',
+  documentReviewInstructions: '', assignedOperations: '', competitorObservations: '',
+  tradeAgreementNotes: '', webCustomerReference: '',
 })
+const companyExtraFields = [
+  { key: 'activeServices', label: 'Servicios activos' },
+  { key: 'presenceCountries', label: 'Países con presencia' },
+  { key: 'commercialStrategy', label: 'Estrategia comercial' },
+  { key: 'projectsOfInterest', label: 'Proyectos de interés' },
+  { key: 'pricingObservations', label: 'Observaciones Pricing' },
+  { key: 'tariffMonitoringNotes', label: 'Tarifas por enviar' },
+  { key: 'tariffSendingNotes', label: 'Observaciones tarifas enviadas' },
+  { key: 'customsInstructions', label: 'Instrucciones de aduanas' },
+  { key: 'cargoCollectionInstructions', label: 'Recolección de carga' },
+  { key: 'documentReviewInstructions', label: 'Revisión documental' },
+  { key: 'assignedOperations', label: 'Operativa asignada' },
+  { key: 'competitorObservations', label: 'Análisis de competidores' },
+  { key: 'tradeAgreementNotes', label: 'Tratados y acuerdos comerciales' },
+  { key: 'webCustomerReference', label: 'Referencia web (sin contraseñas)' },
+] as const
+const companyProfileVersion = ref<number | null>(null)
+const companyProfileSnapshot = ref('')
+const companyProfileLoading = ref(false)
+const companyProfileError = ref('')
+async function loadEditableCompanyProfile(accountId: string) {
+  companyProfileLoading.value = true
+  companyProfileError.value = ''
+  try {
+    const profile = await crmRequest<CrmRow | null>('/api/crm/accounts/' +
+      encodeURIComponent(accountId) + '/business-profile')
+    if (!showForm.value || edited.value?.id !== accountId) return
+    companyProfileVersion.value = profile?.rowVersion ?? null
+    for (const key of Object.keys(companyDraft) as Array<keyof typeof companyDraft>) {
+      companyDraft[key] = typeof profile?.[key] === 'string' ? String(profile[key]) : ''
+    }
+    companyProfileSnapshot.value = JSON.stringify(companyDraft)
+  } catch (cause) { companyProfileError.value = crmError(cause) }
+  finally { companyProfileLoading.value = false }
+}
 function resetCompanyDraft() {
   Object.keys(companyDraft).forEach(key => {
     companyDraft[key as keyof typeof companyDraft] = ''
@@ -179,18 +221,27 @@ async function loadCountryLabels() {
     countryLabels.value = Object.fromEntries(items.map(item => [item.id, String(item.label || item.value || item.code)]))
   } catch { countryLabels.value = {} }
 }
-const accountTabs = [
-  { key: 'identity', label: 'Identificación', icon: Building2 },
-  { key: 'commercial', label: 'Perfil comercial', icon: Wallet },
-  { key: 'company', label: 'Datos empresariales', icon: Building2 },
-  { key: 'related', label: 'Contactos y logística', icon: Route },
+// Navigation shortcuts scroll; all sections stay visible.
+const accountSections = [
+  { key: 'identity', label: 'Identificación' },
+  { key: 'commercial', label: 'Perfil comercial' },
+  { key: 'company', label: 'Datos empresariales' },
+  { key: 'related', label: 'Contactos y logística' },
 ] as const
+function focusAccountSection(key: typeof accountFormTab.value) {
+  accountFormTab.value = key
+  void nextTick(() => document.getElementById('crm-account-section-' + key)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
 
 
 function beginCreate() {
   resetValidation()
   resetRelatedDraft()
   resetCompanyDraft()
+  companyProfileVersion.value = null
+  companyProfileError.value = ''
+  companyProfileSnapshot.value = JSON.stringify(companyDraft)
   pendingCreateKey.value = crmUuid()
   edited.value = null
   Object.keys(form).forEach(key => delete form[key])
@@ -203,6 +254,9 @@ function beginEdit(item: CrmRow) {
   resetValidation()
   resetRelatedDraft()
   resetCompanyDraft()
+  companyProfileVersion.value = null
+  companyProfileError.value = ''
+  companyProfileSnapshot.value = JSON.stringify(companyDraft)
   edited.value = item
   accountFormTab.value = 'identity'
   Object.keys(form).forEach(key => delete form[key])
@@ -210,6 +264,7 @@ function beginEdit(item: CrmRow) {
     form[f.key] = f.type === 'datetime-local' ? fromUtc(item[f.key]) : item[f.key] ?? (f.type === 'checkbox' ? false : '')
   }
   showForm.value = true
+  if (section.value === 'accounts' && (can('crm.account.read') || can('crm.account.read-all'))) void loadEditableCompanyProfile(item.id)
 }
 function canCreate() {
   return !!model.value?.createScope && can(model.value.createScope)
@@ -320,11 +375,11 @@ async function save() {
   if (section.value === 'accounts') {
     if (requiredFields.value.length) {
       const identityFields = ['displayName', 'legalName', 'countryId', 'taxId', 'taxIdTypeCode']
-      accountFormTab.value = requiredFields.value.some(f => identityFields.includes(f.key)) ? 'identity' : 'commercial'
+      focusAccountSection(requiredFields.value.some(f => identityFields.includes(f.key)) ? 'identity' : 'commercial')
       await nextTick()
     }
     if (String(form.taxId ?? '').trim() && (!form.countryId || !String(form.taxIdTypeCode ?? '').trim())) {
-      accountFormTab.value = 'identity'
+      focusAccountSection('identity')
       error.value = 'Para registrar identificación fiscal, seleccioná país y tipo de identificación.'
       await nextTick()
       return
@@ -332,8 +387,17 @@ async function save() {
   }
   if (section.value === 'accounts' && !edited.value && (relatedDraft.contactEmail.trim() || relatedDraft.contactPhone.trim()) &&
       !relatedDraft.contactName.trim()) {
-    accountFormTab.value = 'related'
+    focusAccountSection('related')
     error.value = 'Si registrás correo o teléfono, completá también el nombre del contacto.'
+    return
+  }
+  if (section.value === 'accounts' && edited.value && companyProfileLoading.value) {
+    error.value = 'La ficha empresarial se está cargando. Revisá los datos antes de guardar.'
+    return
+  }
+  if (section.value === 'accounts' && edited.value && companyProfileError.value &&
+      JSON.stringify(companyDraft) !== companyProfileSnapshot.value) {
+    error.value = 'No se pudo consultar la versión actual de la ficha empresarial. Actualizá antes de guardarla.'
     return
   }
   if (!validateRequiredFields()) return
@@ -362,10 +426,12 @@ async function save() {
     if (section.value === 'accounts' && createdOrUpdated?.id) {
       const missing: string[] = []
       const accountId = encodeURIComponent(createdOrUpdated.id)
-      if (!edited.value && Object.values(companyDraft).some(value => value.trim()) && can('crm.account.update')) {
+      if (can('crm.account.update') &&
+          (!edited.value ? Object.values(companyDraft).some(value => value.trim())
+            : !companyProfileError.value && JSON.stringify(companyDraft) !== companyProfileSnapshot.value)) {
         try {
           await crmRequest('/api/crm/accounts/' + accountId + '/business-profile', 'PUT', {
-            ...companyDraft, expectedVersion: null,
+            ...companyDraft, expectedVersion: edited.value ? companyProfileVersion.value : null,
           }, crmUuid())
         } catch { missing.push('datos empresariales') }
       }
@@ -422,6 +488,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
 
 <template>
   <main class="mx-auto w-full max-w-[1600px] space-y-5 p-3 text-[var(--dh-text)] sm:p-6" data-crm-page>
+    <CrmModuleNavigation />
     <DhPageHeader :title="pageTitle" :subtitle="section === 'accounts' ? 'CRM · Clientes / Cuentas' : t('crm.title')" :icon="BriefcaseBusiness" hide-excel-export>
       <template #actions>
         <DhButton :icon="RefreshCw" :label="t('common.refresh')" variant="secondary" :disabled="loading" @click="load" />
@@ -588,8 +655,8 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
         </footer>
       </div>
 
-      <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' ? 'xl' : 'lg'" @close="showForm = false">
-        <form v-if="model" class="space-y-6" @submit.prevent="save">
+      <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' ? 'full' : 'lg'" @close="showForm = false">
+        <form v-if="model" class="mx-auto max-w-7xl space-y-6" @submit.prevent="save">
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">{{ t('crm.formHint') }}</p>
           <p v-if="error" role="alert" class="rounded-2xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ error }}</p>
           <template v-if="section === 'accounts'">
@@ -599,17 +666,14 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                   <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ficha de cuenta comercial</p>
                   <h2 class="mt-1 text-base font-extrabold">{{ edited ? 'Editar datos de la cuenta' : 'Nueva cuenta · Registrar cliente' }}</h2>
                 </div>
-                <span class="text-xs font-medium text-[var(--dh-text-muted)]">{{ edited ? 'Datos existentes' : 'Primero registrá la cuenta y luego sus contactos' }}</span>
+                <span class="text-xs font-medium text-[var(--dh-text-muted)]">{{ edited ? 'Datos existentes' : 'Completá todos los apartados en una sola pantalla' }}</span>
               </div>
-              <nav class="mt-4 flex gap-1 overflow-x-auto border-t border-[var(--dh-border)]" aria-label="Secciones de la cuenta" role="tablist">
-                <button v-for="tab in accountTabs" :key="tab.key" type="button" role="tab"
-                  :aria-selected="accountFormTab===tab.key" @click="accountFormTab=tab.key"
-                  class="flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold"
-                  :class="accountFormTab===tab.key ? 'border-[var(--dh-primary)] text-[var(--dh-primary)]' : 'border-transparent text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'">
-                  <component :is="tab.icon" class="h-4 w-4" />{{ tab.label }}
-                </button>
-              </nav>
-              <div v-if="accountFormTab==='identity'" class="mt-4">
+              <div class="mt-4 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-3" aria-label="Ir a sección">
+                <button v-for="item in accountSections" :key="item.key" type="button"
+                  class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-xs font-bold hover:text-[var(--dh-primary)]"
+                  @click="focusAccountSection(item.key)">{{ item.label }}</button>
+              </div>
+              <div id="crm-account-section-identity" class="mt-4 scroll-mt-20">
                 <h3 class="mb-1 text-sm font-extrabold">Identificación del cliente</h3>
                 <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Información general de la empresa. La consulta fiscal de Hacienda está disponible para cuentas de Costa Rica.</p>
                 <div class="grid gap-4 md:grid-cols-2">
@@ -631,7 +695,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                 <div class="mt-4"><CrmHaciendaLookup v-if="!edited"
                     :country-id="String(form.countryId ?? '')" :tax-id="String(form.taxId ?? '')" @resolved="applyHacienda" /></div>
               </div>
-              <div v-else-if="accountFormTab==='commercial'" class="mt-4">
+              <div id="crm-account-section-commercial" class="mt-6 border-t border-[var(--dh-border)] pt-5 scroll-mt-20">
                 <h3 class="mb-1 text-sm font-extrabold">Perfil comercial</h3>
                 <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Clasificación, relación, origen y responsable de la cuenta. El historial de asignaciones queda registrado.</p>
                 <div class="grid gap-4 md:grid-cols-2">
@@ -653,10 +717,10 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                 </div>
                 <p v-if="edited" class="mt-4 text-xs text-[var(--dh-text-muted)]">El tipo y la categoría de cuenta se mantienen según el registro actual. Para reasignar el ejecutivo, utilizá la acción en la ficha.</p>
               </div>
-              <div v-else-if="accountFormTab === 'company'" class="mt-4">
+              <div id="crm-account-section-company" class="mt-6 border-t border-[var(--dh-border)] pt-5 scroll-mt-20">
                 <h3 class="mb-1 text-sm font-extrabold">Datos empresariales y operativos</h3>
                 <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Información para ventas, Pricing y aperturas operativas. La ficha puede completarse después del registro.</p>
-                <div v-if="!edited" class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-4 md:grid-cols-2">
                   <DhInput v-model="companyDraft.phone" label="Teléfono corporativo" />
                   <DhInput v-model="companyDraft.email" type="email" label="Correo principal" />
                   <DhInput v-model="companyDraft.website" label="Sitio web (https://)" />
@@ -668,10 +732,15 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                   <div class="md:col-span-2"><DhTextarea v-model="companyDraft.companyHistory" label="Historia y perfil de la empresa" :rows="2" /></div>
                   <div class="md:col-span-2"><DhTextarea v-model="companyDraft.commercialObservations" label="Observaciones comerciales" :rows="2" /></div>
                   <div class="md:col-span-2"><DhTextarea v-model="companyDraft.operationalInstructions" label="Instrucciones operativas" :rows="2" /></div>
+                   <div v-for="field in companyExtraFields" :key="field.key" class="md:col-span-2">
+                     <DhTextarea :label="field.label" :model-value="companyDraft[field.key]"
+                       @update:model-value="companyDraft[field.key]=$event" :rows="2" />
+                   </div>
                 </div>
-                <p v-else class="text-xs text-[var(--dh-text-muted)]">Para editar la información empresarial de una cuenta existente, abrí su ficha y seleccioná «Editar datos».</p>
+                <p v-if="companyProfileLoading" role="status" class="mt-2 text-xs text-[var(--dh-text-muted)]">Cargando datos empresariales…</p>
+                 <p v-if="companyProfileError" role="alert" class="mt-2 text-xs text-red-500">{{ companyProfileError }}</p>
               </div>
-              <div v-else class="mt-4">
+              <div id="crm-account-section-related" class="mt-6 border-t border-[var(--dh-border)] pt-5 scroll-mt-20">
                 <h3 class="mb-2 text-sm font-extrabold">Contactos, dirección y logística</h3>
                 <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">
                   Podés agregar el contacto principal y la dirección junto con la cuenta. Las rutas, tarifas y seguimientos se gestionan desde su ficha completa.
@@ -736,7 +805,6 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           </div>
           <div class="sticky bottom-0 z-10 -mx-3 flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-bg)] px-3 py-4 sm:-mx-5 sm:px-5">
             <DhButton :label="t('common.cancel')" variant="secondary" @click="showForm = false" />
-            <DhButton v-if="section === 'accounts' && accountFormTab !== 'related'" variant="secondary" label="Siguiente" @click="accountFormTab=accountFormTab==='identity'?'commercial':accountFormTab==='commercial'?'company':'related'" />
             <DhButton type="submit" :label="section === 'accounts' ? 'Guardar y abrir ficha' : t('common.save')" :loading="saving" />
           </div>
         </form>

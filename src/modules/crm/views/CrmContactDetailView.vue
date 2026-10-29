@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CrmModuleNavigation from '../components/CrmModuleNavigation.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -68,6 +69,7 @@ watch(contactId, load)
 
 <template>
   <main class="mx-auto w-full max-w-[1650px] space-y-3 p-3 text-[var(--dh-text)] sm:p-5" data-crm-contact-detail>
+    <CrmModuleNavigation />
     <DhButton :icon="ArrowLeft" :label="en ? 'Contacts' : 'Volver a contactos'" variant="secondary" @click="router.push('/crm/contacts')" />
     <p v-if="error" role="alert" class="rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="success" role="status" class="text-sm text-emerald-500">{{ success }}</p>
