@@ -8,7 +8,9 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { CONFIG_SCOPES } from '@/core/auth/scopes'
-import { SrmApi } from '../services/srmApi'
+import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
 
 type SrmSection = 'dashboard' | 'suppliers' | 'performance' | 'contracts'
@@ -65,6 +67,16 @@ const score = ref(5)
 const note = ref('')
 const reference = ref('')
 const expiresAt = ref('')
+const legacyPartners = ref<SrmLegacyPartner[]>([])
+const importBusy = ref('')
+const countryId = ref('')
+const taxId = ref('')
+const website = ref('')
+const paymentDays = ref('30')
+const contractCurrency = ref('USD')
+const rateReference = ref('')
+const serviceCoverage = ref('')
+const countries = ref<CatalogItemSelectDto[]>([])
 
 function metadata(row: CatalogItemDto): Record<string, unknown> {
   try {
@@ -90,6 +102,8 @@ function mapRecords(items: CatalogItemDto[]): SrmRecord[] {
 function supplierLabel(id: string) {
   return suppliers.value.find(item => item.id === id)?.name || (en.value ? 'Unknown supplier' : 'Proveedor no disponible')
 }
+const pendingLegacy = computed(() => legacyPartners.value.filter(x => !x.imported))
+const importedLegacy = computed(() => legacyPartners.value.filter(x => x.imported).length)
 const categories = computed(() => [...new Set(suppliers.value.map(item => item.category))].sort())
 const filteredSuppliers = computed(() => suppliers.value.filter(item =>
   (category.value === 'all' || item.category === category.value) &&
@@ -124,6 +138,9 @@ async function load() {
     if (!supplierResult) throw new Error('SRM supplier result is missing')
     if (supplierResult.status === 'rejected') throw supplierResult.reason
     suppliers.value = supplierResult.value.map(item => ({ ...item, category: supplierCategory(item) }))
+    try {
+      legacyPartners.value = await SrmApi.legacyPartners()
+    } catch { legacyPartners.value = [] }
     // These catalogs are optional until the first record is created by a Config administrator.
     let index = 1
     if (auth.hasScope('srm.performance.read') || auth.hasScope('srm.performance.manage')) {
@@ -151,6 +168,13 @@ function resetForm() {
   note.value = ''
   reference.value = ''
   expiresAt.value = ''
+  countryId.value = ''
+  taxId.value = ''
+  website.value = ''
+  paymentDays.value = '30'
+  contractCurrency.value = 'USD'
+  rateReference.value = ''
+  serviceCoverage.value = ''
 }
 function openCreate() { resetForm(); formVisible.value = true; error.value = ''; success.value = '' }
 function openEdit(item: Supplier) {
@@ -164,6 +188,9 @@ function openEdit(item: Supplier) {
   contactName.value = String(info.contactName || '')
   contactEmail.value = String(info.contactEmail || '')
   contactPhone.value = String(info.contactPhone || '')
+  countryId.value = String(info.countryId || '')
+  taxId.value = String(info.taxId || '')
+  website.value = String(info.website || '')
   formVisible.value = true
 }
 function openDetails(item: Supplier) { selected.value = item; formVisible.value = false }
@@ -173,10 +200,15 @@ async function saveSupplier() {
   saving.value = true
   error.value = ''
   try {
+    const retained = editing.value ? metadata(editing.value) : {}
     const metadataJson = JSON.stringify({
+      ...retained,
       supplierType: supplierType.value.trim().toLowerCase() || 'other',
       contactName: contactName.value.trim(), contactEmail: contactEmail.value.trim(),
       contactPhone: contactPhone.value.trim(),
+      countryId: countryId.value || null,
+      taxId: taxId.value.trim() || null,
+      website: website.value.trim() || null,
     })
     if (editing.value) {
       await SrmApi.updateSupplier(editing.value.id, {
@@ -209,7 +241,12 @@ async function saveRecord() {
       name, description: note.value.trim() || null, value: reference.value.trim() || null,
       metadataJson: JSON.stringify({
         supplierId: supplierId.value,
-        ...(contract ? { reference: reference.value.trim(), expiresAt: expiresAt.value } : { score: score.value }),
+        ...(contract ? {
+          reference: reference.value.trim(), expiresAt: expiresAt.value,
+          paymentDays: Number(paymentDays.value), currencyCode: contractCurrency.value,
+          rateReference: rateReference.value.trim() || null,
+          serviceCoverage: serviceCoverage.value.trim() || null,
+        } : { score: score.value }),
         createdAt: new Date().toISOString(),
       }),
       sortOrder: selectedRecords.value.length + 1,
@@ -220,8 +257,26 @@ async function saveRecord() {
   } catch (cause) { error.value = cause instanceof Error ? cause.message : t('srm.loadError') }
   finally { saving.value = false }
 }
+async function importLegacy(item: SrmLegacyPartner) {
+  if (!canCreateSuppliers.value || item.imported || importBusy.value) return
+  importBusy.value = item.id
+  error.value = ''
+  success.value = ''
+  try {
+    await SrmApi.importLegacyPartner(item.sourceGroup, item.id)
+    success.value = (en.value ? 'Partner incorporated in SRM directory: ' : 'Socio incorporado al directorio SRM: ') + item.name
+    await load()
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t('srm.loadError')
+  } finally {importBusy.value = ''}
+}
 watch([section, canReadSection], () => { closeForm(); void load() })
-onMounted(() => { void load() })
+onMounted(() => {
+  void load()
+  void CatalogItemsService.select({catalogGroupSlug: 'countries'})
+    .then(rows => { countries.value = rows.filter(row => row.isActive !== false) })
+    .catch(() => { countries.value = [] })
+})
 </script>
 
 <template>
@@ -282,7 +337,38 @@ onMounted(() => { void load() })
         </article>
       </div>
 
-      <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <section v-if="section === 'dashboard' || section === 'suppliers'"
+        class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
+        aria-label="Transición de navieras y agentes a SRM">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div><h2 class="text-sm font-extrabold">{{ en ? 'Carriers and agents · transition to SRM' : 'Navieras y agentes · incorporación a SRM' }}</h2>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              {{ en ? 'Original Config records remain active in Pricing until references are reconciled.' :
+                'Los códigos originales de Config siguen activos en Pricing hasta completar la conciliación de referencias.' }}
+            </p>
+          </div>
+          <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-bold">{{ importedLegacy }} / {{ legacyPartners.length }}</span>
+        </div>
+        <p v-if="!legacyPartners.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">
+          {{ en ? 'No legacy carriers or agents returned by the service.' : 'No hay navieras o agentes heredados disponibles para incorporar.' }}
+        </p>
+        <div v-else class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="item in pendingLegacy.slice(0,60)" :key="item.sourceGroup + item.id"
+            class="flex items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+            <div class="min-w-0"><p class="truncate text-sm font-bold">{{ item.name }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ item.sourceGroup === 'carriers' ? 'Naviera' : 'Agente' }} · {{ item.code }}</p>
+            </div>
+            <button v-if="canCreateSuppliers" type="button" :disabled="Boolean(importBusy)"
+              class="shrink-0 rounded-lg border border-[var(--dh-primary)] px-2.5 py-2 text-xs font-bold text-[var(--dh-primary)] disabled:opacity-50"
+              @click="importLegacy(item)">{{ importBusy === item.id ? '…' : (en ? 'Add' : 'Incorporar') }}</button>
+          </div>
+        </div>
+        <p v-if="pendingLegacy.length > 60" class="mt-3 text-xs text-[var(--dh-text-muted)]">Mostrando 60 de {{ pendingLegacy.length }} pendientes.</p>
+        <p v-if="legacyPartners.length && !pendingLegacy.length" class="mt-3 text-sm text-emerald-500">
+          {{ en ? 'All listed partners have an SRM directory link.' : 'Todos los socios listados tienen vínculo en el directorio SRM.' }}
+        </p>
+      </section>
+            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <section class="min-w-0 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] px-5 py-4">
             <div><h2 class="font-bold">{{ section === 'performance' ? t('srm.performance') : section === 'contracts' ? t('srm.contracts') : t('srm.suppliers') }}</h2>
@@ -389,6 +475,20 @@ onMounted(() => { void load() })
             <label class="text-sm font-semibold">{{ en ? 'Expiry date' : 'Fecha de vencimiento' }}
               <input v-model="expiresAt" type="date" required class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
             </label>
+            <label class="text-sm font-semibold">{{ en ? 'Payment days' : 'Días de pago' }}
+              <input v-model="paymentDays" type="number" min="0" max="365" required class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+            </label>
+            <label class="text-sm font-semibold">{{ en ? 'Currency' : 'Moneda' }}
+              <select v-model="contractCurrency" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+                <option value="USD">USD</option><option value="CRC">CRC</option><option value="EUR">EUR</option>
+              </select>
+            </label>
+            <label class="text-sm font-semibold">{{ en ? 'Rate agreement reference' : 'Referencia de acuerdo tarifario' }}
+              <input v-model="rateReference" maxlength="160" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+            </label>
+            <label class="text-sm font-semibold">{{ en ? 'Services covered' : 'Servicios incluidos' }}
+              <input v-model="serviceCoverage" maxlength="180" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+            </label>
           </template>
           <label class="text-sm font-semibold md:col-span-2">{{ en ? 'Observations' : 'Observaciones' }}
             <textarea v-model="note" rows="3" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3"></textarea>
@@ -403,7 +503,19 @@ onMounted(() => { void load() })
             <input v-model="supplierType" required maxlength="60" list="srm-types" placeholder="road, warehouse, agent..." class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
             <datalist id="srm-types"><option value="road" /><option value="carrier" /><option value="agent" /><option value="warehouse" /><option value="coloader" /><option value="insurance" /><option value="customs" /><option value="other" /></datalist>
           </label>
-          <label class="text-sm font-semibold">{{ en ? 'Contact name' : 'Nombre de contacto' }}
+          <label class="text-sm font-semibold">{{ en ? 'Country' : 'País' }}
+            <select v-model="countryId" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+              <option value="">{{ en ? 'Select country' : 'Seleccione país' }}</option>
+              <option v-for="country in countries" :key="country.id" :value="country.id">{{ country.label || country.value }}</option>
+            </select>
+          </label>
+          <label class="text-sm font-semibold">{{ en ? 'Fiscal identification' : 'Identificación fiscal' }}
+            <input v-model="taxId" maxlength="80" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+          </label>
+          <label class="text-sm font-semibold">Sitio web
+            <input v-model="website" type="url" maxlength="200" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+          </label>
+                    <label class="text-sm font-semibold">{{ en ? 'Contact name' : 'Nombre de contacto' }}
             <input v-model="contactName" maxlength="140" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
           <label class="text-sm font-semibold">Email

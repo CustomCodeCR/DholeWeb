@@ -12,9 +12,23 @@ export interface SrmRecordInput {
   metadataJson: string
   sortOrder: number
 }
+export interface SrmLegacyPartner {
+  sourceGroup: 'carriers' | 'agents'
+  id: string
+  code: string
+  name: string
+  imported: boolean
+}
 const base = '/api/config/srm'
 
 export const SrmApi = {
+  async legacyPartners(): Promise<SrmLegacyPartner[]> {
+    return fetchClient<SrmLegacyPartner[]>(base + '/legacy-partners', { method: 'GET' })
+  },
+  async importLegacyPartner(source: 'carriers' | 'agents', id: string): Promise<unknown> {
+    return fetchClient<unknown>(base + '/legacy-partners/' + source + '/' + encodeURIComponent(id) + '/import',
+      { method: 'POST' })
+  },
   async list(collection: SrmCollection): Promise<CatalogItemDto[]> {
     const response = await fetchClient<unknown>(base + '/' + collection, { method: 'GET' })
     return unwrapListResponse<CatalogItemDto>(response)
