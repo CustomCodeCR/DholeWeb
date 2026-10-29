@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Building2, Clock3, Mail, MapPin, Phone, Navigation } from 'lucide-vue-next'
 import { isPublicColoaderOrigin } from '../utils/publicOriginContactPolicy'
+import {
+  canUsePublicDirectoryFallback,
+  findPublicDirectoryOffice,
+  getPublicColoaderContacts,
+} from '../utils/publicOriginDirectory'
 
 interface OfficeContact {
   name: string
@@ -71,7 +76,8 @@ const agentName = computed(() => String(route.query.agent ?? '').trim())
 // Legacy PDFs for maritime own LCL were published with GCF as the agent.
 // The consolidated rate stays sourced from GCF, but its origin contacts are RS.
 const legacyOwnLclLink = computed(() =>
-  String(route.query.shipmentMode ?? '').trim().toLowerCase() === 'lcl'
+  findPublicDirectoryOffice(polLocator.value)?.region === 'china'
+  && String(route.query.shipmentMode ?? '').trim().toLowerCase() === 'lcl'
   && String(route.query.modality ?? '').trim().toLowerCase() !== 'air'
   && (
     agentCode.value.toUpperCase() === 'GCF'
@@ -81,32 +87,53 @@ const legacyOwnLclLink = computed(() =>
 const originAgentCode = computed(() => legacyOwnLclLink.value ? 'RS' : agentCode.value)
 const originAgentName = computed(() => legacyOwnLclLink.value ? 'RS' : agentName.value)
 
-// Coloader contacts are the company's public coordination channels, not the
-// external supplier/agent's contact or warehouse. Keep them configurable at build time.
+// Only explicitly confirmed coloaders get the company coordination cards.
+// Own consolidations use the original warehouse/agent contacts from Config.
 const isColoader = computed(() => isPublicColoaderOrigin(route.query))
-const coloaderContacts: OfficeContact[] = [
-  {
-    name: 'Grupo Castro Fallas',
-    role: 'Coordinación comercial · contacto general',
-    phone: String(import.meta.env.VITE_ORIGIN_GCF_PHONE ?? '+506 2272-6772').trim(),
-    email: String(import.meta.env.VITE_ORIGIN_GCF_EMAIL ?? 'comercial@castrofallas.com').trim(),
-    isPrimary: true,
+const visibleContacts = computed<OfficeContact[]>(() => {
+  if (!isColoader.value) return office.value?.contacts ?? []
+  return getPublicColoaderContacts(polLocator.value).map((contact, index) => ({
+    ...contact,
+    phone: '',
+    isPrimary: index === 0,
     modalities: [],
     shipmentModes: [],
     routes: [],
-  },
-  {
-    name: 'Consolidados',
-    role: 'Consultas de carga consolidada · canal de Pricing',
-    phone: String(import.meta.env.VITE_ORIGIN_CONSOLIDADOS_PHONE ?? '+506 2272-6772').trim(),
-    email: String(import.meta.env.VITE_ORIGIN_CONSOLIDADOS_EMAIL ?? 'pricing@grupocastrofallas.com').trim(),
-    isPrimary: false,
-    modalities: [],
-    shipmentModes: [],
-    routes: [],
-  },
-]
-const visibleContacts = computed(() => isColoader.value ? coloaderContacts : office.value?.contacts ?? [])
+  }))
+})
+
+function applyDirectoryFallback(): boolean {
+  if (isColoader.value || !canUsePublicDirectoryFallback(
+    polLocator.value, originAgentCode.value, originAgentName.value,
+  )) return false
+  const entry = findPublicDirectoryOffice(polLocator.value)
+  if (!entry) return false
+  office.value = {
+    id: 'directory:' + (entry.code || entry.locator),
+    name: entry.locator,
+    code: entry.code || '',
+    polId: null,
+    polValue: entry.locator,
+    polCode: entry.code || '',
+    address: entry.address,
+    city: entry.locator.split(',')[0] ?? '',
+    country: entry.locator.split(',').at(-1)?.trim() ?? '',
+    latitude: null,
+    longitude: null,
+    contacts: entry.contacts.map((contact, index) => ({
+      ...contact,
+      role: 'Contacto del WHS',
+      isPrimary: index === 0,
+      modalities: [],
+      shipmentModes: [],
+      routes: [],
+    })),
+    photos: [],
+    message: 'Información del directorio WHS proporcionado por Grupo Castro Fallas.',
+    schedule: entry.schedule,
+  }
+  return true
+}
 
 const coordinates = computed(() => {
   if (office.value?.latitude == null || office.value?.longitude == null) return ''
@@ -181,15 +208,15 @@ async function load() {
   office.value = null
   revokePhotoObjectUrls()
 
-  // LCL coloader links use GCF/Consolidados contacts even when there is no
-  // WHS assigned to the external provider (e.g. Pier17 in Shanghai).
+  // Coloaders use the verified @grupocastrofallas.com regional mailboxes.
+  // The office/photographs of RS or WWL must not be attributed to a coloader.
   if (isColoader.value) {
     loading.value = false
     return
   }
 
   if (!polLocator.value || !apiBaseUrl) {
-    failed.value = true
+    failed.value = !applyDirectoryFallback()
     loading.value = false
     return
   }
@@ -228,11 +255,17 @@ async function load() {
 
     if (office.value.photos.length) loadPublicPhotos(office.value.photos)
   } catch {
-    failed.value = true
+    failed.value = !applyDirectoryFallback()
   } finally {
     loading.value = false
   }
 }
+
+watch(() => [
+  route.query.pol, route.query.polCode, route.query.agentCode, route.query.agent,
+  route.query.shipmentMode, route.query.modality, route.query.sourceKind,
+  route.query.lclSource, route.query.sourceType, route.query.route,
+], () => void load())
 
 onMounted(load)
 onBeforeUnmount(revokePhotoObjectUrls)
