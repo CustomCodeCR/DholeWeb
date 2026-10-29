@@ -68,6 +68,9 @@ const note = ref('')
 const reference = ref('')
 const expiresAt = ref('')
 const legacyPartners = ref<SrmLegacyPartner[]>([])
+const legacyQuery = ref('')
+const legacyGroup = ref<'all' | 'carriers' | 'agents'>('all')
+const currencies = ref<CatalogItemSelectDto[]>([])
 const importBusy = ref('')
 const countryId = ref('')
 const taxId = ref('')
@@ -103,6 +106,9 @@ function supplierLabel(id: string) {
   return suppliers.value.find(item => item.id === id)?.name || (en.value ? 'Unknown supplier' : 'Proveedor no disponible')
 }
 const pendingLegacy = computed(() => legacyPartners.value.filter(x => !x.imported))
+const filteredLegacy = computed(() => pendingLegacy.value.filter(x =>
+  (legacyGroup.value === 'all' || legacyGroup.value === x.sourceGroup) &&
+  [x.name, x.code].some(value => value.toLocaleLowerCase().includes(legacyQuery.value.trim().toLocaleLowerCase()))))
 const importedLegacy = computed(() => legacyPartners.value.filter(x => x.imported).length)
 const categories = computed(() => [...new Set(suppliers.value.map(item => item.category))].sort())
 const filteredSuppliers = computed(() => suppliers.value.filter(item =>
@@ -276,6 +282,9 @@ onMounted(() => {
   void CatalogItemsService.select({catalogGroupSlug: 'countries'})
     .then(rows => { countries.value = rows.filter(row => row.isActive !== false) })
     .catch(() => { countries.value = [] })
+  void CatalogItemsService.select({catalogGroupSlug: 'currencies'})
+    .then(rows => { currencies.value = rows.filter(row => row.isActive !== false) })
+    .catch(() => { currencies.value = [] })
 })
 </script>
 
@@ -352,8 +361,19 @@ onMounted(() => {
         <p v-if="!legacyPartners.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">
           {{ en ? 'No legacy carriers or agents returned by the service.' : 'No hay navieras o agentes heredados disponibles para incorporar.' }}
         </p>
-        <div v-else class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <div v-for="item in pendingLegacy.slice(0,60)" :key="item.sourceGroup + item.id"
+        <div v-if="legacyPartners.length" class="mt-4 flex flex-wrap gap-2">
+          <input v-model="legacyQuery" type="search" aria-label="Buscar naviera o agente"
+            placeholder="Buscar naviera o agente" class="min-w-0 flex-1 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-sm" />
+          <select v-model="legacyGroup" aria-label="Tipo de socio"
+            class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-sm">
+            <option value="all">Todos</option><option value="carriers">Navieras</option><option value="agents">Agentes</option>
+          </select>
+        </div>
+        <div v-if="legacyPartners.length && !filteredLegacy.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">
+          No hay socios pendientes que coincidan con el filtro.
+        </div>
+        <div v-else-if="filteredLegacy.length" class="mt-3 grid max-h-[380px] gap-2 overflow-y-auto md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="item in filteredLegacy" :key="item.sourceGroup + item.id"
             class="flex items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3">
             <div class="min-w-0"><p class="truncate text-sm font-bold">{{ item.name }}</p>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ item.sourceGroup === 'carriers' ? 'Naviera' : 'Agente' }} · {{ item.code }}</p>
@@ -363,7 +383,7 @@ onMounted(() => {
               @click="importLegacy(item)">{{ importBusy === item.id ? '…' : (en ? 'Add' : 'Incorporar') }}</button>
           </div>
         </div>
-        <p v-if="pendingLegacy.length > 60" class="mt-3 text-xs text-[var(--dh-text-muted)]">Mostrando 60 de {{ pendingLegacy.length }} pendientes.</p>
+        <p v-if="filteredLegacy.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">Mostrando {{ filteredLegacy.length }} socios pendientes.</p>
         <p v-if="legacyPartners.length && !pendingLegacy.length" class="mt-3 text-sm text-emerald-500">
           {{ en ? 'All listed partners have an SRM directory link.' : 'Todos los socios listados tienen vínculo en el directorio SRM.' }}
         </p>
@@ -480,7 +500,11 @@ onMounted(() => {
             </label>
             <label class="text-sm font-semibold">{{ en ? 'Currency' : 'Moneda' }}
               <select v-model="contractCurrency" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-                <option value="USD">USD</option><option value="CRC">CRC</option><option value="EUR">EUR</option>
+                <option v-for="currency in currencies" :key="currency.id"
+                  :value="String(currency.value || currency.code).toUpperCase()">
+                  {{ currency.label || currency.value || currency.code }}
+                </option>
+                <option v-if="!currencies.length" value="USD">USD</option>
               </select>
             </label>
             <label class="text-sm font-semibold">{{ en ? 'Rate agreement reference' : 'Referencia de acuerdo tarifario' }}
