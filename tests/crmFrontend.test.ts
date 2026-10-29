@@ -111,7 +111,7 @@ test('CRM account creation uses true multi-section form and opens completed reco
   assert.ok(workspace.includes("countryLabels"))
   assert.ok(workspace.includes("customerTypeCode: accountTypeFilter.value"))
   assert.ok(workspace.includes("categoryCode: accountCategoryFilter.value"))
-  assert.ok(workspace.includes("router.push('/crm/accounts/'"))
+  assert.ok(workspace.includes("path: '/crm/accounts/' + accountId"))
   assert.ok(workspace.includes("Guardar y abrir ficha"))
   assert.ok(workspace.includes('size="xl"') || workspace.includes("'xl' : 'lg'"))
   assert.ok(workspace.includes("La consulta fiscal de Hacienda"))
