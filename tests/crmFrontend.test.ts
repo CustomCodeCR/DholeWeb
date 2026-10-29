@@ -158,7 +158,7 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   assert.match(component, /localStorage\.setItem\(NAVIGATION_STATE_KEY/)
   assert.match(component, /watch\(\s*\(\) => route\.path/)
   assert.match(component, /v-if="!compact && isExpanded\(sectionStateKey\(item\)\)"/)
-  assert.match(component, /v-if="!group\.label \|\| isExpanded/)
+  assert.match(component, /v-if="isCrmSection\(item\) \|\| !group\.label \|\| isExpanded/)
   assert.match(component, /:to="child\.path \?\? '\/'"/)
   assert.match(component, /active-class="sidebar-nav-link-active"/)
   assert.match(component, /@click="emit\('close'\)"/)
