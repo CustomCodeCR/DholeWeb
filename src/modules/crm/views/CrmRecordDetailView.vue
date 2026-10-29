@@ -5,6 +5,7 @@ import { DhButton } from '@/shared/components/atoms'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
+import CrmAccountHub from '../components/CrmAccountHub.vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -26,6 +27,7 @@ const pendingCreateKeys = new Map<string, string>()
 const relationRows = ref<CrmRow[]>([])
 const relation = ref('')
 const showRelationForm = ref(false)
+const showAdvancedAccountManagement = ref(false)
 const showExecutiveDrawer = ref(false)
 const selectedExecutive = ref('')
 const executiveReason = ref('')
@@ -326,7 +328,7 @@ onMounted(() => { if (crmEnabled()) void load() })
     <p v-if="success" role="status" class="text-sm text-emerald-600">{{ success }}</p>
     <p v-if="loading" role="status">{{ t('common.loading') }}</p>
     <template v-if="record">
-      <section class="crm-panel space-y-3 p-5">
+      <section class="crm-panel space-y-3 p-4 sm:p-5">
         <DhPageHeader :icon="BriefcaseBusiness"
           :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
           :subtitle="t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
@@ -347,7 +349,8 @@ onMounted(() => { if (crmEnabled()) void load() })
             </div>
           </form>
         </DhDrawer>
-        <dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <CrmAccountHub v-if="section === 'accounts'" :account="record" />
+        <dl v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
             !key.toLowerCase().includes('hash') && !key.toLowerCase().includes('payload'))" :key="key">
@@ -399,11 +402,29 @@ onMounted(() => { if (crmEnabled()) void load() })
         <button class="crm-action" :disabled="saving" @click="perform('cancel',{expectedVersion:version(),reason:drafts.reason||'Cancelado'},'crm.task.manage')">{{ t('crm.cancelActivity') }}</button>
       </section>
 
-      <nav class="flex flex-wrap gap-2" aria-label="CRM">
+      <button v-if="section === 'accounts'" type="button"
+        class="flex w-full items-center justify-between rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-left text-sm font-bold"
+        :aria-expanded="showAdvancedAccountManagement"
+        @click="showAdvancedAccountManagement = !showAdvancedAccountManagement">
+        <span>{{ showAdvancedAccountManagement ? 'Ocultar gestión avanzada de la cuenta' : 'Gestionar contactos, crédito, contratos y otros registros' }}</span>
+        <span class="text-[var(--dh-primary)]">{{ showAdvancedAccountManagement ? '−' : '+' }}</span>
+      </button>
+      <nav v-if="section !== 'accounts' || showAdvancedAccountManagement" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
-          :aria-pressed="relation===tab" @click="relation=tab">{{ tab }}</button>
+          :aria-pressed="relation===tab" @click="relation=tab">
+          {{ ({
+            contacts: 'Contactos',
+            addresses: 'Direcciones',
+            'business-activities': 'Actividades económicas',
+            'trade-profiles': 'Rutas habituales',
+            'credit-profiles': 'Perfiles de crédito',
+            'credit-contracts': 'Contratos de crédito',
+            'followup-policy': 'Política de seguimiento',
+            routes: 'Rutas', services: 'Servicios',
+          } as Record<string, string>)[tab] ?? tab }}
+        </button>
       </nav>
-      <section v-if="relation && permitted(relation)" class="crm-panel space-y-4 p-4">
+      <section v-if="relation && permitted(relation) && (section !== 'accounts' || showAdvancedAccountManagement)" class="crm-panel space-y-4 p-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-lg font-bold">{{ relation }} ({{ relationRows.length }})</h2>
           <DhButton v-if="canAddRelation" :icon="Plus" :label="t('common.create')" @click="showRelationForm = true" />
