@@ -344,28 +344,10 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     },
   ]
 
-  // The effective (possibly impersonated) session controls module visibility.
+  // The CRM is one application in the sidebar. All permissioned submodules
+  // remain accessible from the shared in-workspace navigation.
   if (crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope))) {
-    const crmChildren: SidebarItem[] = [
-      { label: t('crm.nav.dashboard'), path: '/crm', icon: Home, group: 'INICIO' },
-    ]
-    const crmPages = [
-      { key: 'accounts', scopes: ['crm.account.read', 'crm.account.read-all'], icon: Users, group: 'CLIENTES' },
-      { key: 'contacts', scopes: ['crm.contact.read'], icon: Users, group: 'CLIENTES' },
-      { key: 'leads', scopes: ['crm.lead.read', 'crm.lead.read-all'], icon: Users, group: 'VENTAS' },
-      { key: 'opportunities', scopes: ['crm.opportunity.read', 'crm.opportunity.read-all'], icon: TrendingUp, group: 'VENTAS' },
-      { key: 'activities', scopes: ['crm.activity.read', 'crm.activity.read-all'], icon: ClipboardList, group: 'ACTIVIDADES' },
-      { key: 'followups', scopes: ['crm.followup.manage', 'crm.task.manage'], icon: CalendarClock, group: 'ACTIVIDADES' },
-      { key: 'analyses', scopes: ['crm.analysis.read', 'crm.analysis.manage'], icon: Gauge, group: 'ANÁLISIS' },
-      { key: 'finance', scopes: ['crm.credit.read', 'crm.contract.read'], icon: BadgeDollarSign, group: 'ANÁLISIS' },
-      { key: 'settings', scopes: ['crm.settings.manage'], icon: Settings, group: 'ADMINISTRACIÓN' },
-    ]
-    for (const item of crmPages) {
-      if (item.scopes.some(scope => canView(scope))) {
-        crmChildren.push({ label: t('crm.nav.' + item.key), path: '/crm/' + item.key, icon: item.icon, group: item.group })
-      }
-    }
-    items.push({ label: t('crm.title'), icon: Users, children: crmChildren })
+    items.push({ label: t('crm.title'), icon: Users, path: '/crm' })
   }
 
   if (canView('srm.supplier.read')) {
