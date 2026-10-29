@@ -284,17 +284,19 @@ function approvedCbm(row: OwnLclConsolidationDto) {
 }
 
 function ownDepartureExpired(row: OwnLclConsolidationDto) {
-  // Mostrar el consolidado para detectar un ETD erróneo, sin permitir cotizar
-  // con una salida anterior a la fecha de carga seleccionada.
-  const plannedDate = /^\d{4}-\d{2}-\d{2}/.test(String(props.quoteDate ?? ''))
-    ? String(props.quoteDate).slice(0, 10)
-    : costaRicaTodayIso()
+  // Ocultar salidas anteriores a hoy o a la fecha de carga seleccionada,
+  // la que sea posterior. Esto no descarta tarifas válidas de otros POL.
+  const today = costaRicaTodayIso()
+  const cargoDate = String(props.quoteDate ?? '').slice(0, 10)
+  const plannedDate = /^\d{4}-\d{2}-\d{2}$/.test(cargoDate)
+    ? (cargoDate > today ? cargoDate : today)
+    : today
   return Boolean(row.etd && row.etd.slice(0, 10) < plannedDate)
 }
 
 const chinaOwnLclOrigins = new Set([
   'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',
-  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou',
+  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',
 ])
 
 const ownLclOriginAliases: Record<string, string> = {
@@ -384,7 +386,8 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
     if (consolidationOrigins.has(origin)) return true
   }
   // Los consolidados que no son Shanghai solo admiten su POL seleccionado.
-  // Guangzhou utiliza Yantian como origen físico, nunca una salida Shanghai.
+  // Guangzhou dispone de su consolidado específico de Yantian y también
+  // pertenece a los escenarios FOB de Shanghai. Cada uno usa su propia matriz.
   if (requestedOrigins.has('guangzhou') && consolidationOrigins.has('yantian')) return true
 
   if (!consolidationOrigins.has('shanghai')) return false
@@ -426,8 +429,9 @@ const filteredOwn = computed(() => {
   const q = normalize(search.value)
   return ownRows.value.filter((row) => {
     if (row.isActive === false || normalize(row.status) === 'closed') return false
+    if (ownDepartureExpired(row)) return false
     if (!ownConsolidationSupportsPoe(row)) return false
-    // El listado completo conserva las salidas Shanghai/Yantian para comparación.
+    // El listado completo conserva las salidas vigentes Shanghai/Yantian para comparación.
     // Filtrar por POL solo cuando el usuario lo solicita explícitamente.
     if (!showAllOwnConsolidations.value && !ownConsolidationSupportsPol(row)) return false
     if (!q) return true
@@ -765,13 +769,13 @@ onMounted(load)
     </div>
 
     <div v-if="tab === 'Own' && ownPoeEligible" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2">
-      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Todas las salidas propias: compatibles y otras rutas, incluidas Shanghai y Yantian.' : 'Solo consolidados compatibles con el POL seleccionado.' }}</p>
+      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente: Shanghai, Yantian y otras rutas. Solo se pueden cotizar las compatibles.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
       <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text)] hover:bg-[var(--dh-input)]" @click="showAllOwnConsolidations = !showAllOwnConsolidations">
         {{ showAllOwnConsolidations ? 'Solo mi ruta' : 'Ver todas las salidas' }}
       </button>
     </div>
     <div v-if="error" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">{{ error }}</div>
-    <div v-if="tab === 'Own' && filteredOwn.some((row) => ownSelectionBlockReason(row))" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Se muestran todos los consolidados, incluso los de otro POL, con ETD vencido o sin capacidad. Solo puede seleccionar una salida compatible y disponible.</div>
+    <div v-if="tab === 'Own' && filteredOwn.some((row) => ownSelectionBlockReason(row))" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Solo se muestran salidas con ETD vigente. Los consolidados de otro POL o sin capacidad quedan para consulta; Shanghai se puede cotizar desde los puertos incluidos en su matriz FOB.</div>
 
     <div v-if="tab === 'Own'">
       <DhDataTable :columns="ownColumns" :rows="filteredOwn" :loading="loading" empty-text="No hay consolidados propios disponibles para este POL.">
