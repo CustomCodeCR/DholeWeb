@@ -37,6 +37,7 @@ async function loadCountry() {
 }
 watch(() => [props.countryId, props.taxId], () => {
   lookupVersion++
+  loading.value = false
   result.value = null
   error.value = ''
 })
