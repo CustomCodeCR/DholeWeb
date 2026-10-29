@@ -117,6 +117,10 @@ function isMiamiOriginValue(value: unknown) {
   const compact = normalize(value).replace(/[^a-z0-9]/g, '')
   return compact === 'mia' || compact === 'usmia' || compact.includes('miami')
 }
+function isShanghaiOriginValue(value: unknown) {
+  const normalized = normalize(value)
+  return normalized.startsWith('shanghai') || normalized === 'cnsha'
+}
 
 function matrixTypeForRow(row: OwnLclConsolidationDto | null | undefined): OwnLclMatrixType {
   if (!row) return 'China'
@@ -125,10 +129,12 @@ function matrixTypeForRow(row: OwnLclConsolidationDto | null | undefined): OwnLc
 
 const formMatrixType = computed<OwnLclMatrixType>(() => {
   const pol = option(pols.value, form.polId)
-  if (pol && isMiamiOriginValue([pol.code, pol.value, pol.label].filter(Boolean).join(' '))) return 'Miami'
+  if (pol) return isMiamiOriginValue([pol.code, pol.value, pol.label].filter(Boolean).join(' ')) ? 'Miami' : 'China'
   return matrixTypeForRow(selected.value)
 })
 const isMiamiMatrix = computed(() => formMatrixType.value === 'Miami')
+const currentPolLabel = computed(() => option(pols.value, form.polId)?.label ?? selected.value?.polName ?? selected.value?.polCode ?? '')
+const isSinglePolMatrix = computed(() => !isMiamiMatrix.value && !isShanghaiOriginValue(currentPolLabel.value))
 
 const polLocationOptions = computed(() => pols.value.map((item) => ({
   value: item.id,
@@ -587,7 +593,9 @@ async function save() {
 
     await OwnLclConsolidationService.saveCostOverrides(targetId, buildCostOverrides())
     await OwnLclConsolidationService.savePricingLines(targetId, buildPricingLinesPayload())
-    if (!wasNew && scenarioMatrix.value) await saveScenarioRows(false)
+    // Changing POL invalidates the previous origin scenarios; reload them after saving.
+    if (!wasNew && selected.value?.polId === form.polId && scenarioMatrix.value)
+      await saveScenarioRows(false)
 
     // El nombre se guarda por un endpoint dedicado y se ejecuta al final.
     // Así "Guardar consolidado" nunca puede restaurar el nombre anterior.
@@ -717,7 +725,7 @@ onMounted(load)
           <div class="flex items-center gap-2">
             <Ship class="h-5 w-5 text-[var(--dh-primary)]" />
             <h2 class="text-lg font-black">{{ form.name || selected?.name || 'Nuevo consolidado propio' }}</h2>
-            <DhBadge :label="`Matriz ${formMatrixType}`" :variant="isMiamiMatrix ? 'warning' : 'neutral'" />
+            <DhBadge :label="isSinglePolMatrix ? 'POL único' : `Matriz ${formMatrixType}`" :variant="isMiamiMatrix ? 'warning' : 'neutral'" />
             <DhBadge v-if="readOnly" label="Solo lectura" variant="neutral" />
           </div>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Los cambios de costo y venta quedan ligados únicamente a este consolidado.</p>
@@ -825,8 +833,8 @@ onMounted(load)
           <section v-if="!isMiamiMatrix" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Escenarios FOB por país</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Abra un país para ver los puertos de China, el costo calculado y la venta asociada a este consolidado.</p>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">{{ isSinglePolMatrix ? 'Escenarios FOB · POL único' : 'Escenarios FOB por país' }}</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isSinglePolMatrix ? `Este consolidado utiliza únicamente ${currentPolLabel}. No hereda los diferenciales de Shanghai ni los demás puertos.` : 'Abra un país para ver los puertos de China, el costo calculado y la venta asociada a este consolidado.' }}</p>
               </div>
               <DhButton v-if="selectedId && !readOnly" label="Guardar ventas FOB" :loading="scenarioSaving" variant="secondary" @click="saveScenarioRows()" />
             </div>
@@ -834,10 +842,10 @@ onMounted(load)
             <div v-else-if="scenarioLoading" class="mt-4 text-sm font-bold text-[var(--dh-text-muted)]">Cargando escenarios...</div>
             <div v-else-if="scenarioMatrix" class="mt-4 space-y-2">
               <details v-for="country in scenarioMatrix.countries" :key="country.destinationCode" class="group overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]" :open="country.destinationCode === 'CR'">
-                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-black"><span>{{ country.destinationName }} <span class="text-xs text-[var(--dh-text-muted)]">({{ country.destinationCode }})</span></span><span class="text-xs text-[var(--dh-text-muted)]">{{ country.ports.length }} puertos ▾</span></summary>
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-black"><span>{{ country.destinationName }} <span class="text-xs text-[var(--dh-text-muted)]">({{ country.destinationCode }})</span></span><span class="text-xs text-[var(--dh-text-muted)]">{{ country.ports.length }} {{ country.ports.length === 1 ? 'puerto' : 'puertos' }} ▾</span></summary>
                 <div class="overflow-x-auto border-t border-[var(--dh-border)]">
                   <table class="w-full min-w-[620px] text-sm">
-                    <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]"><tr><th class="px-4 py-2 text-left">Puerto China</th><th class="px-4 py-2 text-right">Costo / CBM</th><th class="px-4 py-2 text-right">Venta / CBM</th><th class="px-4 py-2 text-right">Recomendada</th></tr></thead>
+                    <thead class="bg-black/[0.025] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.03]"><tr><th class="px-4 py-2 text-left">{{ isSinglePolMatrix ? 'POL seleccionado' : 'Puerto China' }}</th><th class="px-4 py-2 text-right">Costo / CBM</th><th class="px-4 py-2 text-right">Venta / CBM</th><th class="px-4 py-2 text-right">Recomendada</th></tr></thead>
                     <tbody>
                       <tr v-for="port in country.ports" :key="`${country.destinationCode}-${port.polCode}`" class="border-t border-[var(--dh-border)] first:border-t-0">
                         <td class="px-4 py-2 font-black">{{ port.polCode }}</td>

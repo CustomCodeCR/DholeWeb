@@ -313,6 +313,8 @@ const ownLclOriginAliases: Record<string, string> = {
   cnshk: 'shekou',
   guangzhou: 'guangzhou',
   cncan: 'guangzhou',
+  yantian: 'yantian',
+  cnytn: 'yantian',
   miami: 'miami',
   usmia: 'miami',
   mia: 'miami',
@@ -321,6 +323,9 @@ const ownLclOriginAliases: Record<string, string> = {
 function canonicalOwnLclOrigin(value: unknown) {
   const key = normalize(value).replace(/[^a-z0-9]/g, '')
   if (ownLclOriginAliases[key]) return ownLclOriginAliases[key]
+  // En "Yantian, Shenzhen, China" el POL es Yantian, no Shenzhen.
+  const firstPort = normalize(value).split(',')[0].trim().replace(/[^a-z0-9]/g, '')
+  if (ownLclOriginAliases[firstPort]) return ownLclOriginAliases[firstPort]
 
   const aliases = Object.entries(ownLclOriginAliases)
     .sort(([left], [right]) => right.length - left.length)
@@ -342,6 +347,7 @@ function ownCalculationPolCode(row: OwnLclConsolidationDto) {
   const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
   if (consolidationOrigin === 'miami') return 'MIAMI'
 
+  if (consolidationOrigin !== 'shanghai') return consolidationOrigin.toUpperCase()
   const requestedOrigins = [...requestedOwnLclOrigins()]
   const requestedChinaOrigin = requestedOrigins.find((origin) => chinaOwnLclOrigins.has(origin))
   return (requestedChinaOrigin || consolidationOrigin).toUpperCase()
@@ -362,6 +368,8 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
   for (const origin of requestedOrigins) {
     if (consolidationOrigins.has(origin)) return true
   }
+  // Los consolidados que no son Shanghai solo admiten su POL seleccionado.
+  if (!consolidationOrigins.has('shanghai')) return false
 
   if (requestedOrigins.has('miami')) {
     return consolidationOrigins.has('miami')
