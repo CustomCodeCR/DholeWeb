@@ -89,7 +89,7 @@ test('all Shanghai and Yantian own sources remain visible, without allowing inva
     new URL('../build/pricingLclCostBreakdownUi.ts', import.meta.url),
     'utf8',
   )
-  assert.ok(selector.includes("const showAllOwnConsolidations = ref(true)"))
+  assert.ok(selector.includes("const showAllOwnConsolidations = ref(false)"))
   assert.ok(selector.includes("if (!showAllOwnConsolidations.value && !ownConsolidationSupportsPol(row)) return false"))
   assert.ok(selector.includes("if (!ownConsolidationSupportsPoe(row)) return false"))
   assert.ok(selector.includes("if (row.isActive === false || normalize(row.status) === 'closed') return false"))
@@ -116,6 +116,10 @@ test('Yantian can select a compatible Shanghai sailing and keep its commercial P
   )
   assert.ok(selector.includes("'shekou', 'guangzhou', 'yantian',"))
   assert.ok(selector.includes("if (consolidationOrigin !== 'shanghai') return consolidationOrigin.toUpperCase()"))
+  assert.ok(selector.includes("const knownPorts = new Set([...chinaOwnLclOrigins, 'miami'])"))
+  assert.ok(selector.includes("if (knownPorts.has(fromName)) return new Set([fromName])"))
+  assert.ok(selector.includes("if (knownPorts.has(fromCode)) return new Set([fromCode])"))
+  assert.ok(selector.includes("label: `${row.name} · POL ${props.polName"))
   assert.ok(selector.includes("const requestedChinaOrigin = requestedOrigins.find((origin) => chinaOwnLclOrigins.has(origin))"))
   assert.ok(selector.includes("if (!consolidationOrigins.has('shanghai')) return false"))
   assert.ok(selector.includes("requestedOrigins).some((origin) => chinaOwnLclOrigins.has(origin))"))
