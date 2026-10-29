@@ -322,19 +322,16 @@ onMounted(() => { if (crmEnabled()) void load() })
 </script>
 
 <template>
-  <main class="mx-auto max-w-6xl space-y-5 p-3 text-[var(--dh-text)] sm:p-6" data-crm-detail>
+  <main class="mx-auto w-full text-[var(--dh-text)]" :class="section === 'accounts' ? 'max-w-[1750px] space-y-3 p-2 sm:p-4' : 'max-w-6xl space-y-5 p-3 sm:p-6'" data-crm-detail>
     <DhButton :label="t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
     <p v-if="error" role="alert" class="crm-error">{{ error }}</p>
     <p v-if="success" role="status" class="text-sm text-emerald-600">{{ success }}</p>
     <p v-if="loading" role="status">{{ t('common.loading') }}</p>
     <template v-if="record">
-      <section class="crm-panel space-y-3 p-4 sm:p-5">
-        <DhPageHeader :icon="BriefcaseBusiness"
+      <section :class="section === 'accounts' ? 'space-y-0' : 'crm-panel space-y-3 p-4 sm:p-5'">
+        <DhPageHeader v-if="section !== 'accounts'" :icon="BriefcaseBusiness"
           :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
           :subtitle="t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
-        <div v-if="section === 'accounts' && can('crm.account.assign') && can('auth.users.view')" class="flex justify-end">
-          <DhButton label="Cambiar ejecutivo de ventas" variant="secondary" @click="openExecutiveDrawer" />
-        </div>
         <DhDrawer :open="showExecutiveDrawer" title="Asignar ejecutivo comercial" size="md" @close="showExecutiveDrawer=false">
           <form class="space-y-4" @submit.prevent="reassignExecutive">
             <CrmExecutivePicker :model-value="selectedExecutive" label="Ejecutivo"
@@ -349,7 +346,7 @@ onMounted(() => { if (crmEnabled()) void load() })
             </div>
           </form>
         </DhDrawer>
-        <CrmAccountHub v-if="section === 'accounts'" :account="record" />
+        <CrmAccountHub v-if="section === 'accounts'" :account="record" @change-executive="openExecutiveDrawer" />
         <dl v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
