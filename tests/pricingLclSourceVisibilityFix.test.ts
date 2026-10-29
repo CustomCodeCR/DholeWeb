@@ -82,18 +82,23 @@ test('Guangzhou lists the physical Yantian consolidation instead of Shanghai', (
   assert.ok(selector.includes("if (!consolidationOrigins.has('shanghai')) return false"))
 })
 
-test('expired ETDs remain visible for correction but cannot be selected or calculated', () => {
-  assert.ok(selector.includes("function ownDepartureExpired(row: OwnLclConsolidationDto)"))
-  assert.ok(!selector.includes("if (row.etd && row.etd.slice(0, 10) <= costaRicaTodayIso()) return false"))
-  assert.ok(selector.includes("if (ownDepartureExpired(row))"))
-  assert.ok(selector.includes("|| ownDepartureExpired(row)) return"))
-  assert.ok(selector.includes(':disabled="ownDepartureExpired(row)"'))
-  assert.ok(selector.includes('Los consolidados con ETD anterior a la fecha de carga'))
+test('all Shanghai and Yantian own sources remain visible, without allowing invalid quotations', () => {
   const mobilePatch = readFileSync(
     new URL('../build/pricingLclCostBreakdownUi.ts', import.meta.url),
     'utf8',
   )
-  assert.ok(mobilePatch.includes(':disabled="ownDepartureExpired(row)"'))
+  assert.ok(selector.includes("const showAllOwnConsolidations = ref(true)"))
+  assert.ok(selector.includes("if (!showAllOwnConsolidations.value && !ownConsolidationSupportsPol(row)) return false"))
+  assert.ok(selector.includes("if (!ownConsolidationSupportsPoe(row)) return false"))
+  assert.ok(selector.includes("if (row.isActive === false || normalize(row.status) === 'closed') return false"))
+  assert.ok(selector.includes("function ownSelectionBlockReason(row: OwnLclConsolidationDto)"))
+  assert.ok(selector.includes("if (!ownConsolidationSupportsPol(row)) return 'Otro POL'"))
+  assert.ok(selector.includes("if (ownDepartureExpired(row)) return 'Revisar ETD'"))
+  assert.ok(selector.includes("if (row.capacityReached === true || remainingCbm(row) + 0.000001 < requested()) return 'Sin capacidad'"))
+  assert.ok(selector.includes(':disabled="Boolean(ownSelectionBlockReason(row))"'))
+  assert.ok(selector.includes("showAllOwnConsolidations = !showAllOwnConsolidations"))
+  assert.ok(mobilePatch.includes(':disabled="Boolean(ownSelectionBlockReason(row))"'))
+  assert.ok(mobilePatch.includes("await loadOwnPreviews(ownRows.value.filter((row) => ownConsolidationSupportsPoe(row)))"))
+  assert.ok(mobilePatch.includes("{{ ownConsolidationSupportsPol(row) ? selectedPolDisplay(ownPreview(row)) : (row.polName || row.polCode || 'Otro origen') }}"))
   assert.ok(mobilePatch.includes("canonicalOwnLclOrigin(row.polName || row.polCode) === 'shanghai'"))
-  assert.ok(mobilePatch.includes('await loadOwnPreviews(ownRows.value.filter((row) => !ownDepartureExpired(row)))'))
 })
