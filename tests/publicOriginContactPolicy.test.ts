@@ -22,6 +22,17 @@ test('explicit source selection wins over legacy inference', () => {
   assert.equal(isPublicColoaderOrigin({ shipmentMode: 'Ltl', sourceKind: 'Coloader' }), true)
 })
 
+test('legacy own RS and WWL LCL must keep their actual WHS offices', () => {
+  for (const agentCode of ['RS', 'RS Logistics', 'WWL', 'Worldwide Logistics', 'GCF']) {
+    assert.equal(isPublicColoaderOrigin({ shipmentMode: 'Lcl', agentCode }), false)
+  }
+})
+
+test('Costa Rica A257 and A287 are own warehouses, not coloaders', () => {
+  assert.equal(isPublicColoaderOrigin({ shipmentMode: 'Lcl', agentCode: 'A257' }), false)
+  assert.equal(isPublicColoaderOrigin({ shipmentMode: 'Lcl', agentCode: 'A287' }), false)
+})
+
 test('no agent or source does not infer coloader', () => {
   assert.equal(isPublicColoaderOrigin({ shipmentMode: 'Lcl' }), false)
 })
