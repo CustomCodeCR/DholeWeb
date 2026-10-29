@@ -44,12 +44,16 @@ watch(step, (currentStep) => {
 `.trim(), 'persisted FTL agent options')
 
   // The catalog code can be CUR-2026-001; display Config.Value (USD/CRC).
-  const oldCurrencyLabel = "persistedFtlFreightForEdit.currencyCode || selectedCurrency?.code || 'USD'"
+  const currencyLabelVariants = [
+    "persistedFtlFreightForEdit.currencyCode || selectedCurrency?.code || 'USD'",
+    "persistedFtlFreightForEdit.currencyCode || displayValue(selectedCurrency) || 'USD'",
+  ]
   const newCurrencyLabel = "displayValue(findById(catalogs.currencies, persistedFtlFreightForEdit.currencyId)) || displayValue(selectedCurrency) || persistedFtlFreightForEdit.currencyName || 'USD'"
-  if (code.split(oldCurrencyLabel).length - 1 !== 2) {
+  const currencyLabelVariant = currencyLabelVariants.find((value) => code.split(value).length - 1 === 2)
+  if (!currencyLabelVariant) {
     throw new Error('[pricingFtlEditPreservationFinal] FTL historical currency labels changed.')
   }
-  code = code.split(oldCurrencyLabel).join(newCurrencyLabel)
+  code = code.split(currencyLabelVariant).join(newCurrencyLabel)
 
   // Step 6 -> 7 must never call the generic rate-line rebuild for a saved FTL.
   // The existing RateDetails (and their stable DetailId) remain authoritative.
