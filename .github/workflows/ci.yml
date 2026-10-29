@@ -22,6 +22,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       # master does not contain SEO/Marketing modules or their test scripts.
       # develop continues running their complete suites.
+      - name: Public origin coloader contact tests
+        run: node --test tests/publicOriginContactPolicy.test.ts
       - name: Agent module tests
         run: pnpm run test:agent
       - name: Pricing rate update regression tests
