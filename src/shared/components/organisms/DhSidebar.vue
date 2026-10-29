@@ -262,12 +262,12 @@ watch(
                 class="sidebar-module-children"
               >
                 <template v-for="(group, groupIndex) in groupedChildren(item)" :key="group.id + groupIndex">
-                  <div v-if="group.label && isCrmSection(item)"
-                    class="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[.1em] text-[var(--dh-text-muted)]">
+                  <div v-if="group.label && isCrmSection(item) && group.id !== 'INICIO'"
+                    class="mx-1 mt-2 border-t border-[var(--dh-border)] px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[.1em] text-[var(--dh-text-muted)]">
                     {{ group.label }}
                   </div>
                   <button
-                    v-else-if="group.label"
+                    v-else-if="group.label && !isCrmSection(item)"
                     type="button"
                     class="sidebar-subgroup-toggle"
                     :class="{ 'sidebar-subgroup-toggle--current': groupIsActive(group) }"

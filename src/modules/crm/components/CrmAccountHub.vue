@@ -208,6 +208,7 @@ async function load() {
         })
         .catch(() => {if (generation === requestGeneration) countryName.value = ''}))
     if (has('crm.analysis.read')) jobs.push(loadRouteHistory(generation))
+    if (has('crm.quote.read')) jobs.push(loadQuotedRoutes(generation))
     await Promise.all(jobs)
   } catch (cause) { if (generation === requestGeneration) error.value = message(cause) }
   finally { if (generation === requestGeneration) loading.value = false }
@@ -447,6 +448,30 @@ async function saveRoute() {
     <div v-if="activeTab === 'summary'" id="crm-account-summary" role="tabpanel"
       class="grid items-start gap-3 xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]">
       <div class="min-w-0 space-y-3">
+        <section class="hub-panel">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h2 class="hub-panel-heading mb-0"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas del cliente</h2>
+            <button type="button" class="hub-text-link" @click="activeTab='history';loadQuotedRoutes()">Ver historial completo</button>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="hub-mini-stat"><span>Documentadas</span><strong>{{ routeHistoryTotal }}</strong></div>
+            <div class="hub-mini-stat"><span>Habituales</span><strong>{{ popularRoutes.length }}</strong></div>
+            <div class="hub-mini-stat"><span>Tarifas vinculadas</span><strong>{{ quoteRouteTotal }}</strong></div>
+          </div>
+          <p v-if="routeHistoryError" class="mt-3 text-xs text-amber-600">{{ routeHistoryError }}</p>
+          <div v-if="popularRoutes.length" class="mt-3 divide-y divide-[var(--dh-border)]">
+            <div v-for="(r, idx) in popularRoutes.slice(0,3)" :key="idx" class="py-3">
+              <p class="text-xs font-extrabold">{{ text(r.polCode) }} → {{ r.poeCode ? text(r.poeCode) + ' → ' : '' }}{{ text(r.podCode) }}</p>
+              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ r.meetingCount }} reuniones · {{ r.quoteCount }} cotizaciones · Última referencia: {{ date(r.lastSeenAt) }}</p>
+            </div>
+          </div>
+          <p v-else class="hub-empty mt-3">No hay rutas documentadas todavía. El historial se crea a partir de reuniones completadas y cotizaciones vinculadas.</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button type="button" class="hub-outline-button hub-small" @click="activeTab='history';loadQuotedRoutes()"><FileText class="h-3.5 w-3.5" />Ver rutas de cotizaciones</button>
+            <button v-if="has('crm.analysis.manage') && has('crm.analysis.read')" type="button"
+              class="hub-outline-button hub-small" @click="activeTab='history';openRouteEvidence('MEETING')"><Plus class="h-3.5 w-3.5" />Ruta de reunión</button>
+          </div>
+        </section>
         <section class="hub-panel">
           <h2 class="hub-panel-heading"><UserRound class="h-4 w-4 text-[var(--dh-primary)]" />Datos de la cuenta</h2>
           <dl class="divide-y divide-[var(--dh-border)]">
