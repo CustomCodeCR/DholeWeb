@@ -66,7 +66,14 @@ function groupStateKey(item: SidebarItem, group: string): string {
 }
 
 function isExpanded(key: string): boolean {
-  return navigationExpanded.value[key] !== false
+  const saved = navigationExpanded.value[key]
+  if (typeof saved === 'boolean') return saved
+  // Keep the navigation focused: on first load, only the active CRM group is open.
+  if (!key.includes(':group:')) return true
+  return visibleItems.value.some(item =>
+    item.children && groupedChildren(item).some(group =>
+      groupStateKey(item, group.id) === key && groupIsActive(group)),
+  )
 }
 
 function saveNavigationState(): void {
