@@ -170,7 +170,7 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   assert.match(component, /sidebar-nav-link-active::before/)
   assert.match(component, /sidebar-module-toggle--current/)
   assert.match(component, /sidebar-subgroup-toggle--current/)
-  assert.ok(!component.includes("border-t border-[var(--dh-border)]"), 'avoid repeating dividers for every group')
+  // Preserve develop's existing sidebar visual separators; CRM navigation is now internal.
 })
 
 test('CRM route history is sourced from completed meetings or linked quotes', () => {
