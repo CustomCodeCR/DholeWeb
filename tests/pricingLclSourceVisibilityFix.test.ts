@@ -72,3 +72,26 @@ test('own-LCL watcher patch accepts legacy route fields and fails fast on missin
   assert.throws(() => patchOwnLclRoutePreviewWatcher('unrelated file'), /route preview watcher anchor, found 0/)
   assert.throws(() => patchOwnLclRoutePreviewWatcher(legacy + '\n' + legacy), /route preview watcher anchor, found 2/)
 })
+
+
+test('Guangzhou lists the physical Yantian consolidation instead of Shanghai', () => {
+  assert.ok(selector.includes("requestedOrigins.has('guangzhou') && consolidationOrigins.has('yantian')"))
+  assert.ok(selector.includes("consolidationOrigin === 'yantian' && requestedOwnLclOrigins().has('guangzhou')"))
+  assert.ok(selector.includes("return 'GUANGZHOU'"))
+  assert.ok(!selector.includes("'shekou', 'guangzhou',"))
+  assert.ok(selector.includes("if (!consolidationOrigins.has('shanghai')) return false"))
+})
+
+test('expired ETDs remain visible for correction but cannot be selected or calculated', () => {
+  assert.ok(selector.includes("function ownDepartureExpired(row: OwnLclConsolidationDto)"))
+  assert.ok(!selector.includes("if (row.etd && row.etd.slice(0, 10) <= costaRicaTodayIso()) return false"))
+  assert.ok(selector.includes("if (ownDepartureExpired(row))"))
+  assert.ok(selector.includes("|| ownDepartureExpired(row)) return"))
+  assert.ok(selector.includes(':disabled="ownDepartureExpired(row)"'))
+  assert.ok(selector.includes('Los consolidados con ETD anterior a la fecha de carga'))
+  const mobilePatch = readFileSync(
+    new URL('../build/pricingLclCostBreakdownUi.ts', import.meta.url),
+    'utf8',
+  )
+  assert.ok(mobilePatch.includes(':disabled="ownDepartureExpired(row)"'))
+})
