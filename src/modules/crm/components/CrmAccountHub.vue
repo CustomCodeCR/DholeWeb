@@ -12,7 +12,7 @@ import {
   Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet,
 } from 'lucide-vue-next'
 
-type Section = 'summary' | 'commercial' | 'quotes' | 'agenda' | 'finance'
+type Section = 'summary' | 'commercial' | 'quotes' | 'history' | 'agenda' | 'finance'
 interface Overview {
   activities: CrmRow[]
   followups: CrmRow[]
@@ -35,7 +35,8 @@ const compactRow = (label: string, value: unknown) => ({ label, value })
 const tabs = computed(() => [
   { key: 'summary' as const, label: locale.value === 'en' ? 'Customer' : 'Cliente', icon: UserRound },
   { key: 'commercial' as const, label: locale.value === 'en' ? 'Customer profile' : 'Ficha cliente', icon: Route },
-  { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes & routes' : 'Tarifas y rutas', icon: Truck },
+  { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
+  { key: 'history' as const, label: locale.value === 'en' ? 'Route history' : 'Historial de rutas', icon: Route },
   { key: 'agenda' as const, label: locale.value === 'en' ? 'Activity & follow-up' : 'Seguimientos', icon: CalendarClock },
   ...(has('crm.credit.read') || has('crm.contract.read')
     ? [{ key: 'finance' as const, label: locale.value === 'en' ? 'Credit & contacts' : 'Crédito / contactos', icon: Wallet }]
@@ -50,6 +51,33 @@ const contacts = ref<CrmRow[]>([])
 const addresses = ref<CrmRow[]>([])
 const credit = ref<CrmRow[]>([])
 const contracts = ref<CrmRow[]>([])
+const routeHistory = ref<CrmRow[]>([])
+const popularRoutes = ref<CrmRow[]>([])
+const routeHistoryPage = ref(1)
+const routeHistoryTotal = ref(0)
+const routeHistoryError = ref('')
+const routeCaptureOpen = ref(false)
+const routeSourceKind = ref<'MEETING' | 'QUOTE'>('MEETING')
+const routeSourceId = ref('')
+const routePol = ref('')
+const routePoe = ref('')
+const routePod = ref('')
+const routeService = ref('')
+const routeNotes = ref('')
+const sourceMeetings = computed(() => overview.value.activities.filter(a =>
+  ['VISIT','MEETING'].includes(String(a.type)) && String(a.status) === 'Completed'))
+const sourceList = computed(() => routeSourceKind.value === 'MEETING'
+  ? sourceMeetings.value.map(a => ({
+      value: rowId(a.id), label: date(a.occurredAt ?? a.scheduledStartAt) + ' · ' + text(a.subject),
+    }))
+  : recentQuotes.value.map(q => ({
+      value: rowId(q.pricingQuoteId), label: text(q.quoteNumberSnapshot) + ' · ' + text(q.shipmentModeSnapshot),
+    })))
+const routesCapturedFromMeetings = computed(() =>
+  routeHistory.value.filter(x => x.sourceKind === 'MEETING').length)
+const routesCapturedFromQuotes = computed(() =>
+  routeHistory.value.filter(x => x.sourceKind === 'QUOTE').length)
+
 const countryName = ref('')
 const loading = ref(false)
 const busy = ref(false)
@@ -112,6 +140,7 @@ async function load() {
     const response = await get<Overview>(crmPath('accounts', accountId, 'commercial-overview'))
     if (generation !== requestGeneration) return
     overview.value = { ...initial(), ...response }
+    routeHistoryPage.value = 1
     // Permissioned lookups are independent; a forbidden credit profile never blocks
     // the commercial parts of a customer record or exposes a hidden field.
     const jobs: Promise<void>[] = []
@@ -140,6 +169,7 @@ async function load() {
           countryName.value = country?.label || country?.value || ''
         })
         .catch(() => {if (generation === requestGeneration) countryName.value = ''}))
+    if (has('crm.analysis.read')) jobs.push(loadRouteHistory(generation))
     await Promise.all(jobs)
   } catch (cause) { if (generation === requestGeneration) error.value = message(cause) }
   finally { if (generation === requestGeneration) loading.value = false }
@@ -150,10 +180,70 @@ watch(() => props.account.id, () => {
   addresses.value = []
   credit.value = []
   contracts.value = []
+  routeHistory.value = []
+  routeHistoryTotal.value = 0
+  popularRoutes.value = []
   countryName.value = ''
   activeTab.value = 'summary'
   void load()
 }, { immediate: true })
+
+async function loadRouteHistory(generation = requestGeneration) {
+  try {
+    const result = await get<{ items: CrmRow[], total: number, popularRoutes: CrmRow[] }>(
+      crmPath('accounts', rowId(props.account.id), 'route-history') +
+      '?page=' + routeHistoryPage.value + '&pageSize=20')
+    if (generation !== requestGeneration) return
+    routeHistory.value = result.items ?? []
+    routeHistoryTotal.value = result.total ?? 0
+    popularRoutes.value = result.popularRoutes ?? []
+    routeHistoryError.value = ''
+  } catch (cause) {
+    if (generation === requestGeneration) {
+      routeHistoryError.value = message(cause)
+      routeHistory.value = []
+      routeHistoryTotal.value = 0
+      popularRoutes.value = []
+    }
+  }
+}
+function openRouteEvidence(kind: 'MEETING' | 'QUOTE' = 'MEETING') {
+  routeSourceKind.value = kind
+  routeSourceId.value = ''
+  routePol.value = ''
+  routePoe.value = ''
+  routePod.value = ''
+  routeService.value = ''
+  routeNotes.value = ''
+  routeCaptureOpen.value = true
+  activeTab.value = 'history'
+}
+async function saveRouteEvidence() {
+  if (busy.value || !routeSourceId.value || !routePol.value || !routePod.value) return
+  busy.value = true
+  error.value = ''
+  saved.value = ''
+  try {
+    await crmRequest(crmPath('accounts', rowId(props.account.id), 'route-history'), 'POST', {
+      sourceKind: routeSourceKind.value,
+      sourceId: routeSourceId.value,
+      polCode: routePol.value,
+      poeCode: routePoe.value || null,
+      podCode: routePod.value,
+      serviceCode: routeService.value || null,
+      notes: routeNotes.value.trim() || null,
+    }, crmUuid())
+    routeCaptureOpen.value = false
+    routeHistoryPage.value = 1
+    await loadRouteHistory()
+    saved.value = 'Ruta incorporada al historial con su reunión o cotización de origen.'
+  } catch (cause) { error.value = message(cause) }
+  finally { busy.value = false }
+}
+function changeRouteHistoryPage(delta: number) {
+  routeHistoryPage.value += delta
+  void loadRouteHistory()
+}
 
 function newActivity(type: 'CALL' | 'VISIT' | 'FOLLOWUP') {
   editor.value = type
@@ -245,7 +335,8 @@ async function saveRoute() {
       </div>
       <div class="flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--dh-border)] px-4 py-2 text-[11px] sm:px-5">
         <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ recentQuotes.length }} {{ locale === 'en' ? 'linked quotes' : 'tarifas vinculadas' }}</span>
-        <span class="hub-header-meta"><Route class="h-3.5 w-3.5" />{{ activeRoutes.length }} rutas</span>
+        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='history'"><Route class="h-3.5 w-3.5" />{{ routeHistoryTotal }} rutas con historial</button>
+        <span class="hub-header-meta">{{ activeRoutes.length }} rutas habituales</span>
         <span class="hub-header-meta"><Activity class="h-3.5 w-3.5" />{{ activityCount }} actividades</span>
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
         <span class="ml-auto text-[var(--dh-text-muted)]">ID {{ String(account.id).slice(0, 8) }}</span>
@@ -323,8 +414,15 @@ async function saveRoute() {
             <div class="hub-kv"><dt>Nacionalización</dt><dd>{{ analysis.customsNationalizationRequired ? 'Sí' : 'No' }}</dd></div>
             <div class="hub-kv"><dt>Volumen estimado</dt><dd>{{ analysis.estimatedMonthlyVolume ?? '—' }} {{ text(analysis.volumeUnit) }}</dd></div>
           </dl>
-          <h3 class="hub-section-heading mt-4">Rutas frecuentes · POL / POE / POD</h3>
-          <p v-if="!activeRoutes.length && !overview.analysisRoutes.length" class="hub-empty">No hay rutas frecuentes registradas.</p>
+          <div class="mt-4 flex items-center justify-between gap-2">
+            <h3 class="hub-section-heading mb-0 border-0">Rutas frecuentes · POL / POE / POD</h3>
+            <button type="button" class="hub-text-link" @click="activeTab='history'">Ver historial de reuniones y cotizaciones</button>
+          </div>
+          <div v-for="route in popularRoutes.slice(0,3)" :key="String(route.polCode)+String(route.podCode)+String(route.poeCode)" class="hub-list-item">
+            <p class="text-xs font-extrabold">{{ text(route.polCode) }} → <span v-if="route.poeCode">{{ text(route.poeCode) }} → </span>{{ text(route.podCode) }}</p>
+            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ route.occurrences }} registros · {{ route.meetingCount }} reuniones · {{ route.quoteCount }} cotizaciones</p>
+          </div>
+          <p v-if="!activeRoutes.length && !overview.analysisRoutes.length && !popularRoutes.length" class="hub-empty">Todavía no hay rutas documentadas. Podés registrarlas a partir de reuniones y cotizaciones vinculadas.</p>
           <div v-for="route in activeRoutes.slice(0,4)" :key="route.id" class="hub-list-item">
             <p class="text-xs font-semibold">{{ text(route.preferredOriginCode) }} <span class="text-[var(--dh-primary)]">→</span> {{ text(route.preferredDestinationCode) }}</p>
             <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ text(route.serviceCode) }} · {{ text(route.frequency) }}</p>
@@ -452,6 +550,105 @@ async function saveRoute() {
         <button type="button" class="hub-text-link mt-3" @click="activeTab='agenda'">Abrir seguimientos</button>
       </aside>
     </div>
+
+    <section v-else-if="activeTab === 'history'" id="crm-account-history" role="tabpanel" class="space-y-3">
+      <div class="hub-panel">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 class="flex items-center gap-2 text-base font-extrabold"><Route class="h-5 w-5 text-[var(--dh-primary)]" />Historial de rutas del cliente</h2>
+            <p class="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--dh-text-muted)]">
+              Cada ruta confirma su origen: una reunión completada o una cotización ya vinculada al CRM.
+              No se inventan POL, POE o POD a partir del nombre del cliente o de la modalidad.
+            </p>
+          </div>
+          <button v-if="has('crm.analysis.manage') && has('crm.analysis.read')" type="button"
+            class="crm-action inline-flex items-center gap-2" @click="openRouteEvidence('MEETING')">
+            <Plus class="h-4 w-4" />Documentar una ruta
+          </button>
+        </div>
+        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+          <div class="hub-mini-stat"><span>Rutas verificadas</span><strong>{{ routeHistoryTotal }}</strong></div>
+          <div class="hub-mini-stat"><span>Reuniones en esta página</span><strong>{{ routesCapturedFromMeetings }}</strong></div>
+          <div class="hub-mini-stat"><span>Cotizaciones en esta página</span><strong>{{ routesCapturedFromQuotes }}</strong></div>
+        </div>
+      </div>
+      <div v-if="popularRoutes.length" class="hub-panel">
+        <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más utilizadas (registros documentados)</h3>
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="(r, idx) in popularRoutes" :key="idx" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+            <p class="text-sm font-extrabold">{{ text(r.polCode) }} → {{ r.poeCode ? text(r.poeCode) + ' → ' : '' }}{{ text(r.podCode) }}</p>
+            <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-[var(--dh-text-muted)]">
+              <span>{{ r.occurrences }} registros</span><span>{{ r.meetingCount }} reuniones</span><span>{{ r.quoteCount }} cotizaciones</span>
+            </div>
+            <time class="mt-2 block text-[11px] text-[var(--dh-text-muted)]">Último registro: {{ date(r.lastSeenAt) }}</time>
+          </div>
+        </div>
+      </div>
+      <div class="hub-panel">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 class="hub-panel-heading mb-0">Cronología de rutas · {{ routeHistoryTotal }} registros</h3>
+          <button type="button" class="hub-outline-button hub-small" @click="loadRouteHistory()"><RefreshCw class="h-3.5 w-3.5" />Actualizar</button>
+        </div>
+        <p v-if="routeHistoryError" role="alert" class="mb-3 rounded-lg border border-red-500/40 p-3 text-xs text-red-500">{{ routeHistoryError }}</p>
+        <div v-if="!routeHistory.length && !routeHistoryError" class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center">
+          <Route class="mx-auto h-7 w-7 text-[var(--dh-primary)]" />
+          <p class="mt-3 text-sm font-extrabold">Todavía no hay rutas con origen documentado</p>
+          <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">
+            Registrá una visita, marcala como completada y vinculá su ruta. También podés documentar las rutas de cotizaciones ya enlazadas.
+          </p>
+          <button v-if="has('crm.activity.create')" type="button" class="hub-text-link mt-4" @click="activeTab='agenda';newActivity('VISIT')">Programar una visita</button>
+        </div>
+        <ol v-else class="divide-y divide-[var(--dh-border)]">
+          <li v-for="record in routeHistory" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div class="min-w-0">
+              <p class="text-sm font-extrabold">{{ text(record.polCode) }} → {{ record.poeCode ? text(record.poeCode) + ' → ' : '' }}{{ text(record.podCode) }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ text(record.serviceCode) }}</p>
+              <p v-if="record.notes" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.notes }}</p>
+            </div>
+            <RouterLink :to="record.sourceKind === 'MEETING' ? '/crm/activities/' + encodeURIComponent(rowId(record.sourceId)) : quoteLink({ pricingQuoteId: record.sourceId, id: rowId(record.id) })"
+              class="hub-outline-button hub-small">{{ record.sourceKind === 'MEETING' ? 'Abrir reunión' : 'Abrir cotización' }}</RouterLink>
+          </li>
+        </ol>
+        <footer v-if="routeHistoryTotal > 20" class="mt-4 flex items-center justify-end gap-3 text-xs">
+          <button type="button" class="hub-outline-button hub-small" :disabled="routeHistoryPage === 1" @click="changeRouteHistoryPage(-1)">Anterior</button>
+          <span>Página {{ routeHistoryPage }} · {{ routeHistoryTotal }} registros</span>
+          <button type="button" class="hub-outline-button hub-small" :disabled="routeHistoryPage * 20 >= routeHistoryTotal" @click="changeRouteHistoryPage(1)">Siguiente</button>
+        </footer>
+      </div>
+      <DhDrawer :open="routeCaptureOpen" title="Documentar ruta de cliente" size="lg" @close="routeCaptureOpen=false">
+        <form class="space-y-4 p-2" @submit.prevent="saveRouteEvidence">
+          <p class="text-xs text-[var(--dh-text-muted)]">La ruta quedará respaldada por la reunión completada o la cotización vinculada que seleccionés.</p>
+          <label class="block space-y-1.5 text-xs font-bold">Origen del historial *
+            <select v-model="routeSourceKind" class="crm-input w-full" @change="routeSourceId=''">
+              <option value="MEETING">Reunión completada</option>
+              <option value="QUOTE">Cotización vinculada</option>
+            </select>
+          </label>
+          <label class="block space-y-1.5 text-xs font-bold">Registro de origen *
+            <select v-model="routeSourceId" required class="crm-input w-full">
+              <option value="">Seleccionar origen</option>
+              <option v-for="option in sourceList" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+          <p v-if="!sourceList.length" class="text-xs text-amber-600">
+            {{ routeSourceKind === 'MEETING' ? 'No hay reuniones completadas visibles en el historial reciente. Abrí Actividades para registrar o completar una visita.' : 'No hay cotizaciones vinculadas a las oportunidades de este cliente.' }}
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <CrmCatalogPicker v-model="routePol" label="POL / Origen *" catalog-group-slug="pol" value-kind="code" />
+            <CrmCatalogPicker v-model="routePoe" label="POE / Puerto intermedio" catalog-group-slug="poe" value-kind="code" />
+            <CrmCatalogPicker v-model="routePod" label="POD / Destino *" catalog-group-slug="pod" value-kind="code" />
+            <CrmCatalogPicker v-model="routeService" label="Servicio" catalog-group-slug="pricing-services" value-kind="code" />
+          </div>
+          <label class="block space-y-1.5 text-xs font-bold">Observaciones de la ruta
+            <textarea v-model="routeNotes" maxlength="2000" rows="3" class="crm-input w-full" placeholder="Información confirmada durante la reunión o cotización"></textarea>
+          </label>
+          <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
+            <button type="button" class="hub-outline-button" @click="routeCaptureOpen=false">Cancelar</button>
+            <button type="submit" class="crm-action" :disabled="busy || !routeSourceId || !routePol || !routePod">Guardar ruta con origen</button>
+          </div>
+        </form>
+      </DhDrawer>
+    </section>
 
     <section v-else-if="activeTab === 'quotes'" id="crm-account-quotes" role="tabpanel" class="hub-panel">
       <div class="mb-4">
