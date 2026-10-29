@@ -107,12 +107,14 @@ watch(step, (currentStep) => {
   // Re-running loadApplicableCosts/rebuildRateLines here would overwrite edits
   // even when the user explicitly chose to keep existing values.
   const saveAnchor = '  if (editingRate.value && !props.viewOnly) {\n    await loadApplicableCosts()'
-  code = replaceOne(
-    code,
-    saveAnchor,
-    "  if (editingRate.value && !props.viewOnly && shipmentModeForApi.value !== 'Ftl') {\n    await loadApplicableCosts()",
-    'prevent pre-save FTL rebuild',
-  )
+  // Other cost-choice transforms may already replace the pre-save sync.
+  // In that case there is no legacy rebuild at this precise location.
+  if (code.includes(saveAnchor)) {
+    code = code.replace(
+      saveAnchor,
+      "  if (editingRate.value && !props.viewOnly && shipmentModeForApi.value !== 'Ftl') {\n    await loadApplicableCosts()",
+    )
+  }
   const detailsAnchor = '  const details: CreateRateDetailRequest[] = '
   const start = code.indexOf('async function saveRate() {')
   const detailsIndex = code.indexOf(detailsAnchor, start)
