@@ -214,3 +214,29 @@ test('the production wizard reconciles edit/removal IDs after building final upd
   assert.ok(plugin.includes('proposedRemovedExtraDetailIds'))
   assert.ok(plugin.includes('freightNotRequiredByIncoterm.value'))
 })
+
+test('complete edit keeps a fixed charge override and removes only the selected fixed charge', () => {
+  const output = reconcileRateUpdateDetailChanges(
+    [{ id: 'documentation', costDetailType: 'OriginCharge', costId: 'master-doc', name: 'Documentation Fee', costAmount: 60, saleAmount: 65 }],
+    ['destination-fee'],
+    [
+      { id: 'documentation', costDetailType: 'OriginCharge', costId: 'master-doc' },
+      { id: 'destination-fee', costDetailType: 'DestinationCharge', costId: 'master-destination' },
+    ],
+    false,
+    true,
+  )
+  assert.equal(output.extraDetails[0]?.id, 'documentation')
+  assert.equal(output.extraDetails[0]?.costAmount, 60)
+  assert.equal(output.extraDetails[0]?.saleAmount, 65)
+  assert.deepEqual(output.removedExtraDetailIds, ['destination-fee'])
+})
+
+test('wizard screen 7 offers fixed charge deletion and preserves manual overrides at save', () => {
+  const removal = readFileSync(new URL('../build/pricingScreen7RemoveVariableLines.ts', import.meta.url), 'utf8')
+  const costs = readFileSync(new URL('../build/pricingWizardScreen7CostChoice.ts', import.meta.url), 'utf8')
+  const layout = readFileSync(new URL('../build/pricingWizardManualOceanFreight.ts', import.meta.url), 'utf8')
+  assert.ok(removal.includes("line.costDetailType !== 'Freight'"))
+  assert.ok(costs.includes('edit save must not overwrite existing charges'))
+  assert.ok(layout.includes('screen 6 full-width manual freight card'))
+})
