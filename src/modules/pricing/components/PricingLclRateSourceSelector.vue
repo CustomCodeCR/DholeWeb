@@ -280,9 +280,18 @@ function approvedCbm(row: OwnLclConsolidationDto) {
   return Math.max(0, n(row.approvedCbm))
 }
 
+function ownDepartureExpired(row: OwnLclConsolidationDto) {
+  // Mostrar el consolidado para detectar un ETD erróneo, sin permitir cotizar
+  // con una salida anterior a la fecha de carga seleccionada.
+  const plannedDate = /^\d{4}-\d{2}-\d{2}/.test(String(props.quoteDate ?? ''))
+    ? String(props.quoteDate).slice(0, 10)
+    : costaRicaTodayIso()
+  return Boolean(row.etd && row.etd.slice(0, 10) < plannedDate)
+}
+
 const chinaOwnLclOrigins = new Set([
   'shanghai', 'ningbo', 'qingdao', 'xiamen', 'shantou', 'dalian',
-  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou', 'guangzhou',
+  'chongqing', 'fuzhou', 'shenzhen', 'xingang', 'shekou',
 ])
 
 const ownLclOriginAliases: Record<string, string> = {
@@ -346,6 +355,9 @@ function requestedOwnLclOrigins() {
 function ownCalculationPolCode(row: OwnLclConsolidationDto) {
   const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
   if (consolidationOrigin === 'miami') return 'MIAMI'
+  // Guangzhou se cotiza usando el consolidado físico de Yantian.
+  // Se envía el POL comercial para que Pricing valide esa equivalencia.
+  if (consolidationOrigin === 'yantian' && requestedOwnLclOrigins().has('guangzhou')) return 'GUANGZHOU'
 
   if (consolidationOrigin !== 'shanghai') return consolidationOrigin.toUpperCase()
   const requestedOrigins = [...requestedOwnLclOrigins()]
@@ -369,6 +381,9 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
     if (consolidationOrigins.has(origin)) return true
   }
   // Los consolidados que no son Shanghai solo admiten su POL seleccionado.
+  // Guangzhou utiliza Yantian como origen físico, nunca una salida Shanghai.
+  if (requestedOrigins.has('guangzhou') && consolidationOrigins.has('yantian')) return true
+
   if (!consolidationOrigins.has('shanghai')) return false
 
   if (requestedOrigins.has('miami')) {
@@ -401,7 +416,6 @@ const filteredOwn = computed(() => {
   const q = normalize(search.value)
   return ownRows.value.filter((row) => {
     if (!row.isActive || normalize(row.status) === 'closed') return false
-    if (row.etd && row.etd.slice(0, 10) <= costaRicaTodayIso()) return false
     if (!ownConsolidationSupportsPol(row)) return false
     if (!ownConsolidationSupportsPoe(row)) return false
     if (!q) return true
@@ -494,6 +508,10 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto): LclNormalizedRateL
 }
 
 async function chooseOwn(row: OwnLclConsolidationDto) {
+  if (ownDepartureExpired(row)) {
+    error.value = `El consolidado ${row.name} tiene ETD ${row.etd}, anterior a la fecha de carga. Corrija y confirme su ETD antes de cotizar.`
+    return
+  }
   if (!ownPoeEligible.value || !ownConsolidationSupportsPoe(row) || !ownConsolidationSupportsPol(row)) {
     error.value = 'El consolidado propio no corresponde al origen o ruta seleccionados.'
     return
@@ -556,7 +574,7 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       matrixVersion: calculation.matrixVersion,
     }
     // Una selección asíncrona no puede aplicar una fuente si el POE cambió.
-    if (!ownPoeEligible.value || !ownConsolidationSupportsPoe(row)) return
+    if (!ownPoeEligible.value || !ownConsolidationSupportsPoe(row) || !ownConsolidationSupportsPol(row) || ownDepartureExpired(row)) return
     // Hydrate the wizard first; changing modelValue can advance/unmount Pantalla 5.
     emit('select', selection)
     emit('update:modelValue', `Own:${row.id}`)
@@ -730,6 +748,7 @@ onMounted(load)
     </div>
 
     <div v-if="error" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">{{ error }}</div>
+    <div v-if="tab === 'Own' && filteredOwn.some(ownDepartureExpired)" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Los consolidados con ETD anterior a la fecha de carga se muestran para revisión, pero no se pueden cotizar hasta corregir su salida.</div>
 
     <div v-if="tab === 'Own'">
       <DhDataTable :columns="ownColumns" :rows="filteredOwn" :loading="loading" empty-text="No hay consolidados propios disponibles para este POL.">
@@ -748,7 +767,7 @@ onMounted(load)
         <template #cell-cost="{ row }"><span class="font-black">USD {{ money((n(row.oceanFreight) + n(row.carrierDestinationCostTotal)) / Math.max(n(row.maximumCbm), 1)) }}</span></template>
         <template #cell-action="{ row }">
           <div class="flex justify-end" @click.stop>
-            <DhButton class="min-w-[108px]" :label="modelValue === `Own:${row.id}` ? 'Seleccionado' : 'Seleccionar'" :icon="modelValue === `Own:${row.id}` ? Check : undefined" size="sm" :loading="selecting === `Own:${row.id}`" @click="chooseOwn(row)" />
+            <DhButton class="min-w-[108px]" :label="ownDepartureExpired(row) ? 'Revisar ETD' : modelValue === `Own:${row.id}` ? 'Seleccionado' : 'Seleccionar'" :icon="modelValue === `Own:${row.id}` ? Check : undefined" size="sm" :disabled="ownDepartureExpired(row)" :loading="selecting === `Own:${row.id}`" @click="chooseOwn(row)" />
           </div>
         </template>
       </DhDataTable>
