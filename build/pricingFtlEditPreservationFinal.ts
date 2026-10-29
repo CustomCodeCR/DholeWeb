@@ -87,12 +87,14 @@ watch(step, (currentStep) => {
   // overwrite RateDetails while hydrating a saved quote. For FTL, opening Edit
   // must reproduce the persisted snapshot exactly until an explicit add-only refresh.
   const eagerHydrate = '    if (!props.viewOnly) {\n      // RateDetails persistidos siguen siendo autoritativos para montos. A la vez,'
-  code = replaceOne(
-    code,
-    eagerHydrate,
-    '    if (!props.viewOnly && shipmentModeForApi.value !== \'Ftl\') {\n      // RateDetails persistidos siguen siendo autoritativos para montos. A la vez,',
-    'do not mutate FTL details while hydrating',
-  )
+  // Some final compatibility plugins already remove this eager hydration.
+  // When absent there is nothing left to suppress; do not abort the build.
+  if (code.includes(eagerHydrate)) {
+    code = code.replace(
+      eagerHydrate,
+      '    if (!props.viewOnly && shipmentModeForApi.value !== \'Ftl\') {\n      // RateDetails persistidos siguen siendo autoritativos para montos. A la vez,',
+    )
+  }
   const eagerCrc = "    if (!props.viewOnly) {\n      const serviceCurrency = selectedCurrency.value ?? catalogs.currencies[0]"
   if (code.includes(eagerCrc)) {
     code = code.replace(
