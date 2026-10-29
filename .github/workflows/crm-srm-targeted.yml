@@ -1,0 +1,29 @@
+name: CRM and SRM targeted verification
+
+on:
+  pull_request:
+    branches: [develop, master]
+    paths:
+      - 'src/modules/crm/**'
+      - 'src/modules/srm/**'
+      - '.github/workflows/crm-srm-targeted.yml'
+  workflow_dispatch:
+
+jobs:
+  typecheck-and-crm-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Strict Vue / TypeScript check
+        run: pnpm run type-check
+      - name: CRM/SRM regression tests
+        run: pnpm run test:crm
