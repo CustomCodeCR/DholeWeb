@@ -325,6 +325,11 @@ onMounted(() => { if (crmEnabled()) void load() })
   <main class="mx-auto w-full text-[var(--dh-text)]" :class="section === 'accounts' ? 'max-w-[1750px] space-y-3 p-2 sm:p-4' : 'max-w-6xl space-y-5 p-3 sm:p-6'" data-crm-detail>
     <DhButton :label="t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
     <p v-if="error" role="alert" class="crm-error">{{ error }}</p>
+    <p v-if="section === 'accounts' && route.query.onboarding === 'partial'" role="alert"
+      class="rounded-xl border border-amber-500/40 bg-[var(--dh-card)] p-3 text-xs text-[var(--dh-text)]">
+      La cuenta se guardó correctamente, pero no se pudo agregar {{ String(route.query.missing || 'algún registro relacionado') }}.
+      Podés completar esos datos desde «Gestionar contactos, crédito, contratos y otros registros», sin crear otra cuenta.
+    </p>
     <p v-if="success" role="status" class="text-sm text-emerald-600">{{ success }}</p>
     <p v-if="loading" role="status">{{ t('common.loading') }}</p>
     <template v-if="record">

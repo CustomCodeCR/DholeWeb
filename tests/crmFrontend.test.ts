@@ -126,3 +126,17 @@ test('CRM Config selectors are searchable in a single control', () => {
   assert.ok(picker.includes("clearTimeout"))
   assert.ok(!picker.includes("<DhSelect"))
 })
+
+test('CRM customer onboarding persists authorized contact and address as related records', () => {
+  const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  assert.ok(workspace.includes("relatedDraft.contactName"))
+  assert.ok(workspace.includes("relatedDraft.addressText"))
+  assert.ok(workspace.includes("can('crm.contact.create')"))
+  assert.ok(workspace.includes("can('crm.account.update')"))
+  assert.ok(workspace.includes("'/contacts', 'POST'"))
+  assert.ok(workspace.includes("'/addresses', 'POST'"))
+  assert.ok(workspace.includes("missing.push('contactos')"))
+  assert.ok(workspace.includes("missing.push('direcciones')"))
+  assert.ok(detail.includes("route.query.onboarding === 'partial'"))
+})

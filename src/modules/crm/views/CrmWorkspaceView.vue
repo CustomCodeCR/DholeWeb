@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
-import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Filter, Search, CalendarClock, Route, Wallet } from 'lucide-vue-next'
+import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Filter, Search, CalendarClock, Route, Wallet, ArrowRight } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
@@ -158,6 +158,10 @@ const configWarning = ref('')
 const accountTypeFilter = ref('')
 const accountCategoryFilter = ref('')
 const accountFormTab = ref<'identity' | 'commercial' | 'related'>('identity')
+const relatedDraft = reactive({ contactName: '', contactJobTitle: '', contactEmail: '', contactPhone: '', addressText: '' })
+function resetRelatedDraft() {
+  Object.assign(relatedDraft, { contactName: '', contactJobTitle: '', contactEmail: '', contactPhone: '', addressText: '' })
+}
 const countryLabels = ref<Record<string, string>>({})
 async function loadCountryLabels() {
   try {
@@ -174,6 +178,7 @@ const accountTabs = [
 
 function beginCreate() {
   resetValidation()
+  resetRelatedDraft()
   pendingCreateKey.value = crmUuid()
   edited.value = null
   Object.keys(form).forEach(key => delete form[key])
@@ -184,6 +189,7 @@ function beginCreate() {
 }
 function beginEdit(item: CrmRow) {
   resetValidation()
+  resetRelatedDraft()
   edited.value = item
   accountFormTab.value = 'identity'
   Object.keys(form).forEach(key => delete form[key])
@@ -311,6 +317,12 @@ async function save() {
       return
     }
   }
+  if (section.value === 'accounts' && !edited.value && (relatedDraft.contactEmail.trim() || relatedDraft.contactPhone.trim()) &&
+      !relatedDraft.contactName.trim()) {
+    accountFormTab.value = 'related'
+    error.value = 'Si registrás correo o teléfono, completá también el nombre del contacto.'
+    return
+  }
   if (!validateRequiredFields()) return
   error.value = ''; saving.value = true
   try {
@@ -335,7 +347,31 @@ async function save() {
     showForm.value = false
     pendingCreateKey.value = crmUuid()
     if (section.value === 'accounts' && createdOrUpdated?.id) {
-      await router.push('/crm/accounts/' + encodeURIComponent(createdOrUpdated.id))
+      const missing: string[] = []
+      const accountId = encodeURIComponent(createdOrUpdated.id)
+      if (!edited.value && relatedDraft.contactName.trim() && can('crm.contact.create')) {
+        try {
+          await crmRequest('/api/crm/accounts/' + accountId + '/contacts', 'POST', {
+            name: relatedDraft.contactName.trim(),
+            jobTitle: relatedDraft.contactJobTitle.trim() || null,
+            email: relatedDraft.contactEmail.trim() || null,
+            phone: relatedDraft.contactPhone.trim() || null,
+            countryId: form.countryId || null, relationRole: 'CONTACT', isPrimary: true,
+          }, crmUuid())
+        } catch { missing.push('contactos') }
+      }
+      if (!edited.value && relatedDraft.addressText.trim() && can('crm.account.update')) {
+        try {
+          await crmRequest('/api/crm/accounts/' + accountId + '/addresses', 'POST', {
+            contactId: null, countryId: form.countryId || null,
+            addressType: 'WORK', addressText: relatedDraft.addressText.trim(), location: null,
+          }, crmUuid())
+        } catch { missing.push('direcciones') }
+      }
+      await router.push({
+        path: '/crm/accounts/' + accountId,
+        ...(missing.length ? { query: { onboarding: 'partial', missing: missing.join(',') } } : {}),
+      })
     } else {
       await load()
       success.value = t('crm.saved')
@@ -598,22 +634,42 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                 <p v-if="edited" class="mt-4 text-xs text-[var(--dh-text-muted)]">El tipo y la categoría de cuenta se mantienen según el registro actual. Para reasignar el ejecutivo, utilizá la acción en la ficha.</p>
               </div>
               <div v-else class="mt-4">
-                <h3 class="mb-2 text-sm font-extrabold">Información relacionada</h3>
-                <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">Al guardar se abrirá la ficha completa, organizada como Dynamics, para gestionar los registros vinculados a la cuenta.</p>
-                <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <h3 class="mb-2 text-sm font-extrabold">Contactos, dirección y logística</h3>
+                <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">
+                  Podés agregar el contacto principal y la dirección junto con la cuenta. Las rutas, tarifas y seguimientos se gestionan desde su ficha completa.
+                </p>
+                <div v-if="!edited" class="mt-4 grid items-start gap-3 lg:grid-cols-2">
+                  <section v-if="can('crm.contact.create')" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                    <h4 class="flex items-center gap-2 text-xs font-extrabold"><ContactRound class="h-4 w-4 text-[var(--dh-primary)]" />Contacto principal (opcional)</h4>
+                    <DhInput v-model="relatedDraft.contactName" label="Nombre completo" />
+                    <DhInput v-model="relatedDraft.contactJobTitle" label="Puesto / departamento" />
+                    <DhInput v-model="relatedDraft.contactEmail" label="Correo electrónico" type="email" />
+                    <DhInput v-model="relatedDraft.contactPhone" label="Teléfono" />
+                  </section>
+                  <section v-if="can('crm.account.update')" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                    <h4 class="flex items-center gap-2 text-xs font-extrabold"><Building2 class="h-4 w-4 text-[var(--dh-primary)]" />Dirección principal (opcional)</h4>
+                    <DhTextarea v-model="relatedDraft.addressText" label="Dirección física de la empresa" :rows="5" />
+                    <p class="text-xs text-[var(--dh-text-muted)]">La dirección queda vinculada al país seleccionado en identificación.</p>
+                  </section>
+                  <p v-if="!can('crm.contact.create') && !can('crm.account.update')" class="text-xs text-[var(--dh-text-muted)]">
+                    No tenés permisos para registrar contactos o direcciones. Podés guardar la cuenta y solicitar acceso.
+                  </p>
+                </div>
+                <div v-else class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                  <p class="text-xs">Los contactos y direcciones existentes se administran desde la ficha del cliente para evitar sobrescribir registros relacionados.</p>
+                  <RouterLink :to="'/crm/accounts/' + encodeURIComponent(edited.id)" class="mt-3 inline-flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)]">Ir a ficha completa <ArrowRight class="h-4 w-4" /></RouterLink>
+                </div>
+                <div class="mt-4 grid gap-3 sm:grid-cols-3">
                   <div v-for="item in [
-                    { title:'Contactos', detail:'Nombre, puesto, teléfono, correo y contacto principal', icon: ContactRound },
-                    { title:'Direcciones', detail:'Sedes, ubicaciones y país', icon: Building2 },
-                    { title:'Rutas', detail:'POL, POE, POD y servicios habituales de Config', icon: Route },
-                    { title:'Visitas y llamadas', detail:'Agenda, actividad y próximos seguimientos', icon: CalendarClock },
-                    { title:'Crédito y contratos', detail:'Límite, moneda, días y condiciones', icon: Wallet },
-                    { title:'Tarifas y oportunidades', detail:'Cotizaciones vinculadas e historial comercial', icon: BriefcaseBusiness },
-                  ]" :key="item.title" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-                    <component :is="item.icon" class="mb-2 h-5 w-5 text-[var(--dh-primary)]" />
-                    <p class="text-xs font-bold">{{ item.title }}</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ item.detail }}</p>
+                    { title:'POL / POE / POD', detail:'Catálogos de Config y rutas comerciales', icon: Route },
+                    { title:'Visitas y llamadas', detail:'Agenda y próximos seguimientos', icon: CalendarClock },
+                    { title:'Tarifas y crédito', detail:'Cotizaciones, preferencias y contratos', icon: Wallet },
+                  ]" :key="item.title" class="rounded-xl border border-[var(--dh-border)] p-3">
+                    <component :is="item.icon" class="mb-2 h-4 w-4 text-[var(--dh-primary)]" />
+                    <p class="text-xs font-bold">{{ item.title }}</p>
+                    <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ item.detail }}</p>
                   </div>
                 </div>
-                <p class="mt-4 text-xs font-semibold text-[var(--dh-text-muted)]">Estos datos son registros relacionados: no se guardan como campos sueltos de la cuenta ni se pierden al editarla.</p>
               </div>
             </div>
           </template>
