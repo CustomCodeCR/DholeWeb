@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { BriefcaseBusiness, Plus, RefreshCw } from 'lucide-vue-next'
+import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
+import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Filter, Search, CalendarClock, Route, Wallet, ArrowRight } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
@@ -8,6 +8,7 @@ import CrmReferencePicker from '../components/CrmReferencePicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmHaciendaLookup, { type HaciendaResult } from '../components/CrmHaciendaLookup.vue'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useRequiredFieldFeedback } from '@/core/composables/useRequiredFieldFeedback'
@@ -52,15 +53,45 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
     { key: '_crmTitle', label: 'Cliente' },
     { key: '_crmDescription', label: 'Razón social' },
     { key: '_crmTax', label: 'Identificación' },
+    { key: '_crmCountry', label: 'País' },
     { key: '_crmType', label: 'Tipo de cliente' },
+    { key: '_crmCategory', label: 'Categoría' },
     { key: '_crmStatus', label: t('common.status') },
     action,
   ]
   if (section.value === 'leads') return [
-    { key: '_crmTitle', label: 'Prospecto' },
+    { key: '_crmTitle', label: 'Cliente potencial' },
     { key: '_crmDescription', label: 'Empresa' },
     { key: '_crmEmail', label: 'Correo' },
-    { key: '_crmStatus', label: t('common.status') },
+    { key: '_crmPhone', label: 'Teléfono' },
+    { key: '_crmStatus', label: 'Calificación' },
+    action,
+  ]
+  if (section.value === 'opportunities') return [
+    { key: '_crmTitle', label: 'Oportunidad' },
+    { key: '_crmAmount', label: 'Venta estimada' },
+    { key: '_crmDue', label: 'Cierre previsto' },
+    { key: '_crmStatus', label: 'Etapa / estado' },
+    action,
+  ]
+  if (section.value === 'activities') return [
+    { key: '_crmTitle', label: 'Actividad' },
+    { key: '_crmChannel', label: 'Tipo' },
+    { key: '_crmDue', label: 'Fecha y hora' },
+    { key: '_crmStatus', label: 'Estado' },
+    action,
+  ]
+  if (section.value === 'followups') return [
+    { key: '_crmTitle', label: 'Seguimiento' },
+    { key: '_crmChannel', label: 'Canal' },
+    { key: '_crmDue', label: 'Próxima gestión' },
+    { key: '_crmStatus', label: 'Estado' },
+    action,
+  ]
+  if (section.value === 'analyses') return [
+    { key: '_crmTitle', label: 'Mercado' },
+    { key: '_crmDescription', label: 'Observaciones' },
+    { key: '_crmAmount', label: 'Volumen mensual' },
     action,
   ]
   return [
@@ -76,8 +107,23 @@ const tableRows = computed(() => rows.value.map(item => ({
   _crmDescription: String(item[model.value?.secondary ?? 'paymentTerms'] ?? '—'),
   _crmStatus: String(item.status ?? item.qualificationStatus ?? '—'),
   _crmTax: String(item.taxId ?? '—'),
+  _crmCountry: countryLabels.value[String(item.countryId ?? '')] || '—',
+  _crmCategory: [item.categoryType, item.categoryCode].filter(Boolean).join(' · ') || '—',
   _crmType: item.customerTypeCode === 'credit' ? 'Crédito' : item.customerTypeCode === 'cash' ? 'Contado' : '—',
   _crmEmail: String(item.contactEmail ?? '—'),
+  _crmPhone: String(item.phone ?? '—'),
+  _crmChannel: String(item.type ?? item.channel ?? '—'),
+  _crmAmount: section.value === 'analyses'
+    ? String(item.estimatedMonthlyVolume ?? '—') + ' ' + String(item.volumeUnit ?? '')
+    : item.amountEstimated == null ? '—' :
+      Number(item.amountEstimated).toLocaleString(locale.value === 'en' ? 'en-US' : 'es-CR', { maximumFractionDigits: 2 }) + ' ' + String(item.currencyCode ?? ''),
+  _crmDue: (() => {
+    const value = item.expectedCloseAt ?? item.scheduledStartAt ?? item.dueAt
+    if (typeof value !== 'string' || !value) return '—'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat(locale.value === 'en' ? 'en-US' : 'es-CR',
+      { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  })(),
 })))
 const can = (scope: string) => auth.hasScope(scope)
 const allowed = computed(() => crmEnabled() && crmSectionScope[section.value].some(can))
@@ -109,20 +155,43 @@ const financeAccountsLoading = ref(false)
 const financeTab = ref<'credit' | 'contracts'>(can('crm.credit.read') ? 'credit' : 'contracts')
 const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities: 0, weighted: 0, loaded: false })
 const configWarning = ref('')
+const accountTypeFilter = ref('')
+const accountCategoryFilter = ref('')
+const accountFormTab = ref<'identity' | 'commercial' | 'related'>('identity')
+const relatedDraft = reactive({ contactName: '', contactJobTitle: '', contactEmail: '', contactPhone: '', addressText: '' })
+function resetRelatedDraft() {
+  Object.assign(relatedDraft, { contactName: '', contactJobTitle: '', contactEmail: '', contactPhone: '', addressText: '' })
+}
+const countryLabels = ref<Record<string, string>>({})
+async function loadCountryLabels() {
+  try {
+    const items = await CatalogItemsService.select({ catalogGroupSlug: 'countries' })
+    countryLabels.value = Object.fromEntries(items.map(item => [item.id, String(item.label || item.value || item.code)]))
+  } catch { countryLabels.value = {} }
+}
+const accountTabs = [
+  { key: 'identity', label: 'Identificación', icon: Building2 },
+  { key: 'commercial', label: 'Perfil comercial', icon: Wallet },
+  { key: 'related', label: 'Contactos y logística', icon: Route },
+] as const
+
 
 function beginCreate() {
   resetValidation()
+  resetRelatedDraft()
   pendingCreateKey.value = crmUuid()
   edited.value = null
   Object.keys(form).forEach(key => delete form[key])
   Object.assign(form, crmDefaults(section.value))
   if (section.value === 'followups') form.assignedUserId = auth.userId ?? ''
-  if (section.value === 'accounts') form.executiveUserId = auth.userId ?? ''
+  if (section.value === 'accounts') { form.executiveUserId = auth.userId ?? ''; accountFormTab.value = 'identity' }
   showForm.value = true
 }
 function beginEdit(item: CrmRow) {
   resetValidation()
+  resetRelatedDraft()
   edited.value = item
+  accountFormTab.value = 'identity'
   Object.keys(form).forEach(key => delete form[key])
   for (const f of model.value?.fields ?? []) {
     form[f.key] = f.type === 'datetime-local' ? fromUtc(item[f.key]) : item[f.key] ?? (f.type === 'checkbox' ? false : '')
@@ -222,6 +291,8 @@ async function load() {
     } else {
       const response = await crmList(model.value!.resource, {
         page: page.value, pageSize: 25, q: search.value.trim(),
+        ...(section.value === 'accounts' && accountTypeFilter.value ? { customerTypeCode: accountTypeFilter.value } : {}),
+        ...(section.value === 'accounts' && accountCategoryFilter.value ? { categoryCode: accountCategoryFilter.value } : {}),
         ...(section.value === 'opportunities' && pipelineId.value ? { pipelineId: pipelineId.value } : {}),
       })
       rows.value = response.items
@@ -233,6 +304,25 @@ async function load() {
 }
 async function save() {
   if (!model.value || saving.value) return
+  if (section.value === 'accounts') {
+    if (requiredFields.value.length) {
+      const identityFields = ['displayName', 'legalName', 'countryId', 'taxId', 'taxIdTypeCode']
+      accountFormTab.value = requiredFields.value.some(f => identityFields.includes(f.key)) ? 'identity' : 'commercial'
+      await nextTick()
+    }
+    if (String(form.taxId ?? '').trim() && (!form.countryId || !String(form.taxIdTypeCode ?? '').trim())) {
+      accountFormTab.value = 'identity'
+      error.value = 'Para registrar identificación fiscal, seleccioná país y tipo de identificación.'
+      await nextTick()
+      return
+    }
+  }
+  if (section.value === 'accounts' && !edited.value && (relatedDraft.contactEmail.trim() || relatedDraft.contactPhone.trim()) &&
+      !relatedDraft.contactName.trim()) {
+    accountFormTab.value = 'related'
+    error.value = 'Si registrás correo o teléfono, completá también el nombre del contacto.'
+    return
+  }
   if (!validateRequiredFields()) return
   error.value = ''; saving.value = true
   try {
@@ -251,12 +341,41 @@ async function save() {
     if (edited.value && ['activities', 'followups'].includes(section.value)) {
       throw new Error(t('crm.useDetailActions'))
     }
-    if (edited.value) await crmPatch(model.value.resource, edited.value.id, body)
-    else await crmCreate(model.value.resource, body, pendingCreateKey.value)
+    const createdOrUpdated = edited.value
+      ? await crmPatch<CrmRow>(model.value.resource, edited.value.id, body)
+      : await crmCreate<CrmRow>(model.value.resource, body, pendingCreateKey.value)
     showForm.value = false
     pendingCreateKey.value = crmUuid()
-    await load()
-    success.value = t('crm.saved')
+    if (section.value === 'accounts' && createdOrUpdated?.id) {
+      const missing: string[] = []
+      const accountId = encodeURIComponent(createdOrUpdated.id)
+      if (!edited.value && relatedDraft.contactName.trim() && can('crm.contact.create')) {
+        try {
+          await crmRequest('/api/crm/accounts/' + accountId + '/contacts', 'POST', {
+            name: relatedDraft.contactName.trim(),
+            jobTitle: relatedDraft.contactJobTitle.trim() || null,
+            email: relatedDraft.contactEmail.trim() || null,
+            phone: relatedDraft.contactPhone.trim() || null,
+            countryId: form.countryId || null, relationRole: 'CONTACT', isPrimary: true,
+          }, crmUuid())
+        } catch { missing.push('contactos') }
+      }
+      if (!edited.value && relatedDraft.addressText.trim() && can('crm.account.update')) {
+        try {
+          await crmRequest('/api/crm/accounts/' + accountId + '/addresses', 'POST', {
+            contactId: null, countryId: form.countryId || null,
+            addressType: 'WORK', addressText: relatedDraft.addressText.trim(), location: null,
+          }, crmUuid())
+        } catch { missing.push('direcciones') }
+      }
+      await router.push({
+        path: '/crm/accounts/' + accountId,
+        ...(missing.length ? { query: { onboarding: 'partial', missing: missing.join(',') } } : {}),
+      })
+    } else {
+      await load()
+      success.value = t('crm.saved')
+    }
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
 }
@@ -277,12 +396,13 @@ const financeAllowed = computed(() =>
   financeTab.value === 'credit' ? can('crm.credit.read') : can('crm.contract.read'))
 watch([section, financeTab, pipelineId], () => { page.value = 1; showForm.value = false; void load() })
 watch(selectedAccount, () => { if (section.value === 'finance') void load() })
-onMounted(() => { if (allowed.value) void load() })
+onMounted(() => { if (allowed.value) void load(); void loadCountryLabels() })
+watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 'accounts') { page.value = 1; void load() } })
 </script>
 
 <template>
   <main class="mx-auto w-full max-w-[1600px] space-y-5 p-3 text-[var(--dh-text)] sm:p-6" data-crm-page>
-    <DhPageHeader :title="pageTitle" :subtitle="t('crm.title')" :icon="BriefcaseBusiness" hide-excel-export>
+    <DhPageHeader :title="pageTitle" :subtitle="section === 'accounts' ? 'CRM · Clientes / Cuentas' : t('crm.title')" :icon="BriefcaseBusiness" hide-excel-export>
       <template #actions>
         <DhButton :icon="RefreshCw" :label="t('common.refresh')" variant="secondary" :disabled="loading" @click="load" />
         <DhButton v-if="model && canCreate() && section !== 'followups'"
@@ -339,12 +459,30 @@ onMounted(() => { if (allowed.value) void load() })
       </template>
 
       <template v-else>
-        <div class="flex flex-wrap items-end gap-2">
-          <DhInput v-if="section !== 'settings'" class="min-w-[200px] flex-1"
-            :model-value="search" :placeholder="t('common.search')"
-            @update:model-value="search = $event" @keyup.enter="page=1;load()" />
+        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+          <div v-if="section !== 'settings'" class="flex min-w-[210px] flex-1 items-center gap-2 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3">
+            <Search class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" />
+            <input v-model="search" type="search" :aria-label="t('common.search')" :placeholder="section === 'accounts' ? 'Buscar cliente o razón social…' : t('common.search')"
+              class="min-w-0 w-full bg-transparent py-2.5 text-sm text-[var(--dh-text)] outline-none"
+              @keyup.enter="page=1;load()" />
+          </div>
           <DhButton v-if="section !== 'settings'" :label="t('common.search')" variant="secondary"
             @click="page=1;load()" />
+          <div v-if="section === 'accounts'" class="flex min-w-0 flex-wrap items-center gap-2 border-[var(--dh-border)] lg:border-l lg:pl-3">
+            <Filter class="h-4 w-4 text-[var(--dh-text-muted)]" />
+            <select v-model="accountTypeFilter" aria-label="Filtrar por tipo de cliente"
+              class="max-w-[170px] rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-semibold">
+              <option value="">Todos los clientes</option><option value="cash">Contado</option><option value="credit">Crédito</option>
+            </select>
+            <select v-model="accountCategoryFilter" aria-label="Filtrar por categoría"
+              class="max-w-[150px] rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-semibold">
+              <option value="">Toda categoría</option>
+              <option v-for="value in ['A','B','C','D']" :key="value" :value="value">Categoría {{ value }}</option>
+            </select>
+            <button v-if="accountTypeFilter || accountCategoryFilter" type="button"
+              class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
+              @click="accountTypeFilter='';accountCategoryFilter=''">Limpiar</button>
+          </div>
           <DhButton v-if="section === 'opportunities'"
             :label="viewMode === 'kanban' ? t('crm.table') : t('crm.kanban')"
             :variant="viewMode === 'kanban' ? 'primary' : 'secondary'"
@@ -380,12 +518,26 @@ onMounted(() => { if (allowed.value) void load() })
         </div>
       </div>
       <div v-else-if="section !== 'dashboard'" class="space-y-3">
+        <div v-if="section === 'accounts'" class="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
+          <div class="flex items-center gap-2">
+            <Building2 class="h-4 w-4 text-[var(--dh-primary)]" />
+            <h2 class="text-sm font-extrabold">Cuentas</h2>
+            <span class="rounded-lg border border-[var(--dh-border)] px-2 py-0.5 text-xs text-[var(--dh-text-muted)]">{{ total }}</span>
+          </div>
+          <span class="text-xs text-[var(--dh-text-muted)]">Seleccioná una fila para abrir la ficha completa del cliente</span>
+        </div>
         <DhDataTable :columns="columns" :rows="tableRows" :loading="loading" :empty-text="t('common.noData')" @row-click="section !== 'finance' && details($event)">
           <template #cell-_crmTitle="{ value }">
             <span class="font-bold text-[var(--dh-text)]">{{ value }}</span>
           </template>
           <template #cell-_crmDescription="{ value }">
             <span class="line-clamp-2 text-[var(--dh-text-muted)]">{{ value }}</span>
+          </template>
+          <template #cell-_crmCountry="{ value }">
+            <span class="text-xs font-semibold">{{ value }}</span>
+          </template>
+          <template #cell-_crmType="{ value }">
+            <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">{{ value }}</span>
           </template>
           <template #cell-_crmStatus="{ value }">
             <span class="inline-flex max-w-48 truncate rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">
@@ -400,6 +552,12 @@ onMounted(() => { if (allowed.value) void load() })
             </div>
           </template>
         </DhDataTable>
+        <div v-if="section === 'accounts' && !loading && total === 0" class="rounded-xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] px-5 py-7 text-center">
+          <ContactRound class="mx-auto h-7 w-7 text-[var(--dh-primary)]" />
+          <h3 class="mt-2 text-sm font-extrabold">{{ search || accountTypeFilter || accountCategoryFilter ? 'No hay resultados para los filtros' : 'Todavía no hay cuentas comerciales registradas' }}</h3>
+          <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">El listado usa las cuentas reales autorizadas por el servidor. Los contactos, rutas y condiciones se gestionan dentro de cada ficha.</p>
+          <DhButton v-if="canCreate() && !search && !accountTypeFilter && !accountCategoryFilter" class="mt-4" :icon="Plus" label="Crear primera cuenta" @click="beginCreate" />
+        </div>
         <footer v-if="section !== 'settings' && section !== 'finance'" class="flex flex-wrap items-center justify-between gap-3 px-2 text-sm text-[var(--dh-text-muted)]">
           <span>{{ rows.length }} / {{ total }}</span>
           <div class="flex items-center gap-2">
@@ -410,54 +568,110 @@ onMounted(() => { if (allowed.value) void load() })
         </footer>
       </div>
 
-      <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" size="lg" @close="showForm = false">
+      <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' ? 'xl' : 'lg'" @close="showForm = false">
         <form v-if="model" class="space-y-6" @submit.prevent="save">
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">{{ t('crm.formHint') }}</p>
           <p v-if="error" role="alert" class="rounded-2xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ error }}</p>
           <template v-if="section === 'accounts'">
-            <section class="space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-              <h3 class="text-sm font-black uppercase tracking-wide text-[var(--dh-text)]">Identificación del cliente</h3>
-              <div class="grid gap-4 sm:grid-cols-2">
-                <DhInput label="Nombre comercial *" data-required-field="displayName" :error="fieldError('displayName')" :model-value="String(form.displayName ?? '')"
-                  @update:model-value="form.displayName = $event" />
-                <DhInput label="Razón social *" data-required-field="legalName" :error="fieldError('legalName')" :model-value="String(form.legalName ?? '')"
-                  @update:model-value="form.legalName = $event" />
-                <CrmCatalogPicker label="País" catalog-group-slug="countries" value-kind="id"
-                  :model-value="String(form.countryId ?? '')" @update:model-value="form.countryId = $event" />
-                <DhInput label="Identificación fiscal" :model-value="String(form.taxId ?? '')"
-                  @update:model-value="form.taxId = $event" />
-                <DhInput label="Tipo de identificación" :model-value="String(form.taxIdTypeCode ?? '')"
-                  @update:model-value="form.taxIdTypeCode = $event" />
+            <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ficha de cuenta comercial</p>
+                  <h2 class="mt-1 text-base font-extrabold">{{ edited ? 'Editar datos de la cuenta' : 'Nueva cuenta · Registrar cliente' }}</h2>
+                </div>
+                <span class="text-xs font-medium text-[var(--dh-text-muted)]">{{ edited ? 'Datos existentes' : 'Primero registrá la cuenta y luego sus contactos' }}</span>
               </div>
-              <CrmHaciendaLookup v-if="!edited"
-                :country-id="String(form.countryId ?? '')" :tax-id="String(form.taxId ?? '')"
-                @resolved="applyHacienda" />
-            </section>
-            <section class="space-y-4 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-              <h3 class="text-sm font-black uppercase tracking-wide text-[var(--dh-text)]">Perfil comercial</h3>
-              <div class="grid gap-4 sm:grid-cols-2">
-                <DhSelect label="Tipo de cliente *" :model-value="String(form.customerTypeCode ?? 'cash')" placeholder=""
-                  :options="[{label:'Contado',value:'cash'},{label:'Crédito',value:'credit'}]"
-                  @update:model-value="form.customerTypeCode = $event" />
-                <DhSelect label="Tipo de categoría" :model-value="String(form.categoryType ?? 'CUSTOMER')" placeholder=""
-                  :options="[{label:'Cliente',value:'CUSTOMER'},{label:'NVOCC',value:'NVOCC'}]"
-                  @update:model-value="form.categoryType = $event; form.categoryCode = 'A'" />
-                <DhSelect label="Categoría" data-required-field="categoryCode" :error="fieldError('categoryCode')" :model-value="String(form.categoryCode ?? 'A')" placeholder=""
-                  :options="(String(form.categoryType) === 'NVOCC' ? ['A','B'] : ['A','B','C','D']).map(x=>({label:x,value:x}))"
-                  @update:model-value="form.categoryCode = $event" />
-                <DhInput label="Origen de la cuenta" :model-value="String(form.sourceCode ?? '')"
-                  @update:model-value="form.sourceCode = $event" />
-                <DhInput label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')"
-                  @update:model-value="form.relationshipTypeCode = $event" />
+              <nav class="mt-4 flex gap-1 overflow-x-auto border-t border-[var(--dh-border)]" aria-label="Secciones de la cuenta" role="tablist">
+                <button v-for="tab in accountTabs" :key="tab.key" type="button" role="tab"
+                  :aria-selected="accountFormTab===tab.key" @click="accountFormTab=tab.key"
+                  class="flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold"
+                  :class="accountFormTab===tab.key ? 'border-[var(--dh-primary)] text-[var(--dh-primary)]' : 'border-transparent text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'">
+                  <component :is="tab.icon" class="h-4 w-4" />{{ tab.label }}
+                </button>
+              </nav>
+              <div v-if="accountFormTab==='identity'" class="mt-4">
+                <h3 class="mb-1 text-sm font-extrabold">Identificación del cliente</h3>
+                <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Información general de la empresa. La consulta fiscal de Hacienda está disponible para cuentas de Costa Rica.</p>
+                <div class="grid gap-4 md:grid-cols-2">
+                  <DhInput label="Nombre de cuenta / comercial *" data-required-field="displayName" :error="fieldError('displayName')"
+                    :model-value="String(form.displayName ?? '')" @update:model-value="form.displayName=$event" />
+                  <DhInput label="Razón social *" data-required-field="legalName" :error="fieldError('legalName')"
+                    :model-value="String(form.legalName ?? '')" @update:model-value="form.legalName=$event" />
+                  <CrmCatalogPicker v-if="!edited" label="País · catálogo Config" catalog-group-slug="countries" value-kind="id"
+                    :model-value="String(form.countryId ?? '')" @update:model-value="form.countryId=$event" />
+                  <DhInput v-else label="País registrado (solo lectura)" :disabled="true"
+                    :model-value="countryLabels[String(form.countryId ?? '')] || String(form.countryId ?? '')" />
+                  <DhInput label="Identificación fiscal" :disabled="!!edited" :model-value="String(form.taxId ?? '')" @update:model-value="form.taxId=$event" />
+                  <DhInput label="Tipo de identificación" :disabled="!!edited" :model-value="String(form.taxIdTypeCode ?? '')" @update:model-value="form.taxIdTypeCode=$event" />
+                  <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs text-[var(--dh-text-muted)]">
+                    <p class="font-bold text-[var(--dh-text)]">Verificación tributaria</p>
+                    <p class="mt-1">Al indicar una identificación, debés seleccionar el país y su tipo. La consulta a Hacienda valida los datos costarricenses.</p>
+                  </div>
+                </div>
+                <div class="mt-4"><CrmHaciendaLookup v-if="!edited"
+                    :country-id="String(form.countryId ?? '')" :tax-id="String(form.taxId ?? '')" @resolved="applyHacienda" /></div>
               </div>
-              <CrmExecutivePicker v-if="can('crm.account.assign') && can('auth.users.view') && !edited"
-                :model-value="String(form.executiveUserId ?? '')" label="Ejecutivo de ventas"
-                @update:model-value="form.executiveUserId = $event" />
-              <p class="text-xs text-[var(--dh-text-muted)]">
-                Si no se selecciona un ejecutivo, se asigna al usuario actual.
-                Los contactos, direcciones, actividades económicas y seguimientos se administran desde el detalle del cliente.
-              </p>
-            </section>
+              <div v-else-if="accountFormTab==='commercial'" class="mt-4">
+                <h3 class="mb-1 text-sm font-extrabold">Perfil comercial</h3>
+                <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Clasificación, relación, origen y responsable de la cuenta. El historial de asignaciones queda registrado.</p>
+                <div class="grid gap-4 md:grid-cols-2">
+                  <DhSelect label="Condición comercial *" :model-value="String(form.customerTypeCode ?? 'cash')"
+                    :options="[{label:'Contado',value:'cash'},{label:'Crédito',value:'credit'}]"
+                    @update:model-value="form.customerTypeCode=$event" />
+                  <DhSelect label="Tipo de cuenta" :model-value="String(form.categoryType ?? 'CUSTOMER')" :disabled="!!edited"
+                    :options="[{label:'Cliente',value:'CUSTOMER'},{label:'Agente / NVOCC',value:'NVOCC'}]"
+                    @update:model-value="form.categoryType=$event;form.categoryCode='A'" />
+                  <DhSelect label="Categoría *" data-required-field="categoryCode" :error="fieldError('categoryCode')"
+                    :model-value="String(form.categoryCode ?? 'A')" :disabled="!!edited"
+                    :options="(String(form.categoryType)==='NVOCC' ? ['A','B'] : ['A','B','C','D']).map(value=>({label:'Categoría '+value,value}))"
+                    @update:model-value="form.categoryCode=$event" />
+                  <DhInput label="Origen de la cuenta" :model-value="String(form.sourceCode ?? '')" @update:model-value="form.sourceCode=$event" />
+                  <DhInput label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')" @update:model-value="form.relationshipTypeCode=$event" />
+                  <CrmExecutivePicker v-if="!edited && can('crm.account.assign') && can('auth.users.view')"
+                    :model-value="String(form.executiveUserId ?? '')" label="Ejecutivo de ventas"
+                    @update:model-value="form.executiveUserId=$event" />
+                </div>
+                <p v-if="edited" class="mt-4 text-xs text-[var(--dh-text-muted)]">El tipo y la categoría de cuenta se mantienen según el registro actual. Para reasignar el ejecutivo, utilizá la acción en la ficha.</p>
+              </div>
+              <div v-else class="mt-4">
+                <h3 class="mb-2 text-sm font-extrabold">Contactos, dirección y logística</h3>
+                <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">
+                  Podés agregar el contacto principal y la dirección junto con la cuenta. Las rutas, tarifas y seguimientos se gestionan desde su ficha completa.
+                </p>
+                <div v-if="!edited" class="mt-4 grid items-start gap-3 lg:grid-cols-2">
+                  <section v-if="can('crm.contact.create')" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                    <h4 class="flex items-center gap-2 text-xs font-extrabold"><ContactRound class="h-4 w-4 text-[var(--dh-primary)]" />Contacto principal (opcional)</h4>
+                    <DhInput v-model="relatedDraft.contactName" label="Nombre completo" />
+                    <DhInput v-model="relatedDraft.contactJobTitle" label="Puesto / departamento" />
+                    <DhInput v-model="relatedDraft.contactEmail" label="Correo electrónico" type="email" />
+                    <DhInput v-model="relatedDraft.contactPhone" label="Teléfono" />
+                  </section>
+                  <section v-if="can('crm.account.update')" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                    <h4 class="flex items-center gap-2 text-xs font-extrabold"><Building2 class="h-4 w-4 text-[var(--dh-primary)]" />Dirección principal (opcional)</h4>
+                    <DhTextarea v-model="relatedDraft.addressText" label="Dirección física de la empresa" :rows="5" />
+                    <p class="text-xs text-[var(--dh-text-muted)]">La dirección queda vinculada al país seleccionado en identificación.</p>
+                  </section>
+                  <p v-if="!can('crm.contact.create') && !can('crm.account.update')" class="text-xs text-[var(--dh-text-muted)]">
+                    No tenés permisos para registrar contactos o direcciones. Podés guardar la cuenta y solicitar acceso.
+                  </p>
+                </div>
+                <div v-else class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                  <p class="text-xs">Los contactos y direcciones existentes se administran desde la ficha del cliente para evitar sobrescribir registros relacionados.</p>
+                  <RouterLink :to="'/crm/accounts/' + encodeURIComponent(edited.id)" class="mt-3 inline-flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)]">Ir a ficha completa <ArrowRight class="h-4 w-4" /></RouterLink>
+                </div>
+                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div v-for="item in [
+                    { title:'POL / POE / POD', detail:'Catálogos de Config y rutas comerciales', icon: Route },
+                    { title:'Visitas y llamadas', detail:'Agenda y próximos seguimientos', icon: CalendarClock },
+                    { title:'Tarifas y crédito', detail:'Cotizaciones, preferencias y contratos', icon: Wallet },
+                  ]" :key="item.title" class="rounded-xl border border-[var(--dh-border)] p-3">
+                    <component :is="item.icon" class="mb-2 h-4 w-4 text-[var(--dh-primary)]" />
+                    <p class="text-xs font-bold">{{ item.title }}</p>
+                    <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ item.detail }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </template>
           <div v-if="section !== 'accounts'" class="grid gap-4 sm:grid-cols-2">
             <div v-for="f in model.fields" :key="f.key" :class="f.type === 'textarea' && 'sm:col-span-2'">
@@ -484,7 +698,8 @@ onMounted(() => { if (allowed.value) void load() })
           </div>
           <div class="sticky bottom-0 z-10 -mx-3 flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-bg)] px-3 py-4 sm:-mx-5 sm:px-5">
             <DhButton :label="t('common.cancel')" variant="secondary" @click="showForm = false" />
-            <DhButton type="submit" :label="t('common.save')" :loading="saving" />
+            <DhButton v-if="section === 'accounts' && accountFormTab !== 'related'" variant="secondary" label="Siguiente" @click="accountFormTab=accountFormTab==='identity'?'commercial':'related'" />
+            <DhButton type="submit" :label="section === 'accounts' ? 'Guardar y abrir ficha' : t('common.save')" :loading="saving" />
           </div>
         </form>
       </DhDrawer>

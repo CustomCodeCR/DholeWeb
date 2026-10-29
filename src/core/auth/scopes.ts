@@ -368,6 +368,7 @@ export const VIEW_SCOPES = {
 // CRM navigation is visible only when a real workspace section is authorized.
 export const CRM_WORKSPACE_SCOPES = [
   'crm.account.read', 'crm.account.read-all',
+  'crm.contact.read',
   'crm.lead.read', 'crm.lead.read-all',
   'crm.opportunity.read', 'crm.opportunity.read-all',
   'crm.activity.read', 'crm.activity.read-all',

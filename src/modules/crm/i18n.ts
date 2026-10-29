@@ -1,16 +1,17 @@
 export const crmMessages = {
   "es": {
-    "title": "CRM · Gestión comercial",
+    "title": "CRM · Ventas",
     "nav": {
-      "dashboard": "CRM · Resumen",
-      "accounts": "Clientes",
-      "leads": "Prospectos",
+      "dashboard": "Inicio comercial",
+      "accounts": "Cuentas",
+      "contacts": "Contactos",
+      "leads": "Clientes potenciales",
       "opportunities": "Oportunidades",
       "activities": "Actividades",
-      "followups": "Calendario y seguimientos",
+      "followups": "Agenda y seguimientos",
       "analyses": "Análisis comercial",
       "finance": "Crédito y contratos",
-      "settings": "Administración CRM"
+      "settings": "Configuración CRM"
     },
     "dashboard": "Dashboard comercial",
     "finance": "Crédito y contratos",
@@ -90,10 +91,11 @@ export const crmMessages = {
     "registerConsent": "Registrar consentimiento", "consentEvidence": "El consentimiento afirmativo requiere evidencia.", "approveCredit":"Aprobar crédito", "rejectCredit":"Rechazar crédito", "activateContract":"Activar contrato", "cancelContract":"Cancelar contrato", "renewContract":"Renovar contrato", "attachSigned":"Adjuntar documento firmado", "addressType":"Tipo de dirección", "address":"Dirección", "addAddress":"Añadir dirección", "savePolicy":"Guardar política", "addNote":"Añadir nota", "serviceCode":"Código servicio", "addService":"Añadir servicio", "negotiationSummary":"Resumen negociación", "addNegotiation":"Registrar negociación", "signedFileId":"UUID archivo firmado de Storage"
   },
   "en": {
-    "title": "CRM · Commercial management",
+    "title": "CRM · Sales",
     "nav": {
-      "dashboard": "CRM overview",
+      "dashboard": "Sales overview",
       "accounts": "Accounts",
+      "contacts": "Contacts",
       "leads": "Leads",
       "opportunities": "Opportunities",
       "activities": "Activities",

@@ -8,6 +8,7 @@ export interface SidebarItem {
   label: string
   path?: string
   icon: Component
+  group?: string
   children?: SidebarItem[]
 }
 
@@ -107,10 +108,13 @@ const visibleItems = computed(() =>
               <ChevronDown v-if="!compact" class="ml-auto h-4 w-4 shrink-0" />
             </div>
 
+            <template v-for="(child, index) in item.children" :key="child.path">
+              <div v-if="!compact && child.group && (index === 0 || item.children?.[index-1]?.group !== child.group)"
+                class="mt-3 border-t border-[var(--dh-border)] px-3 pt-3 text-[10px] font-extrabold uppercase tracking-widest text-[var(--dh-text-muted)]">
+                {{ child.group }}
+              </div>
             <RouterLink
-              v-for="child in item.children"
-              :key="child.path"
-              :to="child.path ?? '/'"
+               :to="child.path ?? '/'"
               class="flex min-h-11 touch-manipulation items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
               :class="compact ? 'justify-center' : 'gap-3'"
               :title="compact ? child.label : undefined"
@@ -120,6 +124,7 @@ const visibleItems = computed(() =>
               <component :is="child.icon" class="h-4 w-4 shrink-0" />
               <span v-if="!compact" class="truncate">{{ child.label }}</span>
             </RouterLink>
+            </template>
           </div>
 
           <RouterLink

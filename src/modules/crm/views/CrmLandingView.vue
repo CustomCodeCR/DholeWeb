@@ -8,13 +8,13 @@ import {
 } from 'lucide-vue-next'
 import { crmEnabled } from '../services/crmApi'
 import { DhPageHeader } from '@/shared/components/organisms'
-import { DhCard } from '@/shared/components/molecules'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
 const enabled = computed(crmEnabled)
 const sections = [
   { path: '/crm/accounts', label: 'crm.nav.accounts', icon: UsersRound, scopes: ['crm.account.read', 'crm.account.read-all'], descEs: 'Clientes y empresas registradas', descEn: 'Customers and registered businesses' },
+  { path: '/crm/contacts', label: 'crm.nav.contacts', icon: ContactRound, scopes: ['crm.contact.read'], descEs: 'Personas, cuentas relacionadas y medios de contacto', descEn: 'People, linked accounts and communication' },
   { path: '/crm/leads', label: 'crm.nav.leads', icon: ContactRound, scopes: ['crm.lead.read', 'crm.lead.read-all'], descEs: 'Captación y calificación comercial', descEn: 'Lead capture and qualification' },
   { path: '/crm/opportunities', label: 'crm.nav.opportunities', icon: BriefcaseBusiness, scopes: ['crm.opportunity.read', 'crm.opportunity.read-all'], descEs: 'Embudo, etapas y negociaciones', descEn: 'Pipeline, stages and negotiations' },
   { path: '/crm/activities', label: 'crm.nav.activities', icon: Activity, scopes: ['crm.activity.read', 'crm.activity.read-all'], descEs: 'Tareas y actividad comercial', descEn: 'Commercial activity and tasks' },
@@ -25,6 +25,13 @@ const sections = [
 ] as const
 const available = computed(() => sections.filter(item => enabled.value && item.scopes.some(scope => auth.hasScope(scope))))
 const hasUserManagement = computed(() => auth.hasScope('auth.users.view'))
+const navigationGroups = computed(() => [
+  { name: locale.value === 'en' ? 'Customers' : 'Clientes', paths: ['/crm/accounts','/crm/contacts'] },
+  { name: locale.value === 'en' ? 'Sales' : 'Ventas', paths: ['/crm/leads','/crm/opportunities'] },
+  { name: locale.value === 'en' ? 'Activities' : 'Actividades', paths: ['/crm/activities','/crm/followups'] },
+  { name: locale.value === 'en' ? 'Commercial management' : 'Gestión comercial', paths: ['/crm/analyses','/crm/finance','/crm/settings'] },
+].map(group => ({ ...group, pages: available.value.filter(item => group.paths.includes(item.path)) }))
+  .filter(group => group.pages.length > 0))
 </script>
 
 <template>
@@ -53,29 +60,46 @@ const hasUserManagement = computed(() => auth.hasScope('auth.users.view'))
       </RouterLink>
     </div>
     <template v-else>
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-lg font-bold">{{ locale === 'en' ? 'Available modules' : 'Módulos disponibles' }}</h2>
-        <span class="text-xs font-medium text-[var(--dh-text-muted)]">
-          {{ available.length }} {{ locale === 'en' ? 'enabled by your permissions' : 'habilitados según tus permisos' }}
-        </span>
-      </div>
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <RouterLink v-for="item in available" :key="item.path" :to="item.path"
-          class="group block min-w-0 rounded-[var(--dh-radius-xl)] transition hover:-translate-y-0.5"
-        >
-          <DhCard class="flex min-h-44 flex-col justify-between transition group-hover:border-[var(--dh-primary)] group-hover:shadow-[var(--dh-glow)]">
-            <div class="flex items-center justify-between">
-              <div class="dh-bg-primary-soft flex h-11 w-11 items-center justify-center rounded-[20px] text-[var(--dh-primary)]">
-                <component :is="item.icon" class="h-5 w-5" />
-              </div>
-              <ArrowUpRight class="h-4 w-4 text-[var(--dh-text-muted)] transition group-hover:text-[var(--dh-primary)]" />
+      <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(270px,.7fr)]">
+        <div class="space-y-4">
+          <section v-for="group in navigationGroups" :key="group.name" class="overflow-hidden rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+            <div class="flex items-center justify-between border-b border-[var(--dh-border)] px-4 py-3">
+              <h2 class="text-xs font-extrabold uppercase tracking-wider">{{ group.name }}</h2>
+              <span class="text-[11px] text-[var(--dh-text-muted)]">{{ group.pages.length }} secciones</span>
             </div>
-            <div>
-              <h3 class="mt-5 text-base font-black text-[var(--dh-text)]">{{ t(item.label) }}</h3>
-              <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ locale === 'en' ? item.descEn : item.descEs }}</p>
-            </div>
-          </DhCard>
-        </RouterLink>
+            <RouterLink v-for="item in group.pages" :key="item.path" :to="item.path"
+              class="group flex items-center gap-3 border-b border-[var(--dh-border)] px-4 py-3.5 transition last:border-0 hover:bg-[var(--dh-card-hover)]">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]"><component :is="item.icon" class="h-4 w-4" /></span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-bold">{{ t(item.label) }}</span>
+                <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ locale === 'en' ? item.descEn : item.descEs }}</span>
+              </span>
+              <ArrowUpRight class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)] group-hover:text-[var(--dh-primary)]" />
+            </RouterLink>
+          </section>
+        </div>
+        <aside class="space-y-3">
+          <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+            <h2 class="text-sm font-extrabold">Centro de ventas</h2>
+            <p class="mt-2 text-xs leading-relaxed text-[var(--dh-text-muted)]">
+              Consultá cuentas, personas de contacto, oportunidades, tarifas vinculadas, rutas habituales y seguimientos.
+              Cada ficha reúne registros relacionados en una sola pantalla.
+            </p>
+            <RouterLink v-if="available.some(x => x.path === '/crm/accounts')" to="/crm/accounts"
+              class="mt-4 inline-flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)]">
+              Abrir cuentas <ArrowUpRight class="h-4 w-4" />
+            </RouterLink>
+          </section>
+          <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
+            <h2 class="text-sm font-extrabold">Resumen e indicadores</h2>
+            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+              Los indicadores del CRM se calculan con los registros visibles según tus permisos, sin valores simulados.
+            </p>
+            <RouterLink to="/crm/dashboard" class="mt-4 inline-flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)]">
+              Abrir panel comercial <ArrowUpRight class="h-4 w-4" />
+            </RouterLink>
+          </section>
+        </aside>
       </div>
       <div class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] px-4 py-3 text-xs text-[var(--dh-text-muted)]">
         <ShieldCheck class="mt-0.5 h-4 w-4 shrink-0" />
