@@ -66,7 +66,14 @@ function groupStateKey(item: SidebarItem, group: string): string {
 }
 
 function isExpanded(key: string): boolean {
-  return navigationExpanded.value[key] !== false
+  const saved = navigationExpanded.value[key]
+  if (typeof saved === 'boolean') return saved
+  // Keep the navigation focused: on first load, only the active CRM group is open.
+  if (!key.includes(':group:')) return true
+  return visibleItems.value.some(item =>
+    item.children && groupedChildren(item).some(group =>
+      groupStateKey(item, group.id) === key && groupIsActive(group)),
+  )
 }
 
 function saveNavigationState(): void {
@@ -102,6 +109,22 @@ function childIsActive(child: SidebarItem): boolean {
   if (!child.path) return false
   return route.path === child.path ||
     (child.path !== '/crm' && route.path.startsWith(child.path + '/'))
+}
+
+function sectionIsActive(item: SidebarItem): boolean {
+  return (item.children ?? []).some(childIsActive)
+}
+
+function groupIsActive(group: ChildGroup): boolean {
+  return group.items.some(childIsActive)
+}
+
+function onSectionClick(item: SidebarItem): void {
+  if (compact.value) {
+    emit('toggle-collapse')
+    return
+  }
+  toggleExpanded(sectionStateKey(item))
 }
 
 // When another control navigates to a collapsed group, reveal its active link.
@@ -145,109 +168,128 @@ watch(
     ]"
   >
     <div class="flex min-h-0 w-full flex-col">
-      <div class="shrink-0 border-b border-[var(--dh-border)] p-3">
+      <div class="shrink-0 border-b border-[var(--dh-border)] px-3 pb-3 pt-3">
         <div
-          class="dh-liquid flex items-center rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-sm)]"
-          :class="compact ? 'justify-center' : 'gap-3'"
+          class="flex min-h-16 items-center gap-2.5 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
+          :class="compact ? 'justify-center' : ''"
         >
           <div
-            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-[var(--dh-primary)] text-lg font-black text-white shadow-[var(--dh-glow)]"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--dh-primary)] text-sm font-black text-white"
           >
             GCF
           </div>
 
           <div v-if="!compact" class="min-w-0 flex-1">
-            <p class="truncate text-sm font-black tracking-tight text-[var(--dh-text)]">
+            <p class="truncate text-[13px] font-extrabold tracking-tight text-[var(--dh-text)]">
               {{ t('app.name') }}
             </p>
-            <p class="truncate text-xs font-semibold text-[var(--dh-text-muted)]">
+            <p class="truncate text-[11px] font-medium text-[var(--dh-text-muted)]">
               {{ t('app.subtitle') }}
             </p>
           </div>
 
           <button
+            v-if="!compact && !mobileOpen"
+            type="button"
+            class="hidden h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)] lg:inline-flex"
+            :title="t('sidebar.collapse')"
+            :aria-label="t('sidebar.collapse')"
+            @click="emit('toggle-collapse')"
+          >
+            <PanelLeftClose class="h-4 w-4" />
+          </button>
+
+          <button
             v-if="mobileOpen"
             type="button"
-            class="inline-flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-2xl p-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:hidden"
+            class="inline-flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:hidden"
             :aria-label="t('common.close')"
             @click="emit('close')"
           >
-            <X class="h-5 w-5" />
+            <X class="h-4 w-4" />
           </button>
         </div>
 
         <button
-          class="mt-3 hidden w-full items-center justify-center rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:flex"
-          :title="collapsed ? t('sidebar.expand') : t('sidebar.collapse')"
+          v-if="compact"
+          type="button"
+          class="mt-2 hidden min-h-9 w-full touch-manipulation items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:flex"
+          :title="t('sidebar.expand')"
+          :aria-label="t('sidebar.expand')"
           @click="emit('toggle-collapse')"
         >
-          <PanelLeftOpen v-if="collapsed" class="h-4 w-4" />
-          <PanelLeftClose v-else class="h-4 w-4" />
+          <PanelLeftOpen class="h-4 w-4" />
         </button>
       </div>
 
-      <nav class="dh-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pr-2">
+      <nav class="dh-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2.5 py-3" :aria-label="t('sidebar.dashboard')">
         <template v-for="(item, itemIndex) in visibleItems" :key="item.path ?? item.label">
-          <div v-if="item.children" class="space-y-1.5">
+          <div v-if="item.children" class="sidebar-module">
             <button
               type="button"
-              class="flex min-h-10 w-full touch-manipulation items-center rounded-[20px] px-3 py-2 text-left text-[11px] font-black uppercase tracking-[0.18em] text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)] disabled:cursor-default"
-              :class="compact ? 'justify-center' : 'gap-3'"
+              class="sidebar-module-toggle"
+              :class="{
+                'sidebar-module-toggle--current': sectionIsActive(item),
+                'sidebar-module-toggle--compact': compact,
+              }"
               :title="compact ? item.label : undefined"
-              :disabled="compact"
-              :aria-expanded="compact || isExpanded(sectionStateKey(item))"
-              :aria-controls="'sidebar-section-' + itemIndex"
-              @click="toggleExpanded(sectionStateKey(item))"
+              :aria-label="compact ? item.label + ' — ' + t('sidebar.expand') : item.label"
+              :aria-expanded="compact ? undefined : isExpanded(sectionStateKey(item))"
+              :aria-controls="compact ? undefined : 'sidebar-section-' + itemIndex"
+              @click="onSectionClick(item)"
             >
-              <component :is="item.icon" class="h-4 w-4 shrink-0" />
-              <span v-if="!compact" class="truncate">{{ item.label }}</span>
+              <span class="sidebar-module-icon">
+                <component :is="item.icon" class="h-[17px] w-[17px]" />
+              </span>
+              <span v-if="!compact" class="min-w-0 flex-1 truncate text-left">
+                {{ item.label }}
+              </span>
               <ChevronDown
                 v-if="!compact"
-                class="ml-auto h-4 w-4 shrink-0 transition-transform duration-200"
+                class="h-4 w-4 shrink-0 opacity-70 transition-transform duration-200"
                 :class="isExpanded(sectionStateKey(item)) ? '' : '-rotate-90'"
               />
             </button>
 
             <Transition name="sidebar-accordion">
               <div
-                v-if="compact || isExpanded(sectionStateKey(item))"
+                v-if="!compact && isExpanded(sectionStateKey(item))"
                 :id="'sidebar-section-' + itemIndex"
-                class="space-y-1.5"
+                class="sidebar-module-children"
               >
                 <template v-for="(group, groupIndex) in groupedChildren(item)" :key="group.id + groupIndex">
                   <button
-                    v-if="group.label && !compact"
+                    v-if="group.label"
                     type="button"
-                    class="mt-3 flex min-h-9 w-full touch-manipulation items-center justify-between gap-2 border-t border-[var(--dh-border)] px-3 pt-2 text-left text-[10px] font-extrabold uppercase tracking-widest text-[var(--dh-text-muted)] transition hover:text-[var(--dh-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                    class="sidebar-subgroup-toggle"
+                    :class="{ 'sidebar-subgroup-toggle--current': groupIsActive(group) }"
                     :aria-expanded="isExpanded(groupStateKey(item, group.id))"
                     :aria-controls="'sidebar-section-' + itemIndex + '-group-' + groupIndex"
                     @click="toggleExpanded(groupStateKey(item, group.id))"
                   >
-                    <span class="truncate">{{ group.label }}</span>
+                    <span class="min-w-0 flex-1 truncate text-left">{{ group.label }}</span>
                     <ChevronDown
-                      class="h-3.5 w-3.5 shrink-0 transition-transform duration-200"
+                      class="h-3.5 w-3.5 shrink-0 opacity-60 transition-transform duration-200"
                       :class="isExpanded(groupStateKey(item, group.id)) ? '' : '-rotate-90'"
                     />
                   </button>
 
                   <Transition name="sidebar-accordion">
                     <div
-                      v-if="compact || !group.label || isExpanded(groupStateKey(item, group.id))"
+                      v-if="!group.label || isExpanded(groupStateKey(item, group.id))"
                       :id="'sidebar-section-' + itemIndex + '-group-' + groupIndex"
-                      class="space-y-1"
+                      class="sidebar-subgroup-children"
                     >
                       <RouterLink
                         v-for="child in group.items"
                         :key="child.path ?? child.label"
                         :to="child.path ?? '/'"
-                        class="flex min-h-11 touch-manipulation items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
-                        :class="compact ? 'justify-center' : 'gap-3'"
-                        :title="compact ? child.label : undefined"
-                        active-class="!bg-[var(--dh-primary)] !text-white shadow-[var(--dh-glow)]"
+                        class="sidebar-nav-link"
+                        active-class="sidebar-nav-link-active"
                         @click="emit('close')"
                       >
                         <component :is="child.icon" class="h-4 w-4 shrink-0" />
-                        <span v-if="!compact" class="truncate">{{ child.label }}</span>
+                        <span class="min-w-0 flex-1 truncate">{{ child.label }}</span>
                       </RouterLink>
                     </div>
                   </Transition>
@@ -259,14 +301,16 @@ watch(
           <RouterLink
             v-else
             :to="item.path ?? '/'"
-            class="flex min-h-11 touch-manipulation items-center rounded-[20px] px-3 py-2.5 text-sm font-black text-[var(--dh-text-soft)] transition hover:bg-[var(--dh-card-hover)]"
-            :class="compact ? 'justify-center' : 'gap-3'"
+            class="sidebar-module-toggle sidebar-module-link"
+            :class="{ 'sidebar-module-toggle--compact': compact }"
+            active-class="sidebar-module-toggle--current"
             :title="compact ? item.label : undefined"
-            active-class="!bg-[var(--dh-primary)] !text-white shadow-[var(--dh-glow)]"
             @click="emit('close')"
           >
-            <component :is="item.icon" class="h-4 w-4 shrink-0" />
-            <span v-if="!compact" class="truncate">{{ item.label }}</span>
+            <span class="sidebar-module-icon">
+              <component :is="item.icon" class="h-[17px] w-[17px]" />
+            </span>
+            <span v-if="!compact" class="min-w-0 flex-1 truncate text-left">{{ item.label }}</span>
           </RouterLink>
         </template>
       </nav>
@@ -285,20 +329,172 @@ watch(
   opacity: 0;
 }
 
+.sidebar-module {
+  min-width: 0;
+}
+
+.sidebar-module-toggle {
+  display: flex;
+  min-height: 44px;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  padding: 6px 10px;
+  color: var(--dh-text-soft);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.sidebar-module-toggle:hover,
+.sidebar-module-toggle:focus-visible {
+  background-color: var(--dh-card-hover);
+  color: var(--dh-text);
+}
+
+.sidebar-module-toggle--current {
+  border-color: color-mix(in srgb, var(--dh-primary) 20%, transparent);
+  background-color: color-mix(in srgb, var(--dh-primary) 9%, var(--dh-card));
+  color: var(--dh-text);
+}
+
+.sidebar-module-toggle--current .sidebar-module-icon {
+  background-color: color-mix(in srgb, var(--dh-primary) 14%, transparent);
+  color: var(--dh-primary);
+}
+
+.sidebar-module-icon {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--dh-text-muted);
+}
+
+.sidebar-module-toggle--compact {
+  justify-content: center;
+  gap: 0;
+  padding-inline: 6px;
+}
+
+.sidebar-module-children {
+  margin: 3px 0 7px 24px;
+  padding-left: 10px;
+  border-left: 1px solid var(--dh-border);
+}
+
+.sidebar-subgroup-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 35px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 9px;
+  padding: 7px 9px;
+  color: var(--dh-text-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.065em;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.sidebar-subgroup-toggle:hover,
+.sidebar-subgroup-toggle:focus-visible {
+  background-color: var(--dh-card-hover);
+  color: var(--dh-text);
+}
+
+.sidebar-subgroup-toggle--current {
+  color: var(--dh-text);
+}
+
+.sidebar-subgroup-children {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 4px;
+}
+
+.sidebar-nav-link {
+  position: relative;
+  display: flex;
+  min-height: 39px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 11px;
+  padding: 8px 10px;
+  color: var(--dh-text-soft);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.sidebar-nav-link svg {
+  color: var(--dh-text-muted);
+}
+
+.sidebar-nav-link:hover,
+.sidebar-nav-link:focus-visible {
+  background-color: var(--dh-card-hover);
+  color: var(--dh-text);
+}
+
+.sidebar-nav-link-active,
+.sidebar-nav-link-active:hover {
+  background-color: color-mix(in srgb, var(--dh-primary) 13%, var(--dh-card));
+  color: var(--dh-text);
+  font-weight: 750;
+}
+
+.sidebar-nav-link-active::before {
+  content: '';
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 3px;
+  border-radius: 4px;
+  background-color: var(--dh-primary);
+}
+
+.sidebar-nav-link-active svg {
+  color: var(--dh-primary);
+}
+
+.sidebar-module-toggle:focus-visible,
+.sidebar-subgroup-toggle:focus-visible,
+.sidebar-nav-link:focus-visible {
+  outline: 2px solid var(--dh-primary);
+  outline-offset: -2px;
+}
+
 .sidebar-accordion-enter-active,
 .sidebar-accordion-leave-active {
-  transition: opacity 160ms ease, transform 160ms ease;
+  transition: opacity 140ms ease, transform 140ms ease;
 }
 
 .sidebar-accordion-enter-from,
 .sidebar-accordion-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-3px);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-accordion-enter-active,
-  .sidebar-accordion-leave-active {
+  .sidebar-accordion-leave-active,
+  .sidebar-module-toggle,
+  .sidebar-subgroup-toggle,
+  .sidebar-nav-link {
     transition: none;
   }
 }
