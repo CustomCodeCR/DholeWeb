@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import {
   Activity, ArrowUpRight, BarChart3, BriefcaseBusiness, CalendarDays,
   CircleDollarSign, ContactRound, Settings2, ShieldCheck, UsersRound,
 } from 'lucide-vue-next'
-import { crmEnabled } from '../services/crmApi'
+import { crmEnabled, crmList, type CrmRow } from '../services/crmApi'
 import { DhPageHeader } from '@/shared/components/organisms'
 
 const { t, locale } = useI18n()
@@ -25,6 +25,45 @@ const sections = [
 ] as const
 const available = computed(() => sections.filter(item => enabled.value && item.scopes.some(scope => auth.hasScope(scope))))
 const hasUserManagement = computed(() => auth.hasScope('auth.users.view'))
+type CountKey = 'accounts' | 'leads' | 'opportunities' | 'activities'
+const counts = ref<Record<CountKey, number | null>>({
+  accounts: null, leads: null, opportunities: null, activities: null,
+})
+const lastActivities = ref<CrmRow[]>([])
+const availableAccounts = ref<CrmRow[]>([])
+const homeLoading = ref(false)
+const homeError = ref('')
+const quickStats = computed(() => [
+  { key: 'accounts' as const, title: locale.value === 'en' ? 'Customers' : 'Cuentas', icon: UsersRound, path: '/crm/accounts' },
+  { key: 'leads' as const, title: locale.value === 'en' ? 'Leads' : 'Prospectos', icon: ContactRound, path: '/crm/leads' },
+  { key: 'opportunities' as const, title: locale.value === 'en' ? 'Opportunities' : 'Oportunidades', icon: BriefcaseBusiness, path: '/crm/opportunities' },
+  { key: 'activities' as const, title: locale.value === 'en' ? 'Activities' : 'Actividades', icon: Activity, path: '/crm/activities' },
+].filter(metric => available.value.some(section => section.path === metric.path)))
+async function loadHomeSummary() {
+  if (!enabled.value) return
+  homeLoading.value = true
+  homeError.value = ''
+  const queries = [
+    { key: 'accounts' as CountKey, scopes: ['crm.account.read', 'crm.account.read-all'] },
+    { key: 'leads' as CountKey, scopes: ['crm.lead.read', 'crm.lead.read-all'] },
+    { key: 'opportunities' as CountKey, scopes: ['crm.opportunity.read', 'crm.opportunity.read-all'] },
+    { key: 'activities' as CountKey, scopes: ['crm.activity.read', 'crm.activity.read-all'] },
+  ].filter(item => item.scopes.some(scope => auth.hasScope(scope)))
+  const response = await Promise.allSettled(queries.map(async item => ({
+    key: item.key,
+    data: await crmList(item.key, { page: 1, pageSize: 5 }),
+  })))
+  for (const result of response) {
+    if (result.status === 'fulfilled') {
+      counts.value[result.value.key] = result.value.data.total
+      if (result.value.key === 'accounts') availableAccounts.value = result.value.data.items
+      if (result.value.key === 'activities') lastActivities.value = result.value.data.items
+    } else homeError.value = locale.value === 'en' ? 'Some indicators are unavailable.' : 'Algunos indicadores no están disponibles.'
+  }
+  homeLoading.value = false
+}
+onMounted(loadHomeSummary)
+
 const navigationGroups = computed(() => [
   { name: locale.value === 'en' ? 'Customers' : 'Clientes', paths: ['/crm/accounts','/crm/contacts'] },
   { name: locale.value === 'en' ? 'Sales' : 'Ventas', paths: ['/crm/leads','/crm/opportunities'] },
@@ -60,6 +99,18 @@ const navigationGroups = computed(() => [
       </RouterLink>
     </div>
     <template v-else>
+      <section v-if="quickStats.length" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <RouterLink v-for="stat in quickStats" :key="stat.key" :to="stat.path"
+          class="flex items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 transition hover:border-[var(--dh-primary)]">
+          <div>
+            <p class="text-xs font-bold text-[var(--dh-text-muted)]">{{ stat.title }}</p>
+            <p class="mt-2 text-2xl font-extrabold">{{ counts[stat.key] ?? (homeLoading ? '…' : '—') }}</p>
+            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Registros autorizados</p>
+          </div>
+          <component :is="stat.icon" class="h-6 w-6 text-[var(--dh-primary)]" />
+        </RouterLink>
+      </section>
+      <p v-if="homeError" role="status" class="text-xs text-amber-600">{{ homeError }}</p>
       <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(270px,.7fr)]">
         <div class="space-y-4">
           <section v-for="group in navigationGroups" :key="group.name" class="overflow-hidden rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
@@ -79,6 +130,21 @@ const navigationGroups = computed(() => [
           </section>
         </div>
         <aside class="space-y-3">
+          <section v-if="lastActivities.length" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <h2 class="mb-3 flex items-center gap-2 text-sm font-extrabold"><Activity class="h-4 w-4 text-[var(--dh-primary)]" />Actividad reciente</h2>
+            <RouterLink v-for="activity in lastActivities" :key="activity.id" :to="'/crm/activities/' + encodeURIComponent(activity.id)"
+              class="block border-b border-[var(--dh-border)] py-3 last:border-0 hover:text-[var(--dh-primary)]">
+              <p class="truncate text-xs font-bold">{{ activity.subject || 'Actividad' }}</p>
+              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ activity.type }} · {{ activity.status }}</p>
+            </RouterLink>
+          </section>
+          <section v-if="availableAccounts.length" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <h2 class="mb-3 flex items-center gap-2 text-sm font-extrabold"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" />Acceso a clientes</h2>
+            <RouterLink v-for="account in availableAccounts" :key="account.id" :to="'/crm/accounts/' + encodeURIComponent(account.id)"
+              class="block truncate border-b border-[var(--dh-border)] py-2.5 text-xs font-semibold last:border-0 hover:text-[var(--dh-primary)]">
+              {{ account.displayName || account.legalName }}
+            </RouterLink>
+          </section>
           <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
             <h2 class="text-sm font-extrabold">Centro de ventas</h2>
             <p class="mt-2 text-xs leading-relaxed text-[var(--dh-text-muted)]">

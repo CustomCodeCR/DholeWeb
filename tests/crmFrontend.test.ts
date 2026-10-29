@@ -210,3 +210,13 @@ test('CRM reads linked quote ports from Pricing without faking missing routes', 
   assert.ok(hub.includes("q.available"))
   assert.ok(hub.includes("Ruta no disponible para el usuario"))
 })
+
+test('CRM landing shows authorized live counts and direct customer activity links', () => {
+  const home = read('src/modules/crm/views/CrmLandingView.vue')
+  assert.ok(home.includes("crmList(item.key"))
+  assert.ok(home.includes("Promise.allSettled"))
+  assert.ok(home.includes("lastActivities"))
+  assert.ok(home.includes("availableAccounts"))
+  assert.ok(home.includes("quickStats"))
+  assert.ok(!home.includes("Math.random"))
+})
