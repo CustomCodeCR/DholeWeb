@@ -145,7 +145,7 @@ const tab = ref<SourceTab>('Own')
 const search = ref('')
 // Mostrar todo el inventario propio por defecto, también salidas de otros POL.
 // La compatibilidad se valida independientemente antes de cotizar.
-const showAllOwnConsolidations = ref(true)
+const showAllOwnConsolidations = ref(false)
 const ownRows = ref<Array<OwnLclConsolidationDto & TableRow>>([])
 const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
@@ -352,11 +352,14 @@ function canonicalOwnLclOrigin(value: unknown) {
 }
 
 function requestedOwnLclOrigins() {
-  return new Set(
-    [props.polCode, props.polName]
-      .map(canonicalOwnLclOrigin)
-      .filter(Boolean),
-  )
+  const fromName = canonicalOwnLclOrigin(props.polName)
+  const fromCode = canonicalOwnLclOrigin(props.polCode)
+  // El nombre del catálogo identifica el puerto real. El código puede ser
+  // auxiliar (POL-2026-xxx) y no debe sustituir al POL que eligió el usuario.
+  const knownPorts = new Set([...chinaOwnLclOrigins, 'miami'])
+  if (knownPorts.has(fromName)) return new Set([fromName])
+  if (knownPorts.has(fromCode)) return new Set([fromCode])
+  return new Set([fromName, fromCode].filter(Boolean))
 }
 
 function ownCalculationPolCode(row: OwnLclConsolidationDto) {
@@ -576,7 +579,7 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
     const selection: LclRateSourceSelection = {
       kind: 'Own',
       id: row.id,
-      label: `${row.name} · ${row.polName || row.polCode}`,
+      label: `${row.name} · POL ${props.polName || props.polCode || row.polName || row.polCode} (consolidado ${row.polName || row.polCode})`,
       requestedCbm: cbm,
       providerId: null,
       providerName: 'Grupo Castro Fallas',
