@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CrmModuleNavigation from '../components/CrmModuleNavigation.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -88,6 +89,7 @@ const navigationGroups = computed(() => [
     </DhPageHeader>
 
     <div v-if="!enabled" role="alert" class="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5 text-sm">
+    <CrmModuleNavigation />
       {{ locale === 'en' ? 'CRM is not active. Enable it with VITE_CRM_ENABLED=true only after the commercial HTTP APIs are deployed.' : 'CRM no está activo. Use VITE_CRM_ENABLED=true únicamente cuando las APIs HTTP comerciales estén desplegadas.' }}
     </div>
     <div v-else-if="available.length === 0" class="flex flex-col items-start gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-6">
