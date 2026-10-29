@@ -53,17 +53,35 @@ watch(step, (currentStep) => {
 
   // Step 6 -> 7 must never call the generic rate-line rebuild for a saved FTL.
   // The existing RateDetails (and their stable DetailId) remain authoritative.
-  const nextAnchor = '  if (step.value === 6 && props.modificationRequestId && pricingModificationApplied.value'
-  code = replaceOne(code, nextAnchor, String.raw`
-  if (step.value === 6 && props.rateId && editingRate.value
-      && shipmentModeForApi.value === 'Ftl') {
-    // Apply an explicitly edited freight amount, not unrelated catalog lines.
+  // Other pricing plugins replace next() in full, including the modification
+  // request shortcut. Locate the actual step-6 branch instead of a brittle
+  // unrelated modificationRequestId string.
+  const nextStart = code.indexOf('async function next() {')
+  const nextEnd = code.indexOf('function previous() {', nextStart)
+  if (nextStart < 0 || nextEnd <= nextStart) {
+    throw new Error('[pricingFtlEditPreservationFinal] navigation bounds not found.')
+  }
+  const originalNext = code.slice(nextStart, nextEnd)
+  const existingStepSixBranch = '  if (step.value === 6) {'
+  if (!originalNext.includes(existingStepSixBranch)) {
+    throw new Error('[pricingFtlEditPreservationFinal] step 6 branch not found after navigation transforms.')
+  }
+  const preserveStepSix = String.raw`  if (step.value === 6 && props.rateId && editingRate.value
+      && !props.viewOnly && shipmentModeForApi.value === 'Ftl') {
+    if (!canNext.value) {
+      toastStore.warning('Flete incompleto', 'Revise los datos del flete FTL antes de continuar.')
+      return
+    }
+    // Keep every persisted RateDetail and any edits made to existing lines.
     syncPersistedFreightLineForEdit()
     step.value = 7
     return
   }
 
-` + nextAnchor, 'preserve saved FTL lines on step 6 navigation')
+`
+  code = code.slice(0, nextStart)
+    + originalNext.replace(existingStepSixBranch, preserveStepSix + existingStepSixBranch)
+    + code.slice(nextEnd)
 
   // Earlier compatibility plugins could eagerly append catalog rows and
   // overwrite RateDetails while hydrating a saved quote. For FTL, opening Edit
