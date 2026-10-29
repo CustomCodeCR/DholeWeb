@@ -71,7 +71,11 @@ export function pricingLclSourceVisibilityFix(): Plugin {
       // an API serializer/version omits the isActive property.
       const activeFilterAnchor = `    if (!row.isActive || normalize(row.status) === 'closed') return false`
       const activeFilterReplacement = `    if (row.isActive === false || normalize(row.status) === 'closed') return false`
-      code = replaceOne(code, activeFilterAnchor, activeFilterReplacement, 'own LCL active filter')
+      if (code.includes(activeFilterAnchor)) {
+        code = replaceOne(code, activeFilterAnchor, activeFilterReplacement, 'own LCL active filter')
+      } else if (!code.includes(activeFilterReplacement)) {
+        throw new Error('[pricingLclSourceVisibilityFix] Own LCL active filter missing or changed unexpectedly.')
+      }
 
       // Browse own consolidations and coloaders independently. Preserve each source's
       // original query and guards (including the POE Balboa condition) instead of
