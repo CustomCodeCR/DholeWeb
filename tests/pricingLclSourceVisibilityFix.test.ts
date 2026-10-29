@@ -94,4 +94,6 @@ test('expired ETDs remain visible for correction but cannot be selected or calcu
     'utf8',
   )
   assert.ok(mobilePatch.includes(':disabled="ownDepartureExpired(row)"'))
+  assert.ok(mobilePatch.includes("canonicalOwnLclOrigin(row.polName || row.polCode) === 'shanghai'"))
+  assert.ok(mobilePatch.includes('await loadOwnPreviews(ownRows.value.filter((row) => !ownDepartureExpired(row)))'))
 })
