@@ -62,9 +62,18 @@ const companyDetails = computed(() => cells(
   ['Actividad de la empresa', props.profile?.businessActivity],
   ['Líneas de productos o mercancías', props.profile?.products],
   ['Historia de la empresa', props.profile?.companyHistory],
+  ['Servicios activos', props.profile?.activeServices],
+  ['Países con presencia', props.profile?.presenceCountries],
+  ['Referencia cliente web', props.profile?.webCustomerReference],
 ))
 const commercialDetails = computed(() => cells(
   ['Observaciones comerciales', props.profile?.commercialObservations],
+  ['Estrategia comercial', props.profile?.commercialStrategy],
+  ['Proyectos de interés', props.profile?.projectsOfInterest],
+  ['Observaciones Pricing', props.profile?.pricingObservations],
+  ['Monitoreo de tarifas', props.profile?.tariffMonitoringNotes],
+  ['Tarifas enviadas', props.profile?.tariffSendingNotes],
+  ['Competidores', props.profile?.competitorObservations],
   ['Mercados en análisis', props.analyses.map(a => display(a.marketCode)).filter(x => x !== '—').join(', ')],
   ['Nacionalización de aduanas', props.analyses.length
     ? props.analyses.some(a => a.customsNationalizationRequired === true) : null],
@@ -75,6 +84,11 @@ const commercialDetails = computed(() => cells(
 ))
 const operationDetails = computed(() => cells(
   ['Observaciones e instrucciones operativas', props.profile?.operationalInstructions],
+  ['Operativa asignada', props.profile?.assignedOperations],
+  ['Instrucciones aduaneras', props.profile?.customsInstructions],
+  ['Recolección de carga', props.profile?.cargoCollectionInstructions],
+  ['Revisión de documentos', props.profile?.documentReviewInstructions],
+  ['Tratados y acuerdos', props.profile?.tradeAgreementNotes],
   ['Correo de facturación', props.profile?.billingEmail],
   ['Direcciones registradas', props.addresses.length],
 ))
