@@ -66,6 +66,7 @@ import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSo
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
 import PricingRateHistory from '@/modules/pricing/components/PricingRateHistory.vue'
+import PricingRateAttachments from '@/modules/pricing/components/PricingRateAttachments.vue'
 import PricingLinkedSellerRequest from '@/modules/pricing/components/PricingLinkedSellerRequest.vue'
 import PricingMarketBenchmarkPanel from '@/modules/pricing/components/PricingMarketBenchmarkPanel.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
@@ -6671,39 +6672,7 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div class="crystal-soft space-y-4 p-5">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Archivos adjuntos</p>
-                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Respaldos finales guardados con esta tarifa. Puede consultarlos y descargarlos desde aquí.</p>
-              </div>
-              <DhBadge :label="`${finalBackupDocuments.length} adjunto${finalBackupDocuments.length === 1 ? '' : 's'}`" variant="neutral" />
-            </div>
-            <div v-if="finalBackupDocuments.length" class="grid gap-3 md:grid-cols-2">
-              <div
-                v-for="document in finalBackupDocuments"
-                :key="`full-view-backup:${document.id}`"
-                class="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
-              >
-                <div class="flex min-w-0 flex-1 items-center gap-3">
-                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-card-hover)] text-[var(--dh-primary)]">
-                    <Paperclip class="h-5 w-5" />
-                  </div>
-                  <div class="min-w-0">
-                    <p class="break-all text-sm font-black text-[var(--dh-text)]">{{ document.fileName }}</p>
-                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Respaldo final · {{ attachmentSizeLabel(document.sizeInBytes) }}</p>
-                  </div>
-                </div>
-                <div class="flex shrink-0 flex-wrap gap-2">
-                  <DhButton size="sm" variant="secondary" :disabled="document.fileName === 'Archivo no disponible en Storage'" @click="previewFinalBackup(document)">Ver</DhButton>
-                  <DhButton size="sm" variant="secondary" :disabled="document.fileName === 'Archivo no disponible en Storage'" @click="downloadFinalBackup(document)">Descargar</DhButton>
-                </div>
-              </div>
-            </div>
-            <p v-else class="rounded-2xl border border-dashed border-[var(--dh-border)] px-4 py-4 text-sm font-semibold text-[var(--dh-text-muted)]">
-              Esta tarifa no tiene adjuntos finales registrados.
-            </p>
-          </div>
+          <PricingRateAttachments :rate-id="editingRate.id" :final-documents="finalBackupDocuments" />
 
           <div class="crystal-soft overflow-hidden p-0">
             <div class="border-b border-[var(--dh-border)] px-5 py-4">
