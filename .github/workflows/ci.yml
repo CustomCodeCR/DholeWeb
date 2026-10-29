@@ -23,12 +23,13 @@ jobs:
       # master does not contain SEO/Marketing modules or their test scripts.
       # develop continues running their complete suites.
       - name: Public origin coloader contact tests
-        run: node --test tests/publicOriginContactPolicy.test.ts
+        run: node --test tests/publicOriginContactPolicy.test.ts tests/publicOriginDirectory.test.ts
       - name: Agent module tests
         run: pnpm run test:agent
+      # Build before older unrelated Pricing regressions so CI always verifies this UI.
+      - name: Type-check and build
+        run: pnpm run build
       - name: Pricing rate update regression tests
         run: pnpm run test:pricing-rate-update
       - name: CRM and SRM navigation/integration tests
         run: pnpm run test:crm
-      - name: Type-check and build
-        run: pnpm run build
