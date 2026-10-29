@@ -734,6 +734,15 @@ export interface RateDetailDto extends Record<string, unknown> {
   applyDestinationTax: boolean
   destinationTaxRate: number
   destinationTaxAmount: number
+  // Server-resolved quote amounts: same immutable commercial projection as PDF.
+  commercialQuantity?: number
+  commercialUnitCost?: number
+  commercialUnitSale?: number
+  commercialCostSubtotal?: number
+  commercialSaleSubtotal?: number
+  commercialTaxAmount?: number
+  commercialSaleTotal?: number
+  showOnClientPdf?: boolean
 }
 
 export interface RateContainerDto extends Record<string, unknown> {
