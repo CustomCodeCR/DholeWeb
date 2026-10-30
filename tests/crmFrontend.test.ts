@@ -168,7 +168,7 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   assert.match(component, /sidebar-nav-link-active::before/)
   assert.match(component, /sidebar-module-toggle--current/)
   assert.match(component, /sidebar-subgroup-toggle--current/)
-  // Preserve develop sidebar separators without changing CRM submodule navigation.
+  // Preserve develop's sidebar separators while CRM manages its own navigation.
 })
 
 test('CRM route history is sourced from completed meetings or linked quotes', () => {
@@ -351,4 +351,24 @@ test('CRM credit coverage uses real approved/pending profiles, never changes app
   assert.ok(editor.includes('id="crm-edit-credit"'))
   assert.ok(editor.includes('<CrmCreditCoverageManager'))
   assert.ok(hub.includes('<CrmCreditCoverageManager'))
+})
+
+test('Accounts hide raw property dump, clean drawer footer and include house seller', () => {
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
+  const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
+  const picker = read('src/modules/crm/components/CrmExecutivePicker.vue')
+  assert.ok(detail.includes('<dl v-else-if="section !== \'accounts\'"'))
+  assert.ok(detail.includes('assignToCastroFallas: selectedExecutive.value ==='))
+  assert.ok(detail.includes("record.value?.isCastroFallasExecutive === true"))
+  assert.ok(workspace.includes("body.assignToCastroFallas = true"))
+  assert.ok(workspace.includes("body.executiveUserId = null"))
+  assert.ok(!workspace.includes('sticky bottom-0 z-10 -mx-3'))
+  assert.ok(!workspace.includes('bg-[var(--dh-bg)] px-3 py-4'))
+  assert.ok(hub.includes('account.isCastroFallasExecutive === true'))
+  assert.ok(picker.includes("CASTRO_FALLAS_SELLER = '__castro_fallas__'"))
+  assert.ok(picker.includes('Vendedor institucional'))
+  assert.ok(picker.includes('modelValue === CASTRO_FALLAS_SELLER'))
+  assert.ok(picker.includes('props.modelValue !== CASTRO_FALLAS_SELLER'))
+  assert.ok(picker.includes('UsersService.getRoles(user.id)'))
 })
