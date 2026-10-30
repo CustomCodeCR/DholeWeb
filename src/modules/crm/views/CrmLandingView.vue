@@ -52,9 +52,6 @@ onMounted(loadHomeSummary)
 
 const navigationGroups = computed(() => [
   { name: locale.value === 'en' ? 'Customers' : 'Clientes', paths: ['/crm/accounts','/crm/contacts','/crm/leads','/crm/followups'] },
-  { name: locale.value === 'en' ? 'Sales' : 'Ventas', paths: ['/crm/leads','/crm/opportunities'] },
-  { name: locale.value === 'en' ? 'Activities' : 'Actividades', paths: ['/crm/activities','/crm/followups'] },
-  { name: locale.value === 'en' ? 'Commercial management' : 'Gestión comercial', paths: ['/crm/analyses','/crm/finance','/crm/settings'] },
 ].map(group => ({ ...group, pages: available.value.filter(item => group.paths.includes(item.path)) }))
   .filter(group => group.pages.length > 0))
 </script>
