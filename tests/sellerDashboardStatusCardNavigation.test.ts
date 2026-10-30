@@ -37,7 +37,7 @@ test('seller KPI status mappings match the Pricing rates filter options', () => 
 test('Pricing rates page handles status query changes when the view is reused', () => {
   assert.match(ratesView, /\(\) => route\.query\.status/)
   assert.match(ratesView, /const nextStatus = normalizeCommercialStatus\(value\)/)
-  assert.match(ratesView, /filters\.status = nextStatus\s+applyFilters\(\)/)
+  assert.match(ratesView, /selectedFilters\.statuses = updated\s+applyFilters\(\)/)
 })
 
 test('supervision allows own seller actions without allowing actions on other sellers quotations', () => {
