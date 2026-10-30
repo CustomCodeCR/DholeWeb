@@ -6,9 +6,11 @@ const read = (path: string) => readFileSync(new URL('../' + path, import.meta.ur
 
 test('opening a seller modification cannot enable delivery without a saved revision', () => {
   const resume = read('src/modules/pricing/views/PricingRateRequestResumeView.vue')
-  assert.match(resume, /const modificationPrepared = computed/)
-  assert.match(resume, /if \(!rateId \|\| !modificationPrepared\.value \|\| finishing\.value\) return/)
-  assert.match(resume, /:disabled="!workRequest\?\.rateId \|\| !modificationPrepared \|\| finishing"/)
+  const wizard = read('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  assert.match(wizard, /pendingModificationDelivery\.value = true/)
+  assert.match(wizard, /savedModificationRevision\.value = persistedRate\.revisionNumber/)
+  assert.match(resume, /const savedRevisionAvailable = ref<number \| null>\(null\)/)
+  assert.match(resume, /RateRequestLeaseService\.prepareModification\(id, rateId, revisionNumber\)/)
 })
 
 test('pricing queue disables send action until preparation is persisted', () => {
