@@ -54,7 +54,7 @@ test('supervision allows own seller actions without allowing actions on other se
 
 test('Pricing + Vendedor roles expose both dashboard views, not only SuperUsuario', () => {
   assert.match(dashboardView, /const hasSellerRole = computed\(/)
-  assert.match(dashboardView, /hasSellerRole\.value && canUsePricing\.value/)
+  assert.match(dashboardView, /hasSellerDashboardAccess\.value && canUsePricing\.value/)
   assert.match(dashboardView, /const canSelectDashboard = computed\(/)
   assert.match(dashboardView, /v-if="canSelectDashboard"/)
   assert.match(dashboardView, /<option value="pricing">Pricing<\/option>/)
@@ -68,4 +68,12 @@ test('dual-role seller dashboard uses personal API, while supervisors retain glo
   assert.match(sellerDashboard, /path: props\.adminPreview \? '\/api\/pricing\/rate-requests\/dashboard' : '\/api\/pricing\/rate-requests\/mine'/)
   assert.match(sellerDashboard, /path: props\.adminPreview \? '\/api\/pricing\/seller-rates\/dashboard' : '\/api\/pricing\/seller-rates'/)
   assert.match(dashboardView, /v-else-if="canUsePricing"/)
+})
+
+test('seller workspace permission alone must not load the restricted Pricing dashboard', () => {
+  assert.match(dashboardView, /const hasSellerDashboardAccess = computed\(/)
+  assert.match(dashboardView, /authStore\.hasScope\(PRICING_SCOPES\.rates\.view\)/)
+  assert.match(dashboardView, /!hasSellerDashboardAccess\.value \|\| hasPricingOperatorAccess\.value/)
+  assert.match(dashboardView, /if \(!canUsePricing\.value && hasSellerDashboardAccess\.value\) return 'seller'/)
+  assert.doesNotMatch(dashboardView, /authStore\.hasScope\(VIEW_SCOPES\.pricing\)/)
 })
