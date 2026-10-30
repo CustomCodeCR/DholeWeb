@@ -7,7 +7,7 @@ export interface CrmPage<T = CrmRow> {
   page: number
   pageSize: number
 }
-export type CrmMethod = 'GET' | 'POST' | 'PATCH' | 'PUT'
+export type CrmMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 
 // CRM is an active workspace: authorize access with CRM scopes, not an absent
 // build-time rollout flag. An explicit false flag can still disable the module.
