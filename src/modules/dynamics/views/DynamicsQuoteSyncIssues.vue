@@ -1312,6 +1312,11 @@ onUnmounted(() => {
                 ledgerByRate[issue.rateId]?.total.status === 'not_sent'">
                 Cabecera rechazada en Dataverse — requiere corregir el HTTP 400
               </strong>
+              <strong v-else-if="ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+                ledgerByRate[issue.rateId]?.total.status === 'not_sent' &&
+                ledgerByRate[issue.rateId]?.live?.headerExists === true">
+                Cabecera existente — solo falta completar la línea de venta
+              </strong>
               <strong v-else>Conciliación de QUO necesaria — no reintentar todavía</strong>
               <p v-if="issue.error?.providerCode === 'legacy_quote_requires_rate_key_linking'">
                 Este HTTP 409 es un bloqueo anterior a la escritura de la revisión actual.
@@ -1327,6 +1332,14 @@ onUnmounted(() => {
                 No se registró intento de la línea de venta. El HTTP 409 es la respuesta
                 histórica de Pricing, no una confirmación de creación.
               </p>
+              <p v-else-if="ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+                ledgerByRate[issue.rateId]?.total.status === 'not_sent' &&
+                ledgerByRate[issue.rateId]?.live?.headerExists === true">
+                Dynamics confirmó la cabecera de esta revisión y no tiene una operación
+                registrada para la línea. Usá «Completar línea de venta» para que
+                Pricing verifique el UPSERT y reanude exclusivamente la operación
+                pendiente con la misma clave de idempotencia.
+              </p>
               <p v-else>Dynamics pudo crear la cabecera, la línea de venta o ambas.
                 El HTTP 409 no confirma que la operación no se haya ejecutado.</p>
               <p v-if="ledgerByRate[issue.rateId]?.header.status === 'rejected' &&
@@ -1335,7 +1348,10 @@ onUnmounted(() => {
                 desde el botón de abajo: el servidor verifica el historial, los vínculos
                 permitidos y los límites de texto antes de generar otro envío.
               </p>
-              <p v-else-if="issue.error?.providerCode !== 'legacy_quote_requires_rate_key_linking'">Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
+              <p v-else-if="issue.error?.providerCode !== 'legacy_quote_requires_rate_key_linking' &&
+                !(ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+                  ledgerByRate[issue.rateId]?.total.status === 'not_sent' &&
+                  ledgerByRate[issue.rateId]?.live?.headerExists === true)">Consultá las operaciones <code>dhole-pricing-quote-{{ issue.rateId.replaceAll('-', '') }}-v{{ issue.revisionNumber }}-header</code>
                 y <code>...-total</code> en el registro de idempotencia de Dynamics antes de volver a enviar.</p>
             </div>
           </div>
