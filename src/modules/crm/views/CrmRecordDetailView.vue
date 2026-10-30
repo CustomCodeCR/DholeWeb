@@ -362,7 +362,7 @@ onMounted(() => { if (crmEnabled()) void load() })
         </DhDrawer>
         <CrmAccountEditor v-if="section === 'accounts'" :account="record"
           :open="showAccountEditor && can('crm.account.update')" @close="showAccountEditor=false"
-          @saved="load" @manage-related="openRelatedManagement" />
+          @saved="load" @manage-related="openRelatedManagement" @logo-updated="load" />
         <CrmAccountHub v-if="section === 'accounts'" :account="record"
           @change-executive="openExecutiveDrawer" @edit-account="showAccountEditor=true"
           @manage-related="openRelatedManagement" />
