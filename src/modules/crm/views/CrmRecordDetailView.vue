@@ -7,6 +7,7 @@ import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
+import CrmAccountViewerManager from '../components/CrmAccountViewerManager.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import CrmContactForm from '../components/CrmContactForm.vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
@@ -417,6 +418,8 @@ onMounted(() => { if (crmEnabled()) void load() })
           :editing="showAccountEditor && can('crm.account.update')"
           @change-executive="openExecutiveDrawer" @edit-account="toggleAccountEditing"
           @manage-related="openRelatedManagement" @logo-updated="load" />
+        <CrmAccountViewerManager v-if="section === 'accounts' && record.isCastroFallasExecutive === true && can('crm.account.assign') && can('auth.users.view')"
+          :account-id="id" />
         <CrmAccountEditor v-if="section === 'accounts' && showAccountEditor && can('crm.account.update')"
           :account="record" :open="true" @close="leaveAccountEditing"
           @dirty-change="accountEditingDirty=$event"
