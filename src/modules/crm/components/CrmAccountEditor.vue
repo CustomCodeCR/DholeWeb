@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { Building2, Save, ShieldCheck, UserRound, Wallet, X } from 'lucide-vue-next'
-import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
@@ -216,20 +215,29 @@ async function save() {
 </script>
 
 <template>
-  <DhDrawer :open="open" title="Editar cuenta comercial" size="full" @close="emit('close')">
-    <div class="mx-auto max-w-6xl space-y-5 pb-20" data-crm-account-editor>
+  <section v-if="open" class="w-full" data-crm-inline-editing aria-label="Edición de la ficha de cliente">
+    <div class="w-full space-y-4 pb-12" data-crm-account-editor>
       <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-5">
         <div class="min-w-0">
-          <p class="text-xs font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">Gestión de cliente</p>
+          <p class="text-xs font-bold uppercase tracking-wider text-[var(--dh-primary)]">Ficha comercial · Modo edición</p>
           <h2 class="mt-1 break-words text-lg font-extrabold">{{ account.displayName }}</h2>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Un formulario para identidad, clasificación y perfil empresarial. Las acciones financieras conservan sus aprobaciones.</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Modificá los campos directamente en la ficha. Guardá para aplicar los cambios o cancelá para volver al detalle.</p>
         </div>
-        <button type="button" class="rounded-xl border border-[var(--dh-border)] p-2" aria-label="Cerrar" @click="emit('close')"><X class="h-5 w-5" /></button>
+        <button type="button" class="rounded-xl border border-[var(--dh-border)] p-2" aria-label="Cancelar edición y volver al detalle" @click="emit('close')"><X class="h-5 w-5" /></button>
       </div>
       <p v-if="error" role="alert" class="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{{ error }}</p>
       <p v-if="loading" role="status" class="text-sm text-[var(--dh-text-muted)]">Cargando datos registrados…</p>
-      <form v-if="!loading && loadedProfile" class="space-y-5" @submit.prevent="save">
-        <section class="crm-editor-section">
+      <div v-if="!loading && !loadedProfile" class="rounded-xl border border-amber-500/30 bg-[var(--dh-card)] p-4">
+        <p class="mb-3 text-sm text-[var(--dh-text-muted)]">No se puede editar hasta cargar la versión actual de la cuenta.</p>
+        <button type="button" class="crm-editor-secondary" @click="load">Reintentar carga</button>
+      </div>
+      <nav v-if="!loading && loadedProfile" class="flex gap-2 overflow-x-auto rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 text-xs font-bold" aria-label="Secciones editables">
+        <a v-for="section in [{id:'identity',text:'Datos de la cuenta'}, {id:'commercial',text:'Ficha comercial'}, {id:'company',text:'Datos empresariales'}, {id:'contacts',text:'Contactos'}, {id:'addresses',text:'Direcciones'}]"
+          :key="section.id" :href="'#crm-edit-' + section.id"
+          class="shrink-0 rounded-lg bg-[var(--dh-shell)] px-3 py-2 hover:text-[var(--dh-primary)]">{{ section.text }}</a>
+      </nav>
+      <form v-if="!loading && loadedProfile" class="space-y-4" @submit.prevent="save">
+        <section id="crm-edit-identity" class="crm-editor-section scroll-mt-24">
           <div class="crm-editor-heading"><Building2 class="h-5 w-5" /><div><h3>Identidad del cliente</h3><p>Información comercial y tributaria</p></div></div>
           <div class="grid gap-4 md:grid-cols-2">
             <DhInput v-model="accountDraft.displayName" label="Nombre comercial *" />
@@ -242,7 +250,7 @@ async function save() {
               :tax-id="accountDraft.taxId" @resolved="resolved" /></div>
           </div>
         </section>
-        <section class="crm-editor-section">
+        <section id="crm-edit-commercial" class="crm-editor-section scroll-mt-24">
           <div class="crm-editor-heading"><UserRound class="h-5 w-5" /><div><h3>Clasificación comercial</h3><p>Datos que utiliza el equipo de ventas</p></div></div>
           <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <DhSelect label="Condición de cliente" :model-value="accountDraft.customerTypeCode"
@@ -259,7 +267,9 @@ async function save() {
               @update:model-value="accountDraft.relationshipTypeCode=$event" />
           </div>
         </section>
-        <section v-for="group in profileGroups" :key="group.title" class="crm-editor-section">
+        <section id="crm-edit-company" class="space-y-4 scroll-mt-24">
+          <h3 class="px-1 text-sm font-extrabold">Información de la empresa y sus operaciones</h3>
+          <section v-for="group in profileGroups" :key="group.title" class="crm-editor-section">
           <div class="crm-editor-heading"><ShieldCheck class="h-5 w-5" /><div><h3>{{ group.title }}</h3><p>Información complementaria del cliente</p></div></div>
           <div class="grid gap-4 md:grid-cols-2">
             <div v-for="[key,label] in group.fields" :key="key"
@@ -271,7 +281,8 @@ async function save() {
             </div>
           </div>
         </section>
-        <section v-if="can('crm.contact.read')" class="crm-editor-section">
+        </section>
+        <section v-if="can('crm.contact.read')" id="crm-edit-contacts" class="crm-editor-section scroll-mt-24">
           <div class="crm-editor-heading"><UserRound class="h-5 w-5" /><div>
             <h3>Contactos vinculados</h3><p>Editá los contactos sin salir de esta cuenta.</p>
           </div></div>
@@ -297,7 +308,7 @@ async function save() {
             </div>
           </div>
         </section>
-        <section class="crm-editor-section">
+        <section id="crm-edit-addresses" class="crm-editor-section scroll-mt-24">
           <div class="crm-editor-heading"><Building2 class="h-5 w-5" /><div>
             <h3>Direcciones</h3><p>Direcciones registradas de la empresa</p>
           </div></div>
@@ -327,7 +338,7 @@ async function save() {
           <div class="flex items-center gap-3"><Wallet class="h-5 w-5 text-[var(--dh-primary)]" /><p class="text-sm">Contactos, direcciones, rutas, crédito y contratos se gestionan desde esta misma cuenta con sus respectivos permisos.</p></div>
           <button type="button" class="crm-editor-link" @click="emit('manage-related')">Administrar registros vinculados</button>
         </section>
-        <div class="sticky bottom-3 flex flex-wrap items-center justify-end gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-lg">
+        <div class="sticky bottom-3 z-20 flex flex-wrap items-center justify-end gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)]/95 p-3 shadow-lg backdrop-blur">
           <span v-if="canSave" class="mr-auto text-xs text-[var(--dh-text-muted)]">Tenés cambios sin guardar</span>
           <button type="button" class="crm-editor-secondary" @click="emit('close')">Cancelar</button>
           <button type="submit" class="crm-editor-primary" :disabled="!canSave || !can('crm.account.update')">
@@ -336,7 +347,7 @@ async function save() {
         </div>
       </form>
     </div>
-  </DhDrawer>
+  </section>
 </template>
 
 <style scoped>
