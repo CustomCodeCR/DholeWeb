@@ -1734,15 +1734,29 @@ onUnmounted(() => {
 .quote-sync-tracking p{margin:0}
 .quote-sync-tracking .quote-sync-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .quote-sync-tracking strong{overflow-wrap:anywhere}
-.quote-sync-item{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:17px;border:1px solid var(--dh-border);border-radius:16px;background:var(--dh-card)}
-.quote-sync-main{min-width:0;flex:1}
-.quote-sync-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+/* The queue card has one content column. A long list of recovery actions
+   must never squeeze quote identifiers or diagnostics to one character wide. */
+.quote-sync-item{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:15px;min-width:0;width:100%;box-sizing:border-box;padding:17px;border:1px solid var(--dh-border);border-radius:16px;background:var(--dh-card)}
+.quote-sync-main{min-width:0;width:100%;max-width:100%}
+.quote-sync-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
 .quote-sync-id{font-size:13px;overflow-wrap:anywhere}
-.quote-sync-state{border:1px solid #d97706;color:#d97706;border-radius:30px;padding:3px 9px;font-size:11px;font-weight:700}
-.quote-sync-meta{color:var(--dh-text-muted);margin:7px 0;font-size:12px}
+.quote-sync-state{border:1px solid #d97706;color:#d97706;border-radius:30px;padding:3px 9px;font-size:11px;font-weight:700;flex-shrink:0}
+.quote-sync-meta{color:var(--dh-text-muted);margin:7px 0;font-size:12px;overflow-wrap:anywhere}
 .quote-sync-error-detail{font-size:13px;overflow-wrap:anywhere}
-.quote-sync-actions{display:flex;flex-wrap:wrap;gap:8px;flex-shrink:0}
-.quote-sync-actions .dynamics-outline-button,.quote-sync-actions .dynamics-primary-button{display:inline-flex;align-items:center;gap:7px;text-decoration:none;white-space:nowrap}
+.quote-sync-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:9px;width:100%;min-width:0;max-width:100%;padding-top:14px;border-top:1px solid var(--dh-border);box-sizing:border-box}
+.quote-sync-actions .dynamics-outline-button,.quote-sync-actions .dynamics-primary-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:0;max-width:100%;min-height:38px;padding:9px 13px;border-radius:10px;text-decoration:none;white-space:normal;text-align:center;font-size:12px;font-weight:700;line-height:1.35;cursor:pointer;overflow-wrap:anywhere}
+.quote-sync-actions .dynamics-outline-button{border:1px solid var(--dh-border-strong);background:var(--dh-surface);color:var(--dh-text)}
+.quote-sync-actions .dynamics-outline-button:hover:not(:disabled){background:var(--dh-card-hover)}
+.quote-sync-actions .dynamics-primary-button{border:1px solid transparent;background:var(--dh-primary);color:#fff}
+.quote-sync-actions .dynamics-primary-button:hover:not(:disabled){filter:brightness(1.08)}
+.quote-sync-actions .dynamics-outline-button:disabled,.quote-sync-actions .dynamics-primary-button:disabled{cursor:not-allowed;opacity:.5}
+.quote-sync-actions .dynamics-outline-button svg,.quote-sync-actions .dynamics-primary-button svg{flex-shrink:0}
+.quote-sync-actions>p,.quote-sync-actions>.quote-sync-adoption{flex:1 0 100%;min-width:0}
+.quote-sync-actions .quote-sync-adoption label{min-width:0;overflow-wrap:anywhere}
+.quote-sync-actions .quote-sync-adoption input[type=checkbox]{accent-color:var(--dh-primary);width:16px;height:16px}
+.quote-sync-diagnosis{min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+.quote-sync-diagnosis>div{min-width:0;flex:1}
+@media(max-width:600px){.quote-sync-item{padding:13px;gap:12px}.quote-sync-actions{padding-top:12px}.quote-sync-actions>.dynamics-outline-button,.quote-sync-actions>.dynamics-primary-button{flex:1 1 100%;width:100%}.quote-sync-actions .quote-sync-adoption>.dynamics-primary-button{width:100%}}
 .quote-sync-message{display:flex;align-items:center;gap:10px;padding:16px;border-radius:12px;border:1px solid var(--dh-border);font-size:13px}
 .quote-sync-ok{color:#059669}
 .quote-sync-error{color:#dc2626}
@@ -1750,5 +1764,5 @@ onUnmounted(() => {
 .quote-sync-diagnosis p{margin:4px 0;overflow-wrap:anywhere}
 .quote-sync-diagnosis small{color:var(--dh-text-muted)}
 .quote-sync-footnote{font-size:12px;color:var(--dh-text-muted);margin:14px 0 0}
-@media(max-width:850px){.quote-sync-item{flex-direction:column}.quote-sync-actions{width:100%}}
+@media(max-width:850px){.quote-sync-queue-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
