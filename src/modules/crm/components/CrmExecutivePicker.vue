@@ -21,10 +21,10 @@ let requestVersion = 0
 const normalize = (value: string) =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
     .replace(/\s+/g, ' ')
-export function isCastroFallasAccount(user: Pick<UserDto, 'userName' | 'displayName'>): boolean {
+function isCastroFallasAccount(user: Pick<UserDto, 'userName' | 'displayName'>): boolean {
   return [user.userName, user.displayName].some(value => normalize(value ?? '') === 'castro fallas')
 }
-export function isSellerRole(roleName: string): boolean {
+function isSellerRole(roleName: string): boolean {
   const role = normalize(roleName)
   return ['vendedor', 'vendedores', 'seller', 'sales', 'salesperson',
     'ejecutivo comercial', 'ejecutivo de ventas', 'sales executive'].includes(role)
