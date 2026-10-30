@@ -5,7 +5,7 @@ export const crmMessages = {
       "dashboard": "Inicio comercial",
       "accounts": "Cuentas",
       "contacts": "Contactos",
-      "leads": "Clientes potenciales",
+      "leads": "Prospectos",
       "opportunities": "Oportunidades",
       "activities": "Actividades",
       "followups": "Agenda y seguimientos",
