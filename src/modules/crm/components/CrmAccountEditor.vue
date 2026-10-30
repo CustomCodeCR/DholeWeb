@@ -46,6 +46,65 @@ const profileGroups = [
 const profileDraft = reactive<Record<string, string>>({})
 for (const group of profileGroups) for (const [key] of group.fields) profileDraft[key] = ''
 const profileVersion = ref<number | null>(null)
+const relatedContacts = ref<CrmRow[]>([])
+const relatedAddresses = ref<CrmRow[]>([])
+const editingContactId = ref('')
+const editingAddressId = ref('')
+const contactDraft = reactive({ name: '', jobTitle: '', email: '', phone: '' })
+const addressDraft = reactive({ addressType: '', addressText: '', location: '' })
+const relationSaving = ref(false)
+const relatedError = ref('')
+const relatedSuccess = ref('')
+
+function beginContactEdit(contact: CrmRow) {
+  editingContactId.value = String(contact.id)
+  Object.assign(contactDraft, { name: String(contact.name ?? ''),
+    jobTitle: String(contact.jobTitle ?? ''), email: String(contact.email ?? ''),
+    phone: String(contact.phone ?? '') })
+  editingAddressId.value = ''
+  relatedError.value = ''
+}
+function beginAddressEdit(address: CrmRow) {
+  editingAddressId.value = String(address.id)
+  Object.assign(addressDraft, { addressType: String(address.addressType ?? 'WORK'),
+    addressText: String(address.addressText ?? ''), location: String(address.location ?? '') })
+  editingContactId.value = ''
+  relatedError.value = ''
+}
+async function saveContact() {
+  const previous = relatedContacts.value.find(c => String(c.id) === editingContactId.value)
+  if (!previous || !can('crm.contact.update') || relationSaving.value) return
+  if (!contactDraft.name.trim()) { relatedError.value = 'El nombre del contacto es obligatorio.'; return }
+  relationSaving.value = true
+  relatedError.value = ''
+  try {
+    const updated = await crmPatch<CrmRow>('contacts', String(previous.id), {
+      ...contactDraft, expectedVersion: previous.rowVersion,
+    })
+    relatedContacts.value = relatedContacts.value.map(c => c.id === updated.id ? updated : c)
+    editingContactId.value = ''
+    relatedSuccess.value = 'Contacto actualizado.'
+    emit('saved')
+  } catch (cause) { relatedError.value = crmError(cause) }
+  finally { relationSaving.value = false }
+}
+async function saveAddress() {
+  const previous = relatedAddresses.value.find(a => String(a.id) === editingAddressId.value)
+  if (!previous || !can('crm.account.update') || relationSaving.value) return
+  if (!addressDraft.addressText.trim()) { relatedError.value = 'La dirección es obligatoria.'; return }
+  relationSaving.value = true
+  relatedError.value = ''
+  try {
+    const updated = await crmPatch<CrmRow>('addresses', String(previous.id), {
+      ...addressDraft, expectedVersion: previous.rowVersion,
+    })
+    relatedAddresses.value = relatedAddresses.value.map(a => a.id === updated.id ? updated : a)
+    editingAddressId.value = ''
+    relatedSuccess.value = 'Dirección actualizada.'
+    emit('saved')
+  } catch (cause) { relatedError.value = crmError(cause) }
+  finally { relationSaving.value = false }
+}
 const loadedProfile = ref(false)
 const identitySnapshot = ref('')
 const businessSnapshot = ref('')
@@ -75,6 +134,27 @@ async function load() {
     profileVersion.value = typeof result?.rowVersion === 'number' ? result.rowVersion : null
     for (const key of Object.keys(profileDraft)) profileDraft[key] = String(result?.[key] ?? '')
     businessSnapshot.value = JSON.stringify(profileDraft)
+    relatedContacts.value = []
+    relatedAddresses.value = []
+    editingContactId.value = ''
+    editingAddressId.value = ''
+    relatedError.value = ''
+    relatedSuccess.value = ''
+    const requests: Promise<void>[] = []
+    if (can('crm.contact.read')) requests.push(
+      crmRequest<CrmRow[]>(crmPath('accounts', String(expectedId), 'contacts'))
+        .then(rows => {
+          if (props.open && expectedId === props.account.id) {
+            relatedContacts.value = rows.map(x => x.contact && typeof x.contact === 'object'
+              ? x.contact as CrmRow : x)
+          }
+        }).catch(() => { relatedError.value = 'No fue posible consultar los contactos relacionados.' }))
+    if (can('crm.account.read') || can('crm.account.read-all')) requests.push(
+      crmRequest<CrmRow[]>(crmPath('accounts', String(expectedId), 'addresses'))
+        .then(rows => {
+          if (props.open && expectedId === props.account.id) relatedAddresses.value = rows
+        }).catch(() => { relatedError.value = 'No fue posible consultar las direcciones relacionadas.' }))
+    await Promise.all(requests)
     loadedProfile.value = true
   } catch (cause) {
     error.value = 'No se pudo cargar la ficha empresarial. ' + crmError(cause)
@@ -189,6 +269,58 @@ async function save() {
             </div>
           </div>
         </section>
+        <section v-if="can('crm.contact.read')" class="crm-editor-section">
+          <div class="crm-editor-heading"><UserRound class="h-5 w-5" /><div>
+            <h3>Contactos vinculados</h3><p>Editá los contactos sin salir de esta cuenta.</p>
+          </div></div>
+          <p v-if="!relatedContacts.length" class="text-sm text-[var(--dh-text-muted)]">No hay contactos registrados.</p>
+          <div v-for="contact in relatedContacts" :key="String(contact.id)"
+            class="mb-3 rounded-xl border border-[var(--dh-border)] p-3">
+            <div class="flex items-center justify-between gap-2">
+              <div><p class="text-sm font-bold">{{ contact.name }}</p>
+                <p class="text-xs text-[var(--dh-text-muted)]">{{ contact.email || contact.phone || 'Sin medios de contacto' }}</p>
+              </div>
+              <button v-if="can('crm.contact.update')" type="button" class="crm-editor-link"
+                @click="beginContactEdit(contact)">Editar</button>
+            </div>
+            <div v-if="editingContactId===String(contact.id)" class="mt-4 grid gap-3 md:grid-cols-2">
+              <DhInput v-model="contactDraft.name" label="Nombre completo" />
+              <DhInput v-model="contactDraft.jobTitle" label="Puesto" />
+              <DhInput v-model="contactDraft.email" label="Correo electrónico" />
+              <DhInput v-model="contactDraft.phone" label="Teléfono" />
+              <div class="flex gap-2 md:col-span-2">
+                <button type="button" class="crm-editor-secondary" @click="editingContactId=''">Cancelar</button>
+                <button type="button" class="crm-editor-primary" :disabled="relationSaving" @click="saveContact">Guardar contacto</button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="crm-editor-section">
+          <div class="crm-editor-heading"><Building2 class="h-5 w-5" /><div>
+            <h3>Direcciones</h3><p>Direcciones registradas de la empresa</p>
+          </div></div>
+          <p v-if="!relatedAddresses.length" class="text-sm text-[var(--dh-text-muted)]">Sin direcciones registradas.</p>
+          <div v-for="address in relatedAddresses" :key="String(address.id)"
+            class="mb-3 rounded-xl border border-[var(--dh-border)] p-3">
+            <div class="flex items-center justify-between gap-3">
+              <div><p class="text-xs font-bold text-[var(--dh-text-muted)]">{{ address.addressType }}</p>
+                <p class="text-sm">{{ address.addressText }}</p></div>
+              <button v-if="can('crm.account.update')" type="button" class="crm-editor-link"
+                @click="beginAddressEdit(address)">Editar</button>
+            </div>
+            <div v-if="editingAddressId===String(address.id)" class="mt-4 grid gap-3 md:grid-cols-2">
+              <DhInput v-model="addressDraft.addressType" label="Tipo de dirección" />
+              <DhInput v-model="addressDraft.location" label="Ubicación" />
+              <div class="md:col-span-2"><DhTextarea v-model="addressDraft.addressText" label="Dirección completa" :rows="2" /></div>
+              <div class="flex gap-2 md:col-span-2">
+                <button type="button" class="crm-editor-secondary" @click="editingAddressId=''">Cancelar</button>
+                <button type="button" class="crm-editor-primary" :disabled="relationSaving" @click="saveAddress">Guardar dirección</button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <p v-if="relatedError" role="alert" class="text-sm text-red-500">{{ relatedError }}</p>
+        <p v-if="relatedSuccess" role="status" class="text-sm text-emerald-500">{{ relatedSuccess }}</p>
         <section class="crm-editor-section flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-3"><Wallet class="h-5 w-5 text-[var(--dh-primary)]" /><p class="text-sm">Contactos, direcciones, rutas, crédito y contratos se gestionan desde esta misma cuenta con sus respectivos permisos.</p></div>
           <button type="button" class="crm-editor-link" @click="emit('manage-related')">Administrar registros vinculados</button>
