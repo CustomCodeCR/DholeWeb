@@ -213,7 +213,7 @@ async function load() {
     const response = await callEndpoint<unknown>({
       method: 'GET',
       path: '/api/pricing/rate-requests/open',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
     })
     requests.value = unwrapListResponse<RateRequestDto>(response)
   } catch (error) {
@@ -417,12 +417,17 @@ function handleRealtimeNotification(event: Event) {
   void load()
 }
 
+function handleCompletedRequest() {
+  void load()
+}
+
 onMounted(async () => {
   await Promise.all([
     pricingCatalogs.loadAll().catch(() => undefined),
     load(),
   ])
   window.addEventListener('dhole:notification:received', handleRealtimeNotification)
+  window.addEventListener('dhole:pricing:rate-request-completed', handleCompletedRequest)
   timer = window.setInterval(() => {
     now.value = Date.now()
     if (!loading.value) void load()
@@ -431,6 +436,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('dhole:notification:received', handleRealtimeNotification)
+  window.removeEventListener('dhole:pricing:rate-request-completed', handleCompletedRequest)
   if (timer) window.clearInterval(timer)
 })
 </script>
