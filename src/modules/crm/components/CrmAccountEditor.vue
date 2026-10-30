@@ -10,7 +10,12 @@ import type { HaciendaResult } from './CrmHaciendaLookup.vue'
 import { crmPatch, crmPath, crmRequest, crmUuid, crmError, type CrmRow } from '../services/crmApi'
 
 const props = defineProps<{ account: CrmRow; open: boolean }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void; (e: 'manage-related'): void }>()
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'saved'): void
+  (e: 'manage-related'): void
+  (e: 'dirty-change', value: boolean): void
+}>()
 const auth = useAuthStore()
 const can = (scope: string) => auth.hasScope(scope)
 const loading = ref(false)
@@ -113,7 +118,9 @@ const businessChanged = computed(() => JSON.stringify(profileDraft) !== business
 const fiscalFieldsChanged = computed(() =>
   ['countryId','taxId','taxIdTypeCode'].some(k =>
     accountDraft[k as IdentityField] !== String(props.account[k] ?? '')))
-const canSave = computed(() => (identityChanged.value || businessChanged.value) && !loading.value && !saving.value)
+const isDirty = computed(() => identityChanged.value || businessChanged.value)
+const canSave = computed(() => isDirty.value && !loading.value && !saving.value)
+watch(isDirty, dirty => emit('dirty-change', dirty), { immediate: true })
 
 function resetFromAccount() {
   for (const key of Object.keys(accountDraft) as IdentityField[]) {
@@ -204,6 +211,7 @@ async function save() {
         { ...profileDraft, expectedVersion: profileVersion.value }, crmUuid())
       businessSnapshot.value = JSON.stringify(profileDraft)
     }
+    emit('dirty-change', false)
     emit('saved')
     emit('close')
   } catch (cause) {
