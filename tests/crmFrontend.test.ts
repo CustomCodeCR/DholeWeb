@@ -102,7 +102,7 @@ test('CRM has scoped contacts directory and detail routes like Dynamics', () => 
   assert.ok(contacts.includes("@saved=\"onContactSaved\""))
   assert.ok(contacts.includes("DhDrawer"))
   assert.ok(detail.includes("crmPatch('contacts'"))
-  assert.ok(detail.includes("Preferencias de contacto"))
+  assert.ok(detail.includes("Preferencias de comunicación"))
 })
 
 test('CRM account creation uses only identity and commercial profile before opening record', () => {
@@ -168,7 +168,7 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   assert.match(component, /sidebar-nav-link-active::before/)
   assert.match(component, /sidebar-module-toggle--current/)
   assert.match(component, /sidebar-subgroup-toggle--current/)
-  // Preserve develop's sidebar separators while CRM manages its own navigation.
+  // Preserve develop sidebar separators while CRM uses its own account navigation.
 })
 
 test('CRM route history is sourced from completed meetings or linked quotes', () => {
@@ -399,4 +399,32 @@ test('CRM contact creation uses same account-linked split-name form everywhere',
   assert.ok(editor.includes('contactDraft.lastName.trim()'))
   assert.ok(!directory.includes('v-model="form.name"'))
   assert.ok(!account.includes('v-model.trim="drafts.contactName" required class="crm-input"'))
+})
+
+test('CRM account advanced section uses friendly navigation; contact detail does not own follow-ups', () => {
+  const account = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  const contact = read('src/modules/crm/views/CrmContactDetailView.vue')
+  assert.ok(account.includes('data-crm-account-advanced'))
+  assert.ok(account.includes('Gestión de la cuenta'))
+  assert.ok(account.includes('Secciones de gestión de la cuenta'))
+  assert.ok(account.includes('accountRelationOptions.filter(item => permitted(item.key))'))
+  assert.ok(account.includes('data-crm-advanced-content'))
+  assert.ok(account.includes('Nuevo contacto'))
+  assert.ok(account.includes('Nuevo · '))
+  assert.ok(account.includes('item.jobTitle'))
+  assert.ok(account.includes('item.email'))
+  assert.ok(account.includes('item.phone'))
+  assert.ok(account.includes("relation === 'contacts'"))
+  assert.ok(!account.includes("{{ t('common.details') }}"))
+  assert.ok(!account.includes('<h2 class="text-lg font-bold">{{ relation }} ({{ relationRows.length }})</h2>'))
+  assert.ok(contact.includes('Cuenta relacionada'))
+  assert.ok(contact.includes("'/crm/accounts/'"))
+  assert.ok(contact.includes("'/api/crm/contacts/'"))
+  assert.ok(contact.includes("'/accounts'"))
+  assert.ok(contact.includes('v-for="account in linkedAccounts"'))
+  assert.ok(contact.includes('Las actividades y seguimientos se gestionan en la ficha del cliente.'))
+  assert.ok(!contact.includes("key: 'details'"))
+  assert.ok(!contact.includes("activeTab==='details'"))
+  assert.ok(!contact.includes('to="/crm/followups"'))
+  assert.ok(!contact.includes('Ver seguimientos</RouterLink>'))
 })
