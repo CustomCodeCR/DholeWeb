@@ -101,10 +101,12 @@ const activeDashboardRole = computed<DashboardRole>(() =>
       </div>
     </section>
 
+    <!-- SuperUsuario mantiene supervisión global, y puede operar únicamente registros
+         cuya titularidad confirme el endpoint personal de Pricing. -->
     <SellerRoleDashboard
       v-if="activeDashboardRole === 'seller'"
       :admin-preview="isSuperUser() || canViewAllCommercialRates"
-      :enable-seller-actions="!isSuperUser() && authStore.hasScope('pricing.rate-request.create')"
+      :enable-seller-actions="authStore.hasScope('pricing.rate-request.create')"
     />
 
     <template v-else-if="canUsePricing">
