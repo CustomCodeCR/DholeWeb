@@ -1,11 +1,72 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { DhBadge } from '@/shared/components/atoms'
+import { computed, ref, watch } from 'vue'
+import { DhBadge, DhButton } from '@/shared/components/atoms'
+import { StorageService } from '@/core/services/storageService'
+import { useToastStore } from '@/core/stores/toastStore'
 import type { RateRevisionDto } from '@/core/interfaces/pricing'
 
 type JsonRecord = Record<string, unknown>
 
 const props = defineProps<{ revision: RateRevisionDto }>()
+const toast = useToastStore()
+
+interface HistoricalFile { id: string; name: string; size: number; available: boolean }
+const historicalFiles = ref<HistoricalFile[]>([])
+const filesLoading = ref(false)
+let fileLoadSequence = 0
+
+watch(() => props.revision.snapshotJson, async (json) => {
+  const sequence = ++fileLoadSequence
+  let snapshot: JsonRecord = {}
+  try { snapshot = asRecord(JSON.parse(json || '{}')) } catch { /* Revisión antigua sin JSON válido */ }
+  const rawIds = pick(snapshot, 'FinalBackupStorageIds', 'finalBackupStorageIds')
+  const ids = Array.isArray(rawIds)
+    ? [...new Set(rawIds.filter((item): item is string => typeof item === 'string' && !!item.trim()))]
+    : []
+  historicalFiles.value = []
+  filesLoading.value = ids.length > 0
+  const resolved = await Promise.all(ids.map(async (id): Promise<HistoricalFile> => {
+    try {
+      const file = await StorageService.getFile(id)
+      return { id, name: file.originalFileName, size: file.sizeInBytes, available: true }
+    } catch {
+      return { id, name: 'Respaldo histórico no disponible en Storage', size: 0, available: false }
+    }
+  }))
+  if (sequence === fileLoadSequence) {
+    historicalFiles.value = resolved
+    filesLoading.value = false
+  }
+}, { immediate: true })
+
+async function downloadHistorical(file: HistoricalFile) {
+  if (!file.available) return
+  try {
+    await StorageService.downloadFile({ id: file.id, fileName: file.name, sizeInBytes: file.size })
+  } catch (error) {
+    toast.backendError(error, 'No se pudo descargar el respaldo histórico.')
+  }
+}
+
+function storedNumber(value: unknown, decimals = 2): string {
+  if (value === null || value === undefined || value === '') return '—'
+  const number = Number(value)
+  return Number.isFinite(number) ? number.toLocaleString('es-CR', { maximumFractionDigits: decimals }) : '—'
+}
+
+function lineCurrency(detail: JsonRecord) {
+  return normalizeCurrency(pick(detail, 'CurrencyName', 'currencyName', 'CurrencyCode', 'currencyCode'))
+}
+function lineQuantity(detail: JsonRecord) {
+  const quantity = numberValue(pick(detail, 'Quantity', 'quantity'))
+  return quantity > 0 ? quantity : 1
+}
+function lineSubtotal(detail: JsonRecord) {
+  return numberValue(pick(detail, 'SaleAmount', 'saleAmount')) * lineQuantity(detail)
+}
+function lineTax(detail: JsonRecord) {
+  return numberValue(pick(detail, 'DestinationTaxAmount', 'destinationTaxAmount'))
+}
 
 function asRecord(value: unknown): JsonRecord {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -194,10 +255,24 @@ const pickupLabel = computed(() => {
 const includes = computed(() => lines(pick(snapshot.value, 'Includes', 'includes')))
 const subjectTo = computed(() => lines(pick(snapshot.value, 'SubjectTo', 'subjectTo')))
 const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes')))
+const cargoAndOperation = computed(() => [
+  { label: 'Modalidad', value: textValue(pick(snapshot.value, 'ShipmentMode', 'shipmentMode')) },
+  { label: 'Operación', value: textValue(pick(snapshot.value, 'OperationType', 'operationType')) },
+  { label: 'Tipo de tarifa', value: textValue(pick(snapshot.value, 'RateType', 'rateType')) },
+  { label: 'Moneda', value: textValue(pick(snapshot.value, 'CurrencyName', 'currencyName', 'CurrencyCode', 'currencyCode')) },
+  { label: 'Tiempo de tránsito', value: textValue(pick(snapshot.value, 'TransitTime', 'transitTime')) },
+  { label: 'Bultos', value: storedNumber(pick(snapshot.value, 'TotalPackages', 'totalPackages'), 0) },
+  { label: 'Tarimas', value: storedNumber(pick(snapshot.value, 'TotalPallets', 'totalPallets'), 0) },
+  { label: 'Peso', value: storedNumber(pick(snapshot.value, 'TotalWeightKg', 'totalWeightKg')) + ' kg' },
+  { label: 'Volumen', value: storedNumber(pick(snapshot.value, 'TotalVolumeCbm', 'totalVolumeCbm'), 3) + ' CBM' },
+  { label: 'Cantidad cobrable', value: storedNumber(pick(snapshot.value, 'ChargeableQuantity', 'chargeableQuantity'), 3) },
+  { label: 'Kg por CBM', value: storedNumber(pick(snapshot.value, 'KgPerCbm', 'kgPerCbm'), 3) },
+  { label: 'Requiere aprobación', value: pick(snapshot.value, 'RequiredApproval', 'requiredApproval') === true ? 'Sí' : 'No' },
+])
 </script>
 
 <template>
-  <div class="space-y-5 text-sm">
+  <div class="min-w-0 space-y-5 text-sm">
     <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -205,7 +280,8 @@ const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes
             <DhBadge :label="`Revisión ${revision.revisionNumber}`" variant="primary" />
             <DhBadge :label="revision.status" variant="neutral" />
           </div>
-          <h3 class="mt-3 text-base font-black">{{ revision.rateName }}</h3>
+          <p class="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Vista completa de la cotización histórica · Pantalla 9</p>
+          <h3 class="mt-1 text-base font-black">{{ revision.rateName }}</h3>
           <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">
             {{ revision.idtraNumber || 'Sin IDTRA' }} · {{ revision.quoNumber || 'Sin QUO' }}
           </p>
@@ -264,6 +340,16 @@ const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes
       </div>
     </section>
 
+    <section class="rounded-2xl border border-[var(--dh-border)] p-4">
+      <h4 class="text-xs font-black uppercase tracking-[0.12em]">Carga y datos de la operación</h4>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div v-for="item in cargoAndOperation" :key="item.label" class="rounded-xl bg-[var(--dh-card)] p-3">
+          <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">{{ item.label }}</p>
+          <p class="mt-1 break-words text-xs font-bold">{{ item.value }}</p>
+        </div>
+      </div>
+    </section>
+
     <section class="grid gap-3 md:grid-cols-2">
       <div class="rounded-2xl border border-[var(--dh-border)] p-4">
         <p class="text-xs font-black uppercase tracking-[0.12em]">Vigencia y tipo de cambio</p>
@@ -304,8 +390,24 @@ const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes
       </div>
     </section>
 
+    <section class="rounded-2xl border border-[var(--dh-border)] p-4">
+      <h4 class="text-xs font-black uppercase tracking-[0.12em]">Archivos adjuntos guardados con esta versión</h4>
+      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo los respaldos finales conservados en la instantánea; no se consultan adjuntos de revisiones posteriores.</p>
+      <p v-if="filesLoading" class="mt-2 text-xs text-[var(--dh-text-muted)]">Cargando respaldos históricos…</p>
+      <div v-if="historicalFiles.length" class="mt-3 grid gap-2 md:grid-cols-2">
+        <div v-for="file in historicalFiles" :key="file.id" class="flex min-w-0 items-center justify-between gap-2 rounded-xl bg-[var(--dh-card)] p-3">
+          <div class="min-w-0">
+            <p class="break-all text-xs font-bold">{{ file.name }}</p>
+            <p v-if="file.available" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ storedNumber(file.size / 1024, 1) }} KB</p>
+          </div>
+          <DhButton v-if="file.available" variant="secondary" size="sm" @click="downloadHistorical(file)">Descargar</DhButton>
+        </div>
+      </div>
+      <p v-else-if="!filesLoading" class="mt-2 text-xs text-[var(--dh-text-muted)]">No hay respaldos finales registrados en esta revisión.</p>
+    </section>
+
     <section v-if="cargoLines.length" class="rounded-2xl border border-[var(--dh-border)] p-4">
-      <p class="text-xs font-black uppercase tracking-[0.12em]">Carga</p>
+      <p class="text-xs font-black uppercase tracking-[0.12em]">Detalle de carga original</p>
       <div class="mt-3 space-y-3">
         <div v-for="(cargo, index) in cargoLines" :key="index" class="rounded-xl bg-[var(--dh-card)] p-3">
           <p class="font-bold">{{ cleanHistoricalCargoDescription(pick(cargo, 'Description', 'description')) || 'Carga sin descripción' }}</p>
@@ -344,37 +446,44 @@ const excludes = computed(() => lines(pick(snapshot.value, 'Excludes', 'excludes
 
     <section class="overflow-hidden rounded-2xl border border-[var(--dh-border)]">
       <div class="border-b border-[var(--dh-border)] px-4 py-3">
-        <p class="text-xs font-black uppercase tracking-[0.12em]">Detalle completo de costos y recargos · {{ details.length }}</p>
+        <p class="text-xs font-black uppercase tracking-[0.12em]">Líneas completas de la tarifa · {{ details.length }}</p>
       </div>
       <div v-if="details.length" class="overflow-x-auto">
-        <table class="min-w-[980px] w-full text-left text-xs">
+        <table class="min-w-[1250px] w-full text-left text-xs">
           <thead class="bg-[var(--dh-card)] text-[var(--dh-text-muted)]">
             <tr>
-              <th class="px-3 py-2">Concepto</th>
+              <th class="px-3 py-2">Rubro</th>
+              <th class="px-3 py-2">Base</th>
               <th class="px-3 py-2">Tipo</th>
               <th class="px-3 py-2">Moneda</th>
-              <th class="px-3 py-2 text-right">Cantidad</th>
-              <th class="px-3 py-2 text-right">Costo</th>
-              <th class="px-3 py-2 text-right">Venta</th>
-              <th class="px-3 py-2 text-right">Utilidad</th>
+              <th class="px-3 py-2 text-right">Cant.</th>
+              <th class="px-3 py-2 text-right">Costo unit.</th>
+              <th class="px-3 py-2 text-right">Venta unit.</th>
+              <th class="px-3 py-2 text-right">Venta subtotal</th>
+              <th class="px-3 py-2 text-right">IVA</th>
+              <th class="px-3 py-2 text-right">Venta total</th>
               <th class="px-3 py-2">Notas</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(detail, index) in details" :key="String(pick(detail, 'Id', 'id') ?? index)" class="border-t border-[var(--dh-border)]">
               <td class="px-3 py-2 font-bold">{{ textValue(pick(detail, 'Name', 'name')) }}</td>
-              <td class="px-3 py-2">{{ textValue(pick(detail, 'CostType', 'costType')) }}</td>
-              <td class="px-3 py-2">{{ textValue(pick(detail, 'CurrencyName', 'currencyName')) }}</td>
-              <td class="px-3 py-2 text-right">{{ numberValue(pick(detail, 'Quantity', 'quantity')) }}</td>
-              <td class="px-3 py-2 text-right">{{ money(pick(detail, 'CostAmount', 'costAmount'), textValue(pick(detail, 'CurrencyCode', 'currencyCode'), 'USD')) }}</td>
-              <td class="px-3 py-2 text-right">{{ money(pick(detail, 'SaleAmount', 'saleAmount'), textValue(pick(detail, 'CurrencyCode', 'currencyCode'), 'USD')) }}</td>
-              <td class="px-3 py-2 text-right">{{ money(pick(detail, 'UtilityAmount', 'utilityAmount'), textValue(pick(detail, 'CurrencyCode', 'currencyCode'), 'USD')) }}</td>
+              <td class="px-3 py-2">{{ textValue(pick(detail, 'ChargeBasis', 'chargeBasis')) }}</td>
+              <td class="px-3 py-2">{{ textValue(pick(detail, 'CostDetailType', 'costDetailType', 'CostType', 'costType')) }}</td>
+              <td class="px-3 py-2">{{ lineCurrency(detail) }}</td>
+              <td class="px-3 py-2 text-right">{{ storedNumber(pick(detail, 'Quantity', 'quantity'), 3) }}</td>
+              <td class="px-3 py-2 text-right">{{ money(pick(detail, 'CostAmount', 'costAmount'), lineCurrency(detail)) }}</td>
+              <td class="px-3 py-2 text-right">{{ money(pick(detail, 'SaleAmount', 'saleAmount'), lineCurrency(detail)) }}</td>
+              <td class="px-3 py-2 text-right">{{ money(lineSubtotal(detail), lineCurrency(detail)) }}</td>
+              <td class="px-3 py-2 text-right">{{ money(lineTax(detail), lineCurrency(detail)) }}</td>
+              <td class="px-3 py-2 text-right font-bold">{{ money(lineSubtotal(detail) + lineTax(detail), lineCurrency(detail)) }}</td>
               <td class="max-w-[320px] whitespace-pre-wrap px-3 py-2 text-[var(--dh-text-muted)]">{{ textValue(pick(detail, 'Notes', 'notes'), '') }}</td>
             </tr>
           </tbody>
         </table>
       </div>
       <p v-else class="p-4 text-xs text-[var(--dh-text-muted)]">Esta revisión no contiene líneas de costo en la instantánea.</p>
+      <p v-if="details.length" class="border-t border-[var(--dh-border)] p-3 text-[10px] text-[var(--dh-text-muted)]">Los subtotales visibles de cada línea se obtienen de los montos unitarios, cantidades e IVA conservados en esta versión; no modifican la cotización.</p>
     </section>
   </div>
 </template>
