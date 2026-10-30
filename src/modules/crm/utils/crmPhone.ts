@@ -36,10 +36,14 @@ QAT:QA REU:RE ROU:RO RUS:RU RWA:RW SAU:SA SDN:SD SEN:SN SGP:SG SGS:GS SHN:SH SJM
 TCA:TC TCD:TD TGO:TG THA:TH TJK:TJ TKL:TK TKM:TM TLS:TL TON:TO TTO:TT TUN:TN TUR:TR TUV:TV TWN:TW TZA:TZ
 UGA:UG UKR:UA UMI:UM URY:UY USA:US UZB:UZ VAT:VA VCT:VC VEN:VE VGB:VG VIR:VI VNM:VN VUT:VU WLF:WF WSM:WS YEM:YE ZAF:ZA ZMB:ZM ZWE:ZW
 `
-const parseCodes = (source: string) => new Map(source.trim().split(/\s+/).map(entry => {
-  const [country, value] = entry.split(':')
-  return [country, value] as const
-}))
+const parseCodes = (source: string): Map<string, string> => {
+  const entries: Array<[string, string]> = []
+  for (const entry of source.trim().split(/\s+/)) {
+    const [country, value] = entry.split(':')
+    if (country && value) entries.push([country, value])
+  }
+  return new Map(entries)
+}
 export const callingCodes = parseCodes(rawCallingCodes)
 const iso3Codes = parseCodes(rawIso3)
 const normalize = (value: unknown) => String(value ?? '').normalize('NFD')
