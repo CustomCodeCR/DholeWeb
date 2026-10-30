@@ -17,6 +17,7 @@ const auth = useAuthStore()
 const { locale } = useI18n()
 const en = computed(() => locale.value === 'en')
 const contact = ref<CrmRow | null>(null)
+const linkedAccounts = ref<Array<{ accountId: string; accountName: string }>>([])
 const preferences = ref<CrmRow | null>(null)
 const loading = ref(false)
 const saving = ref(false)
@@ -33,9 +34,13 @@ async function load() {
   error.value = ''
   try {
     contact.value = await crmGet('contacts', contactId.value)
+    try {
+      linkedAccounts.value = await crmRequest<Array<{ accountId: string; accountName: string }>>(
+        '/api/crm/contacts/' + encodeURIComponent(contactId.value) + '/accounts')
+    } catch { linkedAccounts.value = [] }
     try { preferences.value = await crmRequest<CrmRow | null>('/api/crm/contacts/' + encodeURIComponent(contactId.value) + '/preferences') }
     catch { preferences.value = null }
-  } catch (e) { contact.value = null; error.value = crmError(e) }
+  } catch (e) { contact.value = null; linkedAccounts.value = []; error.value = crmError(e) }
   finally { loading.value = false }
 }
 function edit() {
@@ -85,7 +90,7 @@ watch(contactId, load)
             <div class="min-w-0">
               <p class="text-[10px] font-extrabold uppercase tracking-widest text-[var(--dh-text-muted)]">CRM · Contacto</p>
               <h1 class="truncate text-xl font-extrabold">{{ display(contact.name) }}</h1>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ display(contact.jobTitle) }} <span v-if="contact.accountName">· {{ contact.accountName }}</span></p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ display(contact.jobTitle) }} <span v-if="linkedAccounts.length">· {{ linkedAccounts[0]?.accountName }}</span></p>
             </div>
           </div>
           <div class="flex gap-2">
@@ -123,11 +128,12 @@ watch(contactId, load)
           </dl>
         </section>
         <aside class="space-y-3">
-          <section v-if="contact.accountId" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+          <section v-if="linkedAccounts.length" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
             <h2 class="mb-3 flex items-center gap-2 text-sm font-bold"><Building2 class="h-4 w-4 text-[var(--dh-primary)]" />Cuenta relacionada</h2>
-            <RouterLink :to="'/crm/accounts/' + encodeURIComponent(String(contact.accountId))"
-              class="block break-words text-sm font-semibold text-[var(--dh-primary)] hover:underline">
-              {{ contact.accountName || 'Abrir cuenta del cliente' }}
+            <RouterLink v-for="account in linkedAccounts" :key="account.accountId"
+              :to="'/crm/accounts/' + encodeURIComponent(account.accountId)"
+              class="block break-words py-1 text-sm font-semibold text-[var(--dh-primary)] hover:underline">
+              {{ account.accountName }}
             </RouterLink>
             <p class="mt-2 text-xs leading-relaxed text-[var(--dh-text-muted)]">
               Las actividades y seguimientos se gestionan en la ficha del cliente.
