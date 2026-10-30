@@ -379,9 +379,13 @@ function ownFallback(row: OwnLclConsolidationDto) {
 }
 function ownCalculationPolCode(row: OwnLclConsolidationDto) {
   if (ownFallback(row)) {
-    // Enviar el nombre y país original para que Pricing también valide China.
-    // Pricing normaliza el primer puerto internamente para el cálculo.
-    return String(props.polName || props.polCode || '').trim()
+    // Conservar el país del nombre para que Pricing valide China; si el nombre
+    // no incluye el país pero el catálogo tiene UN/LOCODE CNxxx, enviar ese código.
+    // Un código interno POL-2026-xxx no es evidencia del país.
+    const commercialName = String(props.polName || '').trim()
+    return isChinaOwnLclPol(null, commercialName)
+      ? commercialName
+      : String(props.polCode || '').trim()
   }
   const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
   if (consolidationOrigin === 'miami') return 'MIAMI'
