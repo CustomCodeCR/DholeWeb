@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Search, UsersRound } from 'lucide-vue-next'
+import { Search } from 'lucide-vue-next'
 import { DhButton, DhInput } from '@/shared/components/atoms'
 import { UsersService } from '@/core/services/usersService'
 import type { UserDto } from '@/core/interfaces/users'
@@ -134,8 +134,6 @@ void searchUsers()
       </p>
     </div>
     <p v-if="error" role="alert" class="text-xs text-amber-500">{{ error }}</p>
-    <p class="flex items-center gap-1.5 text-xs text-[var(--dh-text-muted)]">
-      <UsersRound class="h-3.5 w-3.5" />Vendedores activos de Auth y Castro Fallas como vendedor institucional.
-    </p>
+
   </section>
 </template>
