@@ -15,7 +15,7 @@ import {
   type LclColoaderRateLineDto,
 } from '@/core/services/lclRateSourceService'
 import type { ChargeBasis, CostDetailType, CostType } from '@/core/interfaces/pricing'
-import { isBalboaOwnLclPoe, isMiamiOwnLclPol, isMoinOwnLclPoe, isOwnLclPoeEligible } from '@/modules/pricing/utils/ownLclPoeEligibility'
+import { isBalboaOwnLclPoe, isChinaOwnLclPol, isMiamiOwnLclPol, isMoinOwnLclPoe, isOwnLclPoeEligible } from '@/modules/pricing/utils/ownLclPoeEligibility'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
@@ -151,12 +151,10 @@ const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
 const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isAir = computed(() => props.modality === 'Air' || props.modality === 'AirConsol')
-// Shanghai puede recibir recolectas desde cualquier POL, incluso Miami, siempre
-// que la salida física vaya a Balboa. La matriz Miami conserva su ruta a Moín.
+// Shanghai solo permite recolectas desde POL de China y Balboa como POE.
+// Miami mantiene su ruta propia independiente hacia Moín.
 const ownPoeEligible = computed(() =>
-  !isAir.value
-  && (isBalboaOwnLclPoe(props.poeCode, props.poeName)
-    || isOwnLclPoeEligible(props.polCode, props.polName, props.poeCode, props.poeName)),
+  !isAir.value && isOwnLclPoeEligible(props.polCode, props.polName, props.poeCode, props.poeName),
 )
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
@@ -366,12 +364,12 @@ function requestedOwnLclOrigins() {
   return new Set([fromName, fromCode].filter(Boolean))
 }
 
-// Cualquier POL sin una fila propia en la matriz Shanghai puede utilizar
-// el consolidado físico Shanghai y una recolecta POL → Shanghai cotizada aparte.
-// Los POL ya tarifados conservan su diferencial de origen para no duplicarlo.
+// Recolecta POL → Shanghai exclusivamente para China sin tarifa en la matriz.
+// Los POL ya tarifados conservan su propio diferencial de origen.
 const unlistedShanghaiOrigin = computed(() => {
   const origin = canonicalOwnLclOrigin(props.polName || props.polCode)
   return Boolean(origin)
+    && isChinaOwnLclPol(props.polCode, props.polName)
     && origin !== 'shanghai'
     && !chinaOwnLclOrigins.has(origin)
 })
@@ -381,10 +379,9 @@ function ownFallback(row: OwnLclConsolidationDto) {
 }
 function ownCalculationPolCode(row: OwnLclConsolidationDto) {
   if (ownFallback(row)) {
-    // Enviar el puerto comercial, no el nombre concatenado con el país
-    // (p. ej. TOKYO en vez de TOKYOJAPAN).
-    return (String(props.polName || props.polCode || '').split(',')[0] ?? '')
-      .trim().toUpperCase()
+    // Enviar el nombre y país original para que Pricing también valide China.
+    // Pricing normaliza el primer puerto internamente para el cálculo.
+    return String(props.polName || props.polCode || '').trim()
   }
   const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
   if (consolidationOrigin === 'miami') return 'MIAMI'
@@ -808,7 +805,7 @@ onMounted(load)
     </div>
 
     <div v-if="tab === 'Own' && ownPoeEligible" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2">
-      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente; se respeta el POE y la capacidad.' : unlistedShanghaiOrigin ? 'Salida Shanghai como referencia; recolecta desde el POL a Shanghai en Pantalla 7.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
+      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente; se respeta el POE y la capacidad.' : unlistedShanghaiOrigin ? 'POL de China sin tarifa directa: Shanghai como referencia y recolecta editable en Pantalla 7.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
       <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text)] hover:bg-[var(--dh-input)]" @click="showAllOwnConsolidations = !showAllOwnConsolidations">
         {{ showAllOwnConsolidations ? 'Solo mi ruta' : 'Ver todas las salidas' }}
       </button>
