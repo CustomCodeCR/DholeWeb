@@ -382,7 +382,12 @@ function ownFallback(row: OwnLclConsolidationDto) {
     && canonicalOwnLclOrigin(row.polName || row.polCode) === 'shanghai'
 }
 function ownCalculationPolCode(row: OwnLclConsolidationDto) {
-  if (ownFallback(row)) return canonicalOwnLclOrigin(props.polName || props.polCode).toUpperCase()
+  if (ownFallback(row)) {
+    // Enviar el puerto comercial, no el nombre concatenado con el país
+    // (p. ej. TOKYO en vez de TOKYOJAPAN).
+    return String(props.polName || props.polCode || '')
+      .split(',')[0].trim().toUpperCase()
+  }
   const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
   if (consolidationOrigin === 'miami') return 'MIAMI'
   // Guangzhou se cotiza usando el consolidado físico de Yantian.
@@ -597,8 +602,7 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       hbl: 1,
       pickupCost: 0,
       pickupSale: 0,
-      // Bandera de compatibilidad del API; aplica a cualquier POL sin tarifa.
-      useUnlistedChinaOriginFallback: ownFallback(row),
+      useShanghaiPickupFallback: ownFallback(row),
       discount: 0,
       commercialPlan: props.commercialPlan,
       cargoValue: Math.max(0, n(props.cargoValue)),
