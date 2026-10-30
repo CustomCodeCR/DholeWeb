@@ -135,9 +135,7 @@ watch(contactId, load)
               class="block break-words py-1 text-sm font-semibold text-[var(--dh-primary)] hover:underline">
               {{ account.accountName }}
             </RouterLink>
-            <p class="mt-2 text-xs leading-relaxed text-[var(--dh-text-muted)]">
-              Las actividades y seguimientos se gestionan en la ficha del cliente.
-            </p>
+
           </section>
           <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
             <h2 class="mb-3 text-sm font-bold">Comunicación</h2>
