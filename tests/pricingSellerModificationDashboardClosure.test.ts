@@ -38,3 +38,21 @@ test('previously saved open modifications can be completed without another updat
   assert.doesNotMatch(recovery, /PricingService\.updateRate\(/)
   assert.match(resume, /Enviar revisión ya guardada/)
 })
+
+test('a changed quote revision is immediately recognized as a completed seller request', () => {
+  const wizard = read('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  const afterUpdate = wizard.slice(wizard.indexOf('await PricingService.updateRate('))
+  const confirm = afterUpdate.indexOf("savedRequest.status === 'Completed'")
+  const prepare = afterUpdate.indexOf('await RateRequestLeaseService.prepareModification(')
+  assert.ok(confirm >= 0 && prepare > confirm,
+    'the wizard must check automatic database completion before trying the legacy prepare/send path')
+  assert.match(afterUpdate.slice(confirm, prepare), /await router\.replace\(/)
+  assert.match(afterUpdate, /const savedRequest = unwrapApiResponse/)
+})
+
+test('seller dashboard refetches open work after a completion event', () => {
+  const panel = read('src/modules/pricing/components/PricingRateRequestsPanel.vue')
+  assert.match(panel, /dhole:pricing:rate-request-completed/)
+  assert.match(panel, /'Cache-Control': 'no-cache'/)
+  assert.match(panel, /function handleCompletedRequest\(\) \{\s*void load\(\)/)
+})
