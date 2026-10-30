@@ -6,6 +6,7 @@ import { pricingWizardLandModeTerminology } from './build/pricingWizardLandModeT
 import { pricingWizardHistoricalValidity } from './build/pricingWizardHistoricalValidity'
 import { pricingWizardFtlEditFreightRestore } from './build/pricingWizardFtlEditFreightRestore'
 import { pricingFtlEditPreservationFinal } from './build/pricingFtlEditPreservationFinal'
+import { pricingPersistedEditAttachments20261030 } from './build/pricingPersistedEditAttachments20261030'
 import { pricingWizardStep5ValidityComments } from './build/pricingWizardStep5ValidityComments'
 import { pricingWizardGeneratedTemplateIntegrity } from './build/pricingWizardGeneratedTemplateIntegrity'
 import { pricingMiamiOwnLclBreakdown } from './build/pricingMiamiOwnLclBreakdown'
@@ -220,6 +221,7 @@ export default defineConfig({
     pricingStep7FixedCostsAndCustoms(),
     pricingWizardFtlEditFreightRestore(),
     pricingFtlEditPreservationFinal(),
+    pricingPersistedEditAttachments20261030(),
     vue(),
     tailwindcss(),
   ],
