@@ -521,6 +521,11 @@ const reconcileMessages = ref<Record<string,string>>({})
 const recoveringRateId = ref<string | null>(null)
 const recoveryMessages = ref<Record<string,string>>({})
 const legacyConfirmed = ref<Record<string, boolean>>({})
+const singleLineAdoptionConfirmed = ref<Record<string, boolean>>({})
+function needsSingleLineAdoption(issue: QuoteIssue): boolean {
+  return Boolean(issue.lastError?.includes('quote_line_unmanaged_requires_reconciliation') ||
+    issue.error?.message?.includes('quote_line_unmanaged_requires_reconciliation'))
+}
 const linkingLegacyRateId = ref<string | null>(null)
 const legacyLinkMessages = ref<Record<string, string>>({})
 
@@ -596,22 +601,28 @@ async function recoverRejected(issue: QuoteIssue) {
 }
 
 
-async function resumePartial(issue: QuoteIssue) {
+async function resumePartial(issue: QuoteIssue, adoptUnmanagedLine = false) {
   const ledger = ledgerByRate.value[issue.rateId]
   if (!isAdministrator.value || recoveringRateId.value ||
       issue.status !== 'NeedsAttention' || issue.retryBlockReason ||
       ledger?.header.status !== 'succeeded' || !ledger.header.recordId ||
       ledger.total.status !== 'not_sent' ||
-      ledger.live?.headerExists !== true) return
+      ledger.live?.headerExists !== true ||
+      (adoptUnmanagedLine && (!needsSingleLineAdoption(issue) ||
+        !singleLineAdoptionConfirmed.value[issue.rateId])) ||
+      (!adoptUnmanagedLine && needsSingleLineAdoption(issue))) return
   recoveringRateId.value = issue.rateId
   recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]: '' }
   try {
     const result = await fetchClient<{ message: string }>(
       '/api/pricing/rates/' + encodeURIComponent(issue.rateId) +
-        '/dynamics-sync/resume-partial', { method: 'POST' })
+        (adoptUnmanagedLine ? '/dynamics-sync/adopt-single-line' :
+          '/dynamics-sync/resume-partial'), { method: 'POST' })
     recoveryMessages.value = { ...recoveryMessages.value,
       [issue.rateId]: result.message ||
         'Se reanudó la línea de venta en la QUO existente, sin duplicar cabecera.' }
+    if (adoptUnmanagedLine)
+      singleLineAdoptionConfirmed.value[issue.rateId] = false
     await refresh()
   } catch (error) {
     recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]:
@@ -778,8 +789,13 @@ async function retryWithoutDuplicate(issue: QuoteIssue) {
     if (ledger.header.status === 'succeeded' && ledger.header.recordId &&
         ledger.total.status === 'not_sent' &&
         ledger.live?.headerExists === true && issue.status === 'NeedsAttention') {
-      // Pricing independently verifies the exact operations and UPSERT status
-      // before queueing the same immutable revision. No browser proof is trusted.
+      // An unmanaged line requires a separate, explicitly acknowledged action.
+      // Never silently overwrite it via the generic retry.
+      if (needsSingleLineAdoption(issue)) {
+        retryMessages.value = { ...retryMessages.value, [rateId]:
+          'Ya existe una línea con un nombre distinto. Revisá la QUO en Dynamics y confirmá expresamente su actualización en esta pantalla.' }
+        return
+      }
       await resumePartial(issue)
       return
     }
@@ -1315,7 +1331,9 @@ onUnmounted(() => {
               <strong v-else-if="ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
                 ledgerByRate[issue.rateId]?.total.status === 'not_sent' &&
                 ledgerByRate[issue.rateId]?.live?.headerExists === true">
-                Cabecera existente — solo falta completar la línea de venta
+                {{ needsSingleLineAdoption(issue)
+                  ? 'Existe una línea de venta con otro nombre — confirmar su actualización'
+                  : 'Cabecera existente — falta completar la línea de venta' }}
               </strong>
               <strong v-else>Conciliación de QUO necesaria — no reintentar todavía</strong>
               <p v-if="issue.error?.providerCode === 'legacy_quote_requires_rate_key_linking'">
@@ -1335,10 +1353,17 @@ onUnmounted(() => {
               <p v-else-if="ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
                 ledgerByRate[issue.rateId]?.total.status === 'not_sent' &&
                 ledgerByRate[issue.rateId]?.live?.headerExists === true">
-                Dynamics confirmó la cabecera de esta revisión y no tiene una operación
-                registrada para la línea. Usá «Completar línea de venta» para que
-                Pricing verifique el UPSERT y reanude exclusivamente la operación
-                pendiente con la misma clave de idempotencia.
+                <template v-if="needsSingleLineAdoption(issue)">
+                  Dynamics confirmó la cabecera y encontró una línea existente cuyo nombre
+                  no es el administrado por Dhole. Abrí el registro en Dynamics para revisar
+                  esa línea; si corresponde a la venta de esta tarifa, autorizá
+                  explícitamente actualizarla. No se agregará una segunda línea.
+                </template>
+                <template v-else>
+                  Dynamics confirmó la cabecera y no registró una operación de línea.
+                  Usá «Completar línea de venta» para reanudar la misma revisión,
+                  sin duplicar la oferta.
+                </template>
               </p>
               <p v-else>Dynamics pudo crear la cabecera, la línea de venta o ambas.
                 El HTTP 409 no confirma que la operación no se haya ejecutado.</p>
@@ -1535,7 +1560,8 @@ onUnmounted(() => {
               ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
               ledgerByRate[issue.rateId]?.header.recordId &&
               ledgerByRate[issue.rateId]?.total.status === 'not_sent' &&
-              ledgerByRate[issue.rateId]?.live?.headerExists === true"
+              ledgerByRate[issue.rateId]?.live?.headerExists === true &&
+              !needsSingleLineAdoption(issue)"
             type="button" class="dynamics-primary-button"
             :disabled="Boolean(recoveringRateId) || Boolean(retryDecisionRateId)"
             @click="resumePartial(issue)">
@@ -1543,6 +1569,28 @@ onUnmounted(() => {
             {{ recoveringRateId === issue.rateId ? 'Reanudando línea...' :
               'Completar línea de venta (sin duplicar QUO)' }}
           </button>
+          <div v-if="isAdministrator && issue.status === 'NeedsAttention' &&
+              !issue.retryBlockReason && needsSingleLineAdoption(issue) &&
+              ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+              ledgerByRate[issue.rateId]?.header.recordId &&
+              ledgerByRate[issue.rateId]?.total.status === 'not_sent' &&
+              ledgerByRate[issue.rateId]?.live?.headerExists === true"
+            class="quote-sync-adoption">
+            <label>
+              <input v-model="singleLineAdoptionConfirmed[issue.rateId]"
+                type="checkbox" />
+              Revisé la QUO en Dynamics y autorizo reemplazar los importes de
+              su única línea de venta por los valores de esta revisión.
+            </label>
+            <button type="button" class="dynamics-primary-button"
+              :disabled="!singleLineAdoptionConfirmed[issue.rateId] ||
+                Boolean(recoveringRateId) || Boolean(retryDecisionRateId)"
+              @click="resumePartial(issue, true)">
+              <RefreshCw :size="15" />
+              {{ recoveringRateId === issue.rateId ? 'Autorizando actualización...' :
+                'Actualizar única línea existente (sin duplicar QUO)' }}
+            </button>
+          </div>
           <p v-if="reconcileMessages[issue.rateId]" class="quote-sync-meta" role="status">
             {{ reconcileMessages[issue.rateId] }}
           </p>
@@ -1576,6 +1624,9 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.quote-sync-adoption { display: flex; flex-direction: column; gap: 0.65rem; width: 100%; }
+.quote-sync-adoption label { display: flex; align-items: flex-start; gap: 0.55rem; line-height: 1.4; }
+.quote-sync-adoption input { flex: 0 0 auto; margin-top: 0.2rem; }
 .quote-sync-recovery{border:1px solid var(--dh-border);padding:12px;border-radius:12px;margin:12px 0}
 .quote-sync-recovery textarea{display:block;width:100%;background:var(--dh-card);color:var(--dh-text);border:1px solid var(--dh-border);padding:8px;border-radius:7px}
 .quote-sync-recovery-label{display:block;font-weight:600;margin:10px 0 6px}
