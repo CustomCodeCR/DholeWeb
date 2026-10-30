@@ -151,7 +151,13 @@ const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
 const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isAir = computed(() => props.modality === 'Air' || props.modality === 'AirConsol')
-const ownPoeEligible = computed(() => !isAir.value && isOwnLclPoeEligible(props.polCode, props.polName, props.poeCode, props.poeName))
+// Shanghai puede recibir recolectas desde cualquier POL, incluso Miami, siempre
+// que la salida física vaya a Balboa. La matriz Miami conserva su ruta a Moín.
+const ownPoeEligible = computed(() =>
+  !isAir.value
+  && (isBalboaOwnLclPoe(props.poeCode, props.poeName)
+    || isOwnLclPoeEligible(props.polCode, props.polName, props.poeCode, props.poeName)),
+)
 
 const ownColumns: DhTableColumn<OwnLclConsolidationDto & TableRow>[] = [
   { key: 'source', label: 'Consolidado', width: '220px' },
@@ -362,15 +368,18 @@ function requestedOwnLclOrigins() {
   return new Set([fromName, fromCode].filter(Boolean))
 }
 
-const unlistedChinaOrigin = computed(() => {
-  const name = normalize(props.polName)
+// Cualquier POL sin una fila propia en la matriz Shanghai puede utilizar
+// el consolidado físico Shanghai y una recolecta POL → Shanghai cotizada aparte.
+// Los POL ya tarifados conservan su diferencial de origen para no duplicarlo.
+const unlistedShanghaiOrigin = computed(() => {
   const origin = canonicalOwnLclOrigin(props.polName || props.polCode)
-  return !isMiamiOwnLclPol(props.polCode, props.polName)
-    && (name.includes('china') || normalize(props.polCode).startsWith('cn') || origin === 'wuhan')
+  return Boolean(origin)
+    && origin !== 'shanghai'
     && !chinaOwnLclOrigins.has(origin)
 })
 function ownFallback(row: OwnLclConsolidationDto) {
-  return unlistedChinaOrigin.value && canonicalOwnLclOrigin(row.polName || row.polCode) === 'shanghai'
+  return unlistedShanghaiOrigin.value
+    && canonicalOwnLclOrigin(row.polName || row.polCode) === 'shanghai'
 }
 function ownCalculationPolCode(row: OwnLclConsolidationDto) {
   if (ownFallback(row)) return canonicalOwnLclOrigin(props.polName || props.polCode).toUpperCase()
@@ -525,7 +534,9 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto, unlistedOrigin = fa
     return {
       key: `own-lcl:${calculation.consolidationId}:${index}`,
       section: sectionForDetail(type, line.name),
-      name: line.name,
+      name: fallbackPickupLine
+        ? `Recolecta ${props.polName || props.polCode || 'POL seleccionado'} → Shanghai, China`
+        : line.name,
       costDetailType: type,
       costType: variable ? 'Variable' : 'Fixed',
       // CFS es CBM físico. CFT/CBM cobrable conservan su base dinámica.
@@ -586,6 +597,7 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       hbl: 1,
       pickupCost: 0,
       pickupSale: 0,
+      // Bandera de compatibilidad del API; aplica a cualquier POL sin tarifa.
       useUnlistedChinaOriginFallback: ownFallback(row),
       discount: 0,
       commercialPlan: props.commercialPlan,
@@ -802,7 +814,7 @@ onMounted(load)
     </div>
 
     <div v-if="tab === 'Own' && ownPoeEligible" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2">
-      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente: Shanghai, Yantian y otras rutas. Solo se pueden cotizar las compatibles.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
+      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente; se respeta el POE y la capacidad.' : unlistedShanghaiOrigin ? 'Salida Shanghai como referencia; recolecta desde el POL a Shanghai en Pantalla 7.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
       <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text)] hover:bg-[var(--dh-input)]" @click="showAllOwnConsolidations = !showAllOwnConsolidations">
         {{ showAllOwnConsolidations ? 'Solo mi ruta' : 'Ver todas las salidas' }}
       </button>
