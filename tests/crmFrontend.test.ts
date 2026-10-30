@@ -168,7 +168,7 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   assert.match(component, /sidebar-nav-link-active::before/)
   assert.match(component, /sidebar-module-toggle--current/)
   assert.match(component, /sidebar-subgroup-toggle--current/)
-  // Preserve develop's sidebar separator design while keeping CRM navigation scoped.
+  // Preserve develop sidebar separators without changing CRM submodule navigation.
 })
 
 test('CRM route history is sourced from completed meetings or linked quotes', () => {
@@ -325,4 +325,30 @@ test('Account edit stays inside its detail page, without any drawer or duplicate
   assert.ok(!editor.includes('<DhDrawer'))
   assert.ok(editor.includes('Guardar cambios'))
   assert.ok(editor.includes("crmPatch<CrmRow>('accounts'"))
+})
+
+test('CRM credit coverage uses real approved/pending profiles, never changes approved terms directly', () => {
+  const coverage = read('src/modules/crm/components/CrmCreditCoverageManager.vue')
+  const editor = read('src/modules/crm/components/CrmAccountEditor.vue')
+  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
+  for (const value of ['Impuestos Aduanas','Pagos a terceros','Almacenaje Fiscal',
+    'Servicio Correduría Aduanera','Transporte Local','Transporte Internacional de Carga']) {
+    assert.ok(coverage.includes(value))
+  }
+  assert.ok(coverage.includes('Crédito incluye'))
+  assert.ok(coverage.includes('Crédito NO incluye'))
+  assert.ok(coverage.includes('Seleccionar todo'))
+  assert.ok(coverage.includes("profile.value?.status === 'PendingApproval'"))
+  assert.ok(coverage.includes("profile.value?.status !== 'Approved'"))
+  assert.ok(coverage.includes("canManage.value"))
+  assert.ok(coverage.includes("opposite.value = opposite.value.filter"))
+  assert.ok(coverage.includes("'coverages/' + encodeURIComponent(item.id) + '/deactivate'"))
+  assert.ok(coverage.includes("'revise'"))
+  assert.ok(coverage.includes("crmPath('accounts', props.accountId, 'credit-profiles')"))
+  assert.ok(coverage.includes('expectedVersion: current.rowVersion'))
+  assert.ok(coverage.includes("coverageType: kind"))
+  assert.ok(coverage.includes('await refresh()'))
+  assert.ok(editor.includes('id="crm-edit-credit"'))
+  assert.ok(editor.includes('<CrmCreditCoverageManager'))
+  assert.ok(hub.includes('<CrmCreditCoverageManager'))
 })

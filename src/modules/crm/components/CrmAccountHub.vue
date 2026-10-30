@@ -8,6 +8,7 @@ import { crmPath, crmRequest, crmUuid, toUtc, type CrmRow } from '../services/cr
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import CrmAccountLogo from './CrmAccountLogo.vue'
+import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
@@ -967,6 +968,9 @@ async function saveRoute() {
           <div><dt class="text-xs text-[var(--dh-text-muted)]">Financiación mensual</dt><dd class="font-bold">{{ c.monthlyFinancingPct }}%</dd></div>
           <div class="col-span-2"><dt class="text-xs text-[var(--dh-text-muted)]">Condiciones</dt><dd class="text-sm">{{ text(c.paymentConditions) }}</dd></div>
         </dl>
+      </section>
+      <section v-if="has('crm.credit.read')" class="hub-panel lg:col-span-2">
+        <CrmCreditCoverageManager :account-id="String(account.id)" />
       </section>
       <section v-if="has('crm.contract.read')" class="hub-panel">
         <h2 class="mb-3 font-extrabold">Contratos y renovaciones</h2>
