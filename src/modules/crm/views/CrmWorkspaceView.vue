@@ -191,6 +191,11 @@ function beginCreate() {
   showForm.value = true
 }
 function beginEdit(item: CrmRow) {
+  // Edit accounts in their real record page instead of a separate drawer.
+  if (section.value === 'accounts') {
+    void router.push({ path: '/crm/accounts/' + encodeURIComponent(item.id), query: { edit: '1' } })
+    return
+  }
   resetValidation()
   edited.value = item
   accountFormTab.value = 'identity'
