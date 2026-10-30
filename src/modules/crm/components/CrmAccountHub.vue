@@ -26,7 +26,7 @@ interface Overview {
   quotes: CrmRow[]
   quotesAreLinkedOnly: boolean
 }
-const props = defineProps<{ account: CrmRow }>()
+const props = defineProps<{ account: CrmRow; editing?: boolean }>()
 const emit = defineEmits<{
   (e: 'change-executive'): void
   (e: 'edit-account'): void
@@ -432,12 +432,14 @@ async function saveRoute() {
       <div class="hub-hero-bar flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
         <span class="text-xs font-extrabold tracking-wide">Espacio de clientes <span class="ml-2 font-normal opacity-75">/ {{ text(account.displayName || account.legalName) }}</span></span>
         <div class="flex flex-wrap gap-2">
-          <button v-if="has('crm.account.update')" type="button" class="hub-primary-button" @click="emit('edit-account')">
-            <FileText class="h-4 w-4" />Editar cuenta
+          <button v-if="has('crm.account.update')" type="button"
+            :class="editing ? 'hub-outline-button hub-small' : 'hub-primary-button'"
+            :aria-pressed="Boolean(editing)" @click="emit('edit-account')">
+            <FileText class="h-4 w-4" />{{ editing ? 'Volver al detalle' : 'Editar cuenta' }}
           </button>
-          <button v-if="has('crm.account.assign') && has('auth.users.view')" type="button"
+          <button v-if="!editing && has('crm.account.assign') && has('auth.users.view')" type="button"
             class="hub-outline-button hub-small" @click="emit('change-executive')"><UsersRound class="h-4 w-4" />Asignar vendedor</button>
-          <button type="button" class="hub-outline-button hub-small" :disabled="loading" @click="load">
+          <button v-if="!editing" type="button" class="hub-outline-button hub-small" :disabled="loading" @click="load">
             <RefreshCw class="h-4 w-4" :class="loading && 'animate-spin'" />Actualizar
           </button>
         </div>
@@ -467,7 +469,7 @@ async function saveRoute() {
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
         <span class="ml-auto text-[var(--dh-text-muted)]">ID {{ String(account.id).slice(0, 8) }}</span>
       </div>
-      <nav role="tablist" class="flex max-w-full gap-1 overflow-x-auto border-t border-[var(--dh-border)] px-3 py-2 sm:px-4"
+      <nav v-if="!editing" role="tablist" class="flex max-w-full gap-1 overflow-x-auto border-t border-[var(--dh-border)] px-3 py-2 sm:px-4"
         :aria-label="locale === 'en' ? 'Account sections' : 'Secciones del cliente'">
         <button v-for="tab in tabs" :key="tab.key" type="button" role="tab"
           :aria-selected="activeTab === tab.key" :aria-controls="'crm-account-' + tab.key"
@@ -476,6 +478,7 @@ async function saveRoute() {
         </button>
       </nav>
     </header>
+    <div v-if="!editing" class="space-y-4">
     <p v-if="error" role="alert" class="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="saved" role="status" class="text-sm text-emerald-500">{{ saved }}</p>
     <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ locale === 'en' ? 'Loading account data…' : 'Cargando datos de la cuenta…' }}</p>
@@ -1000,6 +1003,7 @@ async function saveRoute() {
         </div>
       </form>
     </DhDrawer>
+    </div>
   </div>
 </template>
 
