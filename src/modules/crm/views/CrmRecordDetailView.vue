@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import CrmModuleNavigation from '../components/CrmModuleNavigation.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ArrowLeft, BriefcaseBusiness, Plus } from 'lucide-vue-next'
+import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
+  Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
@@ -50,6 +51,32 @@ const createRelationPermissions: Record<string, string> = {
   'opportunities:rate-requests': 'crm.quote.link',
   'settings:stages': 'crm.settings.manage',
 }
+const accountRelationOptions = [
+  { key: 'contacts', label: 'Contactos', subtitle: 'Personas y responsables', icon: UsersRound,
+    description: 'Gestioná las personas vinculadas con esta empresa y sus medios de comunicación.',
+    empty: 'Todavía no hay contactos relacionados con esta cuenta.' },
+  { key: 'addresses', label: 'Direcciones', subtitle: 'Sedes y ubicaciones', icon: MapPin,
+    description: 'Registrá las direcciones de la empresa para operaciones y facturación.',
+    empty: 'No hay direcciones registradas para este cliente.' },
+  { key: 'business-activities', label: 'Actividades económicas', subtitle: 'Giro del negocio', icon: Activity,
+    description: 'Actividades económicas registradas para la cuenta.',
+    empty: 'No hay actividades económicas vinculadas.' },
+  { key: 'trade-profiles', label: 'Rutas habituales', subtitle: 'Mercados y logística', icon: Route,
+    description: 'Historial y perfiles de rutas de esta cuenta.',
+    empty: 'Todavía no hay rutas habituales registradas.' },
+  { key: 'credit-profiles', label: 'Perfiles de crédito', subtitle: 'Condiciones financieras', icon: Wallet,
+    description: 'Consultá y gestioná propuestas de crédito según tus permisos.',
+    empty: 'Este cliente todavía no tiene un perfil de crédito.' },
+  { key: 'credit-contracts', label: 'Contratos de crédito', subtitle: 'Documentos y vigencias', icon: FileText,
+    description: 'Documentos, condiciones y vigencias de contratos del cliente.',
+    empty: 'No hay contratos de crédito vinculados.' },
+  { key: 'followup-policy', label: 'Política de seguimiento', subtitle: 'Agenda del cliente', icon: CalendarClock,
+    description: 'Configurá el seguimiento comercial de la cuenta, no de contactos individuales.',
+    empty: 'No hay una política de seguimiento configurada para esta cuenta.' },
+]
+const accountRelationInfo = computed(() =>
+  accountRelationOptions.find(option => option.key === relation.value))
+
 const canAddRelation = computed(() => {
   const scope = createRelationPermissions[`${section.value}:${relation.value}`]
   return !!scope && auth.hasScope(scope)
@@ -448,14 +475,49 @@ onMounted(() => { if (crmEnabled()) void load() })
         <button class="crm-action" :disabled="saving" @click="perform('cancel',{expectedVersion:version(),reason:drafts.reason||'Cancelado'},'crm.task.manage')">{{ t('crm.cancelActivity') }}</button>
       </section>
 
-      <button v-if="section === 'accounts' && !showAccountEditor" id="crm-related-management" type="button"
-        class="flex w-full items-center justify-between rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-left text-sm font-bold"
-        :aria-expanded="showAdvancedAccountManagement"
-        @click="showAdvancedAccountManagement = !showAdvancedAccountManagement">
-        <span>{{ showAdvancedAccountManagement ? 'Ocultar gestión avanzada de la cuenta' : 'Gestionar contactos, crédito, contratos y otros registros' }}</span>
-        <span class="text-[var(--dh-primary)]">{{ showAdvancedAccountManagement ? '−' : '+' }}</span>
-      </button>
-      <nav v-if="section !== 'accounts' || (showAdvancedAccountManagement && !showAccountEditor)" class="flex flex-wrap gap-2" aria-label="CRM">
+      <section v-if="section === 'accounts' && !showAccountEditor" id="crm-related-management"
+        class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]"
+        data-crm-account-advanced>
+        <div class="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
+          <div class="flex min-w-0 items-start gap-3">
+            <div class="rounded-xl bg-[var(--dh-primary)]/10 p-2.5 text-[var(--dh-primary)]">
+              <Settings2 class="h-5 w-5" />
+            </div>
+            <div class="min-w-0">
+              <h2 class="text-sm font-extrabold sm:text-base">Gestión de la cuenta</h2>
+              <p class="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--dh-text-muted)]">
+                Contactos, direcciones, actividad comercial, crédito y seguimientos: todo vinculado al cliente.
+              </p>
+            </div>
+          </div>
+          <button type="button"
+            class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2 text-xs font-bold hover:border-[var(--dh-primary)] hover:text-[var(--dh-primary)]"
+            :aria-expanded="showAdvancedAccountManagement" aria-controls="crm-advanced-sections"
+            @click="showAdvancedAccountManagement = !showAdvancedAccountManagement">
+            {{ showAdvancedAccountManagement ? 'Ocultar secciones' : 'Ver y gestionar secciones' }}
+            <ChevronDown class="h-4 w-4 transition-transform" :class="showAdvancedAccountManagement && 'rotate-180'" />
+          </button>
+        </div>
+        <div v-if="showAdvancedAccountManagement" id="crm-advanced-sections" class="border-t border-[var(--dh-border)] px-3 py-3 sm:px-5">
+          <nav class="flex gap-2 overflow-x-auto pb-1" aria-label="Secciones de gestión de la cuenta">
+            <button v-for="option in accountRelationOptions.filter(item => permitted(item.key))" :key="option.key"
+              type="button" :aria-current="relation === option.key ? 'page' : undefined"
+              :aria-pressed="relation === option.key"
+              class="group flex min-w-[155px] shrink-0 items-center gap-2.5 rounded-xl border px-3 py-3 text-left transition"
+              :class="relation === option.key
+                ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]'
+                : 'border-[var(--dh-border)] bg-[var(--dh-shell)] hover:border-[var(--dh-primary)]/50' "
+              @click="relation = option.key">
+              <component :is="option.icon" class="h-4 w-4 shrink-0" />
+              <span class="min-w-0">
+                <span class="block text-xs font-extrabold">{{ option.label }}</span>
+                <span class="mt-0.5 block text-[10px] text-[var(--dh-text-muted)]">{{ option.subtitle }}</span>
+              </span>
+            </button>
+          </nav>
+        </div>
+      </section>
+      <nav v-if="section !== 'accounts'" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
           :aria-pressed="relation===tab" @click="relation=tab">
           {{ ({
@@ -470,19 +532,62 @@ onMounted(() => { if (crmEnabled()) void load() })
           } as Record<string, string>)[tab] ?? tab }}
         </button>
       </nav>
-      <section v-if="relation && permitted(relation) && (section !== 'accounts' || (showAdvancedAccountManagement && !showAccountEditor))" class="crm-panel space-y-4 p-4">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-lg font-bold">{{ relation }} ({{ relationRows.length }})</h2>
-          <DhButton v-if="canAddRelation" :icon="Plus" :label="t('common.create')" @click="showRelationForm = true" />
+      <section v-if="relation && permitted(relation) && (section !== 'accounts' || (showAdvancedAccountManagement && !showAccountEditor))"
+        class="crm-panel space-y-4 p-4 sm:p-5" :data-crm-advanced-content="section === 'accounts' ? relation : undefined">
+        <div class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--dh-border)] pb-4">
+          <div class="min-w-0">
+            <p v-if="section === 'accounts'" class="mb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--dh-primary)]">Información complementaria</p>
+            <h3 class="text-base font-extrabold">
+              {{ section === 'accounts' ? (accountRelationInfo?.label ?? relation) : relation }}
+              <span class="ml-1 text-xs font-medium text-[var(--dh-text-muted)]">({{ relationRows.length }})</span>
+            </h3>
+            <p v-if="section === 'accounts'" class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ accountRelationInfo?.description }}</p>
+          </div>
+          <DhButton v-if="canAddRelation" :icon="Plus"
+            :label="section === 'accounts' && relation === 'contacts' ? 'Nuevo contacto' : t('common.create')"
+            @click="showRelationForm = true" />
         </div>
-        <div v-if="!relationRows.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('common.noData') }}</div>
-        <div v-for="item in relationRows" :key="item.id" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">
-          <p class="font-bold">{{ item.name ?? item.activityCode ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.id }}</p>
-          <button v-if="relation==='contacts' && section==='accounts' && can('crm.contact.read')"
-            type="button" class="crm-action mt-2" @click="router.push('/crm/contacts/'+encodeURIComponent(item.id))">
-            {{ t('common.details') }}
-          </button>
-          <p class="text-[var(--dh-text-muted)]">{{ item.activityDescription ?? item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot ?? '' }}</p>
+        <div v-if="!relationRows.length"
+          class="rounded-xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-8 text-center">
+          <p class="text-sm font-semibold">{{ section === 'accounts' ? (accountRelationInfo?.empty ?? 'Sin información registrada.') : t('common.noData') }}</p>
+          <p v-if="section === 'accounts' && canAddRelation" class="mt-2 text-xs text-[var(--dh-text-muted)]">Podés agregar el primer registro con el botón de arriba.</p>
+        </div>
+        <div v-for="item in relationRows" :key="item.id"
+          class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-sm sm:p-4">
+          <template v-if="section === 'accounts' && relation === 'contacts'">
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)]/10 text-xs font-extrabold text-[var(--dh-primary)]">
+                {{ String(item.name ?? '?').trim().slice(0,2).toUpperCase() }}
+              </div>
+              <div class="min-w-0 flex-1 space-y-1">
+                <RouterLink v-if="can('crm.contact.read')" :to="'/crm/contacts/' + encodeURIComponent(String(item.id))"
+                  class="block truncate text-sm font-extrabold hover:text-[var(--dh-primary)] hover:underline">
+                  {{ item.name || 'Contacto' }}
+                </RouterLink>
+                <p v-else class="font-extrabold">{{ item.name || 'Contacto' }}</p>
+                <p v-if="item.jobTitle" class="text-xs text-[var(--dh-text-muted)]">{{ item.jobTitle }}</p>
+              </div>
+              <span v-if="item.isPrimary" class="rounded-full border border-[var(--dh-border)] px-2 py-1 text-[10px] font-semibold">Principal</span>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-3 border-t border-[var(--dh-border)] pt-3 text-xs">
+              <a v-if="item.email" :href="'mailto:' + String(item.email)"
+                class="inline-flex items-center gap-1.5 text-[var(--dh-text-muted)] hover:text-[var(--dh-primary)]">
+                <Mail class="h-3.5 w-3.5" />{{ item.email }}
+              </a>
+              <a v-if="item.phone" :href="'tel:' + String(item.phone)"
+                class="inline-flex items-center gap-1.5 text-[var(--dh-text-muted)] hover:text-[var(--dh-primary)]">
+                <Phone class="h-3.5 w-3.5" />{{ item.phone }}
+              </a>
+              <span v-if="!item.email && !item.phone" class="text-[var(--dh-text-muted)]">Sin medios de contacto</span>
+            </div>
+          </template>
+          <template v-else>
+            <p class="font-bold">{{ item.name ?? item.activityCode ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.addressText ?? 'Registro' }}</p>
+            <p v-if="item.activityDescription || item.email || item.reason || item.paymentTerms || item.statusSnapshot"
+              class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">
+              {{ item.activityDescription ?? item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot }}
+            </p>
+          </template>
           <div v-if="relation==='credit-profiles' && section==='accounts' && item.status==='PendingApproval'
             && can('crm.credit.approve')" class="mt-3 flex flex-wrap gap-2">
             <button :disabled="saving" class="crm-action"
