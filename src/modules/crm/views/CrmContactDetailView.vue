@@ -3,7 +3,7 @@ import CrmModuleNavigation from '../components/CrmModuleNavigation.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, ContactRound, Mail, Pencil, Phone, RefreshCw, ShieldCheck, CalendarClock, UserRound } from 'lucide-vue-next'
+import { ArrowLeft, ContactRound, Mail, Pencil, Phone, RefreshCw, ShieldCheck, Building2, UserRound } from 'lucide-vue-next'
 import { DhButton, DhInput } from '@/shared/components/atoms'
 import { DhDrawer } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
@@ -18,11 +18,6 @@ const { locale } = useI18n()
 const en = computed(() => locale.value === 'en')
 const contact = ref<CrmRow | null>(null)
 const preferences = ref<CrmRow | null>(null)
-const activeTab = ref<'summary' | 'details' | 'preferences'>('summary')
-const contactTabs = [
-  { key: 'summary', label: 'Resumen' }, { key: 'details', label: 'Detalles' },
-  { key: 'preferences', label: 'Preferencias de contacto' },
-] as const
 const loading = ref(false)
 const saving = ref(false)
 const editOpen = ref(false)
@@ -83,14 +78,14 @@ watch(contactId, load)
     <p v-if="success" role="status" class="text-sm text-emerald-500">{{ success }}</p>
     <p v-if="loading" role="status" class="text-sm text-[var(--dh-text-muted)]">Cargando contacto…</p>
     <template v-if="contact">
-      <header class="sticky top-1 z-20 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+      <header class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div class="flex min-w-0 items-center gap-3">
             <div class="rounded-xl bg-[var(--dh-primary)]/10 p-3 text-[var(--dh-primary)]"><ContactRound class="h-6 w-6" /></div>
             <div class="min-w-0">
               <p class="text-[10px] font-extrabold uppercase tracking-widest text-[var(--dh-text-muted)]">CRM · Contacto</p>
               <h1 class="truncate text-xl font-extrabold">{{ display(contact.name) }}</h1>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ display(contact.jobTitle) }} · {{ display(contact.status) }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ display(contact.jobTitle) }} <span v-if="contact.accountName">· {{ contact.accountName }}</span></p>
             </div>
           </div>
           <div class="flex gap-2">
@@ -98,15 +93,9 @@ watch(contactId, load)
             <DhButton v-if="auth.hasScope('crm.contact.update')" :icon="Pencil" label="Editar" @click="edit" />
           </div>
         </div>
-        <nav role="tablist" aria-label="Detalle del contacto" class="flex gap-2 border-t border-[var(--dh-border)] px-3">
-          <button v-for="tab in contactTabs" :key="tab.key" role="tab" type="button" :aria-selected="activeTab===tab.key"
-            class="border-b-2 px-3 py-3 text-xs font-bold"
-            :class="activeTab===tab.key ? 'border-[var(--dh-primary)] text-[var(--dh-primary)]' : 'border-transparent text-[var(--dh-text-muted)]'"
-            @click="activeTab=tab.key">{{ tab.label }}</button>
-        </nav>
       </header>
-      <div class="grid items-start gap-3 xl:grid-cols-[minmax(0,.85fr)_minmax(0,1.12fr)_minmax(250px,.78fr)]">
-        <section v-if="activeTab==='summary' || activeTab==='details'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+      <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] xl:grid-cols-[minmax(0,1.05fr)_minmax(0,.95fr)_minmax(255px,.7fr)]">
+        <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
           <h2 class="mb-3 flex items-center gap-2 text-sm font-bold"><UserRound class="h-4 w-4 text-[var(--dh-primary)]" />Información general</h2>
           <dl class="divide-y divide-[var(--dh-border)]">
             <div v-for="item in [
@@ -119,7 +108,7 @@ watch(contactId, load)
             </div>
           </dl>
         </section>
-        <section v-if="activeTab==='summary' || activeTab==='preferences'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+        <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
           <h2 class="mb-3 flex items-center gap-2 text-sm font-bold"><ShieldCheck class="h-4 w-4 text-[var(--dh-primary)]" />Preferencias de comunicación</h2>
           <p v-if="!preferences" class="text-xs text-[var(--dh-text-muted)]">Aún no hay preferencias registradas.</p>
           <dl v-else class="divide-y divide-[var(--dh-border)]">
@@ -134,12 +123,21 @@ watch(contactId, load)
           </dl>
         </section>
         <aside class="space-y-3">
-          <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-            <h2 class="mb-3 text-sm font-bold">Acciones rápidas</h2>
+          <section v-if="contact.accountId" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <h2 class="mb-3 flex items-center gap-2 text-sm font-bold"><Building2 class="h-4 w-4 text-[var(--dh-primary)]" />Cuenta relacionada</h2>
+            <RouterLink :to="'/crm/accounts/' + encodeURIComponent(String(contact.accountId))"
+              class="block break-words text-sm font-semibold text-[var(--dh-primary)] hover:underline">
+              {{ contact.accountName || 'Abrir cuenta del cliente' }}
+            </RouterLink>
+            <p class="mt-2 text-xs leading-relaxed text-[var(--dh-text-muted)]">
+              Las actividades y seguimientos se gestionan en la ficha del cliente.
+            </p>
+          </section>
+          <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <h2 class="mb-3 text-sm font-bold">Comunicación</h2>
             <div class="flex flex-col gap-2">
               <a v-if="contact.email" :href="'mailto:'+encodeURIComponent(String(contact.email))" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Mail class="h-4 w-4" />Enviar correo</a>
               <a v-if="contact.phone" :href="'tel:'+String(contact.phone)" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Phone class="h-4 w-4" />Llamar</a>
-              <RouterLink to="/crm/followups" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><CalendarClock class="h-4 w-4" />Ver seguimientos</RouterLink>
             </div>
           </section>
         </aside>
