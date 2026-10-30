@@ -102,7 +102,7 @@ test('CRM has scoped contacts directory and detail routes like Dynamics', () => 
   assert.ok(contacts.includes("@saved=\"onContactSaved\""))
   assert.ok(contacts.includes("DhDrawer"))
   assert.ok(detail.includes("crmPatch('contacts'"))
-  assert.ok(detail.includes("Preferencias de contacto"))
+  assert.ok(detail.includes("Preferencias de comunicación"))
 })
 
 test('CRM account creation uses only identity and commercial profile before opening record', () => {
