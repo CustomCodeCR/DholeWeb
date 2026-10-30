@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import CrmModuleNavigation from '../components/CrmModuleNavigation.vue'
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Filter, Search, CalendarClock, Route, Wallet, ArrowRight } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
@@ -389,7 +388,6 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
 
 <template>
   <main class="mx-auto w-full max-w-[1600px] space-y-5 p-3 text-[var(--dh-text)] sm:p-6" data-crm-page>
-    <CrmModuleNavigation />
     <DhPageHeader :title="pageTitle" :subtitle="section === 'accounts' ? 'CRM · Clientes / Cuentas' : t('crm.title')" :icon="BriefcaseBusiness" hide-excel-export>
       <template #actions>
         <DhButton :icon="RefreshCw" :label="t('common.refresh')" variant="secondary" :disabled="loading" @click="load" />
