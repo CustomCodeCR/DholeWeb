@@ -498,21 +498,29 @@ onMounted(() => { if (crmEnabled()) void load() })
             <ChevronDown class="h-4 w-4 transition-transform" :class="showAdvancedAccountManagement && 'rotate-180'" />
           </button>
         </div>
-        <div v-if="showAdvancedAccountManagement" id="crm-advanced-sections" class="border-t border-[var(--dh-border)] px-3 py-3 sm:px-5">
-          <nav class="flex gap-2 overflow-x-auto pb-1" aria-label="Secciones de gestión de la cuenta">
+        <div v-if="showAdvancedAccountManagement" id="crm-advanced-sections"
+          class="border-t border-[var(--dh-border)] p-3 sm:p-4">
+          <p class="mb-3 text-xs leading-relaxed text-[var(--dh-text-muted)]">
+            Elegí qué información querés consultar o actualizar. Los registros se guardan en esta cuenta.
+          </p>
+          <nav class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            aria-label="Secciones de gestión de la cuenta">
             <button v-for="option in accountRelationOptions.filter(item => permitted(item.key))" :key="option.key"
               type="button" :aria-current="relation === option.key ? 'page' : undefined"
               :aria-pressed="relation === option.key"
-              class="group flex min-w-[155px] shrink-0 items-center gap-2.5 rounded-xl border px-3 py-3 text-left transition"
+              class="group flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
               :class="relation === option.key
-                ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]'
-                : 'border-[var(--dh-border)] bg-[var(--dh-shell)] hover:border-[var(--dh-primary)]/50' "
+                ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)] shadow-sm'
+                : 'border-[var(--dh-border)] bg-[var(--dh-shell)] hover:border-[var(--dh-primary)]/50'"
               @click="relation = option.key">
-              <component :is="option.icon" class="h-4 w-4 shrink-0" />
-              <span class="min-w-0">
-                <span class="block text-xs font-extrabold">{{ option.label }}</span>
-                <span class="mt-0.5 block text-[10px] text-[var(--dh-text-muted)]">{{ option.subtitle }}</span>
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--dh-card)]">
+                <component :is="option.icon" class="h-4 w-4" />
               </span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-xs font-extrabold">{{ option.label }}</span>
+                <span class="mt-1 block text-[11px] leading-snug text-[var(--dh-text-muted)]">{{ option.subtitle }}</span>
+              </span>
+              <ChevronDown class="h-3.5 w-3.5 shrink-0 -rotate-90 text-[var(--dh-text-muted)]" />
             </button>
           </nav>
         </div>
@@ -567,7 +575,7 @@ onMounted(() => { if (crmEnabled()) void load() })
                 <p v-else class="font-extrabold">{{ item.name || 'Contacto' }}</p>
                 <p v-if="item.jobTitle" class="text-xs text-[var(--dh-text-muted)]">{{ item.jobTitle }}</p>
               </div>
-              <span v-if="item.isPrimary" class="rounded-full border border-[var(--dh-border)] px-2 py-1 text-[10px] font-semibold">Principal</span>
+              <span v-if="item.isPrimary" class="rounded-full border border-[var(--dh-primary)]/40 bg-[var(--dh-primary)]/10 px-2 py-1 text-[10px] font-semibold text-[var(--dh-primary)]">Contacto principal</span>
             </div>
             <div class="mt-3 flex flex-wrap gap-3 border-t border-[var(--dh-border)] pt-3 text-xs">
               <a v-if="item.email" :href="'mailto:' + String(item.email)"
@@ -579,6 +587,23 @@ onMounted(() => { if (crmEnabled()) void load() })
                 <Phone class="h-3.5 w-3.5" />{{ item.phone }}
               </a>
               <span v-if="!item.email && !item.phone" class="text-[var(--dh-text-muted)]">Sin medios de contacto</span>
+            </div>
+          </template>
+          <template v-else-if="relation === 'business-activities'">
+            <div class="flex items-start gap-3">
+              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]"><Activity class="h-4 w-4" /></div>
+              <div class="min-w-0">
+                <p class="text-sm font-extrabold">{{ item.activityCode ?? item.code ?? 'Actividad económica' }}</p>
+                <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ item.activityDescription ?? item.description ?? 'Sin descripción registrada' }}</p>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="relation === 'addresses'">
+            <div class="flex items-start gap-3">
+              <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+              <div class="min-w-0"><p class="text-sm font-bold">{{ item.addressText ?? 'Dirección sin especificar' }}</p>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ item.addressType === 'WORK' ? 'Oficina / trabajo' : item.addressType === 'BILLING' ? 'Facturación' : item.addressType ?? 'Dirección de la cuenta' }}</p>
+              </div>
             </div>
           </template>
           <template v-else>
