@@ -44,13 +44,13 @@ const compactRow = (label: string, value: unknown) => ({ label, value })
 const tabs = computed(() => [
   { key: 'summary' as const, label: locale.value === 'en' ? 'Customer' : 'Cliente', icon: UserRound },
   { key: 'profile' as const, label: locale.value === 'en' ? 'Account form' : 'Ficha cliente', icon: FileText },
-  { key: 'commercial' as const, label: locale.value === 'en' ? 'Routes and markets' : 'Rutas y mercados', icon: Route },
+  { key: 'commercial' as const, label: locale.value === 'en' ? 'Commercial analysis' : 'Análisis comercial', icon: Route },
   ...(has('crm.contact.read') ? [{ key: 'contacts' as const, label: locale.value === 'en' ? 'Contacts' : 'Contactos', icon: UsersRound }] : []),
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
   { key: 'history' as const, label: locale.value === 'en' ? 'Route history' : 'Historial de rutas', icon: Route },
   { key: 'agenda' as const, label: locale.value === 'en' ? 'Activity & follow-up' : 'Seguimientos', icon: CalendarClock },
   ...(has('crm.credit.read') || has('crm.contract.read')
-    ? [{ key: 'finance' as const, label: locale.value === 'en' ? 'Credit & conditions' : 'Crédito / condiciones', icon: Wallet }]
+    ? [{ key: 'finance' as const, label: locale.value === 'en' ? 'Credit & contracts' : 'Crédito y contratos', icon: Wallet }]
     : []),
 ])
 const initial = (): Overview => ({
