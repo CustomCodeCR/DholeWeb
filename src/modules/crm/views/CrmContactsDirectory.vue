@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import CrmModuleNavigation from '../components/CrmModuleNavigation.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -64,7 +63,6 @@ watch(locale, () => { /* localized headers recompute without reloading */ })
 
 <template>
   <main class="mx-auto w-full max-w-[1650px] space-y-4 p-3 text-[var(--dh-text)] sm:p-6" data-crm-contacts>
-    <CrmModuleNavigation />
     <DhPageHeader :title="en ? 'Contacts' : 'Contactos'" :subtitle="en ? 'CRM · Customers' : 'CRM · Clientes'"
       :icon="ContactRound" hide-excel-export>
       <template #actions>
