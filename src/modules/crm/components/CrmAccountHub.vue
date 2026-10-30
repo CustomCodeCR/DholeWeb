@@ -454,6 +454,7 @@ async function saveRoute() {
               <span class="inline-flex items-center gap-1"><MapPin class="h-3.5 w-3.5" />{{ countryName || 'País sin definir' }}</span>
               <span>{{ text(account.taxId) }}</span>
               <span>{{ account.customerTypeCode === 'credit' ? 'Cliente crédito' : 'Cliente contado' }}</span>
+              <span v-if="account.isCastroFallasExecutive === true" class="font-semibold text-[var(--dh-primary)]">Vendedor: Castro Fallas</span>
             </div>
           </div>
         </div>
