@@ -79,6 +79,12 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         to: '/crm',
         name: 'crm-root',
         requiredAnyScopes: [...CRM_WORKSPACE_SCOPES],
+        children: [
+          { labelKey: 'crm.nav.accounts', icon: Users, to: '/crm/accounts', name: 'crm-accounts', requiredAnyScopes: ['crm.account.read', 'crm.account.read-all'] },
+          { labelKey: 'crm.nav.contacts', icon: Users, to: '/crm/contacts', name: 'crm-contacts', requiredScope: 'crm.contact.read' },
+          { labelKey: 'crm.nav.leads', icon: Users, to: '/crm/leads', name: 'crm-leads', requiredAnyScopes: ['crm.lead.read', 'crm.lead.read-all'] },
+          { labelKey: 'crm.nav.followups', icon: ClipboardList, to: '/crm/followups', name: 'crm-followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
+        ],
       },
       {
         labelKey: 'srm.title',
