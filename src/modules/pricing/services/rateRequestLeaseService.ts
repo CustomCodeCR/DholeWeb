@@ -98,9 +98,27 @@ export const RateRequestLeaseService = {
     })
     // HTTP 204 (already queued) has no body; HTTP 202 documents the pending
     // approval/retry state without incorrectly reporting a failed rate save.
-    return response && typeof response === 'object'
+    const completion = response && typeof response === 'object'
       ? unwrapApiResponse<{ status?: string; code?: string }>(response as never)
       : null
+
+    // Saving the QUO and closing the work item are separate writes. Do not
+    // report a successful Send or navigate away unless the persisted request
+    // really left the dashboard. The GET also makes retries safe after a 202.
+    const verification = await callEndpoint<unknown>({
+      method: 'GET',
+      path: `/api/pricing/rate-requests/${encodeURIComponent(id)}`,
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+    })
+    const persisted = unwrapApiResponse<{ status: string; rateId?: string | null }>(verification as never)
+    if (persisted.status !== 'Completed'
+      || persisted.rateId?.toLowerCase() !== rateId.toLowerCase()) {
+      throw new Error('La revisión está guardada, pero la solicitud sigue pendiente. Reintente el envío sin guardar otra revisión.')
+    }
+    window.dispatchEvent(new CustomEvent('dhole:pricing:rate-request-completed', {
+      detail: { requestId: id, rateId },
+    }))
+    return completion
   },
   async cancel(id: string, payload: { reason: 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'; details?: string }): Promise<void> {
     const token = this.tokenFor(id)
