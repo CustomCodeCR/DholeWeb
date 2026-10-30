@@ -56,7 +56,7 @@ const relatedContacts = ref<CrmRow[]>([])
 const relatedAddresses = ref<CrmRow[]>([])
 const editingContactId = ref('')
 const editingAddressId = ref('')
-const contactDraft = reactive({ name: '', jobTitle: '', email: '', phone: '' })
+const contactDraft = reactive({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '' })
 const addressDraft = reactive({ addressType: '', addressText: '', location: '' })
 const relationSaving = ref(false)
 const relatedError = ref('')
@@ -64,9 +64,10 @@ const relatedSuccess = ref('')
 
 function beginContactEdit(contact: CrmRow) {
   editingContactId.value = String(contact.id)
-  Object.assign(contactDraft, { name: String(contact.name ?? ''),
-    jobTitle: String(contact.jobTitle ?? ''), email: String(contact.email ?? ''),
-    phone: String(contact.phone ?? '') })
+  // Don't infer compound surnames from a legacy full name.
+  Object.assign(contactDraft, { firstName: String(contact.firstName ?? ''),
+    lastName: String(contact.lastName ?? ''), jobTitle: String(contact.jobTitle ?? ''),
+    email: String(contact.email ?? ''), phone: String(contact.phone ?? '') })
   editingAddressId.value = ''
   relatedError.value = ''
 }
@@ -80,12 +81,16 @@ function beginAddressEdit(address: CrmRow) {
 async function saveContact() {
   const previous = relatedContacts.value.find(c => String(c.id) === editingContactId.value)
   if (!previous || !can('crm.contact.update') || relationSaving.value) return
-  if (!contactDraft.name.trim()) { relatedError.value = 'El nombre del contacto es obligatorio.'; return }
+  if (!contactDraft.firstName.trim() || !contactDraft.lastName.trim()) {
+    relatedError.value = 'Nombre(s) y apellido(s) del contacto son obligatorios.'; return
+  }
   relationSaving.value = true
   relatedError.value = ''
   try {
     const updated = await crmPatch<CrmRow>('contacts', String(previous.id), {
-      ...contactDraft, expectedVersion: previous.rowVersion,
+      ...contactDraft,
+      name: [contactDraft.firstName.trim(), contactDraft.lastName.trim()].join(' '),
+      expectedVersion: previous.rowVersion,
     })
     relatedContacts.value = relatedContacts.value.map(c => c.id === updated.id ? updated : c)
     editingContactId.value = ''
@@ -306,10 +311,15 @@ async function save() {
                 @click="beginContactEdit(contact)">Editar</button>
             </div>
             <div v-if="editingContactId===String(contact.id)" class="mt-4 grid gap-3 md:grid-cols-2">
-              <DhInput v-model="contactDraft.name" label="Nombre completo" />
+              <DhInput v-model="contactDraft.firstName" label="Nombre(s) *" />
+              <DhInput v-model="contactDraft.lastName" label="Apellido(s) *" />
               <DhInput v-model="contactDraft.jobTitle" label="Puesto" />
               <DhInput v-model="contactDraft.email" label="Correo electrónico" />
               <DhInput v-model="contactDraft.phone" label="Teléfono" />
+              <p v-if="!contact.firstName && !contact.lastName"
+                class="text-xs text-[var(--dh-text-muted)] md:col-span-2">
+                Este contacto antiguo requiere ingresar los nombres y apellidos reales antes de guardar.
+              </p>
               <div class="flex gap-2 md:col-span-2">
                 <button type="button" class="crm-editor-secondary" @click="editingContactId=''">Cancelar</button>
                 <button type="button" class="crm-editor-primary" :disabled="relationSaving" @click="saveContact">Guardar contacto</button>

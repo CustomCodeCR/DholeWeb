@@ -4,13 +4,12 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ContactRound, Plus, RefreshCw, Search, UsersRound } from 'lucide-vue-next'
-import { DhButton, DhInput, DhSwitch } from '@/shared/components/atoms'
+import { DhButton } from '@/shared/components/atoms'
 import { DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
-import CrmReferencePicker from '../components/CrmReferencePicker.vue'
-import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
-import { crmList, crmRequest, crmError, crmUuid, type CrmRow } from '../services/crmApi'
+import CrmContactForm from '../components/CrmContactForm.vue'
+import { crmList, crmError, type CrmRow } from '../services/crmApi'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -22,13 +21,9 @@ const query = ref('')
 const page = ref(1)
 const total = ref(0)
 const loading = ref(false)
-const saving = ref(false)
 const error = ref('')
 const saved = ref('')
 const drawer = ref(false)
-const operationKey = ref(crmUuid())
-const form = ref({ accountId: '', name: '', jobTitle: '', email: '', phone: '',
-  countryId: '', relationRole: 'CONTACT', isPrimary: false })
 const columns = computed<DhTableColumn<CrmRow>[]>(() => [
   { key: 'name', label: en.value ? 'Full name' : 'Nombre completo' },
   { key: 'accountName', label: en.value ? 'Account' : 'Cuenta / empresa' },
@@ -53,33 +48,16 @@ async function load() {
 }
 function find() { query.value = search.value.trim(); page.value = 1; void load() }
 function openCreate() {
-  operationKey.value = crmUuid()
-  form.value = { accountId: '', name: '', jobTitle: '', email: '', phone: '',
-    countryId: '', relationRole: 'CONTACT', isPrimary: false }
   saved.value = ''
   drawer.value = true
 }
-async function create() {
-  if (saving.value || !form.value.accountId || !form.value.name.trim() ||
-      !auth.hasScope('crm.contact.create')) return
-  saving.value = true
-  error.value = ''
-  try {
-    const created = await crmRequest<CrmRow>(
-      '/api/crm/accounts/' + encodeURIComponent(form.value.accountId) + '/contacts',
-      'POST', {
-        name: form.value.name.trim(), jobTitle: form.value.jobTitle.trim() || null,
-        email: form.value.email.trim() || null, phone: form.value.phone.trim() || null,
-        countryId: form.value.countryId || null, relationRole: form.value.relationRole,
-        isPrimary: form.value.isPrimary,
-      }, operationKey.value)
-    drawer.value = false
-    saved.value = en.value ? 'Contact created.' : 'Contacto registrado.'
-    await load()
-    if (created?.id) router.push('/crm/contacts/' + encodeURIComponent(created.id))
-  } catch (e) { error.value = crmError(e) }
-  finally { saving.value = false }
+function onContactSaved(contact: CrmRow) {
+  drawer.value = false
+  saved.value = en.value ? 'Contact created.' : 'Contacto registrado.'
+  void load()
+  if (contact.id) void router.push('/crm/contacts/' + encodeURIComponent(String(contact.id)))
 }
+
 onMounted(load)
 watch(locale, () => { /* localized headers recompute without reloading */ })
 </script>
@@ -133,29 +111,6 @@ watch(locale, () => { /* localized headers recompute without reloading */ })
       </div>
     </footer>
     <DhDrawer :open="drawer" :title="en ? 'New contact' : 'Nuevo contacto'" size="lg" @close="drawer=false">
-      <form class="space-y-4" @submit.prevent="create">
-        <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <h2 class="mb-3 text-xs font-extrabold uppercase tracking-wider">Cuenta vinculada</h2>
-          <CrmReferencePicker v-model="form.accountId" resource="accounts" :label="en ? 'Customer account *' : 'Cliente *'" />
-          <p class="mt-2 text-xs text-[var(--dh-text-muted)]">El contacto se registra bajo una cuenta existente. Solo se permiten cuentas autorizadas.</p>
-        </div>
-        <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <h2 class="mb-3 text-xs font-extrabold uppercase tracking-wider">Información general</h2>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <DhInput v-model="form.name" label="Nombre completo *" />
-            <DhInput v-model="form.jobTitle" label="Puesto / cargo" />
-            <DhInput v-model="form.email" type="email" label="Correo electrónico" />
-            <DhInput v-model="form.phone" label="Teléfono" />
-            <CrmCatalogPicker v-model="form.countryId" label="País" catalog-group-slug="countries" />
-            <DhInput v-model="form.relationRole" label="Relación comercial" />
-            <div class="sm:col-span-2"><DhSwitch v-model="form.isPrimary" label="Contacto principal" /></div>
-          </div>
-        </div>
-        <div class="sticky bottom-0 flex justify-end gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-bg)] py-3">
-          <DhButton variant="secondary" :label="en ? 'Cancel' : 'Cancelar'" @click="drawer=false" />
-          <DhButton type="submit" :loading="saving" :disabled="!form.accountId || !form.name.trim()" :label="en ? 'Save contact' : 'Guardar contacto'" />
-        </div>
-      </form>
-    </DhDrawer>
+      <CrmContactForm v-if="drawer" @saved="onContactSaved" @cancel="drawer=false" />    </DhDrawer>
   </main>
 </template>

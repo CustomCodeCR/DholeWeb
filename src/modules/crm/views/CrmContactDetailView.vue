@@ -26,7 +26,7 @@ const saving = ref(false)
 const editOpen = ref(false)
 const error = ref('')
 const success = ref('')
-const draft = ref({ name: '', jobTitle: '', email: '', phone: '' })
+const draft = ref({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '' })
 const contactId = computed(() => String(route.params.id ?? ''))
 const display = (value: unknown): string =>
   typeof value === 'string' && value.trim() ? value : '—'
@@ -43,17 +43,21 @@ async function load() {
 }
 function edit() {
   if (!contact.value) return
-  draft.value = { name: String(contact.value.name || ''), jobTitle: String(contact.value.jobTitle || ''),
+  // Legacy full names are not split automatically: compound surnames are ambiguous.
+  draft.value = { firstName: String(contact.value.firstName || ''), lastName: String(contact.value.lastName || ''),
+    jobTitle: String(contact.value.jobTitle || ''),
     email: String(contact.value.email || ''), phone: String(contact.value.phone || '') }
   editOpen.value = true
 }
 async function save() {
-  if (!contact.value || !draft.value.name.trim() || saving.value) return
+  if (!contact.value || !draft.value.firstName.trim() || !draft.value.lastName.trim() || saving.value) return
   saving.value = true
   error.value = ''
   try {
     await crmPatch('contacts', contactId.value, {
-      expectedVersion: contact.value.rowVersion, name: draft.value.name.trim(),
+      expectedVersion: contact.value.rowVersion,
+      firstName: draft.value.firstName.trim(), lastName: draft.value.lastName.trim(),
+      name: [draft.value.firstName.trim(), draft.value.lastName.trim()].join(' '),
       jobTitle: draft.value.jobTitle.trim() || null, email: draft.value.email.trim() || null,
       phone: draft.value.phone.trim() || null,
     })
@@ -102,6 +106,7 @@ watch(contactId, load)
           <h2 class="mb-3 flex items-center gap-2 text-sm font-bold"><UserRound class="h-4 w-4 text-[var(--dh-primary)]" />Información general</h2>
           <dl class="divide-y divide-[var(--dh-border)]">
             <div v-for="item in [
+              {label:'Nombre(s)',value:contact.firstName}, {label:'Apellido(s)',value:contact.lastName},
               {label:'Nombre completo',value:contact.name}, {label:'Puesto',value:contact.jobTitle},
               {label:'Correo',value:contact.email}, {label:'Teléfono',value:contact.phone},
               {label:'Estado',value:contact.status},
@@ -138,13 +143,19 @@ watch(contactId, load)
     </template>
     <DhDrawer :open="editOpen" :title="en ? 'Edit contact' : 'Editar contacto'" size="md" @close="editOpen=false">
       <form class="space-y-4" @submit.prevent="save">
-        <DhInput v-model="draft.name" label="Nombre completo *" />
+        <div class="grid gap-3 sm:grid-cols-2">
+          <DhInput v-model="draft.firstName" label="Nombre(s) *" />
+          <DhInput v-model="draft.lastName" label="Apellido(s) *" />
+        </div>
+        <p v-if="!contact?.firstName && !contact?.lastName" class="text-xs text-[var(--dh-text-muted)]">
+          Este contacto antiguo tiene solo un nombre completo. Ingresá sus nombres y apellidos reales para guardarlos por separado.
+        </p>
         <DhInput v-model="draft.jobTitle" label="Puesto / cargo" />
         <DhInput v-model="draft.email" label="Correo electrónico" type="email" />
         <DhInput v-model="draft.phone" label="Teléfono" />
         <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] py-3">
           <DhButton variant="secondary" label="Cancelar" @click="editOpen=false" />
-          <DhButton type="submit" :loading="saving" :disabled="!draft.name.trim()" label="Guardar" />
+          <DhButton type="submit" :loading="saving" :disabled="!draft.firstName.trim() || !draft.lastName.trim()" label="Guardar" />
         </div>
       </form>
     </DhDrawer>

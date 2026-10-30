@@ -8,6 +8,7 @@ import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
+import CrmContactForm from '../components/CrmContactForm.vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -200,12 +201,11 @@ async function createRelation(tab: string, body: unknown, requiredScope: string)
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
 }
-async function createContact() {
-  if (!drafts.contactName.trim()) { error.value = t('crm.required'); return }
-  await createRelation('contacts', {
-    name: drafts.contactName, email: drafts.contactEmail || null, jobTitle: null,
-    countryId: null, phone: null, relationRole: 'COMMERCIAL', isPrimary: false,
-  }, 'crm.contact.create')
+function onLinkedContactSaved() {
+  showRelationForm.value = false
+  success.value = t('crm.saved')
+  void loadRelation()
+  void load()
 }
 async function convertLead() {
   await perform('convert', {
@@ -563,12 +563,8 @@ onMounted(() => { if (crmEnabled()) void load() })
           <input v-model.trim="drafts.reason" class="crm-input" :placeholder="t('crm.reason')" />
           <input v-model="drafts.renewalDate" type="datetime-local" class="crm-input" />
         </div>
-        <form v-if="section==='accounts' && relation==='contacts' && can('crm.contact.create')"
-          class="grid gap-3 sm:grid-cols-3" @submit.prevent="createContact">
-          <input v-model.trim="drafts.contactName" required class="crm-input" :placeholder="t('crm.contactName')" />
-          <input v-model.trim="drafts.contactEmail" type="email" class="crm-input" :placeholder="t('crm.email')" />
-          <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.addContact') }}</button>
-        </form>
+        <CrmContactForm v-if="section==='accounts' && relation==='contacts' && showRelationForm && can('crm.contact.create')"
+          :account-id="id" @saved="onLinkedContactSaved" @cancel="showRelationForm=false" />
         <form v-if="section==='accounts' && relation==='credit-profiles' && can('crm.credit.manage')"
           class="grid gap-3 sm:grid-cols-3" @submit.prevent="createCredit">
           <input v-model="drafts.creditDays" type="number" min="0" class="crm-input" :placeholder="t('crm.creditDays')" />
