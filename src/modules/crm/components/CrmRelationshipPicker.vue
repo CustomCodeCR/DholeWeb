@@ -7,7 +7,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 // Use a normalized, comma-separated representation so existing CRM DTOs and
 // API consumers remain compatible with the old single relationship field.
-export const CRM_RELATION_OPTIONS = [
+const CRM_RELATION_OPTIONS = [
   { value: 'Cliente', label: 'Cliente' },
   { value: 'Consignee', label: 'Consignee' },
   { value: 'Shipper', label: 'Shipper' },
