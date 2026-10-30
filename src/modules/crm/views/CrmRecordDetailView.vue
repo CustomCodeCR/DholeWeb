@@ -448,41 +448,82 @@ onMounted(() => { if (crmEnabled()) void load() })
         <button class="crm-action" :disabled="saving" @click="perform('cancel',{expectedVersion:version(),reason:drafts.reason||'Cancelado'},'crm.task.manage')">{{ t('crm.cancelActivity') }}</button>
       </section>
 
-      <button v-if="section === 'accounts' && !showAccountEditor" id="crm-related-management" type="button"
-        class="flex w-full items-center justify-between rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-left text-sm font-bold"
-        :aria-expanded="showAdvancedAccountManagement"
-        @click="showAdvancedAccountManagement = !showAdvancedAccountManagement">
-        <span>{{ showAdvancedAccountManagement ? 'Ocultar gestión avanzada de la cuenta' : 'Gestionar contactos, crédito, contratos y otros registros' }}</span>
-        <span class="text-[var(--dh-primary)]">{{ showAdvancedAccountManagement ? '−' : '+' }}</span>
-      </button>
-      <nav v-if="section !== 'accounts' || (showAdvancedAccountManagement && !showAccountEditor)" class="flex flex-wrap gap-2" aria-label="CRM">
+      <section v-if="section === 'accounts' && !showAccountEditor" id="crm-related-management"
+        class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]"
+        data-crm-account-advanced>
+        <div class="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
+          <div>
+            <h2 class="text-base font-extrabold">Gestión de la cuenta</h2>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              Contactos, direcciones, operaciones, crédito y seguimientos de este cliente.
+            </p>
+          </div>
+          <button type="button" :aria-expanded="showAdvancedAccountManagement" aria-controls="crm-advanced-sections"
+            class="rounded-xl border border-[var(--dh-border)] px-3 py-2 text-xs font-bold hover:border-[var(--dh-primary)]"
+            @click="showAdvancedAccountManagement = !showAdvancedAccountManagement">
+            {{ showAdvancedAccountManagement ? 'Ocultar secciones' : 'Ver y gestionar secciones' }}
+          </button>
+        </div>
+        <nav v-if="showAdvancedAccountManagement" id="crm-advanced-sections"
+          class="grid gap-2 border-t border-[var(--dh-border)] p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          aria-label="Gestión avanzada de la cuenta">
+          <button v-for="tab in tabs.filter(permitted)" :key="tab" type="button"
+            :aria-pressed="relation===tab"
+            class="flex min-h-16 flex-col justify-center gap-1 rounded-xl border p-3 text-left transition"
+            :class="relation===tab
+              ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]'
+              : 'border-[var(--dh-border)] bg-[var(--dh-shell)] hover:border-[var(--dh-primary)]'"
+            @click="relation=tab">
+            <span class="text-xs font-extrabold">{{ ({
+              contacts: 'Contactos', addresses: 'Direcciones',
+              'business-activities': 'Actividades económicas', 'trade-profiles': 'Rutas habituales',
+              'credit-profiles': 'Perfiles de crédito', 'credit-contracts': 'Contratos de crédito',
+              'followup-policy': 'Política de seguimiento',
+            } as Record<string,string>)[tab] ?? tab }}</span>
+            <span class="text-[11px] text-[var(--dh-text-muted)]">{{ ({
+              contacts: 'Personas de la empresa', addresses: 'Oficinas y ubicaciones',
+              'business-activities': 'Giro del negocio', 'trade-profiles': 'Operaciones y mercados',
+              'credit-profiles': 'Condiciones financieras', 'credit-contracts': 'Documentos y vigencias',
+              'followup-policy': 'Agenda del cliente',
+            } as Record<string,string>)[tab] ?? '' }}</span>
+          </button>
+        </nav>
+      </section>
+      <nav v-if="section !== 'accounts'" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
-          :aria-pressed="relation===tab" @click="relation=tab">
-          {{ ({
-            contacts: 'Contactos',
-            addresses: 'Direcciones',
-            'business-activities': 'Actividades económicas',
-            'trade-profiles': 'Rutas habituales',
-            'credit-profiles': 'Perfiles de crédito',
-            'credit-contracts': 'Contratos de crédito',
-            'followup-policy': 'Política de seguimiento',
-            routes: 'Rutas', services: 'Servicios',
-          } as Record<string, string>)[tab] ?? tab }}
-        </button>
+          :aria-pressed="relation===tab" @click="relation=tab">{{ tab }}</button>
       </nav>
       <section v-if="relation && permitted(relation) && (section !== 'accounts' || (showAdvancedAccountManagement && !showAccountEditor))" class="crm-panel space-y-4 p-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-lg font-bold">{{ relation }} ({{ relationRows.length }})</h2>
+          <h2 class="text-base font-extrabold">{{ ({
+            contacts: 'Contactos', addresses: 'Direcciones',
+            'business-activities': 'Actividades económicas', 'trade-profiles': 'Rutas habituales',
+            'credit-profiles': 'Perfiles de crédito', 'credit-contracts': 'Contratos de crédito',
+            'followup-policy': 'Política de seguimiento',
+          } as Record<string,string>)[relation] ?? relation }} <span class="text-xs font-normal text-[var(--dh-text-muted)]">({{ relationRows.length }})</span></h2>
           <DhButton v-if="canAddRelation" :icon="Plus" :label="t('common.create')" @click="showRelationForm = true" />
         </div>
         <div v-if="!relationRows.length" class="text-sm text-[var(--dh-text-muted)]">{{ t('common.noData') }}</div>
         <div v-for="item in relationRows" :key="item.id" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">
-          <p class="font-bold">{{ item.name ?? item.activityCode ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.id }}</p>
-          <button v-if="relation==='contacts' && section==='accounts' && can('crm.contact.read')"
-            type="button" class="crm-action mt-2" @click="router.push('/crm/contacts/'+encodeURIComponent(item.id))">
-            {{ t('common.details') }}
-          </button>
-          <p class="text-[var(--dh-text-muted)]">{{ item.activityDescription ?? item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot ?? '' }}</p>
+          <template v-if="relation === 'contacts' && section === 'accounts'">
+            <RouterLink v-if="can('crm.contact.read')" :to="'/crm/contacts/' + encodeURIComponent(String(item.id))"
+              class="text-sm font-extrabold hover:text-[var(--dh-primary)] hover:underline">
+              {{ item.name ?? 'Contacto' }}
+            </RouterLink>
+            <p v-else class="font-extrabold">{{ item.name ?? 'Contacto' }}</p>
+            <p v-if="item.jobTitle" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ item.jobTitle }}</p>
+            <div class="mt-2 flex flex-wrap gap-3 text-xs">
+              <a v-if="item.email" :href="'mailto:' + String(item.email)"
+                class="text-[var(--dh-primary)] hover:underline">{{ item.email }}</a>
+              <a v-if="item.phone" :href="'tel:' + String(item.phone)"
+                class="text-[var(--dh-primary)] hover:underline">{{ item.phone }}</a>
+            </div>
+          </template>
+          <template v-else>
+            <p class="font-extrabold">{{ item.name ?? item.activityCode ?? item.addressText ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? 'Registro' }}</p>
+            <p v-if="item.activityDescription || item.email || item.reason || item.paymentTerms || item.statusSnapshot"
+              class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ item.activityDescription ?? item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot }}</p>
+          </template>
           <div v-if="relation==='credit-profiles' && section==='accounts' && item.status==='PendingApproval'
             && can('crm.credit.approve')" class="mt-3 flex flex-wrap gap-2">
             <button :disabled="saving" class="crm-action"
