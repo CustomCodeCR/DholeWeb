@@ -15,8 +15,15 @@ const localNumber = ref(props.modelValue)
 const loading = ref(false)
 const warning = ref('')
 let generation = 0
-
+let lastEmitted = ''
+function emitPhone(value: string) {
+  lastEmitted = value
+  emit('update:modelValue', value)
+}
 watch(() => props.modelValue, value => {
+  // Preserve what the user typed (spaces/caret) after formatting for storage.
+  if (value === lastEmitted) { lastEmitted = ''; return }
+  lastEmitted = ''
   localNumber.value = localPhonePart(value ?? '', dialPrefix.value)
 }, { immediate: true })
 
@@ -46,7 +53,7 @@ watch(() => props.countryId, async countryId => {
     dialPrefix.value = nextPrefix
     localNumber.value = subscriber
     const formatted = internationalPhone(nextPrefix, subscriber)
-    if (formatted && formatted !== previousFull) emit('update:modelValue', formatted)
+    if (formatted && formatted !== previousFull) emitPhone(formatted)
   } catch {
     if (requestId !== generation) return
     warning.value = 'No se pudo obtener el código telefónico desde Config. Revisá el país o escribí el prefijo manualmente.'
@@ -59,7 +66,7 @@ function onInput(event: Event) {
   const target = event.target as HTMLInputElement
   localNumber.value = target.value
   const normalized = internationalPhone(dialPrefix.value, target.value)
-  emit('update:modelValue', normalized)
+  emitPhone(normalized)
 }
 </script>
 
