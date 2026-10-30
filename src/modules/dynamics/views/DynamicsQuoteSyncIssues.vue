@@ -596,6 +596,34 @@ async function recoverRejected(issue: QuoteIssue) {
 }
 
 
+async function resumePartial(issue: QuoteIssue) {
+  const ledger = ledgerByRate.value[issue.rateId]
+  if (!isAdministrator.value || recoveringRateId.value ||
+      issue.status !== 'NeedsAttention' || issue.retryBlockReason ||
+      ledger?.header.status !== 'succeeded' || !ledger.header.recordId ||
+      ledger.total.status !== 'not_sent' ||
+      ledger.live?.headerExists !== true) return
+  recoveringRateId.value = issue.rateId
+  recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]: '' }
+  try {
+    const result = await fetchClient<{ message: string }>(
+      '/api/pricing/rates/' + encodeURIComponent(issue.rateId) +
+        '/dynamics-sync/resume-partial', { method: 'POST' })
+    recoveryMessages.value = { ...recoveryMessages.value,
+      [issue.rateId]: result.message ||
+        'Se reanudó la línea de venta en la QUO existente, sin duplicar cabecera.' }
+    await refresh()
+  } catch (error) {
+    recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]:
+      error instanceof ApiError
+        ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error)
+        : error instanceof Error ? error.message :
+          'La recuperación no fue autorizada. No se reenvió la cabecera.' }
+  } finally {
+    recoveringRateId.value = null
+  }
+}
+
 async function reconcileConfirmed(issue: QuoteIssue) {
   const ledger = ledgerByRate.value[issue.rateId]
   if (!isAdministrator.value || reconcilingRateId.value ||
@@ -745,6 +773,14 @@ async function retryWithoutDuplicate(issue: QuoteIssue) {
     if (issue.status !== 'NeedsAttention') {
       retryMessages.value = { ...retryMessages.value, [rateId]:
         'El estado actual no admite un nuevo envío. Se consultó el historial sin escribir en Dynamics.' }
+      return
+    }
+    if (ledger.header.status === 'succeeded' && ledger.header.recordId &&
+        ledger.total.status === 'not_sent' &&
+        ledger.live?.headerExists === true && issue.status === 'NeedsAttention') {
+      // Pricing independently verifies the exact operations and UPSERT status
+      // before queueing the same immutable revision. No browser proof is trusted.
+      await resumePartial(issue)
       return
     }
     if (ledger.header.status === 'rejected' && ledger.total.status === 'not_sent' &&
@@ -1477,6 +1513,19 @@ onUnmounted(() => {
             :disabled="Boolean(reconcilingRateId)" @click="reconcileConfirmed(issue)">
             <CheckCircle2 :size="15" />
             {{ reconcilingRateId === issue.rateId ? 'Conciliando...' : 'Confirmar QUO ya creada (sin duplicar)' }}
+          </button>
+          <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
+              !issue.retryBlockReason &&
+              ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+              ledgerByRate[issue.rateId]?.header.recordId &&
+              ledgerByRate[issue.rateId]?.total.status === 'not_sent' &&
+              ledgerByRate[issue.rateId]?.live?.headerExists === true"
+            type="button" class="dynamics-primary-button"
+            :disabled="Boolean(recoveringRateId) || Boolean(retryDecisionRateId)"
+            @click="resumePartial(issue)">
+            <RefreshCw :size="15" />
+            {{ recoveringRateId === issue.rateId ? 'Reanudando línea...' :
+              'Completar línea de venta (sin duplicar QUO)' }}
           </button>
           <p v-if="reconcileMessages[issue.rateId]" class="quote-sync-meta" role="status">
             {{ reconcileMessages[issue.rateId] }}
