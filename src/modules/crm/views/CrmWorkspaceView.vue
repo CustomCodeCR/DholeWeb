@@ -328,6 +328,11 @@ async function save() {
   error.value = ''; saving.value = true
   try {
     let body = crmPayload(section.value, form, edited.value ?? undefined)
+    if (section.value === 'accounts' && !edited.value &&
+        form.executiveUserId === '__castro_fallas__') {
+      body.executiveUserId = null
+      body.assignToCastroFallas = true
+    }
     if (section.value === 'followups') body = {
       ...body, assignedUserId: String(form.assignedUserId || auth.userId || ''),
     }
@@ -642,7 +647,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
             <DhInput v-if="section === 'followups'" :label="t('crm.assignedUser')"
               :model-value="String(form.assignedUserId ?? '')" @update:model-value="form.assignedUserId = $event" />
           </div>
-          <div class="sticky bottom-0 z-10 -mx-3 flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-bg)] px-3 py-4 sm:-mx-5 sm:px-5">
+          <div class="mt-6 flex flex-wrap justify-end gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-sm">
             <DhButton :label="t('common.cancel')" variant="secondary" @click="showForm = false" />
             <DhButton type="submit" :label="section === 'accounts' ? 'Crear cuenta y abrir ficha' : t('common.save')" :loading="saving" />
           </div>
