@@ -222,6 +222,8 @@ const loadingCatalogs = ref(false)
 const loadingRates = ref(false)
 const loadingCabys = ref(false)
 const saving = ref(false)
+const pendingModificationDelivery = ref(false)
+const savedModificationRevision = ref<number | null>(null)
 const exchangeRateLoading = ref(false)
 const exchangeRatePurchase = ref<number | null>(null)
 const exchangeRateSale = ref<number | null>(null)
@@ -4516,7 +4518,60 @@ async function saveOpenRequest() {
   }
 }
 
+async function retrySavedModificationDelivery() {
+  const requestId = props.modificationRequestId
+  const revision = savedModificationRevision.value
+  if (!requestId || !editingRate.value || !revision || saving.value) return
+
+  saving.value = true
+  const rateId = editingRate.value.id
+  try {
+    const response = await callEndpoint<unknown>({
+      method: 'GET',
+      path: `/api/pricing/rate-requests/${encodeURIComponent(requestId)}`,
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+    })
+    const request = unwrapApiResponse<{ status: string; rateId?: string | null }>(response as never)
+    if (request.rateId?.toLowerCase() !== rateId.toLowerCase()
+      || !['Open', 'Completed'].includes(request.status)) {
+      throw new Error('La solicitud ya no está abierta o no pertenece a esta QUO.')
+    }
+
+    if (request.status === 'Open') {
+      // Do not attempt to complete a different revision edited by someone else.
+      const persistedRate = await PricingService.getRate(rateId)
+      if (persistedRate.revisionNumber !== revision) {
+        throw new Error('La tarifa tiene una revisión posterior. Revise la solicitud antes de reenviar.')
+      }
+      await RateRequestLeaseService.claim(requestId, { recoverOwnLease: true })
+      await RateRequestLeaseService.prepareModification(requestId, rateId, revision)
+      const completion = await RateRequestLeaseService.completeRate(
+        requestId, rateId, { confirmSellerModification: true },
+      )
+      if (completion?.status === 'CompletedDeliveryRetryPending') {
+        toastStore.warning(
+          'Revisión guardada; entrega pendiente',
+          'La solicitud se completó. Pricing reintentará la entrega automáticamente.',
+        )
+      }
+    }
+
+    pendingModificationDelivery.value = false
+    savedModificationRevision.value = null
+    toastStore.success('Solicitud de modificación completada', 'La solicitud ya no aparecerá en las pendientes.')
+    await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo cerrar la solicitud. La revisión ya está guardada; reintente el envío sin volver a modificarla.')
+  } finally {
+    saving.value = false
+  }
+}
+
 async function saveRate() {
+  if (pendingModificationDelivery.value) {
+    await retrySavedModificationDelivery()
+    return
+  }
   if (!validateRequiredFields() || !validateWizardReferences()) return
   if (editingRate.value && number(form.cargoValue) > 0 && !rateLines.value.some((line) => line.costDetailType === 'Insurance')) {
     syncDeclaredCargoInsuranceOnEdit()
@@ -4949,33 +5004,33 @@ async function saveRate() {
       }
       rateId = editingRate.value.id
       if (props.modificationRequestId) {
-        // Saving a requested revision is the delivery intent; no second
-        // manual completion click is necessary. Pricing defers the actual
-        // email until management approves any low-margin revision.
-        await RateRequestLeaseService.prepareModification(
-          props.modificationRequestId, rateId, persistedRate.revisionNumber,
-        )
-        // The rate revision and its preparation are already persisted.
-        // A completion failure must not look like a failed quote save, nor
-        // invite the operator to create another revision.
+        // Save may succeed while preparation or completion fails. Persist the
+        // revision identity before either call; subsequent clicks must retry
+        // delivery, NEVER run PricingService.updateRate a second time.
+        savedModificationRevision.value = persistedRate.revisionNumber
+        pendingModificationDelivery.value = true
         try {
+          await RateRequestLeaseService.prepareModification(
+            props.modificationRequestId, rateId, persistedRate.revisionNumber,
+          )
           const completion = await RateRequestLeaseService.completeRate(
             props.modificationRequestId, rateId, { confirmSellerModification: true },
           )
+          pendingModificationDelivery.value = false
+          savedModificationRevision.value = null
           if (completion?.status === 'CompletedDeliveryRetryPending') {
             toastStore.warning(
               'Revisión guardada; entrega pendiente',
-              'La modificación ya quedó guardada. Pricing reintentará generar y enviar el PDF sin crear otra revisión.',
+              'La solicitud ya quedó completada. Pricing reintentará generar y enviar el PDF sin crear otra revisión.',
             )
-            await hydrateExistingRate()
-            step.value = 8
+            await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
             return
           }
         } catch (deliveryError) {
           console.error('La revisión quedó guardada, pero falló el cierre de su solicitud.', deliveryError)
           toastStore.warning(
             'Revisión guardada; revisar envío',
-            'Se guardó la QUO, pero no se pudo confirmar el cierre de la solicitud. Revise o reintente el envío desde Solicitudes a Pricing; no vuelva a guardar otra revisión.',
+            'La QUO ya se guardó, pero su solicitud sigue pendiente. Use Reintentar envío sin duplicar revisión; NO vuelva a guardar la tarifa.',
           )
           await hydrateExistingRate()
           step.value = 8
@@ -6749,8 +6804,8 @@ onMounted(async () => {
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
       <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
-        <DhButton :disabled="saving || uploadingFinalBackups" @click="saveRate">
-          <Check class="h-4 w-4" /> {{ saving ? 'Guardando…' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
+        <DhButton :disabled="saving || uploadingFinalBackups" @click="pendingModificationDelivery ? retrySavedModificationDelivery() : saveRate()">
+          <Check class="h-4 w-4" /> {{ saving ? 'Procesando…' : pendingModificationDelivery ? 'Reintentar envío sin duplicar revisión' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
         </DhButton>
       </div>
       <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Seleccione una alternativa para continuar</span>
