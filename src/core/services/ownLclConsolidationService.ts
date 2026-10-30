@@ -308,6 +308,7 @@ export interface CalculateOwnLclQuoteRequest {
   hbl: number
   pickupCost: number
   pickupSale: number
+  useUnlistedChinaOriginFallback?: boolean
   discount: number
   commercialPlan?: string | null
   cargoValue?: number
