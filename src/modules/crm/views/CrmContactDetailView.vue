@@ -6,6 +6,8 @@ import { useI18n } from 'vue-i18n'
 import { ArrowLeft, ContactRound, Mail, Pencil, Phone, RefreshCw, ShieldCheck, CalendarClock, UserRound } from 'lucide-vue-next'
 import { DhButton, DhInput } from '@/shared/components/atoms'
 import { DhDrawer } from '@/shared/components/organisms'
+import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
+import CrmPhoneInput from '../components/CrmPhoneInput.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmGet, crmPatch, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 
@@ -26,7 +28,7 @@ const saving = ref(false)
 const editOpen = ref(false)
 const error = ref('')
 const success = ref('')
-const draft = ref({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '' })
+const draft = ref({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
 const contactId = computed(() => String(route.params.id ?? ''))
 const display = (value: unknown): string =>
   typeof value === 'string' && value.trim() ? value : '—'
@@ -46,7 +48,8 @@ function edit() {
   // Legacy full names are not split automatically: compound surnames are ambiguous.
   draft.value = { firstName: String(contact.value.firstName || ''), lastName: String(contact.value.lastName || ''),
     jobTitle: String(contact.value.jobTitle || ''),
-    email: String(contact.value.email || ''), phone: String(contact.value.phone || '') }
+    email: String(contact.value.email || ''), phone: String(contact.value.phone || ''),
+    countryId: String(contact.value.countryId || '') }
   editOpen.value = true
 }
 async function save() {
@@ -60,6 +63,7 @@ async function save() {
       name: [draft.value.firstName.trim(), draft.value.lastName.trim()].join(' '),
       jobTitle: draft.value.jobTitle.trim() || null, email: draft.value.email.trim() || null,
       phone: draft.value.phone.trim() || null,
+      countryId: draft.value.countryId || null,
     })
     editOpen.value = false
     await load()
@@ -152,7 +156,10 @@ watch(contactId, load)
         </p>
         <DhInput v-model="draft.jobTitle" label="Puesto / cargo" />
         <DhInput v-model="draft.email" label="Correo electrónico" type="email" />
-        <DhInput v-model="draft.phone" label="Teléfono" />
+        <div class="grid gap-3 sm:grid-cols-2">
+          <CrmPhoneInput v-model="draft.phone" :country-id="draft.countryId" label="Teléfono" />
+          <CrmCatalogPicker v-model="draft.countryId" label="País" catalog-group-slug="countries" />
+        </div>
         <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] py-3">
           <DhButton variant="secondary" label="Cancelar" @click="editOpen=false" />
           <DhButton type="submit" :loading="saving" :disabled="!draft.firstName.trim() || !draft.lastName.trim()" label="Guardar" />
