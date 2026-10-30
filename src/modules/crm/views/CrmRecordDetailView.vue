@@ -135,8 +135,23 @@ async function perform(action: string, body: unknown, scope: string, path?: stri
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
 }
-function openRelatedManagement() {
+function leaveAccountEditing() {
   showAccountEditor.value = false
+  const query = { ...route.query }
+  delete query.edit
+  void router.replace({ path: route.path, query, hash: route.hash })
+}
+function toggleAccountEditing() {
+  if (!can('crm.account.update')) return
+  if (showAccountEditor.value) {
+    leaveAccountEditing()
+  } else {
+    showAccountEditor.value = true
+    void router.replace({ path: route.path, query: { ...route.query, edit: '1' }, hash: route.hash })
+  }
+}
+function openRelatedManagement() {
+  leaveAccountEditing()
   showAdvancedAccountManagement.value = true
   window.requestAnimationFrame(() => document.getElementById('crm-related-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
@@ -324,6 +339,9 @@ onBeforeRouteLeave(() => {
   return window.confirm(t('crm.leaveDuringSave'))
 })
 watch([id, section], () => { void load() })
+watch(() => [route.query.edit, section.value], ([edit]) => {
+  showAccountEditor.value = section.value === 'accounts' && edit === '1' && can('crm.account.update')
+}, { immediate: true })
 watch(relation, () => { showRelationForm.value = false; if (relation.value) void loadRelation() })
 watch(success, value => { if (value) showRelationForm.value = false })
 onMounted(() => { if (crmEnabled()) void load() })
@@ -360,12 +378,13 @@ onMounted(() => { if (crmEnabled()) void load() })
             </div>
           </form>
         </DhDrawer>
-        <CrmAccountEditor v-if="section === 'accounts'" :account="record"
-          :open="showAccountEditor && can('crm.account.update')" @close="showAccountEditor=false"
-          @saved="load" @manage-related="openRelatedManagement" @logo-updated="load" />
         <CrmAccountHub v-if="section === 'accounts'" :account="record"
-          @change-executive="openExecutiveDrawer" @edit-account="showAccountEditor=true"
-          @manage-related="openRelatedManagement" />
+          :editing="showAccountEditor && can('crm.account.update')"
+          @change-executive="openExecutiveDrawer" @edit-account="toggleAccountEditing"
+          @manage-related="openRelatedManagement" @logo-updated="load" />
+        <CrmAccountEditor v-if="section === 'accounts' && showAccountEditor && can('crm.account.update')"
+          :account="record" :open="true" @close="leaveAccountEditing"
+          @saved="load" @manage-related="openRelatedManagement" />
         <dl v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
@@ -418,14 +437,14 @@ onMounted(() => { if (crmEnabled()) void load() })
         <button class="crm-action" :disabled="saving" @click="perform('cancel',{expectedVersion:version(),reason:drafts.reason||'Cancelado'},'crm.task.manage')">{{ t('crm.cancelActivity') }}</button>
       </section>
 
-      <button v-if="section === 'accounts'" id="crm-related-management" type="button"
+      <button v-if="section === 'accounts' && !showAccountEditor" id="crm-related-management" type="button"
         class="flex w-full items-center justify-between rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-left text-sm font-bold"
         :aria-expanded="showAdvancedAccountManagement"
         @click="showAdvancedAccountManagement = !showAdvancedAccountManagement">
         <span>{{ showAdvancedAccountManagement ? 'Ocultar gestión avanzada de la cuenta' : 'Gestionar contactos, crédito, contratos y otros registros' }}</span>
         <span class="text-[var(--dh-primary)]">{{ showAdvancedAccountManagement ? '−' : '+' }}</span>
       </button>
-      <nav v-if="section !== 'accounts' || showAdvancedAccountManagement" class="flex flex-wrap gap-2" aria-label="CRM">
+      <nav v-if="section !== 'accounts' || (showAdvancedAccountManagement && !showAccountEditor)" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
           :aria-pressed="relation===tab" @click="relation=tab">
           {{ ({
@@ -440,7 +459,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           } as Record<string, string>)[tab] ?? tab }}
         </button>
       </nav>
-      <section v-if="relation && permitted(relation) && (section !== 'accounts' || showAdvancedAccountManagement)" class="crm-panel space-y-4 p-4">
+      <section v-if="relation && permitted(relation) && (section !== 'accounts' || (showAdvancedAccountManagement && !showAccountEditor))" class="crm-panel space-y-4 p-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-lg font-bold">{{ relation }} ({{ relationRows.length }})</h2>
           <DhButton v-if="canAddRelation" :icon="Plus" :label="t('common.create')" @click="showRelationForm = true" />
