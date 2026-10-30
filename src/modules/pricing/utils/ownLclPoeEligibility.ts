@@ -37,6 +37,18 @@ export function isMoinOwnLclPoe(code: string | null | undefined, name: string | 
   return /(?:^|[^a-z])moin(?:$|[^a-z])/.test(normalizedPortName(name))
 }
 
+/** Acepta únicamente POL de China por país explícito o UN/LOCODE CNxxx.
+ * Los códigos internos POL-2026-xxx no permiten inferir el país.
+ */
+export function isChinaOwnLclPol(code: string | null | undefined, name: string | null | undefined): boolean {
+  const countryTokens = normalizedPortName(name).split(/[,;|()（）]/).map((token) => token.trim())
+  const chinaCountry = new Set(['china', 'china continental', 'mainland china', 'republica popular china', 'people\'s republic of china', 'cn', 'chn', 'prc', '中国'])
+  if (countryTokens.some((token) => chinaCountry.has(token))) return true
+  // UN/LOCODE: CN + 3 letras, por ejemplo CNWUH. No usar prefijos de códigos internos.
+  return /^CN[A-Z]{3}$/.test(normalizedPortCode(code))
+    || /^CN[A-Z]{3}$/.test(normalizedPortCode(name))
+}
+
 /** Mantiene Balboa para China y exige Moín para la matriz Miami. */
 export function isOwnLclPoeEligible(
   polCode: string | null | undefined,
