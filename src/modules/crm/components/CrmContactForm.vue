@@ -5,6 +5,7 @@ import { DhButton, DhInput, DhSwitch } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmReferencePicker from './CrmReferencePicker.vue'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
+import CrmPhoneInput from './CrmPhoneInput.vue'
 import { crmError, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
 
 const props = withDefaults(defineProps<{ accountId?: string }>(), { accountId: '' })
@@ -69,7 +70,7 @@ async function save() {
         <DhInput v-model="draft.lastName" :label="en ? 'Surname(s) *' : 'Apellido(s) *'" />
         <DhInput v-model="draft.jobTitle" :label="en ? 'Position / role' : 'Puesto / cargo'" />
         <DhInput v-model="draft.email" type="email" :label="en ? 'Email address' : 'Correo electrónico'" />
-        <DhInput v-model="draft.phone" :label="en ? 'Phone' : 'Teléfono'" />
+        <CrmPhoneInput v-model="draft.phone" :country-id="draft.countryId" :label="en ? 'Phone' : 'Teléfono'" />
         <CrmCatalogPicker v-model="draft.countryId" :label="en ? 'Country' : 'País'" catalog-group-slug="countries" />
         <label class="block space-y-2 text-xs font-bold">
           <span class="text-[var(--dh-text-muted)]">{{ en ? 'Commercial relationship' : 'Relación comercial' }}</span>
