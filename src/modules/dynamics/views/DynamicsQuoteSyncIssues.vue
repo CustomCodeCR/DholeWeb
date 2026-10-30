@@ -34,6 +34,14 @@ type QuoteLedger = {
     detailExists: boolean | null
     detailStatus: string
     confirmed: boolean
+    quoteLineLookupStatus?: string
+    actualLines?: Array<{
+      recordId: string
+      name: string
+      quantity: number | null
+      pricePerUnit: number | null
+      lineAmount: number | null
+    }>
   }
   noPostExecuted: boolean
 }
@@ -635,12 +643,39 @@ async function resumePartial(issue: QuoteIssue, adoptUnmanagedLine = false) {
   }
 }
 
+async function reconcileExistingSale(issue: QuoteIssue) {
+  const ledger = ledgerByRate.value[issue.rateId]
+  if (!isAdministrator.value || reconcilingRateId.value ||
+      issue.status !== 'NeedsAttention' || issue.retryBlockReason ||
+      ledger?.header.status !== 'succeeded' || !ledger.header.recordId ||
+      ledger.total.status !== 'not_sent') return
+  reconcilingRateId.value = issue.rateId
+  reconcileMessages.value = { ...reconcileMessages.value, [issue.rateId]: '' }
+  try {
+    const result = await fetchClient<{ message: string }>(
+      '/api/pricing/rates/' + encodeURIComponent(issue.rateId) +
+        '/dynamics-sync/reconcile-existing', { method: 'POST' })
+    reconcileMessages.value = { ...reconcileMessages.value,
+      [issue.rateId]: result.message ||
+        'La línea existente coincide con la venta. No se escribió nada en Dynamics.' }
+    await refresh()
+  } catch (error) {
+    reconcileMessages.value = { ...reconcileMessages.value,
+      [issue.rateId]: error instanceof ApiError
+        ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error)
+        : error instanceof Error ? error.message :
+          'La venta existente no se pudo confirmar. No se generó ninguna escritura.' }
+  } finally {
+    reconcilingRateId.value = null
+  }
+}
+
 async function reconcileConfirmed(issue: QuoteIssue) {
   const ledger = ledgerByRate.value[issue.rateId]
   if (!isAdministrator.value || reconcilingRateId.value ||
       issue.status !== 'NeedsAttention' ||
       ledger?.header.status !== 'succeeded' || !ledger.header.recordId ||
-      ledger?.total.status !== 'succeeded' || !ledger.total.recordId) return
+      ledger?.total.status !== 'succeeded') return
   reconcilingRateId.value = issue.rateId
   reconcileMessages.value = { ...reconcileMessages.value, [issue.rateId]: '' }
   try {
@@ -1548,12 +1583,24 @@ onUnmounted(() => {
           <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
               ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
               ledgerByRate[issue.rateId]?.header.recordId &&
-              ledgerByRate[issue.rateId]?.total.status === 'succeeded' &&
-              ledgerByRate[issue.rateId]?.total.recordId"
+              ledgerByRate[issue.rateId]?.total.status === 'succeeded'"
             type="button" class="dynamics-primary-button"
             :disabled="Boolean(reconcilingRateId)" @click="reconcileConfirmed(issue)">
             <CheckCircle2 :size="15" />
-            {{ reconcilingRateId === issue.rateId ? 'Conciliando...' : 'Confirmar QUO ya creada (sin duplicar)' }}
+            {{ reconcilingRateId === issue.rateId ? 'Comprobando importe...' :
+              'Verificar y conciliar venta registrada (sin duplicar)' }}
+          </button>
+          <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
+              !issue.retryBlockReason &&
+              ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+              ledgerByRate[issue.rateId]?.header.recordId &&
+              ledgerByRate[issue.rateId]?.total.status === 'not_sent'"
+            type="button" class="dynamics-outline-button"
+            :disabled="Boolean(reconcilingRateId)"
+            @click="reconcileExistingSale(issue)">
+            <SearchCheck :size="15" />
+            {{ reconcilingRateId === issue.rateId ? 'Verificando línea...' :
+              'Comprobar si la venta ya coincide (sin escribir)' }}
           </button>
           <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
               !issue.retryBlockReason &&
