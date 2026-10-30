@@ -162,7 +162,9 @@ function openRelatedManagement() {
   window.requestAnimationFrame(() => document.getElementById('crm-related-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 function openExecutiveDrawer() {
-  selectedExecutive.value = String(record.value?.executiveUserId ?? '')
+  selectedExecutive.value = record.value?.isCastroFallasExecutive === true
+    ? '__castro_fallas__'
+    : String(record.value?.executiveUserId ?? '')
   executiveReason.value = ''
   showExecutiveDrawer.value = true
 }
@@ -174,7 +176,8 @@ async function reassignExecutive() {
   try {
     await crmRequest(crmPath('accounts', id.value, 'assign'), 'POST', {
       expectedVersion: version(),
-      executiveUserId: selectedExecutive.value,
+      executiveUserId: selectedExecutive.value === '__castro_fallas__' ? null : selectedExecutive.value,
+      assignToCastroFallas: selectedExecutive.value === '__castro_fallas__',
       reason: executiveReason.value.trim() || null,
     }, crmUuid())
     showExecutiveDrawer.value = false
@@ -393,7 +396,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           :account="record" :open="true" @close="leaveAccountEditing"
           @dirty-change="accountEditingDirty=$event"
           @saved="load" @manage-related="openRelatedManagement" />
-        <dl v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <dl v-else-if="section !== 'accounts'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
             !key.toLowerCase().includes('hash') && !key.toLowerCase().includes('payload'))" :key="key">
