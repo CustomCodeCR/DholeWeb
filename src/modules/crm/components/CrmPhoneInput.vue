@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, useId } from 'vue'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { dialCodeForCountry, internationalPhone, localPhonePart } from '../utils/crmPhone'
 
@@ -9,6 +9,7 @@ const props = withDefaults(defineProps<{
   label?: string
 }>(), { countryId: '', label: 'Teléfono' })
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const phoneInputId = useId()
 const dialPrefix = ref<string | null>(null)
 const localNumber = ref(props.modelValue)
 const loading = ref(false)
@@ -64,7 +65,7 @@ function onInput(event: Event) {
 
 <template>
   <div class="min-w-0 space-y-1.5" data-crm-phone-input>
-    <label class="block text-xs font-bold text-[var(--dh-text-muted)]" :for="'crm-phone-' + $attrs.id">
+    <label class="block text-xs font-bold text-[var(--dh-text-muted)]" :for="phoneInputId">
       {{ label }}
     </label>
     <div class="flex min-h-11 min-w-0 overflow-hidden rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] focus-within:border-[var(--dh-primary)]">
@@ -72,7 +73,7 @@ function onInput(event: Event) {
         class="flex min-w-16 shrink-0 items-center justify-center border-r border-[var(--dh-border)] px-3 text-sm font-bold text-[var(--dh-text)]">
         {{ dialPrefix }}
       </span>
-      <input :id="'crm-phone-' + ($attrs.id || 'contact')" type="tel" autocomplete="tel-national"
+      <input :id="phoneInputId" type="tel" autocomplete="tel-national"
         inputmode="tel" :value="localNumber" :disabled="loading"
         :placeholder="dialPrefix ? 'Número sin código de país' : '+506 8313 0794'"
         class="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-[var(--dh-text)] outline-none disabled:opacity-60"
