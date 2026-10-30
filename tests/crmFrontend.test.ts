@@ -67,11 +67,11 @@ test('CRM weekly agenda groups actual UTC instants by viewer local date', () => 
   assert.doesNotMatch(workspace, /\.toISOString\(\)\.slice\(0,10\)/)
 })
 
-test('Dynamics-style CRM account shows full-width three-column workspace and timeline', () => {
+test('Dhole CRM account shows full-width three-column workspace and timeline', () => {
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
   const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
   for (const marker of [
-    'hub-record-header sticky', 'role="tablist"',
+    'hub-record-header rounded-', 'role="tablist"',
     'xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]',
     'Escala de tiempo', 'Contactos relacionados', 'Historial de tarifas',
     'Ficha comercial', '<CrmCatalogPicker', '<DhDrawer :open="routeEditor"',
@@ -265,4 +265,24 @@ test('CRM account is one form and Hacienda applies the current identification on
   assert.ok(!menu.includes('crmChildren'))
   assert.ok(work.includes('companyExtraFields'))
   assert.ok(work.includes('companyProfileVersion'))
+})
+
+test('Sales assignment only offers eligible Auth roles and the Castro Fallas account', () => {
+  const picker = read('src/modules/crm/components/CrmExecutivePicker.vue')
+  const editor = read('src/modules/crm/components/CrmAccountEditor.vue')
+  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  assert.ok(picker.includes('UsersService.getRoles(user.id)'))
+  assert.ok(picker.includes('isSellerRole(role.roleName)'))
+  assert.ok(picker.includes("=== 'castro fallas'"))
+  assert.ok(picker.includes('isActive && !u.isLocked'))
+  assert.ok(!picker.includes('list.unshift('))
+  assert.ok(editor.includes("crmPatch<CrmRow>('accounts'"))
+  assert.ok(editor.includes("crmPatch<CrmRow>('contacts'"))
+  assert.ok(editor.includes("crmPatch<CrmRow>('addresses'"))
+  assert.ok(editor.includes('updateFiscalIdentity: fiscalFieldsChanged.value'))
+  assert.ok(hub.includes("emit('edit-account')"))
+  assert.ok(!hub.includes('hub-command-bar"'))
+  assert.ok(detail.includes('CrmAccountEditor'))
+  assert.ok(detail.includes('@edit-account="showAccountEditor=true"'))
 })
