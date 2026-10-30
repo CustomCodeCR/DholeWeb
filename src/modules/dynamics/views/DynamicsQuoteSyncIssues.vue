@@ -1370,6 +1370,9 @@ onUnmounted(() => {
                   ? 'Existe una línea de venta con otro nombre — confirmar su actualización'
                   : 'Cabecera existente — falta completar la línea de venta' }}
               </strong>
+              <strong v-else-if="issue.lastError?.includes('quote_line_postwrite_verification_failed')">
+                Línea escrita — confirmar importe real antes de finalizar
+              </strong>
               <strong v-else>Conciliación de QUO necesaria — no reintentar todavía</strong>
               <p v-if="issue.error?.providerCode === 'legacy_quote_requires_rate_key_linking'">
                 Este HTTP 409 es un bloqueo anterior a la escritura de la revisión actual.
@@ -1399,6 +1402,12 @@ onUnmounted(() => {
                   Usá «Completar línea de venta» para reanudar la misma revisión,
                   sin duplicar la oferta.
                 </template>
+              </p>
+              <p v-else-if="issue.lastError?.includes('quote_line_postwrite_verification_failed')">
+                El registro de Dynamics puede contener la línea de venta creada o
+                actualizada. No la reenviés: primero usá «Verificar en Dynamics» y
+                después «Verificar y conciliar venta registrada». El servidor
+                cotejará el identificador y el importe exacto de esta revisión.
               </p>
               <p v-else>Dynamics pudo crear la cabecera, la línea de venta o ambas.
                 El HTTP 409 no confirma que la operación no se haya ejecutado.</p>
@@ -1493,6 +1502,22 @@ onUnmounted(() => {
                 : 'Existencia en Dynamics no confirmada' }}</strong>
               <p>Cabecera: {{ ledgerByRate[issue.rateId]?.live?.headerStatus }} ·
                 Línea: {{ ledgerByRate[issue.rateId]?.live?.detailStatus }}</p>
+              <p v-if="ledgerByRate[issue.rateId]?.live?.quoteLineLookupStatus === 'verified'">
+                Líneas reales vinculadas: {{
+                  ledgerByRate[issue.rateId]?.live?.actualLines?.length ?? 0
+                }}.
+              </p>
+              <p v-for="line in ledgerByRate[issue.rateId]?.live?.actualLines || []"
+                :key="line.recordId">
+                <strong>{{ line.name }}</strong> · ID <code>{{ line.recordId }}</code>
+                · Cantidad: {{ line.quantity ?? 'sin confirmar' }}
+                · Precio unitario: {{ line.pricePerUnit ?? 'sin confirmar' }}
+                · Importe: {{ line.lineAmount ?? 'sin confirmar' }}
+              </p>
+              <p v-if="ledgerByRate[issue.rateId]?.live?.quoteLineLookupStatus === 'verification_unavailable'">
+                No fue posible leer las líneas reales. No reintentes escrituras
+                ni presupongás que faltan líneas.
+              </p>
               <p>Si falta permiso de lectura, el resultado es desconocido,
                 no una confirmación de que el registro no exista.</p>
             </div>
