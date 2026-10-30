@@ -11,8 +11,8 @@ test('closing a modification tab only releases the lease, never sends the revisi
   const stopBody = view.slice(stopIndex, nextFunction > stopIndex ? nextFunction : view.length)
   assert.match(stopBody, /RateRequestLeaseService\.release\(id\)/)
   assert.doesNotMatch(stopBody, /completeRate\(|\.complete\(/)
-  assert.match(view, /async function completeModification\(\)/)
-  assert.match(view, /RateRequestLeaseService\.completeRate\(requestId\.value, rateId, \{ confirmSellerModification: true \}\)/)
+  assert.match(view, /async function sendAlreadySavedRevision\(\)/)
+  assert.match(view, /RateRequestLeaseService\.completeRate\(\s*id, rateId, \{ confirmSellerModification: true \}/)
 })
 
 test('delivery confirmation is emitted only by explicit send actions', () => {
