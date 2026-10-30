@@ -422,7 +422,7 @@ test('CRM account advanced section uses friendly navigation; contact detail does
   assert.ok(contact.includes("'/api/crm/contacts/'"))
   assert.ok(contact.includes("'/accounts'"))
   assert.ok(contact.includes('v-for="account in linkedAccounts"'))
-  assert.ok(contact.includes('Las actividades y seguimientos se gestionan en la ficha del cliente.'))
+  assert.ok(!contact.includes('Las actividades y seguimientos se gestionan en la ficha del cliente.'))
   assert.ok(!contact.includes("key: 'details'"))
   assert.ok(!contact.includes("activeTab==='details'"))
   assert.ok(!contact.includes('to="/crm/followups"'))
