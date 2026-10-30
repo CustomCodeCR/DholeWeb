@@ -6,6 +6,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmRelationshipPicker from './CrmRelationshipPicker.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
+import CrmPhoneInput from './CrmPhoneInput.vue'
 import CrmHaciendaLookup from './CrmHaciendaLookup.vue'
 import type { HaciendaResult } from './CrmHaciendaLookup.vue'
 import { crmPatch, crmPath, crmRequest, crmUuid, crmError, type CrmRow } from '../services/crmApi'
@@ -56,7 +57,7 @@ const relatedContacts = ref<CrmRow[]>([])
 const relatedAddresses = ref<CrmRow[]>([])
 const editingContactId = ref('')
 const editingAddressId = ref('')
-const contactDraft = reactive({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '' })
+const contactDraft = reactive({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
 const addressDraft = reactive({ addressType: '', addressText: '', location: '' })
 const relationSaving = ref(false)
 const relatedError = ref('')
@@ -67,7 +68,8 @@ function beginContactEdit(contact: CrmRow) {
   // Don't infer compound surnames from a legacy full name.
   Object.assign(contactDraft, { firstName: String(contact.firstName ?? ''),
     lastName: String(contact.lastName ?? ''), jobTitle: String(contact.jobTitle ?? ''),
-    email: String(contact.email ?? ''), phone: String(contact.phone ?? '') })
+    email: String(contact.email ?? ''), phone: String(contact.phone ?? ''),
+    countryId: String(contact.countryId ?? '') })
   editingAddressId.value = ''
   relatedError.value = ''
 }
@@ -315,7 +317,8 @@ async function save() {
               <DhInput v-model="contactDraft.lastName" label="Apellido(s) *" />
               <DhInput v-model="contactDraft.jobTitle" label="Puesto" />
               <DhInput v-model="contactDraft.email" label="Correo electrónico" />
-              <DhInput v-model="contactDraft.phone" label="Teléfono" />
+              <CrmPhoneInput v-model="contactDraft.phone" :country-id="contactDraft.countryId" label="Teléfono" />
+              <CrmCatalogPicker v-model="contactDraft.countryId" label="País" catalog-group-slug="countries" />
               <p v-if="!contact.firstName && !contact.lastName"
                 class="text-xs text-[var(--dh-text-muted)] md:col-span-2">
                 Este contacto antiguo requiere ingresar los nombres y apellidos reales antes de guardar.
