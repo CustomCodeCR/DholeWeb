@@ -7,6 +7,7 @@ import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
+import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -30,6 +31,7 @@ const relation = ref('')
 const showRelationForm = ref(false)
 const showAdvancedAccountManagement = ref(false)
 const showExecutiveDrawer = ref(false)
+const showAccountEditor = ref(false)
 const selectedExecutive = ref('')
 const executiveReason = ref('')
 const createRelationPermissions: Record<string, string> = {
@@ -132,6 +134,11 @@ async function perform(action: string, body: unknown, scope: string, path?: stri
     success.value = t('crm.saved')
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
+}
+function openRelatedManagement() {
+  showAccountEditor.value = false
+  showAdvancedAccountManagement.value = true
+  window.requestAnimationFrame(() => document.getElementById('crm-related-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 function openExecutiveDrawer() {
   selectedExecutive.value = String(record.value?.executiveUserId ?? '')
@@ -353,7 +360,12 @@ onMounted(() => { if (crmEnabled()) void load() })
             </div>
           </form>
         </DhDrawer>
-        <CrmAccountHub v-if="section === 'accounts'" :account="record" @change-executive="openExecutiveDrawer" />
+        <CrmAccountEditor v-if="section === 'accounts'" :account="record"
+          :open="showAccountEditor && can('crm.account.update')" @close="showAccountEditor=false"
+          @saved="load" @manage-related="openRelatedManagement" />
+        <CrmAccountHub v-if="section === 'accounts'" :account="record"
+          @change-executive="openExecutiveDrawer" @edit-account="showAccountEditor=true"
+          @manage-related="openRelatedManagement" />
         <dl v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
@@ -406,7 +418,7 @@ onMounted(() => { if (crmEnabled()) void load() })
         <button class="crm-action" :disabled="saving" @click="perform('cancel',{expectedVersion:version(),reason:drafts.reason||'Cancelado'},'crm.task.manage')">{{ t('crm.cancelActivity') }}</button>
       </section>
 
-      <button v-if="section === 'accounts'" type="button"
+      <button v-if="section === 'accounts'" id="crm-related-management" type="button"
         class="flex w-full items-center justify-between rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-left text-sm font-bold"
         :aria-expanded="showAdvancedAccountManagement"
         @click="showAdvancedAccountManagement = !showAdvancedAccountManagement">
