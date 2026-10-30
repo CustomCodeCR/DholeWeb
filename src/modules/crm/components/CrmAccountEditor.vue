@@ -90,7 +90,7 @@ async function saveContact() {
   relatedError.value = ''
   try {
     const updated = await crmPatch<CrmRow>('contacts', String(previous.id), {
-      ...contactDraft,
+      ...contactDraft, countryId: contactDraft.countryId || null,
       name: [contactDraft.firstName.trim(), contactDraft.lastName.trim()].join(' '),
       expectedVersion: previous.rowVersion,
     })
