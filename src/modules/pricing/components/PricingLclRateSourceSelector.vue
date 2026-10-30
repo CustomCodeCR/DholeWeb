@@ -385,8 +385,8 @@ function ownCalculationPolCode(row: OwnLclConsolidationDto) {
   if (ownFallback(row)) {
     // Enviar el puerto comercial, no el nombre concatenado con el país
     // (p. ej. TOKYO en vez de TOKYOJAPAN).
-    return String(props.polName || props.polCode || '')
-      .split(',')[0].trim().toUpperCase()
+    return (String(props.polName || props.polCode || '').split(',')[0] ?? '')
+      .trim().toUpperCase()
   }
   const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
   if (consolidationOrigin === 'miami') return 'MIAMI'
