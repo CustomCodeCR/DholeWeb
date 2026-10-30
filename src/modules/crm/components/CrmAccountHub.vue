@@ -26,7 +26,11 @@ interface Overview {
   quotesAreLinkedOnly: boolean
 }
 const props = defineProps<{ account: CrmRow }>()
-const emit = defineEmits<{ (e: 'change-executive'): void }>()
+const emit = defineEmits<{
+  (e: 'change-executive'): void
+  (e: 'edit-account'): void
+  (e: 'manage-related'): void
+}>()
 const router = useRouter()
 const auth = useAuthStore()
 const { locale } = useI18n()
@@ -421,20 +425,20 @@ async function saveRoute() {
 
 <template>
   <div class="space-y-4" data-crm-account-hub>
-    <div class="hub-command-bar" aria-label="Acciones de la cuenta">
-      <button v-if="has('crm.account.update')" type="button" class="hub-outline-button hub-small" @click="openProfileEditor"><FileText class="h-4 w-4" />Editar ficha empresarial</button>
-      <button v-if="has('crm.activity.create')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('CALL')"><Phone class="h-4 w-4" />Llamada</button>
-      <button v-if="has('crm.activity.create')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('VISIT')"><Plus class="h-4 w-4" />Nueva visita</button>
-      <button v-if="has('crm.task.manage') || has('crm.followup.manage')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('FOLLOWUP')"><CalendarClock class="h-4 w-4" />Seguimiento</button>
-      <button type="button" class="hub-outline-button hub-small ml-auto" :disabled="loading" @click="load"><RefreshCw class="h-4 w-4" :class="loading && 'animate-spin'" />Actualizar datos</button>
-    </div>
-    <div class="hub-summary-strip" aria-label="Resumen comercial">
-      <span class="font-extrabold">Resumen</span>
-      <span>{{ text(account.displayName || account.legalName) }} · {{ account.customerTypeCode === 'credit' ? 'Cliente con crédito' : 'Cliente de contado' }}.</span>
-      <span>{{ activityCount }} actividades, {{ pendingCount }} seguimientos pendientes y {{ routeHistoryTotal }} rutas documentadas.</span>
-      <button type="button" class="hub-text-link ml-auto" @click="activeTab='profile'">Ver ficha completa</button>
-    </div>
-    <header class="hub-record-header sticky top-1 z-20 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+    <header class="hub-record-header rounded-[1.35rem] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+      <div class="hub-hero-bar flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
+        <span class="text-xs font-extrabold tracking-wide">Espacio de clientes <span class="ml-2 font-normal opacity-75">/ {{ text(account.displayName || account.legalName) }}</span></span>
+        <div class="flex flex-wrap gap-2">
+          <button v-if="has('crm.account.update')" type="button" class="hub-primary-button" @click="emit('edit-account')">
+            <FileText class="h-4 w-4" />Editar cuenta
+          </button>
+          <button v-if="has('crm.account.assign') && has('auth.users.view')" type="button"
+            class="hub-outline-button hub-small" @click="emit('change-executive')"><UsersRound class="h-4 w-4" />Asignar vendedor</button>
+          <button type="button" class="hub-outline-button hub-small" :disabled="loading" @click="load">
+            <RefreshCw class="h-4 w-4" :class="loading && 'animate-spin'" />Actualizar
+          </button>
+        </div>
+      </div>
       <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
         <div class="flex min-w-0 flex-1 items-center gap-3">
           <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)]/10 text-lg font-black text-[var(--dh-primary)]" aria-hidden="true">
@@ -450,15 +454,11 @@ async function saveRoute() {
             </div>
           </div>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <button v-if="has('crm.account.assign') && has('auth.users.view')" type="button"
-            class="hub-outline-button" @click="emit('change-executive')"><UsersRound class="h-4 w-4" />Asignar ejecutivo</button>
-          <button type="button" class="hub-outline-button" :disabled="loading" @click="load">
-            <RefreshCw class="h-4 w-4" :class="loading && 'animate-spin'" />{{ locale === 'en' ? 'Refresh' : 'Actualizar' }}
-          </button>
+        <div class="flex items-center gap-2">
+          <span class="hub-customer-pill">{{ account.customerTypeCode === 'credit' ? 'Cliente a crédito' : 'Cliente de contado' }}</span>
         </div>
       </div>
-      <div class="flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--dh-border)] px-4 py-2 text-[11px] sm:px-5">
+      <div class="flex flex-wrap gap-2 px-4 pb-3 text-[11px] sm:px-5">
         <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ recentQuotes.length }} {{ locale === 'en' ? 'linked quotes' : 'tarifas vinculadas' }}</span>
         <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='history'"><Route class="h-3.5 w-3.5" />{{ routeHistoryTotal }} rutas con historial</button>
         <span class="hub-header-meta">{{ activeRoutes.length }} rutas habituales</span>
@@ -466,7 +466,7 @@ async function saveRoute() {
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
         <span class="ml-auto text-[var(--dh-text-muted)]">ID {{ String(account.id).slice(0, 8) }}</span>
       </div>
-      <nav role="tablist" class="flex max-w-full overflow-x-auto border-t border-[var(--dh-border)] px-2 sm:px-3"
+      <nav role="tablist" class="flex max-w-full gap-1 overflow-x-auto border-t border-[var(--dh-border)] px-3 py-2 sm:px-4"
         :aria-label="locale === 'en' ? 'Account sections' : 'Secciones del cliente'">
         <button v-for="tab in tabs" :key="tab.key" type="button" role="tab"
           :aria-selected="activeTab === tab.key" :aria-controls="'crm-account-' + tab.key"
@@ -506,8 +506,8 @@ async function saveRoute() {
             <h2 class="hub-panel-heading mb-0"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" />Datos empresariales
               <span class="hub-count">{{ profileFilled }} / {{ profileFields.length }}</span>
             </h2>
-            <button v-if="has('crm.account.update')" type="button" class="hub-text-link" @click="openProfileEditor">
-              {{ businessProfile ? 'Editar datos' : 'Completar ficha' }}
+            <button v-if="has('crm.account.update')" type="button" class="hub-text-link" @click="emit('edit-account')">
+              {{ businessProfile ? 'Editar cuenta' : 'Completar cuenta' }}
             </button>
           </div>
           <p v-if="businessProfileError" role="alert" class="text-xs text-amber-600">{{ businessProfileError }}</p>
@@ -979,15 +979,19 @@ async function saveRoute() {
 </template>
 
 <style scoped>
+.hub-hero-bar{background:linear-gradient(115deg,var(--dh-shell),var(--dh-card));border-radius:1.3rem 1.3rem 0 0}
+.hub-primary-button{display:inline-flex;align-items:center;gap:.4rem;padding:.57rem .85rem;background:var(--dh-primary);border-radius:.75rem;color:white;font-size:.75rem;font-weight:800}
+.hub-customer-pill{display:inline-flex;align-items:center;border:1px solid var(--dh-border);border-radius:999px;background:var(--dh-shell);padding:.42rem .7rem;font-size:.72rem;font-weight:800;color:var(--dh-text)}
+.hub-record-header{overflow:hidden}
 .hub-command-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;border:1px solid var(--dh-border);border-radius:.8rem;background:var(--dh-card);padding:.65rem .8rem;box-shadow:var(--dh-shadow-sm)}
 .hub-summary-strip{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;border:1px solid var(--dh-border);border-radius:.8rem;background:var(--dh-card);padding:.85rem 1rem;font-size:.75rem;color:var(--dh-text-muted)}
 .hub-summary-strip>span:first-child{color:var(--dh-text)}
 .hub-record-header{backdrop-filter:blur(16px)}
-.hub-tab{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;padding:.85rem .95rem;font-size:.75rem;font-weight:700;color:var(--dh-text-muted);border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+.hub-tab{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;padding:.67rem .85rem;border-radius:.65rem;font-size:.74rem;font-weight:700;color:var(--dh-text-muted);transition:background .15s,color .15s}
 .hub-tab:hover,.hub-tab:focus-visible{color:var(--dh-text);background:var(--dh-primary-light,transparent);outline-offset:-2px}
-.hub-tab-active{color:var(--dh-primary);border-bottom-color:var(--dh-primary)}
+.hub-tab-active{color:var(--dh-primary);background:var(--dh-primary-light,var(--dh-shell));box-shadow:inset 0 0 0 1px var(--dh-border)}
 .hub-header-meta{display:inline-flex;align-items:center;gap:.35rem;color:var(--dh-text-muted);font-weight:600}
-.hub-panel{min-width:0;border:1px solid var(--dh-border);border-radius:1rem;background:var(--dh-card);padding:1rem;box-shadow:var(--dh-shadow-sm)}
+.hub-panel{min-width:0;border:1px solid var(--dh-border);border-radius:1.15rem;background:var(--dh-card);padding:1.15rem;box-shadow:var(--dh-shadow-sm)}
 .hub-panel-heading{display:flex;align-items:center;gap:.55rem;margin-bottom:.8rem;font-size:.82rem;font-weight:800;color:var(--dh-text)}
 .hub-section-heading{padding-bottom:.45rem;border-bottom:1px solid var(--dh-border);font-size:.72rem;font-weight:800;color:var(--dh-text)}
 .hub-kv{display:grid;grid-template-columns:minmax(0,41%) minmax(0,59%);gap:.65rem;align-items:start;padding:.63rem 0;font-size:.75rem;line-height:1.45}
