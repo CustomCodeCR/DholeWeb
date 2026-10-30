@@ -166,13 +166,13 @@ async function save() {
           <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <DhSelect label="Condición de cliente" :model-value="accountDraft.customerTypeCode"
               :options="[{label:'Contado',value:'cash'},{label:'Crédito',value:'credit'}]"
-              @update:model-value="accountDraft.customerTypeCode=$event" />
+              @update:model-value="accountDraft.customerTypeCode=String($event)" />
             <DhSelect label="Tipo de cuenta" :model-value="accountDraft.categoryType"
               :options="[{label:'Cliente',value:'CUSTOMER'},{label:'Agente / NVOCC',value:'NVOCC'}]"
-              @update:model-value="accountDraft.categoryType=$event;accountDraft.categoryCode='A'" />
+              @update:model-value="accountDraft.categoryType=String($event);accountDraft.categoryCode='A'" />
             <DhSelect label="Categoría" :model-value="accountDraft.categoryCode"
               :options="(accountDraft.categoryType==='NVOCC'?['A','B']:['A','B','C','D']).map(value=>({label:'Categoría '+value,value}))"
-              @update:model-value="accountDraft.categoryCode=$event" />
+              @update:model-value="accountDraft.categoryCode=String($event)" />
             <DhInput v-model="accountDraft.sourceCode" label="Origen de la cuenta" />
             <DhInput v-model="accountDraft.relationshipTypeCode" label="Tipo de relación" />
           </div>
@@ -183,8 +183,8 @@ async function save() {
             <div v-for="[key,label] in group.fields" :key="key"
               :class="['email','website','phone','billingEmail','marketingEmail','sector','webCustomerReference','assignedOperations'].includes(key) ? '' : 'md:col-span-2'">
               <DhTextarea v-if="!['email','website','phone','billingEmail','marketingEmail','sector','webCustomerReference','assignedOperations'].includes(key)"
-                :label="label" :model-value="profileDraft[key]" @update:model-value="profileDraft[key]=$event" :rows="2" />
-              <DhInput v-else :label="label" :model-value="profileDraft[key]"
+                :label="label"  :model-value="profileDraft[key] ?? ''" @update:model-value="profileDraft[key]=$event" :rows="2" />
+              <DhInput v-else :label="label"  :model-value="profileDraft[key] ?? ''"
                 @update:model-value="profileDraft[key]=$event" />
             </div>
           </div>
