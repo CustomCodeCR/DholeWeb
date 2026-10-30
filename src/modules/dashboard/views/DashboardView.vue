@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
-import { PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
+import { PRICING_SCOPES } from '@/core/auth/scopes'
 import PricingRoleDashboard from '@/modules/dashboard/components/PricingRoleDashboard.vue'
 import SellerRoleDashboard from '@/modules/dashboard/components/SellerRoleDashboard.vue'
 import PricingRateRequestsPanel from '@/modules/pricing/components/PricingRateRequestsPanel.vue'
@@ -51,13 +51,21 @@ const isSellerUser = computed(() => {
   return sellerCapability && !hasPricingOperatorAccess.value && !canViewAllCommercialRates.value
 })
 
-const canUsePricing = computed(
-  () =>
-    isSuperUser() ||
-    authStore.hasScope(VIEW_SCOPES.pricing) ||
-    authStore.hasScope(VIEW_SCOPES.pricingRates) ||
-    authStore.hasScope(VIEW_SCOPES.pricingImports) ||
-    authStore.hasScope(VIEW_SCOPES.pricingDecisions),
+// Navigation to Pricing is not permission to read the management dashboard.
+// Seller sessions can use the workspace but must not access the restricted
+// rates/dashboard endpoint unless they also have operator permissions.
+const hasSellerDashboardAccess = computed(() =>
+  hasSellerRole.value
+  || authStore.hasScope('pricing.rate-request.create')
+  || canViewAllCommercialRates.value,
+)
+
+const canUsePricing = computed(() =>
+  isSuperUser()
+  || (
+    authStore.hasScope(PRICING_SCOPES.rates.view)
+    && (!hasSellerDashboardAccess.value || hasPricingOperatorAccess.value)
+  ),
 )
 
 const canManageSellerRequests = computed(() =>
@@ -69,13 +77,14 @@ const canManageSellerRequests = computed(() =>
 type DashboardRole = 'pricing' | 'seller'
 const selectedDashboardRole = ref<DashboardRole>('pricing')
 const canSelectDashboard = computed(() =>
-  isSuperUser() || (hasSellerRole.value && canUsePricing.value),
+  isSuperUser() || (hasSellerDashboardAccess.value && canUsePricing.value),
 )
-const activeDashboardRole = computed<DashboardRole>(() =>
-  canSelectDashboard.value
-    ? selectedDashboardRole.value
-    : (canViewAllCommercialRates.value || isSellerUser.value ? 'seller' : 'pricing'),
-)
+const activeDashboardRole = computed<DashboardRole>(() => {
+  // Also correct the dashboard when the same page is reused for impersonation.
+  if (!canUsePricing.value && hasSellerDashboardAccess.value) return 'seller'
+  if (canSelectDashboard.value) return selectedDashboardRole.value
+  return hasSellerDashboardAccess.value ? 'seller' : 'pricing'
+})
 </script>
 
 <template>
