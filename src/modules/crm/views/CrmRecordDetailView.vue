@@ -32,6 +32,7 @@ const showRelationForm = ref(false)
 const showAdvancedAccountManagement = ref(false)
 const showExecutiveDrawer = ref(false)
 const showAccountEditor = ref(false)
+const accountEditingDirty = ref(false)
 const selectedExecutive = ref('')
 const executiveReason = ref('')
 const createRelationPermissions: Record<string, string> = {
@@ -135,23 +136,28 @@ async function perform(action: string, body: unknown, scope: string, path?: stri
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
 }
-function leaveAccountEditing() {
+function leaveAccountEditing(): boolean {
+  if (accountEditingDirty.value &&
+      !window.confirm('Hay cambios en la ficha sin guardar. ¿Querés descartarlos?')) return false
+  accountEditingDirty.value = false
   showAccountEditor.value = false
   const query = { ...route.query }
   delete query.edit
   void router.replace({ path: route.path, query, hash: route.hash })
+  return true
 }
 function toggleAccountEditing() {
   if (!can('crm.account.update')) return
   if (showAccountEditor.value) {
     leaveAccountEditing()
   } else {
+    accountEditingDirty.value = false
     showAccountEditor.value = true
     void router.replace({ path: route.path, query: { ...route.query, edit: '1' }, hash: route.hash })
   }
 }
 function openRelatedManagement() {
-  leaveAccountEditing()
+  if (!leaveAccountEditing()) return
   showAdvancedAccountManagement.value = true
   window.requestAnimationFrame(() => document.getElementById('crm-related-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
@@ -335,8 +341,9 @@ function addNegotiation() {
 
 function back() { router.push('/crm/' + section.value) }
 onBeforeRouteLeave(() => {
-  if (!saving.value) return true
-  return window.confirm(t('crm.leaveDuringSave'))
+  if (saving.value) return window.confirm(t('crm.leaveDuringSave'))
+  if (accountEditingDirty.value) return window.confirm('Hay cambios en la ficha sin guardar. ¿Querés salir sin guardarlos?')
+  return true
 })
 watch([id, section], () => { void load() })
 watch(() => [route.query.edit, section.value], ([edit]) => {
@@ -384,6 +391,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           @manage-related="openRelatedManagement" @logo-updated="load" />
         <CrmAccountEditor v-if="section === 'accounts' && showAccountEditor && can('crm.account.update')"
           :account="record" :open="true" @close="leaveAccountEditing"
+          @dirty-change="accountEditingDirty=$event"
           @saved="load" @manage-related="openRelatedManagement" />
         <dl v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
