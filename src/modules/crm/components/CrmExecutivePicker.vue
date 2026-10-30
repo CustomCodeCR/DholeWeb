@@ -6,6 +6,9 @@ import { UsersService } from '@/core/services/usersService'
 import type { UserDto } from '@/core/interfaces/users'
 
 const props = defineProps<{ modelValue: string; label?: string }>()
+// Pricing already represents the institutional seller with this sentinel.
+// The CRM API never receives it as a user GUID: it receives assignToCastroFallas=true.
+const CASTRO_FALLAS_SELLER = '__castro_fallas__'
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   'eligibility': [value: boolean]
@@ -32,7 +35,9 @@ function isSellerRole(roleName: string): boolean {
 const options = computed(() => users.value.map(user => ({
   value: user.id, label: user.displayName + (user.email ? ' · ' + user.email : ''),
 })))
-const selectedAllowed = computed(() => options.value.some(x => x.value === props.modelValue))
+const selectedAllowed = computed(() =>
+  props.modelValue === CASTRO_FALLAS_SELLER ||
+  options.value.some(x => x.value === props.modelValue))
 watch(selectedAllowed, eligible => emit('eligibility', eligible), { immediate: true })
 
 async function searchUsers() {
@@ -53,7 +58,9 @@ async function searchUsers() {
     }
     const active = [...new Map(list.filter(u => u.isActive && !u.isLocked)
       .map(u => [u.id, u])).values()]
-    const sellers = active.filter(isCastroFallasAccount)
+    // The house seller is not an Auth user: show it independently and do not
+    // accidentally attribute it to an employee with a similar company name.
+    const sellers: UserDto[] = []
     const candidates = active.filter(u => !isCastroFallasAccount(u))
     // Role checks are deliberate and must fail closed, never show everyone on error.
     let index = 0
@@ -73,17 +80,19 @@ async function searchUsers() {
     if (rejected.length) {
       error.value = 'No se pudieron verificar los roles de algunos usuarios. Solo se muestran ejecutivos confirmados.'
     }
-    if (props.modelValue && !users.value.some(x => x.id === props.modelValue)) {
+    if (props.modelValue !== CASTRO_FALLAS_SELLER &&
+        props.modelValue && !users.value.some(x => x.id === props.modelValue)) {
       emit('update:modelValue', '')
     }
   } catch {
     if (request !== requestVersion) return
     users.value = []
-    emit('update:modelValue', '')
-    error.value = 'No se pudo consultar el personal comercial de Auth.'
+    if (props.modelValue !== CASTRO_FALLAS_SELLER) emit('update:modelValue', '')
+    error.value = 'No se pudo consultar el personal comercial de Auth. Castro Fallas sigue disponible.'
   } finally { if (request === requestVersion) loading.value = false }
 }
-watch(query, () => { /* La búsqueda se ejecuta al tocar Buscar */ })
+const showHouseSeller = computed(() => !query.value.trim() ||
+  normalize('Castro Fallas').includes(normalize(query.value)))
 void searchUsers()
 </script>
 
@@ -98,6 +107,17 @@ void searchUsers()
     </div>
     <div class="max-h-72 overflow-y-auto rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-1"
       role="radiogroup" aria-label="Vendedores y Castro Fallas">
+      <label v-if="showHouseSeller"
+        class="flex cursor-pointer items-center gap-3 rounded-lg border-b border-[var(--dh-border)] p-3 transition hover:bg-[var(--dh-shell)]"
+        :class="modelValue === CASTRO_FALLAS_SELLER ? 'bg-[var(--dh-primary)]/10 ring-1 ring-[var(--dh-primary)]' : ''">
+        <input type="radio" name="crm-sales-representative" :value="CASTRO_FALLAS_SELLER"
+          :checked="modelValue === CASTRO_FALLAS_SELLER"
+          @change="emit('update:modelValue', CASTRO_FALLAS_SELLER)" class="accent-[var(--dh-primary)]" />
+        <span class="min-w-0 flex-1">
+          <strong class="block text-sm">Castro Fallas</strong>
+          <span class="block text-xs text-[var(--dh-text-muted)]">Vendedor institucional</span>
+        </span>
+      </label>
       <label v-for="person in users" :key="person.id"
         class="flex cursor-pointer items-center gap-3 rounded-lg p-3 transition hover:bg-[var(--dh-shell)]"
         :class="modelValue === person.id ? 'bg-[var(--dh-primary)]/10 ring-1 ring-[var(--dh-primary)]' : ''">
@@ -109,13 +129,13 @@ void searchUsers()
         </span>
         <span v-if="isCastroFallasAccount(person)" class="text-xs font-bold text-[var(--dh-primary)]">Castro Fallas</span>
       </label>
-      <p v-if="!users.length" class="p-4 text-center text-xs text-[var(--dh-text-muted)]">
+      <p v-if="!users.length && !showHouseSeller" class="p-4 text-center text-xs text-[var(--dh-text-muted)]">
         {{ loading ? 'Consultando roles de ventas…' : 'No hay ejecutivos confirmados para esta búsqueda.' }}
       </p>
     </div>
     <p v-if="error" role="alert" class="text-xs text-amber-500">{{ error }}</p>
     <p class="flex items-center gap-1.5 text-xs text-[var(--dh-text-muted)]">
-      <UsersRound class="h-3.5 w-3.5" />Solo vendedores activos y la cuenta de Castro Fallas, validados en Auth.
+      <UsersRound class="h-3.5 w-3.5" />Vendedores activos de Auth y Castro Fallas como vendedor institucional.
     </p>
   </section>
 </template>
