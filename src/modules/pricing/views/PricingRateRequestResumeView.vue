@@ -6,6 +6,7 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingAlternativeWizardCrystal from '@/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+import { PricingService } from '@/core/services/pricingService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { StorageService } from '@/core/services/storageService'
 import PricingSellerHandoffPreview from '@/modules/pricing/components/PricingSellerHandoffPreview.vue'
@@ -48,6 +49,8 @@ const router = useRouter()
 const toast = useToastStore()
 const workRequest = ref<WorkRequest | null>(null)
 const workStatusSaving = ref(false)
+const savedRevisionAvailable = ref<number | null>(null)
+const recoveringSavedRevision = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
@@ -151,12 +154,57 @@ async function setWorkStatus(nextStatus: WorkStatus) {
   }
 }
 
+async function inspectSavedRevision(id: string, version: number) {
+  const request = workRequest.value
+  if (!request?.rateId || !isModification.value) return
+  try {
+    const rate = await PricingService.getRate(request.rateId)
+    if (version !== generation || id !== currentId) return
+    const original = Number(request.payload?.modification?.sourceRevisionNumber || 0)
+    savedRevisionAvailable.value = rate.revisionNumber > original ? rate.revisionNumber : null
+  } catch {
+    if (version === generation) savedRevisionAvailable.value = null
+  }
+}
+
+async function sendAlreadySavedRevision() {
+  const id = requestId.value
+  const rateId = workRequest.value?.rateId
+  const revisionNumber = savedRevisionAvailable.value
+  if (!rateId || !revisionNumber || recoveringSavedRevision.value || !ready.value) return
+
+  recoveringSavedRevision.value = true
+  try {
+    // Explicit recovery only: compare the existing quote with the seller's
+    // requested changes before confirming. Never create another revision.
+    const rate = await PricingService.getRate(rateId)
+    if (rate.revisionNumber !== revisionNumber) {
+      throw new Error('La QUO cambió de revisión. Vuelva a revisar los datos antes de enviar.')
+    }
+    await RateRequestLeaseService.prepareModification(id, rateId, revisionNumber)
+    const result = await RateRequestLeaseService.completeRate(
+      id, rateId, { confirmSellerModification: true },
+    )
+    if (result?.status === 'CompletedDeliveryRetryPending') {
+      toast.warning('Solicitud completada; entrega pendiente', 'Pricing reintentará el envío del PDF sin crear otra revisión.')
+    } else {
+      toast.success('Modificación completada', 'La solicitud se eliminó de las pendientes; la revisión y el historial se conservan.')
+    }
+    await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
+  } catch (cause) {
+    toast.backendError(cause, 'No se pudo completar la modificación. La QUO no se guardó nuevamente.')
+  } finally {
+    recoveringSavedRevision.value = false
+  }
+}
+
 async function begin(id: string) {
   const version = ++generation
   ready.value = false
   checking.value = true
   error.value = ''
   leaseWarning.value = ''
+  savedRevisionAvailable.value = null
   try {
     const lease = await RateRequestLeaseService.claim(id, { recoverOwnLease: true })
     if (version !== generation) {
@@ -171,6 +219,7 @@ async function begin(id: string) {
     workRequest.value = unwrapApiResponse<WorkRequest>(response as never)
     ownerName.value = lease.ownerName
     ready.value = true
+    void inspectSavedRevision(id, version)
     heartbeatTimer = window.setInterval(() => { void renewLease(id, version) }, 20000)
   } catch (cause) {
     if (version !== generation) return
@@ -191,6 +240,7 @@ function stop() {
   heartbeatTimer = undefined
   ready.value = false
   workRequest.value = null
+  savedRevisionAvailable.value = null
   const id = currentId
   currentId = ''
   if (id) void RateRequestLeaseService.release(id).catch(() => undefined)
@@ -324,6 +374,20 @@ onBeforeUnmount(() => {
       <div class="flex flex-wrap gap-2">
         <DhButton label="Volver al dashboard" variant="secondary" @click="router.push('/home')" />
       </div>
+    </section>
+
+    <section v-if="isModification && savedRevisionAvailable && workRequest?.rateId"
+      class="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-black">Revisión {{ savedRevisionAvailable }} ya guardada · solicitud pendiente</p>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+          Compruebe que esa revisión contiene los cambios solicitados por Ventas.
+          Si ya pulsó Enviar anteriormente, confirme aquí el envío sin volver a modificar ni duplicar la QUO.
+        </p>
+      </div>
+      <DhButton :disabled="recoveringSavedRevision" @click="sendAlreadySavedRevision">
+        {{ recoveringSavedRevision ? 'Completando…' : 'Enviar revisión ya guardada' }}
+      </DhButton>
     </section>
 
     <PricingAlternativeWizardCrystal
