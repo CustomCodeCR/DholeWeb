@@ -1,5 +1,6 @@
 import { createUuid } from '@/core/utils/id'
 import type { CostDetailType, RateDto, RateStatus } from '@/core/interfaces/pricing'
+import { pricingQuoteRouteName } from '@/modules/pricing/utils/pricingQuoteRoute'
 
 export function formatMoney(value: number | null | undefined, currency = 'USD', locale = 'es-CR') {
   const amount = Number(value ?? 0)
@@ -143,8 +144,8 @@ export function rateDisplayName(rate: RateDto) {
               .join(' + ')
           : `${rate.containerQuantity} x ${rate.containerTypeName}`
   const incoterm = rate.incotermName?.trim() || rate.incotermCode?.trim() || 'FOB'
-  const via = rateViaLabel(rate.poeName)
-  const baseName = `${rate.rateCode} - Tarifa ${shipmentDescription} - ${incoterm} - ${rate.polName} To ${rate.podName} Via ${via}`
+  const route = pricingQuoteRouteName(rate, rateViaLabel)
+  const baseName = `${rate.rateCode} - Tarifa ${shipmentDescription} - ${incoterm} - ${route}`
 
   return rate.clientName?.trim() ? `${baseName} - ${rate.clientName.trim()}` : baseName
 }
