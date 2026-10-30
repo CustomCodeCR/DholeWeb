@@ -93,7 +93,7 @@ function numberValue(value: unknown) {
 
 function normalizeCurrency(value: unknown) {
   const raw = String(value ?? '').trim().toUpperCase()
-  if (raw.includes('CRC')) return 'CRC'
+  if (raw.includes('CRC') || raw.includes('COLON') || raw.includes('COLÓN')) return 'CRC'
   if (raw.includes('EUR')) return 'EUR'
   return 'USD'
 }
@@ -267,7 +267,11 @@ const cargoAndOperation = computed(() => [
   { label: 'Volumen', value: storedNumber(pick(snapshot.value, 'TotalVolumeCbm', 'totalVolumeCbm'), 3) + ' CBM' },
   { label: 'Cantidad cobrable', value: storedNumber(pick(snapshot.value, 'ChargeableQuantity', 'chargeableQuantity'), 3) },
   { label: 'Kg por CBM', value: storedNumber(pick(snapshot.value, 'KgPerCbm', 'kgPerCbm'), 3) },
-  { label: 'Requiere aprobación', value: pick(snapshot.value, 'RequiredApproval', 'requiredApproval') === true ? 'Sí' : 'No' },
+  { label: 'Valor de la carga', value: storedNumber(pick(snapshot.value, 'CargoValue', 'cargoValue')) },
+  { label: 'Días de almacenaje', value: storedNumber(pick(snapshot.value, 'StorageDays', 'storageDays'), 0) },
+  { label: 'Agente consolidador', value: textValue(pick(snapshot.value, 'LclGroupAgentName', 'lclGroupAgentName')) },
+  { label: 'Requiere aprobación', value: pick(snapshot.value, 'RequiredApproval', 'requiredApproval') === true ? 'Sí' : pick(snapshot.value, 'RequiredApproval', 'requiredApproval') === false ? 'No' : 'No registrado' },
+  { label: 'Observación de reaprobación', value: textValue(pick(snapshot.value, 'ReapprovalReason', 'reapprovalReason')) },
 ])
 </script>
 
@@ -284,6 +288,9 @@ const cargoAndOperation = computed(() => [
           <h3 class="mt-1 text-base font-black">{{ revision.rateName }}</h3>
           <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">
             {{ revision.idtraNumber || 'Sin IDTRA' }} · {{ revision.quoNumber || 'Sin QUO' }}
+          </p>
+          <p v-if="pick(snapshot, 'OtherReferences', 'otherReferences')" class="mt-1 whitespace-pre-wrap break-words text-xs text-[var(--dh-text-muted)]">
+            Otras referencias: {{ textValue(pick(snapshot, 'OtherReferences', 'otherReferences')) }}
           </p>
         </div>
         <div class="text-right text-xs text-[var(--dh-text-muted)]">
@@ -368,6 +375,13 @@ const cargoAndOperation = computed(() => [
           {{ textValue(pick(snapshot, 'PickupLongitude', 'pickupLongitude')) }}
         </p>
       </div>
+    </section>
+
+    <section v-if="pick(snapshot, 'PickupLocationsJson', 'pickupLocationsJson')" class="rounded-2xl border border-[var(--dh-border)] p-4">
+      <h4 class="text-xs font-black uppercase tracking-[0.12em]">Ubicaciones adicionales registradas</h4>
+      <p class="mt-2 whitespace-pre-wrap break-words text-xs text-[var(--dh-text-muted)]">
+        {{ textValue(pick(snapshot, 'PickupLocationsJson', 'pickupLocationsJson')) }}
+      </p>
     </section>
 
     <section v-if="containers.length || services.length" class="grid gap-3 md:grid-cols-2">
@@ -456,6 +470,7 @@ const cargoAndOperation = computed(() => [
               <th class="px-3 py-2">Base</th>
               <th class="px-3 py-2">Tipo</th>
               <th class="px-3 py-2">Moneda</th>
+              <th class="px-3 py-2">Facturar / cobrar a</th>
               <th class="px-3 py-2 text-right">Cant.</th>
               <th class="px-3 py-2 text-right">Costo unit.</th>
               <th class="px-3 py-2 text-right">Venta unit.</th>
@@ -471,6 +486,7 @@ const cargoAndOperation = computed(() => [
               <td class="px-3 py-2">{{ textValue(pick(detail, 'ChargeBasis', 'chargeBasis')) }}</td>
               <td class="px-3 py-2">{{ textValue(pick(detail, 'CostDetailType', 'costDetailType', 'CostType', 'costType')) }}</td>
               <td class="px-3 py-2">{{ lineCurrency(detail) }}</td>
+              <td class="px-3 py-2">{{ textValue(pick(detail, 'BillToClient', 'billToClient')) }}</td>
               <td class="px-3 py-2 text-right">{{ storedNumber(pick(detail, 'Quantity', 'quantity'), 3) }}</td>
               <td class="px-3 py-2 text-right">{{ money(pick(detail, 'CostAmount', 'costAmount'), lineCurrency(detail)) }}</td>
               <td class="px-3 py-2 text-right">{{ money(pick(detail, 'SaleAmount', 'saleAmount'), lineCurrency(detail)) }}</td>
