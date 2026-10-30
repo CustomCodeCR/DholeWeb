@@ -4573,6 +4573,21 @@ async function saveRate() {
     return
   }
   if (!validateRequiredFields() || !validateWizardReferences()) return
+  // Los POL sin matriz propia utilizan la tarifa Guangzhou más alta,
+  // pero la recolecta Wuhan → Shanghai siempre debe ser real y editable en Pantalla 7.
+  // Mantener el marcador en notes también protege revisiones de tarifas ya guardadas.
+  const missingLclOriginPickup = rateLines.value.find((line) =>
+    String(line.notes ?? '').includes('LCL ORIGEN SIN TARIFA · RECOLECTA OBLIGATORIA')
+    && (!line.included || number(line.costAmount) <= 0 || number(line.saleAmount) <= 0),
+  )
+  if (shipmentModeForApi.value === 'Lcl' && missingLclOriginPickup) {
+    step.value = 7
+    toastStore.warning(
+      'Recolecta de origen pendiente',
+      'Complete el costo y la venta de la recolecta del POL comercial al consolidado físico en Pantalla 7.',
+    )
+    return
+  }
   if (editingRate.value && number(form.cargoValue) > 0 && !rateLines.value.some((line) => line.costDetailType === 'Insurance')) {
     syncDeclaredCargoInsuranceOnEdit()
   }
