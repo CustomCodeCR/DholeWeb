@@ -19,7 +19,7 @@ const available = computed(() => sections.filter(item => enabled.value && item.s
 const hasUserManagement = computed(() => auth.hasScope('auth.users.view'))
 type CountKey = 'accounts' | 'leads'
 const counts = ref<Record<CountKey, number | null>>({
-  accounts: null, leads: null, opportunities: null, activities: null,
+  accounts: null, leads: null,
 })
 const availableAccounts = ref<CrmRow[]>([])
 const homeLoading = ref(false)
