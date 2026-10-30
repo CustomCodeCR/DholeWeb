@@ -35,17 +35,19 @@ const canViewAllCommercialRates = computed(() =>
   authStore.hasScope('pricing.rate-request.view-all'),
 )
 
-const isSellerUser = computed(() => {
-  const roleSeller = authStore.roles.some((role) => {
-    const value = role.trim().toLowerCase()
-    return value === 'vendedor'
-      || value === 'seller'
-      || value === 'ventas'
-      || value.includes('vendedor')
-      || value.includes('seller')
-  })
+// Un usuario puede tener Pricing y Vendedor a la vez. No perder la capacidad de
+// visualizar el dashboard comercial al calcular el dashboard predeterminado.
+const hasSellerRole = computed(() => authStore.roles.some((role) => {
+  const value = role.trim().toLowerCase()
+  return value === 'vendedor'
+    || value === 'seller'
+    || value === 'ventas'
+    || value.includes('vendedor')
+    || value.includes('seller')
+}))
 
-  const sellerCapability = roleSeller || authStore.hasScope('pricing.rate-request.create')
+const isSellerUser = computed(() => {
+  const sellerCapability = hasSellerRole.value || authStore.hasScope('pricing.rate-request.create')
   return sellerCapability && !hasPricingOperatorAccess.value && !canViewAllCommercialRates.value
 })
 
@@ -63,10 +65,16 @@ const canManageSellerRequests = computed(() =>
 )
 
 // El selector altera sólo la vista; nunca cambia la sesión ni sus permisos.
+// Pricing + Vendedor puede alternar, aunque no tenga el rol SuperUsuario.
 type DashboardRole = 'pricing' | 'seller'
 const selectedDashboardRole = ref<DashboardRole>('pricing')
+const canSelectDashboard = computed(() =>
+  isSuperUser() || (hasSellerRole.value && canUsePricing.value),
+)
 const activeDashboardRole = computed<DashboardRole>(() =>
-  isSuperUser() ? selectedDashboardRole.value : (canViewAllCommercialRates.value || isSellerUser.value ? 'seller' : 'pricing'),
+  canSelectDashboard.value
+    ? selectedDashboardRole.value
+    : (canViewAllCommercialRates.value || isSellerUser.value ? 'seller' : 'pricing'),
 )
 </script>
 
@@ -82,7 +90,7 @@ const activeDashboardRole = computed<DashboardRole>(() =>
             {{ authStore.userDisplayName || t('dashboard.operator') }}
           </h1>
         </div>
-        <div v-if="isSuperUser()" class="w-full shrink-0 sm:w-56">
+        <div v-if="canSelectDashboard" class="w-full shrink-0 sm:w-56">
           <label for="role-dashboard-selector" class="mb-1.5 block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
             Dashboard por rol
           </label>
@@ -101,11 +109,11 @@ const activeDashboardRole = computed<DashboardRole>(() =>
       </div>
     </section>
 
-    <!-- SuperUsuario mantiene supervisión global, y puede operar únicamente registros
-         cuya titularidad confirme el endpoint personal de Pricing. -->
+    <!-- SuperUsuario supervisa globalmente y puede operar lo propio. Un usuario
+         Pricing + Vendedor consulta sus propias tarifas, no las de terceros. -->
     <SellerRoleDashboard
       v-if="activeDashboardRole === 'seller'"
-      :admin-preview="isSuperUser() || canViewAllCommercialRates"
+      :admin-preview="isSuperUser() || (canViewAllCommercialRates && !canSelectDashboard)"
       :enable-seller-actions="authStore.hasScope('pricing.rate-request.create')"
     />
 
