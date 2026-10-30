@@ -344,10 +344,19 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     },
   ]
 
-  // The CRM is one application in the sidebar. All permissioned submodules
-  // remain accessible from the shared in-workspace navigation.
+  // Effective scopes filter the actual rendered navigation.
   if (crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope))) {
-    items.push({ label: t('crm.title'), icon: Users, path: '/crm' })
+    const crmChildren: SidebarItem[] = []
+    if (canView('crm.account.read') || canView('crm.account.read-all'))
+      crmChildren.push({ label: t('crm.nav.accounts'), path: '/crm/accounts', icon: Users })
+    if (canView('crm.contact.read'))
+      crmChildren.push({ label: t('crm.nav.contacts'), path: '/crm/contacts', icon: Users })
+    if (canView('crm.lead.read') || canView('crm.lead.read-all'))
+      crmChildren.push({ label: t('crm.nav.leads'), path: '/crm/leads', icon: Users })
+    if (canView('crm.followup.manage') || canView('crm.task.manage'))
+      crmChildren.push({ label: t('crm.nav.followups'), path: '/crm/followups', icon: CalendarClock })
+    if (crmChildren.length > 0)
+      items.push({ label: t('crm.title'), icon: Users, children: crmChildren })
   }
 
   if (canView('srm.supplier.read')) {
