@@ -46,7 +46,7 @@ const sessions = ref<SessionDto[]>([])
 const availableRoles = ref<RoleSelectDto[]>([])
 const availableScopes = ref<ScopeSelectDto[]>([])
 
-interface AuthMultiSelectItem { id: string; label: string; description?: string; badge?: string }
+interface AuthMultiSelectItem { id: string; label: string; description?: string; badge?: string; group?: string }
 
 const canSetActive = computed(() => authStore.hasScope(AUTH_SCOPES.users.setActive))
 const canSetLocked = computed(() => authStore.hasScope(AUTH_SCOPES.users.setLocked))
@@ -275,8 +275,55 @@ function roleItems(items: RoleSelectDto[]): AuthMultiSelectItem[] {
   return items.map((role) => ({ id: role.id, label: role.name, badge: 'Rol' }))
 }
 
+const MODULE_LABELS: Record<string, string> = {
+  auth: 'Seguridad y usuarios',
+  pricing: 'Pricing · Tarifas',
+  crm: 'CRM · Clientes',
+  srm: 'SRM · Proveedores',
+  config: 'Configuración y catálogos',
+  auditlogs: 'Auditoría',
+  storage: 'Almacenamiento',
+  notifications: 'Notificaciones',
+  reports: 'Reportes',
+  ai: 'Inteligencia artificial',
+  agent: 'Automatización de navieras',
+  monitoring: 'Monitoreo',
+  dynamics: 'Dynamics 365',
+  system: 'Sistema',
+  dataextraction: 'Extracción de datos',
+  'data-extraction': 'Extracción de datos',
+  content: 'Contenido',
+  view: 'Acceso a módulos',
+}
+
+function scopeModuleName(code: string): string {
+  const prefix = code.trim().split('.')[0]?.toLowerCase() || ''
+  return MODULE_LABELS[prefix] || (prefix ? prefix.toUpperCase() : 'Otros')
+}
+
+function groupedScopes<T>(items: readonly T[], codeOf: (item: T) => string) {
+  const groups = new Map<string, T[]>()
+  for (const item of items) {
+    const name = scopeModuleName(codeOf(item))
+    const list = groups.get(name) ?? []
+    list.push(item)
+    groups.set(name, list)
+  }
+  return Array.from(groups, ([name, scopes]) => ({ name, scopes }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+}
+
+const directScopeGroups = computed(() => groupedScopes(directScopes.value, (scope) => scope.scopeCode))
+const effectiveScopeGroups = computed(() => groupedScopes(permissions.value?.effectiveScopes ?? [], (scope) => scope.scopeCode))
+
 function scopeItems(items: ScopeSelectDto[]): AuthMultiSelectItem[] {
-  return items.map((scope) => ({ id: scope.id, label: scope.name, description: scope.code, badge: 'Scope' }))
+  return items.map((scope) => ({
+    id: scope.id,
+    label: scope.name,
+    description: scope.code,
+    badge: 'Scope',
+    group: scopeModuleName(scope.code),
+  }))
 }
 
 function openAssignRoles() {
@@ -326,21 +373,20 @@ function openRevokeRoles() {
   })
 }
 
-// Direct assignments remain optional and never bypass Auth's role + resource checks.
-// Filtering here makes the existing Auth scope catalogue practical for CRM/SRM managers.
-function openAssignScopes(module: 'all' | 'crm' | 'srm' = 'all') {
+// Auth sigue verificando los permisos efectivos en el servidor. El catálogo
+// completo aparece agrupado por módulo; la selección no implica permisos globales.
+function openAssignScopes() {
   if (!canAssignScopes.value || isProtectedUser.value) return
 
   const selected = directScopes.value.map((scope) => scope.scopeId)
-  const options = module === 'all' ? availableScopes.value : availableScopes.value.filter(scope => scope.code.startsWith(module + '.'))
   modalStore.open({
-    title: module === 'all' ? t('users.assignScopes') : 'Asignar permisos ' + module.toUpperCase(),
+    title: t('users.assignScopes'),
     component: AuthMultiSelectModal,
     size: 'lg',
     props: {
       title: t('users.assignScopes'),
-      description: module === 'all' ? 'Seleccione los scopes directos que desea asignar al usuario.' : 'Permisos de ' + module.toUpperCase() + ' asignables individualmente; no se conceden permisos de otros módulos.',
-      items: scopeItems(options),
+      description: 'Busque o filtre por módulo y seleccione los scopes directos que desea asignar.',
+      items: scopeItems(availableScopes.value),
       initiallySelectedIds: selected,
       confirmLabel: t('common.assign'),
       onConfirm: async (ids: string[]) => {
@@ -364,7 +410,7 @@ function openRevokeScopes() {
     props: {
       title: t('users.revokeScopes'),
       description: 'Seleccione los scopes directos que desea quitar del usuario.',
-      items: directScopes.value.map((scope) => ({ id: scope.scopeId, label: scope.scopeName, description: scope.scopeCode, badge: 'Scope' })),
+      items: directScopes.value.map((scope) => ({ id: scope.scopeId, label: scope.scopeName, description: scope.scopeCode, badge: 'Scope', group: scopeModuleName(scope.scopeCode) })),
       confirmLabel: t('common.revoke'),
       danger: true,
       onConfirm: async (ids: string[]) => {
@@ -491,30 +537,48 @@ onMounted(loadRelated)
     </section>
 
     <section v-else-if="activeTab === 'scopes'" class="space-y-3">
-      <div v-if="showScopeActions" class="flex justify-end gap-2">
-        <DhButton v-if="canAssignScopes" :icon="KeyRound" label="Permisos CRM" @click="openAssignScopes('crm')" />
-        <DhButton v-if="canAssignScopes" :icon="KeyRound" label="Permisos SRM" variant="secondary" @click="openAssignScopes('srm')" />
-        <DhButton v-if="canAssignScopes" :icon="KeyRound" :label="t('users.assignScopes')" variant="secondary" @click="openAssignScopes('all')" />
+      <div v-if="showScopeActions" class="flex flex-wrap justify-end gap-2">
+        <DhButton v-if="canAssignScopes" :icon="KeyRound" :label="t('users.assignScopes')" @click="openAssignScopes" />
         <DhButton v-if="canRevokeScopes && directScopes.length > 0" :icon="Ban" :label="t('users.revokeScopes')" variant="secondary" @click="openRevokeScopes" />
       </div>
-      <div class="grid gap-2">
-        <div v-for="scope in directScopes" :key="scope.scopeId" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-          <p class="font-black text-[var(--dh-text)]">{{ scope.scopeName }}</p>
-          <p class="mt-1 text-xs font-bold text-[var(--dh-primary)]">{{ scope.scopeCode }}</p>
+      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+        {{ directScopes.length }} scopes directos en {{ directScopeGroups.length }} módulos. Los heredados por roles se consultan en Permisos.
+      </p>
+      <p v-if="!directScopeGroups.length" class="rounded-[22px] border border-[var(--dh-border)] p-5 text-sm text-[var(--dh-text-muted)]">
+        No hay scopes directos asignados. Los roles pueden seguir otorgando permisos.
+      </p>
+      <section v-for="group in directScopeGroups" :key="group.name" class="overflow-hidden rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+        <header class="flex items-center justify-between gap-2 border-b border-[var(--dh-border)] px-4 py-3">
+          <h4 class="text-sm font-black text-[var(--dh-text)]">{{ group.name }}</h4>
+          <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ group.scopes.length }} scopes</span>
+        </header>
+        <div class="grid gap-2 p-3 md:grid-cols-2">
+          <div v-for="scope in group.scopes" :key="scope.scopeId" class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3">
+            <p class="break-words text-sm font-bold text-[var(--dh-text)]">{{ scope.scopeName }}</p>
+            <p class="mt-1 break-all text-xs font-semibold text-[var(--dh-primary)]">{{ scope.scopeCode }}</p>
+          </div>
         </div>
-      </div>
+      </section>
     </section>
 
     <section v-else-if="activeTab === 'permissions'" class="space-y-4">
-      <div>
-        <h4 class="mb-2 font-black text-[var(--dh-text)]">{{ t('users.effectiveScopes') }}</h4>
-        <div class="grid gap-2">
-          <div v-for="scope in permissions?.effectiveScopes ?? []" :key="scope.scopeId" class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
-            <p class="font-black text-[var(--dh-text)]">{{ scope.scopeName }}</p>
-            <p class="text-xs font-bold text-[var(--dh-primary)]">{{ scope.scopeCode }}</p>
+      <h4 class="font-black text-[var(--dh-text)]">{{ t('users.effectiveScopes') }}</h4>
+      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+        {{ permissions?.effectiveScopes?.length ?? 0 }} scopes efectivos en {{ effectiveScopeGroups.length }} módulos, incluyendo los heredados por roles.
+      </p>
+      <p v-if="!effectiveScopeGroups.length" class="text-sm font-semibold text-[var(--dh-text-muted)]">No se encontraron permisos efectivos.</p>
+      <section v-for="group in effectiveScopeGroups" :key="group.name" class="overflow-hidden rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+        <header class="flex items-center justify-between gap-2 border-b border-[var(--dh-border)] px-4 py-3">
+          <h5 class="text-sm font-black text-[var(--dh-text)]">{{ group.name }}</h5>
+          <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ group.scopes.length }} scopes</span>
+        </header>
+        <div class="grid gap-2 p-3 md:grid-cols-2">
+          <div v-for="scope in group.scopes" :key="scope.scopeId" class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3">
+            <p class="break-words text-sm font-bold text-[var(--dh-text)]">{{ scope.scopeName }}</p>
+            <p class="mt-1 break-all text-xs font-semibold text-[var(--dh-primary)]">{{ scope.scopeCode }}</p>
           </div>
         </div>
-      </div>
+      </section>
     </section>
 
     <section v-else-if="activeTab === 'sessions' && canViewSessions" class="space-y-3">
