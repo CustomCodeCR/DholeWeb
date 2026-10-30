@@ -196,7 +196,7 @@ test('CRM business profile remains editable from full account not onboarding', (
   assert.ok(hub.includes("companyHistory"))
   assert.ok(editor.includes("businessSnapshot"))
   assert.ok(editor.includes("businessActivity"))
-  assert.ok(editor.includes("'/business-profile'), 'PUT'"))
+  assert.ok(editor.includes("'business-profile'), 'PUT'"))
   assert.ok(!workspace.includes("companyDraft"))
 })
 
