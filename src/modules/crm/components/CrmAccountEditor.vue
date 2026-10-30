@@ -5,6 +5,7 @@ import { DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmRelationshipPicker from './CrmRelationshipPicker.vue'
+import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmHaciendaLookup from './CrmHaciendaLookup.vue'
 import type { HaciendaResult } from './CrmHaciendaLookup.vue'
 import { crmPatch, crmPath, crmRequest, crmUuid, crmError, type CrmRow } from '../services/crmApi'
@@ -240,7 +241,7 @@ async function save() {
         <button type="button" class="crm-editor-secondary" @click="load">Reintentar carga</button>
       </div>
       <nav v-if="!loading && loadedProfile" class="flex gap-2 overflow-x-auto rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 text-xs font-bold" aria-label="Secciones editables">
-        <a v-for="section in [{id:'identity',text:'Datos de la cuenta'}, {id:'commercial',text:'Ficha comercial'}, {id:'company',text:'Datos empresariales'}, {id:'contacts',text:'Contactos'}, {id:'addresses',text:'Direcciones'}]"
+        <a v-for="section in [{id:'identity',text:'Datos de la cuenta'}, {id:'commercial',text:'Ficha comercial'}, {id:'company',text:'Datos empresariales'}, {id:'contacts',text:'Contactos'}, {id:'addresses',text:'Direcciones'}, {id:'credit',text:'Cobertura del crédito'}]"
           :key="section.id" :href="'#crm-edit-' + section.id"
           class="shrink-0 rounded-lg bg-[var(--dh-shell)] px-3 py-2 hover:text-[var(--dh-primary)]">{{ section.text }}</a>
       </nav>
@@ -354,6 +355,10 @@ async function save() {
           </button>
         </div>
       </form>
+      <section v-if="loadedProfile && can('crm.credit.read')" id="crm-edit-credit"
+        class="crm-editor-section scroll-mt-24">
+        <CrmCreditCoverageManager :account-id="String(account.id)" :editable="can('crm.credit.manage')" @updated="emit('saved')" />
+      </section>
     </div>
   </section>
 </template>
