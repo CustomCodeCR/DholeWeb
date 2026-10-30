@@ -7,6 +7,7 @@ import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/mol
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmReferencePicker from '../components/CrmReferencePicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
+import CrmRelationshipPicker from '../components/CrmRelationshipPicker.vue'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmHaciendaLookup, { type HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -159,61 +160,7 @@ const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities
 const configWarning = ref('')
 const accountTypeFilter = ref('')
 const accountCategoryFilter = ref('')
-const accountFormTab = ref<'identity' | 'commercial' | 'company' | 'related'>('identity')
-const companyDraft = reactive({
-  phone: '', email: '', website: '', sector: '', businessActivity: '',
-  products: '', companyHistory: '', billingEmail: '', marketingEmail: '',
-  commercialObservations: '', operationalInstructions: '',
-  activeServices: '', presenceCountries: '', commercialStrategy: '',
-  projectsOfInterest: '', pricingObservations: '', tariffMonitoringNotes: '',
-  tariffSendingNotes: '', customsInstructions: '', cargoCollectionInstructions: '',
-  documentReviewInstructions: '', assignedOperations: '', competitorObservations: '',
-  tradeAgreementNotes: '', webCustomerReference: '',
-})
-const companyExtraFields = [
-  { key: 'activeServices', label: 'Servicios activos' },
-  { key: 'presenceCountries', label: 'Países con presencia' },
-  { key: 'commercialStrategy', label: 'Estrategia comercial' },
-  { key: 'projectsOfInterest', label: 'Proyectos de interés' },
-  { key: 'pricingObservations', label: 'Observaciones Pricing' },
-  { key: 'tariffMonitoringNotes', label: 'Tarifas por enviar' },
-  { key: 'tariffSendingNotes', label: 'Observaciones tarifas enviadas' },
-  { key: 'customsInstructions', label: 'Instrucciones de aduanas' },
-  { key: 'cargoCollectionInstructions', label: 'Recolección de carga' },
-  { key: 'documentReviewInstructions', label: 'Revisión documental' },
-  { key: 'assignedOperations', label: 'Operativa asignada' },
-  { key: 'competitorObservations', label: 'Análisis de competidores' },
-  { key: 'tradeAgreementNotes', label: 'Tratados y acuerdos comerciales' },
-  { key: 'webCustomerReference', label: 'Referencia web (sin contraseñas)' },
-] as const
-const companyProfileVersion = ref<number | null>(null)
-const companyProfileSnapshot = ref('')
-const companyProfileLoading = ref(false)
-const companyProfileError = ref('')
-async function loadEditableCompanyProfile(accountId: string) {
-  companyProfileLoading.value = true
-  companyProfileError.value = ''
-  try {
-    const profile = await crmRequest<CrmRow | null>('/api/crm/accounts/' +
-      encodeURIComponent(accountId) + '/business-profile')
-    if (!showForm.value || edited.value?.id !== accountId) return
-    companyProfileVersion.value = profile?.rowVersion ?? null
-    for (const key of Object.keys(companyDraft) as Array<keyof typeof companyDraft>) {
-      companyDraft[key] = typeof profile?.[key] === 'string' ? String(profile[key]) : ''
-    }
-    companyProfileSnapshot.value = JSON.stringify(companyDraft)
-  } catch (cause) { companyProfileError.value = crmError(cause) }
-  finally { companyProfileLoading.value = false }
-}
-function resetCompanyDraft() {
-  Object.keys(companyDraft).forEach(key => {
-    companyDraft[key as keyof typeof companyDraft] = ''
-  })
-}
-const relatedDraft = reactive({ contactName: '', contactJobTitle: '', contactEmail: '', contactPhone: '', addressText: '' })
-function resetRelatedDraft() {
-  Object.assign(relatedDraft, { contactName: '', contactJobTitle: '', contactEmail: '', contactPhone: '', addressText: '' })
-}
+const accountFormTab = ref<'identity' | 'commercial'>('identity')
 const countryLabels = ref<Record<string, string>>({})
 async function loadCountryLabels() {
   try {
@@ -225,8 +172,6 @@ async function loadCountryLabels() {
 const accountSections = [
   { key: 'identity', label: 'Identificación' },
   { key: 'commercial', label: 'Perfil comercial' },
-  { key: 'company', label: 'Datos empresariales' },
-  { key: 'related', label: 'Contactos y logística' },
 ] as const
 function focusAccountSection(key: typeof accountFormTab.value) {
   accountFormTab.value = key
@@ -237,11 +182,6 @@ function focusAccountSection(key: typeof accountFormTab.value) {
 
 function beginCreate() {
   resetValidation()
-  resetRelatedDraft()
-  resetCompanyDraft()
-  companyProfileVersion.value = null
-  companyProfileError.value = ''
-  companyProfileSnapshot.value = JSON.stringify(companyDraft)
   pendingCreateKey.value = crmUuid()
   edited.value = null
   Object.keys(form).forEach(key => delete form[key])
@@ -252,11 +192,6 @@ function beginCreate() {
 }
 function beginEdit(item: CrmRow) {
   resetValidation()
-  resetRelatedDraft()
-  resetCompanyDraft()
-  companyProfileVersion.value = null
-  companyProfileError.value = ''
-  companyProfileSnapshot.value = JSON.stringify(companyDraft)
   edited.value = item
   accountFormTab.value = 'identity'
   Object.keys(form).forEach(key => delete form[key])
@@ -264,7 +199,6 @@ function beginEdit(item: CrmRow) {
     form[f.key] = f.type === 'datetime-local' ? fromUtc(item[f.key]) : item[f.key] ?? (f.type === 'checkbox' ? false : '')
   }
   showForm.value = true
-  if (section.value === 'accounts' && (can('crm.account.read') || can('crm.account.read-all'))) void loadEditableCompanyProfile(item.id)
 }
 function canCreate() {
   return !!model.value?.createScope && can(model.value.createScope)
@@ -385,21 +319,6 @@ async function save() {
       return
     }
   }
-  if (section.value === 'accounts' && !edited.value && (relatedDraft.contactEmail.trim() || relatedDraft.contactPhone.trim()) &&
-      !relatedDraft.contactName.trim()) {
-    focusAccountSection('related')
-    error.value = 'Si registrás correo o teléfono, completá también el nombre del contacto.'
-    return
-  }
-  if (section.value === 'accounts' && edited.value && companyProfileLoading.value) {
-    error.value = 'La ficha empresarial se está cargando. Revisá los datos antes de guardar.'
-    return
-  }
-  if (section.value === 'accounts' && edited.value && companyProfileError.value &&
-      JSON.stringify(companyDraft) !== companyProfileSnapshot.value) {
-    error.value = 'No se pudo consultar la versión actual de la ficha empresarial. Actualizá antes de guardarla.'
-    return
-  }
   if (!validateRequiredFields()) return
   error.value = ''; saving.value = true
   try {
@@ -426,34 +345,6 @@ async function save() {
     if (section.value === 'accounts' && createdOrUpdated?.id) {
       const missing: string[] = []
       const accountId = encodeURIComponent(createdOrUpdated.id)
-      if (can('crm.account.update') &&
-          (!edited.value ? Object.values(companyDraft).some(value => value.trim())
-            : !companyProfileError.value && JSON.stringify(companyDraft) !== companyProfileSnapshot.value)) {
-        try {
-          await crmRequest('/api/crm/accounts/' + accountId + '/business-profile', 'PUT', {
-            ...companyDraft, expectedVersion: edited.value ? companyProfileVersion.value : null,
-          }, crmUuid())
-        } catch { missing.push('datos empresariales') }
-      }
-      if (!edited.value && relatedDraft.contactName.trim() && can('crm.contact.create')) {
-        try {
-          await crmRequest('/api/crm/accounts/' + accountId + '/contacts', 'POST', {
-            name: relatedDraft.contactName.trim(),
-            jobTitle: relatedDraft.contactJobTitle.trim() || null,
-            email: relatedDraft.contactEmail.trim() || null,
-            phone: relatedDraft.contactPhone.trim() || null,
-            countryId: form.countryId || null, relationRole: 'CONTACT', isPrimary: true,
-          }, crmUuid())
-        } catch { missing.push('contactos') }
-      }
-      if (!edited.value && relatedDraft.addressText.trim() && can('crm.account.update')) {
-        try {
-          await crmRequest('/api/crm/accounts/' + accountId + '/addresses', 'POST', {
-            contactId: null, countryId: form.countryId || null,
-            addressType: 'WORK', addressText: relatedDraft.addressText.trim(), location: null,
-          }, crmUuid())
-        } catch { missing.push('direcciones') }
-      }
       await router.push({
         path: '/crm/accounts/' + accountId,
         ...(missing.length ? { query: { onboarding: 'partial', missing: missing.join(',') } } : {}),
@@ -655,8 +546,8 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
         </footer>
       </div>
 
-      <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' ? 'full' : 'lg'" @close="showForm = false">
-        <form v-if="model" class="mx-auto max-w-7xl space-y-6" @submit.prevent="save">
+      <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' ? 'xl' : 'lg'" @close="showForm = false">
+        <form v-if="model" class="mx-auto max-w-4xl space-y-5" @submit.prevent="save">
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">{{ t('crm.formHint') }}</p>
           <p v-if="error" role="alert" class="rounded-2xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ error }}</p>
           <template v-if="section === 'accounts'">
@@ -666,7 +557,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                   <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ficha de cuenta comercial</p>
                   <h2 class="mt-1 text-base font-extrabold">{{ edited ? 'Editar datos de la cuenta' : 'Nueva cuenta · Registrar cliente' }}</h2>
                 </div>
-                <span class="text-xs font-medium text-[var(--dh-text-muted)]">{{ edited ? 'Datos existentes' : 'Completá todos los apartados en una sola pantalla' }}</span>
+                <span class="text-xs font-medium text-[var(--dh-text-muted)]">{{ edited ? 'Datos existentes' : 'Dos secciones para crear la cuenta; completá el resto en su ficha' }}</span>
               </div>
               <div class="mt-4 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-3" aria-label="Ir a sección">
                 <button v-for="item in accountSections" :key="item.key" type="button"
@@ -710,74 +601,17 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                     :options="(String(form.categoryType)==='NVOCC' ? ['A','B'] : ['A','B','C','D']).map(value=>({label:'Categoría '+value,value}))"
                     @update:model-value="form.categoryCode=$event" />
                   <DhInput label="Origen de la cuenta" :model-value="String(form.sourceCode ?? '')" @update:model-value="form.sourceCode=$event" />
-                  <DhInput label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')" @update:model-value="form.relationshipTypeCode=$event" />
+                  <CrmRelationshipPicker label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')"
+                    @update:model-value="form.relationshipTypeCode=$event" />
                   <CrmExecutivePicker v-if="!edited && can('crm.account.assign') && can('auth.users.view')"
                     :model-value="String(form.executiveUserId ?? '')" label="Ejecutivo de ventas"
                     @update:model-value="form.executiveUserId=$event" />
                 </div>
                 <p v-if="edited" class="mt-4 text-xs text-[var(--dh-text-muted)]">El tipo y la categoría de cuenta se mantienen según el registro actual. Para reasignar el ejecutivo, utilizá la acción en la ficha.</p>
               </div>
-              <div id="crm-account-section-company" class="mt-6 border-t border-[var(--dh-border)] pt-5 scroll-mt-20">
-                <h3 class="mb-1 text-sm font-extrabold">Datos empresariales y operativos</h3>
-                <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Información para ventas, Pricing y aperturas operativas. La ficha puede completarse después del registro.</p>
-                <div class="grid gap-4 md:grid-cols-2">
-                  <DhInput v-model="companyDraft.phone" label="Teléfono corporativo" />
-                  <DhInput v-model="companyDraft.email" type="email" label="Correo principal" />
-                  <DhInput v-model="companyDraft.website" label="Sitio web (https://)" />
-                  <DhInput v-model="companyDraft.sector" label="Sector productivo" />
-                  <DhInput v-model="companyDraft.billingEmail" type="email" label="Correo de facturación" />
-                  <DhInput v-model="companyDraft.marketingEmail" type="email" label="Correo comercial / marketing" />
-                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.businessActivity" label="Actividad de la empresa" :rows="2" /></div>
-                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.products" label="Mercancías y líneas de productos" :rows="2" /></div>
-                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.companyHistory" label="Historia y perfil de la empresa" :rows="2" /></div>
-                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.commercialObservations" label="Observaciones comerciales" :rows="2" /></div>
-                  <div class="md:col-span-2"><DhTextarea v-model="companyDraft.operationalInstructions" label="Instrucciones operativas" :rows="2" /></div>
-                   <div v-for="field in companyExtraFields" :key="field.key" class="md:col-span-2">
-                     <DhTextarea :label="field.label" :model-value="companyDraft[field.key]"
-                       @update:model-value="companyDraft[field.key]=$event" :rows="2" />
-                   </div>
-                </div>
-                <p v-if="companyProfileLoading" role="status" class="mt-2 text-xs text-[var(--dh-text-muted)]">Cargando datos empresariales…</p>
-                 <p v-if="companyProfileError" role="alert" class="mt-2 text-xs text-red-500">{{ companyProfileError }}</p>
-              </div>
-              <div id="crm-account-section-related" class="mt-6 border-t border-[var(--dh-border)] pt-5 scroll-mt-20">
-                <h3 class="mb-2 text-sm font-extrabold">Contactos, dirección y logística</h3>
-                <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">
-                  Podés agregar el contacto principal y la dirección junto con la cuenta. Las rutas, tarifas y seguimientos se gestionan desde su ficha completa.
-                </p>
-                <div v-if="!edited" class="mt-4 grid items-start gap-3 lg:grid-cols-2">
-                  <section v-if="can('crm.contact.create')" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
-                    <h4 class="flex items-center gap-2 text-xs font-extrabold"><ContactRound class="h-4 w-4 text-[var(--dh-primary)]" />Contacto principal (opcional)</h4>
-                    <DhInput v-model="relatedDraft.contactName" label="Nombre completo" />
-                    <DhInput v-model="relatedDraft.contactJobTitle" label="Puesto / departamento" />
-                    <DhInput v-model="relatedDraft.contactEmail" label="Correo electrónico" type="email" />
-                    <DhInput v-model="relatedDraft.contactPhone" label="Teléfono" />
-                  </section>
-                  <section v-if="can('crm.account.update')" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
-                    <h4 class="flex items-center gap-2 text-xs font-extrabold"><Building2 class="h-4 w-4 text-[var(--dh-primary)]" />Dirección principal (opcional)</h4>
-                    <DhTextarea v-model="relatedDraft.addressText" label="Dirección física de la empresa" :rows="5" />
-                    <p class="text-xs text-[var(--dh-text-muted)]">La dirección queda vinculada al país seleccionado en identificación.</p>
-                  </section>
-                  <p v-if="!can('crm.contact.create') && !can('crm.account.update')" class="text-xs text-[var(--dh-text-muted)]">
-                    No tenés permisos para registrar contactos o direcciones. Podés guardar la cuenta y solicitar acceso.
-                  </p>
-                </div>
-                <div v-else class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
-                  <p class="text-xs">Los contactos y direcciones existentes se administran desde la ficha del cliente para evitar sobrescribir registros relacionados.</p>
-                  <RouterLink :to="'/crm/accounts/' + encodeURIComponent(edited.id)" class="mt-3 inline-flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)]">Ir a ficha completa <ArrowRight class="h-4 w-4" /></RouterLink>
-                </div>
-                <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div v-for="item in [
-                    { title:'POL / POE / POD', detail:'Catálogos de Config y rutas comerciales', icon: Route },
-                    { title:'Visitas y llamadas', detail:'Agenda y próximos seguimientos', icon: CalendarClock },
-                    { title:'Tarifas y crédito', detail:'Cotizaciones, preferencias y contratos', icon: Wallet },
-                  ]" :key="item.title" class="rounded-xl border border-[var(--dh-border)] p-3">
-                    <component :is="item.icon" class="mb-2 h-4 w-4 text-[var(--dh-primary)]" />
-                    <p class="text-xs font-bold">{{ item.title }}</p>
-                    <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ item.detail }}</p>
-                  </div>
-                </div>
-              </div>
+              <p class="mt-5 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 text-xs text-[var(--dh-text-muted)]">
+                Guardá la cuenta para abrir su ficha. Allí podrás agregar el logo, contactos, direcciones, información comercial, rutas, crédito y observaciones sin llenar un formulario interminable.
+              </p>
             </div>
           </template>
           <div v-if="section !== 'accounts'" class="grid gap-4 sm:grid-cols-2">
@@ -805,7 +639,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           </div>
           <div class="sticky bottom-0 z-10 -mx-3 flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-bg)] px-3 py-4 sm:-mx-5 sm:px-5">
             <DhButton :label="t('common.cancel')" variant="secondary" @click="showForm = false" />
-            <DhButton type="submit" :label="section === 'accounts' ? 'Guardar y abrir ficha' : t('common.save')" :loading="saving" />
+            <DhButton type="submit" :label="section === 'accounts' ? 'Crear cuenta y abrir ficha' : t('common.save')" :loading="saving" />
           </div>
         </form>
       </DhDrawer>

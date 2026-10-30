@@ -7,6 +7,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { crmPath, crmRequest, crmUuid, toUtc, type CrmRow } from '../services/crmApi'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
+import CrmAccountLogo from './CrmAccountLogo.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
@@ -30,6 +31,7 @@ const emit = defineEmits<{
   (e: 'change-executive'): void
   (e: 'edit-account'): void
   (e: 'manage-related'): void
+  (e: 'logo-updated'): void
 }>()
 const router = useRouter()
 const auth = useAuthStore()
@@ -441,9 +443,7 @@ async function saveRoute() {
       </div>
       <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
         <div class="flex min-w-0 flex-1 items-center gap-3">
-          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)]/10 text-lg font-black text-[var(--dh-primary)]" aria-hidden="true">
-            {{ text(account.displayName || account.legalName).slice(0, 2).toUpperCase() }}
-          </div>
+          <CrmAccountLogo :account="account" @updated="emit('logo-updated')" />
           <div class="min-w-0">
             <div class="mb-1 text-[10px] font-bold uppercase tracking-[.14em] text-[var(--dh-text-muted)]">CRM · {{ locale === 'en' ? 'Account record' : 'Cuenta comercial' }}</div>
             <h1 class="truncate text-lg font-extrabold tracking-tight sm:text-xl">{{ text(account.displayName || account.legalName) }}</h1>
