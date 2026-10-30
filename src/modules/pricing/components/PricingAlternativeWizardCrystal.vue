@@ -4985,6 +4985,29 @@ async function saveRate() {
       }
       rateId = editingRate.value.id
       if (props.modificationRequestId) {
+        // Pricing now closes the linked seller request in the same database
+        // transaction that advances the persisted quote revision.
+        // Re-reading the request avoids calling prepare-modification on a
+        // Completed row and avoids creating another quote revision.
+        const updatedRequest = await callEndpoint<unknown>({
+          method: 'GET',
+          path: `/api/pricing/rate-requests/${encodeURIComponent(props.modificationRequestId)}`,
+          headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+        })
+        const savedRequest = unwrapApiResponse<{ status: string; rateId?: string | null }>(updatedRequest as never)
+        if (savedRequest.status === 'Completed'
+          && savedRequest.rateId?.toLowerCase() === rateId.toLowerCase()) {
+          pendingModificationDelivery.value = false
+          savedModificationRevision.value = null
+          toastStore.success(
+            'Solicitud de modificación completada',
+            'La nueva revisión quedó guardada y salió de las solicitudes pendientes. El PDF se entregará según su aprobación y cola de notificaciones.',
+          )
+          await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
+          return
+        }
+        // Compatibility fallback for older API instances that have not yet
+        // applied the automatic database completion migration.
         // Save may succeed while preparation or completion fails. Persist the
         // revision identity before either call; subsequent clicks must retry
         // delivery, NEVER run PricingService.updateRate a second time.
