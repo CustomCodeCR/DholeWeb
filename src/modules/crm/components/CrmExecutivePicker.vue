@@ -49,8 +49,7 @@ async function searchUsers() {
       })
       if (request !== requestVersion) return
       list.push(...response.items)
-      if (response.items.length < 100 ||
-          list.length >= (response.total ?? Number.MAX_SAFE_INTEGER)) break
+      if (response.items.length < 100) break
     }
     const active = [...new Map(list.filter(u => u.isActive && !u.isLocked)
       .map(u => [u.id, u])).values()]
@@ -62,6 +61,7 @@ async function searchUsers() {
     await Promise.all(Array.from({ length: Math.min(8, candidates.length) }, async () => {
       while (index < candidates.length) {
         const user = candidates[index++]
+        if (!user) continue
         try {
           const roles = await UsersService.getRoles(user.id)
           if (roles.some(role => isSellerRole(role.roleName))) sellers.push(user)
