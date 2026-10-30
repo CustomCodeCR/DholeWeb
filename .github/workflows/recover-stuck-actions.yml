@@ -1,0 +1,114 @@
+name: Recover stuck Dhole Web Actions
+
+# Recuperación puntual: la API puede mostrar un run activo incluso cuando
+# el runner self-hosted ya terminó su trabajo. No se ejecuta automáticamente.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "ID numérico de la ejecución atascada (no el número # del workflow)"
+        required: true
+        type: string
+      force_cancel:
+        description: "Intentar cancelación forzada si falla la normal"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: dhole-web-actions-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Recover selected stale run
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_RUN_ID: ${{ inputs.run_id }}
+      ALLOW_FORCE_CANCEL: ${{ inputs.force_cancel }}
+    steps:
+      - name: Validate run and attempt safe cancellation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$TARGET_RUN_ID" =~ ^[0-9]{5,20}$ ]]; then
+            echo "::error::Indique un run_id numérico válido tomado de /actions/runs/ID."
+            exit 1
+          fi
+
+          endpoint="repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID"
+          run_json="$(gh api "$endpoint")"
+
+          name="$(jq -r '.name // ""' <<<"$run_json")"
+          status="$(jq -r '.status // ""' <<<"$run_json")"
+          branch="$(jq -r '.head_branch // ""' <<<"$run_json")"
+          head_sha="$(jq -r '.head_sha // ""' <<<"$run_json")"
+          created_at="$(jq -r '.created_at // ""' <<<"$run_json")"
+
+          echo "Run: $TARGET_RUN_ID"
+          echo "Workflow: $name"
+          echo "Status: $status"
+          echo "Branch: $branch"
+          echo "Commit: $head_sha"
+
+          if [[ "$name" == "Deploy Dhole Web - Staging" && "$branch" == "develop" ]]; then
+            :
+          elif [[ "$name" == "Deploy Dhole Web - Production" && "$branch" == "master" ]]; then
+            :
+          else
+            echo "::error::Solo se permiten despliegues Dhole Web de master/develop."
+            exit 1
+          fi
+
+          if [[ "$status" == "completed" ]]; then
+            echo "La ejecución ya figura completada. No se cancela."
+            exit 0
+          fi
+
+          case "$status" in
+            queued|pending|waiting|requested|in_progress) ;;
+            *)
+              echo "::error::Estado no recuperable automáticamente: $status"
+              exit 1
+              ;;
+          esac
+
+          created_seconds="$(date -u -d "$created_at" +%s)"
+          now_seconds="$(date -u +%s)"
+          if (( now_seconds - created_seconds < 600 )); then
+            echo "::error::No se cancela una ejecución de menos de 10 minutos."
+            exit 1
+          fi
+
+          branch_tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --jq '.object.sha')"
+          if [[ "$head_sha" == "$branch_tip" ]]; then
+            echo "::error::La ejecución corresponde al último commit de $branch; se protege el despliegue más reciente."
+            exit 1
+          fi
+
+          if gh api --method POST "$endpoint/cancel" >/dev/null; then
+            echo "GitHub aceptó la cancelación normal del run $TARGET_RUN_ID."
+            echo "Cancelación normal solicitada: $TARGET_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [[ "$ALLOW_FORCE_CANCEL" != "true" ]]; then
+            echo "::error::La cancelación normal falló y no se autorizó la forzada."
+            exit 1
+          fi
+
+          echo "::warning::La cancelación normal falló. Se intenta force-cancel únicamente sobre el run validado."
+          if gh api --method POST "$endpoint/force-cancel" >/dev/null; then
+            echo "GitHub aceptó force-cancel para $TARGET_RUN_ID."
+            echo "Cancelación forzada solicitada: $TARGET_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::GitHub rechazó también force-cancel. Revisar soporte de GitHub Actions y estado del runner."
+            exit 1
+          fi
