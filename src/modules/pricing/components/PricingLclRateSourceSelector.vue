@@ -149,6 +149,8 @@ const showAllOwnConsolidations = ref(false)
 const ownRows = ref<Array<OwnLclConsolidationDto & TableRow>>([])
 const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
+const fallbackPickupCost = ref<number>(0)
+const fallbackPickupSale = ref<number>(0)
 const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isAir = computed(() => props.modality === 'Air' || props.modality === 'AirConsol')
 const ownPoeEligible = computed(() => !isAir.value && isOwnLclPoeEligible(props.polCode, props.polName, props.poeCode, props.poeName))
@@ -362,7 +364,18 @@ function requestedOwnLclOrigins() {
   return new Set([fromName, fromCode].filter(Boolean))
 }
 
+const unlistedChinaOrigin = computed(() => {
+  const name = normalize(props.polName)
+  const origin = canonicalOwnLclOrigin(props.polName || props.polCode)
+  return !isMiamiOwnLclPol(props.polCode, props.polName)
+    && (name.includes('china') || normalize(props.polCode).startsWith('cn') || origin === 'wuhan')
+    && !chinaOwnLclOrigins.has(origin)
+})
+function ownFallback(row: OwnLclConsolidationDto) {
+  return unlistedChinaOrigin.value && canonicalOwnLclOrigin(row.polName || row.polCode) === 'shanghai'
+}
 function ownCalculationPolCode(row: OwnLclConsolidationDto) {
+  if (ownFallback(row)) return canonicalOwnLclOrigin(props.polName || props.polCode).toUpperCase()
   const consolidationOrigin = canonicalOwnLclOrigin(row.polName || row.polCode)
   if (consolidationOrigin === 'miami') return 'MIAMI'
   // Guangzhou se cotiza usando el consolidado físico de Yantian.
@@ -381,6 +394,7 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
   if (props.polId && row.polId && String(props.polId) === String(row.polId)) return true
 
   const requestedOrigins = requestedOwnLclOrigins()
+  if (ownFallback(row)) return true
   if (!requestedOrigins.size) return true
 
   const consolidationOrigins = new Set(
@@ -554,6 +568,10 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
     error.value = 'El destino seleccionado no está soportado por la matriz del consolidado propio.'
     return
   }
+  if (ownFallback(row) && (!(fallbackPickupCost.value > 0) || !(fallbackPickupSale.value > 0))) {
+    error.value = 'Indique costo y venta de recolecta desde el POL seleccionado hasta Shanghai antes de cotizar.'
+    return
+  }
   try {
     selecting.value = `Own:${row.id}`
     const cbm = requested()
@@ -565,8 +583,9 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       salePerCbm: null,
       sets: 1,
       hbl: 1,
-      pickupCost: 0,
-      pickupSale: 0,
+      pickupCost: ownFallback(row) ? fallbackPickupCost.value : 0,
+      pickupSale: ownFallback(row) ? fallbackPickupSale.value : 0,
+      useUnlistedChinaOriginFallback: ownFallback(row),
       discount: 0,
       commercialPlan: props.commercialPlan,
       cargoValue: Math.max(0, n(props.cargoValue)),
@@ -786,6 +805,15 @@ onMounted(load)
       <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text)] hover:bg-[var(--dh-input)]" @click="showAllOwnConsolidations = !showAllOwnConsolidations">
         {{ showAllOwnConsolidations ? 'Solo mi ruta' : 'Ver todas las salidas' }}
       </button>
+    </div>
+    <div v-if="tab === 'Own' && unlistedChinaOrigin && filteredOwn.some(ownFallback)" class="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+      <p class="text-sm font-bold">POL sin tarifa directa: {{ polName || polCode }}</p>
+      <p class="text-xs">Se ofrece la salida física de Shanghai usando el diferencial más alto registrado en su matriz (USD 62/CBM), más recolecta real desde {{ polName || polCode }} hasta Shanghai. No representa una salida directa desde el POL comercial.</p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <DhInput v-model="fallbackPickupCost" label="Costo recolecta (USD)" type="number" min="0" />
+        <DhInput v-model="fallbackPickupSale" label="Venta recolecta (USD)" type="number" min="0" />
+      </div>
+      <p class="text-xs font-semibold">Ambos importes deben estar cotizados y ser mayores a cero. La recolecta se agrega como línea separada, también para FOB.</p>
     </div>
     <div v-if="error" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">{{ error }}</div>
     <div v-if="tab === 'Own' && filteredOwn.some((row) => ownSelectionBlockReason(row))" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Solo se muestran salidas con ETD vigente. Los consolidados de otro POL o sin capacidad quedan para consulta; Shanghai se puede cotizar desde los puertos incluidos en su matriz FOB.</div>
