@@ -578,7 +578,7 @@ async function saveRoute() {
           </div>
           <div class="mt-3 grid grid-cols-2 gap-2">
             <div class="hub-mini-stat"><span>Rutas habituales</span><strong>{{ activeRoutes.length }}</strong></div>
-            <div class="hub-mini-stat"><span>Oportunidades</span><strong>{{ overview.opportunities.length }}</strong></div>
+            <div class="hub-mini-stat"><span>Análisis comercial</span><strong>{{ overview.analyses.length }}</strong></div>
           </div>
           <h3 class="hub-section-heading mt-4">Mercados y operaciones</h3>
           <p v-if="!overview.analyses.length" class="hub-empty">Sin análisis comercial registrado.</p>
