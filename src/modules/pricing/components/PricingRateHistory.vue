@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ChevronDown, History, MessageSquareText, PencilLine, ShieldCheck, UserRound } from 'lucide-vue-next'
 import { DhBadge } from '@/shared/components/atoms'
-import { useModalStore } from '@/core/stores/modalStore'
 import { PricingService } from '@/core/services/pricingService'
 import type { RateRevisionDto } from '@/core/interfaces/pricing'
 import PricingRateRevisionViewer from './PricingRateRevisionViewer.vue'
@@ -15,6 +14,7 @@ interface HistoryGroup {
   id: string
   root: AuditEventDto
   details: AuditEventDto[]
+  previousRevision: RateRevisionDto | null
 }
 
 interface FieldChange {
@@ -31,7 +31,6 @@ const error = ref('')
 const events = ref<AuditEventDto[]>([])
 const revisions = ref<RateRevisionDto[]>([])
 const revisionsUnavailable = ref(false)
-const modalStore = useModalStore()
 
 const fieldLabels: Record<string, string> = {
   RateName: 'Nombre de tarifa',
@@ -276,6 +275,7 @@ const history = computed<HistoryGroup[]>(() => {
         id: root.id,
         root,
         details,
+        previousRevision: revisionBeforeEdit(root),
       }
     })
     .sort((a, b) => new Date(b.root.occurredAt).getTime() - new Date(a.root.occurredAt).getTime())
@@ -303,57 +303,6 @@ function revisionBeforeEdit(event: AuditEventDto): RateRevisionDto | null {
   const snapshotRateId = String(snapshot.Id ?? snapshot.id ?? '')
   if (previousRateId && snapshotRateId && previousRateId.toLowerCase() !== snapshotRateId.toLowerCase()) return null
   return revision
-}
-
-function beforeSnapshot(event: AuditEventDto): JsonRecord {
-  const revision = revisionBeforeEdit(event)
-  return revision ? parseRecord(revision.snapshotJson) : {}
-}
-
-function previousValue(event: AuditEventDto, ...keys: string[]): unknown {
-  const snapshot = beforeSnapshot(event)
-  for (const key of keys) {
-    if (snapshot[key] !== null && snapshot[key] !== undefined) return snapshot[key]
-  }
-  return null
-}
-
-function previousRoute(event: AuditEventDto): string {
-  const values = [
-    previousValue(event, 'PolName', 'polName'),
-    previousValue(event, 'PoeName', 'poeName'),
-    previousValue(event, 'PodName', 'podName'),
-  ].map((value) => String(value ?? '').trim()).filter(Boolean)
-  return values.filter((value, index) => values.indexOf(value) === index).join(' → ') || '—'
-}
-
-function previousAmount(event: AuditEventDto, kind: 'cost' | 'sale'): string {
-  const amount = Number(kind === 'cost'
-    ? previousValue(event, 'TotalCostAmount', 'totalCostAmount')
-    : previousValue(event, 'TotalSaleAmount', 'totalSaleAmount'))
-  if (!Number.isFinite(amount)) return '—'
-  const currency = String(previousValue(event, 'CurrencyName', 'currencyName', 'CurrencyCode', 'currencyCode') ?? 'USD')
-  const iso = /CRC|COL[OÓ]N/i.test(currency) ? 'CRC' : /EUR|EURO/i.test(currency) ? 'EUR' : 'USD'
-  return new Intl.NumberFormat(iso === 'CRC' ? 'es-CR' : 'en-US', {
-    style: 'currency', currency: iso, minimumFractionDigits: 2, maximumFractionDigits: 2,
-  }).format(amount)
-}
-
-function previousLineCount(event: AuditEventDto): number {
-  const snapshot = beforeSnapshot(event)
-  const details = snapshot.Details ?? snapshot.details
-  return Array.isArray(details) ? details.length : 0
-}
-
-function openBeforeEdit(event: AuditEventDto) {
-  const revision = revisionBeforeEdit(event)
-  if (!revision) return
-  modalStore.open({
-    title: `Cotización antes de modificar · Revisión ${revision.revisionNumber}`,
-    component: PricingRateRevisionViewer,
-    size: 'xl',
-    props: { revision },
-  })
 }
 
 async function loadHistory() {
@@ -407,7 +356,7 @@ onMounted(loadHistory)
             </span>
           </div>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            Quién aprobó o modificó la cotización, los datos anteriores a cada edición, el motivo y los cambios realizados.
+            Vea cada cotización anterior completa como en la pantalla 9, con sus líneas y totales. Las diferencias quedan disponibles por separado.
           </p>
         </div>
       </div>
@@ -454,43 +403,18 @@ onMounted(loadHistory)
         </summary>
 
         <div class="mt-4 space-y-4 border-t border-[var(--dh-border)] pt-4">
-          <section v-if="revisionBeforeEdit(entry.root)" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h4 class="text-sm font-black">Cotización antes de modificar</h4>
-                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-                  Revisión {{ revisionBeforeEdit(entry.root)?.revisionNumber }} · Datos guardados antes de esta edición, sin aplicar cambios posteriores.
-                </p>
-              </div>
-              <button
-                type="button"
-                class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-bg)] px-3 py-2 text-xs font-black text-[var(--dh-text)] hover:border-[var(--dh-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-                @click="openBeforeEdit(entry.root)"
-              >
-                Ver datos completos (pantalla 8)
-              </button>
+          <section
+            v-if="entry.previousRevision"
+            class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 sm:p-5"
+          >
+            <div class="border-b border-[var(--dh-border)] pb-3">
+              <h4 class="text-sm font-black">Pantalla 9 histórica · Cotización antes de modificar</h4>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                Versión {{ entry.previousRevision.revisionNumber }} guardada antes de esta modificación.
+                Es una copia de solo lectura: no contiene cambios posteriores.
+              </p>
             </div>
-            <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <div class="rounded-lg bg-[var(--dh-bg)] px-3 py-2">
-                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Cliente</p>
-                <p class="mt-1 break-words text-xs font-bold">{{ formatValue(previousValue(entry.root, 'ClientName', 'clientName')) }}</p>
-              </div>
-              <div class="rounded-lg bg-[var(--dh-bg)] px-3 py-2">
-                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Ruta anterior</p>
-                <p class="mt-1 break-words text-xs font-bold">{{ previousRoute(entry.root) }}</p>
-              </div>
-              <div class="rounded-lg bg-[var(--dh-bg)] px-3 py-2">
-                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Costo anterior</p>
-                <p class="mt-1 text-xs font-bold">{{ previousAmount(entry.root, 'cost') }}</p>
-              </div>
-              <div class="rounded-lg bg-[var(--dh-bg)] px-3 py-2">
-                <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Venta anterior</p>
-                <p class="mt-1 text-xs font-bold">{{ previousAmount(entry.root, 'sale') }}</p>
-              </div>
-            </div>
-            <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-              {{ previousLineCount(entry.root) }} rubros guardados · Abra el detalle para consultar equipo, carga, vigencia, agente, costos, ventas y notas originales.
-            </p>
+            <PricingRateRevisionViewer :revision="entry.previousRevision" />
           </section>
           <p
             v-else-if="entry.root.action?.toLowerCase() === 'updated'"
@@ -500,6 +424,9 @@ onMounted(loadHistory)
             Se muestran abajo los valores anteriores que sí quedaron registrados en auditoría.
             {{ revisionsUnavailable ? 'No se pudieron consultar las revisiones guardadas.' : '' }}
           </p>
+          <details v-if="headerChanges(entry.root).length || entry.details.length" class="rounded-xl border border-[var(--dh-border)] p-3">
+            <summary class="cursor-pointer text-xs font-black">Ver diferencias de esta modificación (antes → después)</summary>
+            <div class="mt-3 space-y-3">
           <section v-if="headerChanges(entry.root).length">
             <h4 class="mb-2 flex items-center gap-2 text-xs font-black"><UserRound class="h-4 w-4" />Cambios generales</h4>
             <div class="space-y-2">
@@ -536,7 +463,9 @@ onMounted(loadHistory)
             </div>
           </section>
 
-          <p v-if="!headerChanges(entry.root).length && !entry.details.length" class="text-xs font-semibold text-[var(--dh-text-muted)]">
+            </div>
+          </details>
+          <p v-if="!entry.previousRevision && !headerChanges(entry.root).length && !entry.details.length" class="text-xs font-semibold text-[var(--dh-text-muted)]">
             El evento quedó auditado sin diferencias de campos adicionales.
           </p>
         </div>
