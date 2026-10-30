@@ -625,7 +625,9 @@ onMounted(() => { if (crmEnabled()) void load() })
 
         </div>
         <DhDrawer :open="showRelationForm && canAddRelation"
-          :title="t('common.create') + ' · ' + relation" size="lg" @close="showRelationForm = false">
+          :title="section === 'accounts'
+             ? (relation === 'contacts' ? 'Nuevo contacto' : 'Nuevo · ' + (accountRelationInfo?.label ?? relation))
+             : t('common.create') + ' · ' + relation" size="lg" @close="showRelationForm = false">
           <p v-if="error" role="alert" class="mb-3 rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
         <form v-if="section==='accounts' && relation==='addresses' && can('crm.account.update')"
           class="grid gap-3 sm:grid-cols-3" @submit.prevent="addAddress">
