@@ -15,7 +15,8 @@ import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 
-// La vista de administrador es de solo lectura: el servidor valida SuperUsuario/view-all.
+// La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
+// Los endpoints personales y la autorización de Pricing determinan las acciones propias.
 const props = withDefaults(defineProps<{ adminPreview?: boolean; enableSellerActions?: boolean }>(), { adminPreview: false, enableSellerActions: false })
 const selectedSellerId = ref('')
 
@@ -83,6 +84,32 @@ const receivingIds = ref<string[]>([])
 
 function canActOnRate(rate: RateDto): boolean {
   return !props.adminPreview || (props.enableSellerActions && ownRatesById.value.has(rate.id))
+}
+
+// La propiedad técnica (createdByUserId) puede diferir del vendedor comercial.
+// Solo un SuperUsuario con permiso de actualización abre el editor estándar de Pricing;
+// este mantiene validaciones de estado, bloqueo y autorización en la API.
+const editablePricingStatuses = new Set<RateDto['status']>([
+  'PendingApproval',
+  'ApprovedByManagement',
+  'RejectedByManagement',
+  'Open',
+  'Sent',
+  'RequestedByClient',
+])
+
+function canEditCreatedPricingRate(rate: RateDto): boolean {
+  const isSuperUser = authStore.hasRole('SuperUsuario') || authStore.hasRole('SuperUser')
+  const userId = authStore.userId?.trim().toLowerCase()
+  return isSuperUser
+    && authStore.hasScope('pricing.rate.update')
+    && Boolean(userId && rate.createdByUserId?.trim().toLowerCase() === userId)
+    && editablePricingStatuses.has(rate.status)
+}
+
+function editCreatedPricingRate(rate: RateDto) {
+  if (!canEditCreatedPricingRate(rate)) return
+  void router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
 }
 
 
@@ -832,15 +859,18 @@ onBeforeUnmount(() => {
                   <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ formatDate(rate.validTo) }}</td>
                   <td class="px-4 py-3"><DhBadge :label="sellerStatusLabel(rate)" :variant="statusVariant(rate)" /></td>
                   <td class="px-4 py-3">
-                    <div v-if="canActOnRate(rate)" class="flex flex-wrap gap-1.5">
-                      <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
-                      <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
-                      <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
-                        :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
-                      <template v-if="canRespondToRate(rate)">
-                      <DhButton label="Aceptar" size="sm" @click="openCustomerDecision(rate, 'AcceptedByClient')" />
-                      <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
+                    <div v-if="canActOnRate(rate) || canEditCreatedPricingRate(rate)" class="flex flex-wrap gap-1.5">
+                      <template v-if="canActOnRate(rate)">
+                        <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
+                        <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
+                        <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
+                          :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
+                        <template v-if="canRespondToRate(rate)">
+                          <DhButton label="Aceptar" size="sm" @click="openCustomerDecision(rate, 'AcceptedByClient')" />
+                          <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
+                        </template>
                       </template>
+                      <DhButton v-if="canEditCreatedPricingRate(rate)" label="Modificar en Pricing" size="sm" variant="secondary" @click="editCreatedPricingRate(rate)" />
                     </div>
                     <span v-else class="whitespace-nowrap text-[11px] text-[var(--dh-text-muted)]">Solo lectura</span>
                   </td>
