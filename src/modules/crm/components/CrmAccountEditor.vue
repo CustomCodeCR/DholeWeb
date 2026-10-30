@@ -5,6 +5,7 @@ import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
+import CrmRelationshipPicker from './CrmRelationshipPicker.vue'
 import CrmHaciendaLookup from './CrmHaciendaLookup.vue'
 import type { HaciendaResult } from './CrmHaciendaLookup.vue'
 import { crmPatch, crmPath, crmRequest, crmUuid, crmError, type CrmRow } from '../services/crmApi'
@@ -254,7 +255,8 @@ async function save() {
               :options="(accountDraft.categoryType==='NVOCC'?['A','B']:['A','B','C','D']).map(value=>({label:'Categoría '+value,value}))"
               @update:model-value="accountDraft.categoryCode=String($event)" />
             <DhInput v-model="accountDraft.sourceCode" label="Origen de la cuenta" />
-            <DhInput v-model="accountDraft.relationshipTypeCode" label="Tipo de relación" />
+            <CrmRelationshipPicker :model-value="accountDraft.relationshipTypeCode" label="Tipos de relación"
+              @update:model-value="accountDraft.relationshipTypeCode=$event" />
           </div>
         </section>
         <section v-for="group in profileGroups" :key="group.title" class="crm-editor-section">
