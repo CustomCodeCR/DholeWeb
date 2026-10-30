@@ -154,9 +154,6 @@ async function setWorkStatus(nextStatus: WorkStatus) {
   }
 }
 
-const savedRevisionAvailable = ref<number | null>(null)
-const recoveringSavedRevision = ref(false)
-
 async function inspectSavedRevision(id: string, version: number) {
   const request = workRequest.value
   if (!request?.rateId || !isModification.value) return
