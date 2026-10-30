@@ -21,6 +21,6 @@ test('seller modification still prepares a saved revision and requires explicit 
   assert.match(plugin, /RateRequestLeaseService\.prepareModification\(/)
   assert.match(plugin, /const savedRateNavigation/)
   assert.match(plugin, /name: 'pricing-rate-wizard', params: \{ rateId \}, query: \{ mode: 'view' \}/)
-  assert.match(resume, /RateRequestLeaseService\.completeRate\(requestId\.value, rateId, \{ confirmSellerModification: true \}\)/)
+  assert.match(resume, /RateRequestLeaseService\.completeRate\(\s*id, rateId, \{ confirmSellerModification: true \}/)
   assert.match(resume, /await router\.replace\(\{ name: 'pricing-rate-wizard', params: \{ rateId \}, query: \{ mode: 'view' \} \}\)/)
 })
