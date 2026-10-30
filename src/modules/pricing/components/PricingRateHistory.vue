@@ -31,6 +31,16 @@ const error = ref('')
 const events = ref<AuditEventDto[]>([])
 const revisions = ref<RateRevisionDto[]>([])
 const revisionsUnavailable = ref(false)
+const expandedEventIds = ref<Set<string>>(new Set())
+
+function onEventToggle(eventId: string, event: Event) {
+  const element = event.currentTarget
+  if (!(element instanceof HTMLDetailsElement)) return
+  const next = new Set(expandedEventIds.value)
+  if (element.open) next.add(eventId)
+  else next.delete(eventId)
+  expandedEventIds.value = next
+}
 
 const fieldLabels: Record<string, string> = {
   RateName: 'Nombre de tarifa',
@@ -378,6 +388,7 @@ onMounted(loadHistory)
         v-for="entry in history"
         :key="entry.id"
         class="group rounded-xl border border-[var(--dh-border)] bg-[var(--dh-bg)] px-3 py-3"
+        @toggle="onEventToggle(entry.id, $event)"
       >
         <summary class="cursor-pointer list-none">
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -414,7 +425,7 @@ onMounted(loadHistory)
                 Es una copia de solo lectura: no contiene cambios posteriores.
               </p>
             </div>
-            <PricingRateRevisionViewer :revision="entry.previousRevision" />
+            <PricingRateRevisionViewer v-if="expandedEventIds.has(entry.id)" :revision="entry.previousRevision" />
           </section>
           <p
             v-else-if="entry.root.action?.toLowerCase() === 'updated'"
