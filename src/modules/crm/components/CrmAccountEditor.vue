@@ -376,7 +376,7 @@ async function save() {
           <div class="flex items-center gap-3"><Wallet class="h-5 w-5 text-[var(--dh-primary)]" /><p class="text-sm">Contactos, direcciones, rutas, crédito y contratos se gestionan desde esta misma cuenta con sus respectivos permisos.</p></div>
           <button type="button" class="crm-editor-link" @click="emit('manage-related')">Administrar registros vinculados</button>
         </section>
-        <div class="sticky bottom-3 z-20 flex flex-wrap items-center justify-end gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)]/95 p-3 shadow-lg backdrop-blur">
+        <div v-if="activeEditorSection!=='credit'" class="sticky bottom-3 z-20 flex flex-wrap items-center justify-end gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)]/95 p-3 shadow-lg backdrop-blur">
           <span v-if="canSave" class="mr-auto text-xs text-[var(--dh-text-muted)]">Tenés cambios sin guardar</span>
           <button type="button" class="crm-editor-secondary" @click="emit('close')">Cancelar</button>
           <button type="submit" class="crm-editor-primary" :disabled="!canSave || !can('crm.account.update')">
@@ -386,6 +386,9 @@ async function save() {
       </form>
       <section v-if="loadedProfile && can('crm.credit.read')" v-show="activeEditorSection==='credit'" id="crm-edit-credit"
         class="crm-editor-section">
+        <p class="mb-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs text-[var(--dh-text-muted)]">
+          Las solicitudes y coberturas de crédito se guardan por separado de los datos generales. Utilizá sus botones de solicitud, guardar o aprobación.
+        </p>
         <CrmCreditCoverageManager :account-id="String(account.id)" :editable="can('crm.credit.manage')" @updated="emit('saved')" />
       </section>
         </div>
