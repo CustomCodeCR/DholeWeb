@@ -98,6 +98,19 @@ const rangeEnd = computed(() => mode.value === 'day'
   ? dayOffset(rangeStart.value, 1) : mode.value === 'week'
     ? dayOffset(rangeStart.value, 7) : dayOffset(rangeStart.value, 42))
 const rangeKey = computed(() => rangeStart.value.toISOString() + '|' + rangeEnd.value.toISOString())
+const timeSlots = Array.from({ length: 28 }, (_, index) => ({
+  hour: 7 + Math.floor(index / 2), minute: (index % 2) * 30,
+  label: String(7 + Math.floor(index / 2)).padStart(2,'0') +
+    ':' + (index % 2 ? '30' : '00'),
+}))
+function slotDate(day: Date, slot: { hour: number; minute: number }): Date {
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), slot.hour, slot.minute)
+}
+function slotEvents(day: Date, slot: { hour: number; minute: number }): CalendarEvent[] {
+  return (eventsByDay.value[dateKey(day)] ?? []).filter(item =>
+    item.at.getHours() === slot.hour &&
+    Math.floor(item.at.getMinutes() / 30) === slot.minute / 30)
+}
 const visibleDays = computed(() => {
   const count = mode.value === 'day' ? 1 : mode.value === 'week' ? 7 : 42
   return Array.from({ length: count }, (_, i) => dayOffset(rangeStart.value, i))
@@ -114,6 +127,9 @@ const eventsByDay = computed(() => {
   for (const bucket of Object.values(result)) bucket.sort((a, b) => a.at.getTime() - b.at.getTime())
   return result
 })
+const outsideOfficeHours = computed(() => rows.value.filter(item =>
+  (item.at.getHours() < 7 || item.at.getHours() >= 21) &&
+  item.at >= rangeStart.value && item.at < rangeEnd.value))
 const listDays = computed(() => visibleDays.value
   .map(day => ({ day, events: eventsByDay.value[dateKey(day)] ?? [] }))
   .filter(item => item.events.length > 0))
@@ -306,6 +322,19 @@ function onDragStart(e: DragEvent, item: CalendarEvent) {
   e.dataTransfer.setData('text/plain', item.key)
 }
 function onDragEnd() { draggedKey.value = ''; dropKey.value = '' }
+function onSlotOver(e: DragEvent, slot: Date) {
+  if (!draggedKey.value) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dropKey.value = slot.toISOString()
+}
+function onSlotDrop(e: DragEvent, slot: Date) {
+  e.preventDefault()
+  const key = e.dataTransfer?.getData('text/plain') || draggedKey.value
+  const item = rows.value.find(row => row.key === key)
+  onDragEnd()
+  if (item && canMove(item)) void reschedule(item, slot)
+}
 function onDragOver(e: DragEvent, day: Date) {
   if (!draggedKey.value) return
   e.preventDefault()
@@ -401,7 +430,7 @@ function openEvent(item: CalendarEvent) {
     <p v-if="partial" role="status" class="text-sm text-amber-500">Hay más de 1000 registros en este período; afiná las fechas para consultar el resto.</p>
     <p class="text-xs text-[var(--dh-text-muted)]">Arrastrá una visita, llamada o seguimiento pendiente a otro día para reprogramarlo. También podés elegir fecha y hora desde el detalle.</p>
     <p v-if="moving" role="status" class="text-sm text-[var(--dh-primary)]">Guardando nueva fecha en CRM…</p>
-    <div v-if="mode==='month' || mode==='week' || mode==='day'"
+    <div v-if="mode==='month'"
       class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
       <div :class="mode==='day'?'grid grid-cols-1':'grid grid-cols-7'">
         <div v-for="day in visibleDays.slice(0,mode==='day'?1:7)" :key="'header'+dateKey(day)"
@@ -434,6 +463,45 @@ function openEvent(item: CalendarEvent) {
           <button v-if="mode==='month' && (eventsByDay[dateKey(day)] ?? []).length>3"
             type="button" class="text-xs font-bold text-[var(--dh-primary)]"
             @click="selected=day;mode='day'">+{{ (eventsByDay[dateKey(day)] ?? []).length-3 }} más</button>
+        </div>
+      </div>
+    </div>
+    <div v-else-if="mode==='week' || mode==='day'"
+      class="max-h-[680px] overflow-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+      <div :class="mode==='week'?'min-w-[750px]':'min-w-[300px]'">
+        <div class="sticky top-0 z-10 grid border-b border-[var(--dh-border)] bg-[var(--dh-card)]"
+          :style="{ gridTemplateColumns: '70px repeat(' + (mode==='week'?7:1) + ', minmax(0,1fr))' }">
+          <div class="border-r border-[var(--dh-border)] p-3 text-xs font-bold text-[var(--dh-text-muted)]">Hora</div>
+          <div v-for="day in visibleDays" :key="dateKey(day)"
+            class="border-r border-[var(--dh-border)] p-3 text-center text-xs font-bold capitalize">
+            {{ day.toLocaleDateString('es-CR',{weekday:'short',day:'numeric',month:'short'}) }}
+          </div>
+        </div>
+        <div v-for="slot in timeSlots" :key="slot.label" class="grid"
+          :style="{ gridTemplateColumns: '70px repeat(' + (mode==='week'?7:1) + ', minmax(0,1fr))' }">
+          <div class="border-b border-r border-[var(--dh-border)] p-2 text-right text-[11px] tabular-nums text-[var(--dh-text-muted)]">{{ slot.label }}</div>
+          <div v-for="day in visibleDays" :key="dateKey(day)"
+            class="min-h-[52px] border-b border-r border-[var(--dh-border)] p-1"
+            :class="dropKey===slotDate(day,slot).toISOString()?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':''"
+            @dragover="onSlotOver($event,slotDate(day,slot))"
+            @dragenter.prevent="onSlotOver($event,slotDate(day,slot))"
+            @dragleave="dropKey=''" @drop="onSlotDrop($event,slotDate(day,slot))">
+            <button v-for="item in slotEvents(day,slot)" :key="item.key" type="button"
+              :draggable="canMove(item)" :title="item.subject"
+              @dragstart="onDragStart($event,item)" @dragend="onDragEnd"
+              @click="openEvent(item)"
+              class="mb-1 block w-full truncate rounded-lg border p-2 text-left text-xs font-bold"
+              :class="eventTone(item)">
+              {{ item.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }} · {{ item.subject }}
+            </button>
+          </div>
+        </div>
+        <div v-if="outsideOfficeHours.length" class="space-y-2 border-t border-[var(--dh-border)] p-3">
+          <p class="text-xs font-bold">Eventos fuera del horario de 07:00 a 21:00</p>
+          <button v-for="item in outsideOfficeHours" :key="item.key" type="button"
+            class="calendar-btn mr-2" @click="openEvent(item)">
+            {{ item.at.toLocaleString('es-CR') }} · {{ item.subject }}
+          </button>
         </div>
       </div>
     </div>
