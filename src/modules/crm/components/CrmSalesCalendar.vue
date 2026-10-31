@@ -216,15 +216,16 @@ function navigate(step: number) {
   else if (mode.value === 'week') selected.value = dayOffset(selected.value, 7 * step)
   else selected.value = new Date(selected.value.getFullYear(), selected.value.getMonth() + step, 1)
 }
-function openCreation(date?: Date, preserveTime = false) {
-  const when = date ? new Date(date) : new Date()
+function openCreation(date?: Date) {
+  const now = new Date()
+  const when = date
+    ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), now.getHours(), now.getMinutes())
+    : now
   when.setSeconds(0, 0)
-  if (!date) when.setMinutes(Math.ceil(when.getMinutes() / 15) * 15)
-  else if (!preserveTime) when.setHours(9, 0, 0, 0)
   editor.value = {
     type: 'VISIT', subject: '', accountId: props.accountId, leadId: props.leadId, contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
-    end: localInput(new Date(when.getTime() + 30 * 60000)),
+    end: localInput(new Date(when.getTime() + 60 * 60000)),
     location: '', reminderMinutes: 60, channel: 'BOTH',
   }
   error.value = ''
@@ -239,6 +240,11 @@ function openCreation(date?: Date, preserveTime = false) {
     }).catch(() => { /* Keep the preselected prospect even if a refresh is denied. */ })
   }
 }
+watch(() => editor.value.start, value => {
+  const when = new Date(value)
+  if (Number.isFinite(when.getTime()))
+    editor.value.end = localInput(new Date(when.getTime() + 60 * 60000))
+})
 async function searchAccounts() {
   try {
     const result = await crmList('accounts', { q: accountQuery.value.trim(), page: 1, pageSize: 100 })
@@ -575,8 +581,8 @@ function openEvent(item: CalendarEvent) {
             @dragenter.prevent="onSlotOver($event,slotDate(day,slot))"
             @dragleave="dropKey=''" @drop="onSlotDrop($event,slotDate(day,slot))"
             tabindex="0" :aria-label="'Agendar actividad el '+dateKey(day)+' a las '+slot.label"
-            @click.self="openCreation(slotDate(day,slot),true)"
-            @keydown.enter.self="openCreation(slotDate(day,slot),true)">
+            @click.self="openCreation(slotDate(day,slot))"
+            @keydown.enter.self="openCreation(slotDate(day,slot))">
             <button v-for="item in slotEvents(day,slot)" :key="item.key" type="button"
               :draggable="canMove(item)" :title="item.subject"
               @dragstart="onDragStart($event,item)" @dragend="onDragEnd"
@@ -683,7 +689,7 @@ function openEvent(item: CalendarEvent) {
           <p v-if="leadSearchError" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ leadSearchError }}</p>
         </div>
         <div v-if="scopedLead" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs">
-          Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. Se vinculará automáticamente sin volver a ingresar la cédula.
+          Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. 
         </div>
         <label v-if="!scopedRecord && editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto de la cuenta
           <select v-model="editor.contactId" class="calendar-input">
