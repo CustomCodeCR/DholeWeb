@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
   Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
-import { DhButton } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhDrawer, DhModal, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
@@ -85,6 +85,7 @@ const canAddRelation = computed(() => {
 })
 const drafts = reactive({
   note: '', reason: '', outcome: 'Completed', date: '',
+  taxIdTypeCode: '', conversionCustomerType: 'cash', conversionCategoryType: 'CUSTOMER', conversionCategoryCode: 'A',
   stageId: '', status: '', contactName: '', contactEmail: '',
   quoteId: '', pricingRequestId: '', priority: 'Green', shipmentMode: 'Fcl',
   originName: '', destinationName: '', payload: '{}', serviceCode: '', volume: '1',
@@ -276,10 +277,24 @@ function onLinkedContactSaved() {
   void load()
 }
 async function convertLead() {
-  await perform('convert', {
-    existingAccountId: null, notes: drafts.reason || null, taxIdTypeCode: null,
-    customerTypeCode: 'cash', categoryType: 'CUSTOMER', categoryCode: 'A',
-  }, 'crm.lead.convert')
+  if (!record.value || !can('crm.lead.convert') || !can('crm.account.create') || saving.value) return
+  if (record.value.taxId && !drafts.taxIdTypeCode.trim()) {
+    error.value = 'Para convertir un prospecto con identificación fiscal indicá el tipo de cédula.'
+    return
+  }
+  saving.value = true; error.value = ''
+  try {
+    const conversion = await crmRequest<{accountId: string}>(crmPath('leads', id.value, 'convert'), 'POST', {
+      existingAccountId: null, notes: drafts.reason.trim() || null,
+      taxIdTypeCode: drafts.taxIdTypeCode.trim() || null,
+      customerTypeCode: drafts.conversionCustomerType,
+      categoryType: drafts.conversionCategoryType,
+      categoryCode: drafts.conversionCategoryCode,
+    }, crmUuid())
+    if (conversion.accountId) await router.push('/crm/accounts/' + encodeURIComponent(conversion.accountId))
+    else error.value = 'Se convirtió el prospecto, pero Hacienda no devolvió el identificador de la cuenta.'
+  } catch (cause) { error.value = crmError(cause) }
+  finally { saving.value = false }
 }
 async function stageMove() {
   if (!drafts.stageId) return
@@ -489,10 +504,27 @@ onMounted(() => { if (crmEnabled()) void load() })
         </dl>
       </section>
 
-      <section v-if="section === 'leads' && can('crm.lead.convert')" class="crm-panel space-y-3 p-4">
-        <h2 class="font-bold">{{ t('crm.convert') }}</h2>
-        <input v-model="drafts.reason" class="crm-input" :placeholder="t('crm.notes')" />
-        <button class="crm-action" :disabled="saving" @click="convertLead">{{ t('crm.convert') }}</button>
+      <section v-if="section === 'leads' && can('crm.lead.convert') && can('crm.account.create')" class="crm-panel space-y-3 p-4">
+        <h2 class="font-bold">Convertir prospecto en cuenta</h2>
+        <template v-if="record.convertedAccountId">
+          <p class="text-sm text-[var(--dh-text-muted)]">Este prospecto ya fue convertido.</p>
+          <DhButton label="Ver cuenta creada" @click="router.push('/crm/accounts/'+encodeURIComponent(String(record.convertedAccountId)))" />
+        </template>
+        <form v-else class="grid gap-3 sm:grid-cols-2" @submit.prevent="convertLead">
+          <DhInput v-if="record.taxId" v-model="drafts.taxIdTypeCode" label="Tipo de cédula / identificación fiscal *"
+            placeholder="Física, jurídica, DIMEX u otra" />
+          <DhSelect label="Condición comercial" v-model="drafts.conversionCustomerType"
+            :options="[{value:'cash',label:'Contado'},{value:'credit',label:'Crédito'}]" />
+          <DhSelect label="Tipo de cuenta" v-model="drafts.conversionCategoryType"
+            :options="[{value:'CUSTOMER',label:'Cliente'},{value:'NVOCC',label:'Agente / NVOCC'},{value:'LITTLE',label:'Cargas Little'}]"
+            @update:model-value="drafts.conversionCategoryCode='A'" />
+          <DhSelect label="Categoría" v-model="drafts.conversionCategoryCode"
+            :options="(drafts.conversionCategoryType==='LITTLE'?['A']:drafts.conversionCategoryType==='NVOCC'?['A','B']:['A','B','C','D']).map(value=>({value,label:drafts.conversionCategoryType==='LITTLE'?'Cargas Little':'Cliente '+value}))" />
+          <DhTextarea v-model="drafts.reason" label="Observaciones de conversión" />
+          <div class="sm:col-span-2 flex justify-end">
+            <DhButton type="submit" :loading="saving" label="Convertir y abrir cuenta" />
+          </div>
+        </form>
       </section>
 
       <section v-if="section === 'opportunities'" class="crm-panel space-y-3 p-4">
