@@ -19,6 +19,7 @@ import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
   crmRequest, crmUuid, crmPath, fromUtc, type CrmRow } from '../services/crmApi'
 import { crmSectionScope } from '../model/crmForms'
 import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
+import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -289,7 +290,8 @@ async function load() {
   if (!allowed.value) return
   loading.value = true
   try {
-    if (section.value === 'dashboard') await loadDashboard()
+    if (section.value === 'followups') { rows.value = []; total.value = 0 }
+    else if (section.value === 'dashboard') await loadDashboard()
     else if (section.value === 'finance') { await loadFinanceAccounts(); await loadFinance() }
     else if (section.value === 'settings') {
       rows.value = await crmRequest<CrmRow[]>(crmPath('pipelines'))
@@ -393,8 +395,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
         <DhButton :icon="RefreshCw" :label="t('common.refresh')" variant="secondary" :disabled="loading" @click="load" />
         <DhButton v-if="model && canCreate() && section !== 'followups'"
           :icon="Plus" :label="t('common.create')" @click="beginCreate" />
-        <DhButton v-if="section === 'followups' && can('crm.followup.manage')"
-          :icon="Plus" :label="t('crm.newFollowup')" @click="beginCreate" />
+
       </template>
     </DhPageHeader>
     <p v-if="!allowed" role="alert" class="crm-alert">{{ t('crm.denied') }}</p>
@@ -418,6 +419,8 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
         <p v-if="configWarning" class="text-sm text-amber-700">{{ configWarning }}</p>
         <p class="text-sm text-[var(--dh-text-muted)]">{{ t('crm.dashboardNote') }}</p>
       </template>
+
+      <CrmSalesCalendar v-else-if="section === 'followups'" />
 
       <template v-else-if="section === 'finance'">
         <DhCard class="space-y-4">
