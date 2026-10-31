@@ -297,10 +297,10 @@ async function save() {
               :options="[{label:'Contado',value:'cash'},{label:'Crédito',value:'credit'}]"
               @update:model-value="accountDraft.customerTypeCode=String($event)" />
             <DhSelect label="Tipo de cuenta" :model-value="accountDraft.categoryType"
-              :options="[{label:'Cliente',value:'CUSTOMER'},{label:'Agente / NVOCC',value:'NVOCC'}]"
+              :options="[{label:'Cliente',value:'CUSTOMER'},{label:'Agente / NVOCC',value:'NVOCC'},{label:'Cargas Little',value:'LITTLE'}]"
               @update:model-value="accountDraft.categoryType=String($event);accountDraft.categoryCode='A'" />
             <DhSelect label="Categoría" :model-value="accountDraft.categoryCode"
-              :options="(accountDraft.categoryType==='NVOCC'?['A','B']:['A','B','C','D']).map(value=>({label:'Categoría '+value,value}))"
+              :options="(accountDraft.categoryType==='LITTLE'?['A']:accountDraft.categoryType==='NVOCC'?['A','B']:['A','B','C','D']).map(value=>({label:accountDraft.categoryType==='LITTLE'?'Cargas Little':'Categoría '+value,value}))"
               @update:model-value="accountDraft.categoryCode=String($event)" />
             <DhInput v-model="accountDraft.sourceCode" label="Origen de la cuenta" />
             <CrmRelationshipPicker :model-value="accountDraft.relationshipTypeCode" label="Tipos de relación"
