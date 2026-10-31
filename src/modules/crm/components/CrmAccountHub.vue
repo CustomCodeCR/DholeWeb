@@ -164,10 +164,12 @@ const location = ref('')
 const channel = ref('PHONE')
 const routeEditor = ref(false)
 const routeFormError = ref('')
+const routeCreateKey = ref(crmUuid())
 function openNewRoute() {
   serviceCode.value = ''; originCode.value = ''; destinationCode.value = ''
   frequency.value = 'MONTHLY'; expectedVolume.value = '0'; volumeUnit.value = 'CBM'
   routeFormError.value = ''
+  routeCreateKey.value = crmUuid()
   routeEditor.value = true
 }
 const serviceCode = ref('')
@@ -454,7 +456,8 @@ async function saveRoute() {
       frequency: frequency.value,
       expectedVolume: volume,
       volumeUnit: volumeUnit.value,
-    }, crmUuid())
+    }, routeCreateKey.value)
+    routeCreateKey.value = crmUuid()
     routeEditor.value = false
     saved.value = locale.value === 'en' ? 'Usual route added.' : 'Ruta habitual guardada.'
     await load()
