@@ -14,7 +14,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
 import { crmEnabled, crmError, crmGet, crmPath, crmRequest,
-  crmUuid, toUtc, type CrmRow } from '../services/crmApi'
+  crmUuid, toUtc, fromUtc, type CrmRow } from '../services/crmApi'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -133,6 +133,15 @@ async function loadRelation() {
     const res = await crmRequest<CrmRow[] | CrmRow>(endpoint(relation.value))
     if (Array.isArray(res)) relationRows.value = res.map(row => row.contact ? row.contact as CrmRow : row)
     else if (res && typeof res === 'object') relationRows.value = [res]
+    if (relation.value === 'followup-policy') {
+      const policy = res && !Array.isArray(res) ? res : null
+      drafts.assignedUserId = String(policy?.ownerUserId ?? auth.userId ?? '')
+      drafts.date = policy?.nextDueAt ? fromUtc(policy.nextDueAt) : fromUtc(new Date(Date.now() + 7 * 86400000).toISOString())
+      drafts.timezoneId = String(policy?.timezoneId ?? 'America/Costa_Rica')
+      drafts.frequencyDays = String(policy?.frequencyDays ?? 7)
+      drafts.reminderLeadMinutes = String(policy?.reminderLeadMinutes ?? 60)
+      drafts.channelStrategy = String(policy?.channelStrategy ?? 'BOTH')
+    }
   } catch (e) { error.value = crmError(e) }
 }
 async function load() {
@@ -656,22 +665,62 @@ onMounted(() => { if (crmEnabled()) void load() })
              : t('common.create') + ' · ' + relation" size="lg" @close="showRelationForm = false">
           <p v-if="error" role="alert" class="mb-3 rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
         <form v-if="section==='accounts' && relation==='addresses' && can('crm.account.update')"
-          class="grid gap-3 sm:grid-cols-3" @submit.prevent="addAddress">
-          <input v-model.trim="drafts.addressType" class="crm-input" required :placeholder="t('crm.addressType')" />
-          <input v-model.trim="drafts.addressText" class="crm-input" required :placeholder="t('crm.address')" />
-          <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.addAddress') }}</button>
+          class="grid gap-4 p-1 sm:grid-cols-2" @submit.prevent="addAddress">
+          <label class="crm-drawer-field">Tipo de dirección
+            <select v-model="drafts.addressType" class="crm-input" required>
+              <option value="WORK">Oficina / trabajo</option><option value="BILLING">Facturación</option>
+              <option value="WAREHOUSE">Bodega</option><option value="OTHER">Otra</option>
+            </select>
+          </label>
+          <label class="crm-drawer-field sm:col-span-2">Dirección completa
+            <textarea v-model.trim="drafts.addressText" class="crm-input" rows="3" required maxlength="2000" placeholder="Provincia, cantón, distrito, señas de ubicación" />
+          </label>
+          <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-4 sm:col-span-2">
+            <button type="button" class="crm-action" @click="showRelationForm=false">Cancelar</button>
+            <button class="crm-action crm-drawer-primary" type="submit" :disabled="saving">{{ saving?'Guardando…':'Guardar dirección' }}</button>
+          </div>
         </form>
         <form v-if="section==='accounts' && relation==='followup-policy' && can('crm.followup.manage')"
-          class="grid gap-3 sm:grid-cols-3" @submit.prevent="savePolicy">
-          <input v-model.trim="drafts.assignedUserId" class="crm-input" required :placeholder="t('crm.assignedUser')" />
-          <input v-model="drafts.date" class="crm-input" type="datetime-local" required />
-          <input v-model.trim="drafts.timezoneId" class="crm-input" required />
-          <input v-model="drafts.frequencyDays" class="crm-input" type="number" min="1" max="365" required />
-          <select v-model="drafts.channelStrategy" class="crm-input">
-            <option value="BOTH">System + Email</option><option value="SYSTEM">System</option><option value="EMAIL">Email</option>
-          </select>
-          <input v-model="drafts.reminderLeadMinutes" class="crm-input" type="number" min="0" max="10080" />
-          <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.savePolicy') }}</button>
+          class="grid gap-4 p-1 sm:grid-cols-2" @submit.prevent="savePolicy">
+          <p class="text-sm text-[var(--dh-text-muted)] sm:col-span-2">
+            Definí cada cuánto volver a contactar al cliente y cómo avisar al vendedor.
+            Si aún no existe una política, se creará al guardar.
+          </p>
+          <label class="crm-drawer-field">Responsable del seguimiento
+            <select v-model="drafts.assignedUserId" class="crm-input" required>
+              <option :value="String(auth.userId || '')">Mi usuario</option>
+              <option v-if="record && !record.isCastroFallasExecutive && record.executiveUserId && record.executiveUserId!==auth.userId"
+                :value="String(record.executiveUserId)">Vendedor asignado a la cuenta</option>
+              <option v-if="relationRows.length && ![String(auth.userId||''),String(record?.executiveUserId||'')].includes(String(relationRows[0]?.ownerUserId))"
+                :value="String(relationRows[0]?.ownerUserId)">Responsable actual</option>
+            </select>
+          </label>
+          <label class="crm-drawer-field">Próximo seguimiento
+            <input v-model="drafts.date" class="crm-input" type="datetime-local" required />
+          </label>
+          <label class="crm-drawer-field">Repetir cada (días)
+            <input v-model.number="drafts.frequencyDays" class="crm-input" type="number" min="1" max="365" required />
+          </label>
+          <label class="crm-drawer-field">Recordar antes
+            <select v-model.number="drafts.reminderLeadMinutes" class="crm-input">
+              <option :value="5">5 minutos</option><option :value="15">15 minutos</option>
+              <option :value="30">30 minutos</option><option :value="60">1 hora</option>
+              <option :value="1440">1 día</option><option :value="10080">7 días</option>
+            </select>
+          </label>
+          <label class="crm-drawer-field">Canal de aviso
+            <select v-model="drafts.channelStrategy" class="crm-input">
+              <option value="BOTH">Sistema y correo</option>
+              <option value="SYSTEM">Solo sistema</option><option value="EMAIL">Solo correo</option>
+            </select>
+          </label>
+          <label class="crm-drawer-field">Zona horaria
+            <select v-model="drafts.timezoneId" class="crm-input"><option value="America/Costa_Rica">Costa Rica</option><option value="America/Panama">Panamá</option><option value="America/Guatemala">Guatemala</option><option value="UTC">UTC</option></select>
+          </label>
+          <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-4 sm:col-span-2">
+            <button type="button" class="crm-action" @click="showRelationForm=false">Cancelar</button>
+            <button class="crm-action crm-drawer-primary" type="submit" :disabled="saving">{{ saving?'Guardando…':'Guardar política' }}</button>
+          </div>
         </form>
         <form v-if="section==='activities' && relation==='notes' && can('crm.activity.update')"
           class="grid gap-3 sm:grid-cols-[1fr,auto]" @submit.prevent="addNote">
@@ -699,23 +748,49 @@ onMounted(() => { if (crmEnabled()) void load() })
         <CrmContactForm v-if="section==='accounts' && relation==='contacts' && showRelationForm && can('crm.contact.create')"
           :account-id="id" @saved="onLinkedContactSaved" @cancel="showRelationForm=false" />
         <form v-if="section==='accounts' && relation==='credit-profiles' && can('crm.credit.manage')"
-          class="grid gap-3 sm:grid-cols-3" @submit.prevent="createCredit">
-          <input v-model="drafts.creditDays" type="number" min="0" class="crm-input" :placeholder="t('crm.creditDays')" />
-          <input v-model="drafts.creditLimit" type="number" min="0" step=".01" class="crm-input" :placeholder="t('crm.creditLimit')" />
-          <input v-model="drafts.monthlyFinancingPct" type="number" min="0" max="100" step=".0001" class="crm-input" :placeholder="t('crm.monthlyRate')" />
+          class="grid gap-4 p-1 sm:grid-cols-2" @submit.prevent="createCredit">
+          <label class="crm-drawer-field">Días de crédito
+            <input v-model.number="drafts.creditDays" type="number" min="0" max="365" class="crm-input" required />
+          </label>
+          <label class="crm-drawer-field">Límite de crédito
+            <input v-model.number="drafts.creditLimit" type="number" min="0" step=".01" class="crm-input" required />
+          </label>
+          <label class="crm-drawer-field">Interés mensual (%)
+            <input v-model.number="drafts.monthlyFinancingPct" type="number" min="0" max="100" step=".0001" class="crm-input" />
+          </label>
           <CrmCatalogPicker label="Moneda" catalog-group-slug="currencies" value-kind="value" v-model="drafts.currencyCode" />
-          <input v-model="drafts.paymentConditions" class="crm-input" :placeholder="t('crm.paymentTerms')" />
-          <input v-model="drafts.renewalDate" type="datetime-local" class="crm-input" />
-          <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.proposeCredit') }}</button>
+          <label class="crm-drawer-field sm:col-span-2">Condiciones de pago
+            <textarea v-model="drafts.paymentConditions" class="crm-input" rows="3" placeholder="Condiciones acordadas con el cliente" />
+          </label>
+          <label class="crm-drawer-field">Próxima revisión
+            <input v-model="drafts.renewalDate" type="datetime-local" class="crm-input" />
+          </label>
+          <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-4 sm:col-span-2">
+            <button type="button" class="crm-action" @click="showRelationForm=false">Cancelar</button>
+            <button class="crm-action crm-drawer-primary" type="submit" :disabled="saving">{{ saving?'Guardando…':'Solicitar aprobación de crédito' }}</button>
+          </div>
         </form>
         <form v-if="section==='accounts' && relation==='credit-contracts' && can('crm.contract.manage')"
-          class="grid gap-3 sm:grid-cols-3" @submit.prevent="createContract">
-          <input v-model="drafts.contractNumber" class="crm-input" :placeholder="t('crm.contractNumber')" />
-          <input v-model="drafts.startDate" required type="datetime-local" class="crm-input" />
-          <input v-model="drafts.renewalDate" required type="datetime-local" class="crm-input" />
-          <input v-model="drafts.expiryDate" type="datetime-local" class="crm-input" />
-          <input v-model="drafts.paymentConditions" class="crm-input" :placeholder="t('crm.paymentTerms')" />
-          <button class="crm-action" type="submit" :disabled="saving">{{ t('crm.createContract') }}</button>
+          class="grid gap-4 p-1 sm:grid-cols-2" @submit.prevent="createContract">
+          <label class="crm-drawer-field">Número de contrato
+            <input v-model.trim="drafts.contractNumber" class="crm-input" maxlength="100" placeholder="Número o referencia" />
+          </label>
+          <label class="crm-drawer-field">Fecha de inicio
+            <input v-model="drafts.startDate" required type="datetime-local" class="crm-input" />
+          </label>
+          <label class="crm-drawer-field">Próxima renovación
+            <input v-model="drafts.renewalDate" required type="datetime-local" class="crm-input" />
+          </label>
+          <label class="crm-drawer-field">Fecha de vencimiento
+            <input v-model="drafts.expiryDate" type="datetime-local" class="crm-input" />
+          </label>
+          <label class="crm-drawer-field sm:col-span-2">Condiciones del contrato
+            <textarea v-model="drafts.paymentConditions" class="crm-input" rows="3" placeholder="Condiciones y acuerdos" />
+          </label>
+          <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-4 sm:col-span-2">
+            <button type="button" class="crm-action" @click="showRelationForm=false">Cancelar</button>
+            <button class="crm-action crm-drawer-primary" type="submit" :disabled="saving">{{ saving?'Guardando…':'Crear contrato borrador' }}</button>
+          </div>
         </form>
         <form v-if="section==='opportunities' && relation==='quotes' && can('crm.quote.link')"
           class="grid gap-3 sm:grid-cols-3" @submit.prevent="linkQuote">
@@ -762,5 +837,8 @@ onMounted(() => { if (crmEnabled()) void load() })
 .crm-action{border:1px solid var(--dh-border);border-radius:.75rem;padding:.6rem .95rem;font-weight:700;min-height:42px;color:var(--dh-text)}
 .crm-action:disabled{opacity:.5}.crm-action[aria-pressed=true]{background:var(--dh-primary);color:#fff}
 .crm-input{min-width:0;width:100%;background:var(--dh-card);color:var(--dh-text);border:1px solid var(--dh-border);border-radius:.75rem;padding:.6rem}
+.crm-drawer-field{display:flex;flex-direction:column;gap:.45rem;color:var(--dh-text-muted);font-size:.78rem;font-weight:700}
+.crm-drawer-field .crm-input{font-size:.9rem;font-weight:500;background:var(--dh-input)}
+.crm-drawer-primary{border-color:var(--dh-primary);background:var(--dh-primary);color:white}
 .crm-error{border:1px solid #da8d79;border-radius:.75rem;padding:.8rem}
 </style>
