@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { UsersService } from '@/core/services/usersService'
 import type { UserDto } from '@/core/interfaces/users'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
@@ -10,7 +10,6 @@ interface ViewerGrant {
   createdAt: string
 }
 
-const props = defineProps<{ accountId: string }>()
 const open = ref(false)
 const grants = ref<ViewerGrant[]>([])
 const users = ref<UserDto[]>([])
@@ -23,10 +22,9 @@ const error = ref('')
 const notice = ref('')
 const displayUsers = computed(() => new Map(users.value.map(user =>
   [user.id, user.displayName + (user.email ? ' · ' + user.email : '')])))
-const accessPath = () => crmPath('accounts', props.accountId, 'viewers')
+const accessPath = () => crmPath('institutional-viewers')
 
 async function refresh() {
-  if (!props.accountId) return
   loading.value = true
   error.value = ''
   try {
@@ -67,7 +65,7 @@ async function grant() {
   notice.value = ''
   try {
     await crmRequest(accessPath() + '/' + encodeURIComponent(selectedUserId.value), 'PUT')
-    notice.value = 'Acceso autorizado para esta cuenta.'
+    notice.value = 'Usuario autorizado para todas las cuentas de Castro Fallas.'
     selectedUserId.value = ''
     await refresh()
   } catch (cause) {
@@ -93,13 +91,6 @@ async function revoke(userId: string) {
   }
 }
 
-watch(() => props.accountId, () => {
-  grants.value = []
-  users.value = []
-  selectedUserId.value = ''
-  notice.value = ''
-  void refresh()
-})
 onMounted(() => void refresh())
 </script>
 
@@ -108,15 +99,15 @@ onMounted(() => void refresh())
     class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-[var(--dh-text)]">
     <button type="button" class="flex w-full items-center justify-between gap-3 text-left"
       :aria-expanded="open" @click="open = !open">
-      <span class="font-bold">Acceso a cuenta de Castro Fallas</span>
+      <span class="font-bold">Acceso general a cuentas de Castro Fallas</span>
       <span class="text-xs font-bold text-[var(--dh-text-muted)]">
         {{ grants.length }} usuarios autorizados · {{ open ? 'Ocultar' : 'Administrar' }}
       </span>
     </button>
     <div v-if="open" class="mt-4 space-y-4">
       <p class="text-xs text-[var(--dh-text-muted)]">
-        El vendedor institucional no concede acceso automáticamente. Seleccione los usuarios
-        que pueden consultar esta cuenta y sus contactos, análisis y crédito.
+        Los usuarios autorizados aquí pueden consultar todas las cuentas asignadas a Castro Fallas,
+        junto con los contactos, análisis y crédito a los que tengan permisos de módulo. No se autoriza por cliente.
       </p>
       <p v-if="error" role="alert" class="text-sm text-red-500">{{ error }}</p>
       <p v-if="notice" role="status" class="text-sm text-emerald-600">{{ notice }}</p>
@@ -144,7 +135,7 @@ onMounted(() => void refresh())
       </form>
       <p v-if="loading" class="text-xs text-[var(--dh-text-muted)]">Cargando autorizaciones…</p>
       <p v-else-if="!grants.length" class="text-xs text-[var(--dh-text-muted)]">
-        No hay usuarios autorizados individualmente.
+        No hay usuarios autorizados globalmente.
       </p>
       <ul v-else class="divide-y divide-[var(--dh-border)]">
         <li v-for="grant in grants" :key="grant.userId"
