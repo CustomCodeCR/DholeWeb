@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
   Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
-import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
+import { DhDrawer, DhModal, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
@@ -34,6 +34,9 @@ const showAdvancedAccountManagement = ref(false)
 const showExecutiveDrawer = ref(false)
 const showAccountEditor = ref(false)
 const accountEditingDirty = ref(false)
+const discardOpen = ref(false)
+let discardAction: (() => void) | null = null
+let navigationDecision: ((allowed: boolean) => void) | null = null
 const selectedExecutive = ref('')
 const executiveReason = ref('')
 const createRelationPermissions: Record<string, string> = {
@@ -172,14 +175,36 @@ async function perform(action: string, body: unknown, scope: string, path?: stri
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
 }
-function leaveAccountEditing(): boolean {
-  if (accountEditingDirty.value &&
-      !window.confirm('Hay cambios en la ficha sin guardar. ¿Querés descartarlos?')) return false
+function closeEditorWithoutPrompt() {
   accountEditingDirty.value = false
   showAccountEditor.value = false
   const query = { ...route.query }
   delete query.edit
   void router.replace({ path: route.path, query, hash: route.hash })
+}
+function confirmDiscard() {
+  const action = discardAction
+  discardAction = null
+  discardOpen.value = false
+  if (action) action()
+  const decision = navigationDecision
+  navigationDecision = null
+  decision?.(true)
+}
+function cancelDiscard() {
+  discardAction = null
+  discardOpen.value = false
+  const decision = navigationDecision
+  navigationDecision = null
+  decision?.(false)
+}
+function leaveAccountEditing(): boolean {
+  if (accountEditingDirty.value) {
+    discardAction = closeEditorWithoutPrompt
+    discardOpen.value = true
+    return false
+  }
+  closeEditorWithoutPrompt()
   return true
 }
 function toggleAccountEditing() {
@@ -193,9 +218,17 @@ function toggleAccountEditing() {
   }
 }
 function openRelatedManagement() {
-  if (!leaveAccountEditing()) return
-  showAdvancedAccountManagement.value = true
-  window.requestAnimationFrame(() => document.getElementById('crm-related-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  const manage = () => {
+    closeEditorWithoutPrompt()
+    showAdvancedAccountManagement.value = true
+    window.requestAnimationFrame(() => document.getElementById('crm-related-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+  if (accountEditingDirty.value) {
+    discardAction = manage
+    discardOpen.value = true
+    return
+  }
+  manage()
 }
 function openExecutiveDrawer() {
   selectedExecutive.value = record.value?.isCastroFallasExecutive === true
@@ -384,9 +417,11 @@ function back() {
   else void router.push('/crm/' + section.value)
 }
 onBeforeRouteLeave(() => {
-  if (saving.value) return window.confirm(t('crm.leaveDuringSave'))
-  if (accountEditingDirty.value) return window.confirm('Hay cambios en la ficha sin guardar. ¿Querés salir sin guardarlos?')
-  return true
+  if (saving.value) { error.value = 'Hay un guardado en curso. No se puede salir hasta que termine.'; return false }
+  if (!accountEditingDirty.value) return true
+  discardOpen.value = true
+  discardAction = null
+  return new Promise<boolean>(resolve => { navigationDecision = resolve })
 })
 watch([id, section], () => { void load() })
 watch(() => [route.query.edit, section.value], ([edit]) => {
@@ -399,6 +434,13 @@ onMounted(() => { if (crmEnabled()) void load() })
 
 <template>
   <main class="mx-auto w-full text-[var(--dh-text)]" :class="section === 'accounts' ? 'max-w-[1750px] space-y-3 p-2 sm:p-4' : 'max-w-6xl space-y-5 p-3 sm:p-6'" data-crm-detail>
+    <DhModal :open="discardOpen" title="Cambios sin guardar" size="sm" @close="cancelDiscard">
+      <p class="text-sm text-[var(--dh-text-muted)]">Hay cambios en la ficha sin guardar. Si salís, los cambios no se conservarán.</p>
+      <div class="mt-5 flex justify-end gap-2">
+        <DhButton label="Continuar editando" variant="secondary" @click="cancelDiscard" />
+        <DhButton label="Descartar cambios" @click="confirmDiscard" />
+      </div>
+    </DhModal>
     <DhButton :label="section !== 'accounts' && route.query.fromAccount ? 'Volver a la cuenta' : t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
     <p v-if="error" role="alert" class="crm-error">{{ error }}</p>
     <p v-if="section === 'accounts' && route.query.onboarding === 'partial'" role="alert"
