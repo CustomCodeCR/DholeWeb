@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, useId } from 'vue'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { dialCodeForCountry, internationalPhone, localPhonePart } from '../utils/crmPhone'
+import { publicDialCodeForCountry, internationalPhone, localPhonePart } from '../utils/crmPhone'
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -40,9 +40,10 @@ watch(() => props.countryId, async countryId => {
   try {
     const country = await CatalogItemsService.getById(countryId)
     if (requestId !== generation) return
-    const nextPrefix = dialCodeForCountry(country)
+    const nextPrefix = await publicDialCodeForCountry(country)
+    if (requestId !== generation) return
     if (!nextPrefix) {
-      warning.value = 'Este país no tiene un código telefónico reconocido en Config. Podés ingresar el número completo con +.'
+      warning.value = 'No se encontró el prefijo internacional para este país. Podés ingresar el número completo con +.'
       dialPrefix.value = null
       localNumber.value = props.modelValue ?? ''
       return
@@ -56,7 +57,7 @@ watch(() => props.countryId, async countryId => {
     if (formatted && formatted !== previousFull) emitPhone(formatted)
   } catch {
     if (requestId !== generation) return
-    warning.value = 'No se pudo obtener el código telefónico desde Config. Revisá el país o escribí el prefijo manualmente.'
+    warning.value = 'No se pudo consultar el prefijo. Revisá el país o escribí el código con +.'
     dialPrefix.value = null
     localNumber.value = props.modelValue ?? ''
   } finally { if (requestId === generation) loading.value = false }
