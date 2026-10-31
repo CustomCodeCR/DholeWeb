@@ -93,8 +93,8 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
     action,
   ]
   if (section.value === 'followups') return [
-    { key: '_crmTitle', label: 'Seguimiento' },
-    { key: '_crmChannel', label: 'Canal' },
+    { key: '_crmTitle', label: 'Actividad o seguimiento' },
+    { key: '_crmChannel', label: 'Tipo' },
     { key: '_crmDue', label: 'Próxima gestión' },
     { key: '_crmStatus', label: 'Estado' },
     action,
@@ -114,16 +114,22 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
 })
 const tableRows = computed(() => rows.value.map(item => ({
   ...item,
-  _crmTitle: String(item[model.value?.primary ?? 'contractNumber'] ?? item.contractNumber ?? item.id),
+  _crmTitle: section.value === 'followups'
+    ? String(item.subject || (item._crmResource === 'followups' ? 'Seguimiento comercial' : 'Actividad comercial'))
+    : String(item[model.value?.primary ?? 'contractNumber'] ?? item.contractNumber ?? item.id),
   _crmDescription: String(item[model.value?.secondary ?? 'paymentTerms'] ?? '—'),
-  _crmStatus: String(item.status ?? item.qualificationStatus ?? '—'),
+  _crmStatus: section.value === 'followups'
+    ? ({Scheduled:'Programada',Pending:'Pendiente',Overdue:'Vencida',Completed:'Completada',Cancelled:'Cancelada'} as Record<string,string>)[String(item.status)] || String(item.status ?? '—')
+    : String(item.status ?? item.qualificationStatus ?? '—'),
   _crmTax: String(item.taxId ?? '—'),
   _crmCountry: countryLabels.value[String(item.countryId ?? '')] || '—',
   _crmCategory: [item.categoryType, item.categoryCode].filter(Boolean).join(' · ') || '—',
   _crmType: item.customerTypeCode === 'credit' ? 'Crédito' : item.customerTypeCode === 'cash' ? 'Contado' : '—',
   _crmEmail: String(item.contactEmail ?? '—'),
   _crmPhone: String(item.phone ?? '—'),
-  _crmChannel: String(item.type ?? item.channel ?? '—'),
+  _crmChannel: section.value === 'followups'
+    ? ({VISIT:'Visita',CALL:'Llamada',EMAIL:'Correo',MEETING:'Reunión',OTHER:'Actividad',FOLLOWUP:'Seguimiento',SYSTEM:'Seguimiento'} as Record<string,string>)[String(item._crmResource === 'followups' ? 'FOLLOWUP' : item.type ?? 'OTHER')] || 'Actividad'
+    : String(item.type ?? item.channel ?? '—'),
   _crmAmount: section.value === 'analyses'
     ? String(item.estimatedMonthlyVolume ?? '—') + ' ' + String(item.volumeUnit ?? '')
     : item.amountEstimated == null ? '—' :
@@ -146,6 +152,9 @@ const rows = ref<CrmRow[]>([])
 const total = ref(0)
 const page = ref(1)
 const search = ref('')
+const agendaStatusFilter = ref('')
+const agendaSourceFilter = ref('')
+const agendaTruncated = ref(false)
 const showForm = ref(false)
 const pendingCreateKey = ref(crmUuid())
 const edited = ref<CrmRow | null>(null)
@@ -220,7 +229,8 @@ function canEdit() {
   return !!model.value?.updateScope && can(model.value.updateScope)
 }
 function details(item: CrmRow) {
-  router.push({ path: '/crm/' + section.value + '/' + encodeURIComponent(item.id) })
+  const resource = section.value === 'followups' && item._crmResource === 'activities' ? 'activities' : section.value
+  router.push({ path: '/crm/' + resource + '/' + encodeURIComponent(item.id) })
 }
 async function loadDashboard() {
   const modules = ['accounts', 'leads', 'opportunities', 'activities'] as const
@@ -298,7 +308,45 @@ async function load() {
   if (!allowed.value) return
   loading.value = true
   try {
-    if (section.value === 'followups') { rows.value = []; total.value = 0 }
+    if (section.value === 'followups') {
+      // Calendar and list must expose the same two backend resources.
+      // Each endpoint enforces its own scope and per-user record visibility.
+      const resources = [
+        ...(can('crm.activity.read') || can('crm.activity.read-all') ? ['activities'] : []),
+        ...(can('crm.task.manage') || can('crm.followup.manage') ? ['followups'] : []),
+      ]
+      const settled = await Promise.allSettled(resources.map(async resource => {
+        const found: CrmRow[] = []
+        let count = 0
+        for (let current = 1; current <= 10; current++) {
+          const reply = await crmList(resource, { page: current, pageSize: 100 })
+          count = reply.total
+          found.push(...reply.items.map(item => ({ ...item, _crmResource: resource })))
+          if (!reply.items.length || found.length >= count) break
+        }
+        return { found, truncated: found.length < count }
+      }))
+      const combined: CrmRow[] = []
+      const failures: string[] = []
+      agendaTruncated.value = false
+      settled.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          combined.push(...result.value.found)
+          agendaTruncated.value ||= result.value.truncated
+        } else failures.push(resources[index] || 'CRM')
+      })
+      const term = search.value.trim().toLocaleLowerCase()
+      const filtered = combined.filter(item => {
+        if (agendaStatusFilter.value && item.status !== agendaStatusFilter.value) return false
+        if (agendaSourceFilter.value && item._crmResource !== agendaSourceFilter.value) return false
+        return !term || [item.subject, item.type, item.channel, item.status]
+          .some(value => String(value ?? '').toLocaleLowerCase().includes(term))
+      }).sort((a,b) => Date.parse(String(a.scheduledStartAt ?? a.dueAt ?? a.createdAt ?? ''))
+        - Date.parse(String(b.scheduledStartAt ?? b.dueAt ?? b.createdAt ?? '')))
+      total.value = filtered.length
+      rows.value = filtered.slice((page.value - 1) * 25, page.value * 25)
+      if (failures.length) error.value = 'No se pudieron consultar todos los registros de la agenda (' + failures.join(', ') + ').'
+    }
     else if (section.value === 'dashboard') await loadDashboard()
     else if (section.value === 'finance') { await loadFinanceAccounts(); await loadFinance() }
     else if (section.value === 'settings') {
@@ -429,7 +477,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
         <p class="text-sm text-[var(--dh-text-muted)]">{{ t('crm.dashboardNote') }}</p>
       </template>
 
-      <CrmSalesCalendar v-else-if="section === 'followups'" />
+      <CrmSalesCalendar v-else-if="section === 'followups'" @changed="page=1;load()" />
 
       <template v-else-if="section === 'finance'">
         <DhCard class="space-y-4">
@@ -514,6 +562,61 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           <button v-for="item in agendaForDay(day.dateKey)" :key="item.id"
             class="block text-sm underline" @click="details(item)">{{ item.subject ?? item.channel }}</button>
         </div>
+      </div>
+      <div v-else-if="section === 'followups'" class="space-y-4">
+        <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="flex items-center gap-2 text-base font-extrabold"><CalendarClock class="h-5 w-5 text-[var(--dh-primary)]" />Mis actividades y seguimientos</h2>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Visitas, reuniones, llamadas y tareas registradas. Seleccioná cualquiera para ver su detalle.</p>
+            </div>
+            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-semibold">{{ total }} registros</span>
+          </div>
+          <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr),180px,180px]">
+            <DhInput v-model="search" label="Buscar actividad" placeholder="Nombre, tipo o estado…" @keyup.enter="page=1;load()" />
+            <DhSelect v-model="agendaSourceFilter" label="Mostrar" :options="[
+              {value:'',label:'Todas'},
+              {value:'activities',label:'Actividades'},
+              {value:'followups',label:'Seguimientos'}
+            ]" />
+            <DhSelect v-model="agendaStatusFilter" label="Estado" :options="[
+              {value:'',label:'Todos'},
+              {value:'Scheduled',label:'Programada'},
+              {value:'Pending',label:'Pendiente'},
+              {value:'Overdue',label:'Vencida'},
+              {value:'Completed',label:'Completada'},
+              {value:'Cancelled',label:'Cancelada'}
+            ]" />
+          </div>
+          <div class="mt-3 flex justify-end"><DhButton label="Aplicar filtros" variant="secondary" :disabled="loading" @click="page=1;load()" /></div>
+          <p v-if="agendaTruncated" class="mt-3 text-xs text-amber-500" role="status">Hay más de 1000 registros por tipo. Ajustá el período del calendario para revisar otros eventos.</p>
+        </section>
+        <div v-if="!loading && !tableRows.length" class="rounded-2xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] px-5 py-10 text-center">
+          <CalendarClock class="mx-auto h-8 w-8 text-[var(--dh-text-muted)]" />
+          <p class="mt-3 font-semibold">No hay actividades con esos filtros</p>
+          <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Los eventos del calendario y los seguimientos se consultan desde CRM.</p>
+        </div>
+        <div v-else class="grid gap-3 lg:grid-cols-2">
+          <button v-for="item in tableRows" :key="String(item._crmResource)+item.id" type="button"
+            class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-left transition-colors hover:border-[var(--dh-primary)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+            @click="details(item)">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs font-bold text-[var(--dh-primary)]">{{ item._crmChannel }}</span>
+              <span class="rounded-full border border-[var(--dh-border)] px-2.5 py-1 text-xs font-semibold">{{ item._crmStatus }}</span>
+            </div>
+            <h3 class="mt-3 text-base font-extrabold">{{ item._crmTitle }}</h3>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">{{ item._crmDue }}</p>
+            <span class="mt-3 inline-block text-xs font-bold text-[var(--dh-primary)]">Ver detalle</span>
+          </button>
+        </div>
+        <footer class="flex items-center justify-between gap-3 px-2 text-sm text-[var(--dh-text-muted)]">
+          <span>{{ rows.length }} de {{ total }}</span>
+          <div class="flex items-center gap-2">
+            <DhButton :disabled="page <= 1 || loading" label="‹" variant="secondary" size="sm" @click="page--;load()" />
+            <span class="min-w-6 text-center font-semibold">{{ page }}</span>
+            <DhButton :disabled="page*25 >= total || loading" label="›" variant="secondary" size="sm" @click="page++;load()" />
+          </div>
+        </footer>
       </div>
       <div v-else-if="section !== 'dashboard'" class="space-y-3">
         <div v-if="section === 'accounts'" class="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
