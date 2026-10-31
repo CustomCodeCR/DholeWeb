@@ -145,3 +145,19 @@ export async function publicDialCodeForCountry(country: Pick<CatalogItemDetailDt
     values.includes(normalize(x.nameES)) || values.includes(normalize(x.nameEN)))
   return validPrefix(matched?.phoneCode) ?? fallback
 }
+
+/** Preserve the subscriber number on a country change; avoid duplicated prefixes. */
+export function localPhonePart(phone: string, prefix: string | null): string {
+  const value = phone.trim()
+  if (!prefix) return value
+  if (value.startsWith(prefix)) return value.slice(prefix.length).replace(/^[\s()-]+/, '')
+  return value
+}
+export function internationalPhone(prefix: string | null, local: string): string {
+  const value = local.trim()
+  if (!value) return ''
+  if (value.startsWith('+')) return '+' + value.slice(1).replace(/\D/g, '')
+  if (!prefix) return value
+  const digits = value.replace(/\D/g, '')
+  return digits ? prefix + digits : ''
+}
