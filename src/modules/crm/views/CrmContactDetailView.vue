@@ -37,7 +37,9 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    contact.value = await crmGet('contacts', contactId.value)
+    const loadedContact = await crmGet('contacts', contactId.value)
+    if (!loadedContact) throw new Error('Contacto no encontrado')
+    contact.value = loadedContact
     try {
       linkedAccounts.value = await crmRequest<Array<{ accountId: string; accountName: string }>>(
         '/api/crm/contacts/' + encodeURIComponent(contactId.value) + '/accounts')
@@ -47,13 +49,13 @@ async function load() {
     const requestedAccountId = typeof route.query.fromAccount === 'string' ? route.query.fromAccount : ''
     const relatedAccountId = linkedAccounts.value.find(account => account.accountId === requestedAccountId)?.accountId
       || linkedAccounts.value[0]?.accountId
-    if (!contact.value.countryId && relatedAccountId) {
+    if (!loadedContact.countryId && relatedAccountId) {
       try {
         const account = await crmGet('accounts', relatedAccountId)
         linkedAccountCountryId.value = String(account.countryId ?? '')
       } catch { /* The contact remains editable if account details are restricted. */ }
     }
-    const phoneCountryId = String(contact.value.countryId || linkedAccountCountryId.value || '')
+    const phoneCountryId = String(loadedContact.countryId || linkedAccountCountryId.value || '')
     contactDialPrefix.value = await resolveCrmCountryPrefix(phoneCountryId)
     try { preferences.value = await crmRequest<CrmRow | null>('/api/crm/contacts/' + encodeURIComponent(contactId.value) + '/preferences') }
     catch { preferences.value = null }
