@@ -53,7 +53,8 @@ const options = computed(() => items.value.filter(item =>
   (!props.terminalType || !itemTerminalType(item) || itemTerminalType(item) === props.terminalType)))
 const displayedValue = computed(() =>
   selectedLabel.value || (props.modelValue
-    ? options.value.find(x => optionValue(x) === props.modelValue)?.label || 'Consultando descripción…'
+    ? options.value.find(x => optionValue(x) === props.modelValue)?.label ||
+      (loading.value ? 'Consultando descripción…' : 'Descripción no disponible')
     : ''))
 async function reload() {
   const id = ++generation
