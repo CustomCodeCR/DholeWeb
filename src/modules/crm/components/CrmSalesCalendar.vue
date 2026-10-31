@@ -8,8 +8,12 @@ import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services
 
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
-const props = withDefaults(defineProps<{ accountId?: string; accountName?: string }>(), { accountId: '', accountName: '' })
+const props = withDefaults(defineProps<{
+  accountId?: string; accountName?: string; leadId?: string; leadName?: string
+}>(), { accountId: '', accountName: '', leadId: '', leadName: '' })
 const scopedAccount = computed(() => Boolean(props.accountId))
+const scopedLead = computed(() => Boolean(props.leadId))
+const scopedRecord = computed(() => scopedAccount.value || scopedLead.value)
 const emit = defineEmits<{ changed: [] }>()
 interface CalendarEvent {
   key: string
@@ -39,6 +43,9 @@ const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
 const accountQuery = ref('')
+const leadQuery = ref('')
+const leadSearchLoading = ref(false)
+const leadSearchError = ref('')
 const pending = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -137,10 +144,12 @@ const listDays = computed(() => visibleDays.value
   .filter(item => item.events.length > 0))
 const pendingCount = computed(() => rows.value.filter(x => x.status === 'Pending' || x.status === 'Scheduled' || x.status === 'Overdue').length)
 const selectedAccount = computed(() => accounts.value.find(x => x.id === editor.value.accountId))
+const selectedLead = computed(() => leads.value.find(x => x.id === editor.value.leadId))
 const assignees = computed(() => {
   const mine = String(auth.userId ?? '')
   const seller = editor.value.accountId && selectedAccount.value?.isCastroFallasExecutive !== true
-    ? String(selectedAccount.value?.executiveUserId ?? '') : ''
+    ? String(selectedAccount.value?.executiveUserId ?? '')
+    : editor.value.leadId ? String(selectedLead.value?.executiveUserId ?? '') : ''
   return [...new Set([mine, seller].filter(Boolean))]
 })
 function labelFor(event: CalendarEvent) {
@@ -169,13 +178,21 @@ function openCreation(date?: Date, preserveTime = false) {
   if (!date) when.setMinutes(Math.ceil(when.getMinutes() / 15) * 15)
   else if (!preserveTime) when.setHours(9, 0, 0, 0)
   editor.value = {
-    type: 'VISIT', subject: '', accountId: props.accountId, leadId: '', contactId: '',
+    type: 'VISIT', subject: '', accountId: props.accountId, leadId: props.leadId, contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 30 * 60000)),
     location: '', reminderMinutes: 60, channel: 'BOTH',
   }
   error.value = ''
   creationOpen.value = true
+  if (!scopedRecord.value) {
+    if (can('crm.lead.read') || can('crm.lead.read-all')) void searchLeads()
+    void searchAccounts()
+  } else if (scopedLead.value && (can('crm.lead.read') || can('crm.lead.read-all'))) {
+    void crmRequest<CrmRow>(crmPath('leads', props.leadId)).then(item => {
+      if (editor.value.leadId === item.id) leads.value = [item]
+    }).catch(() => { /* Keep the preselected prospect even if a refresh is denied. */ })
+  }
 }
 async function searchAccounts() {
   try {
@@ -185,8 +202,15 @@ async function searchAccounts() {
 }
 async function searchLeads() {
   if (!can('crm.lead.read') && !can('crm.lead.read-all')) return
-  try { leads.value = (await crmList('leads', { page: 1, pageSize: 100 })).items }
-  catch { leads.value = [] }
+  leadSearchLoading.value = true
+  leadSearchError.value = ''
+  try {
+    const list = await crmList('leads', { q: leadQuery.value.trim() || undefined, page: 1, pageSize: 100 })
+    leads.value = list.items
+    if (!list.items.length) leadSearchError.value = 'No se encontraron prospectos asignados para esta búsqueda.'
+    else if (list.total > list.items.length) leadSearchError.value = 'Mostrando los primeros 100 prospectos. Escribí parte del nombre para encontrar otro.'
+  } catch (cause) { leadSearchError.value = crmError(cause); leads.value = [] }
+  finally { leadSearchLoading.value = false }
 }
 async function loadContacts() {
   contactRows.value = []
@@ -209,14 +233,20 @@ watch(() => editor.value.accountId, () => {
   void loadContacts()
 })
 watch(() => editor.value.leadId, leadId => {
-  if (leadId) { editor.value.accountId = ''; editor.value.contactId = '' }
+  if (leadId) {
+    editor.value.accountId = ''; editor.value.contactId = ''
+    const executiveId = String(selectedLead.value?.executiveUserId ?? auth.userId ?? '')
+    editor.value.ownerId = (can('crm.activity.read-all') || can('crm.lead.read-all'))
+      ? executiveId : String(auth.userId ?? '')
+  }
 })
 async function fetchAll(resource: string, from: string, to: string): Promise<{ items: CrmRow[]; truncated: boolean }> {
   const all: CrmRow[] = []
   let total = 0
   for (let page = 1; page <= 10; page++) {
     const response = await crmList(resource, { from, to, page, pageSize: 100,
-      accountId: props.accountId || undefined })
+      accountId: props.accountId || undefined,
+      leadId: resource === 'activities' ? props.leadId || undefined : undefined })
     total = response.total
     all.push(...response.items)
     if (all.length >= total || !response.items.length) break
@@ -251,6 +281,9 @@ async function load() {
     for (const item of result.value.items) {
       const source = sources[index]
       if (!source) continue
+      // Followups API currently exposes accountId but not leadId as a query param.
+      // Filter the authorized date-bounded results locally for the lead record.
+      if (props.leadId && source === 'followup' && String(item.leadId ?? '') !== props.leadId) continue
       const at = normalizeTime(source === 'activity'
         ? item.scheduledStartAt ?? item.occurredAt : item.dueAt)
       if (!at) continue
@@ -271,7 +304,7 @@ async function load() {
   rows.value = events.sort((a, b) => a.at.getTime() - b.at.getTime())
   pending.value = false
 }
-watch([rangeKey, () => props.accountId], () => void load(), { immediate: true })
+watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), { immediate: true })
 async function create() {
   const data = editor.value
   if (saving.value) return
@@ -569,7 +602,7 @@ function openEvent(item: CalendarEvent) {
         <label class="calendar-label">Asunto o motivo
           <input v-model.trim="editor.subject" class="calendar-input" required maxlength="250" placeholder="Ej. Visita de seguimiento comercial" />
         </label>
-        <div v-if="!scopedAccount" class="sm:col-span-2 space-y-2">
+        <div v-if="!scopedRecord" class="sm:col-span-2 space-y-2">
           <label class="calendar-label">Buscar cuenta
             <div class="flex gap-2">
               <input v-model="accountQuery" class="calendar-input min-w-0 flex-1" placeholder="Nombre del cliente" @keyup.enter.prevent="searchAccounts" />
@@ -581,13 +614,28 @@ function openEvent(item: CalendarEvent) {
             <option v-for="item in accounts" :key="item.id" :value="item.id">{{ item.displayName || item.legalName }}</option>
           </select>
         </div>
-        <label v-if="!scopedAccount && (can('crm.lead.read')||can('crm.lead.read-all'))" class="calendar-label">Prospecto (si no hay cuenta)
-          <select v-model="editor.leadId" class="calendar-input" @focus="searchLeads">
-            <option value="">Ninguno</option>
-            <option v-for="item in leads" :key="item.id" :value="item.id">{{ item.name || item.companyName }}</option>
-          </select>
-        </label>
-        <label v-if="!scopedAccount && editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto de la cuenta
+        <div v-if="!scopedRecord && (can('crm.lead.read')||can('crm.lead.read-all'))" class="sm:col-span-2 space-y-2">
+          <label class="calendar-label">Buscar prospecto por nombre o empresa
+            <div class="flex gap-2">
+              <input v-model.trim="leadQuery" type="search" class="calendar-input min-w-0 flex-1"
+                placeholder="Buscar prospecto asignado…" @keyup.enter.prevent="searchLeads" />
+              <button type="button" class="calendar-btn" :disabled="leadSearchLoading" @click="searchLeads">
+                <Search class="h-4 w-4" /> Buscar
+              </button>
+            </div>
+          </label>
+          <label class="calendar-label">Prospecto (si no hay cuenta)
+            <select v-model="editor.leadId" class="calendar-input" @focus="!leads.length && searchLeads()">
+              <option value="">Seleccionar prospecto</option>
+              <option v-for="item in leads" :key="item.id" :value="item.id">{{ item.name || item.companyName }}</option>
+            </select>
+          </label>
+          <p v-if="leadSearchError" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ leadSearchError }}</p>
+        </div>
+        <div v-if="scopedLead" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs">
+          Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. Se vinculará automáticamente sin volver a ingresar la cédula.
+        </div>
+        <label v-if="!scopedRecord && editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto de la cuenta
           <select v-model="editor.contactId" class="calendar-input">
             <option value="">Sin contacto específico</option>
             <option v-for="contact in contactRows" :key="contact.id" :value="contact.id">{{ contact.name }}</option>
