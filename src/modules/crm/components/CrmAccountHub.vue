@@ -178,6 +178,10 @@ const routeReady = computed(() => Boolean(routeModalityCode.value && originCode.
 const modeName = (mode: unknown) =>
   ({ MARITIME: 'Marítimo', LAND: 'Terrestre', AIR: 'Aéreo' } as Record<string,string>)[String(mode)] || String(mode || 'Sin modalidad')
 watch(routeModalityCode, () => {originCode.value = '';poeCode.value = '';podCode.value = ''})
+function selectRouteModality(mode: string) {
+  if (mode === 'MARITIME' || mode === 'LAND' || mode === 'AIR')
+    routeModalityCode.value = mode
+}
 function openNewRoute() {
   routeModalityCode.value = ''
   originCode.value = ''; poeCode.value = ''; podCode.value = ''
@@ -764,7 +768,7 @@ async function saveRoute() {
                   :key="mode.code" type="button" :aria-pressed="routeModalityCode === mode.code"
                   class="rounded-xl border p-3 text-xs font-bold transition-colors"
                   :class="routeModalityCode === mode.code ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]' : 'border-[var(--dh-border)]'"
-                  @click="routeModalityCode = mode.code as typeof routeModalityCode">{{ mode.label }}</button>
+                  @click="selectRouteModality(mode.code)">{{ mode.label }}</button>
               </div>
             </section>
             <section v-if="routeModalityCode" class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
