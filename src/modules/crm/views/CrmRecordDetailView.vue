@@ -8,6 +8,7 @@ import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
+import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
 import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import CrmContactForm from '../components/CrmContactForm.vue'
@@ -159,7 +160,7 @@ const tabs = computed(() => {
   // The prospect's calendar below owns the activity and followup history.
   if (section.value === 'leads') return []
   if (section.value === 'opportunities') return ['stage-history', 'quotes', 'rate-requests', 'negotiations', 'contacts']
-  if (section.value === 'activities') return ['notes', 'participants']
+  if (section.value === 'activities') return [] // Handled by the dedicated collaboration panel.
   if (section.value === 'followups') return ['history']
   if (section.value === 'analyses') return ['routes', 'services']
   if (section.value === 'settings') return ['stages']
@@ -855,7 +856,10 @@ onMounted(() => { if (crmEnabled()) void load() })
           </nav>
         </div>
       </section>
-      <nav v-if="section !== 'accounts'" class="flex flex-wrap gap-2" aria-label="CRM">
+      <CrmActivityCollaboration v-if="section === 'activities'" :activity-id="id"
+        :account-id="record.accountId ? String(record.accountId) : null"
+        :can-manage="can('crm.activity.update')" />
+      <nav v-if="section !== 'accounts' && section !== 'activities'" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
           :aria-pressed="relation===tab" @click="relation=tab">
           {{ ({
