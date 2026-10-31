@@ -717,7 +717,8 @@ async function saveRoute() {
           <dl v-for="profile in credit.slice(0,1)" :key="profile.id" class="divide-y divide-[var(--dh-border)]">
             <div class="hub-kv"><dt>Estado</dt><dd>{{ statusDisplay(profile.status) }}</dd></div>
             <div class="hub-kv"><dt>Días de crédito</dt><dd>{{ profile.creditDays ?? '—' }}</dd></div>
-            <div class="hub-kv"><dt>Límite aprobado</dt><dd>{{ profile.creditLimit ?? '—' }} {{ text(profile.currencyCode) }}</dd></div>
+            <div class="hub-kv"><dt>Límite de crédito</dt><dd>{{ profile.creditLimit ?? '—' }} {{ text(profile.currencyCode) }}</dd></div>
+            <div class="hub-kv"><dt>Interés moratorio mensual</dt><dd>{{ profile.lateInterestMonthlyPct ?? 0 }}%</dd></div>
             <div class="hub-kv"><dt>Condiciones</dt><dd>{{ text(profile.paymentConditions) }}</dd></div>
           </dl>
           <button type="button" class="hub-text-link mt-3" @click="activeTab='finance'">Ver crédito y contratos</button>
@@ -1161,12 +1162,14 @@ async function saveRoute() {
           <div><dt class="text-xs text-[var(--dh-text-muted)]">Días</dt><dd class="font-bold">{{ c.creditDays }}</dd></div>
           <div><dt class="text-xs text-[var(--dh-text-muted)]">Límite</dt><dd class="font-bold">{{ c.creditLimit }} {{ c.currencyCode }}</dd></div>
           <div><dt class="text-xs text-[var(--dh-text-muted)]">Estado</dt><dd class="font-bold">{{ c.status }}</dd></div>
-          <div><dt class="text-xs text-[var(--dh-text-muted)]">Financiación mensual</dt><dd class="font-bold">{{ c.monthlyFinancingPct }}%</dd></div>
+          <div><dt class="text-xs text-[var(--dh-text-muted)]">Financiamiento mensual</dt><dd class="font-bold">{{ c.monthlyFinancingPct }}%</dd></div>
+          <div><dt class="text-xs text-[var(--dh-text-muted)]">Interés moratorio mensual</dt><dd class="font-bold">{{ c.lateInterestMonthlyPct ?? 0 }}%</dd></div>
           <div class="col-span-2"><dt class="text-xs text-[var(--dh-text-muted)]">Condiciones</dt><dd class="text-sm">{{ text(c.paymentConditions) }}</dd></div>
         </dl>
       </section>
       <section v-if="has('crm.credit.read')" class="hub-panel lg:col-span-2">
-        <CrmCreditCoverageManager :account-id="String(account.id)" :editable="has('crm.credit.manage')" @updated="load" />
+        <CrmCreditCoverageManager :account-id="String(account.id)"
+        :editable="has('crm.credit.manage') || has('crm.account.update')" @updated="load" />
       </section>
       <section v-if="has('crm.contract.read')" class="hub-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
