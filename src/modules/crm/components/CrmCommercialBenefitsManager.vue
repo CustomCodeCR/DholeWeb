@@ -6,6 +6,7 @@ import { PricingService } from '@/core/services/pricingService'
 import type { CostDetailType, CostSelectDto } from '@/core/interfaces/pricing'
 import { BadgePercent, Check, Pencil, Plus, RefreshCw, ShieldCheck, X } from 'lucide-vue-next'
 import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
+import { benefitUsesPod } from '../utils/crmBenefitRouteCatalog'
 import { crmError, crmPath, crmRequest, fromUtc, toUtc } from '../services/crmApi'
 
 type Mode = 'FCL' | 'LCL' | 'FTL' | 'LTL' | 'AIR'
@@ -27,7 +28,7 @@ type Settings = {
 }
 type BenefitsResponse = {
   accountId: string; categoryType: string; categoryCode: string
-  miamiLclPlanCode: string | null; settings: Settings | null; rates: Rate[]
+  settings: Settings | null; rates: Rate[]
 }
 interface Draft {
   modality: Mode; laneCode: string
@@ -99,7 +100,7 @@ const success = ref('')
 const loaded = ref(false)
 const settings = ref<Settings | null>(null)
 const rates = ref<Rate[]>([])
-const category = ref({ type: '', code: '', miamiTier: '' })
+const category = ref({ type: '', code: '' })
 const settingsNotes = ref('')
 const editingId = ref('')
 const editorOpen = ref(false)
@@ -175,10 +176,7 @@ async function reload() {
     if (request !== sequence) return
     settings.value = response.settings
     rates.value = response.rates
-    category.value = {
-      type: response.categoryType, code: response.categoryCode,
-      miamiTier: response.miamiLclPlanCode ?? '',
-    }
+    category.value = { type: response.categoryType, code: response.categoryCode }
     settingsNotes.value = response.settings?.notes ?? ''
     loaded.value = true
   } catch (cause) {
@@ -240,6 +238,18 @@ function beginEdit(rate: Rate) {
   })
   editorOpen.value = true; error.value = ''; success.value = ''
 }
+function changeModality(next: Mode) {
+  if (next === draft.modality) return
+  draft.modality = next
+  draft.laneCode = ''
+  draft.equipmentCodes = []
+  // Each modality uses its own CY / SD / APT catalogs, as in Pricing.
+  // Do not carry a sea port into an air or land commercial benefit.
+  draft.polCodes = []
+  draft.poeCodes = []
+  draft.podCodes = []
+  draft.unitCode = empty(next).unitCode
+}
 function selectType(next: BenefitType) {
   draft.rateType = next; draft.value = ''; draft.minimumCharge = ''
   draft.insuranceCostPercent = ''; draft.insuranceSalePercent = ''
@@ -268,7 +278,7 @@ function payload() {
     unitCode: unitVisible.value ? draft.unitCode : null,
     // Empty arrays are wildcard scopes, not an empty/invalid route.
     equipmentCodes: [...draft.equipmentCodes], polCodes: [...draft.polCodes],
-    poeCodes: [...draft.poeCodes], podCodes: [...draft.podCodes],
+    poeCodes: [...draft.poeCodes], podCodes: benefitUsesPod(draft.modality) ? [...draft.podCodes] : [],
     equipmentCode: null, originCode: null, destinationCode: null,
     validFrom: toUtc(draft.validFrom), validUntil: toUtc(draft.validUntil),
     notes: draft.notes.trim() || null, isActive: draft.isActive,
@@ -326,7 +336,8 @@ async function setActive(rate: Rate, active: boolean) {
       currencyCode: rate.currencyCode, unitCode: rate.unitCode,
       equipmentCodes: selection(rate.equipmentCodes, rate.equipmentCode),
       polCodes: selection(rate.polCodes, rate.originCode),
-      poeCodes: selection(rate.poeCodes, rate.destinationCode), podCodes: rate.podCodes ?? [],
+      poeCodes: selection(rate.poeCodes, rate.destinationCode),
+      podCodes: benefitUsesPod(rate.modality) ? (rate.podCodes ?? []) : [],
       equipmentCode: null, originCode: null, destinationCode: null,
       validFrom: rate.validFrom, validUntil: rate.validUntil, notes: rate.notes, isActive: active,
     })
@@ -396,12 +407,11 @@ function scopeText(rate: Rate): string {
       <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
         <div class="mb-4 flex flex-wrap items-center gap-2">
           <ShieldCheck class="h-4 w-4 text-[var(--dh-primary)]" />
-          <h3 class="text-sm font-extrabold">Categoría comercial · LCL Miami</h3>
+          <h3 class="text-sm font-extrabold">Categoría comercial de la cuenta</h3>
         </div>
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p class="text-sm">Categoría de la cuenta:
             <strong>{{ categoryLabel(category.type, category.code) }}</strong>.
-            <span class="text-[var(--dh-text-muted)]">No existe un segundo tipo de cliente para Miami.</span>
           </p>
           <button v-if="canEdit" type="button" class="benefit-button" @click="openCategoryEditor">
             <Pencil class="h-4 w-4" /> Editar categoría de la cuenta
@@ -489,7 +499,8 @@ function scopeText(rate: Rate): string {
         </div>
         <form class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" @submit.prevent="saveRate">
           <label class="benefit-label">Modalidad
-            <select v-model="draft.modality" class="benefit-input" @change="draft.laneCode='';draft.equipmentCodes=[]">
+            <select :value="draft.modality" class="benefit-input"
+              @change="changeModality(($event.target as HTMLSelectElement).value as Mode)">
               <option v-for="mode in modes" :key="mode.key" :value="mode.key">{{ mode.label }} · {{ mode.description }}</option>
             </select>
           </label>
@@ -558,12 +569,15 @@ function scopeText(rate: Rate): string {
 
           <CrmMultiCatalogPicker v-model="draft.equipmentCodes" label="Equipos (selección múltiple)"
             :catalog-group-slugs="equipmentSlugs" />
-          <CrmMultiCatalogPicker v-model="draft.polCodes" label="POL · orígenes (selección múltiple)"
-            :catalog-group-slugs="['pol']" />
-          <CrmMultiCatalogPicker v-model="draft.poeCodes" label="POE · entradas (selección múltiple)"
-            :catalog-group-slugs="['poe']" />
-          <CrmMultiCatalogPicker v-model="draft.podCodes" label="POD · destinos (selección múltiple)"
-            :catalog-group-slugs="['pod']" />
+          <CrmMultiCatalogPicker v-model="draft.polCodes"
+            :label="draft.modality === 'AIR' ? 'POL · aeropuertos de origen' : ['FTL','LTL'].includes(draft.modality) ? 'POL · orígenes terrestres' : 'POL · puertos de origen'"
+            :catalog-group-slugs="['pol']" :route-mode="draft.modality" route-role="pol" />
+          <CrmMultiCatalogPicker v-model="draft.poeCodes"
+            :label="draft.modality === 'AIR' ? 'POE · aeropuertos de destino' : ['FTL','LTL'].includes(draft.modality) ? 'POE · destinos terrestres' : 'POE · puertos de entrada'"
+            :catalog-group-slugs="['poe']" :route-mode="draft.modality" route-role="poe" />
+          <CrmMultiCatalogPicker v-if="benefitUsesPod(draft.modality)" v-model="draft.podCodes"
+            label="POD · destinos finales (selección múltiple)"
+            :catalog-group-slugs="['pod']" :route-mode="draft.modality" route-role="pod" />
 
           <label class="benefit-label">Vigencia desde (opcional)
             <input v-model="draft.validFrom" type="datetime-local" class="benefit-input" />
