@@ -175,3 +175,13 @@ export function internationalPhone(prefix: string | null, local: string): string
   const digits = value.replace(/\D/g, '')
   return digits ? prefix + digits : ''
 }
+
+/** Display existing local CRM phone numbers with their country's dial code, without modifying persisted data. */
+export function phoneWithCountryPrefix(phone: string, prefix: string | null): string {
+  const value = phone.trim()
+  if (!value || !prefix) return value
+  if (value.startsWith('+')) return value
+  if (/^00\d/.test(value)) return '+' + value.slice(2).replace(/\D/g, '')
+  const digits = value.replace(/\D/g, '')
+  return digits ? prefix + ' ' + digits : value
+}
