@@ -146,6 +146,10 @@ function readableCatalogItem(item: { label?: string | null; value?: string | nul
     .map(value => String(value ?? '').trim()).filter(Boolean)
   return candidates.find(value => value !== item.code && !isOpaqueCode(value)) ?? ''
 }
+function acceptRouteLabel(group: RouteCatalog, selection: { value: string; label: string }) {
+  if (selection.value && selection.label)
+    routeCatalogLabels.value = {...routeCatalogLabels.value, [group + ':' + selection.value]:selection.label}
+}
 function routeDisplay(code: unknown, group: RouteCatalog): string {
   const key = String(code ?? '').trim()
   return key ? routeCatalogLabels.value[group + ':' + key] || 'Ubicación no disponible' : '—'
@@ -216,7 +220,8 @@ async function loadRouteCatalogLabels() {
       save(found)
     }
   }))
-  if (generation === routeCatalogGeneration) routeCatalogLabels.value = labels
+  if (generation === routeCatalogGeneration)
+    routeCatalogLabels.value = {...routeCatalogLabels.value, ...labels}
 }
 
 const businessPhonePrefix = ref<string | null>(null)
@@ -899,11 +904,11 @@ async function saveRoute() {
                    'Seleccioná los puertos marítimos y el destino final.' }}
               </p>
               <CrmCatalogPicker v-model="originCode" label="POL · Origen *" catalog-group-slug="pol"
-                value-kind="code" :terminal-type="routeTerminalType" />
+                value-kind="code" :terminal-type="routeTerminalType" @resolved-label="acceptRouteLabel('pol', $event)" />
               <CrmCatalogPicker v-if="originCode" v-model="poeCode" label="POE · Entrada o destino *"
-                catalog-group-slug="poe" value-kind="code" :terminal-type="routeTerminalType" />
+                catalog-group-slug="poe" value-kind="code" :terminal-type="routeTerminalType" @resolved-label="acceptRouteLabel('poe', $event)" />
               <CrmCatalogPicker v-if="poeCode && routeNeedsPod" v-model="podCode"
-                label="POD · Destino final *" catalog-group-slug="pod" value-kind="code" terminal-type="SD" />
+                label="POD · Destino final *" catalog-group-slug="pod" value-kind="code" terminal-type="SD" @resolved-label="acceptRouteLabel('pod', $event)" />
               <p v-if="routeReady" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
                 {{ modeName(routeModalityCode) }} · {{ routeDisplay(originCode, 'pol') }} → {{ routeDisplay(poeCode, 'poe') }}
                 <span v-if="routeNeedsPod"> → {{ routeDisplay(podCode, 'pod') }}</span>
@@ -1081,9 +1086,9 @@ async function saveRoute() {
             {{ routeSourceKind === 'MEETING' ? 'No hay reuniones completadas visibles en el historial reciente. Abrí Actividades para registrar o completar una visita.' : 'No hay cotizaciones vinculadas a las oportunidades de este cliente.' }}
           </p>
           <div class="grid gap-3 sm:grid-cols-2">
-            <CrmCatalogPicker v-model="routePol" label="POL / Origen *" catalog-group-slug="pol" value-kind="code" />
-            <CrmCatalogPicker v-model="routePoe" label="POE / Puerto intermedio" catalog-group-slug="poe" value-kind="code" />
-            <CrmCatalogPicker v-model="routePod" label="POD / Destino *" catalog-group-slug="pod" value-kind="code" />
+            <CrmCatalogPicker v-model="routePol" label="POL / Origen *" catalog-group-slug="pol" value-kind="code" @resolved-label="acceptRouteLabel('pol', $event)" />
+            <CrmCatalogPicker v-model="routePoe" label="POE / Puerto intermedio" catalog-group-slug="poe" value-kind="code" @resolved-label="acceptRouteLabel('poe', $event)" />
+            <CrmCatalogPicker v-model="routePod" label="POD / Destino *" catalog-group-slug="pod" value-kind="code" @resolved-label="acceptRouteLabel('pod', $event)" />
             <CrmCatalogPicker v-model="routeService" label="Servicio" catalog-group-slug="pricing-services" value-kind="code" />
           </div>
           <label class="block space-y-1.5 text-xs font-bold">Observaciones de la ruta
