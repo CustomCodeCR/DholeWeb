@@ -8,14 +8,17 @@ const credit = read('src/modules/crm/components/CrmCreditCoverageManager.vue')
 const editor = read('src/modules/crm/components/CrmAccountEditor.vue')
 const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
 
-test('Route creation follows clear service, origin/destination, volume steps', () => {
+test('Frequent routes select maritime, land or air and save POL/POE/POD without measures', () => {
   assert.ok(hub.includes('data-crm-route-form'))
-  assert.ok(hub.includes('Servicio y frecuencia'))
-  assert.ok(hub.includes('Trayecto'))
-  assert.ok(hub.includes('Volumen habitual'))
-  assert.ok(hub.includes('v-if="serviceCode"'))
-  assert.ok(hub.includes('v-if="originCode"'))
-  assert.ok(hub.includes('routeFormError'))
+  assert.ok(hub.includes('Modalidad de transporte'))
+  assert.ok(hub.includes("mode.code"))
+  assert.ok(hub.includes("routeTerminalType"))
+  assert.ok(hub.includes("routeNeedsPod"))
+  assert.ok(hub.includes('polCode: originCode.value'))
+  assert.ok(hub.includes('poeCode: poeCode.value'))
+  assert.ok(hub.includes('podCode: routeNeedsPod.value ? podCode.value : null'))
+  assert.ok(!hub.includes('Volumen habitual'))
+  assert.ok(!hub.includes('v-model="expectedVolume"'))
   assert.ok(hub.includes("crmPath('accounts', rowId(props.account.id), 'trade-profiles')"))
 })
 
@@ -74,4 +77,19 @@ test('Customer sheet keeps relevant fields and removes legacy operational blocks
   for (const legacy of ['Historia de la empresa', 'Análisis operativo e instrucciones', 'Líneas de productos o mercancías', 'Estrategia comercial']) {
     assert.ok(!sheet.includes(legacy))
   }
+})
+
+test('CRM agenda defaults to local current time and ends an hour later', () => {
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  assert.ok(calendar.includes('const now = new Date()'))
+  assert.ok(calendar.includes('now.getHours(), now.getMinutes()'))
+  assert.ok(calendar.includes('when.getTime() + 60 * 60000'))
+  assert.ok(calendar.includes('watch(() => editor.value.start'))
+  assert.ok(!calendar.includes('Se vinculará automáticamente sin volver a ingresar la cédula'))
+})
+test('Credit request visibly verifies API write and shows backend error', () => {
+  assert.ok(credit.includes('proposalStatus'))
+  assert.ok(credit.includes('const created = await crmRequest<CrmRow>'))
+  assert.ok(credit.includes('if (!created?.id)'))
+  assert.ok(credit.includes('proposalFailure(cause)'))
 })
