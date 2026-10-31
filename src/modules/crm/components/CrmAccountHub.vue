@@ -206,9 +206,6 @@ async function loadRouteCatalogLabels() {
   }))
   if (generation === routeCatalogGeneration) routeCatalogLabels.value = labels
 }
-watch([overview, popularRoutes, routeHistory, quoteRouteSnapshots,
-  originCode, poeCode, podCode, routePol, routePoe, routePod],
-  () => { void loadRouteCatalogLabels() })
 
 const businessPhonePrefix = ref<string | null>(null)
 watch(() => String(props.account.countryId || ''), async countryId => {
@@ -285,6 +282,9 @@ const modeName = (mode: unknown) =>
 watch(routeModalityCode, () => {originCode.value = '';poeCode.value = '';podCode.value = ''})
 watch(originCode, () => { poeCode.value = ''; podCode.value = '' })
 watch(poeCode, () => { podCode.value = '' })
+watch([overview, popularRoutes, routeHistory, quoteRouteSnapshots,
+  originCode, poeCode, podCode, routePol, routePoe, routePod],
+  () => { void loadRouteCatalogLabels() })
 function selectRouteModality(mode: string) {
   if (mode === 'MARITIME' || mode === 'LAND' || mode === 'AIR')
     routeModalityCode.value = mode
