@@ -75,7 +75,7 @@ function beginContactEdit(contact: CrmRow) {
   Object.assign(contactDraft, { firstName: String(contact.firstName ?? ''),
     lastName: String(contact.lastName ?? ''), jobTitle: String(contact.jobTitle ?? ''),
     email: String(contact.email ?? ''), phone: String(contact.phone ?? ''),
-    countryId: String(contact.countryId ?? '') })
+    countryId: String(contact.countryId || props.account.countryId || '') })
   editingAddressId.value = ''
   relatedError.value = ''
 }
@@ -305,6 +305,9 @@ async function save() {
               :class="['email','website','phone','billingEmail','marketingEmail','sector','webCustomerReference','assignedOperations'].includes(key) ? '' : 'md:col-span-2'">
               <DhTextarea v-if="!['email','website','phone','billingEmail','marketingEmail','sector','webCustomerReference','assignedOperations'].includes(key)"
                 :label="label"  :model-value="profileDraft[key] ?? ''" @update:model-value="profileDraft[key]=$event" :rows="2" />
+              <CrmPhoneInput v-else-if="key === 'phone'" :label="label"
+                :country-id="accountDraft.countryId" :model-value="profileDraft[key] ?? ''"
+                @update:model-value="profileDraft[key]=$event" />
               <DhInput v-else :label="label"  :model-value="profileDraft[key] ?? ''"
                 @update:model-value="profileDraft[key]=$event" />
             </div>
