@@ -9,6 +9,7 @@ type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
 const props = withDefaults(defineProps<{ accountId?: string; accountName?: string }>(), { accountId: '', accountName: '' })
 const scopedAccount = computed(() => Boolean(props.accountId))
+const emit = defineEmits<{ changed: [] }>()
 interface CalendarEvent {
   key: string
   source: Source
@@ -304,6 +305,7 @@ async function create() {
     creationOpen.value = false
     selected.value = start
     notice.value = 'Actividad creada. El recordatorio se programará para el vendedor asignado.'
+    emit('changed')
     await load()
   } catch (cause) { error.value = crmError(cause) }
   finally { saving.value = false }
@@ -368,6 +370,7 @@ async function reschedule(item: CalendarEvent, proposed: Date) {
     active.value = null
     selected.value = proposed
     notice.value = 'Actividad reprogramada y guardada. Se actualizarán sus recordatorios.'
+    emit('changed')
     await load()
   } catch (cause) {
     error.value = crmError(cause)
