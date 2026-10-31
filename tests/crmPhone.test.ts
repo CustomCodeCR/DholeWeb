@@ -37,3 +37,8 @@ test('Existing local phones display the account/contact prefix without double pr
   assert.equal(phoneWithCountryPrefix('0050683130794', '+506'), '+50683130794')
   assert.equal(phoneWithCountryPrefix('83130794', null), '83130794')
 })
+
+test('Config country names resolve even when the internal country code is not ISO', () => {
+  assert.equal(dialCodeForCountry(country('PAI-2026-001', 'Costa Rica')), '+506')
+  assert.equal(dialCodeForCountry(country('PAI-2026-002', 'Panamá')), '+507')
+})
