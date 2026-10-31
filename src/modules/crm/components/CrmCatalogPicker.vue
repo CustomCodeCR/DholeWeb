@@ -11,6 +11,7 @@ const props = withDefaults(defineProps<{
   catalogGroupSlug: string
   modelValue: string
   valueKind?: 'id' | 'code' | 'value'
+  terminalType?: 'CY' | 'SD' | 'APT'
 }>(), { valueKind: 'id' })
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const items = ref<CatalogItemSelectDto[]>([])
@@ -34,7 +35,22 @@ function optionValue(item: CatalogItemSelectDto): string {
 function labelFor(item: CatalogItemSelectDto) {
   return String(item.label || item.value || item.code || '')
 }
-const options = computed(() => items.value.filter(item => item.isActive !== false))
+function itemTerminalType(item: CatalogItemSelectDto): string {
+  try {
+    const metadata = JSON.parse(item.metadataJson ?? '{}') as Record<string, unknown>
+    if (typeof metadata.terminalType === 'string') return metadata.terminalType.toUpperCase()
+    if (typeof metadata.transportMode === 'string')
+      return ({ Maritime: 'CY', Land: 'SD', Air: 'APT' } as Record<string, string>)[metadata.transportMode] ?? ''
+  } catch { /* Legacy catalog entry without metadata. */ }
+  const slug = item.slug.toUpperCase()
+  if (slug.startsWith('APT-')) return 'APT'
+  if (slug.startsWith('SD-')) return 'SD'
+  if (slug.startsWith('CY-')) return 'CY'
+  return ''
+}
+const options = computed(() => items.value.filter(item =>
+  item.isActive !== false &&
+  (!props.terminalType || !itemTerminalType(item) || itemTerminalType(item) === props.terminalType)))
 const displayedValue = computed(() =>
   selectedLabel.value || (props.modelValue ? options.value.find(x => optionValue(x) === props.modelValue)?.label ||
     props.modelValue : ''))
