@@ -230,11 +230,12 @@ async function proposeNew() {
   const totalDays = Number(days.value)
   const monthly = Number(financing.value)
   if (!creditLimit.value.trim() || !Number.isFinite(limit) || limit <= 0 ||
-      Math.round(limit * 100) !== limit * 100 ||
+      Math.abs(Math.round(limit * 100) - limit * 100) > 1e-6 ||
       !Number.isInteger(totalDays) || totalDays < 1 || totalDays > 3650 ||
-      !Number.isFinite(monthly) || monthly < 0 || monthly > 100) {
+      !Number.isFinite(monthly) || monthly < 0 || monthly > 100 ||
+      Math.abs(Math.round(monthly * 10000) - monthly * 10000) > 1e-6) {
     proposalStatus.value = ''
-    proposalError.value = 'Ingresá un límite de crédito válido (máximo 2 decimales), días entre 1 y 3650 y financiamiento entre 0% y 100%.'
+    proposalError.value = 'Ingresá un límite con máximo 2 decimales, plazo de 1 a 3650 días y financiamiento de 0% a 100% con máximo 4 decimales.'
     return
   }
   if (!props.accountId) {
