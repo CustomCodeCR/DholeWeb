@@ -421,6 +421,11 @@ async function createCredit() {
     error.value = crmError(cause) + (created ? ' La propuesta sí se creó: revisá y completá las coberturas antes de aprobar; no creés otra solicitud.' : '')
   } finally { saving.value = false }
 }
+function contractDate(value: unknown): string {
+  // Contract dates are civil dates; do not shift them one day through timezone conversion.
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})/.exec(String(value ?? ''))
+  return match ? match[3] + '/' + match[2] + '/' + match[1] : '—'
+}
 function selectedFile(event: Event): File | null {
   return (event.target as HTMLInputElement).files?.[0] ?? null
 }
@@ -868,9 +873,9 @@ onMounted(() => { if (crmEnabled()) void load() })
               <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-bold">{{ item.status === 'Draft' ? 'Borrador' : item.status === 'Active' ? 'Vigente' : item.status }}</span>
             </div>
             <dl class="mt-3 grid gap-3 text-xs sm:grid-cols-3">
-              <div><dt class="text-[var(--dh-text-muted)]">Inicio</dt><dd class="mt-1 font-semibold">{{ item.startDate ? fromUtc(String(item.startDate)) : '—' }}</dd></div>
-              <div><dt class="text-[var(--dh-text-muted)]">Próxima renovación</dt><dd class="mt-1 font-semibold">{{ item.renewalDate ? fromUtc(String(item.renewalDate)) : '—' }}</dd></div>
-              <div><dt class="text-[var(--dh-text-muted)]">Vencimiento</dt><dd class="mt-1 font-semibold">{{ item.expiryDate ? fromUtc(String(item.expiryDate)) : 'Sin definir' }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">Inicio</dt><dd class="mt-1 font-semibold">{{ item.startDate ? contractDate(item.startDate) : '—' }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">Próxima renovación</dt><dd class="mt-1 font-semibold">{{ item.renewalDate ? contractDate(item.renewalDate) : '—' }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">Vencimiento</dt><dd class="mt-1 font-semibold">{{ item.expiryDate ? contractDate(item.expiryDate) : 'Sin definir' }}</dd></div>
             </dl>
             <p v-if="item.paymentTerms" class="mt-3 text-xs text-[var(--dh-text-muted)]">{{ item.paymentTerms }}</p>
           </template>
@@ -913,7 +918,7 @@ onMounted(() => { if (crmEnabled()) void load() })
             </button>
             <div v-if="item.status==='Active'" class="w-full space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
               <label class="block text-xs font-semibold">Nueva fecha de renovación
-                <input v-model="contractRenewalDrafts[String(item.id)]" type="datetime-local" class="crm-input mt-2 w-full" />
+                <input v-model="contractRenewalDrafts[String(item.id)]" type="date" class="crm-input mt-2 w-full" />
               </label>
               <button type="button" :disabled="saving || !contractRenewalDrafts[String(item.id)]"
                 class="crm-action crm-drawer-primary"
@@ -1056,13 +1061,13 @@ onMounted(() => { if (crmEnabled()) void load() })
             <p class="text-xs text-[var(--dh-text-muted)]">El inicio y la próxima renovación son obligatorios. El vencimiento se puede completar después.</p>
             <div class="grid gap-3 sm:grid-cols-2">
               <label class="crm-drawer-field">Fecha de inicio *
-                <input v-model="drafts.startDate" required type="datetime-local" class="crm-input" />
+                <input v-model="drafts.startDate" required type="date" class="crm-input" />
               </label>
               <label class="crm-drawer-field">Próxima renovación *
-                <input v-model="drafts.renewalDate" required type="datetime-local" class="crm-input" />
+                <input v-model="drafts.renewalDate" required type="date" class="crm-input" />
               </label>
               <label class="crm-drawer-field sm:col-span-2">Fecha de vencimiento (opcional)
-                <input v-model="drafts.expiryDate" type="datetime-local" class="crm-input" />
+                <input v-model="drafts.expiryDate" type="date" class="crm-input" />
               </label>
             </div>
           </section>
