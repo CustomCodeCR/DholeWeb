@@ -162,6 +162,13 @@ const scheduled = ref('')
 const location = ref('')
 const channel = ref('PHONE')
 const routeEditor = ref(false)
+const routeFormError = ref('')
+function openNewRoute() {
+  serviceCode.value = ''; originCode.value = ''; destinationCode.value = ''
+  frequency.value = 'MONTHLY'; expectedVolume.value = '0'; volumeUnit.value = 'CBM'
+  routeFormError.value = ''
+  routeEditor.value = true
+}
 const serviceCode = ref('')
 const originCode = ref('')
 const destinationCode = ref('')
@@ -420,8 +427,21 @@ async function saveActivity() {
   finally {busy.value = false}
 }
 async function saveRoute() {
-  if (!routeEditor.value || busy.value || !serviceCode.value || !originCode.value ||
-      !destinationCode.value || Number(expectedVolume.value) < 0) return
+  if (!routeEditor.value || busy.value) return
+  routeFormError.value = ''
+  const volume = Number(expectedVolume.value)
+  if (!serviceCode.value || !originCode.value || !destinationCode.value) {
+    routeFormError.value = 'Elegí el servicio, el origen y el destino antes de guardar.'
+    return
+  }
+  if (!Number.isFinite(volume) || volume < 0) {
+    routeFormError.value = 'El volumen no puede ser negativo.'
+    return
+  }
+  if (originCode.value === destinationCode.value) {
+    routeFormError.value = 'El origen y el destino deben ser diferentes.'
+    return
+  }
   busy.value = true
   error.value = ''
   saved.value = ''
@@ -431,14 +451,14 @@ async function saveRoute() {
       preferredOriginCode: originCode.value,
       preferredDestinationCode: destinationCode.value,
       frequency: frequency.value,
-      expectedVolume: Number(expectedVolume.value),
+      expectedVolume: volume,
       volumeUnit: volumeUnit.value,
     }, crmUuid())
     routeEditor.value = false
     saved.value = locale.value === 'en' ? 'Usual route added.' : 'Ruta habitual guardada.'
     await load()
     activeTab.value = 'commercial'
-  } catch (cause) { error.value = message(cause) }
+  } catch (cause) { routeFormError.value = message(cause) }
   finally {busy.value = false}
 }
 </script>
@@ -713,25 +733,68 @@ async function saveRoute() {
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div><h2 class="font-extrabold">{{ locale === 'en' ? 'Usual services and routes' : 'Servicios y rutas habituales' }}</h2>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Origen → destino · servicio · frecuencia · volumen</p></div>
-          <button v-if="has('crm.analysis.manage')" class="inline-flex items-center gap-2 rounded-xl bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white"
-            @click="routeEditor = !routeEditor"><Plus class="h-4 w-4" />{{ locale === 'en' ? 'Add route' : 'Añadir ruta' }}</button>
+          <button v-if="has('crm.analysis.manage')" type="button"
+            class="inline-flex items-center gap-2 rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white"
+            @click="openNewRoute"><Plus class="h-4 w-4" />Añadir ruta</button>
         </div>
         <DhDrawer :open="routeEditor" title="Nueva ruta comercial" size="lg" @close="routeEditor=false">
-          <form class="grid gap-3 p-2 sm:grid-cols-2" @submit.prevent="saveRoute">
-          <CrmCatalogPicker label="Servicio" catalog-group-slug="pricing-services" value-kind="code" v-model="serviceCode" />
-          <label class="space-y-2 text-xs font-bold">Frecuencia
-            <select v-model="frequency" class="crm-input w-full"><option value="WEEKLY">Semanal</option><option value="MONTHLY">Mensual</option><option value="QUARTERLY">Trimestral</option><option value="YEARLY">Anual</option></select>
-          </label>
-          <CrmCatalogPicker label="POL / Origen" catalog-group-slug="pol" value-kind="code" v-model="originCode" />
-          <CrmCatalogPicker label="POD / Destino" catalog-group-slug="pod" value-kind="code" v-model="destinationCode" />
-          <label class="text-xs font-bold">Volumen estimado
-            <input v-model="expectedVolume" type="number" min="0" step="0.01" class="crm-input mt-2 w-full" /></label>
-          <label class="text-xs font-bold">Unidad
-            <select v-model="volumeUnit" class="crm-input mt-2 w-full"><option>CBM</option><option>KG</option><option>TEU</option><option>CFT</option></select></label>
-          <div class="flex gap-2 sm:col-span-2">
-            <button type="submit" :disabled="busy || !serviceCode || !originCode || !destinationCode" class="crm-action">Guardar ruta</button>
-            <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2 text-sm" @click="routeEditor=false">Cancelar</button>
-          </div>
+          <form class="space-y-5 p-2 pb-6" data-crm-route-form @submit.prevent="saveRoute">
+            <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 text-sm leading-relaxed text-[var(--dh-text-muted)]">
+              Registrá los servicios y trayectos que utiliza habitualmente este cliente. Los datos quedan vinculados a su ficha comercial.
+            </p>
+            <section class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <div class="flex items-start gap-3">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)] text-xs font-extrabold text-white">1</span>
+                <div><h3 class="font-extrabold">Servicio y frecuencia</h3><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Seleccioná qué servicio realiza el cliente y con qué frecuencia.</p></div>
+              </div>
+              <CrmCatalogPicker v-model="serviceCode" label="Servicio habitual *" catalog-group-slug="pricing-services" value-kind="code" />
+              <label class="block space-y-2 text-xs font-bold">Frecuencia de uso
+                <select v-model="frequency" class="crm-input w-full">
+                  <option value="WEEKLY">Semanal</option><option value="MONTHLY">Mensual</option>
+                  <option value="QUARTERLY">Trimestral</option><option value="YEARLY">Anual</option>
+                </select>
+              </label>
+            </section>
+            <section class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4" :class="!serviceCode && 'opacity-60'">
+              <div class="flex items-start gap-3">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)] text-xs font-extrabold text-white">2</span>
+                <div><h3 class="font-extrabold">Trayecto</h3><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Primero indicá el origen y luego el destino. Se consultan los catálogos de ubicaciones de Config.</p></div>
+              </div>
+              <template v-if="serviceCode">
+                <CrmCatalogPicker v-model="originCode" label="Origen de la carga *" catalog-group-slug="pol" value-kind="code" />
+                <CrmCatalogPicker v-if="originCode" v-model="destinationCode" label="Destino de la carga *" catalog-group-slug="pod" value-kind="code" />
+                <p v-else class="text-xs text-[var(--dh-text-muted)]">Elegí el origen para habilitar el destino.</p>
+                <div v-if="originCode && destinationCode" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
+                  Ruta seleccionada: {{ originCode }} → {{ destinationCode }}
+                </div>
+              </template>
+              <p v-else class="text-xs text-[var(--dh-text-muted)]">Seleccioná el servicio en el paso 1 para continuar.</p>
+            </section>
+            <section class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4" :class="(!originCode || !destinationCode) && 'opacity-60'">
+              <div class="flex items-start gap-3">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)] text-xs font-extrabold text-white">3</span>
+                <div><h3 class="font-extrabold">Volumen habitual</h3><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cantidad aproximada transportada por operación. Indicá 0 si todavía no se conoce.</p></div>
+              </div>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="block space-y-2 text-xs font-bold">Cantidad estimada
+                  <input v-model="expectedVolume" type="number" min="0" step="0.01" class="crm-input w-full" />
+                </label>
+                <label class="block space-y-2 text-xs font-bold">Unidad de medida
+                  <select v-model="volumeUnit" class="crm-input w-full">
+                    <option value="CBM">CBM · Metros cúbicos</option>
+                    <option value="KG">KG · Kilogramos</option>
+                    <option value="TEU">TEU · Contenedores equivalentes</option>
+                    <option value="CFT">CFT · Pies cúbicos</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+            <p v-if="routeFormError" role="alert" class="rounded-xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ routeFormError }}</p>
+            <div class="sticky bottom-0 flex items-center justify-end gap-3 border-t border-[var(--dh-border)] bg-[var(--dh-card)] px-1 py-4">
+              <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm font-semibold" :disabled="busy" @click="routeEditor=false">Cancelar</button>
+              <button type="submit" class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                :disabled="busy || !serviceCode || !originCode || !destinationCode">{{ busy ? 'Guardando…' : 'Guardar ruta' }}</button>
+            </div>
           </form>
         </DhDrawer>
         <p v-if="!overview.routes.length && !overview.analysisRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas comerciales registradas.</p>
@@ -993,7 +1056,7 @@ async function saveRoute() {
         </dl>
       </section>
       <section v-if="has('crm.credit.read')" class="hub-panel lg:col-span-2">
-        <CrmCreditCoverageManager :account-id="String(account.id)" />
+        <CrmCreditCoverageManager :account-id="String(account.id)" :editable="has('crm.credit.manage')" @updated="load" />
       </section>
       <section v-if="has('crm.contract.read')" class="hub-panel">
         <h2 class="mb-3 font-extrabold">Contratos y renovaciones</h2>
