@@ -112,6 +112,16 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
     action,
   ]
 })
+function accountCategoryLabel(item: CrmRow): string {
+  const types: Record<string,string> = {
+    CUSTOMER: 'Cliente', NVOCC: 'Agente / NVOCC', LITTLE: 'Cargas Little',
+  }
+  const type = String(item.categoryType ?? '')
+  const label = types[type] ?? 'Cuenta'
+  const tier = String(item.categoryCode ?? '')
+  return label + (type !== 'LITTLE' && ['A','B','C','D'].includes(tier)
+    ? ' categoría ' + tier : '')
+}
 const tableRows = computed(() => rows.value.map(item => ({
   ...item,
   _crmResource: item._crmResource,
@@ -124,13 +134,7 @@ const tableRows = computed(() => rows.value.map(item => ({
     : String(item.status ?? item.qualificationStatus ?? '—'),
   _crmTax: String(item.taxId ?? '—'),
   _crmCountry: countryLabels.value[String(item.countryId ?? '')] || '—',
-  _crmCategory: (() => {
-    const category = String(item.categoryType ?? '')
-    const description = ({ CUSTOMER: 'Cliente', NVOCC: 'Agente / NVOCC', LITTLE: 'Cargas Little' }
-      as Record<string,string>)[category] || 'Cuenta'
-    const tier = String(item.categoryCode ?? '')
-    return description + (category !== 'LITTLE' && ['A','B','C','D'].includes(tier) ? ' categoría ' + tier : '')
-  })(),
+  _crmCategory: accountCategoryLabel(item),
   _crmType: item.customerTypeCode === 'credit' ? 'Crédito' : item.customerTypeCode === 'cash' ? 'Contado' : '—',
   _crmEmail: String(item.contactEmail ?? '—'),
   _crmPhone: String(item.phone ?? '—'),
