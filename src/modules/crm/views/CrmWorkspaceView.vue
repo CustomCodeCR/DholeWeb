@@ -20,6 +20,7 @@ import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
 import { crmSectionScope } from '../model/crmForms'
 import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
+import CrmAccountViewerManager from '../components/CrmAccountViewerManager.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -403,6 +404,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
       <p v-if="error" role="alert" class="crm-alert">{{ error }}</p>
       <p v-if="success" role="status" class="text-sm text-emerald-600">{{ success }}</p>
       <p v-if="loading" role="status" class="text-sm text-[var(--dh-text-muted)]">{{ t('common.loading') }}</p>
+      <CrmAccountViewerManager v-if="section === 'accounts' && can('crm.account.assign') && can('auth.users.view')" />
       <template v-if="section === 'dashboard'">
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <DhCard v-for="metric in [
