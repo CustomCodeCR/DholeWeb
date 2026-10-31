@@ -29,47 +29,35 @@ const accountDraft = reactive({
   sourceCode: '', relationshipTypeCode: '',
 })
 type IdentityField = keyof typeof accountDraft
+// Retain historic profile fields in the PUT payload so legacy data is not cleared.
+const historicalProfileKeys = [
+  'phone', 'email', 'website', 'billingEmail', 'marketingEmail', 'sector',
+  'businessActivity', 'products', 'companyHistory', 'activeServices',
+  'presenceCountries', 'webCustomerReference', 'commercialObservations',
+  'commercialStrategy', 'projectsOfInterest', 'pricingObservations',
+  'tariffMonitoringNotes', 'tariffSendingNotes', 'competitorObservations',
+  'operationalInstructions', 'customsInstructions', 'cargoCollectionInstructions',
+  'documentReviewInstructions', 'assignedOperations', 'tradeAgreementNotes',
+]
 const profileGroups = [
-  { title: 'Contacto y datos empresariales', fields: [
-    ['phone','Teléfono corporativo'], ['email','Correo principal'], ['website','Sitio web'],
-    ['billingEmail','Correo de facturación'], ['marketingEmail','Correo comercial'],
-    ['sector','Sector productivo'], ['businessActivity','Actividad de la empresa'],
-    ['products','Líneas de productos'], ['companyHistory','Historia de la empresa'],
-    ['activeServices','Servicios activos'], ['presenceCountries','Países con presencia'],
-    ['webCustomerReference','Referencia cliente web (sin contraseñas)'],
-  ] },
-  { title: 'Estrategia y seguimiento comercial', fields: [
-    ['commercialObservations','Observaciones comerciales'], ['commercialStrategy','Estrategia comercial'],
-    ['projectsOfInterest','Proyectos vinculados'], ['pricingObservations','Observaciones de Pricing'],
-    ['tariffMonitoringNotes','Tarifas por enviar'], ['tariffSendingNotes','Tarifas enviadas'],
-    ['competitorObservations','Análisis de competidores'],
-  ] },
-  { title: 'Operaciones y logística', fields: [
-    ['operationalInstructions','Instrucciones operativas'], ['customsInstructions','Aduanas y nacionalización'],
-    ['cargoCollectionInstructions','Recolección de carga'], ['documentReviewInstructions','Revisión de documentos'],
-    ['assignedOperations','Operativa asignada'], ['tradeAgreementNotes','Acuerdos comerciales'],
+  { title: 'Datos empresariales', fields: [
+    ['phone', 'Teléfono corporativo'], ['email', 'Correo electrónico'],
+    ['website', 'Sitio web'],
   ] },
 ] as const
 const profileDraft = reactive<Record<string, string>>({})
-for (const group of profileGroups) for (const [key] of group.fields) profileDraft[key] = ''
-type EditorSection = 'identity' | 'commercial' | 'company' | 'strategy' | 'operations' | 'contacts' | 'addresses' | 'credit'
+for (const key of historicalProfileKeys) profileDraft[key] = ''
+type EditorSection = 'identity' | 'commercial' | 'company' | 'contacts' | 'addresses' | 'credit'
 const activeEditorSection = ref<EditorSection>('identity')
 const editorSections: Array<{id: EditorSection; label: string; detail: string}> = [
   { id: 'identity', label: 'Datos de la cuenta', detail: 'Identificación y datos fiscales' },
   { id: 'commercial', label: 'Clasificación', detail: 'Tipo, categoría y relaciones' },
   { id: 'company', label: 'Datos empresariales', detail: 'Información general de la empresa' },
-  { id: 'strategy', label: 'Estrategia comercial', detail: 'Gestión de ventas' },
-  { id: 'operations', label: 'Operaciones y logística', detail: 'Instrucciones operativas' },
   { id: 'contacts', label: 'Contactos', detail: 'Personas relacionadas' },
   { id: 'addresses', label: 'Direcciones', detail: 'Ubicaciones de la cuenta' },
   { id: 'credit', label: 'Crédito', detail: 'Cobertura y condiciones' },
 ]
-function groupSection(title: string): EditorSection {
-  if (title === 'Estrategia y seguimiento comercial') return 'strategy'
-  if (title === 'Operaciones y logística') return 'operations'
-  return 'company'
-}
-const activeProfileGroup = computed(() => profileGroups.find(group => groupSection(group.title) === activeEditorSection.value))
+const activeProfileGroup = computed(() => activeEditorSection.value === 'company' ? profileGroups[0] : null)
 const profileVersion = ref<number | null>(null)
 const relatedContacts = ref<CrmRow[]>([])
 const relatedAddresses = ref<CrmRow[]>([])
@@ -308,7 +296,7 @@ async function save() {
               @update:model-value="accountDraft.relationshipTypeCode=$event" />
           </div>
         </section>
-        <section v-if="['company','strategy','operations'].includes(activeEditorSection)" id="crm-edit-company" class="space-y-4">
+        <section v-if="activeEditorSection==='company'" id="crm-edit-company" class="space-y-4">
           <h3 class="px-1 text-sm font-extrabold">{{ editorSections.find(item=>item.id===activeEditorSection)?.label }}</h3>
           <section v-if="activeProfileGroup" :key="activeEditorSection" class="crm-editor-section">
           <div class="crm-editor-heading"><ShieldCheck class="h-5 w-5" /><div><h3>{{ activeProfileGroup.title }}</h3><p>Información complementaria del cliente</p></div></div>
