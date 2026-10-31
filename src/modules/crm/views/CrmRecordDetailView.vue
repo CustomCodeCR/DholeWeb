@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
   Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
@@ -242,6 +242,15 @@ function toggleAccountEditing() {
     showAccountEditor.value = true
     void router.replace({ path: route.path, query: { ...route.query, edit: '1' }, hash: route.hash })
   }
+}
+function openContractCreation() {
+  if (!can('crm.contract.manage')) return
+  showAdvancedAccountManagement.value = true
+  relation.value = 'credit-contracts'
+  error.value = ''
+  // The relation watcher closes stale drawers when the selected section changes.
+  // Reopen after that watcher runs, so the new-contract action always works.
+  void nextTick(() => { showRelationForm.value = true })
 }
 function openRelatedManagement() {
   const manage = () => {
@@ -634,7 +643,7 @@ onMounted(() => { if (crmEnabled()) void load() })
         <CrmAccountHub v-if="section === 'accounts'" :account="record"
           :editing="showAccountEditor && can('crm.account.update')"
           @change-executive="openExecutiveDrawer" @edit-account="toggleAccountEditing"
-          @manage-related="openRelatedManagement" @logo-updated="load" />
+          @manage-related="openRelatedManagement" @create-contract="openContractCreation" @logo-updated="load" />
         <CrmAccountEditor v-if="section === 'accounts' && showAccountEditor && can('crm.account.update')"
           :account="record" :open="true" @close="leaveAccountEditing"
           @dirty-change="accountEditingDirty=$event"
