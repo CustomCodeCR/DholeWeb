@@ -165,6 +165,18 @@ const statusDisplay = (value: unknown) =>
   ({Pending:'Pendiente',Verified:'Verificada',Active:'Activa',Inactive:'Inactiva',
     PendingApproval:'Pendiente de aprobación',Approved:'Aprobado',Rejected:'Rechazado',
     Superseded:'Sustituido',Draft:'Borrador'} as Record<string,string>)[String(value ?? '')] ?? 'No especificado'
+const marketDisplay = (value: unknown) =>
+  ({OTHER:'Otros',IMPORT:'Importaciones',EXPORT:'Exportaciones',DOMESTIC:'Mercado nacional',
+    INTERNATIONAL:'Mercado internacional'} as Record<string,string>)[String(value ?? '')] ||
+    (String(value ?? '').trim() && !/^[A-Z_0-9-]+$/.test(String(value)) ? String(value) : 'Mercado sin descripción')
+const sourceDisplay = (value: unknown) =>
+  ({CRM:'CRM',HACIENDA:'Hacienda',WEB:'Sitio web',MANUAL:'Registro manual',
+    REFERRAL:'Referencia',IMPORT:'Importación',OTHER:'Otro'} as Record<string,string>)[String(value ?? '')] ||
+    (String(value ?? '').trim() && !/^[A-Z_0-9-]+$/.test(String(value)) ? String(value) : 'No especificado')
+const serviceDisplay = (value: unknown) =>
+  ({INT_TRANSPORT:'Transporte internacional',OCEAN_FREIGHT:'Flete marítimo',
+    AIR_FREIGHT:'Flete aéreo',GROUND_FREIGHT:'Transporte terrestre'} as Record<string,string>)[String(value ?? '')] ||
+    (String(value ?? '').trim() && !/^[A-Z_0-9-]+$/.test(String(value)) ? String(value) : 'Servicio logístico')
 const frequencyDisplay = (value: unknown) =>
   ({WEEKLY:'Semanal',MONTHLY:'Mensual',QUARTERLY:'Trimestral',YEARLY:'Anual',
     DAILY:'Diaria'} as Record<string,string>)[String(value ?? '')] || 'No especificada'
@@ -629,7 +641,7 @@ async function saveRoute() {
         <span class="hub-header-meta">{{ activeRoutes.length }} rutas habituales</span>
         <span class="hub-header-meta"><Activity class="h-3.5 w-3.5" />{{ activityCount }} actividades</span>
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
-        <span class="ml-auto text-[var(--dh-text-muted)]">ID {{ String(account.id).slice(0, 8) }}</span>
+
       </div>
     </header>
       <nav v-if="!editing" role="tablist" class="hub-sticky-tabs sticky z-20 flex max-w-full flex-wrap gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-md sm:px-4"
@@ -661,7 +673,7 @@ async function saveRoute() {
               compactRow('Tipo de cliente', account.customerTypeCode === 'credit' ? 'Crédito' : 'Contado'),
               compactRow('Categoría', categoryDisplay(account.categoryType, account.categoryCode)),
               compactRow('Relación comercial', account.relationshipTypeCode),
-              compactRow('Origen de la cuenta', account.sourceCode),
+              compactRow('Origen de la cuenta', sourceDisplay(account.sourceCode)),
               compactRow('Estado fiscal', statusDisplay(account.verificationStatus)),
             ]" :key="item.label" class="hub-kv">
               <dt>{{ item.label }}</dt><dd>{{ text(item.value) }}</dd>
@@ -720,7 +732,7 @@ async function saveRoute() {
           <h3 class="hub-section-heading mt-4">Mercados y operaciones</h3>
           <p v-if="!overview.analyses.length" class="hub-empty">Sin análisis comercial registrado.</p>
           <dl v-for="analysis in overview.analyses.slice(0,2)" :key="analysis.id" class="divide-y divide-[var(--dh-border)]">
-            <div class="hub-kv"><dt>Mercado</dt><dd>{{ text(analysis.marketCode) }}</dd></div>
+            <div class="hub-kv"><dt>Mercado</dt><dd>{{ marketDisplay(analysis.marketCode) }}</dd></div>
             <div class="hub-kv"><dt>Nacionalización</dt><dd>{{ analysis.customsNationalizationRequired ? 'Sí' : 'No' }}</dd></div>
             <div class="hub-kv"><dt>Volumen estimado</dt><dd>{{ analysis.estimatedMonthlyVolume ?? '—' }} {{ text(analysis.volumeUnit) }}</dd></div>
           </dl>
@@ -907,7 +919,7 @@ async function saveRoute() {
         <p v-if="!overview.analyses.length" class="text-sm text-[var(--dh-text-muted)]">No hay análisis registrados.</p>
         <button v-for="a in overview.analyses" :key="a.id" class="flex w-full items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 text-left text-sm last:border-0 hover:text-[var(--dh-primary)]"
           @click="router.push('/crm/analyses/' + encodeURIComponent(rowId(a.id)))">
-          <span>{{ text(a.marketCode) }} · {{ a.customsNationalizationRequired ? 'Incluye aduanas' : 'Sin aduanas' }}</span>
+          <span>{{ marketDisplay(a.marketCode) }} · {{ a.customsNationalizationRequired ? 'Incluye aduanas' : 'Sin aduanas' }}</span>
           <span class="text-xs text-[var(--dh-text-muted)]">{{ a.estimatedMonthlyVolume ?? '—' }} {{ a.volumeUnit }}</span>
         </button>
       </section>
@@ -1012,7 +1024,7 @@ async function saveRoute() {
           <li v-for="record in routeHistory" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
             <div class="min-w-0">
               <p class="text-sm font-extrabold">{{ routeDisplay(record.polCode, 'pol') }} → {{ record.poeCode ? routeDisplay(record.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(record.podCode, 'pod') }}</p>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ text(record.serviceCode) }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ serviceDisplay(record.serviceCode) }}</p>
               <p v-if="record.notes" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.notes }}</p>
             </div>
             <RouterLink :to="record.sourceKind === 'MEETING' ? returnToAccount('/crm/activities/' + encodeURIComponent(rowId(record.sourceId))) : quoteLink({ pricingQuoteId: record.sourceId, id: rowId(record.id) })"
