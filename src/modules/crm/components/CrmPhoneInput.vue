@@ -38,7 +38,17 @@ watch(() => props.countryId, async countryId => {
   }
   loading.value = true
   try {
-    const country = await CatalogItemsService.getById(countryId)
+    // Some Config deployments expose list/select while the item detail endpoint may
+    // be unavailable for CRM users. Resolve the selected name before falling back.
+    const country = await CatalogItemsService.getById(countryId).catch(async () => {
+      const list = await CatalogItemsService.select({ catalogGroupSlug: 'countries' })
+      const selected = list.find(item => item.id === countryId)
+      if (!selected) throw new Error('País no encontrado en Config')
+      return {
+        code: selected.code, slug: selected.slug, name: selected.label,
+        value: selected.value, metadataJson: selected.metadataJson,
+      }
+    })
     if (requestId !== generation) return
     const nextPrefix = await publicDialCodeForCountry(country)
     if (requestId !== generation) return
