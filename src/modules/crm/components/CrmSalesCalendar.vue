@@ -95,9 +95,14 @@ async function loadConfiguredActivityTypes() {
       if (!items.length) continue
       const values = items.filter(item => item.isActive !== false).map(item => {
         // Catalog codes may be internal IDs; the semantic value takes priority.
-        const candidates = [item.value, item.code, item.slug].map(value => String(value ?? '').trim())
+        const candidates = [item.value, item.code, item.slug, item.label].map(value =>
+          String(value ?? '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[- ]/g, '_'))
+        const aliases: Record<string, string> = {
+          VISITA: 'VISIT', LLAMADA: 'CALL', REUNION: 'MEETING',
+          CORREO: 'EMAIL', TAREA: 'OTHER',
+        }
         const matched = eventTypes.find(type => candidates.some(value =>
-          value.toUpperCase().replace(/[- ]/g, '_') === type.value))
+          (aliases[value] ?? value) === type.value))
         const value = matched?.value ?? String(item.value || item.code || '').trim()
         return { value, label: matched?.label ?? String(item.label || item.value || item.code) }
       }).filter(item => item.value && item.value !== 'FOLLOWUP')
@@ -109,6 +114,7 @@ async function loadConfiguredActivityTypes() {
     }
     if (!configuredActivityTypes.value.length) {
       activityTypesError.value = 'No hay tipos de actividad disponibles en Config. El administrador debe configurar Visita, Llamada y Reunión en el catálogo de tipos de actividad para poder registrarlos.'
+      if (can('crm.followup.manage') || can('crm.task.manage')) editor.value.type = 'FOLLOWUP'
     } else if (!configuredActivityTypes.value.some(type => type.value === editor.value.type)) {
       editor.value.type = configuredActivityTypes.value[0]?.value ?? 'FOLLOWUP'
     }
