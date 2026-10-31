@@ -41,7 +41,7 @@ export const CRM_MODULES: Record<string, CrmModule> = {
       field('taxIdTypeCode', 'Tipo de identificación'),
       field('taxId', 'Identificación fiscal (texto)'),
       select('customerTypeCode', 'Tipo de cliente', ['cash', 'credit']),
-      select('categoryType', 'Categoría de cuenta', ['CUSTOMER', 'NVOCC']),
+      select('categoryType', 'Categoría de cuenta', ['CUSTOMER', 'NVOCC', 'LITTLE']),
       field('categoryCode', 'Código categoría', 'text', true),
       field('sourceCode', 'Origen'),
       field('relationshipTypeCode', 'Relación comercial'),
