@@ -29,6 +29,7 @@ const filter = ref('')
 const changeReason = ref('')
 const showNewProposal = ref(false)
 const proposalError = ref('')
+const proposalStatus = ref('')
 // Reuse the idempotency key when a connection failure leaves the result uncertain.
 const proposalOperationKey = ref(crmUuid())
 const days = ref('30')
@@ -200,14 +201,28 @@ async function resolveCredit(approve: boolean) {
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
 }
+function proposalFailure(cause: unknown): string {
+  const issue = cause && typeof cause === 'object'
+    ? cause as { status?: number; data?: { title?: string; detail?: string }; message?: string }
+    : null
+  const description = issue?.data?.detail || issue?.data?.title || issue?.message || crmError(cause)
+  if (issue?.status === 403) return 'El backend rechazó la solicitud: faltan permisos para esta cuenta (403).'
+  if (issue?.status === 409) return 'La cuenta ya tiene una propuesta pendiente o hubo un conflicto (409). ' + description
+  if (issue?.status === 400) return 'CRM rechazó los datos de la solicitud (400): ' + description
+  if (issue?.status === 503) return 'El servicio de referencias (Config) no está disponible (503). ' + description
+  return description
+}
 async function proposeNew() {
   if (busy.value) return
   proposalError.value = ''
+  proposalStatus.value = 'Validando solicitud de crédito…'
   if (!canManage.value) {
+    proposalStatus.value = ''
     proposalError.value = 'Tu usuario no tiene permiso para solicitar crédito (crm.credit.manage).'
     return
   }
   if (profile.value) {
+    proposalStatus.value = ''
     proposalError.value = 'Esta cuenta ya tiene una propuesta pendiente o aprobada. Actualizá las condiciones existentes.'
     return
   }
@@ -215,14 +230,22 @@ async function proposeNew() {
   const totalDays = Number(days.value)
   const monthly = Number(financing.value)
   if (!creditLimit.value.trim() || !Number.isFinite(limit) || limit <= 0 ||
+      Math.round(limit * 100) !== limit * 100 ||
       !Number.isInteger(totalDays) || totalDays < 1 || totalDays > 3650 ||
       !Number.isFinite(monthly) || monthly < 0 || monthly > 100) {
-    proposalError.value = 'Ingresá un límite mayor a cero, días entre 1 y 3650 y financiamiento entre 0% y 100%.'
+    proposalStatus.value = ''
+    proposalError.value = 'Ingresá un límite de crédito válido (máximo 2 decimales), días entre 1 y 3650 y financiamiento entre 0% y 100%.'
+    return
+  }
+  if (!props.accountId) {
+    proposalStatus.value = ''
+    proposalError.value = 'No se ha cargado el cliente. Volvé al detalle e intentá nuevamente.'
     return
   }
   busy.value = true
   error.value = ''
   success.value = ''
+  proposalStatus.value = 'Enviando solicitud al backend de CRM…'
   try {
     const created = await crmRequest<CrmRow>(crmPath('accounts', props.accountId, 'credit-profiles'), 'POST', {
       creditEnabled: true, creditDays: totalDays, creditLimit: limit,
@@ -230,26 +253,34 @@ async function proposeNew() {
       paymentConditions: paymentConditions.value.trim(),
       effectiveFrom: new Date().toISOString(), reviewAt: null,
     }, proposalOperationKey.value)
+    if (!created?.id) throw new Error('El backend no confirmó el ID de la propuesta de crédito.')
+    if (!profiles.value.some(p => p.id === created.id)) profiles.value = [created, ...profiles.value]
     proposalOperationKey.value = crmUuid()
-    if (created?.id && !profiles.value.some(p => p.id === created.id))
-      profiles.value = [created, ...profiles.value]
     showNewProposal.value = false
+    proposalStatus.value = 'La propuesta fue creada en CRM. Actualizando condiciones…'
     await refresh()
-    success.value = 'Propuesta registrada. Podés configurar lo incluido y excluido antes de aprobar el crédito.'
+    success.value = 'Solicitud de crédito registrada en CRM y pendiente de aprobación.'
     emit('updated')
   } catch (cause) {
-    proposalError.value = crmError(cause)
-    // The server may have committed the request before the network failed.
-    // Reconcile by reloading instead of asking the user to create it again.
-    await refresh()
-    if (profile.value) {
-      showNewProposal.value = false
-      proposalError.value = ''
-      success.value = 'Se encontró la propuesta de crédito registrada. No se duplicó.'
-      proposalOperationKey.value = crmUuid()
-      emit('updated')
+    proposalError.value = proposalFailure(cause)
+    const status = cause && typeof cause === 'object' && 'status' in cause
+      ? Number((cause as { status?: number }).status) : 0
+    // Reconcile only uncertain writes, not ordinary validation errors.
+    if (!status || status === 409) {
+      proposalStatus.value = 'Verificando si el backend registró la solicitud…'
+      await refresh()
+      if (profile.value) {
+        showNewProposal.value = false
+        proposalError.value = ''
+        success.value = 'Solicitud encontrada en CRM. No se creó un duplicado.'
+        proposalOperationKey.value = crmUuid()
+        emit('updated')
+      }
     }
-  } finally { busy.value = false }
+  } finally {
+    busy.value = false
+    proposalStatus.value = ''
+  }
 }
 </script>
 
@@ -272,6 +303,7 @@ async function proposeNew() {
       </div>
     </div>
     <p v-if="error" role="alert" class="rounded-lg border border-red-500/30 p-3 text-xs text-red-500">{{ error }}</p>
+    <p v-if="proposalStatus" role="status" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm font-semibold text-[var(--dh-text)]">{{ proposalStatus }}</p>
     <p v-if="success" role="status" class="text-xs text-emerald-500">{{ success }}</p>
     <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">Cargando condiciones de crédito…</p>
     <template v-else-if="profile">
