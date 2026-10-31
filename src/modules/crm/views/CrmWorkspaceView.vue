@@ -9,6 +9,7 @@ import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmRelationshipPicker from '../components/CrmRelationshipPicker.vue'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmHaciendaLookup, { type HaciendaResult } from '../components/CrmHaciendaLookup.vue'
+import CrmPhoneInput from '../components/CrmPhoneInput.vue'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -49,6 +50,12 @@ function applyHacienda(result: HaciendaResult) {
   form.legalName = result.name
   form.displayName = result.name
   if (result.identificationType) form.taxIdTypeCode = result.identificationType
+}
+
+function applyLeadHacienda(result: HaciendaResult) {
+  if (String(form.taxId ?? '').replace(/[\s-]/g, '') !== result.identification.replace(/[\s-]/g, '')) return
+  form.companyName = result.name
+  if (!String(form.name ?? '').trim()) form.name = result.name
 }
 
 const columns = computed<DhTableColumn<CrmRow>[]>(() => {
@@ -636,6 +643,12 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
               <div v-else-if="f.type === 'checkbox'" :data-required-field="f.key" :class="isInvalid(f.key) ? '!border-red-500 ring-2 ring-red-500/20' : ''" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
                 <DhSwitch :label="f.label" :model-value="Boolean(form[f.key])" @update:model-value="form[f.key] = $event" />
               </div>
+              <CrmPhoneInput v-else-if="section === 'leads' && f.key === 'phone'"
+                :label="f.label" :country-id="String(form.countryId ?? '')"
+                :model-value="String(form.phone ?? '')" @update:model-value="form.phone=$event" />
+              <CrmRelationshipPicker v-else-if="section === 'leads' && f.key === 'relationshipTypeCode'"
+                :model-value="String(form.relationshipTypeCode ?? '')" :label="f.label"
+                @update:model-value="form.relationshipTypeCode=$event" />
               <CrmCatalogPicker v-else-if="catalogFields[f.key]" :data-required-field="f.key" :validation-error="fieldError(f.key)"
                 :label="f.label" :catalog-group-slug="catalogFields[f.key]?.slug ?? ''"
                 :value-kind="catalogFields[f.key]?.kind ?? 'id'"
@@ -646,6 +659,11 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
               <DhInput v-else :data-required-field="f.key" :error="fieldError(f.key)" :label="f.label + (f.required ? ' *' : '')"
                 :type="f.type === 'email' ? 'email' : f.type === 'number' ? 'number' : f.type === 'datetime-local' ? 'datetime-local' : 'text'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
+            </div>
+            <div v-if="section === 'leads'" class="sm:col-span-2">
+              <CrmHaciendaLookup :country-id="String(form.countryId ?? '')"
+                :tax-id="String(form.taxId ?? '')" @resolved="applyLeadHacienda" />
+              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">La razón social se incorpora desde Hacienda. Después de crear el prospecto se puede convertir en cuenta, conservando su identificación y ejecutivo.</p>
             </div>
             <DhInput v-if="section === 'followups'" :label="t('crm.assignedUser')"
               :model-value="String(form.assignedUserId ?? '')" @update:model-value="form.assignedUserId = $event" />
