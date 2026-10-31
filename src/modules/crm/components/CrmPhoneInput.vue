@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, useId } from 'vue'
-import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { publicDialCodeForCountry, internationalPhone, localPhonePart } from '../utils/crmPhone'
+import { internationalPhone, localPhonePart } from '../utils/crmPhone'
+import { resolveCrmCountryPrefix } from '../services/crmCountryPhone'
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -34,32 +34,21 @@ watch(() => props.countryId, async countryId => {
   if (!countryId) {
     dialPrefix.value = null
     localNumber.value = props.modelValue ?? ''
+    loading.value = false
     return
   }
   loading.value = true
   try {
-    // Some Config deployments expose list/select while the item detail endpoint may
-    // be unavailable for CRM users. Resolve the selected name before falling back.
-    const country = await CatalogItemsService.getById(countryId).catch(async () => {
-      const list = await CatalogItemsService.select({ catalogGroupSlug: 'countries' })
-      const selected = list.find(item => item.id === countryId)
-      if (!selected) throw new Error('País no encontrado en Config')
-      return {
-        code: selected.code, slug: selected.slug, name: selected.label,
-        value: selected.value, metadataJson: selected.metadataJson,
-      }
-    })
-    if (requestId !== generation) return
-    const nextPrefix = await publicDialCodeForCountry(country)
+    const nextPrefix = await resolveCrmCountryPrefix(countryId)
     if (requestId !== generation) return
     if (!nextPrefix) {
-      warning.value = 'No se encontró el prefijo internacional para este país. Podés ingresar el número completo con +.'
+      warning.value = 'No se encontró el prefijo internacional de este país en Config.'
       dialPrefix.value = null
       localNumber.value = props.modelValue ?? ''
       return
     }
     const previousFull = props.modelValue ?? ''
-    // On a country change keep the subscriber number, not the old country code.
+    // Existing local numbers inherit the selected country; do not add +506 twice.
     const subscriber = localPhonePart(previousFull, oldPrefix ?? nextPrefix)
     dialPrefix.value = nextPrefix
     localNumber.value = subscriber
@@ -67,7 +56,7 @@ watch(() => props.countryId, async countryId => {
     if (formatted && formatted !== previousFull) emitPhone(formatted)
   } catch {
     if (requestId !== generation) return
-    warning.value = 'No se pudo consultar el prefijo. Revisá el país o escribí el código con +.'
+    warning.value = 'No se pudo consultar el país. Comprobá la conexión con Config.'
     dialPrefix.value = null
     localNumber.value = props.modelValue ?? ''
   } finally { if (requestId === generation) loading.value = false }
