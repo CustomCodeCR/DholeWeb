@@ -689,7 +689,7 @@ async function saveRoute() {
       </div>
       <p v-if="!contacts.length" class="hub-empty">No hay contactos vinculados. Podés administrarlos desde la gestión avanzada de la cuenta.</p>
       <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <RouterLink v-for="contact in contacts" :key="contact.id" :to="'/crm/contacts/' + encodeURIComponent(rowId(contact.id))"
+        <RouterLink v-for="contact in contacts" :key="contact.id" :to="returnToAccount('/crm/contacts/' + encodeURIComponent(rowId(contact.id)))"
           class="rounded-lg border border-[var(--dh-border)] p-4 hover:border-[var(--dh-primary)]">
           <p class="text-sm font-bold text-[var(--dh-primary)]">{{ text(contact.name || contact.displayName) }}</p>
           <p class="mt-2 text-xs">{{ text(contact.jobTitle) }}</p>
@@ -750,7 +750,7 @@ async function saveRoute() {
         <p v-if="!visibleTimeline.length" class="hub-empty">Sin actividad registrada.</p>
         <ol v-else class="hub-timeline">
           <li v-for="entry in visibleTimeline.slice(0,9)" :key="entry.kind + entry.id">
-            <RouterLink :to="entry.href" class="block truncate text-xs font-bold hover:text-[var(--dh-primary)]">{{ entry.subject }}</RouterLink>
+            <RouterLink :to="returnToAccount(entry.href)" class="block truncate text-xs font-bold hover:text-[var(--dh-primary)]">{{ entry.subject }}</RouterLink>
             <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ date(entry.time) }}</p>
           </li>
         </ol>
@@ -849,7 +849,7 @@ async function saveRoute() {
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ text(record.serviceCode) }}</p>
               <p v-if="record.notes" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.notes }}</p>
             </div>
-            <RouterLink :to="record.sourceKind === 'MEETING' ? '/crm/activities/' + encodeURIComponent(rowId(record.sourceId)) : quoteLink({ pricingQuoteId: record.sourceId, id: rowId(record.id) })"
+            <RouterLink :to="record.sourceKind === 'MEETING' ? returnToAccount('/crm/activities/' + encodeURIComponent(rowId(record.sourceId))) : quoteLink({ pricingQuoteId: record.sourceId, id: rowId(record.id) })"
               class="hub-outline-button hub-small">{{ record.sourceKind === 'MEETING' ? 'Abrir reunión' : 'Abrir cotización' }}</RouterLink>
           </li>
         </ol>
@@ -919,7 +919,7 @@ async function saveRoute() {
       <div v-if="overview.opportunities.length" class="mt-6 border-t border-[var(--dh-border)] pt-4">
         <h3 class="mb-2 font-bold">Oportunidades asociadas ({{ overview.opportunities.length }})</h3>
         <div v-for="o in overview.opportunities" :key="o.id" class="flex justify-between gap-3 border-b border-[var(--dh-border)] py-2 text-sm last:border-0">
-          <RouterLink :to="'/crm/opportunities/' + encodeURIComponent(rowId(o.id))" class="font-semibold hover:text-[var(--dh-primary)]">{{ text(o.title) }}</RouterLink>
+          <RouterLink :to="returnToAccount('/crm/opportunities/' + encodeURIComponent(rowId(o.id)))" class="font-semibold hover:text-[var(--dh-primary)]">{{ text(o.title) }}</RouterLink>
           <span class="text-[var(--dh-text-muted)]">{{ text(o.status) }}</span>
         </div>
       </div>
@@ -959,7 +959,7 @@ async function saveRoute() {
         <li v-for="entry in visibleTimeline" :key="entry.kind + entry.id" class="relative ml-2 border-l border-[var(--dh-border)] py-4 pl-6">
           <span class="absolute -left-[6px] top-6 h-3 w-3 rounded-full border-2 border-[var(--dh-card)] bg-[var(--dh-primary)]"></span>
           <div class="flex flex-wrap justify-between gap-2">
-            <RouterLink :to="entry.href" class="text-sm font-extrabold hover:text-[var(--dh-primary)]">{{ entry.subject }}</RouterLink>
+            <RouterLink :to="returnToAccount(entry.href)" class="text-sm font-extrabold hover:text-[var(--dh-primary)]">{{ entry.subject }}</RouterLink>
             <span class="text-xs text-[var(--dh-text-muted)]">{{ date(entry.time) }}</span>
           </div>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ entry.kind }} · {{ entry.status }}</p>
@@ -997,7 +997,7 @@ async function saveRoute() {
         <h2 class="hub-panel-heading"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" />Contactos de la cuenta</h2>
         <p v-if="!contacts.length" class="hub-empty">No hay contactos relacionados.</p>
         <div v-for="contact in contacts" :key="contact.id" class="hub-list-item">
-          <RouterLink :to="'/crm/contacts/' + encodeURIComponent(rowId(contact.id))" class="text-xs font-bold text-[var(--dh-primary)] hover:underline">{{ text(contact.name || contact.displayName) }}</RouterLink>
+          <RouterLink :to="returnToAccount('/crm/contacts/' + encodeURIComponent(rowId(contact.id)))" class="text-xs font-bold text-[var(--dh-primary)] hover:underline">{{ text(contact.name || contact.displayName) }}</RouterLink>
           <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ text(contact.email) }}</p>
         </div>
       </section>
