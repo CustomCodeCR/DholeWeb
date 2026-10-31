@@ -70,13 +70,22 @@ async function save() {
   } catch (e) { error.value = crmError(e) }
   finally { saving.value = false }
 }
+const sourceAccount = computed(() => {
+  const value = typeof route.query.fromAccount === 'string' ? route.query.fromAccount : ''
+  return /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(value) &&
+    linkedAccounts.value.some(x => x.accountId.toLowerCase() === value.toLowerCase()) ? value : ''
+})
+function goBack() {
+  void router.push(sourceAccount.value
+    ? '/crm/accounts/' + encodeURIComponent(sourceAccount.value) : '/crm/contacts')
+}
 onMounted(load)
 watch(contactId, load)
 </script>
 
 <template>
   <main class="mx-auto w-full max-w-[1650px] space-y-3 p-3 text-[var(--dh-text)] sm:p-5" data-crm-contact-detail>
-    <DhButton :icon="ArrowLeft" :label="en ? 'Contacts' : 'Volver a contactos'" variant="secondary" @click="router.push('/crm/contacts')" />
+    <DhButton :icon="ArrowLeft" :label="sourceAccount ? 'Volver a la cuenta' : (en ? 'Contacts' : 'Volver a contactos')" variant="secondary" @click="goBack" />
     <p v-if="error" role="alert" class="rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="success" role="status" class="text-sm text-emerald-500">{{ success }}</p>
     <p v-if="loading" role="status" class="text-sm text-[var(--dh-text-muted)]">Cargando contacto…</p>
