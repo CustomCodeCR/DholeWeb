@@ -132,13 +132,13 @@ const profileFields = [
   { key: 'tradeAgreementNotes', label: 'Tratados y acuerdos comerciales', type: 'text', long: true },
   { key: 'webCustomerReference', label: 'ID de cliente en la web (sin credenciales)', type: 'text', long: false },
 ] as const
+// Keep all existing fields in the update payload to preserve prior account data.
+const visibleProfileFields = profileFields.filter(f => ['phone', 'email', 'website'].includes(f.key))
 const profileGroups = [
-  { label: 'Información de la empresa y cuenta web', keys: ['phone','email','website','sector','businessActivity','products','companyHistory','billingEmail','marketingEmail','webCustomerReference','presenceCountries','activeServices'] },
-  { label: 'Análisis y estrategia comercial', keys: ['commercialObservations','commercialStrategy','projectsOfInterest','pricingObservations','tariffMonitoringNotes','tariffSendingNotes','competitorObservations'] },
-  { label: 'Instrucciones operativas y aduaneras', keys: ['operationalInstructions','customsInstructions','cargoCollectionInstructions','documentReviewInstructions','assignedOperations','tradeAgreementNotes'] },
-].map(group => ({ label: group.label, fields: profileFields.filter(field => (group.keys as string[]).includes(field.key)) }))
+  { label: 'Contacto empresarial', fields: visibleProfileFields },
+]
 const profileDraft = ref<Record<string, string>>({})
-const profileFilled = computed(() => profileFields.filter(f =>
+const profileFilled = computed(() => visibleProfileFields.filter(f =>
   typeof businessProfile.value?.[f.key] === 'string' &&
   String(businessProfile.value?.[f.key]).trim()).length)
 
@@ -515,7 +515,7 @@ async function saveRoute() {
         <section class="hub-panel">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 class="hub-panel-heading mb-0"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" />Datos empresariales
-              <span class="hub-count">{{ profileFilled }} / {{ profileFields.length }}</span>
+              <span class="hub-count">{{ profileFilled }} / {{ visibleProfileFields.length }}</span>
             </h2>
             <button v-if="has('crm.account.update')" type="button" class="hub-text-link" @click="emit('edit-account')">
               {{ businessProfile ? 'Editar cuenta' : 'Completar cuenta' }}
@@ -524,7 +524,7 @@ async function saveRoute() {
           <p v-if="businessProfileError" role="alert" class="text-xs text-amber-600">{{ businessProfileError }}</p>
           <p v-else-if="!businessProfile" class="hub-empty">Añadí teléfono, correo, sitio web, sector, productos e instrucciones operativas para que el equipo cuente con una ficha completa.</p>
           <dl v-else class="divide-y divide-[var(--dh-border)]">
-            <div v-for="field in profileFields" :key="field.key" class="hub-kv">
+            <div v-for="field in visibleProfileFields" :key="field.key" class="hub-kv">
               <dt>{{ field.label }}</dt>
               <dd>{{ text(businessProfile[field.key]) }}</dd>
             </div>
@@ -977,7 +977,7 @@ async function saveRoute() {
         </div>
       </section>
     </div>
-    <DhDrawer :open="profileOpen" title="Datos empresariales y operativos" size="xl" @close="profileOpen=false">
+    <DhDrawer :open="profileOpen" title="Datos empresariales" size="xl" @close="profileOpen=false">
       <form class="space-y-4 p-2" @submit.prevent="saveProfile">
         <p class="text-xs text-[var(--dh-text-muted)]">Información corporativa del cliente. Los contactos personales, direcciones, crédito y rutas se administran como registros separados.</p>
         <fieldset v-for="group in profileGroups" :key="group.label" class="rounded-lg border border-[var(--dh-border)] p-4">
