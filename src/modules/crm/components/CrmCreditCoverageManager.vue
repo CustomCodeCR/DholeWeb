@@ -201,8 +201,16 @@ async function resolveCredit(approve: boolean) {
   finally { busy.value = false }
 }
 async function proposeNew() {
-  if (!canManage.value || profile.value || busy.value) return
+  if (busy.value) return
   proposalError.value = ''
+  if (!canManage.value) {
+    proposalError.value = 'Tu usuario no tiene permiso para solicitar crédito (crm.credit.manage).'
+    return
+  }
+  if (profile.value) {
+    proposalError.value = 'Esta cuenta ya tiene una propuesta pendiente o aprobada. Actualizá las condiciones existentes.'
+    return
+  }
   const limit = Number(creditLimit.value)
   const totalDays = Number(days.value)
   const monthly = Number(financing.value)
@@ -363,7 +371,7 @@ async function proposeNew() {
           @click="proposalError='';showNewProposal=true">Añadir crédito</button>
       </div>
       <form v-else class="space-y-5 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
-        data-crm-credit-proposal @submit.prevent="proposeNew">
+        novalidate data-crm-credit-proposal @submit.prevent="proposeNew">
         <header class="border-b border-[var(--dh-border)] pb-4">
           <h4 class="text-base font-extrabold">Nueva solicitud de crédito</h4>
           <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">Completá el plazo y el monto autorizado que se desea solicitar. Un responsable revisará la propuesta antes de activarla.</p>
@@ -398,7 +406,8 @@ async function proposeNew() {
           <p class="max-w-md text-xs text-[var(--dh-text-muted)]">Al guardar, la solicitud queda pendiente de aprobación.</p>
           <div class="flex gap-2">
             <button type="button" :disabled="busy" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm" @click="showNewProposal=false;proposalError=''">Cancelar</button>
-            <button type="submit" :disabled="busy" class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{{ busy ? 'Guardando solicitud…' : 'Solicitar crédito' }}</button>
+            <button type="button" :disabled="busy" data-crm-credit-submit @click.stop="proposeNew"
+              class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{{ busy ? 'Guardando solicitud…' : 'Solicitar crédito' }}</button>
           </div>
         </div>
       </form>
