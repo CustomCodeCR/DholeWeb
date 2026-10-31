@@ -3,20 +3,16 @@ import { computed, ref, watch } from 'vue'
 import { Check, ChevronDown, RotateCcw, Wallet, X } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
+import { CRM_CREDIT_COVERAGE_OPTIONS } from '../model/crmCreditCoverage'
 
 const props = defineProps<{ accountId: string; editable?: boolean }>()
 const emit = defineEmits<{ (e: 'updated'): void }>()
 const auth = useAuthStore()
 const canRead = computed(() => auth.hasScope('crm.credit.read'))
 const canManage = computed(() => props.editable && auth.hasScope('crm.credit.manage'))
-const options = [
-  { code: 'CUSTOMS_TAXES', label: 'Impuestos Aduanas' },
-  { code: 'THIRD_PARTY_PAYMENTS', label: 'Pagos a terceros' },
-  { code: 'BONDED_STORAGE', label: 'Almacenaje Fiscal' },
-  { code: 'CUSTOMS_BROKERAGE', label: 'Servicio Correduría Aduanera' },
-  { code: 'LOCAL_TRANSPORT', label: 'Transporte Local' },
-  { code: 'INTERNATIONAL_FREIGHT', label: 'Transporte Internacional de Carga' },
-] as const
+const canApprove = computed(() => auth.hasScope('crm.credit.approve'))
+const approvalReason = ref('')
+const options = CRM_CREDIT_COVERAGE_OPTIONS
 type CoverageKind = 'INCLUDED' | 'EXCLUDED'
 type CreditCoverage = CrmRow & { serviceCode?: string; coverageType?: string; description?: string; isActive?: boolean }
 const availableCodes = new Set<string>(options.map(x => x.code))
@@ -186,6 +182,21 @@ async function proposeRevision() {
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
 }
+async function resolveCredit(approve: boolean) {
+  if (!canApprove.value || !profile.value || profile.value.status !== 'PendingApproval' || busy.value) return
+  if (!approvalReason.value.trim()) { error.value = 'Indicá un motivo antes de aprobar o rechazar.'; return }
+  busy.value = true; error.value = ''; success.value = ''
+  try {
+    await crmRequest(crmPath('credit-profiles', String(profile.value.id), approve ? 'approve' : 'reject'), 'POST', {
+      expectedVersion: profile.value.rowVersion, reason: approvalReason.value.trim(),
+    })
+    approvalReason.value = ''
+    await refresh()
+    success.value = approve ? 'Crédito aprobado por el usuario autorizado.' : 'Solicitud de crédito rechazada.'
+    emit('updated')
+  } catch (cause) { error.value = crmError(cause) }
+  finally { busy.value = false }
+}
 async function proposeNew() {
   if (!canManage.value || profile.value || busy.value) return
   const limit = Number(creditLimit.value)
@@ -241,6 +252,18 @@ async function proposeNew() {
         {{ profile.creditDays }} días · {{ profile.currencyCode }} {{ profile.creditLimit }} ·
         Financiamiento mensual: {{ profile.monthlyFinancingPct }}%
       </p>
+      <div v-if="profile.status === 'PendingApproval'" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
+        <p class="text-xs font-semibold">Aprobación: únicamente usuarios autorizados con permiso <code>crm.credit.approve</code> (responsable de crédito o gerencia).</p>
+        <template v-if="canApprove">
+          <label class="block text-xs font-bold">Justificación de la decisión
+            <textarea v-model.trim="approvalReason" maxlength="1000" rows="2" class="mt-2 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-3" placeholder="Motivo obligatorio para aprobar o rechazar" />
+          </label>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" :disabled="busy || !approvalReason" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white" @click="resolveCredit(true)">Aprobar crédito</button>
+            <button type="button" :disabled="busy || !approvalReason" class="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-500" @click="resolveCredit(false)">Rechazar solicitud</button>
+          </div>
+        </template>
+      </div>
       <p v-if="!editableCoverage" class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs text-[var(--dh-text-muted)]">
         {{ profile.status === 'Approved'
           ? 'Estas son las condiciones aprobadas. Para cambiarlas se debe crear una revisión que pasará por aprobación.'
