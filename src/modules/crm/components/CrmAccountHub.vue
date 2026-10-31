@@ -9,6 +9,7 @@ import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import CrmAccountLogo from './CrmAccountLogo.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
+import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
@@ -16,7 +17,7 @@ import {
   Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet,
 } from 'lucide-vue-next'
 
-type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'quotes' | 'history' | 'agenda' | 'finance'
+type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'agenda' | 'finance'
 interface Overview {
   activities: CrmRow[]
   followups: CrmRow[]
@@ -45,6 +46,7 @@ const tabs = computed(() => [
   { key: 'summary' as const, label: locale.value === 'en' ? 'Customer' : 'Cliente', icon: UserRound },
   { key: 'profile' as const, label: locale.value === 'en' ? 'Account form' : 'Ficha cliente', icon: FileText },
   { key: 'commercial' as const, label: locale.value === 'en' ? 'Commercial analysis' : 'Análisis comercial', icon: Route },
+  { key: 'benefits' as const, label: locale.value === 'en' ? 'Preferred rates' : 'Tarifas preferenciales', icon: Wallet },
   ...(has('crm.contact.read') ? [{ key: 'contacts' as const, label: locale.value === 'en' ? 'Contacts' : 'Contactos', icon: UsersRound }] : []),
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
   { key: 'history' as const, label: locale.value === 'en' ? 'Route history' : 'Historial de rutas', icon: Route },
@@ -647,6 +649,9 @@ async function saveRoute() {
       :can-read-credit="has('crm.credit.read')" :can-read-contracts="has('crm.contract.read')"
       :can-edit-profile="has('crm.account.update')"
       @edit-profile="openProfileEditor" @open-tab="activeTab=$event" />
+
+    <CrmCommercialBenefitsManager v-else-if="activeTab === 'benefits'" id="crm-account-benefits" role="tabpanel"
+      :account-id="String(account.id)" />
 
     <section v-else-if="activeTab === 'contacts'" id="crm-account-contacts" role="tabpanel" class="hub-panel">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
