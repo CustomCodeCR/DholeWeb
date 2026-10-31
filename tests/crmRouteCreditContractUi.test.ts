@@ -40,3 +40,38 @@ test('Signed contracts upload through Storage without user-visible UUID fields',
   assert.ok(!detail.includes("t('crm.signedFileId')"))
   assert.ok(detail.includes('Guardar contrato'))
 })
+
+test('Credit submit does not rely on native form submission or hide errors', () => {
+  assert.ok(credit.includes('data-crm-credit-submit @click.stop="proposeNew"'))
+  assert.ok(credit.includes('novalidate data-crm-credit-proposal'))
+  assert.ok(credit.includes('Tu usuario no tiene permiso para solicitar crédito'))
+})
+
+test('Contract accepts drop and browse while hiding technical file identifiers', () => {
+  const dropzone = read('src/modules/crm/components/CrmContractFileDropzone.vue')
+  assert.ok(dropzone.includes('data-crm-contract-dropzone'))
+  assert.ok(dropzone.includes('@drop.prevent="onDrop"'))
+  assert.ok(dropzone.includes('@change="fromInput"'))
+  assert.ok(dropzone.includes('file.size > 25 * 1024 * 1024'))
+  assert.ok(detail.includes('<CrmContractFileDropzone v-model="signedContractFile"'))
+  assert.ok(detail.includes('selectExistingContractFile'))
+})
+
+test('Calendar validates types against Config and uses one modal title', () => {
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  assert.ok(calendar.includes('loadConfiguredActivityTypes'))
+  assert.ok(calendar.includes('CatalogItemsService.select'))
+  assert.ok(calendar.includes('configuredActivityTypes.value.some'))
+  assert.ok(calendar.includes('selectableActivityTypes'))
+  assert.ok(!calendar.includes('<h3 class="text-lg font-extrabold">Programar actividad</h3>'))
+})
+
+test('Customer sheet keeps relevant fields and removes legacy operational blocks', () => {
+  const sheet = read('src/modules/crm/components/CrmDynamicsAccountSheet.vue')
+  for (const label of ['Teléfono', 'Correo electrónico', 'Sitio web', 'Seguimiento de la cuenta']) {
+    assert.ok(sheet.includes(label))
+  }
+  for (const legacy of ['Historia de la empresa', 'Análisis operativo e instrucciones', 'Líneas de productos o mercancías', 'Estrategia comercial']) {
+    assert.ok(!sheet.includes(legacy))
+  }
+})
