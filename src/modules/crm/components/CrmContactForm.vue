@@ -6,7 +6,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import CrmReferencePicker from './CrmReferencePicker.vue'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmPhoneInput from './CrmPhoneInput.vue'
-import { crmError, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
+import { crmError, crmGet, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
 
 const props = withDefaults(defineProps<{ accountId?: string }>(), { accountId: '' })
 const emit = defineEmits<{
@@ -24,6 +24,18 @@ const error = ref('')
 const saving = ref(false)
 const operationKey = ref(crmUuid())
 watch(() => props.accountId, id => { if (id) draft.accountId = id })
+// A new contact inherits its linked account's country unless a different one
+// was selected. No manual country selection is needed for Costa Rica clients.
+let countryLookup = 0
+watch(() => draft.accountId, async accountId => {
+  const generation = ++countryLookup
+  if (!accountId) return
+  try {
+    const account = await crmGet('accounts', accountId)
+    if (generation === countryLookup && !draft.countryId)
+      draft.countryId = String(account.countryId ?? '')
+  } catch { /* Keep country editable when the account cannot be read. */ }
+}, { immediate: true })
 const valid = computed(() => Boolean(draft.accountId && draft.firstName.trim() && draft.lastName.trim()
   && auth.hasScope('crm.contact.create')))
 
